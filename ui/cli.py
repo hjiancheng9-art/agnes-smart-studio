@@ -413,8 +413,8 @@ class AgnesCLI:
                 arg = arg.strip()
                 if cmd in ("exit", "quit", "q"):
                     break
-                elif cmd == "help":
-                    self._chat_help(session.model, session.enable_thinking, session.code_mode)
+                elif cmd in ("help", "all"):
+                    self._chat_help(session.model, session.enable_thinking, session.code_mode, show_all=(cmd == "all"))
                 elif cmd == "model":
                     self._chat_switch_model(session, arg)
                 elif cmd == "clear":
@@ -1375,9 +1375,31 @@ class AgnesCLI:
             show_info("用法: /know [methods|templates|antipatterns|domain|list]")
 
     @staticmethod
-    def _chat_help(current_model: str, thinking: bool = False, code_mode: bool = False):
+    def _chat_help(current_model: str, thinking: bool = False, code_mode: bool = False, show_all: bool = False):
         think_state = "开" if thinking else "关"
         code_state = "代码助手" if code_mode else "通用助手"
+        if show_all:
+            cmds = [
+                "/help              /all",
+                "/model light|pro   /thinking",
+                "/code              /agent",
+                "/skill list|load   /plan <renwu>",
+                "/sub <renwu>         /compress",
+                "/img <miaoshu>       /video <miaoshu>",
+                "/vision <tu> <wen>   /project new|save",
+                "/team review|debug /deploy vercel|github",
+                "/todo [path]       /commit",
+                "/changelog         /refactor <jiu> <xin>",
+                "/audit pip|npm     /rules list|create",
+                "/automate add      /provider switch",
+                "/evolve            /know methods",
+                "/tools             /self check|fix",
+                "/clear             /exit",
+            ]
+            text = "\n".join(cmds)
+            cap = "AI auto" if current_model == "agnes-2.0-flash" else "manual"
+            console.print(Panel(text, title=f"[bold cyan]29 commands[/] ({current_model} | think:{think_state} | {cap})", border_style=COLORS["primary"]))
+            return
         console.print(Panel(
             "/help              显示本帮助\n"
             "/model [light|pro] 切换模型（light=1.5多模态 / pro=2.0自动生成）\n"
