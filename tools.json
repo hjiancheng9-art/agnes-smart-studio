@@ -1,0 +1,108 @@
+{
+  "_comment": "Agnes Smart Studio 工具配置 — 智能体模式下自动加载",
+  "tools": [
+    {
+      "name": "read_file",
+      "type": "shell",
+      "description": "读取文件内容（最多5000字符）",
+      "command": "python -c \"import sys; print(open(sys.argv[1], encoding='utf-8', errors='replace').read()[:5000])\" \"{path}\"",
+      "parameters": {
+        "path": {"type": "string", "description": "文件路径", "required": true}
+      }
+    },
+    {
+      "name": "write_file",
+      "type": "shell",
+      "description": "写入文件（会覆盖已有内容）",
+      "command": "python -c \"open('{path}', 'w', encoding='utf-8').write(sys.argv[1])\" \"{content}\" && echo 已写入: {path}",
+      "parameters": {
+        "path": {"type": "string", "description": "文件路径", "required": true},
+        "content": {"type": "string", "description": "要写入的内容", "required": true}
+      }
+    },
+    {
+      "name": "search_files",
+      "type": "shell",
+      "description": "递归搜索文件内容（支持正则，只搜代码和文档文件）",
+      "command": "python -c \"import os,re; [print(f'{os.path.relpath(p,os.getcwd())}:{i+1}:{l.rstrip()}') for r,d,fs in os.walk('.') for f in fs if f.endswith(('.py','.md','.json','.js','.ts','.html','.css','.toml','.yaml','.sh','.bat')) for i,l in enumerate(open(r+'/'+f,encoding='utf-8',errors='replace')) if re.search(r'{pattern}', l)]\"",
+      "parameters": {
+        "pattern": {"type": "string", "description": "正则搜索模式", "required": true}
+      }
+    },
+    {
+      "name": "list_files",
+      "type": "shell",
+      "description": "列出目录文件",
+      "command": "dir /b \"{path}\" 2>nul || ls \"{path}\"",
+      "parameters": {
+        "path": {"type": "string", "description": "目录路径，默认当前目录", "required": false}
+      }
+    },
+    {
+      "name": "run_python",
+      "type": "shell",
+      "description": "执行 Python 代码并返回结果",
+      "command": "python -c \"{code}\"",
+      "parameters": {
+        "code": {"type": "string", "description": "Python 代码", "required": true}
+      }
+    },
+    {
+      "name": "run_test",
+      "type": "shell",
+      "description": "运行项目测试（pytest）",
+      "command": "python -m pytest -q --tb=short 2>&1 || echo 'pytest 未安装: pip install pytest'",
+      "parameters": {
+        "path": {"type": "string", "description": "测试路径，默认 tests/", "required": false}
+      }
+    },
+    {
+      "name": "web_fetch",
+      "type": "shell",
+      "description": "获取网页文本内容",
+      "command": "python -c \"import httpx; r=httpx.get('{url}', timeout=15, follow_redirects=True); print(r.text[:3000])\"",
+      "parameters": {
+        "url": {"type": "string", "description": "网页 URL", "required": true}
+      }
+    },
+    {
+      "name": "web_search",
+      "type": "shell",
+      "description": "搜索互联网（通过 DuckDuckGo HTML）",
+      "command": "python -c \"import httpx; from html import unescape; import re; r=httpx.get(f'https://html.duckduckgo.com/html/?q={query}', timeout=15, headers={{'User-Agent':'Mozilla/5.0'}}); [print(unescape(re.sub('<[^>]+>','',l.group(0)))) for l in re.finditer(r'<a[^>]*result__a[^>]*>.*?</a>', r.text, re.DOTALL)][:5]\"",
+      "parameters": {
+        "query": {"type": "string", "description": "搜索关键词", "required": true}
+      }
+    },
+    {
+      "name": "git_status",
+      "type": "shell",
+      "description": "查看 git 仓库状态",
+      "command": "git status --short 2>&1 || echo 非 git 仓库",
+      "parameters": {}
+    },
+    {
+      "name": "git_diff",
+      "type": "shell",
+      "description": "查看 git 未提交的更改",
+      "command": "git diff --stat 2>&1 || echo 无更改",
+      "parameters": {}
+    },
+    {
+      "name": "git_log",
+      "type": "shell",
+      "description": "查看最近 git 提交记录",
+      "command": "git log --oneline -10 2>&1 || echo 非 git 仓库",
+      "parameters": {}
+    },
+    {
+      "name": "pip_install",
+      "type": "shell",
+      "description": "安装 Python 包",
+      "command": "pip install {package} 2>&1",
+      "parameters": {
+        "package": {"type": "string", "description": "包名", "required": true}
+      }
+    }
+  ]
+}
