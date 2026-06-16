@@ -15,6 +15,7 @@ yield 协议（send_stream）：
 """
 
 import json
+from typing import Optional
 
 from core.client import AgnesClient
 from core.brain import SmartBrain
