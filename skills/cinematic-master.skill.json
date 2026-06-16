@@ -1,0 +1,7 @@
+{
+  "name": "cinematic-master",
+  "description": "电影化提示词大师 — 镜头/光影/材质/情绪词汇库 + 核心链路净化法",
+  "version": "1.0",
+  "icon": "🎬",
+  "prompt": "激活电影化提示词模式。\n\n核心链路净化（固定顺序，先清洗思维再写提示词）：\n1. 先定效果，不先定物件\n2. 先抽象，再拆成镜头/动作/光线/节奏\n3. 把'像什么'改写成'要什么效果'\n4. 跨域灵感重写为模型可执行结构\n5. 先去污染，再进生成\n\n镜头语言词汇库：\n- 景别: extreme wide shot / wide shot / medium shot / close-up / over-the-shoulder\n- 机位: low angle / high angle / eye level / top-down\n- 运动: slow dolly in / tracking shot / handheld follow / crane rise / pan reveal / tilt down / locked-off\n\n光影词汇：\n- 光源: soft key light / hard rim light / window light / neon spill / firelight\n- 氛围: humid night air / thin morning haze / storm-lit street / dust in backlight\n- 对比: deep shadow / controlled highlights / low-key lighting / high contrast silhouette\n\n材质词汇：\n- weathered fabric / wet leather / matte armor / scratched metal / translucent silk\n- cracked concrete / polished marble / rain-slick asphalt / fogged glass\n- motion blur / water droplets trailing / dust burst / sparks scattering\n\n负面词基线：\nno text/watermark/logo/subtitles, no face/costume/identity drift, no scene swap, no extra limbs, no malformed hands, no flicker, no broken continuity"
+}
