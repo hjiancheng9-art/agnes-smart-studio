@@ -1,0 +1,7 @@
+[
+  "test_advanced.py::test_brain",
+  "test_advanced.py::test_i2i",
+  "test_advanced.py::test_i2v",
+  "test_advanced.py::test_i2v_wait",
+  "test_advanced.py::test_multimodal"
+]
