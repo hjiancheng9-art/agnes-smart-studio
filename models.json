@@ -1,0 +1,31 @@
+{
+  "_comment": "多模型供应商配置 — 通过 /provider 切换",
+  "providers": {
+    "agnes": {
+      "name": "Agnes AI",
+      "base_url": "https://apihub.agnes-ai.com/v1",
+      "api_key": "",
+      "models": {
+        "light": "agnes-1.5-flash",
+        "pro": "agnes-2.0-flash"
+      }
+    },
+    "deepseek": {
+      "name": "DeepSeek",
+      "base_url": "https://api.deepseek.com/v1",
+      "api_key": "",
+      "models": {
+        "pro": "deepseek-chat"
+      }
+    },
+    "kimi": {
+      "name": "Moonshot / Kimi",
+      "base_url": "https://api.moonshot.cn/v1",
+      "api_key": "",
+      "models": {
+        "pro": "kimi-k2.6"
+      }
+    }
+  },
+  "active": "agnes"
+}
