@@ -3,6 +3,7 @@
 import os
 import re
 from datetime import datetime
+from pathlib import Path
 
 from rich.console import Console
 from rich.panel import Panel
@@ -12,9 +13,13 @@ from rich.table import Table
 from rich.live import Live
 from rich.markdown import Markdown
 
+from prompt_toolkit import PromptSession
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.styles import Style
+
 from core.client import AgnesClient, ContentPolicyError
 from core.brain import SmartBrain
-from core.config import SETTINGS, VIDEO_ASPECT_RATIOS, IMAGE_SIZES, VIDEO_DURATION_MAP, VALID_NUM_FRAMES
+from core.config import SETTINGS, VIDEO_ASPECT_RATIOS, IMAGE_SIZES, VIDEO_DURATION_MAP, VALID_NUM_FRAMES, AGNES_VISION_MODEL, AGNES_VISION_BASE_URL
 from engines.text_to_image import TextToImageEngine
 from engines.image_to_image import ImageToImageEngine
 from engines.video import VideoEngine
@@ -31,12 +36,17 @@ LOGO = """[bold cyan]
  / _ \\ _ __   ___ _ __  (_) / ___| |__   ___  ___| | __
 | | | | '_ \\ / _ \\ '_ \\ | || |   | '_ \\ / _ \\/ __| |/ /
 | |_| | | | |  __/ | | || || |___| | | |  __/ (__|   <
- \\___/|_| |_|\\___|_| |_||_| \\____|_| |_|\\___|\\___|_|\\_\\[/][dim] v1.0[/]"""
+ \\___/|_| |_|\\___|_| |_||_| \\____|_| |_|\\___|\\___|_|\\_\\[/][dim] v2.0[/]"""
 
 
 class AgnesCLI:
     def __init__(self):
         self.client = AgnesClient()
+        # 独立视觉客户端：始终指向 Agnes API，与主对话供应商解耦
+        self.vision_client = AgnesClient(
+            api_key=SETTINGS.api_key,
+            base_url=AGNES_VISION_BASE_URL,
+        )
         self.brain = SmartBrain(self.client)
         self.t2i = TextToImageEngine(self.client)
         self.i2i = ImageToImageEngine(self.client)
@@ -45,12 +55,51 @@ class AgnesCLI:
 
     def close(self):
         self.client.close()
+        self.vision_client.close()
 
     def __enter__(self):
         return self
 
     def __exit__(self, *_):
         self.close()
+
+    # ── 多行输入支持 ───────────────────────────────
+
+    _prompt_session = None  # 类级复用 prompt_toolkit session
+
+    @classmethod
+    def _prompt_user(cls, label: str) -> str:
+        """支持换行的用户输入。
+
+        Enter → 发送
+        Alt+Enter → 换行
+        Ctrl+J → 换行
+        """
+        if cls._prompt_session is None:
+            kb = KeyBindings()
+
+            @kb.add("enter")
+            def submit(event):
+                event.current_buffer.validate_and_handle()
+
+            @kb.add("escape", "enter")
+            def alt_newline(event):
+                event.current_buffer.insert_text("\n")
+
+            @kb.add("c-j")
+            def ctrl_j_newline(event):
+                event.current_buffer.insert_text("\n")
+
+            style = Style.from_dict({
+                "prompt": "cyan bold",
+            })
+            cls._prompt_session = PromptSession(
+                key_bindings=kb,
+                style=style,
+                multiline=False,
+            )
+
+        return cls._prompt_session.prompt([("class:prompt", label)])
 
     # ── 评分与记忆 ────────────────────────────────
 
@@ -383,29 +432,210 @@ class AgnesCLI:
     def _tmpl(self):
         show_templates_list()
 
+    # ── 供应商自助选择 ──────────────────────────────────
+
+    def _select_provider(self):
+        """交互式供应商选择（多 Key 时弹出菜单，单 Key 自动激活）
+
+        1. 扫描所有 providers，收集有 API Key 的
+        2. 1 个外部供应商 → 自动激活
+        3. ≥2 个外部供应商 → 弹出菜单让用户选择
+        4. 0 个外部供应商 → 使用 Agnes
+
+        Returns: (provider_id, model_id)
+        """
+        import json
+        cfg = self._load_models_config()
+        root = os.path.dirname(os.path.dirname(__file__))
+        cfg_path = os.path.join(root, "models.json")
+
+        providers = cfg.get("providers", {})
+
+        # 收集所有有 Key 的供应商
+        available = []
+        for pid, p in providers.items():
+            key_env = f"{pid.upper()}_API_KEY"
+            api_key = p.get("api_key") or os.getenv(key_env)
+            if api_key:
+                model = p.get("models", {}).get("pro", "unknown")
+                available.append((pid, p, model, api_key))
+
+        if not available:
+            # 没有任何 Key → Agnes
+            p = providers.get("agnes", providers.get(list(providers.keys())[0], {}))
+            model = p.get("models", {}).get("light", "agnes-1.5-flash")
+            show_info("无外部供应商 Key，使用默认 Agnes light")
+            return ("agnes", model)
+
+        # 只有 Agnes → 直接用
+        if len(available) == 1 and available[0][0] == "agnes":
+            pid, p, model, _ = available[0]
+            return (pid, model)
+
+        # 过滤出非 Agnes 的外部供应商
+        external = [(pid, p, m, k) for pid, p, m, k in available if pid != "agnes"]
+        has_agnes = any(pid == "agnes" for pid, _, _, _ in available)
+
+        if len(external) == 1:
+            # 只有一个外部供应商 → 自动激活
+            pid, p, model, api_key = external[0]
+            self._activate_provider(pid, p, model, api_key, cfg, cfg_path)
+            return (pid, model)
+
+        # ≥2 个外部供应商 → 弹出菜单
+        console.print()
+        table = Table(title="[bold cyan]选择主对话供应商[/]（视觉始终走 Agnes 独立通道）",
+                       border_style=COLORS["primary"])
+        table.add_column("#", style="bold cyan", width=3)
+        table.add_column("供应商", style="white", width=16)
+        table.add_column("模型", style="dim")
+        table.add_column("说明", style="dim")
+
+        choices = []
+        idx = 1
+        for pid, p, model, _ in available:
+            label = f"{idx}"
+            desc = ""
+            if pid == "deepseek":
+                desc = "百万上下文 · 代码/推理"
+            elif pid == "siliconflow":
+                desc = "Kimi-K2.6 · 备选链路"
+            elif pid == "agnes":
+                desc = "原生模型 · 轻量快速"
+            table.add_row(label, p["name"], model, desc)
+            choices.append((str(idx), pid, p, model))
+            idx += 1
+
+        console.print(table)
+        console.print()
+
+        choice = Prompt.ask(
+            "[cyan]选择供应商[/]",
+            choices=[c[0] for c in choices] + ["q"],
+            default="1",
+        )
+        if choice == "q":
+            show_info("已取消，使用默认 Agnes light")
+            p = providers.get("agnes", {})
+            return ("agnes", p.get("models", {}).get("light", "agnes-1.5-flash"))
+
+        # 找到选中的供应商
+        for num, pid, p, model in choices:
+            if num == choice:
+                if pid == "agnes":
+                    return (pid, model)
+                # 外部供应商需要激活
+                key_env = f"{pid.upper()}_API_KEY"
+                api_key = p.get("api_key") or os.getenv(key_env)
+                self._activate_provider(pid, p, model, api_key, cfg, cfg_path)
+                return (pid, model)
+
+        return ("agnes", "agnes-1.5-flash")
+
+    def _activate_provider(self, pid, p, model, api_key, cfg, cfg_path):
+        """激活指定供应商：切换 client 并写入 models.json"""
+        from core.client import AgnesClient
+        self.client.close()
+        self.client = AgnesClient(api_key=api_key, base_url=p["base_url"])
+        cfg["active"] = pid
+        try:
+            Path(cfg_path).write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            pass
+        from core.chat import MODEL_INFO
+        cap = MODEL_INFO.get(model, pid)
+        show_success(f"已激活 {p['name']} → {model}（{cap}）")
+
+    # ── 聊天辅助方法 ──────────────────────────────────────
+
+    @staticmethod
+    def _mode_hint(session: "ChatSession") -> str:
+        """返回当前模式的提示标签，显示在输入提示符后"""
+        hints = []
+        if session.code_mode:
+            hints.append("🔧代码")
+        if session.agent_mode:
+            hints.append("🤖智能体")
+        if session.enable_thinking:
+            hints.append("💭思考")
+        return f" [{', '.join(hints)}]" if hints else ""
+
+    def _read_multiline(self) -> str | None:
+        """多行输入：逐行读取直到再次输入 \"\"\"
+        
+        首行 \"\"\" 已在上层被消费，本方法读后续行直到终止符。
+        Returns: 合并后的字符串（None 表示取消）
+        """
+        console.print("[dim]已进入多行编辑，输入 \\\"\\\"\\\" 结束（Ctrl+C 取消）[/]")
+        lines = []
+        try:
+            while True:
+                line = Prompt.ask(f"[dim]  第{len(lines)+1}行[/]")
+                stripped = line.strip()
+                if stripped == '"""':
+                    break
+                lines.append(line)
+        except (EOFError, KeyboardInterrupt):
+            console.print()
+            show_info("已取消多行输入")
+            return None
+        if not lines:
+            return None
+        return "\n".join(lines)
+
     # ── 聊天模式 ──────────────────────────────────────────
 
     def _chat(self):
-        """聊天模式：多轮流式对话 + 命令式生成 + AI 自动调度（pro）"""
+        """聊天模式：多轮流式对话 + 命令式生成 + AI 自动调度（pro）
+        
+        按 models.json fallback.priority 自动探测可用供应商，
+        主对话走优先供应商，视觉始终走 Agnes 独立通道。
+        - 多行输入：首行输入 \"\"\" 进入，再输入 \"\"\" 结束
+        - 中止操作：Ctrl+C 中断当前运行
+        - 退出模式：/code、/agent 再次输入即切回，/exit 完全退出
+        """
         from core.chat import ChatSession, MODEL_ALIASES, MODEL_INFO
+
+        # 自助选择供应商（多 Key 时弹出菜单，单 Key 自动激活）
+        active_provider, active_model = self._select_provider()
 
         console.print(Panel(
             "直接输入文字即可对话（流式输出）。\n"
             "命令: /help /model /img /video /vision /clear /exit\n"
-            f"默认模型: light（{MODEL_INFO['agnes-1.5-flash']}）",
+            "技能: /skill load 视频|作图|写剧本|分镜|质检...\n"
+            "换行: Alt+Enter / Ctrl+J 换行，Enter 发送\n"
+            "图片: 直接粘贴图片路径即可自动识别\n"
+            "提示: Ctrl+C 中止运行 · Ctrl+C 再次退出\n"
+            f"默认模型: {active_model}（{MODEL_INFO.get(active_model, active_provider)}）\n"
+            "视觉通道: 独立 Agnes · 图片理解始终可用",
             title=f"[{COLORS['accent']}]💬 聊天模式[/]",
             border_style=COLORS["accent"],
         ))
 
-        session = ChatSession(self.client)
+        session = ChatSession(self.client, vision_client=self.vision_client, vision_model=AGNES_VISION_MODEL)
+        session.model = active_model
+        # 用实际模型重建系统提示词（避免 init 用默认模型构建的过期提示词）
+        session.messages[0] = {"role": "system", "content": session._build_system_prompt()}
         while True:
             try:
-                user = Prompt.ask("[cyan]你[/]").strip()
+                raw = self._prompt_user(f"你 {self._mode_hint(session)}").strip()
             except (EOFError, KeyboardInterrupt):
                 console.print()
                 break
-            if not user:
+            if not raw:
                 continue
+
+            # ── 文本 \\n → 真实换行 ──
+            if "\\n" in raw:
+                raw = raw.replace("\\n", "\n")
+
+            # ── 多行输入：\\\"\\\"\\\" 开头进入多行模式 ──
+            if raw == '"""':
+                user = self._read_multiline()
+                if user is None:
+                    continue
+            else:
+                user = raw
 
             # ── 斜杠命令（确定性，不过 LLM）──
             if user.startswith("/"):
@@ -432,15 +662,19 @@ class AgnesCLI:
                     show_success(f"深度思考已{state}启（仅 pro 模型生效）")
                 elif cmd == "code":
                     is_code = session.toggle_code_mode()
-                    state = "代码助手模式" if is_code else "普通聊天模式"
-                    show_success(f"已切换到{state}（自动开启 thinking）")
+                    if is_code:
+                        show_success("🔧 已进入代码助手模式（再输 /code 切回，Ctrl+C 中止运行）")
+                    else:
+                        show_success("已退出代码助手，回到普通聊天")
                 elif cmd == "agent":
                     is_agent = session.toggle_agent_mode()
-                    state = "智能体模式" if is_agent else "普通聊天模式"
-                    cnt = len(session.tools.tool_names)
-                    show_success(f"已切换到{state}，加载了 {cnt} 个工具")
                     if is_agent:
+                        cnt = len(session.tools.tool_names)
+                        show_success(f"🤖 已进入智能体模式，加载了 {cnt} 个工具")
                         console.print(f"  [dim]工具: {', '.join(session.tools.tool_names[:8])}[/]")
+                        console.print(f"  [dim]再输 /agent 退出 · Ctrl+C 中止运行[/]")
+                    else:
+                        show_success("已退出智能体模式，回到普通聊天")
                 elif cmd == "tools":
                     names = session.tools.tool_names
                     if names:
@@ -489,9 +723,21 @@ class AgnesCLI:
                     show_warning(f"未知命令 /{cmd}，输入 /help 查看")
                 continue
 
+            # ── 智能图片路由：检测到图片路径 → 自动走视觉通道 ──
+            img_path, clean_text = self._extract_path_and_text(user)
+            if img_path and img_path.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")):
+                self._chat_vision(session, user)
+                continue
+
                     # ── 自然语言对话（流式）──
             try:
                 self._stream_chat(session, user)
+            except KeyboardInterrupt:
+                console.print()
+                show_info("已中止 · 按 Ctrl+C 退出聊天，或继续输入")
+                # 回滚刚加进去的 user message
+                if session.messages and session.messages[-1].get("role") == "user":
+                    session.messages.pop()
             except Exception as e:
                 show_error(f"对话出错: {e}")
                 # 回滚刚加进去的 user message，避免历史污染
@@ -629,34 +875,79 @@ class AgnesCLI:
             console.print("  [dim]fix[/]    - AI 读源码分析问题")
 
     def _chat_skill(self, session: "ChatSession", arg: str):
-        """管理技能包 /skill [list|load <name>|unload|create <name> <描述>]"""
+        """管理技能包 /skill [list|load <name>|unload|create <name> <描述>]
+
+        支持中文别名，如: 视频=showrunner, 作图=comfyui-bridge, 写剧本=script-writer
+        """
         session.skills.discover()
         names = session.skills.available_names
         skills = session.skills._available
         arg = arg.strip()
 
+        # ── 中文别名映射 ──
+        SKILL_ALIASES = {
+            # Showrunner & Pipeline
+            "视频": "showrunner", "做视频": "showrunner", "拍片": "showrunner",
+            "一键视频": "showrunner", "制片": "showrunner", "showrunner": "showrunner",
+            # ComfyUI
+            "作图": "comfyui-bridge", "生图": "comfyui-bridge", "画画": "comfyui-bridge",
+            "comfyui": "comfyui-bridge", "本地生图": "comfyui-bridge", "炼丹": "comfyui-bridge",
+            # 写作
+            "写剧本": "script-writer", "剧本": "script-writer",
+            "写小说": "novel-writer", "小说": "novel-writer",
+            "写文案": "story-copywriter", "文案": "story-copywriter",
+            "漫剧": "comic-drama-writer",
+            # 视觉
+            "视觉导演": "visual-director", "分镜": "storyboard-director",
+            "运镜": "motion-director", "电影化": "cinematic-master",
+            "关键帧": "cinematic-keyframe", "动作戏": "gaming-action-engine",
+            # 工具
+            "提示词": "prompt-director", "质检": "qc-inspector",
+            "模型路由": "model-routing", "资产管理": "asset-manager",
+            "修复": "recovery-playbooks", "世界观": "world-building-engine",
+            "世界观构建": "world-building-engine",
+        }
+
+        # 解析中文别名
+        resolved = SKILL_ALIASES.get(arg) or (SKILL_ALIASES.get(arg.split()[0]) if " " in arg else None)
+
         if not arg or arg == "list":
             if not names:
                 show_info("无可用技能，用 /skill create <名称> <描述> 让 AI 创建")
                 return
+            # ── 构建反向别名映射（英文名 → 中文别名）──
+            alias_rev = {}
+            for cn, en in SKILL_ALIASES.items():
+                alias_rev.setdefault(en, []).append(cn)
             console.print(f"[bold]可用技能 ({len(names)}):[/]")
+            console.print("[dim]加载方式: /skill load <中文别名>  如: /skill load 视频[/]")
             for n in sorted(names):
                 s = skills.get(n)
                 icon = s.icon + " " if s and s.icon else ""
                 desc = s.description if s else ""
+                aliases_str = ""
+                if n in alias_rev:
+                    aliases_str = " [" + "/".join(alias_rev[n][:3]) + "]"
                 marker = " [cyan]← 当前[/]" if session.active_skill == n else ""
-                console.print(f"  {icon}[cyan]{n}[/] [dim]{desc}{marker}[/]")
+                console.print(f"  {icon}[cyan]{n}[/]{aliases_str} [dim]{desc}{marker}[/]")
 
         elif arg.startswith("load "):
             name = arg[5:].strip()
+            # ── 中文别名解析 ──
+            resolved = SKILL_ALIASES.get(name) or (SKILL_ALIASES.get(name.split()[0]) if " " in name else None)
+            if resolved:
+                name = resolved
+                show_info(f"[dim]别名映射: {arg[5:].strip()} → {name}[/]")
             if not name:
-                show_warning("用法: /skill load <名称>")
+                show_warning("用法: /skill load <名称>  (中文别名: 视频/作图/写剧本/分镜/质检...)")
                 return
             result = session.load_skill(name)
             if result:
-                show_success(f"已加载技能: {result}")
+                s = skills.get(result)
+                icon = s.icon + " " if s and s.icon else ""
+                show_success(f"已加载: {icon}{result}")
             else:
-                show_warning(f"未找到技能 '{name}'，用 /skill list 查看或 /skill create 创建")
+                show_warning(f"未找到技能 '{name}'，/skill list 查看或用中文名如: 视频 作图 写剧本")
 
         elif arg.startswith("create "):
             parts = arg[7:].strip().split(" ", 1)
@@ -1234,24 +1525,81 @@ class AgnesCLI:
     # 支持 Agnes / DeepSeek / Kimi 等任意 OpenAI 兼容 API
     # API Key 从环境变量 {PROVIDER}_API_KEY 或手动输入
 
-    def _chat_provider(self, session: "ChatSession", arg: str):
-        """切换模型供应商 (list|switch agnes/deepseek/kimi)"""
+    @staticmethod
+    def _load_models_config() -> dict:
+        """安全加载 models.json，文件缺失/空/损坏时返回默认配置"""
         import json
         root = os.path.dirname(os.path.dirname(__file__))
         cfg_path = os.path.join(root, "models.json")
-        if not os.path.exists(cfg_path):
-            show_warning("models.json 不存在")
-            return
 
-        cfg = json.loads(open(cfg_path, encoding="utf-8").read())
+        def _default_cfg():
+            return {
+                "providers": {
+                    "agnes": {"name": "Agnes AI", "base_url": "https://apihub.agnes-ai.com/v1",
+                              "api_key": "", "models": {"light": "agnes-1.5-flash", "pro": "agnes-2.0-flash"}},
+                    "deepseek": {"name": "DeepSeek V4 Pro (1M)", "base_url": "https://api.deepseek.com/v1",
+                                 "api_key": "", "models": {"pro": "deepseek-v4-pro", "light": "deepseek-v4-pro"}},
+                    "siliconflow": {"name": "SiliconFlow (Kimi-K2.6)", "base_url": "https://api.siliconflow.cn/v1",
+                                    "api_key": "", "models": {"pro": "Pro/moonshotai/Kimi-K2.6", "light": "Pro/moonshotai/Kimi-K2.6"}},
+                },
+                "active": "agnes",
+                "fallback": {"enabled": True, "priority": ["deepseek", "siliconflow"]},
+            }
+
+        if not os.path.exists(cfg_path):
+            # 新建默认文件
+            cfg = _default_cfg()
+            try:
+                Path(cfg_path).write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+            except Exception:
+                pass
+            return cfg
+
+        raw = ""
+        try:
+            raw = Path(cfg_path).read_text(encoding="utf-8")
+            if not raw.strip():
+                raise ValueError("空文件")
+            cfg = json.loads(raw)
+            # 确保必要字段存在
+            if "providers" not in cfg:
+                cfg["providers"] = _default_cfg()["providers"]
+            if "active" not in cfg:
+                cfg["active"] = "agnes"
+            return cfg
+        except (json.JSONDecodeError, ValueError) as e:
+            # 文件损坏或为空 → 重建
+            show_warning(f"models.json 损坏 ({e})，已自动重建默认配置")
+            cfg = _default_cfg()
+            try:
+                Path(cfg_path).write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+            except Exception:
+                pass
+            return cfg
+
+    def _chat_provider(self, session: "ChatSession", arg: str):
+        """切换模型供应商 (list|switch agnes/deepseek/siliconflow)"""
+        import json
+        root = os.path.dirname(os.path.dirname(__file__))
+        cfg_path = os.path.join(root, "models.json")
+        cfg = self._load_models_config()
         providers = cfg.get("providers", {})
         arg = arg.strip()
 
         if not arg or arg == "list":
             active = cfg.get("active", "agnes")
+            fallback = cfg.get("fallback", {})
+            priority = fallback.get("priority", [])
             for pid, p in providers.items():
                 marker = " [green]← 当前[/]" if pid == active else ""
-                console.print(f"  [cyan]{pid}[/] {p['name']}{marker}")
+                models = p.get("models", {})
+                model_info = ", ".join(f"{k}={v}" for k, v in models.items())
+                key_env = f"{pid.upper()}_API_KEY"
+                has_key = "有 Key" if os.getenv(key_env) else "无 Key"
+                prio_marker = f" [yellow]#{priority.index(pid)+1}优先[/]" if pid in priority else ""
+                console.print(f"  [cyan]{pid}[/] {p['name']} ({has_key}){prio_marker}{marker}\n    模型: {model_info}")
+            if priority:
+                console.print(f"  [dim]回退链: {' → '.join(priority)}[/]")
             return
 
         if arg.startswith("switch "):
@@ -1285,6 +1633,8 @@ class AgnesCLI:
                 session.model = pro_model
 
             show_success(f"已切换到 {p['name']} ({pro_model})")
+            # 刷新系统提示词，让 AI 知道当前供应商
+            session.messages[0] = {"role": "system", "content": session._build_system_prompt()}
             session.reset()
         else:
             show_info("用法: /provider [list|switch <name>]")
@@ -1400,38 +1750,42 @@ class AgnesCLI:
             cap = "AI auto" if current_model == "agnes-2.0-flash" else "manual"
             console.print(Panel(text, title=f"[bold cyan]29 commands[/] ({current_model} | think:{think_state} | {cap})", border_style=COLORS["primary"]))
             return
-        console.print(Panel(
-            "/help              显示本帮助\n"
-            "/model [light|pro] 切换模型（light=1.5多模态 / pro=2.0自动生成）\n"
-            "/code              切换代码助手模式（当前：{code_state}，自动 pro+thinking）\n"
-            "/agent             切换智能体模式（加载 tools.json 外部工具）\n"
-            "/skill [cmd]       技能包管理 (list/load/create/unload)\n"
-            "/plan <任务>        先规划再执行（自动拆解步骤）\n"
-            "/sub <任务>          启动子智能体并处理子任务\n"
-            "/compress          压缩长对话历史为摘要\n"
-            "/project [cmd]     项目管理 (new/save/load/analyze)\n"
-            "/team [type]       启动智能体团队 (review/debug/feature)\n"
-            "/deploy [target]   一键部署 (vercel/netlify/github)\n"
-            "/todo [path]       扫描项目 TODO/FIXME/HACK\n"
-            "/commit            从 git diff 自动生成 commit 消息\n"
-            "/changelog         从 git log 生成 CHANGELOG.md\n"
-            "/refactor <旧><新>  批量重命名/替换\n"
-            "/audit [pip|npm]   依赖安全审计 + 过期检测\n"
-            "/rules [cmd]       编码规范管理 (list/enable/create)\n"
-            "/automate [cmd]    自动化定时任务 (add/list/remove)\n"
-            "/provider [cmd]    切换模型供应商 (list/switch)\n"
-            "/evolve            查看 Prompt 进化状态（成功案例统计）\n"
-            "/know [cmd]        浏览内置知识库 (methods/templates/domain)\n"
-            "/tools             查看已注册的工具列表\n"
-            "/thinking          切换深度思考模式（当前：{think_state}）\n"
-            "/img <描述>        生成图片（带 Prompt 增强）\n"
-            "/video <描述>      生成视频\n"
-            "/vision <图> <问>  图片理解（light 模型）\n"
-            "/self [cmd]        自诊断 (check/files/health/fix)\n"
-            "/clear             清空对话历史\n"
-            "/exit              退出聊天\n\n"
-            f"当前模型: {current_model} | 模式: {code_state}\n"
-            f"能力: {'AI 可自动触发生成' if current_model == 'agnes-2.0-flash' else '需用 /img /video 手动生成'}",
+        console.print(Panel(f"""\
+操作提示: Ctrl+C 中止运行 · 输入 \"\"\" 进入多行编辑 · /code 或 /agent 再输一次退出
+
+/help              显示本帮助
+/model [light|pro|<id>] 切换模型（支持别名或 raw ID）
+/code              切换代码助手模式（当前：{code_state}，再次输入退出）
+/agent             切换智能体模式（加载 tools.json 外部工具，再次输入退出）
+/skill [cmd]       技能包管理 (list/load/create/unload)
+/plan <任务>        先规划再执行（自动拆解步骤）
+/sub <任务>          启动子智能体并处理子任务
+/compress          压缩长对话历史为摘要
+/project [cmd]     项目管理 (new/save/load/analyze)
+/team [type]       启动智能体团队 (review/debug/feature)
+/deploy [target]   一键部署 (vercel/netlify/github)
+/todo [path]       扫描项目 TODO/FIXME/HACK
+/commit            从 git diff 自动生成 commit 消息
+/changelog         从 git log 生成 CHANGELOG.md
+/refactor <旧><新>  批量重命名/替换
+/audit [pip|npm]   依赖安全审计 + 过期检测
+/rules [cmd]       编码规范管理 (list/enable/create)
+/automate [cmd]    自动化定时任务 (add/list/remove)
+/provider [cmd]    切换模型供应商 (list/switch)
+/evolve            查看 Prompt 进化状态（成功案例统计）
+/know [cmd]        浏览内置知识库 (methods/templates/domain)
+/tools             查看已注册的工具列表
+/thinking          切换深度思考模式（当前：{think_state}）
+/img <描述>        生成图片（带 Prompt 增强）
+/video <描述>      生成视频
+/vision <图> <问>  图片理解（始终可用，独立视觉通道）
+/self [cmd]        自诊断 (check/files/health/fix)
+/clear             清空对话历史
+/exit              退出聊天
+
+当前模型: {current_model} | 模式: {code_state}
+能力: {'AI 可自动触发生成' if current_model == 'agnes-2.0-flash' else '需用 /img /video 手动生成'} | 视觉: {'独立通道可用' if current_model != 'agnes-1.5-flash' else '主模型内置'}
+供应商: /provider switch agnes|deepseek|siliconflow""",
             title="[bold cyan]聊天命令[/]",
             border_style=COLORS["primary"],
         ))
@@ -1439,12 +1793,23 @@ class AgnesCLI:
     @staticmethod
     def _chat_switch_model(session: "ChatSession", arg: str):
         from core.chat import MODEL_ALIASES, MODEL_INFO
-        if not arg or arg not in MODEL_ALIASES:
-            show_warning(f"用法: /model light 或 /model pro")
+        if not arg:
+            show_warning(f"用法: /model light 或 /model pro 或 /model <模型ID>")
             return
-        session.model = MODEL_ALIASES[arg]
-        cap = "AI 可自动触发生图/视频" if session.supports_tools else "多模态图片理解，需 /img 手动生成"
-        show_success(f"已切换到 {MODEL_INFO[session.model]}（{cap}）")
+        # 先查别名，再查 raw ID（如 deepseek-chat、kimi-k2.6）
+        if arg in MODEL_ALIASES:
+            session.model = MODEL_ALIASES[arg]
+            if session.model in MODEL_INFO:
+                cap = MODEL_INFO[session.model]
+            else:
+                cap = f"外部模型（{'支持 tool calling' if session.supports_tools else '纯文本对话'}）"
+        else:
+            # raw model ID 直接赋值
+            session.model = arg
+            cap = f"外部模型{'（支持 tool calling + 自动生图/视频）' if session.supports_tools else '（纯文本对话，需 /img /video 手动生成）'}"
+        # 刷新系统提示词，让 AI 知道当前使用的模型
+        session.messages[0] = {"role": "system", "content": session._build_system_prompt()}
+        show_success(f"已切换到 {session.model} — {cap}")
 
     def _chat_generate(self, session: "ChatSession", kind: str, prompt: str):
         """命令式生成：增强 + 引擎，支持自动检测图片路径做图生图/图生视频"""
@@ -1518,10 +1883,7 @@ class AgnesCLI:
             show_error(str(e))
 
     def _chat_vision(self, session: "ChatSession", arg: str):
-        """图片理解：light 模型多模态"""
-        if session.model != "agnes-1.5-flash":
-            show_warning("/vision 仅在 light 模型可用，输入 /model light 切换")
-            return
+        """图片理解：始终使用独立视觉客户端（Agnes light），与主模型供应商解耦"""
         path, question = self._extract_path_and_text(arg)
         img_exts = (".png", ".jpg", ".jpeg", ".webp", ".gif")
         if not path.lower().endswith(img_exts) and not path.startswith(("http://", "https://")):
@@ -1532,17 +1894,29 @@ class AgnesCLI:
         try:
             url = image_input.load_image_as_url_or_data(path)
             show_info("理解图片中...")
-            content = session.brain.understand_image(question, url)
-            console.print(Panel(Markdown(content), title=f"[{COLORS['success']}]图片理解[/]",
-                                border_style=COLORS["success"]))
-            # 记入会话历史（便于追问）
-            session.messages.append({"role": "user", "content": f"[图片理解] {question}"})
-            session.messages.append({"role": "assistant", "content": content})
+            # 直接使用独立视觉客户端，不依赖 brain（brain 绑定主 client）
+            r = session.vision_client.chat_multimodal(
+                text=question, image_url=url,
+                model=session.vision_model,
+                temperature=0.3, max_tokens=1024,
+            )
+            content = r["choices"][0]["message"]["content"] or ""
+        except (KeyError, IndexError):
+            content = "(多模态返回格式异常)"
         except Exception as e:
             show_error(str(e))
+            return
+        console.print(Panel(Markdown(content), title=f"[{COLORS['success']}]图片理解[/]",
+                            border_style=COLORS["success"]))
+        # 记入会话历史（便于追问）
+        session.messages.append({"role": "user", "content": f"[图片理解] {question}"})
+        session.messages.append({"role": "assistant", "content": content})
 
     def _stream_chat(self, session: "ChatSession", user: str):
-        """流式渲染自然语言对话，处理 tool 调度的副作用透出"""
+        """流式渲染自然语言对话，处理 tool 调度的副作用透出
+        
+        Ctrl+C 中断当前流式输出，回滚不完整的 assistant 消息后重新传播。
+        """
         live = Live(Markdown(""), console=console, refresh_per_second=12,
                     vertical_overflow="visible")
         live.start()
@@ -1577,6 +1951,14 @@ class AgnesCLI:
                     live = Live(Markdown(buf), console=console, refresh_per_second=12,
                                 vertical_overflow="visible")
                     live.start()
+        except KeyboardInterrupt:
+            live.stop()
+            console.print()
+            show_info("⏹ 已中断当前输出")
+            # 回滚不完整的 assistant 消息，避免历史污染
+            if session.messages and session.messages[-1].get("role") == "assistant":
+                session.messages.pop()
+            raise  # 传播到 _chat() 外层继续交互
         finally:
             live.stop()
 

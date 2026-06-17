@@ -30,7 +30,7 @@ BANNER = f"""
  / _ \\ _ __   ___ _ __  (_) / ___| |__   ___  ___| | __
 | | | | '_ \\ / _ \\ '_ \\ | || |   | '_ \\ / _ \\/ __| |/ /
 | |_| | | | |  __/ | | || || |___| | | |  __/ (__|   <
- \\___/|_| |_|\\___|_| |_||_| \\____|_| |_|\\___|\\___|_|\\_\\{C_RESET}{C_DIM} v1.0{C_RESET}
+ \\___/|_| |_|\\___|_| |_||_| \\____|_| |_|\\___|\\___|_|\\_\\{C_RESET}{C_DIM} v2.0{C_RESET}
 """
 
 
@@ -150,7 +150,7 @@ def check_output_dir():
 
 MODES = {
     "1": ("🖥️  交互菜单",     "文生图/图生图/视频/历史/模板"),
-    "2": ("💬  聊天+智能体",  "24个命令：/code编程 /agent插件 /plan计划 /team团队 /deploy部署"),
+    "2": ("💬  聊天+智能体",  "36技能 + Alt+Enter换行 + 一键制片/作图/炼丹"),
     "3": ("⚡  快速生成",     "输入描述 → 选类型 → 选视频时长 → 一键生成"),
     "4": ("🖼️  图生图",      "图片编辑/风格迁移 → 进入交互菜单操作"),
     "5": ("🎬  图生视频",    "图片→视频，可选3s~18s时长"),
@@ -277,8 +277,9 @@ def main():
         # ── 模式 2: 聊天+智能体 ──
         if choice == "2":
             print(f"\n  {C_DIM}正在启动聊天+智能体模式...{C_RESET}")
-            print(f"  {C_DIM}常用: /code编程 /agent工具 /plan计划 /team团队 /deploy部署{C_RESET}")
-            print(f"  {C_DIM}更多: /help 查看全部 24 个命令{C_RESET}")
+            print(f"  {C_CYAN}技能: /skill load 视频|作图|写剧本|分镜|炼丹...{C_RESET}")
+            print(f"  {C_CYAN}换行: Alt+Enter / Ctrl+J  ·  图片: 直接粘贴路径{C_RESET}")
+            print(f"  {C_DIM}命令: /code /agent /plan /team /deploy /provider /help{C_RESET}")
             launch(["python", "agnes_studio.py", "-c"])
             continue
 

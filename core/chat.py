@@ -18,6 +18,7 @@ import json
 from typing import Optional
 
 from core.client import AgnesClient
+from core.config import AGNES_VISION_MODEL
 from core.brain import SmartBrain
 from core.tools import get_registry, ToolRegistry, AGENT_SYSTEM_PROMPT, BUILTIN_TOOLS
 from core.skills import get_manager, SkillManager
@@ -25,15 +26,15 @@ from engines.text_to_image import TextToImageEngine
 from engines.video import VideoEngine
 
 
-CHAT_SYSTEM_PROMPT = """你是 Agnes 智能助手，基于 Agnes AI。你擅长：
+CHAT_SYSTEM_PROMPT = """你是 {provider_name} 智能助手，当前运行在 {model_name} 模型上。你擅长：
 - 日常问答、创意写作、知识解释、方案讨论
 - 当用户明确想生成图片时，调用 generate_image 工具
 - 当用户明确想生成视频/动画时，调用 generate_video 工具
 - 普通对话不要调用任何工具
 
-风格：简洁、中文优先、回答到位。不确定就问。"""
+风格：简洁、中文优先、回答到位。如果用户询问你使用的模型，直接告知当前运行的是 {model_name}。"""
 
-CODE_SYSTEM_PROMPT = """你是 Agnes 编程助手，基于 Agnes AI 2.0 Flash（256K 上下文）。
+CODE_SYSTEM_PROMPT = """你是 {provider_name} 编程助手，当前运行在 {model_name} 模型上。
 你是一位资深全栈工程师，擅长：
 - Python、JavaScript/TypeScript、Go、Rust、Java、C/C++ 等主流语言
 - Web 开发（React、Vue、Node.js、FastAPI、Django）
@@ -45,7 +46,8 @@ CODE_SYSTEM_PROMPT = """你是 Agnes 编程助手，基于 Agnes AI 2.0 Flash（
 - 代码块必须标注语言（```python、```javascript 等）
 - 复杂问题分步骤讲解：分析 → 方案 → 代码 → 说明
 - 优先给出最简实现，不过度设计
-- 如需调用图片/视频工具，明确告知用户用 /img 或 /video 命令"""
+- 如需调用图片/视频工具，明确告知用户用 /img 或 /video 命令
+- 如果用户询问你使用的模型，直接告知当前运行的是 {model_name}，由 {provider_name} 提供"""
 
 # 工具定义已迁移到 core/tools.py (BUILTIN_TOOLS)，通过 ToolRegistry 统一管理
 # 外部工具通过 tools.json 配置文件加载
@@ -60,14 +62,42 @@ MODEL_ALIASES = {
 MODEL_INFO = {
     "agnes-1.5-flash": "1.5 Flash（多模态图片理解，快，无自动生成）",
     "agnes-2.0-flash": "2.0 Flash（深度思考 + AI自动生图/视频，无图片理解）",
+    "deepseek-v4-pro": "DeepSeek V4 Pro（百万上下文，代码/推理，视觉走独立通道）",
+    "Pro/moonshotai/Kimi-K2.6": "Kimi K2.6 via SiliconFlow（备选，视觉走独立通道）",
 }
+
+# 支持 tool calling 自动调度的模型集合（除 agnes-2.0 外，第三方也可支持）
+TOOL_CALLING_MODELS = {
+    "agnes-2.0-flash",
+    "deepseek-v4-pro",
+    "Pro/moonshotai/Kimi-K2.6",
+}
+
+# 模型 ID → 供应商名称映射（用于动态系统提示词）
+MODEL_PROVIDER_MAP = {
+    "agnes-1.5-flash": "Agnes AI",
+    "agnes-2.0-flash": "Agnes AI",
+    "deepseek-v4-pro": "DeepSeek V4 Pro (1M 上下文)",
+    "Pro/moonshotai/Kimi-K2.6": "Kimi K2.6 (via SiliconFlow)",
+}
+
+# tool calling 循环最大轮次（防止死循环）
+MAX_TOOL_LOOPS = 8
 
 
 class ChatSession:
-    """多轮聊天会话，维护历史 + 混合调度"""
+    """多轮聊天会话，维护历史 + 混合调度
 
-    def __init__(self, client: AgnesClient, default_model: str = "agnes-1.5-flash"):
+    vision_client: 独立视觉客户端（始终指向 Agnes API），与主对话供应商解耦。
+                   为 None 时退化为 self.client，向后兼容原有行为。
+    vision_model:  视觉理解专用模型 ID，默认 agnes-1.5-flash。
+    """
+
+    def __init__(self, client: AgnesClient, default_model: str = "agnes-1.5-flash",
+                 vision_client: Optional[AgnesClient] = None, vision_model: str = AGNES_VISION_MODEL):
         self.client = client
+        self.vision_client = vision_client or client  # 未指定时退化为主客户端（向后兼容）
+        self.vision_model = vision_model
         self.brain = SmartBrain(client)
         self.t2i = TextToImageEngine(client)
         self.vid = VideoEngine(client)
@@ -78,19 +108,22 @@ class ChatSession:
         self.tools: ToolRegistry = get_registry()
         self.skills: SkillManager = get_manager()
         self.active_skill: str = ""
-        self.messages: list[dict] = [{"role": "system", "content": CHAT_SYSTEM_PROMPT}]
+        self.messages: list[dict] = [{"role": "system", "content": self._build_system_prompt()}]
 
     @property
     def supports_tools(self) -> bool:
-        """仅 2.0-flash 支持 tool calling 自动调度"""
-        return self.model == "agnes-2.0-flash"
+        """支持 tool calling 自动调度的模型（含第三方兼容 OpenAI tools 的模型）"""
+        return self.model in TOOL_CALLING_MODELS
 
     def toggle_code_mode(self) -> bool:
-        """切换代码助手模式，返回切换后的状态"""
+        """切换代码助手模式，返回切换后的状态
+
+        不再强制绑定 agnes-2.0-flash，保留当前供应商模型。
+        视觉能力由 self.vision_client 独立处理，不受主模型影响。
+        """
         self.code_mode = not self.code_mode
-        self.model = "agnes-2.0-flash"  # 代码模式强制 pro
-        self.enable_thinking = True     # 代码模式自动开启 thinking
-        prompt = CODE_SYSTEM_PROMPT if self.code_mode else CHAT_SYSTEM_PROMPT
+        self.enable_thinking = self.code_mode  # 代码模式自动开启 thinking（供应商支持时生效）
+        prompt = self._build_system_prompt()
         self.messages[0] = {"role": "system", "content": prompt}
         self.messages = [self.messages[0]]  # 清空历史
         return self.code_mode
@@ -105,19 +138,34 @@ class ChatSession:
             self.tools.load()
             prompt = AGENT_SYSTEM_PROMPT + f"\n当前可用工具: {self.tools.tool_names}"
         else:
-            prompt = CHAT_SYSTEM_PROMPT
+            prompt = self._build_system_prompt()
         prompt = self.skills.get_system_prompt(prompt)
         self.messages[0] = {"role": "system", "content": prompt}
         self.messages = [self.messages[0]]
         return self.agent_mode
 
     def load_skill(self, name: str) -> Optional[str]:
-        """加载技能包，返回技能名称或 None"""
+        """加载技能包，返回技能名称或 None。
+
+        showrunner:  启用管道工具链（视频生产）
+        comfyui-bridge: 启用 ComfyUI 桥接工具（本地生图/生视频）
+        两者可同时加载（Showrunner 策划 + ComfyUI 执行）
+        """
         self.skills.discover()
         skill = self.skills.load(name)
         if skill:
             self.active_skill = name
             self.model = "agnes-2.0-flash"
+            self.enable_thinking = True
+
+            # ── 根据技能类型启用对应工具集 ──
+            pipeline = self.active_skill == "showrunner"
+            comfyui = self.active_skill == "comfyui-bridge"
+
+            if pipeline or comfyui:
+                self.tools = get_registry()
+                self.tools.load(pipeline=pipeline, comfyui=comfyui)
+
             # 重建 system prompt
             base = self._current_base_prompt()
             prompt = self.skills.get_system_prompt(base)
@@ -134,19 +182,31 @@ class ChatSession:
         return None
 
     def unload_skill(self):
+        """卸载当前技能。管道/ComfyUI 工具集同时清理。"""
+        was_pipeline = self.active_skill == "showrunner"
+        was_comfyui = self.active_skill == "comfyui-bridge"
         self.active_skill = ""
         self.skills.unload()
+        # 重新加载纯净工具集（只含内置 + 外部 tools.json）
+        self.tools = get_registry()
+        self.tools.load(pipeline=False, comfyui=False)
         base = self._current_base_prompt()
         self.messages[0] = {"role": "system", "content": base}
         self.messages = [self.messages[0]]
 
     def _current_base_prompt(self) -> str:
-        """获取当前模式的基础提示词"""
+        """获取当前模式的基础提示词（动态注入供应商和模型名）"""
         if self.code_mode:
-            return CODE_SYSTEM_PROMPT
+            return self._build_system_prompt()
         if self.agent_mode:
             return AGENT_SYSTEM_PROMPT + f"\n当前可用工具: {self.tools.tool_names}"
-        return CHAT_SYSTEM_PROMPT
+        return self._build_system_prompt()
+
+    def _build_system_prompt(self) -> str:
+        """构建动态系统提示词，注入当前供应商和模型名"""
+        provider = MODEL_PROVIDER_MAP.get(self.model, self.model)
+        template = CODE_SYSTEM_PROMPT if self.code_mode else CHAT_SYSTEM_PROMPT
+        return template.format(provider_name=provider, model_name=self.model)
 
     def reset(self):
         """清空对话历史（保留 system）"""
@@ -155,12 +215,12 @@ class ChatSession:
     def send_stream(self, user_text: str, image_url: str | None = None):
         """发送用户消息，流式 yield (kind, payload) 元组。
 
-        - 多模态（light + image_url）：走 chat_multimodal 整块输出（1.5 不支持流式 tool）
+        - 多模态（有 image_url）：走 vision_client 整块输出，与主模型供应商解耦
         - tool 调度（pro）：流式累积 → 检测 tool_calls → 执行 engine → 喂回 → 二次流式
         - 纯文本：流式 yield ('text', 增量)
         """
-        # ── 多模态分支：light 模型 + 图片 ──
-        if image_url and self.model == "agnes-1.5-flash":
+        # ── 多模态分支：有图片 → 走独立视觉客户端 ──
+        if image_url:
             self.messages.append({
                 "role": "user",
                 "content": [
@@ -169,9 +229,9 @@ class ChatSession:
                 ],
             })
             try:
-                r = self.client.chat_multimodal(
+                r = self.vision_client.chat_multimodal(
                     text=user_text, image_url=image_url,
-                    model=self.model, max_tokens=2048,
+                    model=self.vision_model, max_tokens=2048,
                 )
                 content = r["choices"][0]["message"]["content"] or ""
             except (KeyError, IndexError):
@@ -185,8 +245,8 @@ class ChatSession:
 
         tools = self.tools.definitions if self.supports_tools else None
 
-        # tool calling 循环（无 tool 时只跑一次）
-        while True:
+        # tool calling 循环（有上限，防止死循环）
+        for _loop in range(MAX_TOOL_LOOPS):
             buffer, tool_calls = "", []
             kwargs = {}
             if self.enable_thinking:
@@ -217,11 +277,15 @@ class ChatSession:
                         "role": "tool", "tool_call_id": tc.get("id", ""),
                         "content": tool_result,
                     })
-                continue  # 二次请求：让模型基于 tool 结果生成总结
+                continue  # 进入下一轮
 
             # 无 tool_calls：收尾，存 assistant 回复
             self.messages.append({"role": "assistant", "content": buffer})
             return
+
+        # 超出最大轮次：强制收尾
+        yield ("info", f"已达到最大工具调用轮次 ({MAX_TOOL_LOOPS})，已中止。请尝试简化你的请求。")
+        self.messages.append({"role": "assistant", "content": buffer})
 
     @staticmethod
     def _merge_tool_calls(fragments: list[dict]) -> list[dict]:

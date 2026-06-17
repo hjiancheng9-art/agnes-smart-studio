@@ -1,5 +1,4 @@
 {
-  "_comment": "多模型供应商配置 — 通过 /provider 切换",
   "providers": {
     "agnes": {
       "name": "Agnes AI",
@@ -11,21 +10,30 @@
       }
     },
     "deepseek": {
-      "name": "DeepSeek",
+      "name": "DeepSeek V4 Pro (1M)",
       "base_url": "https://api.deepseek.com/v1",
       "api_key": "",
       "models": {
-        "pro": "deepseek-chat"
+        "pro": "deepseek-v4-pro",
+        "light": "deepseek-v4-pro"
       }
     },
-    "kimi": {
-      "name": "Moonshot / Kimi",
-      "base_url": "https://api.moonshot.cn/v1",
+    "siliconflow": {
+      "name": "SiliconFlow (Kimi-K2.6)",
+      "base_url": "https://api.siliconflow.cn/v1",
       "api_key": "",
       "models": {
-        "pro": "kimi-k2.6"
+        "pro": "Pro/moonshotai/Kimi-K2.6",
+        "light": "Pro/moonshotai/Kimi-K2.6"
       }
     }
   },
-  "active": "agnes"
+  "active": "agnes",
+  "fallback": {
+    "enabled": true,
+    "priority": [
+      "deepseek",
+      "siliconflow"
+    ]
+  }
 }

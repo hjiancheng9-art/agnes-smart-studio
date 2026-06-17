@@ -52,6 +52,11 @@ MODELS = {
     },
 }
 
+# 视觉模型常量 — 始终指向 Agnes 多模态模型，与主对话供应商解耦
+# 用途：ChatSession 的 vision_client 专用，/vision 命令 + send_stream 图片路由
+AGNES_VISION_MODEL = "agnes-1.5-flash"
+AGNES_VISION_BASE_URL = "https://apihub.agnes-ai.com/v1"
+
 # 视频分辨率预设 (比例名 -> (width, height))
 VIDEO_ASPECT_RATIOS = {
     "16:9 横屏": (1280, 720),
