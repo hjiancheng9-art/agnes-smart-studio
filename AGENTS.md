@@ -21,7 +21,7 @@ Agnes Smart Studio v5.0.0 — AI-native creative + coding platform
 - Showrunner: /showrun <goal> full creative pipeline (plan->decompose->storyboard->generate->QC)
 - Marketplace: 733 skills (45 local + 688 CodeBuddy), search/install/auto-discover
 - Providers: Agnes AI / DeepSeek V4 Pro / SiliconFlow Kimi / Qwen3-Coder 30B (local CUDA)
-- 48 Tools: code editing, git, testing, browser, ComfyUI, file ops
+- 52 Tools: code editing, git, testing, browser, ComfyUI, file ops
 
 ## Rendering Contract (DNA — 输出不重复)
 - ui/render.py:StreamingRenderer 是所有流式渲染的唯一合法网关（强制契约）
@@ -37,7 +37,7 @@ Agnes Smart Studio v5.0.0 — AI-native creative + coding platform
 
 ## Important Files
 - core/commands.py: COMMANDS list (line 55), register() (line 148), auto_category() (line 134)
-- core/chat.py: ChatSession._build_system_prompt() (line 219), _current_base_prompt() (line 211)
+- core/chat.py: ChatSession._build_system_prompt() (line 224), _current_base_prompt() (line 216)
 - core/skills.py: SkillManager (line 53), get_manager() (line 280)
 - core/skill_loader.py: SKILL_DIRS (line 22), 旧技能注入系统
 - core/marketplace.py: MarketplaceClient (line 679), CodeBuddyAdapter (line 246)
@@ -55,11 +55,11 @@ Agnes Smart Studio v5.0.0 — AI-native creative + coding platform
 - 流式渲染: 必须用 ui.render.StreamingRenderer，禁止直接 import rich.live.Live（守卫测试会拦）
 
 ## Current State
-- 30 commands, 48 tools, 45 local skills, 733 marketplace skills
+- 30 commands, 52 tools, 45 local skills, 733 marketplace skills
 - Toggle-based: code_mode / agent_mode / skill (showrunner / comfyui-bridge)
 - Terminal logo displays on startup via ui/terminal_logo.py
 - llama-server with CUDA 13.3 on RTX 4060 Ti for local Qwen3-Coder 30B
-- Test baseline: 980 passed, 2 skipped
+- Test baseline: 927 passed, 2 skipped
 </INSTRUCTIONS>
 
 # currentDate
