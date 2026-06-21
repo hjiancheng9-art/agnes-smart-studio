@@ -14,16 +14,28 @@ import json
 import time
 import urllib.request
 import urllib.error
-import subprocess
-import shutil
 from pathlib import Path
-from typing import Optional
 
 # ── ComfyUI 配置 ──
 # 优先从环境变量读取，否则使用默认本地地址
 import os
 
+__all__ = [
+    'COMFYUI_BASE_URL', 'COMFYUI_CUSTOM_NODES_DIR', 'COMFYUI_EXECUTOR_MAP', 'COMFYUI_POLL_INTERVAL', 'COMFYUI_TIMEOUT', 'COMFYUI_TOOLS', 'LORA_OUTPUT_ROOT', 'OUTPUT_ROOT', 'execute_build_custom_workflow', 'execute_clear_queue', 'execute_create_custom_node', 'execute_get_node_info', 'execute_get_result', 'execute_list_models', 'execute_lora_check_status', 'execute_lora_generate_config', 'execute_lora_prepare_dataset', 'execute_preview_workflow', 'execute_status', 'execute_submit_workflow',
+]
+
 COMFYUI_BASE_URL = os.environ.get("COMFYUI_BASE_URL", "http://127.0.0.1:8188").rstrip("/")
+# SSRF 防护：自定义 ComfyUI URL 须为本地地址
+from urllib.parse import urlparse as _urlparse
+_cui_host = _urlparse(COMFYUI_BASE_URL).hostname or ""
+_CUI_ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]", "0.0.0.0"}
+if _cui_host and _cui_host not in _CUI_ALLOWED_HOSTS:
+    import logging
+    logging.getLogger("agnes.comfyui").warning(
+        "COMFYUI_BASE_URL=%s 不是本地地址，已重置为本地默认值。远程 ComfyUI 需手动允许。",
+        COMFYUI_BASE_URL
+    )
+    COMFYUI_BASE_URL = "http://127.0.0.1:8188"
 COMFYUI_TIMEOUT = int(os.environ.get("COMFYUI_TIMEOUT", "300"))  # 默认 5 分钟
 COMFYUI_POLL_INTERVAL = 2  # 轮询间隔秒数
 COMFYUI_CUSTOM_NODES_DIR = os.environ.get(
@@ -33,7 +45,6 @@ COMFYUI_CUSTOM_NODES_DIR = os.environ.get(
 
 OUTPUT_ROOT = Path(__file__).parent.parent / "output"
 OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
-
 
 # ============================================================
 #  HTTP 工具函数
@@ -52,7 +63,8 @@ def _comfyui_request(path: str, method: str = "GET", body: dict | None = None,
 
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        # timeout 参数: (connect_timeout, read_timeout) — 防止 TCP 连接 hang
+        with urllib.request.urlopen(req, timeout=(10, timeout)) as resp:  # type: ignore[arg-type]  # urllib 支持 (connect, read) 元组
             content = resp.read()
             content_type = resp.headers.get("Content-Type", "")
             if "json" in content_type:
@@ -60,9 +72,8 @@ def _comfyui_request(path: str, method: str = "GET", body: dict | None = None,
             return content
     except urllib.error.URLError as e:
         return {"error": f"ComfyUI 连接失败: {e.reason}", "available": False}
-    except Exception as e:
+    except (json.JSONDecodeError, TypeError, KeyError) as e:
         return {"error": str(e), "available": False}
-
 
 # ============================================================
 #  工具定义（OpenAI function calling 格式）
@@ -317,7 +328,6 @@ COMFYUI_TOOLS = [
     }
 ]
 
-
 # ============================================================
 #  工具执行器
 # ============================================================
@@ -351,7 +361,6 @@ def execute_status() -> str:
         "queue_pending": queue_pending,
         "installed_nodes": node_count
     }, ensure_ascii=False)
-
 
 def execute_list_models() -> str:
     """列出已安装模型"""
@@ -387,8 +396,8 @@ def execute_list_models() -> str:
 
         for cat, loaders in category_map.items():
             if node_name in loaders:
-                for param_name, param_info in input_info.items():
-                    if isinstance(param_info, (list, tuple)) and param_info:
+                for _param_name, param_info in input_info.items():
+                    if isinstance(param_info, (list, tuple)) and param_info:  # noqa: SIM102
                         # 检查是否是文件选择器
                         if len(param_info) >= 2:
                             choices = param_info[0] if isinstance(param_info[0], list) else []
@@ -402,7 +411,6 @@ def execute_list_models() -> str:
         "models": models,
         "hint": "列出的模型可在工作流中直接使用。缺失的模型需用户手动下载到 ComfyUI models 目录。"
     }, ensure_ascii=False)
-
 
 def execute_submit_workflow(workflow_json: str, wait: bool = True) -> str:
     """提交工作流并等待结果"""
@@ -449,7 +457,7 @@ def execute_submit_workflow(workflow_json: str, wait: bool = True) -> str:
 
             # 提取输出文件
             output_files = []
-            for node_id, node_output in outputs.items():
+            for _node_id, node_output in outputs.items():
                 images = node_output.get("images", []) if isinstance(node_output, dict) else []
                 for img in images:
                     fname = img.get("filename", "")
@@ -483,6 +491,22 @@ def execute_submit_workflow(workflow_json: str, wait: bool = True) -> str:
         "status": "timeout"
     }, ensure_ascii=False)
 
+def submit_comfyui_workflow(workflow: dict, workflow_type: str = "image") -> dict:
+    """提交工作流并等待结果，返回 dict（供 Showrunner 直接调用）。
+
+    Args:
+        workflow: 工作流参数 dict（prompt/input_images/width/height 等）
+        workflow_type: "image" 或 "video"，仅用于结果字段名
+    """
+    raw = execute_submit_workflow(json.dumps(workflow, ensure_ascii=False), wait=True)
+    try:
+        result = json.loads(raw)
+    except json.JSONDecodeError:
+        return {"error": "ComfyUI 返回解析失败", "raw": raw[:500]}
+    if workflow_type == "video":
+        result.setdefault("videos", result.get("images", []))
+    return result
+
 
 def execute_get_result(prompt_id: str) -> str:
     """查询执行结果"""
@@ -510,7 +534,7 @@ def execute_get_result(prompt_id: str) -> str:
     status_data = entry.get("status", {})
 
     output_files = []
-    for node_id, node_output in outputs.items():
+    for _node_id, node_output in outputs.items():
         images = node_output.get("images", []) if isinstance(node_output, dict) else []
         for img in images:
             fname = img.get("filename", "")
@@ -524,11 +548,10 @@ def execute_get_result(prompt_id: str) -> str:
 
     return json.dumps({
         "prompt_id": prompt_id,
-        "status": "completed" if not status_data.get("completed") is False else "running",
+        "status": "completed" if status_data.get("completed") is not False else "running",
         "outputs": output_files,
         "meta": status_data
     }, ensure_ascii=False)
-
 
 def execute_preview_workflow(workflow_json: str) -> str:
     """将工作流加载到 ComfyUI 画布预览"""
@@ -540,14 +563,14 @@ def execute_preview_workflow(workflow_json: str) -> str:
     # 使用 ComfyUI 的 /api/upload/image 端点来接收画布格式的工作流
     # 或发送到 Agent Bridge 的自定义端点
     try:
-        result = _comfyui_request("/api/agent-bridge/workflow", method="POST",
+        _comfyui_request("/api/agent-bridge/workflow", method="POST",
                                   body={"workflow": workflow, "action": "preview"}, timeout=10)
         return json.dumps({
             "success": True,
             "message": "工作流已发送到 ComfyUI 画布",
             "hint": "在 ComfyUI 界面中查看加载的工作流"
         }, ensure_ascii=False)
-    except Exception:
+    except (json.JSONDecodeError, TypeError, KeyError):
         # 如果不支持 bridge，返回 JSON 让用户手动加载
         return json.dumps({
             "success": False,
@@ -556,10 +579,9 @@ def execute_preview_workflow(workflow_json: str) -> str:
             "workflow_preview": json.dumps(workflow, ensure_ascii=False)[:2000]
         }, ensure_ascii=False)
 
-
 def execute_clear_queue() -> str:
     """清空 ComfyUI 队列"""
-    result = _comfyui_request("/queue", method="POST", body={"clear": True})
+    _comfyui_request("/queue", method="POST", body={"clear": True})
     queue_after = _comfyui_request("/queue")
 
     running = len(queue_after.get("queue_running", [])) if isinstance(queue_after, dict) else 0
@@ -571,7 +593,6 @@ def execute_clear_queue() -> str:
         "remaining_running": running,
         "remaining_pending": pending
     }, ensure_ascii=False)
-
 
 def execute_get_node_info(node_type: str = "", category_filter: str = "") -> str:
     """查询已安装节点的类型定义。
@@ -624,7 +645,6 @@ def execute_get_node_info(node_type: str = "", category_filter: str = "") -> str
         "categories": {k: sorted(v) for k, v in sorted(categories.items())},
         "hint": "使用 comfyui_get_node_info node_type='具体类型名' 查看节点输入输出详情"
     }, ensure_ascii=False)
-
 
 def _simplify_node_info(cls_name: str, info: dict) -> dict:
     """简化节点信息，提取输入输出关键字段"""
@@ -689,7 +709,6 @@ def _simplify_node_info(cls_name: str, info: dict) -> dict:
     ]
 
     return result
-
 
 def execute_build_custom_workflow(nodes: str, output_node_id: int = -1) -> str:
     """根据节点描述构建 ComfyUI API 格式的工作流 JSON。
@@ -769,7 +788,6 @@ def execute_build_custom_workflow(nodes: str, output_node_id: int = -1) -> str:
         "hint": f"工作流已构建(共{len(node_ids)}个节点)。用 comfyui_submit_workflow 提交执行。"
     }, ensure_ascii=False)
 
-
 def execute_create_custom_node(node_name: str, node_code: str) -> str:
     """在 ComfyUI custom_nodes 目录下创建自定义节点文件。
 
@@ -821,9 +839,8 @@ def execute_create_custom_node(node_name: str, node_code: str) -> str:
         "success": True,
         "node_name": safe_name,
         "file_path": str(node_file),
-        "hint": f"自定义节点已创建。重启 ComfyUI 后生效。"
+        "hint": "自定义节点已创建。重启 ComfyUI 后生效。"
     }, ensure_ascii=False)
-
 
 # ============================================================
 #  LoRA 训练工具执行器
@@ -831,7 +848,6 @@ def execute_create_custom_node(node_name: str, node_code: str) -> str:
 
 LORA_OUTPUT_ROOT = OUTPUT_ROOT / "lora_training"
 LORA_OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
-
 
 def execute_lora_prepare_dataset(dataset_name: str, concept_count: int = 1,
                                   concept_names: str = "", base_resolution: int = 512) -> str:
@@ -855,10 +871,7 @@ def execute_lora_prepare_dataset(dataset_name: str, concept_count: int = 1,
     ds_root = LORA_OUTPUT_ROOT / safe_name
 
     # 解析概念名称
-    if concept_names:
-        names = [n.strip() for n in concept_names.split(",") if n.strip()]
-    else:
-        names = [safe_name]
+    names = [n.strip() for n in concept_names.split(",") if n.strip()] if concept_names else [safe_name]
     concept_count = max(concept_count, len(names))
 
     created_dirs = []
@@ -912,7 +925,6 @@ def execute_lora_prepare_dataset(dataset_name: str, concept_count: int = 1,
         }
     }, ensure_ascii=False)
 
-
 def execute_lora_generate_config(dataset_name: str, base_model: str,
                                   lora_type: str = "", learning_rate: float = 0,
                                   batch_size: int = 1, max_train_steps: int = 0,
@@ -959,7 +971,7 @@ def execute_lora_generate_config(dataset_name: str, base_model: str,
 
     # 构建 dataset 配置块
     dataset_blocks = []
-    for i, cname in enumerate(concepts):
+    for _i, cname in enumerate(concepts):
         ds_block = (
             f"[[datasets.subsets]]\n"
             f"  image_dir = \"dataset/{cname}\"\n"
@@ -1059,17 +1071,16 @@ tokenizer_cache_dir = ""
             "approximate_time": f"约 {max_train_steps * 2 // 60} 分钟 (取决于 GPU)"
         },
         "run_commands": [
-            f"# 方式1: sd-scripts 命令行",
+            "# 方式1: sd-scripts 命令行",
             f"accelerate launch sd-scripts/train_network.py --config_file={config_path}",
-            f"",
-            f"# 方式2: kohya_ss GUI 导入",
+            "",
+            "# 方式2: kohya_ss GUI 导入",
             f"在 kohya_ss 的 LoRA 训练页面导入: {config_path}",
-            f"",
-            f"# 方式3: 先检查训练工具是否安装",
-            f"pip show sd-scripts  # 或 kohya_ss"
+            "",
+            "# 方式3: 先检查训练工具是否安装",
+            "pip show sd-scripts  # 或 kohya_ss"
         ]
     }, ensure_ascii=False)
-
 
 def execute_lora_check_status(dataset_name: str = "") -> str:
     """检查 LoRA 训练状态"""
@@ -1126,7 +1137,6 @@ def execute_lora_check_status(dataset_name: str = "") -> str:
         "projects": all_projects,
         "output_root": str(LORA_OUTPUT_ROOT)
     }, ensure_ascii=False)
-
 
 # ============================================================
 #  工具名称 → 执行函数 映射表

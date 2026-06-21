@@ -1,0 +1,183 @@
+"""Command registry — /help auto-generates from this; dispatcher is table-driven.
+
+Commands are defined as CommandDef dataclass instances. Each has:
+  key       — internal identifier (used in dispatcher lookup)
+  name      — slash command shown to user (/xxx)
+  args      — parameter hint shown in /help
+  desc      — one-liner description
+  category  — group for /help rendering (创意生产/对话/任务工程/诊断配置)
+  long_desc — detailed description for /all
+  aliases   — extra keys that map to same handler (e.g. ["quit", "q"] for exit)
+  handler   — method name on AgnesCLI (without "self.") or None for inline handlers
+
+To add a new command:
+  1. Add a CommandDef to COMMANDS below (or call register()).
+  2. Add the handler method _chat_xxx to ui/cli.py.
+  3. Done. The dispatcher, /help, and /all auto-update.
+
+History:
+  v1 — tuple list, no handler binding; /help only.
+  v2 — dataclass with handler_key + aliases; table-driven dispatcher replaces if-elif chain.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+__all__ = [
+    "COMMANDS",
+    "CommandDef",
+    "SKILL_ENTRIES",
+    "auto_category",
+    "build_dispatch_table",
+    "get_all",
+    "get_by_category",
+    "register",
+]
+
+
+@dataclass
+class CommandDef:
+    """Single command definition."""
+    key: str                 # internal key (matches handler method: _chat_<key>)
+    name: str                # display name (/xxx)
+    args: str                # parameter hint
+    desc: str                # one-liner
+    category: str            # group for /help
+    long_desc: str = ""      # detail for /all
+    aliases: tuple[str, ...] = ()  # extra keys → same handler (e.g. quit, q → exit)
+    handler: str | None = None    # cli method name, or None = use key
+
+
+# ── 注册表 ──────────────────────────────────────────────────
+
+COMMANDS: list[CommandDef] = [
+    # ── 创意生产 ──
+    CommandDef('showrun', '/showrun', '<目标>', 'Agnes总导演全自动创意流水线', '创意生产',
+               '全自动：理解创意→拆解资产→分镜→生成→质检→导出',
+               handler='_chat_showrun'),
+    CommandDef('video',   '/video',   '<描述>', '直接生成视频（支持图生视频）', '创意生产',
+               handler='_chat_video_inline'),
+    CommandDef('img',     '/img',     '<描述>', '生成图片（带 Prompt 增强）', '创意生产',
+               handler='_chat_img_inline'),
+    CommandDef('vision',  '/vision',  '<图> <问>', '图片理解（独立视觉通道，始终可用）', '创意生产'),
+
+    # ── 对话 ──
+    CommandDef('help',    '/help',    '',       '显示本帮助（/help /all 完整列表）', '对话',
+               aliases=('all',), handler='_chat_help_inline'),
+    CommandDef('model',   '/model',   '<别名|ID>', '切换 AI 模型 (light/pro/deepseek/kimi...)', '对话',
+               handler='_chat_switch_model'),
+    CommandDef('thinking','/thinking','',       '深度思考模式', '对话',
+               handler='_inline_thinking'),
+    CommandDef('code',    '/code',    '',       '代码助手模式（再输退出）', '对话',
+               handler='_inline_code'),
+    CommandDef('agent',   '/agent',   '',       '智能体模式（加载 tools.json 外部工具）', '对话',
+               handler='_inline_agent'),
+    CommandDef('tools',   '/tools',   '',       '查看已注册的工具列表', '对话',
+               handler='_inline_tools'),
+    CommandDef('skill',   '/skill',   '<cmd>',  '技能包管理 (list/load/unload/create)', '对话',
+               handler='_chat_skill'),
+    CommandDef('clear',   '/clear',   '',       '清空对话历史', '对话',
+               handler='_inline_clear'),
+    CommandDef('exit',    '/exit',    '',       '退出聊天', '对话',
+               aliases=('quit', 'q')),
+
+    # ── 任务工程 ──
+    CommandDef('plan',    '/plan',    '<任务>', '先规划再执行（自动拆解步骤）', '任务工程'),
+    CommandDef('sub',     '/sub',     '<任务>', '启动子智能体处理子任务', '任务工程',
+               handler='_chat_subagent'),
+    CommandDef('compress','/compress','',       '压缩长对话历史为摘要', '任务工程'),
+    CommandDef('team',    '/team',    '<类型>', '智能体团队 (review/debug/feature)', '任务工程'),
+    CommandDef('project', '/project', '<cmd>',  '项目管理 (new/save/load/analyze)', '任务工程'),
+    CommandDef('deploy',  '/deploy',  '<目标>', '一键部署 (vercel/netlify/github)', '任务工程'),
+    CommandDef('todo',    '/todo',    '[路径]', '扫描项目 TODO/FIXME/HACK', '任务工程'),
+    CommandDef('commit',  '/commit',  '',       '从 git diff 自动生成 commit 消息', '任务工程'),
+    CommandDef('changelog','/changelog','',     '从 git log 生成 CHANGELOG.md', '任务工程'),
+    CommandDef('refactor','/refactor','<旧> <新>', '批量重命名/替换', '任务工程'),
+
+    # ── 诊断配置 ──
+    CommandDef('self',    '/self',    '<cmd>',  '自诊断 (check/files/health/fix/audit)', '诊断配置',
+               handler='_self_diagnose'),
+    CommandDef('audit',   '/audit',   '<pip|npm>', '依赖安全审计 + 过期检测', '诊断配置'),
+    CommandDef('rules',   '/rules',   '<cmd>',  '编码规范管理 (list/enable/create)', '诊断配置'),
+    CommandDef('automate','/automate','<cmd>',  '自动化定时任务 (add/list/remove)', '诊断配置'),
+    CommandDef('provider','/provider','<cmd>',  '切换模型供应商 (list/switch)', '诊断配置'),
+    CommandDef('evolve',  '/evolve',  '',       '查看 Prompt 进化状态', '诊断配置'),
+    CommandDef('know',    '/know',    '<cmd>',  '浏览内置知识库 (methods/templates/domain)', '诊断配置',
+               handler='_chat_knowledge'),
+]
+
+# Special skill-load entries for /help display
+SKILL_ENTRIES = [
+    ('/skill load video-pipeline',      '输入理解→资产拆解→独立生成→分镜融合→质检→导出'),
+    ('/skill load showrunner',          '选模型-提取帧-制片'),
+    ('/skill load storyboard-director', '简报→镜头列表→图像提示→运动→音频'),
+    ('/skill load core-showrunner',     '受控生产循环·诚实阻断·失败转修复'),
+    ('/skill list',                     '查看所有可用技能 (63+)'),
+    ('/skill load <名称>',              '加载指定技能包'),
+]
+
+
+# ── 查询接口 ──────────────────────────────────────────────
+
+def get_by_category() -> dict[str, list[tuple]]:
+    """Returns {category: [(name, args, desc, long_desc), ...]}."""
+    cats: dict[str, list[tuple]] = {}
+    for cmd in COMMANDS:
+        cats.setdefault(cmd.category, []).append(
+            (cmd.name, cmd.args, cmd.desc, cmd.long_desc)
+        )
+    return cats
+
+
+def auto_category(name: str, desc: str) -> str:
+    """Guess command category from name + description keywords."""
+    text = (name + ' ' + desc).lower()
+    cats = {
+        '创意生产': ['生成','创建','制作','图片','视频','音频','画','拍','渲染','generate','create','img','video','image','render','showrun','vision'],
+        '对话': ['帮助','切换','清空','退出','思考','模式','help','model','clear','exit','mode','chat','talk'],
+        '任务工程': ['规划','任务','部署','项目','提交','日志','重命名','扫描','plan','task','deploy','project','commit','changelog','refactor','todo','sub','compress','team'],
+        '诊断配置': ['诊断','审计','检查','工具','规范','定时','供应商','进化','知识','self','audit','check','tools','rules','automate','provider','evolve','know'],
+    }
+    scores = {cat: sum(1 for kw in kws if kw in text) for cat, kws in cats.items()}
+    best = max(scores, key=lambda k: scores[k])
+    return best if scores[best] > 0 else '诊断配置'
+
+
+def register(key: str, name: str, args: str, desc: str, category: str = '',
+             long_desc: str = '', aliases: tuple[str, ...] = (), handler: str | None = None):
+    """Register or update a command. If key exists, update in-place; else append."""
+    if not category:
+        category = auto_category(name, desc)
+    new_cmd = CommandDef(key=key, name=name, args=args, desc=desc,
+                         category=category, long_desc=long_desc,
+                         aliases=aliases, handler=handler)
+    for i, cmd in enumerate(COMMANDS):
+        if cmd.key == key:
+            COMMANDS[i] = new_cmd
+            return
+    COMMANDS.append(new_cmd)
+
+
+def get_all() -> list[CommandDef]:
+    return list(COMMANDS)
+
+
+# ── Dispatcher Table ───────────────────────────────────────
+# 构建一次，返回 {cmd_key: (handler_method_name_or_None, CommandDef)}
+# cli.py 的 _chat() 用这个表替代 if-elif 长链。
+
+def build_dispatch_table() -> dict[str, tuple[str | None, CommandDef]]:
+    """Build a lookup table: cmd_key → (handler_method_name, CommandDef).
+
+    Each key from command.aliases also maps to the same entry.
+    """
+    table: dict[str, tuple[str | None, CommandDef]] = {}
+    for cmd in COMMANDS:
+        handler = cmd.handler or f"_chat_{cmd.key}"
+        entry = (handler, cmd)
+        table[cmd.key] = entry
+        for alias in cmd.aliases:
+            table[alias] = entry
+    return table

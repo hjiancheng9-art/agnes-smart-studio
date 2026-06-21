@@ -17,14 +17,19 @@
 import json
 import subprocess
 import importlib
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 
 TOOLS_CONFIG = Path(__file__).parent.parent / "tools.json"
 
 # ── 管道工具标志：由 ChatSession 在加载 showrunner 技能后设置为 True ──
 _pipeline_tools_enabled = False
+
+
+__all__ = [
+    "AGENT_SYSTEM_PROMPT", "BUILTIN_TOOLS", "COMFYUI_TOOL_DEFS", "PIPELINE_TOOL_DEFS", "TOOLS_CONFIG", "ToolRegistry", "disable_pipeline_tools", "enable_pipeline_tools", "get_registry", "reload_registry",
+]
 
 
 def enable_pipeline_tools():
@@ -355,7 +360,9 @@ AGENT_SYSTEM_PROMPT = """你是 Agnes 智能体主脑。你可以调用多种工
 2. 一次可调用多个工具，但不要过度调用
 3. 工具执行结果会返回给你，你再据此给出回答
 4. 如果工具失败，报告错误并尝试其他方案
-5. 普通对话不调用工具"""
+5. 普通对话不调用工具
+6. generate_image / generate_video 每轮最多调用 1 次，生成后必须直接总结结果，不要再调用其他工具
+7. 严禁在生成后进行对比评估并重新生成"""
 
 
 # ── 工具注册表 ──
@@ -363,10 +370,10 @@ AGENT_SYSTEM_PROMPT = """你是 Agnes 智能体主脑。你可以调用多种工
 class ToolRegistry:
     """工具注册表：加载配置、管理定义、执行调度"""
 
-    def __init__(self, config_path: Path | None = None):
+    def __init__(self, config_path: Path | None = None) -> None:
         self._config_path = config_path or TOOLS_CONFIG
         self._definitions: list[dict] = []      # OpenAI function 格式
-        self._executors: dict[str, callable] = {}  # name → 执行函数
+        self._executors: dict[str, Callable[..., str]] = {}  # name → 执行函数
 
     # ── 加载 ──
     def load(self, pipeline: bool = False, comfyui: bool = False) -> int:
@@ -405,7 +412,6 @@ class ToolRegistry:
         for tool_cfg in config.get("tools", []):
             name = tool_cfg.get("name", "")
             desc = tool_cfg.get("description", name)
-            tool_type = tool_cfg.get("type", "shell")
             params = tool_cfg.get("parameters", {})
             properties = {}
             required = []
@@ -439,15 +445,44 @@ class ToolRegistry:
         return len(self._definitions)
 
     # ── 执行器工厂 ──
-    def _make_executor(self, name: str, cfg: dict) -> callable:
+    def _make_executor(self, name: str, cfg: dict) -> Callable[..., str]:
         """根据类型创建执行函数"""
         t = cfg.get("type", "shell")
 
         def shell_executor(**kwargs):
-            cmd = cfg["command"].format(**kwargs)
-            r = subprocess.run(cmd, shell=True, capture_output=True, text=True,
-                               encoding="utf-8", errors="replace",
-                               timeout=cfg.get("timeout", 30))
+            import shlex
+            import shutil
+            import sys
+            safe_kwargs = {}
+            for k, v in kwargs.items():
+                if isinstance(v, str):
+                    safe_kwargs[k] = shlex.quote(v)
+                else:
+                    safe_kwargs[k] = v
+
+            raw_cmd = cfg.get("command", "{command}")
+            cmd = raw_cmd.format(**safe_kwargs)
+
+            # ── 沙箱验证 ──
+            try:
+                from core.sandbox import sandbox_restrict
+                cmd = sandbox_restrict(cmd)
+            except RuntimeError as e:
+                return f"[沙箱拒绝] {e}"
+            except ImportError:
+                pass
+
+            # ── 跨平台执行 ──
+            if sys.platform == "win32" and not shutil.which("bash"):
+                # Windows 无 bash：cmd /c + chcp 65001 强制 UTF-8
+                full_cmd = f'chcp 65001 >nul && {cmd}'
+                r = subprocess.run(full_cmd, shell=True, capture_output=True,
+                                   text=True, encoding="utf-8", errors="replace",
+                                   timeout=cfg.get("timeout", 30))
+            else:
+                r = subprocess.run(cmd, shell=True, capture_output=True, text=True,
+                                   encoding="utf-8", errors="replace",
+                                   timeout=cfg.get("timeout", 30))
             return r.stdout.strip() or r.stderr.strip() or f"[exit: {r.returncode}]"
 
         def http_executor(**kwargs):
@@ -461,6 +496,14 @@ class ToolRegistry:
 
         def python_executor(**kwargs):
             mod_path, func_name = cfg["function"].rsplit(".", 1)
+            # 导入白名单：仅允许 core./engines./pipeline./ui./utils. 下的模块
+            _ALLOWED_PREFIXES = ("core.", "engines.", "pipeline.", "ui.", "utils.")
+            if not any(mod_path.startswith(p) for p in _ALLOWED_PREFIXES):
+                return f"[安全拒绝] 禁止导入外部模块: {mod_path}"
+            _BLOCKED_MODULES = {"os", "subprocess", "shutil", "ctypes", "socket",
+                                "signal", "sys", "pty", "importlib", "inspect"}
+            if mod_path.split(".")[-1] in _BLOCKED_MODULES:
+                return f"[安全拒绝] 禁止导入危险模块: {mod_path}"
             mod = importlib.import_module(mod_path)
             return getattr(mod, func_name)(**kwargs)
 
@@ -468,7 +511,7 @@ class ToolRegistry:
 
     # ── 注册/注销 ──
     def register(self, name: str, description: str, parameters: dict,
-                 executor: callable, override: bool = False):
+                 executor: Callable[..., str], override: bool = False):
         """动态注册一个工具"""
         if name in self._executors and not override:
             return False
@@ -511,7 +554,7 @@ class ToolRegistry:
         try:
             result = executor(**args)
             return str(result)
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError, TypeError) as e:
             return f"[错误] 工具 '{name}' 执行失败: {e}"
 
 

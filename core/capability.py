@@ -150,15 +150,19 @@ class CapabilityRegistry:
             results["provider"] = f"active={mgr.state.active}, providers={len(mgr.providers)}"
         except (ImportError, AttributeError, OSError) as e:
             results["provider"] = f"error: {e}"
-        # Test suite status
-        # 经 run_pytest_safe 统一封装：在 pytest 内运行时自动短路，
-        # 避免自检 spawn 子 pytest 跑完整 tests/ 造成无限递归 fork。
+        # Test suite status (核心契约快检，非全量)
+        # 旧实现跑全量 tests/ + timeout=15 → 必超时 → parse 返回 (0,0)
+        # → 显示 "0 passed, 0 failed" 被误读成"没问题"，是假自检。
+        # 现改为只跑渲染契约 + chat 核心（<2s），且 parse 有点号 fallback。
         try:
             from core.pytest_runner import run_pytest_safe, parse_test_summary
-            r = run_pytest_safe(test_target="tests/", timeout=15, cwd=self.root)
+            r = run_pytest_safe(
+                test_target="tests/test_render.py tests/test_chat.py",
+                timeout=15, cwd=self.root,
+            )
             out = (r.stdout or "") + (r.stderr or "")
             passed, failed = parse_test_summary(out)
-            results["tests"] = f"{passed} passed, {failed} failed"
+            results["tests"] = f"{passed} passed, {failed} failed (render+chat 快检)"
         except (OSError, ValueError) as e:
             results["tests"] = f"error: {e}"
         # Rendering invariants (显示层"输出不重复"DNA 自检)

@@ -35,5 +35,10 @@
       "deepseek",
       "siliconflow"
     ]
+  },
+  "codebuddy": {
+    "api_key": "",
+    "base_url": "https://copilot.tencent.com",
+    "marketplace_url": "https://copilot.tencent.com/api"
   }
 }

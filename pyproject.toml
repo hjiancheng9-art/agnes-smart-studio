@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agnes-smart-studio"
-version = "2.0.0"
-description = "Agnes AI 智能工作台 — 生图/生视频/聊天/编程/智能体/部署/项目管理"
+version = "5.0.0"
+description = "Agnes AI 智能工作台 — 75+工具 · 编程/生图/视频/智能体/部署/项目管理"
 requires-python = ">=3.10"
 dependencies = [
     "httpx>=0.27",
@@ -14,6 +14,8 @@ dependencies = [
     "python-dotenv>=1.0",
     "pyyaml>=6.0",
     "prompt_toolkit>=3.0",
+    "playwright>=1.40",
+    "edge-tts>=6.1",
 ]
 authors = [{name = "Agnes Studio"}]
 readme = "README.md"
@@ -32,3 +34,27 @@ agnes-query = "agnes_studio:main_query"
 
 [project.urls]
 Homepage = "https://github.com/user/agnes-smart-studio"
+
+[tool.pytest.ini_options]
+# 只收集 tests/ 顶层单元测试（mock，不打真实 API）。
+# tests/manual/ 是手动集成脚本（打真实 API、有自己的入口），不纳入 CI 收集。
+testpaths = ["tests"]
+norecursedirs = ["tests/manual", "scripts", "output", ".codebuddy"]
+python_files = ["test_*.py"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = ["scripts/scratch", "tests/manual", "output", ".codebuddy"]
+
+[tool.ruff.lint.per-file-ignores]
+"agnes_studio.py" = ["E402"]
+"core/brain_data/__init__.py" = ["E402"]
+"core/comfyui_tools.py" = ["E402"]
+"core/web_api.py" = ["E402"]
+"tests/*.py" = ["E402"]
+
+[tool.pyright]
+# 与 ruff extend-exexclude 保持一致：临时脚本/生成产物不纳入静态分析
+exclude = ["scripts/scratch", "tests/manual", "output", ".codebuddy", "**/__pycache__"]

@@ -1,7 +1,3 @@
 {
-  "test_advanced.py::test_i2i": true,
-  "test_advanced.py::test_i2v": true,
-  "test_advanced.py::test_i2v_wait": true,
-  "test_advanced.py::test_multimodal": true,
-  "test_advanced.py::test_brain": true
+  "tests/test_recovery.py::TestUnknownScenario::test_unknown_scenario_logged": true
 }

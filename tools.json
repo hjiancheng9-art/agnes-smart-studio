@@ -3,105 +3,652 @@
   "tools": [
     {
       "name": "read_file",
-      "type": "shell",
-      "description": "读取文件内容（最多5000字符）",
-      "command": "python -c \"import sys; print(open(sys.argv[1], encoding='utf-8', errors='replace').read()[:5000])\" \"{path}\"",
+      "type": "python",
+      "description": "读取文本文件内容，返回带行号。大文件用 offset(起始行)和 limit(最大行数)分段读取。改文件前先用此工具确认内容。",
+      "function": "core.file_tools.read_file",
       "parameters": {
-        "path": {"type": "string", "description": "文件路径", "required": true}
+        "path": {
+          "type": "string",
+          "description": "文件路径",
+          "required": true
+        },
+        "offset": {
+          "type": "integer",
+          "description": "从第几行开始读（0=开头，默认0）",
+          "required": false
+        },
+        "limit": {
+          "type": "integer",
+          "description": "最多读多少行（0=全部，默认0=最多500行）",
+          "required": false
+        }
       }
     },
     {
       "name": "write_file",
-      "type": "shell",
-      "description": "写入文件（会覆盖已有内容）",
-      "command": "python -c \"open('{path}', 'w', encoding='utf-8').write(sys.argv[1])\" \"{content}\" && echo 已写入: {path}",
+      "type": "python",
+      "description": "创建新文件或完全覆盖已有文件。UTF-8 编码。参数: path=文件路径, content=完整文件内容。会覆盖整个文件，不是追加。支持任意字符。",
+      "function": "core.file_tools.write_file",
       "parameters": {
-        "path": {"type": "string", "description": "文件路径", "required": true},
-        "content": {"type": "string", "description": "要写入的内容", "required": true}
+        "path": {
+          "type": "string",
+          "description": "文件路径",
+          "required": true
+        },
+        "content": {
+          "type": "string",
+          "description": "要写入的内容",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "edit_file",
+      "type": "python",
+      "description": "替换文件中的一段文本。参数: path=文件路径, old_text=要替换的原文本（必须和文件中一字不差含缩进）, new_text=新文本。只替换第一个匹配。先用 read_file 确认原文本内容再调用此工具。",
+      "function": "core.file_tools.edit_file",
+      "parameters": {
+        "path": {
+          "type": "string",
+          "description": "文件路径",
+          "required": true
+        },
+        "old_text": {
+          "type": "string",
+          "description": "要替换的原始文本（必须精确匹配，包括缩进）",
+          "required": true
+        },
+        "new_text": {
+          "type": "string",
+          "description": "替换后的新文本",
+          "required": true
+        }
       }
     },
     {
       "name": "search_files",
-      "type": "shell",
-      "description": "递归搜索文件内容（支持正则，只搜代码和文档文件）",
-      "command": "python -c \"import os,re; [print(f'{os.path.relpath(p,os.getcwd())}:{i+1}:{l.rstrip()}') for r,d,fs in os.walk('.') for f in fs if f.endswith(('.py','.md','.json','.js','.ts','.html','.css','.toml','.yaml','.sh','.bat')) for i,l in enumerate(open(r+'/'+f,encoding='utf-8',errors='replace')) if re.search(r'{pattern}', l)]\"",
+      "type": "python",
+      "description": "在项目中搜索代码/文本（支持正则表达式）。返回格式: 文件路径:行号:匹配行。搜 .py .js .ts .md .json 等代码文件。pattern 参数接受 Python 正则语法。",
       "parameters": {
-        "pattern": {"type": "string", "description": "正则搜索模式", "required": true}
+        "pattern": {
+          "type": "string",
+          "description": "Regular expression search pattern",
+          "required": true
+        }
+      },
+      "function": "core.file_tools.search_files"
+    },
+    {
+      "name": "glob_files",
+      "type": "python",
+      "description": "按文件名模式搜索文件（支持 glob 通配符，如 **/*.py, src/**/*.ts）。返回匹配的文件路径列表。",
+      "function": "core.file_tools.glob_files",
+      "parameters": {
+        "pattern": {
+          "type": "string",
+          "description": "glob 文件名模式，如 **/*.py",
+          "required": true
+        }
       }
     },
     {
       "name": "list_files",
-      "type": "shell",
-      "description": "列出目录文件",
-      "command": "dir /b \"{path}\" 2>nul || ls \"{path}\"",
+      "type": "python",
+      "description": "列出目录下的文件和子目录（含文件大小）。可递归列出。",
       "parameters": {
-        "path": {"type": "string", "description": "目录路径，默认当前目录", "required": false}
+        "path": {
+          "type": "string",
+          "description": "Directory path (default: .)",
+          "required": false
+        }
+      },
+      "function": "core.file_tools.list_files"
+    },
+    {
+      "name": "think_deep",
+      "type": "python",
+      "description": "用本地重型模型做深度推理（代码分析/架构审查/方案设计）。需 llama-server 在 8080 端口。不调工具，纯文本推理。",
+      "function": "core.file_tools.think_deep",
+      "parameters": {
+        "prompt": {
+          "type": "string",
+          "description": "推理任务描述，越详细越好",
+          "required": true
+        },
+        "max_tokens": {
+          "type": "integer",
+          "description": "最大回复长度，默认2000",
+          "required": false
+        }
       }
     },
     {
       "name": "run_python",
-      "type": "shell",
-      "description": "执行 Python 代码并返回结果",
-      "command": "python -c \"{code}\"",
+      "type": "python",
+      "description": "执行 Python 代码并返回结果。直接进程内 exec，永不丢输出。仅用于简单代码；复杂代码先用 write_file 写 .py 文件再 run_bash 执行。",
+      "function": "core.file_tools.run_python",
       "parameters": {
-        "code": {"type": "string", "description": "Python 代码", "required": true}
+        "code": {
+          "type": "string",
+          "description": "Python 代码",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "run_bash",
+      "type": "shell",
+      "description": "执行任意 shell/bash 命令并返回输出。支持管道、重定向。用于构建、部署、系统操作等。超时30秒。⚠ 命令会经过沙箱验证。",
+      "command": "bash -c \"{command}\"",
+      "parameters": {
+        "command": {
+          "type": "string",
+          "description": "要执行的 shell 命令",
+          "required": true
+        }
       }
     },
     {
       "name": "run_test",
-      "type": "shell",
+      "type": "python",
       "description": "运行项目测试（pytest）",
-      "command": "python -m pytest -q --tb=short 2>&1 || echo 'pytest 未安装: pip install pytest'",
+      "function": "core.file_tools.run_test",
       "parameters": {
-        "path": {"type": "string", "description": "测试路径，默认 tests/", "required": false}
+        "path": {
+          "type": "string",
+          "description": "测试路径，默认 tests/",
+          "required": false
+        }
       }
     },
     {
       "name": "web_fetch",
-      "type": "shell",
-      "description": "获取网页文本内容",
-      "command": "python -c \"import httpx; r=httpx.get('{url}', timeout=15, follow_redirects=True); print(r.text[:3000])\"",
+      "type": "python",
+      "description": "获取网页文本内容（最多5000字符），支持重定向和超时。",
+      "function": "core.file_tools.web_fetch",
       "parameters": {
-        "url": {"type": "string", "description": "网页 URL", "required": true}
+        "url": {
+          "type": "string",
+          "description": "网页 URL",
+          "required": true
+        }
       }
     },
     {
       "name": "web_search",
-      "type": "shell",
-      "description": "搜索互联网（通过 DuckDuckGo HTML）",
-      "command": "python -c \"import httpx; from html import unescape; import re; r=httpx.get(f'https://html.duckduckgo.com/html/?q={query}', timeout=15, headers={{'User-Agent':'Mozilla/5.0'}}); [print(unescape(re.sub('<[^>]+>','',l.group(0)))) for l in re.finditer(r'<a[^>]*result__a[^>]*>.*?</a>', r.text, re.DOTALL)][:5]\"",
+      "type": "python",
+      "description": "搜索互联网（通过 DuckDuckGo HTML 版），返回前5条结果标题和摘要。",
+      "function": "core.file_tools.web_search",
       "parameters": {
-        "query": {"type": "string", "description": "搜索关键词", "required": true}
+        "query": {
+          "type": "string",
+          "description": "搜索关键词",
+          "required": true
+        }
       }
     },
     {
       "name": "git_status",
-      "type": "shell",
-      "description": "查看 git 仓库状态",
-      "command": "git status --short 2>&1 || echo 非 git 仓库",
+      "type": "python",
+      "description": "查看 git 仓库状态（简短格式）",
+      "function": "core.git_tools.git_status",
       "parameters": {}
     },
     {
       "name": "git_diff",
-      "type": "shell",
-      "description": "查看 git 未提交的更改",
-      "command": "git diff --stat 2>&1 || echo 无更改",
+      "type": "python",
+      "description": "查看 git 未提交的更改（统计摘要）",
+      "function": "core.git_tools.git_diff",
       "parameters": {}
     },
     {
       "name": "git_log",
-      "type": "shell",
-      "description": "查看最近 git 提交记录",
-      "command": "git log --oneline -10 2>&1 || echo 非 git 仓库",
+      "type": "python",
+      "description": "查看最近 git 提交记录（最近10条）",
+      "function": "core.git_tools.git_log",
       "parameters": {}
     },
     {
-      "name": "pip_install",
-      "type": "shell",
-      "description": "安装 Python 包",
-      "command": "pip install {package} 2>&1",
+      "name": "git_add_commit",
+      "type": "python",
+      "description": "暂存并提交所有更改到 git。需要提供提交信息。会自动 git add -A 然后提交。",
+      "function": "core.git_tools.git_add_commit",
       "parameters": {
-        "package": {"type": "string", "description": "包名", "required": true}
+        "message": {
+          "type": "string",
+          "description": "提交信息",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "pip_install",
+      "type": "python",
+      "description": "安装 Python 包",
+      "parameters": {
+        "package": {
+          "type": "string",
+          "description": "包名（空格分隔多个）",
+          "required": true
+        }
+      },
+      "function": "core.file_tools.pip_install"
+    },
+    {
+      "name": "tree_dir",
+      "type": "python",
+      "description": "以树形结构展示目录布局（最多3层深度）。快速了解项目结构。",
+      "function": "core.file_tools.tree_dir",
+      "parameters": {
+        "depth": {
+          "type": "integer",
+          "description": "目录深度，默认3",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "count_lines",
+      "type": "python",
+      "description": "统计项目代码行数，按文件类型分类。返回格式: .py XXXX lines in NN files",
+      "function": "core.file_tools.count_lines",
+      "parameters": {}
+    },
+    {
+      "name": "env_check",
+      "type": "python",
+      "description": "检查当前运行环境：Python 版本、已安装的关键包、git 状态。诊断环境问题时使用。",
+      "parameters": {},
+      "function": "core.file_tools.env_check"
+    },
+    {
+      "name": "download_file",
+      "type": "python",
+      "description": "下载文件到指定路径。支持 HTTP/HTTPS URL。适合下载图片、视频、数据集等。",
+      "function": "core.file_tools.download_file",
+      "parameters": {
+        "url": {
+          "type": "string",
+          "description": "下载 URL",
+          "required": true
+        },
+        "save_path": {
+          "type": "string",
+          "description": "保存路径",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "browser_screenshot",
+      "type": "python",
+      "description": "Take a webpage screenshot via Playwright",
+      "function": "core.codex_tools.browser_screenshot",
+      "parameters": {
+        "url": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "create_markdown",
+      "type": "python",
+      "description": "Create a markdown document",
+      "function": "core.codex_tools.create_markdown",
+      "parameters": {
+        "title": {
+          "type": "string",
+          "required": true
+        },
+        "content": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "create_html",
+      "type": "python",
+      "description": "Create an HTML page",
+      "function": "core.codex_tools.create_html",
+      "parameters": {
+        "title": {
+          "type": "string",
+          "required": true
+        },
+        "body": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "create_pdf",
+      "type": "python",
+      "description": "Create a PDF document",
+      "function": "core.codex_tools.create_pdf",
+      "parameters": {
+        "content": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "text_to_speech",
+      "type": "python",
+      "description": "Convert text to speech (MP3 via edge-tts)",
+      "function": "core.codex_tools.text_to_speech",
+      "parameters": {
+        "text": {
+          "type": "string",
+          "required": true
+        },
+        "lang": {
+          "type": "string",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "desktop_screenshot",
+      "type": "python",
+      "description": "Take a desktop screenshot",
+      "function": "core.codex_tools.desktop_screenshot",
+      "parameters": {}
+    },
+    {
+      "name": "deploy_vercel",
+      "type": "python",
+      "description": "Deploy project to Vercel",
+      "function": "core.codex_tools.deploy_vercel",
+      "parameters": {
+        "project_dir": {
+          "type": "string",
+          "required": false
+        },
+        "token": {
+          "type": "string",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "skill_search",
+      "type": "python",
+      "description": "Semantic code search (RAG)",
+      "function": "core.rag.semantic_search",
+      "parameters": {
+        "query": {
+          "type": "string",
+          "required": true
+        },
+        "top_k": {
+          "type": "integer",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "js_eval",
+      "type": "python",
+      "description": "Run JavaScript in persistent Node REPL (Codex js_repl equivalent)",
+      "function": "core.codex_engines.js_eval",
+      "parameters": {
+        "code": {
+          "type": "string",
+          "description": "JavaScript code to execute",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "mcp_connect",
+      "type": "python",
+      "description": "Connect to an MCP server",
+      "function": "core.codex_engines.mcp_connect",
+      "parameters": {
+        "server_name": {
+          "type": "string",
+          "required": true
+        },
+        "command": {
+          "type": "string",
+          "required": true
+        },
+        "args": {
+          "type": "string",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "mcp_call",
+      "type": "python",
+      "description": "Call a tool on an MCP server",
+      "function": "core.codex_engines.mcp_call",
+      "parameters": {
+        "server_name": {
+          "type": "string",
+          "required": true
+        },
+        "tool_name": {
+          "type": "string",
+          "required": true
+        },
+        "args_json": {
+          "type": "string",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "pw_navigate",
+      "type": "python",
+      "description": "Navigate browser to URL (persistent session)",
+      "function": "core.codex_engines.pw_navigate",
+      "parameters": {
+        "url": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "pw_screenshot",
+      "type": "python",
+      "description": "Screenshot current browser page",
+      "function": "core.codex_engines.pw_screenshot",
+      "parameters": {}
+    },
+    {
+      "name": "transcribe_audio",
+      "type": "python",
+      "description": "Transcribe audio file to text",
+      "function": "core.codex_engines.transcribe_audio",
+      "parameters": {
+        "audio_path": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "imagegen",
+      "type": "python",
+      "description": "Independent image generation channel",
+      "function": "core.codex_engines.imagegen",
+      "parameters": {
+        "prompt": {
+          "type": "string",
+          "required": true
+        },
+        "size": {
+          "type": "string",
+          "required": false
+        },
+        "style": {
+          "type": "string",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "comfyui_status",
+      "type": "python",
+      "description": "Check if ComfyUI server is running",
+      "function": "core.comfyui_tools.execute_status",
+      "parameters": {}
+    },
+    {
+      "name": "comfyui_list_models",
+      "type": "python",
+      "description": "List available ComfyUI models",
+      "function": "core.comfyui_tools.execute_list_models",
+      "parameters": {}
+    },
+    {
+      "name": "comfyui_submit_workflow",
+      "type": "python",
+      "description": "Submit a workflow to ComfyUI and optionally wait for result",
+      "function": "core.comfyui_tools.execute_submit_workflow",
+      "parameters": {
+        "workflow_json": {
+          "type": "string",
+          "required": true
+        },
+        "wait": {
+          "type": "boolean",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "comfyui_get_result",
+      "type": "python",
+      "description": "Get result of a ComfyUI workflow by prompt_id",
+      "function": "core.comfyui_tools.execute_get_result",
+      "parameters": {
+        "prompt_id": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "comfyui_preview_workflow",
+      "type": "python",
+      "description": "Preview a ComfyUI workflow JSON",
+      "function": "core.comfyui_tools.execute_preview_workflow",
+      "parameters": {
+        "workflow_json": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "comfyui_clear_queue",
+      "type": "python",
+      "description": "Clear the ComfyUI job queue",
+      "function": "core.comfyui_tools.execute_clear_queue",
+      "parameters": {}
+    },
+    {
+      "name": "comfyui_get_node_info",
+      "type": "python",
+      "description": "Get info about ComfyUI nodes",
+      "function": "core.comfyui_tools.execute_get_node_info",
+      "parameters": {
+        "node_type": {
+          "type": "string",
+          "required": false
+        },
+        "category_filter": {
+          "type": "string",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "comfyui_build_custom_workflow",
+      "type": "python",
+      "description": "Build a custom ComfyUI workflow from node specs",
+      "function": "core.comfyui_tools.execute_build_custom_workflow",
+      "parameters": {
+        "nodes": {
+          "type": "string",
+          "required": true
+        },
+        "output_node_id": {
+          "type": "integer",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "comfyui_create_custom_node",
+      "type": "python",
+      "description": "Create a custom ComfyUI node",
+      "function": "core.comfyui_tools.execute_create_custom_node",
+      "parameters": {
+        "node_name": {
+          "type": "string",
+          "required": true
+        },
+        "node_code": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "comfyui_lora_prepare",
+      "type": "python",
+      "description": "Prepare a LoRA training dataset",
+      "function": "core.comfyui_tools.execute_lora_prepare_dataset",
+      "parameters": {
+        "dataset_name": {
+          "type": "string",
+          "required": true
+        },
+        "concept_count": {
+          "type": "integer",
+          "required": false
+        },
+        "base_model": {
+          "type": "string",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "comfyui_lora_generate_config",
+      "type": "python",
+      "description": "Generate LoRA training config",
+      "function": "core.comfyui_tools.execute_lora_generate_config",
+      "parameters": {
+        "dataset_name": {
+          "type": "string",
+          "required": true
+        },
+        "base_model": {
+          "type": "string",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "comfyui_lora_check_status",
+      "type": "python",
+      "description": "Check LoRA training status",
+      "function": "core.comfyui_tools.execute_lora_check_status",
+      "parameters": {
+        "dataset_name": {
+          "type": "string",
+          "required": false
+        }
       }
     }
   ]

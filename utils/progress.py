@@ -1,6 +1,9 @@
 """进度追踪 - Rich进度条 + 进度防回退"""
 
-from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn, MofNCompleteColumn
+from rich.progress import Progress
+
+__all__ = ['VideoProgressTracker', 'create_progress_callback']
+
 
 
 def create_progress_callback(progress_obj: Progress, task_id):
@@ -23,8 +26,8 @@ def create_progress_callback(progress_obj: Progress, task_id):
 class VideoProgressTracker:
     """视频生成进度追踪器（独立于Rich Progress使用）"""
 
-    def __init__(self):
-        self.last_known_progress = 0
+    def __init__(self) -> None:
+        self.last_known_progress: int | float = 0
         self.current_status = "queued"
         self.history: list[dict] = []
 
@@ -32,6 +35,7 @@ class VideoProgressTracker:
         # 进度防回退
         raw = progress if isinstance(progress, (int, float)) else 0
         effective = max(self.last_known_progress, raw)
+        self.last_known_progress = effective
         self.last_known_progress = effective
         self.current_status = status
 
@@ -42,5 +46,5 @@ class VideoProgressTracker:
         })
 
     @property
-    def progress_percent(self) -> int:
+    def progress_percent(self) -> int | float:
         return min(100, self.last_known_progress)

@@ -2,13 +2,26 @@
 
 import json
 import os
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Optional
 
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
+
+__all__ = [
+    "AGNES_VISION_BASE_URL",
+    "AGNES_VISION_MODEL",
+    "IMAGE_SIZES",
+    "MODELS",
+    "OUTPUT_DIR",
+    "PROMPT_TEMPLATES",
+    "SETTINGS",
+    "Settings",
+    "VALID_NUM_FRAMES",
+    "VIDEO_ASPECT_RATIOS",
+    "VIDEO_DURATION_MAP",
+]
 
 # ── 常量 ──────────────────────────────────────────────────
 
@@ -80,7 +93,7 @@ IMAGE_SIZES = {
 }
 
 # 合法的 num_frames 值 (8n+1 且 <=441)
-VALID_NUM_FRAMES = [81, 121, 161, 201, 241, 281, 321, 361, 401, 441]
+VALID_NUM_FRAMES = [81, 121, 161, 201, 241, 281, 321, 361, 401]
 
 # 视频时长参考 (num_frames / fps)
 VIDEO_DURATION_MAP = {
@@ -169,7 +182,17 @@ class Settings:
         if os.path.exists(path):
             with open(path, encoding="utf-8") as f:
                 data = json.load(f)
-            return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+            # 合并策略：JSON 值为 None 时回退到环境变量默认值
+            # 注意：0、0.0、空字符串 "" 和 False 都是合法值，不视为未设置
+            merged = {}
+            for k in cls.__dataclass_fields__:
+                json_val = data.get(k)
+                default_val = cls.__dataclass_fields__[k].default
+                if json_val is not None:
+                    merged[k] = json_val
+                else:
+                    merged[k] = default_val
+            return cls(**merged)
         return cls()
 
 

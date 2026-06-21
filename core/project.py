@@ -17,13 +17,15 @@
     deploy_to_vercel("./project")
 """
 
+import contextlib
 import json
-import os
 import subprocess
-import re
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+
+__all__ = [
+    'PROJECTS_DIR', 'Project', 'TEAM_CONFIGS', 'deploy_to_github_pages', 'deploy_to_netlify', 'deploy_to_vercel', 'run_team',
+]
 
 # 项目数据存储根目录
 PROJECTS_DIR = Path(__file__).parent.parent / "output" / "projects"
@@ -43,7 +45,7 @@ class Project:
             history/               # 文件变更记录（每次变更一个 JSON 文件）
     """
 
-    def __init__(self, name: str, root_path: str = ""):
+    def __init__(self, name: str, root_path: str = "") -> None:
         self.name = name                                        # 项目名称
         self.root = Path(root_path) if root_path else PROJECTS_DIR / name  # 项目根目录
         self.root.mkdir(parents=True, exist_ok=True)            # 确保目录存在
@@ -89,7 +91,7 @@ class Project:
             "messages": messages,           # 完整消息列表，恢复时不丢失上下文
         }, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    def load_session(self, session_id: str) -> Optional[list[dict]]:
+    def load_session(self, session_id: str) -> list[dict] | None:
         """从文件恢复对话历史
 
         Returns:
@@ -167,10 +169,8 @@ class Project:
                 stats["files"] += 1
                 ext = f.suffix.lower()                         # 按扩展名统计语言
                 stats["languages"][ext] = stats["languages"].get(ext, 0) + 1
-                try:
-                    stats["total_lines"] += sum(1 for _ in open(f, encoding="utf-8", errors="replace"))
-                except Exception:
-                    pass  # 二进制文件跳过
+                with contextlib.suppress(OSError, UnicodeDecodeError), open(f, encoding="utf-8", errors="replace") as fh:  # 二进制文件跳过
+                    stats["total_lines"] += sum(1 for _ in fh)
         return stats
 
 
@@ -241,7 +241,7 @@ def run_team(client, team_type: str, context: str, model: str = "agnes-2.0-flash
         try:
             r = client.chat(model=model, messages=messages, max_tokens=1024)
             output = r["choices"][0]["message"]["content"] or ""
-        except Exception as e:
+        except (OSError, ValueError, RuntimeError) as e:
             output = f"[失败] {e}"  # 单个成员失败不阻断团队
         results.append({"role": agent_cfg["role"], "output": output})
 
@@ -264,13 +264,14 @@ def deploy_to_vercel(project_path: str, token: str = "") -> str:
         project_path: 项目目录路径
         token: Vercel API token（可选，不传则用已登录的 CLI）
     """
-    cmd = f"cd {project_path} && vercel --prod --yes"
+    import subprocess as _sp
+    cmd = ["vercel", "--prod", "--yes"]
     if token:
-        cmd = f"cd {project_path} && vercel --prod --yes --token {token}"
+        cmd += ["--token", token]
     try:
-        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=120)
+        r = _sp.run(cmd, cwd=project_path, capture_output=True, text=True, timeout=120)
         return r.stdout.strip() or r.stderr.strip() or "[部署完成]"
-    except Exception as e:
+    except (subprocess.SubprocessError, OSError) as e:
         return f"[部署失败] {e}"
 
 
@@ -281,13 +282,14 @@ def deploy_to_netlify(project_path: str, token: str = "") -> str:
         project_path: 项目目录路径
         token: Netlify auth token（可选）
     """
-    cmd = f"cd {project_path} && netlify deploy --prod"
+    import subprocess as _sp
+    cmd = ["netlify", "deploy", "--prod"]
     if token:
-        cmd += f" --auth {token}"
+        cmd += ["--auth", token]
     try:
-        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=120)
+        r = _sp.run(cmd, cwd=project_path, capture_output=True, text=True, timeout=120)
         return r.stdout.strip() or r.stderr.strip() or "[部署完成]"
-    except Exception as e:
+    except (subprocess.SubprocessError, OSError) as e:
         return f"[部署失败] {e}"
 
 
@@ -296,13 +298,23 @@ def deploy_to_github_pages(project_path: str) -> str:
 
     流程: 构建 → 推送到 gh-pages 分支
     """
-    cmds = [
-        f"cd {project_path}",
-        "npm run build 2>/dev/null || echo 'no build script'",           # 尝试构建
-        "npx gh-pages -d build 2>/dev/null || npx gh-pages -d dist 2>/dev/null || echo 'need gh-pages: npm i -g gh-pages'",  # 部署 build 或 dist 目录
-    ]
+    import subprocess as _sp
+    try:  # noqa: SIM105 — 构建失败容错，继续 Step 2
+        # Step 1: 尝试构建
+        _sp.run(["npm", "run", "build"], cwd=project_path,
+                capture_output=True, text=True, timeout=60)
+    except (subprocess.SubprocessError, OSError):
+        pass  # 构建失败容错，继续 Step 2
     try:
-        result = subprocess.run(" && ".join(cmds), shell=True, capture_output=True, text=True, timeout=120)
-        return result.stdout.strip() or "[部署完成]"
-    except Exception as e:
+        # Step 2: 部署 build 或 dist
+        r1 = _sp.run(["npx", "gh-pages", "-d", "build"],
+                     cwd=project_path, capture_output=True, text=True, timeout=120)
+        if r1.returncode != 0:
+            r2 = _sp.run(["npx", "gh-pages", "-d", "dist"],
+                         cwd=project_path, capture_output=True, text=True, timeout=120)
+            output = r2.stdout.strip() or r2.stderr.strip()
+        else:
+            output = r1.stdout.strip()
+        return output or "[部署完成]"
+    except (subprocess.SubprocessError, OSError) as e:
         return f"[部署失败] {e}"

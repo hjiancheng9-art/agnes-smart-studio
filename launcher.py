@@ -9,8 +9,13 @@ from pathlib import Path
 # Windows UTF-8 兼容
 if os.name == "nt":
     os.system("chcp 65001 >nul 2>&1")
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    # reconfigure 在 Python 3.7+ 的 TextIOWrapper 上存在，但 stubs 将 stdout 类型标注为 TextIO
+    _reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if _reconfigure is not None:
+        _reconfigure(encoding="utf-8", errors="replace")
+    _reconfigure_err = getattr(sys.stderr, "reconfigure", None)
+    if _reconfigure_err is not None:
+        _reconfigure_err(encoding="utf-8", errors="replace")
 
 ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT))
@@ -232,21 +237,44 @@ def launch(cmd_parts: list[str]):
 # ── 主流程 ──────────────────────────────────────────────
 
 def main():
-    print(BANNER)
+    """默认入口：环境检测后直接启动聊天模式。用 --menu 回到旧版图形菜单。"""
+    import argparse
+    ap = argparse.ArgumentParser(add_help=False)
+    ap.add_argument("--menu", action="store_true", help="显示图形菜单（旧版启动器）")
+    ap.add_argument("--no-check", action="store_true", help="跳过环境检测")
+    a, _ = ap.parse_known_args()
 
-    # 1. 环境检测
+    if a.menu:
+        _main_menu()
+        return
+
+    print(BANNER)
+    if not a.no_check:
+        print(f"{C_BOLD}  环境检测{C_RESET}")
+        print(f"  {C_DIM}{'─' * 40}{C_RESET}")
+        if not check_python():
+            input("\n按 Enter 退出...")
+            sys.exit(1)
+        check_env()
+        check_deps()
+        check_output_dir()
+    print(f"\n  {C_DIM}直接进入 Agnes Chat 模式...{C_RESET}")
+    print(f"  {C_CYAN}命令: /code /agent /plan /team /deploy /showrun /help{C_RESET}")
+    print(f"  {C_CYAN}换行: Alt+Enter / Ctrl+J  ·  图片: 直接粘贴路径{C_RESET}")
+    launch(["python", "agnes_studio.py", "-c"])
+
+
+def _main_menu():
+    """旧版图形菜单（--menu 触发）"""
+    print(BANNER)
     print(f"{C_BOLD}  环境检测{C_RESET}")
     print(f"  {C_DIM}{'─' * 40}{C_RESET}")
-
     if not check_python():
         input("\n按 Enter 退出...")
         sys.exit(1)
-
-    check_env()       # 不阻断，允许继续
-    check_deps()      # 不阻断，允许继续
+    check_env()
+    check_deps()
     check_output_dir()
-
-    # 记忆统计
     try:
         from utils import memory
         tips = memory.get_tips()
@@ -254,27 +282,18 @@ def main():
             print(f"\n  {C_DIM}💡 使用建议:{C_RESET}")
             for t in tips:
                 print(f"  {C_DIM}  {t}{C_RESET}")
-    except Exception:
+    except (ImportError, AttributeError, OSError):
         pass
-
-    # 2. 主菜单循环
+    show_menu()
     while True:
-        show_menu()
         choice = input(f"\n  {C_CYAN}请选择 (0-8):{C_RESET} ").strip()
-
-        # ── 退出 ──
         if choice == "0":
             print(f"\n  {C_GREEN}再见！{C_RESET}\n")
             break
-
-        # ── 模式 1: 交互菜单 ──
-        # 启动完整的 CLI 交互界面，包含文生图/图生图/视频/历史等全部功能
         if choice == "1":
             print(f"\n  {C_DIM}正在启动交互菜单...{C_RESET}")
             launch(["python", "agnes_studio.py"])
             continue
-
-        # ── 模式 2: 聊天+智能体 ──
         if choice == "2":
             print(f"\n  {C_DIM}正在启动聊天+智能体模式...{C_RESET}")
             print(f"  {C_CYAN}技能: /skill load 视频|作图|写剧本|分镜|炼丹...{C_RESET}")
@@ -282,9 +301,6 @@ def main():
             print(f"  {C_DIM}命令: /code /agent /plan /team /deploy /provider /help{C_RESET}")
             launch(["python", "agnes_studio.py", "-c"])
             continue
-
-        # ── 模式 3: 快速生成 ──
-        # 先选类型（图片/视频/流水线），再输入描述，视频和流水线会额外询问时长
         if choice == "3":
             print(f"\n  {C_DIM}选择生成类型:{C_RESET}")
             print(f"  {C_CYAN}1{C_RESET} 图片  {C_CYAN}2{C_RESET} 视频  {C_CYAN}3{C_RESET} 流水线")
@@ -304,18 +320,12 @@ def main():
             else:
                 print_warn("已取消（未输入描述）")
             continue
-
-        # ── 模式 4: 图生图 ──
-        # 图生图需要图片文件输入，启动交互菜单（菜单内选 #2）
         if choice == "4":
             print(f"\n  {C_YELLOW}⚠ 图生图需要传入图片文件{C_RESET}")
             print(f"  {C_DIM}进入交互菜单后选 '2-图生图'，支持拖拽图片或输入路径{C_RESET}")
             input(f"  {C_DIM}按 Enter 进入...{C_RESET}")
             launch(["python", "agnes_studio.py"])
             continue
-
-        # ── 模式 5: 图生视频 ──
-        # 图生视频同样需要图片文件，菜单内选 #4
         if choice == "5":
             print(f"\n  {C_YELLOW}⚠ 图生视频需要传入图片文件{C_RESET}")
             print(f"  {C_DIM}进入交互菜单后选 '4-图生视频'，支持拖拽图片或输入路径{C_RESET}")
@@ -323,9 +333,6 @@ def main():
             input(f"  {C_DIM}按 Enter 进入...{C_RESET}")
             launch(["python", "agnes_studio.py"])
             continue
-
-        # ── 模式 6: 查询视频 ──
-        # 输入 video_id 查询生成进度（⚠ 必须用 video_id，不要用 task_id）
         if choice == "6":
             video_id = ask_video_id()
             if video_id:
@@ -334,9 +341,6 @@ def main():
             else:
                 print_warn("已取消（未输入 video_id）")
             continue
-
-        # ── 模式 7: 一站式流水线 ──
-        # 输入描述 → 选时长 → 文本 → 图片 → 视频，全自动
         if choice == "7":
             print(f"\n  {C_DIM}一站式流水线: 文本 → AI 生图 → 图转视频{C_RESET}")
             result = ask_quick_prompt(kind="pipeline")
@@ -347,9 +351,6 @@ def main():
             else:
                 print_warn("已取消（未输入描述）")
             continue
-
-        # ── 模式 8: 查看 FAQ ──
-        # 用系统默认程序打开 FAQ.md
         if choice == "8":
             faq_path = ROOT / "FAQ.md"
             if faq_path.exists():
@@ -358,15 +359,15 @@ def main():
                     import os
                     os.startfile(str(faq_path))
                     print(f"  {C_GREEN}已打开 FAQ 文档{C_RESET}")
-                except Exception as e:
+                except (OSError, AttributeError) as e:
                     print(f"  {C_YELLOW}自动打开失败: {e}{C_RESET}")
                     print(f"  {C_DIM}请手动打开: {faq_path}{C_RESET}")
             else:
                 print_warn("FAQ.md 文件不存在，请检查项目目录")
             input(f"  {C_DIM}按 Enter 返回菜单...{C_RESET}")
             continue
-
         print_warn(f"无效选择 '{choice}'，请输入 0-8")
+
 
 
 if __name__ == "__main__":

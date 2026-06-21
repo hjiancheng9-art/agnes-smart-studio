@@ -6,12 +6,16 @@
 """
 
 import json
-import os
 from datetime import datetime
 from pathlib import Path
-from core.config import OUTPUT_DIR
 
-MEMORY_FILE = OUTPUT_DIR / "memory.json"
+__all__ = [
+    'MEMORY_FILE', 'SESSION_FILE', 'build_correction_context', 'build_evolution_context', 'build_test_context', 'get_all_preferences', 'get_comparison_stats', 'get_corrections', 'get_evolution_stats', 'get_preference', 'get_recent_comparisons', 'get_recent_sessions', 'get_session_context', 'get_successful_prompts', 'get_tips', 'get_tool_learnings', 'get_user_context', 'get_user_profile', 'load_memory', 'load_session', 'rate_record', 'record_comparison', 'record_correction', 'record_preference', 'record_prompt_pair', 'record_test_pattern', 'record_tip_shown', 'record_tool_learning', 'save_memory', 'save_session', 'track_content_policy_hit', 'track_generation', 'update_user_profile',
+]
+
+
+_OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
+MEMORY_FILE = _OUTPUT_DIR / "memory.json"
 
 
 def _ensure_file():
@@ -123,7 +127,7 @@ def track_generation(kind: str, prompt: str, result: dict):
     mem["stats"]["total"] = mem["stats"].get("total", 0) + 1
 
     # 按类型统计
-    type_key = kind.split("_")[0]  # text_to_image → text, image_to_video → image
+    kind.split("_")[0]  # text_to_image → text, image_to_video → image (unused, kept for doc)
     if "image" in kind:
         mem["stats"]["image"] = mem["stats"].get("image", 0) + 1
     if "video" in kind:
@@ -153,7 +157,7 @@ def _extract_keywords(prompt: str) -> list[str]:
     # 简单按空格/逗号分割取前几个词
     try:
         # 尝试用 jieba（如果安装了），否则用简单分割
-        import jieba
+        import jieba  # type: ignore[import-not-found]
         words = [w.strip() for w in jieba.cut(prompt) if len(w.strip()) > 1]
     except ImportError:
         words = [w.strip() for w in prompt.replace("，", ",").replace("、", " ").split()
@@ -265,3 +269,416 @@ def get_evolution_stats() -> dict:
         "image": len(evo.get("image", [])),
         "video": len(evo.get("video", [])),
     }
+
+
+# ════════════════════════════════════════════════
+#  A-B 对比测试记录 — 桥接图像对比引擎与进化系统
+# ════════════════════════════════════════════════
+
+def record_comparison(goal: str, image_paths: list[str], labels: list[str],
+                      winner: str, scores: dict | None = None,
+                      reason: str = "", prompts: list[str] | None = None) -> dict:
+    """记录一次 A-B 对比测试结果，并把胜者的提示词（如有）回灌给进化系统。
+
+    与 record_prompt_pair 不同：本函数接受"多图竞争 + 裁判判决"的结构化结果，
+    自动把 winner 对应的高质量样本喂给 prompt_evolution，让进化系统积累
+    真正"经过对比验证"的优质案例，而不是被动等待用户手工打分。
+
+    Args:
+        goal: 评审目标（如"哪个更符合提示词"）
+        image_paths: 参与对比的图片路径列表
+        labels: 与 image_paths 等长的标签（A/B/C/D 或自定义）
+        winner: 胜者标签（必须在 labels 中）
+        scores: {"A": {"total": 43, ...}, "B": {...}} 可选
+        reason: 裁判理由，可选
+        prompts: 各图对应提示词列表，可选（用于回灌进化系统）
+
+    Returns:
+        记录条目 dict（同时已写入 memory.json）
+    """
+    mem = load_memory()
+    mem.setdefault("comparisons", [])
+
+    # 安全索引：winner 标签 → 路径/prompt 索引
+    winner_idx = labels.index(winner) if winner in labels else 0
+    winner_idx = max(0, min(winner_idx, len(image_paths) - 1))
+
+    entry = {
+        "goal": (goal or "")[:200],
+        "image_paths": [str(p) for p in image_paths][:4],
+        "labels": list(labels)[:4],
+        "winner": winner,
+        "winner_path": str(image_paths[winner_idx]) if winner_idx < len(image_paths) else "",
+        "scores": scores or {},
+        "reason": (reason or "")[:300],
+        "at": datetime.now().isoformat()[:19],
+    }
+    mem["comparisons"].insert(0, entry)
+    # 最多保留 100 次对比记录
+    mem["comparisons"] = mem["comparisons"][:100]
+    save_memory(mem)
+
+    # ── 回灌进化系统：把胜者提示词作为高质量样本 ──
+    # 进化系统原本只能靠用户手动评分被动积累；这里把"对比胜出"视为
+    # 一种隐式 5★ 反馈，主动喂给 prompt_evolution.image
+    if prompts and winner_idx < len(prompts):
+        winner_prompt = prompts[winner_idx]
+        if winner_prompt:
+            try:  # noqa: SIM105 — 回灌失败不影响主流程
+                # 视为满分样本（对比胜出 ≈ 5/5）
+                record_prompt_pair(
+                    user_prompt=winner_prompt,
+                    enhanced_prompt=winner_prompt,  # 对比场景没有"原始 vs 增强"
+                    kind="image", rating=5,
+                )
+            except (OSError, ValueError, TypeError, KeyError):
+                pass  # 回灌失败不影响主流程
+
+    return entry
+
+
+def get_recent_comparisons(limit: int = 10) -> list[dict]:
+    """获取最近 N 次对比记录（供 /compare 历史查看）"""
+    mem = load_memory()
+    return mem.get("comparisons", [])[:limit]
+
+
+def get_comparison_stats() -> dict:
+    """对比测试统计"""
+    mem = load_memory()
+    comps = mem.get("comparisons", [])
+    return {
+        "total": len(comps),
+        "with_winner": sum(1 for c in comps if c.get("winner")),
+    }
+
+
+# ════════════════════════════════════════════════
+#  Cross-Session Conversation Memory
+# ════════════════════════════════════════════════
+
+SESSION_FILE = _OUTPUT_DIR / "sessions.json"
+
+
+def _ensure_session_file():
+    if not SESSION_FILE.exists():
+        SESSION_FILE.parent.mkdir(parents=True, exist_ok=True)
+        SESSION_FILE.write_text(json.dumps({
+            "version": 1,
+            "sessions": {},
+            "user_profile": {},
+            "corrections": [],
+        }, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def save_session(session_id: str, summary: str, messages: list[dict],
+                 task: str = ""):
+    """Save a conversation session for cross-session recovery.
+
+    Args:
+        session_id: Unique session identifier
+        summary: LLM-generated summary of the conversation
+        messages: Full message history (will be truncated to save space)
+        task: What the user was working on
+    """
+    _ensure_session_file()
+    data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+
+    # Truncate messages to save space (keep last 10 + summary)
+    truncated = []
+    for msg in messages[-10:]:
+        content = msg.get("content", "")
+        if isinstance(content, list):
+            content = " ".join(
+                c.get("text", "") for c in content
+                if isinstance(c, dict) and c.get("type") == "text"
+            )
+        if isinstance(content, str) and len(content) > 500:
+            content = content[:500] + "..."
+        truncated.append({
+            "role": msg.get("role", ""),
+            "content": content,
+        })
+
+    data["sessions"][session_id] = {
+        "summary": summary,
+        "messages": truncated,
+        "task": task,
+        "saved_at": datetime.now().isoformat()[:19],
+    }
+
+    # Keep only last 20 sessions
+    if len(data["sessions"]) > 20:
+        sorted_keys = sorted(
+            data["sessions"].keys(),
+            key=lambda k: data["sessions"][k].get("saved_at", ""),
+        )
+        for old_key in sorted_keys[:-20]:
+            del data["sessions"][old_key]
+
+    SESSION_FILE.write_text(
+        json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+def load_session(session_id: str) -> dict:
+    """Load a saved session by ID."""
+    _ensure_session_file()
+    data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+    return data.get("sessions", {}).get(session_id, {})
+
+
+def get_recent_sessions(limit: int = 5) -> list[dict]:
+    """Get recent sessions for recovery."""
+    _ensure_session_file()
+    data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+    sessions = data.get("sessions", {})
+    sorted_sessions = sorted(
+        sessions.items(),
+        key=lambda x: x[1].get("saved_at", ""),
+        reverse=True,
+    )[:limit]
+    return [{"id": sid, **info} for sid, info in sorted_sessions]
+
+
+def get_session_context(session_id: str = "") -> str:
+    """Get conversation context from a previous session.
+
+    If session_id is empty, gets the most recent session.
+    """
+    if session_id:
+        session = load_session(session_id)
+    else:
+        recent = get_recent_sessions(1)
+        if not recent:
+            return ""
+        session = recent[0]
+
+    if not session:
+        return ""
+
+    task = session.get("task", "")
+    summary = session.get("summary", "")
+    saved_at = session.get("saved_at", "")
+
+    context = f"[Previous session - {saved_at}]\n"
+    if task:
+        context += f"Task: {task}\n"
+    if summary:
+        context += f"Summary: {summary}\n"
+    return context
+
+
+# ════════════════════════════════════════════════
+#  User Profile - learn who the user is over time
+# ════════════════════════════════════════════════
+
+def update_user_profile(key: str, value: str):
+    """Update a user profile field.
+
+    Tracks information about the user: role, expertise, preferences,
+    working style, common tasks, etc.
+    """
+    _ensure_session_file()
+    data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+    data.setdefault("user_profile", {})
+
+    # If key exists, append to history but keep latest as current
+    profile = data["user_profile"].get(key, {})
+    if not isinstance(profile, dict):
+        profile = {"current": profile, "history": []}
+    if "history" not in profile:
+        profile["history"] = []
+
+    if profile.get("current") != value:
+        if profile.get("current"):
+            profile["history"].append({
+                "value": profile["current"],
+                "until": datetime.now().isoformat()[:19],
+            })
+            profile["history"] = profile["history"][-10:]  # keep last 10
+        profile["current"] = value
+        profile["updated_at"] = datetime.now().isoformat()[:19]
+        data["user_profile"][key] = profile
+        SESSION_FILE.write_text(
+            json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+
+
+def get_user_profile(key: str = "") -> dict | str:
+    """Get user profile data."""
+    _ensure_session_file()
+    data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+    profile = data.get("user_profile", {})
+    if key:
+        entry = profile.get(key, {})
+        return entry.get("current", "") if isinstance(entry, dict) else str(entry)
+    return {k: v.get("current", v) if isinstance(v, dict) else v
+            for k, v in profile.items()}
+
+
+# ════════════════════════════════════════════════
+#  Correction Memory - learn from user feedback
+# ════════════════════════════════════════════════
+
+def record_correction(what_happened: str, what_should_happen: str,
+                      context: str = ""):
+    """Record a user correction for future learning.
+
+    When the user says "no, don't do X, do Y instead", this saves
+    the correction so the agent can avoid repeating the mistake.
+
+    Deduplicates: skips if the same (context + what_happened) exists in last 3 entries.
+    """
+    _ensure_session_file()
+    data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+    data.setdefault("corrections", [])
+
+    # Dedup: skip if same context+what happened within last 3 entries
+    recent = data["corrections"][:3]
+    for r in recent:
+        if r.get("context") == context and r["what_happened"][:80] == what_happened[:80]:
+            return  # already recorded recently
+
+    correction = {
+        "what_happened": what_happened[:300],
+        "what_should_happen": what_should_happen[:300],
+        "context": context[:200],
+        "at": datetime.now().isoformat()[:19],
+    }
+    data["corrections"].insert(0, correction)
+    data["corrections"] = data["corrections"][:50]  # keep last 50
+    SESSION_FILE.write_text(
+        json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+def get_corrections(limit: int = 10) -> list[dict]:
+    """Get recent corrections for injection into system prompt."""
+    _ensure_session_file()
+    data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+    return data.get("corrections", [])[:limit]
+
+
+def build_correction_context() -> str:
+    """Build a context string from past corrections for the system prompt."""
+    corrections = get_corrections(5)
+    if not corrections:
+        return ""
+    lines = ["[Past corrections - avoid repeating these mistakes]"]
+    for c in corrections:
+        lines.append(f"- Don't: {c['what_happened'][:100]}")
+        lines.append(f"  Do: {c['what_should_happen'][:100]}")
+    return "\n".join(lines)
+
+
+# ════════════════════════════════════════════════
+#  Test Pattern Memory - learn from test failures across sessions
+# ════════════════════════════════════════════════
+
+def record_test_pattern(tool_name: str, failure_pattern: str, fix_applied: str):
+    """Record a test failure pattern and the fix that worked.
+
+    When a test loop fixes a failure, the pattern is saved so future
+    test runs can reference past solutions for similar failures.
+
+    Args:
+        tool_name: The function or module being tested
+        failure_pattern: Description of the failure (error message, assertion, etc.)
+        fix_applied: The fix code or description that resolved the failure
+    """
+    _ensure_session_file()
+    data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+    data.setdefault("test_patterns", [])
+
+    pattern = {
+        "tool": tool_name[:100],
+        "failure": failure_pattern[:300],
+        "fix": fix_applied[:500],
+        "at": datetime.now().isoformat()[:19],
+    }
+    data["test_patterns"].insert(0, pattern)
+    data["test_patterns"] = data["test_patterns"][:50]  # keep last 50
+    SESSION_FILE.write_text(
+        json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+def build_test_context(tool_name: str = "") -> str:
+    """Build a context string from past test patterns for the LLM.
+
+    If tool_name is given, only returns patterns for that tool.
+    Otherwise returns all recent patterns.
+
+    Args:
+        tool_name: Optional filter to only get patterns for a specific tool
+    """
+    _ensure_session_file()
+    data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+    patterns = data.get("test_patterns", [])
+
+    if tool_name:
+        patterns = [p for p in patterns if tool_name.lower() in p.get("tool", "").lower()]
+
+    if not patterns:
+        return ""
+
+    lines = ["[Past test patterns - reference these when fixing similar failures]"]
+    for p in patterns[:5]:
+        lines.append(f"- Tool: {p['tool']}")
+        lines.append(f"  Failure: {p['failure'][:150]}")
+        lines.append(f"  Fix that worked: {p['fix'][:200]}")
+    return "\n".join(lines)
+
+
+# ════════════════════════════════════════════════
+#  Cross-session memory & tool learning
+# ════════════════════════════════════════════════
+
+def get_user_context() -> str:
+    """Build a compact user memory injection for the system prompt."""
+    parts = []
+    raw_profile = get_user_profile()
+    profile = raw_profile if isinstance(raw_profile, dict) else {}
+    if profile.get("role"):
+        parts.append(f"用户角色: {profile['role']}")
+    if profile.get("expertise"):
+        parts.append(f"技术栈: {profile['expertise']}")
+    if profile.get("language"):
+        parts.append(f"语言偏好: {profile['language']}")
+    corrections = get_corrections(3)
+    if corrections:
+        parts.append("历史纠正:")
+        for c in corrections:
+            parts.append(f"  不要: {c['what_happened'][:80]}")
+            parts.append(f"  应该: {c['what_should_happen'][:80]}")
+    return "\n".join(["[用户记忆]"] + parts) if parts else ""
+
+
+def record_tool_learning(tool_name: str, failure: str, fix: str):
+    """Record a tool failure and its fix for future learning."""
+    _ensure_session_file()
+    data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+    data.setdefault("tool_learnings", [])
+    data["tool_learnings"].insert(0, {
+        "tool": tool_name, "failure": failure[:200],
+        "fix": fix[:200], "at": datetime.now().isoformat()[:19],
+    })
+    data["tool_learnings"] = data["tool_learnings"][:30]
+    SESSION_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def get_tool_learnings(tool_name: str = "") -> str:
+    """Get past tool learnings as context."""
+    _ensure_session_file()
+    data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+    learnings = data.get("tool_learnings", [])
+    if tool_name:
+        learnings = [entry for entry in learnings if entry["tool"] == tool_name]
+    if not learnings:
+        return ""
+    lines = [f"[{tool_name or '工具'}历史经验]"]
+    for entry in learnings[:3]:
+        lines.append(f"- 问题: {entry['failure'][:100]}")
+        lines.append(f"  解法: {entry['fix'][:100]}")
+    return "\n".join(lines)

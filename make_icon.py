@@ -38,7 +38,7 @@ def create_icon():
 
     # 同时导出 PNG 预览
     img.save("agnes_icon_preview.png")
-    print(f"预览已保存: agnes_icon_preview.png")
+    print("预览已保存: agnes_icon_preview.png")
 
 if __name__ == "__main__":
     create_icon()

@@ -1,29 +1,66 @@
 #!/usr/bin/env python3
 """Agnes Smart Studio 主入口"""
 import sys
-import os
 from pathlib import Path
 
-# Windows UTF-8 兼容
-if os.name == "nt":
-    os.system("chcp 65001 >nul 2>&1")
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+# ── UTF-8 encoding setup: must be first import ──
+
+# ── 必须在任何异步操作之前应用 nest_asyncio ──
+# 解决 prompt_toolkit / Playwright / edge-tts 等库
+# asyncio.run() 在已有运行事件循环时抛出 RuntimeError 的问题
+try:
+    import nest_asyncio
+    nest_asyncio.apply()
+except ImportError:
+    pass
 
 ROOT = Path(__file__).parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.config import SETTINGS
+# Clean up stale error file from previous crashed sessions
+_stale_err = ROOT / 'output' / 'last_error.txt'
+if _stale_err.exists():
+    _stale_err.unlink()
+
 
 def main():
+    # ── 子命令预处理 ──────────────────────────────────────
+    # 支持 agnes gen|video|chat|query|check|version 子命令，
+    # 同时完全保留 -q/-v/-c/-p/--video-id 等短选项（向后兼容所有 bat/sh 脚本）。
+    # 子命令会被翻译成等价的 argv flags，然后走下面的 argparse 流程。
+    _SUBCOMMANDS = {
+        "gen":     lambda rest: ["-q", *rest],          # agnes gen "猫" → -q "猫"
+        "image":   lambda rest: ["-q", *rest],          # 别名
+        "video":   lambda rest: ["-q", *rest, "-v"],    # agnes video "海边" → -q "海边" -v
+        "chat":    lambda rest: ["-c", *rest],
+        "pipeline":lambda rest: ["-q" if rest else "", "-p", *rest] if rest else ["-p", *rest],
+        "query":   lambda rest: ["--video-id", *rest],  # agnes query <id> → --video-id <id>
+        "check":   lambda rest: ["--check", *rest],
+    }
+
+    if len(sys.argv) >= 2 and sys.argv[1] in _SUBCOMMANDS:
+        sub = sys.argv[1]
+        rest = sys.argv[2:]
+        if sub == "pipeline" and rest:
+            sys.argv = [sys.argv[0], "-q", rest[0], "-p", *rest[1:]]
+        else:
+            sys.argv = [sys.argv[0], *_SUBCOMMANDS[sub](rest)]
+    elif len(sys.argv) >= 2 and sys.argv[1] in ("version", "--version", "-V"):
+        # agnes version — 不需要 API Key，直接打印并退出
+        from core.version import __version__
+        print(f"Agnes Smart Studio v{__version__}")
+        sys.exit(0)
+
     if not SETTINGS.api_key:
         print("错误: 未设置 AGNES_API_KEY，请在 .env 文件中添加")
         sys.exit(1)
 
     import argparse
-    p = argparse.ArgumentParser(description="Agnes Smart Studio")
-    p.add_argument("-c", "--chat", action="store_true", help="进入聊天模式（多轮对话+混合生成）")
+    p = argparse.ArgumentParser(description="Agnes 编程助手 — 写代码/修bug/架构 · 视频制片")
+    p.add_argument("--check", action="store_true", help="启动前运行健康检查并退出")
+    p.add_argument("-c", "--chat", action="store_true", help="进入 Agnes 编程助手（支持 /制片 切换视频模式）")
     p.add_argument("-q", "--quick", type=str, help="快速模式描述")
     p.add_argument("-v", "--video", action="store_true", help="生成视频")
     p.add_argument("-p", "--pipeline", action="store_true", help="一站式流水线")
@@ -32,6 +69,7 @@ def main():
     p.add_argument("--seed", type=int, default=None)
     p.add_argument("--submit-only", action="store_true", help="仅提交任务，不等待结果（返回video_id）")
     p.add_argument("--video-id", type=str, default=None, help="查询指定视频状态（必须使用 video_id）")
+    p.add_argument("--menu", action="store_true", help="显示功能菜单（旧版交互界面）")
     p.add_argument("--timeout", type=float, default=None, help="视频轮询超时秒数（默认120）")
     p.add_argument("--steps", type=int, default=40, help="视频推理步数(20-50，默认40，越高质量越好)")
     p.add_argument("--num-frames", type=int, default=None, help="视频帧数(8n+1, 如81/121/161/241/441)")
@@ -40,24 +78,113 @@ def main():
     p.add_argument("--methods", type=str, default=None, help="指定创意方法（逗号分隔），如：cross_domain_graft,anti_pattern")
     args = p.parse_args()
 
+    # ── 显示启动 Logo ──
+    try:
+        from ui.terminal_logo import show
+        show()
+    except (ImportError, AttributeError, OSError):
+        pass
+
+    # ── 健康检查 ──
+    if args.check:
+        from core.startup_checks import run_all, print_report
+        results = run_all()
+        print_report(results, show_ok=True)
+        failures = [msg for _, ok, msg in results if not ok]
+        if failures:
+            print(f"\n  {len(failures)} check(s) failed")
+            sys.exit(1)
+        else:
+            print("\n  所有检查通过")
+            sys.exit(0)
+
     if args.video_id:
+        # 清洗 litellm 包装的 video_id
+        from engines.video import _clean_video_id
+        args.video_id = _clean_video_id(args.video_id)
         _check_task(args)
     elif args.chat:
+        # ── 快速启动检查（仅本地，不阻塞网络）──
+        try:
+            from core.startup_checks import run_all, print_report, critical_failures
+            import core.startup_checks as _sc
+            # 跳过慢速网络检查（chat 模式不需要等 API 响应）
+            _sc._check_api_connectivity = lambda: None
+            results = run_all()
+            crit = critical_failures(results)
+            if crit:
+                print("\n  \033[91m=== 启动检查发现问题 ===\033[0m")
+                print_report(results, show_ok=False)
+                print("  \033[93m建议先运行: python agnes_studio.py --check\033[0m\n")
+            else:
+                # 只在有 warning 时才输出
+                warnings = [(c, m) for c, ok, m in results if not ok]
+                if warnings:
+                    for _cat, msg in warnings:
+                        print(f"  \033[93m!\033[0m {msg}")
+        except (ImportError, AttributeError, OSError):
+            pass
+
         from ui.cli import AgnesCLI
-        with AgnesCLI() as cli:
-            cli._chat()
+        try:
+            with AgnesCLI() as cli:
+                try:
+                    cli._chat()
+                except Exception:
+                    import traceback
+                    err = traceback.format_exc()
+                    print(err, file=sys.stderr)
+                    err_path = ROOT / "output" / "last_error.txt"
+                    err_path.parent.mkdir(parents=True, exist_ok=True)
+                    err_path.write_text(err, encoding="utf-8")
+        except Exception:
+            import traceback
+            err = traceback.format_exc()
+            print(err, file=sys.stderr)
+            err_path = ROOT / "output" / "last_error.txt"
+            err_path.parent.mkdir(parents=True, exist_ok=True)
+            err_path.write_text(err, encoding="utf-8")
     elif args.quick:
         _quick(args)
-    else:
+    elif args.menu:
+        # 旧版功能菜单（--menu 触发）
         from ui.cli import AgnesCLI
-        with AgnesCLI() as cli:
-            cli.run()
+        try:
+            with AgnesCLI() as cli:
+                cli.run()
+        except Exception:
+            import traceback
+            err = traceback.format_exc()
+            print(err, file=sys.stderr)
+            err_path = ROOT / "output" / "last_error.txt"
+            err_path.parent.mkdir(parents=True, exist_ok=True)
+            err_path.write_text(err, encoding="utf-8")
+    else:
+        # 默认入口：直接进入 Chat 模式
+        from ui.cli import AgnesCLI
+        try:
+            with AgnesCLI() as cli:
+                try:
+                    cli._chat()
+                except Exception:
+                    import traceback
+                    err = traceback.format_exc()
+                    print(err, file=sys.stderr)
+                    err_path = ROOT / "output" / "last_error.txt"
+                    err_path.parent.mkdir(parents=True, exist_ok=True)
+                    err_path.write_text(err, encoding="utf-8")
+        except Exception:
+            import traceback
+            err = traceback.format_exc()
+            print(err, file=sys.stderr)
+            err_path = ROOT / "output" / "last_error.txt"
+            err_path.parent.mkdir(parents=True, exist_ok=True)
+            err_path.write_text(err, encoding="utf-8")
 
 def _check_task(args):
     """查询视频任务状态"""
     from core.client import AgnesClient
     from ui.display import show_info, show_success, show_warning, show_video_result
-    from utils import history
 
     with AgnesClient() as client:
         video_id = args.video_id
@@ -237,7 +364,7 @@ def _quick(args):
             history.add_record("text_to_image", args.quick, data.get("model",""), data)
 
 def main_chat():
-    """命令行入口：直接进入聊天模式"""
+    """命令行入口：直接进入 Agnes 编程助手"""
     import sys
     sys.argv = [sys.argv[0], "-c"]
     main()

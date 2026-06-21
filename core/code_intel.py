@@ -1,0 +1,652 @@
+"""Code intelligence - AST parsing, symbol indexing, semantic search.
+
+Provides tools for understanding code structure:
+- AST analysis (functions, classes, imports)
+- Symbol indexing (fast lookup by name)
+- Code search (smarter than grep: understands scope, not just text)
+- Dependency graph (what imports what)
+
+Uses Python's built-in ast module for Python files.
+Uses regex-based structured parsing for JavaScript, TypeScript, Go, and Rust files.
+"""
+
+import ast
+import os
+import re
+import json
+from pathlib import Path
+
+__all__ = [
+    'CODE_INTELLIGENCE_EXECUTOR_MAP', 'CODE_INTELLIGENCE_TOOL_DEFS', 'CodeAnalyzer', 'SymbolIndex', 'analyze_regex_based', 'execute_code_analyze', 'execute_find_references', 'execute_find_symbol', 'execute_search_symbols',
+]
+
+# ======================================================================
+# Multi-language regex-based analysis (JS/TS/Go/Rust)
+# ======================================================================
+
+# Language patterns: (function_pattern, class_pattern, import_pattern)
+_LANG_PATTERNS = {
+    ".js": {
+        "function": re.compile(
+            r'(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)',
+            re.MULTILINE
+        ),
+        "arrow": re.compile(
+            r'(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s*)?\(([^)]*)\)\s*=>',
+            re.MULTILINE
+        ),
+        "class": re.compile(
+            r'(?:export\s+)?class\s+(\w+)(?:\s+extends\s+\w+)?',
+            re.MULTILINE
+        ),
+        "import": re.compile(
+            r'import\s+.*?\s+from\s+["\']([^"\']+)["\']',
+            re.MULTILINE
+        ),
+    },
+    ".jsx": None,  # reuse .js patterns
+    ".ts": {
+        "function": re.compile(
+            r'(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*(?:<[^>]*>)?\s*\(([^)]*)\)',
+            re.MULTILINE
+        ),
+        "arrow": re.compile(
+            r'(?:export\s+)?(?:const|let)\s+(\w+)\s*(?::\s*[^=]+)?=\s*(?:async\s*)?\(([^)]*)\)\s*=>',
+            re.MULTILINE
+        ),
+        "class": re.compile(
+            r'(?:export\s+)?(?:abstract\s+)?class\s+(\w+)(?:\s+extends\s+\w+)?',
+            re.MULTILINE
+        ),
+        "import": re.compile(
+            r'import\s+.*?\s+from\s+["\']([^"\']+)["\']',
+            re.MULTILINE
+        ),
+        "interface": re.compile(
+            r'(?:export\s+)?interface\s+(\w+)',
+            re.MULTILINE
+        ),
+        "type": re.compile(
+            r'(?:export\s+)?type\s+(\w+)\s*=',
+            re.MULTILINE
+        ),
+    },
+    ".tsx": None,  # reuse .ts patterns
+    ".go": {
+        "function": re.compile(
+            r'^func\s+(?:\([^)]+\)\s+)?(\w+)\s*\(([^)]*)\)',
+            re.MULTILINE
+        ),
+        "struct": re.compile(
+            r'^type\s+(\w+)\s+struct\s*\{',
+            re.MULTILINE
+        ),
+        "interface": re.compile(
+            r'^type\s+(\w+)\s+interface\s*\{',
+            re.MULTILINE
+        ),
+        "import": re.compile(
+            r'^\s*"([^"]+)"',
+            re.MULTILINE
+        ),
+    },
+    ".rs": {
+        "function": re.compile(
+            r'(?:pub\s+)?(?:async\s+)?fn\s+(\w+)\s*(?:<[^>]*>)?\s*\(([^)]*)\)',
+            re.MULTILINE
+        ),
+        "struct": re.compile(
+            r'(?:pub\s+)?struct\s+(\w+)',
+            re.MULTILINE
+        ),
+        "enum": re.compile(
+            r'(?:pub\s+)?enum\s+(\w+)',
+            re.MULTILINE
+        ),
+        "trait": re.compile(
+            r'(?:pub\s+)?trait\s+(\w+)',
+            re.MULTILINE
+        ),
+        "impl": re.compile(
+            r'impl(?:<[^>]*>)?\s+(\w+)',
+            re.MULTILINE
+        ),
+        "use": re.compile(
+            r'use\s+([^;]+);',
+            re.MULTILINE
+        ),
+    },
+}
+
+def _get_lang_patterns(suffix: str):
+    """Get regex patterns for a file extension, resolving aliases."""
+    if suffix not in _LANG_PATTERNS:
+        return None
+    patterns = _LANG_PATTERNS[suffix]
+    if patterns is None:
+        # Resolve alias: .jsx -> .js, .tsx -> .ts
+        base = ".js" if suffix in (".jsx",) else ".ts"
+        patterns = _LANG_PATTERNS[base]
+    return patterns
+
+def analyze_regex_based(file_path: str, patterns: dict) -> dict:
+    """Analyze a source file using regex patterns.
+
+    Generic parser for JS/TS/Go/Rust: extracts functions, classes/structs, imports.
+    """
+    try:
+        source = Path(file_path).read_text(encoding="utf-8", errors="replace")
+    except (OSError, UnicodeDecodeError) as e:
+        return {"error": str(e), "file": file_path}
+
+    functions = []
+    classes = []
+    imports = []
+
+    # Functions (named + arrow)
+    func_pattern = patterns.get("function")
+    if func_pattern:
+        for m in func_pattern.finditer(source):
+            line = source[:m.start()].count("\n") + 1
+            functions.append({
+                "name": m.group(1),
+                "line": line,
+                "args": [a.strip() for a in m.group(2).split(",") if a.strip()],
+                "docstring": "",
+                "is_async": "async" in m.group(0),
+            })
+
+    # Arrow functions (JS/TS only)
+    arrow_pattern = patterns.get("arrow")
+    if arrow_pattern:
+        for m in arrow_pattern.finditer(source):
+            line = source[:m.start()].count("\n") + 1
+            functions.append({
+                "name": m.group(1),
+                "line": line,
+                "args": [a.strip() for a in m.group(2).split(",") if a.strip()],
+                "docstring": "",
+                "is_async": "async" in m.group(0),
+            })
+
+    # Classes / structs / traits / interfaces
+    class_pattern = patterns.get("class")
+    if class_pattern:
+        for m in class_pattern.finditer(source):
+            line = source[:m.start()].count("\n") + 1
+            classes.append({
+                "name": m.group(1),
+                "line": line,
+                "methods": [],
+                "docstring": "",
+                "type": "class",
+            })
+
+    struct_pattern = patterns.get("struct")
+    if struct_pattern:
+        for m in struct_pattern.finditer(source):
+            line = source[:m.start()].count("\n") + 1
+            classes.append({
+                "name": m.group(1),
+                "line": line,
+                "methods": [],
+                "docstring": "",
+                "type": "struct",
+            })
+
+    # Go interfaces
+    iface_pattern = patterns.get("interface")
+    if iface_pattern:
+        for m in iface_pattern.finditer(source):
+            line = source[:m.start()].count("\n") + 1
+            classes.append({
+                "name": m.group(1),
+                "line": line,
+                "methods": [],
+                "docstring": "",
+                "type": "interface",
+            })
+
+    # Rust enums and traits
+    enum_pattern = patterns.get("enum")
+    if enum_pattern:
+        for m in enum_pattern.finditer(source):
+            line = source[:m.start()].count("\n") + 1
+            classes.append({
+                "name": m.group(1),
+                "line": line,
+                "methods": [],
+                "docstring": "",
+                "type": "enum",
+            })
+
+    trait_pattern = patterns.get("trait")
+    if trait_pattern:
+        for m in trait_pattern.finditer(source):
+            line = source[:m.start()].count("\n") + 1
+            classes.append({
+                "name": m.group(1),
+                "line": line,
+                "methods": [],
+                "docstring": "",
+                "type": "trait",
+            })
+
+    # TS type aliases
+    type_pattern = patterns.get("type")
+    if type_pattern:
+        for m in type_pattern.finditer(source):
+            line = source[:m.start()].count("\n") + 1
+            classes.append({
+                "name": m.group(1),
+                "line": line,
+                "methods": [],
+                "docstring": "",
+                "type": "type_alias",
+            })
+
+    # Imports / use statements
+    import_pattern = patterns.get("import") or patterns.get("use")
+    if import_pattern:
+        for m in import_pattern.finditer(source):
+            line = source[:m.start()].count("\n") + 1
+            imports.append({"module": m.group(1), "line": line, "name": m.group(1)})
+
+    return {
+        "file": file_path,
+        "language": Path(file_path).suffix.lstrip("."),
+        "lines": len(source.split("\n")),
+        "functions": functions,
+        "classes": classes,
+        "imports": imports,
+        "function_count": len(functions),
+        "class_count": len(classes),
+    }
+
+# ======================================================================
+# AST-based code analysis (Python)
+# ======================================================================
+
+class CodeAnalyzer:
+    """Analyze Python source files using the ast module."""
+
+    @staticmethod
+    def analyze_python(file_path: str) -> dict:
+        """Analyze a Python file and extract structure.
+
+        Returns dict with: functions, classes, imports, complexity.
+        """
+        try:
+            source = Path(file_path).read_text(encoding="utf-8", errors="replace")
+            tree = ast.parse(source, filename=file_path)
+        except SyntaxError as e:
+            return {"error": str(e), "file": file_path}
+        except (OSError, UnicodeDecodeError) as e:
+            return {"error": str(e), "file": file_path}
+
+        functions = []
+        classes = []
+        imports = []
+
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                args = [a.arg for a in node.args.args]
+                returns = ast.dump(node.returns) if node.returns else None
+                functions.append({
+                    "name": node.name,
+                    "line": node.lineno,
+                    "args": args,
+                    "returns": returns,
+                    "docstring": (ds[:200] if (ds := ast.get_docstring(node, clean=True)) else ""),
+                    "is_async": isinstance(node, ast.AsyncFunctionDef),
+                })
+
+            elif isinstance(node, ast.ClassDef):
+                methods = []
+                for item in node.body:
+                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        methods.append(item.name)
+                classes.append({
+                    "name": node.name,
+                    "line": node.lineno,
+                    "methods": methods,
+                    "docstring": (ds[:200] if (ds := ast.get_docstring(node, clean=True)) else ""),
+                })
+
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    imports.append({"module": alias.name, "line": node.lineno,
+                                    "name": alias.asname or alias.name})
+
+            elif isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+                for alias in node.names:
+                    imports.append({"module": module, "line": node.lineno,
+                                    "name": alias.name, "from": True})
+
+        return {
+            "file": file_path,
+            "lines": len(source.split("\n")),
+            "functions": functions,
+            "classes": classes,
+            "imports": imports,
+            "function_count": len(functions),
+            "class_count": len(classes),
+        }
+
+    @staticmethod
+    def find_symbol_definition(file_path: str, symbol_name: str) -> dict | None:
+        """Find where a symbol (function/class) is defined in a file.
+
+        Returns dict with name, line, type (function/class), or None.
+        """
+        result = CodeAnalyzer.analyze_python(file_path)
+        if "error" in result:
+            return None
+
+        for fn in result.get("functions", []):
+            if fn["name"] == symbol_name:
+                return {"name": fn["name"], "line": fn["line"], "type": "function",
+                        "file": file_path, "args": fn.get("args", [])}
+
+        for cls in result.get("classes", []):
+            if cls["name"] == symbol_name:
+                return {"name": cls["name"], "line": cls["line"], "type": "class",
+                        "file": file_path, "methods": cls.get("methods", [])}
+
+        return None
+
+    @staticmethod
+    def find_references(file_path: str, symbol_name: str) -> list[dict]:
+        """Find all references to a symbol in a file (text-based, not AST-based).
+
+        Returns list of {line, context} dicts.
+        """
+        try:
+            lines = Path(file_path).read_text(encoding="utf-8", errors="replace").split("\n")
+        except (OSError, UnicodeDecodeError):
+            return []
+
+        refs = []
+        # Match symbol as a word boundary
+        pattern = re.compile(r'\b' + re.escape(symbol_name) + r'\b')
+
+        for i, line in enumerate(lines, 1):
+            if pattern.search(line):
+                refs.append({
+                    "file": file_path,
+                    "line": i,
+                    "context": line.strip()[:120],
+                })
+
+        return refs
+
+# ======================================================================
+# Symbol Index - project-wide code indexing
+# ======================================================================
+
+class SymbolIndex:
+    """Index symbols across a project for fast lookup.
+
+    Builds an index of function/class definitions that can be searched
+    by name. Much faster than grepping every time.
+    """
+
+    def __init__(self) -> None:
+        self._index: dict[str, list[dict]] = {}  # symbol_name -> [locations]
+        self._files_indexed: set[str] = set()
+        self._file_mtimes: dict[str, float] = {}
+
+    def index_file(self, file_path: str):
+        """Index a single source file (Python, JS, TS, Go, Rust)."""
+        path = Path(file_path)
+        if not path.exists():
+            return
+
+        suffix = path.suffix
+        patterns = _get_lang_patterns(suffix)
+        if suffix != ".py" and patterns is None:
+            return  # unsupported file type
+
+        mtime = path.stat().st_mtime
+        if file_path in self._files_indexed and self._file_mtimes.get(file_path) == mtime:
+            return  # unchanged
+
+        # Remove old entries for this file
+        for symbol_locs in self._index.values():
+            symbol_locs[:] = [loc for loc in symbol_locs if loc.get("file") != file_path]
+
+        if suffix == ".py":
+            result = CodeAnalyzer.analyze_python(file_path)
+        else:
+            assert patterns is not None  # guaranteed: non-py files always pass patterns
+            result = analyze_regex_based(file_path, patterns)
+
+        if "error" in result:
+            return
+
+        for fn in result.get("functions", []):
+            self._index.setdefault(fn["name"], []).append({
+                "file": file_path,
+                "line": fn["line"],
+                "type": "function",
+                "args": fn.get("args", []),
+            })
+
+        for cls in result.get("classes", []):
+            self._index.setdefault(cls["name"], []).append({
+                "file": file_path,
+                "line": cls["line"],
+                "type": cls.get("type", "class"),
+                "methods": cls.get("methods", []),
+            })
+
+        self._files_indexed.add(file_path)
+        self._file_mtimes[file_path] = mtime
+
+    def index_directory(self, dir_path: str, exclude: list[str] | None = None):
+        """Index all source files in a directory tree (Python, JS, TS, Go, Rust)."""
+        excluded: set[str] = set(exclude or [])
+        excluded.update({".git", "__pycache__", ".venv", "venv", "node_modules",
+                        ".tox", "build", "dist"})
+
+        supported_exts = {".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".rs"}
+
+        for root, dirs, files in os.walk(dir_path):
+            # Filter excluded dirs
+            dirs[:] = [d for d in dirs if d not in excluded]
+
+            for f in files:
+                if Path(f).suffix in supported_exts:
+                    self.index_file(os.path.join(root, f))
+
+    def lookup(self, symbol_name: str) -> list[dict]:
+        """Look up a symbol by name. Returns list of locations."""
+        return self._index.get(symbol_name, [])
+
+    def search(self, pattern: str) -> list[dict]:
+        """Search for symbols matching a pattern (substring match)."""
+        results = []
+        regex = re.compile(pattern, re.IGNORECASE)
+        for name, locs in self._index.items():
+            if regex.search(name):
+                for loc in locs:
+                    results.append({"symbol": name, **loc})
+        return results
+
+    def get_all_symbols(self) -> dict[str, list[dict]]:
+        """Get the full index."""
+        return dict(self._index)
+
+    @property
+    def stats(self) -> dict:
+        return {
+            "files_indexed": len(self._files_indexed),
+            "total_symbols": len(self._index),
+            "total_locations": sum(len(v) for v in self._index.values()),
+        }
+
+# ======================================================================
+# Tool executors for integration with ToolRegistry
+# ======================================================================
+
+def execute_code_analyze(file_path: str = "") -> str:
+    """Tool executor: analyze a source file's structure (Python, JS, TS, Go, Rust)."""
+    if not file_path:
+        return json.dumps({"error": "file_path required"}, ensure_ascii=False)
+
+    suffix = Path(file_path).suffix
+    if suffix == ".py":
+        result = CodeAnalyzer.analyze_python(file_path)
+    else:
+        patterns = _get_lang_patterns(suffix)
+        if patterns is None:
+            return json.dumps({"error": f"unsupported file type: {suffix}. Supported: .py, .js, .jsx, .ts, .tsx, .go, .rs"}, ensure_ascii=False)
+        result = analyze_regex_based(file_path, patterns)
+
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+def execute_find_symbol(symbol: str = "", directory: str = ".") -> str:
+    """Tool executor: find a symbol definition across a project."""
+    if not symbol:
+        return json.dumps({"error": "symbol name required"}, ensure_ascii=False)
+
+    idx = SymbolIndex()
+    idx.index_directory(directory or ".")
+
+    locations = idx.lookup(symbol)
+    if not locations:
+        return json.dumps({"symbol": symbol, "found": False}, ensure_ascii=False)
+
+    return json.dumps({
+        "symbol": symbol,
+        "found": True,
+        "locations": locations,
+        "index_stats": idx.stats,
+    }, ensure_ascii=False, indent=2)
+
+def execute_search_symbols(pattern: str = "", directory: str = ".") -> str:
+    """Tool executor: search for symbols matching a pattern."""
+    if not pattern:
+        return json.dumps({"error": "pattern required"}, ensure_ascii=False)
+
+    idx = SymbolIndex()
+    idx.index_directory(directory or ".")
+
+    results = idx.search(pattern)
+    return json.dumps({
+        "pattern": pattern,
+        "matches": len(results),
+        "results": results[:30],
+        "index_stats": idx.stats,
+    }, ensure_ascii=False, indent=2)
+
+def execute_find_references(file_path: str = "", symbol: str = "") -> str:
+    """Tool executor: find all references to a symbol in a file."""
+    if not file_path or not symbol:
+        return json.dumps({"error": "file_path and symbol required"}, ensure_ascii=False)
+
+    refs = CodeAnalyzer.find_references(file_path, symbol)
+    return json.dumps({
+        "file": file_path,
+        "symbol": symbol,
+        "references": refs,
+        "count": len(refs),
+    }, ensure_ascii=False, indent=2)
+
+# Tool definitions for ToolRegistry
+CODE_INTELLIGENCE_TOOL_DEFS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "code_analyze",
+            "description": "Analyze a source file's structure: list all functions, classes, imports, with line numbers and signatures. Supports Python (.py), JavaScript (.js/.jsx), TypeScript (.ts/.tsx), Go (.go), and Rust (.rs). Use this to understand code before modifying it.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the Python file to analyze",
+                    },
+                },
+                "required": ["file_path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "find_symbol",
+            "description": "Find where a function or class is defined across the project. Returns file path and line number. Much faster than searching text.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Function or class name to find",
+                    },
+                    "directory": {
+                        "type": "string",
+                        "description": "Project directory to search (default: current dir)",
+                    },
+                },
+                "required": ["symbol"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_symbols",
+            "description": "Search for functions/classes matching a pattern (regex). Returns matching symbols with file locations.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "pattern": {
+                        "type": "string",
+                        "description": "Regex pattern to match symbol names",
+                    },
+                    "directory": {
+                        "type": "string",
+                        "description": "Project directory to search (default: current dir)",
+                    },
+                },
+                "required": ["pattern"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "find_references",
+            "description": "Find all references to a symbol (function/class/variable) in a file. Returns line numbers and context.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "File to search in",
+                    },
+                    "symbol": {
+                        "type": "string",
+                        "description": "Symbol name to find references for",
+                    },
+                },
+                "required": ["file_path", "symbol"],
+            },
+        },
+    },
+]
+
+CODE_INTELLIGENCE_EXECUTOR_MAP = {
+    "code_analyze": lambda **kw: execute_code_analyze(file_path=kw.get("file_path", "")),
+    "find_symbol": lambda **kw: execute_find_symbol(
+        symbol=kw.get("symbol", ""), directory=kw.get("directory", ".")
+    ),
+    "search_symbols": lambda **kw: execute_search_symbols(
+        pattern=kw.get("pattern", ""), directory=kw.get("directory", ".")
+    ),
+    "find_references": lambda **kw: execute_find_references(
+        file_path=kw.get("file_path", ""), symbol=kw.get("symbol", "")
+    ),
+}

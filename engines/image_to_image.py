@@ -4,6 +4,9 @@ from core.client import AgnesClient
 from core.config import OUTPUT_DIR
 from core.validator import validate_image_size, validate_model, validate_seed, validate_image_urls
 
+__all__ = ['ImageToImageEngine']
+
+
 
 class ImageToImageEngine:
     """图生图引擎 - image 通过 extra_body 传入以触发图生图模式"""
@@ -27,7 +30,7 @@ class ImageToImageEngine:
         try:
             item = result["data"][0]
         except (KeyError, IndexError):
-            raise RuntimeError(f"图生图API返回格式异常: {str(result)[:200]}")
+            raise RuntimeError(f"图生图API返回格式异常: {str(result)[:200]}") from None
 
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         local_path = str(OUTPUT_DIR / "images" / f"i2i_{ts}.png")
@@ -60,7 +63,7 @@ class ImageToImageEngine:
         try:
             item = result["data"][0]
         except (KeyError, IndexError):
-            raise RuntimeError(f"图生图API(2.1)返回格式异常: {str(result)[:200]}")
+            raise RuntimeError(f"图生图API(2.1)返回格式异常: {str(result)[:200]}") from None
 
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         local_path = str(OUTPUT_DIR / "images" / f"i2i_hd_{ts}.png")

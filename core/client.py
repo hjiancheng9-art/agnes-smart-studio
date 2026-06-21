@@ -1,17 +1,18 @@
 """Agnes API 统一客户端 - 支持 OpenAI 兼容接口、视频代理、双通道查询、自动重试"""
 
 import json
-import os
 import time
 import httpx
-from typing import Any, Iterator, Optional
+from typing import Any
+from collections.abc import Iterator
 
 from .config import SETTINGS
 
 
+__all__ = ["AgnesClient", "ContentPolicyError"]
 class ContentPolicyError(Exception):
     """内容安全过滤异常 - 提示词触发 API 安全策略"""
-    def __init__(self, message: str, detail: dict | None = None):
+    def __init__(self, message: str, detail: dict | None = None) -> None:
         super().__init__(message)
         self.detail = detail or {}
 
@@ -21,10 +22,10 @@ class AgnesClient:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
         timeout: float = 60.0,
-    ):
+    ) -> None:
         self.api_key = api_key or SETTINGS.api_key
         self.base_url = (base_url or SETTINGS.base_url).rstrip("/")
         self.timeout = timeout
@@ -41,10 +42,7 @@ class AgnesClient:
         last_exc = None
         for attempt in range(retries):
             try:
-                if method == "POST":
-                    resp = self._http.post(url, **kwargs)
-                else:
-                    resp = self._http.get(url, **kwargs)
+                resp = self._http.post(url, **kwargs) if method == "POST" else self._http.get(url, **kwargs)
                 resp.raise_for_status()
                 return resp
             except (httpx.ConnectError, httpx.ReadError, httpx.WriteError, httpx.PoolTimeout, httpx.TimeoutException) as e:
@@ -62,12 +60,13 @@ class AgnesClient:
                     time.sleep(wait)
                     last_exc = e
                     continue
-                # 4xx: 解析响应体，提供可操作的错误信息
+                # 4xx: 解析响应体，提供可操作的错误信息（不泄露敏感字段）
                 detail = ""
+                raw = ""
                 try:
                     raw = e.response.text[:1000]
                     detail = json.loads(raw)
-                except Exception:
+                except (json.JSONDecodeError, ValueError, KeyError):
                     detail = raw[:500]
                 # 内容安全过滤 → 提供重新措辞建议
                 if isinstance(detail, dict) and detail.get("code") == "content_policy_violation":
@@ -77,12 +76,19 @@ class AgnesClient:
                         "2. 删除暴力/血腥/武器相关的视觉描述\n"
                         "3. 以'科幻场景、非攻击性互动'重述你的创意"
                     )
-                    raise ContentPolicyError(msg, detail)
+                    raise ContentPolicyError(msg, detail) from None
+                # 从错误详情中剥离可能的敏感字段再拼入异常消息
+                safe_detail = detail
+                if isinstance(safe_detail, dict):
+                    safe_detail = {k: v for k, v in safe_detail.items()
+                                   if k not in ("api_key", "token", "secret", "password")}
                 raise httpx.HTTPStatusError(
-                    f"{e.response.status_code} {e.response.reason_phrase} - {detail}",
+                    f"{e.response.status_code} {e.response.reason_phrase} - {safe_detail}",
                     request=e.request, response=e.response,
                 ) from e
-        raise last_exc or ConnectionError("请求失败")
+        # 所有重试耗尽
+        assert last_exc is not None  # guaranteed by loop logic
+        raise last_exc
 
     # ── 文本 ──────────────────────────────────────────────
     def chat(
@@ -95,6 +101,8 @@ class AgnesClient:
         tools: list[dict] | None = None,
         tool_choice: str | dict = "auto",
         enable_thinking: bool = False,
+        frequency_penalty: float = 0.3,
+        presence_penalty: float = 0.3,
         **kwargs,
     ) -> dict:
         """调用文本对话接口 /v1/chat/completions"""
@@ -104,10 +112,13 @@ class AgnesClient:
             "temperature": temperature,
             "max_tokens": max_tokens,
             "stream": stream,
+            "frequency_penalty": frequency_penalty,
+            "presence_penalty": presence_penalty,
         }
         if tools:
             body["tools"] = tools
             body["tool_choice"] = tool_choice
+            body["parallel_tool_calls"] = True
         if enable_thinking:
             body["chat_template_kwargs"] = {"enable_thinking": True}
         body.update(kwargs)
@@ -143,6 +154,8 @@ class AgnesClient:
         tools: list[dict] | None = None,
         tool_choice: str | dict = "auto",
         timeout: float = 120.0,
+        frequency_penalty: float = 0.3,
+        presence_penalty: float = 0.3,
         **kwargs,
     ) -> Iterator[dict]:
         """流式调用 /chat/completions，逐增量 yield delta 字典。
@@ -161,39 +174,49 @@ class AgnesClient:
             "temperature": temperature,
             "max_tokens": max_tokens,
             "stream": True,
+            "frequency_penalty": frequency_penalty,
+            "presence_penalty": presence_penalty,
         }
         if tools:
             body["tools"] = tools
             body["tool_choice"] = tool_choice
         body.update(kwargs)
 
-        # 流式不套 _request_with_retry（重试难以处理已建立的流）
-        with self._http.stream(
-            "POST", "/chat/completions", json=body,
-            timeout=httpx.Timeout(timeout, connect=30.0),
-        ) as resp:
-            resp.raise_for_status()
-            for line in resp.iter_lines():
-                if not line or not line.startswith("data:"):
-                    continue
-                data = line[5:].strip()
-                if data == "[DONE]":
-                    break
-                try:
-                    chunk = json.loads(data)
-                except json.JSONDecodeError:
-                    continue
-                choices = chunk.get("choices") or []
-                if not choices:
-                    continue
-                choice = choices[0]
-                delta = choice.get("delta", {}) or {}
-                out = {k: v for k, v in delta.items() if v}
-                finish = choice.get("finish_reason")
-                if finish:
-                    out["_finish"] = finish
-                if out:
-                    yield out
+        # 流式不套 _request_with_retry（重试难以处理已建立的流），
+        # 但捕获网络异常并优雅降级，避免静默失败。
+        try:
+            with self._http.stream(
+                "POST", "/chat/completions", json=body,
+                timeout=httpx.Timeout(timeout, connect=30.0),
+            ) as resp:
+                resp.raise_for_status()
+                for line in resp.iter_lines():
+                    if not line or not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(data)
+                    except json.JSONDecodeError:
+                        continue
+                    choices = chunk.get("choices") or []
+                    if not choices:
+                        continue
+                    choice = choices[0]
+                    delta = choice.get("delta", {}) or {}
+                    out = {k: v for k, v in delta.items() if v}
+                    finish = choice.get("finish_reason")
+                    if finish:
+                        out["_finish"] = finish
+                    if out:
+                        yield out
+        except (httpx.ConnectError, httpx.ReadError, httpx.RemoteProtocolError,
+                httpx.PoolTimeout, httpx.TimeoutException) as e:
+            # 网络层错误：yield 错误信息让上层优雅降级
+            yield {"content": f"\n[流中断: {type(e).__name__}]", "_finish": "error"}
+        except httpx.HTTPStatusError as e:
+            yield {"content": f"\n[HTTP {e.response.status_code}]", "_finish": "error"}
 
     # ── 图像 ──────────────────────────────────────────────
     def create_image(
@@ -264,8 +287,9 @@ class AgnesClient:
             # data URI 格式需剥离前缀，否则 API 解析 base64 长度不对
             if isinstance(image, str) and image.startswith("data:image/"):
                 # 提取 data:image/png;base64,XXXXXX 中的 XXXXXX 部分
-                _, _, b64_data = image.partition(";base64,")
-                image = b64_data if b64_data else image
+                before, sep, b64_data = image.partition(";base64,")
+                if sep:  # 仅当 ;base64, 分隔符存在时才剥离，防止空字符串
+                    image = b64_data
             body["image"] = image
         if negative_prompt:
             body["negative_prompt"] = negative_prompt
@@ -279,14 +303,15 @@ class AgnesClient:
                 imgs = extra_body["image"]
                 if isinstance(imgs, str):
                     if imgs.startswith("data:image/"):
-                        _, _, b64 = imgs.partition(";base64,")
-                        extra_body = {**extra_body, "image": b64 if b64 else imgs}
+                        before, sep, b64 = imgs.partition(";base64,")
+                        if sep:
+                            extra_body = {**extra_body, "image": b64}
                 elif isinstance(imgs, list):
                     converted = []
                     for img in imgs:
                         if isinstance(img, str) and img.startswith("data:image/"):
-                            _, _, b64 = img.partition(";base64,")
-                            converted.append(b64 if b64 else img)
+                            before, sep, b64 = img.partition(";base64,")
+                            converted.append(b64 if sep else img)
                         else:
                             converted.append(img)
                     extra_body = {**extra_body, "image": converted}
@@ -325,8 +350,8 @@ class AgnesClient:
 
     def _poll_video_loop(self, video_id: str,
                           deadline: float = 0, interval: float = 5.0,
-                          on_progress: Any | None = None, raise_on_fail: bool = True) -> dict:
-        """内部轮询循环：进度防回退，共享逻辑"""
+                          on_progress: Any | None = None, raise_on_fail: bool = True) -> dict | None:
+        """内部轮询循环：进度防回退，共享逻辑。超时返回 None。"""
         last_progress = 0
 
         while time.time() < deadline:
@@ -401,7 +426,15 @@ class AgnesClient:
 
     # ── 下载 ──────────────────────────────────────────────
     def download_video(self, url: str, save_path: str) -> str:
-        """下载视频文件。CDN/GCS URL 为公开链接，无需 Authorization 头。"""
+        """下载视频文件。CDN/GCS URL 为公开链接，无需 Authorization 头。
+
+        安全策略：仅在 URL 与当前 base_url 同源时才附加认证头，
+        防止 Bearer token 被重定向泄露到第三方 CDN。
+        """
+        from urllib.parse import urlparse
+
+        same_origin = urlparse(url).netloc == urlparse(self.base_url).netloc
+
         # 策略1：无认证头直接下载（CDN 公开链接）
         try:
             with httpx.Client(follow_redirects=True, timeout=120.0) as client:
@@ -413,21 +446,29 @@ class AgnesClient:
         except (httpx.HTTPError, httpx.TimeoutException):
             pass
 
-        # 策略2：带认证头下载（部分私有 URL 可能需要）
-        try:
-            with httpx.Client(follow_redirects=True, timeout=120.0) as client:
-                resp = client.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
-                if resp.status_code == 200:
-                    with open(save_path, "wb") as f:
-                        f.write(resp.content)
-                    return save_path
-        except (httpx.HTTPError, httpx.TimeoutException):
-            pass
+        # 策略2：仅同源 URL 使用认证头（私有存储）
+        if same_origin:
+            try:
+                with httpx.Client(follow_redirects=True, timeout=120.0) as client:
+                    resp = client.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
+                    if resp.status_code == 200:
+                        with open(save_path, "wb") as f:
+                            f.write(resp.content)
+                        return save_path
+            except (httpx.HTTPError, httpx.TimeoutException):
+                pass
 
         raise RuntimeError(f"视频下载失败: {url}")
 
     def download_image(self, url: str, save_path: str) -> str:
-        """下载图片文件。CDN URL 为公开链接，无需 Authorization 头（带了反而 401）。"""
+        """下载图片文件。CDN URL 为公开链接，无需 Authorization 头（带了反而 401）。
+
+        安全策略：仅在 URL 与当前 base_url 同源时才附加认证头。
+        """
+        from urllib.parse import urlparse
+
+        same_origin = urlparse(url).netloc == urlparse(self.base_url).netloc
+
         # 策略1：无认证头直接下载（CDN 公开链接）
         try:
             with httpx.Client(follow_redirects=True, timeout=60.0) as client:
@@ -439,16 +480,17 @@ class AgnesClient:
         except (httpx.HTTPError, httpx.TimeoutException):
             pass
 
-        # 策略2：带认证头下载（部分私有 URL 可能需要）
-        try:
-            with httpx.Client(follow_redirects=True, timeout=60.0) as client:
-                resp = client.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
-                if resp.status_code == 200:
-                    with open(save_path, "wb") as f:
-                        f.write(resp.content)
-                    return save_path
-        except (httpx.HTTPError, httpx.TimeoutException):
-            pass
+        # 策略2：仅同源 URL 使用认证头（私有存储）
+        if same_origin:
+            try:
+                with httpx.Client(follow_redirects=True, timeout=60.0) as client:
+                    resp = client.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
+                    if resp.status_code == 200:
+                        with open(save_path, "wb") as f:
+                            f.write(resp.content)
+                        return save_path
+            except (httpx.HTTPError, httpx.TimeoutException):
+                pass
 
         raise RuntimeError(f"图片下载失败: {url}")
 

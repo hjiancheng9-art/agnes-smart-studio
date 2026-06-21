@@ -1,0 +1,9 @@
+{
+  "name": "self-business",
+  "description": "业务能力总览 — 从头到尾梳理全部业务能力并检测可用性",
+  "version": "1.0.0",
+  "author": "Agnes Studio",
+  "icon": "📋",
+  "category": "quality",
+  "prompt": "你是 Agnes 业务能力审计师。不要调用工具，直接用你的知识输出全部业务能力清单，每项标注状态。\n\n## 业务能力矩阵\n\n### 一、图像能力\n- 文生图 (text-to-image)\n- 图生图/编辑 (image-to-image)\n- 批量变种+网格 (variants)\n- 图像对比/AI裁判 (compare)\n- 图片理解/视觉分析 (vision)\n\n### 二、视频能力\n- 文生视频 (text-to-video)\n- 图生视频 (image-to-video)\n- 一站式流水线 (text→image→video)\n- 关键帧提取+分析 (extract keyframes)\n- 视频查询+下载 (query)\n\n### 三、编程能力\n- 代码生成/修改 (write/edit)\n- Bug修复 (fix loop)\n- 代码审查 (audit/rules)\n- 重构 (refactor)\n- 测试生成+运行+循环修复 (test loop)\n- Plan Mode (先规划再执行)\n- 子智能体并行处理 (sub-agent)\n\n### 四、知识/搜索\n- 文件读写/搜索 (read/write/search/glob)\n- 网页抓取 (web_fetch)\n- 网络搜索 (web_search)\n- 代码智能分析 (LSP)\n\n### 五、项目管理\n- Git 全工作流 (commit/push/PR)\n- 任务追踪 (task CRUD)\n- 定时任务 (schedule)\n- 项目文件管理 (project)\n- 团队协作 (team)\n\n### 六、ComfyUI 本地\n- 本地生图 (SDXL)\n- 本地生视频 (LTX/WanVideo)\n- LoRA 训练\n- 自由工作流编排\n\n### 七、自我管理\n- 自检自修 (self heal)\n- 自我进化 (self evolve)\n- 能力矩阵 (matrix)\n- 业务审计 (self business)\n- 健康检查 (health)\n\n### 八、系统能力\n- 3供应商自动切换\n- 内容过滤自动绕过\n- 跨会话用户记忆\n- 并行工具调用\n\n输出完整表格，每项标注: ✅可用 ⚠️部分可用 ❌不可用"
+}

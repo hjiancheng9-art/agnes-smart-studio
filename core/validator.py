@@ -3,6 +3,9 @@
 from .config import VALID_NUM_FRAMES, VIDEO_ASPECT_RATIOS, IMAGE_SIZES, MODELS
 
 
+__all__ = [
+    "ValidationError", "validate_frame_rate", "validate_image_size", "validate_image_urls", "validate_model", "validate_num_frames", "validate_seed", "validate_video_resolution",
+]
 class ValidationError(ValueError):
     """参数校验错误"""
     pass
@@ -24,7 +27,7 @@ def validate_num_frames(num_frames: int) -> int:
 
 def validate_video_resolution(width: int, height: int) -> tuple[int, int]:
     """校验视频分辨率，匹配预设比例"""
-    for name, (w, h) in VIDEO_ASPECT_RATIOS.items():
+    for _name, (w, h) in VIDEO_ASPECT_RATIOS.items():
         if (width, height) == (w, h):
             return width, height
 
@@ -32,7 +35,7 @@ def validate_video_resolution(width: int, height: int) -> tuple[int, int]:
     ratio = width / height
     best = None
     best_diff = float("inf")
-    for name, (w, h) in VIDEO_ASPECT_RATIOS.items():
+    for _name, (w, h) in VIDEO_ASPECT_RATIOS.items():
         diff = abs(ratio - w / h)
         if diff < best_diff:
             best_diff = diff
@@ -52,7 +55,7 @@ def validate_image_size(size: str) -> str:
         w, h = int(w), int(h)
         return f"{w}x{h}"
     except (ValueError, AttributeError):
-        raise ValidationError(f"无效的图片尺寸: {size}，格式应为 WxH，如 1024x768")
+        raise ValidationError(f"无效的图片尺寸: {size}，格式应为 WxH，如 1024x768") from None
 
 
 def validate_model(model_id: str, expected_type: str | None = None) -> str:

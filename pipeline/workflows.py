@@ -9,6 +9,9 @@ from engines.text_to_image import TextToImageEngine
 from engines.image_to_image import ImageToImageEngine
 from engines.video import VideoEngine
 
+__all__ = ['PipelineOrchestrator']
+
+
 
 def _local_image_to_b64_url(path: str) -> str:
     """将本地图片文件转为纯 base64 字符串（视频 API 后备方案）
@@ -172,7 +175,7 @@ class PipelineOrchestrator:
                     scene_results[-1] = {"scene": scene, "image": img_data, "error": "无CDN URL，无法用于视频"}
                 if on_scene_done:
                     on_scene_done(i, img_data)
-            except Exception as e:
+            except (RuntimeError, OSError, ValueError) as e:
                 scene_results.append({"scene": scene, "image": None, "error": str(e)})
 
         # Step 3: 多图转视频（image 和 mode 放在 extra_body 内）
@@ -233,7 +236,7 @@ class PipelineOrchestrator:
                 results.append(data)
                 if on_done:
                     on_done(i, data)
-            except Exception as e:
+            except (RuntimeError, OSError, ValueError) as e:
                 results.append({"error": str(e), "prompt": prompt})
 
         return results

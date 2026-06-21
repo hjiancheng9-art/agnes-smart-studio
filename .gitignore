@@ -1,5 +1,7 @@
 # Environment & secrets
 .env
+.env.local
+.env.*.local
 
 # Python
 __pycache__/
@@ -8,6 +10,19 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+
+# Test / cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+t.txt
+p.txt
+
+# Backup files
+*.bak
+*.orig
 
 # IDE
 .vscode/
@@ -22,3 +37,12 @@ Thumbs.db
 
 # Settings
 settings.json
+
+# Scratch scripts (debugging one-offs)
+scripts/scratch/
+
+# IDE plan files
+.codebuddy/
+
+# Windows NUL artifacts
+nul

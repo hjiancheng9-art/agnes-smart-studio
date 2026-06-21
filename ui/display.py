@@ -1,17 +1,58 @@
-"""展示工具 - 结果表格、Markdown渲染、颜色主题"""
+"""展示工具 - 结果表格、Markdown渲染、颜色主题 + 文件预览"""
 
 from rich.console import Console
-from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 
 import os
-# Windows 兼容：强制UTF-8输出
-if os.name == "nt":
-    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+import subprocess
+import platform
+
+__all__ = [
+    'COLORS', 'console', 'get_recent_outputs', 'open_file', 'show_error', 'show_history_table', 'show_image_result', 'show_info', 'show_pipeline_result', 'show_result', 'show_success', 'show_templates_list', 'show_video_result', 'show_warning', 'track_output',
+]
+
 
 console = Console(force_terminal=True)
+
+# ── 最近生成的文件追踪（用于 /open 和 /outputs）──
+_recent_outputs: list[dict] = []  # [{"type": "image"/"video", "path": ..., "prompt": ..., "data": {...}}, ...]
+_MAX_RECENT = 50
+
+
+def track_output(output_type: str, data: dict):
+    """记录生成结果到最近列表"""
+    path = data.get("local_path", "") or data.get("url", "")
+    if path:
+        _recent_outputs.insert(0, {
+            "type": output_type,
+            "path": path,
+            "prompt": data.get("prompt", "")[:60],
+            "data": data,
+        })
+        if len(_recent_outputs) > _MAX_RECENT:
+            _recent_outputs.pop()
+
+
+def get_recent_outputs(n: int = 10) -> list[dict]:
+    """获取最近 N 个生成结果"""
+    return _recent_outputs[:n]
+
+
+def open_file(path: str) -> bool:
+    """用系统默认程序打开文件"""
+    if not path or not os.path.exists(path):
+        return False
+    try:
+        if platform.system() == "Windows":
+            os.startfile(path)
+        elif platform.system() == "Darwin":
+            subprocess.Popen(["open", path])
+        else:
+            subprocess.Popen(["xdg-open", path])
+        return True
+    except (OSError, subprocess.SubprocessError):
+        return False
 
 # 终端配色
 COLORS = {
@@ -44,41 +85,61 @@ def show_result(result: dict, title: str = "生成结果"):
 
 
 def show_image_result(data: dict):
-    """展示图片生成结果"""
+    """展示图片生成结果（含预览提示）"""
+    track_output("image", data)
+
+    path = data.get("local_path", "")
     items = []
-    if data.get("local_path"):
-        items.append(f"[bold]本地路径:[/] {data['local_path']}")
+    if path:
+        items.append(f"[bold]📁 文件:[/] {path}")
     if data.get("url"):
-        items.append(f"[bold]在线URL:[/] {data['url'][:60]}...")
+        items.append(f"[bold]🔗 URL:[/] {data['url'][:60]}...")
     if data.get("model"):
         items.append(f"[bold]模型:[/] {data['model']}")
     if data.get("prompt"):
         items.append(f"[bold]提示词:[/] {data['prompt'][:80]}...")
+    if path:
+        items.append("\n[dim]  /open 打开 | /outputs 查看全部 | 说\"改xxx\"重新生成[/]")
 
     console.print(Panel(
         "\n".join(items),
-        title=f"[{COLORS['success']}]图片生成完成[/]",
+        title=f"[{COLORS['success']}]🖼️ 图片生成完成[/]",
         border_style=COLORS["success"],
     ))
+    # 自动尝试打开
+    if path:
+        try:
+            open_file(path)
+            console.print("[dim]  已自动打开预览[/]")
+        except (OSError, subprocess.SubprocessError):
+            pass
 
 
 def show_video_result(data: dict):
-    """展示视频生成结果"""
+    """展示视频生成结果（含预览提示）"""
+    track_output("video", data)
+
+    path = data.get("local_path", "")
     items = []
-    if data.get("local_path"):
-        items.append(f"[bold]本地路径:[/] {data['local_path']}")
+    if path:
+        items.append(f"[bold]📁 文件:[/] {path}")
     if data.get("url"):
-        items.append(f"[bold]在线URL:[/] {data['url'][:60]}...")
+        items.append(f"[bold]🔗 URL:[/] {data['url'][:60]}...")
     if data.get("video_id"):
         items.append(f"[bold]视频ID:[/] {data['video_id']}")
     if data.get("task_id"):
         items.append(f"[dim]任务ID: {data['task_id']}[/]")
+    if path:
+        items.append("\n[dim]  /open 打开 | /outputs 查看全部 | 说\"改xxx\"重新生成[/]")
 
     console.print(Panel(
         "\n".join(items),
-        title=f"[{COLORS['accent']}]视频生成完成[/]",
+        title=f"[{COLORS['accent']}]🎬 视频生成完成[/]",
         border_style=COLORS["accent"],
     ))
+    # 不自动打开视频（可能很大）
+    if path:
+        console.print("[dim]  输入 /open 打开预览[/]")
 
 
 def show_pipeline_result(data: dict):

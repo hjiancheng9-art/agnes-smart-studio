@@ -2,6 +2,9 @@
 
 from core.config import PROMPT_TEMPLATES
 
+__all__ = ['apply_template', 'get_template', 'get_template_info', 'list_templates']
+
+
 
 def list_templates() -> list[str]:
     """列出所有可用模板名"""
@@ -30,10 +33,7 @@ def apply_template(name: str, user_prompt: str, target: str = "image") -> tuple[
     style_prompt = tpl.get(target, tpl.get("image", ""))
     negative = tpl.get("negative", "")
 
-    if style_prompt:
-        enhanced = f"{user_prompt}, {style_prompt}"
-    else:
-        enhanced = user_prompt
+    enhanced = f"{user_prompt}, {style_prompt}" if style_prompt else user_prompt
 
     return enhanced, negative
 

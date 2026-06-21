@@ -116,9 +116,6 @@ class ChatSession:
         self.code_mode = False
         self.mode = "chat"
         self.unlimited_tools = False
-        self._rep_chunks = []
-        self._rep_silenced = False
-        self._rep_nudge_sent = False
         self.agent_mode = False
         self.tools: ToolRegistry = get_registry()
         self.skills: SkillManager = get_manager()
@@ -235,6 +232,17 @@ class ChatSession:
             base += get_rules().inject_prompt()
         except (ImportError, OSError):
             pass  # rules 模块不可用时静默降级
+        # 注入技能市场概况 + 能力来源总览（让 AI 知道可用资源）
+        try:
+            from core.marketplace import get_marketplace
+            base += "\n\n" + get_marketplace().summary()
+        except (ImportError, OSError):
+            pass
+        try:
+            from core.orchestra import get_orchestra
+            base += "\n\n" + get_orchestra().summary()
+        except (ImportError, OSError):
+            pass
         return base
 
     def reset(self):
@@ -289,19 +297,6 @@ class ChatSession:
                 if "content" in delta and delta["content"]:
                     chunk = delta["content"]
                     buffer += chunk
-                    # Sliding window dedup: 80-char chunks, 2 repeats max
-                    sample = chunk[:80] if len(chunk) >= 20 else ""
-                    if sample:
-                        self._rep_chunks.append(sample)
-                        if len(self._rep_chunks) > 10:
-                            self._rep_chunks.pop(0)
-                        if self._rep_chunks.count(sample) >= 2:
-                            if not self._rep_nudge_sent:
-                                self._rep_nudge_sent = True
-                                self.messages.append({"role": "system", "content": "[silent] You are repeating. Vary your output."})
-                            self._rep_silenced = True
-                            continue
-                    self._rep_silenced = False
                     yield ("text", chunk)
                 if "tool_calls" in delta and delta["tool_calls"]:
                     tool_calls.extend(delta["tool_calls"])

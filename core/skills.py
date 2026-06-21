@@ -27,7 +27,8 @@ Skill 文件格式 (JSON):
 
 import json
 from pathlib import Path
-from typing import Optional
+
+__all__ = ['SKILLS_DIR', 'Skill', 'SkillManager', 'get_manager']
 
 
 SKILLS_DIR = Path(__file__).parent.parent / "skills"
@@ -36,7 +37,7 @@ SKILLS_DIR = Path(__file__).parent.parent / "skills"
 class Skill:
     """单个技能"""
 
-    def __init__(self, data: dict, file_path: Path):
+    def __init__(self, data: dict, file_path: Path) -> None:
         self.name = data.get("name", file_path.stem)
         self.description = data.get("description", "")
         self.version = data.get("version", "1.0")
@@ -52,9 +53,9 @@ class Skill:
 class SkillManager:
     """技能管理器：发现、加载、卸载"""
 
-    def __init__(self, skills_dir: Optional[Path] = None):
+    def __init__(self, skills_dir: Path | None = None) -> None:
         self._dir = skills_dir or SKILLS_DIR
-        self._loaded: Optional[Skill] = None
+        self._loaded: Skill | None = None
         self._available: dict[str, Skill] = {}
 
     def discover(self) -> dict[str, Skill]:
@@ -74,14 +75,14 @@ class SkillManager:
         return self._available
 
     @property
-    def loaded(self) -> Optional[Skill]:
+    def loaded(self) -> Skill | None:
         return self._loaded
 
     @property
     def available_names(self) -> list[str]:
         return list(self._available.keys())
 
-    def load(self, name: str) -> Optional[Skill]:
+    def load(self, name: str) -> Skill | None:
         """加载指定技能，返回技能对象"""
         self.discover()
         skill = self._available.get(name)
@@ -198,7 +199,7 @@ class SkillManager:
                 dest.write_text(json.dumps(skill_data, indent=2, ensure_ascii=False), encoding="utf-8")
                 result["imported"].append(name)
 
-            except Exception as e:
+            except (json.JSONDecodeError, TypeError, KeyError) as e:
                 result["errors"].append(f"{sf.name}: {e}")
 
         return result
@@ -273,7 +274,7 @@ class SkillManager:
 
 
 # 全局单例
-_manager: Optional[SkillManager] = None
+_manager: SkillManager | None = None
 
 
 def get_manager() -> SkillManager:
