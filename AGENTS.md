@@ -1,68 +1,68 @@
-# Agnes Smart Studio — 智能体工具平台
+# AGENTS.md instructions for C:\Users\huangjiancheng\agnes-smart-studio
 
-AI 生图/生视频 + 智能体主脑，29 命令 + 8 Skill + 12 工具 + 3 供应商 + 视觉独立通道。
+<INSTRUCTIONS>
+# Global Instructions
 
-> 本文是目录，详情见 docs/。技能写作规范见 docs/authoring.md
+Agnes Smart Studio v5.0.0 — AI-native creative + coding platform
 
-## 快速导航
+## Architecture
+- Entry: launcher.py (menu) / agnes_studio.py -c (chat) / launch.bat (quick start)
+- Core: core/chat.py (ChatSession), core/commands.py (COMMANDS registry), core/marketplace.py (skills), core/skills.py (SkillManager)
+- UI: ui/cli.py (AgnesCLI — 多重继承 7 个 Mixin), ui/mixins/*.py (命令处理器按职责分组), ui/render.py (StreamingRenderer 流式渲染契约), ui/terminal_logo.py (ASCII logo)
+- Engines: engines/text_to_image.py, engines/image_to_image.py, engines/video.py
+- Knowledge: utils/memory.py (user memory), utils/history.py
 
-| 文档 | 内容 |
-|------|------|
-| [README.md](README.md) | 安装与快速开始 |
-| [FAQ.md](FAQ.md) | 常见问题 |
-| [docs/architecture.md](docs/architecture.md) | 架构设计 |
-| [docs/skills.md](docs/skills.md) | 技能目录 |
-| [docs/commands.md](docs/commands.md) | 命令参考 |
-| [docs/authoring.md](docs/authoring.md) | 技能/工具写作规范 |
-| [docs/tools.md](docs/tools.md) | 外部工具配置 |
+## Key Capabilities
+- 30 Commands: auto-registered in core/commands.py (COMMANDS list), /help auto-generated
+- Toggle-based feature switching (非 mode 架构):
+  - code_mode / agent_mode: ChatSession.toggle_code_mode() / toggle_agent_mode()
+  - Skill loading: ChatSession.load_skill() / unload_skill() (showrunner / comfyui-bridge)
+  - 每次切换通过 _build_system_prompt() 重建 system prompt
+- Showrunner: /showrun <goal> full creative pipeline (plan->decompose->storyboard->generate->QC)
+- Marketplace: 733 skills (45 local + 688 CodeBuddy), search/install/auto-discover
+- Providers: Agnes AI / DeepSeek V4 Pro / SiliconFlow Kimi / Qwen3-Coder 30B (local CUDA)
+- 48 Tools: code editing, git, testing, browser, ComfyUI, file ops
 
-## 核心命令
+## Rendering Contract (DNA — 输出不重复)
+- ui/render.py:StreamingRenderer 是所有流式渲染的唯一合法网关（强制契约）
+- 不变式: Live(transient=True) + _flushed_len 单一落盘点 + 副作用边界先 commit
+- 守卫: tests/test_render.py (renderer 契约 + 仓库级禁止 ui/render.py 外 import Live)
+- 真自检: core/capability.py:_quick_health() 的 rendering.invariants 字段（真反射检测，非写死）
 
-| 命令 | 功能 |
-|------|------|
-| `/code` | 编程助手（切换模式，再次输入退出） |
-| `/agent` | 智能体模式（加载 tools.json，再次输入退出） |
-| `/plan <任务>` | 先规划再执行 |
-| `/team [review\|debug\|feature]` | 智能体团队 |
-| `/skill load <name>` | 加载技能包 |
-| `/provider switch <name>` | 切换模型供应商 (agnes/deepseek/siliconflow) |
-| `/vision <图> <问>` | 图片理解（独立视觉通道，始终可用） |
-| `/deploy [vercel\|netlify\|github]` | 一键部署 |
+## Rules System (规范注入)
+- core/rules.py: RulesManager + Rule + get_rules()，扫描 rules/*.rules.md
+- 规则名 = 文件名剥两层后缀 (.rules.md → 纯名，如 rendering)
+- frontmatter `default-active: true` 标记的规则首次 discover 时自动激活（系统级契约默认生效）
+- 接入点: core/chat.py:_build_system_prompt() 末尾追加 get_rules().inject_prompt()，所有 mode/skill 切换自动存活
 
-完整列表: 输入 `/help`
+## Important Files
+- core/commands.py: COMMANDS list (line 55), register() (line 148), auto_category() (line 134)
+- core/chat.py: ChatSession._build_system_prompt() (line 219), _current_base_prompt() (line 211)
+- core/skills.py: SkillManager (line 53), get_manager() (line 280)
+- core/skill_loader.py: SKILL_DIRS (line 22), 旧技能注入系统
+- core/marketplace.py: MarketplaceClient (line 679), CodeBuddyAdapter (line 246)
+- ui/cli.py: AgnesCLI 主壳，组合 7 个 Mixin
+- ui/mixins/shared.py: SharedMixin._stream_chat() / _mode_hint() (line 193)
+- ui/mixins/creative.py: _chat_showrun() handler (注意: 非 _chat_showrunner)
+- agnes_manifest.json: system evolution state snapshot
+- assets/agnes_logo*.svg: terminal flat pixel logo, terminal_logo.py for CLI display
 
-## 操作提示
+## How to Extend Agnes
+- Add /command: 1 entry in core/commands.py COMMANDS + 1 handler 方法在对应 Mixin (ui/mixins/*.py)
+- Register dynamically: core.commands.register('key', '/name', '<args>', '<desc>')
+- Auto-category: leave category='' for auto-detection
+- Install skills: from core.marketplace import get_marketplace; mkt.install('skill-name')
+- 流式渲染: 必须用 ui.render.StreamingRenderer，禁止直接 import rich.live.Live（守卫测试会拦）
 
-- 多行输入: 输入 `"""` 进入，再输入 `"""` 发送
-- Ctrl+C 中止当前运行，再按一次退出聊天
-- /code 或 /agent 再次输入即退出该模式
-- 视觉始终走 Agnes 独立通道，不受供应商切换影响
+## Current State
+- 30 commands, 48 tools, 45 local skills, 733 marketplace skills
+- Toggle-based: code_mode / agent_mode / skill (showrunner / comfyui-bridge)
+- Terminal logo displays on startup via ui/terminal_logo.py
+- llama-server with CUDA 13.3 on RTX 4060 Ti for local Qwen3-Coder 30B
+- Test baseline: 980 passed, 2 skipped
+</INSTRUCTIONS>
 
-## 技能库 (29 个)
+# currentDate
+Today's date is 2026-06-21.
 
-### 原创文案 (5)
-`copywriting-master` `comic-drama-writer` `story-copywriter` `novel-writer` `script-writer`
-
-### 原创工具 (10)
-`cinematic-master` `creative-engine` `video-pipeline` `self-evolution` `prompt-engineering` `creative-thinking` `python-expert` `debug-master` `api-designer` `shell-master`
-
-### 新烬龙V2 迁移 (14)
-`prompt-director` `visual-director` `storyboard-director` `motion-director` `asset-manager` `qc-inspector` `delivery-handoff` `core-showrunner` `creative-leap-pro` `cinematic-keyframe` `i2v-motion-rules` `negative-prompt-rules` `model-routing` `recovery-playbooks`
-
-### 新烬龙流影工坊 (旧版) 迁移 (5)
-`gaming-action-engine` `ip-adaptation-guard` `world-building-engine` `publishing-packager` `actor-craft`
-
-## 品质门禁
-
-```bash
-python -c "import ast; ... "      # 全项目语法检查
-python -m pytest tests/ -q        # 单元测试（如有）
-python agnes_studio.py -c          # 聊天模式 → /self check → /self health
-```
-
-## 规范
-
-- 插件名: 小写+连字符 (creative-engine)
-- Skill 文件: JSON 格式，name/description/prompt 必填
-- 不提交 secrets，不执行危险 git 操作
-- 代码英文，注释可中文，文件 UTF-8
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.

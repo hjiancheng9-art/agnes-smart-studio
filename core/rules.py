@@ -1,8 +1,8 @@
 """Rules 系统 — 持久化编码规范，自动注入会话上下文"""
 
 from pathlib import Path
-from typing import Optional
 
+__all__ = ["RULES_DIR", "Rule", "RulesManager", "get_rules"]
 RULES_DIR = Path(__file__).parent.parent / "rules"
 
 
@@ -10,43 +10,83 @@ class Rule:
     """一条编码规则"""
 
     def __init__(self, name: str, content: str, description: str = "",
-                 enabled: bool = True, category: str = "general"):
+                 enabled: bool = True, category: str = "general",
+                 default_active: bool = False) -> None:
         self.name = name
         self.content = content
         self.description = description
         self.enabled = enabled
         self.category = category
+        # 是否在首次 discover 时自动加入 _active（opt-in，默认 False）
+        # 用途：rendering 这类系统级契约规则默认就该生效，不必等用户手动 enable
+        self.default_active = default_active
 
     @staticmethod
     def from_file(path: Path) -> "Rule":
-        """从 .rules.md 文件加载规则"""
+        """从 .rules.md 文件加载规则
+
+        支持 YAML frontmatter（可选）::
+
+            ---
+            default-active: true
+            ---
+            # 规则标题
+            规则正文...
+
+        无 frontmatter 时向后兼容（仅取第一行 # 当描述）。default-active 默认 False，
+        故 3 个示例规则（encoding-i18n / python-style / secret-security）行为不变。
+        """
         text = path.read_text(encoding="utf-8") if path.exists() else ""
         description = ""
         content = text
+        default_active = False
+
+        # YAML frontmatter（可选）：---  ...  ---
+        if text.startswith("---"):
+            parts = text.split("---", 2)
+            if len(parts) >= 3:
+                front = parts[1]
+                body = parts[2].strip()
+                # 极简解析（避免引入 yaml 依赖）：只认 default-active: true
+                for line in front.strip().splitlines():
+                    if line.strip().lower().startswith("default-active:"):
+                        default_active = line.split(":", 1)[1].strip().lower() in ("true", "yes", "1")
+                content = body
+
         # 提取第一行作为描述
-        first_line = text.strip().split("\n")[0]
+        first_line = content.strip().split("\n")[0]
         if first_line.startswith("# "):
             description = first_line[2:].strip()
-            content = "\n".join(text.strip().split("\n")[1:]).strip()
+            content = "\n".join(content.strip().split("\n")[1:]).strip()
+
+        # 提取纯规则名：rendering.rules.md → rendering（剥 .rules.md 两层后缀）
+        raw_stem = path.stem           # rendering.rules（只剥 .md）
+        name = raw_stem.removesuffix(".rules") if raw_stem.endswith(".rules") else raw_stem
 
         return Rule(
-            name=path.stem,
+            name=name,
             content=content,
             description=description,
-            category=path.parent.name if path.parent != RULES_DIR else "general"
+            category=path.parent.name if path.parent != RULES_DIR else "general",
+            default_active=default_active,
         )
 
 
 class RulesManager:
     """规则管理器：加载、注入、创建"""
 
-    def __init__(self, rules_dir: Optional[Path] = None):
+    def __init__(self, rules_dir: Path | None = None) -> None:
         self._dir = rules_dir or RULES_DIR
         self._rules: dict[str, Rule] = {}
         self._active: list[str] = []
 
     def discover(self) -> dict[str, Rule]:
-        """扫描 rules/ 目录发现规则"""
+        """扫描 rules/ 目录发现规则
+
+        带 frontmatter ``default-active: true`` 的规则会在首次发现时自动加入 _active
+        （系统级契约规则，如 rendering，默认就该生效）。已在 _active 的不重复加入；
+        用户用 /rules disable 移除后，本方法不会重新加回（保持用户意图）。
+        """
         self._rules.clear()
         if not self._dir.exists():
             self._dir.mkdir(parents=True, exist_ok=True)
@@ -56,11 +96,15 @@ class RulesManager:
             try:
                 rule = Rule.from_file(f)
                 self._rules[rule.name] = rule
-            except Exception:
+            except (AttributeError, TypeError):
                 pass
+        # 首次自动激活标记为 default_active 的规则
+        for name, rule in self._rules.items():
+            if getattr(rule, "default_active", False) and name not in self._active:
+                self._active.append(name)
         return self._rules
 
-    def load(self, name: str) -> Optional[Rule]:
+    def load(self, name: str) -> Rule | None:
         """加载指定规则"""
         self.discover()
         return self._rules.get(name)
@@ -156,7 +200,7 @@ class RulesManager:
 
 
 # 全局单例
-_manager: Optional[RulesManager] = None
+_manager: RulesManager | None = None
 
 
 def get_rules() -> RulesManager:
