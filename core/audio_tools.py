@@ -1,5 +1,8 @@
 """音频工具 — TTS 语音合成 + 背景音乐 + 音效 + 混音
 
+⚠ EXPERIMENTAL — 未接通 runtime：仅被 tests/manual 引用，
+tools.json 未注册、ChatSession 未 import。接入前接口可能调整。
+
 提供 4 个工具：
 - tts_narration: edge-tts 文本转语音（微软免费中文语音引擎）
 - generate_bgm: ffmpeg 合成简单背景音乐/氛围音

@@ -2,6 +2,9 @@
 
 Provides classes and tool definitions for opening, editing, executing,
 and saving Jupyter notebooks programmatically.
+
+⚠ EXPERIMENTAL — 未接通 runtime：NotebookManager 与 NOTEBOOK_EXECUTOR_MAP 已就位，
+但 tools.json 未注册、ChatSession 未 import。接入前接口可能调整。
 """
 
 import json

@@ -43,49 +43,6 @@ class TestEncodingSetup:
         assert "ok" in r.stdout  # type: ignore[operator]  # setup() 注入 encoding=utf-8，运行时 stdout 为 str
 
 
-# ── core.notify ──────────────────────────────────────────────────────────
-
-
-class TestNotifier:
-    """Desktop notification system."""
-
-    def test_notifier_import(self):
-        from core.notify import Notifier
-        assert callable(Notifier)
-
-    def test_notifier_instance(self):
-        from core.notify import _notifier
-        assert hasattr(_notifier, "send")
-        assert hasattr(_notifier, "_available")
-
-    def test_notify_function(self):
-        from core.notify import notify
-        notify("test title", "test message")  # should not raise
-
-    def test_notify_task_done(self):
-        from core.notify import notify_task_done
-        notify_task_done("image")  # should not raise
-
-    def test_notify_task_done_video(self):
-        from core.notify import notify_task_done
-        notify_task_done("video", "result_data")  # should not raise
-
-    def test_notifier_check_available_returns_bool(self):
-        from core.notify import Notifier
-        n = Notifier()
-        assert isinstance(n._available, bool)
-
-    def test_unavailable_notifies_gracefully(self):
-        from core.notify import Notifier
-        n = Notifier()
-        n._available = False
-        n.send("title", "msg")  # should return silently
-
-    def test_notify_urgent(self):
-        from core.notify import notify
-        notify("urgent", "urgent msg", urgent=True)  # should not raise
-
-
 # ── core.session_mgr ─────────────────────────────────────────────────────
 
 

@@ -1,5 +1,8 @@
 """Browser Companion — 全自动网页生图生视频
 
+⚠ EXPERIMENTAL — 未接通 runtime：本模块仅被 tests/manual 引用，
+ChatSession/tools.json 尚未注册。Playwright 自动化逻辑完整但需接入后才生效。
+
 Agnes 大脑：选择 provider、生成 prompt、决定策略
 Playwright：打开网页、填入提示词、点击生成、轮询结果、下载文件
 API Provider：有官方API的直接调用（更快更稳定）

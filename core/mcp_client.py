@@ -3,6 +3,9 @@
 Connects to external MCP servers via stdio transport, discovers their tools
 and resources, and provides an executor map for the ToolRegistry system.
 
+⚠ EXPERIMENTAL — 未接通 runtime：MCPClient/MCP_TOOL_DEFS/MCP_EXECUTOR_MAP 已实现，
+但 tools.json 未注册、ChatSession 未 import。接入前接口可能调整。
+
 Architecture:
     MCPServerConfig  - Dataclass for server configuration
     MCPClient        - Manages server lifecycle, JSON-RPC 2.0 communication

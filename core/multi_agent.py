@@ -2,6 +2,9 @@
 
 Real coordination: task decomposition, parallel dispatch, result aggregation,
 consensus voting, work stealing from stalled agents.
+
+⚠ EXPERIMENTAL — 未接通 runtime：接口已设计（MultiAgentCoordinator/coordinate），
+但 ChatSession/agent_mode 尚未 import 本模块。接口签名可能调整，勿在生产路径依赖。
 """
 
 import time
