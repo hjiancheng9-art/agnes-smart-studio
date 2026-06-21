@@ -650,6 +650,73 @@
           "required": false
         }
       }
+    },
+    {
+      "name": "code_analyze",
+      "type": "python",
+      "description": "Analyze a source file's structure: list functions, classes, imports with line numbers. Supports .py, .js, .jsx, .ts, .tsx, .go, .rs.",
+      "function": "core.code_intel.execute_code_analyze",
+      "parameters": {
+        "file_path": {
+          "type": "string",
+          "description": "Path to the source file to analyze",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "find_symbol",
+      "type": "python",
+      "description": "Find where a function or class is defined across the project. Returns file path and line number.",
+      "function": "core.code_intel.execute_find_symbol",
+      "parameters": {
+        "symbol": {
+          "type": "string",
+          "description": "Function or class name to find",
+          "required": true
+        },
+        "directory": {
+          "type": "string",
+          "description": "Project directory to search (default: current dir)",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "search_symbols",
+      "type": "python",
+      "description": "Search for functions/classes matching a regex pattern. Returns matches with file locations.",
+      "function": "core.code_intel.execute_search_symbols",
+      "parameters": {
+        "pattern": {
+          "type": "string",
+          "description": "Regex pattern to match symbol names",
+          "required": true
+        },
+        "directory": {
+          "type": "string",
+          "description": "Project directory to search (default: current dir)",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "find_references",
+      "type": "python",
+      "description": "Find all references to a symbol in a file. Returns line numbers and context.",
+      "function": "core.code_intel.execute_find_references",
+      "parameters": {
+        "file_path": {
+          "type": "string",
+          "description": "File to search in",
+          "required": true
+        },
+        "symbol": {
+          "type": "string",
+          "description": "Symbol name to find references for",
+          "required": true
+        }
+      }
     }
   ]
 }

@@ -255,9 +255,26 @@ class SharedMixin:
         def _on_info(kind: str, payload: object) -> None:
             show_info(payload)  # type: ignore[arg-type]
 
+        def _on_confirm(kind: str, payload: object) -> None:
+            """高风险工具确认：弹 y/n，拒绝则中止本轮。
+
+            payload: {"tool": str, "args": dict}
+            中止方式：抛 PermissionError，由上层 send_stream 的 tool 循环外
+            （_stream_chat 的 try/except）捕获，转为友好提示。
+            """
+            data: dict = payload  # type: ignore[assignment]
+            tool = data.get("tool", "?")
+            show_warning(f"⚠ 即将执行高风险工具: {tool}")
+            from rich.prompt import Confirm
+            if not Confirm.ask("[bold]确认执行？[/]", default=False):
+                raise PermissionError(f"用户拒绝了 {tool} 的执行")
+
         renderer = StreamingRenderer(
             console,
-            side_effect_handlers={"info": _on_info, "image": _on_image, "video": _on_video},
+            side_effect_handlers={
+                "info": _on_info, "image": _on_image, "video": _on_video,
+                "confirm": _on_confirm,
+            },
         )
         renderer.start()
         try:
@@ -266,6 +283,9 @@ class SharedMixin:
                     renderer.append_text(payload)
                 else:
                     renderer.run_side_effect(kind, payload)
+        except PermissionError as e:
+            # 用户拒绝了高风险工具确认：友好提示，不中止会话
+            show_warning(f"🚫 {e}")
         except KeyboardInterrupt:
             console.print()
             show_info("⏹ 已中断当前输出")

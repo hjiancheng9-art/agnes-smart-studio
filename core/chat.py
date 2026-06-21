@@ -12,9 +12,11 @@ yield 协议（send_stream）：
     ("info", str)            中间提示（如"生成图片: ..."）
     ("image", dict)          图片生成结果（含 local_path）
     ("video", dict)          视频生成结果
+    ("confirm", dict)        高风险工具确认（需 UI 层处理）
 """
 
 import json
+import re
 
 from core.client import AgnesClient
 from core.config import AGNES_VISION_MODEL
@@ -149,6 +151,12 @@ class ChatSession:
         if self.agent_mode:
             self.tools = get_registry()  # 重新加载工具配置
             self.tools.load()
+            # 激活代码守卫 hook（语法验证 + smoke 测试）
+            try:
+                from core.hooks import register_code_hooks
+                register_code_hooks()
+            except (ImportError, OSError):
+                pass
             prompt = AGENT_SYSTEM_PROMPT + f"\n当前可用工具: {self.tools.tool_names}"
         else:
             prompt = self._build_system_prompt()
@@ -353,14 +361,36 @@ class ChatSession:
     def _dispatch_tool(self, name: str, args_json: str) -> tuple[str, list[tuple]]:
         """执行工具，返回 (给模型的文本, 给用户的副作用列表)。
 
-        副作用列表元素: ("info", str) / ("image", dict) / ("video", dict)
+        副作用列表元素: ("info", str) / ("image", dict) / ("video", dict) / ("confirm", dict)
 
         与命令式路径对齐：均经过 SmartBrain Prompt 增强后再调引擎。
+        支持生命周期 hook（PRE_TOOL_USE / POST_TOOL_USE）和高风险工具确认。
         """
         try:
             args = json.loads(args_json or "{}")
         except json.JSONDecodeError:
             args = {}
+
+        # ── 高风险工具确认机制 ──
+        _HIGH_RISK_TOOLS = {"git_add_commit"}
+        _RISKY_ARGS_PATTERN = re.compile(r'\b(rm|delete|drop|truncate)\b', re.IGNORECASE)
+        is_high_risk = (
+            name in _HIGH_RISK_TOOLS
+            or (name == "run_bash" and _RISKY_ARGS_PATTERN.search(args.get("command", "")))
+        )
+        if is_high_risk:
+            confirm_data = {"tool": name, "args": args}
+            return "", [("confirm", confirm_data)]
+
+        # ── PRE_TOOL_USE hook ──
+        try:
+            from core.hooks import hook_manager, HookType
+            pre_evt = hook_manager.fire(HookType.PRE_TOOL_USE, data={"tool_name": name, "args": args})
+            if pre_evt.stop_processing:
+                return "工具调用被拦截（PRE_TOOL_USE hook）", []
+        except (ImportError, OSError):
+            pass  # hooks 模块不可用时静默降级
+
         prompt = args.get("prompt", "")
         image_url = args.get("image_url", "") or args.get("image", "")
 
@@ -420,7 +450,27 @@ class ChatSession:
 
         # 外部工具（tools.json 中定义）→ 通过 ToolRegistry 执行
         if self.tools.has(name):
+            # 中间状态可见：耗时工具先提示
+            _LONG_RUNNING = {"run_bash", "run_test", "run_python", "web_fetch", "web_search"}
+            side: list[tuple[str, str | dict]] = []
+            if name in _LONG_RUNNING:
+                side.append(("info", f"正在执行 {name}..."))
             result = self.tools.execute(name, args)
-            return result, [("info", f"工具 {name} 执行完成")]
+
+            # POST_TOOL_USE hook：验证 / 回滚 / 学习
+            try:
+                from core.hooks import hook_manager, HookType
+                post_evt = hook_manager.fire(
+                    HookType.POST_TOOL_USE,
+                    data={"tool_name": name, "args": args, "result": result},
+                )
+                # hook 可能改写 result（如追加语法错误提示）
+                if isinstance(post_evt.result, str) and post_evt.result:
+                    result = post_evt.result
+            except (ImportError, OSError):
+                pass
+
+            side.append(("info", f"工具 {name} 执行完成"))
+            return result, side
 
         return f"未知工具: {name}", []

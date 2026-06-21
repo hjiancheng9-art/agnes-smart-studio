@@ -12,7 +12,9 @@ from collections.abc import Callable
 from core.config import OUTPUT_DIR
 
 __all__ = [
-    "Hook", "HookEvent", "HookManager", "HookType", "hook_manager", "logger", "on_post_tool", "on_pre_tool", "on_prompt_submit", "register_learning_hooks", "register_safety_hooks",
+    "Hook", "HookEvent", "HookManager", "HookType", "hook_manager", "logger",
+    "on_post_tool", "on_pre_tool", "on_prompt_submit",
+    "register_learning_hooks", "register_safety_hooks", "register_code_hooks",
 ]
 logger = logging.getLogger(__name__)
 
@@ -332,4 +334,91 @@ def register_learning_hooks() -> None:
         hook_type=HookType.POST_TOOL_USE,
         handler=_learning_post_tool_handler,
         priority=50,
+    )
+
+
+# ── Code Guard Hooks（write/edit 后自动验证）───────────────────────────────
+
+
+def _syntax_guard_handler(event: HookEvent) -> HookEvent:
+    """POST_TOOL_USE hook: 对 .py 文件在 write_file/edit_file 后做 AST 语法验证。
+
+    检测到语法错误时把提示附加到 event.result，让模型看到失败信号、自检修正。
+    """
+    tool_name = event.data.get("tool_name", "")
+    if tool_name not in ("write_file", "edit_file"):
+        return event
+
+    args = event.data.get("args", {}) or {}
+    file_path = args.get("path", "")
+    if not file_path or not str(file_path).endswith(".py"):
+        return event
+
+    try:
+        import ast
+        from pathlib import Path
+        source = Path(file_path).read_text(encoding="utf-8", errors="replace")
+        ast.parse(source, filename=file_path)
+    except SyntaxError as e:
+        msg = f"\n[⚠ 语法错误 {file_path}:{e.lineno}] {e.msg}"
+        if isinstance(event.result, str):
+            event.result = (event.result or "") + msg
+        else:
+            event.result = msg
+    except (OSError, ImportError):
+        pass  # 文件不可读或 ast 不可用：静默降级
+    return event
+
+
+def _test_guard_handler(event: HookEvent) -> HookEvent:
+    """POST_TOOL_USE hook: edit_file 后自动跑 smoke 测试（非递归、限时）。
+
+    失败时把摘要附到 event.result，让模型感知"改动破坏了测试"。
+    smoke 测试集在 pytest 内运行时会被 pytest_runner 递归守卫短路，安全。
+    """
+    tool_name = event.data.get("tool_name", "")
+    if tool_name != "edit_file":
+        return event
+
+    args = event.data.get("args", {}) or {}
+    file_path = args.get("path", "")
+    if not file_path or not str(file_path).endswith(".py"):
+        return event
+
+    try:
+        from core.pytest_runner import run_pytest_safe
+        from pathlib import Path
+        root = Path(file_path).resolve().parent.parent
+        smoke = root / "tests" / "test_smoke.py"
+        if not smoke.exists():
+            return event  # 无 smoke 测试集：跳过
+        r = run_pytest_safe(str(smoke), timeout=15, cwd=root)
+        if r.returncode != 0:
+            tail = (r.stdout or r.stderr or "")[-300:]
+            msg = f"\n[⚠ smoke 测试失败（改动可能破坏了现有测试）]\n{tail}"
+            if isinstance(event.result, str):
+                event.result = (event.result or "") + msg
+            else:
+                event.result = msg
+    except (OSError, ImportError, RuntimeError):
+        pass  # 守卫或 pytest 不可用：静默降级
+    return event
+
+
+def register_code_hooks() -> None:
+    """注册代码守卫 hook：语法验证（高优先级）+ smoke 测试守卫（中优先级）。
+
+    幂等：重复调用不会重复注册（hook_manager 已有同名检查）。
+    """
+    hook_manager.register(
+        name="syntax_guard",
+        hook_type=HookType.POST_TOOL_USE,
+        handler=_syntax_guard_handler,
+        priority=80,  # 先于 test_guard
+    )
+    hook_manager.register(
+        name="test_guard",
+        hook_type=HookType.POST_TOOL_USE,
+        handler=_test_guard_handler,
+        priority=60,  # syntax_guard 之后
     )

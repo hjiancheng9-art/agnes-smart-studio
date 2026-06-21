@@ -17,7 +17,10 @@ import json
 from pathlib import Path
 
 __all__ = [
-    'CODE_INTELLIGENCE_EXECUTOR_MAP', 'CODE_INTELLIGENCE_TOOL_DEFS', 'CodeAnalyzer', 'SymbolIndex', 'analyze_regex_based', 'execute_code_analyze', 'execute_find_references', 'execute_find_symbol', 'execute_search_symbols',
+    'CODE_INTELLIGENCE_EXECUTOR_MAP', 'CODE_INTELLIGENCE_TOOL_DEFS', 'CodeAnalyzer',
+    'SymbolIndex', 'analyze_regex_based', 'execute_code_analyze',
+    'execute_find_references', 'execute_find_symbol', 'execute_search_symbols',
+    'get_index', 'refresh_index',
 ]
 
 # ======================================================================
@@ -487,6 +490,30 @@ class SymbolIndex:
         }
 
 # ======================================================================
+# Singleton index — reused across tool calls (lazy + mtime cached)
+# ======================================================================
+
+_index: SymbolIndex | None = None
+
+
+def get_index(root: str = ".") -> SymbolIndex:
+    """Get or create the singleton SymbolIndex. Reuses cached mtime data."""
+    global _index
+    if _index is None:
+        _index = SymbolIndex()
+    _index.index_directory(root)
+    return _index
+
+
+def refresh_index(root: str = ".") -> SymbolIndex:
+    """Force rebuild the singleton index (e.g. after edits)."""
+    global _index
+    _index = SymbolIndex()
+    _index.index_directory(root)
+    return _index
+
+
+# ======================================================================
 # Tool executors for integration with ToolRegistry
 # ======================================================================
 
@@ -511,9 +538,7 @@ def execute_find_symbol(symbol: str = "", directory: str = ".") -> str:
     if not symbol:
         return json.dumps({"error": "symbol name required"}, ensure_ascii=False)
 
-    idx = SymbolIndex()
-    idx.index_directory(directory or ".")
-
+    idx = get_index(directory or ".")
     locations = idx.lookup(symbol)
     if not locations:
         return json.dumps({"symbol": symbol, "found": False}, ensure_ascii=False)
@@ -530,9 +555,7 @@ def execute_search_symbols(pattern: str = "", directory: str = ".") -> str:
     if not pattern:
         return json.dumps({"error": "pattern required"}, ensure_ascii=False)
 
-    idx = SymbolIndex()
-    idx.index_directory(directory or ".")
-
+    idx = get_index(directory or ".")
     results = idx.search(pattern)
     return json.dumps({
         "pattern": pattern,
