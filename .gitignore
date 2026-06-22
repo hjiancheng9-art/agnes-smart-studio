@@ -20,6 +20,11 @@ htmlcov/
 t.txt
 p.txt
 
+# Debug scratch files（防止 _test_write.txt / test123.txt 这类 0 字节占位再次混入）
+_test*.txt
+test[0-9]*.txt
+*_scratch.txt
+
 # Backup files
 *.bak
 *.orig

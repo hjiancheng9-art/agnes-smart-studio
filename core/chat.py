@@ -64,7 +64,20 @@ CODE_SYSTEM_PROMPT = """你是 {provider_name} 编程助手，当前运行在 {m
 - 调试、性能优化、代码审查
 - 所有回答附带完整可运行代码，标注语言
 
-规则：
+## 工作纪律（探索-计划-执行三段式）
+回答编码任务时遵循以下顺序，简单任务可压缩，但探索段永不可省：
+1. **探索**：先读相关文件理解现状，不凭记忆猜 API 签名和库行为
+2. **计划**：复杂任务用 ≤5 步概述方案，每步可独立验证
+3. **执行**：按计划实施，每步完成后说明"已完成 + 验证方式"
+
+## 核心约束
+- **事实优先**：不确定的 API/配置/默认值，先读代码或文档验证，绝不编造
+- **最小改动**：只改必须改的行，不顺手重构无关代码，不为未来需求过度抽象
+- **完整闭环**：一个任务必须含实现+测试+验证才算完成；修复 error 后必须验证
+- **删除前搜索**：删除函数/变量/文件前，先 grep 全项目确认无引用
+- **失败如实报**：测试失败就报失败，跳过的步骤明说跳过了
+
+## 输出规范
 - 代码块必须标注语言（```python、```javascript 等）
 - 复杂问题分步骤讲解：分析 → 方案 → 代码 → 说明
 - 优先给出最简实现，不过度设计
@@ -157,7 +170,7 @@ class ChatSession:
                 register_code_hooks()
             except (ImportError, OSError):
                 pass
-            prompt = AGENT_SYSTEM_PROMPT + f"\n当前可用工具: {self.tools.tool_names}"
+            prompt = AGENT_SYSTEM_PROMPT + self._render_tool_categories()
         else:
             prompt = self._build_system_prompt()
         prompt = self.skills.get_system_prompt(prompt)
@@ -218,8 +231,22 @@ class ChatSession:
         if self.code_mode:
             return self._build_system_prompt()
         if self.agent_mode:
-            return AGENT_SYSTEM_PROMPT + f"\n当前可用工具: {self.tools.tool_names}"
+            return AGENT_SYSTEM_PROMPT + self._render_tool_categories()
         return self._build_system_prompt()
+
+    def _render_tool_categories(self) -> str:
+        """渲染工具分类为 system prompt 片段（分组显示，零过滤）。
+
+        所有工具仍全量发给 LLM API（definitions 不动），此处仅做文字分组，
+        降低 LLM 在 tool call 时的选择噪声。
+        """
+        cats = self.tools.tool_categories
+        if not cats:
+            return f"\n当前可用工具: {self.tools.tool_names}"
+        lines = ["\n\n## 当前可用工具（按分类）"]
+        for cat_name, tools in cats.items():
+            lines.append(f"- **{cat_name}**: {', '.join(tools)}")
+        return "\n".join(lines)
 
     def _build_system_prompt(self) -> str:
         """构建动态系统提示词，注入当前供应商和模型名 + 已启用规则"""
@@ -372,10 +399,22 @@ class ChatSession:
             args = {}
 
         # ── 高风险工具确认机制 ──
-        _HIGH_RISK_TOOLS = {"git_add_commit"}
+        # 类级常量：写操作类工具一律需确认（推远端/合并 PR/强制推送）
+        _HIGH_RISK_TOOLS = {
+            "git_add_commit",   # 本地提交（可能误提交敏感内容）
+            "git_push",         # 推送到远端
+            "git_pr_create",    # 创建 PR（含推送）
+            "git_pr_merge",     # 合并 PR（不可逆）
+        }
         _RISKY_ARGS_PATTERN = re.compile(r'\b(rm|delete|drop|truncate)\b', re.IGNORECASE)
+        # github_write_file: 推默认分支（main/master）视为高风险；feature 分支放行
+        is_write_to_default_branch = (
+            name == "github_write_file"
+            and not args.get("branch", "").strip()
+        )
         is_high_risk = (
             name in _HIGH_RISK_TOOLS
+            or is_write_to_default_branch
             or (name == "run_bash" and _RISKY_ARGS_PATTERN.search(args.get("command", "")))
         )
         if is_high_risk:

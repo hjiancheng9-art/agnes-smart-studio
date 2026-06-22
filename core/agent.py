@@ -464,7 +464,21 @@ class SubAgent:
 
                 # Execute tool
                 if self.tools and self.tools.has(tool_name):
-                    result = self.tools.execute(tool_name, tool_args)
+                    # 高风险守卫：SubAgent 无法弹确认框，命中即拒绝
+                    # 与 chat.py._dispatch_tool 的 _HIGH_RISK_TOOLS 对齐
+                    _HIGH_RISK = {
+                        "git_add_commit", "git_push", "git_pr_create", "git_pr_merge",
+                    }
+                    is_risky = (
+                        tool_name in _HIGH_RISK
+                        or (tool_name == "github_write_file"
+                            and not tool_args.get("branch", "").strip())
+                    )
+                    if is_risky:
+                        result = (f"[安全拦截] 工具 '{tool_name}' 属高风险写操作，"
+                                  "SubAgent 自主循环不允许执行，请由主会话确认后调用。")
+                    else:
+                        result = self.tools.execute(tool_name, tool_args)
                 else:
                     result = f"[Error] Unknown tool: {tool_name}"
 

@@ -365,6 +365,27 @@ AGENT_SYSTEM_PROMPT = """你是 Agnes 智能体主脑。你可以调用多种工
 7. 严禁在生成后进行对比评估并重新生成"""
 
 
+# ── 工具分类映射（按模块前缀归类，用于 system prompt 分组显示）──
+# 顺序即展示顺序；emoji + 分类名 → (模块前缀元组, 显式工具名集合)
+# 显式工具名优先于前缀匹配（处理 web_fetch/web_search 等跨模块工具）
+TOOL_CATEGORIES: list[tuple[str, tuple[str, ...], frozenset[str]]] = [
+    ("🎨 生成",     ("",),                       frozenset({"generate_image", "generate_video", "imagegen"})),
+    ("📁 文件",     ("core.file_tools",),        frozenset()),
+    ("🌐 联网",     ("",),                       frozenset({"web_fetch", "web_search"})),
+    ("🔧 Git",      ("core.git_tools", "core.git_workflow"), frozenset()),
+    ("🐙 GitHub",   ("core.github_tools",),      frozenset()),
+    ("🔍 代码智能", ("core.code_intel", "core.rag"), frozenset()),
+    ("📝 文档",     ("core.codex_tools",),       frozenset()),
+    ("🤖 自动化",   ("core.codex_engines",),     frozenset()),
+    ("🎬 流水线",   ("core.pipeline_tools",),    frozenset()),
+    ("🧩 ComfyUI",  ("core.comfyui_tools",),     frozenset()),
+]
+
+# 工具名 → 模块路径的辅助映射（load() 时填充，供分类查询）
+# builtin 工具无模块路径，用特殊标记
+_BUILTIN_MODULE = "__builtin__"
+
+
 # ── 工具注册表 ──
 
 class ToolRegistry:
@@ -374,6 +395,7 @@ class ToolRegistry:
         self._config_path = config_path or TOOLS_CONFIG
         self._definitions: list[dict] = []      # OpenAI function 格式
         self._executors: dict[str, Callable[..., str]] = {}  # name → 执行函数
+        self._tool_modules: dict[str, str] = {}  # name → 模块路径（分类用）
 
     # ── 加载 ──
     def load(self, pipeline: bool = False, comfyui: bool = False) -> int:
@@ -386,6 +408,10 @@ class ToolRegistry:
         """
         self._definitions = list(BUILTIN_TOOLS)
         self._executors.clear()
+        self._tool_modules.clear()
+        # builtin 工具的模块标记
+        for d in self._definitions:
+            self._tool_modules[d["function"]["name"]] = _BUILTIN_MODULE
 
         # ── 管道工具 ──
         if pipeline:
@@ -393,6 +419,7 @@ class ToolRegistry:
             from core.pipeline_tools import EXECUTOR_MAP as PIPELINE_EXECUTORS
             for name, executor in PIPELINE_EXECUTORS.items():
                 self._executors[name] = executor
+                self._tool_modules[name] = "core.pipeline_tools"
 
         # ── ComfyUI 桥接工具 ──
         if comfyui:
@@ -400,6 +427,7 @@ class ToolRegistry:
             from core.comfyui_tools import COMFYUI_EXECUTOR_MAP
             for name, executor in COMFYUI_EXECUTOR_MAP.items():
                 self._executors[name] = executor
+                self._tool_modules[name] = "core.comfyui_tools"
 
         if not self._config_path.exists():
             return len(self._definitions)
@@ -439,8 +467,9 @@ class ToolRegistry:
             }
             self._definitions.append(func_def)
 
-            # 注册执行器
+            # 注册执行器 + 记录模块路径（分类用）
             self._executors[name] = self._make_executor(name, tool_cfg)
+            self._tool_modules[name] = tool_cfg.get("function", "").rsplit(".", 1)[0]
 
         return len(self._definitions)
 
@@ -473,6 +502,9 @@ class ToolRegistry:
                 pass
 
             # ── 跨平台执行 ──
+            # 注意：此处 shell=True 为设计意图——agent 工具需支持管道/重定向/&& 等 shell 特性。
+            # 安全前提：上方 sandbox_restrict() 已做危险模式黑名单 + 路径白名单过滤，
+            # 且本执行点仅响应用户主动发起的 agent 工具调用。请勿在未加守卫的情况下保留 shell=True。
             if sys.platform == "win32" and not shutil.which("bash"):
                 # Windows 无 bash：cmd /c + chcp 65001 强制 UTF-8
                 full_cmd = f'chcp 65001 >nul && {cmd}'
@@ -541,6 +573,42 @@ class ToolRegistry:
     @property
     def tool_names(self) -> list[str]:
         return [d["function"]["name"] for d in self._definitions]
+
+    @property
+    def tool_categories(self) -> dict[str, list[str]]:
+        """返回 {分类名: [工具名,...]}，按 TOOL_CATEGORIES 顺序归类。
+
+        未匹配任何分类的工具归入「其他」。分类映射见模块级 TOOL_CATEGORIES。
+        """
+        result: dict[str, list[str]] = {}
+        others: list[str] = []
+        # 预初始化分类键（保持顺序）
+        for cat_name, _, _ in TOOL_CATEGORIES:
+            result[cat_name] = []
+
+        for d in self._definitions:
+            name = d["function"]["name"]
+            mod = self._tool_modules.get(name, "")
+            matched = False
+            for cat_name, prefixes, explicit in TOOL_CATEGORIES:
+                # 显式工具名优先匹配
+                if name in explicit:
+                    result[cat_name].append(name)
+                    matched = True
+                    break
+                # 前缀匹配（空前缀跳过）
+                if prefixes and prefixes != ("",) and any(mod.startswith(p) for p in prefixes):
+                    result[cat_name].append(name)
+                    matched = True
+                    break
+            if not matched:
+                others.append(name)
+
+        # 过滤空分类 + 追加「其他」
+        result = {k: v for k, v in result.items() if v}
+        if others:
+            result["📦 其他"] = others
+        return result
 
     def has(self, name: str) -> bool:
         return name in self._executors
