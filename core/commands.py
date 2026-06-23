@@ -115,6 +115,9 @@ COMMANDS: list[CommandDef] = [
     CommandDef('cost',    '/cost',    '[budget <usd>|reset]', '查看花费统计 / 设日预算 / 清零', '诊断配置',
                long_desc='无参=汇总；budget <usd>=设日预算上限；reset=清零归档',
                handler='_chat_cost'),
+    CommandDef('browser', '/browser', '',       'Browser Companion 网页生成开关（8平台）', '对话',
+               long_desc='toggle：切换 browser_generate 等 6 个网页生成工具。首次用需 browser_setup 登录。',
+               handler='_inline_browser'),
 ]
 
 # Special skill-load entries for /help display

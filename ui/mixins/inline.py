@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from rich.panel import Panel
 
 from ui.display import console, COLORS, show_success, show_info
+from ui.badges import print_mode_banner
 
 if TYPE_CHECKING:
     from core.chat import ChatSession
@@ -30,6 +31,7 @@ class InlineCommandsMixin:
         session.enable_thinking = not session.enable_thinking
         state = "开" if session.enable_thinking else "关"
         show_success(f"深度思考已{state}启（仅 pro 模型生效）")
+        print_mode_banner(session)
 
     def _inline_code(self, session, arg: str):
         is_code = session.toggle_code_mode()
@@ -37,6 +39,7 @@ class InlineCommandsMixin:
             show_success("🔧 已进入代码助手模式（再输 /code 切回，Ctrl+C 中止运行）")
         else:
             show_success("已退出代码助手，回到普通聊天")
+        print_mode_banner(session)
 
     def _inline_agent(self, session, arg: str):
         is_agent = session.toggle_agent_mode()
@@ -45,8 +48,15 @@ class InlineCommandsMixin:
             show_success(f"🤖 已进入智能体模式，加载了 {cnt} 个工具")
             console.print(f"  [dim]工具: {', '.join(session.tools.tool_names[:8])}[/]")
             console.print("  [dim]再输 /agent 退出 · Ctrl+C 中止运行[/]")
+            # 能力提示：当前模型不支持 tool calling 时建议切换
+            if not session.supports_tools:
+                show_warning(
+                    f"当前模型 {session.model} 不支持 tool calling，"
+                    "智能体调度将退化为纯文本推理。用 /model 切到支持 tools 的模型（如 deepseek-v4-pro）。"
+                )
         else:
             show_success("已退出智能体模式，回到普通聊天")
+        print_mode_banner(session)
 
     def _inline_tools(self, session, arg: str):
         names = session.tools.tool_names
@@ -56,6 +66,17 @@ class InlineCommandsMixin:
                 console.print(f"  [cyan]{n}[/]")
         else:
             show_info("当前无可用工具，创建 tools.json 来添加")
+
+    def _inline_browser(self, session, arg: str):
+        is_on = session.toggle_browser()
+        if is_on:
+            cnt = len([n for n in session.tools.tool_names if n.startswith("browser_")])
+            show_success(f"🌐 Browser Companion 已启用（{cnt} 个工具：generate/check/download/providers/setup/cancel）")
+            console.print("  [dim]覆盖 8 平台: 可灵/即梦/Runway/Luma/DALL-E/Gemini/Opal/Veo[/]")
+            console.print("  [dim]首次使用需 browser_setup 登录，再输 /browser 关闭[/]")
+        else:
+            show_success("Browser Companion 已关闭，回到普通聊天")
+        print_mode_banner(session)
 
     def _chat_help_inline(self, session, show_all: bool = False):
         """Inline wrapper: /help → _chat_help (保持与原始接口兼容)。"""
@@ -89,11 +110,12 @@ class InlineCommandsMixin:
                 "/automate add      /provider switch",
                 "/evolve            /know methods",
                 "/tools             /self check|fix",
+                "/browser           /cost [budget]",
                 "/clear             /exit",
             ]
             text = "\n".join(cmds)
             cap = "AI auto" if current_model == "agnes-2.0-flash" else "manual"
-            console.print(Panel(text, title=f"[bold cyan]29 commands[/] ({current_model} | think:{think_state} | {cap})", border_style=COLORS["primary"]))
+            console.print(Panel(text, title=f"[bold cyan]30 commands[/] ({current_model} | think:{think_state} | {cap})", border_style=COLORS["primary"]))
             return
         console.print(Panel(f"""\
     操作提示: Ctrl+C 中止运行 · 输入 \"\"\" 进入多行编辑 · /code 或 /agent 再输一次退出
@@ -125,6 +147,8 @@ class InlineCommandsMixin:
     /video <描述>      生成视频
     /vision <图> <问>  图片理解（始终可用，独立视觉通道）
     /self [cmd]        自诊断 (check/files/health/fix)
+    /browser           Browser Companion 网页生成（8 平台开关）
+    /cost [budget]     查看花费 / 设日预算
     /clear             清空对话历史
     /exit              退出聊天
 

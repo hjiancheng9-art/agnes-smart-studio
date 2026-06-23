@@ -5,7 +5,7 @@ AgnesCLI 通过多重继承组合这些 Mixin。每个 Mixin 定义一组 _chat_
 
 Mixin 层次（MRO 顺序，从基础到具体）:
     SharedMixin           — 基础设施：输入/渲染/选择/分发（被所有 Mixin 依赖）
-    InlineCommandsMixin   — /clear /thinking /code /agent /tools /help /img /video
+    InlineCommandsMixin   — /clear /thinking /code /agent /tools /browser /help /img /video
     CreativeCommandsMixin — /showrun /vision /skill + _chat_generate
     EngineeringCommandsMixin — /plan /sub /compress /project /team /deploy /todo /refactor
     GitCommandsMixin      — /commit /changelog
