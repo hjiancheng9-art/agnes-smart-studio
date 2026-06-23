@@ -163,13 +163,15 @@ class MultiAgentCoordinator:
     def _execute_task(self, task: AgentTask):
         task.status = "running"
         task.started_at = time.time()
-        self._log.append({"event": "task_start", "task": task.id,
-                          "agent": task.assigned_to})
+        with self._lock:
+            self._log.append({"event": "task_start", "task": task.id,
+                              "agent": task.assigned_to})
         # tier 路由：若提供 model_router，按 task.tier/task_type 解析模型并注入 step
         resolved_model = self._resolve_model_for_task(task)
         if resolved_model:
-            self._log.append({"event": "tier_routed", "task": task.id,
-                              "tier": task.tier, "model": resolved_model})
+            with self._lock:
+                self._log.append({"event": "tier_routed", "task": task.id,
+                                  "tier": task.tier, "model": resolved_model})
         results = []
         for step in task.tool_sequence:
             try:
@@ -182,16 +184,17 @@ class MultiAgentCoordinator:
             except (OSError, ValueError, RuntimeError) as e:
                 task.status = "failed"
                 task.result = str(e)
-                self._log.append({"event": "task_failed", "task": task.id,
-                                  "error": str(e)})
+                with self._lock:
+                    self._log.append({"event": "task_failed", "task": task.id,
+                                      "error": str(e)})
                 return
         task.status = "done"
         task.result = "; ".join(results)
         task.finished_at = time.time()
         with self._lock:
             self._results[task.id] = task.result
-        self._log.append({"event": "task_done", "task": task.id,
-                          "result_preview": task.result[:100]})
+            self._log.append({"event": "task_done", "task": task.id,
+                              "result_preview": task.result[:100]})
 
 
 def coordinate(goal: str, tool_executor: Callable) -> dict:

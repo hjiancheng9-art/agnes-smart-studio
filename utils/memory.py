@@ -6,6 +6,7 @@
 """
 
 import json
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -34,27 +35,54 @@ def _ensure_file():
         }, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
+# ── 线程安全写锁（保护 load→modify→save 的原子性）──
+_memory_lock = threading.Lock()
+
+def _safe_save_memory(data: dict):
+    """原子写 memory.json（在 _memory_lock 内调用）。
+    使用临时文件 + replace 模式保证写盘原子性。
+    """
+    tmp = MEMORY_FILE.with_suffix(".json.tmp")
+    try:
+        tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(MEMORY_FILE)
+    except OSError:
+        # 回退：直接覆盖写
+        try:
+            MEMORY_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        except OSError:
+            pass
+        finally:
+            try:
+                if tmp.exists():
+                    tmp.unlink()
+            except OSError:
+                pass
+
+
 def load_memory() -> dict:
     _ensure_file()
     return json.loads(MEMORY_FILE.read_text(encoding="utf-8"))
 
 
 def save_memory(data: dict):
-    MEMORY_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    with _memory_lock:
+        _safe_save_memory(data)
 
 
 # ── 偏好学习 ─────────────────────────────────────────
 
 def record_preference(key: str, value):
     """记录用户偏好设置（自动去重、频率计数）"""
-    mem = load_memory()
-    prefs = mem.setdefault("preferences", {})
-    if key not in prefs:
-        prefs[key] = {"values": {}, "last_used": None}
-    val_str = str(value)
-    prefs[key]["values"][val_str] = prefs[key]["values"].get(val_str, 0) + 1
-    prefs[key]["last_used"] = val_str
-    save_memory(mem)
+    with _memory_lock:
+        mem = load_memory()
+        prefs = mem.setdefault("preferences", {})
+        if key not in prefs:
+            prefs[key] = {"values": {}, "last_used": None}
+        val_str = str(value)
+        prefs[key]["values"][val_str] = prefs[key]["values"].get(val_str, 0) + 1
+        prefs[key]["last_used"] = val_str
+        _safe_save_memory(mem)
 
 
 def get_preference(key: str, default=None):
@@ -83,15 +111,16 @@ def get_all_preferences() -> dict:
 
 def rate_record(record_id: str, rating: int):
     """给一条历史记录打分 (1-5)"""
-    mem = load_memory()
-    mem.setdefault("ratings", {})[record_id] = {
-        "rating": max(1, min(5, rating)),
-        "rated_at": datetime.now().isoformat(),
-    }
-    # 同步更新 history.json 中的评分
+    with _memory_lock:
+        mem = load_memory()
+        mem.setdefault("ratings", {})[record_id] = {
+            "rating": max(1, min(5, rating)),
+            "rated_at": datetime.now().isoformat(),
+        }
+        _update_stats(mem)
+        _safe_save_memory(mem)
+    # 同步更新 history.json 中的评分（在锁外，history 有自己的 IO）
     _sync_rating_to_history(record_id, rating)
-    _update_stats(mem)
-    save_memory(mem)
 
 
 def _sync_rating_to_history(record_id: str, rating: int):
@@ -122,34 +151,36 @@ def _update_stats(mem: dict):
 
 def track_generation(kind: str, prompt: str, result: dict):
     """追踪一次生成，更新统计和关键词"""
-    mem = load_memory()
-    mem.setdefault("stats", {})
-    mem["stats"]["total"] = mem["stats"].get("total", 0) + 1
+    with _memory_lock:
+        mem = load_memory()
+        mem.setdefault("stats", {})
+        mem["stats"]["total"] = mem["stats"].get("total", 0) + 1
 
-    # 按类型统计
-    kind.split("_")[0]  # text_to_image → text, image_to_video → image (unused, kept for doc)
-    if "image" in kind:
-        mem["stats"]["image"] = mem["stats"].get("image", 0) + 1
-    if "video" in kind:
-        mem["stats"]["video"] = mem["stats"].get("video", 0) + 1
+        # 按类型统计
+        kind.split("_")[0]  # text_to_image → text, image_to_video → image (unused, kept for doc)
+        if "image" in kind:
+            mem["stats"]["image"] = mem["stats"].get("image", 0) + 1
+        if "video" in kind:
+            mem["stats"]["video"] = mem["stats"].get("video", 0) + 1
 
-    # 提取关键词模式
-    keywords = _extract_keywords(prompt)
-    if keywords:
-        mem.setdefault("patterns", [])
-        mem["patterns"].append({"prompt": prompt[:120], "keywords": keywords,
-                                "kind": kind, "at": datetime.now().isoformat()[:19]})
-        # 只保留最近 50 条
-        mem["patterns"] = mem["patterns"][-50:]
+        # 提取关键词模式
+        keywords = _extract_keywords(prompt)
+        if keywords:
+            mem.setdefault("patterns", [])
+            mem["patterns"].append({"prompt": prompt[:120], "keywords": keywords,
+                                    "kind": kind, "at": datetime.now().isoformat()[:19]})
+            # 只保留最近 50 条
+            mem["patterns"] = mem["patterns"][-50:]
 
-    save_memory(mem)
+        _safe_save_memory(mem)
 
 
 def track_content_policy_hit(prompt: str):
     """追踪内容过滤触发"""
-    mem = load_memory()
-    mem["stats"]["content_policy_hits"] = mem["stats"].get("content_policy_hits", 0) + 1
-    save_memory(mem)
+    with _memory_lock:
+        mem = load_memory()
+        mem["stats"]["content_policy_hits"] = mem["stats"].get("content_policy_hits", 0) + 1
+        _safe_save_memory(mem)
 
 
 def _extract_keywords(prompt: str) -> list[str]:
@@ -201,11 +232,12 @@ def get_tips() -> list[str]:
 
 def record_tip_shown(tip_id: str):
     """记录已展示过的提示，避免重复"""
-    mem = load_memory()
-    mem.setdefault("tips_shown", [])
-    if tip_id not in mem["tips_shown"]:
-        mem["tips_shown"].append(tip_id)
-        save_memory(mem)
+    with _memory_lock:
+        mem = load_memory()
+        mem.setdefault("tips_shown", [])
+        if tip_id not in mem["tips_shown"]:
+            mem["tips_shown"].append(tip_id)
+            _safe_save_memory(mem)
 
 
 # ════════════════════════════════════════════════
@@ -221,19 +253,20 @@ def record_prompt_pair(user_prompt: str, enhanced_prompt: str, kind: str,
     """
     if rating < 3:  # 低分不记录，避免污染样本
         return
-    mem = load_memory()
-    mem.setdefault("prompt_evolution", {"image": [], "video": []})
-    entry = {
-        "user": user_prompt[:200],
-        "enhanced": enhanced_prompt[:500],
-        "rating": rating,
-        "record_id": record_id,
-        "at": datetime.now().isoformat()[:19],
-    }
-    mem["prompt_evolution"][kind].insert(0, entry)
-    # 每种类型只保留最近 30 条高分记录
-    mem["prompt_evolution"][kind] = mem["prompt_evolution"][kind][:30]
-    save_memory(mem)
+    with _memory_lock:
+        mem = load_memory()
+        mem.setdefault("prompt_evolution", {"image": [], "video": []})
+        entry = {
+            "user": user_prompt[:200],
+            "enhanced": enhanced_prompt[:500],
+            "rating": rating,
+            "record_id": record_id,
+            "at": datetime.now().isoformat()[:19],
+        }
+        mem["prompt_evolution"][kind].insert(0, entry)
+        # 每种类型只保留最近 30 条高分记录
+        mem["prompt_evolution"][kind] = mem["prompt_evolution"][kind][:30]
+        _safe_save_memory(mem)
 
 
 def get_successful_prompts(kind: str = "image", limit: int = 5) -> list[dict]:
@@ -296,27 +329,28 @@ def record_comparison(goal: str, image_paths: list[str], labels: list[str],
     Returns:
         记录条目 dict（同时已写入 memory.json）
     """
-    mem = load_memory()
-    mem.setdefault("comparisons", [])
+    with _memory_lock:
+        mem = load_memory()
+        mem.setdefault("comparisons", [])
 
-    # 安全索引：winner 标签 → 路径/prompt 索引
-    winner_idx = labels.index(winner) if winner in labels else 0
-    winner_idx = max(0, min(winner_idx, len(image_paths) - 1))
+        # 安全索引：winner 标签 → 路径/prompt 索引
+        winner_idx = labels.index(winner) if winner in labels else 0
+        winner_idx = max(0, min(winner_idx, len(image_paths) - 1))
 
-    entry = {
-        "goal": (goal or "")[:200],
-        "image_paths": [str(p) for p in image_paths][:4],
-        "labels": list(labels)[:4],
-        "winner": winner,
-        "winner_path": str(image_paths[winner_idx]) if winner_idx < len(image_paths) else "",
-        "scores": scores or {},
-        "reason": (reason or "")[:300],
-        "at": datetime.now().isoformat()[:19],
-    }
-    mem["comparisons"].insert(0, entry)
-    # 最多保留 100 次对比记录
-    mem["comparisons"] = mem["comparisons"][:100]
-    save_memory(mem)
+        entry = {
+            "goal": (goal or "")[:200],
+            "image_paths": [str(p) for p in image_paths][:4],
+            "labels": list(labels)[:4],
+            "winner": winner,
+            "winner_path": str(image_paths[winner_idx]) if winner_idx < len(image_paths) else "",
+            "scores": scores or {},
+            "reason": (reason or "")[:300],
+            "at": datetime.now().isoformat()[:19],
+        }
+        mem["comparisons"].insert(0, entry)
+        # 最多保留 100 次对比记录
+        mem["comparisons"] = mem["comparisons"][:100]
+        _safe_save_memory(mem)
 
     # ── 回灌进化系统：把胜者提示词作为高质量样本 ──
     # 进化系统原本只能靠用户手动评分被动积累；这里把"对比胜出"视为
@@ -371,6 +405,9 @@ def _ensure_session_file():
         }, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
+_SESSION_LOCK = threading.Lock()
+
+
 def save_session(session_id: str, summary: str, messages: list[dict],
                  task: str = ""):
     """Save a conversation session for cross-session recovery.
@@ -382,43 +419,44 @@ def save_session(session_id: str, summary: str, messages: list[dict],
         task: What the user was working on
     """
     _ensure_session_file()
-    data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+    with _SESSION_LOCK:
+        data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
 
-    # Truncate messages to save space (keep last 10 + summary)
-    truncated = []
-    for msg in messages[-10:]:
-        content = msg.get("content", "")
-        if isinstance(content, list):
-            content = " ".join(
-                c.get("text", "") for c in content
-                if isinstance(c, dict) and c.get("type") == "text"
+        # Truncate messages to save space (keep last 10 + summary)
+        truncated = []
+        for msg in messages[-10:]:
+            content = msg.get("content", "")
+            if isinstance(content, list):
+                content = " ".join(
+                    c.get("text", "") for c in content
+                    if isinstance(c, dict) and c.get("type") == "text"
+                )
+            if isinstance(content, str) and len(content) > 500:
+                content = content[:500] + "..."
+            truncated.append({
+                "role": msg.get("role", ""),
+                "content": content,
+            })
+
+        data["sessions"][session_id] = {
+            "summary": summary,
+            "messages": truncated,
+            "task": task,
+            "saved_at": datetime.now().isoformat()[:19],
+        }
+
+        # Keep only last 20 sessions
+        if len(data["sessions"]) > 20:
+            sorted_keys = sorted(
+                data["sessions"].keys(),
+                key=lambda k: data["sessions"][k].get("saved_at", ""),
             )
-        if isinstance(content, str) and len(content) > 500:
-            content = content[:500] + "..."
-        truncated.append({
-            "role": msg.get("role", ""),
-            "content": content,
-        })
+            for old_key in sorted_keys[:-20]:
+                del data["sessions"][old_key]
 
-    data["sessions"][session_id] = {
-        "summary": summary,
-        "messages": truncated,
-        "task": task,
-        "saved_at": datetime.now().isoformat()[:19],
-    }
-
-    # Keep only last 20 sessions
-    if len(data["sessions"]) > 20:
-        sorted_keys = sorted(
-            data["sessions"].keys(),
-            key=lambda k: data["sessions"][k].get("saved_at", ""),
+        SESSION_FILE.write_text(
+            json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
         )
-        for old_key in sorted_keys[:-20]:
-            del data["sessions"][old_key]
-
-    SESSION_FILE.write_text(
-        json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
 
 
 def load_session(session_id: str) -> dict:
@@ -480,29 +518,30 @@ def update_user_profile(key: str, value: str):
     working style, common tasks, etc.
     """
     _ensure_session_file()
-    data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
-    data.setdefault("user_profile", {})
+    with _SESSION_LOCK:
+        data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+        data.setdefault("user_profile", {})
 
-    # If key exists, append to history but keep latest as current
-    profile = data["user_profile"].get(key, {})
-    if not isinstance(profile, dict):
-        profile = {"current": profile, "history": []}
-    if "history" not in profile:
-        profile["history"] = []
+        # If key exists, append to history but keep latest as current
+        profile = data["user_profile"].get(key, {})
+        if not isinstance(profile, dict):
+            profile = {"current": profile, "history": []}
+        if "history" not in profile:
+            profile["history"] = []
 
-    if profile.get("current") != value:
-        if profile.get("current"):
-            profile["history"].append({
-                "value": profile["current"],
-                "until": datetime.now().isoformat()[:19],
-            })
-            profile["history"] = profile["history"][-10:]  # keep last 10
-        profile["current"] = value
-        profile["updated_at"] = datetime.now().isoformat()[:19]
-        data["user_profile"][key] = profile
-        SESSION_FILE.write_text(
-            json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        if profile.get("current") != value:
+            if profile.get("current"):
+                profile["history"].append({
+                    "value": profile["current"],
+                    "until": datetime.now().isoformat()[:19],
+                })
+                profile["history"] = profile["history"][-10:]  # keep last 10
+            profile["current"] = value
+            profile["updated_at"] = datetime.now().isoformat()[:19]
+            data["user_profile"][key] = profile
+            SESSION_FILE.write_text(
+                json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
 
 
 def get_user_profile(key: str = "") -> dict | str:
@@ -531,26 +570,27 @@ def record_correction(what_happened: str, what_should_happen: str,
     Deduplicates: skips if the same (context + what_happened) exists in last 3 entries.
     """
     _ensure_session_file()
-    data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
-    data.setdefault("corrections", [])
+    with _SESSION_LOCK:
+        data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+        data.setdefault("corrections", [])
 
-    # Dedup: skip if same context+what happened within last 3 entries
-    recent = data["corrections"][:3]
-    for r in recent:
-        if r.get("context") == context and r["what_happened"][:80] == what_happened[:80]:
-            return  # already recorded recently
+        # Dedup: skip if same context+what happened within last 3 entries
+        recent = data["corrections"][:3]
+        for r in recent:
+            if r.get("context") == context and r["what_happened"][:80] == what_happened[:80]:
+                return  # already recorded recently
 
-    correction = {
-        "what_happened": what_happened[:300],
-        "what_should_happen": what_should_happen[:300],
-        "context": context[:200],
-        "at": datetime.now().isoformat()[:19],
-    }
-    data["corrections"].insert(0, correction)
-    data["corrections"] = data["corrections"][:50]  # keep last 50
-    SESSION_FILE.write_text(
-        json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+        correction = {
+            "what_happened": what_happened[:300],
+            "what_should_happen": what_should_happen[:300],
+            "context": context[:200],
+            "at": datetime.now().isoformat()[:19],
+        }
+        data["corrections"].insert(0, correction)
+        data["corrections"] = data["corrections"][:50]  # keep last 50
+        SESSION_FILE.write_text(
+            json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
 
 
 def get_corrections(limit: int = 10) -> list[dict]:
@@ -588,20 +628,21 @@ def record_test_pattern(tool_name: str, failure_pattern: str, fix_applied: str):
         fix_applied: The fix code or description that resolved the failure
     """
     _ensure_session_file()
-    data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
-    data.setdefault("test_patterns", [])
+    with _SESSION_LOCK:
+        data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+        data.setdefault("test_patterns", [])
 
-    pattern = {
-        "tool": tool_name[:100],
-        "failure": failure_pattern[:300],
-        "fix": fix_applied[:500],
-        "at": datetime.now().isoformat()[:19],
-    }
-    data["test_patterns"].insert(0, pattern)
-    data["test_patterns"] = data["test_patterns"][:50]  # keep last 50
-    SESSION_FILE.write_text(
-        json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+        pattern = {
+            "tool": tool_name[:100],
+            "failure": failure_pattern[:300],
+            "fix": fix_applied[:500],
+            "at": datetime.now().isoformat()[:19],
+        }
+        data["test_patterns"].insert(0, pattern)
+        data["test_patterns"] = data["test_patterns"][:50]  # keep last 50
+        SESSION_FILE.write_text(
+            json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
 
 
 def build_test_context(tool_name: str = "") -> str:
@@ -658,14 +699,15 @@ def get_user_context() -> str:
 def record_tool_learning(tool_name: str, failure: str, fix: str):
     """Record a tool failure and its fix for future learning."""
     _ensure_session_file()
-    data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
-    data.setdefault("tool_learnings", [])
-    data["tool_learnings"].insert(0, {
-        "tool": tool_name, "failure": failure[:200],
-        "fix": fix[:200], "at": datetime.now().isoformat()[:19],
-    })
-    data["tool_learnings"] = data["tool_learnings"][:30]
-    SESSION_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    with _SESSION_LOCK:
+        data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+        data.setdefault("tool_learnings", [])
+        data["tool_learnings"].insert(0, {
+            "tool": tool_name, "failure": failure[:200],
+            "fix": fix[:200], "at": datetime.now().isoformat()[:19],
+        })
+        data["tool_learnings"] = data["tool_learnings"][:30]
+        SESSION_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def get_tool_learnings(tool_name: str = "") -> str:
