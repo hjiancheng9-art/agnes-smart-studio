@@ -55,11 +55,17 @@ class TestPricing:
         # Should infer image pricing
         assert cost > 0
 
-    def test_no_usage_text_returns_default(self):
+    def test_no_usage_text_returns_zero(self):
         from core.cost_tracker import calc_cost
-        # text model without usage falls through to per_call default
+        # text model without usage → 0.0（不再误走 per_call 固定费）
         cost = calc_cost("agnes-2.0-flash", "text", usage=None)
-        assert cost > 0  # uses default per_call pricing
+        assert cost == 0.0
+
+    def test_empty_usage_text_returns_zero(self):
+        from core.cost_tracker import calc_cost
+        # text model with empty usage dict → 0.0
+        cost = calc_cost("agnes-2.0-flash", "text", usage={})
+        assert cost == 0.0
 
 
 class TestRecordUsage:

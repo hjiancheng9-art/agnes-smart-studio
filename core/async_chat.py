@@ -450,6 +450,7 @@ class AsyncChatSession:
 
         for _loop in range(_effective_max):
             buffer, tool_calls = "", []
+            _last_usage = None  # 捕获最后一帧的 usage 用于计费
             kwargs: dict = {}
             if self.enable_thinking:
                 kwargs["chat_template_kwargs"] = {"enable_thinking": True}
@@ -464,6 +465,9 @@ class AsyncChatSession:
                     yield ("text", chunk)
                 if "tool_calls" in delta and delta["tool_calls"]:
                     tool_calls.extend(delta["tool_calls"])
+                # 捕获顶层 usage(最后一帧)用于计费
+                if "_usage" in delta:
+                    _last_usage = delta["_usage"]
 
             if tool_calls:
                 merged = merge_tool_calls(tool_calls)
@@ -510,6 +514,13 @@ class AsyncChatSession:
 
             # 无 tool_calls：收尾
             self.messages.append({"role": "assistant", "content": buffer})
+            # 成本追踪：文本流式调用按真实 usage 计费
+            try:
+                from core.cost_tracker import record_usage
+                record_usage(model=self.model, kind="text",
+                             usage=_last_usage, label="async_text_stream")
+            except (ImportError, OSError):
+                pass
             # #5 Prompt Lab: 记录本次会话 outcome
             try:
                 from core.prompt_lab import get_prompt_lab

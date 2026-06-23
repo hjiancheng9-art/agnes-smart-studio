@@ -209,6 +209,10 @@ class CruxClient:
                     finish = choice.get("finish_reason")
                     if finish:
                         out["_finish"] = finish
+                    # 最后一帧通常携带顶层 usage,透传给上层用于计费
+                    usage = chunk.get("usage")
+                    if usage:
+                        out["_usage"] = usage
                     if out:
                         yield out
         except (httpx.ConnectError, httpx.ReadError, httpx.RemoteProtocolError,

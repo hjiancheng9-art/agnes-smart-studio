@@ -563,7 +563,21 @@ class ChatSession:
                 return content
             except (KeyError, IndexError) as e:
                 last_reason = f"返回格式异常: {e}"
-                continue  # 格式问题换模型也无济于事，但仍按链尝试
+                # P1-10: 请求成功但解析失败 → 尝试从响应中提取 usage 记费
+                # 注意: r 可能在 chat_multimodal 本身抛异常时未赋值（side_effect）
+                _r_usage = None
+                try:
+                    _r_usage = r.get("usage")  # type: ignore[possibly-undefined]
+                except NameError:
+                    pass
+                if _r_usage:
+                    try:
+                        from core.cost_tracker import record_usage
+                        record_usage(model=model_id, kind="text",
+                                     usage=_r_usage, label="vision_fail")
+                    except (ImportError, OSError, KeyError, TypeError):
+                        pass
+                continue
             except (OSError, TimeoutError) as e:
                 last_reason = f"网络/超时: {e}"
                 metrics.increment("fallback.vision_model")
@@ -648,6 +662,7 @@ class ChatSession:
             for _loop in range(_effective_max):
                 buffer, tool_calls = "", []
                 _stream_error = False  # 本轮流是否遇到网络/API 错误
+                _last_usage = None  # 捕获最后一帧的 usage 用于计费
                 kwargs = {}
                 if self.enable_thinking:
                     kwargs["chat_template_kwargs"] = {"enable_thinking": True}
@@ -663,6 +678,9 @@ class ChatSession:
                         tool_calls.extend(delta["tool_calls"])
                     if delta.get("_finish") == "error":
                         _stream_error = True
+                    # 捕获顶层 usage(最后一帧)用于计费
+                    if "_usage" in delta:
+                        _last_usage = delta["_usage"]
 
                 if tool_calls:
                     merged = merge_tool_calls(tool_calls)
@@ -722,6 +740,13 @@ class ChatSession:
 
                 # 正常收尾：存 assistant 回复
                 self.messages.append({"role": "assistant", "content": buffer})
+                # 成本追踪：文本流式调用按真实 usage 计费
+                try:
+                    from core.cost_tracker import record_usage
+                    record_usage(model=_use_model, kind="text",
+                                 usage=_last_usage, label="text_stream")
+                except (ImportError, OSError):
+                    pass
                 # #5 Prompt Lab: 记录本次会话 outcome
                 try:
                     from core.prompt_lab import get_prompt_lab
@@ -820,19 +845,37 @@ def _dispatch_tool_impl(self, name: str, args_json: str) -> tuple[str, list[tupl
     # ── 高风险工具确认机制 ──
     _HIGH_RISK_TOOLS = {
         "git_add_commit",   # 本地提交（可能误提交敏感内容）
-        "git_push",         # 推送到远端
+        "git_push",         # 推送到远端（force 已被 git_tools 二次拦截）
         "git_pr_create",    # 创建 PR（含推送）
         "git_pr_merge",     # 合并 PR（不可逆）
+        "git_tag",          # 创建/删除 tag（语义版本不可逆）
     }
-    _RISKY_ARGS_PATTERN = re.compile(r'\b(rm|delete|drop|truncate)\b', re.IGNORECASE)
+    _RISKY_ARGS_PATTERN = re.compile(r'\b(rm|delete|drop|truncate|format|mkfs)\b', re.IGNORECASE)
     # github_write_file: 推默认分支（main/master）视为高风险；feature 分支放行
     is_write_to_default_branch = (
         name == "github_write_file"
         and not args.get("branch", "").strip()
     )
+    # git_push + force=True 参数侧拦截（即便用户绕过 git_tools 的默认确认）
+    is_force_push = (
+        name == "git_push" and bool(args.get("force", False))
+    )
+    # git_worktree remove + force 可递归删除目录
+    is_force_worktree_remove = (
+        name == "git_worktree"
+        and args.get("action", "") == "remove"
+        and bool(args.get("force", False))
+    )
+    # git_branch delete 删分支
+    is_branch_delete = (
+        name == "git_branch" and args.get("action", "") == "delete"
+    )
     is_high_risk = (
         name in _HIGH_RISK_TOOLS
         or is_write_to_default_branch
+        or is_force_push
+        or is_force_worktree_remove
+        or is_branch_delete
         or (name == "run_bash" and _RISKY_ARGS_PATTERN.search(args.get("command", "")))
     )
     if is_high_risk:

@@ -78,13 +78,17 @@ def calc_cost(model: str, kind: str, usage: dict | None = None,
     pricing = _get_pricing(model, kind)
     pkind = pricing.get("kind", kind)
 
-    if pkind == "text" and usage:
-        pt = usage.get("prompt_tokens") or usage.get("input_tokens") or 0
-        ct = (usage.get("completion_tokens") or usage.get("output_tokens")
-              or usage.get("output_tok") or 0)
-        in_rate = float(pricing["input_per_1k"])
-        out_rate = float(pricing["output_per_1k"])
-        return (pt / 1000.0 * in_rate + ct / 1000.0 * out_rate)
+    if pkind == "text":
+        # 文本模型：必须有 usage dict 才能按 token 计费
+        # usage 缺失时返回 0.0（不回退到 per_call，避免误收固定费）
+        if usage:
+            pt = usage.get("prompt_tokens") or usage.get("input_tokens") or 0
+            ct = (usage.get("completion_tokens") or usage.get("output_tokens")
+                  or usage.get("output_tok") or 0)
+            in_rate = float(pricing["input_per_1k"])
+            out_rate = float(pricing["output_per_1k"])
+            return (pt / 1000.0 * in_rate + ct / 1000.0 * out_rate)
+        return 0.0
 
     # 图像/视频按次
     per_call = float(pricing.get("per_call", 0.02))
@@ -132,6 +136,12 @@ def record_usage(model: str, kind: str = "text",
         本次记录条目 dict（含 cost）
     """
     cost = calc_cost(model, kind, usage, call_count)
+
+    # 零花费（文本模型 usage 缺失）→ 不写入日志/不累加，避免噪音
+    if cost == 0.0 and kind == "text":
+        return {"ts": _now(), "day": _today(), "model": model, "kind": kind,
+                "label": label, "usage": usage or {}, "call_count": call_count,
+                "cost": 0.0}
 
     entry = {
         "ts": _now(),
