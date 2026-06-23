@@ -27,6 +27,16 @@ DANGEROUS_PATTERNS = [
     r":\(\)\s*\{\s*:\|:&\s*\}\s*;:", # fork bomb
     r"git\s+push\s+--force",        # force push (destructive git)
     r"git\s+reset\s+--hard",        # hard reset (destructive git)
+    # Windows 破坏性命令（跨平台覆盖）
+    r"\brmdir\s+[/\-]?s",            # rmdir /s 递归删目录
+    r"\bdel\s+[/\\]?[sfq]",          # del /s /f /q 强制删除
+    r"\berase\s+[/\\]?[sfq]",        # erase /s /f /q
+    r"\bformat\s+[A-Za-z]:",         # format X: 格式化盘
+    r"\bdiskpart",                   # 磁盘分区操作
+    r"\bcipher\s*/w",                # cipher /w 覆写删除
+    r"\bcd\s+[A-Za-z]:[\\/]",        # cd 到绝对路径外（防止跳盘）
+    r"\bpowershell.*-enc\s+[A-Za-z0-9]",  # powershell 编码命令（绕过审计）
+    r"reg\s+delete.*/f",             # 注册表强删
 ]
 
 # Allowed working directories for shell commands
@@ -67,9 +77,11 @@ class Sandbox:
                 return False, f"blocked dangerous pattern: {pattern[:40]}"
 
         # Check for absolute path references outside allowed roots
-        # (heuristic: look for paths starting with / that aren't in allowed)
-        paths = re.findall(r"(/[^\s]+)", command)
-        for p in paths:
+        # Unix 风格: /path/to/...
+        # Windows 风格: C:\... / C:/... / \\host\share
+        unix_paths = re.findall(r"(/[^\s]+)", command)
+        win_paths = re.findall(r"(?:[A-Za-z]:[\\/][^\s]+|\\\\[^\s]+)", command)
+        for p in unix_paths + win_paths:
             p_obj = Path(p)
             if p_obj.is_absolute():
                 allowed = any(

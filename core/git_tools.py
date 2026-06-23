@@ -105,12 +105,24 @@ def execute_git_branch(name: str = "", action: str = "list",
 
 def execute_git_push(remote: str = "origin", branch: str = "",
                      force: bool = False, tags: bool = False) -> str:
-    """Push commits to remote."""
+    """Push commits to remote.
+
+    安全约束（P1-15）：force=True 会重写远端历史，属于不可逆操作。
+    走 list 形式的 subprocess 绕过了 sandbox 字符串检测，故在此
+    执行器层面二次拦截：force 必须由调用方（ChatSession._dispatch_tool
+    的高风险确认机制）显式确认后才传到这里；这里若直接收到 force=True，
+    返回错误字符串而非执行。
+    """
+    if force:
+        return json.dumps({
+            "error": "force push 需要用户确认。请通过交互确认后再执行。",
+            "needs_confirm": True,
+            "tool": "git_push",
+            "args": {"remote": remote, "branch": branch, "force": True, "tags": tags},
+        }, ensure_ascii=False)
     args = ["push", remote]
     if branch:
         args.append(branch)
-    if force:
-        args.insert(1, "--force")
     if tags:
         args.append("--tags")
 
