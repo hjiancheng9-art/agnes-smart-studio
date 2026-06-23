@@ -110,7 +110,7 @@ class TestToolExecuteObservability:
         assert _m.get("tool_errors") >= prev_errors + 1
 
     def test_execute_runtime_error_counts_error(self, tmp_path):
-        """RuntimeError in executor should increment tool_errors and re-raise."""
+        """RuntimeError in executor should be caught (#4 error recovery) and return error string."""
         from core.tools import ToolRegistry
         from core.observability import metrics as _m
 
@@ -119,8 +119,9 @@ class TestToolExecuteObservability:
                       lambda: (_ for _ in ()).throw(RuntimeError("boom")), override=True)
 
         prev_errors = _m.get("tool_errors")
-        with pytest.raises(RuntimeError, match="boom"):
-            reg.execute("fail_tool", {})
+        result = reg.execute("fail_tool", {})
+        # #4: RuntimeError 被捕获并返回错误字符串（不再 raise）
+        assert "错误" in result
         assert _m.get("tool_errors") >= prev_errors + 1
 
     def test_execute_generic_error_counts_error(self, tmp_path):

@@ -409,6 +409,156 @@ TOOL_CATEGORIES: list[tuple[str, tuple[str, ...], frozenset[str]]] = [
 _BUILTIN_MODULE = "__builtin__"
 
 
+# ── #4 工具错误自动恢复：参数校验 + 相似工具建议 ──────────────────────
+
+# Python 类型 → JSON schema 类型名映射
+_PY_TYPE_MAP = {
+    str: "string",
+    int: "integer",
+    float: "number",
+    bool: "boolean",
+    list: "array",
+    dict: "object",
+}
+
+
+def _validate_args(name: str, args: dict, definitions: list[dict]) -> tuple[bool, str]:
+    """前置参数校验：检查 required 字段存在性 + 基本类型匹配（#4）。
+
+    从 definitions 中查找 name 对应的 schema，校验后返回 (ok, detail)。
+    无 schema 或 schema 无 properties 时直通（ok=True）。
+
+    Args:
+        name: 工具名
+        args: 实际传入的参数 dict
+        definitions: ToolRegistry._definitions（OpenAI function 格式）
+
+    Returns:
+        (True, "") 校验通过
+        (False, "[错误] 参数校验失败: ...。期望: ...") 校验失败
+    """
+    if not isinstance(args, dict):
+        return True, ""  # 非标准参数，跳过校验
+
+    # 查找工具定义
+    schema = None
+    for d in definitions:
+        fn = d.get("function", {})
+        if fn.get("name") == name:
+            schema = fn.get("parameters", {})
+            break
+
+    if not schema or not isinstance(schema, dict):
+        return True, ""  # 无 schema，直通
+
+    properties = schema.get("properties", {})
+    required = schema.get("required", [])
+
+    if not properties:
+        return True, ""  # 无参数约束，直通
+
+    # 1. required 字段存在性检查
+    missing = [r for r in required if r not in args or args.get(r) is None]
+    if missing:
+        hint_parts = [f"{p}({properties[p].get('type', 'any')})" for p in required if p in properties]
+        schema_hint = ", ".join(hint_parts) if hint_parts else ", ".join(required)
+        return False, (
+            f"[错误] 参数校验失败: 缺少必需参数 {missing}。"
+            f"期望: {schema_hint}。请补充缺失参数后重试。"
+        )
+
+    # 2. 基本类型检查（只检查提供的参数）
+    for pname, pval in args.items():
+        if pname not in properties or pval is None:
+            continue
+        expected_type = properties[pname].get("type", "")
+        if not expected_type:
+            continue
+        actual_type = _PY_TYPE_MAP.get(type(pval), "")
+        # 宽松匹配：integer 可接受 bool 的反向不行，但 number 接受 int/float
+        type_ok = False
+        if expected_type == "string":
+            type_ok = isinstance(pval, str)
+        elif expected_type == "integer":
+            type_ok = isinstance(pval, int) and not isinstance(pval, bool)
+        elif expected_type == "number":
+            type_ok = isinstance(pval, (int, float)) and not isinstance(pval, bool)
+        elif expected_type == "boolean":
+            type_ok = isinstance(pval, bool)
+        elif expected_type == "array":
+            type_ok = isinstance(pval, (list, tuple))
+        elif expected_type == "object":
+            type_ok = isinstance(pval, dict)
+
+        if not type_ok:
+            hint_parts = [f"{p}({properties[p].get('type', 'any')})" for p in required if p in properties]
+            schema_hint = ", ".join(hint_parts) if hint_parts else ""
+            return False, (
+                f"[错误] 参数校验失败: 参数 '{pname}' 类型应为 {expected_type}，"
+                f"实际为 {actual_type or type(pval).__name__}。"
+                f"期望: {schema_hint}。请修正参数类型后重试。"
+            )
+
+    return True, ""
+
+
+def _levenshtein(a: str, b: str) -> int:
+    """计算两个字符串的 Levenshtein 编辑距离（纯计算，无外部依赖）。"""
+    if a == b:
+        return 0
+    if len(a) < len(b):
+        a, b = b, a
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        curr = [i]
+        for j, cb in enumerate(b, 1):
+            cost = 0 if ca == cb else 1
+            curr.append(min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost))
+        prev = curr
+    return prev[-1]
+
+
+def _suggest_similar_tool(name: str, definitions: list[dict], top_n: int = 2) -> str:
+    """基于编辑距离 + 前缀匹配推荐相似工具名（#4）。
+
+    Args:
+        name: 未知工具名（用户输入或模型生成）
+        definitions: ToolRegistry._definitions
+        top_n: 返回前 N 个建议
+
+    Returns:
+        形如 "read_file / edit_file" 的字符串；无候选时返回 ""。
+    """
+    if not name or not definitions:
+        return ""
+
+    candidates: list[tuple[str, float]] = []
+    name_lower = name.lower()
+    for d in definitions:
+        fn = d.get("function", {})
+        tool_name = fn.get("name", "")
+        if not tool_name:
+            continue
+        # 编辑距离（归一化到 0-1，越小越相似）
+        dist = _levenshtein(name_lower, tool_name.lower())
+        max_len = max(len(name), len(tool_name), 1)
+        similarity = 1.0 - (dist / max_len)
+        # 前缀匹配加分
+        if tool_name.lower().startswith(name_lower[:3]) or name_lower.startswith(tool_name.lower()[:3]):
+            similarity += 0.2
+        # 包含关系加分
+        if name_lower in tool_name.lower() or tool_name.lower() in name_lower:
+            similarity += 0.15
+        # 只保留相似度 > 0.4 的候选
+        if similarity > 0.4:
+            candidates.append((tool_name, similarity))
+
+    candidates.sort(key=lambda x: x[1], reverse=True)
+    return " / ".join(c[0] for c in candidates[:top_n])
+
+
 # ── 工具注册表 ──
 
 class ToolRegistry:
@@ -638,7 +788,13 @@ class ToolRegistry:
 
     # ── 执行 ──
     def execute(self, name: str, args: dict) -> str:
-        """执行工具并返回结果文本（含轻量观测：TraceContext + metrics）"""
+        """执行工具并返回结果文本（含轻量观测 + 错误自动恢复 #4）
+
+        错误恢复策略（#4 新增）:
+        - 未知工具 → TF-IDF 相似工具建议（而非裸错误）
+        - 参数校验 → required 缺失/类型不匹配 → 带期望 schema 的错误字符串
+        - 执行异常 → ErrorClassifier 分类 + 恢复建议（而非裸 raise）
+        """
         try:
             from core.observability import TraceContext, metrics as _m
         except ImportError:
@@ -646,9 +802,23 @@ class ToolRegistry:
 
         executor = self._executors.get(name)
         if not executor:
+            # NEW (#4): 相似工具建议，帮助模型自我修正
+            suggestion = _suggest_similar_tool(name, self._definitions)
             if _m:
                 _m.increment("tool_errors")
-            return f"[错误] 未知工具: {name}"
+                _m.increment("tool_suggestion_given")
+            if suggestion:
+                return f"[错误] 未知工具: {name}。你是否想用: {suggestion}？请检查工具名后重试。"
+            return f"[错误] 未知工具: {name}。请检查工具名后重试。"
+
+        # NEW (#4): 前置参数校验
+        ok, detail = _validate_args(name, args, self._definitions)
+        if not ok:
+            if _m:
+                _m.increment("tool_errors")
+                _m.increment("tool_arg_validation_failed")
+            return detail
+
         try:
             ctx = TraceContext("registry_execute", tool_name=name) if _m else _noop_cm()
             with ctx as span:
@@ -658,10 +828,21 @@ class ToolRegistry:
                     _m.increment("tool_executions")
                     _m.timing("tool_execute_ms", span.duration_ms())
             return str(result)
-        except (RuntimeError, OSError, ValueError, TypeError):
+        except (RuntimeError, OSError, ValueError, TypeError) as e:
+            # NEW (#4): 错误分类 + 恢复建议（让模型自我修正，而非裸 raise）
             if _m:
                 _m.increment("tool_errors")
-            raise
+            try:
+                from core.resilience import ErrorClassifier
+                etype = ErrorClassifier.classify(e)
+                hint = ErrorClassifier.get_recovery_hint(e)
+                return (
+                    f"[错误 | {etype.value}] {e}。"
+                    f"恢复建议: {hint}。请检查参数或方法后重试。"
+                )
+            except ImportError:
+                # resilience 不可用：退回原行为（raise）
+                raise
         except Exception as e:
             if _m:
                 _m.increment("tool_errors")

@@ -16,7 +16,10 @@ sys.path.insert(0, str(ROOT))
 
 from core.context_tools import (
     DEFAULT_MAX_CHARS,
+    abstractive_compress,
+    compress_tool_result,
     estimate_tokens,
+    extractive_compress,
     truncate_messages,
     truncate_tool_result,
 )
@@ -304,3 +307,187 @@ class TestCachePointTruncation:
         assert len(tool_msgs[0]["content"]) < len(huge_result)
         # 原始结果仍然在 dispatch 返回值中（模拟缓存未丢）
         assert len(huge_result) > DEFAULT_MAX_CHARS
+
+
+# ── extractive_compress（Tier 2a — 零成本 TF-IDF 抽取）───────────────
+
+
+class TestExtractiveCompress:
+
+    def test_short_text_passthrough(self):
+        """短文本不处理，原样返回。"""
+        text = "hello world"
+        assert extractive_compress(text, max_chars=8000) == text
+
+    def test_long_text_compressed(self):
+        """长文本被抽取压缩，结果长度 ≤ max_chars。"""
+        # 构造超长文本：80 个句子，每个 ~300 字符
+        sentences = [f"句子{i}: 这是第{i}个句子的内容。包含一些关键的函数名 func_{i} 和变量 var_{i}。" * 5 for i in range(80)]
+        text = "\n".join(sentences)
+        assert len(text) > 8000
+        result = extractive_compress(text, max_chars=8000)
+        assert len(result) <= 8000
+        assert len(result) < len(text)
+
+    def test_query_hint_relevance_sorting(self):
+        """有 query_hint 时，相关句子优先被选中。"""
+        # 构造：大部分句子关于 cooking，一句关于 Python
+        cooking_sentences = [f"The recipe step {i} involves mixing ingredients. Heat the oven." for i in range(30)]
+        python_sentence = "def calculate_sum(a, b): return a + b  # Python function for summation"
+        text = "\n".join(cooking_sentences + [python_sentence])
+        result = extractive_compress(text, query_hint="Python function code", max_chars=2000)
+        # Python 相关句子应被保留（与 query 相关性最高）
+        assert "Python" in result or "calculate_sum" in result
+
+    def test_cjk_text_compresses(self):
+        """CJK 文本正确抽取压缩。"""
+        sentences = [f"第{i}段：这是关于机器学习的中文内容。包含关键词神经网络和深度学习。" * 10 for i in range(40)]
+        text = "\n".join(sentences)
+        assert len(text) > 8000
+        result = extractive_compress(text, max_chars=4000)
+        assert len(result) <= 4200  # 允许句子边界微超
+        assert "机器学习" in result  # 高频关键词应保留
+
+    def test_single_sentence_fallback(self):
+        """单句文本无法抽取，回退截断。"""
+        text = "X" * (DEFAULT_MAX_CHARS + 500)
+        result = extractive_compress(text, max_chars=DEFAULT_MAX_CHARS)
+        assert len(result) <= DEFAULT_MAX_CHARS + len("\n\n...[truncated 500 chars]...\n\n")
+
+    def test_preserves_original_order(self):
+        """抽取后保留原始句子顺序（不按得分顺序输出）。"""
+        sentences = [f"Sentence {i} with keyword KEY{i}." for i in range(20)]
+        text = "\n".join(sentences)
+        result = extractive_compress(text, max_chars=1000)
+        # 如果 KEY0 在结果中，它应在 KEY19 之前出现
+        if "KEY0" in result and "KEY19" in result:
+            assert result.index("KEY0") < result.index("KEY19")
+
+
+# ── abstractive_compress（Tier 2b — LLM 抽象压缩）─────────────────────
+
+
+class TestAbstractiveCompress:
+
+    def test_mock_client_compresses(self):
+        """mock client.chat 返回摘要时正确工作。"""
+        from unittest.mock import MagicMock
+
+        mock_client = MagicMock()
+        mock_client.chat.return_value = {
+            "choices": [{"message": {"content": "Summary: key information preserved."}}]
+        }
+        text = "X" * 10000
+        result = abstractive_compress(text, mock_client, model="test-model")
+        assert "Summary" in result
+        mock_client.chat.assert_called_once()
+        call_args = mock_client.chat.call_args
+        assert call_args[1]["model"] == "test-model"
+        assert call_args[1]["max_tokens"] == 600
+
+    def test_llm_failure_falls_back_to_extractive(self):
+        """LLM 调用失败时回退到 extractive_compress。"""
+        from unittest.mock import MagicMock
+
+        mock_client = MagicMock()
+        mock_client.chat.side_effect = RuntimeError("API error")
+
+        text = "S" * 10000
+        result = abstractive_compress(text, mock_client)
+        # 应回退到 extractive（不抛异常）
+        assert isinstance(result, str)
+        assert len(result) < len(text)
+
+    def test_empty_response_falls_back(self):
+        """LLM 返回空内容时回退到 extractive。"""
+        from unittest.mock import MagicMock
+
+        mock_client = MagicMock()
+        mock_client.chat.return_value = {"choices": [{"message": {"content": ""}}]}
+
+        text = "T" * 10000
+        result = abstractive_compress(text, mock_client)
+        assert isinstance(result, str)
+
+    def test_long_input_truncated_before_llm(self):
+        """超长输入在喂给 LLM 前被截断到 16000 字符。"""
+        from unittest.mock import MagicMock
+
+        mock_client = MagicMock()
+        mock_client.chat.return_value = {
+            "choices": [{"message": {"content": "ok"}}]
+        }
+
+        text = "Z" * 20000
+        abstractive_compress(text, mock_client)
+        sent_text = mock_client.chat.call_args[1]["messages"][0]["content"]
+        assert len(sent_text) <= 16000 + 500  # 允许 prompt 前缀长度
+
+
+# ── compress_tool_result（智能路由）────────────────────────────────────
+
+
+class TestCompressToolResult:
+
+    def test_short_text_passthrough(self):
+        """短文本直接返回，不触发任何压缩。"""
+        text = "hello"
+        assert compress_tool_result(text) == text
+
+    def test_extractive_sufficient_no_llm(self):
+        """extractive 足够时不触发 LLM 压缩。"""
+        from unittest.mock import MagicMock
+
+        mock_client = MagicMock()
+
+        # 构造 extractive 能处理的长文本
+        sentences = [f"Info sentence {i} with keyword KW_{i}. " * 15 for i in range(40)]
+        text = "\n".join(sentences)
+        assert len(text) > 8000
+
+        result = compress_tool_result(text, client=mock_client, max_chars=8000)
+        assert len(result) <= 8000 + 10  # 允许微小偏差
+        # mock_client.chat 不应被调用（extractive 足够）
+        mock_client.chat.assert_not_called()
+
+    def test_no_client_falls_back_to_truncate(self):
+        """无 client 时，extractive 失败后兜底 truncate。"""
+        text = "X" * (DEFAULT_MAX_CHARS + 500)
+        # 纯重复文本 extractive 可能保留很多，但最终会兜底截断
+        result = compress_tool_result(text, client=None, max_chars=100)
+        assert isinstance(result, str)
+
+    def test_llm_called_when_extractive_insufficient(self):
+        """extractive 仍超限且有 client → 触发 LLM 压缩。"""
+        from unittest.mock import MagicMock
+
+        mock_client = MagicMock()
+        mock_client.chat.return_value = {
+            "choices": [{"message": {"content": "Brief summary."}}]
+        }
+
+        # 构造 extractive 无法充分压缩的文本（连续长句，切分效果差）
+        text = "A" * 20000  # 无句子边界，extractive 基本保留原文
+        result = compress_tool_result(text, client=mock_client, max_chars=100)
+        assert isinstance(result, str)
+        # client.chat 应被调用
+        mock_client.chat.assert_called_once()
+
+    def test_metrics_tracked(self):
+        """验证 metrics 计数器被正确递增。"""
+        from unittest.mock import patch, MagicMock
+
+        mock_metrics = MagicMock()
+        mock_client = MagicMock()
+
+        sentences = [f"Sentence {i} with keyword KW_{i}. " * 15 for i in range(40)]
+        text = "\n".join(sentences)
+
+        # observability.metrics 是全局单例，patch 其 increment 方法
+        with patch("core.observability.metrics", mock_metrics):
+            compress_tool_result(text, client=mock_client, max_chars=8000)
+            # extractive 路径应触发 increment
+            assert mock_metrics.increment.called
+        # 验证至少有一个 extractive 或 fallback 计数
+        increment_calls = [c[0][0] for c in mock_metrics.increment.call_args_list]
+        assert any("extractive" in c or "truncated" in c for c in increment_calls)

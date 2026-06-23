@@ -7,11 +7,74 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+# ── 全局配置目录（对标 codex 的 ~/.codex、claude 的 ~/.claude）──
+# 让 agnes 在任意 CWD 都能读到 API Key，不再强依赖当前目录的 .env。
+# 加载优先级（高 → 低）：
+#   1. 已存在的环境变量（CI/容器/临时切换用）
+#   2. 当前目录 .env（项目级覆盖，override=True）
+#   3. ~/.agnes/auth.json（跨项目基准，仅补缺）
+AGNES_HOME = Path(os.path.expanduser("~")) / ".agnes"
+AUTH_FILE = AGNES_HOME / "auth.json"
+
+# auth.json 字段名 → 环境变量名 映射
+_AUTH_FIELD_TO_ENV = {
+    "AGNES_API_KEY": "AGNES_API_KEY",
+    "AGNES_BASE_URL": "AGNES_BASE_URL",
+}
+
+
+def _load_global_auth() -> None:
+    """读 ~/.agnes/auth.json，把缺失的环境变量补上（不覆盖已有值）。
+
+    在 load_dotenv 之后调用，这样优先级是：环境变量 > 项目 .env > 全局 auth。
+    任何 IO/JSON 错误都静默——全局 auth 是便利项，不是必需项，缺失时
+    回退到原有的「环境变量 + CWD/.env」行为。
+    """
+    try:
+        if not AUTH_FILE.exists():
+            return
+        data = json.loads(AUTH_FILE.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return
+        for field, env_key in _AUTH_FIELD_TO_ENV.items():
+            val = data.get(field)
+            # 仅当环境变量当前为空 且 auth.json 有非空值时才补
+            if val and not os.environ.get(env_key):
+                os.environ[env_key] = str(val)
+    except (OSError, json.JSONDecodeError, TypeError):
+        pass
+
+
+def save_global_auth(api_key: str, base_url: str | None = None) -> Path:
+    """把 API Key 写入 ~/.agnes/auth.json（对标 codex auth.json）。
+
+    写入后任意目录敲 agnes 都能用。返回写入路径。已存在文件会被合并
+    （保留未传入的字段，base_url 传 None 时不覆盖原有 base_url）。
+    """
+    AGNES_HOME.mkdir(parents=True, exist_ok=True)
+    data: dict = {}
+    if AUTH_FILE.exists():
+        try:
+            existing = json.loads(AUTH_FILE.read_text(encoding="utf-8"))
+            if isinstance(existing, dict):
+                data = existing
+        except (OSError, json.JSONDecodeError):
+            pass
+    data["AGNES_API_KEY"] = api_key
+    if base_url is not None:
+        data["AGNES_BASE_URL"] = base_url
+    AUTH_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    return AUTH_FILE
+
+
 load_dotenv(override=True)
+_load_global_auth()
 
 __all__ = [
     "AGNES_VISION_BASE_URL",
     "AGNES_VISION_MODEL",
+    "AGNES_HOME",
+    "AUTH_FILE",
     "IMAGE_SIZES",
     "MODELS",
     "OUTPUT_DIR",
@@ -21,6 +84,7 @@ __all__ = [
     "VALID_NUM_FRAMES",
     "VIDEO_ASPECT_RATIOS",
     "VIDEO_DURATION_MAP",
+    "save_global_auth",
 ]
 
 # ── 常量 ──────────────────────────────────────────────────
@@ -172,6 +236,9 @@ class Settings:
     video_poll_interval: float = 5.0
     video_max_wait: float = 300.0
     max_retries: int = 3
+    # #2 反思引擎配置
+    reflection_enabled: bool = True
+    reflection_interval: int = 5
 
     def save(self, path: str = "settings.json"):
         with open(path, "w", encoding="utf-8") as f:

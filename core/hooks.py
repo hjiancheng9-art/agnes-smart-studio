@@ -377,7 +377,7 @@ def _test_guard_handler(event: HookEvent) -> HookEvent:
     smoke 测试集在 pytest 内运行时会被 pytest_runner 递归守卫短路，安全。
     """
     tool_name = event.data.get("tool_name", "")
-    if tool_name != "edit_file":
+    if tool_name not in ("edit_file", "patch_file"):
         return event
 
     args = event.data.get("args", {}) or {}
@@ -422,3 +422,85 @@ def register_code_hooks() -> None:
         handler=_test_guard_handler,
         priority=60,  # syntax_guard 之后
     )
+
+
+# ── #2 反思 Hook（定期 critique，辅助模型分析工具调用序列）──────────────
+
+
+# 模块级反思引擎实例（由 register_reflection_hook 设置）
+_reflection_engine = None
+
+
+def _reflection_handler(event: HookEvent) -> HookEvent:
+    """POST_TOOL_USE hook: 定期反思，将 critique 附加到 event.result。
+
+    每次工具调用后记录到反思引擎，达到 interval 时触发 LLM critique。
+    critique 文本通过 event.result 拼接返回给主模型（唯一合法通道）。
+    """
+    global _reflection_engine
+    if _reflection_engine is None:
+        return event
+
+    tool_name = event.data.get("tool_name", "")
+    args = event.data.get("args", {}) or {}
+    result = event.result or ""
+    is_error = event.data.get("error", False)
+
+    # 记录本次调用
+    _reflection_engine.record_call(
+        tool_name=tool_name,
+        args_summary=str(args),
+        result_summary=str(result),
+        is_error=is_error,
+    )
+
+    # 尝试触发反思（未到 interval 或 LLM 失败时返回 None）
+    critique = _reflection_engine.maybe_critique()
+    if critique:
+        if isinstance(event.result, str):
+            event.result = (event.result or "") + critique
+        else:
+            event.result = critique
+    return event
+
+
+def register_reflection_hook(
+    client=None,
+    interval: int = 5,
+    enabled: bool = True,
+    model: str = "deepseek-v4-pro",
+) -> None:
+    """注册反思 hook（幂等）。
+
+    Args:
+        client: AgnesClient 实例（用于 LLM critique）
+        interval: 每 N 次工具调用触发一次反思（默认 5）
+        enabled: 是否启用反思
+        model: 用于 critique 的辅助模型
+    """
+    global _reflection_engine
+    from core.reflection import ReflectionEngine
+
+    _reflection_engine = ReflectionEngine(
+        client=client,
+        model=model,
+        interval=interval,
+        enabled=enabled,
+    )
+    hook_manager.register(
+        name="reflection",
+        hook_type=HookType.POST_TOOL_USE,
+        handler=_reflection_handler,
+        priority=40,  # 低于 syntax_guard(80) 和 test_guard(60)
+    )
+
+
+def get_reflection_engine():
+    """获取当前反思引擎实例（供测试访问）。"""
+    return _reflection_engine
+
+
+def reset_reflection_engine() -> None:
+    """重置反思引擎（供测试隔离）。"""
+    global _reflection_engine
+    _reflection_engine = None
