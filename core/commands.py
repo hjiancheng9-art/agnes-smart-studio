@@ -118,6 +118,9 @@ COMMANDS: list[CommandDef] = [
     CommandDef('browser', '/browser', '',       'Browser Companion 网页生成开关（8平台）', '对话',
                long_desc='toggle：切换 browser_generate 等 6 个网页生成工具。首次用需 browser_setup 登录。',
                handler='_inline_browser'),
+    CommandDef('eval',    '/eval',    '[json]', '运行智能体质量基准测试', '诊断配置',
+               long_desc='无参=表格展示；json=输出 JSON 报告。覆盖代码搜索/代码质量/理解能力。',
+               handler='_chat_eval'),
 ]
 
 # Special skill-load entries for /help display

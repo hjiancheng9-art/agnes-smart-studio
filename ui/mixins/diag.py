@@ -699,6 +699,59 @@ class DiagCommandsMixin:
             show_warning(f"变体 '{arg}' 不存在或未激活")
             console.print("  [dim]用 /prompt-stats variants 查看可用变体[/]")
 
+    def _chat_eval(self, session: "ChatSession", arg: str):
+        """运行智能体质量基准测试 — 覆盖代码搜索/代码质量/理解能力。
+
+        无参或 table：表格展示结果
+        json：输出 JSON 格式报告（适合 CI/CD 集成）
+        """
+        try:
+            from core.eval_harness import EvalEngine, BENCHMARKS
+        except ImportError:
+            show_warning("eval_harness 模块不可用")
+            return
+
+        arg = arg.strip()
+        output_json = arg.lower() == "json"
+
+        show_info("正在运行智能体质量基准测试...")
+        engine = EvalEngine()
+        report = engine.run_all()
+
+        if output_json:
+            console.print(json.dumps(report, indent=2, ensure_ascii=False))
+            return
+
+        # ── 表格展示 ──
+        summary_tbl = Table(title="[bold]📊 智能体质量基准[/]",
+                            border_style=COLORS["primary"], show_lines=True)
+        summary_tbl.add_column("指标", style="bold cyan", width=20)
+        summary_tbl.add_column("值", justify="right")
+        summary_tbl.add_row("总分", f"{report['score']:.1f} / 100")
+        summary_tbl.add_row("通过", f"{report['passed']} / {report['total']}")
+        summary_tbl.add_row("失败", f"{report['failed']}")
+        console.print(summary_tbl)
+
+        # ── 各项详情表 ──
+        detail_tbl = Table(title="详细结果", border_style="dim", show_lines=True)
+        detail_tbl.add_column("ID", style="cyan", width=22)
+        detail_tbl.add_column("类别", width=14)
+        detail_tbl.add_column("状态", width=6)
+        detail_tbl.add_column("得分", justify="right", width=6)
+        detail_tbl.add_column("耗时", justify="right", width=8)
+
+        for r in report.get("results", []):
+            status_icon = "[green]PASS[/]" if r["status"] == "pass" else (
+                "[red]FAIL[/]" if r["status"] == "fail" else "[yellow]ERR[/]")
+            detail_tbl.add_row(
+                r["id"], r["category"], status_icon,
+                f"{r['score']:.2f}", f"{r['elapsed']}s",
+            )
+
+        console.print(detail_tbl)
+        console.print(f"  [dim]基准集: {report['suite']} · {len(BENCHMARKS)} 项 · "
+                      f"/eval json 输出 JSON 格式[/]")
+
     def _chat_cost(self, session: "ChatSession", arg: str):
         """花费统计 — 查看 / 设日预算 / 清零
 
