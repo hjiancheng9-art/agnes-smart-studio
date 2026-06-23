@@ -88,7 +88,7 @@ def test_i2v(src_url=None):
         return result
     show_success(f"任务已提交! video_id: {display_id}")
     show_info(f"查询状态: python test_advanced.py check {display_id}")
-    show_info(f"或: python crux_studio.py --video-id {display_id}")
+    show_info(f"或: crux query {display_id}")
     return result
 
 

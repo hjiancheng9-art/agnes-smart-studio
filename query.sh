@@ -31,8 +31,17 @@ fi
 
 # ── 执行查询 ─────────────────────────────────
 # 无参数: 自动查找未完成任务 + --watch 轮询等待
-if [ $# -eq 0 ]; then
-    exec $PY query.py --watch 10
+# 优先使用 crux-query 命令，否则回退到 query.py
+if command -v crux-query &>/dev/null; then
+    if [ $# -eq 0 ]; then
+        exec crux-query --watch 10
+    else
+        exec crux-query "$@"
+    fi
 else
-    exec $PY query.py "$@"
+    if [ $# -eq 0 ]; then
+        exec $PY query.py --watch 10
+    else
+        exec $PY query.py "$@"
+    fi
 fi

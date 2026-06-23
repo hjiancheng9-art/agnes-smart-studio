@@ -112,7 +112,7 @@ class GeneratorsMenuMixin:
             display_id = data.get('video_id', 'N/A')
             show_success(f"任务已提交! video_id: {display_id}")
             if display_id and display_id != 'N/A':
-                show_info(f"查询: python crux_studio.py --video-id {display_id}")
+                show_info(f"查询: crux query {display_id}")
             else:
                 show_warning("未返回 video_id，请检查任务响应")
             record = history.add_record("text_to_video", prompt, "agnes-video-v2.0", data)
@@ -129,7 +129,7 @@ class GeneratorsMenuMixin:
                 show_warning(f"超时，当前进度 {data.get('progress', 0):.0f}%")
                 query_id = data.get('video_id', '')
                 if query_id:
-                    show_info(f"继续查询: python crux_studio.py --video-id {query_id}")
+                    show_info(f"继续查询: crux query {query_id}")
                 else:
                     show_warning("未返回 video_id，无法自动查询")
             else:
@@ -171,7 +171,7 @@ class GeneratorsMenuMixin:
             display_id = data.get('video_id', 'N/A')
             show_success(f"任务已提交! video_id: {display_id}")
             if display_id and display_id != 'N/A':
-                show_info(f"查询: python crux_studio.py --video-id {display_id}")
+                show_info(f"查询: crux query {display_id}")
             else:
                 show_warning("未返回 video_id，请检查任务响应")
             record = history.add_record("image_to_video", prompt, "agnes-video-v2.0", data)
@@ -188,7 +188,7 @@ class GeneratorsMenuMixin:
                 show_warning(f"超时，当前进度 {data.get('progress', 0):.0f}%")
                 query_id = data.get('video_id', '')
                 if query_id:
-                    show_info(f"继续查询: python crux_studio.py --video-id {query_id}")
+                    show_info(f"继续查询: crux query {query_id}")
                 else:
                     show_warning("未返回 video_id，无法自动查询")
             else:
@@ -208,7 +208,7 @@ class GeneratorsMenuMixin:
             show_success(f"视频任务已提交! ID: {display_id}")
             query_id = vid_result.get('video_id', '')
             if query_id:
-                show_info(f"查询: python crux_studio.py --video-id {query_id}")
+                show_info(f"查询: crux query {query_id}")
             else:
                 show_warning("未返回 video_id，请检查任务响应")
         else:
@@ -224,7 +224,7 @@ class GeneratorsMenuMixin:
                 vid_result = result.get('video', {})
                 query_id = vid_result.get('video_id', '')
                 if query_id:
-                    show_info(f"继续查询: python crux_studio.py --video-id {query_id}")
+                    show_info(f"继续查询: crux query {query_id}")
                 else:
                     show_warning("未返回 video_id，无法自动查询")
             else:

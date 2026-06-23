@@ -193,6 +193,6 @@
 技能:  /skill list  →  /skill load showrunner
 工具:  直接说"读取 README.md"或"搜索 TODO"
 退出:  /exit 或 Ctrl+C 两次
-诊断:  python crux_studio.py --check
+诊断:  crux check
 测试:  python test_smoke.py
 ```
