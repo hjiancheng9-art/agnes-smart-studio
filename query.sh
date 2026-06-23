@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  Agnes Smart Studio - 一键查询
+#  CRUX Studio - video query
 #  运行 ./query.sh，自动查询最近未完成的视频任务
 #  或传入 video_id 参数查询指定任务
 #  ⚠ 必须使用 video_id，不要用 task_id

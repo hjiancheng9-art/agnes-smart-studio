@@ -7,7 +7,8 @@ from pathlib import Path
 from rich.table import Table
 from rich.prompt import Prompt
 
-from ui.display import console, COLORS, show_info, show_success, show_warning
+from ui.theme import COLORS, ICONS, LAYOUT, console
+from ui.display import show_info, show_success, show_warning
 import contextlib
 
 __all__ = ['ProviderSelector']
@@ -32,14 +33,14 @@ class ProviderSelector:
         def _default_cfg():
             return {
                 "providers": {
-                    "agnes": {"name": "Agnes AI", "base_url": "https://apihub.agnes-ai.com/v1",
+                    "crux": {"name": "CRUX AI", "base_url": "https://apihub.agnes-ai.com/v1",
                               "api_key": "", "models": {"light": "agnes-1.5-flash", "pro": "agnes-2.0-flash"}},
                     "deepseek": {"name": "DeepSeek V4 Pro (1M)", "base_url": "https://api.deepseek.com/v1",
                                  "api_key": "", "models": {"pro": "deepseek-v4-pro", "light": "deepseek-v4-pro"}},
                     "siliconflow": {"name": "SiliconFlow (Kimi-K2.6)", "base_url": "https://api.siliconflow.cn/v1",
                                     "api_key": "", "models": {"pro": "Pro/moonshotai/Kimi-K2.6", "light": "Pro/moonshotai/Kimi-K2.6"}},
                 },
-                "active": "agnes",
+                "active": "crux",
                 "fallback": {"enabled": True, "priority": ["deepseek", "siliconflow"]},
             }
 
@@ -60,7 +61,7 @@ class ProviderSelector:
             if "providers" not in cfg:
                 cfg["providers"] = _default_cfg()["providers"]
             if "active" not in cfg:
-                cfg["active"] = "agnes"
+                cfg["active"] = "crux"
             return cfg
         except (json.JSONDecodeError, ValueError) as e:
             # 文件损坏或为空 → 重建
@@ -78,7 +79,7 @@ class ProviderSelector:
         1. 扫描所有 providers，收集有 API Key 的
         2. 1 个外部供应商 → 自动激活
         3. ≥2 个外部供应商 → 弹出菜单让用户选择
-        4. 0 个外部供应商 → 使用 Agnes
+        4. 0 个外部供应商 → 使用 CRUX
 
         Returns: (provider_id, model_id)
         """
@@ -97,19 +98,19 @@ class ProviderSelector:
                 available.append((pid, p, model, api_key))
 
         if not available:
-            # 没有任何 Key → Agnes
-            p = providers.get("agnes", providers.get(list(providers.keys())[0], {}))
+            # 没有任何 Key → CRUX
+            p = providers.get("crux", providers.get(list(providers.keys())[0], {}))
             model = p.get("models", {}).get("light", "agnes-1.5-flash")
-            show_info("无外部供应商 Key，使用默认 Agnes light")
-            return ("agnes", model)
+            show_info("无外部供应商 Key，使用默认 CRUX light")
+            return ("crux", model)
 
-        # 只有 Agnes → 直接用
-        if len(available) == 1 and available[0][0] == "agnes":
+        # 只有 CRUX → 直接用
+        if len(available) == 1 and available[0][0] == "crux":
             pid, p, model, _ = available[0]
             return (pid, model)
 
-        # 过滤出非 Agnes 的外部供应商
-        external = [(pid, p, m, k) for pid, p, m, k in available if pid != "agnes"]
+        # 过滤出非 CRUX 的外部供应商
+        external = [(pid, p, m, k) for pid, p, m, k in available if pid != "crux"]
 
         if len(external) == 1:
             # 只有一个外部供应商 → 自动激活
@@ -119,7 +120,7 @@ class ProviderSelector:
 
         # ≥2 个外部供应商 → 弹出菜单
         console.print()
-        table = Table(title="[bold cyan]选择主对话供应商[/]（视觉始终走 Agnes 独立通道）",
+        table = Table(title="[bold cyan]选择主对话供应商[/]（视觉始终走 CRUX 独立通道）",
                        border_style=COLORS["primary"])
         table.add_column("#", style="bold cyan", width=3)
         table.add_column("供应商", style="white", width=16)
@@ -135,7 +136,7 @@ class ProviderSelector:
                 desc = "百万上下文 · 代码/推理"
             elif pid == "siliconflow":
                 desc = "Kimi-K2.6 · 备选链路"
-            elif pid == "agnes":
+            elif pid == "crux":
                 desc = "原生模型 · 轻量快速"
             table.add_row(label, p["name"], model, desc)
             choices.append((str(idx), pid, p, model))
@@ -150,14 +151,14 @@ class ProviderSelector:
             default="1",
         )
         if choice == "q":
-            show_info("已取消，使用默认 Agnes light")
-            p = providers.get("agnes", {})
-            return ("agnes", p.get("models", {}).get("light", "agnes-1.5-flash"))
+            show_info("已取消，使用默认 CRUX light")
+            p = providers.get("crux", {})
+            return ("crux", p.get("models", {}).get("light", "agnes-1.5-flash"))
 
         # 找到选中的供应商
         for num, pid, p, model in choices:
             if num == choice:
-                if pid == "agnes":
+                if pid == "crux":
                     return (pid, model)
                 # 外部供应商需要激活
                 key_env = f"{pid.upper()}_API_KEY"
@@ -165,7 +166,7 @@ class ProviderSelector:
                 self._activate_provider(pid, p, model, api_key, cfg, cfg_path)
                 return (pid, model)
 
-        return ("agnes", "agnes-1.5-flash")
+        return ("crux", "agnes-1.5-flash")
 
     # ── 激活 ──────────────────────────────────────
 

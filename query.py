@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Agnes 视频查询工具 — 自动发现 + 状态追踪 + 一键下载
+"""CRUX 视频查询工具 — 自动发现 + 状态追踪 + 一键下载
 
 用法:
     python query.py                         # 交互式选择最近视频
@@ -23,14 +23,8 @@ ROOT = Path(__file__).resolve().parent
 OUTPUT = ROOT / "output"
 HISTORY_FILE = OUTPUT / "history.json"
 
-# ── 颜色 ──
-G = "\033[92m"
-Y = "\033[93m"
-R = "\033[91m"
-C = "\033[96m"
-D = "\033[2m"
-B = "\033[1m"
-X = "\033[0m"
+# ── Rich theme (replaces ANSI constants) ──
+from ui.theme import COLORS, ICONS, LAYOUT, console
 
 
 def _clean_video_id(raw: str) -> str:
@@ -126,7 +120,7 @@ def _download(url: str, save_path: str) -> bool:
             Path(save_path).write_bytes(r.content)
             return True
     except (httpx.HTTPError, OSError) as e:
-        print(f"  {R}下载异常: {e}{X}")
+        console.print(f"  [{COLORS['error']}]Download exception: {e}[/]")
     return False
 
 
@@ -151,21 +145,21 @@ def _interactive(client: httpx.Client):
     """交互式查询最近视频"""
     videos = _find_recent_videos()
     if not videos:
-        print(f"\n  {Y}历史记录中无视频任务{X}\n")
+        console.print(f"\n  [{COLORS['warning']}]No video tasks in history[/]\n")
         return
 
-    print(f"\n{B}  最近视频任务 ({len(videos)}):{X}\n")
+    console.print(f"\n  [bold]Recent video tasks ({len(videos)}):[/]\n")
     for i, v in enumerate(videos, 1):
-        print(f"  {C}{i}{X}  {v['prompt'][:50]}")
-        print(f"     {D}{v['video_id'][:50]}...{X}")
-        print(f"     {D}{v['ts'][:19]}{X}")
-        print()
+        console.print(f"  [{COLORS['primary']}]{i}[/]  {v['prompt'][:50]}")
+        console.print(f"     [{COLORS['muted']}]{v['video_id'][:50]}...[/]")
+        console.print(f"     [{COLORS['muted']}]{v['ts'][:19]}[/]")
+        console.print()
 
-    print(f"  {C}0{X}  退出")
-    print(f"  {C}v <ID>{X} 直接输入 video_id 查询")
-    print()
+    console.print(f"  [{COLORS['primary']}]0[/]  Exit")
+    console.print(f"  [{COLORS['primary']}]v <ID>[/] Enter video_id directly")
+    console.print()
 
-    choice = input(f"  选择 (1-{len(videos)}): ").strip()
+    choice = input("  Choose (1-{}): ".format(len(videos))).strip()
 
     if choice == "0" or not choice:
         return
@@ -180,16 +174,16 @@ def _interactive(client: httpx.Client):
         if 0 <= idx < len(videos):
             _query_and_display(client, videos[idx]["video_id"])
     except ValueError:
-        print(f"  {R}无效选择{X}")
+        console.print(f"  [{COLORS['error']}]Invalid choice[/]")
 
 
 def _query_and_display(client: httpx.Client, video_id: str, watch: bool = False, interval: int = 5):
     """查询并显示结果，可选轮询"""
     vid = _clean_video_id(video_id)
-    print(f"\n  {D}查询: {vid[:60]}...{X}\n")
+    console.print(f"\n  [{COLORS['muted']}]Query: {vid[:60]}...[/]\n")
 
     if watch:
-        print(f"  {D}轮询中 (每 {interval}s)，Ctrl+C 停止...{X}\n")
+        console.print(f"  [{COLORS['muted']}]Polling (every {interval}s), Ctrl+C to stop...[/]\n")
         try:
             while True:
                 data = _query(client, vid)
@@ -202,7 +196,7 @@ def _query_and_display(client: httpx.Client, video_id: str, watch: bool = False,
                         return
                 time.sleep(interval)
         except KeyboardInterrupt:
-            print(f"\n  {Y}已停止轮询{X}")
+            console.print(f"\n  [{COLORS['warning']}]Polling stopped[/]")
     else:
         data = _query(client, vid)
         if data:
@@ -210,7 +204,7 @@ def _query_and_display(client: httpx.Client, video_id: str, watch: bool = False,
             print()
             _handle_result(data, vid)
         else:
-            print(f"  {R}查询失败{X}")
+            console.print(f"  [{COLORS['error']}]Query failed[/]")
 
 
 def _handle_result(data: dict, video_id: str):
@@ -219,25 +213,26 @@ def _handle_result(data: dict, video_id: str):
     if status == "completed":
         url = data.get("video_url") or data.get("remixed_from_video_id", "")
         if url and url.startswith("http"):
-            print(f"  {G}视频已完成！{X}")
-            dl = input(f"  {C}下载? [y/n]{X} ").strip().lower()
+            console.print(f"  [{COLORS['success']}]Video completed![/]")
+            console.print(f"  [{COLORS['primary']}]Download? [y/n][/] ", end="")
+            dl = input().strip().lower()
             if dl == "y":
                 ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                 path = str(OUTPUT / "videos" / f"vid_{ts}.mp4")
-                print(f"  {D}下载中...{X}")
+                console.print(f"  [{COLORS['muted']}]Downloading...[/]")
                 if _download(url, path):
-                    print(f"  {G}已保存: {path}{X}")
+                    console.print(f"  [{COLORS['success']}]Saved: {path}[/]")
                 else:
-                    print(f"  {R}下载失败{X}")
+                    console.print(f"  [{COLORS['error']}]Download failed[/]")
             else:
-                print(f"  {D}视频URL: {url}{X}")
+                console.print(f"  [{COLORS['muted']}]Video URL: {url}[/]")
         else:
-            print(f"  {Y}无下载链接{X}")
+            console.print(f"  [{COLORS['warning']}]No download link[/]")
     elif status == "failed":
-        err = data.get("error", "未知错误")
-        print(f"  {R}生成失败: {err}{X}")
+        err = data.get("error", "Unknown error")
+        console.print(f"  [{COLORS['error']}]Generation failed: {err}[/]")
     else:
-        print(f"  {Y}仍在处理中，加 --watch 自动轮询{X}")
+        console.print(f"  [{COLORS['warning']}]Still processing, add --watch for auto-polling[/]")
 
 
 # ════════════════════════════════════════════════
@@ -245,14 +240,14 @@ def _handle_result(data: dict, video_id: str):
 # ════════════════════════════════════════════════
 
 def main():
-    print(f"\n{C}{B}  Agnes 视频查询{X}\n")
+    console.print(f"\n  [bold {COLORS['primary']}]CRUX Video Query[/]\n")
 
-    # 加载配置
+    # Load config
     from dotenv import load_dotenv
     load_dotenv()
-    api_key = os.getenv("AGNES_API_KEY", "")
+    api_key = os.getenv("CRUX_API_KEY") or os.getenv("AGNES_API_KEY", "")
     if not api_key:
-        print(f"  {R}未设置 AGNES_API_KEY{X}\n")
+        console.print(f"  [{COLORS['error']}]CRUX_API_KEY not set[/]\n")
         sys.exit(1)
 
     client = httpx.Client(headers={"Authorization": f"Bearer {api_key}"})
@@ -279,11 +274,11 @@ def main():
 
     if list_only:
         videos = _find_recent_videos(20)
-        print(f"  {B}历史视频 ({len(videos)}):{X}\n")
+        console.print(f"  [bold]History ({len(videos)}):[/]\n")
         for v in videos:
-            print(f"  {C}{v['video_id'][:50]}...{X}")
-            print(f"  {D}{v['prompt'][:60]}{X}")
-            print(f"  {D}{v['ts'][:19]}{X}\n")
+            console.print(f"  [{COLORS['primary']}]{v['video_id'][:50]}...[/]")
+            console.print(f"  [{COLORS['muted']}]{v['prompt'][:60]}[/]")
+            console.print(f"  [{COLORS['muted']}]{v['ts'][:19]}[/]\n")
         client.close()
         return
 

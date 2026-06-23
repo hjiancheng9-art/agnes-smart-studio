@@ -47,7 +47,7 @@ def fake_root(tmp_path):
 
 
 class TestCapabilityRegistry:
-    """CapabilityRegistry builds a snapshot of all Agnes capabilities."""
+    """CapabilityRegistry builds a snapshot of all CRUX capabilities."""
 
     def test_snapshot_structure(self, fake_root):
         from core.capability import CapabilityRegistry

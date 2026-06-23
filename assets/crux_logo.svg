@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 180" width="520" height="180">
+  <rect width="520" height="180" fill="#0a0a0a"/>
+  <!-- Convergence diamond symbol -->
+  <g transform="translate(16, 20)">
+    <!-- Top apex -->
+    <rect x="40" y="0" width="8" height="8" fill="#5BA3CF"/>
+    <rect x="48" y="0" width="8" height="8" fill="#5BA3CF"/>
+    <!-- Top shoulders -->
+    <rect x="32" y="8" width="8" height="8" fill="#5BA3CF"/>
+    <rect x="56" y="8" width="8" height="8" fill="#5BA3CF"/>
+    <rect x="64" y="8" width="8" height="8" fill="#5BA3CF"/>
+    <rect x="24" y="8" width="8" height="8" fill="#5BA3CF"/>
+    <!-- Spreading -->
+    <rect x="24" y="16" width="8" height="8" fill="#5BA3CF"/>
+    <rect x="72" y="16" width="8" height="8" fill="#5BA3CF"/>
+    <!-- Accent ring top -->
+    <rect x="16" y="24" width="8" height="8" fill="#C084FC"/>
+    <rect x="24" y="24" width="8" height="8" fill="#C084FC"/>
+    <rect x="64" y="24" width="8" height="8" fill="#C084FC"/>
+    <rect x="72" y="24" width="8" height="8" fill="#C084FC"/>
+    <rect x="80" y="24" width="8" height="8" fill="#5BA3CF"/>
+    <rect x="8" y="24" width="8" height="8" fill="#5BA3CF"/>
+    <!-- Convergence rows with green -->
+    <rect x="8" y="32" width="8" height="8" fill="#5BA3CF"/>
+    <rect x="16" y="32" width="8" height="8" fill="#C084FC"/>
+    <rect x="24" y="32" width="8" height="8" fill="#C084FC"/>
+    <rect x="40" y="32" width="8" height="8" fill="#7BC47F"/>
+    <rect x="56" y="32" width="8" height="8" fill="#7BC47F"/>
+    <rect x="64" y="32" width="8" height="8" fill="#C084FC"/>
+    <rect x="72" y="32" width="8" height="8" fill="#C084FC"/>
+    <rect x="80" y="32" width="8" height="8" fill="#5BA3CF"/>
+    <!-- WHITE CORE row -->
+    <rect x="8" y="40" width="8" height="8" fill="#5BA3CF"/>
+    <rect x="16" y="40" width="8" height="8" fill="#C084FC"/>
+    <rect x="32" y="40" width="8" height="8" fill="#7BC47F"/>
+    <rect x="40" y="40" width="8" height="8" fill="#FFFFFF"/>
+    <rect x="56" y="40" width="8" height="8" fill="#7BC47F"/>
+    <rect x="72" y="40" width="8" height="8" fill="#C084FC"/>
+    <rect x="80" y="40" width="8" height="8" fill="#5BA3CF"/>
+    <!-- Convergence mirror -->
+    <rect x="8" y="48" width="8" height="8" fill="#5BA3CF"/>
+    <rect x="16" y="48" width="8" height="8" fill="#C084FC"/>
+    <rect x="24" y="48" width="8" height="8" fill="#C084FC"/>
+    <rect x="40" y="48" width="8" height="8" fill="#7BC47F"/>
+    <rect x="56" y="48" width="8" height="8" fill="#7BC47F"/>
+    <rect x="64" y="48" width="8" height="8" fill="#C084FC"/>
+    <rect x="72" y="48" width="8" height="8" fill="#C084FC"/>
+    <rect x="80" y="48" width="8" height="8" fill="#5BA3CF"/>
+    <!-- Accent ring bottom -->
+    <rect x="16" y="56" width="8" height="8" fill="#C084FC"/>
+    <rect x="24" y="56" width="8" height="8" fill="#C084FC"/>
+    <rect x="64" y="56" width="8" height="8" fill="#C084FC"/>
+    <rect x="72" y="56" width="8" height="8" fill="#C084FC"/>
+    <rect x="80" y="56" width="8" height="8" fill="#5BA3CF"/>
+    <rect x="8" y="56" width="8" height="8" fill="#5BA3CF"/>
+    <!-- Narrowing -->
+    <rect x="24" y="64" width="8" height="8" fill="#5BA3CF"/>
+    <rect x="72" y="64" width="8" height="8" fill="#5BA3CF"/>
+    <!-- Bottom shoulders -->
+    <rect x="32" y="72" width="8" height="8" fill="#5BA3CF"/>
+    <rect x="40" y="72" width="8" height="8" fill="#5BA3CF"/>
+    <rect x="56" y="72" width="8" height="8" fill="#5BA3CF"/>
+    <rect x="64" y="72" width="8" height="8" fill="#5BA3CF"/>
+    <rect x="24" y="72" width="8" height="8" fill="#5BA3CF"/>
+    <!-- Bottom apex -->
+    <rect x="40" y="80" width="8" height="8" fill="#5BA3CF"/>
+    <rect x="48" y="80" width="8" height="8" fill="#5BA3CF"/>
+  </g>
+  <!-- Brand text -->
+  <text x="130" y="52" font-family="Consolas, Courier New, monospace" font-size="28" font-weight="bold" fill="#5BA3CF" letter-spacing="3">CRUX</text>
+  <text x="130" y="78" font-family="Consolas, Courier New, monospace" font-size="14" fill="#5BA3CF" letter-spacing="1">Studio</text>
+  <line x1="130" y1="94" x2="500" y2="94" stroke="#4a4a4a" stroke-width="1"/>
+  <text x="130" y="112" font-family="Consolas, Courier New, monospace" font-size="11" fill="#4a4a4a">AI-native creative platform</text>
+  <line x1="16" y1="168" x2="504" y2="168" stroke="#4a4a4a" stroke-width="1" opacity="0.3"/>
+  <text x="16" y="160" font-family="Consolas, Courier New, monospace" font-size="10" fill="#4a4a4a">v5.0  ·  52 tools  ·  45 skills  ·  Codex parity</text>
+</svg>

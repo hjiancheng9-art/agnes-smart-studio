@@ -2,8 +2,8 @@
 import asyncio
 import base64
 from datetime import datetime
-from core.client import AgnesClient
-from core.async_client import AsyncAgnesClient
+from core.client import CruxClient
+from core.async_client import AsyncCruxClient
 from core.config import OUTPUT_DIR
 from core.validator import validate_image_size, validate_model, validate_seed
 
@@ -12,7 +12,7 @@ __all__ = ['TextToImageEngine', 'AsyncTextToImageEngine']
 
 
 class TextToImageEngine:
-    def __init__(self, client: AgnesClient):
+    def __init__(self, client: CruxClient):
         self.client = client
 
     def generate(self, prompt: str, model: str = "agnes-image-2.1-flash",
@@ -83,7 +83,7 @@ class AsyncTextToImageEngine:
     多张图同时请求 API，而非顺序等待。
     """
 
-    def __init__(self, client: AsyncAgnesClient):
+    def __init__(self, client: AsyncCruxClient):
         self.client = client
 
     async def generate(self, prompt: str, model: str = "agnes-image-2.1-flash",

@@ -8,50 +8,74 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # ── 全局配置目录（对标 codex 的 ~/.codex、claude 的 ~/.claude）──
-# 让 agnes 在任意 CWD 都能读到 API Key，不再强依赖当前目录的 .env。
+# 让 crux 在任意 CWD 都能读到 API Key，不再强依赖当前目录的 .env。
 # 加载优先级（高 → 低）：
 #   1. 已存在的环境变量（CI/容器/临时切换用）
 #   2. 当前目录 .env（项目级覆盖，override=True）
-#   3. ~/.agnes/auth.json（跨项目基准，仅补缺）
-AGNES_HOME = Path(os.path.expanduser("~")) / ".agnes"
-AUTH_FILE = AGNES_HOME / "auth.json"
+#   3. ~/.crux/auth.json（跨项目基准，仅补缺）
+#   4. ~/.agnes/auth.json（遗留兼容，仅当 ~/.crux/auth.json 不存在时读取）
+CRUX_HOME = Path(os.path.expanduser("~")) / ".crux"
+AGNES_HOME = Path(os.path.expanduser("~")) / ".agnes"  # 遗留兼容路径
+
+AUTH_FILE = CRUX_HOME / "auth.json"
 
 # auth.json 字段名 → 环境变量名 映射
+# CRUX_* 优先，回退 AGNES_*（兼容旧配置）
 _AUTH_FIELD_TO_ENV = {
+    "CRUX_API_KEY": "CRUX_API_KEY",
+    "CRUX_BASE_URL": "CRUX_BASE_URL",
+}
+_AUTH_FIELD_TO_ENV_LEGACY = {
     "AGNES_API_KEY": "AGNES_API_KEY",
     "AGNES_BASE_URL": "AGNES_BASE_URL",
 }
 
 
-def _load_global_auth() -> None:
-    """读 ~/.agnes/auth.json，把缺失的环境变量补上（不覆盖已有值）。
+def _get_env(keys: list[str]) -> str | None:
+    """按优先级检查多个环境变量名，返回第一个非空值。"""
+    for k in keys:
+        val = os.environ.get(k)
+        if val:
+            return val
+    return None
 
-    在 load_dotenv 之后调用，这样优先级是：环境变量 > 项目 .env > 全局 auth。
+
+def _load_global_auth() -> None:
+    """读 ~/.crux/auth.json（回退 ~/.agnes/auth.json），补缺环境变量。
+
+    在 load_dotenv 之后调用，优先级：环境变量 > 项目 .env > 全局 auth。
     任何 IO/JSON 错误都静默——全局 auth 是便利项，不是必需项，缺失时
     回退到原有的「环境变量 + CWD/.env」行为。
     """
-    try:
-        if not AUTH_FILE.exists():
+    auth_file = AUTH_FILE
+    if not auth_file.exists():
+        # 遗留兼容：尝试旧路径
+        legacy = AGNES_HOME / "auth.json"
+        if legacy.exists():
+            auth_file = legacy
+        else:
             return
-        data = json.loads(AUTH_FILE.read_text(encoding="utf-8"))
+
+    try:
+        data = json.loads(auth_file.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
             return
+        # 先尝试 CRUX 字段，再回退 AGNES 字段
         for field, env_key in _AUTH_FIELD_TO_ENV.items():
-            val = data.get(field)
-            # 仅当环境变量当前为空 且 auth.json 有非空值时才补
-            if val and not os.environ.get(env_key):
-                os.environ[env_key] = str(val)
+            val = data.get(field) or data.get(_AUTH_FIELD_TO_ENV_LEGACY.get(field, ""))
+            if val and not _get_env([env_key, _AUTH_FIELD_TO_ENV_LEGACY.get(env_key, "")]):
+                os.environ.setdefault(env_key, str(val))
     except (OSError, json.JSONDecodeError, TypeError):
         pass
 
 
 def save_global_auth(api_key: str, base_url: str | None = None) -> Path:
-    """把 API Key 写入 ~/.agnes/auth.json（对标 codex auth.json）。
+    """把 API Key 写入 ~/.crux/auth.json。
 
-    写入后任意目录敲 agnes 都能用。返回写入路径。已存在文件会被合并
+    写入后任意目录敲 crux 都能用。返回写入路径。已存在文件会被合并
     （保留未传入的字段，base_url 传 None 时不覆盖原有 base_url）。
     """
-    AGNES_HOME.mkdir(parents=True, exist_ok=True)
+    CRUX_HOME.mkdir(parents=True, exist_ok=True)
     data: dict = {}
     if AUTH_FILE.exists():
         try:
@@ -60,9 +84,9 @@ def save_global_auth(api_key: str, base_url: str | None = None) -> Path:
                 data = existing
         except (OSError, json.JSONDecodeError):
             pass
-    data["AGNES_API_KEY"] = api_key
+    data["CRUX_API_KEY"] = api_key
     if base_url is not None:
-        data["AGNES_BASE_URL"] = base_url
+        data["CRUX_BASE_URL"] = base_url
     AUTH_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     return AUTH_FILE
 
@@ -71,8 +95,11 @@ load_dotenv(override=True)
 _load_global_auth()
 
 __all__ = [
+    "CRUX_VISION_BASE_URL",
+    "CRUX_VISION_MODEL",
     "AGNES_VISION_BASE_URL",
     "AGNES_VISION_MODEL",
+    "CRUX_HOME",
     "AGNES_HOME",
     "AUTH_FILE",
     "IMAGE_SIZES",
@@ -92,7 +119,7 @@ __all__ = [
 MODELS = {
     "text_light": {
         "id": "agnes-1.5-flash",
-        "name": "Agnes 1.5 Flash",
+        "name": "CRUX 1.5 Flash",
         "type": "text",
         "multimodal": True,
         "thinking": False,
@@ -100,7 +127,7 @@ MODELS = {
     },
     "text_pro": {
         "id": "agnes-2.0-flash",
-        "name": "Agnes 2.0 Flash",
+        "name": "CRUX 2.0 Flash",
         "type": "text",
         "multimodal": False,
         "thinking": True,
@@ -108,14 +135,14 @@ MODELS = {
     },
     "image_hd": {
         "id": "agnes-image-2.1-flash",
-        "name": "Agnes Image 2.1 Flash",
+        "name": "CRUX Image 2.1 Flash",
         "type": "image",
         "supports_img2img": True,
         "high_density": True,
     },
     "image_edit": {
         "id": "agnes-image-2.0-flash",
-        "name": "Agnes Image 2.0 Flash",
+        "name": "CRUX Image 2.0 Flash",
         "type": "image",
         "supports_img2img": True,
         "supports_multi_image": True,
@@ -123,16 +150,20 @@ MODELS = {
     },
     "video": {
         "id": "agnes-video-v2.0",
-        "name": "Agnes Video V2.0",
+        "name": "CRUX Video V2.0",
         "type": "video",
         "modes": ["ti2vid", "keyframes"],
     },
 }
 
-# 视觉模型常量 — 始终指向 Agnes 多模态模型，与主对话供应商解耦
+# 视觉模型常量 — 始终指向 CRUX 多模态模型，与主对话供应商解耦
 # 用途：ChatSession 的 vision_client 专用，/vision 命令 + send_stream 图片路由
-AGNES_VISION_MODEL = "agnes-1.5-flash"
-AGNES_VISION_BASE_URL = "https://apihub.agnes-ai.com/v1"
+CRUX_VISION_MODEL = "agnes-1.5-flash"
+CRUX_VISION_BASE_URL = "https://apihub.agnes-ai.com/v1"
+
+# 遗留别名（其他模块可能仍在 import 这些名称）
+AGNES_VISION_MODEL = CRUX_VISION_MODEL
+AGNES_VISION_BASE_URL = CRUX_VISION_BASE_URL
 
 # 视频分辨率预设 (比例名 -> (width, height))
 VIDEO_ASPECT_RATIOS = {
@@ -223,8 +254,8 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 @dataclass
 class Settings:
-    api_key: str = os.getenv("AGNES_API_KEY", "")
-    base_url: str = os.getenv("AGNES_BASE_URL", "https://apihub.agnes-ai.com/v1")
+    api_key: str = ""
+    base_url: str = "https://apihub.agnes-ai.com/v1"
     default_image_model: str = "agnes-image-2.1-flash"
     default_video_model: str = "agnes-video-v2.0"
     default_text_model: str = "agnes-2.0-flash"
@@ -239,6 +270,15 @@ class Settings:
     # #2 反思引擎配置
     reflection_enabled: bool = True
     reflection_interval: int = 5
+
+    def __post_init__(self):
+        # CRUX_* 优先，回退 AGNES_*，最后用默认值
+        if not self.api_key:
+            self.api_key = _get_env(["CRUX_API_KEY", "AGNES_API_KEY"]) or ""
+        if self.base_url == "https://apihub.agnes-ai.com/v1":
+            env_url = _get_env(["CRUX_BASE_URL", "AGNES_BASE_URL"])
+            if env_url:
+                self.base_url = env_url
 
     def save(self, path: str = "settings.json"):
         with open(path, "w", encoding="utf-8") as f:

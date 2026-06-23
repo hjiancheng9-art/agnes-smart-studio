@@ -3,7 +3,7 @@
 import base64
 from pathlib import Path
 
-from core.client import AgnesClient
+from core.client import CruxClient
 from core.brain import SmartBrain
 from engines.text_to_image import TextToImageEngine
 from engines.image_to_image import ImageToImageEngine
@@ -27,7 +27,7 @@ def _local_image_to_b64_url(path: str) -> str:
 class PipelineOrchestrator:
     """流水线编排器 - 协调多引擎完成复杂工作流"""
 
-    def __init__(self, client: AgnesClient):
+    def __init__(self, client: CruxClient):
         self.client = client
         self.brain = SmartBrain(client)
         self.t2i = TextToImageEngine(client)

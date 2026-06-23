@@ -23,7 +23,7 @@ class TestModelRegistry:
     def test_model_info_fields(self):
         m = MODEL_REGISTRY["agnes-2.0-flash"]
         assert m.id == "agnes-2.0-flash"
-        assert m.provider_id == "agnes"
+        assert m.provider_id == "crux"
         assert m.supports_tools is True
         assert m.supports_thinking is True
         assert "pro" in m.aliases
@@ -83,8 +83,8 @@ class TestToolCallingModels:
 
 class TestProviderName:
     def test_agnes_provider_name(self):
-        assert get_provider_name("agnes-2.0-flash") == "Agnes AI"
-        assert get_provider_name("agnes-1.5-flash") == "Agnes AI"
+        assert get_provider_name("agnes-2.0-flash") == "CRUX AI"
+        assert get_provider_name("agnes-1.5-flash") == "CRUX AI"
 
     def test_deepseek_provider_name(self):
         assert "DeepSeek" in get_provider_name("deepseek-v4-pro")
@@ -96,7 +96,7 @@ class TestProviderName:
 class TestModelDescription:
     def test_known_model_has_description(self):
         desc = get_model_description("agnes-2.0-flash")
-        assert "Agnes" in desc
+        assert "CRUX" in desc
         assert "2.0" in desc
 
     def test_unknown_model_returns_id(self):

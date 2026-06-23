@@ -118,7 +118,7 @@ class EvalEngine:
         total_weight = sum(b["weight"] for b in BENCHMARKS)
         total_score = sum(r["score"] for r in self.results)
         return {
-            "suite": "Agnes Core Benchmarks",
+            "suite": "CRUX Core Benchmarks",
             "total": len(self.results),
             "passed": passed,
             "failed": len(self.results) - passed,

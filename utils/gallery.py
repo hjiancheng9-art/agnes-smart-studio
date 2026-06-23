@@ -247,7 +247,7 @@ def generate_gallery(filter_type: str = "all", open_browser: bool = True) -> str
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Agnes Studio 作品集</title>
+<title>CRUX Studio 作品集</title>
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
 body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh}}
@@ -294,7 +294,7 @@ body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",
 <body>
 
 <div class="header">
-    <h1>🎨 <span>Agnes Studio 作品集</span></h1>
+    <h1>🎨 <span>CRUX Studio 作品集</span></h1>
     <div class="stats">
         <div class="stat"><strong>{total_images}</strong>图片</div>
         <div class="stat"><strong>{total_videos}</strong>视频</div>
@@ -318,7 +318,7 @@ body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",
 {'<h3 style="padding:20px 32px 0;color:#58a6ff">🎬 视频记录</h3><div class="grid">' + (''.join(video_cards_html) if video_cards_html else '<div class="empty">暂无视频</div>') + '</div>' if video_cards_html else ''}
 
 <div class="footer">
-    生成于 {now} | Agnes Smart Studio v3.0 | 数据来自 output/history.json
+    生成于 {now} | CRUX Studio | 数据来自 output/history.json
 </div>
 
 <script>

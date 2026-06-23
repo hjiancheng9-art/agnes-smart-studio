@@ -1,6 +1,6 @@
-# Agnes Smart Studio
+# CRUX Studio
 
-基于 Agnes AI 的智能图片/视频生成工具。
+基于 CRUX AI 的智能图片/视频生成工具。
 
 ## 安装
 
@@ -37,17 +37,17 @@ python launcher.py       # 图形化菜单 + 环境检测
 
 ```bash
 # 交互模式
-python agnes_studio.py
+python crux_studio.py
 
 # 快速模式
-python agnes_studio.py -q "一只猫"             # 文生图
-python agnes_studio.py -q "海边" -v            # 文生视频
-python agnes_studio.py -q "城市" -p            # 一站式流水线（文本→图片→视频）
+python crux_studio.py -q "一只猫"             # 文生图
+python crux_studio.py -q "海边" -v            # 文生视频
+python crux_studio.py -q "城市" -p            # 一站式流水线（文本→图片→视频）
 
 # 异步模式（避免IDE超时）
-python agnes_studio.py -q "日落" -v --submit-only   # 仅提交，返回 video_id
-python agnes_studio.py --video-id VIDEO_ID            # 查询任务状态（⚠ 必须用 video_id）
-python agnes_studio.py --video-id VIDEO_ID --timeout 60  # 查询并限时等待
+python crux_studio.py -q "日落" -v --submit-only   # 仅提交，返回 video_id
+python crux_studio.py --video-id VIDEO_ID            # 查询任务状态（⚠ 必须用 video_id）
+python crux_studio.py --video-id VIDEO_ID --timeout 60  # 查询并限时等待
 
 # 测试
 python test_advanced.py              # 运行全部快速测试

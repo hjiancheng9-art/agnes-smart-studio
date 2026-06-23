@@ -17,19 +17,14 @@ import re
 from pathlib import Path
 
 __all__ = [
-    'C_CYAN', 'C_DIM', 'C_GREEN', 'C_RED', 'C_RESET', 'C_YELLOW', 'ROOT',
+    'ROOT',
     'critical_failures', 'print_report', 'run_all', 'wait_for_provider',
 ]
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# ── ANSI colors for terminal output ──
-C_GREEN = "\033[92m"
-C_YELLOW = "\033[93m"
-C_RED = "\033[91m"
-C_CYAN = "\033[96m"
-C_DIM = "\033[2m"
-C_RESET = "\033[0m"
+# ── Rich theme (single source of truth) ──────────────────────────
+from ui.theme import COLORS, ICONS, LAYOUT, console
 
 _results: list[tuple[str, bool, str]] = []
 
@@ -54,8 +49,8 @@ def print_report(results: list[tuple[str, bool, str]], show_ok: bool = False):
     for category, ok, msg in results:
         if ok and not show_ok:
             continue
-        icon = f"{C_GREEN}OK{C_RESET}" if ok else f"{C_RED}FAIL{C_RESET}"
-        print(f"  [{icon}] {C_DIM}{category}{C_RESET}: {msg}")
+        icon = f"[{COLORS['success']}]OK[/]" if ok else f"[{COLORS['error']}]FAIL[/]"
+        console.print(f"  [{icon}] [{COLORS['muted']}]{category}[/]: {msg}")
 
 def critical_failures(results: list[tuple[str, bool, str]]) -> list[str]:
     """Return list of failure messages that should block startup."""
@@ -182,17 +177,17 @@ def _check_env():
     env_file = ROOT / ".env"
 
     if not env_file.exists():
-        _add("env", False, ".env file missing — copy .env.example and fill in AGNES_API_KEY")
+        _add("env", False, ".env file missing — copy .env.example and fill in CRUX_API_KEY")
         return
 
     if not SETTINGS.api_key:
-        _add("env", False, "AGNES_API_KEY not set in .env")
+        _add("env", False, "CRUX_API_KEY not set in .env")
         return
     if "sk-your-api-key" in SETTINGS.api_key or len(SETTINGS.api_key) < 10:
-        _add("env", False, "AGNES_API_KEY looks like a placeholder — replace with real key")
+        _add("env", False, "CRUX_API_KEY looks like a placeholder — replace with real key")
         return
 
-    _add("env", True, f"AGNES_API_KEY=...{SETTINGS.api_key[-8:]}")
+    _add("env", True, f"CRUX_API_KEY=...{SETTINGS.api_key[-8:]}")
 
 def _check_deps():
     """Verify essential packages are importable."""
@@ -315,7 +310,7 @@ def _check_tools_config():
         _add("tools.json", True, f"OK ({len(tools)} tools, no format-string conflicts)")
 
 def _check_api_connectivity():
-    """Quick check that the Agnes API is reachable."""
+    """Quick check that the CRUX API is reachable."""
     from core.config import SETTINGS
     import httpx
 
@@ -328,14 +323,14 @@ def _check_api_connectivity():
         if r.status_code == 200:
             models = r.json().get("data", [])
             model_ids = [m["id"] for m in models]
-            _add("api", True, f"Agnes API reachable ({len(models)} models: {', '.join(model_ids[:4])})")
+            _add("api", True, f"CRUX API reachable ({len(models)} models: {', '.join(model_ids[:4])})")
         elif r.status_code == 401:
-            _add("api", False, "Agnes API: 401 Unauthorized — check AGNES_API_KEY")
+            _add("api", False, "CRUX API: 401 Unauthorized — check CRUX_API_KEY")
         else:
-            _add("api", False, f"Agnes API: HTTP {r.status_code}")
+            _add("api", False, f"CRUX API: HTTP {r.status_code}")
     except (httpx.HTTPError, OSError) as e:
         msg = str(e)[:100]
-        _add("api", False, f"Agnes API unreachable: {msg}")
+        _add("api", False, f"CRUX API unreachable: {msg}")
 
 # ══════════════════════════════════════════════════════════════════════
 # Quick standalone run: python core/startup_checks.py
@@ -348,7 +343,7 @@ if __name__ == "__main__":
     print_report(results, show_ok=True)
     failures = [msg for _, ok, msg in results if not ok]
     if failures:
-        print(f"\n{C_RED}{len(failures)} check(s) failed{C_RESET}")
+        console.print(f"\n[{COLORS['error']}]{len(failures)} check(s) failed[/]")
         sys.exit(1)
     else:
-        print(f"\n{C_GREEN}All checks passed{C_RESET}")
+        console.print(f"\n[{COLORS['success']}]All checks passed[/]")

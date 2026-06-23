@@ -1,6 +1,6 @@
 """Capability Orchestra — 多源能力协调层
 
-Agnes 的能力来自三个源头：
+CRUX 的能力来自三个源头：
   Claude   — 推理、自修正、failover、用户记忆、并行执行
   CodeBuddy — 项目感知、LSP、MCP、浏览器、Git、任务管理
   Zbody    — 业务逻辑、领域规则、自定义工作流
@@ -27,7 +27,7 @@ class CapabilitySource(Enum):
     CLAUDE = "claude"         # 推理、自修正、failover、并行
     CODEBUDDY = "codebuddy"   # LSP、MCP、浏览器、Git、任务
     ZBODY = "zbody"           # 业务规则、自定义工作流
-    AGNES = "agnes"           # 内置（生图/生视频/视觉）
+    AGNES = "crux"            # 内置（生图/生视频/视觉）
     USER = "user"             # 用户自定义
 
 
@@ -205,7 +205,7 @@ class Orchestra:
         self.register(Capability("custom_workflows", CapabilitySource.ZBODY,
                                  Priority.HIGH, "自定义工作流"))
 
-        # ── Agnes 源：原生 ──
+        # ── CRUX 源：原生 ──
         self.register(Capability("image_gen", CapabilitySource.AGNES,
                                  Priority.NORMAL, "AI 生图"))
         self.register(Capability("video_gen", CapabilitySource.AGNES,

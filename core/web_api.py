@@ -1,4 +1,4 @@
-"""Web API server -- FastAPI-based REST interface for Agnes.
+"""Web API server -- FastAPI-based REST interface for CRUX.
 
 Endpoints:
     GET  /health          — health check
@@ -39,15 +39,15 @@ from core.version import __version__  # 单一版本真源
 
 if HAS_FASTAPI:
     assert FastAPI is not None  # guarded by HAS_FASTAPI
-    _app: Any = FastAPI(title="Agnes Smart Studio API", version=__version__)
+    _app: Any = FastAPI(title="CRUX Studio API", version=__version__)
 else:
     _app = None
 app = _app
 
 if HAS_FASTAPI and app is not None and CORSMiddleware is not None:
-    # CORS: 生产环境应通过 AGNES_CORS_ORIGINS 环境变量限制来源
+    # CORS: 生产环境应通过 CRUX_CORS_ORIGINS 环境变量限制来源
     # 默认仅开放本地开发，避免全通配符安全风险
-    _cors_origins_raw = os.getenv("AGNES_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+    _cors_origins_raw = os.getenv("CRUX_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
     _cors_origins = [o.strip() for o in _cors_origins_raw.split(",") if o.strip()]
     app.add_middleware(CORSMiddleware,
         allow_origins=_cors_origins,
@@ -58,8 +58,8 @@ if HAS_FASTAPI and app is not None and CORSMiddleware is not None:
 def _get_session():
     """Lazy-import ChatSession to avoid heavy deps on health check."""
     from core.chat import ChatSession
-    from core.client import AgnesClient
-    client = AgnesClient()
+    from core.client import CruxClient
+    client = CruxClient()
     return ChatSession(client=client)
 
 if HAS_FASTAPI and app is not None:

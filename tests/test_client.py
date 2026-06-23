@@ -1,4 +1,4 @@
-"""Unit tests for AgnesClient API layer with mocked HTTP."""
+"""Unit tests for CruxClient API layer with mocked HTTP."""
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -7,40 +7,40 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core.client import AgnesClient, ContentPolicyError
+from core.client import CruxClient, ContentPolicyError
 
 
-class TestAgnesClientInit:
+class TestCruxClientInit:
     def test_init_with_defaults(self, monkeypatch):
         monkeypatch.setattr("core.client.SETTINGS", MagicMock(api_key="sk-test", base_url="https://test.com/v1", max_retries=2))
-        c = AgnesClient()
+        c = CruxClient()
         assert c.api_key == "sk-test"
         assert c.base_url == "https://test.com/v1"
         c.close()
 
     def test_init_with_custom_params(self, monkeypatch):
         monkeypatch.setattr("core.client.SETTINGS", MagicMock(api_key="sk-fallback", base_url="https://fallback.com/v1", max_retries=1))
-        c = AgnesClient(api_key="sk-custom", base_url="https://custom.com/v1")
+        c = CruxClient(api_key="sk-custom", base_url="https://custom.com/v1")
         assert c.api_key == "sk-custom"
         assert c.base_url == "https://custom.com/v1"
         c.close()
 
     def test_localhost_skips_proxy(self, monkeypatch):
         monkeypatch.setattr("core.client.SETTINGS", MagicMock(api_key="sk-test", base_url="http://127.0.0.1:8080/v1", max_retries=2))
-        c = AgnesClient(base_url="http://127.0.0.1:8080/v1")
+        c = CruxClient(base_url="http://127.0.0.1:8080/v1")
         # trust_env depends on httpx version and OS; just verify client works
         assert c._http is not None
         c.close()
 
     def test_remote_uses_proxy(self, monkeypatch):
         monkeypatch.setattr("core.client.SETTINGS", MagicMock(api_key="sk-test", base_url="https://api.example.com/v1", max_retries=2))
-        c = AgnesClient(base_url="https://api.example.com/v1")
+        c = CruxClient(base_url="https://api.example.com/v1")
         assert c._http is not None
         c.close()
 
     def test_context_manager(self, monkeypatch):
         monkeypatch.setattr("core.client.SETTINGS", MagicMock(api_key="sk-test", base_url="https://t.com/v1", max_retries=1))
-        with AgnesClient() as c:
+        with CruxClient() as c:
             assert c.api_key == "sk-test"
 
 
@@ -55,11 +55,11 @@ class TestContentPolicyError:
         assert e.detail == {"reason": "nsfw"}
 
 
-class TestAgnesClientChat:
+class TestCruxClientChat:
     @pytest.fixture
     def client(self, monkeypatch):
         monkeypatch.setattr("core.client.SETTINGS", MagicMock(api_key="sk-test", base_url="https://test.com/v1", max_retries=1))
-        return AgnesClient()
+        return CruxClient()
 
     def test_chat_success(self, client):
         mock_resp = MagicMock()

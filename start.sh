@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  Agnes Smart Studio - 一键启动器
+#  CRUX Studio - quick start
 #  运行 ./start.sh 即可启动，自动检测环境并安装依赖
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -27,7 +27,7 @@ if [ ! -f .env ]; then
     if [ -f .env.example ]; then
         cp .env.example .env
     else
-        printf "# Agnes AI API 配置\nAGNES_API_KEY=sk-your-api-key-here\nAGNES_BASE_URL=https://apihub.agnes-ai.com/v1\n" > .env
+        printf "# CRUX AI API 配置\nCRUX_API_KEY=sk-your-api-key-here\nCRUX_BASE_URL=https://apihub.agnes-ai.com/v1\n" > .env
     fi
 fi
 
@@ -36,15 +36,15 @@ if ! $PY -c "from core.config import SETTINGS; import sys; sys.exit(0 if SETTING
     echo -e "\n  ${B}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${X}"
     echo -e "   API Key 未配置"
     echo -e "  ${B}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${X}\n"
-    read -rp "   请输入 AGNES_API_KEY: " KEY
+    read -rp "   请输入 CRUX_API_KEY: " KEY
     if [ -n "$KEY" ]; then
         $PY -c "
 from pathlib import Path
 p = Path('.env')
 lines = []
 for l in p.read_text(encoding='utf-8').splitlines(True):
-    if l.startswith('AGNES_API_KEY='):
-        lines.append('AGNES_API_KEY=$KEY\n')
+    if l.startswith('CRUX_API_KEY=') or l.startswith('AGNES_API_KEY='):
+        lines.append('CRUX_API_KEY=$KEY\n')
     else:
         lines.append(l)
 p.write_text(''.join(lines), encoding='utf-8')
@@ -62,4 +62,4 @@ fi
 mkdir -p output/images output/videos
 
 # ── 6. 启动 ─────────────────────────────────
-exec $PY agnes_studio.py "$@"
+exec $PY crux_studio.py "$@"

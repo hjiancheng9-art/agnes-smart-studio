@@ -1,4 +1,4 @@
-"""Unit tests for async generation engines with mocked AsyncAgnesClient.
+"""Unit tests for async generation engines with mocked AsyncCruxClient.
 
 Covers AsyncTextToImageEngine / AsyncImageToImageEngine / AsyncVideoEngine /
 AsyncVideoFuture / AsyncSmartBrain — the asyncio-native mirrors of the sync
@@ -16,7 +16,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core.async_client import AsyncAgnesClient
+from core.async_client import AsyncCruxClient
 from engines.text_to_image import AsyncTextToImageEngine
 from engines.image_to_image import AsyncImageToImageEngine
 from engines.video import AsyncVideoEngine, AsyncVideoFuture
@@ -33,13 +33,13 @@ def _async_value(value):
 
 
 def _make_async_mock_client():
-    """A MagicMock with spec=AsyncAgnesClient.
+    """A MagicMock with spec=AsyncCruxClient.
 
     spec keeps the attribute set constrained to the real class so typo'd
     method names still raise AttributeError. Individual tests then assign
     AsyncMock return values to the specific methods they exercise.
     """
-    return MagicMock(spec=AsyncAgnesClient)
+    return MagicMock(spec=AsyncCruxClient)
 
 
 # ═══════════════════════════════════════════════════════════════

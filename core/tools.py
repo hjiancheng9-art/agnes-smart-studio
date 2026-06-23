@@ -1,6 +1,6 @@
 """智能体工具注册与执行系统
 
-让 agnes-smart-studio 作为主脑，调用和管理外部工具/脚本/API。
+让 crux-smart-studio 作为主脑，调用和管理外部工具/脚本/API。
 工具可从 tools.json 配置文件加载，也可通过 Python API 动态注册。
 
 结构:
@@ -373,7 +373,7 @@ COMFYUI_TOOL_DEFS = [
 
 # ── 通用代理系统提示 ──
 
-AGENT_SYSTEM_PROMPT = """你是 Agnes 智能体主脑。你可以调用多种工具来完成任务：
+AGENT_SYSTEM_PROMPT = """你是 CRUX 智能体主脑。你可以调用多种工具来完成任务：
 
 - **内置工具**: generate_image / generate_video
 - **外部工具**: 由 tools.json 配置文件定义（shell脚本、HTTP API、Python函数）
@@ -639,7 +639,7 @@ class ToolRegistry:
         # ── MCP Client 桥接工具（四象融合）──
         # 注入 mcp_list_servers / mcp_list_tools / mcp_call_tool / mcp_read_resource，
         # 让 LLM 能通过 MCP 协议调 claude/codex/codebuddy 的工具。
-        # 远程 server 通过 `agnes mcp add <name> -- <command>` 配置，
+        # 远程 server 通过 `crux mcp add <name> -- <command>` 配置，
         # executor 自带 auto-connect（首次调用时自动启动子进程握手）。
         if mcp:
             from core.mcp_client import MCP_TOOL_DEFS, MCP_EXECUTOR_MAP

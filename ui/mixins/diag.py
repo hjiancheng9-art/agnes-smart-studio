@@ -13,9 +13,10 @@ from rich.table import Table
 _DIAG_ROOT = Path(__file__).resolve().parent.parent.parent
 from rich.prompt import Prompt
 
-from core.client import AgnesClient
+from core.client import CruxClient
 from utils import memory
-from ui.display import (console, COLORS, show_warning, show_success, show_info)
+from ui.theme import COLORS, ICONS, LAYOUT, console
+from ui.display import (show_warning, show_success, show_info)
 from ui.badges import print_mode_banner
 import contextlib
 
@@ -58,7 +59,7 @@ class DiagCommandsMixin:
         # ── /self files：项目结构展示 ──────────────────
         elif arg == "files":
             from rich.tree import Tree
-            tree = Tree("[cyan]agnes-smart-studio[/]")
+            tree = Tree("[cyan]crux-studio[/]")
             for item in project_tree_data():
                 if item["is_dir"]:
                     branch = tree.add(f"[cyan]{item['name']}[/]")
@@ -85,7 +86,7 @@ class DiagCommandsMixin:
         elif arg == "fix":
             session.unlimited_tools = True
             session.toggle_code_mode()
-            ctx = "你是 Agnes Smart Studio 维护者。以下是核心源码，请分析 bug/合规性/优化建议：\n\n"
+            ctx = "你是 CRUX Studio 维护者。以下是核心源码，请分析 bug/合规性/优化建议：\n\n"
             ctx += collect_source_snippets()
             show_info("AI 正在分析源码...")
             session.messages.append({"role": "user", "content": ctx})
@@ -106,7 +107,7 @@ class DiagCommandsMixin:
                 console.print(f"  {icon} {check['category']}")
             show_info("═══ 阶段 3/3: AI 源码分析 ═══")
             session.unlimited_tools = True
-            self._stream_chat(session, "你是 Agnes Smart Studio 维护者。请对项目做源码审计，输出：Bug 风险 | API 合规性 | 优化建议。")
+            self._stream_chat(session, "你是 CRUX Studio 维护者。请对项目做源码审计，输出：Bug 风险 | API 合规性 | 优化建议。")
             session.unlimited_tools = False
 
         else:
@@ -262,7 +263,7 @@ class DiagCommandsMixin:
             show_info("用法: /automate [list|add <描述> <cron>|remove <id>]")
 
     def _chat_provider(self, session: "ChatSession", arg: str):
-        """切换模型供应商 (list|switch agnes/deepseek/siliconflow)"""
+        """切换模型供应商 (list|switch crux/deepseek/siliconflow)"""
         import json
         cfg_path = os.path.join(_DIAG_ROOT, "models.json")
         cfg = self._load_models_config()
@@ -270,7 +271,7 @@ class DiagCommandsMixin:
         arg = arg.strip()
 
         if not arg or arg == "list":
-            active = cfg.get("active", "agnes")
+            active = cfg.get("active", "crux")
             fallback = cfg.get("fallback", {})
             priority = fallback.get("priority", [])
             for pid, p in providers.items():
@@ -294,7 +295,7 @@ class DiagCommandsMixin:
             p = providers[pid]
             # 从 .env 或 provider 配置查找 API key
             key_env = f"{pid.upper()}_API_KEY"
-            api_key = os.getenv(key_env) or os.getenv("AGNES_API_KEY") or p.get("api_key") or ""
+            api_key = os.getenv(key_env) or os.getenv("CRUX_API_KEY") or os.getenv("AGNES_API_KEY") or p.get("api_key") or ""
 
             # auth_required=false 的 provider（如 local llama.cpp）无需 Key
             if not api_key and not p.get("auth_required", True):
@@ -307,9 +308,9 @@ class DiagCommandsMixin:
                 api_key = key
 
             # 更新 client 和 session
-            from core.client import AgnesClient
+            from core.client import CruxClient
             session.client.close()
-            session.client = AgnesClient(api_key=api_key, base_url=p["base_url"])
+            session.client = CruxClient(api_key=api_key, base_url=p["base_url"])
             cfg["active"] = pid
             with open(cfg_path, "w", encoding="utf-8") as fh:
                 fh.write(json.dumps(cfg, indent=2, ensure_ascii=False))
@@ -414,7 +415,7 @@ class DiagCommandsMixin:
         1. 扫描所有 providers，收集有 API Key 或 auth_required=false 的
         2. 1 个外部供应商 → 自动激活
         3. ≥2 个外部供应商 → 弹出菜单让用户选择
-        4. 0 个外部供应商 → 使用 Agnes
+        4. 0 个外部供应商 → 使用 CRUX
 
         Returns: (provider_id, model_id)
         """
@@ -436,19 +437,19 @@ class DiagCommandsMixin:
                 available.append((pid, p, model, api_key))
 
         if not available:
-            # 没有任何 Key → Agnes
-            p = providers.get("agnes", providers.get(list(providers.keys())[0], {}))
+            # 没有任何 Key → CRUX
+            p = providers.get("crux", providers.get(list(providers.keys())[0], {}))
             model = p.get("models", {}).get("light", "agnes-1.5-flash")
-            show_info("无外部供应商 Key，使用默认 Agnes light")
-            return ("agnes", model)
+            show_info("无外部供应商 Key，使用默认 CRUX light")
+            return ("crux", model)
 
-        # 只有 Agnes → 直接用
-        if len(available) == 1 and available[0][0] == "agnes":
+        # 只有 CRUX → 直接用
+        if len(available) == 1 and available[0][0] == "crux":
             pid, p, model, _ = available[0]
             return (pid, model)
 
-        # 过滤出非 Agnes 的外部供应商
-        external = [(pid, p, m, k) for pid, p, m, k in available if pid != "agnes"]
+        # 过滤出非 CRUX 的外部供应商
+        external = [(pid, p, m, k) for pid, p, m, k in available if pid != "crux"]
 
         if len(external) == 1:
             # 只有一个外部供应商 → 自动激活
@@ -458,7 +459,7 @@ class DiagCommandsMixin:
 
         # ≥2 个外部供应商 → 弹出菜单
         console.print()
-        table = Table(title="[bold cyan]选择主对话供应商[/]（视觉始终走 Agnes 独立通道）",
+        table = Table(title="[bold cyan]选择主对话供应商[/]（视觉始终走 CRUX 独立通道）",
                        border_style=COLORS["primary"])
         table.add_column("#", style="bold cyan", width=3)
         table.add_column("供应商", style="white", width=16)
@@ -472,7 +473,7 @@ class DiagCommandsMixin:
             # 通用描述：优先从 provider 配置的 description 字段取，否则按 pid 推断
             desc = p.get("description", "")
             if not desc:
-                if pid == "agnes":
+                if pid == "crux":
                     desc = "原生模型 · 轻量快速"
                 elif pid == "deepseek":
                     desc = "百万上下文 · 代码/推理"
@@ -495,14 +496,14 @@ class DiagCommandsMixin:
             default="1",
         )
         if choice == "q":
-            show_info("已取消，使用默认 Agnes light")
-            p = providers.get("agnes", {})
-            return ("agnes", p.get("models", {}).get("light", "agnes-1.5-flash"))
+            show_info("已取消，使用默认 CRUX light")
+            p = providers.get("crux", {})
+            return ("crux", p.get("models", {}).get("light", "agnes-1.5-flash"))
 
         # 找到选中的供应商
         for num, pid, p, model in choices:
             if num == choice:
-                if pid == "agnes":
+                if pid == "crux":
                     return (pid, model)
                 # 外部供应商需要激活
                 key_env = f"{pid.upper()}_API_KEY"
@@ -510,12 +511,12 @@ class DiagCommandsMixin:
                 self._activate_provider(pid, p, model, api_key, cfg, cfg_path)
                 return (pid, model)
 
-        return ("agnes", "agnes-1.5-flash")
+        return ("crux", "agnes-1.5-flash")
 
     def _activate_provider(self, pid, p, model, api_key, cfg, cfg_path):
         """激活指定供应商：切换 client 并写入 models.json"""
         self.client.close()
-        self.client = AgnesClient(api_key=api_key, base_url=p["base_url"])
+        self.client = CruxClient(api_key=api_key, base_url=p["base_url"])
         cfg["active"] = pid
         with contextlib.suppress(OSError, TypeError):
             Path(cfg_path).write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -532,7 +533,7 @@ class DiagCommandsMixin:
         def _default_cfg():
             return {
                 "providers": {
-                    "agnes": {"name": "Agnes AI", "base_url": "https://apihub.agnes-ai.com/v1",
+                    "crux": {"name": "CRUX AI", "base_url": "https://apihub.agnes-ai.com/v1",
                               "api_key": "", "models": {"light": "agnes-1.5-flash", "pro": "agnes-2.0-flash"}},
                     "deepseek": {"name": "DeepSeek V4 Pro (1M)", "base_url": "https://api.deepseek.com/v1",
                                  "api_key": "", "models": {"pro": "deepseek-v4-pro", "light": "deepseek-v4-pro"}},
@@ -543,7 +544,7 @@ class DiagCommandsMixin:
                               "auth_required": False,
                               "models": {"pro": "Qwen3.6-27B-PRISM-PRO-DQ", "light": "Qwen3.6-27B-PRISM-PRO-DQ"}},
                 },
-                "active": "agnes",
+                "active": "crux",
                 "fallback": {"enabled": True, "priority": ["deepseek", "siliconflow", "local"]},
             }
 
@@ -564,7 +565,7 @@ class DiagCommandsMixin:
             if "providers" not in cfg:
                 cfg["providers"] = _default_cfg()["providers"]
             if "active" not in cfg:
-                cfg["active"] = "agnes"
+                cfg["active"] = "crux"
             return cfg
         except (json.JSONDecodeError, ValueError) as e:
             # 文件损坏或为空 → 重建

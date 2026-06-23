@@ -1,4 +1,4 @@
-# Agnes Smart Studio 优化升级方案
+# CRUX Studio 优化升级方案
 
 > 基于两轮实战数据（traces.jsonl 188 轮 + cost_log 575 次调用）+ 10 个已修 bug 的完整排查
 > 制定日期：2026-06-19 · 状态：✅ 全部实施完毕
@@ -134,7 +134,7 @@ core/agent.py - auto_compress_if_needed:
 
 **目标：模型慢时自动降级或预警**
 
-**问题**：DeepSeek-v4-pro 单次 50-76 秒，用户只能干等。切换 Agnes 可能更快但用户不会手动切。
+**问题**：DeepSeek-v4-pro 单次 50-76 秒，用户只能干等。切换 CRUX 可能更快但用户不会手动切。
 
 **方案**：供应商健康度评分 + 自动建议
 
@@ -142,7 +142,7 @@ core/agent.py - auto_compress_if_needed:
 core/provider.py - 新增 ProviderHealth:
   记录每个供应商的近期平均响应时间、成功率
   当 active 供应商连续 3 次响应 > 30s：
-    yield ("info", "⚠️ DeepSeek 当前响应较慢（均 65s），可 /provider switch agnes 试试")
+    yield ("info", "⚠️ DeepSeek 当前响应较慢（均 65s），可 /provider switch crux 试试")
 ```
 
 **不做自动切换**（避免打断用户意图），只做**主动提示**，让用户决定。

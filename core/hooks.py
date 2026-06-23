@@ -473,7 +473,7 @@ def register_reflection_hook(
     """注册反思 hook（幂等）。
 
     Args:
-        client: AgnesClient 实例（用于 LLM critique）
+        client: CruxClient 实例（用于 LLM critique）
         interval: 每 N 次工具调用触发一次反思（默认 5）
         enabled: 是否启用反思
         model: 用于 critique 的辅助模型

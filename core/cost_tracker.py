@@ -1,6 +1,6 @@
 """成本 / Token / 预算追踪 — 捕获每次 API 调用的 usage 并按模型单价算费
 
-补上 agnes-smart-studio 最致命的商业化缺口：多 provider 工作室（模型 cost
+补上 crux-smart-studio 最致命的商业化缺口：多 provider 工作室（模型 cost
 1~10 差 10 倍）此前零花费追踪，observability.py 只记耗时。
 
 设计：

@@ -1,5 +1,5 @@
 {
-  "_comment": "Agnes Smart Studio 工具配置 — 智能体模式下自动加载",
+  "_comment": "CRUX Studio tool config — agent mode auto-load",
   "tools": [
     {
       "name": "read_file",

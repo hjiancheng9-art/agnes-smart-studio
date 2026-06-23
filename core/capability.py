@@ -1,4 +1,4 @@
-"""Capability registry — structured self-knowledge for Agnes.
+"""Capability registry — structured self-knowledge for CRUX.
 
 Answers: what skills, tools, providers, engines do I have? What's their status?
 Usable by both /self commands and agent-mode tool calls.
@@ -13,13 +13,13 @@ from pathlib import Path
 __all__ = ['CapabilityRegistry', 'ROOT', 'capability_snapshot',
            'get_banner_counts', 'logger']
 
-logger = logging.getLogger("agnes.capability")
+logger = logging.getLogger("crux.capability")
 
 ROOT = Path(__file__).resolve().parent.parent
 
 
 class CapabilityRegistry:
-    """Single source of truth for all Agnes capabilities."""
+    """Single source of truth for all CRUX capabilities."""
 
     def __init__(self, root: Path | None = None) -> None:
         self.root = root or ROOT
@@ -230,7 +230,7 @@ def capability_snapshot() -> dict:
 def get_banner_counts() -> dict:
     """Banner 专用：返回 {version, tools, skills} 真实计数。
 
-    单一入口，供 launcher / agnes_studio / ui.cli 三处 banner 共用，
+    单一入口，供 launcher / crux_studio / ui.cli 三处 banner 共用，
     杜绝各处再硬编码 tools/skills 数字。任何一处失败都给 '?' 而非 0，
     让「统计失败」与「真的没有」在视觉上可区分。
     """

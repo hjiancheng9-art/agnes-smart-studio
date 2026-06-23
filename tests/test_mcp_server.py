@@ -8,7 +8,7 @@
 - 高风险工具 → isError；未知工具 → 结构化错误（不抛异常）
 - notification 不回响应
 
-所有测试用伪造的 session/registry，不打真实 API，不依赖 AgnesClient。
+所有测试用伪造的 session/registry，不打真实 API，不依赖 CruxClient。
 """
 import io
 import json
@@ -101,7 +101,7 @@ class TestInitialize:
     def test_returns_server_info(self):
         s = make_server()
         result = s._initialize({})
-        assert result["serverInfo"]["name"] == "agnes-smart-studio"
+        assert result["serverInfo"]["name"] == "crux-smart-studio"
         assert "version" in result["serverInfo"]
 
     def test_declares_capabilities(self):
@@ -318,7 +318,7 @@ class TestToolsCall:
 class TestRecursionGuard:
     """验证 MCP bridge tools (mcp_*) 不被 Server 暴露，阻断 A→B→A 死循环。
 
-    bridge tools 是 Agnes 作为 Client 调外部 server 的"出向"能力，
+    bridge tools 是 CRUX 作为 Client 调外部 server 的"出向"能力，
     若作为 Server 入向暴露回去，调用方可能反向调它们造成递归。
     """
 

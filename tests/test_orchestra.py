@@ -10,7 +10,7 @@ class TestEnums:
         assert CapabilitySource.CLAUDE.value == "claude"
         assert CapabilitySource.CODEBUDDY.value == "codebuddy"
         assert CapabilitySource.ZBODY.value == "zbody"
-        assert CapabilitySource.AGNES.value == "agnes"
+        assert CapabilitySource.AGNES.value == "crux"
         assert CapabilitySource.USER.value == "user"
 
     def test_priority_ordering(self):
@@ -188,7 +188,7 @@ class TestOrchestraQuery:
         orch = Orchestra()
         s = orch.summary()
         assert "能力来源" in s
-        assert "agnes" in s
+        assert "crux" in s
 
 
 class TestOrchestraRules:

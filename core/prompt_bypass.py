@@ -16,7 +16,7 @@ Plus:
   - Rotates providers if all rewrites fail on one
 
 Configuration:
-  - BYPASS_ENABLED: master switch (default False, set via env AGNES_BYPASS_ENABLED=1)
+  - BYPASS_ENABLED: master switch (default False, set via env CRUX_BYPASS_ENABLED=1)
   - When disabled, policy errors are surfaced directly to the user.
   - When enabled, multi-strategy prompt rewriting is attempted on ContentPolicyError.
 """
@@ -38,7 +38,7 @@ CACHE_FILE = ROOT / "output" / "bypass_cache.json"
 # ═══════════════════════════════════════════════════════════════
 # Master switch — 可通过环境变量关闭自动 bypass
 # ═══════════════════════════════════════════════════════════════
-_RAW_BYPASS = os.getenv("AGNES_BYPASS_ENABLED", "0").strip().lower()
+_RAW_BYPASS = os.getenv("CRUX_BYPASS_ENABLED", "0").strip().lower()
 BYPASS_ENABLED = _RAW_BYPASS in ("1", "true", "yes", "on")
 
 # ═══════════════════════════════════════════════════════════════
@@ -95,7 +95,7 @@ POLICY_KEYWORDS = [
     "content_policy", "safety", "inappropriate", "content filter",
     "policy_violation", "not allowed", "restricted", "blocked",
     "community guidelines", "terms of service",
-    # Chinese (Agnes API returns Chinese error messages)
+    # Chinese (CRUX API returns Chinese error messages)
     "无法生成该内容", "请调整提示词", "内容策略", "内容过滤",
     "安全策略", "违规内容", "不合适", "不被允许",
 ]
@@ -338,7 +338,7 @@ def get_bypass_stats() -> dict:
 
 
 # ═══════════════════════════════════════════════════════════════
-# Async 版本 — asyncio 原生，供 AsyncAgnesClient / AsyncEngines 使用
+# Async 版本 — asyncio 原生，供 AsyncCruxClient / AsyncEngines 使用
 # ═══════════════════════════════════════════════════════════════
 
 async def async_rewrite_prompt(client, original_prompt: str, model: str = "deepseek-v4-pro",
@@ -346,7 +346,7 @@ async def async_rewrite_prompt(client, original_prompt: str, model: str = "deeps
                                triggers: list[str] | None = None) -> str | None:
     """异步版 rewrite_prompt。
 
-    client 必须是 AsyncAgnesClient（或任何具备 async chat() 方法的客户端）。
+    client 必须是 AsyncCruxClient（或任何具备 async chat() 方法的客户端）。
     策略选择、缓存读写逻辑与同步版完全一致。
     """
     triggers = triggers or _detect_trigger_words(original_prompt)
@@ -410,7 +410,7 @@ async def async_generate_with_bypass(engine_method, client, prompt: str, **kwarg
     Args:
         engine_method: async callable，签名为 async def(**kw) -> dict
                        （通常是 client.create_image / client.create_video 的包装）
-        client: AsyncAgnesClient（供 async_rewrite_prompt 调用 chat）
+        client: AsyncCruxClient（供 async_rewrite_prompt 调用 chat）
         prompt: 原始提示词
         **kwargs: 传给 engine_method 的额外参数
 

@@ -1,4 +1,4 @@
-# 方案：将新烬龙V2拟人/非人/灵体知识嵌入 Agnes Smart Studio
+# 方案：将新烬龙V2拟人/非人/灵体知识嵌入 CRUX Studio
 
 > 原则：只读取V2知识源，不修改V2任何文件
 
@@ -6,7 +6,7 @@
 
 ## 现状差距
 
-| 能力 | V2 | Agnes |
+| 能力 | V2 | CRUX |
 |------|-----|-------|
 | 实体分类 | 10种（spirit/energy_body/anthropomorphic/robot/AI/creature/animal/vehicle_character/object_character/human_or_humanoid） | 仅3类（person/animal/anime） |
 | 实体推断 | `inferPrimaryCharacterEntity()` 正则自动识别 | 无 |
@@ -361,7 +361,7 @@ ENTITY_NEGATIVE_REPAIR_MAP = {
 - 输出必须声明：故事功能、视觉回报、连续性风险、provider风险、fallback
 
 **调用链**：
-- `agnes_studio.py` 新增 `--graft` CLI参数，指定嫁接目标类型
+- `crux_studio.py` 新增 `--graft` CLI参数，指定嫁接目标类型
 - `workflows.py` 在图片生成前可选择性调用 `entity_graft()` 预处理
 
 ---
@@ -372,7 +372,7 @@ ENTITY_NEGATIVE_REPAIR_MAP = {
 |------|------|
 | `core/brain.py` | +`ENTITY_TYPE_MAP`, +`ENTITY_SWEET_SPOT_TEMPLATES`, +`ENTITY_NEGATIVE_REPAIR_MAP`, +`GRAFT_TARGETS`, +`_infer_entity_type()`, 重写`_match_sweet_spot()`, 修改`_predict_risks()`, 修改`enhance_image_prompt()`, 修改`enhance_video_prompt()`, +`entity_graft()`, 更新`ENHANCE_IMAGE_PROMPT`, 更新`ENHANCE_VIDEO_PROMPT` |
 | `pipeline/workflows.py` | 可选：嫁接工作流集成 |
-| `agnes_studio.py` | 可选：`--graft` CLI参数 |
+| `crux_studio.py` | 可选：`--graft` CLI参数 |
 
 > **核心变更集中在 `brain.py`，其他文件可选扩展**
 

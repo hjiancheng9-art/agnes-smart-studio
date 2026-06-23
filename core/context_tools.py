@@ -261,7 +261,7 @@ def abstractive_compress(
 
     Args:
         text: 原始工具结果文本
-        client: AgnesClient 实例
+        client: CruxClient 实例
         model: 用于压缩的模型名称（默认 deepseek-v4-pro）
 
     Returns:
@@ -302,7 +302,7 @@ def compress_tool_result(
 
     Args:
         text: 原始工具结果
-        client: AgnesClient 实例（可选，用于 LLM 压缩）
+        client: CruxClient 实例（可选，用于 LLM 压缩）
         model: 用于 LLM 压缩的模型名称
         max_chars: 目标最大字符数
 

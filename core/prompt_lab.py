@@ -9,7 +9,7 @@
 设计原则：
 - **零侵入**: chat.py 仅在 _build_system_prompt 末尾追加 variant 差异片段，
   在 send_stream return 前调用 record_outcome()
-- **持久化**: JSONL 格式存储在 agnes_manifest.json 同级目录
+- **持久化**: JSONL 格式存储在 crux_manifest.json 同级目录
 - **降级安全**: 任何 IO/序列化异常静默，不阻塞主流程
 
 存储格式 (prompt_lab_variants.json):

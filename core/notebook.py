@@ -1,4 +1,4 @@
-"""Jupyter notebook (.ipynb) editing module for agnes-smart-studio.
+"""Jupyter notebook (.ipynb) editing module for crux-smart-studio.
 
 Provides classes and tool definitions for opening, editing, executing,
 and saving Jupyter notebooks programmatically.

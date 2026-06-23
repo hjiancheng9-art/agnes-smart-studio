@@ -1,7 +1,7 @@
 {
   "providers": {
-    "agnes": {
-      "name": "Agnes AI",
+    "crux": {
+      "name": "CRUX AI",
       "base_url": "https://apihub.agnes-ai.com/v1",
       "api_key": "",
       "models": {
@@ -38,7 +38,7 @@
       }
     }
   },
-  "active": "agnes",
+  "active": "crux",
   "fallback": {
     "enabled": true,
     "priority": [

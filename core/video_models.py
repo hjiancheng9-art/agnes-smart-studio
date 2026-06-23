@@ -96,10 +96,10 @@ VIDEO_MODELS = {
         "note": "单段最长8s。Playwright 自动化",
     },
 
-    # ── Agnes API ──
+    # ── CRUX API ──
     "agnes-video-v2.0": {
-        "display_name": "Agnes Video v2.0",
-        "provider": "Agnes AI",
+        "display_name": "CRUX Video v2.0",
+        "provider": "CRUX AI",
         "max_duration_s": 5.0,         # 121 frames @ 24fps ≈ 5s
         "default_duration_s": 5.0,
         "max_frames": 121,
@@ -217,7 +217,7 @@ def auto_select_model(total_duration_s: float, preferred: str = "") -> dict:
     if preferred and preferred in VIDEO_MODELS:
         model = VIDEO_MODELS[preferred]
     else:
-        # 优先选 Agnes 原生模型
+        # 优先选 CRUX 原生模型
         model = VIDEO_MODELS.get("agnes-video-v2.0") or VIDEO_MODELS.get("kling")
 
     if model is None:

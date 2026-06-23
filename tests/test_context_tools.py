@@ -215,7 +215,7 @@ class TestCachePointTruncation:
     """
 
     def _make_mock_client(self):
-        """构建 mock AgnesClient（同步版），驱动两轮流式。"""
+        """构建 mock CruxClient（同步版），驱动两轮流式。"""
         from unittest.mock import MagicMock
 
         client = MagicMock(spec=["chat_stream"])

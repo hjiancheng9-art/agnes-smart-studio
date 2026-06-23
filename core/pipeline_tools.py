@@ -2,7 +2,7 @@
 
 Showrunner 总控脑调度这些工具完成端到端视频生产。
 工具分为两类：
-  - 思考型：由 Agnes 直接通过推理完成（分类、决策、文案重创、拆分镜等）
+  - 思考型：由 CRUX 直接通过推理完成（分类、决策、文案重创、拆分镜等）
   - 执行型：需要实际代码操作（提取关键帧、保存文件、调用 API 等）
 """
 
@@ -496,12 +496,12 @@ def execute_fetch_url(url: str) -> str:
 def execute_decompose_to_storyboard(project_name: str, script_text: str) -> str:
     """将文案文本保存为项目清单的脚本字段，为后续拆资产/分镜准备数据。
 
-    实际解析和分镜生成由 Agnes LLM 推理完成；
+    实际解析和分镜生成由 CRUX LLM 推理完成；
     本工具将脚本持久化到 manifest，使管道可恢复。
 
     Args:
         project_name: 项目名称
-        script_text: 完整文案文本（由用户提供或 Agnes 重创生成）
+        script_text: 完整文案文本（由用户提供或 CRUX 重创生成）
     """
     safe = project_name.replace(" ", "_").replace("/", "_").replace("\\", "_")
     out = MANIFEST_DIR / safe

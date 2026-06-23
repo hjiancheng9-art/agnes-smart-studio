@@ -1,8 +1,8 @@
 """智能大脑 - 意图识别、Prompt增强、分镜生成"""
 
 import json
-from .client import AgnesClient
-from .async_client import AsyncAgnesClient
+from .client import CruxClient
+from .async_client import AsyncCruxClient
 from .brain_data import (
     SWEET_SPOT_TEMPLATES, SWEET_SPOT_VIDEO_TEMPLATES, NEGATIVE_REPAIR_MAP,
     ENTITY_TYPE_MAP, BEAUTY_PORTRAIT_MAP,
@@ -23,7 +23,7 @@ __all__ = ["SmartBrain", "AsyncSmartBrain"]
 class SmartBrain:
     """智能大脑：意图识别 + Prompt增强 + 分镜生成"""
 
-    def __init__(self, client: AgnesClient) -> None:
+    def __init__(self, client: CruxClient) -> None:
         self.client = client
 
     def _ask_brain(self, system_prompt: str, user_input: str, temperature: float = 0.7) -> str:
@@ -1510,13 +1510,13 @@ class AsyncSmartBrain:
 
     复用 SmartBrain 的全部知识库与逻辑（通过组合持有同步 SmartBrain 实例），
     仅将涉及网络 I/O 的方法（_ask_brain / enhance_*_prompt / understand_image）
-    重写为 async 版本，使用 AsyncAgnesClient。
+    重写为 async 版本，使用 AsyncCruxClient。
 
     所有纯计算逻辑（_infer_entity_type / _match_sweet_spot / _predict_risks 等）
     直接委托给内部的同步 SmartBrain，无需重复实现。
     """
 
-    def __init__(self, client: AsyncAgnesClient) -> None:
+    def __init__(self, client: AsyncCruxClient) -> None:
         self.client = client
         # 持有同步 SmartBrain 以复用全部纯计算逻辑（这些方法不触发 I/O）
         # 传入一个 dummy sync client（不会被调用，因为只复用计算方法）

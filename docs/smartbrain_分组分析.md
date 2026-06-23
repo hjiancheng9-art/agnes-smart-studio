@@ -8,7 +8,7 @@
 
 | # | 方法 | 行号 | 功能 |
 |---|------|------|------|
-| 1 | `__init__` | 12 | 注入 AgnesClient，无状态 |
+| 1 | `__init__` | 12 | 注入 CruxClient，无状态 |
 | 2 | `_ask_brain` | 15 | 调 2.0-flash Thinking，自动剥离 markdown 代码块 |
 | 3 | `_parse_json` | 42 | 安全 JSON 解析，容错截取 `{...}` |
 | 4 | `recognize_intent` | 57 | 意图识别（t2i/i2i/edit/video），返回 intent+confidence+plan |

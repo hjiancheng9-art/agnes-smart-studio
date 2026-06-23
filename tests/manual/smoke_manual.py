@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Agnes Smart Studio — 冒烟测试（30秒内完成）
+"""CRUX Studio — 冒烟测试（30秒内完成）
 
 运行方式:
     python test_smoke.py          # 完整测试
@@ -49,7 +49,7 @@ env_file = ROOT / ".env"
 check(".env exists", env_file.exists())
 if env_file.exists():
     content = env_file.read_text(encoding="utf-8")
-    has_key = "AGNES_API_KEY=" in content and "sk-your-api-key" not in content
+    has_key = ("CRUX_API_KEY=" in content or "AGNES_API_KEY=" in content) and "sk-your-api-key" not in content
     check(".env has API key", has_key, "placeholder detected" if not has_key else "OK")
 
 # models.json

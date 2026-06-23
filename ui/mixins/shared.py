@@ -18,7 +18,8 @@ from utils import history, templates, memory
 # 注：show_image_result/show_video_result 的展示逻辑已下沉到
 # core.async_render.default_side_effect_handlers（sync/async 共享单一来源），
 # 故本模块不再直接 import 它们，避免死 import。
-from ui.display import console, show_warning, show_info
+from ui.theme import COLORS, ICONS, LAYOUT, console
+from ui.display import show_warning, show_info
 from ui.render import StreamingRenderer
 
 if TYPE_CHECKING:

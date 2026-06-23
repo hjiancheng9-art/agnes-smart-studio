@@ -30,10 +30,10 @@ class TestGenerator:
     """Generate pytest test code for Python source files using LLM."""
 
     def __init__(self, client, model: str = "deepseek-v4-pro") -> None:
-        """Initialize with an AgnesClient for LLM calls.
+        """Initialize with an CruxClient for LLM calls.
 
         Args:
-            client: AgnesClient instance with .chat() method.
+            client: CruxClient instance with .chat() method.
             model: LLM model id used for generation (default: deepseek-v4-pro).
         """
         self.client = client
@@ -274,10 +274,10 @@ class TestLoop:
     """
 
     def __init__(self, client, model: str = "deepseek-v4-pro") -> None:
-        """Initialize with AgnesClient.
+        """Initialize with CruxClient.
 
         Args:
-            client: AgnesClient instance with .chat() method.
+            client: CruxClient instance with .chat() method.
             model: LLM model id used for generation & analysis
                    (default: deepseek-v4-pro).
         """
@@ -547,7 +547,7 @@ _client = None
 
 
 def _set_client(client):
-    """Set the AgnesClient instance for tool executors."""
+    """Set the CruxClient instance for tool executors."""
     global _client
     _client = client
 

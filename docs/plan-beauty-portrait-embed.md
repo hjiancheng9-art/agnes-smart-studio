@@ -1,13 +1,13 @@
-# 帅哥美女描写设定嵌入 Agnes 方案
+# 帅哥美女描写设定嵌入 CRUX 方案
 
 > 来源：新烬龙V2 `character-clothing.md` + `AI视频生成提示词知识库.md` + `LTX2.3生产甜点区规格.md` + `LTX2.3首帧驱动I2V规格.md` + `提示词与知识库编排中枢.md` + `video-generation.md`
-> 目标文件：`agnes-smart-studio/core/brain.py`
+> 目标文件：`crux-smart-studio/core/brain.py`
 
 ---
 
 ## 背景问题
 
-当前 Agnes 的 `_infer_entity_type()` 只识别**非人实体**（灵体、能量体、机器人等），对人类高颜值角色无感知。用户输入"画一个帅哥""生成一个冷感美女"时：
+当前 CRUX 的 `_infer_entity_type()` 只识别**非人实体**（灵体、能量体、机器人等），对人类高颜值角色无感知。用户输入"画一个帅哥""生成一个冷感美女"时：
 
 1. 不会走帅哥美女独立通道
 2. 不会注入多角度气质规则

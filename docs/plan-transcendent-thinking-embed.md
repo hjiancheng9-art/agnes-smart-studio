@@ -1,4 +1,4 @@
-# 方案：将V2超越常人思维方法嵌入 Agnes Smart Studio
+# 方案：将V2超越常人思维方法嵌入 CRUX Studio
 
 > 原则：只读取V2知识源，不修改V2任何文件
 > 
@@ -8,7 +8,7 @@
 
 ## 现状差距
 
-| 能力 | V2 知识源 | Agnes 现状 |
+| 能力 | V2 知识源 | CRUX 现状 |
 |------|-----------|-----------|
 | 跨域嫁接创意引擎 | 四域公式 A×B×C×V + 5大信条 + 创意4步流程 + 三问筛选法 | 无（仅有实体嫁接8种目标，无系统化创意方法） |
 | AI特化思维层 | 潜空间导航/Prompt炼金术/风格劫持/Glitch美学 | 无（Prompt增强靠LLM自由发挥，无方法论驱动） |
@@ -19,7 +19,7 @@
 | 非人视频生产规则 | I2V首帧驱动/甜点区规格/提示词组装流水线 | 无（仅有视频三一律，无非人专属生产约束） |
 | 嫁接公式系统 | 动作域×载体域×物理域×视觉域 + 高爆点矩阵 + 物理域破坏适配表 | 无（GRAFT_TARGETS仅列出8种目标，无组合引擎） |
 
-**核心差距**：Agnes 已有"识别非人实体→匹配甜点区→风险预判"的**防御性**能力，但完全缺失**创造性**能力——即"如何用超越常人的思维方法，主动生成前所未有的创意提示词"。
+**核心差距**：CRUX 已有"识别非人实体→匹配甜点区→风险预判"的**防御性**能力，但完全缺失**创造性**能力——即"如何用超越常人的思维方法，主动生成前所未有的创意提示词"。
 
 ---
 
@@ -631,9 +631,9 @@ def _select_creative_methods(self, prompt: str) -> list[str]:
 
 ### 第10步：CLI 和流水线集成
 
-**文件**：`agnes_studio.py` + `pipeline/workflows.py`
+**文件**：`crux_studio.py` + `pipeline/workflows.py`
 
-**10.1 `agnes_studio.py` 新增 CLI 参数**：
+**10.1 `crux_studio.py` 新增 CLI 参数**：
 
 - `--creative` / `--leap`：启用创意飞跃模式（调用 `creative_leap()` 替代普通 `enhance_image_prompt()`）
 - `--methods`：指定创意方法（逗号分隔），如 `--methods cross_domain_graft,anti_pattern`
@@ -652,7 +652,7 @@ def _select_creative_methods(self, prompt: str) -> list[str]:
 | `core/brain.py` | **新增常量** | `CREATIVE_DOMAIN_MAP`（四域嫁接知识库）、`ANTI_PATTERN_MAP`（6大反模式）、`THINKING_METHOD_MAP`（经典思维技法+AI特化）、`NONHUMAN_COMBAT_MOTIF`（非人战斗创意母题）、`NONHUMAN_VIDEO_RULES`（非人视频生产规则）、`CREATIVE_LEAP_PROMPT`（创意飞跃系统提示词） |
 | `core/brain.py` | **新增方法** | `creative_leap()`、`_select_creative_methods()` |
 | `core/brain.py` | **修改常量** | `ENHANCE_IMAGE_PROMPT` 追加规则17-19、`ENHANCE_VIDEO_PROMPT` 追加规则14-16 |
-| `agnes_studio.py` | **修改** | 新增 `--creative`/`--leap` 参数、`--methods` 参数 |
+| `crux_studio.py` | **修改** | 新增 `--creative`/`--leap` 参数、`--methods` 参数 |
 | `pipeline/workflows.py` | **修改** | 创意模式检测和集成逻辑 |
 
 ---
@@ -692,7 +692,7 @@ graph TB
     end
 
     subgraph "CLI/流水线"
-        C1[agnes_studio.py<br/>--creative / --methods]
+        C1[crux_studio.py<br/>--creative / --methods]
         C2[workflows.py<br/>创意模式集成]
     end
 
@@ -728,7 +728,7 @@ graph TB
 ```
 用户输入 + --creative
     ↓
-agnes_studio.py 检测 --creative 标志
+crux_studio.py 检测 --creative 标志
     ↓
 brain.creative_leap(user_prompt, methods)
     ↓
@@ -771,4 +771,4 @@ workflows.py 用推荐方案替代普通增强结果
 - `engines/video.py`（引擎层不变）
 - `core/config.py`（配置层不变）
 - `core/validator.py`（校验层不变）
-- `ui/cli.py`（UI层不变——创意模式通过 `agnes_studio.py` 快速模式触发）
+- `ui/cli.py`（UI层不变——创意模式通过 `crux_studio.py` 快速模式触发）

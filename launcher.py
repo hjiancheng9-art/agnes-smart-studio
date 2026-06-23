@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Agnes Smart Studio 图形启动器 - 环境检测 + 模式选择 + 一键启动"""
+"""CRUX Studio launcher - environment check + mode select + quick start"""
 
 import os
 import sys
@@ -20,17 +20,8 @@ if os.name == "nt":
 ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT))
 
-# ── 颜色常量 ──────────────────────────────────────────────
-C_CYAN     = "\033[96m"
-C_CYAN_DIM = "\033[36m"
-C_GREEN    = "\033[92m"
-C_YELLOW   = "\033[93m"
-C_RED      = "\033[91m"
-C_MAGENTA  = "\033[95m"
-C_BOLD     = "\033[1m"
-C_DIM      = "\033[2m"
-C_WHITE    = "\033[97m"
-C_RESET    = "\033[0m"
+# ── Rich theme (single source of truth) ──────────────────────────
+from ui.theme import COLORS, ICONS, LAYOUT, console
 
 
 def _show_banner():
@@ -40,19 +31,19 @@ def _show_banner():
 
 
 def print_step(msg: str):
-    print(f"  {C_CYAN}⬡{C_RESET} {msg}")
+    console.print(f"  [{COLORS['primary']}]{ICONS['info']}[/] {msg}")
 
 
 def print_ok(msg: str):
-    print(f"  {C_GREEN}◆{C_RESET} {msg}")
+    console.print(f"  [{COLORS['success']}]{ICONS['success']}[/] {msg}")
 
 
 def print_warn(msg: str):
-    print(f"  {C_YELLOW}◈{C_RESET} {msg}")
+    console.print(f"  [{COLORS['warning']}]{ICONS['warning']}[/] {msg}")
 
 
 def print_err(msg: str):
-    print(f"  {C_RED}✖{C_RESET} {msg}")
+    console.print(f"  [{COLORS['error']}]{ICONS['error']}[/] {msg}")
 
 
 def run_cmd(cmd: str) -> tuple[int, str]:
@@ -95,13 +86,15 @@ def check_env() -> bool:
     env_file = ROOT / ".env"
     if not env_file.exists():
         print_warn(".env 文件不存在")
-        answer = input(f"  {C_YELLOW}◈{C_RESET} 是否创建 .env 文件？(y/n): ").strip().lower()
+        console.print(f"  [{COLORS['warning']}]{ICONS['warning']}[/] 是否创建 .env 文件？(y/n): ", end="")
+        answer = input().strip().lower()
         if answer == "y":
-            api_key = input(f"  {C_CYAN}◈{C_RESET} 请输入 AGNES_API_KEY: ").strip()
+            console.print(f"  [{COLORS['primary']}]{ICONS['info']}[/] 请输入 CRUX_API_KEY: ", end="")
+            api_key = input().strip()
             env_file.write_text(
-                f"# Agnes AI API 配置\n"
-                f"AGNES_API_KEY={api_key}\n"
-                f"AGNES_BASE_URL=https://apihub.agnes-ai.com/v1\n",
+                f"# CRUX AI API 配置\n"
+                f"CRUX_API_KEY={api_key}\n"
+                f"CRUX_BASE_URL=https://apihub.agnes-ai.com/v1\n",
                 encoding="utf-8",
             )
             print_ok(".env 已创建")
@@ -109,16 +102,17 @@ def check_env() -> bool:
         print_err("跳过 .env 创建，部分功能不可用")
         return False
 
-    # 检查 API Key 是否已填写
+    # 检查 API Key 是否已填写（兼容 AGNES_API_KEY 旧格式）
     content = env_file.read_text(encoding="utf-8")
-    if "sk-your-api-key-here" in content or "AGNES_API_KEY=\n" in content or "AGNES_API_KEY=" not in content:
+    if "sk-your-api-key-here" in content or "CRUX_API_KEY=\n" in content or ("CRUX_API_KEY=" not in content and "AGNES_API_KEY=" not in content):
         print_warn("API Key 未配置")
-        api_key = input(f"  {C_CYAN}◈{C_RESET} 请输入 AGNES_API_KEY (留空跳过): ").strip()
+        console.print(f"  [{COLORS['primary']}]{ICONS['info']}[/] 请输入 CRUX_API_KEY (留空跳过): ", end="")
+        api_key = input().strip()
         if api_key:
             lines = []
             for line in content.splitlines():
-                if line.startswith("AGNES_API_KEY="):
-                    lines.append(f"AGNES_API_KEY={api_key}")
+                if line.startswith("CRUX_API_KEY=") or line.startswith("AGNES_API_KEY="):
+                    lines.append(f"CRUX_API_KEY={api_key}")
                 else:
                     lines.append(line)
             env_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -163,31 +157,39 @@ def check_output_dir():
 # ── 模式选择 ──────────────────────────────────────────────
 
 MODES = {
-    "1": ("◈ 交互菜单",     "文生图/图生图/视频/历史/模板"),
-    "2": ("◈ 聊天+智能体",  "36技能 + Alt+Enter换行 + 一键制片/作图/炼丹"),
-    "3": ("◈ 快速生成",     "输入描述 → 选类型 → 选视频时长 → 一键生成"),
-    "4": ("◈ 图生图",       "图片编辑/风格迁移 → 进入交互菜单操作"),
-    "5": ("◈ 图生视频",     "图片→视频，可选3s~18s时长"),
-    "6": ("◈ 查询视频",     "video_id 查进度（不要用 task_id）"),
-    "7": ("◈ 一站式流水线", "文本→图片→视频 全自动"),
-    "8": ("◈ 查看FAQ",      "常见问题/APIKey/视频时长/thinking/programming"),
-    "0": ("◈ 退出", ""),
+    "1": (f"{ICONS['primary']} 交互菜单",     "文生图/图生图/视频/历史/模板"),
+    "2": (f"{ICONS['primary']} 聊天+智能体",  "36技能 + Alt+Enter换行 + 一键制片/作图/炼丹"),
+    "3": (f"{ICONS['primary']} 快速生成",     "输入描述 → 选类型 → 选视频时长 → 一键生成"),
+    "4": (f"{ICONS['primary']} 图生图",       "图片编辑/风格迁移 → 进入交互菜单操作"),
+    "5": (f"{ICONS['primary']} 图生视频",     "图片→视频，可选3s~18s时长"),
+    "6": (f"{ICONS['primary']} 查询视频",     "video_id 查进度（不要用 task_id）"),
+    "7": (f"{ICONS['primary']} 一站式流水线", "文本→图片→视频 全自动"),
+    "8": (f"{ICONS['primary']} 查看FAQ",      "常见问题/APIKey/视频时长/thinking/programming"),
+    "0": (f"{ICONS['primary']} 退出", ""),
 }
 
 
 def show_menu():
-    print(f"\n  {C_CYAN}◈{C_RESET} {C_BOLD}选择模式{C_RESET}")
-    print(f"  {C_DIM}{'─' * 55}{C_RESET}")
+    from rich.table import Table
+    console.print()
+    console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] [bold]选择模式[/]")
+    console.print(f"  [{COLORS['muted']}{'─' * 55}[/]")
+    table = Table(show_header=False, box=None, padding=(0, 2), collapse=True)
+    table.add_column(style=f"bold {COLORS['accent']}", width=2)
+    table.add_column(width=14)
+    table.add_column(style=COLORS['muted'])
     for key, (label, desc) in MODES.items():
         if desc:
-            print(f"  {C_MAGENTA}{key}{C_RESET}  {label:<14} {C_DIM}{desc}{C_RESET}")
+            table.add_row(key, label, desc)
         else:
-            print(f"  {C_MAGENTA}{key}{C_RESET}  {label}")
-    print(f"  {C_DIM}{'─' * 55}{C_RESET}")
+            table.add_row(key, label, "")
+    console.print(table)
+    console.print(f"  [{COLORS['muted']}{'─' * 55}[/]")
 
 
 def ask_video_id() -> str | None:
-    video_id = input(f"  {C_CYAN}◈{C_RESET} 请输入 video_id: ").strip()
+    console.print(f"  [{COLORS['primary']}]{ICONS['info']}[/] 请输入 video_id: ", end="")
+    video_id = input().strip()
     return video_id or None
 
 
@@ -196,10 +198,12 @@ def ask_video_duration() -> tuple[int, int]:
     # 帧数列表 (8n+1, <=441)
     frames_list = [81, 121, 161, 241, 441]
     dur_map = {81: "3s", 121: "5s", 161: "7s", 241: "10s", 441: "18s"}
-    print(f"\n  {C_CYAN}◈{C_RESET} {C_DIM}选择视频时长 (fps=24):{C_RESET}")
+    console.print()
+    console.print(f"  [{COLORS['primary']}]{ICONS['info']}[/] [{COLORS['muted']}]选择视频时长 (fps=24):[/]")
     for i, nf in enumerate(frames_list, 1):
-        print(f"  {C_MAGENTA}{i}{C_RESET} {nf}帧≈{dur_map[nf]}")
-    ch = input(f"  {C_CYAN}◈{C_RESET} 选择 (1-5, 默认2=5s): ").strip() or "2"
+        console.print(f"  [{COLORS['accent']}]{i}[/] {nf}帧≈{dur_map[nf]}")
+    console.print(f"  [{COLORS['primary']}]{ICONS['info']}[/] 选择 (1-5, 默认2=5s): ", end="")
+    ch = input().strip() or "2"
     idx = max(0, min(4, int(ch) - 1)) if ch.isdigit() else 1
     return frames_list[idx], 24
 
@@ -209,7 +213,8 @@ def ask_quick_prompt(kind: str = "image") -> tuple[str, list[str]] | None:
 
     kind: "image" / "video" / "pipeline"
     """
-    prompt = input(f"  {C_CYAN}◈{C_RESET} 请输入描述: ").strip()
+    console.print(f"  [{COLORS['primary']}]{ICONS['info']}[/] 请输入描述: ", end="")
+    prompt = input().strip()
     if not prompt:
         return None
 
@@ -234,17 +239,17 @@ def launch(cmd_parts: list[str]):
     也无需调用方手动给参数加引号转义。
     """
     # 仅用于日志展示，不参与实际执行
-    print(f"\n  {C_DIM}执行: {' '.join(cmd_parts)}{C_RESET}\n")
+    console.print(f"\n  [{COLORS['muted']}]执行: {' '.join(cmd_parts)}[/]\n")
     try:
         r = subprocess.run(cmd_parts, cwd=str(ROOT))
         if r.returncode != 0:
-            print(f"\n  {C_YELLOW}程序异常退出 (code={r.returncode}){C_RESET}")
-            input(f"  {C_DIM}按 Enter 返回菜单...{C_RESET}")
+            console.print(f"\n  [{COLORS['warning']}]程序异常退出 (code={r.returncode})[/]")
+            input("  按 Enter 返回菜单...")
     except KeyboardInterrupt:
-        print(f"\n  {C_YELLOW}已中断{C_RESET}")
+        console.print(f"\n  [{COLORS['warning']}]已中断[/]")
     except Exception as e:
-        print(f"\n  {C_RED}启动失败: {e}{C_RESET}")
-        input(f"  {C_DIM}按 Enter 返回菜单...{C_RESET}")
+        console.print(f"\n  [{COLORS['error']}]启动失败: {e}[/]")
+        input("  按 Enter 返回菜单...")
 
 
 # ── 主流程 ──────────────────────────────────────────────
@@ -263,25 +268,25 @@ def main():
 
     _show_banner()
     if not a.no_check:
-        print(f"  {C_CYAN}◈{C_RESET} {C_BOLD}环境检测{C_RESET}")
-        print(f"  {C_DIM}{'─' * 40}{C_RESET}")
+        console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] [bold]环境检测[/]")
+        console.print(f"  [{COLORS['muted']}{'─' * 40}[/]")
         if not check_python():
             input("\n按 Enter 退出...")
             sys.exit(1)
         check_env()
         check_deps()
         check_output_dir()
-    print(f"\n  {C_DIM}直接进入 Agnes Chat 模式...{C_RESET}")
-    print(f"  {C_CYAN}◈{C_RESET} {C_CYAN}命令{C_RESET}  /code /agent /plan /team /deploy /showrun /help")
-    print(f"  {C_CYAN}◈{C_RESET} {C_CYAN}换行{C_RESET}  Alt+Enter / Ctrl+J  ·  图片: 直接粘贴路径")
-    launch(["python", "agnes_studio.py", "-c"])
+    console.print(f"\n  [{COLORS['muted']}]直接进入 CRUX Chat 模式...[/]")
+    console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] [{COLORS['primary']}]命令[/]  /code /agent /plan /team /deploy /showrun /help")
+    console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] [{COLORS['primary']}]换行[/]  Alt+Enter / Ctrl+J  ·  图片: 直接粘贴路径")
+    launch(["python", "crux_studio.py", "-c"])
 
 
 def _main_menu():
     """旧版图形菜单（--menu 触发）"""
     _show_banner()
-    print(f"  {C_CYAN}◈{C_RESET} {C_BOLD}环境检测{C_RESET}")
-    print(f"  {C_DIM}{'─' * 40}{C_RESET}")
+    console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] [bold]环境检测[/]")
+    console.print(f"  [{COLORS['muted']}{'─' * 40}[/]")
     if not check_python():
         input("\n按 Enter 退出...")
         sys.exit(1)
@@ -292,92 +297,94 @@ def _main_menu():
         from utils import memory
         tips = memory.get_tips()
         if tips:
-            print(f"\n  {C_DIM}💡 使用建议:{C_RESET}")
+            console.print(f"\n  [{COLORS['muted']}]💡 使用建议:[/]")
             for t in tips:
-                print(f"  {C_DIM}  {t}{C_RESET}")
+                console.print(f"  [{COLORS['muted']}]  {t}[/]")
     except (ImportError, AttributeError, OSError):
         pass
     show_menu()
     while True:
-        choice = input(f"\n  {C_CYAN}◈{C_RESET} 请选择 (0-8): ").strip()
+        console.print(f"\n  [{COLORS['primary']}]{ICONS['primary']}[/] 请选择 (0-8): ", end="")
+        choice = input().strip()
         if choice == "0":
-            print(f"\n  {C_GREEN}再见！{C_RESET}\n")
+            console.print(f"\n  [{COLORS['success']}]{ICONS['success']}[/] 再见！\n")
             break
         if choice == "1":
-            print(f"\n  {C_DIM}正在启动交互菜单...{C_RESET}")
-            launch(["python", "agnes_studio.py"])
+            console.print(f"\n  [{COLORS['muted']}]正在启动交互菜单...[/]")
+            launch(["python", "crux_studio.py"])
             continue
         if choice == "2":
-            print(f"\n  {C_DIM}正在启动聊天+智能体模式...{C_RESET}")
-            print(f"  {C_CYAN}◈{C_RESET} 技能: /skill load 视频|作图|写剧本|分镜|炼丹...")
-            print(f"  {C_CYAN}◈{C_RESET} 换行: Alt+Enter / Ctrl+J  ·  图片: 直接粘贴路径")
-            print(f"  {C_CYAN}◈{C_RESET} 命令: /code /agent /plan /team /deploy /provider /help")
-            launch(["python", "agnes_studio.py", "-c"])
+            console.print(f"\n  [{COLORS['muted']}]正在启动聊天+智能体模式...[/]")
+            console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] 技能: /skill load 视频|作图|写剧本|分镜|炼丹...")
+            console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] 换行: Alt+Enter / Ctrl+J  ·  图片: 直接粘贴路径")
+            console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] 命令: /code /agent /plan /team /deploy /provider /help")
+            launch(["python", "crux_studio.py", "-c"])
             continue
         if choice == "3":
-            print(f"\n  {C_DIM}选择生成类型:{C_RESET}")
-            print(f"  {C_MAGENTA}1{C_RESET} 图片  {C_MAGENTA}2{C_RESET} 视频  {C_MAGENTA}3{C_RESET} 流水线")
-            ch = input(f"  {C_CYAN}◈{C_RESET} 选择 (1-3): ").strip()
+            console.print(f"\n  [{COLORS['muted']}]选择生成类型:[/]")
+            console.print(f"  [{COLORS['accent']}]{1}[/] 图片  [{COLORS['accent']}]{2}[/] 视频  [{COLORS['accent']}]{3}[/] 流水线")
+            console.print(f"  [{COLORS['primary']}]{ICONS['info']}[/] 选择 (1-3): ", end="")
+            ch = input().strip()
             kind_map = {"1": "image", "2": "video", "3": "pipeline"}
             if ch not in kind_map:
                 print_warn(f"无效选择 '{ch}'，已取消")
                 continue
             kind = kind_map[ch]
             kind_names = {"image": "图片", "video": "视频", "pipeline": "一站式流水线"}
-            print(f"  {C_DIM}已选中: {kind_names.get(kind, kind)}{C_RESET}")
+            console.print(f"  [{COLORS['muted']}]已选中: {kind_names.get(kind, kind)}[/]")
             result = ask_quick_prompt(kind=kind)
             if result:
                 prompt, extra_args = result
-                print(f"  {C_DIM}正在启动生成...{C_RESET}")
-                launch(["python", "agnes_studio.py", "-q", prompt] + extra_args)
+                console.print(f"  [{COLORS['muted']}]正在启动生成...[/]")
+                launch(["python", "crux_studio.py", "-q", prompt] + extra_args)
             else:
                 print_warn("已取消（未输入描述）")
                 continue
         if choice == "4":
-            print(f"\n  {C_YELLOW}⚠ 图生图需要传入图片文件{C_RESET}")
-            print(f"  {C_DIM}进入交互菜单后选 '2-图生图'，支持拖拽图片或输入路径{C_RESET}")
-            input(f"  {C_DIM}按 Enter 进入...{C_RESET}")
-            launch(["python", "agnes_studio.py"])
+            console.print(f"\n  [{COLORS['warning']}]{ICONS['warning']}[/] 图生图需要传入图片文件")
+            console.print(f"  [{COLORS['muted']}]进入交互菜单后选 '2-图生图'，支持拖拽图片或输入路径[/]")
+            input("  按 Enter 进入...")
+            launch(["python", "crux_studio.py"])
             continue
         if choice == "5":
-            print(f"\n  {C_YELLOW}⚠ 图生视频需要传入图片文件{C_RESET}")
-            print(f"  {C_DIM}进入交互菜单后选 '4-图生视频'，支持拖拽图片或输入路径{C_RESET}")
-            print(f"  {C_DIM}菜单内可选视频时长（3s~18s）{C_RESET}")
-            input(f"  {C_DIM}按 Enter 进入...{C_RESET}")
-            launch(["python", "agnes_studio.py"])
+            console.print(f"\n  [{COLORS['warning']}]{ICONS['warning']}[/] 图生视频需要传入图片文件")
+            console.print(f"  [{COLORS['muted']}]进入交互菜单后选 '4-图生视频'，支持拖拽图片或输入路径[/]")
+            console.print(f"  [{COLORS['muted']}]菜单内可选视频时长（3s~18s）[/]")
+            input("  按 Enter 进入...")
+            launch(["python", "crux_studio.py"])
             continue
         if choice == "6":
             video_id = ask_video_id()
             if video_id:
-                print(f"  {C_DIM}正在查询 video_id: {video_id} ...{C_RESET}")
-                launch(["python", "agnes_studio.py", "--video-id", video_id])
+                console.print(f"  [{COLORS['muted']}]正在查询 video_id: {video_id} ...[/]")
+                launch(["python", "crux_studio.py", "--video-id", video_id])
             else:
                 print_warn("已取消（未输入 video_id）")
             continue
         if choice == "7":
-            print(f"\n  {C_DIM}一站式流水线: 文本 → AI 生图 → 图转视频{C_RESET}")
+            console.print(f"\n  [{COLORS['muted']}]一站式流水线: 文本 → AI 生图 → 图转视频[/]")
             result = ask_quick_prompt(kind="pipeline")
             if result:
                 prompt, extra_args = result
-                print(f"  {C_DIM}正在启动流水线...{C_RESET}")
-                launch(["python", "agnes_studio.py", "-q", prompt] + extra_args)
+                console.print(f"  [{COLORS['muted']}]正在启动流水线...[/]")
+                launch(["python", "crux_studio.py", "-q", prompt] + extra_args)
             else:
                 print_warn("已取消（未输入描述）")
                 continue
         if choice == "8":
             faq_path = ROOT / "FAQ.md"
             if faq_path.exists():
-                print(f"\n  {C_DIM}正在打开 FAQ.md ...{C_RESET}")
+                console.print(f"\n  [{COLORS['muted']}]正在打开 FAQ.md ...[/]")
                 try:
                     import os
                     os.startfile(str(faq_path))
-                    print(f"  {C_GREEN}已打开 FAQ 文档{C_RESET}")
+                    console.print(f"  [{COLORS['success']}]{ICONS['success']}[/] 已打开 FAQ 文档")
                 except (OSError, AttributeError) as e:
-                    print(f"  {C_YELLOW}自动打开失败: {e}{C_RESET}")
-                    print(f"  {C_DIM}请手动打开: {faq_path}{C_RESET}")
+                    console.print(f"  [{COLORS['warning']}]{ICONS['warning']}[/] 自动打开失败: {e}")
+                    console.print(f"  [{COLORS['muted']}]请手动打开: {faq_path}[/]")
             else:
                 print_warn("FAQ.md 文件不存在，请检查项目目录")
-            input(f"  {C_DIM}按 Enter 返回菜单...{C_RESET}")
+            input("  按 Enter 返回菜单...")
             continue
         print_warn(f"无效选择 '{choice}'，请输入 0-8")
 

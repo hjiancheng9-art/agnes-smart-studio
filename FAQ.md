@@ -1,4 +1,4 @@
-# Agnes Smart Studio - 常见问题 (FAQ)
+# CRUX Studio - 常见问题 (FAQ)
 
 ## 编程助手
 
@@ -22,7 +22,7 @@
 
 ### ❓ 视频生成排队超过 5 分钟？
 **必须用 video_id 查询，不要用 task_id！** 使用 task_id 会导致排队异常延长。
-- ✅ 正确：`python agnes_studio.py --video-id VIDEO_ID`
+- ✅ 正确：`python crux_studio.py --video-id VIDEO_ID`
 - ❌ 错误：使用 task_id 查询
 
 ### ❓ 如何调整视频长度？
@@ -36,9 +36,9 @@
 
 ### ❓ 如何查询视频状态？
 ```bash
-python agnes_studio.py --video-id VIDEO_ID
+python crux_studio.py --video-id VIDEO_ID
 # 或
-python agnes_studio.py --video-id VIDEO_ID --timeout 60  # 限时等待
+python crux_studio.py --video-id VIDEO_ID --timeout 60  # 限时等待
 ```
 
 ---
@@ -88,8 +88,8 @@ python agnes_studio.py --video-id VIDEO_ID --timeout 60  # 限时等待
 ### ❓ API Key 在哪获取？
 https://platform.agnes-ai.com 生成，粘贴到 `.env` 文件：
 ```
-AGNES_API_KEY=sk-xxxxx
-AGNES_BASE_URL=https://apihub.agnes-ai.com/v1
+CRUX_API_KEY=sk-xxxxx
+CRUX_BASE_URL=https://apihub.agnes-ai.com/v1
 ```
 
 ### ❓ 免费额度是多少？

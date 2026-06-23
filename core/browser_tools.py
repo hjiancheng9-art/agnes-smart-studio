@@ -3,7 +3,7 @@
 ⚠ EXPERIMENTAL — 未接通 runtime：本模块仅被 tests/manual 引用，
 ChatSession/tools.json 尚未注册。Playwright 自动化逻辑完整但需接入后才生效。
 
-Agnes 大脑：选择 provider、生成 prompt、决定策略
+CRUX 大脑：选择 provider、生成 prompt、决定策略
 Playwright：打开网页、填入提示词、点击生成、轮询结果、下载文件
 API Provider：有官方API的直接调用（更快更稳定）
 
@@ -149,7 +149,7 @@ def _update_task(task_id: str, updates: dict):
 #  Playwright Session 管理 — 自带 Chromium + 持久化登录态
 # ============================================================
 
-# ── 事件循环兼容已在 agnes_studio.py / launcher.py 入口统一处理 ──
+# ── 事件循环兼容已在 crux_studio.py / launcher.py 入口统一处理 ──
 # 此处不再重复调用 nest_asyncio.apply()
 
 # 模块级延迟导入
@@ -312,7 +312,7 @@ def _playwright_generate(provider_id: str, prompt: str, image_path: str = "",
             return json.dumps({
                 "success": False,
                 "error": "已填入提示词但未找到生成按钮。请用 browser_setup 完成首次配置。",
-                "hint": f"在 {provider_url} 上手动点一次生成，之后 Agnes 可记住按钮位置"
+                "hint": f"在 {provider_url} 上手动点一次生成，之后 CRUX 可记住按钮位置"
             }, ensure_ascii=False)
 
         # ── 轮询等待结果 ──

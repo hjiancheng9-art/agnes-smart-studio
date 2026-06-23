@@ -1,7 +1,7 @@
 """Unit tests for AsyncChatSession — session state, tool dispatch, and streaming.
 
 Tests the async counterpart of ChatSession without hitting real APIs,
-using MagicMock for AsyncAgnesClient and async generators for stream mocks.
+using MagicMock for AsyncCruxClient and async generators for stream mocks.
 
 风格对齐：与 tests/test_async_render.py 一致，所有 async 测试都用**同步测试
 方法 + asyncio.run()**运行。asyncio.run 每次新建+关闭独立 event loop，不受
@@ -38,7 +38,7 @@ def _run(coro):
 
 
 def make_mock_client():
-    """创建 mock AsyncAgnesClient（chat_stream 返回空 async iter）。"""
+    """创建 mock AsyncCruxClient（chat_stream 返回空 async iter）。"""
     client = MagicMock(spec=["chat_stream", "chat", "chat_multimodal"])
     # chat_stream 是 async generator 函数调用 → 返回 async generator 对象
     client.chat_stream = lambda *a, **kw: _empty_async_iter()

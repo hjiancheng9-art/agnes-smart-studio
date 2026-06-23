@@ -9,7 +9,8 @@ from rich.prompt import Prompt
 
 from core.config import SETTINGS
 from utils import history, image_input
-from ui.display import (console, COLORS, show_error, show_image_result, show_video_result,
+from ui.theme import COLORS, ICONS, LAYOUT, console
+from ui.display import (show_error, show_image_result, show_video_result,
                          show_warning, show_info, show_success)
 from ui.badges import print_mode_banner
 
@@ -23,7 +24,7 @@ __all__ = ['CreativeCommandsMixin']
 
 class CreativeCommandsMixin:
     # Attributes/methods provided by sibling Mixins in MRO
-    i2i: "ImageToImageEngine"  # noqa: E704 — type stub only, set by AgnesCLI.__init__
+    i2i: "ImageToImageEngine"  # noqa: E704 — type stub only, set by CruxCLI.__init__
 
     # Method provided by SharedMixin (sibling in MRO)
     def _stream_chat(self, session: "ChatSession", user: str) -> None:
@@ -91,18 +92,19 @@ class CreativeCommandsMixin:
                 history.add_record(record_type, final_prompt, data.get("model", ""), data)
 
             else:  # video
-                show_info("优化视频提示词...")
+                show_info("Enhancing video prompt...")
                 r = session.brain.enhance_video_prompt(final_prompt)
                 fp = r.get("optimized_prompt", final_prompt)
                 neg = r.get("negative_prompt", "") or None
                 w = SETTINGS.default_video_width
                 h = SETTINGS.default_video_height
 
-                show_info("生成视频（可能需几分钟）...")
-                with Progress(SpinnerColumn(), TextColumn("[cyan]{task.description}"),
-                              BarColumn(), TextColumn("{task.percentage:>3.0f}%"),
+                show_info("Generating video (may take several minutes)...")
+                with Progress(SpinnerColumn(), TextColumn(f"[{LAYOUT['bar_style']}]{task.description}"),
+                              BarColumn(style=f"{LAYOUT['bar_style']}", complete_style=f"{LAYOUT['bar_complete_style']}"),
+                              TextColumn("{task.percentage:>3.0f}%"),
                               console=console) as prog:
-                    task = prog.add_task("生成中", total=100)
+                    task = prog.add_task("Generating", total=100)
                     def on_p(status, progress, data):
                         prog.update(task, completed=min(progress, 100), description=status)
 
@@ -127,7 +129,7 @@ class CreativeCommandsMixin:
             show_error(str(e))
 
     def _chat_vision(self, session: "ChatSession", arg: str):
-        """图片理解：始终使用独立视觉客户端（Agnes light），与主模型供应商解耦"""
+        """图片理解：始终使用独立视觉客户端（CRUX light），与主模型供应商解耦"""
         path, question = self._extract_path_and_text(arg)
         img_exts = (".png", ".jpg", ".jpeg", ".webp", ".gif")
         if not path.lower().endswith(img_exts) and not path.startswith(("http://", "https://")):

@@ -1,6 +1,6 @@
-"""Agnes Showrunner — Creative pipeline director.
+"""CRUX Showrunner — Creative pipeline director.
 
-Agnes is the Showrunner: goal -> plan -> skill steps -> generation -> delivery.
+CRUX is the Showrunner: goal -> plan -> skill steps -> generation -> delivery.
 
 Pipeline templates:
   - short_video:    brainstorm -> script -> prompts -> images -> animate -> review -> deliver
@@ -22,7 +22,7 @@ import contextlib
 
 ROOT = Path(__file__).resolve().parent.parent
 
-logger = logging.getLogger("agnes.showrunner")
+logger = logging.getLogger("crux.showrunner")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -42,7 +42,7 @@ class StepKind(Enum):
 
 
 class SourceKind(Enum):
-    AGNES = "agnes"
+    AGNES = "crux"
     COMFYUI = "comfyui"
     EXTERNAL = "external"
     API = "api"
@@ -131,7 +131,7 @@ class PipelineTemplates:
             "review": StepKind.REVIEW, "deliver": StepKind.DELIVER,
         }
         sm = {
-            "agnes": SourceKind.AGNES, "comfyui": SourceKind.COMFYUI,
+            "crux": SourceKind.AGNES, "comfyui": SourceKind.COMFYUI,
             "external": SourceKind.EXTERNAL, "api": SourceKind.API, "cli": SourceKind.CLI,
         }
         result = []
@@ -153,10 +153,10 @@ class PipelineTemplates:
 # ═══════════════════════════════════════════════════════════════════
 
 class Showrunner:
-    """Agnes creative pipeline director.
+    """CRUX creative pipeline director.
 
     Orchestrates a multi-step creative pipeline with retry + fallback logic.
-    Each step dispatches to a source (Agnes API / ComfyUI / External / CLI).
+    Each step dispatches to a source (CRUX API / ComfyUI / External / CLI).
     """
 
     def __init__(self, client=None, brain=None, ext_gen=None) -> None:
@@ -286,7 +286,7 @@ class Showrunner:
     async def _think(self, desc):
         if not self.client:
             return {"thought": desc}
-        sys_prompt = "You are the Agnes Showrunner. Plan creative pipelines concisely."
+        sys_prompt = "You are the CRUX Showrunner. Plan creative pipelines concisely."
         try:
             r = self.client.chat(
                 messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": desc}],
@@ -360,7 +360,7 @@ class Showrunner:
         imgs = [r.get("local_path") or r.get("url", "")]
         imgs = [i for i in imgs if i]
         self._context["last_images"] = imgs
-        return {"agnes": r, "source": "agnes"}
+        return {"crux": r, "source": "crux"}
 
     async def _ext_img(self, prompt):
         if self.ext_gen:
@@ -402,7 +402,7 @@ class Showrunner:
             r = await asyncio.to_thread(
                 lambda: engine.text_to_video(prompt=prompt, timeout=120.0)
             )
-        return {"agnes": r, "source": "agnes"}
+        return {"crux": r, "source": "crux"}
 
     async def _ext_vid(self, prompt, imgs):
         if self.ext_gen:

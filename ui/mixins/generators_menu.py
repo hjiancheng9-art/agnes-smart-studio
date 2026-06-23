@@ -7,7 +7,8 @@ from typing import TYPE_CHECKING
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
 from rich.prompt import Prompt, Confirm
 from utils import history, image_input
-from ui.display import (console, show_image_result, show_video_result,
+from ui.theme import COLORS, ICONS, LAYOUT, console
+from ui.display import (show_image_result, show_video_result,
                          show_pipeline_result, show_warning, show_success, show_info,
                          show_history_table, show_templates_list)
 
@@ -22,7 +23,7 @@ __all__ = ['GeneratorsMenuMixin']
 
 
 class GeneratorsMenuMixin:
-    # Attributes provided by AgnesCLI at runtime (multiple inheritance)
+    # Attributes provided by CruxCLI at runtime (multiple inheritance)
     brain: SmartBrain
     t2i: TextToImageEngine
     i2i: ImageToImageEngine
@@ -111,7 +112,7 @@ class GeneratorsMenuMixin:
             display_id = data.get('video_id', 'N/A')
             show_success(f"任务已提交! video_id: {display_id}")
             if display_id and display_id != 'N/A':
-                show_info(f"查询: python agnes_studio.py --video-id {display_id}")
+                show_info(f"查询: python crux_studio.py --video-id {display_id}")
             else:
                 show_warning("未返回 video_id，请检查任务响应")
             record = history.add_record("text_to_video", prompt, "agnes-video-v2.0", data)
@@ -119,7 +120,7 @@ class GeneratorsMenuMixin:
             self._ask_rating(record, "text_to_video", prompt, data)
         else:
             show_info("生成视频（可能需要几分钟）...")
-            with Progress(SpinnerColumn(), TextColumn("[cyan]{task.description}"), BarColumn(), TextColumn("{task.percentage:>3.0f}%"), console=console) as prog:
+            with Progress(SpinnerColumn(), TextColumn(f"[{LAYOUT['bar_style']}]{task.description}"), BarColumn(style=LAYOUT['bar_style'], complete_style=LAYOUT['bar_complete_style']), TextColumn("{task.percentage:>3.0f}%"), console=console) as prog:
                 task = prog.add_task("生成中", total=100)
                 def on_p(status, progress, data):
                     prog.update(task, completed=min(progress, 100), description=status)
@@ -128,7 +129,7 @@ class GeneratorsMenuMixin:
                 show_warning(f"超时，当前进度 {data.get('progress', 0):.0f}%")
                 query_id = data.get('video_id', '')
                 if query_id:
-                    show_info(f"继续查询: python agnes_studio.py --video-id {query_id}")
+                    show_info(f"继续查询: python crux_studio.py --video-id {query_id}")
                 else:
                     show_warning("未返回 video_id，无法自动查询")
             else:
@@ -170,7 +171,7 @@ class GeneratorsMenuMixin:
             display_id = data.get('video_id', 'N/A')
             show_success(f"任务已提交! video_id: {display_id}")
             if display_id and display_id != 'N/A':
-                show_info(f"查询: python agnes_studio.py --video-id {display_id}")
+                show_info(f"查询: python crux_studio.py --video-id {display_id}")
             else:
                 show_warning("未返回 video_id，请检查任务响应")
             record = history.add_record("image_to_video", prompt, "agnes-video-v2.0", data)
@@ -178,7 +179,7 @@ class GeneratorsMenuMixin:
             self._ask_rating(record, "image_to_video", prompt, data)
         else:
             show_info("生成视频...")
-            with Progress(SpinnerColumn(), TextColumn("[cyan]{task.description}"), BarColumn(), TextColumn("{task.percentage:>3.0f}%"), console=console) as prog:
+            with Progress(SpinnerColumn(), TextColumn(f"[{LAYOUT['bar_style']}]{task.description}"), BarColumn(style=LAYOUT['bar_style'], complete_style=LAYOUT['bar_complete_style']), TextColumn("{task.percentage:>3.0f}%"), console=console) as prog:
                 task = prog.add_task("生成中", total=100)
                 def on_p(status, progress, data):
                     prog.update(task, completed=min(progress, 100), description=status)
@@ -187,7 +188,7 @@ class GeneratorsMenuMixin:
                 show_warning(f"超时，当前进度 {data.get('progress', 0):.0f}%")
                 query_id = data.get('video_id', '')
                 if query_id:
-                    show_info(f"继续查询: python agnes_studio.py --video-id {query_id}")
+                    show_info(f"继续查询: python crux_studio.py --video-id {query_id}")
                 else:
                     show_warning("未返回 video_id，无法自动查询")
             else:
@@ -207,12 +208,12 @@ class GeneratorsMenuMixin:
             show_success(f"视频任务已提交! ID: {display_id}")
             query_id = vid_result.get('video_id', '')
             if query_id:
-                show_info(f"查询: python agnes_studio.py --video-id {query_id}")
+                show_info(f"查询: python crux_studio.py --video-id {query_id}")
             else:
                 show_warning("未返回 video_id，请检查任务响应")
         else:
-            with Progress(SpinnerColumn(), TextColumn("[cyan]{task.description}"), BarColumn(), console=console) as prog:
-                task = prog.add_task("处理中", total=100)
+            with Progress(SpinnerColumn(), TextColumn(f"[{LAYOUT['bar_style']}]{task.description}"), BarColumn(style=LAYOUT['bar_style'], complete_style=LAYOUT['bar_complete_style']), console=console) as prog:
+                task = prog.add_task("Processing", total=100)
                 def on_img(data):
                     prog.update(task, completed=30, description="图片完成，转视频...")
                 def on_vid(status, progress, data):
@@ -223,7 +224,7 @@ class GeneratorsMenuMixin:
                 vid_result = result.get('video', {})
                 query_id = vid_result.get('video_id', '')
                 if query_id:
-                    show_info(f"继续查询: python agnes_studio.py --video-id {query_id}")
+                    show_info(f"继续查询: python crux_studio.py --video-id {query_id}")
                 else:
                     show_warning("未返回 video_id，无法自动查询")
             else:

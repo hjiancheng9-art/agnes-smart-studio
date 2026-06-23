@@ -1,10 +1,10 @@
-"""Agnes API 异步客户端 - asyncio 原生版，支持 OpenAI 兼容接口、视频代理、自动重试
+"""CRUX API 异步客户端 - asyncio 原生版，支持 OpenAI 兼容接口、视频代理、自动重试
 
-与 core/client.py 同步版 AgnesClient 对应，提供完全 async 的 API 调用能力。
+与 core/client.py 同步版 CruxClient 对应，提供完全 async 的 API 调用能力。
 所有 HTTP 调用使用 httpx.AsyncClient，阻塞点替换为 asyncio.sleep / async for。
 
 使用模式：
-    async with AsyncAgnesClient() as client:
+    async with AsyncCruxClient() as client:
         result = await client.chat(model="agnes-2.0-flash", messages=[...])
         async for delta in client.chat_stream(model="agnes-2.0-flash", messages=[...]):
             print(delta.get("content", ""), end="")
@@ -21,11 +21,11 @@ from .config import SETTINGS
 from .client import ContentPolicyError
 
 
-__all__ = ["AsyncAgnesClient"]
+__all__ = ["AsyncCruxClient"]
 
 
-class AsyncAgnesClient:
-    """Agnes AI API 异步客户端，封装文本/图像/视频三类端点 (asyncio 原生)"""
+class AsyncCruxClient:
+    """CRUX AI API 异步客户端，封装文本/图像/视频三类端点 (asyncio 原生)"""
 
     def __init__(
         self,

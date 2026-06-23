@@ -368,7 +368,7 @@ class TestApplyCrossProviderSwitch:
         deepseek_client = MagicMock()
         deepseek_client.base_url = "https://deepseek.example.com/v1"
         providers = {
-            "agnes": {"base_url": "https://agnes.example.com/v1"},
+            "crux": {"base_url": "https://crux.example.com/v1"},
             "deepseek": {"base_url": "https://deepseek.example.com/v1"},
         }
         d = RouteDecision(profile=TaskProfile.DEEP, model_id="deepseek-v4-pro")
@@ -386,10 +386,10 @@ class TestApplyCrossProviderSwitch:
         session = FakeSession(model="agnes-2.0-flash",
                               client_base_url="https://agnes.example.com/v1")
         fallback_client = MagicMock()
-        # 期望 deepseek，但返回了 agnes 的 base_url（fallback）
-        fallback_client.base_url = "https://agnes.example.com/v1"
+        # 期望 deepseek，但返回了 crux 的 base_url（fallback）
+        fallback_client.base_url = "https://crux.example.com/v1"
         providers = {
-            "agnes": {"base_url": "https://agnes.example.com/v1"},
+            "crux": {"base_url": "https://crux.example.com/v1"},
             "deepseek": {"base_url": "https://deepseek.example.com/v1"},
         }
         d = RouteDecision(profile=TaskProfile.DEEP, model_id="deepseek-v4-pro")
@@ -407,7 +407,7 @@ class TestApplyCrossProviderSwitch:
         session = FakeSession(model="agnes-2.0-flash")
         original_client = session.client
         providers = {
-            "agnes": {"base_url": "https://agnes.example.com/v1"},
+            "crux": {"base_url": "https://crux.example.com/v1"},
             "deepseek": {"base_url": "https://deepseek.example.com/v1"},
         }
         mgr = MagicMock()
@@ -446,7 +446,7 @@ class TestApplyEdgeCases:
         deepseek_client = MagicMock()
         deepseek_client.base_url = "https://deepseek.example.com/v1/"  # 末尾斜杠
         providers = {
-            "agnes": {"base_url": "https://agnes.example.com/v1"},
+            "crux": {"base_url": "https://crux.example.com/v1"},
             "deepseek": {"base_url": "https://deepseek.example.com/v1"},  # 无斜杠
         }
         d = RouteDecision(profile=TaskProfile.DEEP, model_id="deepseek-v4-pro")
@@ -505,8 +505,8 @@ class TestDetectProvider:
     """_detect_provider 的多级查找。"""
 
     def test_known_model_via_registry(self):
-        assert _detect_provider("agnes-1.5-flash") == "agnes"
-        assert _detect_provider("agnes-2.0-flash") == "agnes"
+        assert _detect_provider("agnes-1.5-flash") == "crux"
+        assert _detect_provider("agnes-2.0-flash") == "crux"
         assert _detect_provider("deepseek-v4-pro") == "deepseek"
         assert _detect_provider("Pro/moonshotai/Kimi-K2.6") == "siliconflow"
 

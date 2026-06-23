@@ -1,7 +1,7 @@
-"""AgnesCLI Mixin 包 — 按职责拆分的命令处理器。
+"""CruxCLI Mixin 包 — 按职责拆分的命令处理器。
 
-AgnesCLI 通过多重继承组合这些 Mixin。每个 Mixin 定义一组 _chat_*/_inline_*
-方法，self 始终是 AgnesCLI 实例（getattr 反射依赖此不变量）。
+CruxCLI 通过多重继承组合这些 Mixin。每个 Mixin 定义一组 _chat_*/_inline_*
+方法，self 始终是 CruxCLI 实例（getattr 反射依赖此不变量）。
 
 Mixin 层次（MRO 顺序，从基础到具体）:
     SharedMixin           — 基础设施：输入/渲染/选择/分发（被所有 Mixin 依赖）

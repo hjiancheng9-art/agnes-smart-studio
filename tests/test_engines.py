@@ -8,7 +8,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core.client import AgnesClient
+from core.client import CruxClient
 from engines.text_to_image import TextToImageEngine
 from engines.image_to_image import ImageToImageEngine
 from engines.video import VideoEngine, VideoFuture
@@ -24,7 +24,7 @@ class TestTextToImageEngine:
 
     @pytest.fixture
     def mock_client(self):
-        c = MagicMock(spec=AgnesClient)
+        c = MagicMock(spec=CruxClient)
         return c
 
     @pytest.fixture
@@ -44,7 +44,7 @@ class TestTextToImageEngine:
 class TestImageToImageEngine:
     @pytest.fixture
     def mock_client(self):
-        c = MagicMock(spec=AgnesClient)
+        c = MagicMock(spec=CruxClient)
         return c
     
     @pytest.fixture
@@ -69,7 +69,7 @@ class TestImageToImageEngine:
 class TestVideoEngine:
     @pytest.fixture
     def mock_client(self):
-        c = MagicMock(spec=AgnesClient)
+        c = MagicMock(spec=CruxClient)
         return c
     
     @pytest.fixture

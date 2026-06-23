@@ -1,6 +1,6 @@
 """Agent infrastructure - Plan execution / Sub-agent / Context compression / Multi-model routing
 
-This module provides the "thinking brain" behind agnes-studio:
+This module provides the "thinking brain" behind crux-studio:
 - ContextManager: token counting + layered auto-compression for long conversations
 - PlanExecutor: step-by-step task execution with state machine and dependencies
 - SubAgent: independent agent with its own tool-calling loop and session history
@@ -488,7 +488,7 @@ class SubAgent:
 class ModelRouter:
     """Intelligent model selection based on task type, cost, and capability.
 
-    Routing logic (v5.0+: deepseek-v4-pro 为默认主力, agnes-* 仅作 fallback/视觉):
+    Routing logic (v5.0+: deepseek-v4-pro 为默认主力, agnes-* models 仅作 fallback/视觉):
     - Simple chat/Q&A -> agnes-1.5-flash (cheapest)
     - Code/complex reasoning / long context -> deepseek-v4-pro (主力, thinking + 1M context)
     - Image generation -> agnes-image-2.1-flash

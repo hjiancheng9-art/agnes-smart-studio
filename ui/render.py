@@ -29,7 +29,7 @@ __all__ = ["StreamingRenderer", "default_render_console"]
 
 # 默认用 ui.display 的全局 console，保持与既有渲染行为一致
 def default_render_console() -> Console:
-    from ui.display import console
+    from ui.theme import console
     return console
 
 

@@ -1,27 +1,27 @@
-"""Structured exception hierarchy for Agnes Smart Studio.
+"""Structured exception hierarchy for CRUX Studio.
 
-All domain-specific exceptions inherit from AgnesError, so callers can
+All domain-specific exceptions inherit from CruxError, so callers can
 catch the base class or narrow down to specific categories.
 
 Usage::
 
-    from core.exceptions import AgnesError, ProviderError, ToolError
+    from core.exceptions import CruxError, ProviderError, ToolError
 
     try:
         ...
     except ProviderError:
         # provider is down / bad key / model not found
         ...
-    except AgnesError:
-        # any other agnes-domain error
+    except CruxError:
+        # any other CRUX-domain error
         raise
 """
 
 
 # ── Base ────────────────────────────────────────────────────────────────
 
-class AgnesError(Exception):
-    """Base exception for all Agnes-domain errors.
+class CruxError(Exception):
+    """Base exception for all CRUX-domain errors.
 
     Carries an optional *code* short-tag for programmatic matching::
 
@@ -41,25 +41,25 @@ class AgnesError(Exception):
 
 # ── Infrastructure ───────────────────────────────────────────────────────
 
-class ConfigError(AgnesError):
+class ConfigError(CruxError):
     """Misconfiguration: missing key, invalid models.json, bad settings."""
 
 
-class ProviderError(AgnesError):
+class ProviderError(CruxError):
     """Provider-level failure: auth rejected, model unavailable, rate-limited."""
 
 
-class NetworkError(AgnesError):
+class NetworkError(CruxError):
     """Network connectivity issue: DNS failure, timeout, connection reset."""
 
 
-class EncodingError(AgnesError):
+class EncodingError(CruxError):
     """Character encoding problem: UTF-8 BOM, GBK mojibake, code page mismatch."""
 
 
 # ── Tools & Engines ───────────────────────────────────────────────────────
 
-class ToolError(AgnesError):
+class ToolError(CruxError):
     """A tool function failed to execute."""
 
 
@@ -67,7 +67,7 @@ class ToolTimeoutError(ToolError):
     """A tool function exceeded its execution time limit."""
 
 
-class EngineError(AgnesError):
+class EngineError(CruxError):
     """Generation engine (image/video/code) failure."""
 
 
@@ -77,55 +77,55 @@ class GenerationError(EngineError):
 
 # ── Agent & Chat ─────────────────────────────────────────────────────────
 
-class AgentError(AgnesError):
+class AgentError(CruxError):
     """Agent planning, spawning, or orchestration failure."""
 
 
-class SessionError(AgnesError):
+class SessionError(CruxError):
     """Session save/restore/load failure."""
 
 
-class MessageError(AgnesError):
+class MessageError(CruxError):
     """Message parsing, tool-call reassembly, or format error."""
 
 
 # ── Self-* subsystems ─────────────────────────────────────────────────────
 
-class AuditError(AgnesError):
+class AuditError(CruxError):
     """Self-audit scan or analysis failure."""
 
 
-class EvolutionError(AgnesError):
+class EvolutionError(CruxError):
     """Self-evolve analysis or patch generation failure."""
 
 
-class FixError(AgnesError):
+class FixError(CruxError):
     """Auto-fix patch application failure."""
 
 
 # ── Skill & Marketplace ──────────────────────────────────────────────────
 
-class SkillError(AgnesError):
+class SkillError(CruxError):
     """Skill loading, parsing, or execution failure."""
 
 
-class MarketplaceError(AgnesError):
+class MarketplaceError(CruxError):
     """Marketplace search, install, or update failure."""
 
 
 # ── Sandbox & Security ───────────────────────────────────────────────────
 
-class SandboxError(AgnesError):
+class SandboxError(CruxError):
     """Sandbox creation, isolation, or resource limit failure."""
 
 
-class SecurityError(AgnesError):
+class SecurityError(CruxError):
     """Security violation: command injection, path traversal, unauthorized access."""
 
 
 __all__ = [
     # Base
-    "AgnesError",
+    "CruxError",
     # Infrastructure
     "ConfigError", "ProviderError", "NetworkError", "EncodingError",
     # Tools & Engines

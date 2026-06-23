@@ -12,11 +12,11 @@
   check ID   - 查询视频任务状态
 """
 import sys, os
-# UTF-8 encoding handled by core.encoding (imported by agnes_studio.py entry point)
+# UTF-8 encoding handled by core.encoding (imported by crux_studio.py entry point)
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from core.client import AgnesClient
+from core.client import CruxClient
 from ui.display import show_info, show_success, show_error, show_warning, show_image_result, show_video_result
 
 test = sys.argv[1] if len(sys.argv) > 1 else "all"
@@ -88,7 +88,7 @@ def test_i2v(src_url=None):
         return result
     show_success(f"任务已提交! video_id: {display_id}")
     show_info(f"查询状态: python test_advanced.py check {display_id}")
-    show_info(f"或: python agnes_studio.py --video-id {display_id}")
+    show_info(f"或: python crux_studio.py --video-id {display_id}")
     return result
 
 
@@ -226,10 +226,10 @@ def check_task(video_id: str):
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("  Agnes Smart Studio - 高级功能测试")
+    print("  CRUX Studio - 高级功能测试")
     print("=" * 60)
 
-    with AgnesClient() as client:
+    with CruxClient() as client:
 
         # check 模式: python test_advanced.py check VIDEO_ID
         # ⚠️ 必须使用 video_id 查询，task_id 会导致排队超过5分钟

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Agnes Smart Studio 启动器 (macOS/Linux)
+# CRUX Studio launcher (macOS/Linux)
 
 cd "$(dirname "$0")"
 
@@ -31,7 +31,7 @@ if [ ! -f .env ]; then
     if [ -f .env.example ]; then
         cp .env.example .env
         echo -e "${GREEN}[完成]${RESET} 已从 .env.example 创建 .env"
-        echo -e "${YELLOW}[提示]${RESET} 请编辑 .env 填入你的 AGNES_API_KEY"
+        echo -e "${YELLOW}[提示]${RESET} 请编辑 .env 填入你的 CRUX_API_KEY"
         echo ""
         ${EDITOR:-nano} .env
     else
@@ -56,11 +56,11 @@ mkdir -p output/images output/videos
 
 # 启动
 echo ""
-echo -e "${BOLD}  Agnes Smart Studio 启动中...${RESET}"
+echo -e "${BOLD}  CRUX Studio starting...${RESET}"
 echo ""
 
 if [ $# -eq 0 ]; then
     $PYTHON launcher.py
 else
-    $PYTHON agnes_studio.py "$@"
+    $PYTHON crux_studio.py "$@"
 fi

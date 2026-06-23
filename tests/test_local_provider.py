@@ -115,7 +115,7 @@ class TestCreateClientLocalAuth:
         }
         mgr.fallback_priority = ["local"]
         mgr.state = MagicMock()
-        mgr.state.active = "agnes"  # active 是 agnes，但显式请求 local
+        mgr.state.active = "crux"  # active 是 crux，但显式请求 local
 
         client = mgr.create_client("local")
         assert "127.0.0.1:8080" in client.base_url
@@ -143,7 +143,7 @@ class TestCreateClientLocalAuth:
         }
         mgr.fallback_priority = ["local"]
         mgr.state = MagicMock()
-        mgr.state.active = "agnes"
+        mgr.state.active = "crux"
 
         # 不应 fallback 到 deepseek
         client = mgr.create_client("local")

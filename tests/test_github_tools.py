@@ -97,8 +97,8 @@ class TestParseRepoArg:
     def test_empty_auto_detects_current_repo(self, monkeypatch):
         """空参数自动检测当前仓库。"""
         monkeypatch.setattr("core.github_tools._run_gh",
-                            lambda args, timeout=5: {"success": True, "stdout": "huangjiancheng/agnes-smart-studio"})
-        assert _parse_repo_arg("") == "huangjiancheng/agnes-smart-studio"
+                            lambda args, timeout=5: {"success": True, "stdout": "huangjiancheng/crux-smart-studio"})
+        assert _parse_repo_arg("") == "huangjiancheng/crux-smart-studio"
 
 
 # ── execute_github_search ──────────────────────────────────────────

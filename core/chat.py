@@ -18,8 +18,8 @@ yield 协议（send_stream）：
 import json
 import re
 
-from core.client import AgnesClient
-from core.config import AGNES_VISION_MODEL
+from core.client import CruxClient
+from core.config import CRUX_VISION_MODEL
 from core.brain import SmartBrain
 from core.context_tools import truncate_tool_result, truncate_messages
 from core.observability import TraceContext, metrics
@@ -137,13 +137,13 @@ def _normalize_tool_args(args_json: str) -> str:
 class ChatSession:
     """多轮聊天会话，维护历史 + 混合调度
 
-    vision_client: 独立视觉客户端（始终指向 Agnes API），与主对话供应商解耦。
+    vision_client: 独立视觉客户端（始终指向 CRUX API），与主对话供应商解耦。
                    为 None 时退化为 self.client，向后兼容原有行为。
     vision_model:  视觉理解专用模型 ID，默认 agnes-1.5-flash。
     """
 
-    def __init__(self, client: AgnesClient, default_model: str = "agnes-1.5-flash",
-                 vision_client: AgnesClient | None = None, vision_model: str = AGNES_VISION_MODEL) -> None:
+    def __init__(self, client: CruxClient, default_model: str = "agnes-1.5-flash",
+                 vision_client: CruxClient | None = None, vision_model: str = CRUX_VISION_MODEL) -> None:
         self.client = client
         self.vision_client = vision_client or client  # 未指定时退化为主客户端（向后兼容）
         self.vision_model = vision_model

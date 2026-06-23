@@ -40,7 +40,7 @@ class TestPipelineTemplates:
 
     def test_custom_template(self):
         specs = [
-            {"name": "step1", "kind": "think", "source": "agnes"},
+            {"name": "step1", "kind": "think", "source": "crux"},
             {"name": "step2", "kind": "image", "source": "comfyui", "fallback": "external"},
         ]
         steps = PipelineTemplates.custom("goal", specs)
@@ -49,7 +49,7 @@ class TestPipelineTemplates:
         assert steps[1]["fallback"] == SourceKind.EXTERNAL
 
     def test_custom_template_unknown_kind_defaults_to_custom(self):
-        steps = PipelineTemplates.custom("g", [{"name": "s", "kind": "unknown", "source": "agnes"}])
+        steps = PipelineTemplates.custom("g", [{"name": "s", "kind": "unknown", "source": "crux"}])
         assert steps[0]["kind"] == StepKind.CUSTOM
 
 

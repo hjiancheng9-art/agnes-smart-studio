@@ -1,4 +1,4 @@
-"""Persistent task management system for agnes-smart-studio agent.
+"""Persistent task management system for crux-smart-studio agent.
 
 Provides TaskStatus enum, Task dataclass, TaskManager class, and
 ToolRegistry-compatible definitions (TASK_MANAGER_TOOL_DEFS +

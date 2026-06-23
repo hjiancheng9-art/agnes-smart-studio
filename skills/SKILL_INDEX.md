@@ -1,14 +1,14 @@
-# 📚 Agnes 技能生态索引
+# 📚 CRUX 技能生态索引
 
 共 42 个技能包，按类别组织。使用时用 `/skill load <name>` 加载。
 
 ## 🎬 视频制片 (11 个)
 
-- `audio-director`: 音频导演 — BGM场景匹配/音效设计/旁白语音选型/音量平衡/音画同步/混音标准（来源：新烬龙V2 07-audio-director + Agnes深度实现
+- `audio-director`: 音频导演 — BGM场景匹配/音效设计/旁白语音选型/音量平衡/音画同步/混音标准（来源：新烬龙V2 07-audio-director + CRUX 深度实现
 - `cinematic-keyframe`: 电影级关键帧 — 六层提示词模板：世界/事件/摄影机/灯光/渲染/风格（来源：新烬龙V2）
 - `cinematic-master`: 电影化提示词大师 — 镜头/光影/材质/情绪词汇库 + 核心链路净化法
 - `core-showrunner`: 核心Showrunner — 受控生产循环、诚实阻断、失败到修复转换的AI视频制作规则（来源：新烬龙V2）
-- `i2v-motion-rules`: 图生视频运动规则 v2.0 — 一对一镜头规则/源帧连续性/运动幅度控制/闪烁跳帧检测/镜头时长/转场选择表/180度规则（来源：新烬龙V2 + Agnes深度
+- `i2v-motion-rules`: 图生视频运动规则 v2.0 — 一对一镜头规则/源帧连续性/运动幅度控制/闪烁跳帧检测/镜头时长/转场选择表/180度规则（来源：新烬龙V2 + CRUX 深度
 - `motion-director`: 运动导演 — 定义摄像机运动、主体运动、节奏和连续性，用于视频生成和I2V任务（来源：新烬龙V2）
 - `prompt-director`: Prompt 导演 — 将普通语言升级为提供商就绪的提示词，含负面提示、验收标准和修复策略（来源：新烬龙V2）
 - `showrunner`: Showrunner - 选模型-提取帧-制片
@@ -25,11 +25,11 @@
 
 ## ✍️ 文案/剧本 (5 个)
 
-- `comic-drama-writer`: 漫剧创作 — 红果/快看/腾讯动漫等平台的漫画剧本、漫剧脚本、分镜旁白（Agnes原生）
-- `copywriting-master`: 文案创作大师 — 社交媒体/广告/品牌/视频脚本/营销邮件/SEO全类型文案生成（Agnes原生新增）
-- `novel-writer`: 小说创作 — 网文/短篇/中长篇，含世界观/大纲/人物/章节的完整创作工作流（Agnes原生）
-- `script-writer`: 剧本创作 — 电影/电视剧/舞台剧/短视频剧本，含分场大纲/对白设计/场景描述（Agnes原生）
-- `story-copywriter`: 故事文案 — 品牌故事/个人IP故事/产品故事/情感故事/案例故事等叙事型文案（Agnes原生）
+- `comic-drama-writer`: 漫剧创作 — 红果/快看/腾讯动漫等平台的漫画剧本、漫剧脚本、分镜旁白（CRUX Studio 原生）
+- `copywriting-master`: 文案创作大师 — 社交媒体/广告/品牌/视频脚本/营销邮件/SEO全类型文案生成（CRUX Studio 原生）
+- `novel-writer`: 小说创作 — 网文/短篇/中长篇，含世界观/大纲/人物/章节的完整创作工作流（CRUX Studio 原生）
+- `script-writer`: 剧本创作 — 电影/电视剧/舞台剧/短视频剧本，含分场大纲/对白设计/场景描述（CRUX Studio 原生）
+- `story-copywriter`: 故事文案 — 品牌故事/个人IP故事/产品故事/情感故事/案例故事等叙事型文案（CRUX Studio 原生）
 
 ## 💡 创意/思维 (6 个)
 

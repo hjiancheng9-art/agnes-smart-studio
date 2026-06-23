@@ -8,7 +8,8 @@ from typing import TYPE_CHECKING
 from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
 
-from ui.display import console, show_info, show_success, show_warning, show_error
+from ui.theme import COLORS, ICONS, LAYOUT, console
+from ui.display import show_info, show_success, show_warning, show_error
 from ui.render import StreamingRenderer
 from ui.badges import print_reply_header, print_route_reason
 from core.router import route_command, resolve, apply

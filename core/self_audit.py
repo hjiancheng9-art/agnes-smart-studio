@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 from core.pytest_runner import run_pytest_safe, parse_test_summary
+from rich.rule import Rule
 
 __all__ = ["AuditEngine", "ROOT", "audit"]
 ROOT = Path(__file__).resolve().parent.parent
@@ -177,23 +178,30 @@ class AuditEngine:
     def print_report(self, report=None):
         if report is None:
             report = self._build_report()
-        C = {"critical": "\033[91m", "high": "\033[93m", "medium": "\033[96m",
-             "low": "\033[2m", "info": ""}
-        R = "\033[0m"
-        print()
-        print("=" * 60)
-        print("  Agnes Self-Audit  —  " + str(report["total_findings"]) + " findings")
-        print("=" * 60)
+        from ui.theme import COLORS, console
+        SEVERITY_COLORS = {
+            "critical": COLORS["error"],
+            "high": COLORS["warning"],
+            "medium": COLORS["primary"],
+            "low": COLORS["muted"],
+            "info": "",
+        }
+        console.print()
+        console.print(Rule("CRUX Self-Audit — " + str(report["total_findings"]) + " findings", style=COLORS["primary"]))
         for s in ("critical", "high", "medium", "low"):
             n = report["by_severity"].get(s, 0)
             if n:
-                print("  " + C[s] + s.upper() + ": " + str(n) + R)
+                console.print("  [" + SEVERITY_COLORS[s] + "]" + s.upper() + ": " + str(n) + "[/]")
         for f in report["findings"]:
-            c = C.get(f.get("severity", "info"), "")
+            sev = f.get("severity", "info")
+            color = SEVERITY_COLORS.get(sev, "")
             fi = " (" + f.get("file", "") + ")" if f.get("file") else ""
-            print("  " + c + "[" + f.get("severity", "?").upper() + "]" + R + " " + f["title"] + fi)
+            if color:
+                console.print("  [" + color + "][" + sev.upper() + "][/] " + f["title"] + fi)
+            else:
+                console.print("  [" + sev.upper() + "] " + f["title"] + fi)
             if f.get("detail"):
-                print("         " + f["detail"])
+                console.print("         " + f["detail"])
 
 def audit():
     return AuditEngine().scan()

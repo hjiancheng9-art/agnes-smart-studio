@@ -1,4 +1,4 @@
-# Agnes Smart Studio — 完整调用参考
+# CRUX Studio — 完整调用参考
 
 ## 斜杠命令 `/`
 
@@ -17,7 +17,7 @@
 | 命令 | 中文 | 作用 |
 |------|------|------|
 | `/model` | `/模型` | 切换对话模型 (light/pro) |
-| `/provider` | `/提供商` | 切换供应商 (agnes/deepseek/siliconflow) |
+| `/provider` | `/提供商` | 切换供应商 (crux/deepseek/siliconflow) |
 | `/thinking` | `/思考` | 开关深度思考模式 |
 | `/code` | `/编码` | 开关代码助手模式 |
 | `/agent` | `/代理` | 开关智能体模式（加载全部工具） |
@@ -193,6 +193,6 @@
 技能:  /skill list  →  /skill load showrunner
 工具:  直接说"读取 README.md"或"搜索 TODO"
 退出:  /exit 或 Ctrl+C 两次
-诊断:  python agnes_studio.py --check
+诊断:  python crux_studio.py --check
 测试:  python test_smoke.py
 ```

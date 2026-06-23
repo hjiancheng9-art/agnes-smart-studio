@@ -1,27 +1,35 @@
-"""展示工具 - 结果表格、Markdown渲染、颜色主题 + 文件预览"""
+"""Display utilities — result tables, Markdown rendering, status messages + file preview.
 
-from rich.console import Console
+All colors, icons, and layout params are imported from ui.theme (single source of truth).
+This module provides the show_* function API that the rest of the codebase consumes.
+"""
+
 from rich.panel import Panel
 from rich.table import Table
+from rich.box import ROUNDED
 
 import os
 import subprocess
 import platform
 
+from ui.theme import COLORS, ICONS, LAYOUT, console  # noqa: F401 — re-exported
+
 __all__ = [
-    'COLORS', 'console', 'get_recent_outputs', 'open_file', 'show_error', 'show_history_table', 'show_image_result', 'show_info', 'show_pipeline_result', 'show_result', 'show_success', 'show_templates_list', 'show_video_result', 'show_warning', 'track_output',
+    'COLORS', 'console', 'get_recent_outputs', 'open_file',
+    'show_error', 'show_history_table', 'show_image_result',
+    'show_info', 'show_pipeline_result', 'show_result',
+    'show_success', 'show_templates_list', 'show_video_result',
+    'show_warning', 'track_output',
 ]
 
+# ── Recent output tracking (for /open and /outputs) ──────────────
 
-console = Console(force_terminal=True)
-
-# ── 最近生成的文件追踪（用于 /open 和 /outputs）──
-_recent_outputs: list[dict] = []  # [{"type": "image"/"video", "path": ..., "prompt": ..., "data": {...}}, ...]
+_recent_outputs: list[dict] = []
 _MAX_RECENT = 50
 
 
 def track_output(output_type: str, data: dict):
-    """记录生成结果到最近列表"""
+    """Record a generation result to the recent list."""
     path = data.get("local_path", "") or data.get("url", "")
     if path:
         _recent_outputs.insert(0, {
@@ -35,12 +43,12 @@ def track_output(output_type: str, data: dict):
 
 
 def get_recent_outputs(n: int = 10) -> list[dict]:
-    """获取最近 N 个生成结果"""
+    """Get the most recent N generation results."""
     return _recent_outputs[:n]
 
 
 def open_file(path: str) -> bool:
-    """用系统默认程序打开文件"""
+    """Open a file with the system default application."""
     if not path or not os.path.exists(path):
         return False
     try:
@@ -54,26 +62,51 @@ def open_file(path: str) -> bool:
     except (OSError, subprocess.SubprocessError):
         return False
 
-# 终端配色
-COLORS = {
-    "primary": "#00BCD4",
-    "accent": "#E040FB",
-    "success": "#4CAF50",
-    "warning": "#FFC107",
-    "error": "#F44336",
-    "muted": "#9E9E9E",
-}
+
+# ── Status message functions ──────────────────────────────────────
+
+def show_error(message: str):
+    """Display error message in a rounded Panel."""
+    console.print(Panel(
+        message,
+        title=f"[bold {COLORS['error']}]⊗ Error[/]",
+        border_style=COLORS["error"],
+        padding=LAYOUT["panel_padding"],
+    ))
 
 
-def show_result(result: dict, title: str = "生成结果"):
-    """展示单个生成结果"""
-    table = Table(title=f"[cyan]◈ {title}[/]", show_header=True, header_style=f"bold {COLORS['primary']}")
-    table.add_column("属性", style="cyan")
-    table.add_column("值", style="white")
+def show_warning(message: str):
+    """Display warning message inline."""
+    console.print(f"[{COLORS['warning']}]⠶ {message}[/]")
+
+
+def show_success(message: str):
+    """Display success message inline."""
+    console.print(f"[{COLORS['success']}]✿ {message}[/]")
+
+
+def show_info(message: str):
+    """Display info message inline."""
+    console.print(f"[{COLORS['primary']}]∘ {message}[/]")
+
+
+# ── Result display functions ──────────────────────────────────────
+
+def show_result(result: dict, title: str = "Results"):
+    """Display a single generation result as a table."""
+    table = Table(
+        title=f"[{COLORS['primary']}]{ICONS['primary']} {title}[/]",
+        show_header=True,
+        header_style=f"bold {COLORS['primary']}",
+        box=ROUNDED,
+        show_lines=LAYOUT["table_show_lines"],
+    )
+    table.add_column("Property", style=COLORS["primary"])
+    table.add_column("Value", style="white")
 
     for key, val in result.items():
         if key == "error":
-            table.add_row(key, f"[{COLORS['error']}]✖ {val}[/]")
+            table.add_row(key, f"[{COLORS['error']}]⊗ {val}[/]")
         elif isinstance(val, str) and len(val) > 80:
             table.add_row(key, val[:77] + "...")
         elif isinstance(val, list):
@@ -85,65 +118,67 @@ def show_result(result: dict, title: str = "生成结果"):
 
 
 def show_image_result(data: dict):
-    """展示图片生成结果（含预览提示）"""
+    """Display image generation result with preview hint."""
     track_output("image", data)
 
     path = data.get("local_path", "")
     items = []
     if path:
-        items.append(f"[bold][cyan]◈[/] 文件:[/] {path}")
+        items.append(f"[bold][{COLORS['primary']}]{ICONS['primary']}[/] File:[/] {path}")
     if data.get("url"):
-        items.append(f"[bold][cyan]◈[/] URL:[/] {data['url'][:60]}...")
+        items.append(f"[bold][{COLORS['primary']}]{ICONS['primary']}[/] URL:[/] {data['url'][:60]}...")
     if data.get("model"):
-        items.append(f"[bold][cyan]◈[/] 模型:[/] {data['model']}")
+        items.append(f"[bold][{COLORS['primary']}]{ICONS['primary']}[/] Model:[/] {data['model']}")
     if data.get("prompt"):
-        items.append(f"[bold][cyan]◈[/] 提示词:[/] {data['prompt'][:80]}...")
+        items.append(f"[bold][{COLORS['primary']}]{ICONS['primary']}[/] Prompt:[/] {data['prompt'][:80]}...")
     if path:
-        items.append("\n[dim]  /open 打开 | /outputs 查看全部 | 说\"改xxx\"重新生成[/]")
+        items.append(f"\n[dim]  /open preview | /outputs all | say \"modify xxx\" to regenerate[/]")
 
     console.print(Panel(
         "\n".join(items),
-        title=f"[{COLORS['success']}]◆ 图片生成完成[/]",
+        title=f"[{COLORS['success']}]✿ Image generated[/]",
         border_style=COLORS["success"],
+        padding=LAYOUT["panel_padding"],
     ))
-    # 自动尝试打开
+    # Auto-open preview
     if path:
         try:
             open_file(path)
-            console.print("[dim]  已自动打开预览[/]")
+            console.print("[dim]  Auto-opened preview[/]")
         except (OSError, subprocess.SubprocessError):
             pass
 
 
 def show_video_result(data: dict):
-    """展示视频生成结果（含预览提示）"""
+    """Display video generation result with preview hint."""
     track_output("video", data)
 
     path = data.get("local_path", "")
     items = []
     if path:
-        items.append(f"[bold][cyan]◈[/] 文件:[/] {path}")
+        items.append(f"[bold][{COLORS['primary']}]{ICONS['primary']}[/] File:[/] {path}")
     if data.get("url"):
-        items.append(f"[bold][cyan]◈[/] URL:[/] {data['url'][:60]}...")
+        items.append(f"[bold][{COLORS['primary']}]{ICONS['primary']}[/] URL:[/] {data['url'][:60]}...")
     if data.get("video_id"):
-        items.append(f"[bold][cyan]◈[/] 视频ID:[/] {data['video_id']}")
+        items.append(f"[bold][{COLORS['primary']}]{ICONS['primary']}[/] Video ID:[/] {data['video_id']}")
     if data.get("task_id"):
-        items.append(f"[dim]◈ 任务ID: {data['task_id']}[/]")
+        items.append(f"[dim]{ICONS['primary']} Task ID: {data['task_id']}[/]")
     if path:
-        items.append("\n[dim]  /open 打开 | /outputs 查看全部 | 说\"改xxx\"重新生成[/]")
+        items.append(f"\n[dim]  /open preview | /outputs all | say \"modify xxx\" to regenerate[/]")
 
     console.print(Panel(
         "\n".join(items),
-        title=f"[{COLORS['accent']}]▷ 视频生成完成[/]",
+        title=f"[{COLORS['accent']}]↝ Video generated[/]",
         border_style=COLORS["accent"],
+        padding=LAYOUT["panel_padding"],
     ))
-    # 不自动打开视频（可能很大）
+    # Don't auto-open videos (may be large)
     if path:
-        console.print("[dim]  输入 /open 打开预览[/]")
+        console.print("[dim]  Enter /open to preview[/]")
 
 
 def show_pipeline_result(data: dict):
-    """展示流水线结果"""
+    """Display pipeline result."""
     img = data.get("image", {})
     vid = data.get("video", {})
 
@@ -154,46 +189,30 @@ def show_pipeline_result(data: dict):
         show_video_result(vid)
 
 
-def show_error(message: str):
-    """展示错误信息"""
-    console.print(Panel(
-        message,
-        title="[bold red]✖ 错误[/]",
-        border_style=COLORS["error"],
-    ))
-
-
-def show_warning(message: str):
-    """展示警告信息"""
-    console.print(f"[{COLORS['warning']}]◈ {message}[/]")
-
-
-def show_success(message: str):
-    """展示成功信息"""
-    console.print(f"[{COLORS['success']}]◆ {message}[/]")
-
-
-def show_info(message: str):
-    """展示提示信息"""
-    console.print(f"[{COLORS['primary']}]⬡ {message}[/]")
-
+# ── History / Template tables ─────────────────────────────────────
 
 def show_history_table(records: list[dict]):
-    """展示历史记录表格"""
+    """Display generation history as a table."""
     if not records:
-        console.print("[muted]◇ 暂无生成记录[/]")
+        console.print(f"[{COLORS['muted']}]{ICONS['empty']} No generation records[/]")
         return
 
-    table = Table(title="[cyan]◈ 生成历史[/]", show_header=True, header_style=f"bold {COLORS['primary']}")
+    table = Table(
+        title=f"[{COLORS['primary']}]{ICONS['primary']} Generation history[/]",
+        show_header=True,
+        header_style=f"bold {COLORS['primary']}",
+        box=ROUNDED,
+        show_lines=LAYOUT["table_show_lines"],
+    )
     table.add_column("ID", style="dim", max_width=20)
-    table.add_column("类型", style="cyan")
-    table.add_column("提示词", max_width=40)
-    table.add_column("模型", style="magenta")
-    table.add_column("收藏", justify="center")
-    table.add_column("时间", style="dim")
+    table.add_column("Type", style=COLORS["primary"])
+    table.add_column("Prompt", max_width=40)
+    table.add_column("Model", style=COLORS["accent"])
+    table.add_column("Fav", justify="center")
+    table.add_column("Time", style="dim")
 
     for r in records[:20]:
-        fav = "★" if r.get("favorited") else ""
+        fav = ICONS["star"] if r.get("favorited") else ""
         prompt = r.get("prompt", "")[:37] + "..." if len(r.get("prompt", "")) > 40 else r.get("prompt", "")
         table.add_row(
             r.get("id", "")[:20],
@@ -208,13 +227,19 @@ def show_history_table(records: list[dict]):
 
 
 def show_templates_list():
-    """展示可用模板列表"""
+    """Display available prompt templates."""
     from core.config import PROMPT_TEMPLATES
 
-    table = Table(title="[cyan]◈ Prompt 风格模板[/]", show_header=True, header_style=f"bold {COLORS['primary']}")
-    table.add_column("模板名", style="cyan")
-    table.add_column("图片风格关键词", max_width=50)
-    table.add_column("负向提示词", max_width=30)
+    table = Table(
+        title=f"[{COLORS['primary']}]{ICONS['primary']} Prompt style templates[/]",
+        show_header=True,
+        header_style=f"bold {COLORS['primary']}",
+        box=ROUNDED,
+        show_lines=LAYOUT["table_show_lines"],
+    )
+    table.add_column("Template", style=COLORS["primary"])
+    table.add_column("Image keywords", max_width=50)
+    table.add_column("Negative prompt", max_width=30)
 
     for name, tpl in PROMPT_TEMPLATES.items():
         img_kw = tpl.get("image", "")[:47] + "..." if len(tpl.get("image", "")) > 50 else tpl.get("image", "")

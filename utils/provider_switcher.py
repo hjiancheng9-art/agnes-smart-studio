@@ -34,17 +34,17 @@ def switch_provider(key: str) -> tuple:
     data["active"] = key
     models_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    # 2. Sync .env so subprocess (AgnesClient) picks up correct base_url and key
+    # 2. Sync .env so subprocess (CruxClient) picks up correct base_url and key
     if env_path.exists():
         lines = env_path.read_text(encoding="utf-8").split(chr(10))
         new_lines = []
         for line in lines:
             stripped = line.strip()
-            if stripped.startswith("AGNES_BASE_URL="):
-                new_lines.append(f"AGNES_BASE_URL={base_url}")
-            elif stripped.startswith("AGNES_API_KEY="):
+            if stripped.startswith("CRUX_BASE_URL=") or stripped.startswith("AGNES_BASE_URL="):
+                new_lines.append(f"CRUX_BASE_URL={base_url}")
+            elif stripped.startswith("CRUX_API_KEY=") or stripped.startswith("AGNES_API_KEY="):
                 if api_key and api_key != "not-needed":
-                    new_lines.append(f"AGNES_API_KEY={api_key}")
+                    new_lines.append(f"CRUX_API_KEY={api_key}")
                 else:
                     new_lines.append(line)  # keep existing key for local models
             else:

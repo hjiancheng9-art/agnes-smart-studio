@@ -1,4 +1,4 @@
-"""Agnes 深度测试 — 覆盖之前没测到的子系统
+"""CRUX 深度测试 — 覆盖之前没测到的子系统
 
 运行: python test_deep.py
 跳过网络: python test_deep.py --quick
@@ -279,7 +279,7 @@ def test_commands():
 # ════════════════════════════════════════════════
 def main():
     print(f"{C}{'='*60}{X}")
-    print(f"{C}  Agnes — 深度子系统测试{X}")
+    print(f"{C}  CRUX — 深度子系统测试{X}")
     print(f"{C}{'='*60}{X}")
 
     start = time.time()

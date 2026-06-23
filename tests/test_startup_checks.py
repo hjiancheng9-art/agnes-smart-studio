@@ -104,9 +104,9 @@ class TestCheckModelsConfig:
     def test_valid_models_json(self, tmp_path, monkeypatch):
         from core import startup_checks
         monkeypatch.setattr(startup_checks, "ROOT", tmp_path)
-        cfg = {"providers": {"agnes": {"base_url": "https://api.example.com",
+        cfg = {"providers": {"crux": {"base_url": "https://api.example.com",
                                        "models": ["m1"]}},
-               "active": "agnes"}
+               "active": "crux"}
         (tmp_path / "models.json").write_text(json.dumps(cfg), encoding="utf-8")
         startup_checks._results.clear()
         startup_checks._check_models_config()

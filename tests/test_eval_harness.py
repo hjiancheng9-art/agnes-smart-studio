@@ -245,7 +245,7 @@ class TestRunAll:
 
         engine = EvalEngine()
         report = engine.run_all(tool_executor=executor)
-        assert report["suite"] == "Agnes Core Benchmarks"
+        assert report["suite"] == "CRUX Core Benchmarks"
         assert report["total"] == len(BENCHMARKS)
         assert report["passed"] == len(BENCHMARKS)
         assert report["failed"] == 0

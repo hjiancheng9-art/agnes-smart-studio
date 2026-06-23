@@ -54,9 +54,9 @@ class TestConstants:
             assert "negative" in tpl, f"{name} missing negative prompt"
 
     def test_vision_constants(self):
-        from core.config import AGNES_VISION_MODEL, AGNES_VISION_BASE_URL
-        assert AGNES_VISION_MODEL.startswith("agnes")
-        assert AGNES_VISION_BASE_URL.startswith("https://")
+        from core.config import CRUX_VISION_MODEL, CRUX_VISION_BASE_URL
+        assert CRUX_VISION_MODEL.startswith("agnes")
+        assert CRUX_VISION_BASE_URL.startswith("https://")
 
     def test_output_dir_exists(self):
         from core.config import OUTPUT_DIR
@@ -69,7 +69,7 @@ class TestSettings:
     def test_settings_has_defaults(self):
         from core.config import Settings
         s = Settings()
-        assert s.api_key == os.getenv("AGNES_API_KEY", "")
+        # api_key is resolved in __post_init__: CRUX_API_KEY or AGNES_API_KEY or ""
         assert s.max_retries == 3
         assert s.default_frame_rate == 24
 

@@ -4,7 +4,7 @@
 所有阻塞点替换为 await / async for / asyncio.to_thread。
 
 核心映射：
-- AgnesClient            → AsyncAgnesClient
+- CruxClient            → AsyncCruxClient
 - SmartBrain             → AsyncSmartBrain
 - TextToImageEngine      → AsyncTextToImageEngine
 - ImageToImageEngine     → AsyncImageToImageEngine
@@ -24,7 +24,7 @@ import json
 import re
 from collections.abc import AsyncIterator
 
-from core.async_client import AsyncAgnesClient
+from core.async_client import AsyncCruxClient
 from core.brain import AsyncSmartBrain
 from core.context_tools import truncate_tool_result, truncate_messages
 from core.observability import TraceContext, metrics
@@ -36,7 +36,7 @@ from core.chat import (
     _normalize_tool_args,
     merge_tool_calls,
 )
-from core.config import AGNES_VISION_MODEL
+from core.config import CRUX_VISION_MODEL
 from core.provider import (
     get_provider_name,
     get_tool_calling_models,
@@ -62,10 +62,10 @@ class AsyncChatSession:
 
     def __init__(
         self,
-        client: AsyncAgnesClient,
+        client: AsyncCruxClient,
         default_model: str = "agnes-1.5-flash",
-        vision_client: AsyncAgnesClient | None = None,
-        vision_model: str = AGNES_VISION_MODEL,
+        vision_client: AsyncCruxClient | None = None,
+        vision_model: str = CRUX_VISION_MODEL,
     ) -> None:
         self.client = client
         self.vision_client = vision_client or client

@@ -5,8 +5,8 @@ from datetime import datetime
 
 import httpx
 
-from core.client import AgnesClient
-from core.async_client import AsyncAgnesClient
+from core.client import CruxClient
+from core.async_client import AsyncCruxClient
 from core.config import OUTPUT_DIR, SETTINGS
 from core.validator import validate_num_frames, validate_frame_rate, validate_seed, validate_image_urls, validate_video_resolution
 import contextlib
@@ -103,7 +103,7 @@ def _clean_video_id(raw: str) -> str:
 
 
 class VideoEngine:
-    def __init__(self, client: AgnesClient):
+    def __init__(self, client: CruxClient):
         self.client = client
 
     def submit_only(self, prompt, width=1152, height=768, num_frames=121,
@@ -412,7 +412,7 @@ class AsyncVideoEngine:
     - 多个视频任务可并行轮询（各自独立的 asyncio.Task）
     """
 
-    def __init__(self, client: AsyncAgnesClient):
+    def __init__(self, client: AsyncCruxClient):
         self.client = client
 
     async def submit_only(self, prompt, width=1152, height=768, num_frames=121,

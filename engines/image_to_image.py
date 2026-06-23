@@ -1,8 +1,8 @@
 """图生图/编辑/多图合成引擎 - 基于 agnes-image-2.0-flash"""
 import asyncio
 from datetime import datetime
-from core.client import AgnesClient
-from core.async_client import AsyncAgnesClient
+from core.client import CruxClient
+from core.async_client import AsyncCruxClient
 from core.config import OUTPUT_DIR
 from core.validator import validate_image_size, validate_model, validate_seed, validate_image_urls
 
@@ -13,7 +13,7 @@ __all__ = ['ImageToImageEngine', 'AsyncImageToImageEngine']
 class ImageToImageEngine:
     """图生图引擎 - image 通过 extra_body 传入以触发图生图模式"""
 
-    def __init__(self, client: AgnesClient):
+    def __init__(self, client: CruxClient):
         self.client = client
 
     def edit(self, prompt: str, image_urls: str | list[str], size: str = "1024x768",
@@ -86,7 +86,7 @@ class AsyncImageToImageEngine:
     业务逻辑（参数校验、结果解析）与同步版完全一致。
     """
 
-    def __init__(self, client: AsyncAgnesClient):
+    def __init__(self, client: AsyncCruxClient):
         self.client = client
 
     async def edit(self, prompt: str, image_urls: str | list[str], size: str = "1024x768",

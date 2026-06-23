@@ -1,285 +1,128 @@
-"""Agnes terminal cyberpunk pixel logo — AGNES block-letter with ANSI color.
+"""CRUX Studio terminal logo — convergence diamond + wordmark.
 
-Each letter is a 5×7 pixel grid, 1-col gap between letters.
-Rendered with block characters (█ U+2588) and layered ANSI colors
-for a neon-tube cyberpunk aesthetic.
-
-Color palette:
-    CYAN     = bright cyan  (#00e5ff)  — main fill
-    CYAN_HI  = white-cyan   (#00ffff)  — edge highlight
-    MAGENTA  = neon magenta (#ff00ff)  — glow / accent
-    CYAN_DIM = dark cyan    (#006688)  — inner shadow
-    WHITE    = white         — text
-    GRAY     = dim gray     — secondary info
-    RESET    = ANSI reset
-
-Usage:
-    from ui.terminal_logo import show, render_rich
-    show()                       # prints ANSI logo to stdout
-    rich_str = render_rich()     # returns Rich markup string
+A rotated rhombus with four Organic-colored arms converging at a white core,
+representing the decisive point (crux). All rendering uses Rich Console.
 """
 
-__all__ = [
-    'CYAN', 'CYAN_HI', 'MAGENTA', 'CYAN_DIM', 'WHITE', 'GRAY', 'RESET',
-    'GLYPHS', 'render_glyph', 'render_line', 'build_banner',
-    'show', 'render_rich',
+__all__ = ['show', 'render_rich', 'build_banner']
+
+# ── Logo pixel data ──────────────────────────────────────────────
+# Convergence diamond — 17 cols × 11 rows
+# Top/bottom arms: River blue (primary) — flowing convergence
+# Inner accent ring: Lavender (accent) — creative intensity
+# Convergence rows: Leaf green (success) — natural growth inward
+# White core: the crux — the decisive point where all paths meet
+
+BL = '█'
+
+MARK = [
+    #         0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16
+    ['.','.','.','.','.','B','B','.','.','.','.','.','.','.','.','.','.'],  # top apex
+    ['.','.','.','.','B','B','.','B','B','.','.','.','.','.','.','.','.'],  # shoulders
+    ['.','.','.','B','.','.','.','.','.','B','.','.','.','.','.','.','.'],  # spreading
+    ['.','.','B','.','.','R','R','.','R','R','.','.','B','.','.','.','.'],  # accent ring
+    ['.','B','R','R','.','G','.','G','.','R','R','.','B','.','.','.','.'],  # convergence
+    ['.','B','R','.','G','.','W','.','G','.','R','.','B','.','.','.','.'],  # WHITE CORE
+    ['.','B','R','R','.','G','.','G','.','R','R','.','B','.','.','.','.'],  # convergence
+    ['.','.','B','.','.','R','R','.','R','R','.','.','B','.','.','.','.'],  # accent ring
+    ['.','.','.','B','.','.','.','.','.','B','.','.','.','.','.','.','.'],  # narrowing
+    ['.','.','.','.','B','B','.','B','B','.','.','.','.','.','.','.','.'],  # shoulders
+    ['.','.','.','.','.','B','B','.','.','.','.','.','.','.','.','.','.'],  # bottom apex
 ]
 
-# ── ANSI colors ────────────────────────────────────────
-CYAN     = '\033[96m'
-CYAN_HI  = '\033[38;2;0;255;255m'
-MAGENTA  = '\033[95m'
-CYAN_DIM = '\033[36m'
-WHITE    = '\033[97m'
-GRAY     = '\033[90m'
-DIM_GRAY = '\033[2m'
-RESET    = '\033[0m'
-
-# ── Block chars ───────────────────────────────────────
-BLK  = '\u2588'   # full block  █
-HALF = '\u2580'   # upper half  ▀ (for glow underline)
-
-# ── Pixel glyph definitions (5 wide × 7 tall) ─────────
-# '#' = filled cyan, '@' = bright highlight, '.' = empty
-GLYPHS: dict[str, list[str]] = {
-    'A': [
-        '.#.@.',
-        '#...#',
-        '#...#',
-        '#####',
-        '#@.@#',
-        '#...#',
-        '#...#',
-    ],
-    'G': [
-        '.####',
-        '#....',
-        '#....',
-        '#.##@',
-        '#...#',
-        '#...#',
-        '.####',
-    ],
-    'N': [
-        '##..#',
-        '#@.@#',
-        '#@..#',
-        '#...#',
-        '#..@#',
-        '#..@#',
-        '#..@#',
-    ],
-    'E': [
-        '#####',
-        '#....',
-        '#....',
-        '####@',
-        '#....',
-        '#....',
-        '#####',
-    ],
-    'S': [
-        '.####',
-        '#....',
-        '#....',
-        '.###@',
-        '....#',
-        '....#',
-        '####.',
-    ],
+# Color key → Rich markup style names (Organic palette)
+_C = {
+    'B': '[#5BA3CF]',   # River blue (primary) — flowing
+    'R': '[#C084FC]',   # Lavender (accent) — creative
+    'G': '[#7BC47F]',   # Leaf green (success) — growth
+    'W': '[#FFFFFF]',   # White — the crux core
+}
+_C_CLOSE = {
+    'B': '[/#5BA3CF]',
+    'R': '[/#C084FC]',
+    'G': '[/#7BC47F]',
+    'W': '[/#FFFFFF]',
 }
 
 
-def render_glyph(glyph_lines: list[str]) -> list[str]:
-    """Render a single glyph to ANSI-colored block strings."""
-    rendered = []
-    for row in glyph_lines:
-        line = ''
-        for ch in row:
-            if ch == '#':
-                line += CYAN + BLK + RESET
-            elif ch == '@':
-                line += CYAN_HI + BLK + RESET
-            else:
-                line += ' '
-        rendered.append(line)
-    return rendered
+def _render_rich():
+    """Render convergence diamond as Rich markup lines."""
+    return [''.join((_C[c] + BL + _C_CLOSE[c]) if c in _C else ' ' for c in row)
+            for row in MARK]
 
 
-def render_line(letters: str, row: int) -> str:
-    """Render one row across multiple letters with 1-col gaps."""
-    parts = []
-    for i, ch in enumerate(letters.upper()):
-        glyph = GLYPHS.get(ch)
-        if not glyph:
-            parts.append('     ')  # 5-col placeholder for unknown chars
-            continue
-        glyph_row = glyph[row] if row < len(glyph) else '.....'
-        for px in glyph_row:
-            if px == '#':
-                parts.append(CYAN + BLK + RESET)
-            elif px == '@':
-                parts.append(CYAN_HI + BLK + RESET)
-            else:
-                parts.append(' ')
-        if i < len(letters) - 1:
-            parts.append(' ')  # 1-col gap between letters
-    return ''.join(parts)
+# CRUX wordmark glyphs — bold, decisive, terminal-native
+# # → primary blue, @ → accent purple (serif/detail)
+
+GLYPHS = {
+    'C': ['..##..', '.#..@.', '#....', '#....', '#....', '.#..@.', '..##..'],
+    'R': ['####..', '#..@#', '#..##', '####.', '#.@..', '#..@#', '#..##'],
+    'U': ['#...#', '#...#', '#...#', '#...#', '#...#', '#..@#', '.####.'],
+    'X': ['#...#', '#..@.', '.#.#.', '..@..', '.#.#.', '.@..#', '#...#'],
+}
 
 
-def build_banner(
-    version: str | None = None,
-    tools: int | str | None = None,
-    skills: int | str | None = None,
-    provider: str | None = None,
-) -> str:
-    """Build the full ANSI banner string (does not print).
+def build_banner(v="v5.0", t="52", s="45", provider=None):
+    """Build full banner as Rich markup string (single source of truth).
 
-    version/tools/skills 默认 None → 运行时从 core.capability.get_banner_counts()
-    取真实计数（单一真源），避免本文件再硬编码会与 tools.json/skills/ 失同步的数字。
-    传入显式值则覆盖（仅用于测试或离线预览）。统计失败时显示 '?' 而非 0，
-    让「统计失败」与「真的没有」在视觉上可区分。
-
-    Returns a multi-line string ready for print().
+    Returns Rich markup suitable for console.print().
     """
-    if version is None or tools is None or skills is None:
-        try:
-            from core.capability import get_banner_counts
-            real = get_banner_counts()
-        except Exception:
-            real = {"version": None, "tools": None, "skills": None}
-        if version is None:
-            version = real.get("version") or "v?"
-        if tools is None:
-            tools = real.get("tools") if real.get("tools") is not None else "?"
-        if skills is None:
-            skills = real.get("skills") if real.get("skills") is not None else "?"
+    from ui.theme import COLORS, ICONS, LAYOUT
 
-    letters = 'AGNES'
     rows = []
-    gap = '    '  # 4-col gap between logo and text
+    P = '        '
 
-    # ── Build text annotations per row ──
-    # Map: logo row index → right-side text
-    sep = GRAY + '\u2500' * 32 + RESET
+    # Convergence diamond mark
+    for line in _render_rich():
+        rows.append(f'{P}{line}')
 
-    right_text: dict[int, str] = {
-        0: f'{CYAN_HI}AGNES{RESET} {MAGENTA}S{CYAN}m{MAGENTA}a{CYAN}r{MAGENTA}t{CYAN} {GRAY}Studio{RESET}',
-        1: '',
-        2: sep,
-        3: f'{GRAY}{version}  \u00b7  {tools} tools  \u00b7  {skills} skills{RESET}',
-        4: f'{GRAY}Codex parity  \u00b7  \u81ea\u7531\u521b\u4f5c  \u00b7  \u65e0\u9650\u5236{RESET}',
-        5: '',
-        6: '',
-    }
-    if provider:
-        right_text[5] = f'{CYAN_DIM}active: {provider}{RESET}'
-
-    # ── Render pixel rows ──
-    for row in range(7):
-        pixel = render_line(letters, row)
-        text = right_text.get(row, '')
-        rows.append(f'{gap}{pixel}  {text}')
-
-    # ── Magenta neon glow underline ──
-    glow = MAGENTA + HALF * (5 * 5 + 4) + RESET  # 29 half-blocks
-    rows.append(f'{gap}{glow}')
-
-    # ── Separator ──
     rows.append('')
 
-    # ── Command hints footer ──
-    cmds = f'{GRAY}/self audit  \u00b7  /team review  \u00b7  /agent  \u00b7  /deploy vercel{RESET}'
-    rows.append(f'{gap}{cmds}')
-
-    return '\n'.join(rows)
-
-
-def show(version: str | None = None, tools: int | str | None = None,
-         skills: int | str | None = None, provider: str | None = None) -> None:
-    """Display the full cyberpunk Agnes logo to stdout.
-
-    默认参数留空时由 build_banner() 运行时取真实计数（见其 docstring）。
-    """
-    print()
-    print(build_banner(version, tools, skills, provider))
-    print()
-
-
-def render_rich(version: str | None = None, tools: int | str | None = None,
-               skills: int | str | None = None, provider: str | None = None) -> str:
-    """Render the logo as Rich markup string (for console.print).
-
-    Uses Rich color tags instead of raw ANSI codes.
-    默认参数留空时取真实计数（与 build_banner 同源，见其 docstring）。
-    """
-    if version is None or tools is None or skills is None:
-        try:
-            from core.capability import get_banner_counts
-            real = get_banner_counts()
-        except Exception:
-            real = {"version": None, "tools": None, "skills": None}
-        if version is None:
-            version = real.get("version") or "v?"
-        if tools is None:
-            tools = real.get("tools") if real.get("tools") is not None else "?"
-        if skills is None:
-            skills = real.get("skills") if real.get("skills") is not None else "?"
-
-    letters = 'AGNES'
-    rows = []
-    gap = '    '
-
-    sep = '[dim]\u2500' * 32 + '[/]'
-
-    right_text: dict[int, str] = {
-        0: '[bright_cyan]AGNES[/] [magenta]S[/][cyan]m[/][magenta]a[/][cyan]r[/][magenta]t[/][cyan] [dim]Studio[/]',
-        1: '',
-        2: sep,
-        3: f'[dim]{version}  \u00b7  {tools} tools  \u00b7  {skills} skills[/]',
-        4: '[dim]Codex parity  \u00b7  \u81ea\u7531\u521b\u4f5c  \u00b7  \u65e0\u9650\u5236[/]',
-        5: '',
-        6: '',
-    }
-    if provider:
-        right_text[5] = f'[cyan]active: {provider}[/]'
-
-    for row in range(7):
+    # CRUX wordmark: # → primary blue, @ → accent purple
+    for ri in range(7):
         parts = []
-        for i, ch in enumerate(letters.upper()):
-            glyph = GLYPHS.get(ch)
-            if not glyph:
-                parts.append('     ')
-                continue
-            glyph_row = glyph[row] if row < len(glyph) else '.....'
-            for px in glyph_row:
+        for ch in 'CRUX':
+            gr = GLYPHS.get(ch, ['......'] * 7)[ri]
+            for px in gr:
                 if px == '#':
-                    parts.append('[cyan]\u2588[/]')
+                    parts.append(f'[{COLORS["primary"]}]{BL}[/]')
                 elif px == '@':
-                    parts.append('[bright_cyan]\u2588[/]')
+                    parts.append(f'[{COLORS["accent"]}]{BL}[/]')
                 else:
                     parts.append(' ')
-            if i < len(letters) - 1:
-                parts.append(' ')
-        text = right_text.get(row, '')
-        rows.append(f'{gap}{"".join(parts)}  {text}')
+            parts.append(' ')
+        rows.append(f'{P}    {"".join(parts)}')
 
-    # Magenta glow underline
-    glow_width = 5 * 5 + 4
-    _glow_str = '\u2580' * glow_width
-    rows.append(f'{gap}[magenta]{_glow_str}[/]')
     rows.append('')
-
-    cmds = '[dim]/self audit  \u00b7  /team review  \u00b7  /agent  \u00b7  /deploy vercel[/]'
-    rows.append(f'{gap}{cmds}')
+    rows.append(f'{P}[dim]{LAYOUT["separator_char"] * LAYOUT["separator_len"]}[/]')
+    rows.append(f'{P}[{COLORS["success"]}]{ICONS["success"]}[/] [dim]{v}  ·  {t} tools  ·  {s} skills[/]')
+    rows.append('')
 
     return '\n'.join(rows)
 
 
-# ── Standalone demo ────────────────────────────────────
+def show(v=None, t=None, s=None, provider=None):
+    """Print the CRUX Studio banner to terminal using Rich Console."""
+    from ui.theme import console
+    console.print()
+    console.print(build_banner(
+        v or "v5.0",
+        str(t) if t else "52",
+        str(s) if s else "45",
+        provider,
+    ))
+    console.print()
+
+
+def render_rich(v=None, t=None, s=None, provider=None):
+    """Return the CRUX Studio banner as Rich markup string (for embedding)."""
+    return build_banner(
+        v or "v5.0",
+        str(t) if t else "52",
+        str(s) if s else "45",
+        provider,
+    )
+
+
 if __name__ == '__main__':
-    import sys
-    _reconfigure = getattr(sys.stdout, 'reconfigure', None)
-    if _reconfigure is not None:
-        _reconfigure(encoding='utf-8')
     show()

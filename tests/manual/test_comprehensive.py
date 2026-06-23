@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Agnes Smart Studio — 全方位测试套件
+"""CRUX Studio — 全方位测试套件
 
 运行:
     python test_comprehensive.py          # 全部测试
@@ -200,7 +200,7 @@ def test_edge_cases():
 def test_ai_conversation():
     print(f"\n{C}═══ 3. AI 对话测试 ═══{X}")
 
-    from core.client import AgnesClient
+    from core.client import CruxClient
     from core.chat import ChatSession
 
     with open("models.json", encoding="utf-8") as f:
@@ -208,7 +208,7 @@ def test_ai_conversation():
     provider = cfg["providers"][cfg["active"]]
     api_key = os.getenv(cfg["active"].upper() + "_API_KEY") or provider["api_key"]
 
-    client = AgnesClient(api_key=api_key, base_url=provider["base_url"])
+    client = CruxClient(api_key=api_key, base_url=provider["base_url"])
     session = ChatSession(client, default_model=provider["models"]["pro"])
     session.model = provider["models"]["pro"]
 
@@ -272,7 +272,7 @@ def test_ai_conversation():
 def test_ai_tool_calling():
     print(f"\n{C}═══ 4. AI 工具调用测试 ═══{X}")
 
-    from core.client import AgnesClient
+    from core.client import CruxClient
     from core.chat import ChatSession
 
     with open("models.json", encoding="utf-8") as f:
@@ -280,7 +280,7 @@ def test_ai_tool_calling():
     provider = cfg["providers"][cfg["active"]]
     api_key = os.getenv(cfg["active"].upper() + "_API_KEY") or provider["api_key"]
 
-    client = AgnesClient(api_key=api_key, base_url=provider["base_url"])
+    client = CruxClient(api_key=api_key, base_url=provider["base_url"])
     session = ChatSession(client, default_model=provider["models"]["pro"])
     session.model = provider["models"]["pro"]
 
@@ -426,7 +426,7 @@ def test_config_integrity():
 # ═══════════════════════════════════════════════════════════════════
 def main():
     print(f"{C}{'=' * 60}{X}")
-    print(f"{C}  Agnes Smart Studio — 全方位测试套件{X}")
+    print(f"{C}  CRUX Studio — 全方位测试套件{X}")
     print(f"{C}{'=' * 60}{X}")
 
     start = time.time()

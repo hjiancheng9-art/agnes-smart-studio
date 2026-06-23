@@ -3,9 +3,9 @@ requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agnes-smart-studio"
+name = "crux-smart-studio"
 version = "5.0.0"
-description = "Agnes AI 智能工作台 — 75+工具 · 编程/生图/视频/智能体/部署/项目管理"
+description = "CRUX Studio — AI-native creative + coding platform · 75+ tools"
 requires-python = ">=3.10"
 dependencies = [
     "httpx>=0.27",
@@ -18,7 +18,7 @@ dependencies = [
     "playwright>=1.40",
     "edge-tts>=6.1",
 ]
-authors = [{name = "Agnes Studio"}]
+authors = [{name = "CRUX Studio"}]
 readme = "README.md"
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -29,9 +29,9 @@ classifiers = [
 ]
 
 [project.scripts]
-agnes = "agnes_studio:main"
-agnes-chat = "agnes_studio:main_chat"
-agnes-query = "agnes_studio:main_query"
+crux = "crux_studio:main"
+crux-chat = "crux_studio:main_chat"
+crux-query = "crux_studio:main_query"
 
 # 扁平多包布局：显式声明只收代码包，避免 setuptools 自动发现把
 # output/assets/skills 等非代码目录当成 Python 包（flat-layout 多包会直接报错）。
@@ -39,10 +39,10 @@ agnes-query = "agnes_studio:main_query"
 include = ["core*", "ui*", "engines*", "pipeline*", "utils*"]
 
 [tool.setuptools]
-py-modules = ["agnes_studio"]
+py-modules = ["crux_studio"]
 
 [project.urls]
-Homepage = "https://github.com/user/agnes-smart-studio"
+Homepage = "https://github.com/user/crux-smart-studio"
 
 [tool.pytest.ini_options]
 # 只收集 tests/ 顶层单元测试（mock，不打真实 API）。
@@ -64,7 +64,7 @@ target-version = "py310"
 extend-exclude = ["scripts/scratch", "tests/manual", "output", ".codebuddy"]
 
 [tool.ruff.lint.per-file-ignores]
-"agnes_studio.py" = ["E402"]
+"crux_studio.py" = ["E402"]
 "core/brain_data/__init__.py" = ["E402"]
 "core/comfyui_tools.py" = ["E402"]
 "core/web_api.py" = ["E402"]

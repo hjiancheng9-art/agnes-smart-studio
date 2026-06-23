@@ -8,7 +8,7 @@ Commands are defined as CommandDef dataclass instances. Each has:
   category  — group for /help rendering (创意生产/对话/任务工程/诊断配置)
   long_desc — detailed description for /all
   aliases   — extra keys that map to same handler (e.g. ["quit", "q"] for exit)
-  handler   — method name on AgnesCLI (without "self.") or None for inline handlers
+  handler   — method name on CruxCLI (without "self.") or None for inline handlers
 
 To add a new command:
   1. Add a CommandDef to COMMANDS below (or call register()).
@@ -54,7 +54,7 @@ class CommandDef:
 
 COMMANDS: list[CommandDef] = [
     # ── 创意生产 ──
-    CommandDef('showrun', '/showrun', '<目标>', 'Agnes总导演全自动创意流水线', '创意生产',
+    CommandDef('showrun', '/showrun', '<目标>', 'CRUX 总导演全自动创意流水线', '创意生产',
                '全自动：理解创意→拆解资产→分镜→生成→质检→导出',
                handler='_chat_showrun'),
     CommandDef('video',   '/video',   '<描述>', '直接生成视频（支持图生视频）', '创意生产',

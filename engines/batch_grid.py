@@ -25,7 +25,7 @@ import random
 from datetime import datetime
 from pathlib import Path
 
-from core.client import AgnesClient
+from core.client import CruxClient
 from core.config import OUTPUT_DIR
 from core.validator import validate_image_size, validate_model, validate_seed
 from engines.text_to_image import TextToImageEngine
@@ -62,7 +62,7 @@ def _grid_cols(count: int) -> int:
 class BatchVariantEngine:
     """批量变种生成 + 网格预览"""
 
-    def __init__(self, client: AgnesClient):
+    def __init__(self, client: CruxClient):
         self.client = client
         self.t2i = TextToImageEngine(client)
 

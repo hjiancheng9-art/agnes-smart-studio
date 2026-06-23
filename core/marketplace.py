@@ -186,7 +186,7 @@ class LocalRegistry(MarketplaceAdapter):
             name=raw.get("name", ""),
             description=raw.get("description", "")[:120],
             version=raw.get("version", "1.0.0"),
-            author=raw.get("author", "Agnes Studio"),
+            author=raw.get("author", "CRUX Studio"),
             icon=raw.get("icon", ""),
             category=cat,
             tags=raw.get("tags", []),
@@ -420,7 +420,7 @@ class CodeBuddyAdapter(MarketplaceAdapter):
         return self._to_package(raw) if raw else None
 
     def download(self, name: str, version: str = "") -> Path:
-        """从本地市场复制技能到 skills/ 目录，转换为 Agnes 格式。
+        """从本地市场复制技能到 skills/ 目录，转换为 CRUX 格式。
 
         把 SKILL.md 转为 .skill.json：
           name, description, version, author, prompt → 合并到 skill.json
@@ -438,7 +438,7 @@ class CodeBuddyAdapter(MarketplaceAdapter):
         parts = content.split("---", 2)
         body = parts[2].strip() if len(parts) >= 3 else content
 
-        # 构建 Agnes 格式的 skill.json
+        # 构建 CRUX 格式的 skill.json
         skill_data = {
             "name": raw.get("name", name),
             "description": raw.get("description_zh") or raw.get("description", ""),
@@ -451,7 +451,7 @@ class CodeBuddyAdapter(MarketplaceAdapter):
             "tags": [],
         }
 
-        # 写入 Agnes skills/ 目录
+        # 写入 CRUX skills/ 目录
         dest = SKILLS_DIR / f"{name}.skill.json"
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(json.dumps(skill_data, indent=2, ensure_ascii=False),

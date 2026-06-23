@@ -1,7 +1,7 @@
 # 架构设计
 
 ```
-入口层    agnes_studio.py (CLI参数) / launcher.py (图形菜单) / launch.bat
+入口层    crux_studio.py (CLI参数) / launcher.py (图形菜单) / launch.bat
    ↓
 UI层     ui/cli.py (交互+聊天) / ui/display.py (渲染)
    ↓
@@ -15,7 +15,7 @@ UI层     ui/cli.py (交互+聊天) / ui/display.py (渲染)
    ↓
 客户端   core/client.py (API+重试+流式)
    ↓
-API     Agnes AI / DeepSeek / Kimi (通过 models.json 切换)
+API     CRUX AI / DeepSeek / Kimi (通过 models.json + /provider 切换)
 ```
 
 ## 三条数据流

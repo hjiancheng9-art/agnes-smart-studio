@@ -1,7 +1,7 @@
 """GitHub 工具集 — 基于 gh CLI，零限制访问 GitHub 全部能力。
 
-agnes DNA: AI-native platform, 不设外部能力边界。
-所有工具通过 gh CLI 2.x 调用，token 由 gh 自行管理，agnes 不碰。
+CRUX DNA: AI-native platform, 不设外部能力边界。
+所有工具通过 gh CLI 2.x 调用，token 由 gh 自行管理，CRUX 不碰。
 
 9 个工具覆盖：搜索(5合1) / 仓库管理 / 文件浏览 / README / Release / Issue / PR / 万能 API。
 

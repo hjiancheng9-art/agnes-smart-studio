@@ -75,9 +75,9 @@ def _register_defaults():
     models = [
         ModelInfo(
             id="agnes-1.5-flash",
-            name="Agnes 1.5 Flash",
-            provider_id="agnes",
-            provider_name="Agnes AI",
+            name="CRUX 1.5 Flash",
+            provider_id="crux",
+            provider_name="CRUX AI",
             description="多模态图片理解，快，无自动生成",
             supports_vision=True,
             tier="light",
@@ -85,9 +85,9 @@ def _register_defaults():
         ),
         ModelInfo(
             id="agnes-2.0-flash",
-            name="Agnes 2.0 Flash",
-            provider_id="agnes",
-            provider_name="Agnes AI",
+            name="CRUX 2.0 Flash",
+            provider_id="crux",
+            provider_name="CRUX AI",
             description="深度思考 + AI自动生图/视频，无图片理解",
             supports_tools=True,
             supports_thinking=True,
@@ -295,7 +295,7 @@ class ProviderManager:
         self.config_path = config_path or (ROOT / "models.json")
         self.providers: dict = {}
         self.fallback_priority: list[str] = []
-        self.state = ProviderState(active="agnes")
+        self.state = ProviderState(active="crux")
 
     def load(self):
         """Load provider configuration from models.json."""
@@ -308,7 +308,7 @@ class ProviderManager:
         self.providers = cfg.get("providers", {})
         fallback_cfg = cfg.get("fallback", {})
         self.fallback_priority = fallback_cfg.get("priority", [])
-        self.state.active = cfg.get("active", "agnes")
+        self.state.active = cfg.get("active", "crux")
 
     def save_active(self) -> str:
         """Persist current active provider to models.json."""
@@ -328,8 +328,8 @@ class ProviderManager:
             self.state.active = provider_id
 
     def create_client(self, provider_id: str | None = None):
-        """Create an AgnesClient for the given or active provider."""
-        from core.client import AgnesClient
+        """Create an CruxClient for the given or active provider."""
+        from core.client import CruxClient
 
         pid = provider_id or self.state.active
         if pid not in self.providers:
@@ -350,7 +350,7 @@ class ProviderManager:
                 return self.create_client(fallback)
             raise NoProviderAvailable(f"No API key for provider '{pid}'")
 
-        return AgnesClient(api_key=api_key, base_url=provider["base_url"])
+        return CruxClient(api_key=api_key, base_url=provider["base_url"])
 
     def handle_failure(self, failed_provider: str, status_code: int) -> tuple[object | None, str | None]:
         """Called when a provider request fails. Returns (new_client, new_provider_id)

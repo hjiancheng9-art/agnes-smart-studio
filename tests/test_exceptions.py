@@ -4,55 +4,55 @@ import pytest
 
 
 class TestExceptionHierarchy:
-    """All custom exceptions inherit from AgnesError."""
+    """All custom exceptions inherit from CruxError."""
 
     def test_base_is_exception(self):
-        from core.exceptions import AgnesError
-        assert issubclass(AgnesError, Exception)
+        from core.exceptions import CruxError
+        assert issubclass(CruxError, Exception)
 
     def test_infrastructure_subclasses(self):
         from core.exceptions import (
-            AgnesError, ConfigError, ProviderError, NetworkError, EncodingError,
+            CruxError, ConfigError, ProviderError, NetworkError, EncodingError,
         )
         for cls in (ConfigError, ProviderError, NetworkError, EncodingError):
-            assert issubclass(cls, AgnesError)
+            assert issubclass(cls, CruxError)
 
     def test_tool_subclasses(self):
         from core.exceptions import (
-            AgnesError, ToolError, ToolTimeoutError, EngineError, GenerationError,
+            CruxError, ToolError, ToolTimeoutError, EngineError, GenerationError,
         )
-        assert issubclass(ToolError, AgnesError)
+        assert issubclass(ToolError, CruxError)
         assert issubclass(ToolTimeoutError, ToolError)
-        assert issubclass(EngineError, AgnesError)
+        assert issubclass(EngineError, CruxError)
         assert issubclass(GenerationError, EngineError)
 
     def test_agent_subclasses(self):
-        from core.exceptions import AgnesError, AgentError, SessionError, MessageError
+        from core.exceptions import CruxError, AgentError, SessionError, MessageError
         for cls in (AgentError, SessionError, MessageError):
-            assert issubclass(cls, AgnesError)
+            assert issubclass(cls, CruxError)
 
     def test_self_subclasses(self):
-        from core.exceptions import AgnesError, AuditError, EvolutionError, FixError
+        from core.exceptions import CruxError, AuditError, EvolutionError, FixError
         for cls in (AuditError, EvolutionError, FixError):
-            assert issubclass(cls, AgnesError)
+            assert issubclass(cls, CruxError)
 
     def test_skill_subclasses(self):
-        from core.exceptions import AgnesError, SkillError, MarketplaceError
-        assert issubclass(SkillError, AgnesError)
-        assert issubclass(MarketplaceError, AgnesError)
+        from core.exceptions import CruxError, SkillError, MarketplaceError
+        assert issubclass(SkillError, CruxError)
+        assert issubclass(MarketplaceError, CruxError)
 
     def test_security_subclasses(self):
-        from core.exceptions import AgnesError, SandboxError, SecurityError
-        assert issubclass(SandboxError, AgnesError)
-        assert issubclass(SecurityError, AgnesError)
+        from core.exceptions import CruxError, SandboxError, SecurityError
+        assert issubclass(SandboxError, CruxError)
+        assert issubclass(SecurityError, CruxError)
 
 
 class TestExceptionAttributes:
-    """AgnesError carries optional code and message."""
+    """CruxError carries optional code and message."""
 
     def test_message_only(self):
-        from core.exceptions import AgnesError
-        e = AgnesError("something broke")
+        from core.exceptions import CruxError
+        e = CruxError("something broke")
         assert str(e) == "something broke"
         assert e.message == "something broke"
         assert e.code is None
@@ -71,14 +71,14 @@ class TestExceptionAttributes:
         assert isinstance(e, Exception)
 
     def test_empty_message(self):
-        from core.exceptions import AgnesError
-        e = AgnesError()
+        from core.exceptions import CruxError
+        e = CruxError()
         assert str(e) == ""
         assert e.message == ""
 
     def test_catch_by_base(self):
-        from core.exceptions import AgnesError, ToolError
-        with pytest.raises(AgnesError):
+        from core.exceptions import CruxError, ToolError
+        with pytest.raises(CruxError):
             raise ToolError("boom")
 
     def test_catch_specific(self):

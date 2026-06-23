@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul 2>&1
-title Agnes Smart Studio v5.0 - Codex Parity
+title CRUX Studio v5.0 - Codex Parity
 cd /d "%~dp0"
 
 :: --- 1. Find Python ---
@@ -24,9 +24,9 @@ if not exist ".env" (
         copy .env.example .env >nul 2>&1
     ) else (
         (
-            echo # Agnes AI API key
-            echo AGNES_API_KEY=sk-your-api-key-here
-            echo AGNES_BASE_URL=https://apihub.agnes-ai.com/v1
+            echo # CRUX AI API key
+            echo CRUX_API_KEY=sk-your-api-key-here
+            echo CRUX_BASE_URL=https://apihub.agnes-ai.com/v1
         ) > .env
     )
 )
@@ -37,11 +37,11 @@ setlocal enableDelayedExpansion
 if errorlevel 1 (
     echo.
     echo   [◈] API Key not configured
-    echo       Edit .env and set AGNES_API_KEY
+    echo       Edit .env and set CRUX_API_KEY
     echo.
-    set /p "KEY=   [◈] Enter AGNES_API_KEY: "
+    set /p "KEY=   [◈] Enter CRUX_API_KEY: "
     if not "!KEY!"=="" (
-        %PY% -c "import os; p='.env'; lines=open(p,encoding='utf-8').read().splitlines() if os.path.exists(p) else []; lines=[('AGNES_API_KEY=' + os.environ['KEY']) if l.startswith('AGNES_API_KEY=') else l for l in lines]; lines.append('AGNES_API_KEY=' + os.environ['KEY']) if not any(x.startswith('AGNES_API_KEY=') for x in lines) else None; open(p,'w',encoding='utf-8').write(chr(10).join(lines) + chr(10))"
+        %PY% -c "import os; p='.env'; lines=open(p,encoding='utf-8').read().splitlines() if os.path.exists(p) else []; lines=[('CRUX_API_KEY=' + os.environ['KEY']) if l.startswith('CRUX_API_KEY=') or l.startswith('AGNES_API_KEY=') else l for l in lines]; lines.append('CRUX_API_KEY=' + os.environ['KEY']) if not any(x.startswith('CRUX_API_KEY=') or x.startswith('AGNES_API_KEY=') for x in lines) else None; open(p,'w',encoding='utf-8').write(chr(10).join(lines) + chr(10))"
     )
 )
 endlocal
@@ -57,7 +57,7 @@ if errorlevel 1 (
 echo.
 echo   ╔══════════════════════════════════════════════╗
 echo   ║                                              ║
-echo   ║   ◈ AGNES Smart Studio v5.0                  ║
+echo   ║   ◈ CRUX Studio v5.0                        ║
 echo   ║     Codex Parity · AI-Native Creative       ║
 echo   ║                                              ║
 echo   ╚══════════════════════════════════════════════╝

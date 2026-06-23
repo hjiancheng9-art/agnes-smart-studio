@@ -43,8 +43,8 @@ class TestMCPCommandRegistration:
         assert handler == "_chat_mcp"
 
     def test_mcp_handler_reachable_on_cli(self):
-        from ui.cli import AgnesCLI
-        assert hasattr(AgnesCLI, "_chat_mcp")
+        from ui.cli import CruxCLI
+        assert hasattr(CruxCLI, "_chat_mcp")
 
     def test_total_command_count_includes_mcp(self):
         from core.commands import get_all
@@ -134,10 +134,10 @@ class TestChatMCPHandler:
     """_chat_mcp handler 各子命令的正确响应。"""
 
     def _make_cli_and_session(self):
-        """构造 AgnesCLI 和 mock session。"""
-        from ui.cli import AgnesCLI
+        """构造 CruxCLI 和 mock session。"""
+        from ui.cli import CruxCLI
 
-        cli = AgnesCLI.__new__(AgnesCLI)
+        cli = CruxCLI.__new__(CruxCLI)
         # mock 掉 _prompt_user / print_mode_banner 避免真实交互
         cli._prompt_user = MagicMock(return_value="")
         cli.print_mode_banner = MagicMock()

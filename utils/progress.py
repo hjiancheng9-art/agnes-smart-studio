@@ -1,24 +1,27 @@
-"""进度追踪 - Rich进度条 + 进度防回退"""
+"""Progress tracking — Rich progress bar + anti-rollback"""
 
 from rich.progress import Progress
+
+from ui.theme import LAYOUT
 
 __all__ = ['VideoProgressTracker', 'create_progress_callback']
 
 
-
 def create_progress_callback(progress_obj: Progress, task_id):
-    """创建视频进度回调函数，内置进度防回退"""
+    """Create video progress callback with anti-rollback."""
     last_known_progress = [0]
 
     def _callback(status: str, progress: int, data: dict):
-        # 进度防回退：API 偶发返回简化响应，保持上次已知进度
+        # Anti-rollback: API may return simplified responses, keep last known progress
         if progress > 0:
             last_known_progress[0] = max(last_known_progress[0], progress)
         else:
             progress = last_known_progress[0]
 
-        # 更新进度条
-        progress_obj.update(task_id, completed=progress, description=f"[cyan]{status}[/]")
+        # Update progress bar with organic theme color
+        progress_obj.update(task_id, completed=progress, description=f"[{LAYOUT['bar_style']}]{status}[/]")
+
+    return _callback
 
     return _callback
 

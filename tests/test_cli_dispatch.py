@@ -1,7 +1,7 @@
-"""Integration test: AgnesCLI Mixin composition + dispatch table integrity.
+"""Integration test: CruxCLI Mixin composition + dispatch table integrity.
 
 This is the regression guard for the cli.py Mixin refactor. It verifies that:
-1. AgnesCLI can be imported (all Mixins compose without MRO errors)
+1. CruxCLI can be imported (all Mixins compose without MRO errors)
 2. Every handler in the dispatch table resolves via getattr
 3. Core lifecycle methods exist (__init__, run, _chat, _stream_chat, etc.)
 4. The command count matches expectations
@@ -17,17 +17,17 @@ sys.path.insert(0, str(ROOT))
 
 class TestCLIComposition:
     def test_agnes_cli_importable(self):
-        """AgnesCLI 必须能导入（Mixin 组合无 MRO 冲突）。"""
-        from ui.cli import AgnesCLI
-        assert AgnesCLI is not None
+        """CruxCLI 必须能导入（Mixin 组合无 MRO 冲突）。"""
+        from ui.cli import CruxCLI
+        assert CruxCLI is not None
 
     def test_all_dispatch_handlers_reachable(self):
         """dispatch 表里每个 handler 必须能 getattr 到真实方法。"""
-        from ui.cli import AgnesCLI
+        from ui.cli import CruxCLI
         from core.commands import build_dispatch_table
 
         table = build_dispatch_table()
-        methods = {m for m in dir(AgnesCLI) if not m.startswith("__")}
+        methods = {m for m in dir(CruxCLI) if not m.startswith("__")}
 
         missing = []
         for cmd_key, (handler_name, _cmd_def) in table.items():
@@ -37,11 +37,11 @@ class TestCLIComposition:
             if handler_name not in methods:
                 missing.append((cmd_key, handler_name))
 
-        assert not missing, f"{len(missing)} handlers missing from AgnesCLI: {missing}"
+        assert not missing, f"{len(missing)} handlers missing from CruxCLI: {missing}"
 
     def test_core_methods_exist(self):
         """核心生命周期方法必须存在。"""
-        from ui.cli import AgnesCLI
+        from ui.cli import CruxCLI
         required = [
             "__init__", "close", "__enter__", "__exit__",
             "run", "_chat",
@@ -55,21 +55,21 @@ class TestCLIComposition:
             "_t2i", "_pipeline",
         ]
         for m in required:
-            assert hasattr(AgnesCLI, m), f"AgnesCLI missing method: {m}"
+            assert hasattr(CruxCLI, m), f"CruxCLI missing method: {m}"
 
     def test_mixin_inheritance_chain(self):
-        """AgnesCLI 必须继承所有 7 个 Mixin。"""
-        from ui.cli import AgnesCLI
+        """CruxCLI 必须继承所有 7 个 Mixin。"""
+        from ui.cli import CruxCLI
         from ui.mixins import (
             SharedMixin, InlineCommandsMixin, CreativeCommandsMixin,
             EngineeringCommandsMixin, GitCommandsMixin, DiagCommandsMixin,
             GeneratorsMenuMixin,
         )
-        mro = AgnesCLI.__mro__
+        mro = CruxCLI.__mro__
         for mixin in [SharedMixin, InlineCommandsMixin, CreativeCommandsMixin,
                       EngineeringCommandsMixin, GitCommandsMixin, DiagCommandsMixin,
                       GeneratorsMenuMixin]:
-            assert mixin in mro, f"{mixin.__name__} not in AgnesCLI MRO"
+            assert mixin in mro, f"{mixin.__name__} not in CruxCLI MRO"
 
     def test_command_count_at_least_30(self):
         """命令总数至少 30（防止意外删除命令）。"""
@@ -78,8 +78,8 @@ class TestCLIComposition:
 
     def test_dispatch_constants_defined(self):
         """dispatch 返回值常量必须在 SharedMixin 定义。"""
-        from ui.cli import AgnesCLI
-        assert hasattr(AgnesCLI, "_DISPATCH_OK")
-        assert hasattr(AgnesCLI, "_DISPATCH_UNKNOWN")
-        assert hasattr(AgnesCLI, "_DISPATCH_EXIT")
-        assert AgnesCLI._DISPATCH_EXIT == "EXIT"
+        from ui.cli import CruxCLI
+        assert hasattr(CruxCLI, "_DISPATCH_OK")
+        assert hasattr(CruxCLI, "_DISPATCH_UNKNOWN")
+        assert hasattr(CruxCLI, "_DISPATCH_EXIT")
+        assert CruxCLI._DISPATCH_EXIT == "EXIT"

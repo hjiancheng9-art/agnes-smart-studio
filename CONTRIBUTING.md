@@ -1,6 +1,6 @@
-# 贡献规范 — Agnes Smart Studio
+# 贡献规范 — CRUX Studio
 
-本文档约定 Agnes 项目的代码提交与协作规范。所有贡献者（含 AI 智能体）必须遵守。
+本文档约定 CRUX Studio 项目的代码提交与协作规范。所有贡献者（含 AI 智能体）必须遵守。
 
 ---
 
@@ -120,7 +120,7 @@ test_search                    ⚠️  过于宽泛
 
 ## 5. AI 智能体贡献者特别注意
 
-当 AI（含 Agnes 自身）通过 `github_write_file` 等工具修改本项目代码时：
+当 AI（含 CRUX 自身）通过 `github_write_file` 等工具修改本项目代码时：
 
 1. **禁止直接推 main** — `github_write_file` 不带 `branch` 参数会被安全守卫拦截。必须推 feature 分支。
 2. **必须配套测试** — 代码改动必须同时提交对应测试。
@@ -140,6 +140,6 @@ test_search                    ⚠️  过于宽泛
 
 ## 7. 版本
 
-当前版本：`v5.0.0`（见 `agnes_manifest.json`）
+当前版本：`v5.0.0`（见 `crux_manifest.json`）
 
-版本号变更在 `core/version.py` + `agnes_manifest.json` 同步更新。
+版本号变更在 `core/version.py` + `crux_manifest.json` 同步更新。

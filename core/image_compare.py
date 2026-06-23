@@ -355,7 +355,7 @@ def execute_compare_ai_judge(image_paths, goal: str = "",
     返回结构化 JSON（scores / winner / reason / per_dimension_winner），
     可直接喂给 memory.record_comparison 反哺进化系统。
 
-    vision_client: AgnesClient 实例；为 None 时按 CLI 注入（由调用方传入）。
+    vision_client: CruxClient 实例；为 None 时按 CLI 注入（由调用方传入）。
     """
     paths = _parse_paths(image_paths)
     err = _check_images(paths)
@@ -380,7 +380,7 @@ def execute_compare_ai_judge(image_paths, goal: str = "",
 
     if vision_client is None:
         return json.dumps({
-            "error": "ai_judge 需要传入 vision_client（AgnesClient 实例）",
+            "error": "ai_judge 需要传入 vision_client（CruxClient 实例）",
             "success": False,
         }, ensure_ascii=False)
 

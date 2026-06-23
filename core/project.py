@@ -214,7 +214,7 @@ def run_team(client, team_type: str, context: str, model: str = "deepseek-v4-pro
     注意：当前为顺序调用（非真正并行的子进程），未来可升级为 asyncio。
 
     Args:
-        client: AgnesClient 实例
+        client: CruxClient 实例
         team_type: "review" / "debug" / "feature"
         context: 分析上下文（代码、日志、需求描述等，最多 3000 字符）
         model: LLM 模型

@@ -336,11 +336,11 @@ def transcribe_audio(audio_path: str) -> str:
 # =====================================================================
 
 def imagegen(prompt: str, size: str = "1024x1024", style: str = "") -> dict:
-    """Generate image via independent channel (uses Agnes API if available)."""
+    """Generate image via independent channel (uses CRUX API if available)."""
     try:
-        from core.client import AgnesClient
+        from core.client import CruxClient
         from engines.text_to_image import TextToImageEngine
-        client = AgnesClient()
+        client = CruxClient()
         engine = TextToImageEngine(client)
         enhanced = prompt
         if style:

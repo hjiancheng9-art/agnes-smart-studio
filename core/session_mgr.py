@@ -1,4 +1,4 @@
-"""Session manager -- named, persistent sessions across Agnes restarts.
+"""Session manager -- named, persistent sessions across CRUX restarts.
 
 Saves full message history with metadata. Supports save, list, restore, delete.
 """
@@ -15,7 +15,7 @@ __all__ = [
 ROOT = Path(__file__).resolve().parent.parent
 SESSIONS_DIR = ROOT / "output" / "sessions_data"
 
-logger = logging.getLogger("agnes.session_mgr")
+logger = logging.getLogger("crux.session_mgr")
 
 
 class SessionManager:

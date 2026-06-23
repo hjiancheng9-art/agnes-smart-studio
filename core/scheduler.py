@@ -1,4 +1,4 @@
-"""Built-in task scheduler for agnes-smart-studio agent.
+"""Built-in task scheduler for crux-smart-studio agent.
 
 Provides ScheduledTask dataclass, Scheduler class with a daemon background
 thread, parse_cron helper, and ToolRegistry-compatible definitions

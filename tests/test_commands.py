@@ -2,7 +2,7 @@
 
 Protects the v2 command system refactor (commands.py CommandDef + build_dispatch_table)
 from regressions. Every command handler in the table must resolve to a real method
-on AgnesCLI via getattr reflection.
+on CruxCLI via getattr reflection.
 """
 import sys
 from pathlib import Path

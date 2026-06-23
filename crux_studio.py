@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Agnes Smart Studio 主入口"""
+"""CRUX Studio main entry point"""
 import sys
 from pathlib import Path
+
+from ui.theme import COLORS, ICONS, console
 
 # ── UTF-8 encoding setup: must be first import ──
 
@@ -27,16 +29,16 @@ if _stale_err.exists():
 
 def main():
     # ── 子命令预处理 ──────────────────────────────────────
-    # 支持 agnes gen|video|chat|query|check|version 子命令，
+    # 支持 crux gen|video|chat|query|check|version 子命令，
     # 同时完全保留 -q/-v/-c/-p/--video-id 等短选项（向后兼容所有 bat/sh 脚本）。
     # 子命令会被翻译成等价的 argv flags，然后走下面的 argparse 流程。
     _SUBCOMMANDS = {
-        "gen":     lambda rest: ["-q", *rest],          # agnes gen "猫" → -q "猫"
+        "gen":     lambda rest: ["-q", *rest],          # crux gen "猫" → -q "猫"
         "image":   lambda rest: ["-q", *rest],          # 别名
-        "video":   lambda rest: ["-q", *rest, "-v"],    # agnes video "海边" → -q "海边" -v
+        "video":   lambda rest: ["-q", *rest, "-v"],    # crux video "海边" → -q "海边" -v
         "chat":    lambda rest: ["-c", *rest],
         "pipeline":lambda rest: ["-q" if rest else "", "-p", *rest] if rest else ["-p", *rest],
-        "query":   lambda rest: ["--video-id", *rest],  # agnes query <id> → --video-id <id>
+        "query":   lambda rest: ["--video-id", *rest],  # crux query <id> → --video-id <id>
         "check":   lambda rest: ["--check", *rest],
     }
 
@@ -48,17 +50,17 @@ def main():
         else:
             sys.argv = [sys.argv[0], *_SUBCOMMANDS[sub](rest)]
     elif len(sys.argv) >= 2 and sys.argv[1] in ("version", "--version", "-V"):
-        # agnes version — 不需要 API Key，直接打印并退出
+        # crux version — 不需要 API Key，直接打印并退出
         from core.version import __version__
-        print(f"Agnes Smart Studio v{__version__}")
+        print(f"CRUX Studio v{__version__}")
         sys.exit(0)
     elif len(sys.argv) >= 2 and sys.argv[1] in ("init", "login"):
-        # agnes init / agnes login — 写全局 ~/.agnes/auth.json，对标 codex 首次引导。
+        # crux init / crux login — 写全局 ~/.crux/auth.json，对标 codex 首次引导。
         # 不需要 API Key（这就是配置它的命令），独立处理直接退出。
         _run_init()
         sys.exit(0)
     elif len(sys.argv) >= 2 and sys.argv[1] == "mcp-serve":
-        # agnes mcp-serve — 启动 MCP server（stdio JSON-RPC），让 Agnes 作为
+        # crux mcp-serve — 启动 MCP server（stdio JSON-RPC），让 CRUX 作为
         # 与 codex/claude/codebuddy 对等的第四象被调用。绕过 API Key 强制校验
         # （server 自己从 config / auth.json 读取，与 init/version 同为早退分支）。
         # 程序化调用，不进 REPL，不出现在 launcher 菜单里。
@@ -67,16 +69,16 @@ def main():
         sys.exit(0)
 
     if not SETTINGS.api_key:
-        print("错误: 未设置 AGNES_API_KEY")
-        print("  解决: 运行  agnes init    写入全局配置（一次配置，任意目录可用）")
-        print("  或:   在当前目录建 .env 文件，加 AGNES_API_KEY=你的key")
-        print("  或:   设系统环境变量 AGNES_API_KEY")
+        print("错误: 未设置 CRUX_API_KEY（兼容 AGNES_API_KEY）")
+        print("  解决: 运行  crux init    写入全局配置（一次配置，任意目录可用）")
+        print("  或:   在当前目录建 .env 文件，加 CRUX_API_KEY=你的key")
+        print("  或:   设系统环境变量 CRUX_API_KEY")
         sys.exit(1)
 
     import argparse
-    p = argparse.ArgumentParser(description="Agnes 编程助手 — 写代码/修bug/架构 · 视频制片")
+    p = argparse.ArgumentParser(description="CRUX Studio — code/create/deploy")
     p.add_argument("--check", action="store_true", help="启动前运行健康检查并退出")
-    p.add_argument("-c", "--chat", action="store_true", help="进入 Agnes 编程助手（支持 /制片 切换视频模式）")
+    p.add_argument("-c", "--chat", action="store_true", help="进入 CRUX 编程助手（支持 /制片 切换视频模式）")
     p.add_argument("-q", "--quick", type=str, help="快速模式描述")
     p.add_argument("-v", "--video", action="store_true", help="生成视频")
     p.add_argument("-p", "--pipeline", action="store_true", help="一站式流水线")
@@ -129,21 +131,21 @@ def main():
             results = run_all()
             crit = critical_failures(results)
             if crit:
-                print("\n  \033[91m=== 启动检查发现问题 ===\033[0m")
+                console.print("\n  [bold {0}]=== Startup check found issues ===[/]".format(COLORS["error"]))
                 print_report(results, show_ok=False)
-                print("  \033[93m建议先运行: python agnes_studio.py --check\033[0m\n")
+                console.print("  [{0}]Run: python crux_studio.py --check[/]\n".format(COLORS["warning"]))
             else:
                 # 只在有 warning 时才输出
                 warnings = [(c, m) for c, ok, m in results if not ok]
                 if warnings:
                     for _cat, msg in warnings:
-                        print(f"  \033[93m!\033[0m {msg}")
+                        console.print("  [{0}]![/] {1}".format(COLORS["warning"], msg))
         except (ImportError, AttributeError, OSError):
             pass
 
-        from ui.cli import AgnesCLI
+        from ui.cli import CruxCLI
         try:
-            with AgnesCLI() as cli:
+            with CruxCLI() as cli:
                 try:
                     cli._chat()
                 except Exception:
@@ -164,9 +166,9 @@ def main():
         _quick(args)
     elif args.menu:
         # 旧版功能菜单（--menu 触发）
-        from ui.cli import AgnesCLI
+        from ui.cli import CruxCLI
         try:
-            with AgnesCLI() as cli:
+            with CruxCLI() as cli:
                 cli.run()
         except Exception:
             import traceback
@@ -177,9 +179,9 @@ def main():
             err_path.write_text(err, encoding="utf-8")
     else:
         # 默认入口：直接进入 Chat 模式
-        from ui.cli import AgnesCLI
+        from ui.cli import CruxCLI
         try:
-            with AgnesCLI() as cli:
+            with CruxCLI() as cli:
                 try:
                     cli._chat()
                 except Exception:
@@ -199,10 +201,10 @@ def main():
 
 def _check_task(args):
     """查询视频任务状态"""
-    from core.client import AgnesClient
+    from core.client import CruxClient
     from ui.display import show_info, show_success, show_warning, show_video_result
 
-    with AgnesClient() as client:
+    with CruxClient() as client:
         video_id = args.video_id
         if not video_id:
             show_warning("必须提供 --video-id 查询视频状态，不要使用 task_id")
@@ -237,7 +239,7 @@ def _check_task(args):
                 show_info(f"使用 --video-id {video_id} 可再次查询，或加 --timeout 等待完成")
 
 def _quick(args):
-    from core.client import AgnesClient, ContentPolicyError
+    from core.client import CruxClient, ContentPolicyError
     from core.brain import SmartBrain
     from engines.text_to_image import TextToImageEngine
     from engines.video import VideoEngine
@@ -245,7 +247,7 @@ def _quick(args):
     from ui.display import show_image_result, show_video_result, show_pipeline_result, show_info, show_warning
     from utils import history
 
-    with AgnesClient() as client:
+    with CruxClient() as client:
         prompt = args.quick
         enhance = not args.no_enhance
         creative = args.creative
@@ -272,7 +274,7 @@ def _quick(args):
                 show_info(f"视频任务已提交! ID: {display_id}")
                 query_id = vid_result.get('video_id', '')
                 if query_id:
-                    show_info(f"使用以下命令查询: python agnes_studio.py --video-id {query_id}")
+                    show_info(f"使用以下命令查询: python crux_studio.py --video-id {query_id}")
                 else:
                     show_warning("未返回 video_id，请检查任务响应")
             else:
@@ -317,7 +319,7 @@ def _quick(args):
                 show_info(f"任务已提交! ID: {display_id}")
                 query_id = data.get('video_id', '')
                 if query_id:
-                    show_info(f"使用以下命令查询: python agnes_studio.py --video-id {query_id}")
+                    show_info(f"使用以下命令查询: python crux_studio.py --video-id {query_id}")
                 else:
                     show_warning("未返回 video_id，请检查任务响应")
                 history.add_record("text_to_video", args.quick, "agnes-video-v2.0", data)
@@ -337,7 +339,7 @@ def _quick(args):
                     show_warning(f"超时({timeout}s)，当前进度 {data.get('progress', 0):.0f}%")
                     query_id = data.get('video_id', '')
                     if query_id:
-                        show_info(f"使用以下命令继续等待: python agnes_studio.py --video-id {query_id}")
+                        show_info(f"使用以下命令继续等待: python crux_studio.py --video-id {query_id}")
                     else:
                         show_warning("未返回 video_id，无法自动查询")
                 else:
@@ -380,34 +382,34 @@ def _quick(args):
             history.add_record("text_to_image", args.quick, data.get("model",""), data)
 
 def _run_init():
-    """agnes init / agnes login — 写全局 ~/.agnes/auth.json。
+    """crux init / crux login — 写全局 ~/.crux/auth.json。
 
-    对标 codex 首次运行引导：一次配置，任意目录敲 agnes 都能用。
+    对标 codex 首次运行引导：一次配置，任意目录敲 crux 都能用。
     交互式读取 API Key（不在命令行明文回显，避免 shell history 泄露）。
     """
     from core.config import AUTH_FILE, SETTINGS, save_global_auth
 
     print()
-    print("  Agnes 全局配置初始化")
+    print("  CRUX 全局配置初始化")
     print(f"  将写入: {AUTH_FILE}")
-    print("  (此文件存 API Key，仅本机可读，配置后任意目录均可启动 agnes)")
+    print("  (此文件存 API Key，仅本机可读，配置后任意目录均可启动 crux)")
     print()
 
     # 预填：已有 key 时显示尾号，回车保留
     existing = SETTINGS.api_key
     if existing:
         print(f"  当前已配置 key: ...{existing[-8:]}")
-        key = input("  输入新 AGNES_API_KEY (回车保留现有): ").strip()
+        key = input("  输入新 CRUX_API_KEY (回车保留现有): ").strip()
         if not key:
             key = existing
     else:
-        key = input("  请输入 AGNES_API_KEY: ").strip()
+        key = input("  请输入 CRUX_API_KEY: ").strip()
 
     if not key:
         print("  未输入 key，已取消。")
         return
 
-    base_url = input(f"  AGNES_BASE_URL (回车用默认 https://apihub.agnes-ai.com/v1): ").strip()
+    base_url = input(f"  CRUX_BASE_URL (回车用默认 https://apihub.agnes-ai.com/v1): ").strip()
     base_url = base_url or "https://apihub.agnes-ai.com/v1"
 
     try:
@@ -418,12 +420,12 @@ def _run_init():
 
     print()
     print(f"  ✓ 已保存到 {path}")
-    print(f"  ✓ 现在在任意目录敲 agnes 都能用。")
+    print(f"  ✓ 现在在任意目录敲 crux 都能用。")
     print()
 
 
 def main_chat():
-    """命令行入口：直接进入 Agnes 编程助手"""
+    """命令行入口：直接进入 CRUX 编程助手"""
     import sys
     sys.argv = [sys.argv[0], "-c"]
     main()

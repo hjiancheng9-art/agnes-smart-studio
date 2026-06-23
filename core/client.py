@@ -1,4 +1,4 @@
-"""Agnes API 统一客户端 - 支持 OpenAI 兼容接口、视频代理、双通道查询、自动重试"""
+"""CRUX API 统一客户端 - 支持 OpenAI 兼容接口、视频代理、双通道查询、自动重试"""
 
 import json
 import time
@@ -9,7 +9,7 @@ from collections.abc import Iterator
 from .config import SETTINGS
 
 
-__all__ = ["AgnesClient", "ContentPolicyError"]
+__all__ = ["CruxClient", "ContentPolicyError"]
 class ContentPolicyError(Exception):
     """内容安全过滤异常 - 提示词触发 API 安全策略"""
     def __init__(self, message: str, detail: dict | None = None) -> None:
@@ -17,8 +17,8 @@ class ContentPolicyError(Exception):
         self.detail = detail or {}
 
 
-class AgnesClient:
-    """Agnes AI API 统一客户端，封装文本/图像/视频三类端点"""
+class CruxClient:
+    """CRUX AI API 统一客户端，封装文本/图像/视频三类端点"""
 
     def __init__(
         self,

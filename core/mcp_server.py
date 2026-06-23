@@ -1,11 +1,11 @@
-"""MCP (Model Context Protocol) Server for agnes-smart-studio.
+"""MCP (Model Context Protocol) Server for crux-smart-studio.
 
-让 Agnes 作为与 codex / claude / codebuddy 对等的"第四象"被调用：
-三象执行 `claude mcp add agnes -- agnes mcp-serve` 后，即可在自己的会话里
-直接调用 Agnes 的生成能力（生图/生视频/创意流水线）以及 ToolRegistry 里的全量工具。
+让 CRUX 作为与 codex / claude / codebuddy 对等的"第四象"被调用：
+三象执行 `claude mcp add crux -- crux mcp-serve` 后，即可在自己的会话里
+直接调用 CRUX 的生成能力（生图/生视频/创意流水线）以及 ToolRegistry 里的全量工具。
 
 Architecture:
-    MCPServer        - stdio JSON-RPC 2.0 主循环，路由 MCP 方法到 Agnes 能力
+    MCPServer        - stdio JSON-RPC 2.0 主循环，路由 MCP 方法到 CRUX 能力
     run_mcp_server   - 入口，构造无头 ChatSession + ToolRegistry 并启动 server
 
 Protocol (与 core/mcp_client.py 对称):
@@ -18,8 +18,8 @@ Protocol (与 core/mcp_client.py 对称):
         · registry 注册的工具 (pipeline / comfyui / notebook / audio / tools.json)
         · 高风险工具确认（MCP 模式拒绝，无人工确认回路）
 
-认证：复用 core.config.SETTINGS（环境变量优先，回退 ~/.agnes/auth.json），
-与 agnes_studio.py 现有逻辑一致，零额外代码。
+认证：复用 core.config.SETTINGS（环境变量优先，回退 ~/.crux/auth.json），
+与 crux_studio.py 现有逻辑一致，零额外代码。
 """
 
 import base64
@@ -51,11 +51,11 @@ def _server_info() -> dict:
         from core.version import __version__
     except ImportError:
         __version__ = "unknown"
-    return {"name": "agnes-smart-studio", "version": __version__}
+    return {"name": "crux-smart-studio", "version": __version__}
 
 
 class MCPServer:
-    """stdio JSON-RPC 2.0 MCP server，把 Agnes 能力暴露给三象。
+    """stdio JSON-RPC 2.0 MCP server，把 CRUX 能力暴露给三象。
 
     单实例处理一个 client 的请求流。主循环 readline → 解析 → 路由 → 单行响应。
     """
@@ -79,7 +79,7 @@ class MCPServer:
 
     def run(self) -> None:
         """stdio 主循环：逐行读请求 → 路由 → 写单行响应。EOF 即退出。"""
-        self._log("agnes mcp-serve ready (stdin=JSON-RPC, stdout=responses, stderr=log)")
+        self._log("crux mcp-serve ready (stdin=JSON-RPC, stdout=responses, stderr=log)")
         for raw in sys.stdin:
             line = raw.strip()
             if not line:
@@ -156,7 +156,7 @@ class MCPServer:
         }
 
     def _tools_list(self, params: dict) -> dict:
-        """tools/list — 返回 Agnes 全量工具（BUILTIN + registry），转 MCP shape。"""
+        """tools/list — 返回 CRUX 全量工具（BUILTIN + registry），转 MCP shape。"""
         return {"tools": self._all_tools()}
 
     def _tools_call(self, params: dict) -> dict:
@@ -177,14 +177,14 @@ class MCPServer:
         if not isinstance(args, dict):
             raise _JSONRPCError(ERR_INVALID_PARAMS, "'arguments' must be an object")
 
-        # 递归防护（第二道防线）：MCP bridge tools 是 Agnes 作为 Client 的
+        # 递归防护（第二道防线）：MCP bridge tools 是 CRUX 作为 Client 的
         # "出向"能力，禁止作为 Server 入向被调用，否则 A→B→A 死循环。
         # _all_tools() 已过滤不让调用方看到，这里显式拒绝兜底。
         if self._is_bridge_tool(name):
             return self._tool_error(
                 f"Tool '{name}' is an MCP bridge tool (outbound only). "
                 f"It cannot be invoked through the MCP server interface to "
-                f"prevent recursion (A→B→A). Use it from within an Agnes "
+                f"prevent recursion (A→B→A). Use it from within a CRUX "
                 f"chat session instead.",
                 is_error=True,
             )
@@ -223,7 +223,7 @@ class MCPServer:
                     "name": p.name,
                     "mimeType": (mimetypes.guess_type(str(p))[0]
                                  or "application/octet-stream"),
-                    "description": f"Agnes generated asset: {p.name}",
+                    "description": f"CRUX generated asset: {p.name}",
                 })
                 if len(resources) >= 100:  # 上限保护，避免目录爆炸
                     break
@@ -243,7 +243,7 @@ class MCPServer:
             OUTPUT_DIR.resolve().relative_to(path.parent)  # 抛 ValueError 即越界
         except (ImportError, ValueError):
             raise _JSONRPCError(ERR_INVALID_PARAMS,
-                                "URI must point inside Agnes output/ dir")
+                                "URI must point inside CRUX output/ dir")
         if not path.is_file():
             raise _JSONRPCError(ERR_INVALID_PARAMS, f"File not found: {uri}")
 
@@ -281,7 +281,7 @@ class MCPServer:
         缓存：initialize 后工具集稳定，避免每次 tools/list 都重算。
 
         递归防护（第一道防线）：过滤 MCP bridge tools (mcp_*)。
-        这些是 Agnes 作为 Client 调外部 server 的"出向"能力，若作为 Server
+        这些是 CRUX 作为 Client 调外部 server 的"出向"能力，若作为 Server
         暴露回去，调用方（如 claude）可能反向调它们 → A 调 B 时 B 又调 A，
         死循环 + 子进程指数膨胀。第二道防线在 _tools_call() 显式拒绝。
         """
@@ -441,7 +441,7 @@ class MCPServer:
 
     def _log(self, msg: str) -> None:
         """日志写 stderr（不污染 stdout 的 JSON-RPC 流）。"""
-        sys.stderr.write(f"[agnes-mcp] {msg}\n")
+        sys.stderr.write(f"[crux-mcp] {msg}\n")
         sys.stderr.flush()
 
 
@@ -457,7 +457,7 @@ class _JSONRPCError(Exception):
 # ── 入口 ────────────────────────────────────────────────────
 
 def run_mcp_server(argv: list[str] | None = None) -> None:
-    """agnes mcp-serve 入口。
+    """crux mcp-serve 入口。
 
     构造无头 ChatSession + ToolRegistry，启动 MCPServer.run()。
     认证由 core.config.SETTINGS 自动处理（环境变量优先 → auth.json 回退）。
@@ -465,26 +465,26 @@ def run_mcp_server(argv: list[str] | None = None) -> None:
     argv = argv or []
 
     # config import 触发 _load_auth_file()（core/config.py:27-46），
-    # 自动把 ~/.agnes/auth.json 补进环境变量。SETTINGS.api_key 即可用。
+    # 自动把 ~/.crux/auth.json 补进环境变量。SETTINGS.api_key 即可用。
     from core.config import SETTINGS
 
     if not SETTINGS.api_key:
         sys.stderr.write(
-            "[agnes-mcp] ERROR: AGNES_API_KEY not set. "
-            "Run `agnes init` or export AGNES_API_KEY.\n")
+            "[crux-mcp] ERROR: CRUX_API_KEY not set. "
+            "Run `crux init` or export CRUX_API_KEY.\n")
         sys.exit(1)
 
     # 构造无头 ChatSession（core/chat.py:145-152）
     # brain / t2i / vid 全从 client 派生，_dispatch_tool_impl 可直接调
-    from core.client import AgnesClient
+    from core.client import CruxClient
     from core.chat import ChatSession
     from core.tools import get_registry
 
-    client = AgnesClient(api_key=SETTINGS.api_key, base_url=SETTINGS.base_url)
+    client = CruxClient(api_key=SETTINGS.api_key, base_url=SETTINGS.base_url)
     session = ChatSession(client)
     # 载入全量工具 + MCP 桥接（四象融合：双向可达）
-    # mcp=True 注入 mcp_list_servers / mcp_call_tool 等，让三象调 Agnes 时
-    # Agnes 也能反向调其他 MCP server 的工具
+    # mcp=True 注入 mcp_list_servers / mcp_call_tool 等，让三象调 CRUX 时
+    # CRUX 也能反向调其他 MCP server 的工具
     session.tools.load(mcp=True)
 
     # 干净退出：SIGTERM / 键盘中断
