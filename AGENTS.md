@@ -12,11 +12,24 @@ Agnes Smart Studio v5.0.0 — AI-native creative + coding platform
 - Engines: engines/text_to_image.py, engines/image_to_image.py, engines/video.py
 - Knowledge: utils/memory.py (user memory), utils/history.py
 
+## Extended Architecture (v5.0 新增子系统)
+核心四件套之外，v5.0 引入了以下架构级子系统（均为 core/*.py 独立模块）：
+- 编排/执行层: core/orchestra.py (多源能力协调), core/multi_agent.py (并行子智能体), core/executor.py (自主 plan-execute-verify 循环), core/showrunner.py (创意流水线导演)
+- 智能体基础设施: core/sandbox.py (命令执行守卫，配合 core/tools.py 的 shell 执行点), core/hooks.py (生命周期钩子), core/provider.py (供应商自动 failover + 模型注册表), core/resilience.py + core/recovery.py (错误恢复 + 失败剧本)
+- 代码智能: core/code_intel.py (AST/符号索引/语义搜索), core/rag.py (TF-IDF 语义检索), core/lsp.py (LSP 客户端)
+- 记忆/会话: core/semantic_memory.py (跨会话语义记忆), core/session_mgr.py (命名持久化会话)
+- 可观测/质量: core/observability.py (tracing/spans/metrics), core/cost_tracker.py (Token/预算追踪), core/audit_runner.py (统一诊断), core/eval_harness.py (智能体质量基准), core/self_audit.py (自审计)
+- 持久化/调度: core/task_manager.py (持久任务), core/scheduler.py (内置定时), core/pipeline_state.py (流水线状态/质量门)
+- 外部集成: core/browser_tools.py (网页生图生视频), core/git_tools.py + core/git_workflow.py (Git 自动化), core/mcp_client.py (MCP 协议), core/web_api.py (FastAPI REST 接口), core/codex_engines.py + core/codex_tools.py (Codex 引擎与工具集)
+
 ## Key Capabilities
-- 30 Commands: auto-registered in core/commands.py (COMMANDS list), /help auto-generated
+- 32 Commands: auto-registered in core/commands.py (COMMANDS list), /help auto-generated
 - Toggle-based feature switching (非 mode 架构):
   - code_mode / agent_mode: ChatSession.toggle_code_mode() / toggle_agent_mode()
   - Skill loading: ChatSession.load_skill() / unload_skill() (showrunner / comfyui-bridge)
+  - 扩展工具集 toggle: /extend <notebook|audio|browser|list> 统一管理；/browser 快捷开关
+  - 花费追踪: /cost [budget <usd>|reset] + send_stream 超预算提示
+  - 质量基准: /eval [json] 跑 EvalEngine 基准集（表格/JSON 输出）
   - 每次切换通过 _build_system_prompt() 重建 system prompt
 - Showrunner: /showrun <goal> full creative pipeline (plan->decompose->storyboard->generate->QC)
 - Marketplace: 733 skills (45 local + 688 CodeBuddy), search/install/auto-discover
@@ -44,6 +57,8 @@ Agnes Smart Studio v5.0.0 — AI-native creative + coding platform
 - ui/cli.py: AgnesCLI 主壳，组合 7 个 Mixin
 - ui/mixins/shared.py: SharedMixin._stream_chat() / _mode_hint() (line 193)
 - ui/mixins/creative.py: _chat_showrun() handler (注意: 非 _chat_showrunner)
+- ui/mixins/inline.py: _inline_browser handler (/browser 快捷开关)
+- ui/mixins/diag.py: _chat_cost / _chat_eval / _chat_extend handlers (/cost /eval /extend)
 - agnes_manifest.json: system evolution state snapshot
 - assets/agnes_logo*.svg: terminal flat pixel logo, terminal_logo.py for CLI display
 
@@ -55,14 +70,15 @@ Agnes Smart Studio v5.0.0 — AI-native creative + coding platform
 - 流式渲染: 必须用 ui.render.StreamingRenderer，禁止直接 import rich.live.Live（守卫测试会拦）
 
 ## Current State
-- 30 commands, 52 tools, 45 local skills, 733 marketplace skills
-- Toggle-based: code_mode / agent_mode / skill (showrunner / comfyui-bridge)
+- 32 commands, 52 tools, 45 local skills, 733 marketplace skills
+- Core modules: 64 .py files in core/ (含 v5.0 新增编排/智能体/可观测子系统，见上方 Extended Architecture)
+- Toggle-based: code_mode / agent_mode / skill (showrunner / comfyui-bridge) / extend (notebook/audio/browser)
 - Terminal logo displays on startup via ui/terminal_logo.py
 - llama-server with CUDA 13.3 on RTX 4060 Ti for local Qwen3-Coder 30B
-- Test baseline: 927 passed, 2 skipped
+- Test baseline: 1774 tests passing (数字随测试增减自动变化，不再硬编码)
 </INSTRUCTIONS>
 
 # currentDate
-Today's date is 2026-06-21.
+Today's date is 2026-06-22.
 
 IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.
