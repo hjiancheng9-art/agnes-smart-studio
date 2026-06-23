@@ -112,6 +112,9 @@ COMMANDS: list[CommandDef] = [
     CommandDef('prompt_assign','/prompt-assign','<变体ID>','指定 Prompt Lab 变体', '诊断配置',
                long_desc='手动分配变体到当前会话，替代随机分配',
                handler='_chat_prompt_assign'),
+    CommandDef('cost',    '/cost',    '[budget <usd>|reset]', '查看花费统计 / 设日预算 / 清零', '诊断配置',
+               long_desc='无参=汇总；budget <usd>=设日预算上限；reset=清零归档',
+               handler='_chat_cost'),
 ]
 
 # Special skill-load entries for /help display

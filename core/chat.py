@@ -369,6 +369,13 @@ class ChatSession:
                     model=model_id, max_tokens=2048,
                 )
                 content = r["choices"][0]["message"]["content"] or ""
+                # #6 成本追踪：视觉调用按 token 计费（text kind），usage 来自 API 返回
+                try:
+                    from core.cost_tracker import record_usage
+                    record_usage(model=model_id, kind="text",
+                                 usage=r.get("usage"), label="vision")
+                except (ImportError, OSError, KeyError, TypeError):
+                    pass
                 return content
             except (KeyError, IndexError) as e:
                 last_reason = f"返回格式异常: {e}"
@@ -397,6 +404,15 @@ class ChatSession:
         - tool 调度（pro）：流式累积 → 检测 tool_calls → 执行 engine → 喂回 → 二次流式
         - 纯文本：流式 yield ('text', 增量)
         """
+        # #6 预算守卫：会话开始时检查今日花费，超限/接近上限仅提示不阻断
+        try:
+            from core.cost_tracker import check_budget
+            warning = check_budget()
+            if warning:
+                yield ("info", warning)
+        except (ImportError, OSError):
+            pass
+
         # ── 多模态分支：有图片 → 走独立视觉客户端 ──
         if image_url:
             self.messages.append({
@@ -635,6 +651,13 @@ def _dispatch_tool_impl(self, name: str, args_json: str) -> tuple[str, list[tupl
             else:
                 data = self.t2i.generate(prompt=fp, negative_prompt=neg)
             side.append(("image", data))
+            # #6 成本追踪：记录本次图像调用花费（失败时静默降级，不阻断生成）
+            try:
+                from core.cost_tracker import record_usage
+                record_usage(model="agnes-image-2.1-flash", kind="image",
+                             label="generate_image", call_count=1)
+            except (ImportError, OSError):
+                pass
             return f"图片已生成并保存: {data.get('local_path', '')}", side
         except (RuntimeError, OSError, ValueError) as e:
             return f"图片生成失败: {e}", side
@@ -661,6 +684,13 @@ def _dispatch_tool_impl(self, name: str, args_json: str) -> tuple[str, list[tupl
                     negative_prompt=neg, timeout=120.0)
 
             side.append(("video", data))
+            # #6 成本追踪：视频调用按次计费（较贵），记录花费供 /cost 查询
+            try:
+                from core.cost_tracker import record_usage
+                record_usage(model="agnes-video-v2.0", kind="video",
+                             label="generate_video", call_count=1)
+            except (ImportError, OSError):
+                pass
             # 检测超时状态
             if data.get("status") == "timeout":
                 vid = data.get("video_id", "")

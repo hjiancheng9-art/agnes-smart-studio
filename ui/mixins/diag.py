@@ -698,3 +698,100 @@ class DiagCommandsMixin:
         else:
             show_warning(f"变体 '{arg}' 不存在或未激活")
             console.print("  [dim]用 /prompt-stats variants 查看可用变体[/]")
+
+    def _chat_cost(self, session: "ChatSession", arg: str):
+        """花费统计 — 查看 / 设日预算 / 清零
+
+        无参或 summary：显示总花费 + 今日 + 按模型分桶表格
+        budget <usd>：设置每日预算上限（美元），超过时 send_stream 开头会提示
+        budget off：关闭预算
+        reset：清零累计花费并归档旧日志
+        """
+        try:
+            from core.cost_tracker import (
+                get_summary, get_daily_breakdown, set_budget, reset_cost,
+            )
+        except ImportError:
+            show_warning("cost_tracker 模块不可用")
+            return
+
+        arg = arg.strip()
+        parts = arg.split() if arg else []
+
+        # ── budget <usd>|off ──
+        if parts and parts[0] == "budget":
+            if len(parts) < 2:
+                show_info("用法: /cost budget <usd>  或  /cost budget off")
+                return
+            if parts[1].lower() == "off":
+                set_budget(None)
+                show_success("已关闭每日预算上限")
+                return
+            try:
+                usd = float(parts[1])
+            except ValueError:
+                show_warning(f"无效金额: {parts[1]}（应为数字，如 1.5）")
+                return
+            if usd <= 0:
+                show_warning("预算必须大于 0")
+                return
+            set_budget(usd)
+            show_success(f"已设置每日预算上限: ${usd:.2f}")
+            return
+
+        # ── reset ──
+        if parts and parts[0] == "reset":
+            result = reset_cost()
+            show_success(f"已清零花费统计（此前累计 ${result.get('cleared_total', 0):.4f}），旧日志已归档")
+            return
+
+        # ── 默认：汇总表格 ──
+        summary = get_summary()
+        total = summary.get("total_cost", 0.0)
+        calls = summary.get("total_calls", 0)
+        today = summary.get("by_day", {})
+        # 今日花费
+        from datetime import datetime
+        today_key = datetime.now().strftime("%Y-%m-%d")
+        today_cost = today.get(today_key, {}).get("cost", 0.0)
+
+        # 预算状态行
+        budget = summary.get("budget")
+        if budget and "daily" in budget:
+            daily_limit = budget["daily"]
+            pct = (today_cost / daily_limit * 100) if daily_limit > 0 else 0
+            budget_line = f"  [dim]日预算: ${daily_limit:.2f} · 今日已用 {pct:.0f}%[/]"
+        else:
+            budget_line = "  [dim]日预算: 未设置（/cost budget <usd> 设置）[/]"
+
+        console.print(Panel(
+            f"[bold green]总花费: ${total:.4f}[/]  ·  [cyan]{calls} 次调用[/]  ·  [yellow]今日: ${today_cost:.4f}[/]\n"
+            + budget_line,
+            title="[bold]💰 花费统计[/]", border_style=COLORS["primary"]))
+
+        # 按模型分桶表格
+        by_model = summary.get("by_model", {})
+        if by_model:
+            tbl = Table(title="按模型", show_lines=False, border_style="dim")
+            tbl.add_column("模型", style="cyan")
+            tbl.add_column("花费", justify="right", style="green")
+            tbl.add_column("调用次数", justify="right")
+            for model, info in sorted(by_model.items(),
+                                      key=lambda x: x[1].get("cost", 0), reverse=True):
+                tbl.add_row(model, f"${info.get('cost', 0):.4f}",
+                            str(info.get("calls", 0)))
+            console.print(tbl)
+
+        # 最近 7 天趋势
+        daily = get_daily_breakdown(7)
+        if daily:
+            dtbl = Table(title="最近 7 天", show_lines=False, border_style="dim")
+            dtbl.add_column("日期", style="cyan")
+            dtbl.add_column("花费", justify="right", style="green")
+            dtbl.add_column("调用次数", justify="right")
+            for d in daily:
+                dtbl.add_row(d["day"], f"${d.get('cost', 0):.4f}",
+                              str(d.get("calls", 0)))
+            console.print(dtbl)
+
+        console.print("  [dim]子命令: /cost budget <usd> · /cost budget off · /cost reset[/]")
