@@ -9,7 +9,7 @@ Mixin 层次（MRO 顺序，从基础到具体）:
     CreativeCommandsMixin — /showrun /vision /skill + _chat_generate
     EngineeringCommandsMixin — /plan /sub /compress /project /team /deploy /todo /refactor
     GitCommandsMixin      — /commit /changelog
-    DiagCommandsMixin     — /self /audit /rules /automate /provider /evolve /know /model
+    DiagCommandsMixin     — /self /audit /rules /automate /provider /evolve /know /model /cost /eval /extend
     GeneratorsMenuMixin   — 菜单生成组 _t2i/_i2i/_t2v/_i2v/_pipeline/_hist/_tmpl
 """
 

@@ -111,11 +111,12 @@ class InlineCommandsMixin:
                 "/evolve            /know methods",
                 "/tools             /self check|fix",
                 "/eval [json]       /browser",
-                "/cost [budget]     /clear /exit",
+                "/extend <nb|au>    /cost [budget]",
+                "/clear             /exit",
             ]
             text = "\n".join(cmds)
             cap = "AI auto" if current_model == "agnes-2.0-flash" else "manual"
-            console.print(Panel(text, title=f"[bold cyan]31 commands[/] ({current_model} | think:{think_state} | {cap})", border_style=COLORS["primary"]))
+            console.print(Panel(text, title=f"[bold cyan]32 commands[/] ({current_model} | think:{think_state} | {cap})", border_style=COLORS["primary"]))
             return
         console.print(Panel(f"""\
     操作提示: Ctrl+C 中止运行 · 输入 \"\"\" 进入多行编辑 · /code 或 /agent 再输一次退出
@@ -148,6 +149,7 @@ class InlineCommandsMixin:
     /vision <图> <问>  图片理解（始终可用，独立视觉通道）
     /self [cmd]        自诊断 (check/files/health/fix)
     /eval [json]       运行智能体质量基准测试
+    /extend <nb|au>    切换扩展工具集（notebook/audio/browser）
     /browser           Browser Companion 网页生成（8 平台开关）
     /cost [budget]     查看花费 / 设日预算
     /clear             清空对话历史

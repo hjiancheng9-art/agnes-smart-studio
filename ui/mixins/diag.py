@@ -699,6 +699,59 @@ class DiagCommandsMixin:
             show_warning(f"变体 '{arg}' 不存在或未激活")
             console.print("  [dim]用 /prompt-stats variants 查看可用变体[/]")
 
+    def _chat_extend(self, session: "ChatSession", arg: str):
+        """切换扩展工具集 — 统一入口管理 notebook/audio/browser。
+
+        用法:
+            /extend                  显示所有扩展状态（list 视图）
+            /extend notebook         切换 Notebook (.ipynb) 工具
+            /extend audio            切换音频工具（TTS/BGM/SFX/混音）
+            /extend browser          切换 Browser Companion（8 平台网页生成）
+            /extend list             等同于无参，显示状态表
+        """
+        arg = arg.strip().lower()
+
+        # ── 子命令分发 ──
+        toggles = {
+            "notebook": ("notebook_enabled", "toggle_notebook",
+                         "📓 Notebook", "打开/编辑/执行/保存 .ipynb 文件"),
+            "audio": ("audio_enabled", "toggle_audio",
+                      "🎵 音频", "TTS 旁白/BGM/SFX/混音（edge-tts+ffmpeg）"),
+            "browser": ("browser_enabled", "toggle_browser",
+                        "🌐 Browser", "可灵/即梦/Runway/Luma/DALL-E/Gemini/Opal/Veo 网页生成"),
+        }
+
+        # 无参或 list：显示状态表
+        if not arg or arg == "list":
+            tbl = Table(title="[bold]🔌 扩展工具集状态[/]",
+                        border_style=COLORS["primary"], show_lines=True)
+            tbl.add_column("扩展", style="cyan", width=20)
+            tbl.add_column("状态", width=8)
+            tbl.add_column("说明", style="dim")
+            for key, (attr, _, label, desc) in toggles.items():
+                is_on = getattr(session, attr, False)
+                status = "[green]● 启用[/]" if is_on else "[dim]○ 停用[/]"
+                tbl.add_row(label, status, desc)
+            console.print(tbl)
+            console.print("  [dim]用法: /extend <notebook|audio|browser> 切换 · "
+                          "/extend list 重显状态[/]")
+            return
+
+        # 切换指定扩展
+        if arg not in toggles:
+            show_warning(f"未知扩展: {arg}。可用: notebook / audio / browser")
+            console.print("  [dim]用法: /extend <notebook|audio|browser|list>[/]")
+            return
+
+        attr, toggle_fn, label, desc = toggles[arg]
+        toggle = getattr(session, toggle_fn)
+        is_on = toggle()
+        if is_on:
+            show_success(f"{label} 已启用 — {desc}")
+        else:
+            show_success(f"{label} 已停用")
+        print_mode_banner(session)
+
     def _chat_eval(self, session: "ChatSession", arg: str):
         """运行智能体质量基准测试 — 覆盖代码搜索/代码质量/理解能力。
 

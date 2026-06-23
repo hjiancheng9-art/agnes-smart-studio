@@ -121,6 +121,10 @@ COMMANDS: list[CommandDef] = [
     CommandDef('eval',    '/eval',    '[json]', '运行智能体质量基准测试', '诊断配置',
                long_desc='无参=表格展示；json=输出 JSON 报告。覆盖代码搜索/代码质量/理解能力。',
                handler='_chat_eval'),
+    CommandDef('extend',  '/extend',  '<notebook|audio|browser|list>',
+               '切换扩展工具集（notebook/audio/browser）', '诊断配置',
+               long_desc='toggle：切换数据科学/音频/网页生成工具集。list：显示所有扩展状态。',
+               handler='_chat_extend'),
 ]
 
 # Special skill-load entries for /help display
