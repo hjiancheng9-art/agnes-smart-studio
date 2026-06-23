@@ -15,7 +15,7 @@
       "api_key": "",
       "models": {
         "pro": "deepseek-v4-pro",
-        "light": "deepseek-v4-pro"
+        "light": "deepseek-v4-flash"
       }
     },
     "siliconflow": {

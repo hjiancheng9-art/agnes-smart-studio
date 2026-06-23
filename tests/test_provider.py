@@ -30,7 +30,10 @@ class TestModelRegistry:
 
     def test_vision_model_has_vision_flag(self):
         assert MODEL_REGISTRY["agnes-1.5-flash"].supports_vision is True
-        assert MODEL_REGISTRY["agnes-2.0-flash"].supports_vision is False
+        # 阶段4a: agnes-2.0-flash 现在也支持视觉（复杂视觉推理）
+        assert MODEL_REGISTRY["agnes-2.0-flash"].supports_vision is True
+        # deepseek-* 不支持视觉
+        assert MODEL_REGISTRY["deepseek-v4-pro"].supports_vision is False
 
     def test_register_custom_model(self):
         info = ModelInfo(

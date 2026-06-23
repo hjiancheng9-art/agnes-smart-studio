@@ -53,7 +53,15 @@ if errorlevel 1 (
     %PY% -m pip install httpx rich python-dotenv nest-asyncio -q
 )
 
-:: --- 5. Launch ---
+:: --- 5. Register crux command ---
+echo.
+echo   [◆] Registering crux command...
+%PY% -m pip install -e . --quiet 2>nul
+if errorlevel 1 (
+    echo   [◈] crux command registration skipped (will use fallback)
+)
+
+:: --- 6. Launch ---
 echo.
 echo   ╔══════════════════════════════════════════════╗
 echo   ║                                              ║
@@ -63,6 +71,10 @@ echo   ║                                              ║
 echo   ╚══════════════════════════════════════════════╝
 echo.
 
-%PY% launcher.py
+crux
+if errorlevel 1 (
+    echo   [◈] crux not found, falling back to launcher...
+    %PY% launcher.py
+)
 if errorlevel 1 pause
 exit /b 0

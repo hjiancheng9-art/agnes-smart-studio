@@ -203,8 +203,14 @@ class CreativeCommandsMixin:
             alias_rev = {}
             for cn, en in SKILL_ALIASES.items():
                 alias_rev.setdefault(en, []).append(cn)
+            # trigger 态标记：auto 标亮，manual 默认，off 不出现在 list（被 discover 排除）
+            _TRIGGER_MARK = {
+                "auto": "[bold green]⚡auto[/]",
+                "manual": "[dim]手[/]",
+            }
             console.print(f"[bold]可用技能 ({len(names)}):[/]")
             console.print("[dim]加载方式: /skill load <中文别名>  如: /skill load 视频[/]")
+            console.print("[dim]⚡auto = 自动注入 system prompt · 三态切换: /skill mode <名称> <auto|manual|off>[/]")
             for n in sorted(names):
                 s = skills.get(n)
                 icon = s.icon + " " if s and s.icon else ""
@@ -213,7 +219,8 @@ class CreativeCommandsMixin:
                 if n in alias_rev:
                     aliases_str = " [" + "/".join(alias_rev[n][:3]) + "]"
                 marker = " [cyan]← 当前[/]" if session.active_skill == n else ""
-                console.print(f"  {icon}[cyan]{n}[/]{aliases_str} [dim]{desc}{marker}[/]")
+                trig = _TRIGGER_MARK.get(session.skills.get_trigger(n), "[dim]手[/]")
+                console.print(f"  {icon}[cyan]{n}[/]{aliases_str} {trig} [dim]{desc}{marker}[/]")
 
         elif arg.startswith("load "):
             name = arg[5:].strip()
@@ -257,6 +264,45 @@ class CreativeCommandsMixin:
             else:
                 show_info("当前无已加载技能")
 
+        elif arg.startswith("mode"):
+            # /skill mode <name> <auto|manual|off>
+            # /skill mode（无参数）→ 列出全部技能含 off 态 + 当前 trigger
+            parts = arg.split()
+            if len(parts) == 1:
+                # 列出全量（含 off）
+                all_skills = session.skills.list_all()
+                if not all_skills:
+                    show_info("无技能文件")
+                    return
+                _TRIG_LABEL = {"auto": "⚡auto", "manual": "手 manual", "off": "⊘ off"}
+                console.print(f"[bold]全部技能 ({len(all_skills)}) — 含 off 态:[/]")
+                console.print("[dim]切换: /skill mode <名称> <auto|manual|off>[/]")
+                for s in all_skills:
+                    trig = _TRIG_LABEL.get(session.skills.get_trigger(s.name), "?")
+                    icon = s.icon + " " if s.icon else ""
+                    console.print(f"  {icon}[cyan]{s.name}[/] [{trig}] [dim]{s.description}[/]")
+                return
+            if len(parts) < 3:
+                show_warning("用法: /skill mode <名称> <auto|manual|off>")
+                return
+            sname, smode = parts[1], parts[2].lower()
+            if session.skills.get_trigger(sname) is None:
+                show_warning(f"未找到技能 '{sname}'，/skill mode 查看全部")
+                return
+            ok = session.skills.set_trigger(sname, smode)
+            if ok:
+                show_success(f"已设置 {sname} → {smode}")
+                # auto 态变化需重建 system prompt 才能生效
+                session.messages[0] = {"role": "system", "content": session._build_system_prompt()}
+                if smode == "auto":
+                    show_info(f"⚡ {sname} 现在会自动注入到 system prompt（所有模式生效）")
+                elif smode == "off":
+                    show_info(f"⊘ {sname} 已隐藏，不再出现在 /skill list（仍可用 /skill mode 恢复）")
+                else:
+                    show_info(f"手 {sname} 回到默认，需 /skill load 显式加载")
+            else:
+                show_warning(f"无效 trigger '{smode}'，可选: auto / manual / off")
+
         elif arg == "validate":
             result = session.skills.validate()
             console.print(f"[bold]品质门禁:[/] ✅ {len(result['passed'])} 通过")
@@ -290,7 +336,8 @@ class CreativeCommandsMixin:
                     console.print(f"     {e}")
 
         else:
-            show_info("用法: /skill [list|load|create|unload|validate|import <path>]")
+            show_info("用法: /skill [list|load|create|unload|mode|validate|import <path>]")
+            show_info("  /skill mode <名称> <auto|manual|off>  切换技能三态（auto=自动注入提示词）")
 
     def _skill_create(self, session: "ChatSession", name: str, desc: str):
         """让 AI 自动生成技能文件"""

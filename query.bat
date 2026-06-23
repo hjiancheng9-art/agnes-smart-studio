@@ -32,9 +32,18 @@ if errorlevel 1 (
 
 :::: ── 执行查询 ─────────────────────────────────
 :::: 无参数: 自动查找未完成任务 + --watch 轮询等待
-if "%~1"=="" (
-    %PY% query.py --watch 10
-) else (
-    %PY% query.py %*
+:::: 优先使用 crux-query 命令，否则回退到 query.py
+where crux-query >nul 2>&1 && (
+    if "%~1"=="" (
+        crux-query --watch 10
+    ) else (
+        crux-query %*
+    )
+) || (
+    if "%~1"=="" (
+        %PY% query.py --watch 10
+    ) else (
+        %PY% query.py %*
+    )
 )
 pause

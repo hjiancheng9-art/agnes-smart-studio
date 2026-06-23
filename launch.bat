@@ -3,7 +3,14 @@ chcp 65001 >nul 2>&1
 title CRUX Studio v5.0
 cd /d "%~dp0"
 
-:: Find Python
+:: Try crux command first (fast path, for installed environments)
+where crux >nul 2>&1 && (
+    crux %*
+    if errorlevel 1 pause
+    exit /b 0
+)
+
+:: Fallback: find Python and launch directly
 set "PY="
 for %%e in (python python3 py) do (
     where %%e >nul 2>&1 && set "PY=%%e" && goto :found
@@ -13,8 +20,5 @@ pause
 exit /b 1
 :found
 
-:: Quick check
-%PY% -c "from core.config import SETTINGS; print('Ready')" 2>nul
-
-%PY% crux_studio.py -c
+%PY% crux_studio.py %*
 pause

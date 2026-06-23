@@ -50,6 +50,11 @@ class AgentTask:
     result: str = ""
     started_at: float = 0
     finished_at: float = 0
+    # ── 三级 tier 路由（对标 Claude Haiku/Sonnet/Opus）──
+    # "auto": 由 ModelRouter 按 description/task_type 自动选模型
+    # "light" / "pro" / "heavy": 显式指定 tier
+    tier: str = "auto"
+    task_type: str = ""  # 传给 ModelRouter.select() 的任务类型（tier=auto 时生效）
 
 
 @dataclass
@@ -66,7 +71,8 @@ class Agent:
 class MultiAgentCoordinator:
     """Orchestrates multiple agents to solve a complex task (threading 版)."""
 
-    def __init__(self, tool_executor: Callable, max_workers: int = 4) -> None:
+    def __init__(self, tool_executor: Callable, max_workers: int = 4,
+                 model_router=None) -> None:
         self.execute_tool = tool_executor
         self.max_workers = max_workers
         self.agents: list[Agent] = []
@@ -74,6 +80,9 @@ class MultiAgentCoordinator:
         self._lock = threading.Lock()
         self._results: dict[str, str] = {}
         self._log: list[dict] = []
+        # 可选 ModelRouter — 当 tool_executor 是 LLM-backed 时，按 task.tier 选模型
+        # None 时退回原行为（tool_executor 内部自决模型），完全向后兼容
+        self.model_router = model_router
 
     def spawn_team(self, roles: list[str] | None = None):
         """Create agent team. Default: reviewer, debugger, implementer, tester."""
@@ -136,15 +145,39 @@ class MultiAgentCoordinator:
             "log": self._log[-10:],
         }
 
+    def _resolve_model_for_task(self, task: AgentTask) -> str | None:
+        """按 task.tier/task_type 解析模型（若提供 model_router）。
+
+        - tier="auto" + task_type 非空 → ModelRouter.select(task_type=...)
+        - tier in (light/pro/heavy) → ModelRouter.select_for_tier(tier)
+        - 其他（默认 auto 无 task_type）→ None（不注入，executor 自决）
+        """
+        if not self.model_router:
+            return None
+        if task.tier in ("light", "pro", "heavy"):
+            return self.model_router.select_for_tier(task.tier)
+        if task.tier == "auto" and task.task_type:
+            return self.model_router.select(task_type=task.task_type)
+        return None
+
     def _execute_task(self, task: AgentTask):
         task.status = "running"
         task.started_at = time.time()
         self._log.append({"event": "task_start", "task": task.id,
                           "agent": task.assigned_to})
+        # tier 路由：若提供 model_router，按 task.tier/task_type 解析模型并注入 step
+        resolved_model = self._resolve_model_for_task(task)
+        if resolved_model:
+            self._log.append({"event": "tier_routed", "task": task.id,
+                              "tier": task.tier, "model": resolved_model})
         results = []
         for step in task.tool_sequence:
             try:
-                r = self.execute_tool(step["tool"], step["args"])
+                # 若解析出模型，注入到 step.args（LLM-backed executor 可读取）
+                step_args = dict(step["args"])
+                if resolved_model and "model" not in step_args:
+                    step_args["model"] = resolved_model
+                r = self.execute_tool(step["tool"], step_args)
                 results.append(r[:200])
             except (OSError, ValueError, RuntimeError) as e:
                 task.status = "failed"
@@ -185,13 +218,16 @@ class AsyncMultiAgentCoordinator:
       复用同一份实现，避免两份 decompose 漂移）。
     """
 
-    def __init__(self, tool_executor: Callable, max_workers: int = 4) -> None:
+    def __init__(self, tool_executor: Callable, max_workers: int = 4,
+                 model_router=None) -> None:
         self.execute_tool = tool_executor
         self.max_workers = max_workers
         self.agents: list[Agent] = []
         self.tasks: list[AgentTask] = []
         self._results: dict[str, str] = {}
         self._log: list[dict] = []
+        # 可选 ModelRouter — 按 task.tier/task_type 选模型
+        self.model_router = model_router
         # 运行时状态（_sem / _log_lock 绑定 event loop，必须惰性创建）
         self._sem: asyncio.Semaphore | None = None
         self._log_lock: asyncio.Lock | None = None
@@ -271,6 +307,19 @@ class AsyncMultiAgentCoordinator:
         async with self._log_lock:  # type: ignore[union-attr]
             self._log.append(entry)
 
+    def _resolve_model_for_task(self, task: AgentTask) -> str | None:
+        """按 task.tier/task_type 解析模型（若提供 model_router）。
+
+        与同步版 ``MultiAgentCoordinator._resolve_model_for_task`` 语义一致。
+        """
+        if not self.model_router:
+            return None
+        if task.tier in ("light", "pro", "heavy"):
+            return self.model_router.select_for_tier(task.tier)
+        if task.tier == "auto" and task.task_type:
+            return self.model_router.select(task_type=task.task_type)
+        return None
+
     async def _call_tool(self, tool: str, args: dict) -> str:
         """调用 executor，自动适配同步/async 签名。"""
         if inspect.iscoroutinefunction(self.execute_tool):
@@ -302,11 +351,19 @@ class AsyncMultiAgentCoordinator:
             task.started_at = time.time()
             await self._log_append({"event": "task_start", "task": task.id,
                                     "agent": task.assigned_to})
+            # tier 路由：若解析出模型，注入到 step.args
+            resolved_model = self._resolve_model_for_task(task)
+            if resolved_model:
+                await self._log_append({"event": "tier_routed", "task": task.id,
+                                        "tier": task.tier, "model": resolved_model})
 
             results: list[str] = []
             for step in task.tool_sequence:
                 try:
-                    r = await self._call_tool(step["tool"], step["args"])
+                    step_args = dict(step["args"])
+                    if resolved_model and "model" not in step_args:
+                        step_args["model"] = resolved_model
+                    r = await self._call_tool(step["tool"], step_args)
                     results.append(str(r)[:200])
                 except (OSError, ValueError, RuntimeError) as e:
                     task.status = "failed"

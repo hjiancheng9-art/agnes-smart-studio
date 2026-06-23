@@ -256,11 +256,27 @@ class PlanExecutor:
         results = executor.execute(plan)
     """
 
-    def __init__(self, client, tools=None, model: str = "deepseek-v4-pro") -> None:
+    def __init__(self, client, tools=None, model: str = "deepseek-v4-pro",
+                 tier: str = "auto", task_type: str = "") -> None:
+        """Init plan executor.
+
+        Args:
+            model: 显式模型 ID（向后兼容，优先级最高）
+            tier: "auto"/"light"/"pro"/"heavy" — auto 时按 task_type 路由
+            task_type: tier=auto 时传给 ModelRouter.select()
+        """
         self.client = client
         self.tools = tools
-        self.model = model
         self.max_steps = 15
+        # tier 路由（与 SubAgent 同逻辑）
+        if model != "deepseek-v4-pro":
+            self.model = model
+        elif tier in ("light", "pro", "heavy"):
+            self.model = ModelRouter().select_for_tier(tier)
+        elif task_type:
+            self.model = ModelRouter().select(task_type=task_type)
+        else:
+            self.model = model
 
     def create_plan(self, task: str) -> list[PlanStep]:
         """Ask LLM to generate an execution plan, parse into PlanStep list."""
@@ -390,13 +406,35 @@ class SubAgent:
     """
 
     def __init__(self, client, tools=None, model: str = "deepseek-v4-pro",
-                 max_rounds: int = 5) -> None:
+                 max_rounds: int = 5, tier: str = "auto",
+                 task_type: str = "") -> None:
+        """Init sub-agent.
+
+        Args:
+            model: 显式模型 ID（向后兼容，优先级最高）
+            tier: "auto" / "light" / "pro" / "heavy" — auto 时按 task_type 路由
+            task_type: 传给 ModelRouter.select() 的任务类型（tier=auto 时生效）
+        """
         self.client = client
         self.tools = tools
-        self.model = model
         self.max_rounds = max_rounds
         self.history: list[dict] = []
         self.context_mgr = ContextManager(max_tokens=20000)
+        # tier 路由：model 显式指定时尊重之；否则按 tier/task_type 自动选
+        if model != "deepseek-v4-pro" or tier == "auto":
+            # 用户显式传了 model（非默认值）→ 直接用
+            if model != "deepseek-v4-pro":
+                self.model = model
+            else:
+                router = ModelRouter()
+                if tier in ("light", "pro", "heavy"):
+                    self.model = router.select_for_tier(tier)
+                elif task_type:
+                    self.model = router.select(task_type=task_type)
+                else:
+                    self.model = model  # auto + 无 task_type → 退回默认
+        else:
+            self.model = model
 
     def run(self, task: str, system_prompt: str = "") -> str:
         """Execute a task with tool-calling loop.
@@ -488,14 +526,27 @@ class SubAgent:
 class ModelRouter:
     """Intelligent model selection based on task type, cost, and capability.
 
-    Routing logic (v5.0+: deepseek-v4-pro 为默认主力, agnes-* models 仅作 fallback/视觉):
-    - Simple chat/Q&A -> agnes-1.5-flash (cheapest)
-    - Code/complex reasoning / long context -> deepseek-v4-pro (主力, thinking + 1M context)
+    三级 tier 路由（对标 Claude Haiku/Sonnet/Opus 分层）:
+    - light tier (≈ Haiku):  deepseek-v4-flash — 搜索/读文件/grep/格式化/简单对话，最便宜（同 key 同 base_url）
+    - pro tier (≈ Sonnet):   deepseek-v4-flash（轻量 tool calling）/ agnes-2.0-flash — 单文件修改、写测试
+    - heavy tier (≈ Opus):   deepseek-v4-pro — 架构设计、多文件分析、安全审查（深度思考 + 1M 上下文）
+
+    视觉通道独立：agnes-1.5-flash（唯一原生多模态），由 self.vision_model 固定，
+    不受 light/pro/heavy tier 切换影响。
+
+    Routing logic (v5.0+):
+    - Simple chat/Q&A / 搜索/读文件 -> light tier (deepseek-v4-flash, 省 ~50% vs Pro)
+    - Code/complex reasoning / long context -> heavy tier (deepseek-v4-pro, 1M context)
     - Image generation -> agnes-image-2.1-flash
     - Video generation -> agnes-video-v2.0
-    - Tool calling / agent -> deepseek-v4-pro
-    - Vision/multimodal -> agnes-1.5-flash (唯一具备视觉能力)
+    - Tool calling + thinking -> heavy tier; tool calling 无 thinking -> light (flash)
+    - Vision/multimodal -> agnes-1.5-flash（独立通道，非 light tier）
     """
+
+    # 三级 tier 常量 — 对标 Claude 的 haiku/sonnet/opus
+    TIER_LIGHT = "light"  # 机械任务（搜索/读文件/grep/简单对话）
+    TIER_PRO = "pro"      # 中等复杂度（单文件修改/写测试）
+    TIER_HEAVY = "heavy"  # 深度推理（架构/多文件/安全审查）
 
     MODEL_PROFILES = {
         "agnes-1.5-flash": {
@@ -504,15 +555,17 @@ class ModelRouter:
             "supports_thinking": False,
             "supports_vision": True,
             "max_tokens": 4096,
-            "best_for": ["chat", "simple_qa", "vision", "summarize"],
+            "best_for": ["chat", "simple_qa", "vision", "summarize", "search", "read_file"],
+            "tier": "light",
         },
         "agnes-2.0-flash": {
             "cost": 3,
             "supports_tools": True,
             "supports_thinking": True,
-            "supports_vision": False,
+            "supports_vision": True,
             "max_tokens": 8192,
             "best_for": ["code", "reasoning", "planning", "agent", "tool_calling"],
+            "tier": "pro",
         },
         "agnes-image-2.1-flash": {
             "cost": 5,
@@ -521,6 +574,7 @@ class ModelRouter:
             "supports_vision": False,
             "max_tokens": 0,
             "best_for": ["image_generation"],
+            "tier": "pro",
         },
         "agnes-video-v2.0": {
             "cost": 10,
@@ -529,6 +583,7 @@ class ModelRouter:
             "supports_vision": False,
             "max_tokens": 0,
             "best_for": ["video_generation"],
+            "tier": "pro",
         },
         "deepseek-v4-pro": {
             "cost": 2,
@@ -536,15 +591,50 @@ class ModelRouter:
             "supports_thinking": True,
             "supports_vision": False,
             "max_tokens": 8192,
+            "best_for": ["code", "reasoning", "long_context", "architecture", "security"],
+            "tier": "heavy",
+        },
+        "deepseek-v4-flash": {
+            "cost": 1,  # 约 Pro 的 50%（对标 Claude Haiku 档）
+            "supports_tools": True,
+            "supports_thinking": False,  # 非思考模式（思考需切 Pro）
+            "supports_vision": False,
+            "max_tokens": 8192,
+            "best_for": ["chat", "simple_qa", "search", "read_file", "format",
+                         "summarize", "tool_calling", "code"],
+            "tier": "light",
+        },
+        "Pro/moonshotai/Kimi-K2.6": {
+            "cost": 4,
+            "supports_tools": True,
+            "supports_thinking": False,
+            "supports_vision": False,
+            "max_tokens": 8192,
             "best_for": ["code", "reasoning", "long_context"],
+            "tier": "pro",
+        },
+        "Qwen3.6-27B-PRISM-PRO-DQ": {
+            "cost": 0,  # local, 离线
+            "supports_tools": True,
+            "supports_thinking": True,
+            "supports_vision": False,
+            "max_tokens": 8192,
+            "best_for": ["code", "reasoning", "offline"],
+            "tier": "heavy",
         },
     }
 
-    def __init__(self, primary: str = "deepseek-v4-pro",
-                 light: str = "agnes-1.5-flash") -> None:
-        self.primary = primary
-        self.light = light
-        self._fallback_chain = [primary, "agnes-2.0-flash", "agnes-1.5-flash"]
+    def __init__(self, primary: str | None = None,
+                 light: str = "deepseek-v4-flash",
+                 vision_model: str = "agnes-1.5-flash") -> None:
+        # primary 默认从 models.json active provider 的 pro 模型读，
+        # 读不到则退回 deepseek-v4-pro（向后兼容）
+        if primary is None:
+            primary = self._default_primary()
+        self.primary = primary      # heavy tier（深度推理/长上下文）
+        self.light = light          # light tier（机械任务/简单对话，默认 deepseek-v4-flash）
+        self.vision_model = vision_model  # 视觉通道独立（唯一原生多模态 agnes-1.5-flash）
+        self._fallback_chain = self._build_fallback_chain()
 
     def select(self, task_type: str = "", needs_tools: bool = False,
                needs_vision: bool = False, needs_thinking: bool = False,
@@ -564,9 +654,9 @@ class ModelRouter:
         if task_type == "video_generation":
             return "agnes-video-v2.0"
 
-        # Vision requirement
+        # Vision requirement — 独立通道，不受 light/pro/heavy tier 影响
         if needs_vision:
-            return "agnes-1.5-flash"  # only model with vision
+            return self.vision_model  # agnes-1.5-flash（唯一原生多模态）
 
         # Long context
         if needs_long_context:
@@ -574,7 +664,7 @@ class ModelRouter:
 
         # Tools + thinking -> need a capable model
         if needs_tools and needs_thinking:
-            return self.primary  # deepseek-v4-pro
+            return self.primary  # heavy tier
 
         # Just tools, no deep thinking -> light model is cheaper
         if needs_tools and not needs_thinking:
@@ -584,21 +674,87 @@ class ModelRouter:
         if needs_thinking:
             return self.primary
 
-        # Task type routing
+        # Task type routing — 对标 Claude 的 tier 分层
         type_map = {
+            # ── light tier（机械任务，最便宜，deepseek-v4-flash）──
             "chat": self.light,
             "simple_qa": self.light,
             "summarize": self.light,
-            "vision": "agnes-1.5-flash",
+            "search": self.light,       # 搜索/读文件/grep
+            "read_file": self.light,    # 机械读文件
+            "format": self.light,       # 格式化
+            "tool_calling": self.light, # 轻量 tool calling（flash 支持 tools，无需思考）
+            # ── 视觉通道（独立，非 tier 体系）──
+            "vision": self.vision_model,
+            # ── heavy tier（深度推理，deepseek-v4-pro）──
             "code": self.primary,
             "reasoning": self.primary,
             "planning": self.primary,
             "agent": self.primary,
+            "architecture": self.primary,
+            "security": self.primary,
         }
         if task_type in type_map:
             return type_map[task_type]
 
         return self.primary
+
+    def select_for_tier(self, tier: str) -> str:
+        """按三级 tier 直接选模型（对标 Claude Haiku/Sonnet/Opus）。
+
+        Args:
+            tier: "light" / "pro" / "heavy"（或 "auto"）
+        Returns:
+            模型 ID。auto 时退回 self.primary（heavy tier）。
+
+        tier 映射（v5.0+，DeepSeek 双档化后）:
+        - light: deepseek-v4-flash（机械任务/简单对话，最便宜）
+        - pro:   deepseek-v4-flash（轻量 tool calling；比 agnes-2.0-flash 更稳）
+        - heavy: deepseek-v4-pro（深度思考 + 1M 上下文）
+        """
+        if tier == self.TIER_LIGHT:
+            return self.light
+        if tier == self.TIER_PRO:
+            return self.light  # flash 覆盖 pro 档的轻量 tool calling 场景
+        if tier == self.TIER_HEAVY:
+            return self.primary
+        # auto / unknown → 主力模型（最稳）
+        return self.primary
+
+    @staticmethod
+    def _default_primary() -> str:
+        """从 models.json active provider 读 pro 模型，读不到退回 deepseek-v4-pro。"""
+        try:
+            from core.provider import get_provider_manager
+            mgr = get_provider_manager()
+            return mgr.get_model("pro") or "deepseek-v4-pro"
+        except (ImportError, OSError, RuntimeError):
+            return "deepseek-v4-pro"
+
+    def _build_fallback_chain(self) -> list[str]:
+        """从 models.json fallback.priority 动态构建模型级 fallback 链。
+
+        链结构：[active_pro_model, 其他 provider 的 pro 模型, light 兜底]
+        对标 Claude 的 fallbackModel 数组。
+        """
+        chain: list[str] = [self.primary]
+        try:
+            from core.provider import get_provider_manager, MODEL_REGISTRY
+            mgr = get_provider_manager()
+            for pid in mgr.fallback_priority:
+                provider = mgr.providers.get(pid, {})
+                mid = provider.get("models", {}).get("pro")
+                if mid and mid not in chain:
+                    chain.append(mid)
+            # light 兜底
+            if self.light not in chain:
+                chain.append(self.light)
+        except (ImportError, OSError, RuntimeError):
+            # 退回硬编码（向后兼容）
+            for m in ("agnes-2.0-flash", "agnes-1.5-flash"):
+                if m not in chain:
+                    chain.append(m)
+        return chain
 
     def get_fallback(self, failed_model: str) -> str | None:
         """Get the next model in the fallback chain."""

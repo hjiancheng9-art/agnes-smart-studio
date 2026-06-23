@@ -402,46 +402,155 @@ class ChatSession:
                 "generate_sfx(音效)、audio_mixdown(多轨混音)。\n"
                 "所有输出保存到 output/audio/。补齐 Showrunner 旁白+BGM 音轨。"
             )
+        # Skill 三态：注入所有 trigger=auto 的技能 prompt（对标 Claude auto-skills）
+        # 与手动 load 的技能（由 get_system_prompt 处理）正交：auto 类在此统一注入。
+        # skills.auto_skills_prompt 内部会跳过当前已手动加载的技能，避免重复。
+        base = self.skills.auto_skills_prompt(base)
         return base
 
     def reset(self):
         """清空对话历史（保留 system）"""
         self.messages = [self.messages[0]]
 
-    def _vision_model_chain(self) -> list[str]:
-        """构建视觉模型 fallback 链（去重，保持顺序）。
+    def _vision_model_chain(self, complexity: str = "light") -> list[str]:
+        """构建视觉模型 fallback 链（按复杂度选首选，去重保持稳定）。
 
-        顺序：self.vision_model 优先 → 其余 vision-capable 模型按注册顺序补位。
-        单一真相源是 provider.get_vision_models()；本方法只做去重和优先级排序。
+        阶段 4b: 除 deepseek 外所有模型均支持视觉。按复杂度自动选首选：
+        - complexity="light":  首选 light tier 模型（agnes-1.5-flash，最便宜快档）
+        - complexity="complex": 首选 pro tier 模型（agnes-2.0-flash，支持推理）
+
+        首选失败后，按 tier 升序（light → pro）补位其余视觉模型，
+        保证 fallback 链稳定可预测。单一真相源 provider.get_vision_models()。
+
+        self.vision_model 仅作为"用户显式首选偏好"：当其 tier 匹配任务复杂度时
+        排首位；否则不干预自动 tier 选择（避免轻量任务强制走 pro、或复杂任务
+        被钉在 light tier）。
         """
-        chain: list[str] = []
-        if self.vision_model:
-            chain.append(self.vision_model)
-        for mid in get_vision_models():
-            if mid not in chain:
-                chain.append(mid)
+        from core.provider import get_model_info
+        vision_models = get_vision_models()
+        if not vision_models:
+            return [self.vision_model] if self.vision_model else []
+
+        def _tier_of(mid: str) -> str:
+            info = get_model_info(mid)
+            return info.tier if info else "pro"
+
+        light_models = [m for m in vision_models if _tier_of(m) == "light"]
+        pro_models = [m for m in vision_models if _tier_of(m) != "light"]
+
+        # 复杂任务 → pro 优先；轻量任务 → light 优先
+        if complexity == "complex":
+            ordered = pro_models + light_models
+        else:
+            ordered = light_models + pro_models
+
+        # self.vision_model 仅在 tier 匹配时提到链首（用户偏好尊重 tier 路由）
+        if self.vision_model and self.vision_model in ordered:
+            vm_tier = _tier_of(self.vision_model)
+            target_tier = "light" if complexity != "complex" else "pro"
+            if vm_tier == target_tier:
+                ordered.remove(self.vision_model)
+                ordered.insert(0, self.vision_model)
+        return ordered
+
+    @staticmethod
+    def _classify_vision_complexity(text: str) -> tuple[str, int]:
+        """视觉任务复杂度启发式分类（零 LLM 消耗，对标 Claude vision tier）。
+
+        Returns:
+            ("light"|"complex", max_tokens)
+        - light: OCR/描述/简单问答 → max_tokens=2048（快省）
+        - complex: 计数/读代码/图表推理/对比/几何/多步分析 → max_tokens=4096
+        """
+        # 复杂视觉任务关键词（中文 + 英文）
+        _COMPLEX_RE = re.compile(
+            r'(数一数|多少个|计数|count|how many)|'
+            r'(代码|code|函数|function|class |import |def )|'
+            r'(图表|graph|chart|柱状|饼图|折线|scatter|bar chart)|'
+            r'(对比|区别|差异|difference|compare|diff)|'
+            r'(计算|算一算|calculate|compute|面积|周长|角度)|'
+            r'(推理|推断|infer|deduce|逻辑|logical)|'
+            r'(流程|flowchart|架构|architecture|拓扑|topology)|'
+            r'(详细分析|深入|逐步|step.by.step|explain in detail)|'
+            r'(公式|equation|math|数学)',
+            re.IGNORECASE,
+        )
+        if _COMPLEX_RE.search(text):
+            return ("complex", 4096)
+        return ("light", 2048)
+
+    def _text_fallback_chain(self) -> list[tuple[str, "CruxClient"]]:
+        """构建主对话 fallback 链（模型 + client 对）。
+
+        顺序：当前 (model, client) → fallback provider 的 (model, client)。
+        对标 Claude 的 fallbackModel 数组：主模型挂了自动降级到备选。
+        同供应商不同模型（如 deepseek-v4-pro → deepseek-v4-flash）也作为备选。
+        """
+        from core.provider import get_provider_manager
+        chain: list[tuple[str, CruxClient]] = [(self.model, self.client)]
+        try:
+            mgr = get_provider_manager()
+            for pid in mgr.fallback_priority:
+                provider = mgr.providers.get(pid, {})
+                mid = provider.get("models", {}).get("pro")
+                if mid and mid != self.model:
+                    try:
+                        fallback_client = mgr.create_client(pid)
+                        chain.append((mid, fallback_client))
+                    except (OSError, RuntimeError):
+                        pass
+            # 同供应商轻量档兜底（如 deepseek-v4-pro → deepseek-v4-flash）
+            try:
+                current_pid = ""
+                for _pid, pdata in mgr.providers.items():
+                    if self.model in pdata.get("models", {}).values():
+                        current_pid = _pid
+                        break
+                if current_pid:
+                    light_mid = mgr.providers[current_pid].get("models", {}).get("light")
+                    if light_mid and light_mid != self.model:
+                        chain.append((light_mid, self.client))  # 同 client，不另建
+            except (OSError, RuntimeError):
+                pass
+        except (ImportError, OSError, RuntimeError):
+            pass
         return chain
 
-    def _vision_fallback(self, text: str, image_url: str) -> str:
-        """视觉理解调用 + fallback 链。
+    def _is_stream_error(self, buffer: str) -> bool:
+        """检测流式输出是否因网络/API 错误而中断。"""
+        return "[流中断" in buffer or "[HTTP " in buffer
 
-        依次尝试 _vision_model_chain() 中的模型，首个成功即返回其文本；
+    def _vision_fallback(self, text: str, image_url: str) -> str:
+        """视觉理解调用 + fallback 链（按复杂度自动选首选模型）。
+
+        依次尝试 _vision_model_chain(complexity) 中的模型，首个成功即返回；
         全部失败时返回包含尝试列表的人类可读错误（不抛异常，保证流式不中断）。
+
+        阶段 4b: 复杂度不仅决定 max_tokens，还决定首选模型 tier：
+        - light: 首选 agnes-1.5-flash（便宜快档），失败再升 pro
+        - complex: 首选 pro tier（agnes-2.0-flash / Kimi / Qwen），失败再降 light
 
         失败原因分类：
         - KeyError/IndexError: 返回 JSON 结构异常（供应商换了 schema）
         - OSError/TimeoutError: 网络/超时（最常见，触发下一档 fallback）
         - RuntimeError: 供应商上游错误
         """
-        chain = self._vision_model_chain()
+        # Vision 复杂度分级：light → 2048 tokens + light tier 首选；
+        #                  complex → 4096 tokens + pro tier 首选 + 推理引导
+        complexity, max_tok = self._classify_vision_complexity(text)
+        chain = self._vision_model_chain(complexity)
         tried: list[str] = []
         last_reason = ""
+        vision_text = text
+        if complexity == "complex":
+            # 注入逐步推理引导（不修改用户原始文本，只影响 API 调用）
+            vision_text = f"请仔细观察图片，逐步推理分析：\n{text}"
         for idx, model_id in enumerate(chain):
             tried.append(model_id)
             try:
                 r = self.vision_client.chat_multimodal(
-                    text=text, image_url=image_url,
-                    model=model_id, max_tokens=2048,
+                    text=vision_text, image_url=image_url,
+                    model=model_id, max_tokens=max_tok,
                 )
                 content = r["choices"][0]["message"]["content"] or ""
                 # #6 成本追踪：视觉调用按 token 计费（text kind），usage 来自 API 返回
@@ -457,6 +566,7 @@ class ChatSession:
                 continue  # 格式问题换模型也无济于事，但仍按链尝试
             except (OSError, TimeoutError) as e:
                 last_reason = f"网络/超时: {e}"
+                metrics.increment("fallback.vision_model")
                 continue
             except RuntimeError as e:
                 last_reason = f"上游错误: {e}"
@@ -512,6 +622,12 @@ class ChatSession:
 
         tools = self.tools.definitions if self.supports_tools else None
 
+        # ── 模型级 fallback 链（对标 Claude fallbackModel）──
+        # 主对话流式调用失败时自动降级到下一个供应商/模型。
+        # 只在首轮（无 tool_calls）时 fallback，避免重复 tool 副作用。
+        fallback_chain = self._text_fallback_chain()
+        fallback_tried = 0
+
         # tool calling 循环（有上限，防止死循环）
         _effective_max = MAX_TOOL_LOOPS * 2 if getattr(self, 'unlimited_tools', False) else MAX_TOOL_LOOPS
         buffer = ""  # 循环外预绑定，保证超出最大轮次时引用安全
@@ -523,84 +639,111 @@ class ChatSession:
                         "git_add_commit", "git_push", "run_bash"}
         _executed_signatures: set[tuple[str, str]] = set()
         _executed_cache: dict[tuple[str, str], str] = {}
-        for _loop in range(_effective_max):
-            buffer, tool_calls = "", []
-            kwargs = {}
-            if self.enable_thinking:
-                kwargs["chat_template_kwargs"] = {"enable_thinking": True}
-            for delta in self.client.chat_stream(
-                model=self.model, messages=self.messages,
-                tools=tools, max_tokens=2048, **kwargs,
-            ):
-                if "content" in delta and delta["content"]:
-                    chunk = delta["content"]
-                    buffer += chunk
-                    yield ("text", chunk)
-                if "tool_calls" in delta and delta["tool_calls"]:
-                    tool_calls.extend(delta["tool_calls"])
 
-            if tool_calls:
-                merged = merge_tool_calls(tool_calls)
+        while fallback_tried < len(fallback_chain):
+            _use_model, _use_client = fallback_chain[fallback_tried]
+            fallback_tried += 1
+            _stream_error_break = False  # 标记 for 循环是否因流错误 break
 
-                self.messages.append({
-                    "role": "assistant", "content": buffer, "tool_calls": merged,
-                })
-                # 执行每个 tool，结果喂回 + 透出给用户
-                for tc in merged:
-                    fname = tc["function"]["name"]
-                    fargs = tc["function"].get("arguments", "{}")
-                    sig = (fname, _normalize_tool_args(fargs))
-                    # 跨轮去重：非写工具且本会话已执行过 → 复用缓存，不重复 dispatch
-                    if fname not in _WRITE_TOOLS and sig in _executed_signatures:
-                        tool_result = _executed_cache.get(sig, "")
-                        # 不 yield 副作用（用户已见过一次）
-                    else:
-                        with TraceContext("tool_call", tool_name=fname, call_id=tc.get("id", "")) as span:
-                            tool_result, side_effects = self._dispatch_tool(fname, fargs)
-                            span.set_attribute("result_chars", len(tool_result) if isinstance(tool_result, str) else -1)
-                            metrics.increment("tool_calls")
-                            metrics.timing("tool_call_ms", span.duration_ms())
-                            # #5 Prompt Lab: 记录工具调用和错误
-                            try:
-                                from core.prompt_lab import get_prompt_lab
-                                get_prompt_lab().record_tool_call()
-                                if "[错误]" in str(tool_result) or "error" in str(tool_result).lower():
-                                    get_prompt_lab().record_tool_error()
-                            except (ImportError, OSError):
-                                pass
-                        yield from side_effects
-                        if fname not in _WRITE_TOOLS:
-                            _executed_signatures.add(sig)
-                            # 缓存保留原始结果（高保真），跨轮复用时仍可重新截断
-                            _executed_cache[sig] = tool_result
-                    # 上下文窗口防护：智能压缩（抽取→LLM→截断三级路由），
-                    # 防止大文件/长输出撑爆 LLM 上下文。原始结果仍在 cache 中。
-                    from core.context_tools import compress_tool_result
+            for _loop in range(_effective_max):
+                buffer, tool_calls = "", []
+                _stream_error = False  # 本轮流是否遇到网络/API 错误
+                kwargs = {}
+                if self.enable_thinking:
+                    kwargs["chat_template_kwargs"] = {"enable_thinking": True}
+                for delta in _use_client.chat_stream(
+                    model=_use_model, messages=self.messages,
+                    tools=tools, max_tokens=2048, **kwargs,
+                ):
+                    if "content" in delta and delta["content"]:
+                        chunk = delta["content"]
+                        buffer += chunk
+                        yield ("text", chunk)
+                    if "tool_calls" in delta and delta["tool_calls"]:
+                        tool_calls.extend(delta["tool_calls"])
+                    if delta.get("_finish") == "error":
+                        _stream_error = True
+
+                if tool_calls:
+                    merged = merge_tool_calls(tool_calls)
+
                     self.messages.append({
-                        "role": "tool", "tool_call_id": tc.get("id", ""),
-                        "content": compress_tool_result(tool_result, self.client, self.model),
+                        "role": "assistant", "content": buffer, "tool_calls": merged,
                     })
-                continue  # 进入下一轮
+                    # 执行每个 tool，结果喂回 + 透出给用户
+                    for tc in merged:
+                        fname = tc["function"]["name"]
+                        fargs = tc["function"].get("arguments", "{}")
+                        sig = (fname, _normalize_tool_args(fargs))
+                        # 跨轮去重：非写工具且本会话已执行过 → 复用缓存，不重复 dispatch
+                        if fname not in _WRITE_TOOLS and sig in _executed_signatures:
+                            tool_result = _executed_cache.get(sig, "")
+                            # 不 yield 副作用（用户已见过一次）
+                        else:
+                            with TraceContext("tool_call", tool_name=fname, call_id=tc.get("id", "")) as span:
+                                tool_result, side_effects = self._dispatch_tool(fname, fargs)
+                                span.set_attribute("result_chars", len(tool_result) if isinstance(tool_result, str) else -1)
+                                metrics.increment("tool_calls")
+                                metrics.timing("tool_call_ms", span.duration_ms())
+                                # #5 Prompt Lab: 记录工具调用和错误
+                                try:
+                                    from core.prompt_lab import get_prompt_lab
+                                    get_prompt_lab().record_tool_call()
+                                    if "[错误]" in str(tool_result) or "error" in str(tool_result).lower():
+                                        get_prompt_lab().record_tool_error()
+                                except (ImportError, OSError):
+                                    pass
+                            yield from side_effects
+                            if fname not in _WRITE_TOOLS:
+                                _executed_signatures.add(sig)
+                                # 缓存保留原始结果（高保真），跨轮复用时仍可重新截断
+                                _executed_cache[sig] = tool_result
+                        # 上下文窗口防护：智能压缩（抽取→LLM→截断三级路由），
+                        # 防止大文件/长输出撑爆 LLM 上下文。原始结果仍在 cache 中。
+                        from core.context_tools import compress_tool_result
+                        self.messages.append({
+                            "role": "tool", "tool_call_id": tc.get("id", ""),
+                            "content": compress_tool_result(tool_result, self.client, self.model),
+                        })
+                    continue  # 进入下一轮 tool loop
 
-            # 无 tool_calls：收尾，存 assistant 回复
+                # 无 tool_calls：检查是否流错误（需 fallback）还是正常收尾
+                # 双重检测：_stream_error 标记（来自 _finish="error"）或 buffer 文本模式
+                if _stream_error or self._is_stream_error(buffer):
+                    # 首轮流错误 → 尝试 fallback 链下一个 (model, client)
+                    if _loop == 0 and fallback_tried < len(fallback_chain):
+                        yield ("info", f"模型 {_use_model} 连接中断，尝试 fallback...")
+                        metrics.increment("fallback.text_model")
+                        _stream_error_break = True
+                        break  # 出 for _loop → while 继续
+                    # fallback 链耗尽或非首轮错误 → 返回错误信息
+                    self.messages.append({"role": "assistant", "content": buffer})
+                    return
+
+                # 正常收尾：存 assistant 回复
+                self.messages.append({"role": "assistant", "content": buffer})
+                # #5 Prompt Lab: 记录本次会话 outcome
+                try:
+                    from core.prompt_lab import get_prompt_lab
+                    get_prompt_lab().record_outcome()
+                except (ImportError, OSError):
+                    pass
+                return
+
+        # for _loop 结束：区分两种情况
+        # 1. _stream_error_break=True → 流错误 fallback，回到 while 尝试下一档
+        # 2. _stream_error_break=False → tool loop 溢出（模型正常工作但死循环），不 fallback
+        if not _stream_error_break:
+            # 超出最大轮次：强制收尾
+            yield ("info", f"已达到最大工具调用轮次 ({_effective_max})，已中止。请尝试简化你的请求。")
             self.messages.append({"role": "assistant", "content": buffer})
-            # #5 Prompt Lab: 记录本次会话 outcome
+            # #5 Prompt Lab: 超限也记录 outcome
             try:
                 from core.prompt_lab import get_prompt_lab
                 get_prompt_lab().record_outcome()
             except (ImportError, OSError):
                 pass
             return
-
-        # 超出最大轮次：强制收尾
-        yield ("info", f"已达到最大工具调用轮次 ({_effective_max})，已中止。请尝试简化你的请求。")
-        self.messages.append({"role": "assistant", "content": buffer})
-        # #5 Prompt Lab: 超限也记录 outcome
-        try:
-            from core.prompt_lab import get_prompt_lab
-            get_prompt_lab().record_outcome()
-        except (ImportError, OSError):
-            pass
 
 def merge_tool_calls(fragments: list[dict]) -> list[dict]:
     """合并流式 tool_calls 分片（按 index 聚合 name + arguments 字符串）。

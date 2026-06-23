@@ -39,6 +39,8 @@ PRICING: dict[str, dict[str, str | float]] = {
     "agnes-2.0-flash":     {"kind": "text", "input_per_1k": 0.003,  "output_per_1k": 0.012},
     "agnes-2.1-flash":     {"kind": "text", "input_per_1k": 0.003,  "output_per_1k": 0.012},
     "deepseek-v4-pro":     {"kind": "text", "input_per_1k": 0.002,  "output_per_1k": 0.008},
+    # DeepSeek V4 Flash: 约 Pro 的 50%（~1元/3元 每百万 token → 美元换算）
+    "deepseek-v4-flash":   {"kind": "text", "input_per_1k": 0.001,  "output_per_1k": 0.004},
     "Pro/moonshotai/Kimi-K2.6": {"kind": "text", "input_per_1k": 0.004, "output_per_1k": 0.012},
     # ── 图像模型（每次调用固定）──
     "agnes-image-2.0-flash": {"kind": "image", "per_call": 0.02},

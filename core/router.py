@@ -59,10 +59,13 @@ class RouteDecision:
 # ── 模型/供应商映射 ─────────────────────────────────────────
 
 # 各 TaskProfile 的推荐模型 ID
-# v5.0+: deepseek-v4-pro 为默认主力（tool-calling + thinking + 1M 上下文），
-# agnes-* 仅用于轻量对话与创意生产的 fallback。
+# v5.0+: DeepSeek 双档化（同 key 同 base_url），按 Claude Haiku/Sonnet/Opus 分层：
+# - CHAT (闲聊/问答) → deepseek-v4-flash（轻量档，对标 Haiku，省 ~50% 成本）
+# - QUICK_FIX/CODING/DEEP/CREATIVE → deepseek-v4-pro（深度思考 + 1M 上下文，对标 Sonnet/Opus）
+# 视觉走独立通道（agnes-1.5-flash），不经 router，不在此表。
+# 注：flash 与 pro 同属 deepseek 供应商，CHAT→flash 不触发 client 切换，零成本降档。
 _PROFILE_MODEL: dict[TaskProfile, str] = {
-    TaskProfile.CHAT: "agnes-1.5-flash",
+    TaskProfile.CHAT: "deepseek-v4-flash",
     TaskProfile.QUICK_FIX: "deepseek-v4-pro",
     TaskProfile.CODING: "deepseek-v4-pro",
     TaskProfile.DEEP: "deepseek-v4-pro",
@@ -312,14 +315,13 @@ def resolve(profile: TaskProfile | str, session: "ChatSession | None") -> RouteD
 
     # 构建理由
     reason_map = {
-        TaskProfile.CHAT: "简单对话 → 切至轻量模型（快速响应）",
+        TaskProfile.CHAT: "简单对话 → 切至 DeepSeek Flash（快速响应，省成本）",
         TaskProfile.QUICK_FIX: "快速修复任务 → 切至 DeepSeek（tool-calling + 思考）",
         TaskProfile.CODING: "代码实现任务 → 切至 DeepSeek（tool-calling + 思考）",
         TaskProfile.DEEP: "复杂分析任务 → 切至 DeepSeek（1M 上下文深度推理）",
         TaskProfile.CREATIVE: "创意生产任务 → 切至 DeepSeek（tool-calling + 思考）",
     }
     reason = reason_map.get(profile, f"任务类型 {profile.value} → 切至 {target_model}")
-
     return RouteDecision(profile=profile, model_id=target_model, reason=reason)
 
 

@@ -133,7 +133,7 @@ def main():
             if crit:
                 console.print("\n  [bold {0}]=== Startup check found issues ===[/]".format(COLORS["error"]))
                 print_report(results, show_ok=False)
-                console.print("  [{0}]Run: python crux_studio.py --check[/]\n".format(COLORS["warning"]))
+                console.print("  [{0}]Run: crux check[/]\n".format(COLORS["warning"]))
             else:
                 # 只在有 warning 时才输出
                 warnings = [(c, m) for c, ok, m in results if not ok]
@@ -274,7 +274,7 @@ def _quick(args):
                 show_info(f"视频任务已提交! ID: {display_id}")
                 query_id = vid_result.get('video_id', '')
                 if query_id:
-                    show_info(f"使用以下命令查询: python crux_studio.py --video-id {query_id}")
+                    show_info(f"使用以下命令查询: crux query {query_id}")
                 else:
                     show_warning("未返回 video_id，请检查任务响应")
             else:
@@ -319,7 +319,7 @@ def _quick(args):
                 show_info(f"任务已提交! ID: {display_id}")
                 query_id = data.get('video_id', '')
                 if query_id:
-                    show_info(f"使用以下命令查询: python crux_studio.py --video-id {query_id}")
+                    show_info(f"使用以下命令查询: crux query {query_id}")
                 else:
                     show_warning("未返回 video_id，请检查任务响应")
                 history.add_record("text_to_video", args.quick, "agnes-video-v2.0", data)
@@ -339,7 +339,7 @@ def _quick(args):
                     show_warning(f"超时({timeout}s)，当前进度 {data.get('progress', 0):.0f}%")
                     query_id = data.get('video_id', '')
                     if query_id:
-                        show_info(f"使用以下命令继续等待: python crux_studio.py --video-id {query_id}")
+                        show_info(f"使用以下命令继续等待: crux query {query_id} --watch")
                     else:
                         show_warning("未返回 video_id，无法自动查询")
                 else:

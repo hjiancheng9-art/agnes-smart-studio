@@ -262,6 +262,53 @@ class TestVisionFallback:
         assert chain[0] == "agnes-1.5-flash"
         assert len(chain) == len(set(chain))  # 无重复
 
+    def test_vision_chain_light_complexity_picks_light_first(self):
+        """阶段4b: 轻量任务首选 light tier 模型（agnes-1.5-flash）。"""
+        s = make_session()
+        s.vision_model = "agnes-1.5-flash"
+        chain = s._vision_model_chain("light")
+        assert chain[0] == "agnes-1.5-flash"  # light tier 首选
+
+    def test_vision_chain_complex_complexity_picks_pro_first(self):
+        """阶段4b: 复杂任务首选 pro tier 模型（agnes-2.0-flash 等）。"""
+        s = make_session()
+        s.vision_model = "agnes-1.5-flash"
+        chain = s._vision_model_chain("complex")
+        # 首项必须是 pro tier（agnes-2.0-flash / Kimi / Qwen）
+        from core.provider import get_model_info
+        first_tier = get_model_info(chain[0]).tier if get_model_info(chain[0]) else "pro"
+        assert first_tier != "light", f"Complex task should not pick light tier first: {chain[0]}"
+        # agnes-1.5-flash 应在链末尾（作为最后 fallback）
+        assert chain[-1] == "agnes-1.5-flash"
+
+    def test_vision_chain_all_models_vision_capable(self):
+        """阶段4a: 除 deepseek 外所有模型都在视觉链中。"""
+        s = make_session()
+        s.vision_model = "agnes-1.5-flash"
+        chain = s._vision_model_chain("light")
+        # 应包含 4 个视觉模型
+        assert "agnes-1.5-flash" in chain
+        assert "agnes-2.0-flash" in chain
+        assert "Pro/moonshotai/Kimi-K2.6" in chain
+        assert "Qwen3.6-27B-PRISM-PRO-DQ" in chain
+        # deepseek 不在链中
+        assert "deepseek-v4-pro" not in chain
+        assert "deepseek-v4-flash" not in chain
+
+    def test_vision_fallback_picks_pro_for_complex_task(self):
+        """阶段4b: 复杂视觉任务应调用 pro tier 模型（非 agnes-1.5-flash）。"""
+        s = make_session()
+        s.vision_client = MagicMock()
+        s.vision_client.chat_multimodal.return_value = {
+            "choices": [{"message": {"content": "有 3 只猫"}}]
+        }
+        out = s._vision_fallback("数一数有几只猫", "http://img")
+        assert out == "有 3 只猫"
+        # 被调用的模型不应该是 agnes-1.5-flash（complex 应走 pro tier）
+        called_model = s.vision_client.chat_multimodal.call_args.kwargs.get("model", "")
+        assert called_model != "agnes-1.5-flash", \
+            f"Complex vision task should not use light tier: {called_model}"
+
     def test_vision_fallback_first_model_success(self):
         """首选模型成功时直接返回内容。"""
         s = make_session()
@@ -311,8 +358,13 @@ class TestProviderVisionAPI:
 
     def test_model_supports_vision_false_for_text_only(self):
         from core.provider import model_supports_vision
+        # 阶段4a: deepseek-* 不支持视觉；其余模型（agnes/Kimi/Qwen）均支持
         assert model_supports_vision("deepseek-v4-pro") is False
-        assert model_supports_vision("agnes-2.0-flash") is False
+        assert model_supports_vision("deepseek-v4-flash") is False
+        # 非 deepseek 模型均支持视觉
+        assert model_supports_vision("agnes-2.0-flash") is True
+        assert model_supports_vision("Pro/moonshotai/Kimi-K2.6") is True
+        assert model_supports_vision("Qwen3.6-27B-PRISM-PRO-DQ") is True
 
 
 class TestDefaultModelsDeepseek:
@@ -333,7 +385,8 @@ class TestDefaultModelsDeepseek:
     def test_model_router_default_primary(self):
         from core.agent import ModelRouter
         router = ModelRouter()
-        assert router.primary == "deepseek-v4-pro"
+        # primary 取决于 models.json active provider 的 pro model
+        assert router.primary in ("deepseek-v4-pro", "agnes-2.0-flash")
 
     def test_spawn_subagent_default_model(self):
         from core.agent import spawn_subagent
@@ -366,5 +419,154 @@ class TestDefaultModelsDeepseek:
         assert _PROFILE_MODEL[TaskProfile.CODING] == "deepseek-v4-pro"
         assert _PROFILE_MODEL[TaskProfile.CREATIVE] == "deepseek-v4-pro"
         assert _PROFILE_MODEL[TaskProfile.DEEP] == "deepseek-v4-pro"
-        # CHAT 仍是轻量
-        assert _PROFILE_MODEL[TaskProfile.CHAT] == "agnes-1.5-flash"
+        # CHAT 仍是轻量 (阶段3d: 改用 deepseek-v4-flash 替代 agnes-1.5-flash)
+        assert _PROFILE_MODEL[TaskProfile.CHAT] == "deepseek-v4-flash"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 阶段 4: send_stream 模型级 fallback 测试
+# ═══════════════════════════════════════════════════════════════════
+
+class TestTextFallbackChain:
+    """_text_fallback_chain 构建 (model, client) 备选列表。"""
+
+    def test_chain_starts_with_current_model(self):
+        """fallback 链首项是当前 (model, client)。"""
+        s = make_session()
+        chain = s._text_fallback_chain()
+        assert chain[0] == (s.model, s.client)
+
+    def test_chain_length_at_least_one(self):
+        """即使没有 fallback provider，链也至少有 1 项。"""
+        s = make_session()
+        chain = s._text_fallback_chain()
+        assert len(chain) >= 1
+
+
+class TestIsStreamError:
+    """_is_stream_error 检测流式输出错误标记。"""
+
+    def test_detect_connect_error(self):
+        s = make_session()
+        assert s._is_stream_error("[流中断: ConnectError]") is True
+
+    def test_detect_http_error(self):
+        s = make_session()
+        assert s._is_stream_error("[HTTP 503]") is True
+
+    def test_normal_text_not_error(self):
+        s = make_session()
+        assert s._is_stream_error("这是一段正常回复") is False
+
+    def test_empty_buffer_not_error(self):
+        s = make_session()
+        assert s._is_stream_error("") is False
+
+
+class TestVisionComplexity:
+    """_classify_vision_complexity 视觉任务复杂度分级。"""
+
+    def test_simple_description_is_light(self):
+        s = make_session()
+        complexity, max_tok = s._classify_vision_complexity("描述这张图片")
+        assert complexity == "light"
+        assert max_tok == 2048
+
+    def test_code_in_image_is_complex(self):
+        s = make_session()
+        complexity, max_tok = s._classify_vision_complexity("读一下这段代码")
+        assert complexity == "complex"
+        assert max_tok == 4096
+
+    def test_counting_is_complex(self):
+        s = make_session()
+        complexity, max_tok = s._classify_vision_complexity("数一数有几只猫")
+        assert complexity == "complex"
+        assert max_tok == 4096
+
+    def test_comparison_is_complex(self):
+        s = make_session()
+        complexity, max_tok = s._classify_vision_complexity("对比这两张图的区别")
+        assert complexity == "complex"
+        assert max_tok == 4096
+
+    def test_empty_text_is_light(self):
+        s = make_session()
+        complexity, max_tok = s._classify_vision_complexity("")
+        assert complexity == "light"
+        assert max_tok == 2048
+
+
+class TestSendStreamFallback:
+    """send_stream 主对话流式 fallback 集成测试。
+
+    使用 mock client 模拟主模型流中断 → 自动降级到备选模型。
+    """
+
+    def _make_fallback_session(self, primary_error, fallback_response):
+        """构造一个主模型报错、备选模型成功的 session。
+
+        Args:
+            primary_error: 主模型 chat_stream yield 的错误内容
+            fallback_response: 备选模型 chat_stream yield 的正常内容
+        """
+        mock_primary = MagicMock()
+        mock_fallback = MagicMock()
+
+        # 主模型产生错误标记
+        mock_primary.chat_stream.return_value = iter([
+            {"content": primary_error, "_finish": "error"},
+        ])
+        # 备选模型产生正常回复
+        mock_fallback.chat_stream.return_value = iter([
+            {"content": fallback_response},
+        ])
+
+        s = ChatSession(mock_primary)
+        # 手动注入 fallback chain
+        s._text_fallback_chain = lambda: [
+            ("model-a", mock_primary),
+            ("model-b", mock_fallback),
+        ]
+        return s
+
+    def test_fallback_on_stream_error(self):
+        """主模型流中断时自动降级到备选。"""
+        s = self._make_fallback_session(
+            primary_error="\n[流中断: ConnectError]",
+            fallback_response="fallback reply",
+        )
+        results = list(s.send_stream("hello"))
+        # 应有 info 提示 + fallback 回复
+        texts = [r[1] for r in results if r[0] == "text"]
+        infos = [r[1] for r in results if r[0] == "info"]
+        assert any("连接中断" in i for i in infos), f"Expected fallback info, got {infos}"
+        assert "fallback reply" in "".join(texts)
+
+    def test_no_fallback_on_normal_response(self):
+        """正常响应时不触发 fallback。"""
+        mock_client = MagicMock()
+        mock_client.chat_stream.return_value = iter([
+            {"content": "正常回复"},
+        ])
+        s = ChatSession(mock_client)
+        results = list(s.send_stream("hello"))
+        texts = [r[1] for r in results if r[0] == "text"]
+        infos = [r[1] for r in results if r[0] == "info"]
+        assert "正常回复" in "".join(texts)
+        assert not any("fallback" in i.lower() for i in infos)
+
+    def test_no_fallback_when_chain_exhausted(self):
+        """fallback 链耗尽时返回错误信息。"""
+        mock_client = MagicMock()
+        mock_client.chat_stream.return_value = iter([
+            {"content": "\n[HTTP 503]", "_finish": "error"},
+        ])
+        s = ChatSession(mock_client)
+        # 只有主模型，无备选
+        s._text_fallback_chain = lambda: [
+            ("model-a", mock_client),
+        ]
+        results = list(s.send_stream("hello"))
+        texts = [r[1] for r in results if r[0] == "text"]
+        assert "[HTTP 503]" in "".join(texts)

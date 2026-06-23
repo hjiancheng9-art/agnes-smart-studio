@@ -25,7 +25,7 @@ from ui.theme import COLORS, ICONS, LAYOUT, console
 
 
 def _show_banner():
-    """Display the cyberpunk pixel logo banner."""
+    """Display the Organic convergence-diamond logo banner."""
     from ui.terminal_logo import show as _show_logo
     _show_logo()
 
@@ -158,7 +158,7 @@ def check_output_dir():
 
 MODES = {
     "1": (f"{ICONS['primary']} 交互菜单",     "文生图/图生图/视频/历史/模板"),
-    "2": (f"{ICONS['primary']} 聊天+智能体",  "36技能 + Alt+Enter换行 + 一键制片/作图/炼丹"),
+    "2": (f"{ICONS['primary']} 聊天+智能体",  "45技能 + Alt+Enter换行 + 一键制片/作图/炼丹"),
     "3": (f"{ICONS['primary']} 快速生成",     "输入描述 → 选类型 → 选视频时长 → 一键生成"),
     "4": (f"{ICONS['primary']} 图生图",       "图片编辑/风格迁移 → 进入交互菜单操作"),
     "5": (f"{ICONS['primary']} 图生视频",     "图片→视频，可选3s~18s时长"),
@@ -232,6 +232,14 @@ def ask_quick_prompt(kind: str = "image") -> tuple[str, list[str]] | None:
     return prompt, args
 
 
+def _crux_cmd(args: list[str]) -> list[str]:
+    """Return best available crux command: 'crux' if on PATH, else 'python crux_studio.py'."""
+    import shutil
+    if shutil.which("crux"):
+        return ["crux"] + args
+    return ["python", "crux_studio.py"] + args
+
+
 def launch(cmd_parts: list[str]):
     """启动主程序，失败时提示错误并暂停。
 
@@ -279,7 +287,7 @@ def main():
     console.print(f"\n  [{COLORS['muted']}]直接进入 CRUX Chat 模式...[/]")
     console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] [{COLORS['primary']}]命令[/]  /code /agent /plan /team /deploy /showrun /help")
     console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] [{COLORS['primary']}]换行[/]  Alt+Enter / Ctrl+J  ·  图片: 直接粘贴路径")
-    launch(["python", "crux_studio.py", "-c"])
+    launch(_crux_cmd(["-c"]))
 
 
 def _main_menu():
@@ -311,14 +319,14 @@ def _main_menu():
             break
         if choice == "1":
             console.print(f"\n  [{COLORS['muted']}]正在启动交互菜单...[/]")
-            launch(["python", "crux_studio.py"])
+            launch(_crux_cmd([]))
             continue
         if choice == "2":
             console.print(f"\n  [{COLORS['muted']}]正在启动聊天+智能体模式...[/]")
             console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] 技能: /skill load 视频|作图|写剧本|分镜|炼丹...")
             console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] 换行: Alt+Enter / Ctrl+J  ·  图片: 直接粘贴路径")
             console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] 命令: /code /agent /plan /team /deploy /provider /help")
-            launch(["python", "crux_studio.py", "-c"])
+            launch(_crux_cmd(["-c"]))
             continue
         if choice == "3":
             console.print(f"\n  [{COLORS['muted']}]选择生成类型:[/]")
@@ -336,7 +344,7 @@ def _main_menu():
             if result:
                 prompt, extra_args = result
                 console.print(f"  [{COLORS['muted']}]正在启动生成...[/]")
-                launch(["python", "crux_studio.py", "-q", prompt] + extra_args)
+                launch(_crux_cmd(["-q", prompt] + extra_args))
             else:
                 print_warn("已取消（未输入描述）")
                 continue
@@ -344,20 +352,20 @@ def _main_menu():
             console.print(f"\n  [{COLORS['warning']}]{ICONS['warning']}[/] 图生图需要传入图片文件")
             console.print(f"  [{COLORS['muted']}]进入交互菜单后选 '2-图生图'，支持拖拽图片或输入路径[/]")
             input("  按 Enter 进入...")
-            launch(["python", "crux_studio.py"])
+            launch(_crux_cmd([]))
             continue
         if choice == "5":
             console.print(f"\n  [{COLORS['warning']}]{ICONS['warning']}[/] 图生视频需要传入图片文件")
             console.print(f"  [{COLORS['muted']}]进入交互菜单后选 '4-图生视频'，支持拖拽图片或输入路径[/]")
             console.print(f"  [{COLORS['muted']}]菜单内可选视频时长（3s~18s）[/]")
             input("  按 Enter 进入...")
-            launch(["python", "crux_studio.py"])
+            launch(_crux_cmd([]))
             continue
         if choice == "6":
             video_id = ask_video_id()
             if video_id:
                 console.print(f"  [{COLORS['muted']}]正在查询 video_id: {video_id} ...[/]")
-                launch(["python", "crux_studio.py", "--video-id", video_id])
+                launch(_crux_cmd(["--video-id", video_id]))
             else:
                 print_warn("已取消（未输入 video_id）")
             continue
@@ -367,7 +375,7 @@ def _main_menu():
             if result:
                 prompt, extra_args = result
                 console.print(f"  [{COLORS['muted']}]正在启动流水线...[/]")
-                launch(["python", "crux_studio.py", "-q", prompt] + extra_args)
+                launch(_crux_cmd(["-q", prompt] + extra_args))
             else:
                 print_warn("已取消（未输入描述）")
                 continue

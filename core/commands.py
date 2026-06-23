@@ -76,7 +76,7 @@ COMMANDS: list[CommandDef] = [
                handler='_inline_agent'),
     CommandDef('tools',   '/tools',   '',       '查看已注册的工具列表', '对话',
                handler='_inline_tools'),
-    CommandDef('skill',   '/skill',   '<cmd>',  '技能包管理 (list/load/unload/create)', '对话',
+    CommandDef('skill',   '/skill',   '<cmd>',  '技能包管理 (list/load/mode/unload/create)', '对话',
                handler='_chat_skill'),
     CommandDef('clear',   '/clear',   '',       '清空对话历史', '对话',
                handler='_inline_clear'),

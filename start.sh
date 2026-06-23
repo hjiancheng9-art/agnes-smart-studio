@@ -61,5 +61,12 @@ fi
 # ── 5. 创建输出目录 ─────────────────────────
 mkdir -p output/images output/videos
 
-# ── 6. 启动 ─────────────────────────────────
-exec $PY crux_studio.py "$@"
+# ── 6. 注册 crux 命令 ────────────────────────
+$PY -m pip install -e . --quiet 2>/dev/null || true
+
+# ── 7. 启动 ─────────────────────────────────
+if command -v crux &>/dev/null; then
+    exec crux "$@"
+else
+    exec $PY crux_studio.py "$@"
+fi

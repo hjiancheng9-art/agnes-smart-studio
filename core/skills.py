@@ -38,6 +38,12 @@ SKILLS_DIR = Path(__file__).parent.parent / "skills"
 class Skill:
     """单个技能"""
 
+    # 三态 trigger（对标 Claude 的 on / user-invocable-only / name-only）
+    TRIGGER_AUTO = "auto"      # 自动注入 system prompt（如 coding-rules）
+    TRIGGER_MANUAL = "manual"  # 仅 /skill load 显式加载（默认，向后兼容）
+    TRIGGER_OFF = "off"        # 完全隐藏，不出现在 list
+    _VALID_TRIGGERS = (TRIGGER_AUTO, TRIGGER_MANUAL, TRIGGER_OFF)
+
     def __init__(self, data: dict, file_path: Path) -> None:
         self.name = data.get("name", file_path.stem)
         self.description = data.get("description", "")
@@ -45,23 +51,60 @@ class Skill:
         self.prompt = data.get("prompt", "")
         self.icon = data.get("icon", "")
         self.tools = data.get("tools", [])
+        self.trigger = data.get("trigger", self.TRIGGER_MANUAL)
+        # 兜底：非法值归 manual
+        if self.trigger not in self._VALID_TRIGGERS:
+            self.trigger = self.TRIGGER_MANUAL
         self.file = file_path
 
     def __repr__(self):
-        return f"Skill({self.name})"
+        return f"Skill({self.name}, trigger={self.trigger})"
 
 
 class SkillManager:
     """技能管理器：发现、加载、卸载"""
 
+    # overrides 配置文件路径（对标 Claude 的 skillOverrides）
+    OVERRIDES_FILE = Path(__file__).parent.parent / "output" / "skill_overrides.json"
+
     def __init__(self, skills_dir: Path | None = None) -> None:
         self._dir = skills_dir or SKILLS_DIR
         self._loaded: Skill | None = None
-        self._available: dict[str, Skill] = {}
+        self._available: dict[str, Skill] = {}  # auto/manual 态（用户可见）
+        self._all_skills: dict[str, Skill] = {}  # 全量（含 off 态，给 /skill mode 用）
+        self._overrides: dict[str, str] = {}  # name -> trigger 覆盖
+
+    def _load_overrides(self) -> dict[str, str]:
+        """从 output/skill_overrides.json 读 trigger 覆盖配置。
+
+        格式: {"skill-name": "auto"|"manual"|"off", ...}
+        缺失或损坏时返回空 dict（不阻塞 discover）。
+        """
+        if not self.OVERRIDES_FILE.exists():
+            return {}
+        try:
+            data = json.loads(self.OVERRIDES_FILE.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                # 只保留合法值
+                return {k: v for k, v in data.items()
+                        if v in Skill._VALID_TRIGGERS}
+        except (json.JSONDecodeError, OSError):
+            pass
+        return {}
 
     def discover(self) -> dict[str, Skill]:
-        """扫描 skills/ 目录，发现所有可用技能"""
+        """扫描 skills/ 目录，发现所有可用技能
+
+        应用 trigger 三态：
+        - off: 不加入 _available（完全隐藏）
+        - auto/manual: 加入 _available
+        - overrides 优先级 > skill 文件中的 trigger 字段
+
+        同时维护 _all_skills（全量，含 off 态），供 /skill mode 列举。
+        """
         self._available.clear()
+        self._all_skills.clear()
+        self._overrides = self._load_overrides()
         if not self._dir.exists():
             self._dir.mkdir(parents=True, exist_ok=True)
             return self._available
@@ -70,6 +113,14 @@ class SkillManager:
             try:
                 data = json.loads(f.read_text(encoding="utf-8"))
                 skill = Skill(data, f)
+                # 应用 overrides（优先级最高）
+                if skill.name in self._overrides:
+                    skill.trigger = self._overrides[skill.name]
+                # _all_skills 始终收录（含 off 态，给 /skill mode 用）
+                self._all_skills[skill.name] = skill
+                # off 态：不加入 _available（用户不可见）
+                if skill.trigger == Skill.TRIGGER_OFF:
+                    continue
                 self._available[skill.name] = skill
             except (json.JSONDecodeError, KeyError):
                 pass
@@ -108,6 +159,94 @@ class SkillManager:
         if not self._loaded:
             return []
         return self._loaded.tools or []
+
+    def auto_skills_prompt(self, base_prompt: str) -> str:
+        """扫描所有 trigger=auto 的技能，注入其 prompt 到 base_prompt 末尾。
+
+        对标 Claude 的 auto-trigger skills（如 coding-rules）。
+        与手动 load 的 skill 共存：手动加载的技能 prompt 由 get_system_prompt 处理，
+        auto 类技能由本方法在 _build_system_prompt 末尾统一注入。
+
+        Args:
+            base_prompt: 当前 system prompt（可能已含手动 skill）
+        Returns:
+            拼接 auto skills 后的完整 prompt
+        """
+        # 确保 _available 已 discover（首次调用兜底）
+        if not self._available:
+            self.discover()
+        auto_skills = [s for s in self._available.values()
+                       if s.trigger == Skill.TRIGGER_AUTO
+                       and s.name != (self._loaded.name if self._loaded else "")]
+        if not auto_skills:
+            return base_prompt
+        parts = [base_prompt]
+        for skill in auto_skills:
+            sp = skill.prompt.strip()
+            if sp:
+                parts.append(f"\n\n[Skill 自动激活: {skill.name}]\n{sp}")
+        return "".join(parts)
+
+    # ── 三态控制（/skill mode 命令的后端）──
+
+    def get_trigger(self, name: str) -> str | None:
+        """查询技能当前生效 trigger 态。
+
+        Returns:
+            "auto" / "manual" / "off"，或 None（技能不存在）。
+        优先返回 overrides 中的值；否则返回 skill 文件中的 trigger。
+        """
+        if not self._all_skills:
+            self.discover()
+        skill = self._all_skills.get(name)
+        if skill is None:
+            return None
+        return self._overrides.get(name, skill.trigger)
+
+    def set_trigger(self, name: str, trigger: str) -> bool:
+        """设置技能 trigger 态，持久化到 output/skill_overrides.json。
+
+        Args:
+            name: 技能名
+            trigger: "auto" / "manual" / "off"（非法值拒绝）
+        Returns:
+            True 成功；False（技能不存在或 trigger 非法）
+        """
+        if trigger not in Skill._VALID_TRIGGERS:
+            return False
+        if not self._all_skills:
+            self.discover()
+        if name not in self._all_skills:
+            return False
+        # 与文件原值相同且无 override → 不写文件（避免无意义持久化）
+        original = self._all_skills[name].trigger
+        if trigger == original and name not in self._overrides:
+            # 仍刷新内存（保持幂等语义）
+            self.discover()
+            return True
+        self._overrides[name] = trigger
+        self._save_overrides()
+        self.discover()
+        return True
+
+    def _save_overrides(self) -> None:
+        """把 _overrides 持久化到 output/skill_overrides.json（原子写）。"""
+        try:
+            self.OVERRIDES_FILE.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.OVERRIDES_FILE.with_suffix(".json.tmp")
+            tmp.write_text(
+                json.dumps(self._overrides, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            tmp.replace(self.OVERRIDES_FILE)
+        except OSError:
+            pass  # 写盘失败不阻塞内存态
+
+    def list_all(self) -> list[Skill]:
+        """返回全量技能列表（含 off 态），按 trigger 分组方便 /skill mode 展示。"""
+        if not self._all_skills:
+            self.discover()
+        return sorted(self._all_skills.values(), key=lambda s: s.name)
 
     # ── 创建示例技能 ──
     # ── 品质门禁 (参考 harness-engineering) ──

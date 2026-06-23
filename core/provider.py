@@ -88,9 +88,10 @@ def _register_defaults():
             name="CRUX 2.0 Flash",
             provider_id="crux",
             provider_name="CRUX AI",
-            description="深度思考 + AI自动生图/视频，无图片理解",
+            description="深度思考 + AI自动生图/视频 + 复杂视觉推理",
             supports_tools=True,
             supports_thinking=True,
+            supports_vision=True,  # 复杂视觉任务（代码/图表/计数等推理）
             tier="pro",
             aliases=("pro",),
         ),
@@ -103,15 +104,30 @@ def _register_defaults():
             supports_tools=True,
             supports_thinking=True,
             tier="pro",
-            aliases=("deepseek", "ds"),
+            aliases=("deepseek", "ds", "dsv4pro"),
+        ),
+        ModelInfo(
+            id="deepseek-v4-flash",
+            name="DeepSeek V4 Flash",
+            provider_id="deepseek",
+            provider_name="DeepSeek V4 Flash (1M 上下文)",
+            # Flash 同 key 同 base_url，非思考模式；价格约 Pro 的 50%，对标 Claude Haiku
+            # 旧名 deepseek-chat (非思考) / deepseek-reasoner (思考) 将于 2026/07/24 废弃，
+            # 统一收敛到 deepseek-v4-flash 的非思考/思考双模。
+            description="轻量快档，日常对话/简单任务，1M 上下文，成本约 Pro 的一半",
+            supports_tools=True,
+            supports_thinking=False,  # Flash 非思考模式（思考需切 Pro）
+            tier="light",
+            aliases=("flash", "dsflash", "dsv4flash"),
         ),
         ModelInfo(
             id="Pro/moonshotai/Kimi-K2.6",
             name="Kimi K2.6",
             provider_id="siliconflow",
             provider_name="Kimi K2.6 (via SiliconFlow)",
-            description="备选，视觉走独立通道",
+            description="备选，支持视觉理解（复杂推理 fallback）",
             supports_tools=True,
+            supports_vision=True,
             tier="pro",
             aliases=("kimi", "sf"),
         ),
@@ -120,9 +136,10 @@ def _register_defaults():
             name="Qwen3.6-27B-PRISM-PRO-DQ (本地)",
             provider_id="local",
             provider_name="Local llama.cpp (Qwen3.6-27B-PRISM-PRO-DQ)",
-            description="本地推理，离线可用，代码/推理；需手动启动 llama-server",
+            description="本地推理，离线可用，代码/推理 + 视觉；需手动启动 llama-server",
             supports_tools=True,
             supports_thinking=True,
+            supports_vision=True,
             tier="pro",
             aliases=("local", "qwen", "qwen3"),
         ),
@@ -208,7 +225,10 @@ def get_vision_models() -> list[str]:
     """返回所有支持多模态视觉理解的模型 ID 列表（按注册顺序，保持稳定）。
 
     视觉通道 fallback 链的单一真相源：调用方按此列表顺序尝试，
-    首个成功即返回。当前仅 agnes-1.5-flash 注册了 supports_vision。
+    首个成功即返回。除 deepseek-* 外，其余模型（agnes 系列 / Kimi / Qwen）
+    均支持视觉。调用方应按任务复杂度选择首选项：
+    - 轻量（OCR/描述）→ agnes-1.5-flash（tier=light，最便宜）
+    - 复杂（计数/读代码/图表推理）→ agnes-2.0-flash 或更强（tier=pro）
     """
     return [m.id for m in MODEL_REGISTRY.values() if m.supports_vision]
 

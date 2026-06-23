@@ -59,7 +59,9 @@ echo ""
 echo -e "${BOLD}  CRUX Studio starting...${RESET}"
 echo ""
 
-if [ $# -eq 0 ]; then
+if command -v crux &>/dev/null; then
+    exec crux "$@"
+elif [ $# -eq 0 ]; then
     $PYTHON launcher.py
 else
     $PYTHON crux_studio.py "$@"
