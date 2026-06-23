@@ -17,11 +17,20 @@
 import json
 import subprocess
 import importlib
+import threading
 from collections.abc import Callable
+from contextlib import contextmanager
 from pathlib import Path
 
 
 TOOLS_CONFIG = Path(__file__).parent.parent / "tools.json"
+
+# ── 轻量 no-op 上下文管理器（observability 不可用时降级）──
+@contextmanager
+def _noop_cm():
+    """Yield None, no-op.  Used when core.observability is not importable."""
+    yield None
+
 
 # ── 管道工具标志：由 ChatSession 在加载 showrunner 技能后设置为 True ──
 _pipeline_tools_enabled = False
@@ -74,6 +83,20 @@ BUILTIN_TOOLS = [
                     "image_url": {"type": "string", "description": "可选，关键帧图片URL或路径，传入时走图生视频"},
                 },
                 "required": ["prompt"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "multi_agent",
+            "description": "多智能体协调：将复杂目标分解为多个子任务，并行派发给多个 agent 协同完成。适用于代码审查、调试排查、架构分析等需要多步骤并行的场景。返回各子任务执行结果汇总。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "goal": {"type": "string", "description": "需要多智能体协同完成的目标描述"},
+                },
+                "required": ["goal"],
             },
         },
     },
@@ -615,30 +638,53 @@ class ToolRegistry:
 
     # ── 执行 ──
     def execute(self, name: str, args: dict) -> str:
-        """执行工具并返回结果文本"""
+        """执行工具并返回结果文本（含轻量观测：TraceContext + metrics）"""
+        try:
+            from core.observability import TraceContext, metrics as _m
+        except ImportError:
+            _m = None  # observability 不可用时静默降级
+
         executor = self._executors.get(name)
         if not executor:
+            if _m:
+                _m.increment("tool_errors")
             return f"[错误] 未知工具: {name}"
         try:
-            result = executor(**args)
+            ctx = TraceContext("registry_execute", tool_name=name) if _m else _noop_cm()
+            with ctx as span:
+                result = executor(**args)
+                if _m and span is not None:
+                    span.set_attribute("result_chars", len(str(result)))
+                    _m.increment("tool_executions")
+                    _m.timing("tool_execute_ms", span.duration_ms())
             return str(result)
-        except (RuntimeError, OSError, ValueError, TypeError) as e:
+        except (RuntimeError, OSError, ValueError, TypeError):
+            if _m:
+                _m.increment("tool_errors")
+            raise
+        except Exception as e:
+            if _m:
+                _m.increment("tool_errors")
             return f"[错误] 工具 '{name}' 执行失败: {e}"
 
 
-# ── 全局单例 ──
+# ── 全局单例（线程安全双重检查锁） ──
 _registry: ToolRegistry | None = None
+_registry_lock = threading.Lock()
 
 
 def get_registry(config_path: Path | None = None) -> ToolRegistry:
     global _registry
     if _registry is None:
-        _registry = ToolRegistry(config_path)
-        _registry.load()
+        with _registry_lock:
+            if _registry is None:
+                _registry = ToolRegistry(config_path)
+                _registry.load()
     return _registry
 
 
 def reload_registry():
     global _registry
-    _registry = None
+    with _registry_lock:
+        _registry = None
     return get_registry()

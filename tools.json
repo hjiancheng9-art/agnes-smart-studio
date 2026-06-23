@@ -125,7 +125,7 @@
     {
       "name": "run_python",
       "type": "python",
-      "description": "执行 Python 代码并返回结果。直接进程内 exec，永不丢输出。仅用于简单代码；复杂代码先用 write_file 写 .py 文件再 run_bash 执行。",
+      "description": "执行 Python 代码并返回结果。子进程隔离执行，30s 超时，支持 import/文件读写/class 定义（exec/eval/compile/breakpoint 禁用）。仅用于简单代码；复杂代码先用 write_file 写 .py 文件再 run_bash 执行。",
       "function": "core.file_tools.run_python",
       "parameters": {
         "code": {
@@ -222,6 +222,266 @@
       }
     },
     {
+      "name": "github_search",
+      "type": "python",
+      "description": "搜索 GitHub: repos / issues / PRs / code / commits，5 合 1。支持语言、owner、排序、标签等过滤。",
+      "function": "core.github_tools.execute_github_search",
+      "parameters": {
+        "query": {
+          "type": "string",
+          "description": "搜索关键词（必填）",
+          "required": true
+        },
+        "search_type": {
+          "type": "string",
+          "description": "搜索类型: repos|issues|prs|code|commits（默认 repos）",
+          "required": false
+        },
+        "language": {
+          "type": "string",
+          "description": "编程语言过滤，如 python, go, rust",
+          "required": false
+        },
+        "owner": {
+          "type": "string",
+          "description": "限定 owner 或组织",
+          "required": false
+        },
+        "sort": {
+          "type": "string",
+          "description": "排序: stars|forks|updated|created|reactions|interactions",
+          "required": false
+        },
+        "limit": {
+          "type": "integer",
+          "description": "结果数量（默认 10，最大 100）",
+          "required": false
+        },
+        "state": {
+          "type": "string",
+          "description": "状态过滤（issues/prs）: open|closed|all",
+          "required": false
+        },
+        "label": {
+          "type": "string",
+          "description": "标签过滤（issues/prs）",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "github_repo_view",
+      "type": "python",
+      "description": "查看 GitHub 仓库信息：描述、星标、语言、创建时间等。接受 URL 或 owner/repo 格式。",
+      "function": "core.github_tools.execute_github_repo_view",
+      "parameters": {
+        "repo": {
+          "type": "string",
+          "description": "仓库: owner/repo 或完整 URL。空则自动检测当前仓库",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "github_repo_list",
+      "type": "python",
+      "description": "列出 GitHub 仓库（默认当前用户，可指定 owner）。",
+      "function": "core.github_tools.execute_github_repo_list",
+      "parameters": {
+        "owner": {
+          "type": "string",
+          "description": "用户名或组织名（空则当前用户）",
+          "required": false
+        },
+        "limit": {
+          "type": "integer",
+          "description": "结果数量（默认 20，最大 100）",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "github_browse",
+      "type": "python",
+      "description": "读取 GitHub 仓库的文件内容或目录树。突破 web_fetch 5000 字限制，无大小上限。",
+      "function": "core.github_tools.execute_github_browse",
+      "parameters": {
+        "repo": {
+          "type": "string",
+          "description": "仓库: owner/repo 或 URL（必填）",
+          "required": true
+        },
+        "path": {
+          "type": "string",
+          "description": "文件路径或目录路径（空则列出根目录）",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "github_readme",
+      "type": "python",
+      "description": "一键读取任意 GitHub 仓库的 README 文件内容。",
+      "function": "core.github_tools.execute_github_readme",
+      "parameters": {
+        "repo": {
+          "type": "string",
+          "description": "仓库: owner/repo 或 URL（必填）",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "github_release",
+      "type": "python",
+      "description": "列出 GitHub releases 或查看指定 tag 的 release 详情（含 changelog）。",
+      "function": "core.github_tools.execute_github_release",
+      "parameters": {
+        "repo": {
+          "type": "string",
+          "description": "仓库: owner/repo 或 URL（必填）",
+          "required": true
+        },
+        "tag": {
+          "type": "string",
+          "description": "Release tag（空则列出所有 releases）",
+          "required": false
+        },
+        "limit": {
+          "type": "integer",
+          "description": "结果数量（默认 10，最大 30）",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "github_issue",
+      "type": "python",
+      "description": "GitHub Issues: 列出或创建。PR 创建由 git_tools.git_pr_create 覆盖。",
+      "function": "core.github_tools.execute_github_issue",
+      "parameters": {
+        "repo": {
+          "type": "string",
+          "description": "仓库: owner/repo 或 URL（必填）",
+          "required": true
+        },
+        "action": {
+          "type": "string",
+          "description": "list | create（默认 list）",
+          "required": false
+        },
+        "title": {
+          "type": "string",
+          "description": "Issue 标题（create 时必填）",
+          "required": false
+        },
+        "body": {
+          "type": "string",
+          "description": "Issue 内容（可选）",
+          "required": false
+        },
+        "state": {
+          "type": "string",
+          "description": "open | closed | all（默认 open）",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "github_pr",
+      "type": "python",
+      "description": "GitHub PRs: 列出或查看详情（create/merge 由 git_tools 覆盖）。",
+      "function": "core.github_tools.execute_github_pr",
+      "parameters": {
+        "repo": {
+          "type": "string",
+          "description": "仓库: owner/repo 或 URL（必填）",
+          "required": true
+        },
+        "state": {
+          "type": "string",
+          "description": "open | closed | merged | all（默认 open）",
+          "required": false
+        },
+        "number": {
+          "type": "integer",
+          "description": "PR 编号（指定则查看详情）",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "github_api",
+      "type": "python",
+      "description": "万能钥匙：调用任意 GitHub REST/GraphQL endpoint。AI 能做 GitHub 上的一切。零限制。",
+      "function": "core.github_tools.execute_github_api",
+      "parameters": {
+        "endpoint": {
+          "type": "string",
+          "description": "API endpoint，如 repos/owner/repo/releases/latest、graphql、search/users",
+          "required": true
+        },
+        "method": {
+          "type": "string",
+          "description": "HTTP 方法: GET|POST|PATCH|PUT|DELETE（默认 GET）",
+          "required": false
+        },
+        "fields": {
+          "type": "string",
+          "description": "请求参数，换行分隔的 key=value 对",
+          "required": false
+        },
+        "jq_filter": {
+          "type": "string",
+          "description": "jq 表达式过滤输出（可选）",
+          "required": false
+        },
+        "paginate": {
+          "type": "string",
+          "description": "自动翻页: true 启用",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "github_write_file",
+      "type": "python",
+      "description": "通过 GitHub Contents API 在远端创建或更新文件并自动 commit。更新已有文件需先通过 github_browse 获取 sha。典型工作流：github_browse 获取 sha → github_write_file 写入 → git_pr_create 创建 PR。",
+      "function": "core.github_tools.execute_github_write_file",
+      "parameters": {
+        "repo": {
+          "type": "string",
+          "description": "仓库: owner/repo 或 URL（必填）",
+          "required": true
+        },
+        "path": {
+          "type": "string",
+          "description": "文件路径，如 src/main.py（必填）",
+          "required": true
+        },
+        "content": {
+          "type": "string",
+          "description": "文件内容（必填，自动 Base64 编码）",
+          "required": true
+        },
+        "message": {
+          "type": "string",
+          "description": "commit 信息（默认: Update {path}）",
+          "required": false
+        },
+        "branch": {
+          "type": "string",
+          "description": "目标分支（空则默认分支）",
+          "required": false
+        },
+        "sha": {
+          "type": "string",
+          "description": "文件当前 blob sha（更新已有文件时必填，可通过 github_browse 获取）",
+          "required": false
+        }
+      }
+    },
+    {
       "name": "pip_install",
       "type": "python",
       "description": "安装 Python 包",
@@ -287,6 +547,7 @@
       "parameters": {
         "url": {
           "type": "string",
+          "description": "要截图的网页 URL",
           "required": true
         }
       }
@@ -299,10 +560,12 @@
       "parameters": {
         "title": {
           "type": "string",
+          "description": "文档标题（同时用于生成文件名）",
           "required": true
         },
         "content": {
           "type": "string",
+          "description": "Markdown 正文内容",
           "required": true
         }
       }
@@ -315,10 +578,12 @@
       "parameters": {
         "title": {
           "type": "string",
+          "description": "页面标题（用于 <title> 和 <h1>，同时生成文件名）",
           "required": true
         },
         "body": {
           "type": "string",
+          "description": "HTML body 内容（放在 <h1> 之后）",
           "required": true
         }
       }
@@ -331,6 +596,7 @@
       "parameters": {
         "content": {
           "type": "string",
+          "description": "PDF 文本内容（支持中文，使用 reportlab 渲染）",
           "required": true
         }
       }
@@ -343,10 +609,12 @@
       "parameters": {
         "text": {
           "type": "string",
+          "description": "要转换为语音的文本内容",
           "required": true
         },
         "lang": {
           "type": "string",
+          "description": "语音语言代码：zh=中文（XiaoxiaoNeural），其它=英文（JennyNeural），默认 zh",
           "required": false
         }
       }
@@ -366,10 +634,12 @@
       "parameters": {
         "project_dir": {
           "type": "string",
+          "description": "要部署的项目目录（默认当前目录 .）",
           "required": false
         },
         "token": {
           "type": "string",
+          "description": "Vercel 认证 token（留空则用已登录的账户）",
           "required": false
         }
       }
@@ -382,10 +652,12 @@
       "parameters": {
         "query": {
           "type": "string",
+          "description": "自然语言搜索查询（TF-IDF 语义匹配代码片段）",
           "required": true
         },
         "top_k": {
           "type": "integer",
+          "description": "返回结果数（默认 10）",
           "required": false
         }
       }
@@ -411,14 +683,17 @@
       "parameters": {
         "server_name": {
           "type": "string",
+          "description": "MCP 服务器逻辑名（后续 mcp_call 用此名引用）",
           "required": true
         },
         "command": {
           "type": "string",
+          "description": "启动 MCP 服务器进程的命令（如可执行文件路径）",
           "required": true
         },
         "args": {
           "type": "string",
+          "description": "传给服务器命令的参数（空格分隔，留空表示无额外参数）",
           "required": false
         }
       }
@@ -431,14 +706,17 @@
       "parameters": {
         "server_name": {
           "type": "string",
+          "description": "已连接的 MCP 服务器名（mcp_connect 时指定的 server_name）",
           "required": true
         },
         "tool_name": {
           "type": "string",
+          "description": "要在 MCP 服务器上调用的工具名",
           "required": true
         },
         "args_json": {
           "type": "string",
+          "description": "传给工具的参数 JSON 字符串（默认 \"{}\"）",
           "required": false
         }
       }
@@ -451,6 +729,7 @@
       "parameters": {
         "url": {
           "type": "string",
+          "description": "要让浏览器导航到的 URL（会做安全校验）",
           "required": true
         }
       }
@@ -470,6 +749,7 @@
       "parameters": {
         "audio_path": {
           "type": "string",
+          "description": "要转写的音频文件路径（mp3/wav/m4a 等）",
           "required": true
         }
       }
@@ -482,14 +762,17 @@
       "parameters": {
         "prompt": {
           "type": "string",
+          "description": "图像生成文本提示词",
           "required": true
         },
         "size": {
           "type": "string",
+          "description": "图像尺寸，格式 宽x高（默认 1024x1024）",
           "required": false
         },
         "style": {
           "type": "string",
+          "description": "可选风格修饰词（非空时追加为 \"prompt, style style\"）",
           "required": false
         }
       }
@@ -516,10 +799,12 @@
       "parameters": {
         "workflow_json": {
           "type": "string",
+          "description": "ComfyUI API 格式的工作流 JSON（非画布/UI 格式）",
           "required": true
         },
         "wait": {
           "type": "boolean",
+          "description": "是否轮询等待完成（true=等待并返回结果，false=立即返回 prompt_id）",
           "required": false
         }
       }
@@ -532,6 +817,7 @@
       "parameters": {
         "prompt_id": {
           "type": "string",
+          "description": "提交工作流时返回的 prompt_id",
           "required": true
         }
       }
@@ -544,6 +830,7 @@
       "parameters": {
         "workflow_json": {
           "type": "string",
+          "description": "ComfyUI 画布格式的工作流 JSON（含节点位置等 UI 元数据）",
           "required": true
         }
       }
@@ -563,10 +850,12 @@
       "parameters": {
         "node_type": {
           "type": "string",
+          "description": "节点类名（如 KSampler、CLIPTextEncode）；留空返回所有节点的分类摘要",
           "required": false
         },
         "category_filter": {
           "type": "string",
+          "description": "分类子串过滤（如 loaders、sampling、conditioning、image），仅当 node_type 为空时生效",
           "required": false
         }
       }
@@ -579,10 +868,12 @@
       "parameters": {
         "nodes": {
           "type": "string",
+          "description": "节点定义 JSON 数组字符串，每项含 id/class_type/inputs（input 值可为字面值或 [源节点id, 输出索引] 连线）",
           "required": true
         },
         "output_node_id": {
           "type": "integer",
+          "description": "最终输出节点 id（通常是 SaveImage）；-1 表示自动检测最后一个有图像输出的节点",
           "required": false
         }
       }
@@ -595,10 +886,12 @@
       "parameters": {
         "node_name": {
           "type": "string",
+          "description": "自定义节点名（同时用作文件名和类标识，如 MyImageProcessor）",
           "required": true
         },
         "node_code": {
           "type": "string",
+          "description": "节点类完整 Python 源码，必须含 CATEGORY/RETURN_TYPES/FUNCTION/INPUT_TYPES 类属性",
           "required": true
         }
       }
@@ -611,14 +904,17 @@
       "parameters": {
         "dataset_name": {
           "type": "string",
+          "description": "数据集/LoRA 名（同时作为目录名，如 my_character_lora）",
           "required": true
         },
         "concept_count": {
           "type": "integer",
+          "description": "训练概念数量（1 个角色=1 个概念，默认 1）",
           "required": false
         },
         "base_model": {
           "type": "string",
+          "description": "基础模型文件名（仅作记录用途，如 sd_xl_base_1.0.safetensors）",
           "required": false
         }
       }
@@ -631,10 +927,12 @@
       "parameters": {
         "dataset_name": {
           "type": "string",
+          "description": "数据集名（必须先用 comfyui_lora_prepare 创建）",
           "required": true
         },
         "base_model": {
           "type": "string",
+          "description": "基础模型文件名/路径（如 sd_xl_base_1.0.safetensors、dreamshaper_8.safetensors）",
           "required": false
         }
       }
@@ -647,6 +945,7 @@
       "parameters": {
         "dataset_name": {
           "type": "string",
+          "description": "要查询的数据集名；留空则列出所有 LoRA 训练项目及其状态",
           "required": false
         }
       }
@@ -714,6 +1013,113 @@
         "symbol": {
           "type": "string",
           "description": "Symbol name to find references for",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "graph_neighbors",
+      "type": "python",
+      "description": "Query the code knowledge graph: find direct neighbors of a node (who imports/calls/contains/defines it). Use for impact analysis before edits.",
+      "function": "core.code_intel.execute_graph_neighbors",
+      "parameters": {
+        "node": {
+          "type": "string",
+          "description": "Node name: a symbol like 'ChatSession' or a file path like 'core/chat.py'",
+          "required": true
+        },
+        "direction": {
+          "type": "string",
+          "description": "out (who I point to) | in (who points to me) | both (default)",
+          "required": false
+        },
+        "edge_type": {
+          "type": "string",
+          "description": "Optional filter: imports | calls | contains | defines",
+          "required": false
+        },
+        "directory": {
+          "type": "string",
+          "description": "Project directory to search (default: current dir)",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "graph_ancestors",
+      "type": "python",
+      "description": "Query the code knowledge graph: BFS upstream dependencies (who depends on this node, recursively). Use before deleting a symbol to check all references.",
+      "function": "core.code_intel.execute_graph_ancestors",
+      "parameters": {
+        "node": {
+          "type": "string",
+          "description": "Node name: a symbol like 'ChatSession' or a file path like 'core/chat.py'",
+          "required": true
+        },
+        "directory": {
+          "type": "string",
+          "description": "Project directory to search (default: current dir)",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "graph_descendants",
+      "type": "python",
+      "description": "Query the code knowledge graph: BFS downstream impact (what this node depends on / affects, recursively). Use before renaming to list all call sites.",
+      "function": "core.code_intel.execute_graph_descendants",
+      "parameters": {
+        "node": {
+          "type": "string",
+          "description": "Node name: a symbol like 'ChatSession' or a file path like 'core/chat.py'",
+          "required": true
+        },
+        "directory": {
+          "type": "string",
+          "description": "Project directory to search (default: current dir)",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "patch_file",
+      "type": "python",
+      "description": "结构化补丁：支持多文件批量修改（Add/Update/Delete），自动备份+语法校验+失败回滚。适用场景：跨文件重构、批量修复、新文件创建+已有文件修改一次完成。格式：*** Update File: path\\n@@ context\\n-old\\n+new。失败时自动回滚所有变更，比 edit_file 逐文件替换更安全高效。",
+      "function": "core.patch.apply",
+      "parameters": {
+        "patch_text": {
+          "type": "string",
+          "description": "结构化补丁文本。支持三种操作：*** Update File: path（修改文件，@@ 标记 context 匹配行，- 删除行，+ 新增行）；*** Add File: path（创建文件，+ 开头为内容行）；*** Delete File: path（删除文件）。多个操作可在同一个 patch_text 里拼接。",
+          "required": true
+        },
+        "verify": {
+          "type": "boolean",
+          "description": "是否对 .py 文件做 AST 语法校验，失败则自动回滚全部变更（默认 true）",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "patch_undo",
+      "type": "python",
+      "description": "撤销最近一次 patch_file 的所有变更：把修改过的文件写回改前内容、删除新建的文件、恢复被删除的文件。幂等，连续调用第二次会返回 nothing_to_undo。用于 patch_file 应用后发现方向错误、语法虽过但逻辑不对、或误删文件时的快速回退。",
+      "function": "core.patch.rollback_last",
+      "parameters": {}
+    },
+    {
+      "name": "execute_plan",
+      "type": "python",
+      "description": "自主执行多步计划：按依赖顺序执行步骤、自动校验（语法/测试）、追踪错误并生成报告。用于 bug 修复（读错误→搜代码→改→验证）、审计检查（环境检测→跑测试）、批量操作等需要多步编排的场景。LLM 不需要自己逐个调工具，把完整计划一次传入即可。",
+      "function": "core.executor.execute_plan_tool",
+      "parameters": {
+        "goal": {
+          "type": "string",
+          "description": "任务目标描述",
+          "required": true
+        },
+        "steps": {
+          "type": "string",
+          "description": "JSON 数组字符串，每项格式：{\"id\": \"step_1\", \"description\": \"步骤描述\", \"tool\": \"read_file\", \"args\": {\"path\": \"README.md\"}, \"depends_on\": [], \"verify\": null}。depends_on 是前置步骤 id 列表（默认空）；verify 可选 \"syntax\"（AST校验）或 \"test\"（跑pytest）或 null（不校验）。",
           "required": true
         }
       }

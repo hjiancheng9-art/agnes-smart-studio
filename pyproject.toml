@@ -14,6 +14,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "pyyaml>=6.0",
     "prompt_toolkit>=3.0",
+    "nest_asyncio>=1.5",
     "playwright>=1.40",
     "edge-tts>=6.1",
 ]
@@ -32,6 +33,14 @@ agnes = "agnes_studio:main"
 agnes-chat = "agnes_studio:main_chat"
 agnes-query = "agnes_studio:main_query"
 
+# 扁平多包布局：显式声明只收代码包，避免 setuptools 自动发现把
+# output/assets/skills 等非代码目录当成 Python 包（flat-layout 多包会直接报错）。
+[tool.setuptools.packages.find]
+include = ["core*", "ui*", "engines*", "pipeline*", "utils*"]
+
+[tool.setuptools]
+py-modules = ["agnes_studio"]
+
 [project.urls]
 Homepage = "https://github.com/user/agnes-smart-studio"
 
@@ -42,6 +51,12 @@ testpaths = ["tests"]
 norecursedirs = ["tests/manual", "scripts", "output", ".codebuddy"]
 python_files = ["test_*.py"]
 addopts = "-q"
+
+# pytest-asyncio 显式声明 strict 模式：仅 @pytest.mark.asyncio 标记的测试走
+# asyncio 执行器。其余同步测试方法中的 async 协程必须自行用 asyncio.run()
+# 驱动（见 test_async_chat / test_async_engines / test_showrunner / _multi_agent）。
+# 显式声明避免未来 pytest-asyncio 版本改默认值（auto）时静默改变收集行为。
+asyncio_mode = "strict"
 
 [tool.ruff]
 line-length = 120

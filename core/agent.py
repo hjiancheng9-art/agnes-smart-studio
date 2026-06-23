@@ -183,24 +183,13 @@ class ContextManager:
 
         工具结果（role=tool）常包含整个文件内容，单条可达数百万字符。
         这里保留头部 + 尾部，中间用省略标记，确保关键信息不丢但体量可控。
+
+        实现已委托给 core.context_tools.truncate_messages（单一真源），
+        本方法保留为向后兼容入口。head+tail 比例和标记格式由
+        context_tools.DEFAULT_MAX_CHARS / truncate_tool_result 统一维护。
         """
-        out = []
-        limit = ContextManager._MAX_MSG_CHARS
-        for msg in messages:
-            content = msg.get("content")
-            if isinstance(content, str) and len(content) > limit:
-                head = limit * 2 // 3
-                tail = limit - head
-                new_msg = dict(msg)
-                new_msg["content"] = (
-                    content[:head]
-                    + f"\n\n...[truncated {len(content) - limit} chars]...\n\n"
-                    + content[-tail:]
-                )
-                out.append(new_msg)
-            else:
-                out.append(msg)
-        return out
+        from core.context_tools import truncate_messages
+        return truncate_messages(messages, ContextManager._MAX_MSG_CHARS)
 
     def auto_compress_if_needed(self, messages: list[dict], client,
                                 model: str = "agnes-1.5-flash") -> list[dict]:
@@ -267,7 +256,7 @@ class PlanExecutor:
         results = executor.execute(plan)
     """
 
-    def __init__(self, client, tools=None, model: str = "agnes-2.0-flash") -> None:
+    def __init__(self, client, tools=None, model: str = "deepseek-v4-pro") -> None:
         self.client = client
         self.tools = tools
         self.model = model
@@ -400,7 +389,7 @@ class SubAgent:
     - Report results back to the parent
     """
 
-    def __init__(self, client, tools=None, model: str = "agnes-2.0-flash",
+    def __init__(self, client, tools=None, model: str = "deepseek-v4-pro",
                  max_rounds: int = 5) -> None:
         self.client = client
         self.tools = tools
@@ -499,13 +488,13 @@ class SubAgent:
 class ModelRouter:
     """Intelligent model selection based on task type, cost, and capability.
 
-    Routing logic:
+    Routing logic (v5.0+: deepseek-v4-pro 为默认主力, agnes-* 仅作 fallback/视觉):
     - Simple chat/Q&A -> agnes-1.5-flash (cheapest)
-    - Code/complex reasoning -> agnes-2.0-flash (thinking mode)
+    - Code/complex reasoning / long context -> deepseek-v4-pro (主力, thinking + 1M context)
     - Image generation -> agnes-image-2.1-flash
     - Video generation -> agnes-video-v2.0
-    - Tool calling / agent -> agnes-2.0-flash (supports tools + thinking)
-    - Vision/multimodal -> agnes-1.5-flash (vision)
+    - Tool calling / agent -> deepseek-v4-pro
+    - Vision/multimodal -> agnes-1.5-flash (唯一具备视觉能力)
     """
 
     MODEL_PROFILES = {
@@ -551,11 +540,11 @@ class ModelRouter:
         },
     }
 
-    def __init__(self, primary: str = "agnes-2.0-flash",
+    def __init__(self, primary: str = "deepseek-v4-pro",
                  light: str = "agnes-1.5-flash") -> None:
         self.primary = primary
         self.light = light
-        self._fallback_chain = [primary, "deepseek-v4-pro", "agnes-1.5-flash"]
+        self._fallback_chain = [primary, "agnes-2.0-flash", "agnes-1.5-flash"]
 
     def select(self, task_type: str = "", needs_tools: bool = False,
                needs_vision: bool = False, needs_thinking: bool = False,
@@ -581,11 +570,11 @@ class ModelRouter:
 
         # Long context
         if needs_long_context:
-            return "deepseek-v4-pro"  # 1M context
+            return self.primary  # deepseek-v4-pro: 1M context
 
         # Tools + thinking -> need a capable model
         if needs_tools and needs_thinking:
-            return self.primary  # agnes-2.0-flash
+            return self.primary  # deepseek-v4-pro
 
         # Just tools, no deep thinking -> light model is cheaper
         if needs_tools and not needs_thinking:
@@ -726,7 +715,7 @@ Rules:
 - Be concise"""
 
 
-def spawn_subagent(client, task: str, model: str = "agnes-2.0-flash") -> str:
+def spawn_subagent(client, task: str, model: str = "deepseek-v4-pro") -> str:
     """Spawn a sub-agent with a real tool-calling loop.
 
     This is the upgraded version that can actually execute tools,

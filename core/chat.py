@@ -21,9 +21,12 @@ import re
 from core.client import AgnesClient
 from core.config import AGNES_VISION_MODEL
 from core.brain import SmartBrain
+from core.context_tools import truncate_tool_result, truncate_messages
+from core.observability import TraceContext, metrics
 from core.provider import (
     get_tool_calling_models,
     get_provider_name,
+    get_vision_models,
 )
 from core.tools import get_registry, ToolRegistry, AGENT_SYSTEM_PROMPT
 from core.skills import get_manager, SkillManager
@@ -36,6 +39,7 @@ __all__ = [
     "CODE_SYSTEM_PROMPT",
     "ChatSession",
     "MAX_TOOL_LOOPS",
+    "merge_tool_calls",
     "MODEL_ALIASES",
     "MODEL_INFO",
     "MODEL_PROVIDER_MAP",
@@ -107,7 +111,27 @@ TOOL_CALLING_MODELS = get_tool_calling_models()
 MODEL_PROVIDER_MAP = {}  # 已由 get_provider_name() 替代
 
 # tool calling 循环最大轮次（防止死循环）
-MAX_TOOL_LOOPS = 20
+# agent 模式 / /self 命令会经 unlimited_tools 自动翻倍
+MAX_TOOL_LOOPS = 30
+
+
+def _normalize_tool_args(args_json: str) -> str:
+    """归一化工具 arguments JSON 字符串，用于语义去重签名。
+
+    解析 JSON → 按 key 排序 → 紧凑序列化，使 {"a":1,"b":2} 与 {"b":2,"a":1}
+    产生相同签名。解析失败时退化为去空白原串（仍能去重明显重复）。
+    """
+    s = (args_json or "").strip()
+    if not s:
+        return ""
+    try:
+        parsed = json.loads(s)
+        if isinstance(parsed, dict):
+            return json.dumps(parsed, sort_keys=True, separators=(",", ":"))
+        return json.dumps(parsed, sort_keys=True, separators=(",", ":"))
+    except (json.JSONDecodeError, TypeError):
+        # 不完整的 JSON 分片（流式中途）：去空白作签名，仍能合并明显重复
+        return "".join(s.split())
 
 
 class ChatSession:
@@ -157,10 +181,18 @@ class ChatSession:
         return self.code_mode
 
     def toggle_agent_mode(self) -> bool:
-        """切换智能体模式，加载 tools.json 中定义的外部工具"""
+        """切换智能体模式，加载 tools.json 中定义的外部工具
+
+        不再强制绑定 agnes-2.0-flash，保留当前供应商模型——只要模型
+        支持 tool calling（见 supports_tools / provider.model_supports_tools）
+        即可参与智能体调度；若当前模型不支持，由 ui 层给出切换提示。
+        视觉能力由 self.vision_client 独立处理，不受主模型影响。
+        """
         self.agent_mode = not self.agent_mode
-        self.model = "agnes-2.0-flash"
+        # 不强制切模型：保留 self.model（若用户已选 deepseek 等支持 tools 的模型）
         self.enable_thinking = True
+        # agent 模式自动翻倍工具轮次：复杂跨项目任务（探索+修复）需要更多回合
+        self.unlimited_tools = self.agent_mode
         if self.agent_mode:
             self.tools = get_registry()  # 重新加载工具配置
             self.tools.load()
@@ -189,7 +221,7 @@ class ChatSession:
         skill = self.skills.load(name)
         if skill:
             self.active_skill = name
-            self.model = "agnes-2.0-flash"
+            # 不强制切模型：保留 self.model，由路由层/用户决定使用哪个支持 tools 的模型
             self.enable_thinking = True
 
             # ── 根据技能类型启用对应工具集 ──
@@ -284,6 +316,63 @@ class ChatSession:
         """清空对话历史（保留 system）"""
         self.messages = [self.messages[0]]
 
+    def _vision_model_chain(self) -> list[str]:
+        """构建视觉模型 fallback 链（去重，保持顺序）。
+
+        顺序：self.vision_model 优先 → 其余 vision-capable 模型按注册顺序补位。
+        单一真相源是 provider.get_vision_models()；本方法只做去重和优先级排序。
+        """
+        chain: list[str] = []
+        if self.vision_model:
+            chain.append(self.vision_model)
+        for mid in get_vision_models():
+            if mid not in chain:
+                chain.append(mid)
+        return chain
+
+    def _vision_fallback(self, text: str, image_url: str) -> str:
+        """视觉理解调用 + fallback 链。
+
+        依次尝试 _vision_model_chain() 中的模型，首个成功即返回其文本；
+        全部失败时返回包含尝试列表的人类可读错误（不抛异常，保证流式不中断）。
+
+        失败原因分类：
+        - KeyError/IndexError: 返回 JSON 结构异常（供应商换了 schema）
+        - OSError/TimeoutError: 网络/超时（最常见，触发下一档 fallback）
+        - RuntimeError: 供应商上游错误
+        """
+        chain = self._vision_model_chain()
+        tried: list[str] = []
+        last_reason = ""
+        for idx, model_id in enumerate(chain):
+            tried.append(model_id)
+            try:
+                r = self.vision_client.chat_multimodal(
+                    text=text, image_url=image_url,
+                    model=model_id, max_tokens=2048,
+                )
+                content = r["choices"][0]["message"]["content"] or ""
+                return content
+            except (KeyError, IndexError) as e:
+                last_reason = f"返回格式异常: {e}"
+                continue  # 格式问题换模型也无济于事，但仍按链尝试
+            except (OSError, TimeoutError) as e:
+                last_reason = f"网络/超时: {e}"
+                continue
+            except RuntimeError as e:
+                last_reason = f"上游错误: {e}"
+                continue
+            except Exception as e:  # noqa: BLE001 — 视觉通道不能让流式中断
+                last_reason = f"未知错误: {e}"
+                continue
+
+        # 全部失败：返回可读错误，列出已尝试模型与最后原因
+        return (
+            f"(视觉理解失败 · 已尝试 {len(tried)} 个模型: {', '.join(tried)})\n"
+            f"最后错误: {last_reason}\n"
+            "建议：检查网络/供应商 Key，或用 /provider 切换视觉供应商后重试。"
+        )
+
     def send_stream(self, user_text: str, image_url: str | None = None):
         """发送用户消息，流式 yield (kind, payload) 元组。
 
@@ -300,14 +389,7 @@ class ChatSession:
                     {"type": "image_url", "image_url": {"url": image_url}},
                 ],
             })
-            try:
-                r = self.vision_client.chat_multimodal(
-                    text=user_text, image_url=image_url,
-                    model=self.vision_model, max_tokens=2048,
-                )
-                content = r["choices"][0]["message"]["content"] or ""
-            except (KeyError, IndexError):
-                content = "(多模态返回格式异常)"
+            content = self._vision_fallback(user_text, image_url)
             self.messages.append({"role": "assistant", "content": content})
             yield ("text", content)
             return
@@ -315,11 +397,24 @@ class ChatSession:
         # ── 纯文本分支：加 user message ──
         self.messages.append({"role": "user", "content": user_text})
 
+        # Tier 1 轻量截断：对历史 messages 中超限单条做 head+tail 截断。
+        # 零 API 调用、O(n) 纯计算——防止之前轮次未截断的历史消息撑爆上下文。
+        # 新写入的 tool result 已由 cache-point 截断（task ②），此步兜底历史。
+        self.messages = truncate_messages(self.messages)
+
         tools = self.tools.definitions if self.supports_tools else None
 
         # tool calling 循环（有上限，防止死循环）
         _effective_max = MAX_TOOL_LOOPS * 2 if getattr(self, 'unlimited_tools', False) else MAX_TOOL_LOOPS
         buffer = ""  # 循环外预绑定，保证超出最大轮次时引用安全
+        # 本次 send_stream 已执行的工具签名 → 防止模型跨轮重发同一调用导致重复副作用。
+        # 契约：输出不重复 DNA · 工具副作用层。配合 _merge_tool_calls 的单轮内去重，
+        # 形成"单轮内 + 跨轮"双层去重。只对幂等性敏感的工具去重；写操作类工具
+        # 不缓存（避免吞掉用户对同一文件的连续修改意图）。
+        _WRITE_TOOLS = {"write_file", "edit_file", "github_write_file",
+                        "git_add_commit", "git_push", "run_bash"}
+        _executed_signatures: set[tuple[str, str]] = set()
+        _executed_cache: dict[tuple[str, str], str] = {}
         for _loop in range(_effective_max):
             buffer, tool_calls = "", []
             kwargs = {}
@@ -337,7 +432,7 @@ class ChatSession:
                     tool_calls.extend(delta["tool_calls"])
 
             if tool_calls:
-                merged = self._merge_tool_calls(tool_calls)
+                merged = merge_tool_calls(tool_calls)
 
                 self.messages.append({
                     "role": "assistant", "content": buffer, "tool_calls": merged,
@@ -346,11 +441,27 @@ class ChatSession:
                 for tc in merged:
                     fname = tc["function"]["name"]
                     fargs = tc["function"].get("arguments", "{}")
-                    tool_result, side_effects = self._dispatch_tool(fname, fargs)
-                    yield from side_effects
+                    sig = (fname, _normalize_tool_args(fargs))
+                    # 跨轮去重：非写工具且本会话已执行过 → 复用缓存，不重复 dispatch
+                    if fname not in _WRITE_TOOLS and sig in _executed_signatures:
+                        tool_result = _executed_cache.get(sig, "")
+                        # 不 yield 副作用（用户已见过一次）
+                    else:
+                        with TraceContext("tool_call", tool_name=fname, call_id=tc.get("id", "")) as span:
+                            tool_result, side_effects = self._dispatch_tool(fname, fargs)
+                            span.set_attribute("result_chars", len(tool_result) if isinstance(tool_result, str) else -1)
+                            metrics.increment("tool_calls")
+                            metrics.timing("tool_call_ms", span.duration_ms())
+                        yield from side_effects
+                        if fname not in _WRITE_TOOLS:
+                            _executed_signatures.add(sig)
+                            # 缓存保留原始结果（高保真），跨轮复用时仍可重新截断
+                            _executed_cache[sig] = tool_result
+                    # 上下文窗口防护：单条工具结果超限则 head+tail 截断，
+                    # 防止大文件/长输出撑爆 LLM 上下文。原始结果仍在 cache 中。
                     self.messages.append({
                         "role": "tool", "tool_call_id": tc.get("id", ""),
-                        "content": tool_result,
+                        "content": truncate_tool_result(tool_result),
                     })
                 continue  # 进入下一轮
 
@@ -359,157 +470,216 @@ class ChatSession:
             return
 
         # 超出最大轮次：强制收尾
-        yield ("info", f"已达到最大工具调用轮次 ({MAX_TOOL_LOOPS})，已中止。请尝试简化你的请求。")
+        yield ("info", f"已达到最大工具调用轮次 ({_effective_max})，已中止。请尝试简化你的请求。")
         self.messages.append({"role": "assistant", "content": buffer})
 
-    @staticmethod
-    def _merge_tool_calls(fragments: list[dict]) -> list[dict]:
-        """合并流式 tool_calls 分片（按 index 聚合 name + arguments 字符串）。
+def merge_tool_calls(fragments: list[dict]) -> list[dict]:
+    """合并流式 tool_calls 分片（按 index 聚合 name + arguments 字符串）。
 
-        OpenAI 流式把一个 tool_call 拆成多个 delta：
-        [{"index":0,"id":"x","function":{"name":"generate_image","arguments":""}},
-         {"index":0,"function":{"arguments":"{\\"pr"}}, ...]
-        合并成完整 dict。
-        """
-        merged: dict[int, dict] = {}
-        for frag in fragments:
-            idx = frag.get("index", 0)
-            slot = merged.setdefault(idx, {"id": frag.get("id", ""), "type": "function",
-                                            "function": {"name": "", "arguments": ""}})
-            if frag.get("id"):
-                slot["id"] = frag["id"]
-            fn = frag.get("function", {}) or {}
-            if fn.get("name"):
-                slot["function"]["name"] += fn["name"]
-            if fn.get("arguments"):
-                slot["function"]["arguments"] += fn["arguments"]
-        return [merged[k] for k in sorted(merged.keys())]
+    OpenAI 流式把一个 tool_call 拆成多个 delta：
+    [{"index":0,"id":"x","function":{"name":"generate_image","arguments":""}},
+     {"index":0,"function":{"arguments":"{\\"pr"}}, ...]
+    合并成完整 dict。
 
-    def _dispatch_tool(self, name: str, args_json: str) -> tuple[str, list[tuple]]:
-        """执行工具，返回 (给模型的文本, 给用户的副作用列表)。
+    契约扩展（输出不重复 DNA · 工具副作用层）：
+    推理模型（DeepSeek V4 Pro 等）会跨"思考/回答"阶段对**同一逻辑工具**
+    发出不同 `index` 的分片，导致下游 dispatch loop 对同一工具多次执行。
+    故在 index 聚合后追加**语义去重**：相同 (name, normalized_arguments)
+    只保留首个完整条目（含 id），其余丢弃。
 
-        副作用列表元素: ("info", str) / ("image", dict) / ("video", dict) / ("confirm", dict)
+    模块级函数：同步版 AsyncChatSession 共用此纯计算逻辑。
+    """
+    merged: dict[int, dict] = {}
+    for frag in fragments:
+        idx = frag.get("index", 0)
+        slot = merged.setdefault(idx, {"id": frag.get("id", ""), "type": "function",
+                                        "function": {"name": "", "arguments": ""}})
+        if frag.get("id"):
+            slot["id"] = frag["id"]
+        fn = frag.get("function", {}) or {}
+        if fn.get("name"):
+            slot["function"]["name"] += fn["name"]
+        if fn.get("arguments"):
+            slot["function"]["arguments"] += fn["arguments"]
 
-        与命令式路径对齐：均经过 SmartBrain Prompt 增强后再调引擎。
-        支持生命周期 hook（PRE_TOOL_USE / POST_TOOL_USE）和高风险工具确认。
-        """
+    ordered = [merged[k] for k in sorted(merged.keys())]
+
+    # ── 语义去重：相同 (name, args-signature) 只保留首个 ──
+    # signature 用归一化后的 arguments（去空白 + 排序 key），避免
+    # {"a":1,"b":2} vs {"b":2,"a":1} 被误判为不同调用。
+    seen: set[tuple[str, str]] = set()
+    deduped: list[dict] = []
+    for entry in ordered:
+        name = (entry.get("function", {}).get("name") or "").strip()
+        args_raw = entry.get("function", {}).get("arguments", "") or ""
+        sig = (name, _normalize_tool_args(args_raw))
+        if not name or sig in seen:
+            continue  # 重复逻辑调用，丢弃
+        seen.add(sig)
+        deduped.append(entry)
+    return deduped
+
+
+# 向后兼容：注入 _merge_tool_calls 到已定义的 ChatSession 类上
+ChatSession._merge_tool_calls = staticmethod(merge_tool_calls)
+
+
+# ═══════════════════════════════════════════════════════════════
+# ChatSession._dispatch_tool — 放在 merge_tool_calls 之后（模块级函数下）
+# 实际上这是 ChatSession 的方法，放回类内更清晰，但当前结构为
+# merge_tool_calls 把 _dispatch_tool 包进去了。修复：将其作为独立函数
+# 重新定义并注入类。为避免大范围缩进重排，直接在 merge_tool_calls 后
+# 重新定义类方法并用赋值注入。
+# ═══════════════════════════════════════════════════════════════
+
+def _dispatch_tool_impl(self, name: str, args_json: str) -> tuple[str, list[tuple]]:
+    """执行工具，返回 (给模型的文本, 给用户的副作用列表)。
+
+    副作用列表元素: ("info", str) / ("image", dict) / ("video", dict) / ("confirm", dict)
+
+    与命令式路径对齐：均经过 SmartBrain Prompt 增强后再调引擎。
+    支持生命周期 hook（PRE_TOOL_USE / POST_TOOL_USE）和高风险工具确认。
+    """
+    try:
+        args = json.loads(args_json or "{}")
+    except json.JSONDecodeError:
+        args = {}
+
+    # ── 高风险工具确认机制 ──
+    _HIGH_RISK_TOOLS = {
+        "git_add_commit",   # 本地提交（可能误提交敏感内容）
+        "git_push",         # 推送到远端
+        "git_pr_create",    # 创建 PR（含推送）
+        "git_pr_merge",     # 合并 PR（不可逆）
+    }
+    _RISKY_ARGS_PATTERN = re.compile(r'\b(rm|delete|drop|truncate)\b', re.IGNORECASE)
+    # github_write_file: 推默认分支（main/master）视为高风险；feature 分支放行
+    is_write_to_default_branch = (
+        name == "github_write_file"
+        and not args.get("branch", "").strip()
+    )
+    is_high_risk = (
+        name in _HIGH_RISK_TOOLS
+        or is_write_to_default_branch
+        or (name == "run_bash" and _RISKY_ARGS_PATTERN.search(args.get("command", "")))
+    )
+    if is_high_risk:
+        confirm_data = {"tool": name, "args": args}
+        return "", [("confirm", confirm_data)]
+
+    # ── PRE_TOOL_USE hook ──
+    try:
+        from core.hooks import hook_manager, HookType
+        pre_evt = hook_manager.fire(HookType.PRE_TOOL_USE, data={"tool_name": name, "args": args})
+        if pre_evt.stop_processing:
+            return "工具调用被拦截（PRE_TOOL_USE hook）", []
+    except (ImportError, OSError):
+        pass  # hooks 模块不可用时静默降级
+
+    prompt = args.get("prompt", "")
+    image_url = args.get("image_url", "") or args.get("image", "")
+
+    if name == "generate_image":
+        side: list[tuple[str, str | dict]] = [("info", f"正在生成图片: {prompt}")]
         try:
-            args = json.loads(args_json or "{}")
-        except json.JSONDecodeError:
-            args = {}
+            # Prompt 增强（与命令式 /img 路径对齐）
+            r = self.brain.enhance_image_prompt(prompt)
+            fp = r.get("optimized_prompt", prompt)
+            neg = r.get("negative_prompt", "") or None
 
-        # ── 高风险工具确认机制 ──
-        # 类级常量：写操作类工具一律需确认（推远端/合并 PR/强制推送）
-        _HIGH_RISK_TOOLS = {
-            "git_add_commit",   # 本地提交（可能误提交敏感内容）
-            "git_push",         # 推送到远端
-            "git_pr_create",    # 创建 PR（含推送）
-            "git_pr_merge",     # 合并 PR（不可逆）
-        }
-        _RISKY_ARGS_PATTERN = re.compile(r'\b(rm|delete|drop|truncate)\b', re.IGNORECASE)
-        # github_write_file: 推默认分支（main/master）视为高风险；feature 分支放行
-        is_write_to_default_branch = (
-            name == "github_write_file"
-            and not args.get("branch", "").strip()
-        )
-        is_high_risk = (
-            name in _HIGH_RISK_TOOLS
-            or is_write_to_default_branch
-            or (name == "run_bash" and _RISKY_ARGS_PATTERN.search(args.get("command", "")))
-        )
-        if is_high_risk:
-            confirm_data = {"tool": name, "args": args}
-            return "", [("confirm", confirm_data)]
+            if image_url:
+                # 图生图/编辑路径
+                from utils import image_input
+                from engines.image_to_image import ImageToImageEngine
+                url = image_input.load_image_as_url_or_data(image_url)
+                i2i = ImageToImageEngine(self.client)
+                data = i2i.edit(prompt=fp, image_urls=url)
+            else:
+                data = self.t2i.generate(prompt=fp, negative_prompt=neg)
+            side.append(("image", data))
+            return f"图片已生成并保存: {data.get('local_path', '')}", side
+        except (RuntimeError, OSError, ValueError) as e:
+            return f"图片生成失败: {e}", side
 
-        # ── PRE_TOOL_USE hook ──
+    if name == "generate_video":
+        side: list[tuple[str, str | dict]] = [("info", f"正在生成视频（可能需几分钟）: {prompt}")]
+        try:
+            # Prompt 增强（与命令式 /video 路径对齐）
+            r = self.brain.enhance_video_prompt(prompt)
+            fp = r.get("optimized_prompt", prompt)
+            neg = r.get("negative_prompt", "") or None
+            w, h = 1152, 768
+
+            if image_url:
+                # 图生视频路径
+                from utils import image_input
+                url = image_input.load_image_as_url_or_data(image_url)
+                data = self.vid.image_to_video(
+                    prompt=fp, image_url=url,
+                    width=w, height=h, negative_prompt=neg, timeout=120.0)
+            else:
+                data = self.vid.text_to_video(
+                    prompt=fp, width=w, height=h,
+                    negative_prompt=neg, timeout=120.0)
+
+            side.append(("video", data))
+            # 检测超时状态
+            if data.get("status") == "timeout":
+                vid = data.get("video_id", "")
+                pct = data.get("progress", 0)
+                return (f"视频生成超时（进度 {pct:.0f}%），"
+                        f"请稍后用 video_id={vid} 查询状态"), side
+            return f"视频已生成: {data.get('local_path', '')}", side
+        except (RuntimeError, OSError, ValueError) as e:
+            return f"视频生成失败: {e}", side
+
+    if name == "multi_agent":
+        goal = args.get("goal", "")
+        side: list[tuple[str, str | dict]] = [("info", f"正在启动多智能体协调: {goal}")]
+        try:
+            from core.multi_agent import coordinate
+            def _tool_exec(tool, tool_args):
+                if self.tools.has(tool):
+                    return self.tools.execute(tool, tool_args)
+                return f"[multi_agent] 工具 {tool} 不可用"
+            result = coordinate(goal, _tool_exec)
+            summary = (
+                f"多智能体协调完成: {result['tasks_done']}/{result['tasks_total']} 任务成功, "
+                f"耗时 {result['elapsed']}s"
+            )
+            if result["tasks_failed"]:
+                summary += f", {result['tasks_failed']} 失败"
+            return summary, side
+        except (RuntimeError, OSError, ValueError) as e:
+            return f"多智能体协调失败: {e}", side
+
+    # 外部工具（tools.json 中定义）→ 通过 ToolRegistry 执行
+    if self.tools.has(name):
+        # 中间状态可见：耗时工具先提示
+        _LONG_RUNNING = {"run_bash", "run_test", "run_python", "web_fetch", "web_search"}
+        side: list[tuple[str, str | dict]] = []
+        if name in _LONG_RUNNING:
+            side.append(("info", f"正在执行 {name}..."))
+        result = self.tools.execute(name, args)
+
+        # POST_TOOL_USE hook：验证 / 回滚 / 学习
         try:
             from core.hooks import hook_manager, HookType
-            pre_evt = hook_manager.fire(HookType.PRE_TOOL_USE, data={"tool_name": name, "args": args})
-            if pre_evt.stop_processing:
-                return "工具调用被拦截（PRE_TOOL_USE hook）", []
+            post_evt = hook_manager.fire(
+                HookType.POST_TOOL_USE,
+                data={"tool_name": name, "args": args, "result": result},
+            )
+            # hook 可能改写 result（如追加语法错误提示）
+            if isinstance(post_evt.result, str) and post_evt.result:
+                result = post_evt.result
         except (ImportError, OSError):
-            pass  # hooks 模块不可用时静默降级
+            pass
 
-        prompt = args.get("prompt", "")
-        image_url = args.get("image_url", "") or args.get("image", "")
+        side.append(("info", f"工具 {name} 执行完成"))
+        return result, side
 
-        if name == "generate_image":
-            side: list[tuple[str, str | dict]] = [("info", f"正在生成图片: {prompt}")]
-            try:
-                # Prompt 增强（与命令式 /img 路径对齐）
-                r = self.brain.enhance_image_prompt(prompt)
-                fp = r.get("optimized_prompt", prompt)
-                neg = r.get("negative_prompt", "") or None
+    return f"未知工具: {name}", []
 
-                if image_url:
-                    # 图生图/编辑路径
-                    from utils import image_input
-                    from engines.image_to_image import ImageToImageEngine
-                    url = image_input.load_image_as_url_or_data(image_url)
-                    i2i = ImageToImageEngine(self.client)
-                    data = i2i.edit(prompt=fp, image_urls=url)
-                else:
-                    data = self.t2i.generate(prompt=fp, negative_prompt=neg)
-                side.append(("image", data))
-                return f"图片已生成并保存: {data.get('local_path', '')}", side
-            except (RuntimeError, OSError, ValueError) as e:
-                return f"图片生成失败: {e}", side
 
-        if name == "generate_video":
-            side: list[tuple[str, str | dict]] = [("info", f"正在生成视频（可能需几分钟）: {prompt}")]
-            try:
-                # Prompt 增强（与命令式 /video 路径对齐）
-                r = self.brain.enhance_video_prompt(prompt)
-                fp = r.get("optimized_prompt", prompt)
-                neg = r.get("negative_prompt", "") or None
-                w, h = 1152, 768
-
-                if image_url:
-                    # 图生视频路径
-                    from utils import image_input
-                    url = image_input.load_image_as_url_or_data(image_url)
-                    data = self.vid.image_to_video(
-                        prompt=fp, image_url=url,
-                        width=w, height=h, negative_prompt=neg, timeout=120.0)
-                else:
-                    data = self.vid.text_to_video(
-                        prompt=fp, width=w, height=h,
-                        negative_prompt=neg, timeout=120.0)
-
-                side.append(("video", data))
-                # 检测超时状态
-                if data.get("status") == "timeout":
-                    vid = data.get("video_id", "")
-                    pct = data.get("progress", 0)
-                    return (f"视频生成超时（进度 {pct:.0f}%），"
-                            f"请稍后用 video_id={vid} 查询状态"), side
-                return f"视频已生成: {data.get('local_path', '')}", side
-            except (RuntimeError, OSError, ValueError) as e:
-                return f"视频生成失败: {e}", side
-
-        # 外部工具（tools.json 中定义）→ 通过 ToolRegistry 执行
-        if self.tools.has(name):
-            # 中间状态可见：耗时工具先提示
-            _LONG_RUNNING = {"run_bash", "run_test", "run_python", "web_fetch", "web_search"}
-            side: list[tuple[str, str | dict]] = []
-            if name in _LONG_RUNNING:
-                side.append(("info", f"正在执行 {name}..."))
-            result = self.tools.execute(name, args)
-
-            # POST_TOOL_USE hook：验证 / 回滚 / 学习
-            try:
-                from core.hooks import hook_manager, HookType
-                post_evt = hook_manager.fire(
-                    HookType.POST_TOOL_USE,
-                    data={"tool_name": name, "args": args, "result": result},
-                )
-                # hook 可能改写 result（如追加语法错误提示）
-                if isinstance(post_evt.result, str) and post_evt.result:
-                    result = post_evt.result
-            except (ImportError, OSError):
-                pass
-
-            side.append(("info", f"工具 {name} 执行完成"))
-            return result, side
-
-        return f"未知工具: {name}", []
+# 注入到 ChatSession
+ChatSession._dispatch_tool = _dispatch_tool_impl
