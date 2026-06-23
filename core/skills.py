@@ -73,6 +73,9 @@ class SkillManager:
         self._available: dict[str, Skill] = {}  # auto/manual 态（用户可见）
         self._all_skills: dict[str, Skill] = {}  # 全量（含 off 态，给 /skill mode 用）
         self._overrides: dict[str, str] = {}  # name -> trigger 覆盖
+        # 实例锁：保护 _overrides / _available / _all_skills 的读-改-写一致性
+        # （discover/set_trigger/_save_overrides 均在锁内）
+        self._lock = threading.RLock()
 
     def _load_overrides(self) -> dict[str, str]:
         """从 output/skill_overrides.json 读 trigger 覆盖配置。
@@ -102,6 +105,11 @@ class SkillManager:
 
         同时维护 _all_skills（全量，含 off 态），供 /skill mode 列举。
         """
+        with self._lock:
+            return self._discover_inner()
+
+    def _discover_inner(self) -> dict[str, Skill]:
+        """discover 的实际实现（必须在 _lock 内调用）。"""
         self._available.clear()
         self._all_skills.clear()
         self._overrides = self._load_overrides()
@@ -214,23 +222,33 @@ class SkillManager:
         """
         if trigger not in Skill._VALID_TRIGGERS:
             return False
-        if not self._all_skills:
-            self.discover()
-        if name not in self._all_skills:
-            return False
-        # 与文件原值相同且无 override → 不写文件（避免无意义持久化）
-        original = self._all_skills[name].trigger
-        if trigger == original and name not in self._overrides:
-            # 仍刷新内存（保持幂等语义）
-            self.discover()
+        with self._lock:
+            if not self._all_skills:
+                self._discover_inner()
+            if name not in self._all_skills:
+                return False
+            # 比较当前生效值（overrides 优先于文件原值），避免基准错误
+            current = self._overrides.get(name, self._all_skills[name].trigger)
+            if trigger == current:
+                return True
+            old_override = self._overrides.get(name)
+            self._overrides[name] = trigger
+            if not self._save_overrides():
+                # 写盘失败 → 回滚内存，保证内存与磁盘一致
+                if old_override is not None:
+                    self._overrides[name] = old_override
+                else:
+                    self._overrides.pop(name, None)
+                return False
+            self._discover_inner()
             return True
-        self._overrides[name] = trigger
-        self._save_overrides()
-        self.discover()
-        return True
 
-    def _save_overrides(self) -> None:
-        """把 _overrides 持久化到 output/skill_overrides.json（原子写）。"""
+    def _save_overrides(self) -> bool:
+        """把 _overrides 持久化到 output/skill_overrides.json（原子写）。
+
+        Returns:
+            True 写盘成功；False 写盘失败（调用方负责回滚内存）。
+        """
         try:
             self.OVERRIDES_FILE.parent.mkdir(parents=True, exist_ok=True)
             tmp = self.OVERRIDES_FILE.with_suffix(".json.tmp")
@@ -239,8 +257,14 @@ class SkillManager:
                 encoding="utf-8",
             )
             tmp.replace(self.OVERRIDES_FILE)
+            return True
         except OSError:
-            pass  # 写盘失败不阻塞内存态
+            try:
+                if tmp.exists():
+                    tmp.unlink()
+            except OSError:
+                pass
+            return False
 
     def list_all(self) -> list[Skill]:
         """返回全量技能列表（含 off 态），按 trigger 分组方便 /skill mode 展示。"""

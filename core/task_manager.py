@@ -9,6 +9,8 @@ by the AI agent via function calls.
 from __future__ import annotations
 
 import json
+import os
+import threading
 import time
 from dataclasses import dataclass, field, asdict
 from enum import Enum
@@ -28,6 +30,16 @@ class TaskStatus(str, Enum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     DELETED = "deleted"
+
+
+# ── Legal status transitions ──────────────────────────────
+# 终态(COMPLETED / DELETED)拒绝再转移;活态仅允许前向或归档。
+_ALLOWED_TRANSITIONS: dict[TaskStatus, frozenset[TaskStatus]] = {
+    TaskStatus.PENDING: frozenset({TaskStatus.IN_PROGRESS, TaskStatus.COMPLETED, TaskStatus.DELETED}),
+    TaskStatus.IN_PROGRESS: frozenset({TaskStatus.COMPLETED, TaskStatus.PENDING, TaskStatus.DELETED}),
+    TaskStatus.COMPLETED: frozenset(),  # 终态
+    TaskStatus.DELETED: frozenset(),    # 终态
+}
 
 
 # ── Task dataclass ──────────────────────────────────────────
@@ -70,6 +82,7 @@ class TaskManager:
         self._path = path or _TASKS_FILE
         self._tasks: dict[str, Task] = {}
         self._next_id_counter: int = 1
+        self._lock = threading.RLock()
         self._load()
 
     # ── CRUD ────────────────────────────────────────────────
@@ -77,87 +90,103 @@ class TaskManager:
     def create(self, subject: str, description: str = "",
                activeForm: str = "") -> Task:
         """Create a new task with an auto-incremented ID."""
-        tid = self._next_id()
-        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        task = Task(
-            id=tid,
-            subject=subject,
-            description=description,
-            activeForm=activeForm or subject,
-            status=TaskStatus.PENDING,
-            created_at=now,
-            updated_at=now,
-        )
-        self._tasks[tid] = task
-        self._save()
-        return task
+        with self._lock:
+            tid = self._next_id()
+            now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            task = Task(
+                id=tid,
+                subject=subject,
+                description=description,
+                activeForm=activeForm or subject,
+                status=TaskStatus.PENDING,
+                created_at=now,
+                updated_at=now,
+            )
+            self._tasks[tid] = task
+            self._save()
+            return task
 
     def get(self, task_id: str) -> Task | None:
         """Return a task by ID, or None if not found."""
-        return self._tasks.get(task_id)
+        with self._lock:
+            return self._tasks.get(task_id)
 
     def update(self, task_id: str, *, status: str | None = None,
                subject: str | None = None, description: str | None = None,
                owner: str | None = None, activeForm: str | None = None,
                metadata: dict | None = None) -> Task | None:
-        """Update fields on a task and persist. Returns the updated task."""
-        task = self._tasks.get(task_id)
-        if task is None:
-            return None
-        if status is not None:
-            task.status = TaskStatus(status)
-        if subject is not None:
-            task.subject = subject
-        if description is not None:
-            task.description = description
-        if owner is not None:
-            task.owner = owner
-        if activeForm is not None:
-            task.activeForm = activeForm
-        if metadata is not None:
-            task.metadata.update(metadata)
-        task.updated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        self._save()
-        return task
+        """Update fields on a task and persist. Returns the updated task.
+
+        拒绝终态(COMPLETED/DELETED)再转移;非法转换直接返回 None。
+        """
+        with self._lock:
+            task = self._tasks.get(task_id)
+            if task is None:
+                return None
+            # 终态拒绝任何更新(防止"复活")
+            if task.status in (TaskStatus.COMPLETED, TaskStatus.DELETED) and status is not None:
+                return None
+            if status is not None:
+                new_status = TaskStatus(status)
+                # 校验转换合法性
+                if new_status not in _ALLOWED_TRANSITIONS.get(task.status, frozenset()):
+                    return None
+                task.status = new_status
+            if subject is not None:
+                task.subject = subject
+            if description is not None:
+                task.description = description
+            if owner is not None:
+                task.owner = owner
+            if activeForm is not None:
+                task.activeForm = activeForm
+            if metadata is not None:
+                task.metadata.update(metadata)
+            task.updated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            self._save()
+            return task
 
     def list(self, status: str | None = None) -> list[Task]:
         """List tasks, optionally filtered by status.
         DELETED tasks are excluded by default."""
-        status_enum = TaskStatus(status) if status else None
-        result = []
-        for t in self._tasks.values():
-            if t.status == TaskStatus.DELETED and status_enum is None:
-                continue
-            if status_enum is not None and t.status != status_enum:
-                continue
-            result.append(t)
-        return result
+        with self._lock:
+            status_enum = TaskStatus(status) if status else None
+            result = []
+            for t in self._tasks.values():
+                if t.status == TaskStatus.DELETED and status_enum is None:
+                    continue
+                if status_enum is not None and t.status != status_enum:
+                    continue
+                result.append(t)
+            return result
 
     def delete(self, task_id: str) -> bool:
         """Soft-delete a task (sets status to DELETED)."""
-        task = self._tasks.get(task_id)
-        if task is None:
-            return False
-        task.status = TaskStatus.DELETED
-        task.updated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        self._save()
-        return True
+        with self._lock:
+            task = self._tasks.get(task_id)
+            if task is None:
+                return False
+            task.status = TaskStatus.DELETED
+            task.updated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            self._save()
+            return True
 
     # ── Dependency management ───────────────────────────────
 
     def add_blocked_by(self, task_id: str, blocking_task_id: str) -> bool:
         """Mark *task_id* as blocked by *blocking_task_id*."""
-        task = self._tasks.get(task_id)
-        blocker = self._tasks.get(blocking_task_id)
-        if task is None or blocker is None:
-            return False
-        if blocking_task_id not in task.blockedBy:
-            task.blockedBy.append(blocking_task_id)
-        if task_id not in blocker.blocks:
-            blocker.blocks.append(task_id)
-        task.updated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        self._save()
-        return True
+        with self._lock:
+            task = self._tasks.get(task_id)
+            blocker = self._tasks.get(blocking_task_id)
+            if task is None or blocker is None:
+                return False
+            if blocking_task_id not in task.blockedBy:
+                task.blockedBy.append(blocking_task_id)
+            if task_id not in blocker.blocks:
+                blocker.blocks.append(task_id)
+            task.updated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            self._save()
+            return True
 
     def add_blocks(self, task_id: str, blocked_task_id: str) -> bool:
         """Mark *task_id* as blocking *blocked_task_id* (reverse dependency)."""
@@ -190,15 +219,26 @@ class TaskManager:
     # ── Persistence ─────────────────────────────────────────
 
     def _save(self) -> None:
+        """原子写: tmp -> os.replace。防止写盘中途崩溃损坏 tasks.json。"""
         data = {
             "tasks": [t.to_dict() for t in self._tasks.values()],
             "next_id": self._next_id_counter,
         }
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(
-            json.dumps(data, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        tmp = self._path.with_suffix(".json.tmp")
+        try:
+            tmp.write_text(
+                json.dumps(data, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            os.replace(tmp, self._path)
+        except OSError:
+            try:
+                if tmp.exists():
+                    tmp.unlink()
+            except OSError:
+                pass
+            raise
 
     def _load(self) -> None:
         if not self._path.exists():

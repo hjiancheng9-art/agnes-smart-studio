@@ -5,6 +5,7 @@ Saves full message history with metadata. Supports save, list, restore, delete.
 
 import json
 import logging
+import os
 import time
 from pathlib import Path
 
@@ -34,14 +35,32 @@ class SessionManager:
             "messages": messages,
         }
         path = self.dir / f"{safe_name}.json"
-        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        # 原子写: tmp -> replace。防止写盘中途崩溃导致既有会话文件被截断丢失。
+        tmp = path.with_suffix(".json.tmp")
+        try:
+            tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            os.replace(tmp, path)
+        except OSError:
+            # tmp 残留不影响正式文件;清理后再向上抛,让调用方知道保存失败。
+            try:
+                if tmp.exists():
+                    tmp.unlink()
+            except OSError:
+                pass
+            raise
         return safe_name
 
     def restore(self, name: str) -> dict | None:
         path = self.dir / f"{name}.json"
         if not path.exists():
             return None
-        return json.loads(path.read_text(encoding="utf-8"))
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as e:
+            # 容错:损坏/半写文件不应让 restore 崩溃调用方。
+            # 与 list_sessions 行为一致(后者早有同类容错)。
+            logger.debug("Skipping corrupted session file %s: %s", path.name, e)
+            return None
 
     def list_sessions(self) -> list[dict]:
         sessions = []
