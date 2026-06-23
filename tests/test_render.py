@@ -268,6 +268,9 @@ class TestLiveImportGateway:
             # 跳过 __pycache__
             if "__pycache__" in py_file.parts:
                 continue
+            # 跳过构建产物 / 第三方目录（非一手源码，扫描它们会误报）
+            if py_file.parts and py_file.parts[0] in ("build", "dist", ".venv", "venv", "node_modules"):
+                continue
             try:
                 text = py_file.read_text(encoding="utf-8")
             except OSError:

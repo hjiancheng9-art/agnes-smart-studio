@@ -7,6 +7,7 @@ from rich.panel import Panel
 from rich.prompt import Confirm
 
 from ui.display import console, show_success, show_warning, show_error
+from ui.badges import print_reply_header, print_route_reason
 
 if TYPE_CHECKING:
     from core.chat import ChatSession
@@ -30,7 +31,15 @@ class GitCommandsMixin:
             full_diff = subprocess.run(["git", "diff", "--staged"],
                                        capture_output=True, text=True, timeout=10)
             prompt = f"根据以下 git diff 生成简洁中文 commit 消息（格式：<类型>: <一句话描述>）：\n\n{full_diff.stdout[:3000]}"
-            session.model = "agnes-2.0-flash"
+            # 用 router 统一处理模型切换（避免直接设 model 不切 client 导致不匹配）
+            from core.router import resolve, apply
+            decision = resolve("quick_fix", session)
+            old_model = session.model
+            apply(decision, session)
+            if decision.model_id and decision.model_id != old_model:
+                print_reply_header(session)
+                if decision.reason:
+                    print_route_reason(decision.reason)
             r = session.client.chat(model=session.model, messages=[
                 {"role": "user", "content": prompt}], max_tokens=200)
             msg = r["choices"][0]["message"]["content"].strip()
@@ -53,7 +62,15 @@ class GitCommandsMixin:
                 show_warning(f"{since} 内无提交")
                 return
             prompt = f"根据以下 git log 生成 CHANGELOG.md（分组：新增/修复/优化/其他）：\n\n{log.stdout[:3000]}"
-            session.model = "agnes-2.0-flash"
+            # 用 router 统一处理模型切换（避免直接设 model 不切 client 导致不匹配）
+            from core.router import resolve, apply
+            decision = resolve("quick_fix", session)
+            old_model = session.model
+            apply(decision, session)
+            if decision.model_id and decision.model_id != old_model:
+                print_reply_header(session)
+                if decision.reason:
+                    print_route_reason(decision.reason)
             r = session.client.chat(model=session.model, messages=[{"role": "user", "content": prompt}], max_tokens=1000)
             changelog = r["choices"][0]["message"]["content"].strip()
             console.print(Panel(changelog[:2000], title="[cyan]CHANGELOG[/]"))

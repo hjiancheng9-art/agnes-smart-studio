@@ -901,3 +901,160 @@ class DiagCommandsMixin:
             console.print(dtbl)
 
         console.print("  [dim]子命令: /cost budget <usd> · /cost budget off · /cost reset[/]")
+
+    # ── MCP 服务器管理 ──────────────────────────────────────────
+
+    def _chat_mcp(self, session: "ChatSession", arg: str):
+        """MCP 服务器管理 — 注册/启停/查看远程 MCP server 连接。
+
+        子命令：
+            /mcp list                         显示所有配置的服务器
+            /mcp add <name> -- <command>      注册新服务器
+            /mcp remove <name>                移除服务器
+            /mcp connect <name>               启动连接
+            /mcp disconnect <name>            断开连接
+            /mcp tools <name>                 查看服务器提供的工具
+        """
+        try:
+            from core.mcp_client import get_mcp_client
+        except ImportError:
+            show_warning("mcp_client 模块不可用")
+            return
+
+        from rich.console import Console
+        console = Console()
+        client = get_mcp_client()
+        arg = arg.strip()
+        parts = arg.split() if arg else []
+        sub = parts[0] if parts else ""
+
+        # ── list：显示所有服务器 ──
+        if not sub or sub == "list":
+            servers = client.list_servers()
+            if not servers:
+                show_info("没有配置任何 MCP 服务器")
+                console.print("  [dim]用 /mcp add <name> -- <command> 注册服务器[/]")
+                console.print("  [dim]例: /mcp add claude -- claude-code mcp[/]")
+                return
+
+            tbl = Table(title="MCP 服务器", show_lines=False, border_style="cyan")
+            tbl.add_column("名称", style="bold cyan")
+            tbl.add_column("命令", style="white")
+            tbl.add_column("状态", justify="center")
+            tbl.add_column("启用", justify="center")
+
+            for s in servers:
+                name = s.get("name", "?")
+                cmd = s.get("command", "?")
+                args_list = s.get("args", [])
+                full_cmd = cmd + (" " + " ".join(args_list) if args_list else "")
+                enabled = s.get("enabled", True)
+                # 判断是否已连接
+                connected = name in client._processes
+                status = "[green]● 已连接[/]" if connected else "[dim]○ 未连接[/]"
+                enabled_str = "[green]✓[/]" if enabled else "[red]✗[/]"
+                tbl.add_row(name, full_cmd, status, enabled_str)
+
+            console.print(tbl)
+            console.print("  [dim]子命令: /mcp add · /mcp remove · /mcp connect · /mcp disconnect · /mcp tools[/]")
+            return
+
+        # ── add：注册新服务器 ──
+        if sub == "add":
+            # 格式: /mcp add <name> -- <command> [args...]
+            if len(parts) < 4 or "--" not in parts:
+                show_warning("用法: /mcp add <name> -- <command> [args...]")
+                console.print("  [dim]例: /mcp add claude -- claude-code mcp[/]")
+                console.print("  [dim]例: /mcp add fs -- node /path/to/server.js[/]")
+                return
+
+            sep_idx = parts.index("--")
+            name = parts[1]
+            if sep_idx < 2:
+                show_warning("用法: /mcp add <name> -- <command> [args...]")
+                return
+            command = parts[sep_idx + 1] if sep_idx + 1 < len(parts) else ""
+            cmd_args = parts[sep_idx + 2:] if sep_idx + 2 < len(parts) else []
+
+            if not name or not command:
+                show_warning("服务器名称和命令不能为空")
+                return
+
+            result = client.add_server(name=name, command=command, args=cmd_args if cmd_args else None)
+            if "error" in result:
+                show_warning(result["error"])
+            else:
+                show_success(f"已注册 MCP 服务器 [bold]{name}[/]（命令: {command} {' '.join(cmd_args)}）")
+                console.print("  [dim]用 /mcp connect {name} 启动连接[/]".format(name=name))
+            return
+
+        # ── remove：移除服务器 ──
+        if sub == "remove":
+            if len(parts) < 2:
+                show_warning("用法: /mcp remove <name>")
+                return
+            name = parts[1]
+            if client.remove_server(name):
+                show_success(f"已移除 MCP 服务器 [bold]{name}[/]")
+            else:
+                show_warning(f"服务器 '{name}' 不存在")
+            return
+
+        # ── connect：启动连接 ──
+        if sub == "connect":
+            if len(parts) < 2:
+                show_warning("用法: /mcp connect <name>")
+                return
+            name = parts[1]
+            show_info(f"正在连接 {name}...")
+            result = client.connect(name)
+            if "error" in result:
+                show_warning(f"连接失败: {result['error']}")
+            else:
+                caps = result.get("capabilities", {})
+                tools_count = len(caps.get("tools", []))
+                show_success(f"已连接到 [bold]{name}[/]（发现 {tools_count} 个工具）")
+            return
+
+        # ── disconnect：断开连接 ──
+        if sub == "disconnect":
+            if len(parts) < 2:
+                show_warning("用法: /mcp disconnect <name>")
+                return
+            name = parts[1]
+            result = client.disconnect(name)
+            if "error" in result:
+                show_warning(result["error"])
+            else:
+                show_success(f"已断开 [bold]{name}[/]")
+            return
+
+        # ── tools：查看服务器工具 ──
+        if sub == "tools":
+            if len(parts) < 2:
+                show_warning("用法: /mcp tools <name>")
+                return
+            name = parts[1]
+            tools = client.list_tools(name)
+            if tools and "error" in tools[0]:
+                show_warning(tools[0]["error"])
+                console.print("  [dim]可能需要先 /mcp connect {name}[/]".format(name=name))
+                return
+            if not tools:
+                show_info(f"{name} 没有暴露任何工具")
+                return
+
+            ttbl = Table(title=f"{name} 的工具", show_lines=False, border_style="green")
+            ttbl.add_column("#", justify="right", style="dim", width=3)
+            ttbl.add_column("工具名", style="bold green")
+            ttbl.add_column("描述")
+            for i, t in enumerate(tools, 1):
+                tname = t.get("name", "?")
+                tdesc = t.get("description", "")[:60]
+                ttbl.add_row(str(i), tname, tdesc)
+            console.print(ttbl)
+            return
+
+        # ── 未知子命令 ──
+        show_warning(f"未知子命令: {sub}")
+        console.print("  [dim]可用: list · add · remove · connect · disconnect · tools[/]")

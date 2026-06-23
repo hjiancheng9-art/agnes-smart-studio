@@ -25,9 +25,9 @@ class ProviderSelector:
 
     @staticmethod
     def load_models_config() -> dict:
-        """安全加载 models.json，文件缺失/空/损坏时返回默认配置"""
-        root = os.path.dirname(os.path.dirname(__file__))
-        cfg_path = os.path.join(root, "models.json")
+        """安全加载 models.json（项目根），文件缺失/空/损坏时返回默认配置"""
+        root = Path(__file__).resolve().parent.parent
+        cfg_path = root / "models.json"
 
         def _default_cfg():
             return {
@@ -83,8 +83,7 @@ class ProviderSelector:
         Returns: (provider_id, model_id)
         """
         cfg = self.load_models_config()
-        root = os.path.dirname(os.path.dirname(__file__))
-        cfg_path = os.path.join(root, "models.json")
+        cfg_path = Path(__file__).resolve().parent.parent / "models.json"
 
         providers = cfg.get("providers", {})
 

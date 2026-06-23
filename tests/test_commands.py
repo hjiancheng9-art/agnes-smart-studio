@@ -74,6 +74,20 @@ class TestAutoCategory:
 
 
 class TestRegister:
+    """register() 测试。
+
+    注意：register() 会就地修改全局 COMMANDS 列表，为避免污染其他测试
+    （特别是 test_cli_dispatch.py 的 handler 可达性检查），每个测试方法
+    前后用 snapshot/restore 保存并恢复 COMMANDS 原状。
+    """
+
+    def setup_method(self):
+        # 深拷贝当前 COMMANDS，测试后恢复
+        self._snapshot = [type(c)(**c.__dict__) for c in COMMANDS]
+
+    def teardown_method(self):
+        COMMANDS[:] = self._snapshot
+
     def test_register_new_command(self):
         initial = len(COMMANDS)
         register("testcmd", "/testcmd", "<arg>", "test desc", "对话")
@@ -81,9 +95,13 @@ class TestRegister:
         assert len(COMMANDS) == initial + 1
 
     def test_register_update_existing(self):
-        register("img", "/img", "<new>", "updated desc", "创意生产")
+        # 更新 img 的 desc，保留原 handler（_chat_img_inline）
+        original = next(c for c in COMMANDS if c.key == "img")
+        register("img", "/img", "<new>", "updated desc", "创意生产",
+                 handler=original.handler)
         cmd = next(c for c in COMMANDS if c.key == "img")
         assert cmd.desc == "updated desc"
+        assert cmd.handler == original.handler  # handler 未被清空
 
     def test_register_auto_category(self):
         register("autocat1", "/autocat1", "", "生成图片", "")

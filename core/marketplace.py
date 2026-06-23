@@ -14,6 +14,7 @@
 """
 
 import json
+import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -817,13 +818,16 @@ class MarketplaceClient:
         return "\n".join(lines)
 
 # ═══════════════════════════════════════════════════════════════
-# 单例
+# 单例（线程安全双重检查锁）
 # ═══════════════════════════════════════════════════════════════
 
 _marketplace: MarketplaceClient | None = None
+_marketplace_lock = threading.Lock()
 
 def get_marketplace() -> MarketplaceClient:
     global _marketplace
     if _marketplace is None:
-        _marketplace = MarketplaceClient()
+        with _marketplace_lock:
+            if _marketplace is None:
+                _marketplace = MarketplaceClient()
     return _marketplace

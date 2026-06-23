@@ -15,9 +15,10 @@ from prompt_toolkit.styles import Style
 from core.config import (VIDEO_ASPECT_RATIOS, IMAGE_SIZES,
                           VIDEO_DURATION_MAP, VALID_NUM_FRAMES)
 from utils import history, templates, memory
-from ui.display import (console, show_image_result, show_video_result,
-                         show_warning,
-                         show_info)
+# 注：show_image_result/show_video_result 的展示逻辑已下沉到
+# core.async_render.default_side_effect_handlers（sync/async 共享单一来源），
+# 故本模块不再直接 import 它们，避免死 import。
+from ui.display import console, show_warning, show_info
 from ui.render import StreamingRenderer
 
 if TYPE_CHECKING:
@@ -191,15 +192,15 @@ class SharedMixin:
 
     @staticmethod
     def _mode_hint(session: "ChatSession") -> str:
-        """返回当前模式的提示标签，显示在输入提示符后"""
-        hints = []
-        if session.code_mode:
-            hints.append("🔧代码")
-        if session.agent_mode:
-            hints.append("🤖智能体")
-        if session.enable_thinking:
-            hints.append("💭思考")
-        return f" [{', '.join(hints)}]" if hints else ""
+        """返回当前模式的提示标签，显示在输入提示符后。
+
+        ⚠ 输入行由 prompt_toolkit 渲染，它不认 Rich markup——必须用
+        render_badge_plain() 返回纯文本，否则颜色码会原文泄漏。
+        回复头走 console.print 才用 render_badge_line() 的 Rich 版。
+        """
+        from ui.badges import render_badge_plain
+        line = render_badge_plain(session)
+        return f" {line}" if line else ""
 
     def _get_dispatch_table(self) -> dict:
         """构建/缓存命令分发表。"""
@@ -227,6 +228,46 @@ class SharedMixin:
 
         return self._DISPATCH_UNKNOWN
 
+    def _prepare_chat_renderer(self, session: "ChatSession", user: str) -> StreamingRenderer:
+        """构造流式渲染器 + 打印 badge 头 + 智能路由。
+
+        渲染/执行分离（Phase 5）后，本方法是同步/异步两条接入点
+        （`_stream_chat` / `_stream_async_chat`）共享的"流开始前"动作：
+        - 构造带默认副作用 handler 的 StreamingRenderer（副作用 handler 来自
+          core.async_render.default_side_effect_handlers，单一来源）。
+        - 打印 badge 头（模式/技能/模型），让用户一眼看到当前上下文。
+        - 智能路由：分析 user 输入，自动切到最优模型/供应商，必要时重打 badge。
+
+        返回**已构造但未 start**的 renderer —— start()/stop()/commit() 的生命周期
+        交给调用方（与 _stream_chat / _stream_async_chat 的 try/finally 配套），
+        因为这些动作跨同步/异步路径，无法在本方法内统一收尾。
+
+        渲染契约不变：badge 头在 Live 启动前纯 console.print 落盘，不违反
+        "transient 预览 + 单一落盘点"约束。
+        """
+        # 副作用 handler 统一来自 async_render（单一来源，避免 sync/async 两份实现漂移）
+        from core.async_render import default_side_effect_handlers
+        renderer = StreamingRenderer(
+            console, side_effect_handlers=default_side_effect_handlers(),
+        )
+
+        # badge 头：在 transient Live 启动前直接落盘，用户一眼看到当前模式/技能/模型。
+        # 此时无浮层，纯 console.print 不违反渲染契约的单一落地点约束。
+        from ui.badges import print_reply_header, print_route_reason
+        print_reply_header(session)
+
+        # 智能路由：分析用户输入，自动切到最优模型/供应商
+        from core.router import route, apply
+        decision = route(user, session)
+        if decision.profile.value != "skip" and decision.model_id:
+            apply(decision, session)
+            # 模型已切换 → 重打 badge 头（反映真实模型）
+            print_reply_header(session)
+            if decision.reason:
+                print_route_reason(decision.reason)
+
+        return renderer
+
     def _stream_chat(self, session: "ChatSession", user: str):
         """流式渲染自然语言对话，处理 tool 调度的副作用透出。
 
@@ -236,65 +277,74 @@ class SharedMixin:
         - transient 预览 + 单一落盘点（commit），保证每个字符只打印一次。
         - 副作用（info/image/video）是落盘边界：先固化文本，再展示副作用。
         详见 ui/render.py 的契约不变式与 tests/test_render.py / test_stream_chat_dedup.py。
+
+        渲染/执行分离（Phase 5）：流的消费 + 异常路径收尾下沉到
+        core.async_render.render_session_stream，与 async 版 `_stream_async_chat`
+        共享同一份语义，不再在本方法内手写 for 循环与 try/except。
         """
-        # 副作用处理：渲染器在落盘边界后回调，本层负责 ChatSession 相关动作
-        # （历史记录 / 超时警告）；渲染器本身只认识 console + 文本。
-        def _on_image(kind: str, payload: object) -> None:
-            img_data: dict = payload  # type: ignore[assignment]
-            show_image_result(img_data)
-            history.add_record("text_to_image", "chat", img_data.get("model", ""), img_data)
+        renderer = self._prepare_chat_renderer(session, user)
 
-        def _on_video(kind: str, payload: object) -> None:
-            vid_data: dict = payload  # type: ignore[assignment]
-            if vid_data.get("status") == "timeout":
-                show_warning(f"视频超时，进度 {vid_data.get('progress', 0):.0f}%")
-            else:
-                show_video_result(vid_data)
-            history.add_record("text_to_video", "chat", "agnes-video-v2.0", vid_data)
-
-        def _on_info(kind: str, payload: object) -> None:
-            show_info(payload)  # type: ignore[arg-type]
-
-        def _on_confirm(kind: str, payload: object) -> None:
-            """高风险工具确认：弹 y/n，拒绝则中止本轮。
-
-            payload: {"tool": str, "args": dict}
-            中止方式：抛 PermissionError，由上层 send_stream 的 tool 循环外
-            （_stream_chat 的 try/except）捕获，转为友好提示。
-            """
-            data: dict = payload  # type: ignore[assignment]
-            tool = data.get("tool", "?")
-            show_warning(f"⚠ 即将执行高风险工具: {tool}")
-            from rich.prompt import Confirm
-            if not Confirm.ask("[bold]确认执行？[/]", default=False):
-                raise PermissionError(f"用户拒绝了 {tool} 的执行")
-
-        renderer = StreamingRenderer(
-            console,
-            side_effect_handlers={
-                "info": _on_info, "image": _on_image, "video": _on_video,
-                "confirm": _on_confirm,
-            },
-        )
-        renderer.start()
-        try:
-            for kind, payload in session.send_stream(user):
-                if kind == "text":
-                    renderer.append_text(payload)
-                else:
-                    renderer.run_side_effect(kind, payload)
-        except PermissionError as e:
+        def _on_permission_denied(e: PermissionError) -> None:
             # 用户拒绝了高风险工具确认：友好提示，不中止会话
             show_warning(f"🚫 {e}")
-        except KeyboardInterrupt:
+
+        def _on_interrupt(e: KeyboardInterrupt) -> None:
             console.print()
             show_info("⏹ 已中断当前输出")
             if session.messages and session.messages[-1].get("role") == "assistant":
                 session.messages.pop()
             renderer.stop()  # 中断路径：擦除 transient 浮层，不落盘残余（保持旧行为）
-            raise
+
+        from core.async_render import render_session_stream
+        renderer.start()
+        try:
+            render_session_stream(
+                renderer, session.send_stream(user),
+                on_permission_denied=_on_permission_denied,
+                on_interrupt=_on_interrupt,
+            )
         finally:
             # 正常完成路径：stop() 擦除预览 + commit() 落盘末尾增量（无增量空操作）。
             # KeyboardInterrupt 在 raise 前已 stop()，此处再 stop()/commit() 是空安全操作。
+            renderer.stop()
+            renderer.commit()
+
+    async def _stream_async_chat(self, session, user: str):
+        """AsyncChatSession 的流式渲染前端 —— `_stream_chat` 的 async 对应物。
+
+        行为与 `_stream_chat` 完全一致（同一渲染契约、同一副作用 handler、
+        同一异常路径），仅把"流的消费"从同步 `render_session_stream` 换成
+        异步 `render_async_session_stream`。
+
+        本接入点为 Phase 5 渲染/执行分离预留：它让 async runtime
+        （MultiAgent asyncio 重写 / AsyncTaskExecutor / FastAPI web_api）
+        可以用与同步 CLI **完全相同**的渲染前端消费 AsyncChatSession.send_stream，
+        避免为 async 路径另写一套会与同步版漂移的渲染逻辑。
+
+        调用方负责在 asyncio 事件循环内 await 本方法。同步 CLI 主循环
+        （ui/cli.py）目前仍走 `_stream_chat`；本方法供 async runtime 直接 await。
+        """
+        from core.async_render import render_async_session_stream
+        # AsyncChatSession 与 ChatSession 接口同构（_mode_hint/badge 头用相同属性）
+        renderer = self._prepare_chat_renderer(session, user)
+
+        def _on_permission_denied(e: PermissionError) -> None:
+            show_warning(f"🚫 {e}")
+
+        def _on_interrupt(e: KeyboardInterrupt) -> None:
+            console.print()
+            show_info("⏹ 已中断当前输出")
+            if session.messages and session.messages[-1].get("role") == "assistant":
+                session.messages.pop()
+            renderer.stop()
+
+        renderer.start()
+        try:
+            await render_async_session_stream(
+                renderer, session.send_stream(user),
+                on_permission_denied=_on_permission_denied,
+                on_interrupt=_on_interrupt,
+            )
+        finally:
             renderer.stop()
             renderer.commit()

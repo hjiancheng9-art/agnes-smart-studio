@@ -10,7 +10,8 @@ import sys
 import time
 from pathlib import Path
 
-__all__ = ['CapabilityRegistry', 'ROOT', 'capability_snapshot', 'logger']
+__all__ = ['CapabilityRegistry', 'ROOT', 'capability_snapshot',
+           'get_banner_counts', 'logger']
 
 logger = logging.getLogger("agnes.capability")
 
@@ -25,6 +26,19 @@ class CapabilityRegistry:
         self._cache: dict | None = None
         self._cache_time: float = 0
         self._cache_ttl: float = 30.0
+
+    def counts(self) -> dict:
+        """轻量计数：只读 skills/ 与 tools.json，不触发 health/pytest。
+
+        供 banner / 启动期展示用（snapshot() 会顺带跑渲染契约 + 本地 LLM 探测，
+        对「只想拿几个数字」的调用方太重）。失败时对应字段为 None，调用方应
+        把 None 渲染成 '?' 而非 0，避免误导。
+        """
+        return {
+            "skills": self._list_skills().get("count"),
+            "tools": self._list_tools().get("count"),
+            "providers": self._list_providers().get("count"),
+        }
 
     def snapshot(self) -> dict:
         """Return a complete capability snapshot (cached for 30s)."""
@@ -186,8 +200,48 @@ class CapabilityRegistry:
             results["rendering.invariants"] = {"renderer_present": False, "error": f"import: {e}"}
         except Exception as e:
             results["rendering.invariants"] = {"renderer_present": False, "error": f"{type(e).__name__}: {e}"}
+
+        # ── local_llm_health: 真反射探测本地 llama.cpp ──
+        try:
+            import httpx
+            import time
+            endpoint = "http://127.0.0.1:8080/v1/models"
+            t0 = time.time()
+            r = httpx.get(endpoint, timeout=3.0, trust_env=False)
+            models = r.json().get("data", []) if r.status_code == 200 else []
+            results["local_llm_health"] = {
+                "reachable": r.status_code == 200,
+                "status_code": r.status_code,
+                "latency_ms": int((time.time() - t0) * 1000),
+                "model_count": len(models),
+                "model_ids": [m.get("id", "") for m in models[:5]],
+                "endpoint": "http://127.0.0.1:8080/v1",
+            }
+        except Exception as e:
+            results["local_llm_health"] = {"reachable": False, "error": f"{type(e).__name__}: {e}"}
+
         return results
 
 
 def capability_snapshot() -> dict:
     return CapabilityRegistry().snapshot()
+
+
+def get_banner_counts() -> dict:
+    """Banner 专用：返回 {version, tools, skills} 真实计数。
+
+    单一入口，供 launcher / agnes_studio / ui.cli 三处 banner 共用，
+    杜绝各处再硬编码 tools/skills 数字。任何一处失败都给 '?' 而非 0，
+    让「统计失败」与「真的没有」在视觉上可区分。
+    """
+    from core.version import __version__
+    try:
+        c = CapabilityRegistry().counts()
+    except Exception as e:  # banner 是启动门面，绝不能因为统计抛错而中断启动
+        logger.debug("banner counts failed: %s", e)
+        c = {"skills": None, "tools": None, "providers": None}
+    return {
+        "version": f"v{__version__}",
+        "tools": c.get("tools"),
+        "skills": c.get("skills"),
+    }

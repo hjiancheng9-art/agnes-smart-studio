@@ -156,6 +156,9 @@ class ChatSession:
         self.mode = "chat"
         self.unlimited_tools = False
         self.agent_mode = False
+        self.browser_enabled = False
+        self.notebook_enabled = False
+        self.audio_enabled = False
         self.tools: ToolRegistry = get_registry()
         self.skills: SkillManager = get_manager()
         self.active_skill: str = ""
@@ -195,7 +198,12 @@ class ChatSession:
         self.unlimited_tools = self.agent_mode
         if self.agent_mode:
             self.tools = get_registry()  # 重新加载工具配置
-            self.tools.load()
+            self.tools.load(
+                browser=self.browser_enabled,
+                notebook=self.notebook_enabled,
+                audio=self.audio_enabled,
+                mcp=True,
+            )
             # 激活代码守卫 hook（语法验证 + smoke 测试）
             try:
                 from core.hooks import register_code_hooks
@@ -221,6 +229,50 @@ class ChatSession:
         self.messages = [self.messages[0]]
         return self.agent_mode
 
+    def toggle_browser(self) -> bool:
+        """切换 Browser Companion 网页生成工具（8 个 provider：可灵/即梦/Runway/Luma/DALL-E/Gemini/Opal/Veo）。"""
+        self.browser_enabled = not self.browser_enabled
+        self._reload_tools()
+        prompt = self._build_system_prompt()
+        self.messages[0] = {"role": "system", "content": prompt}
+        self.messages = [self.messages[0]]
+        return self.browser_enabled
+
+    def toggle_notebook(self) -> bool:
+        """切换 Notebook (.ipynb) 工具（数据科学场景：打开/编辑/执行/保存 Jupyter notebook）。"""
+        self.notebook_enabled = not self.notebook_enabled
+        self._reload_tools()
+        prompt = self._build_system_prompt()
+        self.messages[0] = {"role": "system", "content": prompt}
+        self.messages = [self.messages[0]]
+        return self.notebook_enabled
+
+    def toggle_audio(self) -> bool:
+        """切换音频工具（edge-tts 旁白/BGM/SFX/混音，补齐 Showrunner 音轨缺口）。"""
+        self.audio_enabled = not self.audio_enabled
+        self._reload_tools()
+        prompt = self._build_system_prompt()
+        self.messages[0] = {"role": "system", "content": prompt}
+        self.messages = [self.messages[0]]
+        return self.audio_enabled
+
+    def _reload_tools(self):
+        """重新加载工具注册表，传入当前所有 toggle 状态。
+
+        agent 模式: load(pipeline=..., comfyui=..., browser=..., notebook=..., audio=...)
+        普通模式: 也传入 browser/notebook/audio（这些 toggle 独立于 agent 模式）。
+        """
+        pipeline = self.active_skill in ("showrunner", "core-showrunner")
+        comfyui = self.active_skill in ("comfyui-bridge",)
+        self.tools = get_registry()
+        self.tools.load(
+            pipeline=pipeline, comfyui=comfyui,
+            browser=self.browser_enabled,
+            notebook=self.notebook_enabled,
+            audio=self.audio_enabled,
+            mcp=True,
+        )
+
     def load_skill(self, name: str) -> str | None:
         """加载技能包，返回技能名称或 None。
 
@@ -241,7 +293,7 @@ class ChatSession:
 
             if pipeline or comfyui:
                 self.tools = get_registry()
-                self.tools.load(pipeline=pipeline, comfyui=comfyui)
+                self.tools.load(pipeline=pipeline, comfyui=comfyui, mcp=True)
 
             # 重建 system prompt
             base = self._current_base_prompt()
@@ -264,7 +316,7 @@ class ChatSession:
         self.skills.unload()
         # 重新加载纯净工具集（只含内置 + 外部 tools.json）
         self.tools = get_registry()
-        self.tools.load(pipeline=False, comfyui=False)
+        self.tools.load(pipeline=False, comfyui=False, mcp=True)
         base = self._current_base_prompt()
         self.messages[0] = {"role": "system", "content": base}
         self.messages = [self.messages[0]]
@@ -327,6 +379,29 @@ class ChatSession:
             base += get_prompt_lab().get_active_instructions()
         except (ImportError, OSError):
             pass
+        # #7/#9 条件注入：browser / notebook / audio 工具使用说明
+        if self.browser_enabled:
+            base += (
+                "\n\n## Browser Companion 网页生成\n"
+                "你可以通过 browser_generate 在 8 个网页平台上全自动生成图片/视频：\n"
+                "可灵(Kling) / 即梦(Jimeng) / Runway / Luma / DALL-E / Gemini / Opal / Veo\n"
+                "优先用官方 API（需配置 API Key），无 Key 时自动降级到 Playwright 浏览器自动化。\n"
+                "首次使用某个平台前需 browser_setup 登录一次，之后 session 自动保存。\n"
+                "用 browser_providers 查看可用平台状态，browser_check 查询任务进度。"
+            )
+        if self.notebook_enabled:
+            base += (
+                "\n\n## Notebook 工具\n"
+                "你可以操作 Jupyter notebook (.ipynb)：打开/编辑/执行代码单元格/保存。\n"
+                "适合数据分析、实验记录、可视化等数据科学场景。"
+            )
+        if self.audio_enabled:
+            base += (
+                "\n\n## 音频工具\n"
+                "你可以生成音频内容：tts_narration(文字转语音旁白)、generate_bgm(背景音乐)、\n"
+                "generate_sfx(音效)、audio_mixdown(多轨混音)。\n"
+                "所有输出保存到 output/audio/。补齐 Showrunner 旁白+BGM 音轨。"
+            )
         return base
 
     def reset(self):

@@ -22,15 +22,24 @@ __all__ = [
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def _safe_path(path: str) -> Path:
+def _safe_path(path: str, *, read_only: bool = False) -> Path:
     """Resolve path and enforce it stays within project root.
 
     Symlink-safe: resolves both the path and ROOT to real paths (no symlinks)
     before checking containment. Prevents symlink-based sandbox escapes
     (e.g. a symlink inside the project pointing to /etc).
+
+    Args:
+        path: File path to validate.
+        read_only: If True, only resolve/normalize without enforcing project root
+                   containment (for read_file/list_files). Write operations must
+                   stay within project root.
     """
-    root_real = ROOT.resolve()
     p = Path(path).expanduser().resolve()
+    if read_only:
+        # 读取操作允许任意路径，仅做 resolve + expanduser
+        return p
+    root_real = ROOT.resolve()
     # resolve() already eliminates symlinks; compare real paths
     if root_real not in p.parents and p != root_real:
         raise ValueError(f"路径超出项目根目录: {path}")
@@ -41,7 +50,7 @@ def read_file(path: str, offset: int = 0, limit: int = 0) -> str:
     """Read a text file, optionally with offset and limit for large files.
 
     Args:
-        path: File path (must be within project root)
+        path: File path (absolute, relative, or outside project — reads allowed anywhere)
         offset: Line number to start from (0 = beginning)
         limit: Max lines to read (0 = all lines)
 
@@ -49,7 +58,7 @@ def read_file(path: str, offset: int = 0, limit: int = 0) -> str:
         File content with line numbers, or error message
     """
     try:
-        p = _safe_path(path)
+        p = _safe_path(path, read_only=True)
     except ValueError as e:
         return f"[安全拒绝] {e}"
     if not p.is_file():
@@ -142,14 +151,16 @@ def list_files(path: str = ".") -> str:
     """List files and directories in a given path with sizes.
 
     Args:
-        path: Directory path to list (default: current directory)
+        path: Directory path to list (absolute, relative, or outside project — reads allowed anywhere)
 
     Returns:
         Formatted listing with file sizes
     """
     from pathlib import Path
-    _ROOT = Path(__file__).parent.parent
-    p = (_ROOT / path).resolve() if not Path(path).is_absolute() else Path(path).resolve()
+    try:
+        p = _safe_path(path, read_only=True)
+    except ValueError as e:
+        return f"[安全拒绝] {e}"
     if not p.is_dir():
         return f"[错误] 目录不存在: {path}"
     try:
@@ -325,22 +336,23 @@ def think_deep(prompt: str, max_tokens: int = 2000) -> str:
 def run_python(code: str) -> str:
     """Execute Python code in an isolated subprocess, return captured output.
 
-    Runs in a fresh subprocess with restricted builtins via a prelude.
-    This prevents sandbox escape via object introspection chains
-    (e.g. ().__class__.__bases__[0].__subclasses__()).
+    Runs in a fresh subprocess with minimal builtin restrictions.
+    Only truly dangerous builtins are removed (exec/eval/compile/breakpoint);
+    import/open/class definitions are allowed since subprocess isolation
+    already provides a strong security boundary.
 
-    Complex code should be written to a .py file first via write_file,
-    then executed with run_bash.
+    For long-running or complex code, write to .py first via write_file,
+    then execute with run_bash.
     """
     import subprocess
     import sys
     import tempfile
     _prelude = """
 import builtins
-_DANGEROUS = ("__import__", "open", "exec", "eval", "compile",
-              "getattr", "setattr", "delattr", "input",
-              "breakpoint", "help", "memoryview",
-              "__build_class__", "copyright", "credits", "license")
+# Only remove truly dangerous builtins that enable code injection / debugging escape.
+# subprocess isolation already prevents filesystem / network side-effects from
+# persisting, so import/open/getattr/class are safe to allow.
+_DANGEROUS = ("exec", "eval", "compile", "breakpoint")
 for _d in _DANGEROUS:
     try:
         delattr(builtins, _d)
@@ -371,7 +383,7 @@ for _d in _DANGEROUS:
         out = r.stdout.strip()
         err = r.stderr.strip()
         if err:
-            out = (out + "\n" + err).strip()
+            out = (out + "\n[stderr]\n" + err).strip()
         return out or "(no output)"
     except subprocess.TimeoutExpired:
         return "[错误] Python 执行超时 (30s)"

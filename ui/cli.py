@@ -29,6 +29,7 @@ from engines.video import VideoEngine
 from pipeline.workflows import PipelineOrchestrator
 from utils import memory
 from ui.display import console, COLORS, show_error, show_warning, show_info
+from ui.terminal_logo import render_rich as _render_logo_rich
 from ui.mixins import (
     SharedMixin, InlineCommandsMixin, CreativeCommandsMixin,
     EngineeringCommandsMixin, GitCommandsMixin, DiagCommandsMixin,
@@ -38,12 +39,12 @@ from ui.mixins import (
 __all__ = ['AgnesCLI', 'LOGO']
 
 
-LOGO = f"""[bold cyan]
-  ___                     _   ____ _               _
- / _ \\ _ __   ___ _ __  (_) / ___| |__   ___  ___| | __
-| | | | '_ \\ / _ \\ '_ \\ | || |   | '_ \\ / _ \\/ __| |/ /
-| |_| | | | |  __/ | | || || |___| | | |  __/ (__|   <
- \\___/|_| |_|\\___|_| |_||_| \\____|_| |_|\\___|\\___|_|\\_\\[/][dim] v{__version__}[/]"""
+def _build_logo() -> str:
+    """Build the cyberpunk pixel logo as Rich markup."""
+    return _render_logo_rich(version=f'v{__version__}')
+
+
+LOGO = _build_logo()
 
 
 class AgnesCLI(SharedMixin, InlineCommandsMixin, CreativeCommandsMixin,
@@ -86,25 +87,25 @@ class AgnesCLI(SharedMixin, InlineCommandsMixin, CreativeCommandsMixin,
         console.print(LOGO)
         while True:
             console.print()
-            menu = Table(title="功能菜单", show_header=False, box=None, padding=(0, 2))
-            menu.add_column("Key", style=f"bold {COLORS['primary']}", width=4)
+            menu = Table(title="[cyan]◈ 功能菜单[/]", show_header=False, box=None, padding=(0, 2))
+            menu.add_column("Key", style=f"bold {COLORS['accent']}", width=4)
             menu.add_column("Name", style="white", width=16)
             menu.add_column("Desc", style="dim")
             for k, n, d in [
-                ("1","文生图","从文字描述生成图片"),
-                ("2","图生图","基于已有图片编辑/风格迁移"),
-                ("3","文生视频","从文字描述生成视频"),
-                ("4","图生视频","让图片动起来"),
-                ("5","一站式","文本→图片→视频"),
-                ("6","历史","查看生成历史"),
-                ("7","模板","浏览风格模板"),
-                ("8","聊天","与AI对话，可触发生图/视频"),
-                ("0","退出",""),
+                ("1","◈ 文生图","从文字描述生成图片"),
+                ("2","◇ 图生图","基于已有图片编辑/风格迁移"),
+                ("3","▷ 文生视频","从文字描述生成视频"),
+                ("4","▷ 图生视频","让图片动起来"),
+                ("5","⟐ 一站式","文本→图片→视频"),
+                ("6","▤ 历史","查看生成历史"),
+                ("7","▦ 模板","浏览风格模板"),
+                ("8","◈ 聊天","与AI对话，可触发生图/视频"),
+                ("0","✖ 退出",""),
             ]:
                 menu.add_row(k, n, d)
             console.print(menu)
 
-            ch = Prompt.ask("[cyan]选择[/]", choices=["0","1","2","3","4","5","6","7","8"], default="1")
+            ch = Prompt.ask("[cyan]◈ 选择[/]", choices=["0","1","2","3","4","5","6","7","8"], default="1")
             if ch == "0":
                 break
             try:
@@ -121,7 +122,7 @@ class AgnesCLI(SharedMixin, InlineCommandsMixin, CreativeCommandsMixin,
         if tips:
             console.print(f"\n[dim]{'─' * 40}[/]")
             for t in tips:
-                console.print(f"  [dim]💡 {t}[/]")
+                console.print(f"  [cyan]◈[/] [dim]{t}[/]")
 
     # ── 命令分发基础设施 ──────────────────────────────────
 

@@ -56,11 +56,17 @@ scripts/scratch/
 # Windows NUL artifacts
 nul
 
-# Local LLM (llama.cpp) — 大体积二进制 / GGUF 模型，不入库
-llama.cpp/*.exe
-llama.cpp/*.dll
-llama.cpp/*.bak
-llama.cpp/models/
+# Local LLM (llama.cpp) — vendored 第三方库 693MB，整个目录不入库
+# 用单独条目而非 *.exe 过滤，避免漏掉 C++ 源码 / 构建中间产物
+llama.cpp/
 models/*.gguf
 *.gguf
+
+# 测试输出垃圾（tests_output.txt / tests_result.xml 等）
+tests_output*.txt
+tests_result*.xml
+
+# 误重定向产生的乱码文件名（%TEMP%xxx / 中文路径 help.txt）
+*help.txt
+%TEMP%*
 

@@ -95,15 +95,15 @@ class TestShowrunnerExecution:
 
     def test_think_without_client(self):
         sr = Showrunner(client=None)
-        result = asyncio.get_event_loop().run_until_complete(sr._think("test"))
+        result = asyncio.run(sr._think("test"))
         assert result == {"thought": "test"}
 
     def test_think_with_client(self):
-        result = asyncio.get_event_loop().run_until_complete(self.sr._think("analyze this"))
+        result = asyncio.run(self.sr._think("analyze this"))
         assert result["thought"] == "mock response"
 
     def test_gen_prompt_stores_context(self):
-        result = asyncio.get_event_loop().run_until_complete(self.sr._gen_prompt("a dragon"))
+        result = asyncio.run(self.sr._gen_prompt("a dragon"))
         assert result["prompt"] == "mock response"
         assert self.sr._context["last_prompt"] == "mock response"
 
@@ -115,7 +115,7 @@ class TestShowrunnerExecution:
             {"step": "think", "kind": StepKind.THINK, "desc": "plan", "source": SourceKind.AGNES},
             {"step": "deliver", "kind": StepKind.DELIVER, "desc": "output", "source": SourceKind.CLI},
         ]
-        rec = asyncio.get_event_loop().run_until_complete(sr.run("test goal", pipeline=pipeline))
+        rec = asyncio.run(sr.run("test goal", pipeline=pipeline))
         assert isinstance(rec, PipelineRun)
         assert rec.goal == "test goal"
         assert len(rec.steps) == 2
@@ -127,7 +127,7 @@ class TestShowrunnerExecution:
         sr = Showrunner(client=self.mock_client)
         sr.on_step(lambda name, status: events.append((name, status)))
         pipeline = [{"step": "think", "kind": StepKind.THINK, "desc": "x", "source": SourceKind.AGNES}]
-        asyncio.get_event_loop().run_until_complete(sr.run("g", pipeline=pipeline))
+        asyncio.run(sr.run("g", pipeline=pipeline))
         assert ("think", "running") in events
         assert ("think", "done") in events
 

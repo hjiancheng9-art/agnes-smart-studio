@@ -37,7 +37,7 @@ _pipeline_tools_enabled = False
 
 
 __all__ = [
-    "AGENT_SYSTEM_PROMPT", "BUILTIN_TOOLS", "COMFYUI_TOOL_DEFS", "PIPELINE_TOOL_DEFS", "TOOLS_CONFIG", "ToolRegistry", "disable_pipeline_tools", "enable_pipeline_tools", "get_registry", "reload_registry",
+    "AGENT_SYSTEM_PROMPT", "AUDIO_TOOL_DEFS", "BUILTIN_TOOLS", "BROWSER_TOOL_DEFS", "COMFYUI_TOOL_DEFS", "NOTEBOOK_TOOL_DEFS", "PIPELINE_TOOL_DEFS", "TOOLS_CONFIG", "ToolRegistry", "disable_pipeline_tools", "enable_pipeline_tools", "get_registry", "reload_registry",
 ]
 
 
@@ -402,6 +402,10 @@ TOOL_CATEGORIES: list[tuple[str, tuple[str, ...], frozenset[str]]] = [
     ("🤖 自动化",   ("core.codex_engines",),     frozenset()),
     ("🎬 流水线",   ("core.pipeline_tools",),    frozenset()),
     ("🧩 ComfyUI",  ("core.comfyui_tools",),     frozenset()),
+    ("🌐 网页生成", ("core.browser_tools",),      frozenset()),
+    ("📓 Notebook", ("core.notebook",),           frozenset()),
+    ("🎵 音频",     ("core.audio_tools",),        frozenset()),
+    ("🔌 MCP 桥接", ("core.mcp_client",),         frozenset()),
 ]
 
 # 工具名 → 模块路径的辅助映射（load() 时填充，供分类查询）
@@ -571,13 +575,19 @@ class ToolRegistry:
         self._tool_modules: dict[str, str] = {}  # name → 模块路径（分类用）
 
     # ── 加载 ──
-    def load(self, pipeline: bool = False, comfyui: bool = False) -> int:
+    def load(self, pipeline: bool = False, comfyui: bool = False,
+             browser: bool = False, notebook: bool = False, audio: bool = False,
+             mcp: bool = False) -> int:
         """从 tools.json 加载工具，返回已加载数量
 
         Args:
             pipeline: 是否加载一键流视频管道工具（Showrunner 模式）
             comfyui: 是否加载 ComfyUI 桥接工具（ComfyUI Bridge 模式）
-            两者可同时为 True（Showrunner + ComfyUI 协作模式）
+            browser: 是否加载 Browser Companion 网页生成工具
+            notebook: 是否加载 Notebook (.ipynb) 工具
+            audio: 是否加载音频工具（TTS/BGM/SFX/混音）
+            mcp: 是否加载 MCP Client 桥接工具（四象融合：调 claude/codex/codebuddy）
+            多个可同时为 True（协作模式）
         """
         self._definitions = list(BUILTIN_TOOLS)
         self._executors.clear()
@@ -601,6 +611,42 @@ class ToolRegistry:
             for name, executor in COMFYUI_EXECUTOR_MAP.items():
                 self._executors[name] = executor
                 self._tool_modules[name] = "core.comfyui_tools"
+
+        # ── Browser Companion 网页生成工具 ──
+        if browser:
+            from core.browser_tools import BROWSER_TOOL_DEFS, BROWSER_EXECUTOR_MAP
+            self._definitions.extend(BROWSER_TOOL_DEFS)
+            for name, executor in BROWSER_EXECUTOR_MAP.items():
+                self._executors[name] = executor
+                self._tool_modules[name] = "core.browser_tools"
+
+        # ── Notebook (.ipynb) 工具 ──
+        if notebook:
+            from core.notebook import NOTEBOOK_TOOL_DEFS, NOTEBOOK_EXECUTOR_MAP
+            self._definitions.extend(NOTEBOOK_TOOL_DEFS)
+            for name, executor in NOTEBOOK_EXECUTOR_MAP.items():
+                self._executors[name] = executor
+                self._tool_modules[name] = "core.notebook"
+
+        # ── 音频工具（TTS/BGM/SFX/混音）──
+        if audio:
+            from core.audio_tools import AUDIO_TOOL_DEFS, AUDIO_EXECUTOR_MAP
+            self._definitions.extend(AUDIO_TOOL_DEFS)
+            for name, executor in AUDIO_EXECUTOR_MAP.items():
+                self._executors[name] = executor
+                self._tool_modules[name] = "core.audio_tools"
+
+        # ── MCP Client 桥接工具（四象融合）──
+        # 注入 mcp_list_servers / mcp_list_tools / mcp_call_tool / mcp_read_resource，
+        # 让 LLM 能通过 MCP 协议调 claude/codex/codebuddy 的工具。
+        # 远程 server 通过 `agnes mcp add <name> -- <command>` 配置，
+        # executor 自带 auto-connect（首次调用时自动启动子进程握手）。
+        if mcp:
+            from core.mcp_client import MCP_TOOL_DEFS, MCP_EXECUTOR_MAP
+            self._definitions.extend(MCP_TOOL_DEFS)
+            for name, executor in MCP_EXECUTOR_MAP.items():
+                self._executors[name] = executor
+                self._tool_modules[name] = "core.mcp_client"
 
         if not self._config_path.exists():
             return len(self._definitions)
@@ -860,7 +906,7 @@ def get_registry(config_path: Path | None = None) -> ToolRegistry:
         with _registry_lock:
             if _registry is None:
                 _registry = ToolRegistry(config_path)
-                _registry.load()
+                _registry.load(mcp=True)
     return _registry
 
 

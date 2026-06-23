@@ -125,6 +125,11 @@ COMMANDS: list[CommandDef] = [
                '切换扩展工具集（notebook/audio/browser）', '诊断配置',
                long_desc='toggle：切换数据科学/音频/网页生成工具集。list：显示所有扩展状态。',
                handler='_chat_extend'),
+    CommandDef('mcp',     '/mcp',     '<cmd>',  'MCP 服务器管理 (list/add/remove/connect/disconnect/tools)',
+               '诊断配置',
+               long_desc='list：显示所有配置的服务器及连接状态；add <name> -- <cmd>：注册新服务器；'
+                         'remove <name>：移除；connect/disconnect <name>：启停连接；tools <name>：查看工具。',
+               handler='_chat_mcp'),
 ]
 
 # Special skill-load entries for /help display

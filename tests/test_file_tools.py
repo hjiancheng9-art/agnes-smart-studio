@@ -70,10 +70,12 @@ class TestReadFile:
         result = read_file("nonexistent_file_xyz.py")
         assert "不存在" in result or "错误" in result
 
-    def test_read_outside_root_rejected(self, in_project):
+    def test_read_outside_root_allowed(self, in_project):
         from core.file_tools import read_file
+        # read_file now allows reading any path; /etc/passwd won't exist on
+        # Windows so we expect "文件不存在" rather than "安全拒绝".
         result = read_file("/etc/passwd")
-        assert "安全拒绝" in result
+        assert "安全拒绝" not in result  # path restriction is lifted for reads
 
     def test_read_with_offset(self, in_project):
         from core.file_tools import read_file

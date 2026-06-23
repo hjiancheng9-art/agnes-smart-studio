@@ -207,7 +207,7 @@ TEAM_CONFIGS = {
 }
 
 
-def run_team(client, team_type: str, context: str, model: str = "agnes-2.0-flash") -> dict:
+def run_team(client, team_type: str, context: str, model: str = "deepseek-v4-pro") -> dict:
     """启动智能体团队并行分析
 
     每个成员收到相同的上下文但不同的角色提示词，并行调用 LLM。

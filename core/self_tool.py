@@ -235,7 +235,8 @@ class ToolBuilder:
 
         # Remove the .py file
         tool_path = CUSTOM_TOOLS_DIR / f"{name}.py"
-        if tool_path.exists():
+        existed = tool_path.exists()
+        if existed:
             with contextlib.suppress(OSError):
                 tool_path.unlink()
 
@@ -244,7 +245,8 @@ class ToolBuilder:
         if module_name in sys.modules:
             del sys.modules[module_name]
 
-        return unregistered or tool_path.exists() is False
+        # 成功：registry 注销了 或 文件确实存在并尝试删除了
+        return unregistered or existed
 
 
 # ======================================================================

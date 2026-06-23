@@ -26,6 +26,7 @@ Skill 文件格式 (JSON):
 """
 
 import json
+import threading
 from pathlib import Path
 
 __all__ = ['SKILLS_DIR', 'Skill', 'SkillManager', 'get_manager']
@@ -273,14 +274,17 @@ class SkillManager:
                 path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-# 全局单例
+# 全局单例（线程安全双重检查锁）
 _manager: SkillManager | None = None
+_manager_lock = threading.Lock()
 
 
 def get_manager() -> SkillManager:
     global _manager
     if _manager is None:
-        _manager = SkillManager()
-        _manager.create_examples()
-        _manager.discover()
+        with _manager_lock:
+            if _manager is None:
+                _manager = SkillManager()
+                _manager.create_examples()
+                _manager.discover()
     return _manager

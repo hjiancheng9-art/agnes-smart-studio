@@ -35,8 +35,10 @@ class RAGEngine:
 
     def _tokenize(self, text: str) -> list[str]:
         """Tokenize text into meaningful word tokens."""
-        # Split on word boundaries, keep alphanumeric tokens >= 2 chars
-        tokens = re.findall(r"[a-zA-Z_]\w+|[\\u4e00-\\u9fff]+", text.lower())
+        # Split on word boundaries, keep alphanumeric tokens >= 2 chars.
+        # 注意：\u4e00-\u9fff 必须用单反斜杠（Unicode 转义）；raw string 里的
+        # \\u 会被当成字面反斜杠+u，导致字符类解析成 ASCII 范围，中文失效。
+        tokens = re.findall(r"[a-zA-Z_]\w+|[\u4e00-\u9fff]+", text.lower())
         return [t for t in tokens if len(t) >= 2]
 
     def index_project(self, force: bool = False):

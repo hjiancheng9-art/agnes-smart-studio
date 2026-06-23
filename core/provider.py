@@ -38,7 +38,9 @@ __all__ = [
     "get_provider_manager",
     "get_provider_name",
     "get_tool_calling_models",
+    "get_vision_models",
     "model_supports_tools",
+    "model_supports_vision",
     "register_model",
     "resolve_model_alias",
 ]
@@ -112,6 +114,17 @@ def _register_defaults():
             supports_tools=True,
             tier="pro",
             aliases=("kimi", "sf"),
+        ),
+        ModelInfo(
+            id="Qwen3.6-27B-PRISM-PRO-DQ",
+            name="Qwen3.6-27B-PRISM-PRO-DQ (本地)",
+            provider_id="local",
+            provider_name="Local llama.cpp (Qwen3.6-27B-PRISM-PRO-DQ)",
+            description="本地推理，离线可用，代码/推理；需手动启动 llama-server",
+            supports_tools=True,
+            supports_thinking=True,
+            tier="pro",
+            aliases=("local", "qwen", "qwen3"),
         ),
     ]
     for m in models:
@@ -189,6 +202,20 @@ def register_model(info: ModelInfo) -> None:
 def model_supports_tools(model_id: str) -> bool:
     """判断指定模型是否支持 tool calling。"""
     return model_id in get_tool_calling_models()
+
+
+def get_vision_models() -> list[str]:
+    """返回所有支持多模态视觉理解的模型 ID 列表（按注册顺序，保持稳定）。
+
+    视觉通道 fallback 链的单一真相源：调用方按此列表顺序尝试，
+    首个成功即返回。当前仅 agnes-1.5-flash 注册了 supports_vision。
+    """
+    return [m.id for m in MODEL_REGISTRY.values() if m.supports_vision]
+
+
+def model_supports_vision(model_id: str) -> bool:
+    """判断指定模型是否支持多模态图片理解。"""
+    return model_id in get_vision_models()
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -314,7 +341,10 @@ class ProviderManager:
         api_key = provider.get("api_key") or os.getenv(f"{pid.upper()}_API_KEY", "")
         # Ensure ASCII-only (httpx rejects non-ASCII headers)
         api_key = api_key.encode("ascii", errors="ignore").decode("ascii") if api_key else ""
-        if not api_key:
+        # Local providers (e.g. llama.cpp) may not require authentication.
+        # auth_required=false → use a placeholder key instead of falling back to
+        # another provider (which would cause session.model vs client.base_url mismatch).
+        if not api_key and provider.get("auth_required", True):
             fallback = self._first_available(exclude={pid})
             if fallback:
                 return self.create_client(fallback)

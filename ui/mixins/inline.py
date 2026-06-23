@@ -112,11 +112,12 @@ class InlineCommandsMixin:
                 "/tools             /self check|fix",
                 "/eval [json]       /browser",
                 "/extend <nb|au>    /cost [budget]",
-                "/clear             /exit",
+                "/mcp <cmd>         /clear",
+                "/exit",
             ]
             text = "\n".join(cmds)
             cap = "AI auto" if current_model == "agnes-2.0-flash" else "manual"
-            console.print(Panel(text, title=f"[bold cyan]32 commands[/] ({current_model} | think:{think_state} | {cap})", border_style=COLORS["primary"]))
+            console.print(Panel(text, title=f"[bold cyan]33 commands[/] ({current_model} | think:{think_state} | {cap})", border_style=COLORS["primary"]))
             return
         console.print(Panel(f"""\
     操作提示: Ctrl+C 中止运行 · 输入 \"\"\" 进入多行编辑 · /code 或 /agent 再输一次退出
@@ -152,6 +153,7 @@ class InlineCommandsMixin:
     /extend <nb|au>    切换扩展工具集（notebook/audio/browser）
     /browser           Browser Companion 网页生成（8 平台开关）
     /cost [budget]     查看花费 / 设日预算
+    /mcp <cmd>         MCP 服务器管理 (list/add/remove/connect/disconnect/tools)
     /clear             清空对话历史
     /exit              退出聊天
 

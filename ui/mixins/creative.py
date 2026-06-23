@@ -11,6 +11,7 @@ from core.config import SETTINGS
 from utils import history, image_input
 from ui.display import (console, COLORS, show_error, show_image_result, show_video_result,
                          show_warning, show_info, show_success)
+from ui.badges import print_mode_banner
 
 if TYPE_CHECKING:
     from core.chat import ChatSession
@@ -45,6 +46,12 @@ class CreativeCommandsMixin:
         # 确保 showrunner 技能已加载（带管道工具）
         if session.active_skill != "showrunner":
             session.load_skill("showrunner")
+            # 能力提示：showrunner 依赖 tool calling 编排流水线
+            if not session.supports_tools:
+                show_warning(
+                    f"当前模型 {session.model} 不支持 tool calling，"
+                    "showrunner 的流水线工具可能无法自动调度。用 /model 切到支持 tools 的模型（如 deepseek-v4-pro）。"
+                )
         # 把目标作为用户消息送入会话，触发 AI 总导演编排
         self._stream_chat(session, f"目标：{arg}\n请作为总导演规划并执行完整创意流水线。")
 
@@ -221,6 +228,13 @@ class CreativeCommandsMixin:
                 s = skills.get(result)
                 icon = s.icon + " " if s and s.icon else ""
                 show_success(f"已加载: {icon}{result}")
+                print_mode_banner(session)
+                # 能力提示：技能依赖 tool calling，若当前模型不支持则建议切换
+                if not session.supports_tools:
+                    show_warning(
+                        f"当前模型 {session.model} 不支持 tool calling，"
+                        f"技能 '{result}' 的工具链可能无法调度。用 /model 切到支持 tools 的模型（如 deepseek-v4-pro）。"
+                    )
             else:
                 show_warning(f"未找到技能 '{name}'，/skill list 查看或用中文名如: 视频 作图 写剧本")
 
@@ -237,6 +251,7 @@ class CreativeCommandsMixin:
             if session.active_skill:
                 show_info(f"已卸载技能: {session.active_skill}")
                 session.unload_skill()
+                print_mode_banner(session)
             else:
                 show_info("当前无已加载技能")
 

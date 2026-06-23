@@ -52,9 +52,25 @@ def main():
         from core.version import __version__
         print(f"Agnes Smart Studio v{__version__}")
         sys.exit(0)
+    elif len(sys.argv) >= 2 and sys.argv[1] in ("init", "login"):
+        # agnes init / agnes login — 写全局 ~/.agnes/auth.json，对标 codex 首次引导。
+        # 不需要 API Key（这就是配置它的命令），独立处理直接退出。
+        _run_init()
+        sys.exit(0)
+    elif len(sys.argv) >= 2 and sys.argv[1] == "mcp-serve":
+        # agnes mcp-serve — 启动 MCP server（stdio JSON-RPC），让 Agnes 作为
+        # 与 codex/claude/codebuddy 对等的第四象被调用。绕过 API Key 强制校验
+        # （server 自己从 config / auth.json 读取，与 init/version 同为早退分支）。
+        # 程序化调用，不进 REPL，不出现在 launcher 菜单里。
+        from core.mcp_server import run_mcp_server
+        run_mcp_server(sys.argv[2:])
+        sys.exit(0)
 
     if not SETTINGS.api_key:
-        print("错误: 未设置 AGNES_API_KEY，请在 .env 文件中添加")
+        print("错误: 未设置 AGNES_API_KEY")
+        print("  解决: 运行  agnes init    写入全局配置（一次配置，任意目录可用）")
+        print("  或:   在当前目录建 .env 文件，加 AGNES_API_KEY=你的key")
+        print("  或:   设系统环境变量 AGNES_API_KEY")
         sys.exit(1)
 
     import argparse
@@ -362,6 +378,49 @@ def _quick(args):
                 negative_prompt=neg or None)
             show_image_result(data)
             history.add_record("text_to_image", args.quick, data.get("model",""), data)
+
+def _run_init():
+    """agnes init / agnes login — 写全局 ~/.agnes/auth.json。
+
+    对标 codex 首次运行引导：一次配置，任意目录敲 agnes 都能用。
+    交互式读取 API Key（不在命令行明文回显，避免 shell history 泄露）。
+    """
+    from core.config import AUTH_FILE, SETTINGS, save_global_auth
+
+    print()
+    print("  Agnes 全局配置初始化")
+    print(f"  将写入: {AUTH_FILE}")
+    print("  (此文件存 API Key，仅本机可读，配置后任意目录均可启动 agnes)")
+    print()
+
+    # 预填：已有 key 时显示尾号，回车保留
+    existing = SETTINGS.api_key
+    if existing:
+        print(f"  当前已配置 key: ...{existing[-8:]}")
+        key = input("  输入新 AGNES_API_KEY (回车保留现有): ").strip()
+        if not key:
+            key = existing
+    else:
+        key = input("  请输入 AGNES_API_KEY: ").strip()
+
+    if not key:
+        print("  未输入 key，已取消。")
+        return
+
+    base_url = input(f"  AGNES_BASE_URL (回车用默认 https://apihub.agnes-ai.com/v1): ").strip()
+    base_url = base_url or "https://apihub.agnes-ai.com/v1"
+
+    try:
+        path = save_global_auth(key, base_url)
+    except OSError as e:
+        print(f"  写入失败: {e}")
+        return
+
+    print()
+    print(f"  ✓ 已保存到 {path}")
+    print(f"  ✓ 现在在任意目录敲 agnes 都能用。")
+    print()
+
 
 def main_chat():
     """命令行入口：直接进入 Agnes 编程助手"""

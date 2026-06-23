@@ -16,9 +16,15 @@ Operations: add_file, delete_file, update_file (with one or more hunks)
 from pathlib import Path
 import contextlib
 
-__all__ = ['PatchEngine', 'PatchError', 'ROOT', 'apply']
+__all__ = ['PatchEngine', 'PatchError', 'ROOT', 'apply', 'rollback_last']
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# 模块级快照：最近一次成功 apply 的备份，供 rollback_last() 撤销使用。
+# _LAST_BACKUPS = {path: 改前内容}（恢复写回）
+# _LAST_ADDED   = {path}（撤销时删除，因为应用前不存在）
+_LAST_BACKUPS: dict[str, str] = {}
+_LAST_ADDED: set[str] = set()
 
 
 class PatchError(Exception):
@@ -38,14 +44,21 @@ class PatchEngine:
 
     def apply(self, patch_text: str, verify: bool = True) -> dict:
         """Parse and apply a multi-operation patch. Returns summary."""
+        global _LAST_BACKUPS, _LAST_ADDED
         self._backups = {}
         self._modified = set()
         ops = self._parse(patch_text)
         results = []
+        # 记录本次 patch 新建的文件（应用前不存在），用于撤销时删除
+        added_paths: set[str] = set()
         try:
             for op in ops:
                 op_type = op["type"]
                 if op_type == "add_file":
+                    target = self._resolve_path(op["path"])
+                    # 应用前不存在 → 视为新增，撤销时要删
+                    if not target.exists():
+                        added_paths.add(str(target))
                     results.append(self._add_file(op["path"], op["content"], verify))
                 elif op_type == "delete_file":
                     results.append(self._delete_file(op["path"]))
@@ -58,6 +71,9 @@ class PatchEngine:
         except (OSError, ValueError, RuntimeError) as e:
             self._rollback()
             return {"success": False, "error": str(e), "results": results}
+        # 成功：把本次备份提升为模块级"最近一次"快照，供 rollback_last() 使用
+        _LAST_BACKUPS = dict(self._backups)
+        _LAST_ADDED = added_paths
         return {"success": True, "files_modified": len(self._modified),
                 "results": results}
 
@@ -208,3 +224,42 @@ class PatchEngine:
 def apply(patch_text: str, verify: bool = True) -> dict:
     """Apply a structured patch and return result."""
     return PatchEngine().apply(patch_text, verify=verify)
+
+
+def rollback_last() -> dict:
+    """撤销最近一次成功 apply 的 patch。
+
+    - 对被修改的文件：从 _LAST_BACKUPS 写回改前内容。
+    - 对被新增的文件：删除（恢复到应用前不存在的状态）。
+    - 对被删除的文件：备份在 _LAST_BACKUPS 里，一并恢复。
+
+    幂等：再次调用时无快照可撤销，返回 nothing_to_undo。
+    """
+    global _LAST_BACKUPS, _LAST_ADDED
+    import contextlib
+    if not _LAST_BACKUPS and not _LAST_ADDED:
+        return {"success": False, "reason": "nothing_to_undo",
+                "message": "没有可撤销的 patch（快照为空）"}
+
+    restored, deleted = [], []
+    for path_str, content in _LAST_BACKUPS.items():
+        try:
+            Path(path_str).write_text(content, encoding="utf-8")
+            restored.append(path_str)
+        except (OSError, UnicodeDecodeError):
+            pass
+    for path_str in _LAST_ADDED:
+        if path_str in _LAST_BACKUPS:
+            continue  # 已在备份恢复路径里处理
+        with contextlib.suppress(OSError):
+            Path(path_str).unlink()
+            deleted.append(path_str)
+
+    summary = {"success": True, "restored": len(restored),
+               "deleted_new_files": len(deleted),
+               "paths": {"restored": restored, "deleted": deleted}}
+
+    # 清空快照，避免重复撤销
+    _LAST_BACKUPS = {}
+    _LAST_ADDED = set()
+    return summary

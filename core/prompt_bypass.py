@@ -27,7 +27,9 @@ import time
 from pathlib import Path
 
 __all__ = [
-    'BYPASS_ENABLED', 'CACHE_FILE', 'FIGURE_STRATEGIES', 'FIGURE_TRIGGERS', 'POLICY_KEYWORDS', 'ROOT', 'STRATEGIES', 'generate_with_bypass', 'get_bypass_stats', 'is_policy_error', 'rewrite_prompt',
+    'BYPASS_ENABLED', 'CACHE_FILE', 'FIGURE_STRATEGIES', 'FIGURE_TRIGGERS', 'POLICY_KEYWORDS', 'ROOT', 'STRATEGIES',
+    'generate_with_bypass', 'get_bypass_stats', 'is_policy_error', 'rewrite_prompt',
+    'async_generate_with_bypass', 'async_rewrite_prompt',
 ]
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -333,3 +335,133 @@ def get_bypass_stats() -> dict:
         "cached_rewrites": len(cache.get("rewrites", {})),
         "strategy_usage": cache.get("patterns", {}),
     }
+
+
+# ═══════════════════════════════════════════════════════════════
+# Async 版本 — asyncio 原生，供 AsyncAgnesClient / AsyncEngines 使用
+# ═══════════════════════════════════════════════════════════════
+
+async def async_rewrite_prompt(client, original_prompt: str, model: str = "deepseek-v4-pro",
+                               strategy_index: int = 0, cache: dict | None = None,
+                               triggers: list[str] | None = None) -> str | None:
+    """异步版 rewrite_prompt。
+
+    client 必须是 AsyncAgnesClient（或任何具备 async chat() 方法的客户端）。
+    策略选择、缓存读写逻辑与同步版完全一致。
+    """
+    triggers = triggers or _detect_trigger_words(original_prompt)
+
+    is_figure = any(t in FIGURE_TRIGGERS for t in triggers)
+    if is_figure and strategy_index < len(FIGURE_STRATEGIES):
+        strategy = FIGURE_STRATEGIES[strategy_index]
+    elif strategy_index < len(STRATEGIES):
+        strategy = STRATEGIES[strategy_index]
+    else:
+        return None
+
+    # 缓存命中检查（纯内存操作，无需异步化）
+    if cache:
+        key = original_prompt[:100]
+        if key in cache["rewrites"]:
+            cached = cache["rewrites"][key]
+            if cached.get("strategy") == strategy["name"]:
+                return cached.get("rewritten")
+
+    messages = [
+        {"role": "system", "content": strategy["system"]},
+        {"role": "user", "content": f"{strategy['instruction']}\n\n{original_prompt}"},
+    ]
+
+    try:
+        r = await client.chat(
+            model=model,
+            messages=messages,
+            max_tokens=600,
+            temperature=strategy["temperature"],
+        )
+        rewritten = r["choices"][0]["message"]["content"] or ""
+        rewritten = rewritten.strip().strip('"').strip("'")
+
+        for prefix in ("Here", "Sure", "Here is", "Rewritten prompt:",
+                        "Prompt:", "Certainly", "Of course"):
+            if rewritten.lower().startswith(prefix.lower()):
+                rewritten = rewritten[len(prefix):].strip().strip(":").strip()
+
+        if 10 < len(rewritten) < 2000:
+            if cache:
+                cache["rewrites"][original_prompt[:100]] = {
+                    "rewritten": rewritten,
+                    "strategy": strategy["name"],
+                    "ts": time.time(),
+                }
+                cache["patterns"].setdefault(strategy["name"], 0)
+                cache["patterns"][strategy["name"]] += 1
+                # 文件写入放线程池，避免阻塞事件循环
+                await __import__("asyncio").to_thread(_save_cache, cache)
+            return rewritten
+    except (OSError, ValueError, RuntimeError):
+        pass
+    return None
+
+
+async def async_generate_with_bypass(engine_method, client, prompt: str, **kwargs):
+    """异步版 generate_with_bypass。
+
+    Args:
+        engine_method: async callable，签名为 async def(**kw) -> dict
+                       （通常是 client.create_image / client.create_video 的包装）
+        client: AsyncAgnesClient（供 async_rewrite_prompt 调用 chat）
+        prompt: 原始提示词
+        **kwargs: 传给 engine_method 的额外参数
+
+    Returns:
+        (result_dict, rewritten_prompt_or_None)
+    """
+    # ── 合规开关：BYPASS_ENABLED=False 时直接调用，不做 rewrite ──
+    if not BYPASS_ENABLED:
+        result = await engine_method(prompt=prompt, **kwargs)
+        return result, None
+
+    triggers = _detect_trigger_words(prompt)
+    is_figure = any(t in FIGURE_TRIGGERS for t in triggers)
+
+    max_attempts = (len(FIGURE_STRATEGIES) if is_figure else 0) + len(STRATEGIES) + 1
+    current_prompt = prompt
+    rewritten = None
+    cache = _load_cache()
+
+    for attempt in range(max_attempts):
+        try:
+            result = await engine_method(prompt=current_prompt, **kwargs)
+            # 成功 — 保存有效的 rewrite
+            if rewritten and cache:
+                cache["rewrites"][prompt[:100]] = {
+                    "rewritten": current_prompt,
+                    "strategy": f"attempt_{attempt}",
+                    "ts": time.time(),
+                    "triggers": triggers,
+                }
+                await __import__("asyncio").to_thread(_save_cache, cache)
+            return result, rewritten
+        except (OSError, ValueError, RuntimeError) as e:
+            if not is_policy_error(e):
+                raise  # 非策略错误，不 bypass
+
+            if attempt >= max_attempts - 1:
+                raise  # 所有尝试用尽
+
+            # 尝试下一个策略
+            strategy_idx = attempt
+            new_prompt = await async_rewrite_prompt(
+                client, current_prompt,
+                strategy_index=strategy_idx,
+                cache=cache,
+                triggers=triggers,
+            )
+            if not new_prompt or new_prompt == current_prompt:
+                continue  # 尝试下一个策略
+
+            rewritten = new_prompt
+            current_prompt = new_prompt
+
+    raise RuntimeError(f"All {max_attempts} bypass strategies exhausted")

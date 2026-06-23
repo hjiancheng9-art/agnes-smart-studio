@@ -41,6 +41,23 @@ class TestSymbolIndexSingleton:
         assert "total_symbols" in stats
         assert stats["files_indexed"] > 0
 
+    def test_index_has_edges(self):
+        """知识图谱：index_file 必须收集 defines/imports/contains/calls 边。"""
+        import core.code_intel as ci
+        ci._index = None
+        idx = ci.get_index(".")
+        assert idx.stats["total_edges"] > 0, "edges 未被收集"
+        # defines 边：file -> symbol 至少有一条（core/chat.py 定义了 ChatSession）
+        assert any(
+            e["type"] == "defines"
+            for out in idx._edges.values() for e in out
+        ), "defines 边缺失"
+        # imports 边：至少有一条（项目里到处是 import）
+        assert any(
+            e["type"] == "imports"
+            for out in idx._edges.values() for e in out
+        ), "imports 边缺失"
+
 
 class TestCodeIntelExecutors:
     """Tool executors must return valid JSON."""
@@ -82,6 +99,44 @@ class TestCodeIntelExecutors:
         result = execute_find_references(file_path="core/chat.py", symbol="ChatSession")
         parsed = json.loads(result)
         assert parsed["count"] >= 1
+
+    def test_graph_neighbors_known(self):
+        """ChatSession 在 core/chat.py 定义 → 至少有 defines 边邻居。"""
+        from core.code_intel import execute_graph_neighbors
+        result = execute_graph_neighbors(node="ChatSession", directory=".")
+        parsed = json.loads(result)
+        assert parsed["found"] is True
+        assert parsed["count"] >= 1
+
+    def test_graph_neighbors_unknown(self):
+        from core.code_intel import execute_graph_neighbors
+        result = execute_graph_neighbors(node="NoSuchSymbol_xyz123", directory=".")
+        parsed = json.loads(result)
+        assert parsed["found"] is False
+
+    def test_graph_neighbors_missing_param(self):
+        from core.code_intel import execute_graph_neighbors
+        result = execute_graph_neighbors(node="")
+        parsed = json.loads(result)
+        assert "error" in parsed
+
+    def test_graph_ancestors_of_symbol(self):
+        """ChatSession 的上游：至少含定义它的 core/chat.py（defines 边逆向）。"""
+        from core.code_intel import execute_graph_ancestors
+        result = execute_graph_ancestors(node="ChatSession", directory=".")
+        parsed = json.loads(result)
+        assert parsed["found"] is True
+        nodes = [r["node"] for r in parsed["results"]]
+        assert any("chat.py" in n for n in nodes), f"file ancestor missing: {nodes}"
+
+    def test_graph_descendants_of_file(self):
+        """core/chat.py 下游：至少含其定义的 ChatSession（defines 边顺向）。"""
+        from core.code_intel import execute_graph_descendants
+        result = execute_graph_descendants(node="core/chat.py", directory=".")
+        parsed = json.loads(result)
+        assert parsed["found"] is True
+        nodes = [r["node"] for r in parsed["results"]]
+        assert any("ChatSession" in n for n in nodes), f"symbol descendant missing: {nodes}"
 
 
 class TestHighRiskConfirmGate:
@@ -199,6 +254,9 @@ class TestAgentModeIntegration:
         assert "find_symbol" in names
         assert "search_symbols" in names
         assert "find_references" in names
+        assert "graph_neighbors" in names
+        assert "graph_ancestors" in names
+        assert "graph_descendants" in names
 
     def test_agent_mode_registers_code_hooks(self):
         from core.chat import ChatSession

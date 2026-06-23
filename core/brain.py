@@ -2,6 +2,7 @@
 
 import json
 from .client import AgnesClient
+from .async_client import AsyncAgnesClient
 from .brain_data import (
     SWEET_SPOT_TEMPLATES, SWEET_SPOT_VIDEO_TEMPLATES, NEGATIVE_REPAIR_MAP,
     ENTITY_TYPE_MAP, BEAUTY_PORTRAIT_MAP,
@@ -16,7 +17,7 @@ from .brain_data import (
     CREATIVE_LEAP_PROMPT, STORYBOARD_PROMPT, IMAGE_EDIT_PROMPT,
 )
 
-__all__ = ["SmartBrain"]
+__all__ = ["SmartBrain", "AsyncSmartBrain"]
 
 
 class SmartBrain:
@@ -145,7 +146,21 @@ class SmartBrain:
             pass
 
         text = self._ask_brain(ENHANCE_IMAGE_PROMPT, input_text)
-        result = self._parse_json(text)
+        return self._postprocess_image_enhance(
+            user_prompt, text, entity_type, surface_policy, beauty_type, combat_ctx
+        )
+
+    def _postprocess_image_enhance(
+        self, user_prompt: str, brain_text: str,
+        entity_type: str | None, surface_policy: str | None,
+        beauty_type: str | None, combat_ctx: dict | None,
+    ) -> dict:
+        """enhance_image_prompt 的纯计算后处理阶段（无 I/O）。
+
+        接收 LLM 返回的原始文本，完成 JSON 解析、甜点区叠加、风险预判等。
+        同步版与异步版共用此方法，保证业务逻辑一致性。
+        """
+        result = self._parse_json(brain_text)
         result.setdefault("optimized_prompt", user_prompt)
         result.setdefault("negative_prompt", "")
 
@@ -300,7 +315,20 @@ class SmartBrain:
             pass
 
         text = self._ask_brain(ENHANCE_VIDEO_PROMPT, input_text)
-        result = self._parse_json(text)
+        return self._postprocess_video_enhance(
+            user_prompt, text, entity_type, surface_policy, beauty_type, combat_ctx
+        )
+
+    def _postprocess_video_enhance(
+        self, user_prompt: str, brain_text: str,
+        entity_type: str | None, surface_policy: str | None,
+        beauty_type: str | None, combat_ctx: dict | None,
+    ) -> dict:
+        """enhance_video_prompt 的纯计算后处理阶段（无 I/O）。
+
+        同步版与异步版共用此方法，保证业务逻辑一致性。
+        """
+        result = self._parse_json(brain_text)
         result.setdefault("optimized_prompt", user_prompt)
         result.setdefault("negative_prompt", "")
         result.setdefault("recommended_duration", "5")
@@ -1475,3 +1503,177 @@ class SmartBrain:
         result["methods_used"] = methods
 
         return result
+
+
+class AsyncSmartBrain:
+    """AsyncSmartBrain：SmartBrain 的 asyncio 原生异步对应物。
+
+    复用 SmartBrain 的全部知识库与逻辑（通过组合持有同步 SmartBrain 实例），
+    仅将涉及网络 I/O 的方法（_ask_brain / enhance_*_prompt / understand_image）
+    重写为 async 版本，使用 AsyncAgnesClient。
+
+    所有纯计算逻辑（_infer_entity_type / _match_sweet_spot / _predict_risks 等）
+    直接委托给内部的同步 SmartBrain，无需重复实现。
+    """
+
+    def __init__(self, client: AsyncAgnesClient) -> None:
+        self.client = client
+        # 持有同步 SmartBrain 以复用全部纯计算逻辑（这些方法不触发 I/O）
+        # 传入一个 dummy sync client（不会被调用，因为只复用计算方法）
+        self._sync = SmartBrain(client=client)  # type: ignore[arg-type]
+
+    async def _ask_brain(self, system_prompt: str, user_input: str, temperature: float = 0.7) -> str:
+        """异步调用文本模型（自动使用当前激活的供应商）"""
+        model = self._sync._get_model()
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_input},
+        ]
+        result = await self.client.chat(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=2048,
+        )
+        try:
+            msg = result["choices"][0]["message"]
+            content = msg.get("content") or msg.get("reasoning_content")
+        except (KeyError, IndexError):
+            raise RuntimeError(f"Brain API返回格式异常: {str(result)[:200]}") from None
+        if not content:
+            raise RuntimeError(f"Brain 返回内容为空: {str(result)[:300]}")
+        # 尝试提取JSON（可能被包裹在```json中）
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
+        return content
+
+    async def enhance_image_prompt(self, user_prompt: str, style: str | None = None) -> dict:
+        """异步增强图片生成 Prompt。
+
+        复用 SmartBrain.enhance_image_prompt 的全部逻辑，仅将唯一的 I/O 点
+        （self._ask_brain 调用）替换为 async 版本。通过 monkey-patch 临时
+        将同步 _ask_brain 替换为 async 版本不可行（同步代码无法 await），
+        因此采用"复制逻辑 + 替换 I/O 调用"策略，保持与同步版完全一致的业务逻辑。
+        """
+        # 委托计算部分给同步 SmartBrain（构建 input_text），仅 I/O 异步化
+        sync = self._sync
+
+        entity_type, surface_policy = sync._infer_entity_type(user_prompt)
+        beauty_type = sync._infer_beauty_type(user_prompt)
+        combat_ctx = sync._detect_combat_scene(user_prompt, "image")
+
+        input_text = user_prompt
+        if entity_type:
+            entity_info = ENTITY_TYPE_MAP[entity_type]
+            input_text = (f"[实体类型：{entity_info['name_cn']}({entity_type}) — "
+                         f"表面策略：{surface_policy}]\n原始描述：{user_prompt}")
+        elif beauty_type:
+            beauty_info = BEAUTY_PORTRAIT_MAP[beauty_type]
+            angle_rules_str = "\n".join(
+                f"  {angle}: {rule}"
+                for angle, rule in beauty_info["angle_rules"].items()
+            )
+            input_text = (
+                f"[人像通道：{beauty_info['name_cn']} — 独立人像通道，不混入非人/战斗/怪诞逻辑]\n"
+                f"[重点描写：{beauty_info['focus_points']}]\n"
+                f"[多角度规则：\n{angle_rules_str}]\n"
+                f"[可用气质：{', '.join(beauty_info['aura_options'])}]\n"
+                f"[禁止：模板脸、空泛形容词、出招姿势、硬摆拍、夸张武打体态]\n"
+                f"原始描述：{user_prompt}"
+            )
+        if combat_ctx and not beauty_type:
+            input_text = f"{combat_ctx['image_prompt_hints']}\n原始描述：{user_prompt}"
+        if not combat_ctx and not beauty_type:
+            creative_ctx = sync._resolve_creative_knowledge(user_prompt, "image")
+            if creative_ctx and creative_ctx.get("image_prompt_hints"):
+                input_text = f"{creative_ctx['image_prompt_hints']}\n原始描述：{input_text}"
+        if style:
+            input_text = f"风格要求：{style}\n{input_text}"
+
+        try:
+            from utils.memory import build_evolution_context
+            evo_ctx = build_evolution_context("image")
+            if evo_ctx:
+                input_text = f"{evo_ctx}\n\n{input_text}"
+        except (OSError, ValueError, RuntimeError):
+            pass
+
+        # ── 唯一的异步 I/O 点 ──
+        text = await self._ask_brain(ENHANCE_IMAGE_PROMPT, input_text)
+        # ── 后续逻辑全部是纯计算，委托给同步 SmartBrain 的后处理 ──
+        return sync._postprocess_image_enhance(
+            user_prompt, text, entity_type, surface_policy, beauty_type, combat_ctx
+        )
+
+    async def enhance_video_prompt(self, user_prompt: str) -> dict:
+        """异步增强视频生成 Prompt。逻辑同 enhance_image_prompt。"""
+        sync = self._sync
+
+        entity_type, surface_policy = sync._infer_entity_type(user_prompt)
+        beauty_type = sync._infer_beauty_type(user_prompt)
+        combat_ctx = sync._detect_combat_scene(user_prompt, "video")
+
+        input_text = user_prompt
+        if entity_type:
+            entity_info = ENTITY_TYPE_MAP[entity_type]
+            input_text = (f"[实体类型：{entity_info['name_cn']}({entity_type}) — "
+                         f"表面策略：{surface_policy}]\n原始描述：{user_prompt}")
+        elif beauty_type:
+            beauty_info = BEAUTY_PORTRAIT_MAP[beauty_type]
+            input_text = (
+                f"[人像通道：{beauty_info['name_cn']} — 独立人像通道，不混入非人/战斗/怪诞逻辑]\n"
+                f"[重点描写：{beauty_info['focus_points']}]\n"
+                f"[视频生产路由：逐镜 compact，I2V strength 0.70-0.72]\n"
+                f"[允许动作：眼神、呼吸、轻微转头、整理衣领]\n"
+                f"[禁止：出招姿势、硬摆拍、夸张武打体态、多镜头切换]\n"
+                f"原始描述：{user_prompt}"
+            )
+        if combat_ctx and not beauty_type:
+            input_text = f"{combat_ctx['video_prompt_hints']}\n原始描述：{user_prompt}"
+        if entity_type and not beauty_type:
+            creative_ctx = sync._resolve_creative_knowledge(user_prompt, "video")
+            if creative_ctx and creative_ctx.get("nonhuman_video_ctx"):
+                i2v = creative_ctx["nonhuman_video_ctx"]["i2v_first_frame"]
+                specs = creative_ctx["nonhuman_video_ctx"]["sweet_spot_specs"]
+                pipeline = creative_ctx["nonhuman_video_ctx"]["prompt_assembly_pipeline"]
+                nonhuman_video_hints = (
+                    f"[非人实体视频规则]\n"
+                    f"I2V首帧限制：{i2v['max_allowed']}\n"
+                    f"适合动作：{', '.join(i2v['suitable_actions'][:4])}\n"
+                    f"不适合动作：{', '.join(i2v['unsuitable_actions'][:4])}\n"
+                    f"设计锁定：{i2v['design_lock_template']}\n"
+                    f"甜点区方法：{specs['default_method']}，禁止：{', '.join(specs['forbidden'])}\n"
+                    f"组装流水线：{' → '.join(pipeline['steps'])}"
+                )
+                input_text = f"{nonhuman_video_hints}\n原始描述：{input_text}"
+
+        try:
+            from utils.memory import build_evolution_context
+            evo_ctx = build_evolution_context("video")
+            if evo_ctx:
+                input_text = f"{evo_ctx}\n\n{input_text}"
+        except (OSError, RuntimeError, ConnectionError):
+            pass
+
+        # ── 唯一的异步 I/O 点 ──
+        text = await self._ask_brain(ENHANCE_VIDEO_PROMPT, input_text)
+        return sync._postprocess_video_enhance(
+            user_prompt, text, entity_type, surface_policy, beauty_type, combat_ctx
+        )
+
+    async def understand_image(self, question: str, image_url: str) -> str:
+        """异步利用多模态能力理解图片"""
+        result = await self.client.chat_multimodal(
+            text=question,
+            image_url=image_url,
+            model="agnes-1.5-flash",
+            temperature=0.3,
+            max_tokens=1024,
+        )
+        try:
+            return result["choices"][0]["message"]["content"]
+        except (KeyError, IndexError):
+            raise RuntimeError(f"多模态API返回格式异常: {str(result)[:200]}") from None
+

@@ -26,6 +26,16 @@
         "pro": "Pro/moonshotai/Kimi-K2.6",
         "light": "Pro/moonshotai/Kimi-K2.6"
       }
+    },
+    "local": {
+      "name": "Local llama.cpp (Qwen3.6-27B-PRISM-PRO-DQ)",
+      "base_url": "http://127.0.0.1:8080/v1",
+      "api_key": "no-auth-needed",
+      "auth_required": false,
+      "models": {
+        "pro": "Qwen3.6-27B-PRISM-PRO-DQ",
+        "light": "Qwen3.6-27B-PRISM-PRO-DQ"
+      }
     }
   },
   "active": "agnes",
@@ -33,7 +43,8 @@
     "enabled": true,
     "priority": [
       "deepseek",
-      "siliconflow"
+      "siliconflow",
+      "local"
     ]
   },
   "codebuddy": {

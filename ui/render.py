@@ -136,6 +136,48 @@ class StreamingRenderer:
         self._live.start()
         self._render_counter = 0
 
+    # ── 流消费（同步 / 异步统一入口）─────────────────────────
+
+    def _dispatch(self, kind: str, payload: object) -> None:
+        """统一分派一个 (kind, payload) 元组到 append_text / run_side_effect。
+
+        渲染器内部约定：kind == "text" 走文本累积，其余走副作用边界。
+        同步 consume_stream 与异步 consume_async_stream 共用此分派，
+        保证两条路径行为完全一致（同一 DNA）。
+        """
+        if kind == "text":
+            self.append_text(payload)  # type: ignore[arg-type]
+        else:
+            self.run_side_effect(kind, payload)
+
+    def consume_stream(self, stream) -> None:
+        """消费同步迭代器，逐个分派 (kind, payload) 元组。
+
+        与 ``for kind, payload in stream: self._dispatch(...)`` 等价，
+        但封装为方法让调用方只关心"把流喂给渲染器"。
+
+        适用：ChatSession.send_stream（同步生成器）。
+        异常不在此捕获——调用方负责 KeyboardInterrupt / PermissionError 处理
+        与 finally 中的 stop()/commit() 收尾。
+        """
+        for kind, payload in stream:
+            self._dispatch(kind, payload)
+
+    async def consume_async_stream(self, astream) -> None:
+        """消费 async 迭代器，逐个分派 (kind, payload) 元组。
+
+        与 consume_stream 行为完全一致，仅迭代方式从 ``for`` 换成 ``async for``。
+        契约不变式（transient + 单一落盘点 + 副作用边界）对异步流同样生效，
+        因为 append_text / commit / run_side_effect 本身都是同步纯渲染操作，
+        不涉及 I/O——异步性完全来自上游 astream（如 AsyncChatSession.send_stream）。
+
+        适用：AsyncChatSession.send_stream（async 生成器）。
+        异常不在此捕获——调用方负责 KeyboardInterrupt / PermissionError 处理
+        与 finally 中的 stop()/commit() 收尾。
+        """
+        async for kind, payload in astream:
+            self._dispatch(kind, payload)
+
     # ── 内部 ──────────────────────────────────────────────────
 
     def _new_live(self, content: str) -> Live:

@@ -89,14 +89,23 @@ class CodexSkill:
         return "\n\n".join(parts)
 
     def matches_context(self, task_hint: str) -> bool:
-        """Check if this skill is relevant to a task description."""
+        """Check if this skill is relevant to a task description.
+
+        使用正则词边界 (\\b) 匹配，避免子串误命中：
+        例如旧实现 `word in text` 会让单字 "a" 匹配到 "generation" 中的子串。
+        """
+        return self._match_score(task_hint) >= 1
+
+    def _match_score(self, task_hint: str) -> int:
+        """返回 task_hint 中命中技能文本的词数（词边界匹配）。"""
         self.load()
-        text = f"{self.name} {' '.join(self._sections.values())}"
+        import re
+        text = f"{self.name} {' '.join(self._sections.values())}".lower()
         score = 0
         for word in task_hint.lower().split():
-            if word in text.lower():
+            if re.search(rf"\b{re.escape(word)}\b", text):
                 score += 1
-        return score >= 1
+        return score
 
 class AgnetaSkillSystem:
     """Full Codex-compatible skill management."""
@@ -174,11 +183,9 @@ class AgnetaSkillSystem:
         self.classify_task(task_hint)
         matched = []
         for name, skill in self.skills.items():
-            if skill.matches_context(task_hint):
-                matched.append((name, sum(
-                    1 for w in task_hint.lower().split()
-                    if w in (name + " " + " ".join(skill._sections.values())).lower()
-                )))
+            score = skill._match_score(task_hint)
+            if score >= 1:
+                matched.append((name, score))
         matched.sort(key=lambda x: x[1], reverse=True)
         parts = []
         for name, _ in matched[:max_skills]:

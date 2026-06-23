@@ -67,13 +67,13 @@ COLORS = {
 
 def show_result(result: dict, title: str = "生成结果"):
     """展示单个生成结果"""
-    table = Table(title=title, show_header=True, header_style=f"bold {COLORS['primary']}")
+    table = Table(title=f"[cyan]◈ {title}[/]", show_header=True, header_style=f"bold {COLORS['primary']}")
     table.add_column("属性", style="cyan")
     table.add_column("值", style="white")
 
     for key, val in result.items():
         if key == "error":
-            table.add_row(key, f"[{COLORS['error']}]{val}[/]")
+            table.add_row(key, f"[{COLORS['error']}]✖ {val}[/]")
         elif isinstance(val, str) and len(val) > 80:
             table.add_row(key, val[:77] + "...")
         elif isinstance(val, list):
@@ -91,19 +91,19 @@ def show_image_result(data: dict):
     path = data.get("local_path", "")
     items = []
     if path:
-        items.append(f"[bold]📁 文件:[/] {path}")
+        items.append(f"[bold][cyan]◈[/] 文件:[/] {path}")
     if data.get("url"):
-        items.append(f"[bold]🔗 URL:[/] {data['url'][:60]}...")
+        items.append(f"[bold][cyan]◈[/] URL:[/] {data['url'][:60]}...")
     if data.get("model"):
-        items.append(f"[bold]模型:[/] {data['model']}")
+        items.append(f"[bold][cyan]◈[/] 模型:[/] {data['model']}")
     if data.get("prompt"):
-        items.append(f"[bold]提示词:[/] {data['prompt'][:80]}...")
+        items.append(f"[bold][cyan]◈[/] 提示词:[/] {data['prompt'][:80]}...")
     if path:
         items.append("\n[dim]  /open 打开 | /outputs 查看全部 | 说\"改xxx\"重新生成[/]")
 
     console.print(Panel(
         "\n".join(items),
-        title=f"[{COLORS['success']}]🖼️ 图片生成完成[/]",
+        title=f"[{COLORS['success']}]◆ 图片生成完成[/]",
         border_style=COLORS["success"],
     ))
     # 自动尝试打开
@@ -122,19 +122,19 @@ def show_video_result(data: dict):
     path = data.get("local_path", "")
     items = []
     if path:
-        items.append(f"[bold]📁 文件:[/] {path}")
+        items.append(f"[bold][cyan]◈[/] 文件:[/] {path}")
     if data.get("url"):
-        items.append(f"[bold]🔗 URL:[/] {data['url'][:60]}...")
+        items.append(f"[bold][cyan]◈[/] URL:[/] {data['url'][:60]}...")
     if data.get("video_id"):
-        items.append(f"[bold]视频ID:[/] {data['video_id']}")
+        items.append(f"[bold][cyan]◈[/] 视频ID:[/] {data['video_id']}")
     if data.get("task_id"):
-        items.append(f"[dim]任务ID: {data['task_id']}[/]")
+        items.append(f"[dim]◈ 任务ID: {data['task_id']}[/]")
     if path:
         items.append("\n[dim]  /open 打开 | /outputs 查看全部 | 说\"改xxx\"重新生成[/]")
 
     console.print(Panel(
         "\n".join(items),
-        title=f"[{COLORS['accent']}]🎬 视频生成完成[/]",
+        title=f"[{COLORS['accent']}]▷ 视频生成完成[/]",
         border_style=COLORS["accent"],
     ))
     # 不自动打开视频（可能很大）
@@ -158,33 +158,33 @@ def show_error(message: str):
     """展示错误信息"""
     console.print(Panel(
         message,
-        title="[bold red]错误[/]",
+        title="[bold red]✖ 错误[/]",
         border_style=COLORS["error"],
     ))
 
 
 def show_warning(message: str):
     """展示警告信息"""
-    console.print(f"[{COLORS['warning']}][!] {message}[/]")
+    console.print(f"[{COLORS['warning']}]◈ {message}[/]")
 
 
 def show_success(message: str):
     """展示成功信息"""
-    console.print(f"[{COLORS['success']}][OK] {message}[/]")
+    console.print(f"[{COLORS['success']}]◆ {message}[/]")
 
 
 def show_info(message: str):
     """展示提示信息"""
-    console.print(f"[{COLORS['primary']}][i] {message}[/]")
+    console.print(f"[{COLORS['primary']}]⬡ {message}[/]")
 
 
 def show_history_table(records: list[dict]):
     """展示历史记录表格"""
     if not records:
-        console.print("[muted]暂无生成记录[/]")
+        console.print("[muted]◇ 暂无生成记录[/]")
         return
 
-    table = Table(title="生成历史", show_header=True, header_style=f"bold {COLORS['primary']}")
+    table = Table(title="[cyan]◈ 生成历史[/]", show_header=True, header_style=f"bold {COLORS['primary']}")
     table.add_column("ID", style="dim", max_width=20)
     table.add_column("类型", style="cyan")
     table.add_column("提示词", max_width=40)
@@ -193,7 +193,7 @@ def show_history_table(records: list[dict]):
     table.add_column("时间", style="dim")
 
     for r in records[:20]:
-        fav = "*" if r.get("favorited") else ""
+        fav = "★" if r.get("favorited") else ""
         prompt = r.get("prompt", "")[:37] + "..." if len(r.get("prompt", "")) > 40 else r.get("prompt", "")
         table.add_row(
             r.get("id", "")[:20],
@@ -211,7 +211,7 @@ def show_templates_list():
     """展示可用模板列表"""
     from core.config import PROMPT_TEMPLATES
 
-    table = Table(title="Prompt 风格模板", show_header=True, header_style=f"bold {COLORS['primary']}")
+    table = Table(title="[cyan]◈ Prompt 风格模板[/]", show_header=True, header_style=f"bold {COLORS['primary']}")
     table.add_column("模板名", style="cyan")
     table.add_column("图片风格关键词", max_width=50)
     table.add_column("负向提示词", max_width=30)

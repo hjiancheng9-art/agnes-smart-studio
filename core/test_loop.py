@@ -29,13 +29,15 @@ __all__ = [
 class TestGenerator:
     """Generate pytest test code for Python source files using LLM."""
 
-    def __init__(self, client) -> None:
+    def __init__(self, client, model: str = "deepseek-v4-pro") -> None:
         """Initialize with an AgnesClient for LLM calls.
 
         Args:
             client: AgnesClient instance with .chat() method.
+            model: LLM model id used for generation (default: deepseek-v4-pro).
         """
         self.client = client
+        self.model = model
 
     def generate_tests(self, file_path: str, function_name: str = "") -> str:
         """Analyze a Python file and generate pytest test code.
@@ -69,7 +71,7 @@ class TestGenerator:
         )
 
         response = self.client.chat(
-            model="agnes-2.0-flash",
+            model=self.model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
             max_tokens=4096,
@@ -271,14 +273,17 @@ class TestLoop:
     6. Repeat up to max_iterations
     """
 
-    def __init__(self, client) -> None:
+    def __init__(self, client, model: str = "deepseek-v4-pro") -> None:
         """Initialize with AgnesClient.
 
         Args:
             client: AgnesClient instance with .chat() method.
+            model: LLM model id used for generation & analysis
+                   (default: deepseek-v4-pro).
         """
         self.client = client
-        self.generator = TestGenerator(client)
+        self.model = model
+        self.generator = TestGenerator(client, model=model)
         self.runner = TestRunner()
 
     def run(self, file_path: str, function_name: str = "",
@@ -414,7 +419,7 @@ class TestLoop:
         )
 
         response = self.client.chat(
-            model="agnes-2.0-flash",
+            model=self.model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
             max_tokens=4096,

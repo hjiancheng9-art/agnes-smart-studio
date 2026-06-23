@@ -12,6 +12,7 @@ Agnes 的能力来自三个源头：
   4. 动态切换 — 根据任务类型自动激活/停用能力集
 """
 
+import threading
 from enum import Enum
 from pathlib import Path
 
@@ -175,6 +176,14 @@ class Orchestra:
                                  Priority.HIGH, "动手前先声明意图"))
         self.register(Capability("destructive_confirm", CapabilitySource.CLAUDE,
                                  Priority.OVERRIDE, "破坏性操作确认"))
+        # 结构化补丁引擎：跨文件批量修改 + 自动备份 + 语法校验 + 失败回滚
+        self.register(Capability("patch_engine", CapabilitySource.CLAUDE,
+                                 Priority.HIGH,
+                                 "结构化补丁（多文件批量改 / 自动备份 / 失败回滚）"))
+        # 自主任务执行器：plan→execute→verify 闭环，LLM 一次传计划即可
+        self.register(Capability("task_executor", CapabilitySource.CLAUDE,
+                                 Priority.HIGH,
+                                 "自主多步任务执行（依赖排序 / 验证门 / 错误恢复）"))
 
         # ── CodeBuddy 源：平台工具 ──
         self.register(Capability("lsp_intel", CapabilitySource.CODEBUDDY,
@@ -209,6 +218,7 @@ class Orchestra:
             "self_verification", "error_recovery", "parallel_tools",
             "pre_action_intent", "destructive_confirm", "lsp_intel",
             "git_workflow", "project_awareness", "task_manager",
+            "patch_engine", "task_executor",
         ], "编程任务")
 
         self.define_profile("video", [
@@ -228,6 +238,7 @@ class Orchestra:
             "browser_automation", "git_workflow", "task_manager",
             "project_awareness", "domain_rules", "custom_workflows",
             "image_gen", "video_gen", "vision_analysis",
+            "patch_engine", "task_executor",
         ], "全能力")
 
         # ── 协调规则 ──
@@ -237,12 +248,15 @@ class Orchestra:
         self.add_rule("multi_file_edit", "activate:pre_action_intent", CapabilitySource.CLAUDE)
 
 
-# 单例
+# 单例（线程安全双重检查锁）
 _orchestra: Orchestra | None = None
+_orchestra_lock = threading.Lock()
 
 
 def get_orchestra() -> Orchestra:
     global _orchestra
     if _orchestra is None:
-        _orchestra = Orchestra()
+        with _orchestra_lock:
+            if _orchestra is None:
+                _orchestra = Orchestra()
     return _orchestra

@@ -8,15 +8,28 @@ Lifecycle:
     2. EXECUTE — run each step with its tool, track state, recover from errors
     3. VERIFY  — run tests / syntax checks, confirm the goal is met
     4. REPORT  — return structured result with evidence
+
+两条实现共存：
+- ``TaskExecutor`` / ``run`` —— **同步版**（顺序执行，保留兼容）。
+- ``AsyncTaskExecutor`` / ``arun`` —— **asyncio 原生版**（Phase 6.3 新增）。
+  独立步骤并行执行（``asyncio.Semaphore`` 限并发），按 ``depends_on``
+  拓扑调度，同步 executor 自动 ``asyncio.to_thread`` 包装。
+
+两版共享 ``Step`` / ``Task`` 数据类（纯数据，无 I/O）。
 """
 
+from __future__ import annotations
+
+import asyncio
+import inspect
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from collections.abc import Callable
 
 __all__ = [
-    'ROOT', 'Step', 'Task', 'TaskExecutor', 'quick_plan',
+    'ROOT', 'Step', 'Task', 'TaskExecutor', 'AsyncTaskExecutor',
+    'quick_plan', 'execute_plan_tool', 'async_execute_plan_tool',
 ]
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -133,6 +146,197 @@ class TaskExecutor:
         }
 
 
+class AsyncTaskExecutor:
+    """asyncio 原生版 TaskExecutor — 独立步骤并行执行 + 拓扑依赖调度。
+
+    与同步版 TaskExecutor 共享 Step/Task 数据类。差异：
+    - 独立步骤（无 depends_on 或依赖已满足）使用 asyncio.Semaphore 并行调度
+    - 同步 tool_executor 自动 asyncio.to_thread 包装
+    - 异步 tool_executor 直接 await
+    - verify 步骤走 asyncio.to_thread（run_pytest_safe 是同步 subprocess）
+    """
+
+    def __init__(
+        self,
+        tool_executor: Callable,
+        root: Path | None = None,
+        max_concurrency: int = 4,
+    ) -> None:
+        self.root = root or ROOT
+        self.execute_tool = tool_executor  # sync or async (tool_name, args) -> result_str
+        self._log: list[dict] = []
+        self._sem = asyncio.Semaphore(max_concurrency)
+        self._is_async = inspect.iscoroutinefunction(tool_executor)
+        self._lock = asyncio.Lock()  # protects _log + error count
+        self._break_event = asyncio.Event()
+
+    async def _call_tool(self, tool: str, args: dict) -> str:
+        """调用 tool executor，自动区分同步/异步。"""
+        if self._is_async:
+            return await self.execute_tool(tool, args)
+        return await asyncio.to_thread(self.execute_tool, tool, args)
+
+    async def _run_step(self, step: Step, task: Task) -> None:
+        """执行单个 step（含依赖检查、验证门、错误计数）。"""
+        # 依赖检查
+        ready = all(
+            any(s.id == dep and s.status == "done" for s in task.steps)
+            for dep in step.depends_on
+        )
+        if not ready:
+            step.status = "skipped"
+            step.error = f"Dependencies not met: {step.depends_on}"
+            async with self._lock:
+                self._log.append({"ts": time.time(), "step": step.id,
+                                  "event": "skipped", "reason": step.error})
+            return
+
+        if self._break_event.is_set():
+            step.status = "skipped"
+            step.error = "Pipeline terminated due to error budget exceeded"
+            return
+
+        step.status = "running"
+        async with self._lock:
+            self._log.append({"ts": time.time(), "step": step.id, "event": "start"})
+
+        async with self._sem:
+            try:
+                result = await self._call_tool(step.tool, step.args)
+                step.result = result[:500]
+                step.status = "done"
+                async with self._lock:
+                    self._log.append({"ts": time.time(), "step": step.id,
+                                      "event": "done", "result_preview": result[:100]})
+            except (OSError, ValueError, RuntimeError) as e:
+                step.error = f"{type(e).__name__}: {e}"
+                step.status = "failed"
+                async with self._lock:
+                    self._log.append({"ts": time.time(), "step": step.id,
+                                      "event": "failed", "error": step.error})
+                return  # don't verify on failure
+
+        # Verification (outside semaphore — gate checks are lightweight)
+        if step.verify == "syntax":
+            await self._verify_syntax(step)
+        elif step.verify == "test":
+            await self._verify_tests(step)
+
+    async def _verify_syntax(self, step: Step) -> None:
+        """在 asyncio.to_thread 中做 ast.parse 语法验证。"""
+        try:
+            def _check():
+                import ast
+                py_files = list(self.root.rglob("*.py"))
+                for pf in py_files[:30]:
+                    if "__pycache__" not in pf.parts:
+                        ast.parse(pf.read_text(encoding="utf-8"))
+            await asyncio.to_thread(_check)
+            async with self._lock:
+                self._log.append({"ts": time.time(), "step": step.id,
+                                  "event": "verify_syntax_ok"})
+        except SyntaxError as se:
+            step.status = "failed"
+            step.error = f"Syntax check failed: {se}"
+            async with self._lock:
+                self._log.append({"ts": time.time(), "step": step.id,
+                                  "event": "verify_syntax_failed", "error": step.error})
+
+    async def _verify_tests(self, step: Step) -> None:
+        """在 asyncio.to_thread 中调用 run_pytest_safe。"""
+        from core.pytest_runner import run_pytest_safe
+
+        r = await asyncio.to_thread(
+            run_pytest_safe, test_target="tests/", timeout=30, cwd=self.root,
+        )
+        out = r.stdout or ""
+        if "failed" in out and "0 failed" not in out:
+            step.status = "failed"
+            step.error = f"Tests failed: {out[-200:]}"
+            async with self._lock:
+                self._log.append({"ts": time.time(), "step": step.id,
+                                  "event": "verify_tests_failed", "error": step.error})
+        else:
+            async with self._lock:
+                self._log.append({"ts": time.time(), "step": step.id,
+                                  "event": "verify_tests_ok"})
+
+    async def arun(self, task: Task) -> dict:
+        """并行执行所有步骤（拓扑依赖感知），返回结构化报告。
+
+        执行策略：将所有 step 提交为 asyncio.Task，依赖检查在每个
+        task 内部完成。通过 _break_event 在错误预算耗尽时提前终止
+        尚未启动的 step。
+        """
+        start_ts = time.time()
+        task.status = "running"
+        self._break_event.clear()
+        errors = 0
+
+        async def _exec_step(step: Step) -> None:
+            nonlocal errors
+            await self._run_step(step, task)
+            if step.status == "failed":
+                async with self._lock:
+                    errors += 1
+                    if errors > task.errors_allowed:
+                        self._break_event.set()
+
+        # 拓扑 waves：按依赖层级分批，同层并行，层间串行
+        # 比 fire-all-happen 更安全：保证同层 step 看到一致的依赖状态
+        executed: set[str] = set()
+        remaining = list(task.steps)
+        waves: list[list[Step]] = []
+
+        while remaining:
+            wave = []
+            still_remaining = []
+            for step in remaining:
+                deps = set(step.depends_on)
+                if deps.issubset(executed):
+                    wave.append(step)
+                else:
+                    still_remaining.append(step)
+            if not wave:
+                # 无法继续：剩余 step 的依赖无法满足（循环依赖或缺失）
+                for step in still_remaining:
+                    step.status = "skipped"
+                    step.error = f"Unresolvable dependencies: {step.depends_on}"
+                break
+            waves.append(wave)
+            executed.update(s.id for s in wave)
+            remaining = still_remaining
+
+        for wave in waves:
+            if self._break_event.is_set():
+                for step in wave:
+                    step.status = "skipped"
+                    step.error = "Pipeline terminated due to error budget exceeded"
+                break
+            await asyncio.gather(*[_exec_step(s) for s in wave])
+            # wave 完成后检查 break
+            if self._break_event.is_set():
+                continue
+
+        elapsed = time.time() - start_ts
+        all_done = all(s.status == "done" for s in task.steps)
+        task.status = "done" if all_done else "failed" if errors > 0 else "partial"
+
+        return {
+            "goal": task.goal,
+            "status": task.status,
+            "elapsed": round(elapsed, 2),
+            "steps_total": len(task.steps),
+            "steps_done": sum(1 for s in task.steps if s.status == "done"),
+            "steps_failed": sum(1 for s in task.steps if s.status == "failed"),
+            "steps_skipped": sum(1 for s in task.steps if s.status == "skipped"),
+            "details": [{"id": s.id, "status": s.status, "error": s.error,
+                         "result_preview": s.result[:100]}
+                        for s in task.steps if s.status != "done"],
+            "log": self._log[-10:],
+        }
+
+
 def quick_plan(goal: str) -> Task:
     """Generate a simple plan for common task patterns (no LLM needed)."""
     goal_lower = goal.lower()
@@ -176,3 +380,50 @@ def quick_plan(goal: str) -> Task:
         ]
     
     return Task(id=f"task_{int(time.time())}", goal=goal, steps=steps, errors_allowed=1)
+
+
+def execute_plan_tool(goal: str, steps: str, root: str | None = None) -> str:
+    """tools.json 适配入口：接受 JSON steps 字符串，构造 Task 并执行。
+
+    LLM 在 agent 模式下通过 execute_plan 工具调用此函数，传入结构化计划，
+    由 TaskExecutor 自主跑完所有步骤（依赖排序、错误追踪、语法/测试校验门）
+    并返回结构化报告。不需要 LLM 自己逐个调工具。
+    """
+    import json
+    from core.tools import get_registry
+
+    registry = get_registry()
+    registry.load()
+
+    step_list = [Step(**s) for s in json.loads(steps)]
+    task = Task(id=f"plan_{int(time.time())}", goal=goal, steps=step_list,
+                errors_allowed=1)
+    executor = TaskExecutor(
+        tool_executor=lambda name, args: registry.execute(name, args),
+        root=Path(root) if root else ROOT,
+    )
+    result = executor.run(task)
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+async def async_execute_plan_tool(goal: str, steps: str, root: str | None = None) -> str:
+    """tools.json 适配入口 — asyncio 原生版。
+
+    与 execute_plan_tool 对应，使用 AsyncTaskExecutor 实现并行步骤执行。
+    供 AsyncChatSession / asyncio runtime 直接 await。
+    """
+    import json
+    from core.tools import get_registry
+
+    registry = get_registry()
+    registry.load()
+
+    step_list = [Step(**s) for s in json.loads(steps)]
+    task = Task(id=f"plan_{int(time.time())}", goal=goal, steps=step_list,
+                errors_allowed=1)
+    executor = AsyncTaskExecutor(
+        tool_executor=lambda name, args: registry.execute(name, args),
+        root=Path(root) if root else ROOT,
+    )
+    result = await executor.arun(task)
+    return json.dumps(result, ensure_ascii=False, indent=2)

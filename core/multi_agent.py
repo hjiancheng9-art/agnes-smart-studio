@@ -3,18 +3,37 @@
 Real coordination: task decomposition, parallel dispatch, result aggregation,
 consensus voting, work stealing from stalled agents.
 
-⚠ EXPERIMENTAL — 未接通 runtime：接口已设计（MultiAgentCoordinator/coordinate），
-但 ChatSession/agent_mode 尚未 import 本模块。接口签名可能调整，勿在生产路径依赖。
+两条实现共存：
+- ``MultiAgentCoordinator`` / ``coordinate`` —— **同步版**（threading + Lock）。
+  保留以兼容既有调用方与 tests/test_multi_agent.py。
+- ``AsyncMultiAgentCoordinator`` / ``async_coordinate`` —— **asyncio 原生版**
+  （Phase 4 新增）。用 ``asyncio.Semaphore`` 限并发、``asyncio.gather`` 并行、
+  ``asyncio.to_thread`` 包装同步 executor，并**真正按 ``depends_on`` 拓扑调度**
+  （同步版只做 round-robin，忽略依赖）。
+
+两版共享 ``AgentTask`` / ``Agent`` / ``decompose``（纯计算，无 I/O）。
+asyncio 版的 executor 既支持同步 ``Callable``（自动 to_thread 包装），
+也支持 async ``Callable``（直接 await），便于嵌入事件循环。
+
+⚠ AsyncMultiAgentCoordinator 已接通 asyncio runtime（M5 async_render /
+AsyncChatSession 可直接 await ``execute``）。同步版仍标记 EXPERIMENTAL，
+未接 ChatSession runtime。
 """
 
+from __future__ import annotations
+
+import asyncio
+import inspect
 import time
 import threading
-from pathlib import Path
-from dataclasses import dataclass, field
 from collections.abc import Callable
+from dataclasses import dataclass, field
+from pathlib import Path
 
 __all__ = [
-    'Agent', 'AgentTask', 'MultiAgentCoordinator', 'ROOT', 'coordinate',
+    'Agent', 'AgentTask', 'MultiAgentCoordinator', 'ROOT',
+    'coordinate',
+    'AsyncMultiAgentCoordinator', 'async_coordinate',
 ]
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -41,8 +60,11 @@ class Agent:
     current_task: str = ""
 
 
+# ── 同步版（threading + Lock，保留兼容）─────────────────────
+
+
 class MultiAgentCoordinator:
-    """Orchestrates multiple agents to solve a complex task."""
+    """Orchestrates multiple agents to solve a complex task (threading 版)."""
 
     def __init__(self, tool_executor: Callable, max_workers: int = 4) -> None:
         self.execute_tool = tool_executor
@@ -62,58 +84,12 @@ class MultiAgentCoordinator:
         ]
 
     def decompose(self, goal: str) -> list[AgentTask]:
-        """Break a goal into agent-sized tasks with dependencies."""
-        goal_lower = goal.lower()
+        """Break a goal into agent-sized tasks with dependencies.
 
-        # Pattern: review code
-        if "review" in goal_lower:
-            tasks = [
-                AgentTask("t1", "Read and analyze the target file",
-                          [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}]),
-                AgentTask("t2", "Check for bugs and anti-patterns",
-                          [{"tool": "search_files", "args": {"pattern": "TODO|FIXME|HACK"}}],
-                          depends_on=["t1"]),
-                AgentTask("t3", "Run tests",
-                          [{"tool": "run_test", "args": {}}],
-                          depends_on=["t2"]),
-                AgentTask("t4", "Generate review report",
-                          [{"tool": "read_file", "args": {"path": "README.md"}}],
-                          depends_on=["t2", "t3"]),
-            ]
-            return tasks
-
-        # Pattern: debug
-        if "debug" in goal_lower or "fix" in goal_lower:
-            tasks = [
-                AgentTask("t1", "Check error logs",
-                          [{"tool": "read_file", "args": {"path": "output/last_error.txt"}}]),
-                AgentTask("t2", "Search for related code",
-                          [{"tool": "search_files", "args": {"pattern": "error|exception|fail"}}],
-                          depends_on=["t1"]),
-                AgentTask("t3", "Identify root cause",
-                          [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}],
-                          depends_on=["t2"]),
-                AgentTask("t4", "Apply fix and verify",
-                          [{"tool": "run_test", "args": {}}],
-                          depends_on=["t3"]),
-            ]
-            return tasks
-
-        # Default: investigate -> understand -> act -> verify
-        tasks = [
-            AgentTask("t1", "Understand the codebase",
-                      [{"tool": "read_file", "args": {"path": "README.md"}}]),
-            AgentTask("t2", "Find relevant files",
-                      [{"tool": "search_files", "args": {"pattern": goal.split()[0] if goal.split() else "main"}}],
-                      depends_on=["t1"]),
-            AgentTask("t3", "Execute the task",
-                      [{"tool": "env_check", "args": {}}],
-                      depends_on=["t2"]),
-            AgentTask("t4", "Verify results",
-                      [{"tool": "run_test", "args": {}}],
-                      depends_on=["t3"]),
-        ]
-        return tasks
+        实现已下沉到模块级 ``_decompose_goal``，同步/asyncio 两版共用同一份
+        分解逻辑，避免漂移。
+        """
+        return _decompose_goal(goal)
 
     def execute(self, goal: str) -> dict:
         """Full execution: spawn -> decompose -> dispatch -> aggregate."""
@@ -187,3 +163,257 @@ class MultiAgentCoordinator:
 
 def coordinate(goal: str, tool_executor: Callable) -> dict:
     return MultiAgentCoordinator(tool_executor).execute(goal)
+
+
+# ── asyncio 原生版（Phase 4）────────────────────────────────
+
+
+class AsyncMultiAgentCoordinator:
+    """asyncio 原生的多智能体协调器。
+
+    与同步版 ``MultiAgentCoordinator`` 对应，提供完全 async 的协调能力：
+
+    - **依赖感知调度**：按 ``AgentTask.depends_on`` 做拓扑分层，同一层内
+      ``asyncio.gather`` 并行，层间串行等待（同步版只 round-robin，忽略依赖）。
+    - **并发上限**：``asyncio.Semaphore(max_workers)`` 限制同时在途的任务数，
+      避免一次性 gather 全部任务打爆下游。
+    - **executor 双模**：``tool_executor`` 既可以是同步 ``Callable``（自动
+      ``asyncio.to_thread`` 包装），也可以是 async ``Callable``（直接 await），
+      由 ``inspect.iscoroutinefunction`` 自动检测。
+
+    共享 ``AgentTask`` / ``Agent`` / ``decompose``（纯计算逻辑与同步版完全一致，
+      复用同一份实现，避免两份 decompose 漂移）。
+    """
+
+    def __init__(self, tool_executor: Callable, max_workers: int = 4) -> None:
+        self.execute_tool = tool_executor
+        self.max_workers = max_workers
+        self.agents: list[Agent] = []
+        self.tasks: list[AgentTask] = []
+        self._results: dict[str, str] = {}
+        self._log: list[dict] = []
+        # 运行时状态（_sem / _log_lock 绑定 event loop，必须惰性创建）
+        self._sem: asyncio.Semaphore | None = None
+        self._log_lock: asyncio.Lock | None = None
+
+    def spawn_team(self, roles: list[str] | None = None) -> None:
+        """Create agent team（与同步版语义一致）。"""
+        roles = roles or ["reviewer", "debugger", "implementer", "tester"]
+        self.agents = [
+            Agent(id=f"agent_{i}", role=role)
+            for i, role in enumerate(roles[:self.max_workers])
+        ]
+
+    def decompose(self, goal: str) -> list[AgentTask]:
+        """Break a goal into tasks（复用模块级 ``_decompose_goal``）。
+
+        同步/asyncio 两版共用同一份分解逻辑，避免两份实现漂移。
+        """
+        return _decompose_goal(goal)
+
+    def _ensure_runtime(self) -> None:
+        """惰性初始化 loop-bound 运行时状态（_sem / _log_lock）。
+
+        这些对象绑定当前 event loop。本方法在 ``_execute_task`` 入口兜底调用，
+        保证单测可以直接 gather 单个任务而无需预先初始化。
+        ``execute`` 每次都会显式重建它们（支持多次 execute + 跨 loop 复用）。
+        """
+        if self._sem is None:
+            self._sem = asyncio.Semaphore(self.max_workers)
+        if self._log_lock is None:
+            self._log_lock = asyncio.Lock()
+
+    async def execute(self, goal: str) -> dict:
+        """Full async execution: spawn -> decompose -> dispatch -> aggregate。
+
+        调度策略：拓扑分层。把 tasks 按 depends_on 分成若干"波"，
+        每波内的任务无相互依赖 → ``asyncio.gather`` 并行；波与波之间串行 await，
+        保证依赖在前置完成后才启动。
+        """
+        started = time.time()
+        self._log = []
+        self._results = {}
+        # 重建 loop-bound 状态：支持多次 execute + 跨 event loop 复用 coordinator
+        self._sem = asyncio.Semaphore(self.max_workers)
+        self._log_lock = asyncio.Lock()
+
+        if not self.agents:
+            self.spawn_team()
+        self.tasks = self.decompose(goal)
+        await self._log_append({"event": "decomposed", "tasks": len(self.tasks)})
+
+        # 拓扑分层：每层是可并行的任务集合
+        waves = _topological_waves(self.tasks)
+        for wave in waves:
+            await asyncio.gather(*(
+                self._execute_task(task) for task in wave
+            ))
+
+        elapsed = time.time() - started
+        done = sum(1 for t in self.tasks if t.status == "done")
+        failed = sum(1 for t in self.tasks if t.status == "failed")
+
+        return {
+            "goal": goal,
+            "agents": len(self.agents),
+            "tasks_total": len(self.tasks),
+            "tasks_done": done,
+            "tasks_failed": failed,
+            "elapsed": round(elapsed, 2),
+            "results": self._results,
+            "log": self._log[-10:],
+        }
+
+    async def _log_append(self, entry: dict) -> None:
+        """线程安全地追加日志（_log 在并行任务间共享）。"""
+        if self._log_lock is None:
+            self._ensure_runtime()
+        async with self._log_lock:  # type: ignore[union-attr]
+            self._log.append(entry)
+
+    async def _call_tool(self, tool: str, args: dict) -> str:
+        """调用 executor，自动适配同步/async 签名。"""
+        if inspect.iscoroutinefunction(self.execute_tool):
+            return await self.execute_tool(tool, args)
+        # 同步 executor → to_thread，避免阻塞事件循环
+        return await asyncio.to_thread(self.execute_tool, tool, args)
+
+    async def _execute_task(self, task: AgentTask) -> None:
+        """执行单个任务：拿 semaphore → 跑 tool_sequence → 记结果。
+
+        与同步版 ``_execute_task`` 语义对齐：首个工具失败即标记 failed 并返回，
+        不继续后续步骤。成功则拼接所有步骤结果。
+
+        自包含：入口调 ``_ensure_runtime`` 保证 ``_sem`` 就绪，无需调用方
+        预先初始化（便于单测直接 gather 单个任务）。
+        """
+        if self._sem is None:
+            self._ensure_runtime()
+        async with self._sem:  # type: ignore[union-attr]
+            # 分配 agent（round-robin 选 idle，回退第一个；与同步版一致）
+            agent = next((a for a in self.agents if a.status == "idle"), None)
+            if agent is None:
+                agent = self.agents[0] if self.agents else Agent(id="agent_0", role="solo")
+            task.assigned_to = agent.id
+            agent.status = "busy"
+            agent.current_task = task.id
+
+            task.status = "running"
+            task.started_at = time.time()
+            await self._log_append({"event": "task_start", "task": task.id,
+                                    "agent": task.assigned_to})
+
+            results: list[str] = []
+            for step in task.tool_sequence:
+                try:
+                    r = await self._call_tool(step["tool"], step["args"])
+                    results.append(str(r)[:200])
+                except (OSError, ValueError, RuntimeError) as e:
+                    task.status = "failed"
+                    task.result = str(e)
+                    await self._log_append({"event": "task_failed",
+                                            "task": task.id, "error": str(e)})
+                    agent.status = "idle"
+                    agent.current_task = ""
+                    return
+
+            task.status = "done"
+            task.result = "; ".join(results)
+            task.finished_at = time.time()
+            self._results[task.id] = task.result
+            await self._log_append({"event": "task_done", "task": task.id,
+                                    "result_preview": task.result[:100]})
+
+            agent.status = "idle"
+            agent.current_task = ""
+
+
+async def async_coordinate(goal: str, tool_executor: Callable) -> dict:
+    """asyncio 版顶层入口（对应同步版 ``coordinate``）。"""
+    return await AsyncMultiAgentCoordinator(tool_executor).execute(goal)
+
+
+# ── 模块级共享逻辑（decompose + 拓扑分层）──────────────────
+
+
+def _decompose_goal(goal: str) -> list[AgentTask]:
+    """任务分解的纯计算实现（同步/asyncio 两版共用，避免漂移）。
+
+    与原 ``MultiAgentCoordinator.decompose`` 逻辑完全一致，仅下沉到模块级。
+    """
+    goal_lower = goal.lower()
+
+    if "review" in goal_lower:
+        return [
+            AgentTask("t1", "Read and analyze the target file",
+                      [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}]),
+            AgentTask("t2", "Check for bugs and anti-patterns",
+                      [{"tool": "search_files", "args": {"pattern": "TODO|FIXME|HACK"}}],
+                      depends_on=["t1"]),
+            AgentTask("t3", "Run tests",
+                      [{"tool": "run_test", "args": {}}],
+                      depends_on=["t2"]),
+            AgentTask("t4", "Generate review report",
+                      [{"tool": "read_file", "args": {"path": "README.md"}}],
+                      depends_on=["t2", "t3"]),
+        ]
+
+    if "debug" in goal_lower or "fix" in goal_lower:
+        return [
+            AgentTask("t1", "Check error logs",
+                      [{"tool": "read_file", "args": {"path": "output/last_error.txt"}}]),
+            AgentTask("t2", "Search for related code",
+                      [{"tool": "search_files", "args": {"pattern": "error|exception|fail"}}],
+                      depends_on=["t1"]),
+            AgentTask("t3", "Identify root cause",
+                      [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}],
+                      depends_on=["t2"]),
+            AgentTask("t4", "Apply fix and verify",
+                      [{"tool": "run_test", "args": {}}],
+                      depends_on=["t3"]),
+        ]
+
+    # Default: investigate -> understand -> act -> verify
+    return [
+        AgentTask("t1", "Understand the codebase",
+                  [{"tool": "read_file", "args": {"path": "README.md"}}]),
+        AgentTask("t2", "Find relevant files",
+                  [{"tool": "search_files", "args": {"pattern": goal.split()[0] if goal.split() else "main"}}],
+                  depends_on=["t1"]),
+        AgentTask("t3", "Execute the task",
+                  [{"tool": "env_check", "args": {}}],
+                  depends_on=["t2"]),
+        AgentTask("t4", "Verify results",
+                  [{"tool": "run_test", "args": {}}],
+                  depends_on=["t3"]),
+    ]
+
+
+def _topological_waves(tasks: list[AgentTask]) -> list[list[AgentTask]]:
+    """把带依赖的任务列表分层为可并行的"波"。
+
+    - 第 0 波：depends_on 为空（或依赖不在任务集中）的任务。
+    - 第 k 波：所有依赖已在第 0..k-1 波出现过、且自身未分层的任务。
+    - 同一波内的任务互不依赖，可 ``asyncio.gather`` 并行。
+
+    检测到依赖环时抛 ``ValueError``（防止死锁）。
+    """
+    by_id = {t.id: t for t in tasks}
+    placed: set[str] = set()
+    waves: list[list[AgentTask]] = []
+
+    while len(placed) < len(tasks):
+        # 当前波：未分层且所有（已知）依赖均已分层的任务
+        wave = [
+            t for t in tasks
+            if t.id not in placed
+            and all(d in placed or d not in by_id for d in t.depends_on)
+        ]
+        if not wave:
+            # 剩余任务都无法满足依赖 → 存在环
+            remaining = [t.id for t in tasks if t.id not in placed]
+            raise ValueError(f"任务依赖存在环或不可满足: {remaining}")
+        waves.append(wave)
+        placed.update(t.id for t in wave)
+
+    return waves

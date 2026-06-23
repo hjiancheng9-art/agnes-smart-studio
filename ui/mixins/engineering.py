@@ -10,6 +10,8 @@ from rich.prompt import Prompt, Confirm
 
 from ui.display import console, show_info, show_success, show_warning, show_error
 from ui.render import StreamingRenderer
+from ui.badges import print_reply_header, print_route_reason
+from core.router import route_command, resolve, apply
 
 if TYPE_CHECKING:
     from core.chat import ChatSession
@@ -28,7 +30,11 @@ class EngineeringCommandsMixin:
             show_warning("用法: /plan <任务描述>")
             return
         from core.agent import PLAN_PROMPT, parse_plan
-        session.model = "agnes-2.0-flash"
+
+        # 智能路由：plan 命令走命令路由表，自动选最优模型
+        decision = route_command("plan", task, session)
+        if decision.profile.value != "skip" and decision.model_id:
+            apply(decision, session)
         session.enable_thinking = True
 
         show_info(f"正在制定计划: {task[:40]}...")
@@ -38,6 +44,9 @@ class EngineeringCommandsMixin:
         # 流式输出计划（经 StreamingRenderer 单一落盘点，杜绝重复）
         buffer = ""
         renderer = StreamingRenderer(console)
+        # badge 头：/plan 经 route_command 切到 deepseek-v4-pro + thinking，
+        # 在 transient Live 启动前先打印当前模式，让用户看到状态变化。
+        print_reply_header(session)
         renderer.start()
         try:
             for delta in session.client.chat_stream(
@@ -69,8 +78,17 @@ class EngineeringCommandsMixin:
             show_warning("用法: /sub <子任务描述>")
             return
         from core.agent import spawn_subagent
+
+        # 智能路由：sub 命令走命令路由表，自动选最优模型
+        decision = route_command("sub", task, session)
+        if decision.profile.value != "skip" and decision.model_id:
+            apply(decision, session)
+            print_reply_header(session)
+            if decision.reason:
+                print_route_reason(decision.reason)
+
         show_info(f"子智能体启动: {task[:40]}...")
-        result = spawn_subagent(session.client, task)
+        result = spawn_subagent(session.client, task, model=session.model)
         console.print(Panel(result[:2000], title="[cyan]子智能体结果[/]"))
 
     def _chat_compress(self, session: "ChatSession"):
@@ -176,7 +194,7 @@ class EngineeringCommandsMixin:
                     context += c[:500] + "\n"
 
         show_info(f"启动智能体团队: {team_type} ({len(TEAM_CONFIGS.get(team_type, {}).get('agents', []))} 成员)...")
-        result = run_team(session.client, team_type, context)
+        result = run_team(session.client, team_type, context, model=session.model)
 
         if "error" in result:
             show_error(result["error"])

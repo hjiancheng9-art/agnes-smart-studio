@@ -3,8 +3,11 @@
 Connects to external MCP servers via stdio transport, discovers their tools
 and resources, and provides an executor map for the ToolRegistry system.
 
-⚠ EXPERIMENTAL — 未接通 runtime：MCPClient/MCP_TOOL_DEFS/MCP_EXECUTOR_MAP 已实现，
-但 tools.json 未注册、ChatSession 未 import。接入前接口可能调整。
+四象融合架构：
+    - ToolRegistry.load(mcp=True) 自动注入 MCP_TOOL_DEFS + MCP_EXECUTOR_MAP
+    - core/chat.py 所有 reload 路径均传 mcp=True（agent_mode / _reload_tools / skill）
+    - /mcp 斜杠命令 (ui/mixins/diag.py:_chat_mcp) 提供 REPL 管理界面
+    - agnes mcp-serve 启动时同样 load(mcp=True)，双向可达
 
 Architecture:
     MCPServerConfig  - Dataclass for server configuration
