@@ -106,6 +106,12 @@ COMMANDS: list[CommandDef] = [
     CommandDef('evolve',  '/evolve',  '',       '查看 Prompt 进化状态', '诊断配置'),
     CommandDef('know',    '/know',    '<cmd>',  '浏览内置知识库 (methods/templates/domain)', '诊断配置',
                handler='_chat_knowledge'),
+    CommandDef('prompt_stats', '/prompt-stats', '', 'Prompt Lab 实验统计', '诊断配置',
+               long_desc='A/B 变体效果对比：满意度/完成度/修正率',
+               handler='_chat_prompt_stats'),
+    CommandDef('prompt_assign','/prompt-assign','<变体ID>','指定 Prompt Lab 变体', '诊断配置',
+               long_desc='手动分配变体到当前会话，替代随机分配',
+               handler='_chat_prompt_assign'),
 ]
 
 # Special skill-load entries for /help display

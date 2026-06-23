@@ -24,6 +24,10 @@ p.txt
 _test*.txt
 test[0-9]*.txt
 *_scratch.txt
+_out.txt
+_pytest_out.txt
+_copy_nsp.py
+_explore_nsp.py
 
 # Backup files
 *.bak
@@ -51,3 +55,12 @@ scripts/scratch/
 
 # Windows NUL artifacts
 nul
+
+# Local LLM (llama.cpp) — 大体积二进制 / GGUF 模型，不入库
+llama.cpp/*.exe
+llama.cpp/*.dll
+llama.cpp/*.bak
+llama.cpp/models/
+models/*.gguf
+*.gguf
+

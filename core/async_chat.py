@@ -114,6 +114,17 @@ class AsyncChatSession:
                 register_code_hooks()
             except (ImportError, OSError):
                 pass
+            # #2 激活反思 hook（定期 critique，辅助模型分析工具调用序列）
+            try:
+                from core.hooks import register_reflection_hook
+                from core.config import SETTINGS
+                register_reflection_hook(
+                    client=self.client,
+                    interval=SETTINGS.reflection_interval,
+                    enabled=SETTINGS.reflection_enabled,
+                )
+            except (ImportError, OSError):
+                pass
             prompt = AGENT_SYSTEM_PROMPT + self._render_tool_categories()
         else:
             prompt = self._build_system_prompt()
@@ -201,6 +212,12 @@ class AsyncChatSession:
         try:
             from core.orchestra import get_orchestra
             base += "\n\n" + get_orchestra().summary()
+        except (ImportError, OSError):
+            pass
+        # #5 注入 Prompt Lab 变体差异化指令
+        try:
+            from core.prompt_lab import get_prompt_lab
+            base += get_prompt_lab().get_active_instructions()
         except (ImportError, OSError):
             pass
         return base
@@ -377,9 +394,11 @@ class AsyncChatSession:
             # POST_TOOL_USE hook
             try:
                 from core.hooks import hook_manager, HookType
+                # NEW (#4): 标记 error key，供反思引擎优先分析失败序列
+                is_error = isinstance(result, str) and result.startswith("[错误]")
                 post_evt = hook_manager.fire(
                     HookType.POST_TOOL_USE,
-                    data={"tool_name": name, "args": args, "result": result},
+                    data={"tool_name": name, "args": args, "result": result, "error": is_error},
                 )
                 if isinstance(post_evt.result, str) and post_evt.result:
                     result = post_evt.result
@@ -465,6 +484,14 @@ class AsyncChatSession:
                             span.set_attribute("result_chars", len(tool_result) if isinstance(tool_result, str) else -1)
                             metrics.increment("tool_calls")
                             metrics.timing("tool_call_ms", span.duration_ms())
+                            # #5 Prompt Lab: 记录工具调用和错误
+                            try:
+                                from core.prompt_lab import get_prompt_lab
+                                get_prompt_lab().record_tool_call()
+                                if "[错误]" in str(tool_result) or "error" in str(tool_result).lower():
+                                    get_prompt_lab().record_tool_error()
+                            except (ImportError, OSError):
+                                pass
                         for se in side_effects:
                             yield se
                         if fname not in _WRITE_TOOLS:
@@ -472,19 +499,32 @@ class AsyncChatSession:
                             # 缓存保留原始结果（高保真），跨轮复用时仍可重新截断
                             _executed_cache[sig] = tool_result
 
-                    # 上下文窗口防护：单条工具结果超限则 head+tail 截断，
+                    # 上下文窗口防护：智能压缩（抽取→LLM→截断三级路由），
                     # 防止大文件/长输出撑爆 LLM 上下文。原始结果仍在 cache 中。
+                    from core.context_tools import compress_tool_result
                     self.messages.append({
                         "role": "tool", "tool_call_id": tc.get("id", ""),
-                        "content": truncate_tool_result(tool_result),
+                        "content": compress_tool_result(tool_result, self.client, self.model),
                     })
                 continue  # 进入下一轮
 
             # 无 tool_calls：收尾
             self.messages.append({"role": "assistant", "content": buffer})
+            # #5 Prompt Lab: 记录本次会话 outcome
+            try:
+                from core.prompt_lab import get_prompt_lab
+                get_prompt_lab().record_outcome()
+            except (ImportError, OSError):
+                pass
             return
 
         # 超出最大轮次
         yield ("info", f"已达到最大工具调用轮次 ({_effective_max})，已中止。请尝试简化你的请求。")
         self.messages.append({"role": "assistant", "content": buffer})
+        # #5 Prompt Lab: 超限也记录 outcome
+        try:
+            from core.prompt_lab import get_prompt_lab
+            get_prompt_lab().record_outcome()
+        except (ImportError, OSError):
+            pass
 

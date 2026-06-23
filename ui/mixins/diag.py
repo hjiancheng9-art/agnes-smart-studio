@@ -8,11 +8,15 @@ from typing import TYPE_CHECKING
 
 from rich.panel import Panel
 from rich.table import Table
+
+# 项目根目录：diag.py 在 ui/mixins/ 下，往上两级是项目根
+_DIAG_ROOT = Path(__file__).resolve().parent.parent.parent
 from rich.prompt import Prompt
 
 from core.client import AgnesClient
 from utils import memory
 from ui.display import (console, COLORS, show_warning, show_success, show_info)
+from ui.badges import print_mode_banner
 import contextlib
 
 if TYPE_CHECKING:
@@ -206,7 +210,7 @@ class DiagCommandsMixin:
         import os
         import json
         from datetime import datetime
-        automations_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "output", "automations")
+        automations_dir = os.path.join(_DIAG_ROOT, "output", "automations")
         os.makedirs(automations_dir, exist_ok=True)
         data_path = os.path.join(automations_dir, "tasks.json")
         tasks = []
@@ -260,8 +264,7 @@ class DiagCommandsMixin:
     def _chat_provider(self, session: "ChatSession", arg: str):
         """切换模型供应商 (list|switch agnes/deepseek/siliconflow)"""
         import json
-        root = os.path.dirname(os.path.dirname(__file__))
-        cfg_path = os.path.join(root, "models.json")
+        cfg_path = os.path.join(_DIAG_ROOT, "models.json")
         cfg = self._load_models_config()
         providers = cfg.get("providers", {})
         arg = arg.strip()
@@ -289,11 +292,14 @@ class DiagCommandsMixin:
                 return
 
             p = providers[pid]
-            # 从 .env 查找对应 API key
+            # 从 .env 或 provider 配置查找 API key
             key_env = f"{pid.upper()}_API_KEY"
-            api_key = os.getenv(key_env) or os.getenv("AGNES_API_KEY") or ""
+            api_key = os.getenv(key_env) or os.getenv("AGNES_API_KEY") or p.get("api_key") or ""
 
-            if not api_key:
+            # auth_required=false 的 provider（如 local llama.cpp）无需 Key
+            if not api_key and not p.get("auth_required", True):
+                api_key = "no-auth-needed"
+            elif not api_key:
                 key = Prompt.ask(f"[cyan]输入 {p['name']} API Key[/]")
                 if not key:
                     show_warning("已取消")
@@ -314,6 +320,7 @@ class DiagCommandsMixin:
                 session.model = pro_model
 
             show_success(f"已切换到 {p['name']} ({pro_model})")
+            print_mode_banner(session)
             # 刷新系统提示词，让 AI 知道当前供应商
             session.messages[0] = {"role": "system", "content": session._build_system_prompt()}
             session.reset()
@@ -404,7 +411,7 @@ class DiagCommandsMixin:
     def _select_provider(self):
         """交互式供应商选择（多 Key 时弹出菜单，单 Key 自动激活）
 
-        1. 扫描所有 providers，收集有 API Key 的
+        1. 扫描所有 providers，收集有 API Key 或 auth_required=false 的
         2. 1 个外部供应商 → 自动激活
         3. ≥2 个外部供应商 → 弹出菜单让用户选择
         4. 0 个外部供应商 → 使用 Agnes
@@ -412,18 +419,20 @@ class DiagCommandsMixin:
         Returns: (provider_id, model_id)
         """
         cfg = self._load_models_config()
-        root = os.path.dirname(os.path.dirname(__file__))
-        cfg_path = os.path.join(root, "models.json")
+        cfg_path = os.path.join(_DIAG_ROOT, "models.json")
 
         providers = cfg.get("providers", {})
 
-        # 收集所有有 Key 的供应商
+        # 收集所有可用供应商：有 API Key 或 auth_required=false（如本地 llama.cpp）
         available = []
         for pid, p in providers.items():
             key_env = f"{pid.upper()}_API_KEY"
             api_key = p.get("api_key") or os.getenv(key_env)
-            if api_key:
+            # auth_required=false 的 provider（如 local llama.cpp）无需 Key
+            if api_key or not p.get("auth_required", True):
                 model = p.get("models", {}).get("pro", "unknown")
+                if not api_key:
+                    api_key = "no-auth-needed"
                 available.append((pid, p, model, api_key))
 
         if not available:
@@ -460,13 +469,19 @@ class DiagCommandsMixin:
         idx = 1
         for pid, p, model, _ in available:
             label = f"{idx}"
-            desc = ""
-            if pid == "deepseek":
-                desc = "百万上下文 · 代码/推理"
-            elif pid == "siliconflow":
-                desc = "Kimi-K2.6 · 备选链路"
-            elif pid == "agnes":
-                desc = "原生模型 · 轻量快速"
+            # 通用描述：优先从 provider 配置的 description 字段取，否则按 pid 推断
+            desc = p.get("description", "")
+            if not desc:
+                if pid == "agnes":
+                    desc = "原生模型 · 轻量快速"
+                elif pid == "deepseek":
+                    desc = "百万上下文 · 代码/推理"
+                elif pid == "siliconflow":
+                    desc = "Kimi-K2.6 · 备选链路"
+                elif "local" in pid:
+                    desc = "本地推理 · 离线可用"
+                else:
+                    desc = "外部供应商"
             table.add_row(label, p["name"], model, desc)
             choices.append((str(idx), pid, p, model))
             idx += 1
@@ -510,10 +525,9 @@ class DiagCommandsMixin:
 
     @staticmethod
     def _load_models_config() -> dict:
-        """安全加载 models.json，文件缺失/空/损坏时返回默认配置"""
+        """安全加载 models.json（项目根），文件缺失/空/损坏时返回默认配置"""
         import json
-        root = os.path.dirname(os.path.dirname(__file__))
-        cfg_path = os.path.join(root, "models.json")
+        cfg_path = os.path.join(_DIAG_ROOT, "models.json")
 
         def _default_cfg():
             return {
@@ -524,9 +538,13 @@ class DiagCommandsMixin:
                                  "api_key": "", "models": {"pro": "deepseek-v4-pro", "light": "deepseek-v4-pro"}},
                     "siliconflow": {"name": "SiliconFlow (Kimi-K2.6)", "base_url": "https://api.siliconflow.cn/v1",
                                     "api_key": "", "models": {"pro": "Pro/moonshotai/Kimi-K2.6", "light": "Pro/moonshotai/Kimi-K2.6"}},
+                    "local": {"name": "Local llama.cpp (Qwen3.6-27B-PRISM-PRO-DQ)",
+                              "base_url": "http://127.0.0.1:8080/v1", "api_key": "no-auth-needed",
+                              "auth_required": False,
+                              "models": {"pro": "Qwen3.6-27B-PRISM-PRO-DQ", "light": "Qwen3.6-27B-PRISM-PRO-DQ"}},
                 },
                 "active": "agnes",
-                "fallback": {"enabled": True, "priority": ["deepseek", "siliconflow"]},
+                "fallback": {"enabled": True, "priority": ["deepseek", "siliconflow", "local"]},
             }
 
         if not os.path.exists(cfg_path):
@@ -583,7 +601,21 @@ class DiagCommandsMixin:
             models = pdata.get("models", {})
             if isinstance(models, dict) and target in models.values():
                 if session.client.base_url != pdata.get("base_url", ""):
+                    expected_url = pdata.get("base_url", "")
                     new_client = mgr.create_client(pid)
+                    # 防御性校验：create_client 的 auth_required fallback 可能
+                    # 跑偏到别的 provider，导致 client.base_url 与目标不一致
+                    if new_client.base_url.rstrip("/") != expected_url.rstrip("/"):
+                        show_warning(
+                            f"切换失败：{pdata.get('name', pid)} 不可用 "
+                            f"(client 被重定向到 {new_client.base_url})"
+                        )
+                        # 回滚 session.model（未实际切换成功）
+                        if arg in MODEL_ALIASES:
+                            session.model = arg  # 别名切回原值
+                        else:
+                            session.model = target  # 已是 raw ID
+                        return
                     session.client = new_client
                     console.print(f"  [dim]已切至 {pdata.get('name', pid)} 供应商[/]")
                 break
@@ -594,3 +626,75 @@ class DiagCommandsMixin:
         # 刷新系统提示词，让 AI 知道当前使用的模型
         session.messages[0] = {"role": "system", "content": session._build_system_prompt()}
         show_success(f"已切换到 {target} — {cap}")
+        print_mode_banner(session)
+
+    def _chat_prompt_stats(self, session: "ChatSession", arg: str):
+        """Prompt Lab 实验统计 — 查看各变体效果对比"""
+        try:
+            from core.prompt_lab import get_prompt_lab
+        except ImportError:
+            show_warning("Prompt Lab 模块不可用")
+            return
+
+        lab = get_prompt_lab()
+        arg = arg.strip()
+
+        if not arg or arg == "summary":
+            console.print(lab.summary_text())
+            return
+
+        # 查看变体列表
+        if arg == "variants" or arg == "list":
+            variants = lab.list_variants()
+            if not variants:
+                show_info("暂无实验变体。")
+                console.print("  [dim]提示: 可通过代码 create_variant() 创建[/]")
+                return
+            console.print("[bold]Prompt Lab 变体:[/]")
+            for v in variants:
+                active = "[green]●[/]" if v.is_active else "[dim]○[/]"
+                cur = " [yellow]← 当前[/]" if lab.current_variant and lab.current_variant.id == v.id else ""
+                console.print(f"  {active} [cyan]{v.id}[/] {v.label} ({v.name}) "
+                             f"ratio={v.traffic_ratio}{cur}")
+                console.print(f"    [dim]{v.instructions[:100]}[/]")
+            return
+
+        if arg == "reset":
+            lab.reset_session()
+            show_success("Prompt Lab 会话已重置")
+            return
+
+        show_info("用法: /prompt-stats [summary|variants|reset]")
+
+    def _chat_prompt_assign(self, session: "ChatSession", arg: str):
+        """手动分配 Prompt Lab 变体到当前会话"""
+        try:
+            from core.prompt_lab import get_prompt_lab
+        except ImportError:
+            show_warning("Prompt Lab 模块不可用")
+            return
+
+        arg = arg.strip()
+        if not arg:
+            # 显示可用变体
+            lab = get_prompt_lab()
+            variants = lab.list_variants(active_only=True)
+            if not variants:
+                show_info("无可用变体，先用 create_variant() 创建")
+                return
+            console.print("[bold]可用变体:[/]")
+            for v in variants:
+                cur = " [yellow]← 当前[/]" if lab.current_variant and lab.current_variant.id == v.id else ""
+                console.print(f"  [cyan]{v.id}[/] {v.label}{cur}")
+            show_info("用法: /prompt-assign <变体ID>")
+            return
+
+        lab = get_prompt_lab()
+        v = lab.assign_variant(arg)
+        if v:
+            show_success(f"已分配变体: [{v.label}] ({v.id})")
+            # 重建 system prompt 让变体指令生效
+            session.messages[0] = {"role": "system", "content": session._build_system_prompt()}
+        else:
+            show_warning(f"变体 '{arg}' 不存在或未激活")
+            console.print("  [dim]用 /prompt-stats variants 查看可用变体[/]")
