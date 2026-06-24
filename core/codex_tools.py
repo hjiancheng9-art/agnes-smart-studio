@@ -1,7 +1,7 @@
 """Codex-parity tool suite — browser, deploy, documents, speech, screenshot."""
 
-import sys
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -108,8 +108,8 @@ def create_pdf(content: str, output: str = "") -> str:
     out_path = Path(output) if output else ROOT / "output" / f"doc_{int(time.time())}.pdf"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        from reportlab.pdfgen import canvas
         from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas
         c = canvas.Canvas(str(out_path), pagesize=A4)
         y = 800
         for line in content.split(chr(10))[:200]:
@@ -139,8 +139,9 @@ def text_to_speech(text: str, output: str = "", lang: str = "zh") -> str:
     out_path = Path(output) if output else ROOT / "output" / f"tts_{int(time.time())}.mp3"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        import edge_tts
         import asyncio
+
+        import edge_tts
         voice = "zh-CN-XiaoxiaoNeural" if lang == "zh" else "en-US-JennyNeural"
         async def _run():
             communicate = edge_tts.Communicate(text, voice)

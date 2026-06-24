@@ -193,8 +193,9 @@ def generate_gallery(filter_type: str = "all", open_browser: bool = True) -> str
         if not thumb and src_img and src_img.startswith("data:image"):
             # 生成缩略图
             try:
-                from PIL import Image
                 import io
+
+                from PIL import Image
                 _, b64data = src_img.partition(";base64,")
                 img_bytes = base64.b64decode(b64data)
                 img = Image.open(io.BytesIO(img_bytes)).convert("RGB")

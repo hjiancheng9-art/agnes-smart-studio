@@ -6,21 +6,20 @@
 import re
 from typing import TYPE_CHECKING
 
-from rich.prompt import Prompt
-
 from prompt_toolkit import PromptSession
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
+from rich.prompt import Prompt
 
-from core.config import (VIDEO_ASPECT_RATIOS, IMAGE_SIZES,
-                          VIDEO_DURATION_MAP, VALID_NUM_FRAMES)
-from utils import history, templates, memory
+from core.config import IMAGE_SIZES, VALID_NUM_FRAMES, VIDEO_ASPECT_RATIOS, VIDEO_DURATION_MAP
+from ui.display import show_info, show_warning
+from ui.render import StreamingRenderer
+
 # 注：show_image_result/show_video_result 的展示逻辑已下沉到
 # core.async_render.default_side_effect_handlers（sync/async 共享单一来源），
 # 故本模块不再直接 import 它们，避免死 import。
-from ui.theme import COLORS, ICONS, LAYOUT, console
-from ui.display import show_warning, show_info
-from ui.render import StreamingRenderer
+from ui.theme import console
+from utils import history, memory, templates
 
 if TYPE_CHECKING:
     from core.chat import ChatSession
@@ -258,7 +257,7 @@ class SharedMixin:
         print_reply_header(session)
 
         # 智能路由：分析用户输入，自动切到最优模型/供应商
-        from core.router import route, apply
+        from core.router import apply, route
         decision = route(user, session)
         if decision.profile.value != "skip" and decision.model_id:
             apply(decision, session)

@@ -21,14 +21,14 @@ Communication:
     Responses are read line-by-line from server stdout.
 """
 
+import contextlib
 import json
 import os
 import subprocess
 import threading
-from dataclasses import dataclass, asdict, field
+from dataclasses import asdict, dataclass, field
 
 from core.config import OUTPUT_DIR
-import contextlib
 
 __all__ = [
     'MCPClient', 'MCPServerConfig', 'MCP_EXECUTOR_MAP', 'MCP_TOOL_DEFS', 'get_mcp_client',

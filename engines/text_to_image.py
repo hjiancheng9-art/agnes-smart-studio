@@ -2,8 +2,9 @@
 import asyncio
 import base64
 from datetime import datetime
-from core.client import CruxClient
+
 from core.async_client import AsyncCruxClient
+from core.client import CruxClient
 from core.config import OUTPUT_DIR
 from core.validator import validate_image_size, validate_model, validate_seed
 

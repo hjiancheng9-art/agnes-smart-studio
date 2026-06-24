@@ -13,13 +13,13 @@ Mixin 层次（MRO 顺序，从基础到具体）:
     GeneratorsMenuMixin   — 菜单生成组 _t2i/_i2i/_t2v/_i2v/_pipeline/_hist/_tmpl
 """
 
-from ui.mixins.shared import SharedMixin
-from ui.mixins.inline import InlineCommandsMixin
 from ui.mixins.creative import CreativeCommandsMixin
-from ui.mixins.engineering import EngineeringCommandsMixin
-from ui.mixins.git_cmds import GitCommandsMixin
 from ui.mixins.diag import DiagCommandsMixin
+from ui.mixins.engineering import EngineeringCommandsMixin
 from ui.mixins.generators_menu import GeneratorsMenuMixin
+from ui.mixins.git_cmds import GitCommandsMixin
+from ui.mixins.inline import InlineCommandsMixin
+from ui.mixins.shared import SharedMixin
 
 __all__ = [
     "SharedMixin",

@@ -11,14 +11,14 @@ ComfyUI 负责：执行工作流、产出图像/视频
 """
 
 import json
-import time
-import urllib.request
-import urllib.error
-from pathlib import Path
 
 # ── ComfyUI 配置 ──
 # 优先从环境变量读取，否则使用默认本地地址
 import os
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
 
 __all__ = [
     'COMFYUI_BASE_URL', 'COMFYUI_CUSTOM_NODES_DIR', 'COMFYUI_EXECUTOR_MAP', 'COMFYUI_POLL_INTERVAL', 'COMFYUI_TIMEOUT', 'COMFYUI_TOOLS', 'LORA_OUTPUT_ROOT', 'OUTPUT_ROOT', 'execute_build_custom_workflow', 'execute_clear_queue', 'execute_create_custom_node', 'execute_get_node_info', 'execute_get_result', 'execute_list_models', 'execute_lora_check_status', 'execute_lora_generate_config', 'execute_lora_prepare_dataset', 'execute_preview_workflow', 'execute_status', 'execute_submit_workflow',
@@ -27,6 +27,7 @@ __all__ = [
 COMFYUI_BASE_URL = os.environ.get("COMFYUI_BASE_URL", "http://127.0.0.1:8188").rstrip("/")
 # SSRF 防护：自定义 ComfyUI URL 须为本地地址
 from urllib.parse import urlparse as _urlparse
+
 _cui_host = _urlparse(COMFYUI_BASE_URL).hostname or ""
 _CUI_ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]", "0.0.0.0"}
 if _cui_host and _cui_host not in _CUI_ALLOWED_HOSTS:

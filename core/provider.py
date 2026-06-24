@@ -159,7 +159,7 @@ def get_model_info(model_id: str) -> ModelInfo | None:
 
 def resolve_model_alias(name: str) -> str | None:
     """将用户输入的别名（light/pro/deepseek/kimi 等）解析为模型 ID。
-    
+
     优先查 MODEL_REGISTRY 的别名，再直接查 ID 匹配，最后查 models.json。
     """
     # 1. 别名匹配（无歧义：同一别名只注册一次）

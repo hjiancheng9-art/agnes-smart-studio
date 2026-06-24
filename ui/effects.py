@@ -12,7 +12,7 @@ or in standalone contexts outside streaming.
 
 import time
 
-from ui.theme import COLORS, ICONS, LAYOUT, console
+from ui.theme import COLORS, ICONS, console
 
 __all__ = [
     'fade_in',

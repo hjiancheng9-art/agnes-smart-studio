@@ -19,23 +19,27 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
 
-from core.client import CruxClient, ContentPolicyError
 from core.brain import SmartBrain
-from core.config import SETTINGS, CRUX_VISION_MODEL, CRUX_VISION_BASE_URL
+from core.client import ContentPolicyError, CruxClient
+from core.config import CRUX_VISION_BASE_URL, CRUX_VISION_MODEL, SETTINGS
 from core.version import __version__  # 单一版本真源
-from engines.text_to_image import TextToImageEngine
 from engines.image_to_image import ImageToImageEngine
+from engines.text_to_image import TextToImageEngine
 from engines.video import VideoEngine
 from pipeline.workflows import PipelineOrchestrator
-from utils import memory
-from ui.theme import COLORS, ICONS, LAYOUT, console
-from ui.display import show_error, show_warning, show_info
-from ui.terminal_logo import render_rich as _render_logo_rich
+from ui.display import show_error, show_info, show_warning
 from ui.mixins import (
-    SharedMixin, InlineCommandsMixin, CreativeCommandsMixin,
-    EngineeringCommandsMixin, GitCommandsMixin, DiagCommandsMixin,
+    CreativeCommandsMixin,
+    DiagCommandsMixin,
+    EngineeringCommandsMixin,
     GeneratorsMenuMixin,
+    GitCommandsMixin,
+    InlineCommandsMixin,
+    SharedMixin,
 )
+from ui.terminal_logo import render_rich as _render_logo_rich
+from ui.theme import COLORS, ICONS, LAYOUT, console
+from utils import memory
 
 __all__ = ['CruxCLI', 'LOGO']
 
@@ -139,14 +143,14 @@ class CruxCLI(SharedMixin, InlineCommandsMixin, CreativeCommandsMixin,
 
     def _chat(self):
         """聊天模式：多轮流式对话 + 命令式生成 + AI 自动调度（pro）
-        
+
         按 models.json fallback.priority 自动探测可用供应商，
         主对话走优先供应商，视觉始终走 CRUX 独立通道。
         - 多行输入：首行输入 \"\"\" 进入，再输入 \"\"\" 结束
         - 中止操作：Ctrl+C 中断当前运行
         - 退出模式：/code、/agent 再次输入即切回，/exit 完全退出
         """
-        from core.chat import ChatSession, MODEL_INFO
+        from core.chat import MODEL_INFO, ChatSession
 
         # 自助选择供应商（多 Key 时弹出菜单，单 Key 自动激活）
         active_provider, active_model = self._select_provider()

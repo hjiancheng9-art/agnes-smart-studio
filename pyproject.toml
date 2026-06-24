@@ -61,7 +61,35 @@ asyncio_mode = "strict"
 [tool.ruff]
 line-length = 120
 target-version = "py310"
-extend-exclude = ["scripts/scratch", "tests/manual", "output", ".codebuddy"]
+extend-exclude = ["scripts/scratch", "tests/manual", "output", ".codebuddy", "models", "llama.cpp"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort (import sorting)
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "C4",   # flake8-comprehensions
+]
+ignore = [
+    "E501",   # line-length 由 formatter / line-length 配置管理
+    # ── 以下为存量技术债，逐步清理后移除 ──
+    "E402",   # module-import-not-at-top（入口文件/条件 import 较多）
+    "E741",   # ambiguous-variable-name（i/l/I 命名）
+    "F821",   # undefined-name（f-string 中引用后定义变量，待重构）
+    "F822",   # undefined-export（__all__ 声明动态导入符号，待重构）
+    "F841",   # unused-variable
+    "B007",   # unused-loop-control-variable
+    "B904",   # raise-without-from（待逐步加 from err）
+    "SIM102", # collapsible-if
+    "SIM103", # needless-bool
+    "SIM105", # suppressible-exception（contextlib.suppress 风格偏好）
+    "SIM108", # if-else-block-instead-of-if-exp
+    "SIM201", # negate-equal-op
+]
 
 [tool.ruff.lint.per-file-ignores]
 "crux_studio.py" = ["E402"]

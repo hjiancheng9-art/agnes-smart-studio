@@ -26,29 +26,27 @@ from collections.abc import AsyncIterator
 
 from core.async_client import AsyncCruxClient
 from core.brain import AsyncSmartBrain
-from core.context_tools import truncate_tool_result, truncate_messages
-from core.observability import TraceContext, metrics
 from core.chat import (
     AGENT_SYSTEM_PROMPT,
-    CODE_SYSTEM_PROMPT,
     CHAT_SYSTEM_PROMPT,
+    CODE_SYSTEM_PROMPT,
     MAX_TOOL_LOOPS,
     _normalize_tool_args,
     merge_tool_calls,
 )
 from core.config import CRUX_VISION_MODEL
+from core.context_tools import truncate_messages
+from core.observability import TraceContext, metrics
 from core.provider import (
     get_provider_name,
-    get_tool_calling_models,
     get_vision_models,
     model_supports_tools,
 )
-from core.tools import get_registry, ToolRegistry
-from core.skills import get_manager, SkillManager
-from engines.text_to_image import AsyncTextToImageEngine
+from core.skills import SkillManager, get_manager
+from core.tools import ToolRegistry, get_registry
 from engines.image_to_image import AsyncImageToImageEngine
+from engines.text_to_image import AsyncTextToImageEngine
 from engines.video import AsyncVideoEngine
-
 
 __all__ = ["AsyncChatSession"]
 
@@ -116,8 +114,8 @@ class AsyncChatSession:
                 pass
             # #2 激活反思 hook（定期 critique，辅助模型分析工具调用序列）
             try:
-                from core.hooks import register_reflection_hook
                 from core.config import SETTINGS
+                from core.hooks import register_reflection_hook
                 register_reflection_hook(
                     client=self.client,
                     interval=SETTINGS.reflection_interval,
@@ -306,7 +304,7 @@ class AsyncChatSession:
 
         # ── PRE_TOOL_USE hook ──
         try:
-            from core.hooks import hook_manager, HookType
+            from core.hooks import HookType, hook_manager
             pre_evt = hook_manager.fire(HookType.PRE_TOOL_USE, data={"tool_name": name, "args": args})
             if pre_evt.stop_processing:
                 return "工具调用被拦截（PRE_TOOL_USE hook）", []
@@ -393,7 +391,7 @@ class AsyncChatSession:
 
             # POST_TOOL_USE hook
             try:
-                from core.hooks import hook_manager, HookType
+                from core.hooks import HookType, hook_manager
                 # NEW (#4): 标记 error key，供反思引擎优先分析失败序列
                 is_error = isinstance(result, str) and result.startswith("[错误]")
                 post_evt = hook_manager.fire(

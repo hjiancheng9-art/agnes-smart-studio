@@ -4,15 +4,14 @@ from typing import TYPE_CHECKING
 
 from rich.markdown import Markdown
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt
 
 from core.config import SETTINGS
-from utils import history, image_input
-from ui.theme import COLORS, ICONS, LAYOUT, console
-from ui.display import (show_error, show_image_result, show_video_result,
-                         show_warning, show_info, show_success)
 from ui.badges import print_mode_banner
+from ui.display import show_error, show_image_result, show_info, show_success, show_video_result, show_warning
+from ui.theme import COLORS, LAYOUT, console
+from utils import history, image_input
 
 if TYPE_CHECKING:
     from core.chat import ChatSession

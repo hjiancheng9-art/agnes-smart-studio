@@ -12,13 +12,13 @@ Sources (with optional fallback):
 """
 
 import asyncio
+import contextlib
 import json
 import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-import contextlib
 
 ROOT = Path(__file__).resolve().parent.parent
 

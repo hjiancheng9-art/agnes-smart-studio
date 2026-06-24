@@ -11,9 +11,9 @@ Uses regex-based structured parsing for JavaScript, TypeScript, Go, and Rust fil
 """
 
 import ast
+import json
 import os
 import re
-import json
 from pathlib import Path
 
 __all__ = [

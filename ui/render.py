@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from rich.console import Console
 from rich.live import Live
@@ -79,7 +79,7 @@ class StreamingRenderer:
 
     # ── 生命周期 ──────────────────────────────────────────────
 
-    def start(self) -> "StreamingRenderer":
+    def start(self) -> StreamingRenderer:
         self._live = self._new_live("")
         self._live.start()
         return self
@@ -89,7 +89,7 @@ class StreamingRenderer:
             self._live.stop()
             self._live = None
 
-    def __enter__(self) -> "StreamingRenderer":
+    def __enter__(self) -> StreamingRenderer:
         return self.start()
 
     def __exit__(self, *exc) -> None:

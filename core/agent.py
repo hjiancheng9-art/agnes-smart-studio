@@ -739,7 +739,7 @@ class ModelRouter:
         """
         chain: list[str] = [self.primary]
         try:
-            from core.provider import get_provider_manager, MODEL_REGISTRY
+            from core.provider import get_provider_manager
             mgr = get_provider_manager()
             for pid in mgr.fallback_priority:
                 provider = mgr.providers.get(pid, {})

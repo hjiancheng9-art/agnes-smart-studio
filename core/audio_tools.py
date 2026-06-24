@@ -86,6 +86,7 @@ def execute_tts_narration(text: str, voice: str = "xiaoxiao",
 
     try:
         import asyncio
+
         import edge_tts
 
         async def _gen():

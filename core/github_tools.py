@@ -218,7 +218,7 @@ def execute_github_browse(repo: str = "", path: str = "", ref: str = "") -> str:
     api_path = f"repos/{slug}/contents/{path}".rstrip("/") if path else f"repos/{slug}/contents"
     args = ["api", api_path]
     if ref:
-        args += ["--jq", f"--ref", ref]
+        args += ["--jq", "--ref", ref]
         # gh api 的 --ref 需要通过 query param 或 header，用 -f 更可靠
         args = ["api", api_path, "-f", f"ref={ref}"]
 

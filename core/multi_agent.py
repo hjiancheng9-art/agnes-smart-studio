@@ -24,8 +24,8 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-import time
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path

@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING
 
 from rich.panel import Panel
 
-from ui.theme import COLORS, ICONS, LAYOUT, console
-from ui.display import show_success, show_info
 from ui.badges import print_mode_banner
+from ui.display import show_info, show_success, show_warning
+from ui.theme import COLORS, LAYOUT, console
 
 if TYPE_CHECKING:
     from core.chat import ChatSession
@@ -20,7 +20,7 @@ __all__ = ['InlineCommandsMixin']
 
 class InlineCommandsMixin:
     # Method provided by SharedMixin (sibling in MRO)
-    def _chat_generate(self, session: "ChatSession", kind: str, prompt: str) -> None:
+    def _chat_generate(self, session: ChatSession, kind: str, prompt: str) -> None:
         ...  # defined in CreativeCommandsMixin, available via MRO
 
 
@@ -60,13 +60,167 @@ class InlineCommandsMixin:
         print_mode_banner(session)
 
     def _inline_tools(self, session, arg: str):
+        arg = (arg or "").strip()
+        if arg.startswith("score"):
+            self._tool_scorecard(session, arg[len("score"):].strip())
+            return
+
         names = session.tools.tool_names
         if names:
             console.print(f"[dim]{len(names)} registered tools:[/]")
             for n in names:
                 console.print(f"  [{COLORS['primary']}]{n}[/]")
+            console.print("  [dim]提示: /tools score 查看工具健康度评分[/]")
         else:
             show_info("No tools available, create tools.json to add")
+
+    def _tool_scorecard(self, session, arg: str):
+        """工具评分看板 — 静态健康度 + 运行时质量。
+
+        用法:
+            /tools score          静态评分表格（测试/schema/风险/可达性）
+            /tools score runtime  运行时评分（基于 tool_calls.jsonl）
+            /tools score json     JSON 格式输出（CI/CD 集成）
+            /tools score <name>   单工具详情
+        """
+        from rich.table import Table
+        try:
+            from core.tool_scorecard import (
+                save_report,
+                score_all,
+                score_tool_static,
+            )
+        except ImportError:
+            show_info("tool_scorecard 模块不可用")
+            return
+
+        # 子模式：json / runtime / <tool_name>
+        output_json = arg.lower() == "json"
+        show_runtime = arg.lower() == "runtime"
+        single_tool = ""
+        if arg and not output_json and not show_runtime:
+            single_tool = arg.split()[0]
+
+        # 生成报告（含运行时分，若有日志数据）
+        try:
+            from core import tool_call_log
+            runtime_calls = tool_call_log.group_by_tool()
+        except ImportError:
+            runtime_calls = None
+
+        report = score_all(session.tools, runtime_calls=runtime_calls)
+        save_report(report)  # 持久化到 output/tool_scorecard.json
+
+        # ── 单工具详情 ──
+        if single_tool:
+            if not session.tools.has(single_tool) and single_tool not in session.tools.tool_names:
+                show_info(f"未找到工具: {single_tool}")
+                return
+            s = next((t for t in report["tools"] if t["name"] == single_tool), None)
+            if not s:
+                s = score_tool_static(single_tool, session.tools)
+            console.print(Panel(
+                f"[bold cyan]{s['name']}[/]  ·  [bold]{s['score']}/100[/]  ·  等级 [bold]{s['grade']}[/]",
+                border_style=COLORS["primary"],
+            ))
+            dt = Table(title="维度详情", border_style="dim", show_lines=True)
+            dt.add_column("维度", style="cyan", width=18)
+            dt.add_column("得分", justify="right", width=10)
+            dt.add_column("满分", justify="right", width=8)
+            dt.add_column("说明")
+            for dim_name, info in s["dimensions"].items():
+                dt.add_row(dim_name, str(info["score"]), str(info["max"]), info["detail"])
+            console.print(dt)
+            if "runtime" in s and s["runtime"].get("score") is not None:
+                rt = s["runtime"]
+                console.print(f"  [dim]运行时: {rt['score']}分({rt['grade']}) · "
+                              f"{rt['call_count']}次调用 · 成功率{rt['success_rate']}% · "
+                              f"均耗{rt['avg_ms']}ms · P95 {rt['p95_ms']}ms[/]")
+            return
+
+        # ── JSON 输出 ──
+        if output_json:
+            import json
+            console.print_json(json.dumps(report, ensure_ascii=False))
+            return
+
+        # ── 汇总表 ──
+        summary = Table(title="[bold]📊 工具评分总览[/]",
+                        border_style=COLORS["primary"], show_lines=True)
+        summary.add_column("指标", style="bold cyan", width=16)
+        summary.add_column("值", justify="right")
+        gd = report["grade_distribution"]
+        summary.add_row("工具总数", str(report["total_tools"]))
+        summary.add_row("平均分", f"{report['average_score']}/100")
+        summary.add_row("分级分布",
+                        f"A {gd.get('A',0)} · B {gd.get('B',0)} · "
+                        f"C {gd.get('C',0)} · D {gd.get('D',0)}")
+        summary.add_row("零测试工具", f"{report['untested_count']} 个")
+        summary.add_row("最差 TOP5", " · ".join(report["worst_5"]))
+        console.print(summary)
+
+        # ── 静态/运行时明细表 ──
+        if show_runtime:
+            title = "[bold]📈 运行时质量评分[/] (基于 tool_calls.jsonl)"
+            detail = Table(title=title, border_style="dim", show_lines=True)
+            detail.add_column("工具", style="cyan", width=20)
+            detail.add_column("运行时分", justify="right", width=8)
+            detail.add_column("等级", justify="center", width=4)
+            detail.add_column("调用数", justify="right", width=6)
+            detail.add_column("成功率", justify="right", width=8)
+            detail.add_column("均耗时", justify="right", width=10)
+            detail.add_column("P95", justify="right", width=8)
+            detail.add_column("参数失败", justify="right", width=8)
+            rows = [t for t in report["tools"] if "runtime" in t and t["runtime"].get("score") is not None]
+            rows.sort(key=lambda x: x["runtime"]["score"])
+            if not rows:
+                show_info("暂无运行时数据，请先执行一些工具调用（output/tool_calls.jsonl 为空）")
+                return
+            for t in rows[:30]:
+                rt = t["runtime"]
+                grade_color = {"A": "green", "B": "cyan", "C": "yellow", "D": "red"}.get(rt["grade"], "white")
+                detail.add_row(
+                    t["name"],
+                    f"{rt['score']}",
+                    f"[{grade_color}]{rt['grade']}[/]",
+                    str(rt["call_count"]),
+                    f"{rt['success_rate']}%",
+                    f"{rt['avg_ms']}ms",
+                    f"{rt['p95_ms']}ms",
+                    f"{rt['arg_fail_rate']}%",
+                )
+            console.print(detail)
+        else:
+            title = "[bold]🔧 工具健康度评分[/] (静态: 测试/schema/风险/可达性)"
+            detail = Table(title=title, border_style="dim", show_lines=True)
+            detail.add_column("工具", style="cyan", width=22)
+            detail.add_column("总分", justify="right", width=6)
+            detail.add_column("等级", justify="center", width=4)
+            detail.add_column("测试", justify="right", width=6)
+            detail.add_column("Schema", justify="right", width=7)
+            detail.add_column("风险", justify="right", width=6)
+            detail.add_column("可达", justify="right", width=6)
+            # 按总分升序（最差在前），便于优先关注
+            for t in sorted(report["tools"], key=lambda x: x["score"])[:40]:
+                grade_color = {"A": "green", "B": "cyan", "C": "yellow", "D": "red"}.get(t["grade"], "white")
+                d = t["dimensions"]
+                detail.add_row(
+                    t["name"],
+                    f"{t['score']}",
+                    f"[{grade_color}]{t['grade']}[/]",
+                    f"{d['test_coverage']['score']}",
+                    f"{d['schema']['score']}",
+                    f"{d['risk']['score']}",
+                    f"{d['reachability']['score']}",
+                )
+            console.print(detail)
+
+        # ── 零测试清单（如果不多，全列；多则给数字）──
+        if report["untested_count"] and report["untested_count"] <= 30:
+            console.print(f"  [yellow]⚠ 零测试工具 ({report['untested_count']}):[/] "
+                          + " · ".join(report["untested"]))
+        console.print("  [dim]报告已保存: output/tool_scorecard.json · "
+                      "更多: /tools score runtime | /tools score json | /tools score <name>[/]")
 
     def _inline_browser(self, session, arg: str):
         is_on = session.toggle_browser()

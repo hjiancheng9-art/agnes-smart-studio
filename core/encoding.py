@@ -39,7 +39,7 @@ def _setup_win32_console() -> bool:
 
 def _reconfigure_stdio():
     """Reconfigure stdin/stdout/stderr to use UTF-8 with strict error handling.
-    
+
     On Windows, the default text wrapper uses the ANSI code page, which
     garbles Chinese and emoji characters. This replaces them with UTF-8
     wrappers that use 'replace' for encoding (don't crash on unsupported
@@ -56,7 +56,7 @@ def _reconfigure_stdio():
 
 def _patch_subprocess():
     """Ensure all subprocess.Popen calls default to UTF-8 encoding.
-    
+
     Without this, subprocesses inherit the system ANSI code page and
     produce garbled output (especially Chinese text from help messages,
     pip output, git output, etc.).

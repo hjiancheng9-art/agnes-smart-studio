@@ -6,8 +6,8 @@ project-context awareness. Designed to be called at session start/end.
 
 import json
 import time
-from pathlib import Path
 from collections import deque
+from pathlib import Path
 
 __all__ = ['MEMORY_FILE', 'ROOT', 'SemanticMemory', 'get_memory']
 

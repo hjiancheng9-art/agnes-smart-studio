@@ -8,6 +8,9 @@ Endpoints:
     POST /tool/<name>     — execute a named tool
     GET  /self/audit      — run self-audit
     GET  /eval            — run evaluation benchmarks
+    GET  /tools/score     — all tools health scorecard (static + runtime)
+    GET  /tools/score/<name> — single tool score detail
+    GET  /tools/score/runtime/live — runtime-only scores
 
 Start: python -m core.web_api (or: uvicorn core.web_api:app)
 """
@@ -23,8 +26,8 @@ ROOT = Path(__file__).resolve().parent.parent
 
 try:
     from fastapi import FastAPI, HTTPException, Request
-    from fastapi.responses import StreamingResponse
     from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.responses import StreamingResponse
     HAS_FASTAPI = True
 except ImportError:
     # FastAPI 缺失时设为 None，下游用 HAS_FASTAPI 守卫跳过路由注册
@@ -137,6 +140,55 @@ if HAS_FASTAPI and app is not None:
     async def run_eval():
         from core.eval_harness import run_evals
         return run_evals()
+
+    @app.get("/tools/score")
+    async def tools_score():
+        """全量工具健康度评分（静态 + 运行时）。
+
+        返回聚合报告：分级分布、最差 TOP5、零测试清单、每工具 4 维度分。
+        """
+        from core import tool_call_log
+        from core.tool_scorecard import save_report, score_all
+        from core.tools import get_registry
+        reg = get_registry()
+        runtime_calls = tool_call_log.group_by_tool()
+        report = score_all(reg, runtime_calls=runtime_calls)
+        save_report(report)  # 持久化
+        return report
+
+    @app.get("/tools/score/{tool_name}")
+    async def tools_score_one(tool_name: str):
+        """单工具评分详情（含运行时数据，若有）。"""
+        from core import tool_call_log
+        from core.tool_scorecard import score_tool_runtime, score_tool_static
+        from core.tools import get_registry
+        if HTTPException is None:
+            return {}
+        reg = get_registry()
+        if tool_name not in reg.tool_names:
+            raise HTTPException(status_code=404, detail=f"tool not found: {tool_name}")
+        result = score_tool_static(tool_name, reg)
+        calls = tool_call_log.load_recent(limit=500, tool_name=tool_name)
+        result["runtime"] = score_tool_runtime(tool_name, calls)
+        return result
+
+    @app.get("/tools/score/runtime/live")
+    async def tools_score_runtime():
+        """仅运行时评分（基于 tool_calls.jsonl 最近调用）。"""
+        from core import tool_call_log
+        from core.tool_scorecard import score_tool_runtime
+        grouped = tool_call_log.group_by_tool()
+        if not grouped:
+            return {"status": "no_data", "message": "tool_calls.jsonl 为空，先执行一些工具调用"}
+        results = []
+        for name, calls in grouped.items():
+            results.append(score_tool_runtime(name, calls))
+        results.sort(key=lambda x: x.get("score") if x.get("score") is not None else -1)
+        return {
+            "total_tools_with_data": len(results),
+            "total_calls": sum(c["call_count"] for c in results),
+            "tools": results,
+        }
 
     @app.get("/rag/search")
     async def rag_search(q: str = "", top_k: int = 10):

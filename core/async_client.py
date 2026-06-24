@@ -13,13 +13,13 @@
 import asyncio
 import json
 import time
-import httpx
-from typing import Any
 from collections.abc import AsyncIterator
+from typing import Any
 
-from .config import SETTINGS
+import httpx
+
 from .client import ContentPolicyError
-
+from .config import SETTINGS
 
 __all__ = ["AsyncCruxClient"]
 

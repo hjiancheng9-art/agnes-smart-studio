@@ -1,0 +1,92 @@
+# CRUX Studio CI — GitHub Actions
+# 触发: push 到 main / PR 到 main / 手动
+# 阶段: lint → test → scorecard
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# 同一分支的多次 push 只保留最新一次，取消旧的
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint (ruff + pyright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install ruff pyright
+      - run: ruff check core/ ui/ utils/ engines/ pipeline/ --config=pyproject.toml
+      - run: ruff format --check core/ ui/ utils/ engines/ pipeline/
+      - run: pyright --version
+      - run: pyright core/config.py core/version.py core/commands.py
+
+  test:
+    name: Test (pytest) ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    needs: lint
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: pip install pytest pytest-asyncio
+      - run: python -m pytest tests/ -q --tb=short --ignore=tests/manual --junitxml=test-results.xml
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.python-version }}
+          path: test-results.xml
+
+  scorecard:
+    name: Tool Scorecard
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Run scorecard + update AGENTS.md
+        run: python scripts/update_tool_count.py
+      - name: Check for changes
+        id: diff
+        run: |
+          if git diff --quiet AGENTS.md; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+      - name: Commit updated tool count
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          git config user.name "ci-bot"
+          git config user.email "ci-bot[bot]@users.noreply.github.com"
+          git add AGENTS.md output/tool_scorecard.json
+          git commit -m "ci: auto-update tool count and scorecard [skip ci]"
+          git push

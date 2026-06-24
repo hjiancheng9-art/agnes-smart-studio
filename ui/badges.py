@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ui.theme import COLORS, ICONS, LAYOUT, BADGE_ICONS, console
+from ui.theme import BADGE_ICONS, COLORS, ICONS, LAYOUT, console
 
 if TYPE_CHECKING:
     from core.chat import ChatSession
@@ -65,11 +65,11 @@ _PROVIDER_SHORT = {
 }
 
 
-def _model_label(session: "ChatSession") -> tuple[str, str]:
+def _model_label(session: ChatSession) -> tuple[str, str]:
     """Return (model display text, color). Model name + provider short (dedup)."""
     model = getattr(session, 'model', '') or 'unknown'
     try:
-        from core.provider import get_provider_name, get_model_info
+        from core.provider import get_model_info, get_provider_name
         info = get_model_info(model)
         label = (info.name if info and info.name and info.name != model else model)
         provider = get_provider_name(model)
@@ -85,7 +85,7 @@ def _model_label(session: "ChatSession") -> tuple[str, str]:
 
 # ── Core: session → badge list ────────────────────────────
 
-def session_badges(session: "ChatSession | None") -> list[Badge]:
+def session_badges(session: ChatSession | None) -> list[Badge]:
     """Generate ordered badge list from session state.
 
     Fixed order: mode(code/agent) → think → skill → model/provider.
@@ -129,7 +129,7 @@ def session_badges(session: "ChatSession | None") -> list[Badge]:
 
 # ── Render entry points ───────────────────────────────────
 
-def render_badge_line(session: "ChatSession | None", *, dim: bool = True) -> str:
+def render_badge_line(session: ChatSession | None, *, dim: bool = True) -> str:
     """Return full badge line as Rich markup string (for console.print).
 
     Segments separated by badge_separator, overall optionally dimmed.
@@ -141,7 +141,7 @@ def render_badge_line(session: "ChatSession | None", *, dim: bool = True) -> str
     return sep.join(b.render(dim=dim) for b in badges)
 
 
-def render_badge_plain(session: "ChatSession | None") -> str:
+def render_badge_plain(session: ChatSession | None) -> str:
     """Return plain-text badge line (for prompt_toolkit input prompt).
 
     prompt_toolkit doesn't parse Rich markup, giving it Rich tags would
@@ -155,7 +155,7 @@ def render_badge_plain(session: "ChatSession | None") -> str:
     return sep.join(f"{b.icon} {b.text}" for b in badges)
 
 
-def print_reply_header(session: "ChatSession | None") -> None:
+def print_reply_header(session: ChatSession | None) -> None:
     """Print dim badge line above each AI reply.
 
     Called before StreamingRenderer.start() — no transient Live preview,
@@ -166,7 +166,7 @@ def print_reply_header(session: "ChatSession | None") -> None:
         console.print(line)
 
 
-def print_mode_banner(session: "ChatSession | None") -> None:
+def print_mode_banner(session: ChatSession | None) -> None:
     """Print prominent badge banner on mode switch (non-dim).
 
     Lets user see new state immediately after toggle / load_skill / switch_model.

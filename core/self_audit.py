@@ -3,8 +3,9 @@ import json
 import re
 from pathlib import Path
 
-from core.pytest_runner import run_pytest_safe, parse_test_summary
 from rich.rule import Rule
+
+from core.pytest_runner import parse_test_summary, run_pytest_safe
 
 __all__ = ["AuditEngine", "ROOT", "audit"]
 ROOT = Path(__file__).resolve().parent.parent

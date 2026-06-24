@@ -2,12 +2,12 @@
 
 import json
 import time
-import httpx
-from typing import Any
 from collections.abc import Iterator
+from typing import Any
+
+import httpx
 
 from .config import SETTINGS
-
 
 __all__ = ["CruxClient", "ContentPolicyError"]
 class ContentPolicyError(Exception):
@@ -274,7 +274,7 @@ class CruxClient:
         extra_body: dict | None = None,
     ) -> dict:
         """创建视频任务 POST /v1/videos
-        
+
         单图视频：image 放在请求体顶层。
         多图/关键帧：通过 extra_body 传入 image 和 mode（嵌套格式）。
         """

@@ -13,8 +13,8 @@ Format:
 Operations: add_file, delete_file, update_file (with one or more hunks)
 """
 
-from pathlib import Path
 import contextlib
+from pathlib import Path
 
 __all__ = ['PatchEngine', 'PatchError', 'ROOT', 'apply', 'rollback_last']
 

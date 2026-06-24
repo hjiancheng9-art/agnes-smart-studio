@@ -68,8 +68,8 @@ def audit_deps() -> tuple[bool, str]:
     try:
         import httpx  # noqa: F401
         import rich  # noqa: F401
-        from PIL import Image  # noqa: F401
         from dotenv import load_dotenv  # noqa: F401
+        from PIL import Image  # noqa: F401
     except ImportError as exc:
         return False, f"Missing dependency: {exc.name}"
     return True, "All dependencies installed"

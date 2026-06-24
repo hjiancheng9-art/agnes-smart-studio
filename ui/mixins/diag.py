@@ -1,7 +1,7 @@
 """诊断配置命令 Mixin：自诊断/审计/规范/自动化/供应商/进化/知识库/模型切换。"""
 
-import os
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -11,14 +11,15 @@ from rich.table import Table
 
 # 项目根目录：diag.py 在 ui/mixins/ 下，往上两级是项目根
 _DIAG_ROOT = Path(__file__).resolve().parent.parent.parent
+import contextlib
+
 from rich.prompt import Prompt
 
 from core.client import CruxClient
-from utils import memory
-from ui.theme import COLORS, ICONS, LAYOUT, console
-from ui.display import (show_warning, show_success, show_info)
 from ui.badges import print_mode_banner
-import contextlib
+from ui.display import show_info, show_success, show_warning
+from ui.theme import COLORS, console
+from utils import memory
 
 if TYPE_CHECKING:
     from core.chat import ChatSession
@@ -42,7 +43,7 @@ class DiagCommandsMixin:
             /self health — 检测 API Key / Python版本 / 依赖 / 使用统计
             /self fix    — 将 core/engines 源码喂给 AI，让 AI 分析问题并提出修复方案
         """
-        from core.audit_runner import audit_syntax, project_tree_data, health_checks, collect_source_snippets
+        from core.audit_runner import audit_syntax, collect_source_snippets, health_checks, project_tree_data
 
         arg = arg.strip()
 
@@ -208,8 +209,8 @@ class DiagCommandsMixin:
 
     def _chat_automate(self, session: "ChatSession", arg: str):
         """管理自动化定时任务 (list|add <描述> <cron>|remove)"""
-        import os
         import json
+        import os
         from datetime import datetime
         automations_dir = os.path.join(_DIAG_ROOT, "output", "automations")
         os.makedirs(automations_dir, exist_ok=True)
@@ -354,10 +355,7 @@ class DiagCommandsMixin:
 
     def _chat_knowledge(self, session: "ChatSession", arg: str):
         """浏览内置知识库 /know [methods|templates|moves|antipatterns|sweetspot]"""
-        from core.brain import (
-            THINKING_METHOD_MAP, SWEET_SPOT_TEMPLATES,
-            ANTI_PATTERN_MAP, CREATIVE_DOMAIN_MAP
-        )
+        from core.brain import ANTI_PATTERN_MAP, CREATIVE_DOMAIN_MAP, SWEET_SPOT_TEMPLATES, THINKING_METHOD_MAP
         arg = arg.strip()
 
         if not arg or arg == "list":
@@ -760,7 +758,7 @@ class DiagCommandsMixin:
         json：输出 JSON 格式报告（适合 CI/CD 集成）
         """
         try:
-            from core.eval_harness import EvalEngine, BENCHMARKS
+            from core.eval_harness import BENCHMARKS, EvalEngine
         except ImportError:
             show_warning("eval_harness 模块不可用")
             return
@@ -816,7 +814,10 @@ class DiagCommandsMixin:
         """
         try:
             from core.cost_tracker import (
-                get_summary, get_daily_breakdown, set_budget, reset_cost,
+                get_daily_breakdown,
+                get_summary,
+                reset_cost,
+                set_budget,
             )
         except ImportError:
             show_warning("cost_tracker 模块不可用")
@@ -986,7 +987,7 @@ class DiagCommandsMixin:
                 show_warning(result["error"])
             else:
                 show_success(f"已注册 MCP 服务器 [bold]{name}[/]（命令: {command} {' '.join(cmd_args)}）")
-                console.print("  [dim]用 /mcp connect {name} 启动连接[/]".format(name=name))
+                console.print(f"  [dim]用 /mcp connect {name} 启动连接[/]")
             return
 
         # ── remove：移除服务器 ──
@@ -1039,7 +1040,7 @@ class DiagCommandsMixin:
             tools = client.list_tools(name)
             if tools and "error" in tools[0]:
                 show_warning(tools[0]["error"])
-                console.print("  [dim]可能需要先 /mcp connect {name}[/]".format(name=name))
+                console.print(f"  [dim]可能需要先 /mcp connect {name}[/]")
                 return
             if not tools:
                 show_info(f"{name} 没有暴露任何工具")

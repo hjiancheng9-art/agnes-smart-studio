@@ -14,14 +14,13 @@
     "pipeline" - 一键流视频管道工具（Showrunner 专用）
 """
 
+import importlib
 import json
 import subprocess
-import importlib
 import threading
 from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
-
 
 TOOLS_CONFIG = Path(__file__).parent.parent / "tools.json"
 
@@ -37,7 +36,7 @@ _pipeline_tools_enabled = False
 
 
 __all__ = [
-    "AGENT_SYSTEM_PROMPT", "AUDIO_TOOL_DEFS", "BUILTIN_TOOLS", "BROWSER_TOOL_DEFS", "COMFYUI_TOOL_DEFS", "NOTEBOOK_TOOL_DEFS", "PIPELINE_TOOL_DEFS", "TOOLS_CONFIG", "ToolRegistry", "disable_pipeline_tools", "enable_pipeline_tools", "get_registry", "reload_registry",
+    "AGENT_SYSTEM_PROMPT", "AUDIO_TOOL_DEFS", "BUILTIN_TOOLS", "BROWSER_TOOL_DEFS", "COMFYUI_TOOL_DEFS", "NOTEBOOK_TOOL_DEFS", "PIPELINE_TOOL_DEFS", "GIT_WORKFLOW_TOOL_DEFS", "TOOLS_CONFIG", "ToolRegistry", "disable_pipeline_tools", "enable_pipeline_tools", "get_registry", "reload_registry",
 ]
 
 
@@ -614,7 +613,7 @@ class ToolRegistry:
 
         # ── Browser Companion 网页生成工具 ──
         if browser:
-            from core.browser_tools import BROWSER_TOOL_DEFS, BROWSER_EXECUTOR_MAP
+            from core.browser_tools import BROWSER_EXECUTOR_MAP, BROWSER_TOOL_DEFS
             self._definitions.extend(BROWSER_TOOL_DEFS)
             for name, executor in BROWSER_EXECUTOR_MAP.items():
                 self._executors[name] = executor
@@ -622,7 +621,7 @@ class ToolRegistry:
 
         # ── Notebook (.ipynb) 工具 ──
         if notebook:
-            from core.notebook import NOTEBOOK_TOOL_DEFS, NOTEBOOK_EXECUTOR_MAP
+            from core.notebook import NOTEBOOK_EXECUTOR_MAP, NOTEBOOK_TOOL_DEFS
             self._definitions.extend(NOTEBOOK_TOOL_DEFS)
             for name, executor in NOTEBOOK_EXECUTOR_MAP.items():
                 self._executors[name] = executor
@@ -630,11 +629,22 @@ class ToolRegistry:
 
         # ── 音频工具（TTS/BGM/SFX/混音）──
         if audio:
-            from core.audio_tools import AUDIO_TOOL_DEFS, AUDIO_EXECUTOR_MAP
+            from core.audio_tools import AUDIO_EXECUTOR_MAP, AUDIO_TOOL_DEFS
             self._definitions.extend(AUDIO_TOOL_DEFS)
             for name, executor in AUDIO_EXECUTOR_MAP.items():
                 self._executors[name] = executor
                 self._tool_modules[name] = "core.audio_tools"
+
+        # ── Git 工作流工具 (P-2: 常驻加载, 不需要 toggle) ──
+        # branch / push / pull / pr / stash / tag / worktree / conflict_check
+        # 与 tools.json 中 git_status/diff/log/add_commit 互补,不重名。
+        # 注入后 _HIGH_RISK_TOOLS 确认门对 git_push/pr_create/pr_merge/tag 真正生效。
+        from core.git_tools import GIT_WORKFLOW_EXECUTOR_MAP
+        from core.git_tools import GIT_WORKFLOW_TOOL_DEFS as _GIT_WF_DEFS
+        self._definitions.extend(_GIT_WF_DEFS)
+        for name, executor in GIT_WORKFLOW_EXECUTOR_MAP.items():
+            self._executors[name] = executor
+            self._tool_modules[name] = "core.git_tools"
 
         # ── MCP Client 桥接工具（四象融合）──
         # 注入 mcp_list_servers / mcp_list_tools / mcp_call_tool / mcp_read_resource，
@@ -642,7 +652,7 @@ class ToolRegistry:
         # 远程 server 通过 `crux mcp add <name> -- <command>` 配置，
         # executor 自带 auto-connect（首次调用时自动启动子进程握手）。
         if mcp:
-            from core.mcp_client import MCP_TOOL_DEFS, MCP_EXECUTOR_MAP
+            from core.mcp_client import MCP_EXECUTOR_MAP, MCP_TOOL_DEFS
             self._definitions.extend(MCP_TOOL_DEFS)
             for name, executor in MCP_EXECUTOR_MAP.items():
                 self._executors[name] = executor
@@ -658,6 +668,12 @@ class ToolRegistry:
 
         for tool_cfg in config.get("tools", []):
             name = tool_cfg.get("name", "")
+
+            # P-4 去重：如果同名工具已由 toggle/内置加载（如 comfyui_*），跳过
+            # 避免工具定义中出现重复条目导致 LLM 看到重复工具。
+            if name in self._executors:
+                continue
+
             desc = tool_cfg.get("description", name)
             params = tool_cfg.get("parameters", {})
             properties = {}
@@ -842,9 +858,16 @@ class ToolRegistry:
         - 执行异常 → ErrorClassifier 分类 + 恢复建议（而非裸 raise）
         """
         try:
-            from core.observability import TraceContext, metrics as _m
+            from core.observability import TraceContext
+            from core.observability import metrics as _m
         except ImportError:
             _m = None  # observability 不可用时静默降级
+
+        # 调用日志（可选，失败时静默降级）
+        try:
+            from core.tool_call_log import log_call as _log_call
+        except ImportError:
+            _log_call = None
 
         executor = self._executors.get(name)
         if not executor:
@@ -853,6 +876,9 @@ class ToolRegistry:
             if _m:
                 _m.increment("tool_errors")
                 _m.increment("tool_suggestion_given")
+                _m.increment(f"tool_err.{name}")  # 按名分桶
+            if _log_call:
+                _log_call(name, "unknown_tool", 0.0, args)
             if suggestion:
                 return f"[错误] 未知工具: {name}。你是否想用: {suggestion}？请检查工具名后重试。"
             return f"[错误] 未知工具: {name}。请检查工具名后重试。"
@@ -863,21 +889,33 @@ class ToolRegistry:
             if _m:
                 _m.increment("tool_errors")
                 _m.increment("tool_arg_validation_failed")
+                _m.increment(f"tool_err.{name}")               # 按名分桶
+                _m.increment(f"tool_arg_fail.{name}")           # 参数失败单独计数
+            if _log_call:
+                _log_call(name, "arg_validation_failed", 0.0, args)
             return detail
 
         try:
             ctx = TraceContext("registry_execute", tool_name=name) if _m else _noop_cm()
             with ctx as span:
                 result = executor(**args)
+                elapsed_ms = span.duration_ms() if span is not None else 0.0
                 if _m and span is not None:
                     span.set_attribute("result_chars", len(str(result)))
                     _m.increment("tool_executions")
-                    _m.timing("tool_execute_ms", span.duration_ms())
+                    _m.timing("tool_execute_ms", elapsed_ms)
+                    _m.increment(f"tool_exec.{name}")           # 按名分桶
+                    _m.timing(f"tool_ms.{name}", elapsed_ms)    # 按名耗时
+            if _log_call:
+                _log_call(name, "ok", elapsed_ms, args)
             return str(result)
         except (RuntimeError, OSError, ValueError, TypeError) as e:
             # NEW (#4): 错误分类 + 恢复建议（让模型自我修正，而非裸 raise）
             if _m:
                 _m.increment("tool_errors")
+                _m.increment(f"tool_err.{name}")                # 按名分桶
+            if _log_call:
+                _log_call(name, "exception", 0.0, args)
             try:
                 from core.resilience import ErrorClassifier
                 etype = ErrorClassifier.classify(e)
@@ -892,6 +930,9 @@ class ToolRegistry:
         except Exception as e:
             if _m:
                 _m.increment("tool_errors")
+                _m.increment(f"tool_err.{name}")                # 按名分桶
+            if _log_call:
+                _log_call(name, "exception", 0.0, args)
             return f"[错误] 工具 '{name}' 执行失败: {e}"
 
 

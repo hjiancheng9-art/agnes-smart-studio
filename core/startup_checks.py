@@ -24,7 +24,7 @@ __all__ = [
 ROOT = Path(__file__).resolve().parent.parent
 
 # ── Rich theme (single source of truth) ──────────────────────────
-from ui.theme import COLORS, ICONS, LAYOUT, console
+from ui.theme import COLORS, console
 
 _results: list[tuple[str, bool, str]] = []
 
@@ -65,8 +65,9 @@ def _check_provider_liveness():
     Falls back silently on failure; does not block startup.
     """
     try:
-        from core.provider import get_provider_manager
         import httpx
+
+        from core.provider import get_provider_manager
     except ImportError as e:
         _add("provider", False, f"Import error: {e}")
         return
@@ -115,6 +116,7 @@ def wait_for_provider(base_url: str, timeout: float = 60.0,
     Returns: (ok, message)
     """
     import time
+
     import httpx
 
     url = base_url.rstrip("/") + "/models"
@@ -311,8 +313,9 @@ def _check_tools_config():
 
 def _check_api_connectivity():
     """Quick check that the CRUX API is reachable."""
-    from core.config import SETTINGS
     import httpx
+
+    from core.config import SETTINGS
 
     try:
         r = httpx.get(

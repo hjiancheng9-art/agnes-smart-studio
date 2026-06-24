@@ -3,7 +3,6 @@
 import base64
 from pathlib import Path
 
-
 __all__ = ['clipboard_to_data_uri', 'file_to_data_uri', 'load_image_as_url_or_data']
 
 

@@ -29,9 +29,9 @@ from __future__ import annotations
 import json
 import random
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 __all__ = [
     "PromptLab",
@@ -72,7 +72,7 @@ class Outcome:
 _PROMPT_LAB_DIR = Path(__file__).resolve().parent.parent / "core" / "brain_data"
 _VARIANTS_FILE = _PROMPT_LAB_DIR / "prompt_lab_variants.json"
 _OUTCOMES_FILE = _PROMPT_LAB_DIR / "prompt_lab_outcomes.jsonl"
-_PROMPT_LAB_INSTANCE: Optional["PromptLab"] = None
+_PROMPT_LAB_INSTANCE: PromptLab | None = None
 
 
 class PromptLab:
@@ -84,7 +84,7 @@ class PromptLab:
     def __init__(self) -> None:
         self._variants: dict[str, Variant] = {}
         self._outcomes: list[Outcome] = []
-        self._current_variant_id: Optional[str] = None
+        self._current_variant_id: str | None = None
         self._session_tool_error_count: int = 0
         self._session_tool_call_count: int = 0
         self._load()
@@ -126,7 +126,7 @@ class PromptLab:
             variants = [v for v in variants if v.is_active]
         return variants
 
-    def get_variant(self, variant_id: str) -> Optional[Variant]:
+    def get_variant(self, variant_id: str) -> Variant | None:
         """按 ID 获取变体。"""
         return self._variants.get(variant_id)
 
@@ -161,7 +161,7 @@ class PromptLab:
 
     # ── 分配逻辑 ────────────────────────────────────────────────
 
-    def assign_variant(self, variant_id: Optional[str] = None) -> Optional[Variant]:
+    def assign_variant(self, variant_id: str | None = None) -> Variant | None:
         """分配当前会话使用的变体。
 
         - variant_id 指定时：强制分配
@@ -198,7 +198,7 @@ class PromptLab:
         return chosen
 
     @property
-    def current_variant(self) -> Optional[Variant]:
+    def current_variant(self) -> Variant | None:
         """当前会话的变体。"""
         if self._current_variant_id:
             return self._variants.get(self._current_variant_id)
@@ -259,7 +259,7 @@ class PromptLab:
 
     # ── 统计 ────────────────────────────────────────────────────
 
-    def stats(self, variant_id: Optional[str] = None) -> dict[str, Any]:
+    def stats(self, variant_id: str | None = None) -> dict[str, Any]:
         """按变体汇总统计。variant_id=None 时返回所有变体。"""
         if variant_id:
             vid_filter = {variant_id}

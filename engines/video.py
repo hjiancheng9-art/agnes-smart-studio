@@ -1,15 +1,21 @@
 """视频生成引擎 - 4种模式 + 异步轮询 + 进度防回退 + 双通道查询"""
 import asyncio
+import contextlib
 import threading
 from datetime import datetime
 
 import httpx
 
-from core.client import CruxClient
 from core.async_client import AsyncCruxClient
+from core.client import CruxClient
 from core.config import OUTPUT_DIR, SETTINGS
-from core.validator import validate_num_frames, validate_frame_rate, validate_seed, validate_image_urls, validate_video_resolution
-import contextlib
+from core.validator import (
+    validate_frame_rate,
+    validate_image_urls,
+    validate_num_frames,
+    validate_seed,
+    validate_video_resolution,
+)
 
 __all__ = ['VideoEngine', 'VideoFuture', 'AsyncVideoEngine', 'AsyncVideoFuture']
 

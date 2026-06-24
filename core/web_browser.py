@@ -13,8 +13,8 @@ Uses Playwright (already installed for browser_tools.py).
 Falls back gracefully if Playwright is not available.
 """
 
-import json
 import contextlib
+import json
 
 __all__ = [
     'BROWSER_GENERAL_EXECUTOR_MAP', 'BROWSER_GENERAL_TOOL_DEFS', 'execute_browser_click', 'execute_browser_close', 'execute_browser_extract', 'execute_browser_fill', 'execute_browser_navigate', 'execute_browser_screenshot', 'execute_browser_scroll', 'execute_browser_wait_for',
@@ -133,6 +133,7 @@ def execute_browser_screenshot(filename: str = "", full_page: bool = False) -> s
         page = _get_browser()
         if not filename:
             from datetime import datetime
+
             from core.config import OUTPUT_DIR
             filename = f"screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
             save_path = str(OUTPUT_DIR / "images" / filename)

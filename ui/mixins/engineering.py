@@ -6,13 +6,13 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from rich.panel import Panel
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Confirm, Prompt
 
-from ui.theme import COLORS, ICONS, LAYOUT, console
-from ui.display import show_info, show_success, show_warning, show_error
-from ui.render import StreamingRenderer
+from core.router import apply, route_command
 from ui.badges import print_reply_header, print_route_reason
-from core.router import route_command, resolve, apply
+from ui.display import show_error, show_info, show_success, show_warning
+from ui.render import StreamingRenderer
+from ui.theme import console
 
 if TYPE_CHECKING:
     from core.chat import ChatSession
@@ -113,7 +113,7 @@ class EngineeringCommandsMixin:
 
     def _chat_project(self, session: "ChatSession", arg: str):
         """项目管理 /project [new|list|save|load|analyze] [name]"""
-        from core.project import Project, PROJECTS_DIR
+        from core.project import PROJECTS_DIR, Project
         arg = arg.strip()
 
         if arg.startswith("new ") or not arg:
@@ -181,7 +181,7 @@ class EngineeringCommandsMixin:
 
     def _chat_team(self, session: "ChatSession", arg: str):
         """启动智能体团队 /team [review|debug|feature] [上下文]"""
-        from core.project import run_team, TEAM_CONFIGS
+        from core.project import TEAM_CONFIGS, run_team
         parts = arg.strip().split(" ", 1)
         team_type = parts[0] if parts and parts[0] in ("review", "debug", "feature") else "review"
         context = parts[1] if len(parts) > 1 else ""
@@ -205,7 +205,7 @@ class EngineeringCommandsMixin:
 
     def _chat_deploy(self, session: "ChatSession", arg: str):
         """一键部署 /deploy [vercel|netlify|github] [path]"""
-        from core.project import deploy_to_vercel, deploy_to_netlify, deploy_to_github_pages
+        from core.project import deploy_to_github_pages, deploy_to_netlify, deploy_to_vercel
         parts = arg.strip().split(" ", 1)
         target = parts[0].lower() if parts else "vercel"
         path = parts[1] if len(parts) > 1 else os.getcwd()

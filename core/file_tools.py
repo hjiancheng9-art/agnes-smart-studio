@@ -4,13 +4,13 @@ These functions are called directly by the python-type tool executor,
 avoiding shell escaping issues with triple-quotes and special characters.
 """
 
+import contextlib
 import ipaddress
 import os
 import re
 import socket
 from pathlib import Path
 from urllib.parse import urlparse
-import contextlib
 
 import httpx
 
@@ -111,8 +111,8 @@ def search_files(pattern: str) -> str:
     Returns:
         Formatted results with file:line:content, or error message
     """
-    import re
     import os
+    import re
     from pathlib import Path
     _ROOT = Path(__file__).parent.parent
     TEXT_EXTS = {'.py', '.md', '.json', '.js', '.ts', '.html', '.css',
@@ -156,7 +156,6 @@ def list_files(path: str = ".") -> str:
     Returns:
         Formatted listing with file sizes
     """
-    from pathlib import Path
     try:
         p = _safe_path(path, read_only=True)
     except ValueError as e:
@@ -286,8 +285,9 @@ def think_deep(prompt: str, max_tokens: int = 2000) -> str:
     """Use local LLM (llama-server on :8080) for heavy reasoning.
     Auto-detects model name from /v1/models. Returns text or error.
     """
-    import httpx
     import json
+
+    import httpx
 
     LLAMA_BASE = "http://127.0.0.1:8080"
     LLAMA_TIMEOUT = 300
@@ -394,29 +394,45 @@ for _d in _DANGEROUS:
             Path(tmp_path).unlink(missing_ok=True)
 
 
-def count_lines() -> str:
-    """Count lines of code by file extension in the current project.
+def count_lines(path: str = "") -> str:
+    """Count lines of code by file extension.
+
+    Args:
+        path: Optional directory or file to count. Empty = project root (.).
 
     Returns:
         Formatted table of extension, lines, and file counts
     """
     from collections import defaultdict
 
+    target_dir = path if path else "."
     stats = defaultdict(lambda: [0, 0])
-    for r, _d, fs in os.walk("."):
-        if ".git" in r or "__pycache__" in r or ".codebuddy" in r:
-            continue
-        for f in fs:
-            ext = os.path.splitext(f)[1]
-            if not ext:
-                continue
-            try:
-                with open(os.path.join(r, f), encoding="utf-8", errors="replace") as fh:
-                    n = sum(1 for _ in fh)
+
+    if os.path.isfile(target_dir):
+        ext = os.path.splitext(target_dir)[1]
+        try:
+            with open(target_dir, encoding="utf-8", errors="replace") as fh:
+                n = sum(1 for _ in fh)
+            if ext:
                 stats[ext][0] += 1
                 stats[ext][1] += n
-            except (OSError, PermissionError):
-                pass
+        except (OSError, PermissionError):
+            pass
+    else:
+        for r, _d, fs in os.walk(target_dir):
+            if ".git" in r or "__pycache__" in r or ".codebuddy" in r:
+                continue
+            for f in fs:
+                ext = os.path.splitext(f)[1]
+                if not ext:
+                    continue
+                try:
+                    with open(os.path.join(r, f), encoding="utf-8", errors="replace") as fh:
+                        n = sum(1 for _ in fh)
+                    stats[ext][0] += 1
+                    stats[ext][1] += n
+                except (OSError, PermissionError):
+                    pass
 
     target = {".py", ".js", ".ts", ".jsx", ".tsx", ".html", ".css",
               ".md", ".json", ".toml", ".yaml", ".yml", ".sh", ".bat"}

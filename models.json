@@ -38,7 +38,7 @@
       }
     }
   },
-  "active": "crux",
+  "active": "deepseek",
   "fallback": {
     "enabled": true,
     "priority": [

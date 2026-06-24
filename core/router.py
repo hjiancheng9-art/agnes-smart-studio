@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -196,7 +196,7 @@ _CODE_BLOCK_RE = re.compile(
 _LONG_TEXT_THRESHOLD = 500
 
 
-def classify(text: str, session: "ChatSession | None" = None) -> TaskProfile:
+def classify(text: str, session: ChatSession | None = None) -> TaskProfile:
     """分析自然语言文本，返回任务画像。
 
     纯规则 + 启发式，不调 LLM，零延迟零成本。
@@ -271,7 +271,7 @@ def classify(text: str, session: "ChatSession | None" = None) -> TaskProfile:
 
 # ── 路由决策合成 ───────────────────────────────────────────
 
-def route_command(cmd_key: str, arg: str, session: "ChatSession | None") -> RouteDecision:
+def route_command(cmd_key: str, arg: str, session: ChatSession | None) -> RouteDecision:
     """命令级路由：查静态表。
 
     未在表中的命令 → SKIP（不干预）。
@@ -289,7 +289,7 @@ def route_command(cmd_key: str, arg: str, session: "ChatSession | None") -> Rout
     return RouteDecision(profile=profile, model_id=model_id, reason=reason)
 
 
-def resolve(profile: TaskProfile | str, session: "ChatSession | None") -> RouteDecision:
+def resolve(profile: TaskProfile | str, session: ChatSession | None) -> RouteDecision:
     """将 TaskProfile 解析为具体的 RouteDecision。
 
     考虑当前模型是否已经匹配（避免无意义的切换）。
@@ -325,7 +325,7 @@ def resolve(profile: TaskProfile | str, session: "ChatSession | None") -> RouteD
     return RouteDecision(profile=profile, model_id=target_model, reason=reason)
 
 
-def apply(decision: RouteDecision, session: "ChatSession") -> None:
+def apply(decision: RouteDecision, session: ChatSession) -> None:
     """执行路由决策：改 session.model、必要时切 session.client、刷新 system prompt。
 
     不改 toggle_agent_mode / load_skill 的确定性选择——只在 route() 流程中调用。
@@ -393,7 +393,7 @@ def apply(decision: RouteDecision, session: "ChatSession") -> None:
 
 # ── 顶层统一入口 ──────────────────────────────────────────
 
-def route(text: str, session: "ChatSession") -> RouteDecision:
+def route(text: str, session: ChatSession) -> RouteDecision:
     """顶层路由入口。
 
     自动判断 text 是自然语言还是斜杠命令，分别走 classify / route_command，

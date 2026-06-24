@@ -4,18 +4,26 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
-from rich.prompt import Prompt, Confirm
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
+from rich.prompt import Confirm, Prompt
+
+from ui.display import (
+    show_history_table,
+    show_image_result,
+    show_info,
+    show_pipeline_result,
+    show_success,
+    show_templates_list,
+    show_video_result,
+    show_warning,
+)
+from ui.theme import LAYOUT, console
 from utils import history, image_input
-from ui.theme import COLORS, ICONS, LAYOUT, console
-from ui.display import (show_image_result, show_video_result,
-                         show_pipeline_result, show_warning, show_success, show_info,
-                         show_history_table, show_templates_list)
 
 if TYPE_CHECKING:
     from core.brain import SmartBrain
-    from engines.text_to_image import TextToImageEngine
     from engines.image_to_image import ImageToImageEngine
+    from engines.text_to_image import TextToImageEngine
     from engines.video import VideoEngine
     from pipeline.workflows import PipelineOrchestrator
 

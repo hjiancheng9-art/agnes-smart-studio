@@ -8,9 +8,9 @@ and saving Jupyter notebooks programmatically.
 """
 
 import json
+import os
 import subprocess
 import sys
-import os
 from dataclasses import dataclass, field
 
 __all__ = [

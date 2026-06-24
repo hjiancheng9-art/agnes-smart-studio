@@ -4,13 +4,13 @@ All colors, icons, and layout params are imported from ui.theme (single source o
 This module provides the show_* function API that the rest of the codebase consumes.
 """
 
+import os
+import platform
+import subprocess
+
+from rich.box import ROUNDED
 from rich.panel import Panel
 from rich.table import Table
-from rich.box import ROUNDED
-
-import os
-import subprocess
-import platform
 
 from ui.theme import COLORS, ICONS, LAYOUT, console  # noqa: F401 — re-exported
 
@@ -132,7 +132,7 @@ def show_image_result(data: dict):
     if data.get("prompt"):
         items.append(f"[bold][{COLORS['primary']}]{ICONS['primary']}[/] Prompt:[/] {data['prompt'][:80]}...")
     if path:
-        items.append(f"\n[dim]  /open preview | /outputs all | say \"modify xxx\" to regenerate[/]")
+        items.append("\n[dim]  /open preview | /outputs all | say \"modify xxx\" to regenerate[/]")
 
     console.print(Panel(
         "\n".join(items),
@@ -164,7 +164,7 @@ def show_video_result(data: dict):
     if data.get("task_id"):
         items.append(f"[dim]{ICONS['primary']} Task ID: {data['task_id']}[/]")
     if path:
-        items.append(f"\n[dim]  /open preview | /outputs all | say \"modify xxx\" to regenerate[/]")
+        items.append("\n[dim]  /open preview | /outputs all | say \"modify xxx\" to regenerate[/]")
 
     console.print(Panel(
         "\n".join(items),

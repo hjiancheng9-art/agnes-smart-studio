@@ -1,15 +1,15 @@
 """Provider selection & activation — extracted from ui/cli.py"""
 
-import os
+import contextlib
 import json
+import os
 from pathlib import Path
 
-from rich.table import Table
 from rich.prompt import Prompt
+from rich.table import Table
 
-from ui.theme import COLORS, ICONS, LAYOUT, console
 from ui.display import show_info, show_success, show_warning
-import contextlib
+from ui.theme import COLORS, console
 
 __all__ = ['ProviderSelector']
 

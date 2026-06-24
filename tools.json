@@ -510,9 +510,15 @@
     {
       "name": "count_lines",
       "type": "python",
-      "description": "统计项目代码行数，按文件类型分类。返回格式: .py XXXX lines in NN files",
+      "description": "统计代码行数，按文件类型分类。返回格式: .py XXXX lines in NN files。默认扫描项目根目录，可指定子目录或单个文件缩小范围。",
       "function": "core.file_tools.count_lines",
-      "parameters": {}
+      "parameters": {
+        "path": {
+          "type": "string",
+          "description": "目录或文件路径（空=项目根目录 .）",
+          "required": false
+        }
+      }
     },
     {
       "name": "env_check",

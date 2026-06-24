@@ -14,8 +14,8 @@ import json
 import math
 import re
 import time
-from pathlib import Path
 from collections import Counter
+from pathlib import Path
 
 __all__ = [
     'INDEX_FILE', 'RAGEngine', 'ROOT', 'index_codebase', 'semantic_search',

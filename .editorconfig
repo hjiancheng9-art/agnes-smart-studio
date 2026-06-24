@@ -1,0 +1,45 @@
+# https://editorconfig.org
+root = true
+
+# 默认规则
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Python
+[*.py]
+max_line_length = 120
+
+# Windows 脚本
+[*.{bat,cmd}]
+end_of_line = crlf
+
+# YAML / JSON / TOML
+[*.{yml,yaml}]
+indent_size = 2
+
+[*.json]
+indent_size = 2
+
+[*.{toml,cfg,ini}]
+indent_size = 4
+
+# Markdown — 不去尾部空格（语义换行需要）
+[*.md]
+trim_trailing_whitespace = false
+
+# Makefile 必须用 tab
+[Makefile]
+indent_style = tab
+
+# Shell 脚本
+[*.sh]
+indent_size = 4
+
+# Dockerfile
+[Dockerfile]
+indent_size = 4

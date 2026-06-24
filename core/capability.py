@@ -143,7 +143,6 @@ class CapabilityRegistry:
         return {"count": len(items), "items": items}
 
     def _check_env(self) -> dict:
-        import sys
         from core.config import SETTINGS
 
         return {
@@ -169,7 +168,7 @@ class CapabilityRegistry:
         # → 显示 "0 passed, 0 failed" 被误读成"没问题"，是假自检。
         # 现改为只跑渲染契约 + chat 核心（<2s），且 parse 有点号 fallback。
         try:
-            from core.pytest_runner import run_pytest_safe, parse_test_summary
+            from core.pytest_runner import parse_test_summary, run_pytest_safe
             r = run_pytest_safe(
                 test_target="tests/test_render.py tests/test_chat.py",
                 timeout=15, cwd=self.root,
@@ -184,6 +183,7 @@ class CapabilityRegistry:
         # 而非写死 True（否则 renderer 被删/被改时自检仍撒谎）。
         try:
             from rich.console import Console as _C
+
             from ui.render import StreamingRenderer as _SR
             _probe = _SR(_C())  # 真构造，触发真实配置路径
             live = _probe._new_live("")
@@ -203,8 +203,9 @@ class CapabilityRegistry:
 
         # ── local_llm_health: 真反射探测本地 llama.cpp ──
         try:
-            import httpx
             import time
+
+            import httpx
             endpoint = "http://127.0.0.1:8080/v1/models"
             t0 = time.time()
             r = httpx.get(endpoint, timeout=3.0, trust_env=False)

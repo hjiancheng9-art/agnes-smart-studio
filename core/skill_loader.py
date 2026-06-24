@@ -167,7 +167,7 @@ class AgnetaSkillSystem:
         text_lower = task_hint.lower()
         creative_score = sum(1 for kw in creative_keywords if kw in text_lower)
         eng_score = sum(1 for kw in engineering_keywords if kw in text_lower)
-        
+
         if creative_score > eng_score * 2:
             return "creative"
         elif eng_score > creative_score * 2:

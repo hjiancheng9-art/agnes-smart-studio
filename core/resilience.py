@@ -10,9 +10,9 @@ Provides:
 import json
 import time
 import traceback
+from collections.abc import Callable
 from enum import Enum
 from typing import Any
-from collections.abc import Callable
 
 from core.config import OUTPUT_DIR
 

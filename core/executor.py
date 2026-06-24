@@ -23,9 +23,9 @@ from __future__ import annotations
 import asyncio
 import inspect
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from collections.abc import Callable
 
 __all__ = [
     'ROOT', 'Step', 'Task', 'TaskExecutor', 'AsyncTaskExecutor',
@@ -341,7 +341,7 @@ def quick_plan(goal: str) -> Task:
     """Generate a simple plan for common task patterns (no LLM needed)."""
     goal_lower = goal.lower()
     steps = []
-    
+
     # Pattern: fix bug
     if "fix" in goal_lower or "bug" in goal_lower or "repair" in goal_lower:
         steps = [
@@ -356,7 +356,7 @@ def quick_plan(goal: str) -> Task:
             Step("4_verify", "Verify syntax", "env_check", {},
                  verify="syntax", depends_on=["3_fix"]),
         ]
-    
+
     # Pattern: audit / check
     if "audit" in goal_lower or "check" in goal_lower or "scan" in goal_lower:
         steps = [
@@ -364,21 +364,21 @@ def quick_plan(goal: str) -> Task:
             Step("2_tests", "Run tests", "run_test", {},
                  verify="test", depends_on=["1_audit"]),
         ]
-    
+
     # Pattern: test
     if "test" in goal_lower:
         steps = [
             Step("1_test", "Run test suite", "run_test", {},
                  verify="test"),
         ]
-    
+
     if not steps:
         steps = [
             Step("1_understand", "Analyze the goal", "read_file",
                  {"path": "README.md"}),
             Step("2_verify", "Verify environment", "env_check", {}),
         ]
-    
+
     return Task(id=f"task_{int(time.time())}", goal=goal, steps=steps, errors_allowed=1)
 
 
@@ -390,6 +390,7 @@ def execute_plan_tool(goal: str, steps: str, root: str | None = None) -> str:
     并返回结构化报告。不需要 LLM 自己逐个调工具。
     """
     import json
+
     from core.tools import get_registry
 
     registry = get_registry()
@@ -413,6 +414,7 @@ async def async_execute_plan_tool(goal: str, steps: str, root: str | None = None
     供 AsyncChatSession / asyncio runtime 直接 await。
     """
     import json
+
     from core.tools import get_registry
 
     registry = get_registry()

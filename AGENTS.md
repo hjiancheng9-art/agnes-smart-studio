@@ -42,7 +42,7 @@ CRUX 同时作为 MCP **Server**（被外部调用）和 MCP **Client**（调用
 - Showrunner: /showrun <goal> full creative pipeline (plan->decompose->storyboard->generate->QC)
 - Marketplace: 733 skills (45 local + 688 CodeBuddy), search/install/auto-discover
 - Providers: CRUX AI / DeepSeek V4 Pro / SiliconFlow Kimi / Qwen3-Coder 30B (local CUDA)
-- 52 Tools: code editing, git, testing, browser, ComfyUI, file ops, MCP bridge (4 tools)
+- 80 Tools: code editing, git (13), code intelligence (7), GitHub (10), ComfyUI (12), LoRA (3), browser, file ops, MCP bridge (4 tools), patch, execute_plan, codex, notebook, audio — 动态统计见 /tools
 
 ## Rendering Contract (DNA — 输出不重复)
 - ui/render.py:StreamingRenderer 是所有流式渲染的唯一合法网关（强制契约）
@@ -78,7 +78,7 @@ CRUX 同时作为 MCP **Server**（被外部调用）和 MCP **Client**（调用
 - 流式渲染: 必须用 ui.render.StreamingRenderer，禁止直接 import rich.live.Live（守卫测试会拦）
 
 ## Current State
-- 33 commands, 52 tools, 45 local skills, 733 marketplace skills
+- 33 commands, 80 tools, 45 local skills, 733 marketplace skills
 - Core modules: 64 .py files in core/ (含 v5.0 新增编排/智能体/可观测子系统，见上方 Extended Architecture)
 - Toggle-based: code_mode / agent_mode / skill (showrunner / comfyui-bridge) / extend (notebook/audio/browser)
 - MCP 四象融合: MCP Client bridge (mcp_client.py) + MCP Server (mcp_server.py) 双向可达

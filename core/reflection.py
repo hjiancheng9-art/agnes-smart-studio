@@ -96,7 +96,8 @@ class ReflectionEngine:
             return None
 
         try:
-            from core.observability import TraceContext, metrics as _m
+            from core.observability import TraceContext
+            from core.observability import metrics as _m
         except ImportError:
             _m = None
             TraceContext = None  # type: ignore[assignment]

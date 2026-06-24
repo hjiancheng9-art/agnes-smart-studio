@@ -13,12 +13,12 @@
   mp.check_updates()          # 检查更新
 """
 
+import contextlib
 import json
 import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-import contextlib
 
 __all__ = [
     'CodeBuddyAdapter', 'LocalRegistry', 'MarketplaceAdapter', 'MarketplaceClient', 'ROOT', 'RemoteMarketplaceAdapter', 'SKILLS_DIR', 'SkillPackage', 'get_marketplace',
@@ -543,8 +543,9 @@ class RemoteMarketplaceAdapter(MarketplaceAdapter):
 
     def _fetch_registry(self) -> list[dict]:
         """拉取远程注册表，带缓存"""
-        import httpx
         import time
+
+        import httpx
         now = time.time()
         if self._cache and (now - self._cache_time) < self._cache_ttl:
             return self._cache

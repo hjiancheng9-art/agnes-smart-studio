@@ -1,7 +1,6 @@
 """参数校验器 - num_frames 8n+1、尺寸、模型名等"""
 
-from .config import VALID_NUM_FRAMES, VIDEO_ASPECT_RATIOS, IMAGE_SIZES, MODELS
-
+from .config import IMAGE_SIZES, MODELS, VALID_NUM_FRAMES, VIDEO_ASPECT_RATIOS
 
 __all__ = [
     "ValidationError", "validate_frame_rate", "validate_image_size", "validate_image_urls", "validate_model", "validate_num_frames", "validate_seed", "validate_video_resolution",

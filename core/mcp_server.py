@@ -476,9 +476,8 @@ def run_mcp_server(argv: list[str] | None = None) -> None:
 
     # 构造无头 ChatSession（core/chat.py:145-152）
     # brain / t2i / vid 全从 client 派生，_dispatch_tool_impl 可直接调
-    from core.client import CruxClient
     from core.chat import ChatSession
-    from core.tools import get_registry
+    from core.client import CruxClient
 
     client = CruxClient(api_key=SETTINGS.api_key, base_url=SETTINGS.base_url)
     session = ChatSession(client)

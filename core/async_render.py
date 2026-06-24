@@ -25,8 +25,8 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Iterator
-from typing import Any, Callable
+from collections.abc import AsyncIterator, Callable, Iterator
+from typing import Any
 
 from ui.render import StreamingRenderer
 

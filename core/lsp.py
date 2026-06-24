@@ -12,6 +12,7 @@ Supports Python, JavaScript, TypeScript, Go, and Rust.
 Communicates with language servers over JSON-RPC 2.0 using stdio transport.
 """
 
+import contextlib
 import json
 import os
 import subprocess
@@ -21,7 +22,6 @@ from enum import Enum
 from pathlib import Path
 
 from core.config import OUTPUT_DIR
-import contextlib
 
 __all__ = [
     'LSPClient', 'LSPServerConfig', 'LSP_EXECUTOR_MAP', 'LSP_TOOL_DEFS', 'Language', 'detect_language', 'execute_lsp_diagnostics', 'execute_lsp_find_references', 'execute_lsp_goto_definition', 'execute_lsp_hover', 'get_lsp_client',

@@ -4,10 +4,10 @@ import importlib
 import json
 import logging
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
-from collections.abc import Callable
 
 from core.config import OUTPUT_DIR
 
@@ -386,8 +386,9 @@ def _test_guard_handler(event: HookEvent) -> HookEvent:
         return event
 
     try:
-        from core.pytest_runner import run_pytest_safe
         from pathlib import Path
+
+        from core.pytest_runner import run_pytest_safe
         root = Path(file_path).resolve().parent.parent
         smoke = root / "tests" / "test_smoke.py"
         if not smoke.exists():

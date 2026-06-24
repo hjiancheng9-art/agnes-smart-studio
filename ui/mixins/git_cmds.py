@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING
 from rich.panel import Panel
 from rich.prompt import Confirm
 
-from ui.theme import COLORS, ICONS, LAYOUT, console
-from ui.display import show_success, show_warning, show_error
 from ui.badges import print_reply_header, print_route_reason
+from ui.display import show_error, show_success, show_warning
+from ui.theme import console
 
 if TYPE_CHECKING:
     from core.chat import ChatSession
@@ -33,7 +33,7 @@ class GitCommandsMixin:
                                        capture_output=True, text=True, timeout=10)
             prompt = f"根据以下 git diff 生成简洁中文 commit 消息（格式：<类型>: <一句话描述>）：\n\n{full_diff.stdout[:3000]}"
             # 用 router 统一处理模型切换（避免直接设 model 不切 client 导致不匹配）
-            from core.router import resolve, apply
+            from core.router import apply, resolve
             decision = resolve("quick_fix", session)
             old_model = session.model
             apply(decision, session)
@@ -64,7 +64,7 @@ class GitCommandsMixin:
                 return
             prompt = f"根据以下 git log 生成 CHANGELOG.md（分组：新增/修复/优化/其他）：\n\n{log.stdout[:3000]}"
             # 用 router 统一处理模型切换（避免直接设 model 不切 client 导致不匹配）
-            from core.router import resolve, apply
+            from core.router import apply, resolve
             decision = resolve("quick_fix", session)
             old_model = session.model
             apply(decision, session)

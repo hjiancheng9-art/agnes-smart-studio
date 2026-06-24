@@ -9,15 +9,15 @@ Structure:
     output/custom_tools/<name>.py  <- generated tool files
 """
 
-import json
-import sys
+import contextlib
 import importlib
-import traceback
-import textwrap
+import json
 import re
+import sys
+import textwrap
+import traceback
 
 from core.config import OUTPUT_DIR
-import contextlib
 
 __all__ = [
     'CUSTOM_TOOLS_DIR', 'SELF_TOOL_EXECUTOR_MAP', 'SELF_TOOL_TOOL_DEFS', 'ToolBuilder', 'get_builder',
