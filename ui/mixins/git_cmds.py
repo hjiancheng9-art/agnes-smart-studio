@@ -13,27 +13,24 @@ from ui.theme import console
 if TYPE_CHECKING:
     from core.chat import ChatSession
 
-__all__ = ['GitCommandsMixin']
-
+__all__ = ["GitCommandsMixin"]
 
 
 class GitCommandsMixin:
     pass  # 占位，下方方法会替换
 
-
     def _chat_commit(self, session: "ChatSession"):
         """从 git staged diff 自动生成 commit 消息并提交"""
         try:
-            diff = subprocess.run(["git", "diff", "--staged", "--stat"],
-                                  capture_output=True, text=True, timeout=10)
+            diff = subprocess.run(["git", "diff", "--staged", "--stat"], capture_output=True, text=True, timeout=10)
             if not diff.stdout.strip():
                 show_warning("无 staged 更改，先 git add")
                 return
-            full_diff = subprocess.run(["git", "diff", "--staged"],
-                                       capture_output=True, text=True, timeout=10)
+            full_diff = subprocess.run(["git", "diff", "--staged"], capture_output=True, text=True, timeout=10)
             prompt = f"根据以下 git diff 生成简洁中文 commit 消息（格式：<类型>: <一句话描述>）：\n\n{full_diff.stdout[:3000]}"
             # 用 router 统一处理模型切换（避免直接设 model 不切 client 导致不匹配）
             from core.router import apply, resolve
+
             decision = resolve("quick_fix", session)
             old_model = session.model
             apply(decision, session)
@@ -41,8 +38,7 @@ class GitCommandsMixin:
                 print_reply_header(session)
                 if decision.reason:
                     print_route_reason(decision.reason)
-            r = session.client.chat(model=session.model, messages=[
-                {"role": "user", "content": prompt}], max_tokens=200)
+            r = session.client.chat(model=session.model, messages=[{"role": "user", "content": prompt}], max_tokens=200)
             msg = r["choices"][0]["message"]["content"].strip()
             show_success(f"建议 commit: {msg}")
             if Confirm.ask("执行 commit?", default=True):
@@ -58,13 +54,17 @@ class GitCommandsMixin:
         try:
             log = subprocess.run(
                 ["git", "log", f"--since={since}", "--oneline", "--no-merges"],
-                capture_output=True, text=True, timeout=10)
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
             if not log.stdout.strip():
                 show_warning(f"{since} 内无提交")
                 return
             prompt = f"根据以下 git log 生成 CHANGELOG.md（分组：新增/修复/优化/其他）：\n\n{log.stdout[:3000]}"
             # 用 router 统一处理模型切换（避免直接设 model 不切 client 导致不匹配）
             from core.router import apply, resolve
+
             decision = resolve("quick_fix", session)
             old_model = session.model
             apply(decision, session)
@@ -72,7 +72,9 @@ class GitCommandsMixin:
                 print_reply_header(session)
                 if decision.reason:
                     print_route_reason(decision.reason)
-            r = session.client.chat(model=session.model, messages=[{"role": "user", "content": prompt}], max_tokens=1000)
+            r = session.client.chat(
+                model=session.model, messages=[{"role": "user", "content": prompt}], max_tokens=1000
+            )
             changelog = r["choices"][0]["message"]["content"].strip()
             console.print(Panel(changelog[:2000], title="[cyan]CHANGELOG[/]"))
             if Confirm.ask("保存为 CHANGELOG.md?", default=True):

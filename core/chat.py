@@ -15,6 +15,7 @@ yield 协议（send_stream）：
     ("confirm", dict)        高风险工具确认（需 UI 层处理）
 """
 
+import contextlib
 import json
 import re
 
@@ -141,8 +142,13 @@ class ChatSession:
     vision_model:  视觉理解专用模型 ID，默认 agnes-1.5-flash。
     """
 
-    def __init__(self, client: CruxClient, default_model: str = "agnes-1.5-flash",
-                 vision_client: CruxClient | None = None, vision_model: str = CRUX_VISION_MODEL) -> None:
+    def __init__(
+        self,
+        client: CruxClient,
+        default_model: str = "agnes-1.5-flash",
+        vision_client: CruxClient | None = None,
+        vision_model: str = CRUX_VISION_MODEL,
+    ) -> None:
         self.client = client
         self.vision_client = vision_client or client  # 未指定时退化为主客户端（向后兼容）
         self.vision_model = vision_model
@@ -167,6 +173,7 @@ class ChatSession:
     def supports_tools(self) -> bool:
         """支持 tool calling 自动调度的模型（含第三方兼容 OpenAI tools 的模型）"""
         from core.provider import model_supports_tools
+
         return model_supports_tools(self.model)
 
     def toggle_code_mode(self) -> bool:
@@ -206,6 +213,7 @@ class ChatSession:
             # 激活代码守卫 hook（语法验证 + smoke 测试）
             try:
                 from core.hooks import register_code_hooks
+
                 register_code_hooks()
             except (ImportError, OSError):
                 pass
@@ -213,6 +221,7 @@ class ChatSession:
             try:
                 from core.config import SETTINGS
                 from core.hooks import register_reflection_hook
+
                 register_reflection_hook(
                     client=self.client,
                     interval=SETTINGS.reflection_interval,
@@ -265,7 +274,8 @@ class ChatSession:
         comfyui = self.active_skill in ("comfyui-bridge",)
         self.tools = get_registry()
         self.tools.load(
-            pipeline=pipeline, comfyui=comfyui,
+            pipeline=pipeline,
+            comfyui=comfyui,
             browser=self.browser_enabled,
             notebook=self.notebook_enabled,
             audio=self.audio_enabled,
@@ -302,9 +312,7 @@ class ChatSession:
             # 注入技能的额外工具
             for t in self.skills.get_extra_tools():
                 self.tools.register(
-                    t["name"], t.get("description", ""),
-                    t.get("parameters", {}),
-                    lambda **kw: f"[{name}] 工具已执行"
+                    t["name"], t.get("description", ""), t.get("parameters", {}), lambda **kw: f"[{name}] 工具已执行"
                 )
             return name
         return None
@@ -358,23 +366,27 @@ class ChatSession:
         # 注入已启用规则（与 get_provider_name 同模式，所有 mode 切换自动存活）
         try:
             from core.rules import get_rules
+
             base += get_rules().inject_prompt()
         except (ImportError, OSError):
             pass  # rules 模块不可用时静默降级
         # 注入技能市场概况 + 能力来源总览（让 AI 知道可用资源）
         try:
             from core.marketplace import get_marketplace
+
             base += "\n\n" + get_marketplace().summary()
         except (ImportError, OSError):
             pass
         try:
             from core.orchestra import get_orchestra
+
             base += "\n\n" + get_orchestra().summary()
         except (ImportError, OSError):
             pass
         # #5 注入 Prompt Lab 变体差异化指令
         try:
             from core.prompt_lab import get_prompt_lab
+
             base += get_prompt_lab().get_active_instructions()
         except (ImportError, OSError):
             pass
@@ -426,6 +438,7 @@ class ChatSession:
         被钉在 light tier）。
         """
         from core.provider import get_model_info
+
         vision_models = get_vision_models()
         if not vision_models:
             return [self.vision_model] if self.vision_model else []
@@ -438,10 +451,7 @@ class ChatSession:
         pro_models = [m for m in vision_models if _tier_of(m) != "light"]
 
         # 复杂任务 → pro 优先；轻量任务 → light 优先
-        if complexity == "complex":
-            ordered = pro_models + light_models
-        else:
-            ordered = light_models + pro_models
+        ordered = (pro_models + light_models) if complexity == "complex" else (light_models + pro_models)
 
         # self.vision_model 仅在 tier 匹配时提到链首（用户偏好尊重 tier 路由）
         if self.vision_model and self.vision_model in ordered:
@@ -463,15 +473,15 @@ class ChatSession:
         """
         # 复杂视觉任务关键词（中文 + 英文）
         _COMPLEX_RE = re.compile(
-            r'(数一数|多少个|计数|count|how many)|'
-            r'(代码|code|函数|function|class |import |def )|'
-            r'(图表|graph|chart|柱状|饼图|折线|scatter|bar chart)|'
-            r'(对比|区别|差异|difference|compare|diff)|'
-            r'(计算|算一算|calculate|compute|面积|周长|角度)|'
-            r'(推理|推断|infer|deduce|逻辑|logical)|'
-            r'(流程|flowchart|架构|architecture|拓扑|topology)|'
-            r'(详细分析|深入|逐步|step.by.step|explain in detail)|'
-            r'(公式|equation|math|数学)',
+            r"(数一数|多少个|计数|count|how many)|"
+            r"(代码|code|函数|function|class |import |def )|"
+            r"(图表|graph|chart|柱状|饼图|折线|scatter|bar chart)|"
+            r"(对比|区别|差异|difference|compare|diff)|"
+            r"(计算|算一算|calculate|compute|面积|周长|角度)|"
+            r"(推理|推断|infer|deduce|逻辑|logical)|"
+            r"(流程|flowchart|架构|architecture|拓扑|topology)|"
+            r"(详细分析|深入|逐步|step.by.step|explain in detail)|"
+            r"(公式|equation|math|数学)",
             re.IGNORECASE,
         )
         if _COMPLEX_RE.search(text):
@@ -486,6 +496,7 @@ class ChatSession:
         同供应商不同模型（如 deepseek-v4-pro → deepseek-v4-flash）也作为备选。
         """
         from core.provider import get_provider_manager
+
         chain: list[tuple[str, CruxClient]] = [(self.model, self.client)]
         try:
             mgr = get_provider_manager()
@@ -544,19 +555,21 @@ class ChatSession:
         if complexity == "complex":
             # 注入逐步推理引导（不修改用户原始文本，只影响 API 调用）
             vision_text = f"请仔细观察图片，逐步推理分析：\n{text}"
-        for idx, model_id in enumerate(chain):
+        for model_id in chain:
             tried.append(model_id)
             try:
                 r = self.vision_client.chat_multimodal(
-                    text=vision_text, image_url=image_url,
-                    model=model_id, max_tokens=max_tok,
+                    text=vision_text,
+                    image_url=image_url,
+                    model=model_id,
+                    max_tokens=max_tok,
                 )
                 content = r["choices"][0]["message"]["content"] or ""
                 # #6 成本追踪：视觉调用按 token 计费（text kind），usage 来自 API 返回
                 try:
                     from core.cost_tracker import record_usage
-                    record_usage(model=model_id, kind="text",
-                                 usage=r.get("usage"), label="vision")
+
+                    record_usage(model=model_id, kind="text", usage=r.get("usage"), label="vision")
                 except (ImportError, OSError, KeyError, TypeError):
                     pass
                 return content
@@ -565,15 +578,13 @@ class ChatSession:
                 # P1-10: 请求成功但解析失败 → 尝试从响应中提取 usage 记费
                 # 注意: r 可能在 chat_multimodal 本身抛异常时未赋值（side_effect）
                 _r_usage = None
-                try:
+                with contextlib.suppress(NameError):
                     _r_usage = r.get("usage")  # type: ignore[possibly-undefined]
-                except NameError:
-                    pass
                 if _r_usage:
                     try:
                         from core.cost_tracker import record_usage
-                        record_usage(model=model_id, kind="text",
-                                     usage=_r_usage, label="vision_fail")
+
+                        record_usage(model=model_id, kind="text", usage=_r_usage, label="vision_fail")
                     except (ImportError, OSError, KeyError, TypeError):
                         pass
                 continue
@@ -605,6 +616,7 @@ class ChatSession:
         # #6 预算守卫：会话开始时检查今日花费，超限/接近上限仅提示不阻断
         try:
             from core.cost_tracker import check_budget
+
             warning = check_budget()
             if warning:
                 yield ("info", warning)
@@ -613,13 +625,15 @@ class ChatSession:
 
         # ── 多模态分支：有图片 → 走独立视觉客户端 ──
         if image_url:
-            self.messages.append({
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": user_text},
-                    {"type": "image_url", "image_url": {"url": image_url}},
-                ],
-            })
+            self.messages.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": user_text},
+                        {"type": "image_url", "image_url": {"url": image_url}},
+                    ],
+                }
+            )
             content = self._vision_fallback(user_text, image_url)
             self.messages.append({"role": "assistant", "content": content})
             yield ("text", content)
@@ -642,7 +656,7 @@ class ChatSession:
         fallback_tried = 0
 
         # tool calling 循环（有上限，防止死循环）
-        _effective_max = MAX_TOOL_LOOPS * 2 if getattr(self, 'unlimited_tools', False) else MAX_TOOL_LOOPS
+        _effective_max = MAX_TOOL_LOOPS * 2 if getattr(self, "unlimited_tools", False) else MAX_TOOL_LOOPS
         buffer = ""  # 循环外预绑定，保证超出最大轮次时引用安全
         # 跨轮工具去重状态（见 _run_tool_calls 的注释）
         _executed_signatures: set[tuple[str, str]] = set()
@@ -659,7 +673,9 @@ class ChatSession:
                 _last_usage = None
                 # _consume_stream_delta 是生成器：yield text chunks + return (buffer, tool_calls, error, usage)
                 delta_result = yield from self._consume_stream_delta(
-                    _use_client, _use_model, tools,
+                    _use_client,
+                    _use_model,
+                    tools,
                 )
                 buffer, tool_calls, _stream_error, _last_usage = delta_result
                 # 收完一轮 delta：有 tool_calls → 执行并喂回，进入下一轮
@@ -667,7 +683,8 @@ class ChatSession:
                     buffer = self._append_assistant_with_tools(buffer, tool_calls)
                     stop = yield from self._run_tool_calls(
                         tool_calls,
-                        _executed_signatures, _executed_cache,
+                        _executed_signatures,
+                        _executed_cache,
                     )
                     if stop:
                         return  # 写操作被用户取消等
@@ -703,10 +720,16 @@ class ChatSession:
     # 认知负荷极高（CodeBuddy/Claude/Codex 三方评分一致点名）。拆分后 send_stream 只剩控制流骨架。
 
     # 写操作类工具不参与跨轮去重缓存（避免吞掉用户对同一文件的连续修改意图）
-    _WRITE_TOOLS = frozenset({
-        "write_file", "edit_file", "github_write_file",
-        "git_add_commit", "git_push", "run_bash",
-    })
+    _WRITE_TOOLS = frozenset(
+        {
+            "write_file",
+            "edit_file",
+            "github_write_file",
+            "git_add_commit",
+            "git_push",
+            "run_bash",
+        }
+    )
 
     def _consume_stream_delta(self, client: "CruxClient", model: str, tools):
         """吃一轮流式 delta，yield text chunks，return (buffer, tool_calls, stream_error, last_usage)。
@@ -724,8 +747,11 @@ class ChatSession:
         if self.enable_thinking:
             kwargs["chat_template_kwargs"] = {"enable_thinking": True}
         for delta in client.chat_stream(
-            model=model, messages=self.messages,
-            tools=tools, max_tokens=2048, **kwargs,
+            model=model,
+            messages=self.messages,
+            tools=tools,
+            max_tokens=2048,
+            **kwargs,
         ):
             if "content" in delta and delta["content"]:
                 chunk = delta["content"]
@@ -742,9 +768,13 @@ class ChatSession:
     def _append_assistant_with_tools(self, buffer: str, tool_calls: list[dict]) -> str:
         """把 assistant 回复（含 tool_calls）追加到 messages。返回 buffer 供后续使用。"""
         merged = merge_tool_calls(tool_calls)
-        self.messages.append({
-            "role": "assistant", "content": buffer, "tool_calls": merged,
-        })
+        self.messages.append(
+            {
+                "role": "assistant",
+                "content": buffer,
+                "tool_calls": merged,
+            }
+        )
         self._last_merged_tool_calls = merged
         return buffer
 
@@ -762,6 +792,7 @@ class ChatSession:
             False otherwise.
         """
         from core.context_tools import compress_tool_result
+
         merged = getattr(self, "_last_merged_tool_calls", merge_tool_calls(tool_calls))
         for tc in merged:
             fname = tc["function"]["name"]
@@ -780,6 +811,7 @@ class ChatSession:
                     # #5 Prompt Lab: 记录工具调用和错误
                     try:
                         from core.prompt_lab import get_prompt_lab
+
                         get_prompt_lab().record_tool_call()
                         if "[错误]" in str(tool_result) or "error" in str(tool_result).lower():
                             get_prompt_lab().record_tool_error()
@@ -794,18 +826,21 @@ class ChatSession:
                     executed_cache[sig] = tool_result
             # 上下文窗口防护：智能压缩（抽取→LLM→截断三级路由），
             # 防止大文件/长输出撑爆 LLM 上下文。原始结果仍在 cache 中。
-            self.messages.append({
-                "role": "tool", "tool_call_id": tc.get("id", ""),
-                "content": compress_tool_result(tool_result, self.client, self.model),
-            })
+            self.messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tc.get("id", ""),
+                    "content": compress_tool_result(tool_result, self.client, self.model),
+                }
+            )
         return False
 
     def _finalize_outcome(self, model: str, last_usage) -> None:
         """正常收尾：成本追踪 + Prompt Lab outcome 记录。"""
         try:
             from core.cost_tracker import record_usage
-            record_usage(model=model, kind="text",
-                         usage=last_usage, label="text_stream")
+
+            record_usage(model=model, kind="text", usage=last_usage, label="text_stream")
         except (ImportError, OSError):
             pass
         self._record_outcome_promptlab()
@@ -814,9 +849,11 @@ class ChatSession:
         """记录会话 outcome 到 Prompt Lab（可选模块，失败静默降级）。"""
         try:
             from core.prompt_lab import get_prompt_lab
+
             get_prompt_lab().record_outcome()
         except (ImportError, OSError):
             pass
+
 
 def merge_tool_calls(fragments: list[dict]) -> list[dict]:
     """合并流式 tool_calls 分片（按 index 聚合 name + arguments 字符串）。
@@ -837,8 +874,9 @@ def merge_tool_calls(fragments: list[dict]) -> list[dict]:
     merged: dict[int, dict] = {}
     for frag in fragments:
         idx = frag.get("index", 0)
-        slot = merged.setdefault(idx, {"id": frag.get("id", ""), "type": "function",
-                                        "function": {"name": "", "arguments": ""}})
+        slot = merged.setdefault(
+            idx, {"id": frag.get("id", ""), "type": "function", "function": {"name": "", "arguments": ""}}
+        )
         if frag.get("id"):
             slot["id"] = frag["id"]
         fn = frag.get("function", {}) or {}
@@ -877,6 +915,7 @@ ChatSession._merge_tool_calls = staticmethod(merge_tool_calls)
 # 重新定义类方法并用赋值注入。
 # ═══════════════════════════════════════════════════════════════
 
+
 def _dispatch_tool_impl(self, name: str, args_json: str) -> tuple[str, list[tuple]]:
     """执行工具，返回 (给模型的文本, 给用户的副作用列表)。
 
@@ -892,32 +931,23 @@ def _dispatch_tool_impl(self, name: str, args_json: str) -> tuple[str, list[tupl
 
     # ── 高风险工具确认机制 ──
     _HIGH_RISK_TOOLS = {
-        "git_add_commit",   # 本地提交（可能误提交敏感内容）
-        "git_push",         # 推送到远端（force 已被 git_tools 二次拦截）
-        "git_pr_create",    # 创建 PR（含推送）
-        "git_pr_merge",     # 合并 PR（不可逆）
-        "git_tag",          # 创建/删除 tag（语义版本不可逆）
+        "git_add_commit",  # 本地提交（可能误提交敏感内容）
+        "git_push",  # 推送到远端（force 已被 git_tools 二次拦截）
+        "git_pr_create",  # 创建 PR（含推送）
+        "git_pr_merge",  # 合并 PR（不可逆）
+        "git_tag",  # 创建/删除 tag（语义版本不可逆）
     }
-    _RISKY_ARGS_PATTERN = re.compile(r'\b(rm|delete|drop|truncate|format|mkfs)\b', re.IGNORECASE)
+    _RISKY_ARGS_PATTERN = re.compile(r"\b(rm|delete|drop|truncate|format|mkfs)\b", re.IGNORECASE)
     # github_write_file: 推默认分支（main/master）视为高风险；feature 分支放行
-    is_write_to_default_branch = (
-        name == "github_write_file"
-        and not args.get("branch", "").strip()
-    )
+    is_write_to_default_branch = name == "github_write_file" and not args.get("branch", "").strip()
     # git_push + force=True 参数侧拦截（即便用户绕过 git_tools 的默认确认）
-    is_force_push = (
-        name == "git_push" and bool(args.get("force", False))
-    )
+    is_force_push = name == "git_push" and bool(args.get("force", False))
     # git_worktree remove + force 可递归删除目录
     is_force_worktree_remove = (
-        name == "git_worktree"
-        and args.get("action", "") == "remove"
-        and bool(args.get("force", False))
+        name == "git_worktree" and args.get("action", "") == "remove" and bool(args.get("force", False))
     )
     # git_branch delete 删分支
-    is_branch_delete = (
-        name == "git_branch" and args.get("action", "") == "delete"
-    )
+    is_branch_delete = name == "git_branch" and args.get("action", "") == "delete"
     is_high_risk = (
         name in _HIGH_RISK_TOOLS
         or is_write_to_default_branch
@@ -933,6 +963,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str) -> tuple[str, list[tupl
     # ── PRE_TOOL_USE hook ──
     try:
         from core.hooks import HookType, hook_manager
+
         pre_evt = hook_manager.fire(HookType.PRE_TOOL_USE, data={"tool_name": name, "args": args})
         if pre_evt.stop_processing:
             return "工具调用被拦截（PRE_TOOL_USE hook）", []
@@ -954,6 +985,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str) -> tuple[str, list[tupl
                 # 图生图/编辑路径
                 from engines.image_to_image import ImageToImageEngine
                 from utils import image_input
+
                 url = image_input.load_image_as_url_or_data(image_url)
                 i2i = ImageToImageEngine(self.client)
                 data = i2i.edit(prompt=fp, image_urls=url)
@@ -963,8 +995,8 @@ def _dispatch_tool_impl(self, name: str, args_json: str) -> tuple[str, list[tupl
             # #6 成本追踪：记录本次图像调用花费（失败时静默降级，不阻断生成）
             try:
                 from core.cost_tracker import record_usage
-                record_usage(model="agnes-image-2.1-flash", kind="image",
-                             label="generate_image", call_count=1)
+
+                record_usage(model="agnes-image-2.1-flash", kind="image", label="generate_image", call_count=1)
             except (ImportError, OSError):
                 pass
             return f"图片已生成并保存: {data.get('local_path', '')}", side
@@ -983,29 +1015,27 @@ def _dispatch_tool_impl(self, name: str, args_json: str) -> tuple[str, list[tupl
             if image_url:
                 # 图生视频路径
                 from utils import image_input
+
                 url = image_input.load_image_as_url_or_data(image_url)
                 data = self.vid.image_to_video(
-                    prompt=fp, image_url=url,
-                    width=w, height=h, negative_prompt=neg, timeout=120.0)
+                    prompt=fp, image_url=url, width=w, height=h, negative_prompt=neg, timeout=120.0
+                )
             else:
-                data = self.vid.text_to_video(
-                    prompt=fp, width=w, height=h,
-                    negative_prompt=neg, timeout=120.0)
+                data = self.vid.text_to_video(prompt=fp, width=w, height=h, negative_prompt=neg, timeout=120.0)
 
             side.append(("video", data))
             # #6 成本追踪：视频调用按次计费（较贵），记录花费供 /cost 查询
             try:
                 from core.cost_tracker import record_usage
-                record_usage(model="agnes-video-v2.0", kind="video",
-                             label="generate_video", call_count=1)
+
+                record_usage(model="agnes-video-v2.0", kind="video", label="generate_video", call_count=1)
             except (ImportError, OSError):
                 pass
             # 检测超时状态
             if data.get("status") == "timeout":
                 vid = data.get("video_id", "")
                 pct = data.get("progress", 0)
-                return (f"视频生成超时（进度 {pct:.0f}%），"
-                        f"请稍后用 video_id={vid} 查询状态"), side
+                return (f"视频生成超时（进度 {pct:.0f}%），请稍后用 video_id={vid} 查询状态"), side
             return f"视频已生成: {data.get('local_path', '')}", side
         except (RuntimeError, OSError, ValueError) as e:
             return f"视频生成失败: {e}", side
@@ -1015,14 +1045,15 @@ def _dispatch_tool_impl(self, name: str, args_json: str) -> tuple[str, list[tupl
         side: list[tuple[str, str | dict]] = [("info", f"正在启动多智能体协调: {goal}")]
         try:
             from core.multi_agent import coordinate
+
             def _tool_exec(tool, tool_args):
                 if self.tools.has(tool):
                     return self.tools.execute(tool, tool_args)
                 return f"[multi_agent] 工具 {tool} 不可用"
+
             result = coordinate(goal, _tool_exec)
             summary = (
-                f"多智能体协调完成: {result['tasks_done']}/{result['tasks_total']} 任务成功, "
-                f"耗时 {result['elapsed']}s"
+                f"多智能体协调完成: {result['tasks_done']}/{result['tasks_total']} 任务成功, 耗时 {result['elapsed']}s"
             )
             if result["tasks_failed"]:
                 summary += f", {result['tasks_failed']} 失败"
@@ -1042,6 +1073,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str) -> tuple[str, list[tupl
         # POST_TOOL_USE hook：验证 / 回滚 / 学习
         try:
             from core.hooks import HookType, hook_manager
+
             # NEW (#4): 标记 error key，供反思引擎优先分析失败序列
             is_error = isinstance(result, str) and result.startswith("[错误]")
             post_evt = hook_manager.fire(

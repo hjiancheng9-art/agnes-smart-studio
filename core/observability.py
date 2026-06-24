@@ -16,8 +16,16 @@ from core.config import OUTPUT_DIR
 # ---------------------------------------------------------------------------
 
 __all__ = [
-    "Metrics", "Span", "TraceContext", "Tracer", "get_recent_traces", "metrics", "tracer",
+    "Metrics",
+    "Span",
+    "TraceContext",
+    "Tracer",
+    "get_recent_traces",
+    "metrics",
+    "tracer",
 ]
+
+
 @dataclass
 class Span:
     """A single unit of work within a trace."""
@@ -49,16 +57,19 @@ class Span:
 
     def add_event(self, name: str, **kwargs: Any) -> None:
         """Append a timestamped event to this span."""
-        self.events.append({
-            "name": name,
-            "timestamp": time.time(),
-            **kwargs,
-        })
+        self.events.append(
+            {
+                "name": name,
+                "timestamp": time.time(),
+                **kwargs,
+            }
+        )
 
 
 # ---------------------------------------------------------------------------
 # Tracer
 # ---------------------------------------------------------------------------
+
 
 class Tracer:
     """Creates spans and writes them to a JSONL log file."""
@@ -157,6 +168,7 @@ class Tracer:
 # Metrics
 # ---------------------------------------------------------------------------
 
+
 class Metrics:
     """In-memory counters and timing buckets."""
 
@@ -205,6 +217,7 @@ metrics = Metrics()
 # TraceContext context manager
 # ---------------------------------------------------------------------------
 
+
 @contextmanager
 def TraceContext(name: str, **attributes: Any):
     """Convenience context manager for instrumenting a block of code.
@@ -236,14 +249,13 @@ def TraceContext(name: str, **attributes: Any):
         _current_span.reset(token)
 
 
-_current_span: contextvars.ContextVar[Span | None] = contextvars.ContextVar(
-    "_current_span", default=None
-)
+_current_span: contextvars.ContextVar[Span | None] = contextvars.ContextVar("_current_span", default=None)
 
 
 # ---------------------------------------------------------------------------
 # Helper: recent traces
 # ---------------------------------------------------------------------------
+
 
 def get_recent_traces(limit: int = 20) -> list[dict[str, Any]]:
     """Read the last *limit* trace records from the JSONL log."""

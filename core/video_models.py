@@ -15,7 +15,13 @@
 import json
 
 __all__ = [
-    'VIDEO_MODELS', 'VIDEO_MODEL_EXECUTOR_MAP', 'VIDEO_MODEL_TOOL_DEFS', 'auto_select_model', 'execute_video_model_info', 'get_model_capability', 'list_video_models',
+    "VIDEO_MODELS",
+    "VIDEO_MODEL_EXECUTOR_MAP",
+    "VIDEO_MODEL_TOOL_DEFS",
+    "auto_select_model",
+    "execute_video_model_info",
+    "get_model_capability",
+    "list_video_models",
 ]
 
 # ============================================================
@@ -34,7 +40,6 @@ VIDEO_MODELS = {
         "modes": ["text_to_video", "image_to_video", "text_to_image"],
         "note": "单段最长15s，目前所有模型中最长。图生视频/文生视频均支持。API优先",
     },
-
     # ── Omni ──
     "omni": {
         "display_name": "Omni",
@@ -46,7 +51,6 @@ VIDEO_MODELS = {
         "modes": ["text_to_video", "image_to_video"],
         "note": "单段最长10s。Playwright 自动化，需登录",
     },
-
     # ── 可灵 Kling ──
     "kling": {
         "display_name": "可灵 Kling",
@@ -59,7 +63,6 @@ VIDEO_MODELS = {
         "config_key": "duration",
         "note": "免费用户可能限5s，付费用户10s。API优先",
     },
-
     # ── Runway ──
     "runway": {
         "display_name": "Runway Gen-3/Gen-4",
@@ -71,7 +74,6 @@ VIDEO_MODELS = {
         "modes": ["text_to_video", "image_to_video", "video_to_video"],
         "note": "Gen-3 5s/10s, Gen-4 可能更长。API优先",
     },
-
     # ── VEO 3.1 ──
     "veo": {
         "display_name": "VEO 3.1",
@@ -83,7 +85,6 @@ VIDEO_MODELS = {
         "modes": ["text_to_video", "image_to_video"],
         "note": "单段最长8s。Playwright 自动化",
     },
-
     # ── Opal ──
     "opal": {
         "display_name": "Google Opal",
@@ -95,12 +96,11 @@ VIDEO_MODELS = {
         "modes": ["text_to_video"],
         "note": "单段最长8s。Playwright 自动化",
     },
-
     # ── CRUX API ──
     "agnes-video-v2.0": {
         "display_name": "CRUX Video v2.0",
         "provider": "CRUX AI",
-        "max_duration_s": 5.0,         # 121 frames @ 24fps ≈ 5s
+        "max_duration_s": 5.0,  # 121 frames @ 24fps ≈ 5s
         "default_duration_s": 5.0,
         "max_frames": 121,
         "default_frame_rate": 24,
@@ -108,7 +108,6 @@ VIDEO_MODELS = {
         "modes": ["text_to_video", "image_to_video", "multi_image_video", "keyframe_animation"],
         "note": "内置模型，默认即可用。5s/段，需拆分多次拼接长视频",
     },
-
     # ── Luma ──
     "luma": {
         "display_name": "Luma Dream Machine",
@@ -120,7 +119,6 @@ VIDEO_MODELS = {
         "modes": ["text_to_video", "image_to_video"],
         "note": "固定5s/段，多次调用拼接",
     },
-
     # ── ComfyUI 本地 ──
     "comfyui-ltx": {
         "display_name": "ComfyUI LTX Video",
@@ -132,7 +130,6 @@ VIDEO_MODELS = {
         "modes": ["text_to_video", "image_to_video"],
         "note": "本地较新模型",
     },
-
     "comfyui-svd": {
         "display_name": "ComfyUI SVD",
         "provider": "Local GPU",
@@ -144,7 +141,6 @@ VIDEO_MODELS = {
         "modes": ["image_to_video"],
         "note": "图生视频专用",
     },
-
     "comfyui-animatediff": {
         "display_name": "ComfyUI AnimateDiff",
         "provider": "Local GPU",
@@ -156,7 +152,6 @@ VIDEO_MODELS = {
         "modes": ["text_to_video", "image_to_video"],
         "note": "SD1.5 基础，时长最短",
     },
-
     # ── 纯图片模型（时长=0，用于资产生成）──
     "dalle": {
         "display_name": "DALL-E 3",
@@ -182,9 +177,11 @@ VIDEO_MODELS = {
 #  查询工具
 # ============================================================
 
+
 def get_model_capability(model_id: str) -> dict | None:
     """获取单个模型的能力"""
     return VIDEO_MODELS.get(model_id)
+
 
 def list_video_models(mode_filter: str = "") -> list[dict]:
     """列出所有视频模型，可按模式过滤。不传过滤返回全部。
@@ -197,16 +194,19 @@ def list_video_models(mode_filter: str = "") -> list[dict]:
             continue  # 跳过纯图片模型
         if mode_filter and mode_filter not in info.get("modes", []):
             continue
-        result.append({
-            "id": mid,
-            "display_name": info["display_name"],
-            "provider": info["provider"],
-            "max_duration_s": info["max_duration_s"],
-            "default_duration_s": info["default_duration_s"],
-            "modes": info["modes"],
-            "note": info.get("note", ""),
-        })
+        result.append(
+            {
+                "id": mid,
+                "display_name": info["display_name"],
+                "provider": info["provider"],
+                "max_duration_s": info["max_duration_s"],
+                "default_duration_s": info["default_duration_s"],
+                "modes": info["modes"],
+                "note": info.get("note", ""),
+            }
+        )
     return result
+
 
 def auto_select_model(total_duration_s: float, preferred: str = "") -> dict:
     """根据需要的总时长，推荐模型并计算需要调用次数。
@@ -239,6 +239,7 @@ def auto_select_model(total_duration_s: float, preferred: str = "") -> dict:
         "total_duration_s": total_duration_s,
     }
 
+
 def execute_video_model_info(model_id: str = "") -> str:
     """查看视频模型的时长和能力信息。
 
@@ -253,27 +254,37 @@ def execute_video_model_info(model_id: str = "") -> str:
         model = get_model_capability(model_id)
         if not model:
             all_ids = [mid for mid, m in VIDEO_MODELS.items() if m["max_duration_s"] > 0]
-            return json.dumps({
-                "error": f"未知视频模型: {model_id}",
-                "available_ids": all_ids,
-                "success": False,
-            }, ensure_ascii=False)
-        return json.dumps({
-            "success": True,
-            "model_id": model_id,
-            **model,
-        }, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "error": f"未知视频模型: {model_id}",
+                    "available_ids": all_ids,
+                    "success": False,
+                },
+                ensure_ascii=False,
+            )
+        return json.dumps(
+            {
+                "success": True,
+                "model_id": model_id,
+                **model,
+            },
+            ensure_ascii=False,
+        )
 
     models = list_video_models()
-    return json.dumps({
-        "success": True,
-        "total_models": len(models),
-        "models": models,
-        "summary": (
-            "单段时长排序：即梦jimeng(15s) > omni(10s) = kling(10s) = runway(10s) > veo(8s) = opal(8s) > agnes(5s) = luma(5s) > comfyui(3-5s)。"
-            "时长是全局约束：选模型 → 锁定时长上限 → 以此规划分镜数、镜头数、资产数和总时长。"
-        ),
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "total_models": len(models),
+            "models": models,
+            "summary": (
+                "单段时长排序：即梦jimeng(15s) > omni(10s) = kling(10s) = runway(10s) > veo(8s) = opal(8s) > agnes(5s) = luma(5s) > comfyui(3-5s)。"
+                "时长是全局约束：选模型 → 锁定时长上限 → 以此规划分镜数、镜头数、资产数和总时长。"
+            ),
+        },
+        ensure_ascii=False,
+    )
+
 
 # ============================================================
 #  工具定义与执行器映射
@@ -290,7 +301,7 @@ VIDEO_MODEL_TOOL_DEFS = [
                 "properties": {
                     "model_id": {
                         "type": "string",
-                        "description": "模型ID: agnes-video-v2.0 / kling / runway / luma / jimeng / comfyui-svd 等。不传列出全部"
+                        "description": "模型ID: agnes-video-v2.0 / kling / runway / luma / jimeng / comfyui-svd 等。不传列出全部",
                     },
                 },
                 "required": [],

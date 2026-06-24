@@ -16,7 +16,7 @@ Operations: add_file, delete_file, update_file (with one or more hunks)
 import contextlib
 from pathlib import Path
 
-__all__ = ['PatchEngine', 'PatchError', 'ROOT', 'apply', 'rollback_last']
+__all__ = ["PatchEngine", "PatchError", "ROOT", "apply", "rollback_last"]
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -66,16 +66,14 @@ class PatchEngine:
                     results.append(self._update_file(op["path"], op["hunks"], verify))
         except PatchError as e:
             self._rollback()
-            return {"success": False, "error": str(e), "file": e.file,
-                    "results": results}
+            return {"success": False, "error": str(e), "file": e.file, "results": results}
         except (OSError, ValueError, RuntimeError) as e:
             self._rollback()
             return {"success": False, "error": str(e), "results": results}
         # 成功：把本次备份提升为模块级"最近一次"快照，供 rollback_last() 使用
         _LAST_BACKUPS = dict(self._backups)
         _LAST_ADDED = added_paths
-        return {"success": True, "files_modified": len(self._modified),
-                "results": results}
+        return {"success": True, "files_modified": len(self._modified), "results": results}
 
     def _parse(self, text: str) -> list[dict]:
         ops = []
@@ -84,7 +82,7 @@ class PatchEngine:
         while i < len(lines):
             line = lines[i].strip()
             if line.startswith("*** Add File:"):
-                path = line[len("*** Add File:"):].strip()
+                path = line[len("*** Add File:") :].strip()
                 content_lines = []
                 i += 1
                 while i < len(lines) and not lines[i].strip().startswith("***"):
@@ -93,14 +91,13 @@ class PatchEngine:
                     else:
                         content_lines.append(lines[i])
                     i += 1
-                ops.append({"type": "add_file", "path": path,
-                            "content": "\n".join(content_lines)})
+                ops.append({"type": "add_file", "path": path, "content": "\n".join(content_lines)})
             elif line.startswith("*** Delete File:"):
-                path = line[len("*** Delete File:"):].strip()
+                path = line[len("*** Delete File:") :].strip()
                 ops.append({"type": "delete_file", "path": path})
                 i += 1
             elif line.startswith("*** Update File:"):
-                path = line[len("*** Update File:"):].strip()
+                path = line[len("*** Update File:") :].strip()
                 i += 1
                 hunks = []
                 current_hunk = None
@@ -150,6 +147,7 @@ class PatchEngine:
             return True
         try:
             import ast
+
             ast.parse(path.read_text(encoding="utf-8"))
             return True
         except SyntaxError:
@@ -192,9 +190,7 @@ class PatchEngine:
                     ctx_idx = i
                     break
             if ctx_idx < 0:
-                raise PatchError(
-                    f"Context not found in {rel_path}: '{ctx[:60]}'",
-                    file=rel_path)
+                raise PatchError(f"Context not found in {rel_path}: '{ctx[:60]}'", file=rel_path)
             # Determine hunk boundaries: context line + following lines until next @@ or EOF
             # Build new lines: start from ctx line, replace with changes
             insert_lines = []
@@ -211,7 +207,7 @@ class PatchEngine:
             for ch in changes:
                 if ch.startswith("-") or ch.startswith(" "):
                     remove_count += 1
-            lines[ctx_idx:ctx_idx + remove_count] = insert_lines
+            lines[ctx_idx : ctx_idx + remove_count] = insert_lines
             applied += 1
         path.write_text("\n".join(lines), encoding="utf-8")
         if verify and not self._verify_syntax(path):
@@ -237,9 +233,9 @@ def rollback_last() -> dict:
     """
     global _LAST_BACKUPS, _LAST_ADDED
     import contextlib
+
     if not _LAST_BACKUPS and not _LAST_ADDED:
-        return {"success": False, "reason": "nothing_to_undo",
-                "message": "没有可撤销的 patch（快照为空）"}
+        return {"success": False, "reason": "nothing_to_undo", "message": "没有可撤销的 patch（快照为空）"}
 
     restored, deleted = [], []
     for path_str, content in _LAST_BACKUPS.items():
@@ -255,9 +251,12 @@ def rollback_last() -> dict:
             Path(path_str).unlink()
             deleted.append(path_str)
 
-    summary = {"success": True, "restored": len(restored),
-               "deleted_new_files": len(deleted),
-               "paths": {"restored": restored, "deleted": deleted}}
+    summary = {
+        "success": True,
+        "restored": len(restored),
+        "deleted_new_files": len(deleted),
+        "paths": {"restored": restored, "deleted": deleted},
+    }
 
     # 清空快照，避免重复撤销
     _LAST_BACKUPS = {}

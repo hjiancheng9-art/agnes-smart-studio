@@ -1,4 +1,5 @@
 """视频生成引擎 - 4种模式 + 异步轮询 + 进度防回退 + 双通道查询"""
+
 import asyncio
 import contextlib
 import threading
@@ -17,8 +18,7 @@ from core.validator import (
     validate_video_resolution,
 )
 
-__all__ = ['VideoEngine', 'VideoFuture', 'AsyncVideoEngine', 'AsyncVideoFuture']
-
+__all__ = ["VideoEngine", "VideoFuture", "AsyncVideoEngine", "AsyncVideoFuture"]
 
 
 class VideoFuture:
@@ -85,25 +85,27 @@ def _clean_video_id(raw: str) -> str:
     清洗后: video_xxx
     """
     import logging
+
     _log = logging.getLogger(__name__)
 
     if not raw or not raw.startswith("video_"):
         return raw
     # 尝试 base64 解码 video_ 之后的部分
     import base64
+
     try:
         b64_part = raw[6:]  # 去掉 "video_" 前缀
         decoded = base64.b64decode(b64_part).decode("utf-8")
         if "video_id:" in decoded:
             idx = decoded.rfind("video_id:")
-            return decoded[idx + len("video_id:"):]
+            return decoded[idx + len("video_id:") :]
     except (ValueError, UnicodeDecodeError):
         pass
     # 如果不在 base64 里，检查明文
     if "litellm:" in raw and ";video_id:" in raw:
         idx = raw.rfind("video_id:")
         if idx >= 0:
-            return raw[idx + len("video_id:"):]
+            return raw[idx + len("video_id:") :]
     _log.warning("_clean_video_id: unable to decode video_id=%s, returning raw", raw[:80])
     return raw
 
@@ -112,9 +114,19 @@ class VideoEngine:
     def __init__(self, client: CruxClient):
         self.client = client
 
-    def submit_only(self, prompt, width=1152, height=768, num_frames=121,
-                    frame_rate=24, image=None, negative_prompt=None,
-                    seed=None, num_inference_steps=40, extra_body=None) -> dict:
+    def submit_only(
+        self,
+        prompt,
+        width=1152,
+        height=768,
+        num_frames=121,
+        frame_rate=24,
+        image=None,
+        negative_prompt=None,
+        seed=None,
+        num_inference_steps=40,
+        extra_body=None,
+    ) -> dict:
         """仅提交视频任务，不轮询等待。返回 video_id 和 task_id，适合分步操作避免阻塞。"""
         width, height = validate_video_resolution(width, height)
         num_frames = validate_num_frames(num_frames)
@@ -122,20 +134,42 @@ class VideoEngine:
         seed = validate_seed(seed)
 
         task = self.client.create_video(
-            prompt=prompt, width=width, height=height, num_frames=num_frames,
-            frame_rate=frame_rate, image=image,
-            negative_prompt=negative_prompt, seed=seed,
-            num_inference_steps=num_inference_steps, extra_body=extra_body,
+            prompt=prompt,
+            width=width,
+            height=height,
+            num_frames=num_frames,
+            frame_rate=frame_rate,
+            image=image,
+            negative_prompt=negative_prompt,
+            seed=seed,
+            num_inference_steps=num_inference_steps,
+            extra_body=extra_body,
         )
         task_id = task.get("task_id") or task.get("id")
         video_id = _clean_video_id(task.get("video_id", ""))
-        return {"task_id": task_id, "video_id": video_id, "status": "submitted",
-                "model": "agnes-video-v2.0", "prompt": prompt, "num_frames": num_frames}
+        return {
+            "task_id": task_id,
+            "video_id": video_id,
+            "status": "submitted",
+            "model": "agnes-video-v2.0",
+            "prompt": prompt,
+            "num_frames": num_frames,
+        }
 
-    def submit_async(self, prompt, width=1152, height=768, num_frames=121,
-                     frame_rate=24, image=None, negative_prompt=None,
-                     seed=None, num_inference_steps=40, extra_body=None,
-                     timeout=None) -> VideoFuture:
+    def submit_async(
+        self,
+        prompt,
+        width=1152,
+        height=768,
+        num_frames=121,
+        frame_rate=24,
+        image=None,
+        negative_prompt=None,
+        seed=None,
+        num_inference_steps=40,
+        extra_body=None,
+        timeout=None,
+    ) -> VideoFuture:
         """Submit a video task and return a VideoFuture for background polling.
 
         The video is submitted synchronously (fast), then polling runs in a
@@ -149,21 +183,29 @@ class VideoEngine:
         import traceback
 
         submitted = self.submit_only(
-            prompt=prompt, width=width, height=height,
-            num_frames=num_frames, frame_rate=frame_rate,
-            image=image, negative_prompt=negative_prompt,
-            seed=seed, num_inference_steps=num_inference_steps,
+            prompt=prompt,
+            width=width,
+            height=height,
+            num_frames=num_frames,
+            frame_rate=frame_rate,
+            image=image,
+            negative_prompt=negative_prompt,
+            seed=seed,
+            num_inference_steps=num_inference_steps,
             extra_body=extra_body,
         )
         video_id = submitted["video_id"]
         task_id = submitted["task_id"]
         future = VideoFuture(
-            video_id=video_id, task_id=task_id,
-            prompt=prompt, num_frames=num_frames,
+            video_id=video_id,
+            task_id=task_id,
+            prompt=prompt,
+            num_frames=num_frames,
         )
 
         def _poll_worker():
             try:
+
                 def on_progress(status, progress, data):
                     with future._lock:
                         future._progress = progress
@@ -204,9 +246,12 @@ class VideoEngine:
                         self.client.download_video(video_url, local_path)
 
                 ret = {
-                    "url": video_url, "local_path": local_path,
-                    "task_id": task_id, "video_id": video_id,
-                    "model": "agnes-video-v2.0", "prompt": prompt,
+                    "url": video_url,
+                    "local_path": local_path,
+                    "task_id": task_id,
+                    "video_id": video_id,
+                    "model": "agnes-video-v2.0",
+                    "prompt": prompt,
                     "num_frames": num_frames,
                 }
                 if timed_out:
@@ -217,8 +262,7 @@ class VideoEngine:
                     future._result = ret
                     future._status = "timeout" if timed_out else "complete"
             except (httpx.HTTPError, OSError, KeyError) as e:
-                print(f"[warn] Background video poll failed for {video_id}: {e}",
-                      file=sys.stderr)
+                print(f"[warn] Background video poll failed for {video_id}: {e}", file=sys.stderr)
                 traceback.print_exc(file=sys.stderr)
                 with future._lock:
                     future._error = e
@@ -226,15 +270,25 @@ class VideoEngine:
             finally:
                 future._done.set()
 
-        t = threading.Thread(target=_poll_worker, daemon=True,
-                             name=f"video-poll-{video_id[:20]}")
+        t = threading.Thread(target=_poll_worker, daemon=True, name=f"video-poll-{video_id[:20]}")
         t.start()
         return future
 
-    def submit_and_wait(self, prompt, width=1152, height=768, num_frames=121,
-                        frame_rate=24, image=None, negative_prompt=None,
-                        seed=None, num_inference_steps=40, extra_body=None,
-                        on_progress=None, timeout=None) -> dict:
+    def submit_and_wait(
+        self,
+        prompt,
+        width=1152,
+        height=768,
+        num_frames=121,
+        frame_rate=24,
+        image=None,
+        negative_prompt=None,
+        seed=None,
+        num_inference_steps=40,
+        extra_body=None,
+        on_progress=None,
+        timeout=None,
+    ) -> dict:
         """提交视频任务并限时等待（自动绕过内容过滤）"""
         width, height = validate_video_resolution(width, height)
         num_frames = validate_num_frames(num_frames)
@@ -247,11 +301,18 @@ class VideoEngine:
             return self.client.create_video(**kw)
 
         task, rewritten = generate_with_bypass(
-            _submit, self.client, prompt,
-            width=width, height=height, num_frames=num_frames,
-            frame_rate=frame_rate, image=image,
-            negative_prompt=negative_prompt, seed=seed,
-            num_inference_steps=num_inference_steps, extra_body=extra_body,
+            _submit,
+            self.client,
+            prompt,
+            width=width,
+            height=height,
+            num_frames=num_frames,
+            frame_rate=frame_rate,
+            image=image,
+            negative_prompt=negative_prompt,
+            seed=seed,
+            num_inference_steps=num_inference_steps,
+            extra_body=extra_body,
         )
         if rewritten:
             prompt = rewritten
@@ -261,8 +322,7 @@ class VideoEngine:
         # 必须有 video_id 才能查询，否则无法正确轮询
         if not video_id:
             raise RuntimeError(
-                f"视频任务创建成功但未返回 video_id，无法轮询状态。"
-                f"task_id={task_id}，请联系支持或用 video_id 查询。"
+                f"视频任务创建成功但未返回 video_id，无法轮询状态。task_id={task_id}，请联系支持或用 video_id 查询。"
             )
 
         # 使用 wait_for_video（超时不抛异常）或 poll_video（超时抛异常）
@@ -291,8 +351,15 @@ class VideoEngine:
             with contextlib.suppress(RuntimeError):
                 self.client.download_video(video_url, local_path)
 
-        ret = {"url": video_url, "local_path": local_path, "task_id": task_id,
-               "video_id": video_id, "model": "agnes-video-v2.0", "prompt": prompt, "num_frames": num_frames}
+        ret = {
+            "url": video_url,
+            "local_path": local_path,
+            "task_id": task_id,
+            "video_id": video_id,
+            "model": "agnes-video-v2.0",
+            "prompt": prompt,
+            "num_frames": num_frames,
+        }
         if timed_out:
             ret["status"] = "timeout"
             ret["progress"] = result.get("progress", 0)
@@ -303,48 +370,117 @@ class VideoEngine:
         """[已弃用] 请使用 submit_and_wait()"""
         return self.submit_and_wait(*args, **kwargs)
 
-    def text_to_video(self, prompt, width=1152, height=768, num_frames=121,
-                      frame_rate=24, negative_prompt=None, seed=None,
-                      num_inference_steps=40, on_progress=None,
-                      timeout=None) -> dict:
-        return self.submit_and_wait(prompt=prompt, width=width, height=height,
-            num_frames=num_frames, frame_rate=frame_rate,
-            negative_prompt=negative_prompt, seed=seed,
+    def text_to_video(
+        self,
+        prompt,
+        width=1152,
+        height=768,
+        num_frames=121,
+        frame_rate=24,
+        negative_prompt=None,
+        seed=None,
+        num_inference_steps=40,
+        on_progress=None,
+        timeout=None,
+    ) -> dict:
+        return self.submit_and_wait(
+            prompt=prompt,
+            width=width,
+            height=height,
+            num_frames=num_frames,
+            frame_rate=frame_rate,
+            negative_prompt=negative_prompt,
+            seed=seed,
             num_inference_steps=num_inference_steps,
-            on_progress=on_progress, timeout=timeout)
+            on_progress=on_progress,
+            timeout=timeout,
+        )
 
-    def image_to_video(self, prompt, image_url, width=1152, height=768,
-                       num_frames=121, frame_rate=24, negative_prompt=None,
-                       seed=None, num_inference_steps=40, on_progress=None,
-                       timeout=None) -> dict:
-        return self.submit_and_wait(prompt=prompt, width=width, height=height,
-            num_frames=num_frames, frame_rate=frame_rate, image=image_url,
-            negative_prompt=negative_prompt, seed=seed,
+    def image_to_video(
+        self,
+        prompt,
+        image_url,
+        width=1152,
+        height=768,
+        num_frames=121,
+        frame_rate=24,
+        negative_prompt=None,
+        seed=None,
+        num_inference_steps=40,
+        on_progress=None,
+        timeout=None,
+    ) -> dict:
+        return self.submit_and_wait(
+            prompt=prompt,
+            width=width,
+            height=height,
+            num_frames=num_frames,
+            frame_rate=frame_rate,
+            image=image_url,
+            negative_prompt=negative_prompt,
+            seed=seed,
             num_inference_steps=num_inference_steps,
-            on_progress=on_progress, timeout=timeout)
+            on_progress=on_progress,
+            timeout=timeout,
+        )
 
-    def multi_image_video(self, prompt, image_urls, width=1152, height=768,
-                          num_frames=121, frame_rate=24, negative_prompt=None,
-                          seed=None, num_inference_steps=40, on_progress=None,
-                          timeout=None) -> dict:
+    def multi_image_video(
+        self,
+        prompt,
+        image_urls,
+        width=1152,
+        height=768,
+        num_frames=121,
+        frame_rate=24,
+        negative_prompt=None,
+        seed=None,
+        num_inference_steps=40,
+        on_progress=None,
+        timeout=None,
+    ) -> dict:
         urls = validate_image_urls(image_urls)
-        return self.submit_and_wait(prompt=prompt, width=width, height=height,
-            num_frames=num_frames, frame_rate=frame_rate, extra_body={"image": urls},
-            negative_prompt=negative_prompt, seed=seed,
+        return self.submit_and_wait(
+            prompt=prompt,
+            width=width,
+            height=height,
+            num_frames=num_frames,
+            frame_rate=frame_rate,
+            extra_body={"image": urls},
+            negative_prompt=negative_prompt,
+            seed=seed,
             num_inference_steps=num_inference_steps,
-            on_progress=on_progress, timeout=timeout)
+            on_progress=on_progress,
+            timeout=timeout,
+        )
 
-    def keyframe_animation(self, prompt, image_urls, width=1152, height=768,
-                           num_frames=121, frame_rate=24, negative_prompt=None,
-                           seed=None, num_inference_steps=40, on_progress=None,
-                           timeout=None) -> dict:
+    def keyframe_animation(
+        self,
+        prompt,
+        image_urls,
+        width=1152,
+        height=768,
+        num_frames=121,
+        frame_rate=24,
+        negative_prompt=None,
+        seed=None,
+        num_inference_steps=40,
+        on_progress=None,
+        timeout=None,
+    ) -> dict:
         urls = validate_image_urls(image_urls)
-        return self.submit_and_wait(prompt=prompt, width=width, height=height,
-            num_frames=num_frames, frame_rate=frame_rate,
+        return self.submit_and_wait(
+            prompt=prompt,
+            width=width,
+            height=height,
+            num_frames=num_frames,
+            frame_rate=frame_rate,
             extra_body={"image": urls, "mode": "keyframes"},
-            negative_prompt=negative_prompt, seed=seed,
+            negative_prompt=negative_prompt,
+            seed=seed,
             num_inference_steps=num_inference_steps,
-            on_progress=on_progress, timeout=timeout)
+            on_progress=on_progress,
+            timeout=timeout,
+        )
 
 
 class AsyncVideoFuture:
@@ -421,9 +557,19 @@ class AsyncVideoEngine:
     def __init__(self, client: AsyncCruxClient):
         self.client = client
 
-    async def submit_only(self, prompt, width=1152, height=768, num_frames=121,
-                    frame_rate=24, image=None, negative_prompt=None,
-                    seed=None, num_inference_steps=40, extra_body=None) -> dict:
+    async def submit_only(
+        self,
+        prompt,
+        width=1152,
+        height=768,
+        num_frames=121,
+        frame_rate=24,
+        image=None,
+        negative_prompt=None,
+        seed=None,
+        num_inference_steps=40,
+        extra_body=None,
+    ) -> dict:
         """异步仅提交视频任务，不轮询等待。"""
         width, height = validate_video_resolution(width, height)
         num_frames = validate_num_frames(num_frames)
@@ -431,41 +577,71 @@ class AsyncVideoEngine:
         seed = validate_seed(seed)
 
         task = await self.client.create_video(
-            prompt=prompt, width=width, height=height, num_frames=num_frames,
-            frame_rate=frame_rate, image=image,
-            negative_prompt=negative_prompt, seed=seed,
-            num_inference_steps=num_inference_steps, extra_body=extra_body,
+            prompt=prompt,
+            width=width,
+            height=height,
+            num_frames=num_frames,
+            frame_rate=frame_rate,
+            image=image,
+            negative_prompt=negative_prompt,
+            seed=seed,
+            num_inference_steps=num_inference_steps,
+            extra_body=extra_body,
         )
         task_id = task.get("task_id") or task.get("id")
         video_id = _clean_video_id(task.get("video_id", ""))
-        return {"task_id": task_id, "video_id": video_id, "status": "submitted",
-                "model": "agnes-video-v2.0", "prompt": prompt, "num_frames": num_frames}
+        return {
+            "task_id": task_id,
+            "video_id": video_id,
+            "status": "submitted",
+            "model": "agnes-video-v2.0",
+            "prompt": prompt,
+            "num_frames": num_frames,
+        }
 
-    async def submit_async(self, prompt, width=1152, height=768, num_frames=121,
-                     frame_rate=24, image=None, negative_prompt=None,
-                     seed=None, num_inference_steps=40, extra_body=None,
-                     timeout=None) -> AsyncVideoFuture:
+    async def submit_async(
+        self,
+        prompt,
+        width=1152,
+        height=768,
+        num_frames=121,
+        frame_rate=24,
+        image=None,
+        negative_prompt=None,
+        seed=None,
+        num_inference_steps=40,
+        extra_body=None,
+        timeout=None,
+    ) -> AsyncVideoFuture:
         """Submit a video task and return an AsyncVideoFuture for background polling.
 
         提交同步完成后，轮询在 asyncio.Task 中运行（非阻塞）。
         调用方可通过返回的 AsyncVideoFuture 检查进度、等待或取消。
         """
         submitted = await self.submit_only(
-            prompt=prompt, width=width, height=height,
-            num_frames=num_frames, frame_rate=frame_rate,
-            image=image, negative_prompt=negative_prompt,
-            seed=seed, num_inference_steps=num_inference_steps,
+            prompt=prompt,
+            width=width,
+            height=height,
+            num_frames=num_frames,
+            frame_rate=frame_rate,
+            image=image,
+            negative_prompt=negative_prompt,
+            seed=seed,
+            num_inference_steps=num_inference_steps,
             extra_body=extra_body,
         )
         video_id = submitted["video_id"]
         task_id = submitted["task_id"]
         future = AsyncVideoFuture(
-            video_id=video_id, task_id=task_id,
-            prompt=prompt, num_frames=num_frames,
+            video_id=video_id,
+            task_id=task_id,
+            prompt=prompt,
+            num_frames=num_frames,
         )
 
         async def _poll_worker():
             try:
+
                 def on_progress(status, progress, data):
                     # 在同一事件循环中，锁的获取是协程，这里用直接赋值
                     # （单线程 asyncio 中无需严格锁，但保持一致性）
@@ -504,9 +680,12 @@ class AsyncVideoEngine:
                         await self.client.download_video(video_url, local_path)
 
                 ret = {
-                    "url": video_url, "local_path": local_path,
-                    "task_id": task_id, "video_id": video_id,
-                    "model": "agnes-video-v2.0", "prompt": prompt,
+                    "url": video_url,
+                    "local_path": local_path,
+                    "task_id": task_id,
+                    "video_id": video_id,
+                    "model": "agnes-video-v2.0",
+                    "prompt": prompt,
                     "num_frames": num_frames,
                 }
                 if timed_out:
@@ -524,15 +703,24 @@ class AsyncVideoEngine:
             finally:
                 future._done.set()
 
-        future._task = asyncio.create_task(
-            _poll_worker(), name=f"async-video-poll-{video_id[:20]}"
-        )
+        future._task = asyncio.create_task(_poll_worker(), name=f"async-video-poll-{video_id[:20]}")
         return future
 
-    async def submit_and_wait(self, prompt, width=1152, height=768, num_frames=121,
-                        frame_rate=24, image=None, negative_prompt=None,
-                        seed=None, num_inference_steps=40, extra_body=None,
-                        on_progress=None, timeout=None) -> dict:
+    async def submit_and_wait(
+        self,
+        prompt,
+        width=1152,
+        height=768,
+        num_frames=121,
+        frame_rate=24,
+        image=None,
+        negative_prompt=None,
+        seed=None,
+        num_inference_steps=40,
+        extra_body=None,
+        on_progress=None,
+        timeout=None,
+    ) -> dict:
         """异步提交视频任务并限时等待（自动绕过内容过滤）"""
         width, height = validate_video_resolution(width, height)
         num_frames = validate_num_frames(num_frames)
@@ -545,11 +733,18 @@ class AsyncVideoEngine:
             return await self.client.create_video(**kw)
 
         task, rewritten = await async_generate_with_bypass(
-            _submit, self.client, prompt,
-            width=width, height=height, num_frames=num_frames,
-            frame_rate=frame_rate, image=image,
-            negative_prompt=negative_prompt, seed=seed,
-            num_inference_steps=num_inference_steps, extra_body=extra_body,
+            _submit,
+            self.client,
+            prompt,
+            width=width,
+            height=height,
+            num_frames=num_frames,
+            frame_rate=frame_rate,
+            image=image,
+            negative_prompt=negative_prompt,
+            seed=seed,
+            num_inference_steps=num_inference_steps,
+            extra_body=extra_body,
         )
         if rewritten:
             prompt = rewritten
@@ -558,8 +753,7 @@ class AsyncVideoEngine:
 
         if not video_id:
             raise RuntimeError(
-                f"视频任务创建成功但未返回 video_id，无法轮询状态。"
-                f"task_id={task_id}，请联系支持或用 video_id 查询。"
+                f"视频任务创建成功但未返回 video_id，无法轮询状态。task_id={task_id}，请联系支持或用 video_id 查询。"
             )
 
         if timeout is not None:
@@ -586,35 +780,70 @@ class AsyncVideoEngine:
             with contextlib.suppress(RuntimeError):
                 await self.client.download_video(video_url, local_path)
 
-        ret = {"url": video_url, "local_path": local_path, "task_id": task_id,
-               "video_id": video_id, "model": "agnes-video-v2.0",
-               "prompt": prompt, "num_frames": num_frames}
+        ret = {
+            "url": video_url,
+            "local_path": local_path,
+            "task_id": task_id,
+            "video_id": video_id,
+            "model": "agnes-video-v2.0",
+            "prompt": prompt,
+            "num_frames": num_frames,
+        }
         if timed_out:
             ret["status"] = "timeout"
             ret["progress"] = result.get("progress", 0)
         return ret
 
-    async def text_to_video(self, prompt, width=1152, height=768, num_frames=121,
-                      frame_rate=24, negative_prompt=None, seed=None,
-                      num_inference_steps=40, on_progress=None,
-                      timeout=None) -> dict:
+    async def text_to_video(
+        self,
+        prompt,
+        width=1152,
+        height=768,
+        num_frames=121,
+        frame_rate=24,
+        negative_prompt=None,
+        seed=None,
+        num_inference_steps=40,
+        on_progress=None,
+        timeout=None,
+    ) -> dict:
         return await self.submit_and_wait(
-            prompt=prompt, width=width, height=height,
-            num_frames=num_frames, frame_rate=frame_rate,
-            negative_prompt=negative_prompt, seed=seed,
+            prompt=prompt,
+            width=width,
+            height=height,
+            num_frames=num_frames,
+            frame_rate=frame_rate,
+            negative_prompt=negative_prompt,
+            seed=seed,
             num_inference_steps=num_inference_steps,
-            on_progress=on_progress, timeout=timeout,
+            on_progress=on_progress,
+            timeout=timeout,
         )
 
-    async def image_to_video(self, prompt, image_url, width=1152, height=768,
-                       num_frames=121, frame_rate=24, negative_prompt=None,
-                       seed=None, num_inference_steps=40, on_progress=None,
-                       timeout=None) -> dict:
+    async def image_to_video(
+        self,
+        prompt,
+        image_url,
+        width=1152,
+        height=768,
+        num_frames=121,
+        frame_rate=24,
+        negative_prompt=None,
+        seed=None,
+        num_inference_steps=40,
+        on_progress=None,
+        timeout=None,
+    ) -> dict:
         return await self.submit_and_wait(
-            prompt=prompt, width=width, height=height,
-            num_frames=num_frames, frame_rate=frame_rate, image=image_url,
-            negative_prompt=negative_prompt, seed=seed,
+            prompt=prompt,
+            width=width,
+            height=height,
+            num_frames=num_frames,
+            frame_rate=frame_rate,
+            image=image_url,
+            negative_prompt=negative_prompt,
+            seed=seed,
             num_inference_steps=num_inference_steps,
-            on_progress=on_progress, timeout=timeout,
+            on_progress=on_progress,
+            timeout=timeout,
         )
-

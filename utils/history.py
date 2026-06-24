@@ -14,7 +14,15 @@ from datetime import datetime
 from core.config import OUTPUT_DIR
 
 __all__ = [
-    'HISTORY_FILE', 'HISTORY_JSONL', 'add_record', 'delete_record', 'get_favorites', 'load_history', 'save_history', 'search_records', 'toggle_favorite',
+    "HISTORY_FILE",
+    "HISTORY_JSONL",
+    "add_record",
+    "delete_record",
+    "get_favorites",
+    "load_history",
+    "save_history",
+    "search_records",
+    "toggle_favorite",
 ]
 
 
@@ -27,9 +35,22 @@ HISTORY_JSONL = OUTPUT_DIR / "history.jsonl"
 _HEAVY_FIELDS = {"b64_json", "image", "data", "base64", "url"}
 # 瘦身后保留的字段（其余大字段截断或丢弃）
 _KEEP_RESULT_KEYS = {
-    "local_path", "remote_url", "prompt", "model", "size", "status",
-    "progress", "seed", "negative_prompt", "video_id", "error",
-    "width", "height", "num_frames", "frame_rate", "duration_seconds",
+    "local_path",
+    "remote_url",
+    "prompt",
+    "model",
+    "size",
+    "status",
+    "progress",
+    "seed",
+    "negative_prompt",
+    "video_id",
+    "error",
+    "width",
+    "height",
+    "num_frames",
+    "frame_rate",
+    "duration_seconds",
 }
 # 长字符串字段截断阈值
 _MAX_STR_LEN = 200
@@ -124,6 +145,7 @@ def _migrate_legacy_if_needed():
             out.flush()
             try:
                 import os as _os
+
                 _os.fsync(out.fileno())
             except OSError:
                 pass
@@ -257,8 +279,7 @@ def get_favorites() -> list[dict]:
 def search_records(keyword: str) -> list[dict]:
     """按关键词搜索记录"""
     kw = keyword.lower()
-    return [r for r in load_history()
-            if kw in r.get("prompt", "").lower() or kw in r.get("model", "").lower()]
+    return [r for r in load_history() if kw in r.get("prompt", "").lower() or kw in r.get("model", "").lower()]
 
 
 def delete_record(record_id: str) -> bool:

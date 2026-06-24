@@ -17,13 +17,11 @@ from ui.theme import console
 if TYPE_CHECKING:
     from core.chat import ChatSession
 
-__all__ = ['EngineeringCommandsMixin']
-
+__all__ = ["EngineeringCommandsMixin"]
 
 
 class EngineeringCommandsMixin:
     pass  # 占位，下方方法会替换
-
 
     def _chat_plan(self, session: "ChatSession", task: str):
         """先规划再执行：让 LLM 输出计划 → 解析步骤 → 逐步执行"""
@@ -51,7 +49,8 @@ class EngineeringCommandsMixin:
         renderer.start()
         try:
             for delta in session.client.chat_stream(
-                model=session.model, messages=session.messages,
+                model=session.model,
+                messages=session.messages,
                 max_tokens=3072,
             ):
                 if "content" in delta and delta["content"]:
@@ -66,7 +65,7 @@ class EngineeringCommandsMixin:
 
         renderer.stop()
         renderer.commit()  # 单一落盘：固化末尾增量（无增量时空操作）
-        console.print()    # 结尾换行（习惯性空行分隔）
+        console.print()  # 结尾换行（习惯性空行分隔）
         session.messages.append({"role": "assistant", "content": buffer})
 
         steps = parse_plan(buffer)
@@ -95,6 +94,7 @@ class EngineeringCommandsMixin:
     def _chat_compress(self, session: "ChatSession"):
         """压缩长对话历史为摘要"""
         from core.agent import compress_messages
+
         if len(session.messages) < 6:
             show_info("消息较少，无需压缩")
             return
@@ -114,6 +114,7 @@ class EngineeringCommandsMixin:
     def _chat_project(self, session: "ChatSession", arg: str):
         """项目管理 /project [new|list|save|load|analyze] [name]"""
         from core.project import PROJECTS_DIR, Project
+
         arg = arg.strip()
 
         if arg.startswith("new ") or not arg:
@@ -148,7 +149,7 @@ class EngineeringCommandsMixin:
                 console.print(f"  {i}. {s['id']} ({s['messages']}msg, {s['saved_at'][:16]})")
             ch = Prompt.ask("加载哪个 (序号)", default="1")
             try:
-                s = sessions[int(ch)-1]
+                s = sessions[int(ch) - 1]
                 msgs = p.load_session(s["id"])
                 if msgs:
                     session.messages = msgs
@@ -182,6 +183,7 @@ class EngineeringCommandsMixin:
     def _chat_team(self, session: "ChatSession", arg: str):
         """启动智能体团队 /team [review|debug|feature] [上下文]"""
         from core.project import TEAM_CONFIGS, run_team
+
         parts = arg.strip().split(" ", 1)
         team_type = parts[0] if parts and parts[0] in ("review", "debug", "feature") else "review"
         context = parts[1] if len(parts) > 1 else ""
@@ -206,12 +208,15 @@ class EngineeringCommandsMixin:
     def _chat_deploy(self, session: "ChatSession", arg: str):
         """一键部署 /deploy [vercel|netlify|github] [path]"""
         from core.project import deploy_to_github_pages, deploy_to_netlify, deploy_to_vercel
+
         parts = arg.strip().split(" ", 1)
         target = parts[0].lower() if parts else "vercel"
         path = parts[1] if len(parts) > 1 else os.getcwd()
 
         show_info(f"部署到 {target}: {path}")
-        deploy_fn = {"vercel": deploy_to_vercel, "netlify": deploy_to_netlify, "github": deploy_to_github_pages}.get(target)
+        deploy_fn = {"vercel": deploy_to_vercel, "netlify": deploy_to_netlify, "github": deploy_to_github_pages}.get(
+            target
+        )
         if not deploy_fn:
             show_warning(f"未知目标 {target}，可选: vercel, netlify, github")
             return
@@ -223,21 +228,22 @@ class EngineeringCommandsMixin:
         """扫描项目中待办标记 (TODO/FIXME/HACK/XXX/OPTIMIZE/BUG) — 纯 Python 实现"""
         import os
         import re
+
         path = arg.strip() or "."
         show_info(f"扫描 {path} 中的 TODO/FIXME/HACK/XXX ...")
-        markers = re.compile(r'TODO|FIXME|HACK|XXX|OPTIMIZE|BUG')
-        exts = ('.py', '.js', '.ts', '.md', '.html', '.css', '.sh', '.bat')
-        skip_dirs = {'.git', '__pycache__', '.pytest_cache', 'node_modules', '.venv', 'output', '.codebuddy'}
+        markers = re.compile(r"TODO|FIXME|HACK|XXX|OPTIMIZE|BUG")
+        exts = (".py", ".js", ".ts", ".md", ".html", ".css", ".sh", ".bat")
+        skip_dirs = {".git", "__pycache__", ".pytest_cache", "node_modules", ".venv", "output", ".codebuddy"}
         results = []
         try:
             for dp, dirs, files in os.walk(path):
-                dirs[:] = [d for d in dirs if d not in skip_dirs and not d.startswith('.')]
+                dirs[:] = [d for d in dirs if d not in skip_dirs and not d.startswith(".")]
                 for f in files:
                     if not f.endswith(exts):
                         continue
                     fp = os.path.join(dp, f)
                     try:
-                        with open(fp, encoding='utf-8', errors='replace') as fh:
+                        with open(fp, encoding="utf-8", errors="replace") as fh:
                             for n, line in enumerate(fh, 1):
                                 if markers.search(line):
                                     results.append(f"{os.path.relpath(fp)}:{n}: {line.strip()[:120]}")
@@ -265,18 +271,19 @@ class EngineeringCommandsMixin:
         if not Confirm.ask("确认执行?", default=False):
             return
         import os
-        allowed_exts = ('.py', '.js', '.ts', '.md')
+
+        allowed_exts = (".py", ".js", ".ts", ".md")
         count = 0
         try:
             for dp, _, files in os.walk(path):
-                if '.git' in dp or '__pycache__' in dp or '.codebuddy' in dp:
+                if ".git" in dp or "__pycache__" in dp or ".codebuddy" in dp:
                     continue
                 for f in files:
                     if not f.endswith(allowed_exts):
                         continue
                     fp = os.path.join(dp, f)
                     try:
-                        with open(fp, encoding='utf-8') as fh:
+                        with open(fp, encoding="utf-8") as fh:
                             content = fh.read()
                     except (OSError, PermissionError):
                         continue
@@ -284,7 +291,7 @@ class EngineeringCommandsMixin:
                         continue
                     new_content = content.replace(old, new)
                     try:
-                        with open(fp, 'w', encoding='utf-8') as fh:
+                        with open(fp, "w", encoding="utf-8") as fh:
                             fh.write(new_content)
                         count += 1
                     except (OSError, PermissionError):

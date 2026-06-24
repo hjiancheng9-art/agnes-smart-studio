@@ -21,6 +21,7 @@
     #   "count": 4,
     # }
 """
+
 import random
 from datetime import datetime
 from pathlib import Path
@@ -30,23 +31,23 @@ from core.config import OUTPUT_DIR
 from core.validator import validate_image_size, validate_model, validate_seed
 from engines.text_to_image import TextToImageEngine
 
-__all__ = ['BatchVariantEngine']
-
+__all__ = ["BatchVariantEngine"]
 
 
 # 变种方向提示词后缀——给同主体加不同视觉变量，让 9 宫格有看头
 # 仅当 style 未指定时循环使用，保持每张"同主体、不同味道"
 _VARIANT_ANGLES = [
-    "",                                    # 0号：原样，作为基准
-    "golden hour warm backlight",          # 暖光逆光
-    "moody low-key cinematic shadow",      # 低调电影感阴影
-    "vibrant high saturation color pop",   # 高饱和色彩冲击
-    "soft diffused overcast lighting",     # 柔和漫射光
-    "dramatic side rim light, teal-orange",# 侧轮廓光 青橙调
-    "minimalist clean composition",        # 极简构图
-    "dynamic dutch angle, energetic",      # 倾斜构图 活力
-    "ethereal foggy atmosphere",           # 仙气雾感
+    "",  # 0号：原样，作为基准
+    "golden hour warm backlight",  # 暖光逆光
+    "moody low-key cinematic shadow",  # 低调电影感阴影
+    "vibrant high saturation color pop",  # 高饱和色彩冲击
+    "soft diffused overcast lighting",  # 柔和漫射光
+    "dramatic side rim light, teal-orange",  # 侧轮廓光 青橙调
+    "minimalist clean composition",  # 极简构图
+    "dynamic dutch angle, energetic",  # 倾斜构图 活力
+    "ethereal foggy atmosphere",  # 仙气雾感
 ]
+
 
 # 网格列数规则：count → cols
 def _grid_cols(count: int) -> int:
@@ -117,16 +118,21 @@ class BatchVariantEngine:
             v_prompt = f"{prompt}, {angles[i]}" if angles[i] else prompt
             try:
                 data = self.t2i.generate(
-                    prompt=v_prompt, model=model, size=size,
-                    seed=seeds[i], negative_prompt=negative_prompt,
+                    prompt=v_prompt,
+                    model=model,
+                    size=size,
+                    seed=seeds[i],
+                    negative_prompt=negative_prompt,
                 )
-                variants.append({
-                    "local_path": data.get("local_path", ""),
-                    "url": data.get("url", ""),
-                    "seed": seeds[i],
-                    "prompt": v_prompt,
-                    "index": i,
-                })
+                variants.append(
+                    {
+                        "local_path": data.get("local_path", ""),
+                        "url": data.get("url", ""),
+                        "seed": seeds[i],
+                        "prompt": v_prompt,
+                        "index": i,
+                    }
+                )
             except (RuntimeError, OSError) as e:
                 failed.append({"index": i, "seed": seeds[i], "error": str(e)})
             if on_progress:
@@ -205,8 +211,7 @@ class BatchVariantEngine:
             label_x = padding + col * (cell_w + padding)
             label_y = padding + row * (cell_h + label_h) + cell_h + 2
             seed = v.get("seed", "?")
-            draw.text((label_x + 4, label_y), f"#{i+1} seed:{seed}",
-                      fill=(180, 220, 255), font=font)
+            draw.text((label_x + 4, label_y), f"#{i + 1} seed:{seed}", fill=(180, 220, 255), font=font)
 
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         grid_path = str(OUTPUT_DIR / "images" / f"variant_grid_{ts}.jpg")

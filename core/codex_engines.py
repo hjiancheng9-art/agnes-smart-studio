@@ -7,7 +7,21 @@ import time
 from pathlib import Path
 
 __all__ = [
-    "JSRepl", "MCPConnector", "PlaywrightSession", "ROOT", "imagegen", "js_eval", "mcp_call", "mcp_connect", "pw_click", "pw_close", "pw_fill", "pw_js", "pw_navigate", "pw_screenshot", "transcribe_audio",
+    "JSRepl",
+    "MCPConnector",
+    "PlaywrightSession",
+    "ROOT",
+    "imagegen",
+    "js_eval",
+    "mcp_call",
+    "mcp_connect",
+    "pw_click",
+    "pw_close",
+    "pw_fill",
+    "pw_js",
+    "pw_navigate",
+    "pw_screenshot",
+    "transcribe_audio",
 ]
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -15,6 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # =====================================================================
 # js_repl -- Node.js REPL (Codex equivalent)
 # =====================================================================
+
 
 class JSRepl:
     """Node.js execution engine — one-shot subprocess model with vm sandbox.
@@ -26,10 +41,18 @@ class JSRepl:
 
     # JS dangerous patterns — blocked before execution
     _JS_BLOCKED = [
-        "child_process", "process.exit", "process.kill",
-        "fs.", "require('fs')", 'require("fs")',
-        "net.", "require('net')", 'require("net")',
-        "process.env", "process.cwd()", "process.chdir",
+        "child_process",
+        "process.exit",
+        "process.kill",
+        "fs.",
+        "require('fs')",
+        'require("fs")',
+        "net.",
+        "require('net')",
+        'require("net")',
+        "process.env",
+        "process.cwd()",
+        "process.chdir",
     ]
 
     _SANDBOX_WRAPPER = """
@@ -55,6 +78,7 @@ try {
     def _find_node(self) -> str | None:
         """Locate Node.js executable."""
         import shutil
+
         return shutil.which("node")
 
     def eval(self, code: str, timeout_ms: int = 30000) -> str:
@@ -73,7 +97,9 @@ try {
         try:
             result = subprocess.run(
                 [self._node_path, "-e", wrapped],
-                capture_output=True, text=True, timeout=(timeout_sec / 1000) + 5,
+                capture_output=True,
+                text=True,
+                timeout=(timeout_sec / 1000) + 5,
                 cwd=str(ROOT),
             )
             if result.returncode != 0:
@@ -101,12 +127,14 @@ def js_eval(code: str) -> str:
 # MCP Client -- functional MCP server connector
 # =====================================================================
 
+
 class MCPConnector:
     """Connect to stdio-based MCP servers and expose their tools."""
 
     def __init__(self) -> None:
         self._connections: dict[str, subprocess.Popen] = {}
         import atexit
+
         atexit.register(self._cleanup)
 
     def _cleanup(self):
@@ -124,8 +152,7 @@ class MCPConnector:
                 except (subprocess.SubprocessError, OSError):
                     pass
 
-    def connect(self, server_name: str, command: str, args: list[str],
-                env: dict | None = None) -> bool:
+    def connect(self, server_name: str, command: str, args: list[str], env: dict | None = None) -> bool:
         """Start an MCP server process."""
         try:
             proc_env = os.environ.copy()
@@ -133,8 +160,11 @@ class MCPConnector:
                 proc_env.update(env)
             proc = subprocess.Popen(
                 [command] + args,
-                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE, text=True, env=proc_env,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=proc_env,
             )
             self._connections[server_name] = proc
             return True
@@ -146,10 +176,7 @@ class MCPConnector:
         proc = self._connections.get(server_name)
         if not proc or not proc.stdin or not proc.stdout:
             return []
-        request = json.dumps({
-            "jsonrpc": "2.0", "id": 1,
-            "method": "tools/list", "params": {}
-        })
+        request = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}})
         try:
             proc.stdin.write(request + "\n")
             proc.stdin.flush()
@@ -164,11 +191,9 @@ class MCPConnector:
         proc = self._connections.get(server_name)
         if not proc or not proc.stdin or not proc.stdout:
             return f"[MCP Error] Server '{server_name}' not connected"
-        request = json.dumps({
-            "jsonrpc": "2.0", "id": 2,
-            "method": "tools/call",
-            "params": {"name": tool_name, "arguments": args}
-        })
+        request = json.dumps(
+            {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": tool_name, "arguments": args}}
+        )
         try:
             proc.stdin.write(request + "\n")
             proc.stdin.flush()
@@ -193,6 +218,7 @@ _mcp = MCPConnector()
 def mcp_connect(server_name: str, command: str, args: str = "") -> str:
     return "ok" if _mcp.connect(server_name, command, args.split() if args else []) else "failed"
 
+
 def mcp_call(server_name: str, tool_name: str, args_json: str = "{}") -> str:
     return _mcp.call_tool(server_name, tool_name, json.loads(args_json))
 
@@ -200,6 +226,7 @@ def mcp_call(server_name: str, tool_name: str, args_json: str = "{}") -> str:
 # =====================================================================
 # Playwright Persistent Session
 # =====================================================================
+
 
 class PlaywrightSession:
     """Persistent browser session via Playwright (codex-interactive style)."""
@@ -212,6 +239,7 @@ class PlaywrightSession:
     def start(self, headless: bool = True) -> str:
         try:
             from playwright.sync_api import sync_playwright
+
             self._playwright = sync_playwright().start()
             self._browser = self._playwright.chromium.launch(headless=headless)
             self._page = self._browser.new_page()
@@ -269,6 +297,7 @@ _pw_session = PlaywrightSession()
 def pw_navigate(url: str) -> str:
     """Module-level wrapper for PlaywrightSession.navigate."""
     from core.file_tools import _validate_url
+
     err = _validate_url(url)
     if err:
         return f"[安全拒绝] {err}"
@@ -317,6 +346,7 @@ def pw_close() -> str:
 # Audio Transcription
 # =====================================================================
 
+
 def transcribe_audio(audio_path: str) -> str:
     """Transcribe audio file to text using whisper or API."""
     path = Path(audio_path)
@@ -324,6 +354,7 @@ def transcribe_audio(audio_path: str) -> str:
         return f"[错误] 文件不存在: {audio_path}"
     try:
         import whisper  # type: ignore[import-not-found]
+
         model = whisper.load_model("base")
         result = model.transcribe(str(path))
         return result["text"]
@@ -335,18 +366,19 @@ def transcribe_audio(audio_path: str) -> str:
 # Independent Image Generation Channel
 # =====================================================================
 
+
 def imagegen(prompt: str, size: str = "1024x1024", style: str = "") -> dict:
     """Generate image via independent channel (uses CRUX API if available)."""
     try:
         from core.client import CruxClient
         from engines.text_to_image import TextToImageEngine
+
         client = CruxClient()
         engine = TextToImageEngine(client)
         enhanced = prompt
         if style:
             enhanced = f"{prompt}, {style} style"
         result = engine.generate(prompt=enhanced, size=size)
-        return {"status": "ok", "local_path": result.get("local_path", ""),
-                "prompt": enhanced}
+        return {"status": "ok", "local_path": result.get("local_path", ""), "prompt": enhanced}
     except (OSError, ValueError, RuntimeError) as e:
         return {"status": "error", "message": str(e)}

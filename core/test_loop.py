@@ -18,13 +18,18 @@ import time
 from pathlib import Path
 
 __all__ = [
-    'TEST_LOOP_EXECUTOR_MAP', 'TEST_LOOP_TOOL_DEFS', 'TestGenerator', 'TestLoop', 'TestRunner',
+    "TEST_LOOP_EXECUTOR_MAP",
+    "TEST_LOOP_TOOL_DEFS",
+    "TestGenerator",
+    "TestLoop",
+    "TestRunner",
 ]
 
 
 # ======================================================================
 # Test Generator
 # ======================================================================
+
 
 class TestGenerator:
     """Generate pytest test code for Python source files using LLM."""
@@ -115,6 +120,7 @@ class TestGenerator:
 # Test Runner
 # ======================================================================
 
+
 class TestRunner:
     """Execute pytest and parse structured results."""
 
@@ -170,9 +176,7 @@ class TestRunner:
         # Parse failure details from --tb=short output
         if failures:
             # Try to extract error details per test
-            detail_sections = re.findall(
-                r"={2,}\s*FAILURES\s*={2,}\n(.*)", output, re.DOTALL
-            )
+            detail_sections = re.findall(r"={2,}\s*FAILURES\s*={2,}\n(.*)", output, re.DOTALL)
             if detail_sections:
                 detail_text = detail_sections[0]
                 # Match individual failure blocks
@@ -206,9 +210,14 @@ class TestRunner:
         """
         # pytest -k filters by substring match on test name
         args = [
-            sys.executable, "-m", "pytest",
-            test_path, "-v", "--tb=short",
-            "-k", test_name,
+            sys.executable,
+            "-m",
+            "pytest",
+            test_path,
+            "-v",
+            "--tb=short",
+            "-k",
+            test_name,
         ]
 
         start = time.time()
@@ -261,6 +270,7 @@ class TestRunner:
 # Test Loop (Main Orchestrator)
 # ======================================================================
 
+
 class TestLoop:
     """Orchestrate test generation, execution, failure analysis, and fix application.
 
@@ -286,8 +296,7 @@ class TestLoop:
         self.generator = TestGenerator(client, model=model)
         self.runner = TestRunner()
 
-    def run(self, file_path: str, function_name: str = "",
-            max_iterations: int = 3) -> dict:
+    def run(self, file_path: str, function_name: str = "", max_iterations: int = 3) -> dict:
         """Execute the full test loop.
 
         Args:
@@ -323,9 +332,7 @@ class TestLoop:
             # Step 4: Analyze failure and generate fix
             source_code = Path(file_path).read_text(encoding="utf-8", errors="replace")
             tool_name = function_name or Path(file_path).stem
-            fix_description = self.analyze_failure(
-                result["raw_output"], source_code, tool_name
-            )
+            fix_description = self.analyze_failure(result["raw_output"], source_code, tool_name)
 
             iteration_data["fix_applied"] = fix_description[:200]
 
@@ -337,6 +344,7 @@ class TestLoop:
                 # Record the test pattern for cross-session learning
                 try:
                     from utils.memory import record_test_pattern
+
                     record_test_pattern(
                         tool_name=tool_name,
                         failure_pattern=result["raw_output"][:300],
@@ -372,8 +380,7 @@ class TestLoop:
             "total_duration_s": round(total_duration, 3),
         }
 
-    def analyze_failure(self, test_output: str, source_code: str,
-                        tool_name: str = "") -> str:
+    def analyze_failure(self, test_output: str, source_code: str, tool_name: str = "") -> str:
         """Use LLM to analyze test failure and suggest a code fix.
 
         Injects past test patterns (from memory) so the LLM can reference
@@ -392,6 +399,7 @@ class TestLoop:
         past_patterns = ""
         try:
             from utils.memory import build_test_context
+
             past_patterns = build_test_context(tool_name)
         except (OSError, ValueError, RuntimeError):
             pass
@@ -407,10 +415,7 @@ class TestLoop:
         )
 
         if past_patterns:
-            prompt += (
-                f"{past_patterns}\n\n"
-                "Reference the patterns above if the current failure is similar.\n\n"
-            )
+            prompt += f"{past_patterns}\n\nReference the patterns above if the current failure is similar.\n\n"
 
         prompt += (
             f"Test output:\n```\n{test_output[:3000]}\n```\n\n"
@@ -563,10 +568,13 @@ def _execute_generate_tests(**kwargs) -> str:
         return json.dumps({"error": "file_path is required"}, ensure_ascii=False)
     try:
         test_path = generator.generate_test_file(file_path, function_name)
-        return json.dumps({
-            "test_file": test_path,
-            "source_file": file_path,
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "test_file": test_path,
+                "source_file": file_path,
+            },
+            ensure_ascii=False,
+        )
     except (json.JSONDecodeError, TypeError, KeyError) as e:
         return json.dumps({"error": str(e)}, ensure_ascii=False)
 

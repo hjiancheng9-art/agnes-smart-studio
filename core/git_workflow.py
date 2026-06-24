@@ -9,7 +9,11 @@ import time
 from pathlib import Path
 
 __all__ = [
-    'GitWorkflow', 'ROOT', 'git_autocommit', 'git_snapshot', 'git_status',
+    "GitWorkflow",
+    "ROOT",
+    "git_autocommit",
+    "git_snapshot",
+    "git_status",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -22,10 +26,7 @@ class GitWorkflow:
         self.root = root or ROOT
 
     def _run(self, *args, capture: bool = True) -> tuple[int, str, str]:
-        r = subprocess.run(
-            ["git"] + list(args),
-            capture_output=capture, text=True, timeout=30, cwd=str(self.root)
-        )
+        r = subprocess.run(["git"] + list(args), capture_output=capture, text=True, timeout=30, cwd=str(self.root))
         return r.returncode, r.stdout.strip(), r.stderr.strip()
 
     def status(self) -> str:
@@ -94,8 +95,10 @@ class GitWorkflow:
 def git_status() -> str:
     return GitWorkflow().status()
 
+
 def git_autocommit(message: str) -> dict:
     return GitWorkflow().safe_autocommit(message)
+
 
 def git_snapshot(label: str = "") -> str:
     return GitWorkflow().snapshot(label)

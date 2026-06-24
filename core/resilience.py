@@ -17,13 +17,18 @@ from typing import Any
 from core.config import OUTPUT_DIR
 
 __all__ = [
-    'Checkpoint', 'ErrorClassifier', 'ErrorType', 'RetryPolicy', 'SafeExecutor',
+    "Checkpoint",
+    "ErrorClassifier",
+    "ErrorType",
+    "RetryPolicy",
+    "SafeExecutor",
 ]
 
 
 # ======================================================================
 # Error Classifier
 # ======================================================================
+
 
 class ErrorType(Enum):
     API_ERROR = "api_error"
@@ -48,8 +53,15 @@ class ErrorClassifier:
         ErrorType.NETWORK_ERROR: ["connection", "timeout", "dns", "refused", "unreachable"],
         ErrorType.VALIDATION_ERROR: ["validation", "invalid", "expected", "must be"],
         ErrorType.FILE_ERROR: ["filenotfound", "no such file", "permission denied"],
-        ErrorType.CODE_ERROR: ["syntaxerror", "typeerror", "attributeerror", "keyerror",
-                                "indexerror", "valueerror", "importerror"],
+        ErrorType.CODE_ERROR: [
+            "syntaxerror",
+            "typeerror",
+            "attributeerror",
+            "keyerror",
+            "indexerror",
+            "valueerror",
+            "importerror",
+        ],
     }
 
     @classmethod
@@ -69,8 +81,13 @@ class ErrorClassifier:
     def is_retryable(cls, error: Exception) -> bool:
         """Determine if an error is worth retrying."""
         etype = cls.classify(error)
-        return etype in (ErrorType.RATE_LIMIT, ErrorType.NETWORK_ERROR, ErrorType.TIMEOUT,
-                         ErrorType.API_ERROR, ErrorType.UNKNOWN)
+        return etype in (
+            ErrorType.RATE_LIMIT,
+            ErrorType.NETWORK_ERROR,
+            ErrorType.TIMEOUT,
+            ErrorType.API_ERROR,
+            ErrorType.UNKNOWN,
+        )
 
     @classmethod
     def get_recovery_hint(cls, error: Exception) -> str:
@@ -95,6 +112,7 @@ class ErrorClassifier:
 # Retry Policy
 # ======================================================================
 
+
 class RetryPolicy:
     """Configurable retry with exponential backoff.
 
@@ -103,9 +121,14 @@ class RetryPolicy:
         result = policy.execute(lambda: do_something())
     """
 
-    def __init__(self, max_retries: int = 3, base_delay: float = 1.0,
-                 max_delay: float = 30.0, backoff_factor: float = 2.0,
-                 retryable_errors: tuple[type[BaseException], ...] | None = None) -> None:
+    def __init__(
+        self,
+        max_retries: int = 3,
+        base_delay: float = 1.0,
+        max_delay: float = 30.0,
+        backoff_factor: float = 2.0,
+        retryable_errors: tuple[type[BaseException], ...] | None = None,
+    ) -> None:
         self.max_retries = max_retries
         self.base_delay = base_delay
         self.max_delay = max_delay
@@ -132,10 +155,7 @@ class RetryPolicy:
                     raise
 
                 if attempt < self.max_retries:
-                    delay = min(
-                        self.base_delay * (self.backoff_factor ** attempt),
-                        self.max_delay
-                    )
+                    delay = min(self.base_delay * (self.backoff_factor**attempt), self.max_delay)
                     time.sleep(delay)
                 else:
                     raise
@@ -147,6 +167,7 @@ class RetryPolicy:
 # ======================================================================
 # Checkpoint Manager
 # ======================================================================
+
 
 class Checkpoint:
     """Save and restore task state for long-running operations.
@@ -168,10 +189,7 @@ class Checkpoint:
         """Save task state to a checkpoint file."""
         state["task_id"] = self.task_id
         state["saved_at"] = time.time()
-        self.checkpoint_file.write_text(
-            json.dumps(state, indent=2, ensure_ascii=False),
-            encoding="utf-8"
-        )
+        self.checkpoint_file.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
 
     def load(self) -> dict | None:
         """Load task state from checkpoint. Returns None if not found."""
@@ -200,12 +218,14 @@ class Checkpoint:
         for f in cls.CHECKPOINT_DIR.glob("*.json"):
             try:
                 data = json.loads(f.read_text(encoding="utf-8"))
-                checkpoints.append({
-                    "task_id": data.get("task_id", f.stem),
-                    "saved_at": data.get("saved_at", 0),
-                    "step": data.get("step", ""),
-                    "phase": data.get("phase", ""),
-                })
+                checkpoints.append(
+                    {
+                        "task_id": data.get("task_id", f.stem),
+                        "saved_at": data.get("saved_at", 0),
+                        "step": data.get("step", ""),
+                        "phase": data.get("phase", ""),
+                    }
+                )
             except (json.JSONDecodeError, ValueError):
                 continue
         return sorted(checkpoints, key=lambda x: x.get("saved_at", 0), reverse=True)
@@ -214,6 +234,7 @@ class Checkpoint:
 # ======================================================================
 # Safe Tool Executor
 # ======================================================================
+
 
 class SafeExecutor:
     """Execute tools with error capture, timeout, and logging.
@@ -253,7 +274,7 @@ class SafeExecutor:
         try:
             raw_result = tool_func(**args)
             if isinstance(raw_result, str) and len(raw_result) > self.max_result_size:
-                raw_result = raw_result[:self.max_result_size] + "\n[truncated]"
+                raw_result = raw_result[: self.max_result_size] + "\n[truncated]"
             result["result"] = str(raw_result)
             result["success"] = True
         except (OSError, RuntimeError, ValueError) as e:

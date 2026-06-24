@@ -14,7 +14,11 @@ import sys
 from dataclasses import dataclass, field
 
 __all__ = [
-    'NOTEBOOK_EXECUTOR_MAP', 'NOTEBOOK_TOOL_DEFS', 'Notebook', 'NotebookCell', 'NotebookManager',
+    "NOTEBOOK_EXECUTOR_MAP",
+    "NOTEBOOK_TOOL_DEFS",
+    "Notebook",
+    "NotebookCell",
+    "NotebookManager",
 ]
 
 
@@ -71,9 +75,7 @@ class Notebook:
             )
             self.cells.append(cell)
 
-    def add_cell(
-        self, cell_type: str = "code", source: str = "", index: int | None = None
-    ) -> NotebookCell:
+    def add_cell(self, cell_type: str = "code", source: str = "", index: int | None = None) -> NotebookCell:
         """Add a new cell to the notebook.
 
         Args:
@@ -401,9 +403,7 @@ def _exec_notebook_open(params: dict) -> str:
             }
             for c in nb.cells
         ]
-        return json.dumps(
-            {"cells": cells_info, "summary": nb.summary()}, ensure_ascii=False
-        )
+        return json.dumps({"cells": cells_info, "summary": nb.summary()}, ensure_ascii=False)
     except FileNotFoundError as e:
         return json.dumps({"error": str(e)}, ensure_ascii=False)
     except (json.JSONDecodeError, TypeError, KeyError) as e:
@@ -417,9 +417,7 @@ def _exec_notebook_edit_cell(params: dict) -> str:
     source = params.get("source")
 
     if not path or cell_index is None or source is None:
-        return json.dumps(
-            {"error": "path, cell_index, and source are required"}, ensure_ascii=False
-        )
+        return json.dumps({"error": "path, cell_index, and source are required"}, ensure_ascii=False)
 
     try:
         mgr = NotebookManager()
@@ -476,9 +474,7 @@ def _exec_notebook_run_cell(params: dict) -> str:
     cell_index = params.get("cell_index")
 
     if not path or cell_index is None:
-        return json.dumps(
-            {"error": "path and cell_index are required"}, ensure_ascii=False
-        )
+        return json.dumps({"error": "path and cell_index are required"}, ensure_ascii=False)
 
     try:
         mgr = NotebookManager()
@@ -549,7 +545,11 @@ NOTEBOOK_TOOL_DEFS = [
                 "type": "object",
                 "properties": {
                     "path": {"type": "string", "description": "Path to the .ipynb file"},
-                    "cell_type": {"type": "string", "description": "Type of cell: code, markdown, or raw (default: code)", "enum": ["code", "markdown", "raw"]},
+                    "cell_type": {
+                        "type": "string",
+                        "description": "Type of cell: code, markdown, or raw (default: code)",
+                        "enum": ["code", "markdown", "raw"],
+                    },
                     "source": {"type": "string", "description": "Cell source content (default: empty)"},
                     "index": {"type": "integer", "description": "Position to insert at. If omitted, appends at end."},
                 },

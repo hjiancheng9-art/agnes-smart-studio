@@ -19,11 +19,16 @@ from pathlib import Path
 from core.config import OUTPUT_DIR
 
 __all__ = [
-    'TASK_MANAGER_EXECUTOR_MAP', 'TASK_MANAGER_TOOL_DEFS', 'Task', 'TaskManager', 'TaskStatus',
+    "TASK_MANAGER_EXECUTOR_MAP",
+    "TASK_MANAGER_TOOL_DEFS",
+    "Task",
+    "TaskManager",
+    "TaskStatus",
 ]
 
 
 # ── Task status enum ────────────────────────────────────────
+
 
 class TaskStatus(str, Enum):
     PENDING = "pending"
@@ -38,11 +43,12 @@ _ALLOWED_TRANSITIONS: dict[TaskStatus, frozenset[TaskStatus]] = {
     TaskStatus.PENDING: frozenset({TaskStatus.IN_PROGRESS, TaskStatus.COMPLETED, TaskStatus.DELETED}),
     TaskStatus.IN_PROGRESS: frozenset({TaskStatus.COMPLETED, TaskStatus.PENDING, TaskStatus.DELETED}),
     TaskStatus.COMPLETED: frozenset(),  # 终态
-    TaskStatus.DELETED: frozenset(),    # 终态
+    TaskStatus.DELETED: frozenset(),  # 终态
 }
 
 
 # ── Task dataclass ──────────────────────────────────────────
+
 
 @dataclass
 class Task:
@@ -87,8 +93,7 @@ class TaskManager:
 
     # ── CRUD ────────────────────────────────────────────────
 
-    def create(self, subject: str, description: str = "",
-               activeForm: str = "") -> Task:
+    def create(self, subject: str, description: str = "", activeForm: str = "") -> Task:
         """Create a new task with an auto-incremented ID."""
         with self._lock:
             tid = self._next_id()
@@ -111,10 +116,17 @@ class TaskManager:
         with self._lock:
             return self._tasks.get(task_id)
 
-    def update(self, task_id: str, *, status: str | None = None,
-               subject: str | None = None, description: str | None = None,
-               owner: str | None = None, activeForm: str | None = None,
-               metadata: dict | None = None) -> Task | None:
+    def update(
+        self,
+        task_id: str,
+        *,
+        status: str | None = None,
+        subject: str | None = None,
+        description: str | None = None,
+        owner: str | None = None,
+        activeForm: str | None = None,
+        metadata: dict | None = None,
+    ) -> Task | None:
         """Update fields on a task and persist. Returns the updated task.
 
         拒绝终态(COMPLETED/DELETED)再转移;非法转换直接返回 None。
@@ -194,26 +206,22 @@ class TaskManager:
 
     def get_blocked_tasks(self) -> list[Task]:
         """Return tasks that have at least one uncompleted blocker."""
-        completed_ids = {
-            t.id for t in self._tasks.values()
-            if t.status == TaskStatus.COMPLETED
-        }
+        completed_ids = {t.id for t in self._tasks.values() if t.status == TaskStatus.COMPLETED}
         return [
-            t for t in self._tasks.values()
-            if t.blockedBy and any(b not in completed_ids for b in t.blockedBy)
+            t
+            for t in self._tasks.values()
+            if t.blockedBy
+            and any(b not in completed_ids for b in t.blockedBy)
             and t.status not in (TaskStatus.COMPLETED, TaskStatus.DELETED)
         ]
 
     def get_available_tasks(self) -> list[Task]:
         """Return PENDING tasks with no uncompleted blockers."""
-        completed_ids = {
-            t.id for t in self._tasks.values()
-            if t.status == TaskStatus.COMPLETED
-        }
+        completed_ids = {t.id for t in self._tasks.values() if t.status == TaskStatus.COMPLETED}
         return [
-            t for t in self._tasks.values()
-            if t.status == TaskStatus.PENDING
-            and all(b in completed_ids for b in t.blockedBy)
+            t
+            for t in self._tasks.values()
+            if t.status == TaskStatus.PENDING and all(b in completed_ids for b in t.blockedBy)
         ]
 
     # ── Persistence ─────────────────────────────────────────
@@ -380,6 +388,7 @@ TASK_MANAGER_TOOL_DEFS = [
 
 # ── Executor map ────────────────────────────────────────────
 
+
 def _exec_task_create(**kwargs) -> str:
     m = _get_manager()
     task = m.create(
@@ -408,9 +417,7 @@ def _exec_task_update(**kwargs) -> str:
 def _exec_task_list(**kwargs) -> str:
     m = _get_manager()
     tasks = m.list(status=kwargs.get("status"))
-    return json.dumps(
-        [t.to_dict() for t in tasks], ensure_ascii=False
-    )
+    return json.dumps([t.to_dict() for t in tasks], ensure_ascii=False)
 
 
 def _exec_task_get(**kwargs) -> str:

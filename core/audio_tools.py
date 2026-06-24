@@ -17,12 +17,20 @@ import subprocess
 from pathlib import Path
 
 __all__ = [
-    'AUDIO_EXECUTOR_MAP', 'AUDIO_OUT', 'AUDIO_TOOL_DEFS', 'OUTPUT_ROOT', 'execute_audio_mixdown', 'execute_generate_bgm', 'execute_generate_sfx', 'execute_tts_narration',
+    "AUDIO_EXECUTOR_MAP",
+    "AUDIO_OUT",
+    "AUDIO_TOOL_DEFS",
+    "OUTPUT_ROOT",
+    "execute_audio_mixdown",
+    "execute_generate_bgm",
+    "execute_generate_sfx",
+    "execute_tts_narration",
 ]
 
 OUTPUT_ROOT = Path(__file__).parent.parent / "output"
 AUDIO_OUT = OUTPUT_ROOT / "audio"
 AUDIO_OUT.mkdir(parents=True, exist_ok=True)
+
 
 def _run(cmd: list, timeout: int = 120, **kwargs) -> subprocess.CompletedProcess:
     """subprocess.run 安全封装"""
@@ -31,6 +39,7 @@ def _run(cmd: list, timeout: int = 120, **kwargs) -> subprocess.CompletedProcess
     kwargs.setdefault("encoding", "utf-8")
     kwargs.setdefault("errors", "replace")
     return subprocess.run(cmd, timeout=timeout, **kwargs)
+
 
 def _check_ffmpeg() -> str | None:
     try:
@@ -41,8 +50,10 @@ def _check_ffmpeg() -> str | None:
         return "未找到 ffmpeg"
     return None
 
+
 def _safe_output_path(prefix: str, ext: str = ".mp3") -> str:
     from datetime import datetime
+
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     i = 0
     while True:
@@ -52,25 +63,26 @@ def _safe_output_path(prefix: str, ext: str = ".mp3") -> str:
             return str(p)
         i += 1
 
+
 # ============================================================
 #  工具1: tts_narration — 文本转语音旁白
 # ============================================================
 
 # 推荐的中文语音
 _CHINESE_VOICES = {
-    "xiaoxiao": "zh-CN-XiaoxiaoNeural",      # 女声-温柔
-    "yunyang": "zh-CN-YunyangNeural",        # 男声-新闻
-    "xiaoyi": "zh-CN-XiaoyiNeural",          # 女声-活泼
-    "yunjian": "zh-CN-YunjianNeural",        # 男声-沉稳
-    "yunxi": "zh-CN-YunxiNeural",            # 男声-叙述
-    "xiaobei": "zh-CN-XiaobeiNeural",        # 东北话
-    "yunnan": "zh-CN-YunnanNeural",          # 云南话
+    "xiaoxiao": "zh-CN-XiaoxiaoNeural",  # 女声-温柔
+    "yunyang": "zh-CN-YunyangNeural",  # 男声-新闻
+    "xiaoyi": "zh-CN-XiaoyiNeural",  # 女声-活泼
+    "yunjian": "zh-CN-YunjianNeural",  # 男声-沉稳
+    "yunxi": "zh-CN-YunxiNeural",  # 男声-叙述
+    "xiaobei": "zh-CN-XiaobeiNeural",  # 东北话
+    "yunnan": "zh-CN-YunnanNeural",  # 云南话
     "female": "zh-CN-XiaoxiaoNeural",
     "male": "zh-CN-YunyangNeural",
 }
 
-def execute_tts_narration(text: str, voice: str = "xiaoxiao",
-                          speed: str = "+0%", project_name: str = "") -> str:
+
+def execute_tts_narration(text: str, voice: str = "xiaoxiao", speed: str = "+0%", project_name: str = "") -> str:
     """文本转语音，生成 MP3 旁白文件。
 
     Args:
@@ -105,28 +117,38 @@ def execute_tts_narration(text: str, voice: str = "xiaoxiao",
                 raise
 
     except ImportError:
-        return json.dumps({
-            "error": "edge-tts 未安装，请运行: pip install edge-tts",
-            "success": False,
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "error": "edge-tts 未安装，请运行: pip install edge-tts",
+                "success": False,
+            },
+            ensure_ascii=False,
+        )
     except (subprocess.SubprocessError, OSError) as e:
-        return json.dumps({
-            "error": f"TTS 生成失败: {e}",
-            "success": False,
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "error": f"TTS 生成失败: {e}",
+                "success": False,
+            },
+            ensure_ascii=False,
+        )
 
     if not Path(out_path).exists():
         return json.dumps({"error": "TTS 文件未生成", "success": False}, ensure_ascii=False)
 
     size = Path(out_path).stat().st_size
-    return json.dumps({
-        "success": True,
-        "output_path": out_path,
-        "voice": voice,
-        "file_size_kb": round(size / 1024, 1),
-        "text_length": len(text),
-        "message": f"旁白已生成: {out_path} ({voice} 语音, {len(text)}字)",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "output_path": out_path,
+            "voice": voice,
+            "file_size_kb": round(size / 1024, 1),
+            "text_length": len(text),
+            "message": f"旁白已生成: {out_path} ({voice} 语音, {len(text)}字)",
+        },
+        ensure_ascii=False,
+    )
+
 
 # ============================================================
 #  工具2: generate_bgm — 生成背景音乐
@@ -165,8 +187,8 @@ _BGM_PRESETS = {
     },
 }
 
-def execute_generate_bgm(mood: str = "ambient", duration_seconds: int = 30,
-                         project_name: str = "") -> str:
+
+def execute_generate_bgm(mood: str = "ambient", duration_seconds: int = 30, project_name: str = "") -> str:
     """生成简单背景音乐/氛围音。
 
     用 ffmpeg sine 合成器生成持续音和弦。
@@ -201,23 +223,24 @@ def execute_generate_bgm(mood: str = "ambient", duration_seconds: int = 30,
     fade_dur = min(2.0, dur / 8)
     af = f"aevalsrc='{expr}':d={dur}:s=44100,afade=t=in:d={fade_dur},afade=t=out:st={dur - fade_dur}:d={fade_dur}"
 
-    r = _run(["ffmpeg", "-y", "-f", "lavfi", "-i",
-               f"{af}",
-               "-ac", "2", "-b:a", "192k", out_path], timeout=90)
+    r = _run(["ffmpeg", "-y", "-f", "lavfi", "-i", f"{af}", "-ac", "2", "-b:a", "192k", out_path], timeout=90)
 
     if r.returncode != 0:
-        return json.dumps({"error": f"BGM 生成失败: {(r.stderr or '')[-300:]}",
-                           "success": False}, ensure_ascii=False)
+        return json.dumps({"error": f"BGM 生成失败: {(r.stderr or '')[-300:]}", "success": False}, ensure_ascii=False)
 
     size = Path(out_path).stat().st_size
-    return json.dumps({
-        "success": True,
-        "output_path": out_path,
-        "mood": mood,
-        "duration_seconds": dur,
-        "file_size_kb": round(size / 1024, 1),
-        "message": f"BGM 已生成: {out_path} ({mood}, {dur}s)",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "output_path": out_path,
+            "mood": mood,
+            "duration_seconds": dur,
+            "file_size_kb": round(size / 1024, 1),
+            "message": f"BGM 已生成: {out_path} ({mood}, {dur}s)",
+        },
+        ensure_ascii=False,
+    )
+
 
 # ============================================================
 #  工具3: generate_sfx — 生成音效
@@ -266,6 +289,7 @@ _SFX_PRESETS = {
     },
 }
 
+
 def execute_generate_sfx(sfx_type: str = "whoosh", project_name: str = "") -> str:
     """用 ffmpeg 合成音效。
 
@@ -279,39 +303,46 @@ def execute_generate_sfx(sfx_type: str = "whoosh", project_name: str = "") -> st
 
     preset = _SFX_PRESETS.get(sfx_type)
     if not preset:
-        return json.dumps({
-            "error": f"未知音效类型: {sfx_type}，可用: {list(_SFX_PRESETS.keys())}",
-            "success": False,
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "error": f"未知音效类型: {sfx_type}，可用: {list(_SFX_PRESETS.keys())}",
+                "success": False,
+            },
+            ensure_ascii=False,
+        )
 
     prefix = project_name or f"sfx_{sfx_type}"
     out_path = _safe_output_path(prefix.replace(" ", "_"))
 
     af = f"aevalsrc='{preset['expr']}':d={preset['dur']}:s=44100"
 
-    r = _run(["ffmpeg", "-y", "-f", "lavfi", "-i", af,
-               "-ac", "2", "-b:a", "192k", out_path], timeout=60)
+    r = _run(["ffmpeg", "-y", "-f", "lavfi", "-i", af, "-ac", "2", "-b:a", "192k", out_path], timeout=60)
 
     if r.returncode != 0:
-        return json.dumps({"error": f"音效生成失败: {(r.stderr or '')[-300:]}",
-                           "success": False}, ensure_ascii=False)
+        return json.dumps({"error": f"音效生成失败: {(r.stderr or '')[-300:]}", "success": False}, ensure_ascii=False)
 
     size = Path(out_path).stat().st_size
-    return json.dumps({
-        "success": True,
-        "output_path": out_path,
-        "sfx_type": sfx_type,
-        "duration_seconds": preset["dur"],
-        "file_size_kb": round(size / 1024, 1),
-        "message": f"音效已生成: {out_path} ({sfx_type})",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "output_path": out_path,
+            "sfx_type": sfx_type,
+            "duration_seconds": preset["dur"],
+            "file_size_kb": round(size / 1024, 1),
+            "message": f"音效已生成: {out_path} ({sfx_type})",
+        },
+        ensure_ascii=False,
+    )
+
 
 # ============================================================
 #  工具4: audio_mixdown — 多轨音频混音
 # ============================================================
 
-def execute_audio_mixdown(narration_path: str = "", bgm_path: str = "",
-                          sfx_paths: str = "[]", project_name: str = "mixdown") -> str:
+
+def execute_audio_mixdown(
+    narration_path: str = "", bgm_path: str = "", sfx_paths: str = "[]", project_name: str = "mixdown"
+) -> str:
     """将旁白、背景音乐、音效混合为单一音频文件。
 
     Args:
@@ -331,9 +362,7 @@ def execute_audio_mixdown(narration_path: str = "", bgm_path: str = "",
 
     has_narration = narration_path and Path(narration_path).exists()
     has_bgm = bgm_path and Path(bgm_path).exists()
-    has_sfx = bool(sfx_list) and all(
-        isinstance(s, dict) and Path(s.get("path", "")).exists() for s in sfx_list
-    )
+    has_sfx = bool(sfx_list) and all(isinstance(s, dict) and Path(s.get("path", "")).exists() for s in sfx_list)
 
     if not (has_narration or has_bgm or has_sfx):
         return json.dumps({"error": "至少需要一路音频输入", "success": False}, ensure_ascii=False)
@@ -386,26 +415,27 @@ def execute_audio_mixdown(narration_path: str = "", bgm_path: str = "",
 
     af = ";".join(filter_parts) + ";" + amix
 
-    cmd = ["ffmpeg", "-y"] + inputs + \
-          ["-filter_complex", af, "-map", "[outa]",
-           "-ac", "2", "-b:a", "192k", out_path]
+    cmd = ["ffmpeg", "-y"] + inputs + ["-filter_complex", af, "-map", "[outa]", "-ac", "2", "-b:a", "192k", out_path]
 
     r = _run(cmd, timeout=300)
 
     if r.returncode != 0:
-        return json.dumps({"error": f"混音失败: {(r.stderr or '')[-500:]}",
-                           "success": False}, ensure_ascii=False)
+        return json.dumps({"error": f"混音失败: {(r.stderr or '')[-500:]}", "success": False}, ensure_ascii=False)
 
     size = Path(out_path).stat().st_size
-    return json.dumps({
-        "success": True,
-        "output_path": out_path,
-        "has_narration": has_narration,
-        "has_bgm": has_bgm,
-        "sfx_count": len(sfx_list) if has_sfx else 0,
-        "file_size_kb": round(size / 1024, 1),
-        "message": f"音频混合完成: {out_path}",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "output_path": out_path,
+            "has_narration": has_narration,
+            "has_bgm": has_bgm,
+            "sfx_count": len(sfx_list) if has_sfx else 0,
+            "file_size_kb": round(size / 1024, 1),
+            "message": f"音频混合完成: {out_path}",
+        },
+        ensure_ascii=False,
+    )
+
 
 # ============================================================
 #  工具定义
@@ -423,7 +453,7 @@ AUDIO_TOOL_DEFS = [
                     "text": {"type": "string", "description": "要朗读的文本内容"},
                     "voice": {
                         "type": "string",
-                        "description": "语音: xiaoxiao(女温柔)/yunyang(男新闻)/xiaoyi(女活泼)/yunjian(男沉稳)/yunxi(男叙述)"
+                        "description": "语音: xiaoxiao(女温柔)/yunyang(男新闻)/xiaoyi(女活泼)/yunjian(男沉稳)/yunxi(男叙述)",
                     },
                     "speed": {"type": "string", "description": "语速: +30% 快 / -20% 慢 / +0% 默认"},
                     "project_name": {"type": "string", "description": "可选项目名"},
@@ -442,12 +472,9 @@ AUDIO_TOOL_DEFS = [
                 "properties": {
                     "mood": {
                         "type": "string",
-                        "description": "情绪: ambient(氛围)/tense(紧张)/hopeful(希望)/epic(史诗)/mystery(神秘)/sad(忧伤)"
+                        "description": "情绪: ambient(氛围)/tense(紧张)/hopeful(希望)/epic(史诗)/mystery(神秘)/sad(忧伤)",
                     },
-                    "duration_seconds": {
-                        "type": "integer",
-                        "description": "时长（秒），默认30，上限120"
-                    },
+                    "duration_seconds": {"type": "integer", "description": "时长（秒），默认30，上限120"},
                     "project_name": {"type": "string", "description": "可选项目名"},
                 },
                 "required": [],
@@ -464,7 +491,7 @@ AUDIO_TOOL_DEFS = [
                 "properties": {
                     "sfx_type": {
                         "type": "string",
-                        "description": "音效类型: whoosh/impact/ambient_drone/riser/glitch/heartbeat/sparkle/beep"
+                        "description": "音效类型: whoosh/impact/ambient_drone/riser/glitch/heartbeat/sparkle/beep",
                     },
                     "project_name": {"type": "string", "description": "可选项目名"},
                 },
@@ -484,7 +511,7 @@ AUDIO_TOOL_DEFS = [
                     "bgm_path": {"type": "string", "description": "BGM音频路径（可选）"},
                     "sfx_paths": {
                         "type": "string",
-                        "description": "音效JSON数组: [{\"path\":\"x.mp3\",\"offset\":3.0,\"volume\":0.6}]"
+                        "description": '音效JSON数组: [{"path":"x.mp3","offset":3.0,"volume":0.6}]',
                     },
                     "project_name": {"type": "string", "description": "项目名"},
                 },

@@ -10,8 +10,7 @@ import sys
 import time
 from pathlib import Path
 
-__all__ = ['CapabilityRegistry', 'ROOT', 'capability_snapshot',
-           'get_banner_counts', 'logger']
+__all__ = ["CapabilityRegistry", "ROOT", "capability_snapshot", "get_banner_counts", "logger"]
 
 logger = logging.getLogger("crux.capability")
 
@@ -67,13 +66,15 @@ class CapabilityRegistry:
         for sf in sorted(sd.glob("*.skill.json")):
             try:
                 data = json.loads(sf.read_text(encoding="utf-8"))
-                items.append({
-                    "name": data.get("name", sf.stem),
-                    "description": data.get("description", "")[:80],
-                    "version": data.get("version", "?"),
-                    "file": sf.name,
-                    "size": sf.stat().st_size,
-                })
+                items.append(
+                    {
+                        "name": data.get("name", sf.stem),
+                        "description": data.get("description", "")[:80],
+                        "version": data.get("version", "?"),
+                        "file": sf.name,
+                        "size": sf.stat().st_size,
+                    }
+                )
             except (json.JSONDecodeError, OSError, KeyError) as e:
                 logger.debug("Invalid skill file %s: %s", sf.name, e)
                 items.append({"name": sf.stem, "error": "invalid JSON", "file": sf.name})
@@ -88,15 +89,18 @@ class CapabilityRegistry:
             tools = data.get("tools", [])
             items = []
             for t in tools:
-                items.append({
-                    "name": t.get("name", "?"),
-                    "type": t.get("type", "?"),
-                    "description": t.get("description", "")[:80],
-                })
+                items.append(
+                    {
+                        "name": t.get("name", "?"),
+                        "type": t.get("type", "?"),
+                        "description": t.get("description", "")[:80],
+                    }
+                )
             return {"count": len(items), "items": items}
         except (json.JSONDecodeError, OSError) as e:
             logger.debug("tools.json read error: %s", e)
             return {"count": 0, "error": "tools.json invalid"}
+
     def _list_providers(self) -> dict:
         mp = self.root / "models.json"
         if not mp.exists():
@@ -107,12 +111,14 @@ class CapabilityRegistry:
             providers = data.get("providers", {})
             items = []
             for name, cfg in providers.items():
-                items.append({
-                    "name": name,
-                    "display": cfg.get("name", name),
-                    "base_url": cfg.get("base_url", "")[:60],
-                    "is_active": name == active,
-                })
+                items.append(
+                    {
+                        "name": name,
+                        "display": cfg.get("name", name),
+                        "base_url": cfg.get("base_url", "")[:60],
+                        "is_active": name == active,
+                    }
+                )
             return {"active": active, "count": len(items), "items": items}
         except (json.JSONDecodeError, OSError) as e:
             logger.debug("models.json read error: %s", e)
@@ -137,6 +143,7 @@ class CapabilityRegistry:
 
     def _list_models(self) -> dict:
         from core.config import MODELS
+
         items = {}
         for key, cfg in MODELS.items():
             items[key] = {"id": cfg.get("id", "?"), "type": cfg.get("type", "?")}
@@ -158,6 +165,7 @@ class CapabilityRegistry:
         # Provider reachability (quick check)
         try:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             mgr.load()
             results["provider"] = f"active={mgr.state.active}, providers={len(mgr.providers)}"
@@ -169,9 +177,11 @@ class CapabilityRegistry:
         # 现改为只跑渲染契约 + chat 核心（<2s），且 parse 有点号 fallback。
         try:
             from core.pytest_runner import parse_test_summary, run_pytest_safe
+
             r = run_pytest_safe(
                 test_target="tests/test_render.py tests/test_chat.py",
-                timeout=15, cwd=self.root,
+                timeout=15,
+                cwd=self.root,
             )
             out = (r.stdout or "") + (r.stderr or "")
             passed, failed = parse_test_summary(out)
@@ -185,6 +195,7 @@ class CapabilityRegistry:
             from rich.console import Console as _C
 
             from ui.render import StreamingRenderer as _SR
+
             _probe = _SR(_C())  # 真构造，触发真实配置路径
             live = _probe._new_live("")
             transient_ok = getattr(live, "transient", False) is True
@@ -192,8 +203,7 @@ class CapabilityRegistry:
             results["rendering.invariants"] = {
                 "renderer_present": True,
                 "transient_preview": transient_ok,
-                "single_commit": callable(getattr(_probe, "commit", None))
-                                  and hasattr(_probe, "_flushed_len"),
+                "single_commit": callable(getattr(_probe, "commit", None)) and hasattr(_probe, "_flushed_len"),
                 "renderer": "ui/render.py:StreamingRenderer",
             }
         except ImportError as e:
@@ -206,6 +216,7 @@ class CapabilityRegistry:
             import time
 
             import httpx
+
             endpoint = "http://127.0.0.1:8080/v1/models"
             t0 = time.time()
             r = httpx.get(endpoint, timeout=3.0, trust_env=False)
@@ -236,6 +247,7 @@ def get_banner_counts() -> dict:
     让「统计失败」与「真的没有」在视觉上可区分。
     """
     from core.version import __version__
+
     try:
         c = CapabilityRegistry().counts()
     except Exception as e:  # banner 是启动门面，绝不能因为统计抛错而中断启动

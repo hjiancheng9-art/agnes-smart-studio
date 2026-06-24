@@ -29,6 +29,7 @@ logger = logging.getLogger("crux.showrunner")
 # Enums
 # ═══════════════════════════════════════════════════════════════════
 
+
 class StepKind(Enum):
     THINK = "think"
     PROMPT = "prompt"
@@ -52,6 +53,7 @@ class SourceKind(Enum):
 # ═══════════════════════════════════════════════════════════════════
 # Dataclasses
 # ═══════════════════════════════════════════════════════════════════
+
 
 @dataclass
 class StepResult:
@@ -80,7 +82,15 @@ class PipelineRun:
 # ═══════════════════════════════════════════════════════════════════
 
 __all__ = [
-    "PipelineRun", "PipelineTemplates", "ROOT", "Showrunner", "SourceKind", "StepKind", "StepResult", "create_showrunner", "list_pipeline_templates",
+    "PipelineRun",
+    "PipelineTemplates",
+    "ROOT",
+    "Showrunner",
+    "SourceKind",
+    "StepKind",
+    "StepResult",
+    "create_showrunner",
+    "list_pipeline_templates",
 ]
 
 
@@ -94,8 +104,20 @@ class PipelineTemplates:
             {"step": "brainstorm", "kind": StepKind.THINK, "desc": f"Brainstorm: {topic}", "source": SourceKind.AGNES},
             {"step": "script", "kind": StepKind.TEXT, "desc": "Write 20-30s video script", "source": SourceKind.AGNES},
             {"step": "prompts", "kind": StepKind.PROMPT, "desc": "Extract visual prompts", "source": SourceKind.AGNES},
-            {"step": "images", "kind": StepKind.IMAGE, "desc": "Generate keyframes", "source": SourceKind.COMFYUI, "fallback": SourceKind.EXTERNAL},
-            {"step": "animate", "kind": StepKind.VIDEO, "desc": "Image-to-video", "source": SourceKind.COMFYUI, "fallback": SourceKind.AGNES},
+            {
+                "step": "images",
+                "kind": StepKind.IMAGE,
+                "desc": "Generate keyframes",
+                "source": SourceKind.COMFYUI,
+                "fallback": SourceKind.EXTERNAL,
+            },
+            {
+                "step": "animate",
+                "kind": StepKind.VIDEO,
+                "desc": "Image-to-video",
+                "source": SourceKind.COMFYUI,
+                "fallback": SourceKind.AGNES,
+            },
             {"step": "review", "kind": StepKind.REVIEW, "desc": "Quality check", "source": SourceKind.AGNES},
             {"step": "deliver", "kind": StepKind.DELIVER, "desc": "Output video", "source": SourceKind.CLI},
         ]
@@ -106,7 +128,13 @@ class PipelineTemplates:
         return [
             {"step": "explore", "kind": StepKind.THINK, "desc": f"Explore: {concept}", "source": SourceKind.AGNES},
             {"step": "prompts", "kind": StepKind.PROMPT, "desc": "Multi-style prompts", "source": SourceKind.AGNES},
-            {"step": "generate", "kind": StepKind.IMAGE, "desc": "Generate images", "source": SourceKind.COMFYUI, "fallback": SourceKind.EXTERNAL},
+            {
+                "step": "generate",
+                "kind": StepKind.IMAGE,
+                "desc": "Generate images",
+                "source": SourceKind.COMFYUI,
+                "fallback": SourceKind.EXTERNAL,
+            },
             {"step": "curate", "kind": StepKind.REVIEW, "desc": "Curate best", "source": SourceKind.AGNES},
             {"step": "deliver", "kind": StepKind.DELIVER, "desc": "Output collection", "source": SourceKind.CLI},
         ]
@@ -117,7 +145,13 @@ class PipelineTemplates:
         return [
             {"step": "expand", "kind": StepKind.THINK, "desc": f"Expand: {outline}", "source": SourceKind.AGNES},
             {"step": "write", "kind": StepKind.TEXT, "desc": "Write chapter", "source": SourceKind.AGNES},
-            {"step": "illustrate", "kind": StepKind.IMAGE, "desc": "Create illustrations", "source": SourceKind.COMFYUI, "fallback": SourceKind.EXTERNAL},
+            {
+                "step": "illustrate",
+                "kind": StepKind.IMAGE,
+                "desc": "Create illustrations",
+                "source": SourceKind.COMFYUI,
+                "fallback": SourceKind.EXTERNAL,
+            },
             {"step": "polish", "kind": StepKind.REVIEW, "desc": "Polish text", "source": SourceKind.AGNES},
             {"step": "deliver", "kind": StepKind.DELIVER, "desc": "Export EPUB/PDF", "source": SourceKind.CLI},
         ]
@@ -126,13 +160,21 @@ class PipelineTemplates:
     def custom(goal, specs):
         """从用户提供的 spec 列表构建自定义流水线。"""
         km = {
-            "think": StepKind.THINK, "prompt": StepKind.PROMPT, "text": StepKind.TEXT,
-            "image": StepKind.IMAGE, "video": StepKind.VIDEO, "audio": StepKind.AUDIO,
-            "review": StepKind.REVIEW, "deliver": StepKind.DELIVER,
+            "think": StepKind.THINK,
+            "prompt": StepKind.PROMPT,
+            "text": StepKind.TEXT,
+            "image": StepKind.IMAGE,
+            "video": StepKind.VIDEO,
+            "audio": StepKind.AUDIO,
+            "review": StepKind.REVIEW,
+            "deliver": StepKind.DELIVER,
         }
         sm = {
-            "crux": SourceKind.AGNES, "comfyui": SourceKind.COMFYUI,
-            "external": SourceKind.EXTERNAL, "api": SourceKind.API, "cli": SourceKind.CLI,
+            "crux": SourceKind.AGNES,
+            "comfyui": SourceKind.COMFYUI,
+            "external": SourceKind.EXTERNAL,
+            "api": SourceKind.API,
+            "cli": SourceKind.CLI,
         }
         result = []
         for s in specs:
@@ -151,6 +193,7 @@ class PipelineTemplates:
 # ═══════════════════════════════════════════════════════════════════
 # Showrunner
 # ═══════════════════════════════════════════════════════════════════
+
 
 class Showrunner:
     """CRUX creative pipeline director.
@@ -191,7 +234,13 @@ class Showrunner:
         return [
             {"step": "think", "kind": StepKind.THINK, "desc": f"Analyze: {goal}", "source": SourceKind.AGNES},
             {"step": "create", "kind": StepKind.TEXT, "desc": "Generate content", "source": SourceKind.AGNES},
-            {"step": "visualize", "kind": StepKind.IMAGE, "desc": "Generate visuals", "source": SourceKind.COMFYUI, "fallback": SourceKind.EXTERNAL},
+            {
+                "step": "visualize",
+                "kind": StepKind.IMAGE,
+                "desc": "Generate visuals",
+                "source": SourceKind.COMFYUI,
+                "fallback": SourceKind.EXTERNAL,
+            },
             {"step": "deliver", "kind": StepKind.DELIVER, "desc": "Deliver", "source": SourceKind.CLI},
         ]
 
@@ -234,8 +283,11 @@ class Showrunner:
             try:
                 out = await self._dispatch(name, kind, src, desc)
                 return StepResult(
-                    step_name=name, kind=kind, source=src,
-                    success=True, output=out,
+                    step_name=name,
+                    kind=kind,
+                    source=src,
+                    success=True,
+                    output=out,
                     duration_ms=(time.time() - t0) * 1000,
                     retries=attempt,
                 )
@@ -249,8 +301,11 @@ class Showrunner:
             try:
                 out = await self._dispatch(name, kind, fallback, desc)
                 return StepResult(
-                    step_name=name, kind=kind, source=fallback,
-                    success=True, output=out,
+                    step_name=name,
+                    kind=kind,
+                    source=fallback,
+                    success=True,
+                    output=out,
                     duration_ms=(time.time() - t0) * 1000,
                     retries=max_retries + 1,
                 )
@@ -258,8 +313,11 @@ class Showrunner:
                 last_error = str(e)
 
         return StepResult(
-            step_name=name, kind=kind, source=src,
-            success=False, error=last_error,
+            step_name=name,
+            kind=kind,
+            source=src,
+            success=False,
+            error=last_error,
             duration_ms=(time.time() - t0) * 1000,
         )
 
@@ -290,7 +348,8 @@ class Showrunner:
         try:
             r = self.client.chat(
                 messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": desc}],
-                temperature=0.7, max_tokens=1000,
+                temperature=0.7,
+                max_tokens=1000,
             )
             return {"thought": r["choices"][0]["message"]["content"]}
         except (RuntimeError, OSError, KeyError):
@@ -303,7 +362,8 @@ class Showrunner:
         try:
             r = self.client.chat(
                 messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": desc}],
-                temperature=0.8, max_tokens=500,
+                temperature=0.8,
+                max_tokens=500,
             )
             content = r["choices"][0]["message"]["content"].strip()
             self._context["last_prompt"] = content
@@ -318,7 +378,8 @@ class Showrunner:
         try:
             r = self.client.chat(
                 messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": desc}],
-                temperature=0.9, max_tokens=2000,
+                temperature=0.9,
+                max_tokens=2000,
             )
             content = r["choices"][0]["message"]["content"]
             self._context["last_text"] = content
@@ -340,11 +401,14 @@ class Showrunner:
 
     async def _comfy_img(self, prompt):
         from core.comfyui_tools import submit_comfyui_workflow
+
         wf = {
             "prompt": prompt,
             "negative_prompt": "ugly,blurry,low quality",
-            "width": 1024, "height": 1024,
-            "steps": 20, "cfg": 7.0,
+            "width": 1024,
+            "height": 1024,
+            "steps": 20,
+            "cfg": 7.0,
         }
         r = submit_comfyui_workflow(wf)
         self._context["last_images"] = r.get("images", [])
@@ -354,6 +418,7 @@ class Showrunner:
         if not self.client:
             raise RuntimeError("No client")
         from engines.text_to_image import TextToImageEngine
+
         engine = TextToImageEngine(self.client)
         r = await asyncio.to_thread(engine.generate, prompt)
         # 落盘路径作为产出图片；URL 回退到 local_path
@@ -383,6 +448,7 @@ class Showrunner:
 
     async def _comfy_vid(self, prompt, imgs):
         from core.comfyui_tools import submit_comfyui_workflow
+
         wf = {"prompt": prompt, "input_images": imgs, "num_frames": 30, "fps": 24}
         r = submit_comfyui_workflow(wf, workflow_type="video")
         return {"comfyui": r, "source": "comfyui"}
@@ -391,17 +457,14 @@ class Showrunner:
         if not self.client:
             raise RuntimeError("No client")
         from engines.video import VideoEngine
+
         engine = VideoEngine(self.client)
         # 有首帧图 → 图生视频；否则文生视频
         if imgs:
             first = imgs[0]
-            r = await asyncio.to_thread(
-                lambda: engine.image_to_video(prompt=prompt, image_url=first, timeout=120.0)
-            )
+            r = await asyncio.to_thread(lambda: engine.image_to_video(prompt=prompt, image_url=first, timeout=120.0))
         else:
-            r = await asyncio.to_thread(
-                lambda: engine.text_to_video(prompt=prompt, timeout=120.0)
-            )
+            r = await asyncio.to_thread(lambda: engine.text_to_video(prompt=prompt, timeout=120.0))
         return {"crux": r, "source": "crux"}
 
     async def _ext_vid(self, prompt, imgs):
@@ -416,15 +479,20 @@ class Showrunner:
         if not self.client:
             return {"review": "ok"}
         sys_prompt = "You are a creative content quality reviewer."
-        ctx = json.dumps({
-            "goal": self._context.get("goal", ""),
-            "text": str(self._context.get("last_text", ""))[:200],
-        })
+        ctx = json.dumps(
+            {
+                "goal": self._context.get("goal", ""),
+                "text": str(self._context.get("last_text", ""))[:200],
+            }
+        )
         try:
             r = self.client.chat(
-                messages=[{"role": "system", "content": sys_prompt},
-                          {"role": "user", "content": f"Review: {desc} | Context: {ctx}"}],
-                temperature=0.5, max_tokens=500,
+                messages=[
+                    {"role": "system", "content": sys_prompt},
+                    {"role": "user", "content": f"Review: {desc} | Context: {ctx}"},
+                ],
+                temperature=0.5,
+                max_tokens=500,
             )
             return {"review": r["choices"][0]["message"]["content"]}
         except (RuntimeError, OSError, KeyError):
@@ -448,6 +516,7 @@ class Showrunner:
 # ═══════════════════════════════════════════════════════════════════
 # Factory & helpers
 # ═══════════════════════════════════════════════════════════════════
+
 
 def create_showrunner(client=None, brain=None, ext_gen=None):
     """创建一个 Showrunner 实例。"""

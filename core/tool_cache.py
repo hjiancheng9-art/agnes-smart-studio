@@ -19,7 +19,7 @@ import threading
 import time
 from collections import OrderedDict
 
-__all__ = ['CACHEABLE_TOOLS', 'ToolResultCache', 'WRITE_TOOLS_INVALIDATE']
+__all__ = ["CACHEABLE_TOOLS", "ToolResultCache", "WRITE_TOOLS_INVALIDATE"]
 
 
 # ── 可缓存工具集合 ──
@@ -28,17 +28,25 @@ CACHEABLE_TOOLS = {
     # 文件读取 — mtime 失效
     "read_file",
     # 目录扫描 — 短 TTL
-    "search_files", "glob_files", "list_files", "tree_dir",
+    "search_files",
+    "glob_files",
+    "list_files",
+    "tree_dir",
     # 代码统计 — 短 TTL
     "count_lines",
     # 环境检测 — 长 TTL（会话内基本不变）
     "env_check",
     # Git 只读 — 短 TTL（任何写操作都可能改变 git 状态）
-    "git_status", "git_diff", "git_log",
+    "git_status",
+    "git_diff",
+    "git_log",
     # 网络读取 — 中 TTL
-    "web_fetch", "web_search",
+    "web_fetch",
+    "web_search",
     # 管道检查 — 短 TTL
-    "check_file_exists", "list_project_files", "project_dependency_graph",
+    "check_file_exists",
+    "list_project_files",
+    "project_dependency_graph",
     # 模型信息 — 长 TTL
     "video_model_info",
     # 测试执行 — 中 TTL
@@ -47,11 +55,13 @@ CACHEABLE_TOOLS = {
 
 # 写操作工具 — 执行后触发缓存失效
 WRITE_TOOLS_INVALIDATE = {
-    "run_bash", "run_python",   # 可修改任意文件
-    "write_file", "edit_file",  # 直接修改文件
-    "git_add_commit",            # 改变 git 状态
-    "pip_install",               # 改变依赖环境
-    "download_file",             # 写入下载文件
+    "run_bash",
+    "run_python",  # 可修改任意文件
+    "write_file",
+    "edit_file",  # 直接修改文件
+    "git_add_commit",  # 改变 git 状态
+    "pip_install",  # 改变依赖环境
+    "download_file",  # 写入下载文件
 }
 
 # ── TTL 配置（秒）──
@@ -131,9 +141,9 @@ class ToolResultCache:
             if name in _MTIME_TOOLS and entry.get("path"):
                 try:
                     if os.path.exists(entry["path"]) and os.path.getmtime(entry["path"]) != entry.get("mtime", 0):
-                            del self._cache[key]
-                            self._misses += 1
-                            return None
+                        del self._cache[key]
+                        self._misses += 1
+                        return None
                 except (OSError, ValueError):
                     pass  # mtime 检查失败，保留缓存结果
 
@@ -188,6 +198,8 @@ class ToolResultCache:
 
     def __repr__(self) -> str:
         s = self.stats
-        return (f"ToolResultCache(size={s['size']}/{s['max_size']}, "
-                f"hits={s['hits']}, misses={s['misses']}, "
-                f"hit_rate={s['hit_rate']:.0%})")
+        return (
+            f"ToolResultCache(size={s['size']}/{s['max_size']}, "
+            f"hits={s['hits']}, misses={s['misses']}, "
+            f"hit_rate={s['hit_rate']:.0%})"
+        )

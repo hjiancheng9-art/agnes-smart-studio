@@ -16,6 +16,7 @@
     score_tool_runtime(name, calls)     → 单工具运行时分
     score_all(reg)                      → 全量聚合报告（含分级分布 / TOP5）
 """
+
 from __future__ import annotations
 
 import json
@@ -41,23 +42,27 @@ ROOT = Path(__file__).resolve().parent.parent
 TESTS_DIR = ROOT / "tests"
 
 # ── 风险工具名单（与 core/chat.py:_HIGH_RISK_TOOLS 对齐）──────────────────
-HIGH_RISK_TOOLS: frozenset[str] = frozenset({
-    "git_add_commit",   # 本地提交
-    "git_push",         # 推送远端
-    "git_pr_create",    # 创建 PR
-    "git_pr_merge",     # 合并 PR（不可逆）
-    "git_tag",          # tag（语义版本不可逆）
-})
+HIGH_RISK_TOOLS: frozenset[str] = frozenset(
+    {
+        "git_add_commit",  # 本地提交
+        "git_push",  # 推送远端
+        "git_pr_create",  # 创建 PR
+        "git_pr_merge",  # 合并 PR（不可逆）
+        "git_tag",  # tag（语义版本不可逆）
+    }
+)
 
 # 破坏性工具（扣分但不阻拦，需配合 sandbox / 确认门）
-DESTRUCTIVE_TOOLS: frozenset[str] = frozenset({
-    "run_bash",         # shell 执行（已过 sandbox）
-    "patch_file",       # 多文件修改（已有 backup + rollback）
-    "write_file",       # 覆盖写
-    "edit_file",        # 替换
-    "github_write_file",  # 远端写
-    "deploy_vercel",    # 部署
-})
+DESTRUCTIVE_TOOLS: frozenset[str] = frozenset(
+    {
+        "run_bash",  # shell 执行（已过 sandbox）
+        "patch_file",  # 多文件修改（已有 backup + rollback）
+        "write_file",  # 覆盖写
+        "edit_file",  # 替换
+        "github_write_file",  # 远端写
+        "deploy_vercel",  # 部署
+    }
+)
 
 # 等级阈值
 GRADE_THRESHOLDS = [("A", 90), ("B", 75), ("C", 60), ("D", 0)]
@@ -122,6 +127,7 @@ def reset_test_coverage_cache() -> None:
 #  静态评分
 # ════════════════════════════════════════════════════════════
 
+
 def _score_test_coverage(name: str, coverage: dict[str, int]) -> tuple[int, str]:
     """测试覆盖维度（满分 30）。
 
@@ -178,8 +184,7 @@ def _score_schema(name: str, defn: dict | None) -> tuple[int, str]:
         reasons.append("no params")
 
     # 类型标注
-    typed = sum(1 for p in properties.values()
-                if isinstance(p, dict) and p.get("type"))
+    typed = sum(1 for p in properties.values() if isinstance(p, dict) and p.get("type"))
     if properties:
         if typed == len(properties):
             score += 7
@@ -266,6 +271,7 @@ def score_tool_static(name: str, reg: ToolRegistry) -> dict[str, Any]:
 #  运行时评分
 # ════════════════════════════════════════════════════════════
 
+
 def score_tool_runtime(name: str, calls: list[dict]) -> dict[str, Any]:
     """基于调用日志计算单工具运行时质量分。
 
@@ -309,11 +315,7 @@ def score_tool_runtime(name: str, calls: list[dict]) -> dict[str, Any]:
     if avg_ms > 0:
         # <100ms 满分，>5000ms 0 分，线性
         speed_score = max(0.0, 30.0 * (1 - (avg_ms - 100) / 4900))
-    runtime_score = (
-        success_rate * 50
-        + speed_score
-        + (1 - arg_fail_rate) * 20
-    )
+    runtime_score = success_rate * 50 + speed_score + (1 - arg_fail_rate) * 20
     runtime_score = round(min(100.0, max(0.0, runtime_score)), 1)
 
     return {
@@ -332,8 +334,8 @@ def score_tool_runtime(name: str, calls: list[dict]) -> dict[str, Any]:
 #  全量聚合报告
 # ════════════════════════════════════════════════════════════
 
-def score_all(reg: ToolRegistry,
-              runtime_calls: dict[str, list[dict]] | None = None) -> dict[str, Any]:
+
+def score_all(reg: ToolRegistry, runtime_calls: dict[str, list[dict]] | None = None) -> dict[str, Any]:
     """生成全量评分报告。
 
     Args:
@@ -382,9 +384,7 @@ def score_all(reg: ToolRegistry,
         "generated_at": time.time(),
         "total_tools": len(tool_names),
         "grade_distribution": grade_dist,
-        "average_score": round(
-            sum(t["score"] for t in tools_scored) / max(len(tools_scored), 1), 1
-        ),
+        "average_score": round(sum(t["score"] for t in tools_scored) / max(len(tools_scored), 1), 1),
         "worst_5": worst_5,
         "untested": untested,
         "untested_count": len(untested),
@@ -396,6 +396,7 @@ def score_all(reg: ToolRegistry,
 def save_report(report: dict[str, Any], path: Path | None = None) -> Path:
     """把报告持久化到 output/tool_scorecard.json。"""
     from core.config import OUTPUT_DIR
+
     target = path or (OUTPUT_DIR / "tool_scorecard.json")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(

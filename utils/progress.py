@@ -4,7 +4,7 @@ from rich.progress import Progress
 
 from ui.theme import LAYOUT
 
-__all__ = ['VideoProgressTracker', 'create_progress_callback']
+__all__ = ["VideoProgressTracker", "create_progress_callback"]
 
 
 def create_progress_callback(progress_obj: Progress, task_id):
@@ -42,11 +42,13 @@ class VideoProgressTracker:
         self.last_known_progress = effective
         self.current_status = status
 
-        self.history.append({
-            "status": status,
-            "progress": effective,
-            "raw_progress": raw,
-        })
+        self.history.append(
+            {
+                "status": status,
+                "progress": effective,
+                "raw_progress": raw,
+            }
+        )
 
     @property
     def progress_percent(self) -> int | float:

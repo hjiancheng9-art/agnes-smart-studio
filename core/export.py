@@ -43,11 +43,13 @@ class ExportEngine:
             d = self.root / "output" / subdir
             if d.exists():
                 for f in sorted(d.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)[:20]:
-                    assets[cat].append({
-                        "name": f.name,
-                        "size": f.stat().st_size,
-                        "modified": f.stat().st_mtime,
-                    })
+                    assets[cat].append(
+                        {
+                            "name": f.name,
+                            "size": f.stat().st_size,
+                            "modified": f.stat().st_mtime,
+                        }
+                    )
         return assets
 
     def config_snapshot(self) -> str:
@@ -64,6 +66,7 @@ class ExportEngine:
 
 def export_chat(messages: list[dict], title: str = "") -> str:
     return ExportEngine().conversation_to_md(messages, title)
+
 
 def export_assets() -> dict:
     return ExportEngine().asset_list()

@@ -12,9 +12,18 @@ from typing import Any
 from core.config import OUTPUT_DIR
 
 __all__ = [
-    "Hook", "HookEvent", "HookManager", "HookType", "hook_manager", "logger",
-    "on_post_tool", "on_pre_tool", "on_prompt_submit",
-    "register_learning_hooks", "register_safety_hooks", "register_code_hooks",
+    "Hook",
+    "HookEvent",
+    "HookManager",
+    "HookType",
+    "hook_manager",
+    "logger",
+    "on_post_tool",
+    "on_pre_tool",
+    "on_prompt_submit",
+    "register_learning_hooks",
+    "register_safety_hooks",
+    "register_code_hooks",
 ]
 logger = logging.getLogger(__name__)
 
@@ -357,6 +366,7 @@ def _syntax_guard_handler(event: HookEvent) -> HookEvent:
     try:
         import ast
         from pathlib import Path
+
         source = Path(file_path).read_text(encoding="utf-8", errors="replace")
         ast.parse(source, filename=file_path)
     except SyntaxError as e:
@@ -389,6 +399,7 @@ def _test_guard_handler(event: HookEvent) -> HookEvent:
         from pathlib import Path
 
         from core.pytest_runner import run_pytest_safe
+
         root = Path(file_path).resolve().parent.parent
         smoke = root / "tests" / "test_smoke.py"
         if not smoke.exists():

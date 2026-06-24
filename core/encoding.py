@@ -4,10 +4,11 @@ Import this once at startup before any other module that prints or spawns
 subprocesses. It replaces the fragile chcp 65001 hack with proper Win32 API
 calls and Python-level reconfiguration.
 """
+
 import subprocess
 import sys
 
-__all__ = ['setup']
+__all__ = ["setup"]
 
 _WIN32_CONSOLE_CP_SET = False
 
@@ -26,6 +27,7 @@ def _setup_win32_console() -> bool:
         return False
     try:
         import ctypes
+
         CP_UTF8 = 65001
         kernel32 = ctypes.windll.kernel32
         kernel32.SetConsoleCP(CP_UTF8)

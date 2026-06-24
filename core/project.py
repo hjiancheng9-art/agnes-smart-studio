@@ -24,7 +24,13 @@ from datetime import datetime
 from pathlib import Path
 
 __all__ = [
-    'PROJECTS_DIR', 'Project', 'TEAM_CONFIGS', 'deploy_to_github_pages', 'deploy_to_netlify', 'deploy_to_vercel', 'run_team',
+    "PROJECTS_DIR",
+    "Project",
+    "TEAM_CONFIGS",
+    "deploy_to_github_pages",
+    "deploy_to_netlify",
+    "deploy_to_vercel",
+    "run_team",
 ]
 
 # 项目数据存储根目录
@@ -34,6 +40,7 @@ PROJECTS_DIR = Path(__file__).parent.parent / "output" / "projects"
 # ════════════════════════════════════════════════
 #  项目管理
 # ════════════════════════════════════════════════
+
 
 class Project:
     """一个工作项目 — 管理独立的会话历史、文件变更记录和代码分析
@@ -46,14 +53,14 @@ class Project:
     """
 
     def __init__(self, name: str, root_path: str = "") -> None:
-        self.name = name                                        # 项目名称
+        self.name = name  # 项目名称
         self.root = Path(root_path) if root_path else PROJECTS_DIR / name  # 项目根目录
-        self.root.mkdir(parents=True, exist_ok=True)            # 确保目录存在
-        self.config_path = self.root / "project.json"           # 项目配置文件
-        self.sessions_path = self.root / "sessions"             # 会话保存目录
-        self.history_path = self.root / "history"               # 文件历史目录
-        self.sessions_path.mkdir(exist_ok=True)                 # 创建会话目录
-        self.history_path.mkdir(exist_ok=True)                  # 创建历史目录
+        self.root.mkdir(parents=True, exist_ok=True)  # 确保目录存在
+        self.config_path = self.root / "project.json"  # 项目配置文件
+        self.sessions_path = self.root / "sessions"  # 会话保存目录
+        self.history_path = self.root / "history"  # 文件历史目录
+        self.sessions_path.mkdir(exist_ok=True)  # 创建会话目录
+        self.history_path.mkdir(exist_ok=True)  # 创建历史目录
 
     # ── 项目配置 ──────────────────────────────────
 
@@ -61,8 +68,14 @@ class Project:
         """加载项目配置，如果不存在则返回默认配置"""
         if self.config_path.exists():
             return json.loads(self.config_path.read_text(encoding="utf-8"))
-        return {"name": self.name, "created": datetime.now().isoformat(),
-                "summary": "", "files": [], "dependencies": [], "last_access": ""}
+        return {
+            "name": self.name,
+            "created": datetime.now().isoformat(),
+            "summary": "",
+            "files": [],
+            "dependencies": [],
+            "last_access": "",
+        }
 
     def save_config(self, cfg: dict):
         """保存项目配置，自动更新最后访问时间"""
@@ -85,11 +98,18 @@ class Project:
             messages: 对话消息列表 [{role, content}, ...]
         """
         path = self.sessions_path / f"{session_id}.json"
-        path.write_text(json.dumps({
-            "id": session_id,
-            "saved_at": datetime.now().isoformat(),
-            "messages": messages,           # 完整消息列表，恢复时不丢失上下文
-        }, indent=2, ensure_ascii=False), encoding="utf-8")
+        path.write_text(
+            json.dumps(
+                {
+                    "id": session_id,
+                    "saved_at": datetime.now().isoformat(),
+                    "messages": messages,  # 完整消息列表，恢复时不丢失上下文
+                },
+                indent=2,
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
 
     def load_session(self, session_id: str) -> list[dict] | None:
         """从文件恢复对话历史
@@ -108,11 +128,13 @@ class Project:
         sessions = []
         for f in sorted(self.sessions_path.glob("*.json"), reverse=True):
             data = json.loads(f.read_text(encoding="utf-8"))
-            sessions.append({
-                "id": data.get("id", f.stem),       # 会话 ID
-                "saved_at": data.get("saved_at", ""),  # 保存时间
-                "messages": len(data.get("messages", [])),  # 消息数
-            })
+            sessions.append(
+                {
+                    "id": data.get("id", f.stem),  # 会话 ID
+                    "saved_at": data.get("saved_at", ""),  # 保存时间
+                    "messages": len(data.get("messages", [])),  # 消息数
+                }
+            )
         return sessions[:10]
 
     # ── 文件变更历史 ──────────────────────────────
@@ -128,12 +150,12 @@ class Project:
             kind: 变更类型 — "created" / "modified" / "deleted"
             content_preview: 变更内容预览（最多 200 字符）
         """
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")        # 时间戳作为文件名
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")  # 时间戳作为文件名
         entry = {
             "file": filepath,
             "kind": kind,
             "time": datetime.now().isoformat(),
-            "preview": content_preview[:200],                 # 截断避免文件过大
+            "preview": content_preview[:200],  # 截断避免文件过大
         }
         path = self.history_path / f"{ts}.json"
         path.write_text(json.dumps(entry, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -163,13 +185,18 @@ class Project:
 
         for f in self.root.rglob("*"):
             # 跳过隐藏文件和常见忽略目录
-            if f.is_file() and f.suffix and not any(
-                p in f.parts for p in (".git", "__pycache__", "node_modules", "venv")
+            if (
+                f.is_file()
+                and f.suffix
+                and not any(p in f.parts for p in (".git", "__pycache__", "node_modules", "venv"))
             ):
                 stats["files"] += 1
-                ext = f.suffix.lower()                         # 按扩展名统计语言
+                ext = f.suffix.lower()  # 按扩展名统计语言
                 stats["languages"][ext] = stats["languages"].get(ext, 0) + 1
-                with contextlib.suppress(OSError, UnicodeDecodeError), open(f, encoding="utf-8", errors="replace") as fh:  # 二进制文件跳过
+                with (
+                    contextlib.suppress(OSError, UnicodeDecodeError),
+                    open(f, encoding="utf-8", errors="replace") as fh,
+                ):  # 二进制文件跳过
                     stats["total_lines"] += sum(1 for _ in fh)
         return stats
 
@@ -257,6 +284,7 @@ def run_team(client, team_type: str, context: str, model: str = "deepseek-v4-pro
 #  部署集成 — Vercel / Netlify / GitHub Pages
 # ════════════════════════════════════════════════
 
+
 def deploy_to_vercel(project_path: str, token: str = "") -> str:
     """部署到 Vercel（需安装 vercel CLI: npm i -g vercel）
 
@@ -265,6 +293,7 @@ def deploy_to_vercel(project_path: str, token: str = "") -> str:
         token: Vercel API token（可选，不传则用已登录的 CLI）
     """
     import subprocess as _sp
+
     cmd = ["vercel", "--prod", "--yes"]
     if token:
         cmd += ["--token", token]
@@ -283,6 +312,7 @@ def deploy_to_netlify(project_path: str, token: str = "") -> str:
         token: Netlify auth token（可选）
     """
     import subprocess as _sp
+
     cmd = ["netlify", "deploy", "--prod"]
     if token:
         cmd += ["--auth", token]
@@ -299,19 +329,19 @@ def deploy_to_github_pages(project_path: str) -> str:
     流程: 构建 → 推送到 gh-pages 分支
     """
     import subprocess as _sp
+
     try:  # noqa: SIM105 — 构建失败容错，继续 Step 2
         # Step 1: 尝试构建
-        _sp.run(["npm", "run", "build"], cwd=project_path,
-                capture_output=True, text=True, timeout=60)
+        _sp.run(["npm", "run", "build"], cwd=project_path, capture_output=True, text=True, timeout=60)
     except (subprocess.SubprocessError, OSError):
         pass  # 构建失败容错，继续 Step 2
     try:
         # Step 2: 部署 build 或 dist
-        r1 = _sp.run(["npx", "gh-pages", "-d", "build"],
-                     cwd=project_path, capture_output=True, text=True, timeout=120)
+        r1 = _sp.run(["npx", "gh-pages", "-d", "build"], cwd=project_path, capture_output=True, text=True, timeout=120)
         if r1.returncode != 0:
-            r2 = _sp.run(["npx", "gh-pages", "-d", "dist"],
-                         cwd=project_path, capture_output=True, text=True, timeout=120)
+            r2 = _sp.run(
+                ["npx", "gh-pages", "-d", "dist"], cwd=project_path, capture_output=True, text=True, timeout=120
+            )
             output = r2.stdout.strip() or r2.stderr.strip()
         else:
             output = r1.stdout.strip()

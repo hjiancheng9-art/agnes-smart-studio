@@ -13,13 +13,25 @@ import unicodedata
 from enum import Enum
 
 __all__ = [
-    'COMPRESS_PROMPT', 'ContextManager', 'ModelRouter', 'PLAN_PROMPT', 'PlanExecutor', 'PlanStep', 'SUBAGENT_PROMPT', 'StepStatus', 'SubAgent', 'compress_messages', 'parse_plan', 'spawn_subagent',
+    "COMPRESS_PROMPT",
+    "ContextManager",
+    "ModelRouter",
+    "PLAN_PROMPT",
+    "PlanExecutor",
+    "PlanStep",
+    "SUBAGENT_PROMPT",
+    "StepStatus",
+    "SubAgent",
+    "compress_messages",
+    "parse_plan",
+    "spawn_subagent",
 ]
 
 
 # ======================================================================
 # Context Window Manager
 # ======================================================================
+
 
 class ContextManager:
     """Token counting + layered auto-compression for conversation history.
@@ -31,8 +43,7 @@ class ContextManager:
     4. Compress: old tool results (truncate), old assistant messages (summarize)
     """
 
-    def __init__(self, max_tokens: int = 60000, preserve_recent: int = 10,
-                 preserve_system: bool = True) -> None:
+    def __init__(self, max_tokens: int = 60000, preserve_recent: int = 10, preserve_system: bool = True) -> None:
         self.max_tokens = max_tokens
         self.preserve_recent = preserve_recent
         self.preserve_system = preserve_system
@@ -48,10 +59,7 @@ class ContextManager:
         """
         if not text:
             return 0
-        wide_count = sum(
-            1 for c in text
-            if unicodedata.east_asian_width(c) in ('W', 'F')
-        )
+        wide_count = sum(1 for c in text if unicodedata.east_asian_width(c) in ("W", "F"))
         narrow_count = len(text) - wide_count
         return wide_count // 2 + narrow_count // 4 + 1
 
@@ -61,10 +69,7 @@ class ContextManager:
         content = msg.get("content", "")
         if isinstance(content, list):
             # Multimodal: count text parts
-            text = " ".join(
-                c.get("text", "") for c in content
-                if isinstance(c, dict) and c.get("type") == "text"
-            )
+            text = " ".join(c.get("text", "") for c in content if isinstance(c, dict) and c.get("type") == "text")
             content = text
         if not isinstance(content, str):
             content = str(content)
@@ -94,8 +99,7 @@ class ContextManager:
         """Check if messages need compression."""
         return self.total_tokens(messages) > self.max_tokens
 
-    def compress(self, messages: list[dict], client,
-                 model: str = "agnes-1.5-flash") -> list[dict]:
+    def compress(self, messages: list[dict], client, model: str = "agnes-1.5-flash") -> list[dict]:
         """Compress conversation history using layered strategy.
 
         - Never touch system messages
@@ -121,8 +125,8 @@ class ContextManager:
             return self._truncate_messages(messages)
 
         # Messages to compress vs preserve
-        to_compress = conversation[:-self.preserve_recent]
-        to_keep = conversation[-self.preserve_recent:]
+        to_compress = conversation[: -self.preserve_recent]
+        to_keep = conversation[-self.preserve_recent :]
 
         # Build compression input: extract key info from old messages
         compress_parts = []
@@ -131,8 +135,7 @@ class ContextManager:
             content = msg.get("content", "")
             if isinstance(content, list):
                 content = " ".join(
-                    c.get("text", "") for c in content
-                    if isinstance(c, dict) and c.get("type") == "text"
+                    c.get("text", "") for c in content if isinstance(c, dict) and c.get("type") == "text"
                 )
             if not isinstance(content, str):
                 content = str(content)
@@ -189,10 +192,10 @@ class ContextManager:
         context_tools.DEFAULT_MAX_CHARS / truncate_tool_result 统一维护。
         """
         from core.context_tools import truncate_messages
+
         return truncate_messages(messages, ContextManager._MAX_MSG_CHARS)
 
-    def auto_compress_if_needed(self, messages: list[dict], client,
-                                model: str = "agnes-1.5-flash") -> list[dict]:
+    def auto_compress_if_needed(self, messages: list[dict], client, model: str = "agnes-1.5-flash") -> list[dict]:
         """Two-tier compression: truncate first (free), LLM summary only if still over.
 
         Tier 1 (free): _truncate_messages — cap each message at _MAX_MSG_CHARS.
@@ -212,6 +215,7 @@ class ContextManager:
 # Plan Execution Engine
 # ======================================================================
 
+
 class StepStatus(Enum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
@@ -223,8 +227,7 @@ class StepStatus(Enum):
 class PlanStep:
     """A single step in an execution plan."""
 
-    def __init__(self, name: str, purpose: str = "", tool: str = "",
-                 depends_on: list[int] | None = None) -> None:
+    def __init__(self, name: str, purpose: str = "", tool: str = "", depends_on: list[int] | None = None) -> None:
         self.name = name
         self.purpose = purpose
         self.tool = tool
@@ -256,8 +259,9 @@ class PlanExecutor:
         results = executor.execute(plan)
     """
 
-    def __init__(self, client, tools=None, model: str = "deepseek-v4-pro",
-                 tier: str = "auto", task_type: str = "") -> None:
+    def __init__(
+        self, client, tools=None, model: str = "deepseek-v4-pro", tier: str = "auto", task_type: str = ""
+    ) -> None:
         """Init plan executor.
 
         Args:
@@ -291,8 +295,7 @@ class PlanExecutor:
         except (OSError, ValueError, RuntimeError) as e:
             return [PlanStep(name="error", purpose=f"Plan generation failed: {e}")]
 
-    def execute(self, steps: list[PlanStep],
-                on_progress=None) -> list[PlanStep]:
+    def execute(self, steps: list[PlanStep], on_progress=None) -> list[PlanStep]:
         """Execute steps in order, respecting dependencies.
 
         Args:
@@ -302,15 +305,15 @@ class PlanExecutor:
         results = []
         context = ""  # Accumulated context from previous steps
 
-        for i, step in enumerate(steps[:self.max_steps]):
+        for i, step in enumerate(steps[: self.max_steps]):
             # Check dependencies
             blocked = False
             for dep_idx in step.depends_on:
                 if dep_idx - 1 < len(results) and results[dep_idx - 1].status != StepStatus.COMPLETED:
-                        step.status = StepStatus.SKIPPED
-                        step.error = f"Dependency step {dep_idx} not completed"
-                        blocked = True
-                        break
+                    step.status = StepStatus.SKIPPED
+                    step.error = f"Dependency step {dep_idx} not completed"
+                    blocked = True
+                    break
 
             if blocked:
                 if on_progress:
@@ -330,7 +333,7 @@ class PlanExecutor:
                     step.status = StepStatus.COMPLETED
                     step.error = ""
                     # Pass context to next step
-                    context += f"\n[Step {i+1}: {step.name}] Result: {result[:500]}"
+                    context += f"\n[Step {i + 1}: {step.name}] Result: {result[:500]}"
                     break
                 except (OSError, ValueError, RuntimeError) as e:
                     step.error = str(e)
@@ -369,8 +372,8 @@ class PlanExecutor:
         """Try to infer tool arguments from step purpose and context."""
         # Simple heuristic: try to extract key-value pairs from purpose
         args = {}
-        for match in re.finditer(r'(\w+)[:=]\s*(\S+)', step.purpose):
-            args[match.group(1)] = match.group(2).strip('"\'')
+        for match in re.finditer(r"(\w+)[:=]\s*(\S+)", step.purpose):
+            args[match.group(1)] = match.group(2).strip("\"'")
         return args
 
     def get_summary(self, results: list[PlanStep]) -> str:
@@ -384,7 +387,7 @@ class PlanExecutor:
                 StepStatus.PENDING: "[ ]",
                 StepStatus.IN_PROGRESS: "[...]",
             }.get(step.status, "[?]")
-            lines.append(f"{status_icon} Step {i+1}: {step.name}")
+            lines.append(f"{status_icon} Step {i + 1}: {step.name}")
             if step.result:
                 lines.append(f"    Result: {step.result[:200]}")
             if step.error:
@@ -396,6 +399,7 @@ class PlanExecutor:
 # Sub-Agent with Tool Calling Loop
 # ======================================================================
 
+
 class SubAgent:
     """An independent sub-agent with its own session history and tool-calling loop.
 
@@ -405,9 +409,15 @@ class SubAgent:
     - Report results back to the parent
     """
 
-    def __init__(self, client, tools=None, model: str = "deepseek-v4-pro",
-                 max_rounds: int = 5, tier: str = "auto",
-                 task_type: str = "") -> None:
+    def __init__(
+        self,
+        client,
+        tools=None,
+        model: str = "deepseek-v4-pro",
+        max_rounds: int = 5,
+        tier: str = "auto",
+        task_type: str = "",
+    ) -> None:
         """Init sub-agent.
 
         Args:
@@ -455,9 +465,7 @@ class SubAgent:
 
         for _round_num in range(self.max_rounds):
             # Auto-compress if needed
-            self.history = self.context_mgr.auto_compress_if_needed(
-                self.history, self.client, "agnes-1.5-flash"
-            )
+            self.history = self.context_mgr.auto_compress_if_needed(self.history, self.client, "agnes-1.5-flash")
 
             try:
                 r = self.client.chat(
@@ -494,27 +502,32 @@ class SubAgent:
                     # 高风险守卫：SubAgent 无法弹确认框，命中即拒绝
                     # 与 chat.py._dispatch_tool 的 _HIGH_RISK_TOOLS 对齐
                     _HIGH_RISK = {
-                        "git_add_commit", "git_push", "git_pr_create", "git_pr_merge",
+                        "git_add_commit",
+                        "git_push",
+                        "git_pr_create",
+                        "git_pr_merge",
                     }
-                    is_risky = (
-                        tool_name in _HIGH_RISK
-                        or (tool_name == "github_write_file"
-                            and not tool_args.get("branch", "").strip())
+                    is_risky = tool_name in _HIGH_RISK or (
+                        tool_name == "github_write_file" and not tool_args.get("branch", "").strip()
                     )
                     if is_risky:
-                        result = (f"[安全拦截] 工具 '{tool_name}' 属高风险写操作，"
-                                  "SubAgent 自主循环不允许执行，请由主会话确认后调用。")
+                        result = (
+                            f"[安全拦截] 工具 '{tool_name}' 属高风险写操作，"
+                            "SubAgent 自主循环不允许执行，请由主会话确认后调用。"
+                        )
                     else:
                         result = self.tools.execute(tool_name, tool_args)
                 else:
                     result = f"[Error] Unknown tool: {tool_name}"
 
                 # Add tool result to history
-                self.history.append({
-                    "role": "tool",
-                    "tool_call_id": tc.get("id", ""),
-                    "content": result[:4000],  # Truncate long results
-                })
+                self.history.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tc.get("id", ""),
+                        "content": result[:4000],  # Truncate long results
+                    }
+                )
 
         return "[SubAgent] Max rounds reached without final answer."
 
@@ -522,6 +535,7 @@ class SubAgent:
 # ======================================================================
 # Multi-Model Intelligent Router
 # ======================================================================
+
 
 class ModelRouter:
     """Intelligent model selection based on task type, cost, and capability.
@@ -545,7 +559,7 @@ class ModelRouter:
 
     # 三级 tier 常量 — 对标 Claude 的 haiku/sonnet/opus
     TIER_LIGHT = "light"  # 机械任务（搜索/读文件/grep/简单对话）
-    TIER_PRO = "pro"      # 中等复杂度（单文件修改/写测试）
+    TIER_PRO = "pro"  # 中等复杂度（单文件修改/写测试）
     TIER_HEAVY = "heavy"  # 深度推理（架构/多文件/安全审查）
 
     MODEL_PROFILES = {
@@ -600,8 +614,7 @@ class ModelRouter:
             "supports_thinking": False,  # 非思考模式（思考需切 Pro）
             "supports_vision": False,
             "max_tokens": 8192,
-            "best_for": ["chat", "simple_qa", "search", "read_file", "format",
-                         "summarize", "tool_calling", "code"],
+            "best_for": ["chat", "simple_qa", "search", "read_file", "format", "summarize", "tool_calling", "code"],
             "tier": "light",
         },
         "Pro/moonshotai/Kimi-K2.6": {
@@ -624,21 +637,26 @@ class ModelRouter:
         },
     }
 
-    def __init__(self, primary: str | None = None,
-                 light: str = "deepseek-v4-flash",
-                 vision_model: str = "agnes-1.5-flash") -> None:
+    def __init__(
+        self, primary: str | None = None, light: str = "deepseek-v4-flash", vision_model: str = "agnes-1.5-flash"
+    ) -> None:
         # primary 默认从 models.json active provider 的 pro 模型读，
         # 读不到则退回 deepseek-v4-pro（向后兼容）
         if primary is None:
             primary = self._default_primary()
-        self.primary = primary      # heavy tier（深度推理/长上下文）
-        self.light = light          # light tier（机械任务/简单对话，默认 deepseek-v4-flash）
+        self.primary = primary  # heavy tier（深度推理/长上下文）
+        self.light = light  # light tier（机械任务/简单对话，默认 deepseek-v4-flash）
         self.vision_model = vision_model  # 视觉通道独立（唯一原生多模态 agnes-1.5-flash）
         self._fallback_chain = self._build_fallback_chain()
 
-    def select(self, task_type: str = "", needs_tools: bool = False,
-               needs_vision: bool = False, needs_thinking: bool = False,
-               needs_long_context: bool = False) -> str:
+    def select(
+        self,
+        task_type: str = "",
+        needs_tools: bool = False,
+        needs_vision: bool = False,
+        needs_thinking: bool = False,
+        needs_long_context: bool = False,
+    ) -> str:
         """Select the best model for the task.
 
         Args:
@@ -680,10 +698,10 @@ class ModelRouter:
             "chat": self.light,
             "simple_qa": self.light,
             "summarize": self.light,
-            "search": self.light,       # 搜索/读文件/grep
-            "read_file": self.light,    # 机械读文件
-            "format": self.light,       # 格式化
-            "tool_calling": self.light, # 轻量 tool calling（flash 支持 tools，无需思考）
+            "search": self.light,  # 搜索/读文件/grep
+            "read_file": self.light,  # 机械读文件
+            "format": self.light,  # 格式化
+            "tool_calling": self.light,  # 轻量 tool calling（flash 支持 tools，无需思考）
             # ── 视觉通道（独立，非 tier 体系）──
             "vision": self.vision_model,
             # ── heavy tier（深度推理，deepseek-v4-pro）──
@@ -726,6 +744,7 @@ class ModelRouter:
         """从 models.json active provider 读 pro 模型，读不到退回 deepseek-v4-pro。"""
         try:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             return mgr.get_model("pro") or "deepseek-v4-pro"
         except (ImportError, OSError, RuntimeError):
@@ -740,6 +759,7 @@ class ModelRouter:
         chain: list[str] = [self.primary]
         try:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             for pid in mgr.fallback_priority:
                 provider = mgr.providers.get(pid, {})
@@ -814,10 +834,10 @@ def parse_plan(text: str) -> list[PlanStep]:
     Returns a list of PlanStep objects (was list[dict] before).
     """
     # Extract ```plan ... ``` block
-    match = re.search(r'```plan\s*\n(.+?)```', text, re.DOTALL)
+    match = re.search(r"```plan\s*\n(.+?)```", text, re.DOTALL)
     if not match:
         # Also try plain numbered list
-        match = re.search(r'((?:\d+\..+\n?)+)', text)
+        match = re.search(r"((?:\d+\..+\n?)+)", text)
         if not match:
             return []
         plan_text = match.group(1)
@@ -830,28 +850,30 @@ def parse_plan(text: str) -> list[PlanStep]:
         if not line:
             continue
 
-        num_match = re.match(r'(\d+)\.\s*(.+)', line)
+        num_match = re.match(r"(\d+)\.\s*(.+)", line)
         if not num_match:
             continue
 
         step_text = num_match.group(2)
 
         # Extract components
-        name_match = re.match(r'\[(.+?)\]', step_text)
-        purpose_match = re.search(r'(?:Purpose|目的)[：:]\s*(.+?)(?:\s*-|\s—|$)', step_text)
-        tool_match = re.search(r'(?:Tool|工具)[：:]\s*(\w+)', step_text)
-        dep_match = re.search(r'(?:depends|依赖)[：:]\s*(\d+(?:\s*,\s*\d+)*)', step_text)
+        name_match = re.match(r"\[(.+?)\]", step_text)
+        purpose_match = re.search(r"(?:Purpose|目的)[：:]\s*(.+?)(?:\s*-|\s—|$)", step_text)
+        tool_match = re.search(r"(?:Tool|工具)[：:]\s*(\w+)", step_text)
+        dep_match = re.search(r"(?:depends|依赖)[：:]\s*(\d+(?:\s*,\s*\d+)*)", step_text)
 
         deps = []
         if dep_match:
             deps = [int(d.strip()) for d in dep_match.group(1).split(",")]
 
-        steps.append(PlanStep(
-            name=name_match.group(1) if name_match else step_text[:30],
-            purpose=purpose_match.group(1).strip() if purpose_match else "",
-            tool=tool_match.group(1) if tool_match else "",
-            depends_on=deps,
-        ))
+        steps.append(
+            PlanStep(
+                name=name_match.group(1) if name_match else step_text[:30],
+                purpose=purpose_match.group(1).strip() if purpose_match else "",
+                tool=tool_match.group(1) if tool_match else "",
+                depends_on=deps,
+            )
+        )
 
     return steps
 
@@ -878,6 +900,7 @@ def spawn_subagent(client, task: str, model: str = "deepseek-v4-pro") -> str:
     not just make a single LLM call.
     """
     from core.tools import get_registry
+
     tools = get_registry()
     agent = SubAgent(client, tools=tools, model=model)
     return agent.run(task)
@@ -892,8 +915,7 @@ COMPRESS_PROMPT = """Summarize the following conversation, preserving:
 Output a concise summary (max 300 words):"""
 
 
-def compress_messages(messages: list[dict], client,
-                      model: str = "agnes-1.5-flash") -> str:
+def compress_messages(messages: list[dict], client, model: str = "agnes-1.5-flash") -> str:
     """Compress conversation history into a summary (backward compatible)."""
     mgr = ContextManager()
     mgr.compress(messages, client, model)

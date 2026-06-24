@@ -17,8 +17,7 @@ if TYPE_CHECKING:
     from core.chat import ChatSession
     from engines.image_to_image import ImageToImageEngine
 
-__all__ = ['CreativeCommandsMixin']
-
+__all__ = ["CreativeCommandsMixin"]
 
 
 class CreativeCommandsMixin:
@@ -26,14 +25,11 @@ class CreativeCommandsMixin:
     i2i: "ImageToImageEngine"  # noqa: E704 — type stub only, set by CruxCLI.__init__
 
     # Method provided by SharedMixin (sibling in MRO)
-    def _stream_chat(self, session: "ChatSession", user: str) -> None:
-        ...  # defined in SharedMixin, available via MRO
+    def _stream_chat(self, session: "ChatSession", user: str) -> None: ...  # defined in SharedMixin, available via MRO
 
     # Method provided by SharedMixin (sibling in MRO)
     @staticmethod
-    def _extract_path_and_text(raw: str) -> tuple[str, str]:
-        ...  # defined in SharedMixin, available via MRO
-
+    def _extract_path_and_text(raw: str) -> tuple[str, str]: ...  # defined in SharedMixin, available via MRO
 
     def _chat_showrun(self, session, arg: str):
         """/showrun — 总导演模式入口。
@@ -64,8 +60,7 @@ class CreativeCommandsMixin:
 
         # 智能分离图片路径和文本描述
         img_path, clean_text = self._extract_path_and_text(prompt)
-        has_image = img_path != prompt and img_path.lower().endswith(
-            (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"))
+        has_image = img_path != prompt and img_path.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"))
         final_prompt = clean_text if has_image else prompt
         if not final_prompt:
             final_prompt = prompt
@@ -99,23 +94,33 @@ class CreativeCommandsMixin:
                 h = SETTINGS.default_video_height
 
                 show_info("Generating video (may take several minutes)...")
-                with Progress(SpinnerColumn(), TextColumn(f"[{LAYOUT['bar_style']}]{task.description}"),
-                              BarColumn(style=f"{LAYOUT['bar_style']}", complete_style=f"{LAYOUT['bar_complete_style']}"),
-                              TextColumn("{task.percentage:>3.0f}%"),
-                              console=console) as prog:
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn(f"[{LAYOUT['bar_style']}]{{task.description}}"),
+                    BarColumn(style=f"{LAYOUT['bar_style']}", complete_style=f"{LAYOUT['bar_complete_style']}"),
+                    TextColumn("{task.percentage:>3.0f}%"),
+                    console=console,
+                ) as prog:
                     task = prog.add_task("Generating", total=100)
+
                     def on_p(status, progress, data):
                         prog.update(task, completed=min(progress, 100), description=status)
 
                     if has_image:
                         url = image_input.load_image_as_url_or_data(img_path)
                         data = session.vid.image_to_video(
-                            prompt=fp, image_url=url, width=w, height=h,
-                            negative_prompt=neg, on_progress=on_p, timeout=120.0)
+                            prompt=fp,
+                            image_url=url,
+                            width=w,
+                            height=h,
+                            negative_prompt=neg,
+                            on_progress=on_p,
+                            timeout=120.0,
+                        )
                     else:
                         data = session.vid.text_to_video(
-                            prompt=fp, width=w, height=h, negative_prompt=neg,
-                            on_progress=on_p, timeout=120.0)
+                            prompt=fp, width=w, height=h, negative_prompt=neg, on_progress=on_p, timeout=120.0
+                        )
 
                 if data.get("status") == "timeout":
                     show_warning(f"视频超时，进度 {data.get('progress', 0):.0f}%")
@@ -141,9 +146,11 @@ class CreativeCommandsMixin:
             show_info("理解图片中...")
             # 直接使用独立视觉客户端，不依赖 brain（brain 绑定主 client）
             r = session.vision_client.chat_multimodal(
-                text=question, image_url=url,
+                text=question,
+                image_url=url,
                 model=session.vision_model,
-                temperature=0.3, max_tokens=1024,
+                temperature=0.3,
+                max_tokens=1024,
             )
             content = r["choices"][0]["message"]["content"] or ""
         except (KeyError, IndexError):
@@ -151,8 +158,9 @@ class CreativeCommandsMixin:
         except (RuntimeError, OSError, ValueError) as e:
             show_error(str(e))
             return
-        console.print(Panel(Markdown(content), title=f"[{COLORS['success']}]图片理解[/]",
-                            border_style=COLORS["success"]))
+        console.print(
+            Panel(Markdown(content), title=f"[{COLORS['success']}]图片理解[/]", border_style=COLORS["success"])
+        )
         # 记入会话历史（便于追问）
         session.messages.append({"role": "user", "content": f"[图片理解] {question}"})
         session.messages.append({"role": "assistant", "content": content})
@@ -170,24 +178,41 @@ class CreativeCommandsMixin:
         # ── 中文别名映射 ──
         SKILL_ALIASES = {
             # Showrunner & Pipeline
-            "视频": "showrunner", "做视频": "showrunner", "拍片": "showrunner",
-            "一键视频": "showrunner", "制片": "showrunner", "showrunner": "showrunner",
+            "视频": "showrunner",
+            "做视频": "showrunner",
+            "拍片": "showrunner",
+            "一键视频": "showrunner",
+            "制片": "showrunner",
+            "showrunner": "showrunner",
             # ComfyUI
-            "作图": "comfyui-bridge", "生图": "comfyui-bridge", "画画": "comfyui-bridge",
-            "comfyui": "comfyui-bridge", "本地生图": "comfyui-bridge", "炼丹": "comfyui-bridge",
+            "作图": "comfyui-bridge",
+            "生图": "comfyui-bridge",
+            "画画": "comfyui-bridge",
+            "comfyui": "comfyui-bridge",
+            "本地生图": "comfyui-bridge",
+            "炼丹": "comfyui-bridge",
             # 写作
-            "写剧本": "script-writer", "剧本": "script-writer",
-            "写小说": "novel-writer", "小说": "novel-writer",
-            "写文案": "story-copywriter", "文案": "story-copywriter",
+            "写剧本": "script-writer",
+            "剧本": "script-writer",
+            "写小说": "novel-writer",
+            "小说": "novel-writer",
+            "写文案": "story-copywriter",
+            "文案": "story-copywriter",
             "漫剧": "comic-drama-writer",
             # 视觉
-            "视觉导演": "visual-director", "分镜": "storyboard-director",
-            "运镜": "motion-director", "电影化": "cinematic-master",
-            "关键帧": "cinematic-keyframe", "动作戏": "gaming-action-engine",
+            "视觉导演": "visual-director",
+            "分镜": "storyboard-director",
+            "运镜": "motion-director",
+            "电影化": "cinematic-master",
+            "关键帧": "cinematic-keyframe",
+            "动作戏": "gaming-action-engine",
             # 工具
-            "提示词": "prompt-director", "质检": "qc-inspector",
-            "模型路由": "model-routing", "资产管理": "asset-manager",
-            "修复": "recovery-playbooks", "世界观": "world-building-engine",
+            "提示词": "prompt-director",
+            "质检": "qc-inspector",
+            "模型路由": "model-routing",
+            "资产管理": "asset-manager",
+            "修复": "recovery-playbooks",
+            "世界观": "world-building-engine",
             "世界观构建": "world-building-engine",
         }
 
@@ -341,6 +366,7 @@ class CreativeCommandsMixin:
     def _skill_create(self, session: "ChatSession", name: str, desc: str):
         """让 AI 自动生成技能文件"""
         import os
+
         skills_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "skills")
         filepath = os.path.join(skills_dir, f"{name}.skill.json")
 
@@ -362,7 +388,8 @@ class CreativeCommandsMixin:
         buffer = ""
         try:
             for delta in session.client.chat_stream(
-                model=session.model, messages=session.messages,
+                model=session.model,
+                messages=session.messages,
                 max_tokens=2048,
             ):
                 if "content" in delta and delta["content"]:
@@ -375,9 +402,10 @@ class CreativeCommandsMixin:
         # 提取 JSON
         import json
         import re
+
         try:
             # 尝试解析 AI 输出的 JSON
-            json_match = re.search(r'\{.*\}', buffer, re.DOTALL)
+            json_match = re.search(r"\{.*\}", buffer, re.DOTALL)
             data = json.loads(json_match.group()) if json_match else json.loads(buffer)
         except json.JSONDecodeError:
             # 如果 AI 没输出纯 JSON，手动构建

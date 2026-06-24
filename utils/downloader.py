@@ -7,12 +7,11 @@ import httpx
 
 from core.config import OUTPUT_DIR, SETTINGS
 
-__all__ = ['download_image', 'download_video']
-
+__all__ = ["download_image", "download_video"]
 
 
 def _sanitize_filename(name: str) -> str:
-    return re.sub(r'[\\/:*?"<>|]', '_', name)[:80]
+    return re.sub(r'[\\/:*?"<>|]', "_", name)[:80]
 
 
 def _guess_ext(url: str, default: str = ".png") -> str:

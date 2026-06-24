@@ -10,8 +10,11 @@ import httpx
 from .config import SETTINGS
 
 __all__ = ["CruxClient", "ContentPolicyError"]
+
+
 class ContentPolicyError(Exception):
     """内容安全过滤异常 - 提示词触发 API 安全策略"""
+
     def __init__(self, message: str, detail: dict | None = None) -> None:
         super().__init__(message)
         self.detail = detail or {}
@@ -45,18 +48,22 @@ class CruxClient:
                 resp = self._http.post(url, **kwargs) if method == "POST" else self._http.get(url, **kwargs)
                 resp.raise_for_status()
                 return resp
-            except (httpx.ConnectError, httpx.ReadError, httpx.WriteError, httpx.PoolTimeout, httpx.TimeoutException) as e:
+            except (
+                httpx.ConnectError,
+                httpx.ReadError,
+                httpx.WriteError,
+                httpx.PoolTimeout,
+                httpx.TimeoutException,
+            ) as e:
                 last_exc = e
                 if attempt < retries - 1:
                     time.sleep(0.5 * (attempt + 1))
                 continue
             except httpx.HTTPStatusError as e:
                 # 429 Too Many Requests 和 5xx 可重试，其他 4xx 不重试
-                if attempt < retries - 1 and (
-                    e.response.status_code == 429 or e.response.status_code >= 500
-                ):
+                if attempt < retries - 1 and (e.response.status_code == 429 or e.response.status_code >= 500):
                     # 429 指数退避：1s, 2s, 4s...；5xx 线性退避
-                    wait = (2 ** attempt) if e.response.status_code == 429 else (0.5 * (attempt + 1))
+                    wait = (2**attempt) if e.response.status_code == 429 else (0.5 * (attempt + 1))
                     time.sleep(wait)
                     last_exc = e
                     continue
@@ -80,11 +87,13 @@ class CruxClient:
                 # 从错误详情中剥离可能的敏感字段再拼入异常消息
                 safe_detail = detail
                 if isinstance(safe_detail, dict):
-                    safe_detail = {k: v for k, v in safe_detail.items()
-                                   if k not in ("api_key", "token", "secret", "password")}
+                    safe_detail = {
+                        k: v for k, v in safe_detail.items() if k not in ("api_key", "token", "secret", "password")
+                    }
                 raise httpx.HTTPStatusError(
                     f"{e.response.status_code} {e.response.reason_phrase} - {safe_detail}",
-                    request=e.request, response=e.response,
+                    request=e.request,
+                    response=e.response,
                 ) from e
         # 所有重试耗尽
         assert last_exc is not None  # guaranteed by loop logic
@@ -186,7 +195,9 @@ class CruxClient:
         # 但捕获网络异常并优雅降级，避免静默失败。
         try:
             with self._http.stream(
-                "POST", "/chat/completions", json=body,
+                "POST",
+                "/chat/completions",
+                json=body,
                 timeout=httpx.Timeout(timeout, connect=30.0),
             ) as resp:
                 resp.raise_for_status()
@@ -215,8 +226,13 @@ class CruxClient:
                         out["_usage"] = usage
                     if out:
                         yield out
-        except (httpx.ConnectError, httpx.ReadError, httpx.RemoteProtocolError,
-                httpx.PoolTimeout, httpx.TimeoutException) as e:
+        except (
+            httpx.ConnectError,
+            httpx.ReadError,
+            httpx.RemoteProtocolError,
+            httpx.PoolTimeout,
+            httpx.TimeoutException,
+        ) as e:
             # 网络层错误：yield 错误信息让上层优雅降级
             yield {"content": f"\n[流中断: {type(e).__name__}]", "_finish": "error"}
         except httpx.HTTPStatusError as e:
@@ -352,9 +368,14 @@ class CruxClient:
         """查询单次视频任务状态（不轮询），返回当前状态 dict"""
         return self.get_video_status(video_id=video_id)
 
-    def _poll_video_loop(self, video_id: str,
-                          deadline: float = 0, interval: float = 5.0,
-                          on_progress: Any | None = None, raise_on_fail: bool = True) -> dict | None:
+    def _poll_video_loop(
+        self,
+        video_id: str,
+        deadline: float = 0,
+        interval: float = 5.0,
+        on_progress: Any | None = None,
+        raise_on_fail: bool = True,
+    ) -> dict | None:
         """内部轮询循环：进度防回退，共享逻辑。超时返回 None。"""
         last_progress = 0
 
@@ -364,7 +385,9 @@ class CruxClient:
             raw_progress = data.get("progress", 0)
 
             # 进度防回退：API 偶发简化响应
-            current_progress = max(last_progress, raw_progress if isinstance(raw_progress, (int, float)) else last_progress)
+            current_progress = max(
+                last_progress, raw_progress if isinstance(raw_progress, (int, float)) else last_progress
+            )
             last_progress = current_progress
 
             if on_progress:
@@ -398,9 +421,9 @@ class CruxClient:
         返回最终结果 dict，含 remixed_from_video_id
         """
         deadline = time.time() + max_wait
-        result = self._poll_video_loop(video_id=video_id,
-                                        deadline=deadline, interval=interval,
-                                        on_progress=on_progress, raise_on_fail=True)
+        result = self._poll_video_loop(
+            video_id=video_id, deadline=deadline, interval=interval, on_progress=on_progress, raise_on_fail=True
+        )
         if result is None:
             raise TimeoutError(f"视频生成超时 ({max_wait}s)")
         return result
@@ -417,9 +440,9 @@ class CruxClient:
         适合IDE等有总执行时间限制的环境。
         """
         deadline = time.time() + timeout
-        result = self._poll_video_loop(video_id=video_id,
-                                        deadline=deadline, interval=interval,
-                                        on_progress=on_progress, raise_on_fail=False)
+        result = self._poll_video_loop(
+            video_id=video_id, deadline=deadline, interval=interval, on_progress=on_progress, raise_on_fail=False
+        )
         if result is not None:
             return result
 

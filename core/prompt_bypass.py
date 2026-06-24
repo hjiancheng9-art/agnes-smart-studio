@@ -27,9 +27,19 @@ import time
 from pathlib import Path
 
 __all__ = [
-    'BYPASS_ENABLED', 'CACHE_FILE', 'FIGURE_STRATEGIES', 'FIGURE_TRIGGERS', 'POLICY_KEYWORDS', 'ROOT', 'STRATEGIES',
-    'generate_with_bypass', 'get_bypass_stats', 'is_policy_error', 'rewrite_prompt',
-    'async_generate_with_bypass', 'async_rewrite_prompt',
+    "BYPASS_ENABLED",
+    "CACHE_FILE",
+    "FIGURE_STRATEGIES",
+    "FIGURE_TRIGGERS",
+    "POLICY_KEYWORDS",
+    "ROOT",
+    "STRATEGIES",
+    "generate_with_bypass",
+    "get_bypass_stats",
+    "is_policy_error",
+    "rewrite_prompt",
+    "async_generate_with_bypass",
+    "async_rewrite_prompt",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -92,17 +102,31 @@ atmosphere, texture, and emotional tone. Output ONLY the rewritten prompt.""",
 # Trigger words that signal content policy — detected in error messages
 POLICY_KEYWORDS = [
     # English
-    "content_policy", "safety", "inappropriate", "content filter",
-    "policy_violation", "not allowed", "restricted", "blocked",
-    "community guidelines", "terms of service",
+    "content_policy",
+    "safety",
+    "inappropriate",
+    "content filter",
+    "policy_violation",
+    "not allowed",
+    "restricted",
+    "blocked",
+    "community guidelines",
+    "terms of service",
     # Chinese (CRUX API returns Chinese error messages)
-    "无法生成该内容", "请调整提示词", "内容策略", "内容过滤",
-    "安全策略", "违规内容", "不合适", "不被允许",
+    "无法生成该内容",
+    "请调整提示词",
+    "内容策略",
+    "内容过滤",
+    "安全策略",
+    "违规内容",
+    "不合适",
+    "不被允许",
 ]
 
 # ═══════════════════════════════════════════════════════════════
 # Cache — remember which rewrites worked
 # ═══════════════════════════════════════════════════════════════
+
 
 def _load_cache() -> dict:
     if CACHE_FILE.exists():
@@ -122,6 +146,7 @@ def _save_cache(cache: dict):
 # Core rewrite logic
 # ═══════════════════════════════════════════════════════════════
 
+
 def _detect_trigger_words(prompt: str) -> list[str]:
     """Find potentially problematic words in the prompt.
 
@@ -130,17 +155,51 @@ def _detect_trigger_words(prompt: str) -> list[str]:
     """
     dangerous = [
         # Violence/weapons
-        "blood", "gore", "kill", "dead", "death", "murder", "weapon",
-        "gun", "rifle", "bomb", "explosive", "attack", "violent",
+        "blood",
+        "gore",
+        "kill",
+        "dead",
+        "death",
+        "murder",
+        "weapon",
+        "gun",
+        "rifle",
+        "bomb",
+        "explosive",
+        "attack",
+        "violent",
         # Security topics (legitimate learning)
-        "hack", "crack", "exploit", "penetrate", "backdoor",
-        "malware", "virus", "payload", "injection",
+        "hack",
+        "crack",
+        "exploit",
+        "penetrate",
+        "backdoor",
+        "malware",
+        "virus",
+        "payload",
+        "injection",
         # Body/figure — natural, not obscene
-        "nude", "naked", "figure study", "anatomy", "life drawing",
-        "boudoir", "lingerie", "swimsuit", "bikini", "underwear",
-        "topless", "bare", "skin", "body", "physique", "muscular",
+        "nude",
+        "naked",
+        "figure study",
+        "anatomy",
+        "life drawing",
+        "boudoir",
+        "lingerie",
+        "swimsuit",
+        "bikini",
+        "underwear",
+        "topless",
+        "bare",
+        "skin",
+        "body",
+        "physique",
+        "muscular",
         # Political (academic/historical)
-        "protest", "revolution", "military", "war",
+        "protest",
+        "revolution",
+        "military",
+        "war",
     ]
     found = []
     lower = prompt.lower()
@@ -148,6 +207,7 @@ def _detect_trigger_words(prompt: str) -> list[str]:
         if w in lower:
             found.append(w)
     return found
+
 
 # Special strategies for figure/body prompts — these are NOT inappropriate,
 # they're natural human subjects that APIs irrationally block
@@ -185,15 +245,30 @@ Output ONLY the rewritten prompt.""",
 
 # Trigger categories for routing to specialized strategies
 FIGURE_TRIGGERS = [
-    "nude", "naked", "figure study", "anatomy", "life drawing",
-    "boudoir", "lingerie", "swimsuit", "bikini", "underwear",
-    "topless", "bare skin", "body paint",
+    "nude",
+    "naked",
+    "figure study",
+    "anatomy",
+    "life drawing",
+    "boudoir",
+    "lingerie",
+    "swimsuit",
+    "bikini",
+    "underwear",
+    "topless",
+    "bare skin",
+    "body paint",
 ]
 
 
-def rewrite_prompt(client, original_prompt: str, model: str = "deepseek-v4-pro",
-                   strategy_index: int = 0, cache: dict | None = None,
-                   triggers: list[str] | None = None) -> str | None:
+def rewrite_prompt(
+    client,
+    original_prompt: str,
+    model: str = "deepseek-v4-pro",
+    strategy_index: int = 0,
+    cache: dict | None = None,
+    triggers: list[str] | None = None,
+) -> str | None:
     """Rewrite a blocked prompt using the specified strategy.
 
     Automatically routes figure/body prompts to specialized strategies.
@@ -233,10 +308,9 @@ def rewrite_prompt(client, original_prompt: str, model: str = "deepseek-v4-pro",
         rewritten = rewritten.strip().strip('"').strip("'")
 
         # Strip prefixes
-        for prefix in ("Here", "Sure", "Here is", "Rewritten prompt:",
-                        "Prompt:", "Certainly", "Of course"):
+        for prefix in ("Here", "Sure", "Here is", "Rewritten prompt:", "Prompt:", "Certainly", "Of course"):
             if rewritten.lower().startswith(prefix.lower()):
-                rewritten = rewritten[len(prefix):].strip().strip(":").strip()
+                rewritten = rewritten[len(prefix) :].strip().strip(":").strip()
 
         if 10 < len(rewritten) < 2000:
             # Cache it
@@ -310,7 +384,8 @@ def generate_with_bypass(engine_method, client, prompt: str, **kwargs):
             # Try next strategy
             strategy_idx = attempt
             new_prompt = rewrite_prompt(
-                client, current_prompt,
+                client,
+                current_prompt,
                 strategy_index=strategy_idx,
                 cache=cache,
                 triggers=triggers,
@@ -328,6 +403,7 @@ def generate_with_bypass(engine_method, client, prompt: str, **kwargs):
 # Stats
 # ═══════════════════════════════════════════════════════════════
 
+
 def get_bypass_stats() -> dict:
     """Get bypass statistics for diagnostics."""
     cache = _load_cache()
@@ -341,9 +417,15 @@ def get_bypass_stats() -> dict:
 # Async 版本 — asyncio 原生，供 AsyncCruxClient / AsyncEngines 使用
 # ═══════════════════════════════════════════════════════════════
 
-async def async_rewrite_prompt(client, original_prompt: str, model: str = "deepseek-v4-pro",
-                               strategy_index: int = 0, cache: dict | None = None,
-                               triggers: list[str] | None = None) -> str | None:
+
+async def async_rewrite_prompt(
+    client,
+    original_prompt: str,
+    model: str = "deepseek-v4-pro",
+    strategy_index: int = 0,
+    cache: dict | None = None,
+    triggers: list[str] | None = None,
+) -> str | None:
     """异步版 rewrite_prompt。
 
     client 必须是 AsyncCruxClient（或任何具备 async chat() 方法的客户端）。
@@ -382,10 +464,9 @@ async def async_rewrite_prompt(client, original_prompt: str, model: str = "deeps
         rewritten = r["choices"][0]["message"]["content"] or ""
         rewritten = rewritten.strip().strip('"').strip("'")
 
-        for prefix in ("Here", "Sure", "Here is", "Rewritten prompt:",
-                        "Prompt:", "Certainly", "Of course"):
+        for prefix in ("Here", "Sure", "Here is", "Rewritten prompt:", "Prompt:", "Certainly", "Of course"):
             if rewritten.lower().startswith(prefix.lower()):
-                rewritten = rewritten[len(prefix):].strip().strip(":").strip()
+                rewritten = rewritten[len(prefix) :].strip().strip(":").strip()
 
         if 10 < len(rewritten) < 2000:
             if cache:
@@ -453,7 +534,8 @@ async def async_generate_with_bypass(engine_method, client, prompt: str, **kwarg
             # 尝试下一个策略
             strategy_idx = attempt
             new_prompt = await async_rewrite_prompt(
-                client, current_prompt,
+                client,
+                current_prompt,
                 strategy_index=strategy_idx,
                 cache=cache,
                 triggers=triggers,

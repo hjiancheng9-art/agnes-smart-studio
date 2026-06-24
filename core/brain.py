@@ -74,6 +74,7 @@ class SmartBrain:
         """获取当前激活供应商的模型 ID"""
         try:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             mgr.load()
             return mgr.get_model("pro")
@@ -123,14 +124,13 @@ class SmartBrain:
         input_text = user_prompt
         if entity_type:
             entity_info = ENTITY_TYPE_MAP[entity_type]
-            input_text = (f"[实体类型：{entity_info['name_cn']}({entity_type}) — "
-                         f"表面策略：{surface_policy}]\n原始描述：{user_prompt}")
+            input_text = (
+                f"[实体类型：{entity_info['name_cn']}({entity_type}) — "
+                f"表面策略：{surface_policy}]\n原始描述：{user_prompt}"
+            )
         elif beauty_type:
             beauty_info = BEAUTY_PORTRAIT_MAP[beauty_type]
-            angle_rules_str = "\n".join(
-                f"  {angle}: {rule}"
-                for angle, rule in beauty_info["angle_rules"].items()
-            )
+            angle_rules_str = "\n".join(f"  {angle}: {rule}" for angle, rule in beauty_info["angle_rules"].items())
             input_text = (
                 f"[人像通道：{beauty_info['name_cn']} — 独立人像通道，不混入非人/战斗/怪诞逻辑]\n"
                 f"[重点描写：{beauty_info['focus_points']}]\n"
@@ -156,6 +156,7 @@ class SmartBrain:
         # 注入历史成功案例，让增强器持续进化
         try:
             from utils.memory import build_evolution_context
+
             evo_ctx = build_evolution_context("image")
             if evo_ctx:
                 input_text = f"{evo_ctx}\n\n{input_text}"
@@ -163,14 +164,16 @@ class SmartBrain:
             pass
 
         text = self._ask_brain(ENHANCE_IMAGE_PROMPT, input_text)
-        return self._postprocess_image_enhance(
-            user_prompt, text, entity_type, surface_policy, beauty_type, combat_ctx
-        )
+        return self._postprocess_image_enhance(user_prompt, text, entity_type, surface_policy, beauty_type, combat_ctx)
 
     def _postprocess_image_enhance(
-        self, user_prompt: str, brain_text: str,
-        entity_type: str | None, surface_policy: str | None,
-        beauty_type: str | None, combat_ctx: dict | None,
+        self,
+        user_prompt: str,
+        brain_text: str,
+        entity_type: str | None,
+        surface_policy: str | None,
+        beauty_type: str | None,
+        combat_ctx: dict | None,
     ) -> dict:
         """enhance_image_prompt 的纯计算后处理阶段（无 I/O）。
 
@@ -234,9 +237,21 @@ class SmartBrain:
             result["surface_policy"] = surface_policy
 
             # 形态演化控制（非人实体）
-            has_transform = any(kw in user_prompt.lower() for kw in
-                               ["变身", "觉醒", "进化", "变形", "转化",
-                                "transform", "evolve", "awakening", "mutate", "shift"])
+            has_transform = any(
+                kw in user_prompt.lower()
+                for kw in [
+                    "变身",
+                    "觉醒",
+                    "进化",
+                    "变形",
+                    "转化",
+                    "transform",
+                    "evolve",
+                    "awakening",
+                    "mutate",
+                    "shift",
+                ]
+            )
             result["form_evolution"] = {
                 "base_form": "基础可读轮廓，保持实体类型核心身份信号",
                 "transformed_form": "变身/觉醒形态" if has_transform else "无变身需求",
@@ -267,9 +282,7 @@ class SmartBrain:
             for rw in risk_warnings:
                 all_repair.append(rw["advice"])
             repair_neg = ", ".join(all_repair)
-            result["negative_prompt"] = self._merge_negative(
-                result.get("negative_prompt", ""), repair_neg
-            )
+            result["negative_prompt"] = self._merge_negative(result.get("negative_prompt", ""), repair_neg)
 
         return result
 
@@ -288,8 +301,10 @@ class SmartBrain:
         input_text = user_prompt
         if entity_type:
             entity_info = ENTITY_TYPE_MAP[entity_type]
-            input_text = (f"[实体类型：{entity_info['name_cn']}({entity_type}) — "
-                         f"表面策略：{surface_policy}]\n原始描述：{user_prompt}")
+            input_text = (
+                f"[实体类型：{entity_info['name_cn']}({entity_type}) — "
+                f"表面策略：{surface_policy}]\n原始描述：{user_prompt}"
+            )
         elif beauty_type:
             beauty_info = BEAUTY_PORTRAIT_MAP[beauty_type]
             input_text = (
@@ -325,6 +340,7 @@ class SmartBrain:
         # 注入历史成功案例，让视频增强也持续进化
         try:
             from utils.memory import build_evolution_context
+
             evo_ctx = build_evolution_context("video")
             if evo_ctx:
                 input_text = f"{evo_ctx}\n\n{input_text}"
@@ -332,14 +348,16 @@ class SmartBrain:
             pass
 
         text = self._ask_brain(ENHANCE_VIDEO_PROMPT, input_text)
-        return self._postprocess_video_enhance(
-            user_prompt, text, entity_type, surface_policy, beauty_type, combat_ctx
-        )
+        return self._postprocess_video_enhance(user_prompt, text, entity_type, surface_policy, beauty_type, combat_ctx)
 
     def _postprocess_video_enhance(
-        self, user_prompt: str, brain_text: str,
-        entity_type: str | None, surface_policy: str | None,
-        beauty_type: str | None, combat_ctx: dict | None,
+        self,
+        user_prompt: str,
+        brain_text: str,
+        entity_type: str | None,
+        surface_policy: str | None,
+        beauty_type: str | None,
+        combat_ctx: dict | None,
     ) -> dict:
         """enhance_video_prompt 的纯计算后处理阶段（无 I/O）。
 
@@ -402,9 +420,21 @@ class SmartBrain:
             result["surface_policy"] = surface_policy
 
             # 形态演化控制（非人实体）
-            has_transform = any(kw in user_prompt.lower() for kw in
-                               ["变身", "觉醒", "进化", "变形", "转化",
-                                "transform", "evolve", "awakening", "mutate", "shift"])
+            has_transform = any(
+                kw in user_prompt.lower()
+                for kw in [
+                    "变身",
+                    "觉醒",
+                    "进化",
+                    "变形",
+                    "转化",
+                    "transform",
+                    "evolve",
+                    "awakening",
+                    "mutate",
+                    "shift",
+                ]
+            )
             result["form_evolution"] = {
                 "base_form": "基础可读轮廓，保持实体类型核心身份信号",
                 "transformed_form": "变身/觉醒形态" if has_transform else "无变身需求",
@@ -434,9 +464,7 @@ class SmartBrain:
             for rw in risk_warnings:
                 all_repair.append(rw["advice"])
             repair_neg = ", ".join(all_repair)
-            result["negative_prompt"] = self._merge_negative(
-                result.get("negative_prompt", ""), repair_neg
-            )
+            result["negative_prompt"] = self._merge_negative(result.get("negative_prompt", ""), repair_neg)
 
         return result
 
@@ -472,28 +500,117 @@ class SmartBrain:
 
         # 战斗/动作关键词检测
         combat_keywords = [
-            "战斗", "招式", "打斗", "格斗", "连招", "必杀", "技能", "combo", "ultimate",
-            "fight", "combat", "battle", "martial", "strike", "punch", "kick", "attack",
-            "波动拳", "升龙", "fireball", "hadoken", "shoryuken",
-            "剑", "刀", "枪", "斧", "弓", "箭", "魔法", "法术",
-            "火焰", "雷电", "冰", "暗影", "能量", "气功", "飞行道具",
-            "龙", "忍者", "武士", "战士", "法师", "刺客",
-            "斩", "劈", "刺", "砸", "旋风", "冲击波",
+            "战斗",
+            "招式",
+            "打斗",
+            "格斗",
+            "连招",
+            "必杀",
+            "技能",
+            "combo",
+            "ultimate",
+            "fight",
+            "combat",
+            "battle",
+            "martial",
+            "strike",
+            "punch",
+            "kick",
+            "attack",
+            "波动拳",
+            "升龙",
+            "fireball",
+            "hadoken",
+            "shoryuken",
+            "剑",
+            "刀",
+            "枪",
+            "斧",
+            "弓",
+            "箭",
+            "魔法",
+            "法术",
+            "火焰",
+            "雷电",
+            "冰",
+            "暗影",
+            "能量",
+            "气功",
+            "飞行道具",
+            "龙",
+            "忍者",
+            "武士",
+            "战士",
+            "法师",
+            "刺客",
+            "斩",
+            "劈",
+            "刺",
+            "砸",
+            "旋风",
+            "冲击波",
             # 扩展：更多动作/招式关键词
-            "爪", "抓", "投", "摔", "踢", "拳", "掌", "指",
-            "连击", "打击", "上勾", "冲拳", "飞踢", "铲腿",
-            "变身", "觉醒", "超必杀", "终极技", "元素爆发",
-            "升龙拳", "波动拳", "葵花", "荒咬", "大蛇薙", "鬼烧",
-            "天星", "龙刃", "瞬狱", "狂风", "剑刃",
+            "爪",
+            "抓",
+            "投",
+            "摔",
+            "踢",
+            "拳",
+            "掌",
+            "指",
+            "连击",
+            "打击",
+            "上勾",
+            "冲拳",
+            "飞踢",
+            "铲腿",
+            "变身",
+            "觉醒",
+            "超必杀",
+            "终极技",
+            "元素爆发",
+            "升龙拳",
+            "波动拳",
+            "葵花",
+            "荒咬",
+            "大蛇薙",
+            "鬼烧",
+            "天星",
+            "龙刃",
+            "瞬狱",
+            "狂风",
+            "剑刃",
             # 扩展：角色名（确保含角色名的描述也能触发）
-            "八神", "草薙", "隆", "肯", "春丽", "盖尔",
-            "蝎子", "零度", "源氏", "半藏",
-            "李白", "貂蝉", "孙悟空", "安琪拉", "韩信",
-            "亚索", "拉克丝", "劫", "金克丝",
-            "钟离", "雷电将军", "胡桃",
-            "法师", "战士", "德鲁伊",
+            "八神",
+            "草薙",
+            "隆",
+            "肯",
+            "春丽",
+            "盖尔",
+            "蝎子",
+            "零度",
+            "源氏",
+            "半藏",
+            "李白",
+            "貂蝉",
+            "孙悟空",
+            "安琪拉",
+            "韩信",
+            "亚索",
+            "拉克丝",
+            "劫",
+            "金克丝",
+            "钟离",
+            "雷电将军",
+            "胡桃",
+            "法师",
+            "战士",
+            "德鲁伊",
             # 扩展：网游/MOBA类
-            "大招", "一技能", "二技能", "三技能",
+            "大招",
+            "一技能",
+            "二技能",
+            "三技能",
         ]
         if not any(kw in p for kw in combat_keywords):
             return []
@@ -535,31 +652,52 @@ class SmartBrain:
                         score += 4
                     # 角色名匹配
                     char_name_map = {
-                        "ryu": "隆", "ken": "肯", "chunli": "春丽", "guile": "盖尔",
-                        "kyo": "草薙京", "iori": "八神", "kazuya": "一八", "jin": "风间仁",
-                        "scorpion": "蝎子", "subzero": "绝对零度",
-                        "libai": "李白", "diaochan": "貂蝉", "wukong": "孙悟空",
-                        "angela": "安琪拉", "hanxin": "韩信",
-                        "yasuo": "亚索", "lux": "拉克丝", "zed": "劫", "jinx": "金克丝",
-                        "mage": "法师", "warrior": "战士", "druid": "德鲁伊",
-                        "genji": "源氏", "dva": "D.Va", "hanzo": "半蔵",
-                        "zhongli": "钟离", "raiden_shogun": "雷电将军", "hutao": "胡桃",
+                        "ryu": "隆",
+                        "ken": "肯",
+                        "chunli": "春丽",
+                        "guile": "盖尔",
+                        "kyo": "草薙京",
+                        "iori": "八神",
+                        "kazuya": "一八",
+                        "jin": "风间仁",
+                        "scorpion": "蝎子",
+                        "subzero": "绝对零度",
+                        "libai": "李白",
+                        "diaochan": "貂蝉",
+                        "wukong": "孙悟空",
+                        "angela": "安琪拉",
+                        "hanxin": "韩信",
+                        "yasuo": "亚索",
+                        "lux": "拉克丝",
+                        "zed": "劫",
+                        "jinx": "金克丝",
+                        "mage": "法师",
+                        "warrior": "战士",
+                        "druid": "德鲁伊",
+                        "genji": "源氏",
+                        "dva": "D.Va",
+                        "hanzo": "半蔵",
+                        "zhongli": "钟离",
+                        "raiden_shogun": "雷电将军",
+                        "hutao": "胡桃",
                     }
                     if char_key in char_name_map and char_name_map[char_key] in p:
                         score += 5
 
                     if score >= 3:
-                        results.append({
-                            "move_id": f"{series_key}.{char_key}.{move_key}",
-                            "name_cn": move["name_cn"],
-                            "type": move.get("type", ""),
-                            "prompt_cn": move["prompt_cn"],
-                            "prompt_en": move["prompt_en"],
-                            "phases": move["phases"],
-                            "vfx_palette": move.get("vfx_palette", ""),
-                            "camera": move.get("camera", ""),
-                            "score": score,
-                        })
+                        results.append(
+                            {
+                                "move_id": f"{series_key}.{char_key}.{move_key}",
+                                "name_cn": move["name_cn"],
+                                "type": move.get("type", ""),
+                                "prompt_cn": move["prompt_cn"],
+                                "prompt_en": move["prompt_en"],
+                                "phases": move["phases"],
+                                "vfx_palette": move.get("vfx_palette", ""),
+                                "camera": move.get("camera", ""),
+                                "score": score,
+                            }
+                        )
 
         # 按匹配分数排序，取top 5
         results.sort(key=lambda x: x["score"], reverse=True)
@@ -603,27 +741,46 @@ class SmartBrain:
         best_move = matched_moves[0]
         move_type = best_move.get("type", "")
         type_to_template = {
-            "飞行道具": "projectile", "飞行道具(冻结)": "projectile",
-            "对空技": "anti_air", "对空技(火焰)": "anti_air",
-            "旋转突进": "spinning", "旋转上升": "spinning",
-            "连续打击": "rapid_strikes", "连续打击(紫焰)": "rapid_strikes",
-            "投技": "grapple", "远程抓取": "grapple", "指令投": "grapple",
-            "超必杀": "super_move", "超必杀(火柱)": "super_move",
-            "超必杀(狂乱连击)": "super_move", "超必杀(AOE毁灭)": "super_move",
-            "终极技(AOE击飞)": "super_move", "终极技(多段AOE)": "super_move",
-            "终极技(领域展开)": "super_move", "终极技(火焰激光)": "super_move",
-            "终极技(枪舞)": "super_move", "终极技(空中连斩)": "super_move",
-            "终极技(全图激光)": "super_move", "终极技(暗影刺杀)": "super_move",
-            "终极技(全图火箭)": "super_move", "终极技(近战爆发)": "super_move",
+            "飞行道具": "projectile",
+            "飞行道具(冻结)": "projectile",
+            "对空技": "anti_air",
+            "对空技(火焰)": "anti_air",
+            "旋转突进": "spinning",
+            "旋转上升": "spinning",
+            "连续打击": "rapid_strikes",
+            "连续打击(紫焰)": "rapid_strikes",
+            "投技": "grapple",
+            "远程抓取": "grapple",
+            "指令投": "grapple",
+            "超必杀": "super_move",
+            "超必杀(火柱)": "super_move",
+            "超必杀(狂乱连击)": "super_move",
+            "超必杀(AOE毁灭)": "super_move",
+            "终极技(AOE击飞)": "super_move",
+            "终极技(多段AOE)": "super_move",
+            "终极技(领域展开)": "super_move",
+            "终极技(火焰激光)": "super_move",
+            "终极技(枪舞)": "super_move",
+            "终极技(空中连斩)": "super_move",
+            "终极技(全图激光)": "super_move",
+            "终极技(暗影刺杀)": "super_move",
+            "终极技(全图火箭)": "super_move",
+            "终极技(近战爆发)": "super_move",
             "终极技(贯穿双龙)": "super_move",
-            "元素爆发(陨石)": "super_move", "元素爆发(空间撕裂斩)": "super_move",
+            "元素爆发(陨石)": "super_move",
+            "元素爆发(空间撕裂斩)": "super_move",
             "元素爆发(火焰幽灵)": "super_move",
             "突进上勾拳(雷电)": "rapid_strikes",
-            "突进飞踢": "spinning", "滑行铲腿": "spinning",
-            "三段位移": "rapid_strikes", "派生连击(火焰)": "rapid_strikes",
-            "核心输出(大型火球)": "projectile", "位移": "spinning",
-            "AOE终结(旋风)": "spinning", "AOE终极(星雨)": "super_move",
-            "下段拳击(雷电)": "rapid_strikes", "地面火焰": "super_move",
+            "突进飞踢": "spinning",
+            "滑行铲腿": "spinning",
+            "三段位移": "rapid_strikes",
+            "派生连击(火焰)": "rapid_strikes",
+            "核心输出(大型火球)": "projectile",
+            "位移": "spinning",
+            "AOE终结(旋风)": "spinning",
+            "AOE终极(星雨)": "super_move",
+            "下段拳击(雷电)": "rapid_strikes",
+            "地面火焰": "super_move",
         }
         combat_type = type_to_template.get(move_type, "super_move")
 
@@ -651,46 +808,62 @@ class SmartBrain:
         # 6. 战斗专属风险预判
         combat_risks = []
         # 所有战斗场景都有 missing_vfx 和 floaty_action 风险
-        combat_risks.append({
-            "risk": "missing_vfx",
-            **COMBAT_NEGATIVE_REPAIR_MAP["missing_vfx"],
-        })
-        combat_risks.append({
-            "risk": "floaty_action",
-            **COMBAT_NEGATIVE_REPAIR_MAP["floaty_action"],
-        })
+        combat_risks.append(
+            {
+                "risk": "missing_vfx",
+                **COMBAT_NEGATIVE_REPAIR_MAP["missing_vfx"],
+            }
+        )
+        combat_risks.append(
+            {
+                "risk": "floaty_action",
+                **COMBAT_NEGATIVE_REPAIR_MAP["floaty_action"],
+            }
+        )
         # 飞行道具 → 额外：wrong_energy_color
         if combat_type == "projectile":
-            combat_risks.append({
-                "risk": "wrong_energy_color",
-                **COMBAT_NEGATIVE_REPAIR_MAP["wrong_energy_color"],
-            })
+            combat_risks.append(
+                {
+                    "risk": "wrong_energy_color",
+                    **COMBAT_NEGATIVE_REPAIR_MAP["wrong_energy_color"],
+                }
+            )
         # 连续打击/旋转 → wrong_pose_sequence + broken_timing
         if combat_type in ("rapid_strikes", "spinning"):
-            combat_risks.append({
-                "risk": "wrong_pose_sequence",
-                **COMBAT_NEGATIVE_REPAIR_MAP["wrong_pose_sequence"],
-            })
-            combat_risks.append({
-                "risk": "broken_timing",
-                **COMBAT_NEGATIVE_REPAIR_MAP["broken_timing"],
-            })
+            combat_risks.append(
+                {
+                    "risk": "wrong_pose_sequence",
+                    **COMBAT_NEGATIVE_REPAIR_MAP["wrong_pose_sequence"],
+                }
+            )
+            combat_risks.append(
+                {
+                    "risk": "broken_timing",
+                    **COMBAT_NEGATIVE_REPAIR_MAP["broken_timing"],
+                }
+            )
         # 超必杀 → missing_impact + broken_timing
         if combat_type == "super_move":
-            combat_risks.append({
-                "risk": "missing_impact",
-                **COMBAT_NEGATIVE_REPAIR_MAP["missing_impact"],
-            })
-            combat_risks.append({
-                "risk": "broken_timing",
-                **COMBAT_NEGATIVE_REPAIR_MAP["broken_timing"],
-            })
+            combat_risks.append(
+                {
+                    "risk": "missing_impact",
+                    **COMBAT_NEGATIVE_REPAIR_MAP["missing_impact"],
+                }
+            )
+            combat_risks.append(
+                {
+                    "risk": "broken_timing",
+                    **COMBAT_NEGATIVE_REPAIR_MAP["broken_timing"],
+                }
+            )
         # 投技 → missing_impact
         if combat_type == "grapple":
-            combat_risks.append({
-                "risk": "missing_impact",
-                **COMBAT_NEGATIVE_REPAIR_MAP["missing_impact"],
-            })
+            combat_risks.append(
+                {
+                    "risk": "missing_impact",
+                    **COMBAT_NEGATIVE_REPAIR_MAP["missing_impact"],
+                }
+            )
 
         # 7. 构建各场景专用注入文本
         # — 图片增强用 —
@@ -711,9 +884,7 @@ class SmartBrain:
             )
         move_hints = []
         for ref in matched_moves[:3]:
-            move_hints.append(
-                f"  · {ref['name_cn']}({ref['move_id']}): {ref['prompt_en']}"
-            )
+            move_hints.append(f"  · {ref['name_cn']}({ref['move_id']}): {ref['prompt_en']}")
         image_prompt_hints = (
             f"[战斗场景检测]\n"
             f"主招式类型：{template_formula.get('name_cn', combat_type)}({combat_type})\n"
@@ -882,61 +1053,225 @@ class SmartBrain:
 
         # 3. 回退到原有场景甜点区匹配
         # 关键词匹配规则
-        person_keywords = ["人", "女", "男", "girl", "boy", "woman", "man", "lady",
-                           "美女", "帅哥", "portrait", "face", "人物", "少女", "少年",
-                           "lady", "miss", "mr", "角色", "character"]
-        full_body_keywords = ["全身", "站", "走", "跑", "跳", "standing", "walking",
-                              "running", "full body", "跳舞", "dancing", "姿势", "pose"]
-        action_keywords = ["打", "战", "打斗", "fight", "battle", "action", "追逐",
-                           "chase", "武术", "martial", "鞭", "whip", "sword", "挥",
-                           "attack", "kick", "punch"]
-        animal_keywords = ["猫", "狗", "鸟", "鱼", "虎", "龙", "马", "动物",
-                           "cat", "dog", "bird", "fish", "tiger", "dragon", "horse",
-                           "animal", "lion", "wolf", "bear", "rabbit", "snake"]
-        landscape_keywords = ["山", "海", "湖", "天空", "日落", "城市", "风景",
-                              "mountain", "ocean", "sea", "lake", "sky", "sunset",
-                              "city", "landscape", "forest", "沙漠", "desert"]
-        food_keywords = ["美食", "蛋糕", "甜品", "食物", "菜", "汤", "咖啡",
-                         "food", "cake", "dessert", "soup", "coffee", "tea", "meal"]
-        anime_keywords = ["动漫", "二次元", "anime", "manga", "2.5d", "赛璐",
-                          "日系", "卡通人物"]
+        person_keywords = [
+            "人",
+            "女",
+            "男",
+            "girl",
+            "boy",
+            "woman",
+            "man",
+            "lady",
+            "美女",
+            "帅哥",
+            "portrait",
+            "face",
+            "人物",
+            "少女",
+            "少年",
+            "lady",
+            "miss",
+            "mr",
+            "角色",
+            "character",
+        ]
+        full_body_keywords = [
+            "全身",
+            "站",
+            "走",
+            "跑",
+            "跳",
+            "standing",
+            "walking",
+            "running",
+            "full body",
+            "跳舞",
+            "dancing",
+            "姿势",
+            "pose",
+        ]
+        action_keywords = [
+            "打",
+            "战",
+            "打斗",
+            "fight",
+            "battle",
+            "action",
+            "追逐",
+            "chase",
+            "武术",
+            "martial",
+            "鞭",
+            "whip",
+            "sword",
+            "挥",
+            "attack",
+            "kick",
+            "punch",
+        ]
+        animal_keywords = [
+            "猫",
+            "狗",
+            "鸟",
+            "鱼",
+            "虎",
+            "龙",
+            "马",
+            "动物",
+            "cat",
+            "dog",
+            "bird",
+            "fish",
+            "tiger",
+            "dragon",
+            "horse",
+            "animal",
+            "lion",
+            "wolf",
+            "bear",
+            "rabbit",
+            "snake",
+        ]
+        landscape_keywords = [
+            "山",
+            "海",
+            "湖",
+            "天空",
+            "日落",
+            "城市",
+            "风景",
+            "mountain",
+            "ocean",
+            "sea",
+            "lake",
+            "sky",
+            "sunset",
+            "city",
+            "landscape",
+            "forest",
+            "沙漠",
+            "desert",
+        ]
+        food_keywords = [
+            "美食",
+            "蛋糕",
+            "甜品",
+            "食物",
+            "菜",
+            "汤",
+            "咖啡",
+            "food",
+            "cake",
+            "dessert",
+            "soup",
+            "coffee",
+            "tea",
+            "meal",
+        ]
+        anime_keywords = ["动漫", "二次元", "anime", "manga", "2.5d", "赛璐", "日系", "卡通人物"]
 
         # 按优先级匹配
         if mode == "video":
             templates = SWEET_SPOT_VIDEO_TEMPLATES
             if any(k in p for k in action_keywords):
                 result = templates["action_video"]
-                return {"name": result["name"], "suffix": result["suffix"], "negative": result["negative"], "entity_type": None, "surface_policy": None}
+                return {
+                    "name": result["name"],
+                    "suffix": result["suffix"],
+                    "negative": result["negative"],
+                    "entity_type": None,
+                    "surface_policy": None,
+                }
             if any(k in p for k in person_keywords):
                 if any(k in p for k in full_body_keywords):
                     result = templates["action_video"]
-                    return {"name": result["name"], "suffix": result["suffix"], "negative": result["negative"], "entity_type": None, "surface_policy": None}
+                    return {
+                        "name": result["name"],
+                        "suffix": result["suffix"],
+                        "negative": result["negative"],
+                        "entity_type": None,
+                        "surface_policy": None,
+                    }
                 result = templates["portrait_video"]
-                return {"name": result["name"], "suffix": result["suffix"], "negative": result["negative"], "entity_type": None, "surface_policy": None}
+                return {
+                    "name": result["name"],
+                    "suffix": result["suffix"],
+                    "negative": result["negative"],
+                    "entity_type": None,
+                    "surface_policy": None,
+                }
             result = templates["camera_pan"]
-            return {"name": result["name"], "suffix": result["suffix"], "negative": result["negative"], "entity_type": None, "surface_policy": None}
+            return {
+                "name": result["name"],
+                "suffix": result["suffix"],
+                "negative": result["negative"],
+                "entity_type": None,
+                "surface_policy": None,
+            }
         else:
             if any(k in p for k in anime_keywords):
                 result = SWEET_SPOT_TEMPLATES["anime"]
-                return {"name": result["name"], "suffix": result["suffix"], "negative": result["negative"], "entity_type": None, "surface_policy": None}
+                return {
+                    "name": result["name"],
+                    "suffix": result["suffix"],
+                    "negative": result["negative"],
+                    "entity_type": None,
+                    "surface_policy": None,
+                }
             if any(k in p for k in action_keywords):
                 result = SWEET_SPOT_TEMPLATES["action"]
-                return {"name": result["name"], "suffix": result["suffix"], "negative": result["negative"], "entity_type": None, "surface_policy": None}
+                return {
+                    "name": result["name"],
+                    "suffix": result["suffix"],
+                    "negative": result["negative"],
+                    "entity_type": None,
+                    "surface_policy": None,
+                }
             if any(k in p for k in full_body_keywords):
                 result = SWEET_SPOT_TEMPLATES["full_body"]
-                return {"name": result["name"], "suffix": result["suffix"], "negative": result["negative"], "entity_type": None, "surface_policy": None}
+                return {
+                    "name": result["name"],
+                    "suffix": result["suffix"],
+                    "negative": result["negative"],
+                    "entity_type": None,
+                    "surface_policy": None,
+                }
             if any(k in p for k in person_keywords):
                 result = SWEET_SPOT_TEMPLATES["portrait"]
-                return {"name": result["name"], "suffix": result["suffix"], "negative": result["negative"], "entity_type": None, "surface_policy": None}
+                return {
+                    "name": result["name"],
+                    "suffix": result["suffix"],
+                    "negative": result["negative"],
+                    "entity_type": None,
+                    "surface_policy": None,
+                }
             if any(k in p for k in animal_keywords):
                 result = SWEET_SPOT_TEMPLATES["animal"]
-                return {"name": result["name"], "suffix": result["suffix"], "negative": result["negative"], "entity_type": None, "surface_policy": None}
+                return {
+                    "name": result["name"],
+                    "suffix": result["suffix"],
+                    "negative": result["negative"],
+                    "entity_type": None,
+                    "surface_policy": None,
+                }
             if any(k in p for k in food_keywords):
                 result = SWEET_SPOT_TEMPLATES["food"]
-                return {"name": result["name"], "suffix": result["suffix"], "negative": result["negative"], "entity_type": None, "surface_policy": None}
+                return {
+                    "name": result["name"],
+                    "suffix": result["suffix"],
+                    "negative": result["negative"],
+                    "entity_type": None,
+                    "surface_policy": None,
+                }
             if any(k in p for k in landscape_keywords):
                 result = SWEET_SPOT_TEMPLATES["landscape"]
-                return {"name": result["name"], "suffix": result["suffix"], "negative": result["negative"], "entity_type": None, "surface_policy": None}
+                return {
+                    "name": result["name"],
+                    "suffix": result["suffix"],
+                    "negative": result["negative"],
+                    "entity_type": None,
+                    "surface_policy": None,
+                }
 
         return None
 
@@ -955,49 +1290,128 @@ class SmartBrain:
         # ── 实体专属风险（优先） ──
         if entity_type and entity_type in ENTITY_NEGATIVE_REPAIR_MAP:
             for risk_id, risk_info in ENTITY_NEGATIVE_REPAIR_MAP[entity_type].items():
-                risks.append({"risk": f"{entity_type}_{risk_id}",
-                              "symptoms": risk_info["symptoms"],
-                              "advice": risk_info["repair_keywords"]})
+                risks.append(
+                    {
+                        "risk": f"{entity_type}_{risk_id}",
+                        "symptoms": risk_info["symptoms"],
+                        "advice": risk_info["repair_keywords"],
+                    }
+                )
 
         # ── 通用风险 ──
         # 人物相关 → 解剖失败 + 穿模风险
-        person_kw = ["人", "女", "男", "girl", "boy", "woman", "man", "face",
-                      "portrait", "人物", "少女", "少年", "角色", "character",
-                      "美女", "帅哥", "模特", "model"]
+        person_kw = [
+            "人",
+            "女",
+            "男",
+            "girl",
+            "boy",
+            "woman",
+            "man",
+            "face",
+            "portrait",
+            "人物",
+            "少女",
+            "少年",
+            "角色",
+            "character",
+            "美女",
+            "帅哥",
+            "模特",
+            "model",
+        ]
         if any(k in p for k in person_kw):
-            risks.append({"risk": "anatomy_failure",
-                          "symptoms": NEGATIVE_REPAIR_MAP["anatomy_failure"]["symptoms"],
-                          "advice": NEGATIVE_REPAIR_MAP["anatomy_failure"]["repair_keywords"]})
-            risks.append({"risk": "penetration",
-                          "symptoms": NEGATIVE_REPAIR_MAP["penetration"]["symptoms"],
-                          "advice": NEGATIVE_REPAIR_MAP["penetration"]["repair_keywords"]})
+            risks.append(
+                {
+                    "risk": "anatomy_failure",
+                    "symptoms": NEGATIVE_REPAIR_MAP["anatomy_failure"]["symptoms"],
+                    "advice": NEGATIVE_REPAIR_MAP["anatomy_failure"]["repair_keywords"],
+                }
+            )
+            risks.append(
+                {
+                    "risk": "penetration",
+                    "symptoms": NEGATIVE_REPAIR_MAP["penetration"]["symptoms"],
+                    "advice": NEGATIVE_REPAIR_MAP["penetration"]["repair_keywords"],
+                }
+            )
         # 动作/打斗 → 穿模风险 + 视频不稳定
-        action_kw = ["动作", "fight", "battle", "action", "attack", "打", "战",
-                      "打斗", "追逐", "chase", "武术", "martial", "kick", "punch",
-                      "跑", "跳", "挥", "舞", "dancing"]
+        action_kw = [
+            "动作",
+            "fight",
+            "battle",
+            "action",
+            "attack",
+            "打",
+            "战",
+            "打斗",
+            "追逐",
+            "chase",
+            "武术",
+            "martial",
+            "kick",
+            "punch",
+            "跑",
+            "跳",
+            "挥",
+            "舞",
+            "dancing",
+        ]
         if any(k in p for k in action_kw):
             if not any(r["risk"] == "penetration" for r in risks):
-                risks.append({"risk": "penetration",
-                              "symptoms": NEGATIVE_REPAIR_MAP["penetration"]["symptoms"],
-                              "advice": NEGATIVE_REPAIR_MAP["penetration"]["repair_keywords"]})
-            risks.append({"risk": "video_instability",
-                          "symptoms": NEGATIVE_REPAIR_MAP["video_instability"]["symptoms"],
-                          "advice": NEGATIVE_REPAIR_MAP["video_instability"]["repair_keywords"]})
+                risks.append(
+                    {
+                        "risk": "penetration",
+                        "symptoms": NEGATIVE_REPAIR_MAP["penetration"]["symptoms"],
+                        "advice": NEGATIVE_REPAIR_MAP["penetration"]["repair_keywords"],
+                    }
+                )
+            risks.append(
+                {
+                    "risk": "video_instability",
+                    "symptoms": NEGATIVE_REPAIR_MAP["video_instability"]["symptoms"],
+                    "advice": NEGATIVE_REPAIR_MAP["video_instability"]["repair_keywords"],
+                }
+            )
         # 背景/场景 → 文字漂移风险
-        scene_kw = ["背景", "场景", "landscape", "background", "城市", "风景",
-                     "city", "mountain", "ocean", "sea", "forest", "天空", "街",
-                     "street", "building", "室内", "indoor", "room"]
+        scene_kw = [
+            "背景",
+            "场景",
+            "landscape",
+            "background",
+            "城市",
+            "风景",
+            "city",
+            "mountain",
+            "ocean",
+            "sea",
+            "forest",
+            "天空",
+            "街",
+            "street",
+            "building",
+            "室内",
+            "indoor",
+            "room",
+        ]
         if any(k in p for k in scene_kw):
-            risks.append({"risk": "text_drift",
-                          "symptoms": NEGATIVE_REPAIR_MAP["text_drift"]["symptoms"],
-                          "advice": NEGATIVE_REPAIR_MAP["text_drift"]["repair_keywords"]})
+            risks.append(
+                {
+                    "risk": "text_drift",
+                    "symptoms": NEGATIVE_REPAIR_MAP["text_drift"]["symptoms"],
+                    "advice": NEGATIVE_REPAIR_MAP["text_drift"]["repair_keywords"],
+                }
+            )
         # 光照关键词 → 过曝/欠曝风险
-        light_kw = ["light", "光照", "阳光", "sun", "影", "shadow", "亮",
-                     "暗", "dark", "bright", "闪光", "flash"]
+        light_kw = ["light", "光照", "阳光", "sun", "影", "shadow", "亮", "暗", "dark", "bright", "闪光", "flash"]
         if any(k in p for k in light_kw):
-            risks.append({"risk": "too_bright",
-                          "symptoms": NEGATIVE_REPAIR_MAP["too_bright"]["symptoms"],
-                          "advice": NEGATIVE_REPAIR_MAP["too_bright"]["repair_keywords"]})
+            risks.append(
+                {
+                    "risk": "too_bright",
+                    "symptoms": NEGATIVE_REPAIR_MAP["too_bright"]["symptoms"],
+                    "advice": NEGATIVE_REPAIR_MAP["too_bright"]["repair_keywords"],
+                }
+            )
         return risks
 
     def _match_beauty_sweet_spot(self, beauty_type: str, mode: str = "image") -> dict | None:
@@ -1030,11 +1444,13 @@ class SmartBrain:
         risks = []
         if beauty_type in BEAUTY_NEGATIVE_REPAIR_MAP:
             for risk_id, risk_info in BEAUTY_NEGATIVE_REPAIR_MAP[beauty_type].items():
-                risks.append({
-                    "risk": f"{beauty_type}_{risk_id}",
-                    "symptoms": risk_info["symptoms"],
-                    "advice": risk_info["repair_keywords"],
-                })
+                risks.append(
+                    {
+                        "risk": f"{beauty_type}_{risk_id}",
+                        "symptoms": risk_info["symptoms"],
+                        "advice": risk_info["repair_keywords"],
+                    }
+                )
         return risks
 
     @staticmethod
@@ -1106,11 +1522,11 @@ class SmartBrain:
         resolved_entity_type = graft_info["target_entity"]
 
         # 构建嫁接提示词
-        graft_prompt = f"""你是一个创意实体嫁接专家。将以下人类角色描述转化为{graft_info['name_cn']}实体。
+        graft_prompt = f"""你是一个创意实体嫁接专家。将以下人类角色描述转化为{graft_info["name_cn"]}实体。
 
-嫁接目标：{graft_info['name_cn']}({target_entity})
-嫁接描述：{graft_info['description']}
-表面材质策略：{ENTITY_TYPE_MAP[resolved_entity_type]['surface_policy']}
+嫁接目标：{graft_info["name_cn"]}({target_entity})
+嫁接描述：{graft_info["description"]}
+表面材质策略：{ENTITY_TYPE_MAP[resolved_entity_type]["surface_policy"]}
 
 原始描述：{user_prompt}
 
@@ -1157,9 +1573,7 @@ class SmartBrain:
         if template:
             result["sweet_spot"] = template["name"]
             result.setdefault("negative_prompt", "")
-            result["negative_prompt"] = self._merge_negative(
-                result.get("negative_prompt", ""), template["negative"]
-            )
+            result["negative_prompt"] = self._merge_negative(result.get("negative_prompt", ""), template["negative"])
 
         return result
 
@@ -1228,15 +1642,17 @@ class SmartBrain:
         }
         for ap_key, ap_info in ANTI_PATTERN_MAP.items():
             # 始终包含所有反模式供LLM选用
-            matched_anti_patterns.append({
-                "key": ap_key,
-                "name_cn": ap_info["name_cn"],
-                "core_operation": ap_info["core_operation"],
-                "example": ap_info["example"],
-                "visual_impact": ap_info["visual_impact"],
-                "prompt_formula": ap_info["prompt_formula"],
-                "relevance": 2 if any(kw in p for kw in anti_pattern_keywords.get(ap_key, [])) else 0,
-            })
+            matched_anti_patterns.append(
+                {
+                    "key": ap_key,
+                    "name_cn": ap_info["name_cn"],
+                    "core_operation": ap_info["core_operation"],
+                    "example": ap_info["example"],
+                    "visual_impact": ap_info["visual_impact"],
+                    "prompt_formula": ap_info["prompt_formula"],
+                    "relevance": 2 if any(kw in p for kw in anti_pattern_keywords.get(ap_key, [])) else 0,
+                }
+            )
         matched_anti_patterns.sort(key=lambda x: x["relevance"], reverse=True)
 
         # ── 3. 从 THINKING_METHOD_MAP 解析思维技法 ──
@@ -1245,65 +1661,103 @@ class SmartBrain:
         for method_id in matched_methods:
             if method_id == "cross_domain_graft" and "action" in CREATIVE_DOMAIN_MAP:
                 # 跨域嫁接 — 从 CREATIVE_DOMAIN_MAP 取四域
-                resolved_methods.append({
-                    "id": "cross_domain_graft",
-                    "name_cn": "跨域嫁接",
-                    "domains": {
-                        "action": [f"{v.get('name_cn', k)}" for k, v in CREATIVE_DOMAIN_MAP["action"].items() if isinstance(v, dict)],
-                        "carrier": [f"{v.get('name_cn', k)}" for k, v in CREATIVE_DOMAIN_MAP["carrier"].items() if isinstance(v, dict)],
-                        "physics": [f"{v.get('name_cn', k)}: {', '.join(v.get('break_options', []))}" for k, v in CREATIVE_DOMAIN_MAP["physics"].items() if isinstance(v, dict)],
-                        "visual": [v if isinstance(v, str) else v.get("name_cn", "") for v in CREATIVE_DOMAIN_MAP["visual"].values()],
-                    },
-                    "formula": "创意概念 = 动作域(A) × 载体域(B) × 物理域(C) × 视觉域(V)",
-                })
+                resolved_methods.append(
+                    {
+                        "id": "cross_domain_graft",
+                        "name_cn": "跨域嫁接",
+                        "domains": {
+                            "action": [
+                                f"{v.get('name_cn', k)}"
+                                for k, v in CREATIVE_DOMAIN_MAP["action"].items()
+                                if isinstance(v, dict)
+                            ],
+                            "carrier": [
+                                f"{v.get('name_cn', k)}"
+                                for k, v in CREATIVE_DOMAIN_MAP["carrier"].items()
+                                if isinstance(v, dict)
+                            ],
+                            "physics": [
+                                f"{v.get('name_cn', k)}: {', '.join(v.get('break_options', []))}"
+                                for k, v in CREATIVE_DOMAIN_MAP["physics"].items()
+                                if isinstance(v, dict)
+                            ],
+                            "visual": [
+                                v if isinstance(v, str) else v.get("name_cn", "")
+                                for v in CREATIVE_DOMAIN_MAP["visual"].values()
+                            ],
+                        },
+                        "formula": "创意概念 = 动作域(A) × 载体域(B) × 物理域(C) × 视觉域(V)",
+                    }
+                )
             elif method_id == "anti_pattern":
-                resolved_methods.append({
-                    "id": "anti_pattern",
-                    "name_cn": "反模式破坏",
-                    "available_patterns": [
-                        {"key": ap["key"], "name_cn": ap["name_cn"], "formula": ap["prompt_formula"], "impact": ap["visual_impact"]}
-                        for ap in matched_anti_patterns[:3]
-                    ],
-                })
+                resolved_methods.append(
+                    {
+                        "id": "anti_pattern",
+                        "name_cn": "反模式破坏",
+                        "available_patterns": [
+                            {
+                                "key": ap["key"],
+                                "name_cn": ap["name_cn"],
+                                "formula": ap["prompt_formula"],
+                                "impact": ap["visual_impact"],
+                            }
+                            for ap in matched_anti_patterns[:3]
+                        ],
+                    }
+                )
             elif method_id == "SCAMPER" and "SCAMPER" in THINKING_METHOD_MAP:
                 ops = THINKING_METHOD_MAP["SCAMPER"]["operations"]
-                resolved_methods.append({
-                    "id": "SCAMPER",
-                    "name_cn": THINKING_METHOD_MAP["SCAMPER"]["name_cn"],
-                    "operations": {k: {"name_cn": v["name_cn"], "prompt_op": v["prompt_op"]} for k, v in ops.items()},
-                })
+                resolved_methods.append(
+                    {
+                        "id": "SCAMPER",
+                        "name_cn": THINKING_METHOD_MAP["SCAMPER"]["name_cn"],
+                        "operations": {
+                            k: {"name_cn": v["name_cn"], "prompt_op": v["prompt_op"]} for k, v in ops.items()
+                        },
+                    }
+                )
             elif method_id == "TRIZ" and "TRIZ" in THINKING_METHOD_MAP:
-                resolved_methods.append({
-                    "id": "TRIZ",
-                    "name_cn": THINKING_METHOD_MAP["TRIZ"]["name_cn"],
-                    "principles": THINKING_METHOD_MAP["TRIZ"]["principles"],
-                })
+                resolved_methods.append(
+                    {
+                        "id": "TRIZ",
+                        "name_cn": THINKING_METHOD_MAP["TRIZ"]["name_cn"],
+                        "principles": THINKING_METHOD_MAP["TRIZ"]["principles"],
+                    }
+                )
             elif method_id == "first_principles" and "FIRST_PRINCIPLES" in THINKING_METHOD_MAP:
-                resolved_methods.append({
-                    "id": "first_principles",
-                    "name_cn": THINKING_METHOD_MAP["FIRST_PRINCIPLES"]["name_cn"],
-                    "decomposition": THINKING_METHOD_MAP["FIRST_PRINCIPLES"]["decomposition"],
-                })
+                resolved_methods.append(
+                    {
+                        "id": "first_principles",
+                        "name_cn": THINKING_METHOD_MAP["FIRST_PRINCIPLES"]["name_cn"],
+                        "decomposition": THINKING_METHOD_MAP["FIRST_PRINCIPLES"]["decomposition"],
+                    }
+                )
             elif method_id == "latent_nav" and "AI_LATENT_NAV" in THINKING_METHOD_MAP:
-                resolved_methods.append({
-                    "id": "latent_nav",
-                    "name_cn": THINKING_METHOD_MAP["AI_LATENT_NAV"]["name_cn"],
-                    "distance_types": THINKING_METHOD_MAP["AI_LATENT_NAV"]["distance_types"],
-                    "corridor_example": THINKING_METHOD_MAP["AI_LATENT_NAV"]["corridor_example"],
-                })
+                resolved_methods.append(
+                    {
+                        "id": "latent_nav",
+                        "name_cn": THINKING_METHOD_MAP["AI_LATENT_NAV"]["name_cn"],
+                        "distance_types": THINKING_METHOD_MAP["AI_LATENT_NAV"]["distance_types"],
+                        "corridor_example": THINKING_METHOD_MAP["AI_LATENT_NAV"]["corridor_example"],
+                    }
+                )
             elif method_id == "style_hijack" and "AI_STYLE_HIJACK" in THINKING_METHOD_MAP:
-                resolved_methods.append({
-                    "id": "style_hijack",
-                    "name_cn": THINKING_METHOD_MAP["AI_STYLE_HIJACK"]["name_cn"],
-                    "principle": THINKING_METHOD_MAP["AI_STYLE_HIJACK"]["principle"],
-                    "top_pair": THINKING_METHOD_MAP["AI_STYLE_HIJACK"]["top_pair"],
-                })
+                resolved_methods.append(
+                    {
+                        "id": "style_hijack",
+                        "name_cn": THINKING_METHOD_MAP["AI_STYLE_HIJACK"]["name_cn"],
+                        "principle": THINKING_METHOD_MAP["AI_STYLE_HIJACK"]["principle"],
+                        "top_pair": THINKING_METHOD_MAP["AI_STYLE_HIJACK"]["top_pair"],
+                    }
+                )
             elif method_id == "glitch" and "AI_GLITCH" in THINKING_METHOD_MAP:
-                resolved_methods.append({
-                    "id": "glitch",
-                    "name_cn": THINKING_METHOD_MAP["AI_GLITCH"]["name_cn"],
-                    "types": THINKING_METHOD_MAP["AI_GLITCH"]["types"],
-                })
+                resolved_methods.append(
+                    {
+                        "id": "glitch",
+                        "name_cn": THINKING_METHOD_MAP["AI_GLITCH"]["name_cn"],
+                        "types": THINKING_METHOD_MAP["AI_GLITCH"]["types"],
+                    }
+                )
 
         # ── 4. 从 NONHUMAN_COMBAT_MOTIF 解析非人战斗母题 ──
         nonhuman_motif_ctx = None
@@ -1337,13 +1791,11 @@ class SmartBrain:
                 domain_lines = []
                 for dname, items in m["domains"].items():
                     domain_lines.append(f"  {dname}: {'; '.join(items[:5])}")
-                method_hints.append(
-                    f"【跨域嫁接】公式：{m['formula']}\n可用域元素：\n" + "\n".join(domain_lines)
-                )
+                method_hints.append(f"【跨域嫁接】公式：{m['formula']}\n可用域元素：\n" + "\n".join(domain_lines))
             elif mid == "anti_pattern":
                 pattern_lines = []
                 for pat in m["available_patterns"]:
-                    pattern_lines.append(f"  {pat['name_cn']}: 公式\"{pat['formula']}\" 冲击度{pat['impact']}")
+                    pattern_lines.append(f'  {pat["name_cn"]}: 公式"{pat["formula"]}" 冲击度{pat["impact"]}')
                 method_hints.append("【反模式破坏】可选反模式：\n" + "\n".join(pattern_lines))
             elif mid == "SCAMPER":
                 op_lines = [f"  {k}-{v['name_cn']}: {v['prompt_op']}" for k, v in m["operations"].items()]
@@ -1356,7 +1808,9 @@ class SmartBrain:
                 method_hints.append(f"【{m['name_cn']}】拆解维度：\n" + "\n".join(decomp_lines))
             elif mid == "latent_nav":
                 dt_lines = [f"  {k}: {v}" for k, v in m["distance_types"].items()]
-                method_hints.append(f"【{m['name_cn']}】距离类型：\n" + "\n".join(dt_lines) + f"\n  走廊示例: {m['corridor_example']}")
+                method_hints.append(
+                    f"【{m['name_cn']}】距离类型：\n" + "\n".join(dt_lines) + f"\n  走廊示例: {m['corridor_example']}"
+                )
             elif mid == "style_hijack":
                 method_hints.append(f"【{m['name_cn']}】{m['principle']}\n  最高冲击对: {m['top_pair']}")
             elif mid == "glitch":
@@ -1491,12 +1945,15 @@ class SmartBrain:
         result = self._parse_json(text)
         result.setdefault("original_concept", user_prompt)
         result.setdefault("creative_leaps", [])
-        result.setdefault("guardrail_check", {
-            "story_function_readable": True,
-            "conflict_visible": True,
-            "emotional_turn_clear": True,
-            "visual_payoff_worth": True,
-        })
+        result.setdefault(
+            "guardrail_check",
+            {
+                "story_function_readable": True,
+                "conflict_visible": True,
+                "emotional_turn_clear": True,
+                "visual_payoff_worth": True,
+            },
+        )
 
         # 对每个飞跃结果叠加甜点区和风险预判
         for leap in result.get("creative_leaps", []):
@@ -1584,14 +2041,13 @@ class AsyncSmartBrain:
         input_text = user_prompt
         if entity_type:
             entity_info = ENTITY_TYPE_MAP[entity_type]
-            input_text = (f"[实体类型：{entity_info['name_cn']}({entity_type}) — "
-                         f"表面策略：{surface_policy}]\n原始描述：{user_prompt}")
+            input_text = (
+                f"[实体类型：{entity_info['name_cn']}({entity_type}) — "
+                f"表面策略：{surface_policy}]\n原始描述：{user_prompt}"
+            )
         elif beauty_type:
             beauty_info = BEAUTY_PORTRAIT_MAP[beauty_type]
-            angle_rules_str = "\n".join(
-                f"  {angle}: {rule}"
-                for angle, rule in beauty_info["angle_rules"].items()
-            )
+            angle_rules_str = "\n".join(f"  {angle}: {rule}" for angle, rule in beauty_info["angle_rules"].items())
             input_text = (
                 f"[人像通道：{beauty_info['name_cn']} — 独立人像通道，不混入非人/战斗/怪诞逻辑]\n"
                 f"[重点描写：{beauty_info['focus_points']}]\n"
@@ -1611,6 +2067,7 @@ class AsyncSmartBrain:
 
         try:
             from utils.memory import build_evolution_context
+
             evo_ctx = build_evolution_context("image")
             if evo_ctx:
                 input_text = f"{evo_ctx}\n\n{input_text}"
@@ -1620,9 +2077,7 @@ class AsyncSmartBrain:
         # ── 唯一的异步 I/O 点 ──
         text = await self._ask_brain(ENHANCE_IMAGE_PROMPT, input_text)
         # ── 后续逻辑全部是纯计算，委托给同步 SmartBrain 的后处理 ──
-        return sync._postprocess_image_enhance(
-            user_prompt, text, entity_type, surface_policy, beauty_type, combat_ctx
-        )
+        return sync._postprocess_image_enhance(user_prompt, text, entity_type, surface_policy, beauty_type, combat_ctx)
 
     async def enhance_video_prompt(self, user_prompt: str) -> dict:
         """异步增强视频生成 Prompt。逻辑同 enhance_image_prompt。"""
@@ -1635,8 +2090,10 @@ class AsyncSmartBrain:
         input_text = user_prompt
         if entity_type:
             entity_info = ENTITY_TYPE_MAP[entity_type]
-            input_text = (f"[实体类型：{entity_info['name_cn']}({entity_type}) — "
-                         f"表面策略：{surface_policy}]\n原始描述：{user_prompt}")
+            input_text = (
+                f"[实体类型：{entity_info['name_cn']}({entity_type}) — "
+                f"表面策略：{surface_policy}]\n原始描述：{user_prompt}"
+            )
         elif beauty_type:
             beauty_info = BEAUTY_PORTRAIT_MAP[beauty_type]
             input_text = (
@@ -1668,6 +2125,7 @@ class AsyncSmartBrain:
 
         try:
             from utils.memory import build_evolution_context
+
             evo_ctx = build_evolution_context("video")
             if evo_ctx:
                 input_text = f"{evo_ctx}\n\n{input_text}"
@@ -1676,9 +2134,7 @@ class AsyncSmartBrain:
 
         # ── 唯一的异步 I/O 点 ──
         text = await self._ask_brain(ENHANCE_VIDEO_PROMPT, input_text)
-        return sync._postprocess_video_enhance(
-            user_prompt, text, entity_type, surface_policy, beauty_type, combat_ctx
-        )
+        return sync._postprocess_video_enhance(user_prompt, text, entity_type, surface_policy, beauty_type, combat_ctx)
 
     async def understand_image(self, question: str, image_url: str) -> str:
         """异步利用多模态能力理解图片"""
@@ -1693,4 +2149,3 @@ class AsyncSmartBrain:
             return result["choices"][0]["message"]["content"]
         except (KeyError, IndexError):
             raise RuntimeError(f"多模态API返回格式异常: {str(result)[:200]}") from None
-

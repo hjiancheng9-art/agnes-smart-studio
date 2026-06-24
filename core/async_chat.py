@@ -109,6 +109,7 @@ class AsyncChatSession:
             self.tools.load()
             try:
                 from core.hooks import register_code_hooks
+
                 register_code_hooks()
             except (ImportError, OSError):
                 pass
@@ -116,6 +117,7 @@ class AsyncChatSession:
             try:
                 from core.config import SETTINGS
                 from core.hooks import register_reflection_hook
+
                 register_reflection_hook(
                     client=self.client,
                     interval=SETTINGS.reflection_interval,
@@ -149,7 +151,8 @@ class AsyncChatSession:
             self.messages = [self.messages[0]]
             for t in self.skills.get_extra_tools():
                 self.tools.register(
-                    t["name"], t.get("description", ""),
+                    t["name"],
+                    t.get("description", ""),
                     t.get("parameters", {}),
                     lambda **kw: f"[{name}] 工具已执行",
                 )
@@ -199,22 +202,26 @@ class AsyncChatSession:
         )
         try:
             from core.rules import get_rules
+
             base += get_rules().inject_prompt()
         except (ImportError, OSError):
             pass
         try:
             from core.marketplace import get_marketplace
+
             base += "\n\n" + get_marketplace().summary()
         except (ImportError, OSError):
             pass
         try:
             from core.orchestra import get_orchestra
+
             base += "\n\n" + get_orchestra().summary()
         except (ImportError, OSError):
             pass
         # #5 注入 Prompt Lab 变体差异化指令
         try:
             from core.prompt_lab import get_prompt_lab
+
             base += get_prompt_lab().get_active_instructions()
         except (ImportError, OSError):
             pass
@@ -245,8 +252,10 @@ class AsyncChatSession:
             tried.append(model_id)
             try:
                 r = await self.vision_client.chat_multimodal(
-                    text=text, image_url=image_url,
-                    model=model_id, max_tokens=2048,
+                    text=text,
+                    image_url=image_url,
+                    model=model_id,
+                    max_tokens=2048,
                 )
                 content = r["choices"][0]["message"]["content"] or ""
                 return content
@@ -286,13 +295,13 @@ class AsyncChatSession:
 
         # ── 高风险工具确认机制 ──
         _HIGH_RISK_TOOLS = {
-            "git_add_commit", "git_push", "git_pr_create", "git_pr_merge",
+            "git_add_commit",
+            "git_push",
+            "git_pr_create",
+            "git_pr_merge",
         }
-        _RISKY_ARGS_PATTERN = re.compile(r'\b(rm|delete|drop|truncate)\b', re.IGNORECASE)
-        is_write_to_default_branch = (
-            name == "github_write_file"
-            and not args.get("branch", "").strip()
-        )
+        _RISKY_ARGS_PATTERN = re.compile(r"\b(rm|delete|drop|truncate)\b", re.IGNORECASE)
+        is_write_to_default_branch = name == "github_write_file" and not args.get("branch", "").strip()
         is_high_risk = (
             name in _HIGH_RISK_TOOLS
             or is_write_to_default_branch
@@ -305,6 +314,7 @@ class AsyncChatSession:
         # ── PRE_TOOL_USE hook ──
         try:
             from core.hooks import HookType, hook_manager
+
             pre_evt = hook_manager.fire(HookType.PRE_TOOL_USE, data={"tool_name": name, "args": args})
             if pre_evt.stop_processing:
                 return "工具调用被拦截（PRE_TOOL_USE hook）", []
@@ -323,6 +333,7 @@ class AsyncChatSession:
 
                 if image_url:
                     from utils import image_input
+
                     url = image_input.load_image_as_url_or_data(image_url)
                     data = await self.i2i.edit(prompt=fp, image_urls=url)
                 else:
@@ -342,21 +353,21 @@ class AsyncChatSession:
 
                 if image_url:
                     from utils import image_input
+
                     url = image_input.load_image_as_url_or_data(image_url)
                     data = await self.vid.image_to_video(
-                        prompt=fp, image_url=url,
-                        width=w, height=h, negative_prompt=neg, timeout=120.0)
+                        prompt=fp, image_url=url, width=w, height=h, negative_prompt=neg, timeout=120.0
+                    )
                 else:
                     data = await self.vid.text_to_video(
-                        prompt=fp, width=w, height=h,
-                        negative_prompt=neg, timeout=120.0)
+                        prompt=fp, width=w, height=h, negative_prompt=neg, timeout=120.0
+                    )
 
                 side.append(("video", data))
                 if data.get("status") == "timeout":
                     vid = data.get("video_id", "")
                     pct = data.get("progress", 0)
-                    return (f"视频生成超时（进度 {pct:.0f}%），"
-                            f"请稍后用 video_id={vid} 查询状态"), side
+                    return (f"视频生成超时（进度 {pct:.0f}%），请稍后用 video_id={vid} 查询状态"), side
                 return f"视频已生成: {data.get('local_path', '')}", side
             except (RuntimeError, OSError, ValueError) as e:
                 return f"视频生成失败: {e}", side
@@ -366,10 +377,12 @@ class AsyncChatSession:
             side: list[tuple[str, str | dict]] = [("info", f"正在启动多智能体协调: {goal}")]
             try:
                 from core.multi_agent import async_coordinate
+
                 def _tool_exec(tool, tool_args):
                     if self.tools.has(tool):
                         return self.tools.execute(tool, tool_args)
                     return f"[multi_agent] 工具 {tool} 不可用"
+
                 result = await async_coordinate(goal, _tool_exec)
                 summary = (
                     f"多智能体协调完成: {result['tasks_done']}/{result['tasks_total']} 任务成功, "
@@ -392,6 +405,7 @@ class AsyncChatSession:
             # POST_TOOL_USE hook
             try:
                 from core.hooks import HookType, hook_manager
+
                 # NEW (#4): 标记 error key，供反思引擎优先分析失败序列
                 is_error = isinstance(result, str) and result.startswith("[错误]")
                 post_evt = hook_manager.fire(
@@ -418,13 +432,15 @@ class AsyncChatSession:
         """
         # ── 多模态分支 ──
         if image_url:
-            self.messages.append({
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": user_text},
-                    {"type": "image_url", "image_url": {"url": image_url}},
-                ],
-            })
+            self.messages.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": user_text},
+                        {"type": "image_url", "image_url": {"url": image_url}},
+                    ],
+                }
+            )
             content = await self._vision_fallback(user_text, image_url)
             self.messages.append({"role": "assistant", "content": content})
             yield ("text", content)
@@ -439,10 +455,9 @@ class AsyncChatSession:
 
         tools = self.tools.definitions if self.supports_tools else None
 
-        _effective_max = MAX_TOOL_LOOPS * 2 if getattr(self, 'unlimited_tools', False) else MAX_TOOL_LOOPS
+        _effective_max = MAX_TOOL_LOOPS * 2 if getattr(self, "unlimited_tools", False) else MAX_TOOL_LOOPS
         buffer = ""
-        _WRITE_TOOLS = {"write_file", "edit_file", "github_write_file",
-                        "git_add_commit", "git_push", "run_bash"}
+        _WRITE_TOOLS = {"write_file", "edit_file", "github_write_file", "git_add_commit", "git_push", "run_bash"}
         _executed_signatures: set[tuple[str, str]] = set()
         _executed_cache: dict[tuple[str, str], str] = {}
 
@@ -454,8 +469,11 @@ class AsyncChatSession:
                 kwargs["chat_template_kwargs"] = {"enable_thinking": True}
 
             async for delta in self.client.chat_stream(
-                model=self.model, messages=self.messages,
-                tools=tools, max_tokens=2048, **kwargs,
+                model=self.model,
+                messages=self.messages,
+                tools=tools,
+                max_tokens=2048,
+                **kwargs,
             ):
                 if "content" in delta and delta["content"]:
                     chunk = delta["content"]
@@ -469,9 +487,13 @@ class AsyncChatSession:
 
             if tool_calls:
                 merged = merge_tool_calls(tool_calls)
-                self.messages.append({
-                    "role": "assistant", "content": buffer, "tool_calls": merged,
-                })
+                self.messages.append(
+                    {
+                        "role": "assistant",
+                        "content": buffer,
+                        "tool_calls": merged,
+                    }
+                )
                 for tc in merged:
                     fname = tc["function"]["name"]
                     fargs = tc["function"].get("arguments", "{}")
@@ -489,6 +511,7 @@ class AsyncChatSession:
                             # #5 Prompt Lab: 记录工具调用和错误
                             try:
                                 from core.prompt_lab import get_prompt_lab
+
                                 get_prompt_lab().record_tool_call()
                                 if "[错误]" in str(tool_result) or "error" in str(tool_result).lower():
                                     get_prompt_lab().record_tool_error()
@@ -504,10 +527,14 @@ class AsyncChatSession:
                     # 上下文窗口防护：智能压缩（抽取→LLM→截断三级路由），
                     # 防止大文件/长输出撑爆 LLM 上下文。原始结果仍在 cache 中。
                     from core.context_tools import compress_tool_result
-                    self.messages.append({
-                        "role": "tool", "tool_call_id": tc.get("id", ""),
-                        "content": compress_tool_result(tool_result, self.client, self.model),
-                    })
+
+                    self.messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc.get("id", ""),
+                            "content": compress_tool_result(tool_result, self.client, self.model),
+                        }
+                    )
                 continue  # 进入下一轮
 
             # 无 tool_calls：收尾
@@ -515,13 +542,14 @@ class AsyncChatSession:
             # 成本追踪：文本流式调用按真实 usage 计费
             try:
                 from core.cost_tracker import record_usage
-                record_usage(model=self.model, kind="text",
-                             usage=_last_usage, label="async_text_stream")
+
+                record_usage(model=self.model, kind="text", usage=_last_usage, label="async_text_stream")
             except (ImportError, OSError):
                 pass
             # #5 Prompt Lab: 记录本次会话 outcome
             try:
                 from core.prompt_lab import get_prompt_lab
+
                 get_prompt_lab().record_outcome()
             except (ImportError, OSError):
                 pass
@@ -533,7 +561,7 @@ class AsyncChatSession:
         # #5 Prompt Lab: 超限也记录 outcome
         try:
             from core.prompt_lab import get_prompt_lab
+
             get_prompt_lab().record_outcome()
         except (ImportError, OSError):
             pass
-

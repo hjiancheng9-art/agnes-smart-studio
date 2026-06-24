@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-__all__ = ['ROOT', 'switch_provider']
+__all__ = ["ROOT", "switch_provider"]
 
 
 ROOT = Path(__file__).resolve().parent.parent

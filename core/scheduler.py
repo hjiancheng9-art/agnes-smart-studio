@@ -20,11 +20,17 @@ from datetime import datetime, timedelta
 from core.config import OUTPUT_DIR
 
 __all__ = [
-    'SCHEDULER_EXECUTOR_MAP', 'SCHEDULER_TOOL_DEFS', 'ScheduledTask', 'Scheduler', 'get_scheduler', 'parse_cron',
+    "SCHEDULER_EXECUTOR_MAP",
+    "SCHEDULER_TOOL_DEFS",
+    "ScheduledTask",
+    "Scheduler",
+    "get_scheduler",
+    "parse_cron",
 ]
 
 
 # ── ScheduledTask dataclass ────────────────────────────────
+
 
 @dataclass
 class ScheduledTask:
@@ -33,8 +39,8 @@ class ScheduledTask:
     id: str
     name: str
     prompt: str
-    schedule_type: str          # "interval" or "cron"
-    schedule_value: str         # seconds as str (interval) or cron expr (cron)
+    schedule_type: str  # "interval" or "cron"
+    schedule_value: str  # seconds as str (interval) or cron expr (cron)
     enabled: bool = True
     last_run: str = ""
     next_run: str = ""
@@ -58,7 +64,7 @@ _CRON_RANGES = {
     "hour": range(0, 24),
     "day": range(1, 32),
     "month": range(1, 13),
-    "weekday": range(0, 7),     # 0 = Sunday
+    "weekday": range(0, 7),  # 0 = Sunday
 }
 
 
@@ -78,9 +84,7 @@ def parse_cron(expr: str) -> dict:
     """
     fields = expr.strip().split()
     if len(fields) != 5:
-        raise ValueError(
-            f"Cron expression must have 5 fields, got {len(fields)}: {expr!r}"
-        )
+        raise ValueError(f"Cron expression must have 5 fields, got {len(fields)}: {expr!r}")
     result: dict[str, set[int]] = {}
     for name, raw in zip(_CRON_FIELDS, fields, strict=True):
         result[name] = _parse_cron_field(raw, _CRON_RANGES[name])
@@ -104,9 +108,7 @@ def _parse_cron_field(raw: str, allowed: range) -> set[int]:
             step = int(part[2:])
             if step <= 0:
                 raise ValueError(f"Step must be positive: {part!r}")
-            values.update(
-                v for v in allowed if (v - allowed.start) % step == 0
-            )
+            values.update(v for v in allowed if (v - allowed.start) % step == 0)
         elif "-" in part:
             lo_s, hi_s = part.split("-", 1)
             lo, hi = int(lo_s), int(hi_s)
@@ -141,8 +143,7 @@ class Scheduler:
 
     # ── Public API ─────────────────────────────────────────
 
-    def add_task(self, name: str, prompt: str,
-                 schedule_type: str, schedule_value: str) -> ScheduledTask:
+    def add_task(self, name: str, prompt: str, schedule_type: str, schedule_value: str) -> ScheduledTask:
         """Create and add a new scheduled task.
 
         Args:
@@ -155,10 +156,7 @@ class Scheduler:
             The created ScheduledTask.
         """
         if schedule_type not in ("interval", "cron"):
-            raise ValueError(
-                f"schedule_type must be 'interval' or 'cron', "
-                f"got {schedule_type!r}"
-            )
+            raise ValueError(f"schedule_type must be 'interval' or 'cron', got {schedule_type!r}")
         # Validate schedule_value early
         if schedule_type == "interval":
             int(schedule_value)
@@ -294,9 +292,7 @@ class Scheduler:
         """Calculate the next run time as an ISO-format string."""
         if task.schedule_type == "interval":
             seconds = int(task.schedule_value)
-            return (
-                datetime.now() + timedelta(seconds=seconds)
-            ).isoformat()[:19]
+            return (datetime.now() + timedelta(seconds=seconds)).isoformat()[:19]
 
         # cron: find the next matching minute
         parsed = parse_cron(task.schedule_value)
@@ -307,11 +303,13 @@ class Scheduler:
         max_iter = 4 * 366 * 24 * 60
         for _ in range(max_iter):
             cron_wd = (candidate.weekday() + 1) % 7  # Python 0=Mon -> cron 0=Sun
-            if (candidate.minute in parsed["minute"]
-                    and candidate.hour in parsed["hour"]
-                    and candidate.day in parsed["day"]
-                    and candidate.month in parsed["month"]
-                    and cron_wd in parsed["weekday"]):
+            if (
+                candidate.minute in parsed["minute"]
+                and candidate.hour in parsed["hour"]
+                and candidate.day in parsed["day"]
+                and candidate.month in parsed["month"]
+                and cron_wd in parsed["weekday"]
+            ):
                 return candidate.isoformat()[:19]
             candidate += timedelta(minutes=1)
         # Fallback: should not reach here for valid cron expressions
@@ -443,16 +441,13 @@ SCHEDULER_TOOL_DEFS = [
                     "schedule_type": {
                         "type": "string",
                         "enum": ["interval", "cron"],
-                        "description": (
-                            '"interval" runs every N seconds; '
-                            '"cron" uses a 5-field cron expression'
-                        ),
+                        "description": ('"interval" runs every N seconds; "cron" uses a 5-field cron expression'),
                     },
                     "schedule_value": {
                         "type": "string",
                         "description": (
                             'For interval: seconds as string (e.g. "300" '
-                            'for 5 minutes). For cron: 5-field expression '
+                            "for 5 minutes). For cron: 5-field expression "
                             '(e.g. "0 9 * * 1-5" for 9 AM weekdays)'
                         ),
                     },
@@ -545,6 +540,7 @@ SCHEDULER_TOOL_DEFS = [
 
 # ── Executor functions ─────────────────────────────────────
 
+
 def _exec_schedule_add(**kwargs) -> str:
     s = _get_scheduler()
     task = s.add_task(
@@ -568,9 +564,7 @@ def _exec_schedule_remove(**kwargs) -> str:
 def _exec_schedule_list(**kwargs) -> str:
     s = _get_scheduler()
     tasks = s.list_tasks()
-    return json.dumps(
-        [t.to_dict() for t in tasks], ensure_ascii=False
-    )
+    return json.dumps([t.to_dict() for t in tasks], ensure_ascii=False)
 
 
 def _exec_schedule_enable(**kwargs) -> str:

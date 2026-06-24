@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -23,36 +24,40 @@ if TYPE_CHECKING:
     from core.chat import ChatSession
 
 __all__ = [
-    'TaskProfile',
-    'RouteDecision',
-    'classify',
-    'route_command',
-    'resolve',
-    'apply',
-    'route',
+    "TaskProfile",
+    "RouteDecision",
+    "classify",
+    "route_command",
+    "resolve",
+    "apply",
+    "route",
 ]
 
 
 # ── 任务画像 ───────────────────────────────────────────────
 
+
 class TaskProfile(Enum):
     """任务复杂度/类型画像。"""
-    CHAT = "chat"            # 简单对话 / 问答
-    QUICK_FIX = "quick_fix" # bug修复 / 小改动
-    CODING = "coding"        # 代码实现（code_mode + tools）
-    DEEP = "deep"            # 架构 / 复杂分析（需深度推理 + 大上下文）
-    CREATIVE = "creative"    # 创意生产（图 / 视频 / showrunner）
-    SKIP = "skip"            # 不干预，保持当前模型
+
+    CHAT = "chat"  # 简单对话 / 问答
+    QUICK_FIX = "quick_fix"  # bug修复 / 小改动
+    CODING = "coding"  # 代码实现（code_mode + tools）
+    DEEP = "deep"  # 架构 / 复杂分析（需深度推理 + 大上下文）
+    CREATIVE = "creative"  # 创意生产（图 / 视频 / showrunner）
+    SKIP = "skip"  # 不干预，保持当前模型
 
 
 # ── 路由决策 ───────────────────────────────────────────────
 
+
 @dataclass
 class RouteDecision:
     """单次路由决策结果。"""
+
     profile: TaskProfile
-    model_id: str | None = None   # None = 不改 session.model
-    reason: str = ""              # 给 badge 行显示的路由理由
+    model_id: str | None = None  # None = 不改 session.model
+    reason: str = ""  # 给 badge 行显示的路由理由
     switch_client: bool = False  # 是否需要切 client（跨供应商）
 
 
@@ -83,6 +88,7 @@ def _detect_provider(model_id: str, mgr: object | None = None) -> str:
     # 1. 优先查 MODEL_REGISTRY
     try:
         from core.provider import MODEL_REGISTRY
+
         info = MODEL_REGISTRY.get(model_id)
         if info is not None:
             return info.provider_id
@@ -92,14 +98,14 @@ def _detect_provider(model_id: str, mgr: object | None = None) -> str:
     # 2. 回退：从 models.json 遍历反查
     try:
         from core.provider import get_provider_manager
+
         _mgr = mgr or get_provider_manager()
         if not _mgr.providers:
             _mgr.load()
         for pid, pdata in _mgr.providers.items():
             models = pdata.get("models", {})
-            if isinstance(models, dict):
-                if model_id in models.values():
-                    return pid
+            if isinstance(models, dict) and model_id in models.values():
+                return pid
     except Exception:
         pass
     return ""
@@ -110,39 +116,39 @@ def _detect_provider(model_id: str, mgr: object | None = None) -> str:
 # key: 命令名, value: (TaskProfile, 推荐模型 ID, 理由)
 # None model = 保持当前模型不切（如 showrun 已由 handler 自己设好）
 COMMAND_ROUTE_MAP: dict[str, tuple[TaskProfile, str | None, str]] = {
-    "plan":     (TaskProfile.DEEP,      "deepseek-v4-pro",  "深度推理任务 → 切至 DeepSeek（1M 上下文）"),
-    "sub":      (TaskProfile.DEEP,      "deepseek-v4-pro",  "子智能体需要强推理 → 切至 DeepSeek"),
-    "refactor": (TaskProfile.DEEP,      "deepseek-v4-pro",  "跨文件重构需要大上下文 → 切至 DeepSeek"),
-    "team":     (TaskProfile.DEEP,      None,               "多智能体协调 → 保持当前模型"),
-    "showrun":  (TaskProfile.CREATIVE,   None,               "创意流水线 → 保持当前模型"),
-    "self":     (TaskProfile.CODING,    None,               "自诊断 → 保持当前模型"),
+    "plan": (TaskProfile.DEEP, "deepseek-v4-pro", "深度推理任务 → 切至 DeepSeek（1M 上下文）"),
+    "sub": (TaskProfile.DEEP, "deepseek-v4-pro", "子智能体需要强推理 → 切至 DeepSeek"),
+    "refactor": (TaskProfile.DEEP, "deepseek-v4-pro", "跨文件重构需要大上下文 → 切至 DeepSeek"),
+    "team": (TaskProfile.DEEP, None, "多智能体协调 → 保持当前模型"),
+    "showrun": (TaskProfile.CREATIVE, None, "创意流水线 → 保持当前模型"),
+    "self": (TaskProfile.CODING, None, "自诊断 → 保持当前模型"),
     # 以下命令不需要 LLM 或不应干预
-    "help":     (TaskProfile.SKIP, None, ""),
-    "model":    (TaskProfile.SKIP, None, ""),
+    "help": (TaskProfile.SKIP, None, ""),
+    "model": (TaskProfile.SKIP, None, ""),
     "thinking": (TaskProfile.SKIP, None, ""),
-    "code":     (TaskProfile.SKIP, None, ""),
-    "agent":    (TaskProfile.SKIP, None, ""),
-    "tools":    (TaskProfile.SKIP, None, ""),
-    "clear":    (TaskProfile.SKIP, None, ""),
-    "exit":     (TaskProfile.SKIP, None, ""),
-    "quit":     (TaskProfile.SKIP, None, ""),
-    "q":        (TaskProfile.SKIP, None, ""),
+    "code": (TaskProfile.SKIP, None, ""),
+    "agent": (TaskProfile.SKIP, None, ""),
+    "tools": (TaskProfile.SKIP, None, ""),
+    "clear": (TaskProfile.SKIP, None, ""),
+    "exit": (TaskProfile.SKIP, None, ""),
+    "quit": (TaskProfile.SKIP, None, ""),
+    "q": (TaskProfile.SKIP, None, ""),
     "compress": (TaskProfile.SKIP, None, ""),
-    "project":  (TaskProfile.SKIP, None, ""),
-    "todo":     (TaskProfile.SKIP, None, ""),
-    "commit":   (TaskProfile.SKIP, None, ""),
+    "project": (TaskProfile.SKIP, None, ""),
+    "todo": (TaskProfile.SKIP, None, ""),
+    "commit": (TaskProfile.SKIP, None, ""),
     "changelog": (TaskProfile.SKIP, None, ""),
-    "audit":    (TaskProfile.SKIP, None, ""),
-    "rules":    (TaskProfile.SKIP, None, ""),
+    "audit": (TaskProfile.SKIP, None, ""),
+    "rules": (TaskProfile.SKIP, None, ""),
     "automate": (TaskProfile.SKIP, None, ""),
     "provider": (TaskProfile.SKIP, None, ""),
-    "evolve":   (TaskProfile.SKIP, None, ""),
-    "know":     (TaskProfile.SKIP, None, ""),
-    "skill":    (TaskProfile.SKIP, None, ""),
-    "img":      (TaskProfile.SKIP, None, ""),
-    "video":    (TaskProfile.SKIP, None, ""),
-    "vision":   (TaskProfile.SKIP, None, ""),
-    "deploy":   (TaskProfile.SKIP, None, ""),
+    "evolve": (TaskProfile.SKIP, None, ""),
+    "know": (TaskProfile.SKIP, None, ""),
+    "skill": (TaskProfile.SKIP, None, ""),
+    "img": (TaskProfile.SKIP, None, ""),
+    "video": (TaskProfile.SKIP, None, ""),
+    "vision": (TaskProfile.SKIP, None, ""),
+    "deploy": (TaskProfile.SKIP, None, ""),
 }
 
 
@@ -150,33 +156,73 @@ COMMAND_ROUTE_MAP: dict[str, tuple[TaskProfile, str | None, str]] = {
 
 # 关键词 → TaskProfile 映射（优先级从高到低匹配）
 _DEEP_KEYWORDS: list[str] = [
-    r"重构", r"架构", r"系统级", r"整体设计", r"全面分析",
-    r"重新设计", r"方案", r"技术选型", r"可行性",
-    r"性能优化.*整体", r"迁移.*系统", r"替换.*框架",
-    r"review.*全", r"审查.*全部",
+    r"重构",
+    r"架构",
+    r"系统级",
+    r"整体设计",
+    r"全面分析",
+    r"重新设计",
+    r"方案",
+    r"技术选型",
+    r"可行性",
+    r"性能优化.*整体",
+    r"迁移.*系统",
+    r"替换.*框架",
+    r"review.*全",
+    r"审查.*全部",
 ]
 
 _QUICK_FIX_KEYWORDS: list[str] = [
-    r"bug", r"修复", r"改一下", r"调一下", r"小改",
-    r"fix", r"patch", r"hotfix", r"补丁",
-    r"换.*图标", r"换.*颜色", r"改.*名字", r"改.*文案",
-    r"typo", r"拼写",
+    r"bug",
+    r"修复",
+    r"改一下",
+    r"调一下",
+    r"小改",
+    r"fix",
+    r"patch",
+    r"hotfix",
+    r"补丁",
+    r"换.*图标",
+    r"换.*颜色",
+    r"改.*名字",
+    r"改.*文案",
+    r"typo",
+    r"拼写",
 ]
 
 _CREATVE_KEYWORDS: list[str] = [
-    r"生成.*图", r"生成.*视频", r"画", r"画一个",
-    r"创建.*图", r"创建.*视频", r"做.*海报",
-    r"文生图", r"图生图", r"图生视频", r"文生视频",
-    r"showrun", r"制片", r"分镜",
+    r"生成.*图",
+    r"生成.*视频",
+    r"画",
+    r"画一个",
+    r"创建.*图",
+    r"创建.*视频",
+    r"做.*海报",
+    r"文生图",
+    r"图生图",
+    r"图生视频",
+    r"文生视频",
+    r"showrun",
+    r"制片",
+    r"分镜",
 ]
 
 _CODE_KEYWORDS: list[str] = [
-    r"实现", r"写.*函数", r"写.*方法", r"写.*类",
-    r"加.*功能", r"新增.*接口", r"添加.*接口",
-    r"写.*测试", r"加.*测试",
-    r"代码", r"编程", r"开发",
+    r"实现",
+    r"写.*函数",
+    r"写.*方法",
+    r"写.*类",
+    r"加.*功能",
+    r"新增.*接口",
+    r"添加.*接口",
+    r"写.*测试",
+    r"加.*测试",
+    r"代码",
+    r"编程",
+    r"开发",
     # 注意：不含 \.py/\.js/\.ts 等扩展名——文件路径场景由文本特征分析阶段处理
-    r"(?<!\w)def\s", r"(?<!\w)function\s",
+    r"(?<!\w)def\s",
+    r"(?<!\w)function\s",
 ]
 
 # 文件路径正则（含 Windows 路径和 Unix 路径）
@@ -188,7 +234,7 @@ _FILE_PATH_RE = re.compile(
 
 # 代码片段检测（多行缩进 + 常见关键字）
 _CODE_BLOCK_RE = re.compile(
-    r'(?:def |class |import |from |async def |const |let |function |export )',
+    r"(?:def |class |import |from |async def |const |let |function |export )",
     re.MULTILINE,
 )
 
@@ -211,9 +257,9 @@ def classify(text: str, session: ChatSession | None = None) -> TaskProfile:
     # ── 1. 会话上下文感知（最高优先级）──
     # 已在 agent_mode / active_skill 中 → 跟随其模式，不额外分类
     if session is not None:
-        if getattr(session, 'agent_mode', False):
+        if getattr(session, "agent_mode", False):
             return TaskProfile.CODING
-        if getattr(session, 'active_skill', ''):
+        if getattr(session, "active_skill", ""):
             skill = session.active_skill
             if skill in ("showrunner", "comfyui-bridge"):
                 return TaskProfile.CREATIVE
@@ -255,14 +301,16 @@ def classify(text: str, session: ChatSession | None = None) -> TaskProfile:
     # 长文本（可能是需求文档/设计文档）→ DEEP
     if text_len > _LONG_TEXT_THRESHOLD:
         # 检查是否是代码粘贴（多行 + 高缩进比）
-        lines = text.split('\n')
-        code_lines = sum(1 for l in lines if l.strip().startswith((' ', '\t', 'def ', 'class ', 'import ', 'from ')))
+        lines = text.split("\n")
+        code_lines = sum(
+            1 for line in lines if line.strip().startswith((" ", "\t", "def ", "class ", "import ", "from "))
+        )
         if code_lines > len(lines) * 0.5:
             return TaskProfile.CODING
         return TaskProfile.DEEP
 
     # ── 4. code_mode 上下文 ──
-    if session is not None and getattr(session, 'code_mode', False):
+    if session is not None and getattr(session, "code_mode", False):
         return TaskProfile.CODING
 
     # ── 5. 默认：保持当前模型 ──
@@ -270,6 +318,7 @@ def classify(text: str, session: ChatSession | None = None) -> TaskProfile:
 
 
 # ── 路由决策合成 ───────────────────────────────────────────
+
 
 def route_command(cmd_key: str, arg: str, session: ChatSession | None) -> RouteDecision:
     """命令级路由：查静态表。
@@ -342,14 +391,13 @@ def apply(decision: RouteDecision, session: ChatSession) -> None:
     if decision.model_id == session.model:
         return  # 已经是目标模型
 
-    old_model = session.model
-
     # 跨供应商切换？单次 load()，复用给 _detect_provider
     mgr = None
     current_pid = ""
     target_pid = ""
     try:
         from core.provider import get_provider_manager
+
         mgr = get_provider_manager()
         if not mgr.providers:
             mgr.load()
@@ -361,10 +409,8 @@ def apply(decision: RouteDecision, session: ChatSession) -> None:
     if current_pid and target_pid and current_pid != target_pid:
         # 目标供应商在 models.json 中的 base_url，用于一致性校验
         target_base_url = ""
-        try:
+        with contextlib.suppress(Exception):
             target_base_url = (mgr.providers.get(target_pid, {}) or {}).get("base_url", "")
-        except Exception:
-            pass
 
         try:
             new_client = mgr.create_client(target_pid)
@@ -392,6 +438,7 @@ def apply(decision: RouteDecision, session: ChatSession) -> None:
 
 
 # ── 顶层统一入口 ──────────────────────────────────────────
+
 
 def route(text: str, session: ChatSession) -> RouteDecision:
     """顶层路由入口。

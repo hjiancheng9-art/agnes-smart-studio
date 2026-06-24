@@ -15,7 +15,23 @@ from urllib.parse import urlparse
 import httpx
 
 __all__ = [
-    'ROOT', 'count_lines', 'download_file', 'edit_file', 'env_check', 'glob_files', 'list_files', 'pip_install', 'read_file', 'run_python', 'run_test', 'search_files', 'think_deep', 'tree_dir', 'web_fetch', 'web_search', 'write_file',
+    "ROOT",
+    "count_lines",
+    "download_file",
+    "edit_file",
+    "env_check",
+    "glob_files",
+    "list_files",
+    "pip_install",
+    "read_file",
+    "run_python",
+    "run_test",
+    "search_files",
+    "think_deep",
+    "tree_dir",
+    "web_fetch",
+    "web_search",
+    "write_file",
 ]
 
 
@@ -78,7 +94,7 @@ def read_file(path: str, offset: int = 0, limit: int = 0) -> str:
         header = f"--- {path} ---"
         shown = len(lines)
         if offset or limit:
-            header += f" (lines {offset+1}-{offset+shown} of {total})"
+            header += f" (lines {offset + 1}-{offset + shown} of {total})"
         elif truncated:
             header += f" (first {shown} of {total} lines, use offset/limit for more)"
         return f"{header}\n{content}"
@@ -114,12 +130,31 @@ def search_files(pattern: str) -> str:
     import os
     import re
     from pathlib import Path
+
     _ROOT = Path(__file__).parent.parent
-    TEXT_EXTS = {'.py', '.md', '.json', '.js', '.ts', '.html', '.css',
-                 '.toml', '.yaml', '.yml', '.sh', '.bat', '.txt', '.cfg',
-                 '.ini', '.env', '.xml', '.sql', '.rst', '.csv'}
-    SKIP_DIRS = {'.git', '__pycache__', '.pytest_cache', 'node_modules',
-                 '.venv', 'venv', 'output', '.codebuddy'}
+    TEXT_EXTS = {
+        ".py",
+        ".md",
+        ".json",
+        ".js",
+        ".ts",
+        ".html",
+        ".css",
+        ".toml",
+        ".yaml",
+        ".yml",
+        ".sh",
+        ".bat",
+        ".txt",
+        ".cfg",
+        ".ini",
+        ".env",
+        ".xml",
+        ".sql",
+        ".rst",
+        ".csv",
+    }
+    SKIP_DIRS = {".git", "__pycache__", ".pytest_cache", "node_modules", ".venv", "venv", "output", ".codebuddy"}
     try:
         regex = re.compile(pattern)
     except re.error as e:
@@ -133,7 +168,7 @@ def search_files(pattern: str) -> str:
                     continue
                 fpath = os.path.join(dirpath, f)
                 try:
-                    with open(fpath, encoding='utf-8', errors='replace') as fh:
+                    with open(fpath, encoding="utf-8", errors="replace") as fh:
                         for i, line in enumerate(fh, 1):
                             if regex.search(line):
                                 rel = os.path.relpath(fpath, str(_ROOT))
@@ -186,18 +221,42 @@ def pip_install(package: str) -> str:
     for anything outside the whitelist, preventing arbitrary code execution.
     """
     _SAFE_PACKAGES = {
-        "pytest", "pytest-cov", "pytest-asyncio", "pytest-mock",
-        "black", "isort", "flake8", "mypy", "ruff",
-        "coverage", "tox", "pre-commit",
-        "pip", "setuptools", "wheel", "build", "twine",
-        "httpx", "requests", "aiohttp",
-        "rich", "click", "typer",
-        "pydantic", "pydantic-settings",
-        "numpy", "pandas", "matplotlib", "pillow",
-        "openai", "python-dotenv", "nest-asyncio",
+        "pytest",
+        "pytest-cov",
+        "pytest-asyncio",
+        "pytest-mock",
+        "black",
+        "isort",
+        "flake8",
+        "mypy",
+        "ruff",
+        "coverage",
+        "tox",
+        "pre-commit",
+        "pip",
+        "setuptools",
+        "wheel",
+        "build",
+        "twine",
+        "httpx",
+        "requests",
+        "aiohttp",
+        "rich",
+        "click",
+        "typer",
+        "pydantic",
+        "pydantic-settings",
+        "numpy",
+        "pandas",
+        "matplotlib",
+        "pillow",
+        "openai",
+        "python-dotenv",
+        "nest-asyncio",
     }
     import subprocess
     import sys
+
     packages = [p.strip() for p in package.split() if p.strip()]
     if not packages:
         return "[错误] 请指定要安装的包名"
@@ -211,7 +270,9 @@ def pip_install(package: str) -> str:
     try:
         result = subprocess.run(
             [sys.executable, "-m", "pip", "install"] + packages,
-            capture_output=True, text=True, timeout=120,
+            capture_output=True,
+            text=True,
+            timeout=120,
         )
         return result.stdout + result.stderr
     except subprocess.TimeoutExpired:
@@ -227,6 +288,7 @@ def env_check(name: str = "") -> str:
         Environment report
     """
     import sys
+
     lines = []
     lines.append(f"Python: {sys.version}")
     lines.append(f"Platform: {sys.platform}")
@@ -234,21 +296,22 @@ def env_check(name: str = "") -> str:
     lines.append(f"Filesystem encoding: {sys.getfilesystemencoding()}")
 
     # Key packages
-    for pkg in ['httpx', 'rich', 'prompt_toolkit', 'nest_asyncio', 'dotenv']:
+    for pkg in ["httpx", "rich", "prompt_toolkit", "nest_asyncio", "dotenv"]:
         try:
             mod = __import__(pkg)
-            ver = getattr(mod, '__version__', 'installed')
+            ver = getattr(mod, "__version__", "installed")
             lines.append(f"{pkg}: {ver}")
         except ImportError:
             lines.append(f"{pkg}: NOT INSTALLED")
 
     # Project health
     from pathlib import Path
+
     _ROOT = Path(__file__).parent.parent
     for check_file, label in [
-        ('.env', 'Config (.env)'),
-        ('tools.json', 'Tools config'),
-        ('models.json', 'Models config'),
+        (".env", "Config (.env)"),
+        ("tools.json", "Tools config"),
+        ("models.json", "Models config"),
     ]:
         exists = (_ROOT / check_file).exists()
         lines.append(f"{label}: {'OK' if exists else 'MISSING'}")
@@ -347,6 +410,7 @@ def run_python(code: str) -> str:
     import subprocess
     import sys
     import tempfile
+
     _prelude = """
 import builtins
 # Only remove truly dangerous builtins that enable code injection / debugging escape.
@@ -362,8 +426,7 @@ for _d in _DANGEROUS:
     # Write to temp file to avoid command-line length limits and escape issues
     try:
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", encoding="utf-8",
-            delete=False, dir=str(ROOT.parent)
+            mode="w", suffix=".py", encoding="utf-8", delete=False, dir=str(ROOT.parent)
         ) as tf:
             tf.write(_prelude)
             tf.write("\n# --- user code ---\n")
@@ -376,9 +439,12 @@ for _d in _DANGEROUS:
     try:
         r = subprocess.run(
             [sys.executable, tmp_path],
-            capture_output=True, text=True,
-            timeout=30, cwd=str(ROOT),
-            encoding="utf-8", errors="replace",
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=str(ROOT),
+            encoding="utf-8",
+            errors="replace",
         )
         out = r.stdout.strip()
         err = r.stderr.strip()
@@ -434,8 +500,22 @@ def count_lines(path: str = "") -> str:
                 except (OSError, PermissionError):
                     pass
 
-    target = {".py", ".js", ".ts", ".jsx", ".tsx", ".html", ".css",
-              ".md", ".json", ".toml", ".yaml", ".yml", ".sh", ".bat"}
+    target = {
+        ".py",
+        ".js",
+        ".ts",
+        ".jsx",
+        ".tsx",
+        ".html",
+        ".css",
+        ".md",
+        ".json",
+        ".toml",
+        ".yaml",
+        ".yml",
+        ".sh",
+        ".bat",
+    }
     lines_out = []
     for ext, (files, lines) in sorted(stats.items(), key=lambda x: -x[1][1]):
         if ext in target:
@@ -448,7 +528,11 @@ def count_lines(path: str = "") -> str:
 # ════════════════════════════════════════════════════════════
 
 _SSRF_BLOCKED_HOSTS = {
-    "localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]",
+    "localhost",
+    "127.0.0.1",
+    "0.0.0.0",
+    "::1",
+    "[::1]",
     "169.254.169.254",  # AWS/cloud metadata
     "metadata.google.internal",  # GCP metadata
 }
@@ -500,9 +584,11 @@ def _validate_url(url: str) -> str | None:
 #  以下为 tools.json shell→python 迁移的新实现
 # ════════════════════════════════════════════════════════════
 
+
 def glob_files(pattern: str) -> str:
     """Glob 搜索文件，返回匹配路径列表。纯 Python 实现，无 shell 风险。"""
     from pathlib import Path
+
     try:
         results = sorted(Path(".").glob(pattern))[:100]
         return "\n".join(str(p) for p in results) or "(no matches)"
@@ -532,22 +618,26 @@ def web_search(query: str) -> str:
     try:
         from html import unescape
         from urllib.parse import quote
+
         q = quote(query)
         engines = [
-            ("DuckDuckGo", f"https://html.duckduckgo.com/html/?q={q}",
-             r'<a[^>]*result__a[^>]*>(.*?)</a>'),
-            ("Bing", f"https://www.bing.com/search?q={q}",
-             r'<li[^>]*b_algo[^>]*>.*?<a[^>]*>(.*?)</a>'),
+            ("DuckDuckGo", f"https://html.duckduckgo.com/html/?q={q}", r"<a[^>]*result__a[^>]*>(.*?)</a>"),
+            ("Bing", f"https://www.bing.com/search?q={q}", r"<li[^>]*b_algo[^>]*>.*?<a[^>]*>(.*?)</a>"),
         ]
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         for _engine_name, url, pattern in engines:
             try:
-                r = httpx.get(url, timeout=httpx.Timeout(5.0, connect=4.0),
-                              trust_env=False, headers=headers, follow_redirects=True)
+                r = httpx.get(
+                    url,
+                    timeout=httpx.Timeout(5.0, connect=4.0),
+                    trust_env=False,
+                    headers=headers,
+                    follow_redirects=True,
+                )
                 if r.status_code == 200:
                     results = []
                     for m in re.finditer(pattern, r.text, re.DOTALL):
-                        text = unescape(re.sub(r'<[^>]+>', '', m.group(1))).strip()
+                        text = unescape(re.sub(r"<[^>]+>", "", m.group(1))).strip()
                         if text and len(text) > 3:
                             results.append(text)
                             if len(results) >= 5:
@@ -564,6 +654,7 @@ def web_search(query: str) -> str:
 def tree_dir(depth: int = 3) -> str:
     """树形展示目录布局。纯 Python，无 shell 风险。"""
     import os
+
     lines = []
     root = os.path.abspath(".")
     for dp, dirs, files in os.walk(root):
@@ -587,6 +678,7 @@ def tree_dir(depth: int = 3) -> str:
 def download_file(url: str, save_path: str) -> str:
     """下载文件到指定路径。纯 Python + SSRF 防护 + 路径限制。"""
     import os as _os
+
     err = _validate_url(url)
     if err:
         return f"[安全拒绝] {err}"
@@ -612,10 +704,13 @@ def run_test(path: str = "tests/") -> str:
     """运行 pytest，纯 Python subprocess 列表传参。"""
     import subprocess
     import sys
+
     try:
         r = subprocess.run(
             [sys.executable, "-m", "pytest", path, "-q", "--tb=short"],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
         return r.stdout.strip() or r.stderr.strip() or "(no output)"
     except subprocess.TimeoutExpired:

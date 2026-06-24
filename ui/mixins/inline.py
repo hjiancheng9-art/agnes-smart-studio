@@ -15,14 +15,14 @@ from ui.theme import COLORS, LAYOUT, console
 if TYPE_CHECKING:
     from core.chat import ChatSession
 
-__all__ = ['InlineCommandsMixin']
+__all__ = ["InlineCommandsMixin"]
 
 
 class InlineCommandsMixin:
     # Method provided by SharedMixin (sibling in MRO)
-    def _chat_generate(self, session: ChatSession, kind: str, prompt: str) -> None:
-        ...  # defined in CreativeCommandsMixin, available via MRO
-
+    def _chat_generate(
+        self, session: ChatSession, kind: str, prompt: str
+    ) -> None: ...  # defined in CreativeCommandsMixin, available via MRO
 
     def _inline_clear(self, session, arg: str):
         session.reset()
@@ -62,7 +62,7 @@ class InlineCommandsMixin:
     def _inline_tools(self, session, arg: str):
         arg = (arg or "").strip()
         if arg.startswith("score"):
-            self._tool_scorecard(session, arg[len("score"):].strip())
+            self._tool_scorecard(session, arg[len("score") :].strip())
             return
 
         names = session.tools.tool_names
@@ -84,6 +84,7 @@ class InlineCommandsMixin:
             /tools score <name>   单工具详情
         """
         from rich.table import Table
+
         try:
             from core.tool_scorecard import (
                 save_report,
@@ -104,6 +105,7 @@ class InlineCommandsMixin:
         # 生成报告（含运行时分，若有日志数据）
         try:
             from core import tool_call_log
+
             runtime_calls = tool_call_log.group_by_tool()
         except ImportError:
             runtime_calls = None
@@ -119,10 +121,12 @@ class InlineCommandsMixin:
             s = next((t for t in report["tools"] if t["name"] == single_tool), None)
             if not s:
                 s = score_tool_static(single_tool, session.tools)
-            console.print(Panel(
-                f"[bold cyan]{s['name']}[/]  ·  [bold]{s['score']}/100[/]  ·  等级 [bold]{s['grade']}[/]",
-                border_style=COLORS["primary"],
-            ))
+            console.print(
+                Panel(
+                    f"[bold cyan]{s['name']}[/]  ·  [bold]{s['score']}/100[/]  ·  等级 [bold]{s['grade']}[/]",
+                    border_style=COLORS["primary"],
+                )
+            )
             dt = Table(title="维度详情", border_style="dim", show_lines=True)
             dt.add_column("维度", style="cyan", width=18)
             dt.add_column("得分", justify="right", width=10)
@@ -133,28 +137,30 @@ class InlineCommandsMixin:
             console.print(dt)
             if "runtime" in s and s["runtime"].get("score") is not None:
                 rt = s["runtime"]
-                console.print(f"  [dim]运行时: {rt['score']}分({rt['grade']}) · "
-                              f"{rt['call_count']}次调用 · 成功率{rt['success_rate']}% · "
-                              f"均耗{rt['avg_ms']}ms · P95 {rt['p95_ms']}ms[/]")
+                console.print(
+                    f"  [dim]运行时: {rt['score']}分({rt['grade']}) · "
+                    f"{rt['call_count']}次调用 · 成功率{rt['success_rate']}% · "
+                    f"均耗{rt['avg_ms']}ms · P95 {rt['p95_ms']}ms[/]"
+                )
             return
 
         # ── JSON 输出 ──
         if output_json:
             import json
+
             console.print_json(json.dumps(report, ensure_ascii=False))
             return
 
         # ── 汇总表 ──
-        summary = Table(title="[bold]📊 工具评分总览[/]",
-                        border_style=COLORS["primary"], show_lines=True)
+        summary = Table(title="[bold]📊 工具评分总览[/]", border_style=COLORS["primary"], show_lines=True)
         summary.add_column("指标", style="bold cyan", width=16)
         summary.add_column("值", justify="right")
         gd = report["grade_distribution"]
         summary.add_row("工具总数", str(report["total_tools"]))
         summary.add_row("平均分", f"{report['average_score']}/100")
-        summary.add_row("分级分布",
-                        f"A {gd.get('A',0)} · B {gd.get('B',0)} · "
-                        f"C {gd.get('C',0)} · D {gd.get('D',0)}")
+        summary.add_row(
+            "分级分布", f"A {gd.get('A', 0)} · B {gd.get('B', 0)} · C {gd.get('C', 0)} · D {gd.get('D', 0)}"
+        )
         summary.add_row("零测试工具", f"{report['untested_count']} 个")
         summary.add_row("最差 TOP5", " · ".join(report["worst_5"]))
         console.print(summary)
@@ -217,10 +223,11 @@ class InlineCommandsMixin:
 
         # ── 零测试清单（如果不多，全列；多则给数字）──
         if report["untested_count"] and report["untested_count"] <= 30:
-            console.print(f"  [yellow]⚠ 零测试工具 ({report['untested_count']}):[/] "
-                          + " · ".join(report["untested"]))
-        console.print("  [dim]报告已保存: output/tool_scorecard.json · "
-                      "更多: /tools score runtime | /tools score json | /tools score <name>[/]")
+            console.print(f"  [yellow]⚠ 零测试工具 ({report['untested_count']}):[/] " + " · ".join(report["untested"]))
+        console.print(
+            "  [dim]报告已保存: output/tool_scorecard.json · "
+            "更多: /tools score runtime | /tools score json | /tools score <name>[/]"
+        )
 
     def _inline_browser(self, session, arg: str):
         is_on = session.toggle_browser()
@@ -272,9 +279,18 @@ class InlineCommandsMixin:
             ]
             text = "\n".join(cmds)
             cap = "AI auto" if current_model == "agnes-2.0-flash" else "manual"
-            console.print(Panel(text, title=f"[bold {COLORS['primary']}]33 commands[/] ({current_model} | think:{think_state} | {cap})", border_style=COLORS["primary"], padding=LAYOUT["panel_padding"]))
+            console.print(
+                Panel(
+                    text,
+                    title=f"[bold {COLORS['primary']}]33 commands[/] ({current_model} | think:{think_state} | {cap})",
+                    border_style=COLORS["primary"],
+                    padding=LAYOUT["panel_padding"],
+                )
+            )
             return
-        console.print(Panel(f"""\
+        console.print(
+            Panel(
+                f"""\
     操作提示: Ctrl+C 中止运行 · 输入 \"\"\" 进入多行编辑 · /code 或 /agent 再输一次退出
 
     /help              显示本帮助
@@ -313,9 +329,10 @@ class InlineCommandsMixin:
     /exit              退出聊天
 
     当前模型: {current_model} | 模式: {code_state}
-    能力: {'AI 可自动触发生成' if current_model == 'agnes-2.0-flash' else '需用 /img /video 手动生成'} | 视觉: {'独立通道可用' if current_model != 'agnes-1.5-flash' else '主模型内置'}
+    能力: {"AI 可自动触发生成" if current_model == "agnes-2.0-flash" else "需用 /img /video 手动生成"} | 视觉: {"独立通道可用" if current_model != "agnes-1.5-flash" else "主模型内置"}
     供应商: /provider switch agnes|deepseek|siliconflow""",
-            title=f"[bold {COLORS['accent']}]✿ Chat commands[/]",
-            border_style=COLORS["primary"],
-            padding=LAYOUT["panel_padding"],
-        ))
+                title=f"[bold {COLORS['accent']}]✿ Chat commands[/]",
+                border_style=COLORS["primary"],
+                padding=LAYOUT["panel_padding"],
+            )
+        )

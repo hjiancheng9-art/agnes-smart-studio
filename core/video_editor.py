@@ -17,12 +17,21 @@ import tempfile
 from pathlib import Path
 
 __all__ = [
-    'OUTPUT_ROOT', 'VIDEO_EDITOR_EXECUTOR_MAP', 'VIDEO_EDITOR_TOOL_DEFS', 'VIDEO_OUT', 'execute_composite_overlay', 'execute_render_final', 'execute_video_concat', 'execute_video_speed', 'execute_video_trim',
+    "OUTPUT_ROOT",
+    "VIDEO_EDITOR_EXECUTOR_MAP",
+    "VIDEO_EDITOR_TOOL_DEFS",
+    "VIDEO_OUT",
+    "execute_composite_overlay",
+    "execute_render_final",
+    "execute_video_concat",
+    "execute_video_speed",
+    "execute_video_trim",
 ]
 
 OUTPUT_ROOT = Path(__file__).parent.parent / "output"
 VIDEO_OUT = OUTPUT_ROOT / "videos"
 VIDEO_OUT.mkdir(parents=True, exist_ok=True)
+
 
 def _run(cmd: list, timeout: int = 300, **kwargs) -> subprocess.CompletedProcess:
     """subprocess.run 安全封装"""
@@ -31,6 +40,7 @@ def _run(cmd: list, timeout: int = 300, **kwargs) -> subprocess.CompletedProcess
     kwargs.setdefault("encoding", "utf-8")
     kwargs.setdefault("errors", "replace")
     return subprocess.run(cmd, timeout=timeout, **kwargs)
+
 
 def _check_ffmpeg() -> str | None:
     """检查 ffmpeg 是否可用，返回错误文本或 None"""
@@ -42,9 +52,11 @@ def _check_ffmpeg() -> str | None:
         return "未找到 ffmpeg，请安装: winget install ffmpeg"
     return None
 
+
 def _safe_output_path(prefix: str, ext: str = ".mp4") -> str:
     """生成唯一输出路径"""
     from datetime import datetime
+
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     i = 0
     while True:
@@ -54,9 +66,11 @@ def _safe_output_path(prefix: str, ext: str = ".mp4") -> str:
             return str(p)
         i += 1
 
+
 # ============================================================
 #  工具1: video_concat — 多段视频拼接
 # ============================================================
+
 
 def execute_video_concat(video_paths: str, project_name: str = "") -> str:
     """将多个视频文件按顺序拼接为一段视频。
@@ -74,18 +88,15 @@ def execute_video_concat(video_paths: str, project_name: str = "") -> str:
     try:
         paths = json.loads(video_paths) if isinstance(video_paths, str) else video_paths
     except (json.JSONDecodeError, TypeError):
-        return json.dumps({"error": "video_paths 必须是 JSON 数组字符串", "success": False},
-                          ensure_ascii=False)
+        return json.dumps({"error": "video_paths 必须是 JSON 数组字符串", "success": False}, ensure_ascii=False)
 
     if not paths or len(paths) < 2:
-        return json.dumps({"error": "至少需要 2 个视频文件进行拼接", "success": False},
-                          ensure_ascii=False)
+        return json.dumps({"error": "至少需要 2 个视频文件进行拼接", "success": False}, ensure_ascii=False)
 
     # 验证文件存在
     missing = [p for p in paths if not Path(p).exists()]
     if missing:
-        return json.dumps({"error": f"以下文件不存在: {missing}", "success": False},
-                          ensure_ascii=False)
+        return json.dumps({"error": f"以下文件不存在: {missing}", "success": False}, ensure_ascii=False)
 
     # 生成 concat file list
     with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as f:
@@ -97,32 +108,59 @@ def execute_video_concat(video_paths: str, project_name: str = "") -> str:
     out_path = _safe_output_path(prefix.replace(" ", "_"))
 
     try:
-        r = _run(["ffmpeg", "-y", "-f", "concat", "-safe", "0",
-                   "-i", concat_list, "-c:v", "libx264", "-crf", "18",
-                   "-preset", "medium", "-c:a", "aac", "-b:a", "192k",
-                   "-movflags", "+faststart", out_path], timeout=600)
+        r = _run(
+            [
+                "ffmpeg",
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                concat_list,
+                "-c:v",
+                "libx264",
+                "-crf",
+                "18",
+                "-preset",
+                "medium",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-movflags",
+                "+faststart",
+                out_path,
+            ],
+            timeout=600,
+        )
         if r.returncode != 0:
             err_msg = (r.stderr or "")[-500:]
-            return json.dumps({"error": f"拼接失败: {err_msg}", "success": False},
-                              ensure_ascii=False)
+            return json.dumps({"error": f"拼接失败: {err_msg}", "success": False}, ensure_ascii=False)
     finally:
         Path(concat_list).unlink(missing_ok=True)
 
     size = Path(out_path).stat().st_size
-    return json.dumps({
-        "success": True,
-        "output_path": out_path,
-        "input_count": len(paths),
-        "file_size_mb": round(size / 1024 / 1024, 2),
-        "message": f"已拼接 {len(paths)} 段视频 → {out_path}",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "output_path": out_path,
+            "input_count": len(paths),
+            "file_size_mb": round(size / 1024 / 1024, 2),
+            "message": f"已拼接 {len(paths)} 段视频 → {out_path}",
+        },
+        ensure_ascii=False,
+    )
+
 
 # ============================================================
 #  工具2: video_trim — 剪辑指定片段
 # ============================================================
 
-def execute_video_trim(video_path: str, start_seconds: float = 0,
-                       end_seconds: float = -1, project_name: str = "") -> str:
+
+def execute_video_trim(
+    video_path: str, start_seconds: float = 0, end_seconds: float = -1, project_name: str = ""
+) -> str:
     """剪辑视频的指定时间段。
 
     Args:
@@ -137,12 +175,22 @@ def execute_video_trim(video_path: str, start_seconds: float = 0,
 
     vp = Path(video_path)
     if not vp.exists():
-        return json.dumps({"error": f"视频文件不存在: {video_path}", "success": False},
-                          ensure_ascii=False)
+        return json.dumps({"error": f"视频文件不存在: {video_path}", "success": False}, ensure_ascii=False)
 
     # 获取时长
-    probe = _run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
-                   "-of", "default=noprint_wrappers=1:nokey=1", str(vp)], timeout=15)
+    probe = _run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            str(vp),
+        ],
+        timeout=15,
+    )
     duration = 0
     with contextlib.suppress(ValueError):
         duration = float(probe.stdout.strip())
@@ -151,40 +199,71 @@ def execute_video_trim(video_path: str, start_seconds: float = 0,
         end_seconds = duration
 
     if start_seconds < 0 or start_seconds >= duration:
-        return json.dumps({"error": f"起始时间 {start_seconds}s 不合法（时长 {duration:.1f}s）",
-                           "success": False}, ensure_ascii=False)
+        return json.dumps(
+            {"error": f"起始时间 {start_seconds}s 不合法（时长 {duration:.1f}s）", "success": False}, ensure_ascii=False
+        )
 
     prefix = project_name or vp.stem
     out_path = _safe_output_path(f"{prefix}_trim")
 
-    r = _run(["ffmpeg", "-y", "-ss", str(start_seconds), "-to", str(end_seconds),
-               "-i", str(vp), "-c:v", "libx264", "-crf", "18", "-preset", "medium",
-               "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out_path],
-             timeout=600)
+    r = _run(
+        [
+            "ffmpeg",
+            "-y",
+            "-ss",
+            str(start_seconds),
+            "-to",
+            str(end_seconds),
+            "-i",
+            str(vp),
+            "-c:v",
+            "libx264",
+            "-crf",
+            "18",
+            "-preset",
+            "medium",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
+            "-movflags",
+            "+faststart",
+            out_path,
+        ],
+        timeout=600,
+    )
 
     if r.returncode != 0:
         err_msg = (r.stderr or "")[-500:]
-        return json.dumps({"error": f"剪辑失败: {err_msg}", "success": False},
-                          ensure_ascii=False)
+        return json.dumps({"error": f"剪辑失败: {err_msg}", "success": False}, ensure_ascii=False)
 
     size = Path(out_path).stat().st_size
-    return json.dumps({
-        "success": True,
-        "output_path": out_path,
-        "start_seconds": start_seconds,
-        "end_seconds": end_seconds,
-        "clip_duration_s": round(end_seconds - start_seconds, 1),
-        "file_size_mb": round(size / 1024 / 1024, 2),
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "output_path": out_path,
+            "start_seconds": start_seconds,
+            "end_seconds": end_seconds,
+            "clip_duration_s": round(end_seconds - start_seconds, 1),
+            "file_size_mb": round(size / 1024 / 1024, 2),
+        },
+        ensure_ascii=False,
+    )
+
 
 # ============================================================
 #  工具3: composite_overlay — 画中画/叠加字幕/叠加水印
 # ============================================================
 
-def execute_composite_overlay(video_path: str, overlay_type: str = "subtitle",
-                              overlay_text: str = "", image_path: str = "",
-                              position: str = "bottom-center",
-                              project_name: str = "") -> str:
+
+def execute_composite_overlay(
+    video_path: str,
+    overlay_type: str = "subtitle",
+    overlay_text: str = "",
+    image_path: str = "",
+    position: str = "bottom-center",
+    project_name: str = "",
+) -> str:
     """在视频上叠加文字字幕或图片水印/画中画。
 
     Args:
@@ -201,17 +280,16 @@ def execute_composite_overlay(video_path: str, overlay_type: str = "subtitle",
 
     vp = Path(video_path)
     if not vp.exists():
-        return json.dumps({"error": f"视频文件不存在: {video_path}", "success": False},
-                          ensure_ascii=False)
+        return json.dumps({"error": f"视频文件不存在: {video_path}", "success": False}, ensure_ascii=False)
 
     # 位置 → drawtext x:y 或 overlay x:y
     # 默认 1920x1080 坐标系
     POS_MAP = {
-        "top-left":     ("10", "10"),
-        "top-center":   ("(w-text_w)/2", "10"),
-        "top-right":    ("(w-text_w)-10", "10"),
-        "center":       ("(w-text_w)/2", "(h-text_h)/2"),
-        "bottom-left":  ("10", "(h-text_h)-10"),
+        "top-left": ("10", "10"),
+        "top-center": ("(w-text_w)/2", "10"),
+        "top-right": ("(w-text_w)-10", "10"),
+        "center": ("(w-text_w)/2", "(h-text_h)/2"),
+        "bottom-left": ("10", "(h-text_h)-10"),
         "bottom-center": ("(w-text_w)/2", "(h-text_h)-10"),
         "bottom-right": ("(w-text_w)-10", "(h-text_h)-10"),
     }
@@ -223,50 +301,104 @@ def execute_composite_overlay(video_path: str, overlay_type: str = "subtitle",
         # 用 drawtext 滤镜叠加文字
         # 转义特殊字符
         safe_text = overlay_text.replace("'", "\\'").replace(":", "\\:")
-        vf = (f"drawtext=text='{safe_text}':fontcolor=white:fontsize=28:"
-              f"box=1:boxcolor=black@0.5:boxborderw=10:"
-              f"x={pos_x}:y={pos_y}:fontfile=/Windows/Fonts/msyh.ttc")
-        r = _run(["ffmpeg", "-y", "-i", str(vp), "-vf", vf,
-                   "-c:v", "libx264", "-crf", "18", "-preset", "medium",
-                   "-c:a", "aac", "-b:a", "192k", out_path], timeout=300)
+        vf = (
+            f"drawtext=text='{safe_text}':fontcolor=white:fontsize=28:"
+            f"box=1:boxcolor=black@0.5:boxborderw=10:"
+            f"x={pos_x}:y={pos_y}:fontfile=/Windows/Fonts/msyh.ttc"
+        )
+        r = _run(
+            [
+                "ffmpeg",
+                "-y",
+                "-i",
+                str(vp),
+                "-vf",
+                vf,
+                "-c:v",
+                "libx264",
+                "-crf",
+                "18",
+                "-preset",
+                "medium",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                out_path,
+            ],
+            timeout=300,
+        )
     elif overlay_type in ("watermark", "pip") and image_path:
         ip = Path(image_path)
         if not ip.exists():
-            return json.dumps({"error": f"叠加图片不存在: {image_path}", "success": False},
-                              ensure_ascii=False)
+            return json.dumps({"error": f"叠加图片不存在: {image_path}", "success": False}, ensure_ascii=False)
         # 图片叠加
-        ol_x = {"top-left": "10", "top-right": "W-w-10", "bottom-left": "10",
-                "bottom-right": "W-w-10", "center": "(W-w)/2",
-                "top-center": "(W-w)/2", "bottom-center": "(W-w)/2"}.get(position, "W-w-10")
-        ol_y = {"top-left": "10", "top-right": "10", "top-center": "10",
-                "bottom-left": "H-h-10", "bottom-right": "H-h-10",
-                "bottom-center": "H-h-10", "center": "(H-h)/2"}.get(position, "H-h-10")
-        r = _run(["ffmpeg", "-y", "-i", str(vp), "-i", str(ip),
-                   "-filter_complex", f"[1:v]scale=iw*0.3:ih*0.3[ol];[0:v][ol]overlay={ol_x}:{ol_y}",
-                   "-c:v", "libx264", "-crf", "18", "-preset", "medium",
-                   "-c:a", "aac", "-b:a", "192k", out_path], timeout=300)
+        ol_x = {
+            "top-left": "10",
+            "top-right": "W-w-10",
+            "bottom-left": "10",
+            "bottom-right": "W-w-10",
+            "center": "(W-w)/2",
+            "top-center": "(W-w)/2",
+            "bottom-center": "(W-w)/2",
+        }.get(position, "W-w-10")
+        ol_y = {
+            "top-left": "10",
+            "top-right": "10",
+            "top-center": "10",
+            "bottom-left": "H-h-10",
+            "bottom-right": "H-h-10",
+            "bottom-center": "H-h-10",
+            "center": "(H-h)/2",
+        }.get(position, "H-h-10")
+        r = _run(
+            [
+                "ffmpeg",
+                "-y",
+                "-i",
+                str(vp),
+                "-i",
+                str(ip),
+                "-filter_complex",
+                f"[1:v]scale=iw*0.3:ih*0.3[ol];[0:v][ol]overlay={ol_x}:{ol_y}",
+                "-c:v",
+                "libx264",
+                "-crf",
+                "18",
+                "-preset",
+                "medium",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                out_path,
+            ],
+            timeout=300,
+        )
     else:
-        return json.dumps({"error": f"不支持的叠加类型: {overlay_type}", "success": False},
-                          ensure_ascii=False)
+        return json.dumps({"error": f"不支持的叠加类型: {overlay_type}", "success": False}, ensure_ascii=False)
 
     if r.returncode != 0:
         err_msg = (r.stderr or "")[-500:]
-        return json.dumps({"error": f"叠加失败: {err_msg}", "success": False},
-                          ensure_ascii=False)
+        return json.dumps({"error": f"叠加失败: {err_msg}", "success": False}, ensure_ascii=False)
 
-    return json.dumps({
-        "success": True,
-        "output_path": out_path,
-        "overlay_type": overlay_type,
-        "position": position,
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "output_path": out_path,
+            "overlay_type": overlay_type,
+            "position": position,
+        },
+        ensure_ascii=False,
+    )
+
 
 # ============================================================
 #  工具4: video_speed — 变速
 # ============================================================
 
-def execute_video_speed(video_path: str, speed: float = 1.0,
-                        project_name: str = "") -> str:
+
+def execute_video_speed(video_path: str, speed: float = 1.0, project_name: str = "") -> str:
     """调整视频播放速度。
 
     Args:
@@ -280,12 +412,10 @@ def execute_video_speed(video_path: str, speed: float = 1.0,
 
     vp = Path(video_path)
     if not vp.exists():
-        return json.dumps({"error": f"视频文件不存在: {video_path}", "success": False},
-                          ensure_ascii=False)
+        return json.dumps({"error": f"视频文件不存在: {video_path}", "success": False}, ensure_ascii=False)
 
     if speed <= 0:
-        return json.dumps({"error": "速度倍率必须大于 0", "success": False},
-                          ensure_ascii=False)
+        return json.dumps({"error": "速度倍率必须大于 0", "success": False}, ensure_ascii=False)
 
     prefix = project_name or vp.stem
     label = f"{speed}x".replace(".", "p")
@@ -302,30 +432,59 @@ def execute_video_speed(video_path: str, speed: float = 1.0,
     else:
         a_tempo = f"atempo={speed / 2},atempo=2.0"
 
-    r = _run(["ffmpeg", "-y", "-i", str(vp),
-               "-filter_complex", f"[0:v]{v_pts}[v];[0:a]{a_tempo}[a]",
-               "-map", "[v]", "-map", "[a]",
-               "-c:v", "libx264", "-crf", "18", "-preset", "medium",
-               "-c:a", "aac", "-b:a", "192k", out_path], timeout=600)
+    r = _run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(vp),
+            "-filter_complex",
+            f"[0:v]{v_pts}[v];[0:a]{a_tempo}[a]",
+            "-map",
+            "[v]",
+            "-map",
+            "[a]",
+            "-c:v",
+            "libx264",
+            "-crf",
+            "18",
+            "-preset",
+            "medium",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
+            out_path,
+        ],
+        timeout=600,
+    )
 
     if r.returncode != 0:
         err_msg = (r.stderr or "")[-500:]
-        return json.dumps({"error": f"变速失败: {err_msg}", "success": False},
-                          ensure_ascii=False)
+        return json.dumps({"error": f"变速失败: {err_msg}", "success": False}, ensure_ascii=False)
 
-    return json.dumps({
-        "success": True,
-        "output_path": out_path,
-        "speed": speed,
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "output_path": out_path,
+            "speed": speed,
+        },
+        ensure_ascii=False,
+    )
+
 
 # ============================================================
 #  工具5: render_final — 多段视频+音频+转场一键成片
 # ============================================================
 
-def execute_render_final(video_segments: str, audio_path: str = "",
-                         transitions: str = "fade", bgm_path: str = "",
-                         project_name: str = "final") -> str:
+
+def execute_render_final(
+    video_segments: str,
+    audio_path: str = "",
+    transitions: str = "fade",
+    bgm_path: str = "",
+    project_name: str = "final",
+) -> str:
     """将多个视频片段 + 音频 + 转场效果合成为最终成片。
 
     Args:
@@ -342,19 +501,16 @@ def execute_render_final(video_segments: str, audio_path: str = "",
     try:
         segments = json.loads(video_segments) if isinstance(video_segments, str) else video_segments
     except (json.JSONDecodeError, TypeError):
-        return json.dumps({"error": "video_segments 必须是 JSON 数组", "success": False},
-                          ensure_ascii=False)
+        return json.dumps({"error": "video_segments 必须是 JSON 数组", "success": False}, ensure_ascii=False)
 
     if not segments:
-        return json.dumps({"error": "video_segments 不能为空", "success": False},
-                          ensure_ascii=False)
+        return json.dumps({"error": "video_segments 不能为空", "success": False}, ensure_ascii=False)
 
     # 验证文件
     for seg in segments:
         p = seg.get("path", "")
         if not p or not Path(p).exists():
-            return json.dumps({"error": f"片段文件不存在: {p}", "success": False},
-                              ensure_ascii=False)
+            return json.dumps({"error": f"片段文件不存在: {p}", "success": False}, ensure_ascii=False)
 
     # 检查音频文件
     has_narration = audio_path and Path(audio_path).exists()
@@ -368,8 +524,20 @@ def execute_render_final(video_segments: str, audio_path: str = "",
         cmd = ["ffmpeg", "-y", "-i", seg_path]
         if has_narration:
             cmd += ["-i", audio_path]
-            cmd += ["-c:v", "copy", "-map", "0:v:0", "-map", "1:a:0",
-                    "-c:a", "aac", "-b:a", "192k", "-shortest", out_path]
+            cmd += [
+                "-c:v",
+                "copy",
+                "-map",
+                "0:v:0",
+                "-map",
+                "1:a:0",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-shortest",
+                out_path,
+            ]
         else:
             cmd += ["-c:v", "copy", "-c:a", "copy", out_path]
         r = _run(cmd, timeout=300)
@@ -385,31 +553,65 @@ def execute_render_final(video_segments: str, audio_path: str = "",
             dur = seg.get("duration", 2.0)
             if transitions == "fade":
                 fade_dur = min(0.5, dur / 4)
-                r = _run(["ffmpeg", "-y", "-i", seg["path"],
-                           "-vf", f"fade=in:0:d={fade_dur},fade=out:st={dur - fade_dur}:d={fade_dur}",
-                           "-c:v", "libx264", "-crf", "18", "-preset", "fast",
-                           "-c:a", "aac", "-b:a", "192k", tsp], timeout=120)
+                r = _run(
+                    [
+                        "ffmpeg",
+                        "-y",
+                        "-i",
+                        seg["path"],
+                        "-vf",
+                        f"fade=in:0:d={fade_dur},fade=out:st={dur - fade_dur}:d={fade_dur}",
+                        "-c:v",
+                        "libx264",
+                        "-crf",
+                        "18",
+                        "-preset",
+                        "fast",
+                        "-c:a",
+                        "aac",
+                        "-b:a",
+                        "192k",
+                        tsp,
+                    ],
+                    timeout=120,
+                )
             else:
-                r = _run(["ffmpeg", "-y", "-i", seg["path"],
-                           "-c:v", "libx264", "-crf", "18", "-preset", "fast",
-                           "-c:a", "aac", "-b:a", "192k", tsp], timeout=120)
+                r = _run(
+                    [
+                        "ffmpeg",
+                        "-y",
+                        "-i",
+                        seg["path"],
+                        "-c:v",
+                        "libx264",
+                        "-crf",
+                        "18",
+                        "-preset",
+                        "fast",
+                        "-c:a",
+                        "aac",
+                        "-b:a",
+                        "192k",
+                        tsp,
+                    ],
+                    timeout=120,
+                )
             if r.returncode == 0 and Path(tsp).exists():
                 temp_segs.append(tsp)
 
         if not temp_segs:
-            return json.dumps({"error": "所有片段预处理失败", "success": False},
-                              ensure_ascii=False)
+            return json.dumps({"error": "所有片段预处理失败", "success": False}, ensure_ascii=False)
 
         # concat demuxer
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False,
-                                         encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as f:
             for tsp in temp_segs:
                 f.write(f"file '{Path(tsp).absolute().as_posix()}'\n")
             concat_list = f.name
 
         concat_video = _safe_output_path("_temp_video")
-        r = _run(["ffmpeg", "-y", "-f", "concat", "-safe", "0",
-                   "-i", concat_list, "-c", "copy", concat_video], timeout=300)
+        r = _run(
+            ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list, "-c", "copy", concat_video], timeout=300
+        )
 
         # 清理临时文件
         Path(concat_list).unlink(missing_ok=True)
@@ -417,8 +619,9 @@ def execute_render_final(video_segments: str, audio_path: str = "",
             Path(tsp).unlink(missing_ok=True)
 
         if r.returncode != 0:
-            return json.dumps({"error": f"视频拼接失败: {(r.stderr or '')[-300:]}",
-                               "success": False}, ensure_ascii=False)
+            return json.dumps(
+                {"error": f"视频拼接失败: {(r.stderr or '')[-300:]}", "success": False}, ensure_ascii=False
+            )
 
         # 混合音频（旁白 + BGM）
         if has_narration or has_bgm:
@@ -445,16 +648,52 @@ def execute_render_final(video_segments: str, audio_path: str = "",
                 amix = "[bgm]anull[outa]"
 
             af = ";".join(filter_parts) + ";" + amix
-            cmd = ["ffmpeg", "-y", "-i", concat_video] + audio_inputs + \
-                  ["-filter_complex", af, "-map", "0:v:0", "-map", "[outa]",
-                   "-c:v", "libx264", "-crf", "18", "-preset", "medium",
-                   "-c:a", "aac", "-b:a", "192k", "-shortest",
-                   "-movflags", "+faststart", out_path]
+            cmd = (
+                ["ffmpeg", "-y", "-i", concat_video]
+                + audio_inputs
+                + [
+                    "-filter_complex",
+                    af,
+                    "-map",
+                    "0:v:0",
+                    "-map",
+                    "[outa]",
+                    "-c:v",
+                    "libx264",
+                    "-crf",
+                    "18",
+                    "-preset",
+                    "medium",
+                    "-c:a",
+                    "aac",
+                    "-b:a",
+                    "192k",
+                    "-shortest",
+                    "-movflags",
+                    "+faststart",
+                    out_path,
+                ]
+            )
         else:
-            cmd = ["ffmpeg", "-y", "-i", concat_video,
-                   "-c:v", "libx264", "-crf", "18", "-preset", "medium",
-                   "-c:a", "aac", "-b:a", "192k",
-                   "-movflags", "+faststart", out_path]
+            cmd = [
+                "ffmpeg",
+                "-y",
+                "-i",
+                concat_video,
+                "-c:v",
+                "libx264",
+                "-crf",
+                "18",
+                "-preset",
+                "medium",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-movflags",
+                "+faststart",
+                out_path,
+            ]
 
         r = _run(cmd, timeout=900)
 
@@ -462,20 +701,25 @@ def execute_render_final(video_segments: str, audio_path: str = "",
         Path(concat_video).unlink(missing_ok=True)
 
         if r.returncode != 0:
-            return json.dumps({"error": f"最终渲染失败: {(r.stderr or '')[-300:]}",
-                               "success": False}, ensure_ascii=False)
+            return json.dumps(
+                {"error": f"最终渲染失败: {(r.stderr or '')[-300:]}", "success": False}, ensure_ascii=False
+            )
 
     size = Path(out_path).stat().st_size
-    return json.dumps({
-        "success": True,
-        "output_path": out_path,
-        "segment_count": len(segments),
-        "transitions": transitions,
-        "has_narration": has_narration,
-        "has_bgm": has_bgm,
-        "file_size_mb": round(size / 1024 / 1024, 2),
-        "message": f"成片已输出: {out_path}",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "output_path": out_path,
+            "segment_count": len(segments),
+            "transitions": transitions,
+            "has_narration": has_narration,
+            "has_bgm": has_bgm,
+            "file_size_mb": round(size / 1024 / 1024, 2),
+            "message": f"成片已输出: {out_path}",
+        },
+        ensure_ascii=False,
+    )
+
 
 # ============================================================
 #  工具定义（OpenAI function calling 格式）
@@ -492,12 +736,9 @@ VIDEO_EDITOR_TOOL_DEFS = [
                 "properties": {
                     "video_paths": {
                         "type": "string",
-                        "description": "JSON数组字符串，如 '[\"a.mp4\",\"b.mp4\"]'，按此顺序拼接"
+                        "description": 'JSON数组字符串，如 \'["a.mp4","b.mp4"]\'，按此顺序拼接',
                     },
-                    "project_name": {
-                        "type": "string",
-                        "description": "可选项目名，用于输出文件命名"
-                    },
+                    "project_name": {"type": "string", "description": "可选项目名，用于输出文件命名"},
                 },
                 "required": ["video_paths"],
             },
@@ -531,13 +772,13 @@ VIDEO_EDITOR_TOOL_DEFS = [
                     "video_path": {"type": "string", "description": "视频文件路径"},
                     "overlay_type": {
                         "type": "string",
-                        "description": "叠加类型: subtitle(文字字幕)/watermark(图片水印)/pip(画中画)"
+                        "description": "叠加类型: subtitle(文字字幕)/watermark(图片水印)/pip(画中画)",
                     },
                     "overlay_text": {"type": "string", "description": "字幕文字内容(subtitle模式)"},
                     "image_path": {"type": "string", "description": "叠加图片路径(watermark/pip模式)"},
                     "position": {
                         "type": "string",
-                        "description": "位置: top-left/top-center/top-right/center/bottom-left/bottom-center/bottom-right"
+                        "description": "位置: top-left/top-center/top-right/center/bottom-left/bottom-center/bottom-right",
                     },
                     "project_name": {"type": "string", "description": "可选项目名"},
                 },
@@ -556,7 +797,7 @@ VIDEO_EDITOR_TOOL_DEFS = [
                     "video_path": {"type": "string", "description": "视频文件路径"},
                     "speed": {
                         "type": "number",
-                        "description": "速度倍率: 0.25=4倍慢放, 0.5=2倍慢放, 1=原速, 2=2倍快放"
+                        "description": "速度倍率: 0.25=4倍慢放, 0.5=2倍慢放, 1=原速, 2=2倍快放",
                     },
                     "project_name": {"type": "string", "description": "可选项目名"},
                 },
@@ -574,24 +815,15 @@ VIDEO_EDITOR_TOOL_DEFS = [
                 "properties": {
                     "video_segments": {
                         "type": "string",
-                        "description": "JSON数组，每个元素 {\"path\":\"x.mp4\",\"duration\":5.0}"
+                        "description": 'JSON数组，每个元素 {"path":"x.mp4","duration":5.0}',
                     },
-                    "audio_path": {
-                        "type": "string",
-                        "description": "旁白/配音音频文件路径（可选）"
-                    },
+                    "audio_path": {"type": "string", "description": "旁白/配音音频文件路径（可选）"},
                     "transitions": {
                         "type": "string",
-                        "description": "转场: fade 淡入淡出 / dissolve 交叉溶解 / none 无"
+                        "description": "转场: fade 淡入淡出 / dissolve 交叉溶解 / none 无",
                     },
-                    "bgm_path": {
-                        "type": "string",
-                        "description": "背景音乐文件路径（可选）"
-                    },
-                    "project_name": {
-                        "type": "string",
-                        "description": "项目名，用于输出命名"
-                    },
+                    "bgm_path": {"type": "string", "description": "背景音乐文件路径（可选）"},
+                    "project_name": {"type": "string", "description": "项目名，用于输出命名"},
                 },
                 "required": ["video_segments"],
             },

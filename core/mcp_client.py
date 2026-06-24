@@ -31,11 +31,16 @@ from dataclasses import asdict, dataclass, field
 from core.config import OUTPUT_DIR
 
 __all__ = [
-    'MCPClient', 'MCPServerConfig', 'MCP_EXECUTOR_MAP', 'MCP_TOOL_DEFS', 'get_mcp_client',
+    "MCPClient",
+    "MCPServerConfig",
+    "MCP_EXECUTOR_MAP",
+    "MCP_TOOL_DEFS",
+    "get_mcp_client",
 ]
 
 
 # ── Server Configuration ──────────────────────────────────
+
 
 @dataclass
 class MCPServerConfig:
@@ -49,6 +54,7 @@ class MCPServerConfig:
 
 
 # ── MCP Client ────────────────────────────────────────────
+
 
 class MCPClient:
     """Manages MCP server connections, tool/resource discovery, and invocation.
@@ -68,6 +74,7 @@ class MCPClient:
         self._next_id = 1
         self._load_config()
         import atexit
+
         atexit.register(self._cleanup_all)
 
     def _cleanup_all(self):
@@ -581,6 +588,7 @@ MCP_TOOL_DEFS = [
 
 # ── Executor Functions ────────────────────────────────────
 
+
 def _exec_mcp_list_servers(**kwargs) -> str:
     """Executor: list all configured MCP servers."""
     client = get_mcp_client()
@@ -611,9 +619,7 @@ def _exec_mcp_call_tool(**kwargs) -> str:
         try:
             arguments = json.loads(arguments_str)
         except json.JSONDecodeError:
-            return json.dumps(
-                {"error": "Invalid JSON in arguments parameter"}, ensure_ascii=False
-            )
+            return json.dumps({"error": "Invalid JSON in arguments parameter"}, ensure_ascii=False)
     # Auto-connect if not already connected
     if name not in client._processes:
         connect_result = client.connect(name)

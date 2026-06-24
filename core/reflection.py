@@ -77,7 +77,7 @@ class ReflectionEngine:
         self._recent_calls.append(entry)
         # 只保留最近 max_recent 条
         if len(self._recent_calls) > self._max_recent:
-            self._recent_calls = self._recent_calls[-self._max_recent:]
+            self._recent_calls = self._recent_calls[-self._max_recent :]
 
     def maybe_critique(self) -> str | None:
         """每 N 次调用触发一次反思，返回 critique 文本或 None。
@@ -140,7 +140,7 @@ class ReflectionEngine:
         # error=True 的调用排在前面，便于反思聚焦失败
         sorted_calls = sorted(
             self._recent_calls,
-            key=lambda c: (0 if c.get("error") else 1),
+            key=lambda c: 0 if c.get("error") else 1,
         )
 
         lines = []

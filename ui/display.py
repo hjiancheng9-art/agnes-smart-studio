@@ -15,11 +15,21 @@ from rich.table import Table
 from ui.theme import COLORS, ICONS, LAYOUT, console  # noqa: F401 — re-exported
 
 __all__ = [
-    'COLORS', 'console', 'get_recent_outputs', 'open_file',
-    'show_error', 'show_history_table', 'show_image_result',
-    'show_info', 'show_pipeline_result', 'show_result',
-    'show_success', 'show_templates_list', 'show_video_result',
-    'show_warning', 'track_output',
+    "COLORS",
+    "console",
+    "get_recent_outputs",
+    "open_file",
+    "show_error",
+    "show_history_table",
+    "show_image_result",
+    "show_info",
+    "show_pipeline_result",
+    "show_result",
+    "show_success",
+    "show_templates_list",
+    "show_video_result",
+    "show_warning",
+    "track_output",
 ]
 
 # ── Recent output tracking (for /open and /outputs) ──────────────
@@ -32,12 +42,15 @@ def track_output(output_type: str, data: dict):
     """Record a generation result to the recent list."""
     path = data.get("local_path", "") or data.get("url", "")
     if path:
-        _recent_outputs.insert(0, {
-            "type": output_type,
-            "path": path,
-            "prompt": data.get("prompt", "")[:60],
-            "data": data,
-        })
+        _recent_outputs.insert(
+            0,
+            {
+                "type": output_type,
+                "path": path,
+                "prompt": data.get("prompt", "")[:60],
+                "data": data,
+            },
+        )
         if len(_recent_outputs) > _MAX_RECENT:
             _recent_outputs.pop()
 
@@ -65,14 +78,17 @@ def open_file(path: str) -> bool:
 
 # ── Status message functions ──────────────────────────────────────
 
+
 def show_error(message: str):
     """Display error message in a rounded Panel."""
-    console.print(Panel(
-        message,
-        title=f"[bold {COLORS['error']}]⊗ Error[/]",
-        border_style=COLORS["error"],
-        padding=LAYOUT["panel_padding"],
-    ))
+    console.print(
+        Panel(
+            message,
+            title=f"[bold {COLORS['error']}]⊗ Error[/]",
+            border_style=COLORS["error"],
+            padding=LAYOUT["panel_padding"],
+        )
+    )
 
 
 def show_warning(message: str):
@@ -91,6 +107,7 @@ def show_info(message: str):
 
 
 # ── Result display functions ──────────────────────────────────────
+
 
 def show_result(result: dict, title: str = "Results"):
     """Display a single generation result as a table."""
@@ -132,14 +149,16 @@ def show_image_result(data: dict):
     if data.get("prompt"):
         items.append(f"[bold][{COLORS['primary']}]{ICONS['primary']}[/] Prompt:[/] {data['prompt'][:80]}...")
     if path:
-        items.append("\n[dim]  /open preview | /outputs all | say \"modify xxx\" to regenerate[/]")
+        items.append('\n[dim]  /open preview | /outputs all | say "modify xxx" to regenerate[/]')
 
-    console.print(Panel(
-        "\n".join(items),
-        title=f"[{COLORS['success']}]✿ Image generated[/]",
-        border_style=COLORS["success"],
-        padding=LAYOUT["panel_padding"],
-    ))
+    console.print(
+        Panel(
+            "\n".join(items),
+            title=f"[{COLORS['success']}]✿ Image generated[/]",
+            border_style=COLORS["success"],
+            padding=LAYOUT["panel_padding"],
+        )
+    )
     # Auto-open preview
     if path:
         try:
@@ -164,14 +183,16 @@ def show_video_result(data: dict):
     if data.get("task_id"):
         items.append(f"[dim]{ICONS['primary']} Task ID: {data['task_id']}[/]")
     if path:
-        items.append("\n[dim]  /open preview | /outputs all | say \"modify xxx\" to regenerate[/]")
+        items.append('\n[dim]  /open preview | /outputs all | say "modify xxx" to regenerate[/]')
 
-    console.print(Panel(
-        "\n".join(items),
-        title=f"[{COLORS['accent']}]↝ Video generated[/]",
-        border_style=COLORS["accent"],
-        padding=LAYOUT["panel_padding"],
-    ))
+    console.print(
+        Panel(
+            "\n".join(items),
+            title=f"[{COLORS['accent']}]↝ Video generated[/]",
+            border_style=COLORS["accent"],
+            padding=LAYOUT["panel_padding"],
+        )
+    )
     # Don't auto-open videos (may be large)
     if path:
         console.print("[dim]  Enter /open to preview[/]")
@@ -190,6 +211,7 @@ def show_pipeline_result(data: dict):
 
 
 # ── History / Template tables ─────────────────────────────────────
+
 
 def show_history_table(records: list[dict]):
     """Display generation history as a table."""

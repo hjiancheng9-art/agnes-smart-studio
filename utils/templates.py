@@ -2,8 +2,7 @@
 
 from core.config import PROMPT_TEMPLATES
 
-__all__ = ['apply_template', 'get_template', 'get_template_info', 'list_templates']
-
+__all__ = ["apply_template", "get_template", "get_template_info", "list_templates"]
 
 
 def list_templates() -> list[str]:

@@ -9,10 +9,11 @@ import time
 from collections import deque
 from pathlib import Path
 
-__all__ = ['MEMORY_FILE', 'ROOT', 'SemanticMemory', 'get_memory']
+__all__ = ["MEMORY_FILE", "ROOT", "SemanticMemory", "get_memory"]
 
 ROOT = Path(__file__).resolve().parent.parent
 MEMORY_FILE = ROOT / "output" / "memory.json"
+
 
 class SemanticMemory:
     def __init__(self, path: Path | None = None) -> None:
@@ -26,34 +27,27 @@ class SemanticMemory:
                 return json.loads(self.path.read_text(encoding="utf-8"))
             except json.JSONDecodeError:
                 pass
-        return {"preferences": {}, "decisions": [], "project_context": {},
-                "corrections": [], "learned_patterns": {}}
+        return {"preferences": {}, "decisions": [], "project_context": {}, "corrections": [], "learned_patterns": {}}
 
     def _save(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(self.data, ensure_ascii=False, indent=2),
-                            encoding="utf-8")
+        self.path.write_text(json.dumps(self.data, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def record_decision(self, context: str, choice: str, outcome: str):
-        entry = {"ts": time.time(), "context": context[:200],
-                 "choice": choice[:200], "outcome": outcome[:200]}
+        entry = {"ts": time.time(), "context": context[:200], "choice": choice[:200], "outcome": outcome[:200]}
         self.data["decisions"].append(entry)
         if len(self.data["decisions"]) > 100:
             self.data["decisions"] = self.data["decisions"][-100:]
         self._save()
 
     def record_correction(self, problem: str, fix: str):
-        self.data["corrections"].append({
-            "ts": time.time(), "problem": problem[:300], "fix": fix[:300]
-        })
+        self.data["corrections"].append({"ts": time.time(), "problem": problem[:300], "fix": fix[:300]})
         if len(self.data["corrections"]) > 50:
             self.data["corrections"] = self.data["corrections"][-50:]
         self._save()
 
     def learn_pattern(self, name: str, pattern: str, replacement: str):
-        self.data["learned_patterns"][name] = {
-            "pattern": pattern, "replacement": replacement, "ts": time.time()
-        }
+        self.data["learned_patterns"][name] = {"pattern": pattern, "replacement": replacement, "ts": time.time()}
         self._save()
 
     def set_project_context(self, key: str, value: str):
@@ -95,8 +89,10 @@ class SemanticMemory:
 
         return "\n\n".join(parts) if parts else ""
 
+
 # Global singleton
 _memory = SemanticMemory()
+
 
 def get_memory() -> SemanticMemory:
     return _memory

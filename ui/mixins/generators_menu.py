@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from engines.video import VideoEngine
     from pipeline.workflows import PipelineOrchestrator
 
-__all__ = ['GeneratorsMenuMixin']
+__all__ = ["GeneratorsMenuMixin"]
 
 
 class GeneratorsMenuMixin:
@@ -39,23 +39,16 @@ class GeneratorsMenuMixin:
     pipe: PipelineOrchestrator
 
     # Methods provided by SharedMixin (sibling in MRO)
-    def _ask_rating(self, record: dict, kind: str, prompt: str, data: dict) -> None:
-        ...
-    def _pick_size(self) -> str:
-        ...
-    def _pick_template(self) -> str | None:
-        ...
-    def _pick_video_aspect(self) -> tuple[int, int]:
-        ...
+    def _ask_rating(self, record: dict, kind: str, prompt: str, data: dict) -> None: ...
+    def _pick_size(self) -> str: ...
+    def _pick_template(self) -> str | None: ...
+    def _pick_video_aspect(self) -> tuple[int, int]: ...
 
     @staticmethod
-    def _pick_video_duration() -> tuple[int, int]:
-        ...
+    def _pick_video_duration() -> tuple[int, int]: ...
 
     @staticmethod
-    def _extract_path_and_text(raw: str) -> tuple[str, str]:
-        ...
-
+    def _extract_path_and_text(raw: str) -> tuple[str, str]: ...
 
     def _t2i(self):
         prompt = Prompt.ask("[cyan]图片描述[/]")
@@ -70,7 +63,7 @@ class GeneratorsMenuMixin:
         show_info("生成中...")
         data = self.t2i.generate(prompt=prompt, size=size)
         show_image_result(data)
-        record = history.add_record("text_to_image", prompt, data.get("model",""), data)
+        record = history.add_record("text_to_image", prompt, data.get("model", ""), data)
         self._ask_rating(record, "text_to_image", prompt, data)
 
     def _i2i(self):
@@ -99,7 +92,7 @@ class GeneratorsMenuMixin:
         show_info("理解图片并生成编辑...")
         data = self.i2i.edit(prompt=prompt, image_urls=url, size=size)
         show_image_result(data)
-        record = history.add_record("image_to_image", prompt, data.get("model",""), data)
+        record = history.add_record("image_to_image", prompt, data.get("model", ""), data)
         self._ask_rating(record, "image_to_image", prompt, data)
 
     def _t2v(self):
@@ -116,10 +109,12 @@ class GeneratorsMenuMixin:
             neg = r.get("negative_prompt", "")
         if submit_only:
             show_info("提交视频任务...")
-            data = self.vid.submit_only(prompt=prompt, width=w, height=h, num_frames=nf, frame_rate=fps, negative_prompt=neg or None)
-            display_id = data.get('video_id', 'N/A')
+            data = self.vid.submit_only(
+                prompt=prompt, width=w, height=h, num_frames=nf, frame_rate=fps, negative_prompt=neg or None
+            )
+            display_id = data.get("video_id", "N/A")
             show_success(f"任务已提交! video_id: {display_id}")
-            if display_id and display_id != 'N/A':
+            if display_id and display_id != "N/A":
                 show_info(f"查询: crux query {display_id}")
             else:
                 show_warning("未返回 video_id，请检查任务响应")
@@ -128,14 +123,31 @@ class GeneratorsMenuMixin:
             self._ask_rating(record, "text_to_video", prompt, data)
         else:
             show_info("生成视频（可能需要几分钟）...")
-            with Progress(SpinnerColumn(), TextColumn(f"[{LAYOUT['bar_style']}]{task.description}"), BarColumn(style=LAYOUT['bar_style'], complete_style=LAYOUT['bar_complete_style']), TextColumn("{task.percentage:>3.0f}%"), console=console) as prog:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn(f"[{LAYOUT['bar_style']}]{{task.description}}"),
+                BarColumn(style=LAYOUT["bar_style"], complete_style=LAYOUT["bar_complete_style"]),
+                TextColumn("{task.percentage:>3.0f}%"),
+                console=console,
+            ) as prog:
                 task = prog.add_task("生成中", total=100)
+
                 def on_p(status, progress, data):
                     prog.update(task, completed=min(progress, 100), description=status)
-                data = self.vid.text_to_video(prompt=prompt, width=w, height=h, num_frames=nf, frame_rate=fps, negative_prompt=neg or None, on_progress=on_p, timeout=120.0)
+
+                data = self.vid.text_to_video(
+                    prompt=prompt,
+                    width=w,
+                    height=h,
+                    num_frames=nf,
+                    frame_rate=fps,
+                    negative_prompt=neg or None,
+                    on_progress=on_p,
+                    timeout=120.0,
+                )
             if data.get("status") == "timeout":
                 show_warning(f"超时，当前进度 {data.get('progress', 0):.0f}%")
-                query_id = data.get('video_id', '')
+                query_id = data.get("video_id", "")
                 if query_id:
                     show_info(f"继续查询: crux query {query_id}")
                 else:
@@ -176,9 +188,9 @@ class GeneratorsMenuMixin:
         if submit_only:
             show_info("提交图生视频任务...")
             data = self.vid.submit_only(prompt=prompt, image=url, width=w, height=h, num_frames=nf, frame_rate=fps)
-            display_id = data.get('video_id', 'N/A')
+            display_id = data.get("video_id", "N/A")
             show_success(f"任务已提交! video_id: {display_id}")
-            if display_id and display_id != 'N/A':
+            if display_id and display_id != "N/A":
                 show_info(f"查询: crux query {display_id}")
             else:
                 show_warning("未返回 video_id，请检查任务响应")
@@ -187,14 +199,31 @@ class GeneratorsMenuMixin:
             self._ask_rating(record, "image_to_video", prompt, data)
         else:
             show_info("生成视频...")
-            with Progress(SpinnerColumn(), TextColumn(f"[{LAYOUT['bar_style']}]{task.description}"), BarColumn(style=LAYOUT['bar_style'], complete_style=LAYOUT['bar_complete_style']), TextColumn("{task.percentage:>3.0f}%"), console=console) as prog:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn(f"[{LAYOUT['bar_style']}]{{task.description}}"),
+                BarColumn(style=LAYOUT["bar_style"], complete_style=LAYOUT["bar_complete_style"]),
+                TextColumn("{task.percentage:>3.0f}%"),
+                console=console,
+            ) as prog:
                 task = prog.add_task("生成中", total=100)
+
                 def on_p(status, progress, data):
                     prog.update(task, completed=min(progress, 100), description=status)
-                data = self.vid.image_to_video(prompt=prompt, image_url=url, width=w, height=h, num_frames=nf, frame_rate=fps, on_progress=on_p, timeout=120.0)
+
+                data = self.vid.image_to_video(
+                    prompt=prompt,
+                    image_url=url,
+                    width=w,
+                    height=h,
+                    num_frames=nf,
+                    frame_rate=fps,
+                    on_progress=on_p,
+                    timeout=120.0,
+                )
             if data.get("status") == "timeout":
                 show_warning(f"超时，当前进度 {data.get('progress', 0):.0f}%")
-                query_id = data.get('video_id', '')
+                query_id = data.get("video_id", "")
                 if query_id:
                     show_info(f"继续查询: crux query {query_id}")
                 else:
@@ -211,26 +240,34 @@ class GeneratorsMenuMixin:
         show_info("启动一站式流水线: 文本→图片→视频...")
         if submit_only:
             result = self.pipe.text_to_image_to_video(prompt, submit_only=True)
-            vid_result = result.get('video', {})
-            display_id = vid_result.get('video_id', 'N/A')
+            vid_result = result.get("video", {})
+            display_id = vid_result.get("video_id", "N/A")
             show_success(f"视频任务已提交! ID: {display_id}")
-            query_id = vid_result.get('video_id', '')
+            query_id = vid_result.get("video_id", "")
             if query_id:
                 show_info(f"查询: crux query {query_id}")
             else:
                 show_warning("未返回 video_id，请检查任务响应")
         else:
-            with Progress(SpinnerColumn(), TextColumn(f"[{LAYOUT['bar_style']}]{task.description}"), BarColumn(style=LAYOUT['bar_style'], complete_style=LAYOUT['bar_complete_style']), console=console) as prog:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn(f"[{LAYOUT['bar_style']}]{{task.description}}"),
+                BarColumn(style=LAYOUT["bar_style"], complete_style=LAYOUT["bar_complete_style"]),
+                console=console,
+            ) as prog:
                 task = prog.add_task("Processing", total=100)
+
                 def on_img(data):
                     prog.update(task, completed=30, description="图片完成，转视频...")
+
                 def on_vid(status, progress, data):
                     prog.update(task, completed=30 + int(progress * 0.7), description=status)
+
                 result = self.pipe.text_to_image_to_video(prompt, on_image_done=on_img, on_video_progress=on_vid)
             if result.get("video", {}).get("status") == "timeout":
                 show_warning(f"视频超时，进度 {result['video'].get('progress', 0):.0f}%")
-                vid_result = result.get('video', {})
-                query_id = vid_result.get('video_id', '')
+                vid_result = result.get("video", {})
+                query_id = vid_result.get("video_id", "")
                 if query_id:
                     show_info(f"继续查询: crux query {query_id}")
                 else:

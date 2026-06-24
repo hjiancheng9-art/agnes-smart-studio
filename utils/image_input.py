@@ -3,8 +3,7 @@
 import base64
 from pathlib import Path
 
-__all__ = ['clipboard_to_data_uri', 'file_to_data_uri', 'load_image_as_url_or_data']
-
+__all__ = ["clipboard_to_data_uri", "file_to_data_uri", "load_image_as_url_or_data"]
 
 
 def load_image_as_url_or_data(source: str) -> str:
@@ -32,7 +31,7 @@ def load_image_as_url_or_data(source: str) -> str:
     # 尝试作为纯Base64
     try:
         decoded = base64.b64decode(source[:100])
-        if decoded[:4] in (b'\x89PNG', b'\xff\xd8\xff\xe0', b'\xff\xd8\xff\xe1', b'RIFF'):
+        if decoded[:4] in (b"\x89PNG", b"\xff\xd8\xff\xe0", b"\xff\xd8\xff\xe1", b"RIFF"):
             return f"data:image/png;base64,{source}"
     except (ValueError, TypeError, UnicodeDecodeError):
         pass
@@ -62,6 +61,7 @@ def clipboard_to_data_uri() -> str | None:
     """从剪贴板粘贴图片（如果可用）"""
     try:
         from PIL import ImageGrab
+
         img = ImageGrab.grabclipboard()
         if img is None:
             return None
@@ -73,6 +73,7 @@ def clipboard_to_data_uri() -> str | None:
             return file_to_data_uri(Path(img[0]))
         # 非 list → 视为 PIL Image，用鸭子类型（save 方法）验证
         import io
+
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         b64 = base64.b64encode(buf.getvalue()).decode("utf-8")

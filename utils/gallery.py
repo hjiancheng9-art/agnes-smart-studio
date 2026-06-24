@@ -23,7 +23,7 @@ from pathlib import Path
 
 from core.config import OUTPUT_DIR
 
-__all__ = ['GALLERY_FILE', 'THUMB_MAX', 'generate_gallery']
+__all__ = ["GALLERY_FILE", "THUMB_MAX", "generate_gallery"]
 
 
 GALLERY_FILE = OUTPUT_DIR / "gallery.html"
@@ -34,12 +34,14 @@ def _make_thumbnail(image_path: str) -> str | None:
     """生成 base64 缩略图 data URI（内嵌到 HTML，纯离线）"""
     try:
         from PIL import Image
+
         p = Path(image_path)
         if not p.exists():
             return None
         img = Image.open(p).convert("RGB")
         img.thumbnail((THUMB_MAX, THUMB_MAX), Image.Resampling.LANCZOS)
         import io
+
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=80)
         b64 = base64.b64encode(buf.getvalue()).decode()
@@ -51,9 +53,12 @@ def _make_thumbnail(image_path: str) -> str | None:
 def _type_icon(rtype: str) -> str:
     """记录类型 → 图标"""
     icons = {
-        "text_to_image": "🖼️", "image_to_image": "🎨",
-        "image_to_video": "🎬", "text_to_video": "🎬",
-        "pipeline": "🔗", "variant": "🎲",
+        "text_to_image": "🖼️",
+        "image_to_image": "🎨",
+        "image_to_video": "🎬",
+        "text_to_video": "🎬",
+        "pipeline": "🔗",
+        "variant": "🎲",
         "image_edit": "✂️",
     }
     return icons.get(rtype, "📄")
@@ -61,9 +66,13 @@ def _type_icon(rtype: str) -> str:
 
 def _type_label(rtype: str) -> str:
     labels = {
-        "text_to_image": "文生图", "image_to_image": "图生图",
-        "image_to_video": "图生视频", "text_to_video": "文生视频",
-        "pipeline": "流水线", "variant": "变种", "image_edit": "后期",
+        "text_to_image": "文生图",
+        "image_to_image": "图生图",
+        "image_to_video": "图生视频",
+        "text_to_video": "文生视频",
+        "pipeline": "流水线",
+        "variant": "变种",
+        "image_edit": "后期",
     }
     return labels.get(rtype, rtype)
 
@@ -79,6 +88,7 @@ def generate_gallery(filter_type: str = "all", open_browser: bool = True) -> str
         生成文件的路径
     """
     from utils import history as _history
+
     records = _history.load_history()
     # 筛选有图片的记录 + 视频记录
     image_records = []
@@ -196,6 +206,7 @@ def generate_gallery(filter_type: str = "all", open_browser: bool = True) -> str
                 import io
 
                 from PIL import Image
+
                 _, b64data = src_img.partition(";base64,")
                 img_bytes = base64.b64decode(b64data)
                 img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
@@ -206,12 +217,17 @@ def generate_gallery(filter_type: str = "all", open_browser: bool = True) -> str
             except (OSError, ValueError, TypeError):
                 pass
 
-        thumb_attr = f'src="{thumb}"' if thumb else ''
+        thumb_attr = f'src="{thumb}"' if thumb else ""
         if not thumb_attr:
             thumb_attr = 'src="" style="display:none"'
 
-        status_colors = {"completed": "#4CAF50", "failed": "#F44336",
-                         "submitted": "#FFC107", "processing": "#2196F3", "timeout": "#FF9800"}
+        status_colors = {
+            "completed": "#4CAF50",
+            "failed": "#F44336",
+            "submitted": "#FFC107",
+            "processing": "#2196F3",
+            "timeout": "#FF9800",
+        }
         status_color = status_colors.get(status, "#9E9E9E")
 
         card = f'''
@@ -225,10 +241,10 @@ def generate_gallery(filter_type: str = "all", open_browser: bool = True) -> str
                 <div class="card-prompt" title="{prompt}">{prompt}</div>
                 <div class="card-meta">
                     <span class="meta">{model}</span>
-                    {f'<span class="meta">{frames}帧</span>' if frames else ''}
-                    {f'<span class="meta vid-id" title="点击复制">{vid[:20]}...</span>' if vid else ''}
+                    {f'<span class="meta">{frames}帧</span>' if frames else ""}
+                    {f'<span class="meta vid-id" title="点击复制">{vid[:20]}...</span>' if vid else ""}
                 </div>
-                {f'<a class="open-btn" href="file:///{local_file.replace(chr(92), "/")}" target="_blank">▶ 打开视频</a>' if local_file else ''}
+                {f'<a class="open-btn" href="file:///{local_file.replace(chr(92), "/")}" target="_blank">▶ 打开视频</a>' if local_file else ""}
             </div>
         </div>'''
         video_cards_html.append(card)
@@ -243,7 +259,7 @@ def generate_gallery(filter_type: str = "all", open_browser: bool = True) -> str
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # 完整 HTML
-    html = f'''<!DOCTYPE html>
+    html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -313,10 +329,10 @@ body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",
 </div>
 
 <div class="grid" id="gallery">
-{''.join(image_cards_html) if image_cards_html else '<div class="empty">暂无图片</div>'}
+{"".join(image_cards_html) if image_cards_html else '<div class="empty">暂无图片</div>'}
 </div>
 
-{'<h3 style="padding:20px 32px 0;color:#58a6ff">🎬 视频记录</h3><div class="grid">' + (''.join(video_cards_html) if video_cards_html else '<div class="empty">暂无视频</div>') + '</div>' if video_cards_html else ''}
+{'<h3 style="padding:20px 32px 0;color:#58a6ff">🎬 视频记录</h3><div class="grid">' + ("".join(video_cards_html) if video_cards_html else '<div class="empty">暂无视频</div>') + "</div>" if video_cards_html else ""}
 
 <div class="footer">
     生成于 {now} | CRUX Studio | 数据来自 output/history.json
@@ -406,7 +422,7 @@ document.querySelectorAll('.vid-id').forEach(el => {{
 }});
 </script>
 </body>
-</html>'''
+</html>"""
 
     # 写入文件
     GALLERY_FILE.parent.mkdir(parents=True, exist_ok=True)

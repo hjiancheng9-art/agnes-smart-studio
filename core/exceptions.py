@@ -20,6 +20,7 @@ Usage::
 
 # ── Base ────────────────────────────────────────────────────────────────
 
+
 class CruxError(Exception):
     """Base exception for all CRUX-domain errors.
 
@@ -41,6 +42,7 @@ class CruxError(Exception):
 
 # ── Infrastructure ───────────────────────────────────────────────────────
 
+
 class ConfigError(CruxError):
     """Misconfiguration: missing key, invalid models.json, bad settings."""
 
@@ -58,6 +60,7 @@ class EncodingError(CruxError):
 
 
 # ── Tools & Engines ───────────────────────────────────────────────────────
+
 
 class ToolError(CruxError):
     """A tool function failed to execute."""
@@ -77,6 +80,7 @@ class GenerationError(EngineError):
 
 # ── Agent & Chat ─────────────────────────────────────────────────────────
 
+
 class AgentError(CruxError):
     """Agent planning, spawning, or orchestration failure."""
 
@@ -90,6 +94,7 @@ class MessageError(CruxError):
 
 
 # ── Self-* subsystems ─────────────────────────────────────────────────────
+
 
 class AuditError(CruxError):
     """Self-audit scan or analysis failure."""
@@ -105,6 +110,7 @@ class FixError(CruxError):
 
 # ── Skill & Marketplace ──────────────────────────────────────────────────
 
+
 class SkillError(CruxError):
     """Skill loading, parsing, or execution failure."""
 
@@ -114,6 +120,7 @@ class MarketplaceError(CruxError):
 
 
 # ── Sandbox & Security ───────────────────────────────────────────────────
+
 
 class SandboxError(CruxError):
     """Sandbox creation, isolation, or resource limit failure."""
@@ -127,15 +134,27 @@ __all__ = [
     # Base
     "CruxError",
     # Infrastructure
-    "ConfigError", "ProviderError", "NetworkError", "EncodingError",
+    "ConfigError",
+    "ProviderError",
+    "NetworkError",
+    "EncodingError",
     # Tools & Engines
-    "ToolError", "ToolTimeoutError", "EngineError", "GenerationError",
+    "ToolError",
+    "ToolTimeoutError",
+    "EngineError",
+    "GenerationError",
     # Agent & Chat
-    "AgentError", "SessionError", "MessageError",
+    "AgentError",
+    "SessionError",
+    "MessageError",
     # Self-* subsystems
-    "AuditError", "EvolutionError", "FixError",
+    "AuditError",
+    "EvolutionError",
+    "FixError",
     # Skill & Marketplace
-    "SkillError", "MarketplaceError",
+    "SkillError",
+    "MarketplaceError",
     # Sandbox & Security
-    "SandboxError", "SecurityError",
+    "SandboxError",
+    "SecurityError",
 ]

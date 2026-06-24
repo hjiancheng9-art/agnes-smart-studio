@@ -15,10 +15,10 @@ import time
 from ui.theme import COLORS, ICONS, console
 
 __all__ = [
-    'fade_in',
-    'animated_banner',
-    'success_pulse',
-    'thinking_dots',
+    "fade_in",
+    "animated_banner",
+    "success_pulse",
+    "thinking_dots",
 ]
 
 

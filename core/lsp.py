@@ -24,32 +24,48 @@ from pathlib import Path
 from core.config import OUTPUT_DIR
 
 __all__ = [
-    'LSPClient', 'LSPServerConfig', 'LSP_EXECUTOR_MAP', 'LSP_TOOL_DEFS', 'Language', 'detect_language', 'execute_lsp_diagnostics', 'execute_lsp_find_references', 'execute_lsp_goto_definition', 'execute_lsp_hover', 'get_lsp_client',
+    "LSPClient",
+    "LSPServerConfig",
+    "LSP_EXECUTOR_MAP",
+    "LSP_TOOL_DEFS",
+    "Language",
+    "detect_language",
+    "execute_lsp_diagnostics",
+    "execute_lsp_find_references",
+    "execute_lsp_goto_definition",
+    "execute_lsp_hover",
+    "get_lsp_client",
 ]
 
 # ======================================================================
 # Language enum
 # ======================================================================
 
+
 class Language(Enum):
     """Supported programming languages for LSP."""
+
     PYTHON = "python"
     JAVASCRIPT = "javascript"
     TYPESCRIPT = "typescript"
     GO = "go"
     RUST = "rust"
 
+
 # ======================================================================
 # Server configuration
 # ======================================================================
 
+
 @dataclass
 class LSPServerConfig:
     """Configuration for a single LSP server process."""
+
     language: Language
     command: str
     args: list[str] = field(default_factory=list)
     enabled: bool = True
+
 
 # Default server commands for each language.
 # These must be installed separately; the client handles missing servers gracefully.
@@ -82,6 +98,7 @@ _EXTENSION_MAP: dict[str, Language] = {
     ".rs": Language.RUST,
 }
 
+
 def detect_language(file_path: str) -> Language:
     """Detect the programming language from a file path extension.
 
@@ -90,10 +107,10 @@ def detect_language(file_path: str) -> Language:
     suffix = Path(file_path).suffix.lower()
     if suffix not in _EXTENSION_MAP:
         raise ValueError(
-            f"Cannot detect language for extension '{suffix}'. "
-            f"Supported: {', '.join(sorted(_EXTENSION_MAP.keys()))}"
+            f"Cannot detect language for extension '{suffix}'. Supported: {', '.join(sorted(_EXTENSION_MAP.keys()))}"
         )
     return _EXTENSION_MAP[suffix]
+
 
 def _to_file_uri(file_path: str) -> str:
     """Convert an absolute filesystem path to a file:// URI."""
@@ -102,9 +119,11 @@ def _to_file_uri(file_path: str) -> str:
     # On Windows, Path.as_uri() produces file:///C:/...
     return Path(abs_path).as_uri()
 
+
 # ======================================================================
 # LSP Client
 # ======================================================================
+
 
 class LSPClient:
     """Lightweight LSP client managing one server process per language.
@@ -176,16 +195,13 @@ class LSPClient:
 
             config = self._configs.get(language)
             if config is None or not config.enabled:
-                return {
-                    "error": f"LSP server for {language.value} is disabled. "
-                             f"Enable it in lsp_servers.json."
-                }
+                return {"error": f"LSP server for {language.value} is disabled. Enable it in lsp_servers.json."}
 
             # Check if the server binary is available.
             if not self._is_command_available(config.command):
                 return {
                     "error": f"LSP server for {language.value} not available. "
-                             f"Install: {INSTALL_HINTS.get(language, '')}"
+                    f"Install: {INSTALL_HINTS.get(language, '')}"
                 }
 
             try:
@@ -199,7 +215,7 @@ class LSPClient:
             except FileNotFoundError:
                 return {
                     "error": f"LSP server for {language.value} not available. "
-                             f"Install: {INSTALL_HINTS.get(language, '')}"
+                    f"Install: {INSTALL_HINTS.get(language, '')}"
                 }
             except (subprocess.SubprocessError, OSError) as e:
                 return {"error": f"Failed to start {language.value} server: {e}"}
@@ -207,34 +223,36 @@ class LSPClient:
             self._processes[language] = proc
 
         # Send initialize request (outside lock to avoid blocking other languages).
-        init_response = self._send_request(proc, "initialize", {
-            "processId": os.getpid(),
-            "rootUri": Path.cwd().as_uri(),
-            "capabilities": {
-                "textDocument": {
-                    "synchronization": {
-                        "didOpen": True,
-                        "didChange": True,
-                        "didClose": True,
-                    },
-                    "definition": {"linkSupport": False},
-                    "hover": {"contentFormat": ["markdown", "plaintext"]},
-                    "references": {},
-                    "rename": {"prepareSupport": False},
-                    "completion": {
-                        "completionItem": {
-                            "snippetSupport": False,
-                            "documentationFormat": ["markdown", "plaintext"],
+        init_response = self._send_request(
+            proc,
+            "initialize",
+            {
+                "processId": os.getpid(),
+                "rootUri": Path.cwd().as_uri(),
+                "capabilities": {
+                    "textDocument": {
+                        "synchronization": {
+                            "didOpen": True,
+                            "didChange": True,
+                            "didClose": True,
+                        },
+                        "definition": {"linkSupport": False},
+                        "hover": {"contentFormat": ["markdown", "plaintext"]},
+                        "references": {},
+                        "rename": {"prepareSupport": False},
+                        "completion": {
+                            "completionItem": {
+                                "snippetSupport": False,
+                                "documentationFormat": ["markdown", "plaintext"],
+                            },
                         },
                     },
                 },
+                "workspace": {
+                    "workspaceFolders": [{"uri": Path.cwd().as_uri(), "name": Path.cwd().name}],
+                },
             },
-            "workspace": {
-                "workspaceFolders": [
-                    {"uri": Path.cwd().as_uri(), "name": Path.cwd().name}
-                ],
-            },
-        })
+        )
 
         if "error" in init_response:
             return init_response
@@ -294,15 +312,20 @@ class LSPClient:
         language = detect_language(file_path)
         proc = self._ensure_server(language)
         if proc is None:
-            return [{"error": f"LSP server for {language.value} not available. "
-                              f"Install: {INSTALL_HINTS.get(language, '')}"}]
+            return [
+                {"error": f"LSP server for {language.value} not available. Install: {INSTALL_HINTS.get(language, '')}"}
+            ]
 
         self._did_open(proc, file_path, language)
 
-        result = self._send_request(proc, "textDocument/definition", {
-            "textDocument": {"uri": _to_file_uri(file_path)},
-            "position": {"line": line, "character": character},
-        })
+        result = self._send_request(
+            proc,
+            "textDocument/definition",
+            {
+                "textDocument": {"uri": _to_file_uri(file_path)},
+                "position": {"line": line, "character": character},
+            },
+        )
 
         if "error" in result:
             return [result]
@@ -323,15 +346,20 @@ class LSPClient:
         language = detect_language(file_path)
         proc = self._ensure_server(language)
         if proc is None:
-            return {"error": f"LSP server for {language.value} not available. "
-                             f"Install: {INSTALL_HINTS.get(language, '')}"}
+            return {
+                "error": f"LSP server for {language.value} not available. Install: {INSTALL_HINTS.get(language, '')}"
+            }
 
         self._did_open(proc, file_path, language)
 
-        result = self._send_request(proc, "textDocument/hover", {
-            "textDocument": {"uri": _to_file_uri(file_path)},
-            "position": {"line": line, "character": character},
-        })
+        result = self._send_request(
+            proc,
+            "textDocument/hover",
+            {
+                "textDocument": {"uri": _to_file_uri(file_path)},
+                "position": {"line": line, "character": character},
+            },
+        )
 
         if "error" in result:
             return result
@@ -350,8 +378,9 @@ class LSPClient:
         language = detect_language(file_path)
         proc = self._ensure_server(language)
         if proc is None:
-            return [{"error": f"LSP server for {language.value} not available. "
-                              f"Install: {INSTALL_HINTS.get(language, '')}"}]
+            return [
+                {"error": f"LSP server for {language.value} not available. Install: {INSTALL_HINTS.get(language, '')}"}
+            ]
 
         self._did_open(proc, file_path, language)
 
@@ -369,15 +398,20 @@ class LSPClient:
         language = detect_language(file_path)
         proc = self._ensure_server(language)
         if proc is None:
-            return [{"error": f"LSP server for {language.value} not available. "
-                              f"Install: {INSTALL_HINTS.get(language, '')}"}]
+            return [
+                {"error": f"LSP server for {language.value} not available. Install: {INSTALL_HINTS.get(language, '')}"}
+            ]
 
         self._did_open(proc, file_path, language)
 
-        result = self._send_request(proc, "textDocument/completion", {
-            "textDocument": {"uri": _to_file_uri(file_path)},
-            "position": {"line": line, "character": character},
-        })
+        result = self._send_request(
+            proc,
+            "textDocument/completion",
+            {
+                "textDocument": {"uri": _to_file_uri(file_path)},
+                "position": {"line": line, "character": character},
+            },
+        )
 
         if "error" in result:
             return [result]
@@ -400,16 +434,21 @@ class LSPClient:
         language = detect_language(file_path)
         proc = self._ensure_server(language)
         if proc is None:
-            return [{"error": f"LSP server for {language.value} not available. "
-                              f"Install: {INSTALL_HINTS.get(language, '')}"}]
+            return [
+                {"error": f"LSP server for {language.value} not available. Install: {INSTALL_HINTS.get(language, '')}"}
+            ]
 
         self._did_open(proc, file_path, language)
 
-        result = self._send_request(proc, "textDocument/references", {
-            "textDocument": {"uri": _to_file_uri(file_path)},
-            "position": {"line": line, "character": character},
-            "context": {"includeDeclaration": True},
-        })
+        result = self._send_request(
+            proc,
+            "textDocument/references",
+            {
+                "textDocument": {"uri": _to_file_uri(file_path)},
+                "position": {"line": line, "character": character},
+                "context": {"includeDeclaration": True},
+            },
+        )
 
         if "error" in result:
             return [result]
@@ -427,16 +466,21 @@ class LSPClient:
         language = detect_language(file_path)
         proc = self._ensure_server(language)
         if proc is None:
-            return {"error": f"LSP server for {language.value} not available. "
-                             f"Install: {INSTALL_HINTS.get(language, '')}"}
+            return {
+                "error": f"LSP server for {language.value} not available. Install: {INSTALL_HINTS.get(language, '')}"
+            }
 
         self._did_open(proc, file_path, language)
 
-        result = self._send_request(proc, "textDocument/rename", {
-            "textDocument": {"uri": _to_file_uri(file_path)},
-            "position": {"line": line, "character": character},
-            "newName": new_name,
-        })
+        result = self._send_request(
+            proc,
+            "textDocument/rename",
+            {
+                "textDocument": {"uri": _to_file_uri(file_path)},
+                "position": {"line": line, "character": character},
+                "newName": new_name,
+            },
+        )
 
         if "error" in result:
             return result
@@ -456,8 +500,9 @@ class LSPClient:
         header = f"Content-Length: {len(content_bytes)}\r\n\r\n"
         return header.encode("ascii") + content_bytes
 
-    def _send_request(self, process: subprocess.Popen, method: str,
-                      params: dict | None = None, timeout: float = 10.0) -> dict:
+    def _send_request(
+        self, process: subprocess.Popen, method: str, params: dict | None = None, timeout: float = 10.0
+    ) -> dict:
         """Send a JSON-RPC 2.0 request and wait for the response.
 
         Reads from stdout until a matching response (by id) is found,
@@ -488,6 +533,7 @@ class LSPClient:
 
         # Read responses until we find the one matching our request id.
         import time
+
         deadline = time.time() + timeout
         while time.time() < deadline:
             remaining = deadline - time.time()
@@ -506,8 +552,7 @@ class LSPClient:
 
         return {"error": f"Timeout waiting for response to '{method}'"}
 
-    def _send_notification(self, process: subprocess.Popen, method: str,
-                           params: dict | None = None):
+    def _send_notification(self, process: subprocess.Popen, method: str, params: dict | None = None):
         """Send a JSON-RPC 2.0 notification (no response expected)."""
         message: dict[str, str | dict] = {
             "jsonrpc": "2.0",
@@ -528,8 +573,7 @@ class LSPClient:
         except (BrokenPipeError, OSError, ValueError):
             pass
 
-    def _read_response(self, process: subprocess.Popen,
-                       timeout: float = 10.0) -> dict | None:
+    def _read_response(self, process: subprocess.Popen, timeout: float = 10.0) -> dict | None:
         """Read a single LSP message from the server stdout.
 
         Parses the Content-Length header, reads the JSON body, and returns
@@ -546,11 +590,13 @@ class LSPClient:
         def _read_with_timeout(read_fn, remaining):
             """Run read_fn in a daemon thread; return result or _TIMEOUT sentinel."""
             q = queue.Queue()
+
             def _worker():
                 try:
                     q.put(read_fn())
                 except (subprocess.SubprocessError, OSError):
                     q.put(None)
+
             t = threading.Thread(target=_worker, daemon=True)
             t.start()
             try:
@@ -585,8 +631,9 @@ class LSPClient:
                 # Parse "Key: Value".
                 if b":" in line:
                     key, _, val = line.partition(b":")
-                    headers[key.strip().lower().decode("ascii", errors="replace")] = \
-                        val.strip().decode("ascii", errors="replace")
+                    headers[key.strip().lower().decode("ascii", errors="replace")] = val.strip().decode(
+                        "ascii", errors="replace"
+                    )
             elif byte == b"\r":
                 continue
             else:
@@ -642,8 +689,7 @@ class LSPClient:
         with self._lock:
             return self._processes.get(language)
 
-    def _did_open(self, process: subprocess.Popen, file_path: str,
-                  language: Language):
+    def _did_open(self, process: subprocess.Popen, file_path: str, language: Language):
         """Send textDocument/didOpen notification for a file."""
         try:
             content = Path(file_path).read_text(encoding="utf-8", errors="replace")
@@ -659,17 +705,20 @@ class LSPClient:
             Language.RUST: "rust",
         }.get(language, "plaintext")
 
-        self._send_notification(process, "textDocument/didOpen", {
-            "textDocument": {
-                "uri": _to_file_uri(file_path),
-                "languageId": lang_id,
-                "version": 1,
-                "text": content,
+        self._send_notification(
+            process,
+            "textDocument/didOpen",
+            {
+                "textDocument": {
+                    "uri": _to_file_uri(file_path),
+                    "languageId": lang_id,
+                    "version": 1,
+                    "text": content,
+                },
             },
-        })
+        )
 
-    def _collect_diagnostics(self, process: subprocess.Popen,
-                             file_path: str) -> list[dict]:
+    def _collect_diagnostics(self, process: subprocess.Popen, file_path: str) -> list[dict]:
         """Collect diagnostics for a file from server notifications.
 
         After didOpen, the server pushes a publishDiagnostics notification.
@@ -677,6 +726,7 @@ class LSPClient:
         file is found (or timeout).
         """
         import time
+
         target_uri = _to_file_uri(file_path)
         deadline = time.time() + 5.0
 
@@ -698,7 +748,9 @@ class LSPClient:
     def _is_command_available(command: str) -> bool:
         """Check if a command is available on the system PATH."""
         import shutil
+
         return shutil.which(command) is not None
+
 
 # ======================================================================
 # Singleton accessor
@@ -706,6 +758,7 @@ class LSPClient:
 
 _lsp_client: LSPClient | None = None
 _client_lock = threading.Lock()
+
 
 def get_lsp_client() -> LSPClient:
     """Get the global LSPClient singleton instance."""
@@ -716,12 +769,13 @@ def get_lsp_client() -> LSPClient:
                 _lsp_client = LSPClient()
     return _lsp_client
 
+
 # ======================================================================
 # Tool executors for integration with ToolRegistry
 # ======================================================================
 
-def execute_lsp_goto_definition(file_path: str = "", line: int = 0,
-                                character: int = 0) -> str:
+
+def execute_lsp_goto_definition(file_path: str = "", line: int = 0, character: int = 0) -> str:
     """Tool executor: jump to symbol definition via LSP."""
     if not file_path:
         return json.dumps({"error": "file_path required"}, ensure_ascii=False)
@@ -729,15 +783,18 @@ def execute_lsp_goto_definition(file_path: str = "", line: int = 0,
     client = get_lsp_client()
     try:
         result = client.goto_definition(file_path, line, character)
-        return json.dumps({"file": file_path, "line": line, "character": character,
-                          "definitions": result}, ensure_ascii=False, indent=2)
+        return json.dumps(
+            {"file": file_path, "line": line, "character": character, "definitions": result},
+            ensure_ascii=False,
+            indent=2,
+        )
     except ValueError as e:
         return json.dumps({"error": str(e)}, ensure_ascii=False)
     except (json.JSONDecodeError, TypeError, KeyError) as e:
         return json.dumps({"error": f"LSP request failed: {e}"}, ensure_ascii=False)
 
-def execute_lsp_hover(file_path: str = "", line: int = 0,
-                      character: int = 0) -> str:
+
+def execute_lsp_hover(file_path: str = "", line: int = 0, character: int = 0) -> str:
     """Tool executor: get hover info (type, docs) via LSP."""
     if not file_path:
         return json.dumps({"error": "file_path required"}, ensure_ascii=False)
@@ -745,12 +802,14 @@ def execute_lsp_hover(file_path: str = "", line: int = 0,
     client = get_lsp_client()
     try:
         result = client.hover(file_path, line, character)
-        return json.dumps({"file": file_path, "line": line, "character": character,
-                           "hover": result}, ensure_ascii=False, indent=2)
+        return json.dumps(
+            {"file": file_path, "line": line, "character": character, "hover": result}, ensure_ascii=False, indent=2
+        )
     except ValueError as e:
         return json.dumps({"error": str(e)}, ensure_ascii=False)
     except (json.JSONDecodeError, TypeError, KeyError) as e:
         return json.dumps({"error": f"LSP request failed: {e}"}, ensure_ascii=False)
+
 
 def execute_lsp_diagnostics(file_path: str = "") -> str:
     """Tool executor: get diagnostics (errors, warnings) via LSP."""
@@ -760,15 +819,16 @@ def execute_lsp_diagnostics(file_path: str = "") -> str:
     client = get_lsp_client()
     try:
         result = client.get_diagnostics(file_path)
-        return json.dumps({"file": file_path, "diagnostics": result,
-                           "count": len(result)}, ensure_ascii=False, indent=2)
+        return json.dumps(
+            {"file": file_path, "diagnostics": result, "count": len(result)}, ensure_ascii=False, indent=2
+        )
     except ValueError as e:
         return json.dumps({"error": str(e)}, ensure_ascii=False)
     except (json.JSONDecodeError, TypeError, KeyError) as e:
         return json.dumps({"error": f"LSP request failed: {e}"}, ensure_ascii=False)
 
-def execute_lsp_find_references(file_path: str = "", line: int = 0,
-                                character: int = 0) -> str:
+
+def execute_lsp_find_references(file_path: str = "", line: int = 0, character: int = 0) -> str:
     """Tool executor: find all references to a symbol via LSP."""
     if not file_path:
         return json.dumps({"error": "file_path required"}, ensure_ascii=False)
@@ -776,13 +836,16 @@ def execute_lsp_find_references(file_path: str = "", line: int = 0,
     client = get_lsp_client()
     try:
         result = client.find_references(file_path, line, character)
-        return json.dumps({"file": file_path, "line": line, "character": character,
-                           "references": result, "count": len(result)},
-                          ensure_ascii=False, indent=2)
+        return json.dumps(
+            {"file": file_path, "line": line, "character": character, "references": result, "count": len(result)},
+            ensure_ascii=False,
+            indent=2,
+        )
     except ValueError as e:
         return json.dumps({"error": str(e)}, ensure_ascii=False)
     except (json.JSONDecodeError, TypeError, KeyError) as e:
         return json.dumps({"error": f"LSP request failed: {e}"}, ensure_ascii=False)
+
 
 # Tool definitions for ToolRegistry.
 LSP_TOOL_DEFS = [

@@ -1,4 +1,5 @@
 """Brain data: creative knowledge base."""
+
 GRAFT_TARGETS = {
     "mechanical_body": {
         "name_cn": "机械体",
@@ -73,16 +74,37 @@ CREATIVE_DOMAIN_MAP = {
     },
     # ── 物理域 (C) ── "超越常人思维的核心引擎" ──
     "physics": {
-        "P-GRAVITY": {"name_cn": "重力", "break_options": ["重力反转(上落)", "重力倍增(压扁)", "零重力(漂浮)", "方向性重力(侧壁行走)"]},
-        "P-TIME": {"name_cn": "时间", "break_options": ["时间倒流", "时间加速", "时间冻结", "时间分叉(同时存在多个时间线)"]},
-        "P-RIGIDITY": {"name_cn": "刚体", "break_options": ["刚体柔性化(铁管弯曲)", "柔性刚体化(水流变刀)", "半固态(果冻化)"]},
+        "P-GRAVITY": {
+            "name_cn": "重力",
+            "break_options": ["重力反转(上落)", "重力倍增(压扁)", "零重力(漂浮)", "方向性重力(侧壁行走)"],
+        },
+        "P-TIME": {
+            "name_cn": "时间",
+            "break_options": ["时间倒流", "时间加速", "时间冻结", "时间分叉(同时存在多个时间线)"],
+        },
+        "P-RIGIDITY": {
+            "name_cn": "刚体",
+            "break_options": ["刚体柔性化(铁管弯曲)", "柔性刚体化(水流变刀)", "半固态(果冻化)"],
+        },
         "P-TRAJECTORY": {"name_cn": "弹道", "break_options": ["直线变螺旋", "追踪弹(转弯)", "分裂弹", "回旋镖(返回)"]},
         "P-SCALE": {"name_cn": "尺度", "break_options": ["微缩(蚂蚁大小)", "超巨大(山岳大小)", "尺度错位(手心宇宙)"]},
         "P-SPACE": {"name_cn": "空间", "break_options": ["空间折叠(瞬移)", "空间镜像(左右互换)", "口袋空间", "3D进2D"]},
-        "P-MATERIAL": {"name_cn": "材质", "break_options": ["水变玻璃(碎裂)", "金属变液体", "肉体变数据", "影子变固体"]},
-        "P-CAUSALITY": {"name_cn": "因果", "break_options": ["结果先于原因(弹孔先出)", "原因消失(打了没效果)", "因果链(多米诺)"]},
-        "P-FRICTION": {"name_cn": "摩擦力", "break_options": ["零摩擦(永动滑行)", "超摩擦(粘住)", "方向摩擦(只滑不退)"]},
-        "P-INERTIA": {"name_cn": "惯性", "break_options": ["零惯性(瞬停瞬转)", "超惯性(停不下来)", "惯性存储(蓄力释放)"]},
+        "P-MATERIAL": {
+            "name_cn": "材质",
+            "break_options": ["水变玻璃(碎裂)", "金属变液体", "肉体变数据", "影子变固体"],
+        },
+        "P-CAUSALITY": {
+            "name_cn": "因果",
+            "break_options": ["结果先于原因(弹孔先出)", "原因消失(打了没效果)", "因果链(多米诺)"],
+        },
+        "P-FRICTION": {
+            "name_cn": "摩擦力",
+            "break_options": ["零摩擦(永动滑行)", "超摩擦(粘住)", "方向摩擦(只滑不退)"],
+        },
+        "P-INERTIA": {
+            "name_cn": "惯性",
+            "break_options": ["零惯性(瞬停瞬转)", "超惯性(停不下来)", "惯性存储(蓄力释放)"],
+        },
     },
     # ── 视觉域 (V) ──
     "visual": {
@@ -234,4 +256,3 @@ THINKING_METHOD_MAP = {
         },
     },
 }
-

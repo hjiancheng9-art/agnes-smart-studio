@@ -49,11 +49,7 @@ class AsyncCruxClient:
         last_exc = None
         for attempt in range(retries):
             try:
-                resp = (
-                    await self._http.post(url, **kwargs)
-                    if method == "POST"
-                    else await self._http.get(url, **kwargs)
-                )
+                resp = await self._http.post(url, **kwargs) if method == "POST" else await self._http.get(url, **kwargs)
                 resp.raise_for_status()
                 return resp
             except (
@@ -69,11 +65,9 @@ class AsyncCruxClient:
                 continue
             except httpx.HTTPStatusError as e:
                 # 429 Too Many Requests 和 5xx 可重试，其他 4xx 不重试
-                if attempt < retries - 1 and (
-                    e.response.status_code == 429 or e.response.status_code >= 500
-                ):
+                if attempt < retries - 1 and (e.response.status_code == 429 or e.response.status_code >= 500):
                     # 429 指数退避：1s, 2s, 4s...；5xx 线性退避
-                    wait = (2 ** attempt) if e.response.status_code == 429 else (0.5 * (attempt + 1))
+                    wait = (2**attempt) if e.response.status_code == 429 else (0.5 * (attempt + 1))
                     await asyncio.sleep(wait)
                     last_exc = e
                     continue
@@ -98,9 +92,7 @@ class AsyncCruxClient:
                 safe_detail = detail
                 if isinstance(safe_detail, dict):
                     safe_detail = {
-                        k: v
-                        for k, v in safe_detail.items()
-                        if k not in ("api_key", "token", "secret", "password")
+                        k: v for k, v in safe_detail.items() if k not in ("api_key", "token", "secret", "password")
                     }
                 raise httpx.HTTPStatusError(
                     f"{e.response.status_code} {e.response.reason_phrase} - {safe_detail}",
@@ -210,7 +202,9 @@ class AsyncCruxClient:
         # 但捕获网络异常并优雅降级，避免静默失败。
         try:
             async with self._http.stream(
-                "POST", "/chat/completions", json=body,
+                "POST",
+                "/chat/completions",
+                json=body,
                 timeout=httpx.Timeout(timeout, connect=30.0),
             ) as resp:
                 resp.raise_for_status()
@@ -468,9 +462,7 @@ class AsyncCruxClient:
         if same_origin:
             try:
                 async with httpx.AsyncClient(follow_redirects=True, timeout=120.0) as client:
-                    resp = await client.get(
-                        url, headers={"Authorization": f"Bearer {self.api_key}"}
-                    )
+                    resp = await client.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
                     if resp.status_code == 200:
                         await asyncio.to_thread(self._write_file, save_path, resp.content)
                         return save_path
@@ -499,9 +491,7 @@ class AsyncCruxClient:
         if same_origin:
             try:
                 async with httpx.AsyncClient(follow_redirects=True, timeout=60.0) as client:
-                    resp = await client.get(
-                        url, headers={"Authorization": f"Bearer {self.api_key}"}
-                    )
+                    resp = await client.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
                     if resp.status_code == 200:
                         await asyncio.to_thread(self._write_file, save_path, resp.content)
                         return save_path

@@ -21,7 +21,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 __all__ = [
-    'CodeBuddyAdapter', 'LocalRegistry', 'MarketplaceAdapter', 'MarketplaceClient', 'ROOT', 'RemoteMarketplaceAdapter', 'SKILLS_DIR', 'SkillPackage', 'get_marketplace',
+    "CodeBuddyAdapter",
+    "LocalRegistry",
+    "MarketplaceAdapter",
+    "MarketplaceClient",
+    "ROOT",
+    "RemoteMarketplaceAdapter",
+    "SKILLS_DIR",
+    "SkillPackage",
+    "get_marketplace",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -31,22 +39,24 @@ SKILLS_DIR = ROOT / "skills"
 # 数据模型
 # ═══════════════════════════════════════════════════════════════
 
+
 @dataclass
 class SkillPackage:
     """一个技能包"""
+
     name: str
     description: str = ""
     version: str = "1.0.0"
     author: str = ""
-    icon: str = ""            # emoji or URL
-    category: str = ""        # video/coding/creative/quality/tool
+    icon: str = ""  # emoji or URL
+    category: str = ""  # video/coding/creative/quality/tool
     tags: list[str] = field(default_factory=list)
-    source: str = "local"     # local/codebuddy/custom
+    source: str = "local"  # local/codebuddy/custom
     installed: bool = False
     installable: bool = True
     size_kb: int = 0
     downloads: int = 0
-    rating: float = 0.0       # 0-5
+    rating: float = 0.0  # 0-5
     homepage: str = ""
     requires: list[str] = field(default_factory=list)  # 依赖的其他技能
 
@@ -57,9 +67,11 @@ class SkillPackage:
     def from_dict(cls, d: dict) -> "SkillPackage":
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
+
 # ═══════════════════════════════════════════════════════════════
 # 市场适配器基类
 # ═══════════════════════════════════════════════════════════════
+
 
 class MarketplaceAdapter(ABC):
     """市场适配器 — 每个生态市场实现此接口"""
@@ -94,9 +106,11 @@ class MarketplaceAdapter(ABC):
         """检查已安装技能包是否有更新"""
         return {}
 
+
 # ═══════════════════════════════════════════════════════════════
 # Local Registry — 基于 skills/ 目录
 # ═══════════════════════════════════════════════════════════════
+
 
 class LocalRegistry(MarketplaceAdapter):
     """本地技能注册表 — 从 skills/ 和 skills_md/ 双目录加载"""
@@ -160,8 +174,12 @@ class LocalRegistry(MarketplaceAdapter):
         if not name:
             name = path.stem.replace("-", " ").title()
         description = " ".join(desc_lines)[:120] if desc_lines else name
-        return {"name": name.lower().replace(" ", "-"), "display_name": name,
-                "description": description, "version": "1.0.0"}
+        return {
+            "name": name.lower().replace(" ", "-"),
+            "display_name": name,
+            "description": description,
+            "version": "1.0.0",
+        }
 
     def _to_package(self, raw: dict) -> SkillPackage:
         """将原始数据转为 SkillPackage"""
@@ -200,7 +218,9 @@ class LocalRegistry(MarketplaceAdapter):
         results = []
         for raw in self._load_all():
             pkg = self._to_package(raw)
-            if (q in pkg.name.lower() or q in pkg.description.lower() or q in pkg.category.lower()) and (not category or pkg.category == category):
+            if (q in pkg.name.lower() or q in pkg.description.lower() or q in pkg.category.lower()) and (
+                not category or pkg.category == category
+            ):
                 results.append(pkg)
         return results
 
@@ -240,9 +260,11 @@ class LocalRegistry(MarketplaceAdapter):
     def list_available(self) -> list[SkillPackage]:
         return [self._to_package(raw) for raw in self._load_all()]
 
+
 # ═══════════════════════════════════════════════════════════════
 # CodeBuddy 本地市场适配器 — 直接读 .codebuddy/skills-marketplace
 # ═══════════════════════════════════════════════════════════════
+
 
 class CodeBuddyAdapter(MarketplaceAdapter):
     """CodeBuddy 技能市场 — 从本地 .codebuddy/skills-marketplace/skills/ 读取。
@@ -273,6 +295,7 @@ class CodeBuddyAdapter(MarketplaceAdapter):
 
     def __init__(self, name: str = "codebuddy", market_dir: str = "") -> None:
         import os
+
         home = os.path.expanduser("~")
         if market_dir:
             self.market_dir = Path(market_dir)
@@ -295,6 +318,7 @@ class CodeBuddyAdapter(MarketplaceAdapter):
     def _load_all(self) -> dict[str, dict]:
         """加载所有技能元数据（递归搜索 SKILL.md，带缓存）"""
         import time
+
         now = time.time()
         if self._cache and (now - self._cache_time) < self._cache_ttl:
             return self._cache
@@ -407,9 +431,7 @@ class CodeBuddyAdapter(MarketplaceAdapter):
         results = []
         for raw in self._load_all().values():
             pkg = self._to_package(raw)
-            match = (q in pkg.name.lower() or
-                     q in pkg.description.lower() or
-                     q in pkg.category)
+            match = q in pkg.name.lower() or q in pkg.description.lower() or q in pkg.category
             if match and (not category or pkg.category == category):
                 results.append(pkg)
         return sorted(results, key=lambda p: p.name)
@@ -454,8 +476,7 @@ class CodeBuddyAdapter(MarketplaceAdapter):
         # 写入 CRUX skills/ 目录
         dest = SKILLS_DIR / f"{name}.skill.json"
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(json.dumps(skill_data, indent=2, ensure_ascii=False),
-                        encoding="utf-8")
+        dest.write_text(json.dumps(skill_data, indent=2, ensure_ascii=False), encoding="utf-8")
         return dest
 
     def list_available(self) -> list[SkillPackage]:
@@ -482,9 +503,11 @@ class CodeBuddyAdapter(MarketplaceAdapter):
                     pass
         return updates
 
+
 # ═══════════════════════════════════════════════════════════════
 # 远程市场适配器 — 从 GitHub/URL 注册表下载技能
 # ═══════════════════════════════════════════════════════════════
+
 
 class RemoteMarketplaceAdapter(MarketplaceAdapter):
     """远程市场适配器 — 从可配置 URL 拉取技能注册表并下载。
@@ -503,6 +526,7 @@ class RemoteMarketplaceAdapter(MarketplaceAdapter):
 
     def __init__(self, name: str = "remote", registry_url: str = "", api_key: str = "") -> None:
         import os
+
         self._name = name
         self._registry_url = registry_url
         # 自动从环境变量获取 CodeBuddy/DeepSeek API key
@@ -525,13 +549,14 @@ class RemoteMarketplaceAdapter(MarketplaceAdapter):
     def _probe(self) -> bool:
         """探活：至少一个注册表 URL 可达"""
         import httpx
+
         urls = [self._registry_url] if self._registry_url else self._KNOWN_REGISTRIES
         headers = {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
         for url in urls:
             try:
-                r = httpx.head(url, timeout=httpx.Timeout(8, connect=5),
-                               trust_env=False, follow_redirects=True,
-                               headers=headers)
+                r = httpx.head(
+                    url, timeout=httpx.Timeout(8, connect=5), trust_env=False, follow_redirects=True, headers=headers
+                )
                 if r.status_code < 500:
                     self._available = True
                     self._registry_url = url
@@ -546,6 +571,7 @@ class RemoteMarketplaceAdapter(MarketplaceAdapter):
         import time
 
         import httpx
+
         now = time.time()
         if self._cache and (now - self._cache_time) < self._cache_ttl:
             return self._cache
@@ -554,9 +580,9 @@ class RemoteMarketplaceAdapter(MarketplaceAdapter):
         urls = [self._registry_url] if self._registry_url else self._KNOWN_REGISTRIES
         for url in urls:
             try:
-                r = httpx.get(url, timeout=httpx.Timeout(15, connect=8),
-                              trust_env=False, follow_redirects=True,
-                              headers=headers)
+                r = httpx.get(
+                    url, timeout=httpx.Timeout(15, connect=8), trust_env=False, follow_redirects=True, headers=headers
+                )
                 if r.status_code == 200:
                     data = r.json()
                     plugins = data.get("plugins") or data.get("skills") or data.get("data") or data
@@ -614,11 +640,16 @@ class RemoteMarketplaceAdapter(MarketplaceAdapter):
     def download(self, name: str, version: str = "") -> Path:
         """从远程下载技能包 -> 写入 skills/{name}.skill.json"""
         import httpx
+
         headers = {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
-        urls = [
-            f"{self._registry_url.rsplit('/', 1)[0]}/skills/{name}.skill.json",
-            f"{self._registry_url.rsplit('/', 1)[0]}/skills/{name}/SKILL.md",
-        ] if self._registry_url else []
+        urls = (
+            [
+                f"{self._registry_url.rsplit('/', 1)[0]}/skills/{name}.skill.json",
+                f"{self._registry_url.rsplit('/', 1)[0]}/skills/{name}/SKILL.md",
+            ]
+            if self._registry_url
+            else []
+        )
         urls += [
             f"https://api.codebuddy.tencent.com/v1/skills/{name}",
             f"https://copilot.tencent.com/api/plugins/{name}",
@@ -628,13 +659,13 @@ class RemoteMarketplaceAdapter(MarketplaceAdapter):
 
         for url in urls:
             try:
-                r = httpx.get(url, timeout=httpx.Timeout(20, connect=8),
-                              trust_env=False, follow_redirects=True,
-                              headers=headers)
+                r = httpx.get(
+                    url, timeout=httpx.Timeout(20, connect=8), trust_env=False, follow_redirects=True, headers=headers
+                )
                 if r.status_code != 200:
                     continue
                 content = r.text
-                data = json.loads(content) if url.endswith('.json') else self._md_to_skill(name, content)
+                data = json.loads(content) if url.endswith(".json") else self._md_to_skill(name, content)
                 if data.get("name"):
                     dest = SKILLS_DIR / f"{name}.skill.json"
                     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -655,34 +686,43 @@ class RemoteMarketplaceAdapter(MarketplaceAdapter):
             elif s.startswith("## Description") or s.lower().startswith("## description"):
                 desc = s.split("## ", 1)[-1].strip()
         return {
-            "name": name, "description": desc or name_from_title,
-            "version": "1.0.0", "author": "Remote Market",
-            "prompt": content[:5000], "source": self.name, "tags": [],
+            "name": name,
+            "description": desc or name_from_title,
+            "version": "1.0.0",
+            "author": "Remote Market",
+            "prompt": content[:5000],
+            "source": self.name,
+            "tags": [],
         }
 
     def list_available(self) -> list[SkillPackage]:
         results = []
         for raw in self._fetch_registry():
-            results.append(SkillPackage(
-                name=raw.get("name", ""),
-                description=(raw.get("description") or raw.get("description_zh", ""))[:120],
-                version=raw.get("version", "1.0.0"),
-                author=raw.get("author", ""),
-                source=self.name,
-                installed=(SKILLS_DIR / f"{raw.get('name', '')}.skill.json").exists(),
-                installable=True,
-            ))
+            results.append(
+                SkillPackage(
+                    name=raw.get("name", ""),
+                    description=(raw.get("description") or raw.get("description_zh", ""))[:120],
+                    version=raw.get("version", "1.0.0"),
+                    author=raw.get("author", ""),
+                    source=self.name,
+                    installed=(SKILLS_DIR / f"{raw.get('name', '')}.skill.json").exists(),
+                    installable=True,
+                )
+            )
         return results
+
 
 # ═══════════════════════════════════════════════════════════════
 # 市场客户端 — 统一入口
 # ═══════════════════════════════════════════════════════════════
+
 
 class MarketplaceClient:
     """多市场技能管理客户端"""
 
     def __init__(self) -> None:
         import os
+
         home = os.path.expanduser("~")
 
         self.local = LocalRegistry()
@@ -691,10 +731,7 @@ class MarketplaceClient:
         self.codebuddy = CodeBuddyAdapter(name="codebuddy")
 
         # CodeBuddy 官方插件市场（从根目录递归扫描）
-        official_dir = str(
-            Path(home) / ".codebuddy" / "plugins" / "marketplaces" /
-            "codebuddy-plugins-official"
-        )
+        official_dir = str(Path(home) / ".codebuddy" / "plugins" / "marketplaces" / "codebuddy-plugins-official")
         self.official = CodeBuddyAdapter(name="official", market_dir=official_dir)
 
         # 远程市场（GitHub raw / 可配置 URL）
@@ -709,8 +746,9 @@ class MarketplaceClient:
 
     @property
     def adapters(self) -> list[MarketplaceAdapter]:
-        return [a for a in self._adapters
-                if not isinstance(a, (CodeBuddyAdapter, RemoteMarketplaceAdapter)) or a.enabled]
+        return [
+            a for a in self._adapters if not isinstance(a, (CodeBuddyAdapter, RemoteMarketplaceAdapter)) or a.enabled
+        ]
 
     def search(self, query: str, category: str = "") -> list[SkillPackage]:
         """跨所有市场搜索技能包"""
@@ -804,7 +842,7 @@ class MarketplaceClient:
         installed = len(self.list_installed())
         cats = self.categories()
         cb_status = "已连接" if self.codebuddy.enabled else "未配置"
-        remote_status = "已连接" if (hasattr(self, 'remote') and self.remote.enabled) else "待网络"
+        remote_status = "已连接" if (hasattr(self, "remote") and self.remote.enabled) else "待网络"
         total_available = len(self.list_all())
         lines = [
             "## 技能市场",
@@ -818,12 +856,14 @@ class MarketplaceClient:
         ]
         return "\n".join(lines)
 
+
 # ═══════════════════════════════════════════════════════════════
 # 单例（线程安全双重检查锁）
 # ═══════════════════════════════════════════════════════════════
 
 _marketplace: MarketplaceClient | None = None
 _marketplace_lock = threading.Lock()
+
 
 def get_marketplace() -> MarketplaceClient:
     global _marketplace

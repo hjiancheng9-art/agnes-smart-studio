@@ -14,7 +14,19 @@ from pathlib import Path
 import httpx
 
 __all__ = [
-    'EXECUTOR_MAP', 'MANIFEST_DIR', 'OUTPUT_ROOT', 'PIPELINE_TOOLS', 'execute_check_file', 'execute_decompose_to_storyboard', 'execute_dependency_graph', 'execute_extract_keyframes', 'execute_fetch_url', 'execute_list_files', 'execute_mark_asset_ok', 'execute_regenerate_asset', 'execute_save_manifest',
+    "EXECUTOR_MAP",
+    "MANIFEST_DIR",
+    "OUTPUT_ROOT",
+    "PIPELINE_TOOLS",
+    "execute_check_file",
+    "execute_decompose_to_storyboard",
+    "execute_dependency_graph",
+    "execute_extract_keyframes",
+    "execute_fetch_url",
+    "execute_list_files",
+    "execute_mark_asset_ok",
+    "execute_regenerate_asset",
+    "execute_save_manifest",
 ]
 
 # ── 项目输出根目录 ──
@@ -22,6 +34,7 @@ OUTPUT_ROOT = Path(__file__).parent.parent / "output"
 OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 
 # ── subprocess 安全封装（Windows GBK 编码防御）──
+
 
 def _run(cmd: list, **kwargs) -> subprocess.CompletedProcess:
     """subprocess.run 的安全封装，强制 UTF-8 编码，默认 120s 超时"""
@@ -32,6 +45,7 @@ def _run(cmd: list, **kwargs) -> subprocess.CompletedProcess:
     # 默认 120s 超时兜底：ffmpeg 等大文件处理可能较慢，但不允许无限阻塞
     kwargs.setdefault("timeout", 120)
     return subprocess.run(cmd, **kwargs)
+
 
 # ============================================================
 #  管道工具定义（OpenAI function calling 格式）
@@ -46,19 +60,12 @@ PIPELINE_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "video_path": {
-                        "type": "string",
-                        "description": "本地视频文件的完整路径"
-                    },
-                    "max_frames": {
-                        "type": "integer",
-                        "description": "最多提取帧数，默认 12",
-                        "default": 12
-                    }
+                    "video_path": {"type": "string", "description": "本地视频文件的完整路径"},
+                    "max_frames": {"type": "integer", "description": "最多提取帧数，默认 12", "default": 12},
                 },
-                "required": ["video_path"]
-            }
-        }
+                "required": ["video_path"],
+            },
+        },
     },
     {
         "type": "function",
@@ -68,18 +75,15 @@ PIPELINE_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "project_name": {
-                        "type": "string",
-                        "description": "项目名称，用于创建输出目录"
-                    },
+                    "project_name": {"type": "string", "description": "项目名称，用于创建输出目录"},
                     "manifest": {
                         "type": "object",
-                        "description": "项目清单 JSON 对象，包含 phase/stage/assets/shots 等字段"
-                    }
+                        "description": "项目清单 JSON 对象，包含 phase/stage/assets/shots 等字段",
+                    },
                 },
-                "required": ["project_name", "manifest"]
-            }
-        }
+                "required": ["project_name", "manifest"],
+            },
+        },
     },
     {
         "type": "function",
@@ -88,15 +92,10 @@ PIPELINE_TOOLS = [
             "description": "检查指定文件路径是否存在，用于验证资产是否已生成或导入。",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "file_path": {
-                        "type": "string",
-                        "description": "要检查的文件路径"
-                    }
-                },
-                "required": ["file_path"]
-            }
-        }
+                "properties": {"file_path": {"type": "string", "description": "要检查的文件路径"}},
+                "required": ["file_path"],
+            },
+        },
     },
     {
         "type": "function",
@@ -105,15 +104,10 @@ PIPELINE_TOOLS = [
             "description": "列出当前项目的输出目录中的所有文件，用于进度检查。",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "project_name": {
-                        "type": "string",
-                        "description": "项目名称"
-                    }
-                },
-                "required": ["project_name"]
-            }
-        }
+                "properties": {"project_name": {"type": "string", "description": "项目名称"}},
+                "required": ["project_name"],
+            },
+        },
     },
     {
         "type": "function",
@@ -122,15 +116,10 @@ PIPELINE_TOOLS = [
             "description": "获取在线 URL 的内容信息，用于处理视频链接类型的输入。返回页面标题、描述和可用的媒体信息。",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "url": {
-                        "type": "string",
-                        "description": "要获取内容的在线 URL"
-                    }
-                },
-                "required": ["url"]
-            }
-        }
+                "properties": {"url": {"type": "string", "description": "要获取内容的在线 URL"}},
+                "required": ["url"],
+            },
+        },
     },
     {
         "type": "function",
@@ -142,11 +131,11 @@ PIPELINE_TOOLS = [
                 "properties": {
                     "project_name": {"type": "string", "description": "项目名称"},
                     "asset_id": {"type": "string", "description": "要重做的资产ID，如 kf-03 或 char-01"},
-                    "new_params": {"type": "string", "description": "新参数JSON，如 {\"prompt\": \"偏暖色调\"} 或 {}"},
+                    "new_params": {"type": "string", "description": '新参数JSON，如 {"prompt": "偏暖色调"} 或 {}'},
                 },
                 "required": ["project_name", "asset_id"],
-            }
-        }
+            },
+        },
     },
     {
         "type": "function",
@@ -159,8 +148,8 @@ PIPELINE_TOOLS = [
                     "project_name": {"type": "string", "description": "项目名称"},
                 },
                 "required": ["project_name"],
-            }
-        }
+            },
+        },
     },
     {
         "type": "function",
@@ -174,9 +163,9 @@ PIPELINE_TOOLS = [
                     "asset_id": {"type": "string", "description": "资产ID"},
                 },
                 "required": ["project_name", "asset_id"],
-            }
-        }
-    }
+            },
+        },
+    },
 ]
 
 # ============================================================
@@ -187,16 +176,31 @@ PIPELINE_TOOLS = [
 
 _SENSITIVITY_TARGET_MAP = {
     # sensitivity → ideal shot duration (seconds per shot)
-    85: 1.2, 70: 1.45, 55: 1.7, 35: 1.85,
+    85: 1.2,
+    70: 1.45,
+    55: 1.7,
+    35: 1.85,
 }
 _DEFAULT_IDEAL_SHOT_SEC = 2.35
 _SCENE_CANDIDATES = [0.3, 0.195, 0.135, 0.096, 0.16, 0.1, 0.075, 0.065, 0.06, 0.055, 0.04]
 _MAX_OUTPUT_WIDTH = 960
 
+
 def _probe_duration(video_path: str) -> float | None:
     """用 ffprobe 获取视频时长（秒）"""
-    probe = _run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
-                   "-of", "default=noprint_wrappers=1:nokey=1", video_path], timeout=15)
+    probe = _run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            video_path,
+        ],
+        timeout=15,
+    )
     if probe.returncode != 0:
         return None
     try:
@@ -204,14 +208,15 @@ def _probe_duration(video_path: str) -> float | None:
     except (ValueError, TypeError):
         return None
 
+
 def _detect_scene_cuts(video_path: str, threshold: float = 0.3) -> list[float]:
     """用 ffmpeg scene detect 找到场景切换时间点"""
     fps = 2.0  # 1/0.5s sample interval
     f = f"fps=fps={fps},select='gt(scene,{threshold})',showinfo"
-    r = _run(["ffmpeg", "-hide_banner", "-i", video_path,
-              "-filter:v", f, "-f", "null", "-"], timeout=60)
+    r = _run(["ffmpeg", "-hide_banner", "-i", video_path, "-filter:v", f, "-f", "null", "-"], timeout=60)
     text = (r.stdout or "") + "\n" + (r.stderr or "")
     import re
+
     times = []
     for m in re.finditer(r"pts_time:([0-9.]+)", text):
         try:
@@ -221,6 +226,7 @@ def _detect_scene_cuts(video_path: str, threshold: float = 0.3) -> list[float]:
         except ValueError:
             pass
     return sorted({round(t, 3) for t in times})
+
 
 def _build_shot_ranges(cut_times: list[float], duration: float, min_shot: float = 1.0) -> list[dict]:
     """把场景切换点转化为镜头区间"""
@@ -232,25 +238,33 @@ def _build_shot_ranges(cut_times: list[float], duration: float, min_shot: float 
     if duration - boundaries[-1] < min_shot and len(boundaries) > 1:
         boundaries.pop()
     boundaries.append(duration)
-    return [{
-        "id": i + 1,
-        "startTime": round(boundaries[i], 3),
-        "endTime": round(boundaries[i + 1], 3),
-        "duration": round(max(0, boundaries[i + 1] - boundaries[i]), 3),
-        "keyTime": round(boundaries[i] + max(0.08, (boundaries[i + 1] - boundaries[i]) / 2), 3),
-    } for i in range(len(boundaries) - 1)]
+    return [
+        {
+            "id": i + 1,
+            "startTime": round(boundaries[i], 3),
+            "endTime": round(boundaries[i + 1], 3),
+            "duration": round(max(0, boundaries[i + 1] - boundaries[i]), 3),
+            "keyTime": round(boundaries[i] + max(0.08, (boundaries[i + 1] - boundaries[i]) / 2), 3),
+        }
+        for i in range(len(boundaries) - 1)
+    ]
+
 
 def _paced_ranges(duration: float, count: int) -> list[dict]:
     """均匀分镜（场景检测失败时的回退策略）"""
     c = max(1, count)
     step = duration / c
-    return [{
-        "id": i + 1,
-        "startTime": round(i * step, 3),
-        "endTime": round(duration if i == c - 1 else (i + 1) * step, 3),
-        "duration": round(step, 3),
-        "keyTime": round(i * step + step / 2, 3),
-    } for i in range(c)]
+    return [
+        {
+            "id": i + 1,
+            "startTime": round(i * step, 3),
+            "endTime": round(duration if i == c - 1 else (i + 1) * step, 3),
+            "duration": round(step, 3),
+            "keyTime": round(i * step + step / 2, 3),
+        }
+        for i in range(c)
+    ]
+
 
 def _densify_ranges(ranges: list[dict], target: int, min_shot: float = 0.5) -> list[dict]:
     """镜头不够时，把长镜头拆分为多个 paced beat"""
@@ -277,14 +291,19 @@ def _densify_ranges(ranges: list[dict], target: int, min_shot: float = 0.5) -> l
         for j in range(parts[i]):
             s = r["startTime"] + j * r["duration"] / parts[i]
             e = r["startTime"] + (j + 1) * r["duration"] / parts[i]
-            result.append({
-                "id": nid, "startTime": round(s, 3), "endTime": round(e, 3),
-                "duration": round(max(0.08, e - s), 3),
-                "keyTime": round(s + (e - s) / 2, 3),
-                "parentRangeId": r.get("id"),
-            })
+            result.append(
+                {
+                    "id": nid,
+                    "startTime": round(s, 3),
+                    "endTime": round(e, 3),
+                    "duration": round(max(0.08, e - s), 3),
+                    "keyTime": round(s + (e - s) / 2, 3),
+                    "parentRangeId": r.get("id"),
+                }
+            )
             nid += 1
     return result
+
 
 def _target_shots(duration: float, sensitivity: int = 50) -> int:
     """根据时长和敏感度计算目标镜头数"""
@@ -300,8 +319,8 @@ def _target_shots(duration: float, sensitivity: int = 50) -> int:
     max_s = 24 if duration <= 45 else 36 if duration <= 90 else 60
     return min(max_s, max(min_s, raw))
 
-def execute_extract_keyframes(video_path: str, max_frames: int = 12,
-                               interval_seconds: float | None = None) -> str:
+
+def execute_extract_keyframes(video_path: str, max_frames: int = 12, interval_seconds: float | None = None) -> str:
     """从视频中提取关键帧（对齐新烬龙V2场景检测策略）
 
     流程：场景检测 → 自适应阈值搜索 → 镜头补密 → ffmpeg 提取
@@ -316,10 +335,10 @@ def execute_extract_keyframes(video_path: str, max_frames: int = 12,
     try:
         _run(["ffmpeg", "-version"], timeout=5)
     except (FileNotFoundError, subprocess.TimeoutExpired):
-        return json.dumps({
-            "error": "未找到 ffmpeg", "success": False,
-            "hint": "winget install ffmpeg 或 brew install ffmpeg"
-        }, ensure_ascii=False)
+        return json.dumps(
+            {"error": "未找到 ffmpeg", "success": False, "hint": "winget install ffmpeg 或 brew install ffmpeg"},
+            ensure_ascii=False,
+        )
 
     # 1. 获取时长
     duration = _probe_duration(str(video))
@@ -333,7 +352,7 @@ def execute_extract_keyframes(video_path: str, max_frames: int = 12,
 
     for th in _SCENE_CANDIDATES[:5]:  # 尝试前5个阈值
         cuts = _detect_scene_cuts(str(video), th)
-        ranges = _build_shot_ranges(cuts, duration)[:target * 2]
+        ranges = _build_shot_ranges(cuts, duration)[: target * 2]
         if ranges:
             best_ranges = ranges
             best_strategy = f"scene_threshold_{th}"
@@ -363,29 +382,50 @@ def execute_extract_keyframes(video_path: str, max_frames: int = 12,
     for r in best_ranges:
         fname = f"keyframe-{r['id']:03d}.jpg"
         out_path = out_dir / fname
-        _run(["ffmpeg", "-y", "-ss", str(r["keyTime"]), "-i", str(video),
-              "-frames:v", "1", "-vf", f"scale={_MAX_OUTPUT_WIDTH}:-2",
-              "-q:v", "2", str(out_path)], timeout=30)
+        _run(
+            [
+                "ffmpeg",
+                "-y",
+                "-ss",
+                str(r["keyTime"]),
+                "-i",
+                str(video),
+                "-frames:v",
+                "1",
+                "-vf",
+                f"scale={_MAX_OUTPUT_WIDTH}:-2",
+                "-q:v",
+                "2",
+                str(out_path),
+            ],
+            timeout=30,
+        )
         if out_path.exists() and out_path.stat().st_size > 100:
-            frames.append({
-                "id": r["id"],
-                "path": str(out_path),
-                "keyTime": r["keyTime"],
-                "startTime": r.get("startTime", 0),
-                "endTime": r.get("endTime", 0),
-                "duration": r.get("duration", 0),
-            })
+            frames.append(
+                {
+                    "id": r["id"],
+                    "path": str(out_path),
+                    "keyTime": r["keyTime"],
+                    "startTime": r.get("startTime", 0),
+                    "endTime": r.get("endTime", 0),
+                    "duration": r.get("duration", 0),
+                }
+            )
 
-    return json.dumps({
-        "success": True,
-        "video_path": str(video),
-        "duration_seconds": round(duration, 1),
-        "strategy": best_strategy,
-        "frame_count": len(frames),
-        "target_shots": target,
-        "sensitivity": sensitivity,
-        "frames": frames,
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "video_path": str(video),
+            "duration_seconds": round(duration, 1),
+            "strategy": best_strategy,
+            "frame_count": len(frames),
+            "target_shots": target,
+            "sensitivity": sensitivity,
+            "frames": frames,
+        },
+        ensure_ascii=False,
+    )
+
 
 def execute_save_manifest(project_name: str, manifest: dict) -> str:
     """保存项目清单"""
@@ -395,18 +435,18 @@ def execute_save_manifest(project_name: str, manifest: dict) -> str:
 
     # 添加时间戳
     from datetime import datetime
+
     manifest["saved_at"] = datetime.now().isoformat()
     manifest["project_name"] = project_name
 
     file_path = out_dir / "manifest.json"
     file_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    return json.dumps({
-        "success": True,
-        "project_name": project_name,
-        "manifest_path": str(file_path),
-        "output_dir": str(out_dir)
-    }, ensure_ascii=False)
+    return json.dumps(
+        {"success": True, "project_name": project_name, "manifest_path": str(file_path), "output_dir": str(out_dir)},
+        ensure_ascii=False,
+    )
+
 
 def execute_check_file(file_path: str) -> str:
     """检查文件是否存在"""
@@ -422,33 +462,24 @@ def execute_check_file(file_path: str) -> str:
         result["extension"] = p.suffix
     return json.dumps(result, ensure_ascii=False)
 
+
 def execute_list_files(project_name: str) -> str:
     """列出项目文件"""
     safe_name = project_name.replace(" ", "_").replace("/", "_").replace("\\", "_")
     out_dir = OUTPUT_ROOT / "projects" / safe_name
 
     if not out_dir.exists():
-        return json.dumps({
-            "project_name": project_name,
-            "exists": False,
-            "files": []
-        }, ensure_ascii=False)
+        return json.dumps({"project_name": project_name, "exists": False, "files": []}, ensure_ascii=False)
 
     files = []
     for f in sorted(out_dir.rglob("*")):
         if f.is_file():
-            files.append({
-                "path": str(f.relative_to(out_dir)),
-                "size_bytes": f.stat().st_size,
-                "extension": f.suffix
-            })
+            files.append({"path": str(f.relative_to(out_dir)), "size_bytes": f.stat().st_size, "extension": f.suffix})
 
-    return json.dumps({
-        "project_name": project_name,
-        "exists": True,
-        "total_files": len(files),
-        "files": files
-    }, ensure_ascii=False)
+    return json.dumps(
+        {"project_name": project_name, "exists": True, "total_files": len(files), "files": files}, ensure_ascii=False
+    )
+
 
 def execute_fetch_url(url: str) -> str:
     """获取 URL 内容信息"""
@@ -474,8 +505,7 @@ def execute_fetch_url(url: str) -> str:
 
             # 提取 meta description
             desc_match = re.search(
-                r'<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']+)',
-                text, re.IGNORECASE
+                r'<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']+)', text, re.IGNORECASE
             )
             if desc_match:
                 result["page_description"] = desc_match.group(1).strip()
@@ -483,15 +513,13 @@ def execute_fetch_url(url: str) -> str:
         return json.dumps(result, ensure_ascii=False)
 
     except (httpx.HTTPError, OSError) as e:
-        return json.dumps({
-            "url": url,
-            "error": str(e),
-            "success": False
-        }, ensure_ascii=False)
+        return json.dumps({"url": url, "error": str(e), "success": False}, ensure_ascii=False)
+
 
 # ============================================================
 #  文案→分镜自动拆解工具
 # ============================================================
+
 
 def execute_decompose_to_storyboard(project_name: str, script_text: str) -> str:
     """将文案文本保存为项目清单的脚本字段，为后续拆资产/分镜准备数据。
@@ -523,19 +551,24 @@ def execute_decompose_to_storyboard(project_name: str, script_text: str) -> str:
     _save_manifest(project_name, manifest)
 
     char_count = len(script_text)
-    return json.dumps({
-        "success": True,
-        "project_name": project_name,
-        "script_length": char_count,
-        "message": f"文案已锁定（{char_count}字）。下一步：基于文案拆资产/分镜。",
-        "hint": "请分析文案中提取：角色(character)/场景(scene)/道具(prop)/载具(vehicle)，然后生成分镜列表(shots)。",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "project_name": project_name,
+            "script_length": char_count,
+            "message": f"文案已锁定（{char_count}字）。下一步：基于文案拆资产/分镜。",
+            "hint": "请分析文案中提取：角色(character)/场景(scene)/道具(prop)/载具(vehicle)，然后生成分镜列表(shots)。",
+        },
+        ensure_ascii=False,
+    )
+
 
 # ============================================================
 #  资产依赖追踪系统
 # ============================================================
 
 MANIFEST_DIR = OUTPUT_ROOT / "projects"
+
 
 def _load_manifest(project_name: str) -> dict | None:
     """加载项目清单"""
@@ -548,12 +581,14 @@ def _load_manifest(project_name: str) -> dict | None:
             pass
     return None
 
+
 def _save_manifest(project_name: str, manifest: dict):
     """保存项目清单"""
     safe = project_name.replace(" ", "_").replace("/", "_").replace("\\", "_")
     out = MANIFEST_DIR / safe
     out.mkdir(parents=True, exist_ok=True)
     (out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
 
 def execute_regenerate_asset(project_name: str, asset_id: str, new_params: str = "{}") -> str:
     """重做单个资产，自动将下游标记为 blocked。
@@ -580,11 +615,14 @@ def execute_regenerate_asset(project_name: str, asset_id: str, new_params: str =
             for item in manifest.get(key, []):
                 if isinstance(item, dict) and item.get("id") == asset_id:
                     all_ids.append(asset_id)
-        return json.dumps({
-            "error": f"未找到资产: {asset_id}",
-            "available_ids": all_ids[:20],
-            "success": False,
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "error": f"未找到资产: {asset_id}",
+                "available_ids": all_ids[:20],
+                "success": False,
+            },
+            ensure_ascii=False,
+        )
 
     node = assets[asset_id]
     node["status"] = "needs_redo"
@@ -609,14 +647,18 @@ def execute_regenerate_asset(project_name: str, asset_id: str, new_params: str =
     manifest["assets"] = assets
     _save_manifest(project_name, manifest)
 
-    return json.dumps({
-        "success": True,
-        "asset_id": asset_id,
-        "new_status": "needs_redo",
-        "blocked_downstream": blocked,
-        "message": f"资产 {asset_id} 已标记重做。{len(blocked)} 个下游资产已标记 blocked: {blocked}",
-        "hint": "重新生成后自动解除 blocked 状态。其他不相关的资产和视频段不受影响。",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "asset_id": asset_id,
+            "new_status": "needs_redo",
+            "blocked_downstream": blocked,
+            "message": f"资产 {asset_id} 已标记重做。{len(blocked)} 个下游资产已标记 blocked: {blocked}",
+            "hint": "重新生成后自动解除 blocked 状态。其他不相关的资产和视频段不受影响。",
+        },
+        ensure_ascii=False,
+    )
+
 
 def execute_dependency_graph(project_name: str) -> str:
     """返回项目依赖图"""
@@ -627,39 +669,44 @@ def execute_dependency_graph(project_name: str) -> str:
     assets = manifest.get("assets", {})
     nodes = []
     for aid, node in assets.items():
-        nodes.append({
-            "id": aid,
-            "type": node.get("type", "unknown"),
-            "status": node.get("status", "unknown"),
-            "path": node.get("path", ""),
-            "depends_on": node.get("depends_on", []),
-            "depended_by": node.get("depended_by", []),
-        })
+        nodes.append(
+            {
+                "id": aid,
+                "type": node.get("type", "unknown"),
+                "status": node.get("status", "unknown"),
+                "path": node.get("path", ""),
+                "depends_on": node.get("depends_on", []),
+                "depended_by": node.get("depended_by", []),
+            }
+        )
 
     # 也包含关键帧和视频段
     for key in ("keyframes", "shots", "video_segments"):
         for item in manifest.get(key, []):
             if isinstance(item, dict):
-                nodes.append({
-                    "id": item.get("id", ""),
-                    "type": key.rstrip("s"),
-                    "status": item.get("status", "unknown"),
-                    "path": item.get("path", ""),
-                    "depends_on": item.get("depends_on", []),
-                    "depended_by": item.get("depended_by", []),
-                    "duration": item.get("duration", 0),
-                })
+                nodes.append(
+                    {
+                        "id": item.get("id", ""),
+                        "type": key.rstrip("s"),
+                        "status": item.get("status", "unknown"),
+                        "path": item.get("path", ""),
+                        "depends_on": item.get("depends_on", []),
+                        "depended_by": item.get("depended_by", []),
+                        "duration": item.get("duration", 0),
+                    }
+                )
 
-    return json.dumps({
-        "success": True,
-        "project_name": project_name,
-        "total_nodes": len(nodes),
-        "nodes": nodes,
-        "status_summary": {
-            s: sum(1 for n in nodes if n["status"] == s)
-            for s in {n["status"] for n in nodes}
-        }
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "project_name": project_name,
+            "total_nodes": len(nodes),
+            "nodes": nodes,
+            "status_summary": {s: sum(1 for n in nodes if n["status"] == s) for s in {n["status"] for n in nodes}},
+        },
+        ensure_ascii=False,
+    )
+
 
 def execute_mark_asset_ok(project_name: str, asset_id: str) -> str:
     """用户确认资产满意，标记 done，解除下游 blocked"""
@@ -679,23 +726,24 @@ def execute_mark_asset_ok(project_name: str, asset_id: str) -> str:
             # 只有所有依赖都 done，才解除 blocked
             dep_node = assets[dep_id]
             deps = dep_node.get("depends_on", [])
-            all_done = all(
-                assets.get(d, {}).get("status") == "done"
-                for d in deps
-            )
+            all_done = all(assets.get(d, {}).get("status") == "done" for d in deps)
             if all_done and dep_node["status"] == "blocked":
                 dep_node["status"] = "pending"
                 unblocked.append(dep_id)
 
     _save_manifest(project_name, manifest)
 
-    return json.dumps({
-        "success": True,
-        "asset_id": asset_id,
-        "status": "done",
-        "unblocked": unblocked,
-        "message": f"资产 {asset_id} 已确认。{len(unblocked)} 个下游资产已解除 blocked: {unblocked}",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "asset_id": asset_id,
+            "status": "done",
+            "unblocked": unblocked,
+            "message": f"资产 {asset_id} 已确认。{len(unblocked)} 个下游资产已解除 blocked: {unblocked}",
+        },
+        ensure_ascii=False,
+    )
+
 
 # ============================================================
 #  工具名称 → 执行函数 映射表
@@ -705,21 +753,14 @@ EXECUTOR_MAP = {
     "extract_video_keyframes": lambda **kw: execute_extract_keyframes(
         video_path=kw.get("video_path", ""),
         max_frames=kw.get("max_frames", 12),
-        interval_seconds=kw.get("interval_seconds")
+        interval_seconds=kw.get("interval_seconds"),
     ),
     "save_project_manifest": lambda **kw: execute_save_manifest(
-        project_name=kw.get("project_name", "untitled"),
-        manifest=kw.get("manifest", {})
+        project_name=kw.get("project_name", "untitled"), manifest=kw.get("manifest", {})
     ),
-    "check_file_exists": lambda **kw: execute_check_file(
-        file_path=kw.get("file_path", "")
-    ),
-    "list_project_files": lambda **kw: execute_list_files(
-        project_name=kw.get("project_name", "")
-    ),
-    "fetch_url_content": lambda **kw: execute_fetch_url(
-        url=kw.get("url", "")
-    ),
+    "check_file_exists": lambda **kw: execute_check_file(file_path=kw.get("file_path", "")),
+    "list_project_files": lambda **kw: execute_list_files(project_name=kw.get("project_name", "")),
+    "fetch_url_content": lambda **kw: execute_fetch_url(url=kw.get("url", "")),
     "decompose_to_storyboard": lambda **kw: execute_decompose_to_storyboard(
         project_name=kw.get("project_name", ""),
         script_text=kw.get("script_text", ""),
@@ -729,9 +770,7 @@ EXECUTOR_MAP = {
         asset_id=kw.get("asset_id", ""),
         new_params=kw.get("new_params", "{}"),
     ),
-    "project_dependency_graph": lambda **kw: execute_dependency_graph(
-        project_name=kw.get("project_name", "")
-    ),
+    "project_dependency_graph": lambda **kw: execute_dependency_graph(project_name=kw.get("project_name", "")),
     "mark_asset_ok": lambda **kw: execute_mark_asset_ok(
         project_name=kw.get("project_name", ""),
         asset_id=kw.get("asset_id", ""),

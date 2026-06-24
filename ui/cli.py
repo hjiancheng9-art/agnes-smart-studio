@@ -41,20 +41,26 @@ from ui.terminal_logo import render_rich as _render_logo_rich
 from ui.theme import COLORS, ICONS, LAYOUT, console
 from utils import memory
 
-__all__ = ['CruxCLI', 'LOGO']
+__all__ = ["CruxCLI", "LOGO"]
 
 
 def _build_logo() -> str:
     """Build the organic pixel logo as Rich markup."""
-    return _render_logo_rich(v=f'v{__version__}')
+    return _render_logo_rich(v=f"v{__version__}")
 
 
 LOGO = _build_logo()
 
 
-class CruxCLI(SharedMixin, InlineCommandsMixin, CreativeCommandsMixin,
-               EngineeringCommandsMixin, GitCommandsMixin, DiagCommandsMixin,
-               GeneratorsMenuMixin):
+class CruxCLI(
+    SharedMixin,
+    InlineCommandsMixin,
+    CreativeCommandsMixin,
+    EngineeringCommandsMixin,
+    GitCommandsMixin,
+    DiagCommandsMixin,
+    GeneratorsMenuMixin,
+):
     """CRUX Studio CLI.
 
     通过多重继承组合 7 个 Mixin，每个 Mixin 提供一组命令处理器。
@@ -92,31 +98,44 @@ class CruxCLI(SharedMixin, InlineCommandsMixin, CreativeCommandsMixin,
         console.print(LOGO)
         while True:
             console.print()
-            menu = Table(title=f"[{COLORS['primary']}]{ICONS['primary']} Menu[/]", show_header=False, box=None, padding=(0, 2))
+            menu = Table(
+                title=f"[{COLORS['primary']}]{ICONS['primary']} Menu[/]", show_header=False, box=None, padding=(0, 2)
+            )
             menu.add_column("Key", style=f"bold {COLORS['accent']}", width=4)
             menu.add_column("Name", style="white", width=16)
             menu.add_column("Desc", style="dim")
             for k, n, d in [
-                ("1",f"{ICONS['primary']} Text→Image","Generate image from text"),
-                ("2",f"{ICONS['empty']} Image→Image","Edit / style transfer"),
-                ("3",f"{ICONS['video']} Text→Video","Generate video from text"),
-                ("4",f"{ICONS['video']} Image→Video","Animate an image"),
-                ("5",f"{ICONS['pipeline']} Pipeline","Text → Image → Video"),
-                ("6",f"{ICONS['history']} History","View generation history"),
-                ("7",f"{ICONS['template']} Templates","Browse style templates"),
-                ("8",f"{ICONS['primary']} Chat","AI conversation with generation"),
-                ("0",f"{ICONS['error']} Exit",""),
+                ("1", f"{ICONS['primary']} Text→Image", "Generate image from text"),
+                ("2", f"{ICONS['empty']} Image→Image", "Edit / style transfer"),
+                ("3", f"{ICONS['video']} Text→Video", "Generate video from text"),
+                ("4", f"{ICONS['video']} Image→Video", "Animate an image"),
+                ("5", f"{ICONS['pipeline']} Pipeline", "Text → Image → Video"),
+                ("6", f"{ICONS['history']} History", "View generation history"),
+                ("7", f"{ICONS['template']} Templates", "Browse style templates"),
+                ("8", f"{ICONS['primary']} Chat", "AI conversation with generation"),
+                ("0", f"{ICONS['error']} Exit", ""),
             ]:
                 menu.add_row(k, n, d)
             console.print(menu)
 
-            ch = Prompt.ask(f"[{COLORS['primary']}]{ICONS['primary']} Select[/]", choices=["0","1","2","3","4","5","6","7","8"], default="1")
+            ch = Prompt.ask(
+                f"[{COLORS['primary']}]{ICONS['primary']} Select[/]",
+                choices=["0", "1", "2", "3", "4", "5", "6", "7", "8"],
+                default="1",
+            )
             if ch == "0":
                 break
             try:
-                {"1": self._t2i, "2": self._i2i, "3": self._t2v,
-                 "4": self._i2v, "5": self._pipeline, "6": self._hist, "7": self._tmpl,
-                 "8": self._chat}[ch]()
+                {
+                    "1": self._t2i,
+                    "2": self._i2i,
+                    "3": self._t2v,
+                    "4": self._i2v,
+                    "5": self._pipeline,
+                    "6": self._hist,
+                    "7": self._tmpl,
+                    "8": self._chat,
+                }[ch]()
             except ContentPolicyError as e:
                 show_warning(str(e))
             except Exception as e:
@@ -155,19 +174,21 @@ class CruxCLI(SharedMixin, InlineCommandsMixin, CreativeCommandsMixin,
         # 自助选择供应商（多 Key 时弹出菜单，单 Key 自动激活）
         active_provider, active_model = self._select_provider()
 
-        console.print(Panel(
-            "直接输入文字即可对话（流式输出）。\n"
-            "命令: /help /model /img /video /vision /clear /exit\n"
-            "技能: /skill load 视频|作图|写剧本|分镜|质检...\n"
-            "换行: Alt+Enter / Ctrl+J 换行，Enter 发送\n"
-            "图片: 直接粘贴图片路径即可自动识别\n"
-            "提示: Ctrl+C 中止运行 · Ctrl+C 再次退出\n"
-            f"默认模型: {active_model}（{MODEL_INFO.get(active_model, active_provider)}）\n"
-            "视觉通道: 独立 CRUX · 图片理解始终可用",
-            title=f"[{COLORS['accent']}]✿ Chat mode[/]",
-            border_style=COLORS["accent"],
-            padding=LAYOUT["panel_padding"],
-        ))
+        console.print(
+            Panel(
+                "直接输入文字即可对话（流式输出）。\n"
+                "命令: /help /model /img /video /vision /clear /exit\n"
+                "技能: /skill load 视频|作图|写剧本|分镜|质检...\n"
+                "换行: Alt+Enter / Ctrl+J 换行，Enter 发送\n"
+                "图片: 直接粘贴图片路径即可自动识别\n"
+                "提示: Ctrl+C 中止运行 · Ctrl+C 再次退出\n"
+                f"默认模型: {active_model}（{MODEL_INFO.get(active_model, active_provider)}）\n"
+                "视觉通道: 独立 CRUX · 图片理解始终可用",
+                title=f"[{COLORS['accent']}]✿ Chat mode[/]",
+                border_style=COLORS["accent"],
+                padding=LAYOUT["panel_padding"],
+            )
+        )
 
         session = ChatSession(self.client, vision_client=self.vision_client, vision_model=CRUX_VISION_MODEL)
         session.model = active_model
@@ -216,7 +237,7 @@ class CruxCLI(SharedMixin, InlineCommandsMixin, CreativeCommandsMixin,
                 self._chat_vision(session, user)
                 continue
 
-                    # ── 自然语言对话（流式）──
+                # ── 自然语言对话（流式）──
             try:
                 self._stream_chat(session, user)
             except KeyboardInterrupt:
@@ -230,7 +251,6 @@ class CruxCLI(SharedMixin, InlineCommandsMixin, CreativeCommandsMixin,
                 # 回滚刚加进去的 user message，避免历史污染
                 if session.messages and session.messages[-1].get("role") == "user":
                     session.messages.pop()
-
 
     # ── TODO 扫描 ─────────────────────────────
     # 递归遍历项目文件，用正则匹配 TODO / FIXME / HACK / XXX / OPTIMIZE / BUG 标签
@@ -269,4 +289,3 @@ class CruxCLI(SharedMixin, InlineCommandsMixin, CreativeCommandsMixin,
     # 从 models.json 读取供应商配置，运行时切换 base_url + api_key
     # 支持 CRUX / DeepSeek / Kimi 等任意 OpenAI 兼容 API
     # API Key 从环境变量 {PROVIDER}_API_KEY 或手动输入
-

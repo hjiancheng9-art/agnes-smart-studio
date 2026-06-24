@@ -22,7 +22,15 @@ from pathlib import Path
 import httpx
 
 __all__ = [
-    'COMPARE_EXECUTOR_MAP', 'COMPARE_TOOL_DEFS', 'IMAGE_OUT', 'JUDGE_VISION_MODEL', 'OUTPUT_ROOT', 'compare_images_dispatch', 'execute_compare_ai_judge', 'execute_compare_diff', 'execute_compare_side_by_side',
+    "COMPARE_EXECUTOR_MAP",
+    "COMPARE_TOOL_DEFS",
+    "IMAGE_OUT",
+    "JUDGE_VISION_MODEL",
+    "OUTPUT_ROOT",
+    "compare_images_dispatch",
+    "execute_compare_ai_judge",
+    "execute_compare_diff",
+    "execute_compare_side_by_side",
 ]
 
 OUTPUT_ROOT = Path(__file__).parent.parent / "output"
@@ -33,12 +41,15 @@ IMAGE_OUT.mkdir(parents=True, exist_ok=True)
 #  通用辅助
 # ============================================================
 
+
 def _check_pillow() -> str | None:
     try:
         from PIL import Image  # noqa: F401
+
         return None
     except ImportError:
         return "Pillow 不可用，请安装: pip install Pillow"
+
 
 def _check_images(paths: list[str]) -> str | None:
     if not paths or len(paths) < 2:
@@ -50,6 +61,7 @@ def _check_images(paths: list[str]) -> str | None:
         return f"图片不存在: {missing}"
     return None
 
+
 def _safe_output_path(prefix: str, ext: str = ".png") -> str:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     i = 0
@@ -60,12 +72,14 @@ def _safe_output_path(prefix: str, ext: str = ".png") -> str:
             return str(p)
         i += 1
 
+
 def _fmt_size(n: int) -> str:
     if n < 1024:
         return f"{n}B"
     if n < 1024 * 1024:
         return f"{n / 1024:.1f}KB"
     return f"{n / 1024 / 1024:.2f}MB"
+
 
 def _parse_paths(image_paths) -> list[str]:
     """接受 JSON 数组字符串或 list"""
@@ -79,13 +93,15 @@ def _parse_paths(image_paths) -> list[str]:
         paths = list(image_paths)
     return [str(p) for p in paths]
 
+
 # ============================================================
 #  模式1: side_by_side — 并排对比图（统一高度 + 标签）
 # ============================================================
 
-def _make_side_by_side(paths: list[str], labels: list[str] | None = None,
-                       winner_index: int | None = None,
-                       gap: int = 16, label_h: int = 36) -> str:
+
+def _make_side_by_side(
+    paths: list[str], labels: list[str] | None = None, winner_index: int | None = None, gap: int = 16, label_h: int = 36
+) -> str:
     """生成并排对比图。winner_index (0-based) 指定时给胜者加金色描边。
 
     统一到最小高度避免任何一张被拉伸/压缩。
@@ -96,8 +112,7 @@ def _make_side_by_side(paths: list[str], labels: list[str] | None = None,
     n = len(imgs)
     # 统一到最小高度
     min_h = min(im.size[1] for im in imgs)
-    imgs = [im.resize((int(im.size[0] * min_h / im.size[1]), min_h), Image.Resampling.LANCZOS)
-            for im in imgs]
+    imgs = [im.resize((int(im.size[0] * min_h / im.size[1]), min_h), Image.Resampling.LANCZOS) for im in imgs]
 
     total_w = sum(im.size[0] for im in imgs) + gap * (n - 1)
     total_h = min_h + label_h  # 顶部留标签条
@@ -139,17 +154,15 @@ def _make_side_by_side(paths: list[str], labels: list[str] | None = None,
 
         # winner 描边
         if is_winner:
-            draw.rectangle([x, label_h, x + im.size[0] - 1, total_h - 1],
-                           outline=(255, 200, 60), width=4)
+            draw.rectangle([x, label_h, x + im.size[0] - 1, total_h - 1], outline=(255, 200, 60), width=4)
         x += im.size[0] + gap
 
     out = _safe_output_path("compare_sbs", ".png")
     canvas.save(out, "PNG")
     return out
 
-def execute_compare_side_by_side(image_paths, labels: str = "",
-                                  winner_index: int = -1,
-                                  project_name: str = "") -> str:
+
+def execute_compare_side_by_side(image_paths, labels: str = "", winner_index: int = -1, project_name: str = "") -> str:
     """并排对比图：把 2~4 张图拼到一张图里（统一高度 + 标签）。
 
     winner_index (0-based) 为有效索引时给对应图加金色描边和星标。
@@ -173,22 +186,28 @@ def execute_compare_side_by_side(image_paths, labels: str = "",
     try:
         out = _make_side_by_side(paths, labels=label_list, winner_index=w)
         size = Path(out).stat().st_size
-        return json.dumps({
-            "success": True, "output_path": out, "mode": "side_by_side",
-            "image_count": len(paths),
-            "winner_index": w if w is not None else -1,
-            "file_size": _fmt_size(size),
-            "message": f"并排对比图已生成 ({len(paths)} 张)",
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "success": True,
+                "output_path": out,
+                "mode": "side_by_side",
+                "image_count": len(paths),
+                "winner_index": w if w is not None else -1,
+                "file_size": _fmt_size(size),
+                "message": f"并排对比图已生成 ({len(paths)} 张)",
+            },
+            ensure_ascii=False,
+        )
     except (OSError, ValueError, TypeError) as e:
         return json.dumps({"error": f"生成失败: {e}", "success": False}, ensure_ascii=False)
+
 
 # ============================================================
 #  模式2: diff_heatmap — 像素级差异热力图
 # ============================================================
 
-def _make_diff(paths: list[str], amplify: int = 3,
-               threshold: int = 0) -> tuple[str, float, tuple[int, int]]:
+
+def _make_diff(paths: list[str], amplify: int = 3, threshold: int = 0) -> tuple[str, float, tuple[int, int]]:
     """生成像素差异热力图（前两张图对比）。
 
     算法：
@@ -228,9 +247,7 @@ def _make_diff(paths: list[str], amplify: int = 3,
 
     # 伪彩：用内置 thermal colormap 近似（L → P colormap → RGB）
     # 简单可靠：先反转再套 'jet'-like 自建渐变
-    palette_img = ImageOps.colorize(gray, black=(0, 0, 80),
-                                    white=(255, 255, 100),
-                                    mid=(220, 30, 30))
+    palette_img = ImageOps.colorize(gray, black=(0, 0, 80), white=(255, 255, 100), mid=(220, 30, 30))
 
     out = _safe_output_path("compare_diff", ".png")
     palette_img.save(out, "PNG")
@@ -244,9 +261,8 @@ def _make_diff(paths: list[str], amplify: int = 3,
 
     return out, diff_ratio, (w, h)
 
-def execute_compare_diff(image_paths, amplify: int = 3,
-                         threshold: int = 0,
-                         project_name: str = "") -> str:
+
+def execute_compare_diff(image_paths, amplify: int = 3, threshold: int = 0, project_name: str = "") -> str:
     """像素级差异热力图：对比两张图，高亮"哪里不一样"。
 
     用于：图生图前后对比、同一 prompt 不同 seed 差异检测、压缩失真可视化。
@@ -256,8 +272,7 @@ def execute_compare_diff(image_paths, amplify: int = 3,
         return json.dumps({"error": err, "success": False}, ensure_ascii=False)
     paths = _parse_paths(image_paths)
     if len(paths) != 2:
-        return json.dumps({"error": "diff 模式只能对比 2 张图", "success": False},
-                          ensure_ascii=False)
+        return json.dumps({"error": "diff 模式只能对比 2 张图", "success": False}, ensure_ascii=False)
     err = _check_images(paths)
     if err:
         return json.dumps({"error": err, "success": False}, ensure_ascii=False)
@@ -265,17 +280,24 @@ def execute_compare_diff(image_paths, amplify: int = 3,
     try:
         out, ratio, (w, h) = _make_diff(paths, amplify=amplify, threshold=threshold)
         size = Path(out).stat().st_size
-        return json.dumps({
-            "success": True, "output_path": out, "mode": "diff_heatmap",
-            "diff_ratio": round(ratio, 4),
-            "diff_ratio_pct": f"{ratio * 100:.1f}%",
-            "canvas_size": f"{w}x{h}",
-            "amplify": amplify, "threshold": threshold,
-            "file_size": _fmt_size(size),
-            "message": f"差异热力图已生成，差异像素占比 {ratio * 100:.1f}%",
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "success": True,
+                "output_path": out,
+                "mode": "diff_heatmap",
+                "diff_ratio": round(ratio, 4),
+                "diff_ratio_pct": f"{ratio * 100:.1f}%",
+                "canvas_size": f"{w}x{h}",
+                "amplify": amplify,
+                "threshold": threshold,
+                "file_size": _fmt_size(size),
+                "message": f"差异热力图已生成，差异像素占比 {ratio * 100:.1f}%",
+            },
+            ensure_ascii=False,
+        )
     except (OSError, ValueError, TypeError) as e:
         return json.dumps({"error": f"差异图生成失败: {e}", "success": False}, ensure_ascii=False)
+
 
 # ============================================================
 #  模式3: ai_judge — 多模态大模型裁判
@@ -303,8 +325,8 @@ _JUDGE_SYSTEM = """你是严格的图像评审专家。用户会给你 2~4 张�
 
 JUDGE_VISION_MODEL = "agnes-1.5-flash"
 
-def _build_judge_messages(paths: list[str], labels: list[str],
-                          goal: str, prompts: list[str] | None) -> list[dict]:
+
+def _build_judge_messages(paths: list[str], labels: list[str], goal: str, prompts: list[str] | None) -> list[dict]:
     """构造多模态 messages：text(规则+目标+各图prompt) + N 张图"""
     from utils.image_input import load_image_as_url_or_data
 
@@ -315,16 +337,17 @@ def _build_judge_messages(paths: list[str], labels: list[str],
         for lab, p in zip(labels, prompts, strict=False):
             parts.append(f"  图 {lab} 的提示词：{p[:200]}")
         intro += "各图提示词：\n" + "\n".join(parts) + "\n"
-    intro += (f"\n下面按顺序给出 {len(paths)} 张图片，分别标记为 "
-              f"{', '.join(labels)}。请严格按 rubric 打分并只返回 JSON。")
+    intro += (
+        f"\n下面按顺序给出 {len(paths)} 张图片，分别标记为 {', '.join(labels)}。请严格按 rubric 打分并只返回 JSON。"
+    )
     content.append({"type": "text", "text": intro})
 
     for p in paths:
         url = load_image_as_url_or_data(p)
         content.append({"type": "image_url", "image_url": {"url": url}})
 
-    return [{"role": "system", "content": _JUDGE_SYSTEM},
-            {"role": "user", "content": content}]
+    return [{"role": "system", "content": _JUDGE_SYSTEM}, {"role": "user", "content": content}]
+
 
 def _parse_judge_response(raw: str) -> dict:
     """从大模型输出里抠出 JSON（容错：剥 markdown fence / 找首个 {）"""
@@ -342,14 +365,18 @@ def _parse_judge_response(raw: str) -> dict:
     lo = s.find("{")
     hi = s.rfind("}")
     if lo >= 0 and hi > lo:
-        s = s[lo:hi + 1]
+        s = s[lo : hi + 1]
     return json.loads(s)
 
-def execute_compare_ai_judge(image_paths, goal: str = "",
-                             prompts: str = "",
-                             labels: str = "",
-                             vision_client=None,
-                             vision_model: str = JUDGE_VISION_MODEL) -> str:
+
+def execute_compare_ai_judge(
+    image_paths,
+    goal: str = "",
+    prompts: str = "",
+    labels: str = "",
+    vision_client=None,
+    vision_model: str = JUDGE_VISION_MODEL,
+) -> str:
     """AI 裁判：让多模态大模型同时看 N 张图，按 rubric 打分并选出 winner。
 
     返回结构化 JSON（scores / winner / reason / per_dimension_winner），
@@ -379,32 +406,39 @@ def execute_compare_ai_judge(image_paths, goal: str = "",
             prompt_list = None
 
     if vision_client is None:
-        return json.dumps({
-            "error": "ai_judge 需要传入 vision_client（CruxClient 实例）",
-            "success": False,
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "error": "ai_judge 需要传入 vision_client（CruxClient 实例）",
+                "success": False,
+            },
+            ensure_ascii=False,
+        )
 
     try:
         messages = _build_judge_messages(paths, label_list, goal, prompt_list)
         r = vision_client.chat(
-            model=vision_model, messages=messages,
-            temperature=0.1, max_tokens=900,
+            model=vision_model,
+            messages=messages,
+            temperature=0.1,
+            max_tokens=900,
         )
         raw = r["choices"][0]["message"]["content"] or ""
     except KeyError as e:
-        return json.dumps({"error": f"裁判 API 返回格式异常: 缺字段 {e}",
-                           "success": False}, ensure_ascii=False)
+        return json.dumps({"error": f"裁判 API 返回格式异常: 缺字段 {e}", "success": False}, ensure_ascii=False)
     except (httpx.HTTPError, OSError) as e:
-        return json.dumps({"error": f"裁判调用失败: {e}",
-                           "success": False}, ensure_ascii=False)
+        return json.dumps({"error": f"裁判调用失败: {e}", "success": False}, ensure_ascii=False)
 
     try:
         verdict = _parse_judge_response(raw)
     except (json.JSONDecodeError, ValueError, KeyError) as e:
-        return json.dumps({
-            "error": f"裁判输出解析失败: {e}",
-            "success": False, "raw": raw[:500],
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "error": f"裁判输出解析失败: {e}",
+                "success": False,
+                "raw": raw[:500],
+            },
+            ensure_ascii=False,
+        )
 
     # 把字母标签映射回实际图片路径，方便上层使用
     verdict["labels"] = label_list
@@ -414,6 +448,7 @@ def execute_compare_ai_judge(image_paths, goal: str = "",
     verdict["success"] = True
     verdict["mode"] = "ai_judge"
     return json.dumps(verdict, ensure_ascii=False)
+
 
 # ============================================================
 #  工具定义（OpenAI function 格式）
@@ -476,9 +511,8 @@ COMPARE_TOOL_DEFS = [
 #  执行器映射
 # ============================================================
 
-def compare_images_dispatch(vision_client=None,
-                            vision_model: str = JUDGE_VISION_MODEL,
-                            **kw) -> str:
+
+def compare_images_dispatch(vision_client=None, vision_model: str = JUDGE_VISION_MODEL, **kw) -> str:
     """统一入口：按 mode 路由到具体实现。
 
     Agent 调用走这里（vision_client 由 ChatSession 注入）。
@@ -512,6 +546,7 @@ def compare_images_dispatch(vision_client=None,
         vision_client=vision_client,
         vision_model=vision_model,
     )
+
 
 # 供 ToolRegistry 直接挂载（无 vision_client 时只支持 side_by_side / diff）
 COMPARE_EXECUTOR_MAP = {

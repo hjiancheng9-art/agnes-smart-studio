@@ -25,7 +25,18 @@ import uuid
 from pathlib import Path
 
 __all__ = [
-    'BROWSER_EXECUTOR_MAP', 'BROWSER_TOOL_DEFS', 'OUTPUT_ROOT', 'PROVIDER_CONFIGS', 'SESSION_DIR', 'TASK_FILE', 'execute_browser_cancel', 'execute_browser_check', 'execute_browser_download', 'execute_browser_generate', 'execute_browser_providers', 'execute_browser_setup',
+    "BROWSER_EXECUTOR_MAP",
+    "BROWSER_TOOL_DEFS",
+    "OUTPUT_ROOT",
+    "PROVIDER_CONFIGS",
+    "SESSION_DIR",
+    "TASK_FILE",
+    "execute_browser_cancel",
+    "execute_browser_check",
+    "execute_browser_download",
+    "execute_browser_generate",
+    "execute_browser_providers",
+    "execute_browser_setup",
 ]
 
 # ── 输出目录 ──
@@ -34,6 +45,7 @@ OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 SESSION_DIR = OUTPUT_ROOT / "browser_sessions"
 SESSION_DIR.mkdir(parents=True, exist_ok=True)
 TASK_FILE = OUTPUT_ROOT / "browser_tasks.json"
+
 
 # ── subprocess 安全封装 ──
 def _run(cmd: list, **kwargs) -> subprocess.CompletedProcess:
@@ -44,6 +56,7 @@ def _run(cmd: list, **kwargs) -> subprocess.CompletedProcess:
     # 默认 60s 超时兜底：外部命令（chromium/playwright 等）卡住不会永久阻塞主进程
     kwargs.setdefault("timeout", 60)
     return subprocess.run(cmd, **kwargs)
+
 
 # ============================================================
 #  Provider 配置
@@ -117,6 +130,7 @@ PROVIDER_CONFIGS = {
 #  任务持久化
 # ============================================================
 
+
 def _load_tasks() -> list[dict]:
     if TASK_FILE.exists():
         try:
@@ -125,8 +139,10 @@ def _load_tasks() -> list[dict]:
             pass
     return []
 
+
 def _save_tasks(tasks: list[dict]):
     TASK_FILE.write_text(json.dumps(tasks, ensure_ascii=False, indent=2), encoding="utf-8")
+
 
 def _find_task(task_id: str) -> dict | None:
     tasks = _load_tasks()
@@ -134,6 +150,7 @@ def _find_task(task_id: str) -> dict | None:
         if t["task_id"] == task_id:
             return t
     return None
+
 
 def _update_task(task_id: str, updates: dict):
     tasks = _load_tasks()
@@ -144,6 +161,7 @@ def _update_task(task_id: str, updates: dict):
             _save_tasks(tasks)
             return tasks[i]
     return None
+
 
 # ============================================================
 #  Playwright Session 管理 — 自带 Chromium + 持久化登录态
@@ -158,15 +176,18 @@ _active_playwright = None
 _active_browsers: dict[str, object] = {}
 _chromium_checked = False
 
+
 def _get_playwright():
     global _playwright_module
     if _playwright_module is None:
         try:
             from playwright.sync_api import sync_playwright
+
             _playwright_module = sync_playwright
         except ImportError:
             return None
     return _playwright_module
+
 
 def _ensure_chromium():
     """确保 Playwright Chromium 已安装"""
@@ -177,7 +198,9 @@ def _ensure_chromium():
     try:
         r = subprocess.run(
             ["playwright", "install", "chromium"],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True,
+            text=True,
+            timeout=120,
         )
         if r.returncode != 0:
             return f"Chromium 安装失败: {r.stderr[-200:]}"
@@ -186,6 +209,7 @@ def _ensure_chromium():
     except subprocess.TimeoutExpired:
         return "Chromium 安装超时，请手动运行: playwright install chromium"
     return None
+
 
 def _get_browser_context(provider_id: str):
     """获取持久化浏览器上下文（自带 Chromium，保持登录态）"""
@@ -220,12 +244,15 @@ def _get_browser_context(provider_id: str):
     except (AttributeError, TypeError) as e:
         return None, None, f"浏览器启动失败: {e}"
 
+
 # ============================================================
 #  Playwright 通用操作
 # ============================================================
 
-def _playwright_generate(provider_id: str, prompt: str, image_path: str = "",
-                         config: dict | None = None, timeout_minutes: int = 15) -> str:
+
+def _playwright_generate(
+    provider_id: str, prompt: str, image_path: str = "", config: dict | None = None, timeout_minutes: int = 15
+) -> str:
     """用 Playwright 在网页上自动提交生成任务"""
     config = config or {}
     provider = PROVIDER_CONFIGS.get(provider_id)
@@ -271,11 +298,14 @@ def _playwright_generate(provider_id: str, prompt: str, image_path: str = "",
                 continue
 
         if not filled:
-            return json.dumps({
-                "success": False,
-                "error": f"无法在 {provider['name']} 上找到输入框。请用 browser_setup 手动登录并确认网站结构。",
-                "hint": f"访问 {provider_url} 确认页面布局"
-            }, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": f"无法在 {provider['name']} 上找到输入框。请用 browser_setup 手动登录并确认网站结构。",
+                    "hint": f"访问 {provider_url} 确认页面布局",
+                },
+                ensure_ascii=False,
+            )
 
         # ── 如果有参考图，尝试上传 ──
         if image_path and Path(image_path).exists():
@@ -309,21 +339,24 @@ def _playwright_generate(provider_id: str, prompt: str, image_path: str = "",
                 continue
 
         if not clicked:
-            return json.dumps({
-                "success": False,
-                "error": "已填入提示词但未找到生成按钮。请用 browser_setup 完成首次配置。",
-                "hint": f"在 {provider_url} 上手动点一次生成，之后 CRUX 可记住按钮位置"
-            }, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": "已填入提示词但未找到生成按钮。请用 browser_setup 完成首次配置。",
+                    "hint": f"在 {provider_url} 上手动点一次生成，之后 CRUX 可记住按钮位置",
+                },
+                ensure_ascii=False,
+            )
 
         # ── 轮询等待结果 ──
         result_selectors = [
-            'video source',
-            'video',
+            "video source",
+            "video",
             'img[src*="output"]',
             'img[src*="result"]',
             'img[src*="generated"]',
             '[data-testid="result"] img',
-            '.result-container img',
+            ".result-container img",
         ]
 
         result_url = None
@@ -344,14 +377,18 @@ def _playwright_generate(provider_id: str, prompt: str, image_path: str = "",
             time.sleep(5)
 
         if not result_url:
-            return json.dumps({
-                "success": False,
-                "error": f"等待 {timeout_minutes} 分钟后未检测到生成结果。请检查 {provider_url} 页面状态。",
-                "hint": "生成可能仍在进行中，或网站结构有变化。手动登录确认。"
-            }, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": f"等待 {timeout_minutes} 分钟后未检测到生成结果。请检查 {provider_url} 页面状态。",
+                    "hint": "生成可能仍在进行中，或网站结构有变化。手动登录确认。",
+                },
+                ensure_ascii=False,
+            )
 
         # ── 下载结果 ──
         import urllib.request
+
         output_dir = OUTPUT_ROOT / "browser_output" / provider_id
         output_dir.mkdir(parents=True, exist_ok=True)
         ext = ".mp4" if provider["type"] in ("video", "image_video") else ".png"
@@ -359,15 +396,18 @@ def _playwright_generate(provider_id: str, prompt: str, image_path: str = "",
 
         urllib.request.urlretrieve(result_url, str(output_path))
 
-        return json.dumps({
-            "success": True,
-            "provider": provider_id,
-            "provider_name": provider["name"],
-            "method": "playwright",
-            "output_path": str(output_path),
-            "url": result_url,
-            "prompt": prompt[:200],
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "success": True,
+                "provider": provider_id,
+                "provider_name": provider["name"],
+                "method": "playwright",
+                "output_path": str(output_path),
+                "url": result_url,
+                "prompt": prompt[:200],
+            },
+            ensure_ascii=False,
+        )
 
     except (json.JSONDecodeError, TypeError, KeyError) as e:
         return json.dumps({"success": False, "error": f"Playwright 错误: {e}"}, ensure_ascii=False)
@@ -378,9 +418,11 @@ def _playwright_generate(provider_id: str, prompt: str, image_path: str = "",
         except (json.JSONDecodeError, TypeError, KeyError):
             pass
 
+
 # ============================================================
 #  API Provider（优先路径）
 # ============================================================
+
 
 def _api_generate(provider_id: str, prompt: str, image_path: str = "", config: dict | None = None) -> str:
     """通过官方 API 提交生成任务。返回 task_id 用于轮询。"""
@@ -394,29 +436,37 @@ def _api_generate(provider_id: str, prompt: str, image_path: str = "", config: d
     # Kling / Runway / Luma / Jimeng：优先 API（需用户配置 key），无 API key 时降级 Playwright
     api_key = os.environ.get(provider.get("env_key", ""))
     if not api_key:
-        return json.dumps({
-            "success": False,
-            "fallback": "playwright",
-            "error": f"未配置 {provider.get('env_key', provider_id.upper()+'_API_KEY')} 环境变量，降级到 Playwright",
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "success": False,
+                "fallback": "playwright",
+                "error": f"未配置 {provider.get('env_key', provider_id.upper() + '_API_KEY')} 环境变量，降级到 Playwright",
+            },
+            ensure_ascii=False,
+        )
 
     # 通用 API 调用框架（各 provider API 格式不同，此为骨架）
-    return json.dumps({
-        "success": False,
-        "error": f"{provider['name']} API 集成待完善。请先用 Playwright 方案。",
-        "hint": f"设置 {provider.get('env_key', '')} 环境变量后重试"
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": False,
+            "error": f"{provider['name']} API 集成待完善。请先用 Playwright 方案。",
+            "hint": f"设置 {provider.get('env_key', '')} 环境变量后重试",
+        },
+        ensure_ascii=False,
+    )
+
 
 def _dalle_generate(prompt: str, image_path: str = "", config: dict | None = None) -> str:
     """OpenAI DALL-E API"""
     api_key = os.environ.get("OPENAI_API_KEY", "")
     if not api_key:
-        return json.dumps({
-            "success": False, "fallback": "playwright",
-            "error": "未配置 OPENAI_API_KEY，降级到 Playwright"
-        }, ensure_ascii=False)
+        return json.dumps(
+            {"success": False, "fallback": "playwright", "error": "未配置 OPENAI_API_KEY，降级到 Playwright"},
+            ensure_ascii=False,
+        )
 
     import urllib.request
+
     cfg = config or {}
     body = {
         "model": "dall-e-3",
@@ -438,24 +488,32 @@ def _dalle_generate(prompt: str, image_path: str = "", config: dict | None = Non
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = output_dir / f"dalle_{uuid.uuid4().hex[:8]}.png"
         urllib.request.urlretrieve(url, str(output_path))
-        return json.dumps({
-            "success": True, "provider": "dalle", "method": "api",
-            "output_path": str(output_path), "url": url,
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "success": True,
+                "provider": "dalle",
+                "method": "api",
+                "output_path": str(output_path),
+                "url": url,
+            },
+            ensure_ascii=False,
+        )
     except (json.JSONDecodeError, TypeError, KeyError) as e:
         return json.dumps({"success": False, "error": f"DALL-E API 错误: {e}"}, ensure_ascii=False)
+
 
 def _gemini_generate(prompt: str, image_path: str = "", config: dict | None = None) -> str:
     """Google Gemini API (imagen)"""
     api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
-        return json.dumps({
-            "success": False, "fallback": "playwright",
-            "error": "未配置 GEMINI_API_KEY，降级到 Playwright"
-        }, ensure_ascii=False)
+        return json.dumps(
+            {"success": False, "fallback": "playwright", "error": "未配置 GEMINI_API_KEY，降级到 Playwright"},
+            ensure_ascii=False,
+        )
 
     # Gemini Imagen API
     import urllib.request
+
     body = {
         "instances": [{"prompt": prompt}],
         "parameters": {"sampleCount": 1},
@@ -467,27 +525,36 @@ def _gemini_generate(prompt: str, image_path: str = "", config: dict | None = No
     )
     try:
         resp = json.loads(urllib.request.urlopen(req, timeout=120).read())
-        return json.dumps({
-            "success": True, "provider": "gemini", "method": "api",
-            "raw_response": resp,
-            "hint": "Gemini Imagen 结果需解析 predictions 字段，按 base64 图片解码保存"
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "success": True,
+                "provider": "gemini",
+                "method": "api",
+                "raw_response": resp,
+                "hint": "Gemini Imagen 结果需解析 predictions 字段，按 base64 图片解码保存",
+            },
+            ensure_ascii=False,
+        )
     except (json.JSONDecodeError, TypeError, KeyError) as e:
         return json.dumps({"success": False, "error": f"Gemini API 错误: {e}"}, ensure_ascii=False)
+
 
 # ============================================================
 #  工具执行器
 # ============================================================
 
-def execute_browser_generate(provider: str, prompt: str, image_path: str = "",
-                              config: str = "{}") -> str:
+
+def execute_browser_generate(provider: str, prompt: str, image_path: str = "", config: str = "{}") -> str:
     """browser_generate 工具：提交生成任务到指定 Web 服务"""
     if provider not in PROVIDER_CONFIGS:
-        return json.dumps({
-            "success": False,
-            "error": f"未知 provider: {provider}",
-            "available": list(PROVIDER_CONFIGS.keys()),
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "success": False,
+                "error": f"未知 provider: {provider}",
+                "available": list(PROVIDER_CONFIGS.keys()),
+            },
+            ensure_ascii=False,
+        )
 
     try:
         cfg = json.loads(config) if isinstance(config, str) else (config or {})
@@ -508,6 +575,7 @@ def execute_browser_generate(provider: str, prompt: str, image_path: str = "",
     # 2. Playwright 后备
     return _playwright_generate(provider, prompt, image_path, cfg)
 
+
 def execute_browser_check(task_id: str) -> str:
     """browser_check 工具：查询任务状态"""
     task = _find_task(task_id)
@@ -515,32 +583,43 @@ def execute_browser_check(task_id: str) -> str:
         return json.dumps({"error": f"任务不存在: {task_id}", "success": False}, ensure_ascii=False)
     return json.dumps(task, ensure_ascii=False)
 
+
 def execute_browser_download(task_id: str) -> str:
     """browser_download 工具：下载已完成任务的结果"""
     task = _find_task(task_id)
     if not task:
         return json.dumps({"error": f"任务不存在: {task_id}", "success": False}, ensure_ascii=False)
     if task.get("status") != "completed":
-        return json.dumps({
-            "success": False,
-            "error": f"任务状态为 {task.get('status')}，不是 completed",
-            "task": task,
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "success": False,
+                "error": f"任务状态为 {task.get('status')}，不是 completed",
+                "task": task,
+            },
+            ensure_ascii=False,
+        )
 
     output_path = task.get("output_path", "")
     if output_path and Path(output_path).exists():
-        return json.dumps({
-            "success": True,
-            "task_id": task_id,
-            "output_path": output_path,
-            "file_size": Path(output_path).stat().st_size,
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "success": True,
+                "task_id": task_id,
+                "output_path": output_path,
+                "file_size": Path(output_path).stat().st_size,
+            },
+            ensure_ascii=False,
+        )
 
-    return json.dumps({
-        "success": False,
-        "error": "输出文件不存在，可能需要重新下载",
-        "task": task,
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": False,
+            "error": "输出文件不存在，可能需要重新下载",
+            "task": task,
+        },
+        ensure_ascii=False,
+    )
+
 
 def execute_browser_providers() -> str:
     """browser_providers 工具：列出所有可用 Web 服务"""
@@ -549,21 +628,26 @@ def execute_browser_providers() -> str:
         api_ok = False
         if pcfg.get("has_api") and pcfg.get("env_key"):
             api_ok = bool(os.environ.get(pcfg["env_key"], ""))
-        providers.append({
-            "id": pid,
-            "name": pcfg["name"],
-            "url": pcfg["url"],
-            "type": pcfg["type"],
-            "api_available": api_ok,
-            "playwright_available": True,
-        })
+        providers.append(
+            {
+                "id": pid,
+                "name": pcfg["name"],
+                "url": pcfg["url"],
+                "type": pcfg["type"],
+                "api_available": api_ok,
+                "playwright_available": True,
+            }
+        )
     return json.dumps({"providers": providers, "total": len(providers)}, ensure_ascii=False)
+
 
 def execute_browser_setup(provider: str) -> str:
     """browser_setup 工具：打开浏览器让用户登录"""
     if provider not in PROVIDER_CONFIGS:
-        return json.dumps({"success": False, "error": f"未知 provider: {provider}",
-                           "available": list(PROVIDER_CONFIGS.keys())}, ensure_ascii=False)
+        return json.dumps(
+            {"success": False, "error": f"未知 provider: {provider}", "available": list(PROVIDER_CONFIGS.keys())},
+            ensure_ascii=False,
+        )
 
     pcfg = PROVIDER_CONFIGS[provider]
     pw, ctx, err = _get_browser_context(provider)
@@ -574,13 +658,18 @@ def execute_browser_setup(provider: str) -> str:
     try:
         page = ctx.new_page()  # type: ignore[attribute-access]
         page.goto(pcfg["url"])
-        return json.dumps({
-            "success": True,
-            "message": f"已打开 {pcfg['name']} 登录页。在浏览器窗口登录后关闭该标签页即可，session 自动保存。",
-            "provider": provider, "url": pcfg["url"],
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "success": True,
+                "message": f"已打开 {pcfg['name']} 登录页。在浏览器窗口登录后关闭该标签页即可，session 自动保存。",
+                "provider": provider,
+                "url": pcfg["url"],
+            },
+            ensure_ascii=False,
+        )
     except (json.JSONDecodeError, TypeError, KeyError) as e:
         return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
+
 
 def execute_browser_cancel(task_id: str) -> str:
     """browser_cancel 工具：取消进行中的任务"""
@@ -588,6 +677,7 @@ def execute_browser_cancel(task_id: str) -> str:
     if not updated:
         return json.dumps({"error": f"任务不存在: {task_id}", "success": False}, ensure_ascii=False)
     return json.dumps({"success": True, "task_id": task_id, "status": "cancelled"}, ensure_ascii=False)
+
 
 # ============================================================
 #  工具定义（供 tools.py 注册）
@@ -693,17 +783,9 @@ BROWSER_EXECUTOR_MAP = {
         image_path=kw.get("image_path", ""),
         config=kw.get("config", "{}"),
     ),
-    "browser_check": lambda **kw: execute_browser_check(
-        task_id=kw.get("task_id", "")
-    ),
-    "browser_download": lambda **kw: execute_browser_download(
-        task_id=kw.get("task_id", "")
-    ),
+    "browser_check": lambda **kw: execute_browser_check(task_id=kw.get("task_id", "")),
+    "browser_download": lambda **kw: execute_browser_download(task_id=kw.get("task_id", "")),
     "browser_providers": lambda **kw: execute_browser_providers(),
-    "browser_setup": lambda **kw: execute_browser_setup(
-        provider=kw.get("provider", "")
-    ),
-    "browser_cancel": lambda **kw: execute_browser_cancel(
-        task_id=kw.get("task_id", "")
-    ),
+    "browser_setup": lambda **kw: execute_browser_setup(provider=kw.get("provider", "")),
+    "browser_cancel": lambda **kw: execute_browser_cancel(task_id=kw.get("task_id", "")),
 }

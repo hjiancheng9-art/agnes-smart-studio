@@ -1,4 +1,5 @@
 """图生图/编辑/多图合成引擎 - 基于 agnes-image-2.0-flash"""
+
 from datetime import datetime
 
 from core.async_client import AsyncCruxClient
@@ -6,8 +7,7 @@ from core.client import CruxClient
 from core.config import OUTPUT_DIR
 from core.validator import validate_image_size, validate_image_urls, validate_model, validate_seed
 
-__all__ = ['ImageToImageEngine', 'AsyncImageToImageEngine']
-
+__all__ = ["ImageToImageEngine", "AsyncImageToImageEngine"]
 
 
 class ImageToImageEngine:
@@ -16,8 +16,14 @@ class ImageToImageEngine:
     def __init__(self, client: CruxClient):
         self.client = client
 
-    def edit(self, prompt: str, image_urls: str | list[str], size: str = "1024x768",
-             seed: int | None = None, model: str = "agnes-image-2.0-flash") -> dict:
+    def edit(
+        self,
+        prompt: str,
+        image_urls: str | list[str],
+        size: str = "1024x768",
+        seed: int | None = None,
+        model: str = "agnes-image-2.0-flash",
+    ) -> dict:
         """图生图/编辑 - 单图或多图编辑"""
         size = validate_image_size(size)
         validate_model(model, "image")
@@ -25,7 +31,10 @@ class ImageToImageEngine:
         urls = validate_image_urls(image_urls)
 
         result = self.client.create_image(
-            prompt=prompt, model=model, size=size, seed=seed,
+            prompt=prompt,
+            model=model,
+            size=size,
+            seed=seed,
             extra_body={"image": urls},
         )
 
@@ -45,13 +54,11 @@ class ImageToImageEngine:
 
         return {"url": image_url, "local_path": local_path, "model": model, "prompt": prompt, "source_images": urls}
 
-    def compose(self, prompt: str, image_urls: list[str], size: str = "1024x768",
-                seed: int | None = None) -> dict:
+    def compose(self, prompt: str, image_urls: list[str], size: str = "1024x768", seed: int | None = None) -> dict:
         """多图合成 - 融合多张图元素"""
         return self.edit(prompt=prompt, image_urls=image_urls, size=size, seed=seed, model="agnes-image-2.0-flash")
 
-    def style_transfer(self, prompt: str, image_url: str, size: str = "1024x768",
-                       seed: int | None = None) -> dict:
+    def style_transfer(self, prompt: str, image_url: str, size: str = "1024x768", seed: int | None = None) -> dict:
         """风格迁移 - 保持构图改风格"""
         return self.edit(prompt=prompt, image_urls=[image_url], size=size, seed=seed, model="agnes-image-2.0-flash")
 
@@ -59,7 +66,9 @@ class ImageToImageEngine:
         """使用 2.1-flash 图生图（高密度优化）"""
         urls = validate_image_urls(image_urls)
         result = self.client.create_image(
-            prompt=prompt, model="agnes-image-2.1-flash", size=size,
+            prompt=prompt,
+            model="agnes-image-2.1-flash",
+            size=size,
             extra_body={"image": urls},
         )
         try:
@@ -89,8 +98,14 @@ class AsyncImageToImageEngine:
     def __init__(self, client: AsyncCruxClient):
         self.client = client
 
-    async def edit(self, prompt: str, image_urls: str | list[str], size: str = "1024x768",
-                   seed: int | None = None, model: str = "agnes-image-2.0-flash") -> dict:
+    async def edit(
+        self,
+        prompt: str,
+        image_urls: str | list[str],
+        size: str = "1024x768",
+        seed: int | None = None,
+        model: str = "agnes-image-2.0-flash",
+    ) -> dict:
         """异步图生图/编辑 - 单图或多图编辑"""
         size = validate_image_size(size)
         validate_model(model, "image")
@@ -98,7 +113,10 @@ class AsyncImageToImageEngine:
         urls = validate_image_urls(image_urls)
 
         result = await self.client.create_image(
-            prompt=prompt, model=model, size=size, seed=seed,
+            prompt=prompt,
+            model=model,
+            size=size,
+            seed=seed,
             extra_body={"image": urls},
         )
 
@@ -116,22 +134,29 @@ class AsyncImageToImageEngine:
         else:
             raise RuntimeError(f"图生图API未返回URL: {str(result)[:200]}")
 
-        return {"url": image_url, "local_path": local_path, "model": model,
-                "prompt": prompt, "source_images": urls}
+        return {"url": image_url, "local_path": local_path, "model": model, "prompt": prompt, "source_images": urls}
 
-    async def compose(self, prompt: str, image_urls: list[str], size: str = "1024x768",
-                      seed: int | None = None) -> dict:
+    async def compose(
+        self, prompt: str, image_urls: list[str], size: str = "1024x768", seed: int | None = None
+    ) -> dict:
         """异步多图合成 - 融合多张图元素"""
         return await self.edit(
-            prompt=prompt, image_urls=image_urls, size=size, seed=seed,
+            prompt=prompt,
+            image_urls=image_urls,
+            size=size,
+            seed=seed,
             model="agnes-image-2.0-flash",
         )
 
-    async def style_transfer(self, prompt: str, image_url: str, size: str = "1024x768",
-                             seed: int | None = None) -> dict:
+    async def style_transfer(
+        self, prompt: str, image_url: str, size: str = "1024x768", seed: int | None = None
+    ) -> dict:
         """异步风格迁移 - 保持构图改风格"""
         return await self.edit(
-            prompt=prompt, image_urls=[image_url], size=size, seed=seed,
+            prompt=prompt,
+            image_urls=[image_url],
+            size=size,
+            seed=seed,
             model="agnes-image-2.0-flash",
         )
 
@@ -139,7 +164,9 @@ class AsyncImageToImageEngine:
         """异步使用 2.1-flash 图生图（高密度优化）"""
         urls = validate_image_urls(image_urls)
         result = await self.client.create_image(
-            prompt=prompt, model="agnes-image-2.1-flash", size=size,
+            prompt=prompt,
+            model="agnes-image-2.1-flash",
+            size=size,
             extra_body={"image": urls},
         )
         try:
@@ -156,5 +183,4 @@ class AsyncImageToImageEngine:
         else:
             raise RuntimeError(f"图生图API(2.1)未返回URL: {str(result)[:200]}")
 
-        return {"url": image_url, "local_path": local_path,
-                "model": "agnes-image-2.1-flash", "prompt": prompt}
+        return {"url": image_url, "local_path": local_path, "model": "agnes-image-2.1-flash", "prompt": prompt}

@@ -18,12 +18,22 @@ import subprocess
 from pathlib import Path
 
 __all__ = [
-    'IMAGE_EXECUTOR_MAP', 'IMAGE_OUT', 'IMAGE_TOOL_DEFS', 'OUTPUT_ROOT', 'execute_image_color', 'execute_image_compose', 'execute_image_convert', 'execute_image_crop', 'execute_image_resize', 'execute_image_watermark',
+    "IMAGE_EXECUTOR_MAP",
+    "IMAGE_OUT",
+    "IMAGE_TOOL_DEFS",
+    "OUTPUT_ROOT",
+    "execute_image_color",
+    "execute_image_compose",
+    "execute_image_convert",
+    "execute_image_crop",
+    "execute_image_resize",
+    "execute_image_watermark",
 ]
 
 OUTPUT_ROOT = Path(__file__).parent.parent / "output"
 IMAGE_OUT = OUTPUT_ROOT / "images"
 IMAGE_OUT.mkdir(parents=True, exist_ok=True)
+
 
 def _run(cmd: list, timeout: int = 120, **kwargs) -> subprocess.CompletedProcess:
     """subprocess.run 安全封装"""
@@ -33,13 +43,16 @@ def _run(cmd: list, timeout: int = 120, **kwargs) -> subprocess.CompletedProcess
     kwargs.setdefault("errors", "replace")
     return subprocess.run(cmd, timeout=timeout, **kwargs)
 
+
 def _check_pillow() -> str | None:
     """检查 Pillow 是否可用，返回错误文本或 None"""
     try:
         from PIL import Image  # noqa: F401
+
         return None
     except ImportError:
         return "Pillow 不可用，请安装: pip install Pillow"
+
 
 def _check_image(path: str) -> str | None:
     """检查图片文件是否存在且可打开"""
@@ -49,9 +62,11 @@ def _check_image(path: str) -> str | None:
         return f"图片不存在: {path}"
     return None
 
+
 def _safe_output_path(prefix: str, ext: str = ".png") -> str:
     """生成唯一输出路径"""
     from datetime import datetime
+
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     i = 0
     while True:
@@ -61,6 +76,7 @@ def _safe_output_path(prefix: str, ext: str = ".png") -> str:
             return str(p)
         i += 1
 
+
 def _fmt_size(n: int) -> str:
     """字节数 → 可读字符串"""
     if n < 1024:
@@ -69,13 +85,20 @@ def _fmt_size(n: int) -> str:
         return f"{n / 1024:.1f}KB"
     return f"{n / 1024 / 1024:.2f}MB"
 
+
 # ============================================================
 #  工具1: image_resize — 等比缩放 / 指定尺寸
 # ============================================================
 
-def execute_image_resize(image_path: str, width: int = 0, height: int = 0,
-                         fit: str = "contain", bg_color: str = "#000000",
-                         project_name: str = "") -> str:
+
+def execute_image_resize(
+    image_path: str,
+    width: int = 0,
+    height: int = 0,
+    fit: str = "contain",
+    bg_color: str = "#000000",
+    project_name: str = "",
+) -> str:
     """缩放图片。
 
     Args:
@@ -90,8 +113,7 @@ def execute_image_resize(image_path: str, width: int = 0, height: int = 0,
     if err:
         return json.dumps({"error": err, "success": False}, ensure_ascii=False)
     if width <= 0 and height <= 0:
-        return json.dumps({"error": "width 和 height 至少给一个", "success": False},
-                          ensure_ascii=False)
+        return json.dumps({"error": "width 和 height 至少给一个", "success": False}, ensure_ascii=False)
 
     from PIL import Image
 
@@ -118,6 +140,7 @@ def execute_image_resize(image_path: str, width: int = 0, height: int = 0,
             # 解析背景色
             try:
                 from PIL import ImageColor
+
                 bg = ImageColor.getrgb(bg_color)
             except (ValueError, TypeError):
                 bg = (0, 0, 0)
@@ -128,22 +151,36 @@ def execute_image_resize(image_path: str, width: int = 0, height: int = 0,
         out_path = _safe_output_path(prefix, ".png")
         out.save(out_path, "PNG")
         size = Path(out_path).stat().st_size
-        return json.dumps({
-            "success": True, "output_path": out_path,
-            "original_size": f"{ow}x{oh}", "new_size": f"{out.size[0]}x{out.size[1]}",
-            "fit": fit, "file_size": _fmt_size(size),
-            "message": f"已缩放 {ow}x{oh} → {out.size[0]}x{out.size[1]} ({fit})",
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "success": True,
+                "output_path": out_path,
+                "original_size": f"{ow}x{oh}",
+                "new_size": f"{out.size[0]}x{out.size[1]}",
+                "fit": fit,
+                "file_size": _fmt_size(size),
+                "message": f"已缩放 {ow}x{oh} → {out.size[0]}x{out.size[1]} ({fit})",
+            },
+            ensure_ascii=False,
+        )
     except (OSError, ValueError, TypeError) as e:
         return json.dumps({"error": f"缩放失败: {e}", "success": False}, ensure_ascii=False)
+
 
 # ============================================================
 #  工具2: image_crop — 裁剪
 # ============================================================
 
-def execute_image_crop(image_path: str, ratio: str = "free",
-                       x: int = 0, y: int = 0, width: int = 0, height: int = 0,
-                       project_name: str = "") -> str:
+
+def execute_image_crop(
+    image_path: str,
+    ratio: str = "free",
+    x: int = 0,
+    y: int = 0,
+    width: int = 0,
+    height: int = 0,
+    project_name: str = "",
+) -> str:
     """裁剪图片。
 
     Args:
@@ -168,8 +205,7 @@ def execute_image_crop(image_path: str, ratio: str = "free",
                 rw, rh = ratio.split(":")
                 rw, rh = int(rw), int(rh)
             except (ValueError, AttributeError):
-                return json.dumps({"error": f"无效比例: {ratio}，如 1:1/16:9"},
-                                  ensure_ascii=False)
+                return json.dumps({"error": f"无效比例: {ratio}，如 1:1/16:9"}, ensure_ascii=False)
             # 居中裁剪到该比例（取最大可行区域）
             target_ratio = rw / rh
             src_ratio = ow / oh
@@ -187,8 +223,7 @@ def execute_image_crop(image_path: str, ratio: str = "free",
             h = height if height > 0 else oh - y
             x2, y2 = min(x + w, ow), min(y + h, oh)
             if x2 <= x or y2 <= y:
-                return json.dumps({"error": "裁剪区域无效", "success": False},
-                                  ensure_ascii=False)
+                return json.dumps({"error": "裁剪区域无效", "success": False}, ensure_ascii=False)
             box = (x, y, x2, y2)
 
         out = img.crop(box)
@@ -196,23 +231,37 @@ def execute_image_crop(image_path: str, ratio: str = "free",
         out_path = _safe_output_path(prefix, ".png")
         out.save(out_path, "PNG")
         size = Path(out_path).stat().st_size
-        return json.dumps({
-            "success": True, "output_path": out_path,
-            "original_size": f"{ow}x{oh}", "cropped_size": f"{out.size[0]}x{out.size[1]}",
-            "crop_box": list(box), "ratio": ratio, "file_size": _fmt_size(size),
-            "message": f"已裁剪 {ow}x{oh} → {out.size[0]}x{out.size[1]} ({ratio})",
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "success": True,
+                "output_path": out_path,
+                "original_size": f"{ow}x{oh}",
+                "cropped_size": f"{out.size[0]}x{out.size[1]}",
+                "crop_box": list(box),
+                "ratio": ratio,
+                "file_size": _fmt_size(size),
+                "message": f"已裁剪 {ow}x{oh} → {out.size[0]}x{out.size[1]} ({ratio})",
+            },
+            ensure_ascii=False,
+        )
     except (OSError, ValueError, TypeError) as e:
         return json.dumps({"error": f"裁剪失败: {e}", "success": False}, ensure_ascii=False)
+
 
 # ============================================================
 #  工具3: image_watermark — 文字水印
 # ============================================================
 
-def execute_image_watermark(image_path: str, text: str,
-                            position: str = "bottom-right",
-                            font_size: int = 0, color: str = "#FFFFFF",
-                            opacity: int = 80, project_name: str = "") -> str:
+
+def execute_image_watermark(
+    image_path: str,
+    text: str,
+    position: str = "bottom-right",
+    font_size: int = 0,
+    color: str = "#FFFFFF",
+    opacity: int = 80,
+    project_name: str = "",
+) -> str:
     """添加文字水印。
 
     Args:
@@ -240,8 +289,13 @@ def execute_image_watermark(image_path: str, text: str,
         if font_size <= 0:
             font_size = max(16, int(ow * 0.03))
         font = None
-        for fp in ["C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/simhei.ttf",
-                   "C:/Windows/Fonts/arial.ttf", "arial.ttf", "DejaVuSans.ttf"]:
+        for fp in [
+            "C:/Windows/Fonts/msyh.ttc",
+            "C:/Windows/Fonts/simhei.ttf",
+            "C:/Windows/Fonts/arial.ttf",
+            "arial.ttf",
+            "DejaVuSans.ttf",
+        ]:
             try:
                 font = ImageFont.truetype(fp, font_size)
                 break
@@ -255,6 +309,7 @@ def execute_image_watermark(image_path: str, text: str,
         draw = ImageDraw.Draw(overlay)
         try:
             from PIL import ImageColor
+
             rgb = ImageColor.getrgb(color)
         except (ValueError, TypeError):
             rgb = (255, 255, 255)
@@ -273,22 +328,28 @@ def execute_image_watermark(image_path: str, text: str,
             y = margin if "top" in pos else (oh - th - margin if "bottom" in pos else (oh - th) // 2)
 
         # 加描边提升可读性
-        draw.text((x, y), text, font=font, fill=fill,
-                  stroke_width=2, stroke_fill=(0, 0, 0, opacity // 2))
+        draw.text((x, y), text, font=font, fill=fill, stroke_width=2, stroke_fill=(0, 0, 0, opacity // 2))
 
         out = Image.alpha_composite(img, overlay).convert("RGB")
         prefix = project_name or "watermark"
         out_path = _safe_output_path(prefix, ".png")
         out.save(out_path, "PNG")
         size = Path(out_path).stat().st_size
-        return json.dumps({
-            "success": True, "output_path": out_path,
-            "watermark_text": text, "position": position,
-            "font_size": font_size, "file_size": _fmt_size(size),
-            "message": f"已加水印 \"{text}\" @ {position}",
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "success": True,
+                "output_path": out_path,
+                "watermark_text": text,
+                "position": position,
+                "font_size": font_size,
+                "file_size": _fmt_size(size),
+                "message": f'已加水印 "{text}" @ {position}',
+            },
+            ensure_ascii=False,
+        )
     except (OSError, ValueError, TypeError) as e:
         return json.dumps({"error": f"加水印失败: {e}", "success": False}, ensure_ascii=False)
+
 
 # ============================================================
 #  工具4: image_color — 调色滤镜
@@ -296,17 +357,23 @@ def execute_image_watermark(image_path: str, text: str,
 
 # 预设滤镜参数（亮度/对比度/饱和度，1.0=原值）
 _COLOR_PRESETS = {
-    "vintage":   (1.05, 0.90, 0.70),   # 复古：降饱和降对比
-    "mono":      (1.0, 1.10, 0.0),     # 黑白：饱和度归零
-    "cool":      (1.0, 1.05, 1.10),    # 冷调：提饱和
-    "warm":      (1.05, 1.0, 1.0),     # 暖调：提亮度
-    "vivid":     (1.0, 1.15, 1.40),    # 高饱和冲击
-    "soft":      (1.10, 0.85, 0.95),   # 柔和梦幻
+    "vintage": (1.05, 0.90, 0.70),  # 复古：降饱和降对比
+    "mono": (1.0, 1.10, 0.0),  # 黑白：饱和度归零
+    "cool": (1.0, 1.05, 1.10),  # 冷调：提饱和
+    "warm": (1.05, 1.0, 1.0),  # 暖调：提亮度
+    "vivid": (1.0, 1.15, 1.40),  # 高饱和冲击
+    "soft": (1.10, 0.85, 0.95),  # 柔和梦幻
 }
 
-def execute_image_color(image_path: str, preset: str = "",
-                        brightness: float = 1.0, contrast: float = 1.0,
-                        saturation: float = 1.0, project_name: str = "") -> str:
+
+def execute_image_color(
+    image_path: str,
+    preset: str = "",
+    brightness: float = 1.0,
+    contrast: float = 1.0,
+    saturation: float = 1.0,
+    project_name: str = "",
+) -> str:
     """调整图像色彩。
 
     Args:
@@ -328,8 +395,7 @@ def execute_image_color(image_path: str, preset: str = "",
     if preset:
         if preset not in _COLOR_PRESETS:
             avail = "/".join(_COLOR_PRESETS.keys())
-            return json.dumps({"error": f"未知预设 {preset}，可选: {avail}"},
-                              ensure_ascii=False)
+            return json.dumps({"error": f"未知预设 {preset}，可选: {avail}"}, ensure_ascii=False)
         brightness, contrast, saturation = _COLOR_PRESETS[preset]
         applied = {"brightness": brightness, "contrast": contrast, "saturation": saturation}
 
@@ -347,20 +413,27 @@ def execute_image_color(image_path: str, preset: str = "",
         img.save(out_path, "PNG")
         size = Path(out_path).stat().st_size
         label = f"预设 {preset}" if preset else "手动调色"
-        return json.dumps({
-            "success": True, "output_path": out_path,
-            "preset": preset, "params": applied, "file_size": _fmt_size(size),
-            "message": f"已{label} (亮{brightness:.2f}/对比{contrast:.2f}/饱和{saturation:.2f})",
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "success": True,
+                "output_path": out_path,
+                "preset": preset,
+                "params": applied,
+                "file_size": _fmt_size(size),
+                "message": f"已{label} (亮{brightness:.2f}/对比{contrast:.2f}/饱和{saturation:.2f})",
+            },
+            ensure_ascii=False,
+        )
     except (OSError, ValueError, TypeError) as e:
         return json.dumps({"error": f"调色失败: {e}", "success": False}, ensure_ascii=False)
+
 
 # ============================================================
 #  工具5: image_convert — 格式转换 + 压缩
 # ============================================================
 
-def execute_image_convert(image_path: str, format: str = "jpg",
-                          quality: int = 92, project_name: str = "") -> str:
+
+def execute_image_convert(image_path: str, format: str = "jpg", quality: int = 92, project_name: str = "") -> str:
     """转换图片格式并控制压缩质量。
 
     Args:
@@ -375,8 +448,7 @@ def execute_image_convert(image_path: str, format: str = "jpg",
 
     fmt = format.lower().lstrip(".")
     if fmt not in ("jpg", "jpeg", "png", "webp"):
-        return json.dumps({"error": f"不支持的目标格式 {format}，可选: jpg/png/webp"},
-                          ensure_ascii=False)
+        return json.dumps({"error": f"不支持的目标格式 {format}，可选: jpg/png/webp"}, ensure_ascii=False)
     if fmt == "jpeg":
         fmt = "jpg"
 
@@ -390,30 +462,39 @@ def execute_image_convert(image_path: str, format: str = "jpg",
         out_path = _safe_output_path(prefix, ext)
 
         if fmt in ("jpg", "webp"):
-            img.save(out_path, fmt.upper() if fmt == "jpg" else "WEBP",
-                     quality=max(1, min(100, quality)), optimize=True)
+            img.save(
+                out_path, fmt.upper() if fmt == "jpg" else "WEBP", quality=max(1, min(100, quality)), optimize=True
+            )
         else:  # png 无损
             img.save(out_path, "PNG", optimize=True)
 
         new_size = Path(out_path).stat().st_size
         ratio = (1 - new_size / orig_size) * 100 if orig_size else 0
-        return json.dumps({
-            "success": True, "output_path": out_path,
-            "format": fmt, "quality": quality,
-            "original_size": _fmt_size(orig_size), "new_size": _fmt_size(new_size),
-            "change": f"{ratio:+.0f}%",
-            "message": f"已转 {fmt} ({quality}质量) {_fmt_size(orig_size)}→{_fmt_size(new_size)} ({ratio:+.0f}%)",
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "success": True,
+                "output_path": out_path,
+                "format": fmt,
+                "quality": quality,
+                "original_size": _fmt_size(orig_size),
+                "new_size": _fmt_size(new_size),
+                "change": f"{ratio:+.0f}%",
+                "message": f"已转 {fmt} ({quality}质量) {_fmt_size(orig_size)}→{_fmt_size(new_size)} ({ratio:+.0f}%)",
+            },
+            ensure_ascii=False,
+        )
     except (OSError, ValueError, TypeError) as e:
         return json.dumps({"error": f"转换失败: {e}", "success": False}, ensure_ascii=False)
+
 
 # ============================================================
 #  工具6: image_compose — 多图排版
 # ============================================================
 
-def execute_image_compose(image_paths: str, layout: str = "horizontal",
-                          gap: int = 10, bg_color: str = "#FFFFFF",
-                          project_name: str = "") -> str:
+
+def execute_image_compose(
+    image_paths: str, layout: str = "horizontal", gap: int = 10, bg_color: str = "#FFFFFF", project_name: str = ""
+) -> str:
     """多图排版拼接（横向/纵向/网格）。
 
     Args:
@@ -437,8 +518,7 @@ def execute_image_compose(image_paths: str, layout: str = "horizontal",
 
     missing = [p for p in paths if not Path(p).exists()]
     if missing:
-        return json.dumps({"error": f"图片不存在: {missing}", "success": False},
-                          ensure_ascii=False)
+        return json.dumps({"error": f"图片不存在: {missing}", "success": False}, ensure_ascii=False)
 
     from PIL import Image, ImageColor
 
@@ -452,14 +532,12 @@ def execute_image_compose(image_paths: str, layout: str = "horizontal",
         cell_h = 0
         if layout == "horizontal":
             min_h = min(im.size[1] for im in imgs)
-            imgs = [im.resize((int(im.size[0] * min_h / im.size[1]), min_h), Image.Resampling.LANCZOS)
-                    for im in imgs]
+            imgs = [im.resize((int(im.size[0] * min_h / im.size[1]), min_h), Image.Resampling.LANCZOS) for im in imgs]
             total_w = sum(im.size[0] for im in imgs) + gap * (n - 1)
             total_h = min_h
         elif layout == "vertical":
             min_w = min(im.size[0] for im in imgs)
-            imgs = [im.resize((min_w, int(im.size[1] * min_w / im.size[0])), Image.Resampling.LANCZOS)
-                    for im in imgs]
+            imgs = [im.resize((min_w, int(im.size[1] * min_w / im.size[0])), Image.Resampling.LANCZOS) for im in imgs]
             total_w = min_w
             total_h = sum(im.size[1] for im in imgs) + gap * (n - 1)
         else:  # grid
@@ -500,14 +578,21 @@ def execute_image_compose(image_paths: str, layout: str = "horizontal",
         out_path = _safe_output_path(prefix, ".png")
         canvas.save(out_path, "PNG")
         size = Path(out_path).stat().st_size
-        return json.dumps({
-            "success": True, "output_path": out_path,
-            "layout": layout, "image_count": n,
-            "canvas_size": f"{total_w}x{total_h}", "file_size": _fmt_size(size),
-            "message": f"已拼接 {n} 张图 ({layout}) → {total_w}x{total_h}",
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "success": True,
+                "output_path": out_path,
+                "layout": layout,
+                "image_count": n,
+                "canvas_size": f"{total_w}x{total_h}",
+                "file_size": _fmt_size(size),
+                "message": f"已拼接 {n} 张图 ({layout}) → {total_w}x{total_h}",
+            },
+            ensure_ascii=False,
+        )
     except (OSError, ValueError, TypeError) as e:
         return json.dumps({"error": f"拼接失败: {e}", "success": False}, ensure_ascii=False)
+
 
 # ============================================================
 #  工具定义（OpenAI function 格式）
@@ -563,7 +648,10 @@ IMAGE_TOOL_DEFS = [
                 "properties": {
                     "image_path": {"type": "string", "description": "图片路径"},
                     "text": {"type": "string", "description": "水印文字"},
-                    "position": {"type": "string", "description": "top-left/top-right/bottom-left/bottom-right/center，默认bottom-right"},
+                    "position": {
+                        "type": "string",
+                        "description": "top-left/top-right/bottom-left/bottom-right/center，默认bottom-right",
+                    },
                     "font_size": {"type": "integer", "description": "字号(0=按图宽自适应约3%)"},
                     "color": {"type": "string", "description": "颜色hex，默认#FFFFFF"},
                     "opacity": {"type": "integer", "description": "不透明度0-255，默认80"},
@@ -617,7 +705,7 @@ IMAGE_TOOL_DEFS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "image_paths": {"type": "string", "description": "JSON数组: [\"1.png\",\"2.png\"]"},
+                    "image_paths": {"type": "string", "description": 'JSON数组: ["1.png","2.png"]'},
                     "layout": {"type": "string", "description": "horizontal/vertical/grid，默认horizontal"},
                     "gap": {"type": "integer", "description": "间距像素，默认10"},
                     "bg_color": {"type": "string", "description": "背景色，默认#FFFFFF"},

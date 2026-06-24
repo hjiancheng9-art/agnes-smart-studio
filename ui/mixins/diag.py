@@ -1,5 +1,6 @@
 """诊断配置命令 Mixin：自诊断/审计/规范/自动化/供应商/进化/知识库/模型切换。"""
 
+import contextlib
 import json
 import os
 import subprocess
@@ -7,13 +8,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rich.panel import Panel
-from rich.table import Table
-
-# 项目根目录：diag.py 在 ui/mixins/ 下，往上两级是项目根
-_DIAG_ROOT = Path(__file__).resolve().parent.parent.parent
-import contextlib
-
 from rich.prompt import Prompt
+from rich.table import Table
 
 from core.client import CruxClient
 from ui.badges import print_mode_banner
@@ -21,18 +17,18 @@ from ui.display import show_info, show_success, show_warning
 from ui.theme import COLORS, console
 from utils import memory
 
+# 项目根目录：diag.py 在 ui/mixins/ 下，往上两级是项目根
+_DIAG_ROOT = Path(__file__).resolve().parent.parent.parent
+
 if TYPE_CHECKING:
     from core.chat import ChatSession
 
-__all__ = ['DiagCommandsMixin']
-
+__all__ = ["DiagCommandsMixin"]
 
 
 class DiagCommandsMixin:
     # Method provided by SharedMixin (sibling in MRO)
-    def _stream_chat(self, session: "ChatSession", user: str) -> None:
-        ...  # defined in SharedMixin, available via MRO
-
+    def _stream_chat(self, session: "ChatSession", user: str) -> None: ...  # defined in SharedMixin, available via MRO
 
     def _self_diagnose(self, session: "ChatSession", arg: str):
         """工具自诊断 — 让工具检查自身健康、分析源码、发现并修复 bug
@@ -60,6 +56,7 @@ class DiagCommandsMixin:
         # ── /self files：项目结构展示 ──────────────────
         elif arg == "files":
             from rich.tree import Tree
+
             tree = Tree("[cyan]crux-studio[/]")
             for item in project_tree_data():
                 if item["is_dir"]:
@@ -81,7 +78,9 @@ class DiagCommandsMixin:
             # 使用统计
             mem = memory.load_memory()
             stats = mem.get("stats", {})
-            console.print(f"  📊 生成: {stats.get('total', 0)} 次 | ⭐评分: {stats.get('rated_count', 0)} 条 | 🚫过滤: {stats.get('content_policy_hits', 0)} 次")
+            console.print(
+                f"  📊 生成: {stats.get('total', 0)} 次 | ⭐评分: {stats.get('rated_count', 0)} 条 | 🚫过滤: {stats.get('content_policy_hits', 0)} 次"
+            )
 
         # ── /self fix：AI 源码分析 ─────────────────────
         elif arg == "fix":
@@ -108,7 +107,9 @@ class DiagCommandsMixin:
                 console.print(f"  {icon} {check['category']}")
             show_info("═══ 阶段 3/3: AI 源码分析 ═══")
             session.unlimited_tools = True
-            self._stream_chat(session, "你是 CRUX Studio 维护者。请对项目做源码审计，输出：Bug 风险 | API 合规性 | 优化建议。")
+            self._stream_chat(
+                session, "你是 CRUX Studio 维护者。请对项目做源码审计，输出：Bug 风险 | API 合规性 | 优化建议。"
+            )
             session.unlimited_tools = False
 
         else:
@@ -126,8 +127,9 @@ class DiagCommandsMixin:
         if kinds in ("pip", "all"):
             show_info("检查 pip 依赖...")
             try:
-                r = subprocess.run(["pip", "list", "--outdated", "--format", "columns"],
-                                   capture_output=True, text=True, timeout=30)
+                r = subprocess.run(
+                    ["pip", "list", "--outdated", "--format", "columns"], capture_output=True, text=True, timeout=30
+                )
                 if r.stdout.strip():
                     console.print(Panel(r.stdout[:2000], title="[yellow]pip 过期包[/]"))
                 else:
@@ -166,6 +168,7 @@ class DiagCommandsMixin:
     def _chat_rules(self, session: "ChatSession", arg: str):
         """管理编码规范 (list|enable|create) — 启用后自动注入会话"""
         from core.rules import get_rules
+
         rules = get_rules()
         arg = arg.strip()
 
@@ -212,6 +215,7 @@ class DiagCommandsMixin:
         import json
         import os
         from datetime import datetime
+
         automations_dir = os.path.join(_DIAG_ROOT, "output", "automations")
         os.makedirs(automations_dir, exist_ok=True)
         data_path = os.path.join(automations_dir, "tasks.json")
@@ -227,7 +231,7 @@ class DiagCommandsMixin:
                 show_info("无自动化任务")
                 return
             for i, t in enumerate(tasks, 1):
-                console.print(f"  {i}. [{t.get('cron','?')}] {t.get('desc','')[:50]} [dim]({t.get('id','')})[/]")
+                console.print(f"  {i}. [{t.get('cron', '?')}] {t.get('desc', '')[:50]} [dim]({t.get('id', '')})[/]")
 
         elif arg.startswith("add "):
             parts = arg[4:].strip().split(" ", 2)
@@ -266,6 +270,7 @@ class DiagCommandsMixin:
     def _chat_provider(self, session: "ChatSession", arg: str):
         """切换模型供应商 (list|switch crux/deepseek/siliconflow)"""
         import json
+
         cfg_path = os.path.join(_DIAG_ROOT, "models.json")
         cfg = self._load_models_config()
         providers = cfg.get("providers", {})
@@ -281,7 +286,7 @@ class DiagCommandsMixin:
                 model_info = ", ".join(f"{k}={v}" for k, v in models.items())
                 key_env = f"{pid.upper()}_API_KEY"
                 has_key = "有 Key" if os.getenv(key_env) else "无 Key"
-                prio_marker = f" [yellow]#{priority.index(pid)+1}优先[/]" if pid in priority else ""
+                prio_marker = f" [yellow]#{priority.index(pid) + 1}优先[/]" if pid in priority else ""
                 console.print(f"  [cyan]{pid}[/] {p['name']} ({has_key}){prio_marker}{marker}\n    模型: {model_info}")
             if priority:
                 console.print(f"  [dim]回退链: {' → '.join(priority)}[/]")
@@ -296,7 +301,9 @@ class DiagCommandsMixin:
             p = providers[pid]
             # 从 .env 或 provider 配置查找 API key
             key_env = f"{pid.upper()}_API_KEY"
-            api_key = os.getenv(key_env) or os.getenv("CRUX_API_KEY") or os.getenv("AGNES_API_KEY") or p.get("api_key") or ""
+            api_key = (
+                os.getenv(key_env) or os.getenv("CRUX_API_KEY") or os.getenv("AGNES_API_KEY") or p.get("api_key") or ""
+            )
 
             # auth_required=false 的 provider（如 local llama.cpp）无需 Key
             if not api_key and not p.get("auth_required", True):
@@ -310,6 +317,7 @@ class DiagCommandsMixin:
 
             # 更新 client 和 session
             from core.client import CruxClient
+
             session.client.close()
             session.client = CruxClient(api_key=api_key, base_url=p["base_url"])
             cfg["active"] = pid
@@ -332,6 +340,7 @@ class DiagCommandsMixin:
     def _chat_evolve(self, session: "ChatSession"):
         """查看 Prompt 进化状态 — 高分案例统计"""
         from utils.memory import get_evolution_stats, get_successful_prompts
+
         stats = get_evolution_stats()
         console.print("[bold]Prompt 进化库:[/]")
         console.print(f"  图片: {stats['image']} 条成功案例")
@@ -345,7 +354,7 @@ class DiagCommandsMixin:
                     console.print(f"    ⭐{s['rating']} | 你: {s['user'][:50]}")
                     console.print(f"    → 增强: {s['enhanced'][:80]}...")
 
-        if stats['image'] + stats['video'] < 5:
+        if stats["image"] + stats["video"] < 5:
             console.print("\n  [dim]评分越多，进化越快。生成后给 4-5 星即可积累案例。[/]")
             console.print("\n  [bold]提示词速成:[/]")
             console.print("  [dim]主体+场景[/] '一只狐狸在雪地里'")
@@ -356,6 +365,7 @@ class DiagCommandsMixin:
     def _chat_knowledge(self, session: "ChatSession", arg: str):
         """浏览内置知识库 /know [methods|templates|moves|antipatterns|sweetspot]"""
         from core.brain import ANTI_PATTERN_MAP, CREATIVE_DOMAIN_MAP, SWEET_SPOT_TEMPLATES, THINKING_METHOD_MAP
+
         arg = arg.strip()
 
         if not arg or arg == "list":
@@ -457,8 +467,9 @@ class DiagCommandsMixin:
 
         # ≥2 个外部供应商 → 弹出菜单
         console.print()
-        table = Table(title="[bold cyan]选择主对话供应商[/]（视觉始终走 CRUX 独立通道）",
-                       border_style=COLORS["primary"])
+        table = Table(
+            title="[bold cyan]选择主对话供应商[/]（视觉始终走 CRUX 独立通道）", border_style=COLORS["primary"]
+        )
         table.add_column("#", style="bold cyan", width=3)
         table.add_column("供应商", style="white", width=16)
         table.add_column("模型", style="dim")
@@ -519,6 +530,7 @@ class DiagCommandsMixin:
         with contextlib.suppress(OSError, TypeError):
             Path(cfg_path).write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
         from core.chat import MODEL_INFO
+
         cap = MODEL_INFO.get(model, pid)
         show_success(f"已激活 {p['name']} → {model}（{cap}）")
 
@@ -526,21 +538,37 @@ class DiagCommandsMixin:
     def _load_models_config() -> dict:
         """安全加载 models.json（项目根），文件缺失/空/损坏时返回默认配置"""
         import json
+
         cfg_path = os.path.join(_DIAG_ROOT, "models.json")
 
         def _default_cfg():
             return {
                 "providers": {
-                    "crux": {"name": "CRUX AI", "base_url": "https://apihub.agnes-ai.com/v1",
-                              "api_key": "", "models": {"light": "agnes-1.5-flash", "pro": "agnes-2.0-flash"}},
-                    "deepseek": {"name": "DeepSeek V4 Pro (1M)", "base_url": "https://api.deepseek.com/v1",
-                                 "api_key": "", "models": {"pro": "deepseek-v4-pro", "light": "deepseek-v4-pro"}},
-                    "siliconflow": {"name": "SiliconFlow (Kimi-K2.6)", "base_url": "https://api.siliconflow.cn/v1",
-                                    "api_key": "", "models": {"pro": "Pro/moonshotai/Kimi-K2.6", "light": "Pro/moonshotai/Kimi-K2.6"}},
-                    "local": {"name": "Local llama.cpp (Qwen3.6-27B-PRISM-PRO-DQ)",
-                              "base_url": "http://127.0.0.1:8080/v1", "api_key": "no-auth-needed",
-                              "auth_required": False,
-                              "models": {"pro": "Qwen3.6-27B-PRISM-PRO-DQ", "light": "Qwen3.6-27B-PRISM-PRO-DQ"}},
+                    "crux": {
+                        "name": "CRUX AI",
+                        "base_url": "https://apihub.agnes-ai.com/v1",
+                        "api_key": "",
+                        "models": {"light": "agnes-1.5-flash", "pro": "agnes-2.0-flash"},
+                    },
+                    "deepseek": {
+                        "name": "DeepSeek V4 Pro (1M)",
+                        "base_url": "https://api.deepseek.com/v1",
+                        "api_key": "",
+                        "models": {"pro": "deepseek-v4-pro", "light": "deepseek-v4-pro"},
+                    },
+                    "siliconflow": {
+                        "name": "SiliconFlow (Kimi-K2.6)",
+                        "base_url": "https://api.siliconflow.cn/v1",
+                        "api_key": "",
+                        "models": {"pro": "Pro/moonshotai/Kimi-K2.6", "light": "Pro/moonshotai/Kimi-K2.6"},
+                    },
+                    "local": {
+                        "name": "Local llama.cpp (Qwen3.6-27B-PRISM-PRO-DQ)",
+                        "base_url": "http://127.0.0.1:8080/v1",
+                        "api_key": "no-auth-needed",
+                        "auth_required": False,
+                        "models": {"pro": "Qwen3.6-27B-PRISM-PRO-DQ", "light": "Qwen3.6-27B-PRISM-PRO-DQ"},
+                    },
                 },
                 "active": "crux",
                 "fallback": {"enabled": True, "priority": ["deepseek", "siliconflow", "local"]},
@@ -577,6 +605,7 @@ class DiagCommandsMixin:
     def _chat_switch_model(session: "ChatSession", arg: str):
         from core.chat import MODEL_ALIASES, MODEL_INFO
         from core.provider import get_provider_manager
+
         if not arg:
             show_warning("用法: /model light 或 /model pro 或 /model <模型ID>")
             return
@@ -606,8 +635,7 @@ class DiagCommandsMixin:
                     # 跑偏到别的 provider，导致 client.base_url 与目标不一致
                     if new_client.base_url.rstrip("/") != expected_url.rstrip("/"):
                         show_warning(
-                            f"切换失败：{pdata.get('name', pid)} 不可用 "
-                            f"(client 被重定向到 {new_client.base_url})"
+                            f"切换失败：{pdata.get('name', pid)} 不可用 (client 被重定向到 {new_client.base_url})"
                         )
                         # 回滚 session.model（未实际切换成功）
                         if arg in MODEL_ALIASES:
@@ -653,8 +681,7 @@ class DiagCommandsMixin:
             for v in variants:
                 active = "[green]●[/]" if v.is_active else "[dim]○[/]"
                 cur = " [yellow]← 当前[/]" if lab.current_variant and lab.current_variant.id == v.id else ""
-                console.print(f"  {active} [cyan]{v.id}[/] {v.label} ({v.name}) "
-                             f"ratio={v.traffic_ratio}{cur}")
+                console.print(f"  {active} [cyan]{v.id}[/] {v.label} ({v.name}) ratio={v.traffic_ratio}{cur}")
                 console.print(f"    [dim]{v.instructions[:100]}[/]")
             return
 
@@ -712,28 +739,28 @@ class DiagCommandsMixin:
 
         # ── 子命令分发 ──
         toggles = {
-            "notebook": ("notebook_enabled", "toggle_notebook",
-                         "📓 Notebook", "打开/编辑/执行/保存 .ipynb 文件"),
-            "audio": ("audio_enabled", "toggle_audio",
-                      "🎵 音频", "TTS 旁白/BGM/SFX/混音（edge-tts+ffmpeg）"),
-            "browser": ("browser_enabled", "toggle_browser",
-                        "🌐 Browser", "可灵/即梦/Runway/Luma/DALL-E/Gemini/Opal/Veo 网页生成"),
+            "notebook": ("notebook_enabled", "toggle_notebook", "📓 Notebook", "打开/编辑/执行/保存 .ipynb 文件"),
+            "audio": ("audio_enabled", "toggle_audio", "🎵 音频", "TTS 旁白/BGM/SFX/混音（edge-tts+ffmpeg）"),
+            "browser": (
+                "browser_enabled",
+                "toggle_browser",
+                "🌐 Browser",
+                "可灵/即梦/Runway/Luma/DALL-E/Gemini/Opal/Veo 网页生成",
+            ),
         }
 
         # 无参或 list：显示状态表
         if not arg or arg == "list":
-            tbl = Table(title="[bold]🔌 扩展工具集状态[/]",
-                        border_style=COLORS["primary"], show_lines=True)
+            tbl = Table(title="[bold]🔌 扩展工具集状态[/]", border_style=COLORS["primary"], show_lines=True)
             tbl.add_column("扩展", style="cyan", width=20)
             tbl.add_column("状态", width=8)
             tbl.add_column("说明", style="dim")
-            for key, (attr, _, label, desc) in toggles.items():
+            for _key, (attr, _, label, desc) in toggles.items():
                 is_on = getattr(session, attr, False)
                 status = "[green]● 启用[/]" if is_on else "[dim]○ 停用[/]"
                 tbl.add_row(label, status, desc)
             console.print(tbl)
-            console.print("  [dim]用法: /extend <notebook|audio|browser> 切换 · "
-                          "/extend list 重显状态[/]")
+            console.print("  [dim]用法: /extend <notebook|audio|browser> 切换 · /extend list 重显状态[/]")
             return
 
         # 切换指定扩展
@@ -775,8 +802,7 @@ class DiagCommandsMixin:
             return
 
         # ── 表格展示 ──
-        summary_tbl = Table(title="[bold]📊 智能体质量基准[/]",
-                            border_style=COLORS["primary"], show_lines=True)
+        summary_tbl = Table(title="[bold]📊 智能体质量基准[/]", border_style=COLORS["primary"], show_lines=True)
         summary_tbl.add_column("指标", style="bold cyan", width=20)
         summary_tbl.add_column("值", justify="right")
         summary_tbl.add_row("总分", f"{report['score']:.1f} / 100")
@@ -793,16 +819,21 @@ class DiagCommandsMixin:
         detail_tbl.add_column("耗时", justify="right", width=8)
 
         for r in report.get("results", []):
-            status_icon = "[green]PASS[/]" if r["status"] == "pass" else (
-                "[red]FAIL[/]" if r["status"] == "fail" else "[yellow]ERR[/]")
+            status_icon = (
+                "[green]PASS[/]"
+                if r["status"] == "pass"
+                else ("[red]FAIL[/]" if r["status"] == "fail" else "[yellow]ERR[/]")
+            )
             detail_tbl.add_row(
-                r["id"], r["category"], status_icon,
-                f"{r['score']:.2f}", f"{r['elapsed']}s",
+                r["id"],
+                r["category"],
+                status_icon,
+                f"{r['score']:.2f}",
+                f"{r['elapsed']}s",
             )
 
         console.print(detail_tbl)
-        console.print(f"  [dim]基准集: {report['suite']} · {len(BENCHMARKS)} 项 · "
-                      f"/eval json 输出 JSON 格式[/]")
+        console.print(f"  [dim]基准集: {report['suite']} · {len(BENCHMARKS)} 项 · /eval json 输出 JSON 格式[/]")
 
     def _chat_cost(self, session: "ChatSession", arg: str):
         """花费统计 — 查看 / 设日预算 / 清零
@@ -860,6 +891,7 @@ class DiagCommandsMixin:
         today = summary.get("by_day", {})
         # 今日花费
         from datetime import datetime
+
         today_key = datetime.now().strftime("%Y-%m-%d")
         today_cost = today.get(today_key, {}).get("cost", 0.0)
 
@@ -872,10 +904,14 @@ class DiagCommandsMixin:
         else:
             budget_line = "  [dim]日预算: 未设置（/cost budget <usd> 设置）[/]"
 
-        console.print(Panel(
-            f"[bold green]总花费: ${total:.4f}[/]  ·  [cyan]{calls} 次调用[/]  ·  [yellow]今日: ${today_cost:.4f}[/]\n"
-            + budget_line,
-            title="[bold]💰 花费统计[/]", border_style=COLORS["primary"]))
+        console.print(
+            Panel(
+                f"[bold green]总花费: ${total:.4f}[/]  ·  [cyan]{calls} 次调用[/]  ·  [yellow]今日: ${today_cost:.4f}[/]\n"
+                + budget_line,
+                title="[bold]💰 花费统计[/]",
+                border_style=COLORS["primary"],
+            )
+        )
 
         # 按模型分桶表格
         by_model = summary.get("by_model", {})
@@ -884,10 +920,8 @@ class DiagCommandsMixin:
             tbl.add_column("模型", style="cyan")
             tbl.add_column("花费", justify="right", style="green")
             tbl.add_column("调用次数", justify="right")
-            for model, info in sorted(by_model.items(),
-                                      key=lambda x: x[1].get("cost", 0), reverse=True):
-                tbl.add_row(model, f"${info.get('cost', 0):.4f}",
-                            str(info.get("calls", 0)))
+            for model, info in sorted(by_model.items(), key=lambda x: x[1].get("cost", 0), reverse=True):
+                tbl.add_row(model, f"${info.get('cost', 0):.4f}", str(info.get("calls", 0)))
             console.print(tbl)
 
         # 最近 7 天趋势
@@ -898,8 +932,7 @@ class DiagCommandsMixin:
             dtbl.add_column("花费", justify="right", style="green")
             dtbl.add_column("调用次数", justify="right")
             for d in daily:
-                dtbl.add_row(d["day"], f"${d.get('cost', 0):.4f}",
-                              str(d.get("calls", 0)))
+                dtbl.add_row(d["day"], f"${d.get('cost', 0):.4f}", str(d.get("calls", 0)))
             console.print(dtbl)
 
         console.print("  [dim]子命令: /cost budget <usd> · /cost budget off · /cost reset[/]")
@@ -924,6 +957,7 @@ class DiagCommandsMixin:
             return
 
         from rich.console import Console
+
         console = Console()
         client = get_mcp_client()
         arg = arg.strip()
@@ -976,7 +1010,7 @@ class DiagCommandsMixin:
                 show_warning("用法: /mcp add <name> -- <command> [args...]")
                 return
             command = parts[sep_idx + 1] if sep_idx + 1 < len(parts) else ""
-            cmd_args = parts[sep_idx + 2:] if sep_idx + 2 < len(parts) else []
+            cmd_args = parts[sep_idx + 2 :] if sep_idx + 2 < len(parts) else []
 
             if not name or not command:
                 show_warning("服务器名称和命令不能为空")

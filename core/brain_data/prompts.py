@@ -1,4 +1,5 @@
 """Brain data: prompts knowledge base."""
+
 INTENT_PROMPT = """你是一个AI助手，分析用户的创意需求，判断意图类型。
 
 返回JSON（不要markdown代码块，直接输出JSON）：
@@ -295,4 +296,3 @@ IMAGE_EDIT_PROMPT = """你是一个图像编辑专家。根据用户对图片的
 2. 使用 "Transform ... while preserving ..." 结构
 3. 根据编辑类型调整措辞
 """
-

@@ -11,7 +11,39 @@ from datetime import datetime
 from pathlib import Path
 
 __all__ = [
-    'MEMORY_FILE', 'SESSION_FILE', 'build_correction_context', 'build_evolution_context', 'build_test_context', 'get_all_preferences', 'get_comparison_stats', 'get_corrections', 'get_evolution_stats', 'get_preference', 'get_recent_comparisons', 'get_recent_sessions', 'get_session_context', 'get_successful_prompts', 'get_tips', 'get_tool_learnings', 'get_user_context', 'get_user_profile', 'load_memory', 'load_session', 'rate_record', 'record_comparison', 'record_correction', 'record_preference', 'record_prompt_pair', 'record_test_pattern', 'record_tip_shown', 'record_tool_learning', 'save_memory', 'save_session', 'track_content_policy_hit', 'track_generation', 'update_user_profile',
+    "MEMORY_FILE",
+    "SESSION_FILE",
+    "build_correction_context",
+    "build_evolution_context",
+    "build_test_context",
+    "get_all_preferences",
+    "get_comparison_stats",
+    "get_corrections",
+    "get_evolution_stats",
+    "get_preference",
+    "get_recent_comparisons",
+    "get_recent_sessions",
+    "get_session_context",
+    "get_successful_prompts",
+    "get_tips",
+    "get_tool_learnings",
+    "get_user_context",
+    "get_user_profile",
+    "load_memory",
+    "load_session",
+    "rate_record",
+    "record_comparison",
+    "record_correction",
+    "record_preference",
+    "record_prompt_pair",
+    "record_test_pattern",
+    "record_tip_shown",
+    "record_tool_learning",
+    "save_memory",
+    "save_session",
+    "track_content_policy_hit",
+    "track_generation",
+    "update_user_profile",
 ]
 
 
@@ -22,21 +54,35 @@ MEMORY_FILE = _OUTPUT_DIR / "memory.json"
 def _ensure_file():
     if not MEMORY_FILE.exists():
         MEMORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-        MEMORY_FILE.write_text(json.dumps({
-            "version": 1,
-            "created_at": datetime.now().isoformat(),
-            "preferences": {},
-            "ratings": {},
-            "stats": {"total": 0, "image": 0, "video": 0, "pipeline": 0,
-                      "avg_image_rating": 0, "avg_video_rating": 0,
-                      "content_policy_hits": 0},
-            "patterns": [],
-            "tips_shown": [],
-        }, indent=2, ensure_ascii=False), encoding="utf-8")
+        MEMORY_FILE.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "created_at": datetime.now().isoformat(),
+                    "preferences": {},
+                    "ratings": {},
+                    "stats": {
+                        "total": 0,
+                        "image": 0,
+                        "video": 0,
+                        "pipeline": 0,
+                        "avg_image_rating": 0,
+                        "avg_video_rating": 0,
+                        "content_policy_hits": 0,
+                    },
+                    "patterns": [],
+                    "tips_shown": [],
+                },
+                indent=2,
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
 
 
 # ── 线程安全写锁（保护 load→modify→save 的原子性）──
 _memory_lock = threading.Lock()
+
 
 def _safe_save_memory(data: dict):
     """原子写 memory.json（在 _memory_lock 内调用）。
@@ -71,6 +117,7 @@ def save_memory(data: dict):
 
 
 # ── 偏好学习 ─────────────────────────────────────────
+
 
 def record_preference(key: str, value):
     """记录用户偏好设置（自动去重、频率计数）"""
@@ -109,6 +156,7 @@ def get_all_preferences() -> dict:
 
 # ── 评分与反馈 ──────────────────────────────────────
 
+
 def rate_record(record_id: str, rating: int):
     """给一条历史记录打分 (1-5)"""
     with _memory_lock:
@@ -126,6 +174,7 @@ def rate_record(record_id: str, rating: int):
 def _sync_rating_to_history(record_id: str, rating: int):
     """将评分写入 history.json"""
     from utils.history import HISTORY_FILE
+
     if not HISTORY_FILE.exists():
         return
     records = json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
@@ -149,6 +198,7 @@ def _update_stats(mem: dict):
 
 # ── 统计追踪 ──────────────────────────────────────
 
+
 def track_generation(kind: str, prompt: str, result: dict):
     """追踪一次生成，更新统计和关键词"""
     with _memory_lock:
@@ -167,8 +217,9 @@ def track_generation(kind: str, prompt: str, result: dict):
         keywords = _extract_keywords(prompt)
         if keywords:
             mem.setdefault("patterns", [])
-            mem["patterns"].append({"prompt": prompt[:120], "keywords": keywords,
-                                    "kind": kind, "at": datetime.now().isoformat()[:19]})
+            mem["patterns"].append(
+                {"prompt": prompt[:120], "keywords": keywords, "kind": kind, "at": datetime.now().isoformat()[:19]}
+            )
             # 只保留最近 50 条
             mem["patterns"] = mem["patterns"][-50:]
 
@@ -189,14 +240,15 @@ def _extract_keywords(prompt: str) -> list[str]:
     try:
         # 尝试用 jieba（如果安装了），否则用简单分割
         import jieba  # type: ignore[import-not-found]
+
         words = [w.strip() for w in jieba.cut(prompt) if len(w.strip()) > 1]
     except ImportError:
-        words = [w.strip() for w in prompt.replace("，", ",").replace("、", " ").split()
-                 if len(w.strip()) > 1]
+        words = [w.strip() for w in prompt.replace("，", ",").replace("、", " ").split() if len(w.strip()) > 1]
     return words[:10]
 
 
 # ── 智能提示 ──────────────────────────────────────
+
 
 def get_tips() -> list[str]:
     """根据使用数据生成个性化提示"""
@@ -244,8 +296,8 @@ def record_tip_shown(tip_id: str):
 #  Prompt 进化系统 — 通过评分反馈持续优化增强效果
 # ════════════════════════════════════════════════
 
-def record_prompt_pair(user_prompt: str, enhanced_prompt: str, kind: str,
-                       rating: int, record_id: str = ""):
+
+def record_prompt_pair(user_prompt: str, enhanced_prompt: str, kind: str, rating: int, record_id: str = ""):
     """记录一组 (原始提示词, 增强后提示词, 评分) 用于进化学习
 
     kind: "image" 或 "video"
@@ -308,9 +360,16 @@ def get_evolution_stats() -> dict:
 #  A-B 对比测试记录 — 桥接图像对比引擎与进化系统
 # ════════════════════════════════════════════════
 
-def record_comparison(goal: str, image_paths: list[str], labels: list[str],
-                      winner: str, scores: dict | None = None,
-                      reason: str = "", prompts: list[str] | None = None) -> dict:
+
+def record_comparison(
+    goal: str,
+    image_paths: list[str],
+    labels: list[str],
+    winner: str,
+    scores: dict | None = None,
+    reason: str = "",
+    prompts: list[str] | None = None,
+) -> dict:
     """记录一次 A-B 对比测试结果，并把胜者的提示词（如有）回灌给进化系统。
 
     与 record_prompt_pair 不同：本函数接受"多图竞争 + 裁判判决"的结构化结果，
@@ -363,7 +422,8 @@ def record_comparison(goal: str, image_paths: list[str], labels: list[str],
                 record_prompt_pair(
                     user_prompt=winner_prompt,
                     enhanced_prompt=winner_prompt,  # 对比场景没有"原始 vs 增强"
-                    kind="image", rating=5,
+                    kind="image",
+                    rating=5,
                 )
             except (OSError, ValueError, TypeError, KeyError):
                 pass  # 回灌失败不影响主流程
@@ -397,19 +457,25 @@ SESSION_FILE = _OUTPUT_DIR / "sessions.json"
 def _ensure_session_file():
     if not SESSION_FILE.exists():
         SESSION_FILE.parent.mkdir(parents=True, exist_ok=True)
-        SESSION_FILE.write_text(json.dumps({
-            "version": 1,
-            "sessions": {},
-            "user_profile": {},
-            "corrections": [],
-        }, indent=2, ensure_ascii=False), encoding="utf-8")
+        SESSION_FILE.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "sessions": {},
+                    "user_profile": {},
+                    "corrections": [],
+                },
+                indent=2,
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
 
 
 _SESSION_LOCK = threading.Lock()
 
 
-def save_session(session_id: str, summary: str, messages: list[dict],
-                 task: str = ""):
+def save_session(session_id: str, summary: str, messages: list[dict], task: str = ""):
     """Save a conversation session for cross-session recovery.
 
     Args:
@@ -428,15 +494,16 @@ def save_session(session_id: str, summary: str, messages: list[dict],
             content = msg.get("content", "")
             if isinstance(content, list):
                 content = " ".join(
-                    c.get("text", "") for c in content
-                    if isinstance(c, dict) and c.get("type") == "text"
+                    c.get("text", "") for c in content if isinstance(c, dict) and c.get("type") == "text"
                 )
             if isinstance(content, str) and len(content) > 500:
                 content = content[:500] + "..."
-            truncated.append({
-                "role": msg.get("role", ""),
-                "content": content,
-            })
+            truncated.append(
+                {
+                    "role": msg.get("role", ""),
+                    "content": content,
+                }
+            )
 
         data["sessions"][session_id] = {
             "summary": summary,
@@ -454,9 +521,7 @@ def save_session(session_id: str, summary: str, messages: list[dict],
             for old_key in sorted_keys[:-20]:
                 del data["sessions"][old_key]
 
-        SESSION_FILE.write_text(
-            json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        SESSION_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def load_session(session_id: str) -> dict:
@@ -511,6 +576,7 @@ def get_session_context(session_id: str = "") -> str:
 #  User Profile - learn who the user is over time
 # ════════════════════════════════════════════════
 
+
 def update_user_profile(key: str, value: str):
     """Update a user profile field.
 
@@ -531,17 +597,17 @@ def update_user_profile(key: str, value: str):
 
         if profile.get("current") != value:
             if profile.get("current"):
-                profile["history"].append({
-                    "value": profile["current"],
-                    "until": datetime.now().isoformat()[:19],
-                })
+                profile["history"].append(
+                    {
+                        "value": profile["current"],
+                        "until": datetime.now().isoformat()[:19],
+                    }
+                )
                 profile["history"] = profile["history"][-10:]  # keep last 10
             profile["current"] = value
             profile["updated_at"] = datetime.now().isoformat()[:19]
             data["user_profile"][key] = profile
-            SESSION_FILE.write_text(
-                json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
-            )
+            SESSION_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def get_user_profile(key: str = "") -> dict | str:
@@ -552,16 +618,15 @@ def get_user_profile(key: str = "") -> dict | str:
     if key:
         entry = profile.get(key, {})
         return entry.get("current", "") if isinstance(entry, dict) else str(entry)
-    return {k: v.get("current", v) if isinstance(v, dict) else v
-            for k, v in profile.items()}
+    return {k: v.get("current", v) if isinstance(v, dict) else v for k, v in profile.items()}
 
 
 # ════════════════════════════════════════════════
 #  Correction Memory - learn from user feedback
 # ════════════════════════════════════════════════
 
-def record_correction(what_happened: str, what_should_happen: str,
-                      context: str = ""):
+
+def record_correction(what_happened: str, what_should_happen: str, context: str = ""):
     """Record a user correction for future learning.
 
     When the user says "no, don't do X, do Y instead", this saves
@@ -588,9 +653,7 @@ def record_correction(what_happened: str, what_should_happen: str,
         }
         data["corrections"].insert(0, correction)
         data["corrections"] = data["corrections"][:50]  # keep last 50
-        SESSION_FILE.write_text(
-            json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        SESSION_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def get_corrections(limit: int = 10) -> list[dict]:
@@ -616,6 +679,7 @@ def build_correction_context() -> str:
 #  Test Pattern Memory - learn from test failures across sessions
 # ════════════════════════════════════════════════
 
+
 def record_test_pattern(tool_name: str, failure_pattern: str, fix_applied: str):
     """Record a test failure pattern and the fix that worked.
 
@@ -640,9 +704,7 @@ def record_test_pattern(tool_name: str, failure_pattern: str, fix_applied: str):
         }
         data["test_patterns"].insert(0, pattern)
         data["test_patterns"] = data["test_patterns"][:50]  # keep last 50
-        SESSION_FILE.write_text(
-            json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        SESSION_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def build_test_context(tool_name: str = "") -> str:
@@ -676,6 +738,7 @@ def build_test_context(tool_name: str = "") -> str:
 #  Cross-session memory & tool learning
 # ════════════════════════════════════════════════
 
+
 def get_user_context() -> str:
     """Build a compact user memory injection for the system prompt."""
     parts = []
@@ -702,10 +765,15 @@ def record_tool_learning(tool_name: str, failure: str, fix: str):
     with _SESSION_LOCK:
         data = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
         data.setdefault("tool_learnings", [])
-        data["tool_learnings"].insert(0, {
-            "tool": tool_name, "failure": failure[:200],
-            "fix": fix[:200], "at": datetime.now().isoformat()[:19],
-        })
+        data["tool_learnings"].insert(
+            0,
+            {
+                "tool": tool_name,
+                "failure": failure[:200],
+                "fix": fix[:200],
+                "at": datetime.now().isoformat()[:19],
+            },
+        )
         data["tool_learnings"] = data["tool_learnings"][:30]
         SESSION_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 

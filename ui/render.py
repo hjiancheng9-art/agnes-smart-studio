@@ -27,9 +27,11 @@ from rich.markdown import Markdown
 
 __all__ = ["StreamingRenderer", "default_render_console"]
 
+
 # 默认用 ui.display 的全局 console，保持与既有渲染行为一致
 def default_render_console() -> Console:
     from ui.theme import console
+
     return console
 
 
@@ -115,7 +117,7 @@ class StreamingRenderer:
 
         幂等：连续调用两次，第二次 tail 为空，空操作。
         """
-        tail = self._buf[self._flushed_len:]
+        tail = self._buf[self._flushed_len :]
         if tail:
             self.console.print(Markdown(tail))
             self._flushed_len = len(self._buf)

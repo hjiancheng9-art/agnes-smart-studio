@@ -33,6 +33,7 @@ __all__ = [
 # 底层：gh CLI 执行 + repo 参数解析
 # ======================================================================
 
+
 def _run_gh(args: list[str], timeout: int = 30) -> dict:
     """执行 gh CLI 命令，返回统一结果字典。
 
@@ -41,8 +42,11 @@ def _run_gh(args: list[str], timeout: int = 30) -> dict:
     cmd = ["gh"] + args
     try:
         r = subprocess.run(
-            cmd, capture_output=True, text=True,
-            encoding="utf-8", errors="replace",
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout,
         )
         return {
@@ -106,6 +110,7 @@ def _parse_repo_arg(repo: str = "") -> str:
 
 # ── 1. github_search: 5 合 1 搜索 ──
 
+
 def execute_github_search(
     query: str = "",
     search_type: str = "repos",
@@ -123,7 +128,9 @@ def execute_github_search(
 
     valid_types = {"repos", "issues", "prs", "code", "commits"}
     if search_type not in valid_types:
-        return json.dumps({"error": f"search_type must be one of: {', '.join(sorted(valid_types))}"}, ensure_ascii=False)
+        return json.dumps(
+            {"error": f"search_type must be one of: {', '.join(sorted(valid_types))}"}, ensure_ascii=False
+        )
 
     args = ["search", search_type, query, "--limit", str(min(limit, 100))]
 
@@ -146,18 +153,25 @@ def execute_github_search(
 
     r = _run_gh(args)
     if not r.get("success"):
-        return json.dumps({"error": r.get("stderr", r.get("error", "unknown error")),
-                          "query": query, "search_type": search_type}, ensure_ascii=False)
+        return json.dumps(
+            {"error": r.get("stderr", r.get("error", "unknown error")), "query": query, "search_type": search_type},
+            ensure_ascii=False,
+        )
 
-    return json.dumps({
-        "query": query,
-        "search_type": search_type,
-        "results": r["stdout"],
-        "raw_output": r["stdout"][:5000],
-    }, ensure_ascii=False, indent=2)
+    return json.dumps(
+        {
+            "query": query,
+            "search_type": search_type,
+            "results": r["stdout"],
+            "raw_output": r["stdout"][:5000],
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
 
 
 # ── 2. github_repo_view: 仓库信息 ──
+
 
 def execute_github_repo_view(repo: str = "") -> str:
     """查看仓库信息：描述、星标、语言、README 等。"""
@@ -165,13 +179,20 @@ def execute_github_repo_view(repo: str = "") -> str:
     if not slug:
         return json.dumps({"error": "repo required (format: owner/repo or URL)"}, ensure_ascii=False)
 
-    r = _run_gh(["repo", "view", slug, "--json",
-                   "name,description,url,stargazerCount,forkCount,primaryLanguage,"
-                   "licenseInfo,createdAt,updatedAt,isPrivate,isArchived,defaultBranchRef",
-                   "-q", "."])
+    r = _run_gh(
+        [
+            "repo",
+            "view",
+            slug,
+            "--json",
+            "name,description,url,stargazerCount,forkCount,primaryLanguage,"
+            "licenseInfo,createdAt,updatedAt,isPrivate,isArchived,defaultBranchRef",
+            "-q",
+            ".",
+        ]
+    )
     if not r.get("success"):
-        return json.dumps({"error": r.get("stderr", r.get("error", "unknown")),
-                          "repo": slug}, ensure_ascii=False)
+        return json.dumps({"error": r.get("stderr", r.get("error", "unknown")), "repo": slug}, ensure_ascii=False)
 
     try:
         data = json.loads(r["stdout"])
@@ -184,10 +205,17 @@ def execute_github_repo_view(repo: str = "") -> str:
 
 # ── 3. github_repo_list: 列出仓库 ──
 
+
 def execute_github_repo_list(owner: str = "", limit: int = 20) -> str:
     """列出仓库（默认当前用户，可指定 owner）。"""
-    args = ["repo", "list", "--limit", str(min(limit, 100)),
-            "--json", "name,description,url,stargazerCount,isPrivate,updatedAt"]
+    args = [
+        "repo",
+        "list",
+        "--limit",
+        str(min(limit, 100)),
+        "--json",
+        "name,description,url,stargazerCount,isPrivate,updatedAt",
+    ]
     if owner:
         args.append(owner)
 
@@ -200,11 +228,13 @@ def execute_github_repo_list(owner: str = "", limit: int = 20) -> str:
     except json.JSONDecodeError:
         return json.dumps({"error": "failed to parse gh output", "raw": r["stdout"][:1000]}, ensure_ascii=False)
 
-    return json.dumps({"owner": owner or "current user", "count": len(repos),
-                        "repos": repos}, ensure_ascii=False, indent=2)
+    return json.dumps(
+        {"owner": owner or "current user", "count": len(repos), "repos": repos}, ensure_ascii=False, indent=2
+    )
 
 
 # ── 4. github_browse: 读文件/目录（无 5000 字限制）──
+
 
 def execute_github_browse(repo: str = "", path: str = "", ref: str = "") -> str:
     """读取仓库文件或目录树。突破 web_fetch 5000 字限制。
@@ -224,8 +254,9 @@ def execute_github_browse(repo: str = "", path: str = "", ref: str = "") -> str:
 
     r = _run_gh(args, timeout=15)
     if not r.get("success"):
-        return json.dumps({"error": r.get("stderr", r.get("error", "unknown")),
-                          "repo": slug, "path": path}, ensure_ascii=False)
+        return json.dumps(
+            {"error": r.get("stderr", r.get("error", "unknown")), "repo": slug, "path": path}, ensure_ascii=False
+        )
 
     try:
         data = json.loads(r["stdout"])
@@ -234,29 +265,38 @@ def execute_github_browse(repo: str = "", path: str = "", ref: str = "") -> str:
 
     # 目录：返回文件列表
     if isinstance(data, list):
-        items = [{"name": item["name"], "type": item["type"],
-                   "path": item["path"], "size": item.get("size", 0)}
-                  for item in data]
-        return json.dumps({"repo": slug, "path": path or "/", "type": "directory",
-                          "items": items, "count": len(items)}, ensure_ascii=False, indent=2)
+        items = [
+            {"name": item["name"], "type": item["type"], "path": item["path"], "size": item.get("size", 0)}
+            for item in data
+        ]
+        return json.dumps(
+            {"repo": slug, "path": path or "/", "type": "directory", "items": items, "count": len(items)},
+            ensure_ascii=False,
+            indent=2,
+        )
 
     # 文件：Base64 解码内容
     if isinstance(data, dict) and data.get("type") == "file":
-        encoding = data.get("encoding", "base64")
         content_b64 = data.get("content", "")
         try:
             content = base64.b64decode(content_b64).decode("utf-8", errors="replace")
         except Exception:
             content = content_b64  # fallback
-        result = {"repo": slug, "path": data.get("path", path),
-                  "type": "file", "size": data.get("size", 0),
-                  "sha": data.get("sha", ""), "content": content}
+        result = {
+            "repo": slug,
+            "path": data.get("path", path),
+            "type": "file",
+            "size": data.get("size", 0),
+            "sha": data.get("sha", ""),
+            "content": content,
+        }
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     return json.dumps(data, ensure_ascii=False, indent=2)
 
 
 # ── 5. github_readme: 一键读 README ──
+
 
 def execute_github_readme(repo: str = "") -> str:
     """读取任意仓库的 README。"""
@@ -266,8 +306,7 @@ def execute_github_readme(repo: str = "") -> str:
 
     r = _run_gh(["api", f"repos/{slug}/readme", "-q", "."], timeout=15)
     if not r.get("success"):
-        return json.dumps({"error": r.get("stderr", r.get("error", "unknown")),
-                          "repo": slug}, ensure_ascii=False)
+        return json.dumps({"error": r.get("stderr", r.get("error", "unknown")), "repo": slug}, ensure_ascii=False)
 
     try:
         data = json.loads(r["stdout"])
@@ -280,16 +319,21 @@ def execute_github_readme(repo: str = "") -> str:
     except Exception:
         content = content_b64
 
-    return json.dumps({
-        "repo": slug,
-        "name": data.get("name", ""),
-        "path": data.get("path", ""),
-        "size": data.get("size", 0),
-        "content": content,
-    }, ensure_ascii=False, indent=2)
+    return json.dumps(
+        {
+            "repo": slug,
+            "name": data.get("name", ""),
+            "path": data.get("path", ""),
+            "size": data.get("size", 0),
+            "content": content,
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
 
 
 # ── 6. github_release: 列出/查看 releases ──
+
 
 def execute_github_release(repo: str = "", tag: str = "", limit: int = 10) -> str:
     """列出 releases（指定 tag 则查看详情）。"""
@@ -298,15 +342,35 @@ def execute_github_release(repo: str = "", tag: str = "", limit: int = 10) -> st
         return json.dumps({"error": "repo required (format: owner/repo or URL)"}, ensure_ascii=False)
 
     if tag:
-        r = _run_gh(["release", "view", tag, "--repo", slug, "--json",
-                       "tagName,name,body,createdAt,isDraft,isPrerelease,assets"], timeout=15)
+        r = _run_gh(
+            [
+                "release",
+                "view",
+                tag,
+                "--repo",
+                slug,
+                "--json",
+                "tagName,name,body,createdAt,isDraft,isPrerelease,assets",
+            ],
+            timeout=15,
+        )
     else:
-        r = _run_gh(["release", "list", "--repo", slug, "--limit", str(min(limit, 30)),
-                     "--json", "tagName,name,createdAt,isDraft,isPrerelease"], timeout=15)
+        r = _run_gh(
+            [
+                "release",
+                "list",
+                "--repo",
+                slug,
+                "--limit",
+                str(min(limit, 30)),
+                "--json",
+                "tagName,name,createdAt,isDraft,isPrerelease",
+            ],
+            timeout=15,
+        )
 
     if not r.get("success"):
-        return json.dumps({"error": r.get("stderr", r.get("error", "unknown")),
-                          "repo": slug}, ensure_ascii=False)
+        return json.dumps({"error": r.get("stderr", r.get("error", "unknown")), "repo": slug}, ensure_ascii=False)
 
     try:
         data = json.loads(r["stdout"])
@@ -317,6 +381,7 @@ def execute_github_release(repo: str = "", tag: str = "", limit: int = 10) -> st
 
 
 # ── 7. github_issue: 创建/列出/查看 issues ──
+
 
 def execute_github_issue(
     repo: str = "",
@@ -335,9 +400,18 @@ def execute_github_issue(
         return json.dumps({"error": "repo required (format: owner/repo or URL)"}, ensure_ascii=False)
 
     if action == "list":
-        args = ["issue", "list", "--repo", slug, "--state", state,
-                "--limit", str(min(limit, 50)),
-                "--json", "number,title,state,createdAt,author,labels"]
+        args = [
+            "issue",
+            "list",
+            "--repo",
+            slug,
+            "--state",
+            state,
+            "--limit",
+            str(min(limit, 50)),
+            "--json",
+            "number,title,state,createdAt,author,labels",
+        ]
         r = _run_gh(args)
     elif action == "create":
         if not title:
@@ -348,8 +422,9 @@ def execute_github_issue(
         return json.dumps({"error": f"action must be 'list' or 'create', got '{action}'"}, ensure_ascii=False)
 
     if not r.get("success"):
-        return json.dumps({"error": r.get("stderr", r.get("error", "unknown")),
-                          "repo": slug, "action": action}, ensure_ascii=False)
+        return json.dumps(
+            {"error": r.get("stderr", r.get("error", "unknown")), "repo": slug, "action": action}, ensure_ascii=False
+        )
 
     try:
         data = json.loads(r["stdout"])
@@ -360,6 +435,7 @@ def execute_github_issue(
 
 
 # ── 8. github_pr: 列出/查看 PRs ──
+
 
 def execute_github_pr(
     repo: str = "",
@@ -373,17 +449,37 @@ def execute_github_pr(
         return json.dumps({"error": "repo required (format: owner/repo or URL)"}, ensure_ascii=False)
 
     if number:
-        r = _run_gh(["pr", "view", str(number), "--repo", slug, "--json",
-                       "number,title,state,body,author,createdAt,headRefName,baseRefName,"
-                       "reviewDecision,mergeable,additions,deletions,changedFiles"], timeout=15)
+        r = _run_gh(
+            [
+                "pr",
+                "view",
+                str(number),
+                "--repo",
+                slug,
+                "--json",
+                "number,title,state,body,author,createdAt,headRefName,baseRefName,"
+                "reviewDecision,mergeable,additions,deletions,changedFiles",
+            ],
+            timeout=15,
+        )
     else:
-        r = _run_gh(["pr", "list", "--repo", slug, "--state", state,
-                     "--limit", str(min(limit, 50)),
-                     "--json", "number,title,state,createdAt,headRefName,baseRefName,reviewDecision"])
+        r = _run_gh(
+            [
+                "pr",
+                "list",
+                "--repo",
+                slug,
+                "--state",
+                state,
+                "--limit",
+                str(min(limit, 50)),
+                "--json",
+                "number,title,state,createdAt,headRefName,baseRefName,reviewDecision",
+            ]
+        )
 
     if not r.get("success"):
-        return json.dumps({"error": r.get("stderr", r.get("error", "unknown")),
-                          "repo": slug}, ensure_ascii=False)
+        return json.dumps({"error": r.get("stderr", r.get("error", "unknown")), "repo": slug}, ensure_ascii=False)
 
     try:
         data = json.loads(r["stdout"])
@@ -394,6 +490,7 @@ def execute_github_pr(
 
 
 # ── 9. github_api: 万能钥匙（零限制）──
+
 
 def execute_github_api(
     endpoint: str = "",
@@ -441,8 +538,10 @@ def execute_github_api(
         r = subprocess.run(
             ["gh"] + args,
             input=raw_input,
-            capture_output=True, text=True,
-            encoding="utf-8", errors="replace",
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
         result = {
@@ -455,17 +554,23 @@ def execute_github_api(
         result = _run_gh(args)
 
     if not result.get("success"):
-        return json.dumps({"error": result.get("stderr", result.get("error", "unknown")),
-                          "endpoint": endpoint}, ensure_ascii=False)
+        return json.dumps(
+            {"error": result.get("stderr", result.get("error", "unknown")), "endpoint": endpoint}, ensure_ascii=False
+        )
 
-    return json.dumps({
-        "endpoint": endpoint,
-        "method": method or "GET",
-        "result": result["stdout"],
-    }, ensure_ascii=False, indent=2)
+    return json.dumps(
+        {
+            "endpoint": endpoint,
+            "method": method or "GET",
+            "result": result["stdout"],
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
 
 
 # ── 10. github_write_file: 远端写文件（自动 commit）──
+
 
 def execute_github_write_file(
     repo: str = "",
@@ -509,8 +614,9 @@ def execute_github_write_file(
 
     r = _run_gh(args, timeout=30)
     if not r.get("success"):
-        return json.dumps({"error": r.get("stderr", r.get("error", "unknown")),
-                          "repo": slug, "path": path}, ensure_ascii=False)
+        return json.dumps(
+            {"error": r.get("stderr", r.get("error", "unknown")), "repo": slug, "path": path}, ensure_ascii=False
+        )
 
     try:
         data = json.loads(r["stdout"])

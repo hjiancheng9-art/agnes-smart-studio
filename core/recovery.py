@@ -17,7 +17,7 @@ import shutil
 import time
 from pathlib import Path
 
-__all__ = ['ROOT', 'RecoveryEngine', 'recover']
+__all__ = ["ROOT", "RecoveryEngine", "recover"]
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -38,17 +38,19 @@ class RecoveryEngine:
         if not handler:
             return {"success": False, "message": f"Unknown scenario: {scenario}"}
         result = handler(**ctx)
-        self.log.append({"ts": time.time(), "scenario": scenario,
-                         "success": result["success"], "message": result["message"]})
+        self.log.append(
+            {"ts": time.time(), "scenario": scenario, "success": result["success"], "message": result["message"]}
+        )
         return result
 
     def _provider_down(self, **ctx) -> dict:
         try:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             mgr.load()
             current = mgr.state.active
-            priority = mgr.fallback_priority if hasattr(mgr, 'fallback_priority') else ["deepseek", "siliconflow"]
+            priority = mgr.fallback_priority if hasattr(mgr, "fallback_priority") else ["deepseek", "siliconflow"]
             for alt in priority:
                 if alt in mgr.providers and alt != current:
                     mgr.set_active(alt)
@@ -72,6 +74,7 @@ class RecoveryEngine:
 
     def _disk_low(self, threshold_mb: int = 500, **ctx) -> dict:
         import shutil as _shutil
+
         freed = 0
         # Clean old browser sessions
         bs = self.root / "output" / "browser_sessions"

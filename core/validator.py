@@ -3,10 +3,20 @@
 from .config import IMAGE_SIZES, MODELS, VALID_NUM_FRAMES, VIDEO_ASPECT_RATIOS
 
 __all__ = [
-    "ValidationError", "validate_frame_rate", "validate_image_size", "validate_image_urls", "validate_model", "validate_num_frames", "validate_seed", "validate_video_resolution",
+    "ValidationError",
+    "validate_frame_rate",
+    "validate_image_size",
+    "validate_image_urls",
+    "validate_model",
+    "validate_num_frames",
+    "validate_seed",
+    "validate_video_resolution",
 ]
+
+
 class ValidationError(ValueError):
     """参数校验错误"""
+
     pass
 
 
@@ -67,9 +77,7 @@ def validate_model(model_id: str, expected_type: str | None = None) -> str:
         for m in MODELS.values():
             if m["id"] == model_id:
                 if m.get("type") != expected_type:
-                    raise ValidationError(
-                        f"模型 {model_id} 类型为 {m.get('type')}，期望 {expected_type}"
-                    )
+                    raise ValidationError(f"模型 {model_id} 类型为 {m.get('type')}，期望 {expected_type}")
                 break
     return model_id
 

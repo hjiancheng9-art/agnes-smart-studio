@@ -28,8 +28,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 __all__ = [
-    'ROOT', 'Step', 'Task', 'TaskExecutor', 'AsyncTaskExecutor',
-    'quick_plan', 'execute_plan_tool', 'async_execute_plan_tool',
+    "ROOT",
+    "Step",
+    "Task",
+    "TaskExecutor",
+    "AsyncTaskExecutor",
+    "quick_plan",
+    "execute_plan_tool",
+    "async_execute_plan_tool",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -72,10 +78,7 @@ class TaskExecutor:
         errors = 0
 
         for step in task.steps:
-            ready = all(
-                any(s.id == dep and s.status == "done" for s in task.steps)
-                for dep in step.depends_on
-            )
+            ready = all(any(s.id == dep and s.status == "done" for s in task.steps) for dep in step.depends_on)
             if not ready:
                 step.status = "skipped"
                 step.error = f"Dependencies not met: {step.depends_on}"
@@ -87,14 +90,12 @@ class TaskExecutor:
                 result = self.execute_tool(step.tool, step.args)
                 step.result = result[:500]
                 step.status = "done"
-                self._log.append({"ts": time.time(), "step": step.id,
-                                  "event": "done", "result_preview": result[:100]})
+                self._log.append({"ts": time.time(), "step": step.id, "event": "done", "result_preview": result[:100]})
             except (OSError, ValueError, RuntimeError) as e:
                 step.error = f"{type(e).__name__}: {e}"
                 step.status = "failed"
                 errors += 1
-                self._log.append({"ts": time.time(), "step": step.id,
-                                  "event": "failed", "error": step.error})
+                self._log.append({"ts": time.time(), "step": step.id, "event": "failed", "error": step.error})
                 if errors > task.errors_allowed:
                     break
 
@@ -102,12 +103,12 @@ class TaskExecutor:
             if step.verify == "syntax":
                 try:
                     import ast
+
                     py_files = list(self.root.rglob("*.py"))
                     for pf in py_files[:30]:
                         if "__pycache__" not in pf.parts:
                             ast.parse(pf.read_text(encoding="utf-8"))
-                    self._log.append({"ts": time.time(), "step": step.id,
-                                      "event": "verify_syntax_ok"})
+                    self._log.append({"ts": time.time(), "step": step.id, "event": "verify_syntax_ok"})
                 except SyntaxError as se:
                     step.status = "failed"
                     step.error = f"Syntax check failed: {se}"
@@ -117,6 +118,7 @@ class TaskExecutor:
                 # 经 run_pytest_safe 统一封装：在 pytest 内运行时自动短路，
                 # 避免验证步骤 spawn 子 pytest 跑完整 tests/ 造成无限递归 fork。
                 from core.pytest_runner import run_pytest_safe
+
                 r = run_pytest_safe(test_target="tests/", timeout=30, cwd=self.root)
                 out = r.stdout or ""
                 if "failed" in out and "0 failed" not in out:
@@ -124,8 +126,7 @@ class TaskExecutor:
                     step.error = f"Tests failed: {out[-200:]}"
                     errors += 1
                     break
-                self._log.append({"ts": time.time(), "step": step.id,
-                                  "event": "verify_tests_ok"})
+                self._log.append({"ts": time.time(), "step": step.id, "event": "verify_tests_ok"})
 
         elapsed = time.time() - start_ts
         all_done = all(s.status == "done" for s in task.steps)
@@ -139,9 +140,11 @@ class TaskExecutor:
             "steps_done": sum(1 for s in task.steps if s.status == "done"),
             "steps_failed": sum(1 for s in task.steps if s.status == "failed"),
             "steps_skipped": sum(1 for s in task.steps if s.status == "skipped"),
-            "details": [{"id": s.id, "status": s.status, "error": s.error,
-                         "result_preview": s.result[:100]}
-                        for s in task.steps if s.status != "done"],
+            "details": [
+                {"id": s.id, "status": s.status, "error": s.error, "result_preview": s.result[:100]}
+                for s in task.steps
+                if s.status != "done"
+            ],
             "log": self._log[-10:],
         }
 
@@ -179,16 +182,12 @@ class AsyncTaskExecutor:
     async def _run_step(self, step: Step, task: Task) -> None:
         """执行单个 step（含依赖检查、验证门、错误计数）。"""
         # 依赖检查
-        ready = all(
-            any(s.id == dep and s.status == "done" for s in task.steps)
-            for dep in step.depends_on
-        )
+        ready = all(any(s.id == dep and s.status == "done" for s in task.steps) for dep in step.depends_on)
         if not ready:
             step.status = "skipped"
             step.error = f"Dependencies not met: {step.depends_on}"
             async with self._lock:
-                self._log.append({"ts": time.time(), "step": step.id,
-                                  "event": "skipped", "reason": step.error})
+                self._log.append({"ts": time.time(), "step": step.id, "event": "skipped", "reason": step.error})
             return
 
         if self._break_event.is_set():
@@ -206,14 +205,14 @@ class AsyncTaskExecutor:
                 step.result = result[:500]
                 step.status = "done"
                 async with self._lock:
-                    self._log.append({"ts": time.time(), "step": step.id,
-                                      "event": "done", "result_preview": result[:100]})
+                    self._log.append(
+                        {"ts": time.time(), "step": step.id, "event": "done", "result_preview": result[:100]}
+                    )
             except (OSError, ValueError, RuntimeError) as e:
                 step.error = f"{type(e).__name__}: {e}"
                 step.status = "failed"
                 async with self._lock:
-                    self._log.append({"ts": time.time(), "step": step.id,
-                                      "event": "failed", "error": step.error})
+                    self._log.append({"ts": time.time(), "step": step.id, "event": "failed", "error": step.error})
                 return  # don't verify on failure
 
         # Verification (outside semaphore — gate checks are lightweight)
@@ -225,41 +224,47 @@ class AsyncTaskExecutor:
     async def _verify_syntax(self, step: Step) -> None:
         """在 asyncio.to_thread 中做 ast.parse 语法验证。"""
         try:
+
             def _check():
                 import ast
+
                 py_files = list(self.root.rglob("*.py"))
                 for pf in py_files[:30]:
                     if "__pycache__" not in pf.parts:
                         ast.parse(pf.read_text(encoding="utf-8"))
+
             await asyncio.to_thread(_check)
             async with self._lock:
-                self._log.append({"ts": time.time(), "step": step.id,
-                                  "event": "verify_syntax_ok"})
+                self._log.append({"ts": time.time(), "step": step.id, "event": "verify_syntax_ok"})
         except SyntaxError as se:
             step.status = "failed"
             step.error = f"Syntax check failed: {se}"
             async with self._lock:
-                self._log.append({"ts": time.time(), "step": step.id,
-                                  "event": "verify_syntax_failed", "error": step.error})
+                self._log.append(
+                    {"ts": time.time(), "step": step.id, "event": "verify_syntax_failed", "error": step.error}
+                )
 
     async def _verify_tests(self, step: Step) -> None:
         """在 asyncio.to_thread 中调用 run_pytest_safe。"""
         from core.pytest_runner import run_pytest_safe
 
         r = await asyncio.to_thread(
-            run_pytest_safe, test_target="tests/", timeout=30, cwd=self.root,
+            run_pytest_safe,
+            test_target="tests/",
+            timeout=30,
+            cwd=self.root,
         )
         out = r.stdout or ""
         if "failed" in out and "0 failed" not in out:
             step.status = "failed"
             step.error = f"Tests failed: {out[-200:]}"
             async with self._lock:
-                self._log.append({"ts": time.time(), "step": step.id,
-                                  "event": "verify_tests_failed", "error": step.error})
+                self._log.append(
+                    {"ts": time.time(), "step": step.id, "event": "verify_tests_failed", "error": step.error}
+                )
         else:
             async with self._lock:
-                self._log.append({"ts": time.time(), "step": step.id,
-                                  "event": "verify_tests_ok"})
+                self._log.append({"ts": time.time(), "step": step.id, "event": "verify_tests_ok"})
 
     async def arun(self, task: Task) -> dict:
         """并行执行所有步骤（拓扑依赖感知），返回结构化报告。
@@ -330,9 +335,11 @@ class AsyncTaskExecutor:
             "steps_done": sum(1 for s in task.steps if s.status == "done"),
             "steps_failed": sum(1 for s in task.steps if s.status == "failed"),
             "steps_skipped": sum(1 for s in task.steps if s.status == "skipped"),
-            "details": [{"id": s.id, "status": s.status, "error": s.error,
-                         "result_preview": s.result[:100]}
-                        for s in task.steps if s.status != "done"],
+            "details": [
+                {"id": s.id, "status": s.status, "error": s.error, "result_preview": s.result[:100]}
+                for s in task.steps
+                if s.status != "done"
+            ],
             "log": self._log[-10:],
         }
 
@@ -345,37 +352,39 @@ def quick_plan(goal: str) -> Task:
     # Pattern: fix bug
     if "fix" in goal_lower or "bug" in goal_lower or "repair" in goal_lower:
         steps = [
-            Step("1_read_error", "Read error log", "read_file",
-                 {"path": "output/last_error.txt"}),
-            Step("2_search_code", "Search for related code", "search_files",
-                 {"pattern": goal.split()[-1] if goal.split() else "TODO"}),
-            Step("3_fix", "Apply fix", "edit_file",
-                 {"path": "PLACEHOLDER", "old_text": "PLACEHOLDER",
-                  "new_text": "PLACEHOLDER"},
-                 depends_on=["2_search_code"]),
-            Step("4_verify", "Verify syntax", "env_check", {},
-                 verify="syntax", depends_on=["3_fix"]),
+            Step("1_read_error", "Read error log", "read_file", {"path": "output/last_error.txt"}),
+            Step(
+                "2_search_code",
+                "Search for related code",
+                "search_files",
+                {"pattern": goal.split()[-1] if goal.split() else "TODO"},
+            ),
+            Step(
+                "3_fix",
+                "Apply fix",
+                "edit_file",
+                {"path": "PLACEHOLDER", "old_text": "PLACEHOLDER", "new_text": "PLACEHOLDER"},
+                depends_on=["2_search_code"],
+            ),
+            Step("4_verify", "Verify syntax", "env_check", {}, verify="syntax", depends_on=["3_fix"]),
         ]
 
     # Pattern: audit / check
     if "audit" in goal_lower or "check" in goal_lower or "scan" in goal_lower:
         steps = [
             Step("1_audit", "Run self-audit", "env_check", {}),
-            Step("2_tests", "Run tests", "run_test", {},
-                 verify="test", depends_on=["1_audit"]),
+            Step("2_tests", "Run tests", "run_test", {}, verify="test", depends_on=["1_audit"]),
         ]
 
     # Pattern: test
     if "test" in goal_lower:
         steps = [
-            Step("1_test", "Run test suite", "run_test", {},
-                 verify="test"),
+            Step("1_test", "Run test suite", "run_test", {}, verify="test"),
         ]
 
     if not steps:
         steps = [
-            Step("1_understand", "Analyze the goal", "read_file",
-                 {"path": "README.md"}),
+            Step("1_understand", "Analyze the goal", "read_file", {"path": "README.md"}),
             Step("2_verify", "Verify environment", "env_check", {}),
         ]
 
@@ -397,8 +406,7 @@ def execute_plan_tool(goal: str, steps: str, root: str | None = None) -> str:
     registry.load()
 
     step_list = [Step(**s) for s in json.loads(steps)]
-    task = Task(id=f"plan_{int(time.time())}", goal=goal, steps=step_list,
-                errors_allowed=1)
+    task = Task(id=f"plan_{int(time.time())}", goal=goal, steps=step_list, errors_allowed=1)
     executor = TaskExecutor(
         tool_executor=lambda name, args: registry.execute(name, args),
         root=Path(root) if root else ROOT,
@@ -421,8 +429,7 @@ async def async_execute_plan_tool(goal: str, steps: str, root: str | None = None
     registry.load()
 
     step_list = [Step(**s) for s in json.loads(steps)]
-    task = Task(id=f"plan_{int(time.time())}", goal=goal, steps=step_list,
-                errors_allowed=1)
+    task = Task(id=f"plan_{int(time.time())}", goal=goal, steps=step_list, errors_allowed=1)
     executor = AsyncTaskExecutor(
         tool_executor=lambda name, args: registry.execute(name, args),
         root=Path(root) if root else ROOT,

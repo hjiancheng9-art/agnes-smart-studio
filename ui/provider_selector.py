@@ -11,8 +11,7 @@ from rich.table import Table
 from ui.display import show_info, show_success, show_warning
 from ui.theme import COLORS, console
 
-__all__ = ['ProviderSelector']
-
+__all__ = ["ProviderSelector"]
 
 
 class ProviderSelector:
@@ -33,12 +32,24 @@ class ProviderSelector:
         def _default_cfg():
             return {
                 "providers": {
-                    "crux": {"name": "CRUX AI", "base_url": "https://apihub.agnes-ai.com/v1",
-                              "api_key": "", "models": {"light": "agnes-1.5-flash", "pro": "agnes-2.0-flash"}},
-                    "deepseek": {"name": "DeepSeek V4 Pro (1M)", "base_url": "https://api.deepseek.com/v1",
-                                 "api_key": "", "models": {"pro": "deepseek-v4-pro", "light": "deepseek-v4-pro"}},
-                    "siliconflow": {"name": "SiliconFlow (Kimi-K2.6)", "base_url": "https://api.siliconflow.cn/v1",
-                                    "api_key": "", "models": {"pro": "Pro/moonshotai/Kimi-K2.6", "light": "Pro/moonshotai/Kimi-K2.6"}},
+                    "crux": {
+                        "name": "CRUX AI",
+                        "base_url": "https://apihub.agnes-ai.com/v1",
+                        "api_key": "",
+                        "models": {"light": "agnes-1.5-flash", "pro": "agnes-2.0-flash"},
+                    },
+                    "deepseek": {
+                        "name": "DeepSeek V4 Pro (1M)",
+                        "base_url": "https://api.deepseek.com/v1",
+                        "api_key": "",
+                        "models": {"pro": "deepseek-v4-pro", "light": "deepseek-v4-pro"},
+                    },
+                    "siliconflow": {
+                        "name": "SiliconFlow (Kimi-K2.6)",
+                        "base_url": "https://api.siliconflow.cn/v1",
+                        "api_key": "",
+                        "models": {"pro": "Pro/moonshotai/Kimi-K2.6", "light": "Pro/moonshotai/Kimi-K2.6"},
+                    },
                 },
                 "active": "crux",
                 "fallback": {"enabled": True, "priority": ["deepseek", "siliconflow"]},
@@ -120,8 +131,9 @@ class ProviderSelector:
 
         # ≥2 个外部供应商 → 弹出菜单
         console.print()
-        table = Table(title="[bold cyan]选择主对话供应商[/]（视觉始终走 CRUX 独立通道）",
-                       border_style=COLORS["primary"])
+        table = Table(
+            title="[bold cyan]选择主对话供应商[/]（视觉始终走 CRUX 独立通道）", border_style=COLORS["primary"]
+        )
         table.add_column("#", style="bold cyan", width=3)
         table.add_column("供应商", style="white", width=16)
         table.add_column("模型", style="dim")
@@ -177,5 +189,6 @@ class ProviderSelector:
         with contextlib.suppress(OSError, TypeError):
             Path(cfg_path).write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
         from core.chat import MODEL_INFO
+
         cap = MODEL_INFO.get(model, pid)
         show_success(f"已激活 {p['name']} → {model}（{cap}）")

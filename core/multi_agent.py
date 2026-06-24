@@ -31,9 +31,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 __all__ = [
-    'Agent', 'AgentTask', 'MultiAgentCoordinator', 'ROOT',
-    'coordinate',
-    'AsyncMultiAgentCoordinator', 'async_coordinate',
+    "Agent",
+    "AgentTask",
+    "MultiAgentCoordinator",
+    "ROOT",
+    "coordinate",
+    "AsyncMultiAgentCoordinator",
+    "async_coordinate",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -71,8 +75,7 @@ class Agent:
 class MultiAgentCoordinator:
     """Orchestrates multiple agents to solve a complex task (threading 版)."""
 
-    def __init__(self, tool_executor: Callable, max_workers: int = 4,
-                 model_router=None) -> None:
+    def __init__(self, tool_executor: Callable, max_workers: int = 4, model_router=None) -> None:
         self.execute_tool = tool_executor
         self.max_workers = max_workers
         self.agents: list[Agent] = []
@@ -87,10 +90,7 @@ class MultiAgentCoordinator:
     def spawn_team(self, roles: list[str] | None = None):
         """Create agent team. Default: reviewer, debugger, implementer, tester."""
         roles = roles or ["reviewer", "debugger", "implementer", "tester"]
-        self.agents = [
-            Agent(id=f"agent_{i}", role=role)
-            for i, role in enumerate(roles[:self.max_workers])
-        ]
+        self.agents = [Agent(id=f"agent_{i}", role=role) for i, role in enumerate(roles[: self.max_workers])]
 
     def decompose(self, goal: str) -> list[AgentTask]:
         """Break a goal into agent-sized tasks with dependencies.
@@ -121,8 +121,7 @@ class MultiAgentCoordinator:
             task.assigned_to = agent.id
             agent.status = "busy"
             agent.current_task = task.id
-            t = threading.Thread(target=self._execute_task, args=(task,),
-                                 daemon=True)
+            t = threading.Thread(target=self._execute_task, args=(task,), daemon=True)
             threads.append(t)
             t.start()
 
@@ -164,14 +163,12 @@ class MultiAgentCoordinator:
         task.status = "running"
         task.started_at = time.time()
         with self._lock:
-            self._log.append({"event": "task_start", "task": task.id,
-                              "agent": task.assigned_to})
+            self._log.append({"event": "task_start", "task": task.id, "agent": task.assigned_to})
         # tier 路由：若提供 model_router，按 task.tier/task_type 解析模型并注入 step
         resolved_model = self._resolve_model_for_task(task)
         if resolved_model:
             with self._lock:
-                self._log.append({"event": "tier_routed", "task": task.id,
-                                  "tier": task.tier, "model": resolved_model})
+                self._log.append({"event": "tier_routed", "task": task.id, "tier": task.tier, "model": resolved_model})
         results = []
         for step in task.tool_sequence:
             try:
@@ -185,16 +182,14 @@ class MultiAgentCoordinator:
                 task.status = "failed"
                 task.result = str(e)
                 with self._lock:
-                    self._log.append({"event": "task_failed", "task": task.id,
-                                      "error": str(e)})
+                    self._log.append({"event": "task_failed", "task": task.id, "error": str(e)})
                 return
         task.status = "done"
         task.result = "; ".join(results)
         task.finished_at = time.time()
         with self._lock:
             self._results[task.id] = task.result
-            self._log.append({"event": "task_done", "task": task.id,
-                              "result_preview": task.result[:100]})
+            self._log.append({"event": "task_done", "task": task.id, "result_preview": task.result[:100]})
 
 
 def coordinate(goal: str, tool_executor: Callable) -> dict:
@@ -221,8 +216,7 @@ class AsyncMultiAgentCoordinator:
       复用同一份实现，避免两份 decompose 漂移）。
     """
 
-    def __init__(self, tool_executor: Callable, max_workers: int = 4,
-                 model_router=None) -> None:
+    def __init__(self, tool_executor: Callable, max_workers: int = 4, model_router=None) -> None:
         self.execute_tool = tool_executor
         self.max_workers = max_workers
         self.agents: list[Agent] = []
@@ -238,10 +232,7 @@ class AsyncMultiAgentCoordinator:
     def spawn_team(self, roles: list[str] | None = None) -> None:
         """Create agent team（与同步版语义一致）。"""
         roles = roles or ["reviewer", "debugger", "implementer", "tester"]
-        self.agents = [
-            Agent(id=f"agent_{i}", role=role)
-            for i, role in enumerate(roles[:self.max_workers])
-        ]
+        self.agents = [Agent(id=f"agent_{i}", role=role) for i, role in enumerate(roles[: self.max_workers])]
 
     def decompose(self, goal: str) -> list[AgentTask]:
         """Break a goal into tasks（复用模块级 ``_decompose_goal``）。
@@ -284,9 +275,7 @@ class AsyncMultiAgentCoordinator:
         # 拓扑分层：每层是可并行的任务集合
         waves = _topological_waves(self.tasks)
         for wave in waves:
-            await asyncio.gather(*(
-                self._execute_task(task) for task in wave
-            ))
+            await asyncio.gather(*(self._execute_task(task) for task in wave))
 
         elapsed = time.time() - started
         done = sum(1 for t in self.tasks if t.status == "done")
@@ -352,13 +341,13 @@ class AsyncMultiAgentCoordinator:
 
             task.status = "running"
             task.started_at = time.time()
-            await self._log_append({"event": "task_start", "task": task.id,
-                                    "agent": task.assigned_to})
+            await self._log_append({"event": "task_start", "task": task.id, "agent": task.assigned_to})
             # tier 路由：若解析出模型，注入到 step.args
             resolved_model = self._resolve_model_for_task(task)
             if resolved_model:
-                await self._log_append({"event": "tier_routed", "task": task.id,
-                                        "tier": task.tier, "model": resolved_model})
+                await self._log_append(
+                    {"event": "tier_routed", "task": task.id, "tier": task.tier, "model": resolved_model}
+                )
 
             results: list[str] = []
             for step in task.tool_sequence:
@@ -371,8 +360,7 @@ class AsyncMultiAgentCoordinator:
                 except (OSError, ValueError, RuntimeError) as e:
                     task.status = "failed"
                     task.result = str(e)
-                    await self._log_append({"event": "task_failed",
-                                            "task": task.id, "error": str(e)})
+                    await self._log_append({"event": "task_failed", "task": task.id, "error": str(e)})
                     agent.status = "idle"
                     agent.current_task = ""
                     return
@@ -381,8 +369,7 @@ class AsyncMultiAgentCoordinator:
             task.result = "; ".join(results)
             task.finished_at = time.time()
             self._results[task.id] = task.result
-            await self._log_append({"event": "task_done", "task": task.id,
-                                    "result_preview": task.result[:100]})
+            await self._log_append({"event": "task_done", "task": task.id, "result_preview": task.result[:100]})
 
             agent.status = "idle"
             agent.current_task = ""
@@ -405,47 +392,50 @@ def _decompose_goal(goal: str) -> list[AgentTask]:
 
     if "review" in goal_lower:
         return [
-            AgentTask("t1", "Read and analyze the target file",
-                      [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}]),
-            AgentTask("t2", "Check for bugs and anti-patterns",
-                      [{"tool": "search_files", "args": {"pattern": "TODO|FIXME|HACK"}}],
-                      depends_on=["t1"]),
-            AgentTask("t3", "Run tests",
-                      [{"tool": "run_test", "args": {}}],
-                      depends_on=["t2"]),
-            AgentTask("t4", "Generate review report",
-                      [{"tool": "read_file", "args": {"path": "README.md"}}],
-                      depends_on=["t2", "t3"]),
+            AgentTask(
+                "t1", "Read and analyze the target file", [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}]
+            ),
+            AgentTask(
+                "t2",
+                "Check for bugs and anti-patterns",
+                [{"tool": "search_files", "args": {"pattern": "TODO|FIXME|HACK"}}],
+                depends_on=["t1"],
+            ),
+            AgentTask("t3", "Run tests", [{"tool": "run_test", "args": {}}], depends_on=["t2"]),
+            AgentTask(
+                "t4",
+                "Generate review report",
+                [{"tool": "read_file", "args": {"path": "README.md"}}],
+                depends_on=["t2", "t3"],
+            ),
         ]
 
     if "debug" in goal_lower or "fix" in goal_lower:
         return [
-            AgentTask("t1", "Check error logs",
-                      [{"tool": "read_file", "args": {"path": "output/last_error.txt"}}]),
-            AgentTask("t2", "Search for related code",
-                      [{"tool": "search_files", "args": {"pattern": "error|exception|fail"}}],
-                      depends_on=["t1"]),
-            AgentTask("t3", "Identify root cause",
-                      [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}],
-                      depends_on=["t2"]),
-            AgentTask("t4", "Apply fix and verify",
-                      [{"tool": "run_test", "args": {}}],
-                      depends_on=["t3"]),
+            AgentTask("t1", "Check error logs", [{"tool": "read_file", "args": {"path": "output/last_error.txt"}}]),
+            AgentTask(
+                "t2",
+                "Search for related code",
+                [{"tool": "search_files", "args": {"pattern": "error|exception|fail"}}],
+                depends_on=["t1"],
+            ),
+            AgentTask(
+                "t3", "Identify root cause", [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}], depends_on=["t2"]
+            ),
+            AgentTask("t4", "Apply fix and verify", [{"tool": "run_test", "args": {}}], depends_on=["t3"]),
         ]
 
     # Default: investigate -> understand -> act -> verify
     return [
-        AgentTask("t1", "Understand the codebase",
-                  [{"tool": "read_file", "args": {"path": "README.md"}}]),
-        AgentTask("t2", "Find relevant files",
-                  [{"tool": "search_files", "args": {"pattern": goal.split()[0] if goal.split() else "main"}}],
-                  depends_on=["t1"]),
-        AgentTask("t3", "Execute the task",
-                  [{"tool": "env_check", "args": {}}],
-                  depends_on=["t2"]),
-        AgentTask("t4", "Verify results",
-                  [{"tool": "run_test", "args": {}}],
-                  depends_on=["t3"]),
+        AgentTask("t1", "Understand the codebase", [{"tool": "read_file", "args": {"path": "README.md"}}]),
+        AgentTask(
+            "t2",
+            "Find relevant files",
+            [{"tool": "search_files", "args": {"pattern": goal.split()[0] if goal.split() else "main"}}],
+            depends_on=["t1"],
+        ),
+        AgentTask("t3", "Execute the task", [{"tool": "env_check", "args": {}}], depends_on=["t2"]),
+        AgentTask("t4", "Verify results", [{"tool": "run_test", "args": {}}], depends_on=["t3"]),
     ]
 
 
@@ -464,11 +454,7 @@ def _topological_waves(tasks: list[AgentTask]) -> list[list[AgentTask]]:
 
     while len(placed) < len(tasks):
         # 当前波：未分层且所有（已知）依赖均已分层的任务
-        wave = [
-            t for t in tasks
-            if t.id not in placed
-            and all(d in placed or d not in by_id for d in t.depends_on)
-        ]
+        wave = [t for t in tasks if t.id not in placed and all(d in placed or d not in by_id for d in t.depends_on)]
         if not wave:
             # 剩余任务都无法满足依赖 → 存在环
             remaining = [t.id for t in tasks if t.id not in placed]

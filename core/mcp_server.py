@@ -23,6 +23,7 @@ Protocol (与 core/mcp_client.py 对称):
 """
 
 import base64
+import contextlib
 import json
 import mimetypes
 import os
@@ -38,11 +39,11 @@ __all__ = ["MCPServer", "run_mcp_server"]
 MCP_PROTOCOL_VERSION = "2024-11-05"
 
 # JSON-RPC 标准错误码
-ERR_PARSE_ERROR = -32700      # JSON 解析失败
+ERR_PARSE_ERROR = -32700  # JSON 解析失败
 ERR_INVALID_REQUEST = -32600  # 不是合法的 Request 对象
 ERR_METHOD_NOT_FOUND = -32601  # 方法不存在
-ERR_INVALID_PARAMS = -32602   # 参数无效
-ERR_INTERNAL = -32603         # 内部错误
+ERR_INVALID_PARAMS = -32602  # 参数无效
+ERR_INTERNAL = -32603  # 内部错误
 
 
 def _server_info() -> dict:
@@ -88,10 +89,13 @@ class MCPServer:
                 msg = json.loads(line)
             except json.JSONDecodeError:
                 # 解析失败必须回错误（id 无法得知，用 null）
-                self._write({
-                    "jsonrpc": "2.0", "id": None,
-                    "error": {"code": ERR_PARSE_ERROR, "message": "Parse error"},
-                })
+                self._write(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": None,
+                        "error": {"code": ERR_PARSE_ERROR, "message": "Parse error"},
+                    }
+                )
                 continue
             response = self._handle(msg)
             if response is not None:  # notification 返回 None，不回响应
@@ -104,13 +108,11 @@ class MCPServer:
             return self._error(None, ERR_INVALID_REQUEST, "Request must be a JSON object")
 
         if msg.get("jsonrpc") != "2.0":
-            return self._error(msg.get("id"), ERR_INVALID_REQUEST,
-                               "Missing or invalid 'jsonrpc' field")
+            return self._error(msg.get("id"), ERR_INVALID_REQUEST, "Missing or invalid 'jsonrpc' field")
 
         method = msg.get("method")
         if not isinstance(method, str):
-            return self._error(msg.get("id"), ERR_INVALID_REQUEST,
-                               "Missing 'method' field")
+            return self._error(msg.get("id"), ERR_INVALID_REQUEST, "Missing 'method' field")
 
         # 通知（无 id）→ 不回响应
         is_notification = "id" not in msg
@@ -122,8 +124,7 @@ class MCPServer:
             if handler is None:
                 if is_notification:
                     return None  # 未知通知静默忽略
-                return self._error(req_id, ERR_METHOD_NOT_FOUND,
-                                   f"Method not found: {method}")
+                return self._error(req_id, ERR_METHOD_NOT_FOUND, f"Method not found: {method}")
             result = handler(self, params)
             if is_notification:
                 return None
@@ -192,8 +193,7 @@ class MCPServer:
         # 未知工具 → 结构化错误（让 LLM 知道工具不存在，而非崩溃）
         known = {t["name"] for t in self._all_tools()}
         if name not in known:
-            return self._tool_error(f"Unknown tool: {name}. "
-                                    f"Use 'tools/list' to see available tools.")
+            return self._tool_error(f"Unknown tool: {name}. Use 'tools/list' to see available tools.")
 
         # 统一调度入口（core/chat.py:662）
         args_json = json.dumps(args, ensure_ascii=False)
@@ -211,20 +211,19 @@ class MCPServer:
             d = OUTPUT_DIR / sub
             if not d.exists():
                 continue
-            for p in sorted(d.iterdir(), key=lambda x: x.stat().st_mtime if x.is_file() else 0,
-                            reverse=True):
+            for p in sorted(d.iterdir(), key=lambda x: x.stat().st_mtime if x.is_file() else 0, reverse=True):
                 if not p.is_file():
                     continue
-                if p.suffix.lower() not in (".png", ".jpg", ".jpeg", ".gif",
-                                            ".webp", ".mp4", ".webm"):
+                if p.suffix.lower() not in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".mp4", ".webm"):
                     continue
-                resources.append({
-                    "uri": p.as_uri(),
-                    "name": p.name,
-                    "mimeType": (mimetypes.guess_type(str(p))[0]
-                                 or "application/octet-stream"),
-                    "description": f"CRUX generated asset: {p.name}",
-                })
+                resources.append(
+                    {
+                        "uri": p.as_uri(),
+                        "name": p.name,
+                        "mimeType": (mimetypes.guess_type(str(p))[0] or "application/octet-stream"),
+                        "description": f"CRUX generated asset: {p.name}",
+                    }
+                )
                 if len(resources) >= 100:  # 上限保护，避免目录爆炸
                     break
         return {"resources": resources}
@@ -239,11 +238,11 @@ class MCPServer:
         # 安全校验：只允许读 OUTPUT_DIR 内的文件（防路径穿越）
         try:
             from core.config import OUTPUT_DIR
+
             path = path.resolve()
             OUTPUT_DIR.resolve().relative_to(path.parent)  # 抛 ValueError 即越界
-        except (ImportError, ValueError):
-            raise _JSONRPCError(ERR_INVALID_PARAMS,
-                                "URI must point inside CRUX output/ dir")
+        except (ImportError, ValueError) as err:
+            raise _JSONRPCError(ERR_INVALID_PARAMS, "URI must point inside CRUX output/ dir") from err
         if not path.is_file():
             raise _JSONRPCError(ERR_INVALID_PARAMS, f"File not found: {uri}")
 
@@ -251,17 +250,28 @@ class MCPServer:
         # 视频太大不内联 base64，返回路径文本（三象可读路径自行处理）
         video_exts = {".mp4", ".webm", ".mov"}
         if path.suffix.lower() in video_exts or path.stat().st_size > 5 * 1024 * 1024:
-            return {"contents": [{
-                "uri": uri, "mimeType": mime,
-                "text": json.dumps({"local_path": str(path), "size_bytes": path.stat().st_size},
-                                   ensure_ascii=False),
-            }]}
+            return {
+                "contents": [
+                    {
+                        "uri": uri,
+                        "mimeType": mime,
+                        "text": json.dumps(
+                            {"local_path": str(path), "size_bytes": path.stat().st_size}, ensure_ascii=False
+                        ),
+                    }
+                ]
+            }
         # 图片/小文件 → base64 blob
         data = path.read_bytes()
-        return {"contents": [{
-            "uri": uri, "mimeType": mime,
-            "blob": base64.b64encode(data).decode("ascii"),
-        }]}
+        return {
+            "contents": [
+                {
+                    "uri": uri,
+                    "mimeType": mime,
+                    "blob": base64.b64encode(data).decode("ascii"),
+                }
+            ]
+        }
 
     # 方法分发表（class-level，_handle 查这里）
     _METHODS = {
@@ -341,8 +351,7 @@ class MCPServer:
 
     # ── tools/call 结果格式化 ─────────────────────────────────
 
-    def _format_tool_result(self, name: str, text: str,
-                            sides: list[tuple[str, Any]]) -> dict:
+    def _format_tool_result(self, name: str, text: str, sides: list[tuple[str, Any]]) -> dict:
         """把 _dispatch_tool_impl 的 (text, sides) 转 MCP CallToolResult。
 
         sides 元素形态（core/chat.py:665）:
@@ -391,17 +400,18 @@ class MCPServer:
         if local and os.path.isfile(local):
             try:
                 data = Path(local).read_bytes()
-                mime = (mimetypes.guess_type(local)[0] or "image/png")
-                contents.append({
-                    "type": "image",
-                    "data": base64.b64encode(data).decode("ascii"),
-                    "mimeType": mime,
-                })
+                mime = mimetypes.guess_type(local)[0] or "image/png"
+                contents.append(
+                    {
+                        "type": "image",
+                        "data": base64.b64encode(data).decode("ascii"),
+                        "mimeType": mime,
+                    }
+                )
             except OSError:
                 pass  # 读失败降级到文本
         # 同时给路径+URL 文本（让三象两种消费方式都能用）
-        meta = {k: payload[k] for k in ("local_path", "url", "model", "size", "seed")
-                if k in payload and payload[k]}
+        meta = {k: payload[k] for k in ("local_path", "url", "model", "size", "seed") if k in payload and payload[k]}
         if meta:
             contents.append({"type": "text", "text": json.dumps(meta, ensure_ascii=False)})
         return contents
@@ -413,14 +423,17 @@ class MCPServer:
             {"url", "local_path", "task_id", "video_id", "model", "prompt", "num_frames",
              "status"?("timeout"), "progress"?}
         """
-        meta = {k: payload[k] for k in
-                ("local_path", "url", "task_id", "video_id", "model",
-                 "num_frames", "status", "progress")
-                if k in payload and payload[k]}
+        meta = {
+            k: payload[k]
+            for k in ("local_path", "url", "task_id", "video_id", "model", "num_frames", "status", "progress")
+            if k in payload and payload[k]
+        }
         if payload.get("status") == "timeout":
-            return (f"[video timeout] progress={payload.get('progress', 0):.0%}, "
-                    f"video_id={payload.get('video_id', '')} — "
-                    f"poll later with this video_id. {json.dumps(meta, ensure_ascii=False)}")
+            return (
+                f"[video timeout] progress={payload.get('progress', 0):.0%}, "
+                f"video_id={payload.get('video_id', '')} — "
+                f"poll later with this video_id. {json.dumps(meta, ensure_ascii=False)}"
+            )
         return json.dumps(meta, ensure_ascii=False)
 
     # ── 响应构造 helpers ──────────────────────────────────────
@@ -431,8 +444,7 @@ class MCPServer:
 
     def _error(self, req_id: Any, code: int, message: str) -> dict:
         """构造 JSON-RPC error 响应。"""
-        return {"jsonrpc": "2.0", "id": req_id,
-                "error": {"code": code, "message": message}}
+        return {"jsonrpc": "2.0", "id": req_id, "error": {"code": code, "message": message}}
 
     def _write(self, obj: dict) -> None:
         """写单行 JSON-RPC 响应（newline-delimited，对齐 client 的 readline）。"""
@@ -456,6 +468,7 @@ class _JSONRPCError(Exception):
 
 # ── 入口 ────────────────────────────────────────────────────
 
+
 def run_mcp_server(argv: list[str] | None = None) -> None:
     """crux mcp-serve 入口。
 
@@ -469,9 +482,7 @@ def run_mcp_server(argv: list[str] | None = None) -> None:
     from core.config import SETTINGS
 
     if not SETTINGS.api_key:
-        sys.stderr.write(
-            "[crux-mcp] ERROR: CRUX_API_KEY not set. "
-            "Run `crux init` or export CRUX_API_KEY.\n")
+        sys.stderr.write("[crux-mcp] ERROR: CRUX_API_KEY not set. Run `crux init` or export CRUX_API_KEY.\n")
         sys.exit(1)
 
     # 构造无头 ChatSession（core/chat.py:145-152）
@@ -493,10 +504,8 @@ def run_mcp_server(argv: list[str] | None = None) -> None:
         server._log(f"received signal {signum}, shutting down")
         sys.exit(0)
 
-    try:
-        signal.signal(signal.SIGTERM, _on_sigterm)
-    except (AttributeError, ValueError):
-        pass  # Windows 对某些信号受限，静默降级
+    with contextlib.suppress(AttributeError, ValueError):
+        signal.signal(signal.SIGTERM, _on_sigterm)  # Windows 对某些信号受限，静默降级
 
     try:
         server.run()

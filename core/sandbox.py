@@ -9,7 +9,12 @@ import sys
 from pathlib import Path
 
 __all__ = [
-    'ALLOWED_ROOTS', 'DANGEROUS_PATTERNS', 'ROOT', 'Sandbox', 'sandbox_check', 'sandbox_restrict',
+    "ALLOWED_ROOTS",
+    "DANGEROUS_PATTERNS",
+    "ROOT",
+    "Sandbox",
+    "sandbox_check",
+    "sandbox_restrict",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -17,26 +22,26 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # Dangerous command patterns (will be blocked entirely)
 DANGEROUS_PATTERNS = [
-    r"rm\s+(-rf?|--recursive)",    # recursive delete
-    r">\s*/dev/",                    # write to device
-    r"mkfs\.",                       # format filesystem
-    r"dd\s+if=",                     # raw disk write
-    r"chmod\s+777",                  # world-writable
-    r"curl.*\|\s*(ba)?sh",          # pipe to shell
-    r"wget.*\|\s*(ba)?sh",          # pipe to shell
-    r":\(\)\s*\{\s*:\|:&\s*\}\s*;:", # fork bomb
-    r"git\s+push\s+--force",        # force push (destructive git)
-    r"git\s+reset\s+--hard",        # hard reset (destructive git)
+    r"rm\s+(-rf?|--recursive)",  # recursive delete
+    r">\s*/dev/",  # write to device
+    r"mkfs\.",  # format filesystem
+    r"dd\s+if=",  # raw disk write
+    r"chmod\s+777",  # world-writable
+    r"curl.*\|\s*(ba)?sh",  # pipe to shell
+    r"wget.*\|\s*(ba)?sh",  # pipe to shell
+    r":\(\)\s*\{\s*:\|:&\s*\}\s*;:",  # fork bomb
+    r"git\s+push\s+--force",  # force push (destructive git)
+    r"git\s+reset\s+--hard",  # hard reset (destructive git)
     # Windows 破坏性命令（跨平台覆盖）
-    r"\brmdir\s+[/\-]?s",            # rmdir /s 递归删目录
-    r"\bdel\s+[/\\]?[sfq]",          # del /s /f /q 强制删除
-    r"\berase\s+[/\\]?[sfq]",        # erase /s /f /q
-    r"\bformat\s+[A-Za-z]:",         # format X: 格式化盘
-    r"\bdiskpart",                   # 磁盘分区操作
-    r"\bcipher\s*/w",                # cipher /w 覆写删除
-    r"\bcd\s+[A-Za-z]:[\\/]",        # cd 到绝对路径外（防止跳盘）
+    r"\brmdir\s+[/\-]?s",  # rmdir /s 递归删目录
+    r"\bdel\s+[/\\]?[sfq]",  # del /s /f /q 强制删除
+    r"\berase\s+[/\\]?[sfq]",  # erase /s /f /q
+    r"\bformat\s+[A-Za-z]:",  # format X: 格式化盘
+    r"\bdiskpart",  # 磁盘分区操作
+    r"\bcipher\s*/w",  # cipher /w 覆写删除
+    r"\bcd\s+[A-Za-z]:[\\/]",  # cd 到绝对路径外（防止跳盘）
     r"\bpowershell.*-enc\s+[A-Za-z0-9]",  # powershell 编码命令（绕过审计）
-    r"reg\s+delete.*/f",             # 注册表强删
+    r"reg\s+delete.*/f",  # 注册表强删
 ]
 
 # Allowed working directories for shell commands
@@ -84,10 +89,7 @@ class Sandbox:
         for p in unix_paths + win_paths:
             p_obj = Path(p)
             if p_obj.is_absolute():
-                allowed = any(
-                    str(p_obj).startswith(root)
-                    for root in ALLOWED_ROOTS
-                )
+                allowed = any(str(p_obj).startswith(root) for root in ALLOWED_ROOTS)
                 if not allowed:
                     return False, f"path outside allowed roots: {p}"
 
@@ -108,6 +110,7 @@ class Sandbox:
 
 def sandbox_check(command: str) -> tuple[bool, str]:
     return Sandbox().validate(command)
+
 
 def sandbox_restrict(command: str) -> str:
     return Sandbox().restrict_bash(command)

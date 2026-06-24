@@ -14,17 +14,36 @@ import json
 import subprocess
 
 __all__ = [
-    'GIT_WORKFLOW_EXECUTOR_MAP', 'GIT_WORKFLOW_TOOL_DEFS', 'execute_git_branch', 'execute_git_conflict_check', 'execute_git_pr_create', 'execute_git_pr_merge', 'execute_git_pull', 'execute_git_push', 'execute_git_stash', 'execute_git_tag', 'execute_git_worktree', 'git_add_commit', 'git_diff', 'git_log', 'git_status',
+    "GIT_WORKFLOW_EXECUTOR_MAP",
+    "GIT_WORKFLOW_TOOL_DEFS",
+    "execute_git_branch",
+    "execute_git_conflict_check",
+    "execute_git_pr_create",
+    "execute_git_pr_merge",
+    "execute_git_pull",
+    "execute_git_push",
+    "execute_git_stash",
+    "execute_git_tag",
+    "execute_git_worktree",
+    "git_add_commit",
+    "git_diff",
+    "git_log",
+    "git_status",
 ]
+
 
 def _run_git(args: list[str], cwd: str = "") -> dict:
     """Run a git command and return structured result."""
     cmd = ["git"] + args
     try:
         r = subprocess.run(
-            cmd, capture_output=True, text=True,
-            encoding="utf-8", errors="replace",
-            cwd=cwd or None, timeout=30,
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            cwd=cwd or None,
+            timeout=30,
         )
         return {
             "success": r.returncode == 0,
@@ -39,14 +58,19 @@ def _run_git(args: list[str], cwd: str = "") -> dict:
     except (subprocess.SubprocessError, OSError) as e:
         return {"success": False, "error": str(e)}
 
+
 def _run_gh(args: list[str], cwd: str = "") -> dict:
     """Run a gh CLI command."""
     cmd = ["gh"] + args
     try:
         r = subprocess.run(
-            cmd, capture_output=True, text=True,
-            encoding="utf-8", errors="replace",
-            cwd=cwd or None, timeout=30,
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            cwd=cwd or None,
+            timeout=30,
         )
         return {
             "success": r.returncode == 0,
@@ -59,12 +83,13 @@ def _run_gh(args: list[str], cwd: str = "") -> dict:
     except (subprocess.SubprocessError, OSError) as e:
         return {"success": False, "error": str(e)}
 
+
 # ======================================================================
 # Tool executors
 # ======================================================================
 
-def execute_git_branch(name: str = "", action: str = "list",
-                       base: str = "") -> str:
+
+def execute_git_branch(name: str = "", action: str = "list", base: str = "") -> str:
     """Manage git branches.
 
     action: list, create, switch, delete, current
@@ -103,8 +128,8 @@ def execute_git_branch(name: str = "", action: str = "list",
 
     return json.dumps({"error": f"unknown action: {action}"})
 
-def execute_git_push(remote: str = "origin", branch: str = "",
-                     force: bool = False, tags: bool = False) -> str:
+
+def execute_git_push(remote: str = "origin", branch: str = "", force: bool = False, tags: bool = False) -> str:
     """Push commits to remote.
 
     安全约束（P1-15）：force=True 会重写远端历史，属于不可逆操作。
@@ -114,12 +139,15 @@ def execute_git_push(remote: str = "origin", branch: str = "",
     返回错误字符串而非执行。
     """
     if force:
-        return json.dumps({
-            "error": "force push 需要用户确认。请通过交互确认后再执行。",
-            "needs_confirm": True,
-            "tool": "git_push",
-            "args": {"remote": remote, "branch": branch, "force": True, "tags": tags},
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "error": "force push 需要用户确认。请通过交互确认后再执行。",
+                "needs_confirm": True,
+                "tool": "git_push",
+                "args": {"remote": remote, "branch": branch, "force": True, "tags": tags},
+            },
+            ensure_ascii=False,
+        )
     args = ["push", remote]
     if branch:
         args.append(branch)
@@ -127,15 +155,18 @@ def execute_git_push(remote: str = "origin", branch: str = "",
         args.append("--tags")
 
     r = _run_git(args)
-    return json.dumps({
-        "pushed": r["success"],
-        "remote": remote,
-        "branch": branch or "current",
-        "output": r.get("stdout", "") or r.get("stderr", ""),
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "pushed": r["success"],
+            "remote": remote,
+            "branch": branch or "current",
+            "output": r.get("stdout", "") or r.get("stderr", ""),
+        },
+        ensure_ascii=False,
+    )
 
-def execute_git_pull(remote: str = "origin", branch: str = "",
-                     rebase: bool = False) -> str:
+
+def execute_git_pull(remote: str = "origin", branch: str = "", rebase: bool = False) -> str:
     """Pull from remote."""
     args = ["pull", remote]
     if branch:
@@ -144,14 +175,16 @@ def execute_git_pull(remote: str = "origin", branch: str = "",
         args.append("--rebase")
 
     r = _run_git(args)
-    return json.dumps({
-        "pulled": r["success"],
-        "output": r.get("stdout", "") or r.get("stderr", ""),
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "pulled": r["success"],
+            "output": r.get("stdout", "") or r.get("stderr", ""),
+        },
+        ensure_ascii=False,
+    )
 
-def execute_git_pr_create(title: str = "", body: str = "",
-                          base: str = "", head: str = "",
-                          draft: bool = False) -> str:
+
+def execute_git_pr_create(title: str = "", body: str = "", base: str = "", head: str = "", draft: bool = False) -> str:
     """Create a pull request via gh CLI."""
     args = ["pr", "create", "--fill"]
     if title:
@@ -166,14 +199,17 @@ def execute_git_pr_create(title: str = "", body: str = "",
         args.append("--draft")
 
     r = _run_gh(args)
-    return json.dumps({
-        "created": r["success"],
-        "pr_url": r.get("stdout", "") if r["success"] else "",
-        "error": r.get("stderr", "") if not r["success"] else "",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "created": r["success"],
+            "pr_url": r.get("stdout", "") if r["success"] else "",
+            "error": r.get("stderr", "") if not r["success"] else "",
+        },
+        ensure_ascii=False,
+    )
 
-def execute_git_pr_merge(pr_number: int = 0, method: str = "squash",
-                         delete_branch: bool = True) -> str:
+
+def execute_git_pr_merge(pr_number: int = 0, method: str = "squash", delete_branch: bool = True) -> str:
     """Merge a pull request via gh CLI.
 
     method: squash, merge, or rebase
@@ -186,12 +222,16 @@ def execute_git_pr_merge(pr_number: int = 0, method: str = "squash",
         args.append("--delete-branch")
 
     r = _run_gh(args)
-    return json.dumps({
-        "merged": r["success"],
-        "pr_number": pr_number,
-        "method": method,
-        "output": r.get("stdout", "") or r.get("stderr", ""),
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "merged": r["success"],
+            "pr_number": pr_number,
+            "method": method,
+            "output": r.get("stdout", "") or r.get("stderr", ""),
+        },
+        ensure_ascii=False,
+    )
+
 
 def execute_git_stash(action: str = "list", message: str = "") -> str:
     """Manage git stash.
@@ -222,20 +262,25 @@ def execute_git_stash(action: str = "list", message: str = "") -> str:
 
     return json.dumps({"error": f"unknown action: {action}"})
 
+
 def execute_git_conflict_check() -> str:
     """Check for merge conflicts in working tree."""
     r = _run_git(["diff", "--name-only", "--diff-filter=U"])
     if r["success"]:
         conflicts = [f for f in r["stdout"].split("\n") if f.strip()]
-        return json.dumps({
-            "has_conflicts": len(conflicts) > 0,
-            "conflicted_files": conflicts,
-            "count": len(conflicts),
-        }, ensure_ascii=False, indent=2)
+        return json.dumps(
+            {
+                "has_conflicts": len(conflicts) > 0,
+                "conflicted_files": conflicts,
+                "count": len(conflicts),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
     return json.dumps(r, ensure_ascii=False)
 
-def execute_git_tag(name: str = "", action: str = "list",
-                    message: str = "") -> str:
+
+def execute_git_tag(name: str = "", action: str = "list", message: str = "") -> str:
     """Manage git tags.
 
     action: list, create, delete
@@ -260,9 +305,10 @@ def execute_git_tag(name: str = "", action: str = "list",
 
     return json.dumps({"error": f"unknown action: {action}"})
 
-def execute_git_worktree(action: str = "list", path: str = "",
-                         branch: str = "", base: str = "",
-                         force: bool = False) -> str:
+
+def execute_git_worktree(
+    action: str = "list", path: str = "", branch: str = "", base: str = "", force: bool = False
+) -> str:
     """Manage git worktrees.
 
     action: list, add, remove, prune
@@ -282,19 +328,18 @@ def execute_git_worktree(action: str = "list", path: str = "",
                         worktrees.append(current)
                         current = {}
                 elif line.startswith("worktree "):
-                    current["path"] = line[len("worktree "):]
+                    current["path"] = line[len("worktree ") :]
                 elif line.startswith("HEAD "):
-                    current["head"] = line[len("HEAD "):]
+                    current["head"] = line[len("HEAD ") :]
                 elif line.startswith("branch "):
-                    current["branch"] = line[len("branch "):]
+                    current["branch"] = line[len("branch ") :]
                 elif line == "bare":
                     current["bare"] = True
                 elif line == "detached":
                     current["detached"] = True
             if current:
                 worktrees.append(current)
-            return json.dumps({"worktrees": worktrees, "count": len(worktrees)},
-                              ensure_ascii=False, indent=2)
+            return json.dumps({"worktrees": worktrees, "count": len(worktrees)}, ensure_ascii=False, indent=2)
         return json.dumps(r, ensure_ascii=False)
 
     elif action == "add":
@@ -311,13 +356,16 @@ def execute_git_worktree(action: str = "list", path: str = "",
         else:
             args.append(path)
         r = _run_git(args)
-        return json.dumps({
-            "added": r["success"],
-            "path": path,
-            "branch": branch or "default",
-            "base": base or "current",
-            "output": r.get("stdout", "") or r.get("stderr", ""),
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "added": r["success"],
+                "path": path,
+                "branch": branch or "default",
+                "base": base or "current",
+                "output": r.get("stdout", "") or r.get("stderr", ""),
+            },
+            ensure_ascii=False,
+        )
 
     elif action == "remove":
         if not path:
@@ -327,17 +375,21 @@ def execute_git_worktree(action: str = "list", path: str = "",
             args.append("--force")
         args.append(path)
         r = _run_git(args)
-        return json.dumps({
-            "removed": r["success"],
-            "path": path,
-            "output": r.get("stdout", "") or r.get("stderr", ""),
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "removed": r["success"],
+                "path": path,
+                "output": r.get("stdout", "") or r.get("stderr", ""),
+            },
+            ensure_ascii=False,
+        )
 
     elif action == "prune":
         r = _run_git(["worktree", "prune"])
         return json.dumps({"pruned": r["success"], **r}, ensure_ascii=False)
 
     return json.dumps({"error": f"unknown action: {action}"})
+
 
 # ======================================================================
 # Tool definitions
@@ -353,7 +405,10 @@ GIT_WORKFLOW_TOOL_DEFS = [
                 "type": "object",
                 "properties": {
                     "name": {"type": "string", "description": "Branch name (for create/switch/delete)"},
-                    "action": {"type": "string", "description": "list, create, switch, delete, current (default: list)"},
+                    "action": {
+                        "type": "string",
+                        "description": "list, create, switch, delete, current (default: list)",
+                    },
                     "base": {"type": "string", "description": "Base branch for create (default: current)"},
                 },
             },
@@ -469,9 +524,15 @@ GIT_WORKFLOW_TOOL_DEFS = [
                 "type": "object",
                 "properties": {
                     "action": {"type": "string", "description": "list, add, remove, prune (default: list)"},
-                    "path": {"type": "string", "description": "Directory path for the worktree (required for add/remove)"},
+                    "path": {
+                        "type": "string",
+                        "description": "Directory path for the worktree (required for add/remove)",
+                    },
                     "branch": {"type": "string", "description": "New branch name to create in this worktree (for add)"},
-                    "base": {"type": "string", "description": "Base branch/commit for new worktree (for add, default: HEAD)"},
+                    "base": {
+                        "type": "string",
+                        "description": "Base branch/commit for new worktree (for add, default: HEAD)",
+                    },
                     "force": {"type": "boolean", "description": "Force operation even if exists (default: false)"},
                 },
             },
@@ -484,34 +545,35 @@ GIT_WORKFLOW_EXECUTOR_MAP = {
         name=kw.get("name", ""), action=kw.get("action", "list"), base=kw.get("base", "")
     ),
     "git_push": lambda **kw: execute_git_push(
-        remote=kw.get("remote", "origin"), branch=kw.get("branch", ""),
-        force=kw.get("force", False), tags=kw.get("tags", False)
+        remote=kw.get("remote", "origin"),
+        branch=kw.get("branch", ""),
+        force=kw.get("force", False),
+        tags=kw.get("tags", False),
     ),
     "git_pull": lambda **kw: execute_git_pull(
-        remote=kw.get("remote", "origin"), branch=kw.get("branch", ""),
-        rebase=kw.get("rebase", False)
+        remote=kw.get("remote", "origin"), branch=kw.get("branch", ""), rebase=kw.get("rebase", False)
     ),
     "git_pr_create": lambda **kw: execute_git_pr_create(
-        title=kw.get("title", ""), body=kw.get("body", ""),
-        base=kw.get("base", ""), head=kw.get("head", ""),
-        draft=kw.get("draft", False)
+        title=kw.get("title", ""),
+        body=kw.get("body", ""),
+        base=kw.get("base", ""),
+        head=kw.get("head", ""),
+        draft=kw.get("draft", False),
     ),
     "git_pr_merge": lambda **kw: execute_git_pr_merge(
-        pr_number=kw.get("pr_number", 0), method=kw.get("method", "squash"),
-        delete_branch=kw.get("delete_branch", True)
+        pr_number=kw.get("pr_number", 0), method=kw.get("method", "squash"), delete_branch=kw.get("delete_branch", True)
     ),
-    "git_stash": lambda **kw: execute_git_stash(
-        action=kw.get("action", "list"), message=kw.get("message", "")
-    ),
+    "git_stash": lambda **kw: execute_git_stash(action=kw.get("action", "list"), message=kw.get("message", "")),
     "git_conflict_check": lambda **kw: execute_git_conflict_check(),
     "git_tag": lambda **kw: execute_git_tag(
-        name=kw.get("name", ""), action=kw.get("action", "list"),
-        message=kw.get("message", "")
+        name=kw.get("name", ""), action=kw.get("action", "list"), message=kw.get("message", "")
     ),
     "git_worktree": lambda **kw: execute_git_worktree(
-        action=kw.get("action", "list"), path=kw.get("path", ""),
-        branch=kw.get("branch", ""), base=kw.get("base", ""),
-        force=kw.get("force", False)
+        action=kw.get("action", "list"),
+        path=kw.get("path", ""),
+        branch=kw.get("branch", ""),
+        base=kw.get("base", ""),
+        force=kw.get("force", False),
     ),
 }
 
@@ -520,38 +582,41 @@ GIT_WORKFLOW_EXECUTOR_MAP = {
 #  全部用 list 传参，无 shell=True
 # ════════════════════════════════════════════════════════════
 
+
 def git_status() -> str:
     """git status --short 的安全包装。"""
     import subprocess
-    r = subprocess.run(["git", "status", "--short"],
-                       capture_output=True, text=True, timeout=10)
+
+    r = subprocess.run(["git", "status", "--short"], capture_output=True, text=True, timeout=10)
     return r.stdout.strip() or r.stderr.strip() or "not a git repo"
+
 
 def git_diff() -> str:
     """git diff --stat 的安全包装。"""
     import subprocess
-    r = subprocess.run(["git", "diff", "--stat"],
-                       capture_output=True, text=True, timeout=10)
+
+    r = subprocess.run(["git", "diff", "--stat"], capture_output=True, text=True, timeout=10)
     return r.stdout.strip() or r.stderr.strip() or "no changes"
+
 
 def git_log() -> str:
     """git log --oneline -10 的安全包装。"""
     import subprocess
-    r = subprocess.run(["git", "log", "--oneline", "-10"],
-                       capture_output=True, text=True, timeout=10)
+
+    r = subprocess.run(["git", "log", "--oneline", "-10"], capture_output=True, text=True, timeout=10)
     return r.stdout.strip() or r.stderr.strip() or "not a git repo"
+
 
 def git_add_commit(message: str) -> str:
     """git add -A && git commit -m 的安全包装。用列表传参防注入。"""
     import subprocess
+
     # Step 1: git add -A
-    r1 = subprocess.run(["git", "add", "-A"],
-                        capture_output=True, text=True, timeout=30)
+    r1 = subprocess.run(["git", "add", "-A"], capture_output=True, text=True, timeout=30)
     if r1.returncode != 0:
         return f"[错误] git add 失败: {r1.stderr.strip()}"
     # Step 2: git commit -m (message 作列表元素，不会被 shell 解析)
-    r2 = subprocess.run(["git", "commit", "-m", message],
-                        capture_output=True, text=True, timeout=30)
+    r2 = subprocess.run(["git", "commit", "-m", message], capture_output=True, text=True, timeout=30)
     if r2.returncode == 0:
         return r2.stdout.strip() or "已提交"
     if "nothing to commit" in (r2.stdout + r2.stderr):

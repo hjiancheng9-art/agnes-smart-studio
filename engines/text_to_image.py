@@ -1,4 +1,5 @@
 """文生图引擎"""
+
 import asyncio
 import base64
 from datetime import datetime
@@ -8,18 +9,22 @@ from core.client import CruxClient
 from core.config import OUTPUT_DIR
 from core.validator import validate_image_size, validate_model, validate_seed
 
-__all__ = ['TextToImageEngine', 'AsyncTextToImageEngine']
-
+__all__ = ["TextToImageEngine", "AsyncTextToImageEngine"]
 
 
 class TextToImageEngine:
     def __init__(self, client: CruxClient):
         self.client = client
 
-    def generate(self, prompt: str, model: str = "agnes-image-2.1-flash",
-                 size: str = "1024x768", seed: int | None = None,
-                 negative_prompt: str | None = None,
-                 return_url: bool = False) -> dict:
+    def generate(
+        self,
+        prompt: str,
+        model: str = "agnes-image-2.1-flash",
+        size: str = "1024x768",
+        seed: int | None = None,
+        negative_prompt: str | None = None,
+        return_url: bool = False,
+    ) -> dict:
         """生成图片（自动绕过内容过滤）"""
         size = validate_image_size(size)
         validate_model(model, "image")
@@ -34,8 +39,12 @@ class TextToImageEngine:
             return r
 
         result, rewritten = generate_with_bypass(
-            _gen, self.client, prompt,
-            model=model, size=size, seed=seed,
+            _gen,
+            self.client,
+            prompt,
+            model=model,
+            size=size,
+            seed=seed,
             negative_prompt=negative_prompt,
             return_base64=not return_url,
         )
@@ -62,10 +71,18 @@ class TextToImageEngine:
         else:
             raise RuntimeError(f"图像API未返回图片数据: {str(result)[:200]}")
 
-        return {"url": image_url, "local_path": local_path, "model": model, "prompt": prompt, "size": size, "seed": seed}
+        return {
+            "url": image_url,
+            "local_path": local_path,
+            "model": model,
+            "prompt": prompt,
+            "size": size,
+            "seed": seed,
+        }
 
-    def generate_batch(self, prompts: list[str], model: str = "agnes-image-2.1-flash",
-                       size: str = "1024x768", seed: int | None = None) -> list[dict]:
+    def generate_batch(
+        self, prompts: list[str], model: str = "agnes-image-2.1-flash", size: str = "1024x768", seed: int | None = None
+    ) -> list[dict]:
         """批量生成。每张用独立 seed（否则同 prompt+seed 只出一张重复图）。
 
         seed 给定时作为基准，每张递增 1，保证各不相同。
@@ -87,10 +104,15 @@ class AsyncTextToImageEngine:
     def __init__(self, client: AsyncCruxClient):
         self.client = client
 
-    async def generate(self, prompt: str, model: str = "agnes-image-2.1-flash",
-                       size: str = "1024x768", seed: int | None = None,
-                       negative_prompt: str | None = None,
-                       return_url: bool = False) -> dict:
+    async def generate(
+        self,
+        prompt: str,
+        model: str = "agnes-image-2.1-flash",
+        size: str = "1024x768",
+        seed: int | None = None,
+        negative_prompt: str | None = None,
+        return_url: bool = False,
+    ) -> dict:
         """异步生成图片（自动绕过内容过滤）"""
         size = validate_image_size(size)
         validate_model(model, "image")
@@ -105,8 +127,12 @@ class AsyncTextToImageEngine:
             return r
 
         result, rewritten = await async_generate_with_bypass(
-            _gen, self.client, prompt,
-            model=model, size=size, seed=seed,
+            _gen,
+            self.client,
+            prompt,
+            model=model,
+            size=size,
+            seed=seed,
             negative_prompt=negative_prompt,
             return_base64=not return_url,
         )
@@ -123,9 +149,7 @@ class AsyncTextToImageEngine:
 
         if item.get("b64_json"):
             # 文件写入放线程池，避免阻塞事件循环
-            await asyncio.to_thread(
-                _write_b64_file, local_path, item["b64_json"]
-            )
+            await asyncio.to_thread(_write_b64_file, local_path, item["b64_json"])
         elif item.get("url"):
             image_url = item["url"]
             try:
@@ -135,11 +159,18 @@ class AsyncTextToImageEngine:
         else:
             raise RuntimeError(f"图像API未返回图片数据: {str(result)[:200]}")
 
-        return {"url": image_url, "local_path": local_path, "model": model,
-                "prompt": prompt, "size": size, "seed": seed}
+        return {
+            "url": image_url,
+            "local_path": local_path,
+            "model": model,
+            "prompt": prompt,
+            "size": size,
+            "seed": seed,
+        }
 
-    async def generate_batch(self, prompts: list[str], model: str = "agnes-image-2.1-flash",
-                             size: str = "1024x768", seed: int | None = None) -> list[dict]:
+    async def generate_batch(
+        self, prompts: list[str], model: str = "agnes-image-2.1-flash", size: str = "1024x768", seed: int | None = None
+    ) -> list[dict]:
         """异步批量生成 — 🎯 并行化核心。
 
         使用 asyncio.gather 同时发起所有图像生成请求，而非顺序等待。

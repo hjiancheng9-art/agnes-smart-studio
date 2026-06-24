@@ -20,7 +20,11 @@ import traceback
 from core.config import OUTPUT_DIR
 
 __all__ = [
-    'CUSTOM_TOOLS_DIR', 'SELF_TOOL_EXECUTOR_MAP', 'SELF_TOOL_TOOL_DEFS', 'ToolBuilder', 'get_builder',
+    "CUSTOM_TOOLS_DIR",
+    "SELF_TOOL_EXECUTOR_MAP",
+    "SELF_TOOL_TOOL_DEFS",
+    "ToolBuilder",
+    "get_builder",
 ]
 
 # Directory where custom tool .py files are saved
@@ -42,8 +46,7 @@ class ToolBuilder:
     # create_tool
     # ------------------------------------------------------------------
 
-    def create_tool(self, name: str, description: str, parameters: dict,
-                    code: str, language: str = "python") -> dict:
+    def create_tool(self, name: str, description: str, parameters: dict, code: str, language: str = "python") -> dict:
         """Create a new custom tool.
 
         Steps:
@@ -64,7 +67,7 @@ class ToolBuilder:
                 "success": False,
                 "tool_name": name,
                 "error": f"Invalid tool name '{name}'. Must be alphanumeric + underscore, "
-                         f"starting with a letter or underscore.",
+                f"starting with a letter or underscore.",
             }
 
         if name in self.registry.tool_names:
@@ -102,12 +105,7 @@ class ToolBuilder:
 
         # ── 3. Build the source file ──
         indented_code = textwrap.indent(code, "    ")
-        source = (
-            f"# Auto-generated custom tool: {name}\n"
-            f"# {description}\n"
-            f"def {name}(**kwargs):\n"
-            f"{indented_code}\n"
-        )
+        source = f"# Auto-generated custom tool: {name}\n# {description}\ndef {name}(**kwargs):\n{indented_code}\n"
 
         # ── 4. Compile-check before saving ──
         try:
@@ -212,12 +210,14 @@ class ToolBuilder:
             except (OSError, UnicodeDecodeError):
                 pass
 
-            tools.append({
-                "name": tool_name,
-                "description": description,
-                "file": str(py_file),
-                "registered": self.registry.has(tool_name),
-            })
+            tools.append(
+                {
+                    "name": tool_name,
+                    "description": description,
+                    "file": str(py_file),
+                    "registered": self.registry.has(tool_name),
+                }
+            )
 
         return tools
 
@@ -262,12 +262,14 @@ def get_builder(registry=None) -> ToolBuilder:
     if _builder is None or registry is not None:
         if registry is None:
             from core.tools import get_registry
+
             registry = get_registry()
         _builder = ToolBuilder(registry)
     return _builder
 
 
 # ── Executor wrappers ──
+
 
 def _exec_create_tool(**kwargs) -> str:
     """Executor for the create_tool self-tool."""
@@ -295,7 +297,8 @@ def _exec_delete_tool(**kwargs) -> str:
     deleted = builder.delete_tool(name)
     return json.dumps(
         {"success": deleted, "tool_name": name},
-        ensure_ascii=False, indent=2,
+        ensure_ascii=False,
+        indent=2,
     )
 
 
@@ -327,7 +330,7 @@ SELF_TOOL_TOOL_DEFS = [
                         "type": "string",
                         "description": (
                             "JSON schema object as a string, describing the tool's parameters. "
-                            "Example: {\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\"}},\"required\":[\"query\"]}"
+                            'Example: {"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}'
                         ),
                     },
                     "code": {

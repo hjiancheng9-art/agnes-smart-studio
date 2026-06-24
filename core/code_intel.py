@@ -17,11 +17,20 @@ import re
 from pathlib import Path
 
 __all__ = [
-    'CODE_INTELLIGENCE_EXECUTOR_MAP', 'CODE_INTELLIGENCE_TOOL_DEFS', 'CodeAnalyzer',
-    'SymbolIndex', 'analyze_regex_based', 'execute_code_analyze',
-    'execute_find_references', 'execute_find_symbol', 'execute_search_symbols',
-    'execute_graph_neighbors', 'execute_graph_ancestors', 'execute_graph_descendants',
-    'get_index', 'refresh_index',
+    "CODE_INTELLIGENCE_EXECUTOR_MAP",
+    "CODE_INTELLIGENCE_TOOL_DEFS",
+    "CodeAnalyzer",
+    "SymbolIndex",
+    "analyze_regex_based",
+    "execute_code_analyze",
+    "execute_find_references",
+    "execute_find_symbol",
+    "execute_search_symbols",
+    "execute_graph_neighbors",
+    "execute_graph_ancestors",
+    "execute_graph_descendants",
+    "get_index",
+    "refresh_index",
 ]
 
 # ======================================================================
@@ -31,96 +40,43 @@ __all__ = [
 # Language patterns: (function_pattern, class_pattern, import_pattern)
 _LANG_PATTERNS = {
     ".js": {
-        "function": re.compile(
-            r'(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)',
-            re.MULTILINE
-        ),
+        "function": re.compile(r"(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)", re.MULTILINE),
         "arrow": re.compile(
-            r'(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s*)?\(([^)]*)\)\s*=>',
-            re.MULTILINE
+            r"(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s*)?\(([^)]*)\)\s*=>", re.MULTILINE
         ),
-        "class": re.compile(
-            r'(?:export\s+)?class\s+(\w+)(?:\s+extends\s+\w+)?',
-            re.MULTILINE
-        ),
-        "import": re.compile(
-            r'import\s+.*?\s+from\s+["\']([^"\']+)["\']',
-            re.MULTILINE
-        ),
+        "class": re.compile(r"(?:export\s+)?class\s+(\w+)(?:\s+extends\s+\w+)?", re.MULTILINE),
+        "import": re.compile(r'import\s+.*?\s+from\s+["\']([^"\']+)["\']', re.MULTILINE),
     },
     ".jsx": None,  # reuse .js patterns
     ".ts": {
         "function": re.compile(
-            r'(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*(?:<[^>]*>)?\s*\(([^)]*)\)',
-            re.MULTILINE
+            r"(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*(?:<[^>]*>)?\s*\(([^)]*)\)", re.MULTILINE
         ),
         "arrow": re.compile(
-            r'(?:export\s+)?(?:const|let)\s+(\w+)\s*(?::\s*[^=]+)?=\s*(?:async\s*)?\(([^)]*)\)\s*=>',
-            re.MULTILINE
+            r"(?:export\s+)?(?:const|let)\s+(\w+)\s*(?::\s*[^=]+)?=\s*(?:async\s*)?\(([^)]*)\)\s*=>", re.MULTILINE
         ),
-        "class": re.compile(
-            r'(?:export\s+)?(?:abstract\s+)?class\s+(\w+)(?:\s+extends\s+\w+)?',
-            re.MULTILINE
-        ),
-        "import": re.compile(
-            r'import\s+.*?\s+from\s+["\']([^"\']+)["\']',
-            re.MULTILINE
-        ),
-        "interface": re.compile(
-            r'(?:export\s+)?interface\s+(\w+)',
-            re.MULTILINE
-        ),
-        "type": re.compile(
-            r'(?:export\s+)?type\s+(\w+)\s*=',
-            re.MULTILINE
-        ),
+        "class": re.compile(r"(?:export\s+)?(?:abstract\s+)?class\s+(\w+)(?:\s+extends\s+\w+)?", re.MULTILINE),
+        "import": re.compile(r'import\s+.*?\s+from\s+["\']([^"\']+)["\']', re.MULTILINE),
+        "interface": re.compile(r"(?:export\s+)?interface\s+(\w+)", re.MULTILINE),
+        "type": re.compile(r"(?:export\s+)?type\s+(\w+)\s*=", re.MULTILINE),
     },
     ".tsx": None,  # reuse .ts patterns
     ".go": {
-        "function": re.compile(
-            r'^func\s+(?:\([^)]+\)\s+)?(\w+)\s*\(([^)]*)\)',
-            re.MULTILINE
-        ),
-        "struct": re.compile(
-            r'^type\s+(\w+)\s+struct\s*\{',
-            re.MULTILINE
-        ),
-        "interface": re.compile(
-            r'^type\s+(\w+)\s+interface\s*\{',
-            re.MULTILINE
-        ),
-        "import": re.compile(
-            r'^\s*"([^"]+)"',
-            re.MULTILINE
-        ),
+        "function": re.compile(r"^func\s+(?:\([^)]+\)\s+)?(\w+)\s*\(([^)]*)\)", re.MULTILINE),
+        "struct": re.compile(r"^type\s+(\w+)\s+struct\s*\{", re.MULTILINE),
+        "interface": re.compile(r"^type\s+(\w+)\s+interface\s*\{", re.MULTILINE),
+        "import": re.compile(r'^\s*"([^"]+)"', re.MULTILINE),
     },
     ".rs": {
-        "function": re.compile(
-            r'(?:pub\s+)?(?:async\s+)?fn\s+(\w+)\s*(?:<[^>]*>)?\s*\(([^)]*)\)',
-            re.MULTILINE
-        ),
-        "struct": re.compile(
-            r'(?:pub\s+)?struct\s+(\w+)',
-            re.MULTILINE
-        ),
-        "enum": re.compile(
-            r'(?:pub\s+)?enum\s+(\w+)',
-            re.MULTILINE
-        ),
-        "trait": re.compile(
-            r'(?:pub\s+)?trait\s+(\w+)',
-            re.MULTILINE
-        ),
-        "impl": re.compile(
-            r'impl(?:<[^>]*>)?\s+(\w+)',
-            re.MULTILINE
-        ),
-        "use": re.compile(
-            r'use\s+([^;]+);',
-            re.MULTILINE
-        ),
+        "function": re.compile(r"(?:pub\s+)?(?:async\s+)?fn\s+(\w+)\s*(?:<[^>]*>)?\s*\(([^)]*)\)", re.MULTILINE),
+        "struct": re.compile(r"(?:pub\s+)?struct\s+(\w+)", re.MULTILINE),
+        "enum": re.compile(r"(?:pub\s+)?enum\s+(\w+)", re.MULTILINE),
+        "trait": re.compile(r"(?:pub\s+)?trait\s+(\w+)", re.MULTILINE),
+        "impl": re.compile(r"impl(?:<[^>]*>)?\s+(\w+)", re.MULTILINE),
+        "use": re.compile(r"use\s+([^;]+);", re.MULTILINE),
     },
 }
+
 
 def _get_lang_patterns(suffix: str):
     """Get regex patterns for a file extension, resolving aliases."""
@@ -132,6 +88,7 @@ def _get_lang_patterns(suffix: str):
         base = ".js" if suffix in (".jsx",) else ".ts"
         patterns = _LANG_PATTERNS[base]
     return patterns
+
 
 def analyze_regex_based(file_path: str, patterns: dict) -> dict:
     """Analyze a source file using regex patterns.
@@ -151,109 +108,125 @@ def analyze_regex_based(file_path: str, patterns: dict) -> dict:
     func_pattern = patterns.get("function")
     if func_pattern:
         for m in func_pattern.finditer(source):
-            line = source[:m.start()].count("\n") + 1
-            functions.append({
-                "name": m.group(1),
-                "line": line,
-                "args": [a.strip() for a in m.group(2).split(",") if a.strip()],
-                "docstring": "",
-                "is_async": "async" in m.group(0),
-            })
+            line = source[: m.start()].count("\n") + 1
+            functions.append(
+                {
+                    "name": m.group(1),
+                    "line": line,
+                    "args": [a.strip() for a in m.group(2).split(",") if a.strip()],
+                    "docstring": "",
+                    "is_async": "async" in m.group(0),
+                }
+            )
 
     # Arrow functions (JS/TS only)
     arrow_pattern = patterns.get("arrow")
     if arrow_pattern:
         for m in arrow_pattern.finditer(source):
-            line = source[:m.start()].count("\n") + 1
-            functions.append({
-                "name": m.group(1),
-                "line": line,
-                "args": [a.strip() for a in m.group(2).split(",") if a.strip()],
-                "docstring": "",
-                "is_async": "async" in m.group(0),
-            })
+            line = source[: m.start()].count("\n") + 1
+            functions.append(
+                {
+                    "name": m.group(1),
+                    "line": line,
+                    "args": [a.strip() for a in m.group(2).split(",") if a.strip()],
+                    "docstring": "",
+                    "is_async": "async" in m.group(0),
+                }
+            )
 
     # Classes / structs / traits / interfaces
     class_pattern = patterns.get("class")
     if class_pattern:
         for m in class_pattern.finditer(source):
-            line = source[:m.start()].count("\n") + 1
-            classes.append({
-                "name": m.group(1),
-                "line": line,
-                "methods": [],
-                "docstring": "",
-                "type": "class",
-            })
+            line = source[: m.start()].count("\n") + 1
+            classes.append(
+                {
+                    "name": m.group(1),
+                    "line": line,
+                    "methods": [],
+                    "docstring": "",
+                    "type": "class",
+                }
+            )
 
     struct_pattern = patterns.get("struct")
     if struct_pattern:
         for m in struct_pattern.finditer(source):
-            line = source[:m.start()].count("\n") + 1
-            classes.append({
-                "name": m.group(1),
-                "line": line,
-                "methods": [],
-                "docstring": "",
-                "type": "struct",
-            })
+            line = source[: m.start()].count("\n") + 1
+            classes.append(
+                {
+                    "name": m.group(1),
+                    "line": line,
+                    "methods": [],
+                    "docstring": "",
+                    "type": "struct",
+                }
+            )
 
     # Go interfaces
     iface_pattern = patterns.get("interface")
     if iface_pattern:
         for m in iface_pattern.finditer(source):
-            line = source[:m.start()].count("\n") + 1
-            classes.append({
-                "name": m.group(1),
-                "line": line,
-                "methods": [],
-                "docstring": "",
-                "type": "interface",
-            })
+            line = source[: m.start()].count("\n") + 1
+            classes.append(
+                {
+                    "name": m.group(1),
+                    "line": line,
+                    "methods": [],
+                    "docstring": "",
+                    "type": "interface",
+                }
+            )
 
     # Rust enums and traits
     enum_pattern = patterns.get("enum")
     if enum_pattern:
         for m in enum_pattern.finditer(source):
-            line = source[:m.start()].count("\n") + 1
-            classes.append({
-                "name": m.group(1),
-                "line": line,
-                "methods": [],
-                "docstring": "",
-                "type": "enum",
-            })
+            line = source[: m.start()].count("\n") + 1
+            classes.append(
+                {
+                    "name": m.group(1),
+                    "line": line,
+                    "methods": [],
+                    "docstring": "",
+                    "type": "enum",
+                }
+            )
 
     trait_pattern = patterns.get("trait")
     if trait_pattern:
         for m in trait_pattern.finditer(source):
-            line = source[:m.start()].count("\n") + 1
-            classes.append({
-                "name": m.group(1),
-                "line": line,
-                "methods": [],
-                "docstring": "",
-                "type": "trait",
-            })
+            line = source[: m.start()].count("\n") + 1
+            classes.append(
+                {
+                    "name": m.group(1),
+                    "line": line,
+                    "methods": [],
+                    "docstring": "",
+                    "type": "trait",
+                }
+            )
 
     # TS type aliases
     type_pattern = patterns.get("type")
     if type_pattern:
         for m in type_pattern.finditer(source):
-            line = source[:m.start()].count("\n") + 1
-            classes.append({
-                "name": m.group(1),
-                "line": line,
-                "methods": [],
-                "docstring": "",
-                "type": "type_alias",
-            })
+            line = source[: m.start()].count("\n") + 1
+            classes.append(
+                {
+                    "name": m.group(1),
+                    "line": line,
+                    "methods": [],
+                    "docstring": "",
+                    "type": "type_alias",
+                }
+            )
 
     # Imports / use statements
     import_pattern = patterns.get("import") or patterns.get("use")
     if import_pattern:
         for m in import_pattern.finditer(source):
-            line = source[:m.start()].count("\n") + 1
+            line = source[: m.start()].count("\n") + 1
             imports.append({"module": m.group(1), "line": line, "name": m.group(1)})
 
     return {
@@ -267,9 +240,11 @@ def analyze_regex_based(file_path: str, patterns: dict) -> dict:
         "class_count": len(classes),
     }
 
+
 # ======================================================================
 # AST-based code analysis (Python)
 # ======================================================================
+
 
 class CodeAnalyzer:
     """Analyze Python source files using the ast module."""
@@ -296,39 +271,41 @@ class CodeAnalyzer:
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 args = [a.arg for a in node.args.args]
                 returns = ast.dump(node.returns) if node.returns else None
-                functions.append({
-                    "name": node.name,
-                    "line": node.lineno,
-                    "args": args,
-                    "returns": returns,
-                    "docstring": (ds[:200] if (ds := ast.get_docstring(node, clean=True)) else ""),
-                    "is_async": isinstance(node, ast.AsyncFunctionDef),
-                    # 知识图谱用：本函数体里调用了哪些（callee 名, 调用行）
-                    "calls": CodeAnalyzer._extract_calls(node),
-                })
+                functions.append(
+                    {
+                        "name": node.name,
+                        "line": node.lineno,
+                        "args": args,
+                        "returns": returns,
+                        "docstring": (ds[:200] if (ds := ast.get_docstring(node, clean=True)) else ""),
+                        "is_async": isinstance(node, ast.AsyncFunctionDef),
+                        # 知识图谱用：本函数体里调用了哪些（callee 名, 调用行）
+                        "calls": CodeAnalyzer._extract_calls(node),
+                    }
+                )
 
             elif isinstance(node, ast.ClassDef):
                 methods = []
                 for item in node.body:
                     if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
                         methods.append(item.name)
-                classes.append({
-                    "name": node.name,
-                    "line": node.lineno,
-                    "methods": methods,
-                    "docstring": (ds[:200] if (ds := ast.get_docstring(node, clean=True)) else ""),
-                })
+                classes.append(
+                    {
+                        "name": node.name,
+                        "line": node.lineno,
+                        "methods": methods,
+                        "docstring": (ds[:200] if (ds := ast.get_docstring(node, clean=True)) else ""),
+                    }
+                )
 
             elif isinstance(node, ast.Import):
                 for alias in node.names:
-                    imports.append({"module": alias.name, "line": node.lineno,
-                                    "name": alias.asname or alias.name})
+                    imports.append({"module": alias.name, "line": node.lineno, "name": alias.asname or alias.name})
 
             elif isinstance(node, ast.ImportFrom):
                 module = node.module or ""
                 for alias in node.names:
-                    imports.append({"module": module, "line": node.lineno,
-                                    "name": alias.name, "from": True})
+                    imports.append({"module": module, "line": node.lineno, "name": alias.name, "from": True})
 
         return {
             "file": file_path,
@@ -380,13 +357,23 @@ class CodeAnalyzer:
 
         for fn in result.get("functions", []):
             if fn["name"] == symbol_name:
-                return {"name": fn["name"], "line": fn["line"], "type": "function",
-                        "file": file_path, "args": fn.get("args", [])}
+                return {
+                    "name": fn["name"],
+                    "line": fn["line"],
+                    "type": "function",
+                    "file": file_path,
+                    "args": fn.get("args", []),
+                }
 
         for cls in result.get("classes", []):
             if cls["name"] == symbol_name:
-                return {"name": cls["name"], "line": cls["line"], "type": "class",
-                        "file": file_path, "methods": cls.get("methods", [])}
+                return {
+                    "name": cls["name"],
+                    "line": cls["line"],
+                    "type": "class",
+                    "file": file_path,
+                    "methods": cls.get("methods", []),
+                }
 
         return None
 
@@ -403,21 +390,25 @@ class CodeAnalyzer:
 
         refs = []
         # Match symbol as a word boundary
-        pattern = re.compile(r'\b' + re.escape(symbol_name) + r'\b')
+        pattern = re.compile(r"\b" + re.escape(symbol_name) + r"\b")
 
         for i, line in enumerate(lines, 1):
             if pattern.search(line):
-                refs.append({
-                    "file": file_path,
-                    "line": i,
-                    "context": line.strip()[:120],
-                })
+                refs.append(
+                    {
+                        "file": file_path,
+                        "line": i,
+                        "context": line.strip()[:120],
+                    }
+                )
 
         return refs
+
 
 # ======================================================================
 # Symbol Index - project-wide code indexing
 # ======================================================================
+
 
 class SymbolIndex:
     """Index symbols across a project for fast lookup.
@@ -432,7 +423,7 @@ class SymbolIndex:
         self._file_mtimes: dict[str, float] = {}
         # 知识图谱（借鉴 graphify）：双向邻接表
         # node_id 形如 "symbol:<name>" / "file:<rel_path>" / "module:<dotted>"
-        self._edges: dict[str, list[dict]] = {}          # src_id -> [{type, target, line}]
+        self._edges: dict[str, list[dict]] = {}  # src_id -> [{type, target, line}]
         self._reverse_edges: dict[str, list[dict]] = {}  # target_id -> [{type, src, line}]
 
     def index_file(self, file_path: str):
@@ -466,12 +457,14 @@ class SymbolIndex:
             return
 
         for fn in result.get("functions", []):
-            self._index.setdefault(fn["name"], []).append({
-                "file": file_path,
-                "line": fn["line"],
-                "type": "function",
-                "args": fn.get("args", []),
-            })
+            self._index.setdefault(fn["name"], []).append(
+                {
+                    "file": file_path,
+                    "line": fn["line"],
+                    "type": "function",
+                    "args": fn.get("args", []),
+                }
+            )
             sym_id = f"symbol:{fn['name']}"
             # defines 边: file -> symbol
             self._add_edge(file_id, sym_id, "defines", fn["line"])
@@ -481,12 +474,14 @@ class SymbolIndex:
                     self._add_edge(sym_id, f"symbol:{callee}", "calls", call_line)
 
         for cls in result.get("classes", []):
-            self._index.setdefault(cls["name"], []).append({
-                "file": file_path,
-                "line": cls["line"],
-                "type": cls.get("type", "class"),
-                "methods": cls.get("methods", []),
-            })
+            self._index.setdefault(cls["name"], []).append(
+                {
+                    "file": file_path,
+                    "line": cls["line"],
+                    "type": cls.get("type", "class"),
+                    "methods": cls.get("methods", []),
+                }
+            )
             cls_id = f"symbol:{cls['name']}"
             # defines 边: file -> class
             self._add_edge(file_id, cls_id, "defines", cls["line"])
@@ -504,8 +499,7 @@ class SymbolIndex:
     def index_directory(self, dir_path: str, exclude: list[str] | None = None):
         """Index all source files in a directory tree (Python, JS, TS, Go, Rust)."""
         excluded: set[str] = set(exclude or [])
-        excluded.update({".git", "__pycache__", ".venv", "venv", "node_modules",
-                        ".tox", "build", "dist"})
+        excluded.update({".git", "__pycache__", ".venv", "venv", "node_modules", ".tox", "build", "dist"})
 
         supported_exts = {".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".rs"}
 
@@ -543,7 +537,7 @@ class SymbolIndex:
         # 清反向：file defines 出的 symbol 边，以及 file imports 的 module 边
         for tgt in list(self._reverse_edges.keys()):
             rev = self._reverse_edges[tgt]
-            rev[:] = [e for e in rev if not (e["src"] == file_id)]
+            rev[:] = [e for e in rev if e["src"] != file_id]
             if not rev:
                 del self._reverse_edges[tgt]
 
@@ -574,21 +568,18 @@ class SymbolIndex:
             return f"module:{node}"
         return f"symbol:{node}"
 
-    def neighbors(self, node_id: str, edge_type: str | None = None,
-                  direction: str = "both") -> list[dict]:
+    def neighbors(self, node_id: str, edge_type: str | None = None, direction: str = "both") -> list[dict]:
         """直接邻接节点。direction: out(我指向谁)/in(谁指向我)/both。"""
         out_list = []
         for e in self._edges.get(node_id, []):
             if edge_type and e["type"] != edge_type:
                 continue
-            out_list.append({"node": e["target"], "type": e["type"],
-                             "direction": "out", "line": e.get("line", 0)})
+            out_list.append({"node": e["target"], "type": e["type"], "direction": "out", "line": e.get("line", 0)})
         in_list = []
         for e in self._reverse_edges.get(node_id, []):
             if edge_type and e["type"] != edge_type:
                 continue
-            in_list.append({"node": e["src"], "type": e["type"],
-                            "direction": "in", "line": e.get("line", 0)})
+            in_list.append({"node": e["src"], "type": e["type"], "direction": "in", "line": e.get("line", 0)})
         if direction == "out":
             return out_list
         if direction == "in":
@@ -619,8 +610,7 @@ class SymbolIndex:
                 if nxt in visited:
                     continue
                 visited.add(nxt)
-                results.append({"node": nxt, "depth": depth + 1,
-                                "edge_type": e["type"], "via_line": e.get("line", 0)})
+                results.append({"node": nxt, "depth": depth + 1, "edge_type": e["type"], "via_line": e.get("line", 0)})
                 frontier.append((nxt, depth + 1))
         return results
 
@@ -645,10 +635,9 @@ class SymbolIndex:
             "total_symbols": len(self._index),
             "total_locations": sum(len(v) for v in self._index.values()),
             "total_edges": sum(len(v) for v in self._edges.values()),
-            "total_nodes": len(self._edges) + len(
-                set(self._reverse_edges.keys()) - set(self._edges.keys())
-            ),
+            "total_nodes": len(self._edges) + len(set(self._reverse_edges.keys()) - set(self._edges.keys())),
         }
+
 
 # ======================================================================
 # Singleton index — reused across tool calls (lazy + mtime cached)
@@ -678,6 +667,7 @@ def refresh_index(root: str = ".") -> SymbolIndex:
 # Tool executors for integration with ToolRegistry
 # ======================================================================
 
+
 def execute_code_analyze(file_path: str = "") -> str:
     """Tool executor: analyze a source file's structure (Python, JS, TS, Go, Rust)."""
     if not file_path:
@@ -689,10 +679,14 @@ def execute_code_analyze(file_path: str = "") -> str:
     else:
         patterns = _get_lang_patterns(suffix)
         if patterns is None:
-            return json.dumps({"error": f"unsupported file type: {suffix}. Supported: .py, .js, .jsx, .ts, .tsx, .go, .rs"}, ensure_ascii=False)
+            return json.dumps(
+                {"error": f"unsupported file type: {suffix}. Supported: .py, .js, .jsx, .ts, .tsx, .go, .rs"},
+                ensure_ascii=False,
+            )
         result = analyze_regex_based(file_path, patterns)
 
     return json.dumps(result, ensure_ascii=False, indent=2)
+
 
 def execute_find_symbol(symbol: str = "", directory: str = ".") -> str:
     """Tool executor: find a symbol definition across a project."""
@@ -704,12 +698,17 @@ def execute_find_symbol(symbol: str = "", directory: str = ".") -> str:
     if not locations:
         return json.dumps({"symbol": symbol, "found": False}, ensure_ascii=False)
 
-    return json.dumps({
-        "symbol": symbol,
-        "found": True,
-        "locations": locations,
-        "index_stats": idx.stats,
-    }, ensure_ascii=False, indent=2)
+    return json.dumps(
+        {
+            "symbol": symbol,
+            "found": True,
+            "locations": locations,
+            "index_stats": idx.stats,
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
 
 def execute_search_symbols(pattern: str = "", directory: str = ".") -> str:
     """Tool executor: search for symbols matching a pattern."""
@@ -718,12 +717,17 @@ def execute_search_symbols(pattern: str = "", directory: str = ".") -> str:
 
     idx = get_index(directory or ".")
     results = idx.search(pattern)
-    return json.dumps({
-        "pattern": pattern,
-        "matches": len(results),
-        "results": results[:30],
-        "index_stats": idx.stats,
-    }, ensure_ascii=False, indent=2)
+    return json.dumps(
+        {
+            "pattern": pattern,
+            "matches": len(results),
+            "results": results[:30],
+            "index_stats": idx.stats,
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
 
 def execute_find_references(file_path: str = "", symbol: str = "") -> str:
     """Tool executor: find all references to a symbol in a file."""
@@ -731,19 +735,24 @@ def execute_find_references(file_path: str = "", symbol: str = "") -> str:
         return json.dumps({"error": "file_path and symbol required"}, ensure_ascii=False)
 
     refs = CodeAnalyzer.find_references(file_path, symbol)
-    return json.dumps({
-        "file": file_path,
-        "symbol": symbol,
-        "references": refs,
-        "count": len(refs),
-    }, ensure_ascii=False, indent=2)
+    return json.dumps(
+        {
+            "file": file_path,
+            "symbol": symbol,
+            "references": refs,
+            "count": len(refs),
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
 
 # ======================================================================
 # Knowledge-graph query executors (借鉴 graphify nodes/edges 模型)
 # ======================================================================
 
-def execute_graph_neighbors(node: str = "", direction: str = "both",
-                            edge_type: str = "", directory: str = ".") -> str:
+
+def execute_graph_neighbors(node: str = "", direction: str = "both", edge_type: str = "", directory: str = ".") -> str:
     """Tool executor: 查某节点的直接邻接（谁 import/call/contain/define 它）。"""
     if not node:
         return json.dumps({"error": "node required"}, ensure_ascii=False)
@@ -752,15 +761,20 @@ def execute_graph_neighbors(node: str = "", direction: str = "both",
     node_id = SymbolIndex._normalize_node_id(node)
     et = edge_type or None
     results = idx.neighbors(node_id, edge_type=et, direction=direction or "both")
-    return json.dumps({
-        "node": node,
-        "node_id": node_id,
-        "found": len(results) > 0,
-        "direction": direction,
-        "results": results,
-        "count": len(results),
-        "index_stats": idx.stats,
-    }, ensure_ascii=False, indent=2)
+    return json.dumps(
+        {
+            "node": node,
+            "node_id": node_id,
+            "found": len(results) > 0,
+            "direction": direction,
+            "results": results,
+            "count": len(results),
+            "index_stats": idx.stats,
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
 
 def execute_graph_ancestors(node: str = "", directory: str = ".") -> str:
     """Tool executor: BFS 逆向上游依赖（谁依赖我，递归）。支撑"删除前搜索引用"。"""
@@ -770,14 +784,19 @@ def execute_graph_ancestors(node: str = "", directory: str = ".") -> str:
     idx = get_index(directory or ".")
     node_id = SymbolIndex._normalize_node_id(node)
     results = idx.ancestors(node_id)
-    return json.dumps({
-        "node": node,
-        "node_id": node_id,
-        "found": len(results) > 0,
-        "results": results,
-        "count": len(results),
-        "index_stats": idx.stats,
-    }, ensure_ascii=False, indent=2)
+    return json.dumps(
+        {
+            "node": node,
+            "node_id": node_id,
+            "found": len(results) > 0,
+            "results": results,
+            "count": len(results),
+            "index_stats": idx.stats,
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
 
 def execute_graph_descendants(node: str = "", directory: str = ".") -> str:
     """Tool executor: BFS 顺向下游影响面（我依赖/影响谁，递归）。支撑"重命名前列影响面"。"""
@@ -787,14 +806,19 @@ def execute_graph_descendants(node: str = "", directory: str = ".") -> str:
     idx = get_index(directory or ".")
     node_id = SymbolIndex._normalize_node_id(node)
     results = idx.descendants(node_id)
-    return json.dumps({
-        "node": node,
-        "node_id": node_id,
-        "found": len(results) > 0,
-        "results": results,
-        "count": len(results),
-        "index_stats": idx.stats,
-    }, ensure_ascii=False, indent=2)
+    return json.dumps(
+        {
+            "node": node,
+            "node_id": node_id,
+            "found": len(results) > 0,
+            "results": results,
+            "count": len(results),
+            "index_stats": idx.stats,
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
 
 # Tool definitions for ToolRegistry
 CODE_INTELLIGENCE_TOOL_DEFS = [
@@ -882,9 +906,7 @@ CODE_INTELLIGENCE_TOOL_DEFS = [
 
 CODE_INTELLIGENCE_EXECUTOR_MAP = {
     "code_analyze": lambda **kw: execute_code_analyze(file_path=kw.get("file_path", "")),
-    "find_symbol": lambda **kw: execute_find_symbol(
-        symbol=kw.get("symbol", ""), directory=kw.get("directory", ".")
-    ),
+    "find_symbol": lambda **kw: execute_find_symbol(symbol=kw.get("symbol", ""), directory=kw.get("directory", ".")),
     "search_symbols": lambda **kw: execute_search_symbols(
         pattern=kw.get("pattern", ""), directory=kw.get("directory", ".")
     ),

@@ -24,8 +24,7 @@ from utils import history, memory, templates
 if TYPE_CHECKING:
     from core.chat import ChatSession
 
-__all__ = ['SharedMixin']
-
+__all__ = ["SharedMixin"]
 
 
 class SharedMixin:
@@ -39,7 +38,6 @@ class SharedMixin:
 
     # 延迟构建的 dispatch table
     _dispatch_table: dict | None = None
-
 
     @classmethod
     def _prompt_user(cls, label: str) -> str:
@@ -64,9 +62,11 @@ class SharedMixin:
             def ctrl_j_newline(event):
                 event.current_buffer.insert_text("\n")
 
-            style = Style.from_dict({
-                "prompt": "cyan bold",
-            })
+            style = Style.from_dict(
+                {
+                    "prompt": "cyan bold",
+                }
+            )
             cls._prompt_session = PromptSession(
                 key_bindings=kb,
                 style=style,
@@ -119,8 +119,8 @@ class SharedMixin:
         for i, k in enumerate(keys, 1):
             w, h = VIDEO_ASPECT_RATIOS[k]
             console.print(f"  {i}. {k} ({w}x{h})")
-        ch = Prompt.ask("选择", choices=[str(i) for i in range(1, len(keys)+1)], default="1")
-        return list(VIDEO_ASPECT_RATIOS.values())[int(ch)-1]
+        ch = Prompt.ask("选择", choices=[str(i) for i in range(1, len(keys) + 1)], default="1")
+        return list(VIDEO_ASPECT_RATIOS.values())[int(ch) - 1]
 
     @staticmethod
     def _pick_video_duration() -> tuple[int, int]:
@@ -129,8 +129,8 @@ class SharedMixin:
         for i, nf in enumerate(VALID_NUM_FRAMES, 1):
             dur = VIDEO_DURATION_MAP[nf]["24fps"]
             console.print(f"  {i}. {nf} 帧 ≈ {dur}")
-        ch = Prompt.ask("选择", choices=[str(i) for i in range(1, len(VALID_NUM_FRAMES)+1)], default="2")
-        return VALID_NUM_FRAMES[int(ch)-1], 24
+        ch = Prompt.ask("选择", choices=[str(i) for i in range(1, len(VALID_NUM_FRAMES) + 1)], default="2")
+        return VALID_NUM_FRAMES[int(ch) - 1], 24
 
     def _pick_template(self) -> str | None:
         tpls = templates.list_templates()
@@ -156,13 +156,13 @@ class SharedMixin:
         返回: (第一个有效路径, 去除路径后的纯文本)
         """
         # 匹配 Windows/Unix 文件路径（含中文、空格）
-        path_pattern = r'(?:[A-Za-z]:[\\/][^\s:?*\"<>|]+|[~/][^\s:?*\"<>|]+)\.(?:png|jpg|jpeg|webp|gif|bmp)'
+        path_pattern = r"(?:[A-Za-z]:[\\/][^\s:?*\"<>|]+|[~/][^\s:?*\"<>|]+)\.(?:png|jpg|jpeg|webp|gif|bmp)"
         paths = re.findall(path_pattern, raw, re.IGNORECASE)
 
         text = raw
         for p in paths:
-            text = text.replace(p, ' ', 1)
-        text = ' '.join(text.split()).strip()
+            text = text.replace(p, " ", 1)
+        text = " ".join(text.split()).strip()
 
         first_path = paths[0] if paths else raw.strip()
         return first_path, text
@@ -173,11 +173,11 @@ class SharedMixin:
         首行 \"\"\" 已在上层被消费，本方法读后续行直到终止符。
         Returns: 合并后的字符串（None 表示取消）
         """
-        console.print("[dim]已进入多行编辑，输入 \\\"\\\"\\\" 结束（Ctrl+C 取消）[/]")
+        console.print('[dim]已进入多行编辑，输入 \\"\\"\\" 结束（Ctrl+C 取消）[/]')
         lines = []
         try:
             while True:
-                line = Prompt.ask(f"[dim]  第{len(lines)+1}行[/]")
+                line = Prompt.ask(f"[dim]  第{len(lines) + 1}行[/]")
                 stripped = line.strip()
                 if stripped == '"""':
                     break
@@ -199,6 +199,7 @@ class SharedMixin:
         回复头走 console.print 才用 render_badge_line() 的 Rich 版。
         """
         from ui.badges import render_badge_plain
+
         line = render_badge_plain(session)
         return f" {line}" if line else ""
 
@@ -206,6 +207,7 @@ class SharedMixin:
         """构建/缓存命令分发表。"""
         if self._dispatch_table is None:
             from core.commands import build_dispatch_table
+
             self._dispatch_table = build_dispatch_table()
         return self._dispatch_table
 
@@ -247,17 +249,21 @@ class SharedMixin:
         """
         # 副作用 handler 统一来自 async_render（单一来源，避免 sync/async 两份实现漂移）
         from core.async_render import default_side_effect_handlers
+
         renderer = StreamingRenderer(
-            console, side_effect_handlers=default_side_effect_handlers(),
+            console,
+            side_effect_handlers=default_side_effect_handlers(),
         )
 
         # badge 头：在 transient Live 启动前直接落盘，用户一眼看到当前模式/技能/模型。
         # 此时无浮层，纯 console.print 不违反渲染契约的单一落地点约束。
         from ui.badges import print_reply_header, print_route_reason
+
         print_reply_header(session)
 
         # 智能路由：分析用户输入，自动切到最优模型/供应商
         from core.router import apply, route
+
         decision = route(user, session)
         if decision.profile.value != "skip" and decision.model_id:
             apply(decision, session)
@@ -296,10 +302,12 @@ class SharedMixin:
             renderer.stop()  # 中断路径：擦除 transient 浮层，不落盘残余（保持旧行为）
 
         from core.async_render import render_session_stream
+
         renderer.start()
         try:
             render_session_stream(
-                renderer, session.send_stream(user),
+                renderer,
+                session.send_stream(user),
                 on_permission_denied=_on_permission_denied,
                 on_interrupt=_on_interrupt,
             )
@@ -325,6 +333,7 @@ class SharedMixin:
         （ui/cli.py）目前仍走 `_stream_chat`；本方法供 async runtime 直接 await。
         """
         from core.async_render import render_async_session_stream
+
         # AsyncChatSession 与 ChatSession 接口同构（_mode_hint/badge 头用相同属性）
         renderer = self._prepare_chat_renderer(session, user)
 
@@ -341,7 +350,8 @@ class SharedMixin:
         renderer.start()
         try:
             await render_async_session_stream(
-                renderer, session.send_stream(user),
+                renderer,
+                session.send_stream(user),
                 on_permission_denied=_on_permission_denied,
                 on_interrupt=_on_interrupt,
             )

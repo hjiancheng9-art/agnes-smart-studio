@@ -18,7 +18,11 @@ from collections import Counter
 from pathlib import Path
 
 __all__ = [
-    'INDEX_FILE', 'RAGEngine', 'ROOT', 'index_codebase', 'semantic_search',
+    "INDEX_FILE",
+    "RAGEngine",
+    "ROOT",
+    "index_codebase",
+    "semantic_search",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -48,12 +52,38 @@ class RAGEngine:
         docs = {}
         df = Counter()  # document frequency
 
-        source_exts = {".py", ".md", ".json", ".js", ".ts", ".html",
-                       ".css", ".toml", ".yaml", ".yml", ".sh", ".bat",
-                       ".txt", ".cfg", ".ini", ".env", ".xml", ".sql"}
+        source_exts = {
+            ".py",
+            ".md",
+            ".json",
+            ".js",
+            ".ts",
+            ".html",
+            ".css",
+            ".toml",
+            ".yaml",
+            ".yml",
+            ".sh",
+            ".bat",
+            ".txt",
+            ".cfg",
+            ".ini",
+            ".env",
+            ".xml",
+            ".sql",
+        }
 
-        skip_dirs = {"__pycache__", ".git", ".pytest_cache", "node_modules",
-                     ".venv", "venv", "output", ".codebuddy", "browser_sessions"}
+        skip_dirs = {
+            "__pycache__",
+            ".git",
+            ".pytest_cache",
+            "node_modules",
+            ".venv",
+            "venv",
+            "output",
+            ".codebuddy",
+            "browser_sessions",
+        }
 
         files = list(self.root.rglob("*"))
         for f in files:
@@ -102,8 +132,7 @@ class RAGEngine:
     def _save_cache(self):
         try:
             INDEX_FILE.parent.mkdir(parents=True, exist_ok=True)
-            INDEX_FILE.write_text(json.dumps(self.index, ensure_ascii=False),
-                                  encoding="utf-8")
+            INDEX_FILE.write_text(json.dumps(self.index, ensure_ascii=False), encoding="utf-8")
         except (json.JSONDecodeError, TypeError, KeyError):
             pass
 
@@ -120,8 +149,8 @@ class RAGEngine:
 
     def _cosine_similarity(self, vec_a: dict, vec_b: dict) -> float:
         dot = sum(vec_a.get(k, 0) * vec_b.get(k, 0) for k in set(vec_a) | set(vec_b))
-        mag_a = math.sqrt(sum(v ** 2 for v in vec_a.values()))
-        mag_b = math.sqrt(sum(v ** 2 for v in vec_b.values()))
+        mag_a = math.sqrt(sum(v**2 for v in vec_a.values()))
+        mag_b = math.sqrt(sum(v**2 for v in vec_b.values()))
         if mag_a == 0 or mag_b == 0:
             return 0.0
         return dot / (mag_a * mag_b)
@@ -138,18 +167,14 @@ class RAGEngine:
             if score > 0:
                 scores.append((doc_path, score, doc_info.get("token_count", 0)))
         scores.sort(key=lambda x: x[1], reverse=True)
-        return [{"file": path, "score": round(score, 4),
-                 "token_count": tc}
-                for path, score, tc in scores[:top_k]]
+        return [{"file": path, "score": round(score, 4), "token_count": tc} for path, score, tc in scores[:top_k]]
 
-    def search_with_preview(self, query: str, top_k: int = 5,
-                            preview_lines: int = 3) -> list[dict]:
+    def search_with_preview(self, query: str, top_k: int = 5, preview_lines: int = 3) -> list[dict]:
         """Search and include matching line previews."""
         results = self.search(query, top_k)
         for r in results:
             try:
-                content = (self.root / r["file"]).read_text(
-                    encoding="utf-8", errors="replace")
+                content = (self.root / r["file"]).read_text(encoding="utf-8", errors="replace")
                 lines = content.split(chr(10))
                 # Find most relevant lines
                 tokens = set(self._tokenize(query))
@@ -169,6 +194,7 @@ class RAGEngine:
 # Convenience
 def semantic_search(query: str, top_k: int = 10) -> list[dict]:
     return RAGEngine().search(query, top_k)
+
 
 def index_codebase():
     RAGEngine().index_project(force=True)

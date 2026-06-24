@@ -24,8 +24,15 @@ __all__ = [
 ROOT = Path(__file__).resolve().parent.parent
 
 _SKIP_DIRS = {
-    "__pycache__", ".git", ".pytest_cache", "browser_sessions",
-    ".codebuddy", "node_modules", ".venv", "output", "scripts",
+    "__pycache__",
+    ".git",
+    ".pytest_cache",
+    "browser_sessions",
+    ".codebuddy",
+    "node_modules",
+    ".venv",
+    "output",
+    "scripts",
 }
 
 
@@ -85,18 +92,20 @@ def health_checks() -> list[dict]:
     # API key
     try:
         from core.config import SETTINGS
+
         key_ok = bool(SETTINGS.api_key) and "sk-your" not in SETTINGS.api_key
-        results.append({"category": "API Key", "ok": key_ok,
-                        "message": "configured" if key_ok else "not configured"})
+        results.append({"category": "API Key", "ok": key_ok, "message": "configured" if key_ok else "not configured"})
     except (ImportError, AttributeError):
         results.append({"category": "API Key", "ok": False, "message": "cannot check"})
 
     # Python version
-    results.append({
-        "category": "Python",
-        "ok": sys.version_info >= (3, 10),
-        "message": sys.version.split()[0],
-    })
+    results.append(
+        {
+            "category": "Python",
+            "ok": sys.version_info >= (3, 10),
+            "message": sys.version.split()[0],
+        }
+    )
 
     # Dependencies
     ok, msg = audit_deps()
@@ -116,11 +125,13 @@ def health_summary() -> str:
 # ── Source snippet collection ──────────────────────────────────────────────
 
 
-def collect_source_snippets(root: Path | str | None = None,
-                            dirs: list[str] | None = None,
-                            max_chars: int = 50_000,
-                            max_per_file: int = 3_000,
-                            max_files_per_dir: int = 4) -> str:
+def collect_source_snippets(
+    root: Path | str | None = None,
+    dirs: list[str] | None = None,
+    max_chars: int = 50_000,
+    max_per_file: int = 3_000,
+    max_files_per_dir: int = 4,
+) -> str:
     """Collect Python source snippets for AI analysis.
 
     Returns a Markdown-formatted string suitable as LLM context.
@@ -157,8 +168,7 @@ def collect_source_snippets(root: Path | str | None = None,
 # ── Project tree ───────────────────────────────────────────────────────────
 
 
-def project_tree_data(root: Path | str | None = None,
-                      depth: int = 2) -> list[dict]:
+def project_tree_data(root: Path | str | None = None, depth: int = 2) -> list[dict]:
     """Return the project directory tree as structured data.
 
     Each entry: {"name": str, "is_dir": bool, "children": list[dict]}.

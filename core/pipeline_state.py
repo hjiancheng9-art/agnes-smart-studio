@@ -23,7 +23,11 @@ from pathlib import Path
 from typing import Any
 
 __all__ = [
-    'PIPELINES', 'PIPELINE_RUNS_DIR', 'PipelineEngine', 'PipelineState', 'ROOT',
+    "PIPELINES",
+    "PIPELINE_RUNS_DIR",
+    "PipelineEngine",
+    "PipelineState",
+    "ROOT",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -35,8 +39,15 @@ PIPELINE_RUNS_DIR = ROOT / "output" / "pipeline_runs"
 PIPELINES = {
     "video-production": {
         "name": "完整视频制片",
-        "skills": ["prompt-director", "storyboard-director", "visual-director",
-                   "motion-director", "cinematic-keyframe", "qc-inspector", "delivery-handoff"],
+        "skills": [
+            "prompt-director",
+            "storyboard-director",
+            "visual-director",
+            "motion-director",
+            "cinematic-keyframe",
+            "qc-inspector",
+            "delivery-handoff",
+        ],
         "output_type": "video",
         "qa_gates": ["qc-inspector"],
     },
@@ -54,15 +65,19 @@ PIPELINES = {
     },
     "creative-image": {
         "name": "高创意出图",
-        "skills": ["creative-leap-pro", "cinematic-master", "prompt-engineering",
-                   "model-routing", "negative-prompt-rules"],
+        "skills": [
+            "creative-leap-pro",
+            "cinematic-master",
+            "prompt-engineering",
+            "model-routing",
+            "negative-prompt-rules",
+        ],
         "output_type": "image",
         "qa_gates": [],
     },
     "world-building": {
         "name": "世界观资产",
-        "skills": ["world-building-engine", "ip-adaptation-guard", "actor-craft",
-                   "asset-manager", "visual-director"],
+        "skills": ["world-building-engine", "ip-adaptation-guard", "actor-craft", "asset-manager", "visual-director"],
         "output_type": "assets",
         "qa_gates": [],
     },
@@ -122,16 +137,25 @@ class PipelineState:
         self.current_step = skill
 
     def add_asset(self, path: str, step: str, desc: str = ""):
-        self.assets.append({
-            "path": path, "step": step, "desc": desc,
-            "run_id": self.run_id, "ts": time.time(),
-        })
+        self.assets.append(
+            {
+                "path": path,
+                "step": step,
+                "desc": desc,
+                "run_id": self.run_id,
+                "ts": time.time(),
+            }
+        )
 
     def log_qa(self, step: str, passed: bool, note: str = ""):
-        self.qa_log.append({
-            "step": step, "passed": passed, "note": note,
-            "ts": time.time(),
-        })
+        self.qa_log.append(
+            {
+                "step": step,
+                "passed": passed,
+                "note": note,
+                "ts": time.time(),
+            }
+        )
 
     def context_for_next(self) -> str:
         """Build context string for the next skill in the chain."""
@@ -158,18 +182,18 @@ class PipelineEngine:
     def _get_skill_mgr(self):
         if not self._skill_mgr:
             from core.skills import get_manager
+
             self._skill_mgr = get_manager()
             self._skill_mgr.discover()
         return self._skill_mgr
 
     def list_pipelines(self) -> list[dict]:
-        return [{"id": pid, "name": p["name"],
-                 "skills": len(p["skills"]),
-                 "output": p["output_type"]}
-                for pid, p in PIPELINES.items()]
+        return [
+            {"id": pid, "name": p["name"], "skills": len(p["skills"]), "output": p["output_type"]}
+            for pid, p in PIPELINES.items()
+        ]
 
-    def run(self, pipeline_id: str, initial_input: str,
-            on_step=None) -> PipelineState:
+    def run(self, pipeline_id: str, initial_input: str, on_step=None) -> PipelineState:
         """Run a full pipeline. Returns final state with all results."""
         if pipeline_id not in PIPELINES:
             raise ValueError(f"Unknown pipeline: {pipeline_id}. Options: {list(PIPELINES.keys())}")
@@ -210,8 +234,7 @@ class PipelineEngine:
             if skill_name in pipe.get("qa_gates", []):
                 for attempt in range(max_retries + 1):
                     qa_passed = self._check_quality(skill_name, response)
-                    self.state.log_qa(skill_name, qa_passed,
-                                      f"attempt {attempt+1}" if attempt > 0 else "first pass")
+                    self.state.log_qa(skill_name, qa_passed, f"attempt {attempt + 1}" if attempt > 0 else "first pass")
                     if qa_passed:
                         break
                     elif attempt < max_retries:
@@ -230,22 +253,26 @@ class PipelineEngine:
         output_dir = PIPELINE_RUNS_DIR / run_id
         output_dir.mkdir(parents=True, exist_ok=True)
         (output_dir / "state.json").write_text(
-            json.dumps({
-                "run_id": run_id,
-                "pipeline": pipeline_id,
-                "step_results": self.state.step_results,
-                "assets": self.state.assets,
-                "qa_log": self.state.qa_log,
-                "elapsed": time.time() - self.state.start_time,
-            }, ensure_ascii=False, indent=2),
-            encoding="utf-8"
+            json.dumps(
+                {
+                    "run_id": run_id,
+                    "pipeline": pipeline_id,
+                    "step_results": self.state.step_results,
+                    "assets": self.state.assets,
+                    "qa_log": self.state.qa_log,
+                    "elapsed": time.time() - self.state.start_time,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
         )
 
         return self.state
 
     def _execute_skill(self, skill_name: str, prompt: str) -> str:
         """Execute a loaded skill by sending prompt through the chat session."""
-        if self.cli and hasattr(self.cli, '_chat_session'):
+        if self.cli and hasattr(self.cli, "_chat_session"):
             session = self.cli._chat_session
             responses = list(session.send_stream(prompt))
             texts = [p for kind, p in responses if kind == "text"]

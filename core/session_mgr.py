@@ -10,7 +10,14 @@ import time
 from pathlib import Path
 
 __all__ = [
-    'ROOT', 'SESSIONS_DIR', 'SessionManager', 'logger', 'session_delete', 'session_list', 'session_restore', 'session_save',
+    "ROOT",
+    "SESSIONS_DIR",
+    "SessionManager",
+    "logger",
+    "session_delete",
+    "session_list",
+    "session_restore",
+    "session_save",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -67,13 +74,15 @@ class SessionManager:
         for f in sorted(self.dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
             try:
                 data = json.loads(f.read_text(encoding="utf-8"))
-                sessions.append({
-                    "name": data["name"],
-                    "saved_at": data["saved_at"],
-                    "message_count": data["message_count"],
-                    "meta": data.get("meta", {}),
-                    "size": f.stat().st_size,
-                })
+                sessions.append(
+                    {
+                        "name": data["name"],
+                        "saved_at": data["saved_at"],
+                        "message_count": data["message_count"],
+                        "meta": data.get("meta", {}),
+                        "size": f.stat().st_size,
+                    }
+                )
             except (json.JSONDecodeError, KeyError, OSError) as e:
                 logger.debug("Skipping corrupted session file %s: %s", f.name, e)
         return sessions
@@ -93,11 +102,14 @@ _session_mgr = SessionManager()
 def session_save(name: str, messages: list[dict], meta: dict | None = None) -> str:
     return _session_mgr.save(name, messages, meta)
 
+
 def session_restore(name: str) -> dict | None:
     return _session_mgr.restore(name)
 
+
 def session_list() -> list[dict]:
     return _session_mgr.list_sessions()
+
 
 def session_delete(name: str) -> bool:
     return _session_mgr.delete(name)

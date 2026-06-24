@@ -6,7 +6,16 @@ import time
 from pathlib import Path
 
 __all__ = [
-    "ROOT", "browser_fetch", "browser_screenshot", "create_html", "create_markdown", "create_pdf", "deploy_netlify", "deploy_vercel", "desktop_screenshot", "text_to_speech",
+    "ROOT",
+    "browser_fetch",
+    "browser_screenshot",
+    "create_html",
+    "create_markdown",
+    "create_pdf",
+    "deploy_netlify",
+    "deploy_vercel",
+    "desktop_screenshot",
+    "text_to_speech",
 ]
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -15,9 +24,11 @@ ROOT = Path(__file__).resolve().parent.parent
 # Browser Automation (Playwright-based)
 # ═══════════════════════════════════════════════════════════════════
 
+
 def browser_screenshot(url: str, output: str = "") -> str:
     """Take a screenshot of a web page. Requires: pip install playwright && playwright install chromium"""
     from core.file_tools import _validate_url
+
     err = _validate_url(url)
     if err:
         return f"[安全拒绝] {err}"
@@ -39,6 +50,7 @@ def browser_screenshot(url: str, output: str = "") -> str:
 def browser_fetch(url: str, selector: str = "body") -> str:
     """Fetch text content from a web page element. Requires playwright."""
     from core.file_tools import _validate_url
+
     err = _validate_url(url)
     if err:
         return f"[安全拒绝] {err}"
@@ -59,6 +71,7 @@ def browser_fetch(url: str, selector: str = "body") -> str:
 # Deploy Helpers
 # ═══════════════════════════════════════════════════════════════════
 
+
 def deploy_vercel(project_dir: str = ".", token: str = "") -> str:
     """Deploy to Vercel. Requires: npm install -g vercel"""
     target = (ROOT / project_dir).resolve()
@@ -70,6 +83,7 @@ def deploy_vercel(project_dir: str = ".", token: str = "") -> str:
         return r.stdout[-1000:] or r.stderr[-1000:]
     except FileNotFoundError:
         return "[错误] Vercel CLI 未安装。运行: npm install -g vercel"
+
 
 def deploy_netlify(project_dir: str = ".", token: str = "") -> str:
     """Deploy to Netlify. Requires: npm install -g netlify-cli"""
@@ -85,12 +99,14 @@ def deploy_netlify(project_dir: str = ".", token: str = "") -> str:
 # Document Generation (Office files)
 # ═══════════════════════════════════════════════════════════════════
 
+
 def create_markdown(title: str, content: str) -> str:
     """Create a .md file."""
     out = ROOT / "output" / f"{title.replace(' ', '_')[:50]}.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(f"# {title}\n\n{content}", encoding="utf-8")
     return str(out)
+
 
 def create_html(title: str, body: str) -> str:
     """Create a standalone .html file."""
@@ -103,6 +119,7 @@ def create_html(title: str, body: str) -> str:
     out.write_text(html, encoding="utf-8")
     return str(out)
 
+
 def create_pdf(content: str, output: str = "") -> str:
     """Create a PDF from text content using reportlab or weasyprint."""
     out_path = Path(output) if output else ROOT / "output" / f"doc_{int(time.time())}.pdf"
@@ -110,6 +127,7 @@ def create_pdf(content: str, output: str = "") -> str:
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.pdfgen import canvas
+
         c = canvas.Canvas(str(out_path), pagesize=A4)
         y = 800
         for line in content.split(chr(10))[:200]:
@@ -123,6 +141,7 @@ def create_pdf(content: str, output: str = "") -> str:
     except ImportError:
         try:
             import weasyprint  # type: ignore[import-not-found]
+
             html = f"<html><body><pre>{content[:50000]}</pre></body></html>"
             weasyprint.HTML(string=html).write_pdf(str(out_path))
             return str(out_path)
@@ -134,6 +153,7 @@ def create_pdf(content: str, output: str = "") -> str:
 # Speech / TTS
 # ═══════════════════════════════════════════════════════════════════
 
+
 def text_to_speech(text: str, output: str = "", lang: str = "zh") -> str:
     """Convert text to speech using edge-tts (free, no API key needed)."""
     out_path = Path(output) if output else ROOT / "output" / f"tts_{int(time.time())}.mp3"
@@ -142,10 +162,13 @@ def text_to_speech(text: str, output: str = "", lang: str = "zh") -> str:
         import asyncio
 
         import edge_tts
+
         voice = "zh-CN-XiaoxiaoNeural" if lang == "zh" else "en-US-JennyNeural"
+
         async def _run():
             communicate = edge_tts.Communicate(text, voice)
             await communicate.save(str(out_path))
+
         asyncio.run(_run())
         return str(out_path)
     except ImportError:
@@ -156,6 +179,7 @@ def text_to_speech(text: str, output: str = "", lang: str = "zh") -> str:
 # Desktop Screenshot
 # ═══════════════════════════════════════════════════════════════════
 
+
 def desktop_screenshot(output: str = "") -> str:
     """Take a screenshot of the entire desktop. Uses platform-specific tools."""
     out_path = Path(output) if output else ROOT / "output" / f"desktop_{int(time.time())}.png"
@@ -164,6 +188,7 @@ def desktop_screenshot(output: str = "") -> str:
     try:
         if system == "win32":
             from PIL import ImageGrab
+
             img = ImageGrab.grab()
             img.save(str(out_path))
             return str(out_path)

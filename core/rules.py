@@ -9,9 +9,15 @@ RULES_DIR = Path(__file__).parent.parent / "rules"
 class Rule:
     """一条编码规则"""
 
-    def __init__(self, name: str, content: str, description: str = "",
-                 enabled: bool = True, category: str = "general",
-                 default_active: bool = False) -> None:
+    def __init__(
+        self,
+        name: str,
+        content: str,
+        description: str = "",
+        enabled: bool = True,
+        category: str = "general",
+        default_active: bool = False,
+    ) -> None:
         self.name = name
         self.content = content
         self.description = description
@@ -60,7 +66,7 @@ class Rule:
             content = "\n".join(content.strip().split("\n")[1:]).strip()
 
         # 提取纯规则名：rendering.rules.md → rendering（剥 .rules.md 两层后缀）
-        raw_stem = path.stem           # rendering.rules（只剥 .md）
+        raw_stem = path.stem  # rendering.rules（只剥 .md）
         name = raw_stem.removesuffix(".rules") if raw_stem.endswith(".rules") else raw_stem
 
         return Rule(
@@ -145,8 +151,7 @@ class RulesManager:
             lines.append("")
         return "\n".join(lines)
 
-    def create_rule(self, name: str, content: str, description: str = "",
-                    category: str = "general") -> Path:
+    def create_rule(self, name: str, content: str, description: str = "", category: str = "general") -> Path:
         """创建新规则文件"""
         self._dir.mkdir(parents=True, exist_ok=True)
         cat_dir = self._dir / category

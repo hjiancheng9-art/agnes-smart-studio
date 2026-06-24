@@ -9,7 +9,7 @@ Each task has: goal, expected_outcome, scoring function.
 import time
 from pathlib import Path
 
-__all__ = ['BENCHMARKS', 'EvalEngine', 'ROOT', 'run_evals']
+__all__ = ["BENCHMARKS", "EvalEngine", "ROOT", "run_evals"]
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -79,23 +79,17 @@ class EvalEngine:
         try:
             # Execute via env_check and search_files as proxies for agent tools
             if benchmark["category"] == "code_search":
-                output = tool_executor("search_files",
-                                       {"pattern": benchmark["goal"].split()[0]})
+                output = tool_executor("search_files", {"pattern": benchmark["goal"].split()[0]})
             elif benchmark["category"] == "code_quality":
                 output = tool_executor("env_check", {})
             else:
-                output = tool_executor("read_file",
-                                       {"path": "README.md"})
+                output = tool_executor("read_file", {"path": "README.md"})
             result["output"] = output[:500]
 
             # Score: check if expected keywords found
-            keywords_found = sum(
-                1 for kw in benchmark["expected_keywords"]
-                if kw.lower() in output.lower()
-            )
+            keywords_found = sum(1 for kw in benchmark["expected_keywords"] if kw.lower() in output.lower())
             result["score"] = round(
-                keywords_found / max(len(benchmark["expected_keywords"]), 1)
-                * benchmark["weight"], 2
+                keywords_found / max(len(benchmark["expected_keywords"]), 1) * benchmark["weight"], 2
             )
             result["status"] = "pass" if result["score"] >= 0.5 else "fail"
         except (OSError, ValueError, RuntimeError) as e:
@@ -108,6 +102,7 @@ class EvalEngine:
         """Run all benchmarks and return report."""
         if tool_executor is None:
             from core.tools import get_registry
+
             reg = get_registry()
             tool_executor = reg.execute
         self.results = []

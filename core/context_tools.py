@@ -60,11 +60,7 @@ def truncate_tool_result(text: str, max_chars: int = DEFAULT_MAX_CHARS) -> str:
         return text
     head = max_chars * 2 // 3
     tail = max_chars - head
-    return (
-        text[:head]
-        + _TRUNCATED_MARKER.format(n=len(text) - max_chars)
-        + text[-tail:]
-    )
+    return text[:head] + _TRUNCATED_MARKER.format(n=len(text) - max_chars) + text[-tail:]
 
 
 def truncate_messages(
@@ -102,10 +98,7 @@ def estimate_tokens(text: str) -> int:
     """
     if not text:
         return 0
-    wide_count = sum(
-        1 for c in text
-        if unicodedata.east_asian_width(c) in ('W', 'F')
-    )
+    wide_count = sum(1 for c in text if unicodedata.east_asian_width(c) in ("W", "F"))
     narrow_count = len(text) - wide_count
     return wide_count // 2 + narrow_count // 4 + 1
 
@@ -146,7 +139,7 @@ def _split_sentences(text: str) -> list[str]:
     每个片段保留原始文本顺序和内容。
     """
     # 按句子结束符切分，保留分隔符
-    parts = re.split(r'(?<=[.!?。！？\n])\s*', text)
+    parts = re.split(r"(?<=[.!?。！？\n])\s*", text)
     # 过滤空片段
     return [p.strip() for p in parts if p.strip()]
 
@@ -210,17 +203,14 @@ def extractive_compress(
                 scored.append((i, sent, score))
         else:
             # 按 TF 总权重降序
-            scored = [
-                (i, sent, sum(vec.values()))
-                for i, sent, vec in sent_data
-            ]
+            scored = [(i, sent, sum(vec.values())) for i, sent, vec in sent_data]
 
         scored.sort(key=lambda x: x[2], reverse=True)
 
         # 贪心选取：按得分从高到低，累积字符直到 ≤ max_chars
         selected_indices = set()
         total_chars = 0
-        for i, sent, score in scored:
+        for i, sent, _score in scored:
             cost = len(sent) + 1  # +1 为可能的空格/换行
             if total_chars + cost > max_chars:
                 continue
@@ -272,9 +262,7 @@ def abstractive_compress(
         input_text = text[:16000] if len(text) > 16000 else text
         response = client.chat(
             model=model,
-            messages=[
-                {"role": "user", "content": _ABSTRACT_COMPRESS_PROMPT + input_text}
-            ],
+            messages=[{"role": "user", "content": _ABSTRACT_COMPRESS_PROMPT + input_text}],
             max_tokens=600,
         )
         summary = response["choices"][0]["message"]["content"]

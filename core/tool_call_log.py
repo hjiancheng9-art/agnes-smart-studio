@@ -9,6 +9,7 @@
     - 写入失败静默降级（日志不能阻塞工具执行）
     - 文件大小自限：超过 MAX_BYTES 自动 rotate（保留最近 N 条）
 """
+
 from __future__ import annotations
 
 import json
@@ -27,8 +28,7 @@ MAX_LINES = 5000  # rotate 后保留最近这么多条
 _write_lock = threading.Lock()
 
 
-def log_call(name: str, status: str, duration_ms: float,
-             args: dict[str, Any] | None = None) -> None:
+def log_call(name: str, status: str, duration_ms: float, args: dict[str, Any] | None = None) -> None:
     """追加一条调用记录。写入失败静默降级。
 
     Args:
@@ -55,8 +55,7 @@ def log_call(name: str, status: str, duration_ms: float,
         pass
 
 
-def load_recent(limit: int = 2000,
-                tool_name: str | None = None) -> list[dict]:
+def load_recent(limit: int = 2000, tool_name: str | None = None) -> list[dict]:
     """读取最近的调用记录。
 
     Args:
@@ -125,9 +124,11 @@ def clear_log() -> int:
 
 # ── 内部 ────────────────────────────────────────────────────
 
+
 def _now_ts() -> float:
     """当前时间戳（测试可 mock）。"""
     import time
+
     return time.time()
 
 

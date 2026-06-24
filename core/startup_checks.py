@@ -17,19 +17,24 @@ import re
 from pathlib import Path
 
 __all__ = [
-    'ROOT',
-    'critical_failures', 'print_report', 'run_all', 'wait_for_provider',
+    "ROOT",
+    "critical_failures",
+    "print_report",
+    "run_all",
+    "wait_for_provider",
 ]
-
-ROOT = Path(__file__).resolve().parent.parent
 
 # ── Rich theme (single source of truth) ──────────────────────────
 from ui.theme import COLORS, console
 
+ROOT = Path(__file__).resolve().parent.parent
+
 _results: list[tuple[str, bool, str]] = []
+
 
 def _add(category: str, ok: bool, msg: str):
     _results.append((category, ok, msg))
+
 
 def run_all() -> list[tuple[str, bool, str]]:
     """Run all startup checks. Returns list of (category, ok, message)."""
@@ -44,6 +49,7 @@ def run_all() -> list[tuple[str, bool, str]]:
     _check_local_llm()
     return list(_results)
 
+
 def print_report(results: list[tuple[str, bool, str]], show_ok: bool = False):
     """Pretty-print a health check report to the terminal."""
     for category, ok, msg in results:
@@ -52,11 +58,11 @@ def print_report(results: list[tuple[str, bool, str]], show_ok: bool = False):
         icon = f"[{COLORS['success']}]OK[/]" if ok else f"[{COLORS['error']}]FAIL[/]"
         console.print(f"  [{icon}] [{COLORS['muted']}]{category}[/]: {msg}")
 
+
 def critical_failures(results: list[tuple[str, bool, str]]) -> list[str]:
     """Return list of failure messages that should block startup."""
-    return [msg for cat, ok, msg in results if not ok and cat in (
-        "env", "deps", "tools.json"
-    )]
+    return [msg for cat, ok, msg in results if not ok and cat in ("env", "deps", "tools.json")]
+
 
 def _check_provider_liveness():
     """Verify the active model provider is reachable with a lightweight probe.
@@ -90,23 +96,18 @@ def _check_provider_liveness():
             r = client.get(models_url)
             if r.status_code in (200, 401, 403):
                 # 200 = open endpoint, 401/403 = reachable but needs auth (fine)
-                _add("provider", True,
-                     f"Provider '{active}' ({cfg['name']}) reachable at {base_url}")
+                _add("provider", True, f"Provider '{active}' ({cfg['name']}) reachable at {base_url}")
             else:
-                _add("provider", False,
-                     f"Provider '{active}' returned HTTP {r.status_code} from {base_url}")
+                _add("provider", False, f"Provider '{active}' returned HTTP {r.status_code} from {base_url}")
     except httpx.ConnectError:
-        _add("provider", False,
-             f"Provider '{active}' unreachable — connection refused")
+        _add("provider", False, f"Provider '{active}' unreachable — connection refused")
     except httpx.TimeoutException:
-        _add("provider", False,
-             f"Provider '{active}' unreachable — connection timed out")
+        _add("provider", False, f"Provider '{active}' unreachable — connection timed out")
     except (httpx.HTTPError, OSError) as e:
         _add("provider", False, f"Provider check failed: {e}")
 
 
-def wait_for_provider(base_url: str, timeout: float = 60.0,
-                      interval: float = 2.0) -> tuple[bool, str]:
+def wait_for_provider(base_url: str, timeout: float = 60.0, interval: float = 2.0) -> tuple[bool, str]:
     """轮询等待 OpenAI 兼容端点就绪。
 
     llama-server 启动后加载 GGUF 模型需要 10-30s（取决于模型大小 / NVMe 速度），
@@ -161,21 +162,22 @@ def _check_local_llm():
             return
         ok, msg = wait_for_provider(base_url, timeout=5.0, interval=1.0)
         if ok:
-            _add("local_llm", True,
-                 f"本地模型 {cfg.get('name', 'local')} 就绪 @ {base_url}")
+            _add("local_llm", True, f"本地模型 {cfg.get('name', 'local')} 就绪 @ {base_url}")
         else:
-            _add("local_llm", False,
-                 f"本地模型未启动 ({msg}) — 双击 llama.cpp/launch-qwen3.6.bat 启动后可用")
+            _add("local_llm", False, f"本地模型未启动 ({msg}) — 双击 llama.cpp/launch-qwen3.6.bat 启动后可用")
     except (OSError, ValueError) as e:
         _add("local_llm", False, f"local check failed: {e}")
+
 
 # ══════════════════════════════════════════════════════════════════════
 # Individual checks
 # ══════════════════════════════════════════════════════════════════════
 
+
 def _check_env():
     """Verify .env exists and API key is set."""
     from core.config import SETTINGS
+
     env_file = ROOT / ".env"
 
     if not env_file.exists():
@@ -190,6 +192,7 @@ def _check_env():
         return
 
     _add("env", True, f"CRUX_API_KEY=...{SETTINGS.api_key[-8:]}")
+
 
 def _check_deps():
     """Verify essential packages are importable."""
@@ -211,9 +214,11 @@ def _check_deps():
     else:
         _add("deps", True, f"{len(essential)} essential packages OK")
 
+
 def _check_output_dirs():
     """Verify output directories exist and are writable."""
     from core.config import OUTPUT_DIR
+
     dirs = [
         OUTPUT_DIR,
         OUTPUT_DIR / "images",
@@ -229,6 +234,7 @@ def _check_output_dirs():
             _add("output", False, f"Cannot write to {d}: {e}")
             return
     _add("output", True, f"Output dirs OK ({OUTPUT_DIR})")
+
 
 def _check_models_config():
     """Validate models.json structure, provider URLs, and active provider."""
@@ -269,9 +275,14 @@ def _check_models_config():
     key_env = f"{active.upper()}_API_KEY"
     api_key = active_provider.get("api_key") or os.getenv(key_env, "")
     if not api_key:
-        _add("models.json", True, f"OK ({len(providers)} providers, active={active}, no API key for {active} — will prompt)")
+        _add(
+            "models.json",
+            True,
+            f"OK ({len(providers)} providers, active={active}, no API key for {active} — will prompt)",
+        )
     else:
         _add("models.json", True, f"OK ({len(providers)} providers, active={active})")
+
 
 def _check_tools_config():
     """Validate tools.json: JSON validity, shell command format strings, parameter consistency."""
@@ -306,10 +317,10 @@ def _check_tools_config():
             broken.append(f"{name}: unexpected {{{', '.join(sorted(unexpected))}}} in command")
 
     if broken:
-        _add("tools.json", False,
-             f"{len(broken)} tool(s) have format-string conflicts: {'; '.join(broken)}")
+        _add("tools.json", False, f"{len(broken)} tool(s) have format-string conflicts: {'; '.join(broken)}")
     else:
         _add("tools.json", True, f"OK ({len(tools)} tools, no format-string conflicts)")
+
 
 def _check_api_connectivity():
     """Quick check that the CRUX API is reachable."""
@@ -335,12 +346,14 @@ def _check_api_connectivity():
         msg = str(e)[:100]
         _add("api", False, f"CRUX API unreachable: {msg}")
 
+
 # ══════════════════════════════════════════════════════════════════════
 # Quick standalone run: python core/startup_checks.py
 # ══════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     import sys
+
     sys.path.insert(0, str(ROOT))
     results = run_all()
     print_report(results, show_ok=True)

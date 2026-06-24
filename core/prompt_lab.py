@@ -47,24 +47,26 @@ __all__ = [
 @dataclass
 class Variant:
     """System prompt 变体定义。"""
-    id: str                  # 唯一 ID（v001, v002...）
-    name: str                # 英文短名（concise, formal, creative...）
-    label: str                # 中文标签（简洁版, 正式版, 创意版...）
-    instructions: str        # 差异化指令片段（追加到 base prompt 末尾）
+
+    id: str  # 唯一 ID（v001, v002...）
+    name: str  # 英文短名（concise, formal, creative...）
+    label: str  # 中文标签（简洁版, 正式版, 创意版...）
+    instructions: str  # 差异化指令片段（追加到 base prompt 末尾）
     traffic_ratio: float = 0.5  # 流量分配比例（所有 active 变体自动归一化）
-    is_active: bool = True   # 是否参与实验
-    created: str = ""        # ISO 时间戳
+    is_active: bool = True  # 是否参与实验
+    created: str = ""  # ISO 时间戳
 
 
 @dataclass
 class Outcome:
     """单次对话的质量记录。"""
+
     variant_id: str
     session_ts: str
-    satisfaction: int       # 用户满意度 1-5（可由工具调用推断或手动反馈）
-    completions: int = 1     # 本次会话完成的任务数
-    corrections: int = 0    # 修正/重试次数（从 tool error 计数推断）
-    tool_calls: int = 0      # 本次会话的工具调用总数
+    satisfaction: int  # 用户满意度 1-5（可由工具调用推断或手动反馈）
+    completions: int = 1  # 本次会话完成的任务数
+    corrections: int = 0  # 修正/重试次数（从 tool error 计数推断）
+    tool_calls: int = 0  # 本次会话的工具调用总数
 
 
 # ── Prompt Lab 核心 ─────────────────────────────────────────────────
@@ -261,10 +263,7 @@ class PromptLab:
 
     def stats(self, variant_id: str | None = None) -> dict[str, Any]:
         """按变体汇总统计。variant_id=None 时返回所有变体。"""
-        if variant_id:
-            vid_filter = {variant_id}
-        else:
-            vid_filter = {v.id for v in self._variants.values()}
+        vid_filter = {variant_id} if variant_id else {v.id for v in self._variants.values()}
 
         result: dict[str, Any] = {}
         for vid in vid_filter:
@@ -303,7 +302,7 @@ class PromptLab:
             return "📝 Prompt Lab: 暂无实验变体。用 create 创建第一个变体。"
 
         lines = ["📊 Prompt Lab 实验统计"]
-        for vid, s in all_stats.items():
+        for _vid, s in all_stats.items():
             if s["count"] == 0:
                 lines.append(f"  [{s['label']}] 无数据 (name={s['name']})")
             else:
@@ -344,8 +343,7 @@ class PromptLab:
         try:
             _PROMPT_LAB_DIR.mkdir(parents=True, exist_ok=True)
             _VARIANTS_FILE.write_text(
-                json.dumps([asdict(v) for v in self._variants.values()],
-                          indent=2, ensure_ascii=False),
+                json.dumps([asdict(v) for v in self._variants.values()], indent=2, ensure_ascii=False),
                 encoding="utf-8",
             )
         except (OSError, TypeError):

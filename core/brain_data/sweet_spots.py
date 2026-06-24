@@ -1,4 +1,5 @@
 """Brain data: sweet spots knowledge base."""
+
 SWEET_SPOT_TEMPLATES = {
     "portrait": {
         "name": "人像写真",

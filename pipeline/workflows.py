@@ -9,8 +9,7 @@ from engines.image_to_image import ImageToImageEngine
 from engines.text_to_image import TextToImageEngine
 from engines.video import VideoEngine
 
-__all__ = ['PipelineOrchestrator']
-
+__all__ = ["PipelineOrchestrator"]
 
 
 def _local_image_to_b64_url(path: str) -> str:
@@ -74,8 +73,7 @@ class PipelineOrchestrator:
             neg = ""
 
         # Step 2: 生成图片（流水线用 URL 模式，视频 API 需要 URL 访问图片）
-        image_data = self.t2i.generate(prompt=img_prompt, size=image_size, negative_prompt=neg or None,
-                                       return_url=True)
+        image_data = self.t2i.generate(prompt=img_prompt, size=image_size, negative_prompt=neg or None, return_url=True)
         if on_image_done:
             on_image_done(image_data)
 
@@ -164,8 +162,9 @@ class PipelineOrchestrator:
         for i, scene in enumerate(scenes):
             img_prompt = scene.get("image_prompt", scene.get("description", creative_brief))
             try:
-                img_data = self.t2i.generate(prompt=img_prompt, size=image_size, negative_prompt=negative_prompt,
-                                             return_url=True)
+                img_data = self.t2i.generate(
+                    prompt=img_prompt, size=image_size, negative_prompt=negative_prompt, return_url=True
+                )
                 scene_results.append({"scene": scene, "image": img_data})
                 img_url = img_data.get("url")
                 if img_url:

@@ -50,23 +50,26 @@ __all__ = [
 # Model Registry — 单一真源：模型 ID → 能力/别名/供应商映射
 # ═══════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class ModelInfo:
     """模型元信息。"""
-    id: str                           # 模型 ID（发送给 API 的值）
-    name: str                         # 人类可读名称
-    provider_id: str                  # 所属供应商 ID（对应 models.json 的 key）
-    provider_name: str                # 供应商人类可读名（注入系统提示词）
-    description: str = ""              # 能力简述（/help 和 /model 切换时展示）
-    supports_tools: bool = False      # 是否支持 OpenAI tool calling
-    supports_thinking: bool = False   # 是否支持深度思考
-    supports_vision: bool = False     # 是否支持多模态图片理解
-    tier: str = "pro"                 # light / pro（用于 models.json 的 models 字段）
-    aliases: tuple[str, ...] = ()    # 用户可用的快捷别名（如 "light", "pro"）
+
+    id: str  # 模型 ID（发送给 API 的值）
+    name: str  # 人类可读名称
+    provider_id: str  # 所属供应商 ID（对应 models.json 的 key）
+    provider_name: str  # 供应商人类可读名（注入系统提示词）
+    description: str = ""  # 能力简述（/help 和 /model 切换时展示）
+    supports_tools: bool = False  # 是否支持 OpenAI tool calling
+    supports_thinking: bool = False  # 是否支持深度思考
+    supports_vision: bool = False  # 是否支持多模态图片理解
+    tier: str = "pro"  # light / pro（用于 models.json 的 models 字段）
+    aliases: tuple[str, ...] = ()  # 用户可用的快捷别名（如 "light", "pro"）
 
 
 # 全局模型注册表 — 新增模型只需在这里加一条
 MODEL_REGISTRY: dict[str, ModelInfo] = {}
+
 
 def _register_defaults():
     """注册内置模型。启动时自动调用一次。"""
@@ -147,10 +150,12 @@ def _register_defaults():
     for m in models:
         MODEL_REGISTRY[m.id] = m
 
+
 _register_defaults()
 
 
 # ── 查询接口 ──────────────────────────────────────────────
+
 
 def get_model_info(model_id: str) -> ModelInfo | None:
     """根据模型 ID 查元信息，找不到返回 None。"""
@@ -242,6 +247,7 @@ def model_supports_vision(model_id: str) -> bool:
 # Provider State — 健康追踪 + 冷却
 # ═══════════════════════════════════════════════════════════════════
 
+
 class ProviderState:
     """Tracks which provider is active and which have failed."""
 
@@ -297,6 +303,7 @@ class ProviderState:
 # ═══════════════════════════════════════════════════════════════════
 # Provider Manager — 多供应商管理 + 自动 failover
 # ═══════════════════════════════════════════════════════════════════
+
 
 class ProviderManager:
     """Manages multiple LLM providers with automatic failover.
@@ -414,6 +421,7 @@ class ProviderManager:
 
 class NoProviderAvailable(Exception):
     """Raised when all providers are exhausted or lack API keys."""
+
     pass
 
 

@@ -29,7 +29,7 @@ import json
 import threading
 from pathlib import Path
 
-__all__ = ['SKILLS_DIR', 'Skill', 'SkillManager', 'get_manager']
+__all__ = ["SKILLS_DIR", "Skill", "SkillManager", "get_manager"]
 
 
 SKILLS_DIR = Path(__file__).parent.parent / "skills"
@@ -39,9 +39,9 @@ class Skill:
     """单个技能"""
 
     # 三态 trigger（对标 Claude 的 on / user-invocable-only / name-only）
-    TRIGGER_AUTO = "auto"      # 自动注入 system prompt（如 coding-rules）
+    TRIGGER_AUTO = "auto"  # 自动注入 system prompt（如 coding-rules）
     TRIGGER_MANUAL = "manual"  # 仅 /skill load 显式加载（默认，向后兼容）
-    TRIGGER_OFF = "off"        # 完全隐藏，不出现在 list
+    TRIGGER_OFF = "off"  # 完全隐藏，不出现在 list
     _VALID_TRIGGERS = (TRIGGER_AUTO, TRIGGER_MANUAL, TRIGGER_OFF)
 
     def __init__(self, data: dict, file_path: Path) -> None:
@@ -89,8 +89,7 @@ class SkillManager:
             data = json.loads(self.OVERRIDES_FILE.read_text(encoding="utf-8"))
             if isinstance(data, dict):
                 # 只保留合法值
-                return {k: v for k, v in data.items()
-                        if v in Skill._VALID_TRIGGERS}
+                return {k: v for k, v in data.items() if v in Skill._VALID_TRIGGERS}
         except (json.JSONDecodeError, OSError):
             pass
         return {}
@@ -183,9 +182,11 @@ class SkillManager:
         # 确保 _available 已 discover（首次调用兜底）
         if not self._available:
             self.discover()
-        auto_skills = [s for s in self._available.values()
-                       if s.trigger == Skill.TRIGGER_AUTO
-                       and s.name != (self._loaded.name if self._loaded else "")]
+        auto_skills = [
+            s
+            for s in self._available.values()
+            if s.trigger == Skill.TRIGGER_AUTO and s.name != (self._loaded.name if self._loaded else "")
+        ]
         if not auto_skills:
             return base_prompt
         parts = [base_prompt]
@@ -319,6 +320,7 @@ class SkillManager:
         Returns: {"imported": [name, ...], "skipped": [file, ...], "errors": [...]}
         """
         import yaml
+
         mp = Path(market_path)
         if not mp.exists():
             return {"imported": [], "skipped": [], "errors": [f"路径不存在: {market_path}"]}

@@ -15,11 +15,18 @@ import json
 from pathlib import Path
 
 __all__ = [
-    'AgnetaSkillSystem', 'CodexSkill', 'ROOT', 'SKILL_DIRS', 'skill_inject', 'skill_list', 'skill_load',
+    "AgnetaSkillSystem",
+    "CodexSkill",
+    "ROOT",
+    "SKILL_DIRS",
+    "skill_inject",
+    "skill_list",
+    "skill_load",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent
 SKILL_DIRS = [ROOT / "skills_md", ROOT / "skills", ROOT / "output" / "custom_tools"]
+
 
 class CodexSkill:
     def __init__(self, path: Path) -> None:
@@ -100,12 +107,14 @@ class CodexSkill:
         """返回 task_hint 中命中技能文本的词数（词边界匹配）。"""
         self.load()
         import re
+
         text = f"{self.name} {' '.join(self._sections.values())}".lower()
         score = 0
         for word in task_hint.lower().split():
             if re.search(rf"\b{re.escape(word)}\b", text):
                 score += 1
         return score
+
 
 class AgnetaSkillSystem:
     """Full Codex-compatible skill management."""
@@ -136,8 +145,7 @@ class AgnetaSkillSystem:
 
     def list_skills(self) -> list[dict]:
         self.discover()
-        return [{"name": s.name, "desc": s._sections.get("description", "")[:80]}
-                for s in self.skills.values()]
+        return [{"name": s.name, "desc": s._sections.get("description", "")[:80]} for s in self.skills.values()]
 
     def load_skill(self, name: str) -> str | None:
         self.discover()
@@ -147,22 +155,86 @@ class AgnetaSkillSystem:
     def classify_task(self, task_hint: str) -> str:
         """Classify task as creative, engineering, or mixed."""
         creative_keywords = [
-            "image", "video", "picture", "photo", "draw", "paint", "art",
-            "animation", "cinematic", "visual", "design", "poster", "logo",
-            "character", "scene", "storyboard", "camera", "lighting",
-            "portrait", "landscape", "illustration", "render", "3d",
-            "comic", "manga", "anime", "novel", "fiction", "story",
-            "script", "copywriting", "creative", "color", "style",
+            "image",
+            "video",
+            "picture",
+            "photo",
+            "draw",
+            "paint",
+            "art",
+            "animation",
+            "cinematic",
+            "visual",
+            "design",
+            "poster",
+            "logo",
+            "character",
+            "scene",
+            "storyboard",
+            "camera",
+            "lighting",
+            "portrait",
+            "landscape",
+            "illustration",
+            "render",
+            "3d",
+            "comic",
+            "manga",
+            "anime",
+            "novel",
+            "fiction",
+            "story",
+            "script",
+            "copywriting",
+            "creative",
+            "color",
+            "style",
         ]
         engineering_keywords = [
-            "code", "bug", "fix", "debug", "test", "refactor", "build",
-            "deploy", "api", "database", "server", "config", "error",
-            "log", "trace", "audit", "security", "performance", "memory",
-            "async", "import", "module", "package", "dependency", "git",
-            "commit", "merge", "review", "architecture", "design pattern",
-            "refactor", "optimize", "profile", "benchmark",
-            "shell", "bash", "command", "script", "automation",
-            "pipeline", "ci", "cd", "docker", "container",
+            "code",
+            "bug",
+            "fix",
+            "debug",
+            "test",
+            "refactor",
+            "build",
+            "deploy",
+            "api",
+            "database",
+            "server",
+            "config",
+            "error",
+            "log",
+            "trace",
+            "audit",
+            "security",
+            "performance",
+            "memory",
+            "async",
+            "import",
+            "module",
+            "package",
+            "dependency",
+            "git",
+            "commit",
+            "merge",
+            "review",
+            "architecture",
+            "design pattern",
+            "refactor",
+            "optimize",
+            "profile",
+            "benchmark",
+            "shell",
+            "bash",
+            "command",
+            "script",
+            "automation",
+            "pipeline",
+            "ci",
+            "cd",
+            "docker",
+            "container",
         ]
         text_lower = task_hint.lower()
         creative_score = sum(1 for kw in creative_keywords if kw in text_lower)
@@ -192,19 +264,20 @@ class AgnetaSkillSystem:
             skill = self.skills[name]
             parts.append(skill.get_level1())
         if parts:
-            return (
-                "\n\n## Loaded Skills (auto-matched to task)\n"
-                + "\n\n---\n\n".join(parts)
-            )
+            return "\n\n## Loaded Skills (auto-matched to task)\n" + "\n\n---\n\n".join(parts)
         return ""
 
+
 _skill_system = AgnetaSkillSystem()
+
 
 def skill_inject(task_hint: str, max_skills: int = 4) -> str:
     return _skill_system.inject_for_task(task_hint, max_skills)
 
+
 def skill_load(name: str) -> str | None:
     return _skill_system.load_skill(name)
+
 
 def skill_list() -> list[dict]:
     return _skill_system.list_skills()
