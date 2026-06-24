@@ -61,10 +61,14 @@ GLYPHS = {
 }
 
 
-def build_banner(v="v5.0", t="52", s="45", provider=None):
+def build_banner(v="v5.0", t=None, s=None, provider=None):
     """Build full banner as Rich markup string (single source of truth).
 
-    Returns Rich markup suitable for console.print().
+    Args:
+        v: version string
+        t: tool count (None → fallback "52")
+        s: skill count (None → fallback "45")
+        provider: optional provider name
     """
     from ui.theme import COLORS, ICONS, LAYOUT
 
@@ -94,7 +98,9 @@ def build_banner(v="v5.0", t="52", s="45", provider=None):
 
     rows.append("")
     rows.append(f"{P}[dim]{LAYOUT['separator_char'] * LAYOUT['separator_len']}[/]")
-    rows.append(f"{P}[{COLORS['success']}]{ICONS['success']}[/] [dim]{v}  ·  {t} tools  ·  {s} skills[/]")
+    _t = t if t is not None else "52"
+    _s = s if s is not None else "45"
+    rows.append(f"{P}[{COLORS['success']}]{ICONS['success']}[/] [dim]{v}  ·  {_t} tools  ·  {_s} skills[/]")
     rows.append("")
 
     return "\n".join(rows)
@@ -108,8 +114,8 @@ def show(v=None, t=None, s=None, provider=None):
     console.print(
         build_banner(
             v or "v5.0",
-            str(t) if t else "52",
-            str(s) if s else "45",
+            t=t,
+            s=s,
             provider,
         )
     )
@@ -120,8 +126,8 @@ def render_rich(v=None, t=None, s=None, provider=None):
     """Return the CRUX Studio banner as Rich markup string (for embedding)."""
     return build_banner(
         v or "v5.0",
-        str(t) if t else "52",
-        str(s) if s else "45",
+        t=t,
+        s=s,
         provider,
     )
 

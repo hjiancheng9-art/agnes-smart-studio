@@ -27,7 +27,23 @@ from ui.theme import COLORS, ICONS, LAYOUT, console
 def _show_banner():
     """Display the Organic convergence-diamond logo banner."""
     from ui.terminal_logo import show as _show_logo
-    _show_logo()
+
+    # 动态获取真实工具数和技能数
+    _tool_count = _skill_count = None
+    try:
+        from core.tools import ToolRegistry
+        _reg = ToolRegistry()
+        _reg.load()
+        _tool_count = len(_reg.tool_names)
+    except Exception:
+        pass
+    try:
+        from core.skills import get_manager
+        _skill_count = len(get_manager().list_all())
+    except Exception:
+        pass
+
+    _show_logo(t=_tool_count, s=_skill_count)
 
 
 def print_step(msg: str):
