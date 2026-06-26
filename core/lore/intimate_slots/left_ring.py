@@ -48,7 +48,7 @@ class Telemetry:
         try:
             with open(TELEM_FILE, "a", encoding="utf-8") as f:
                 f.write(json.dumps(rec.__dict__, ensure_ascii=False) + "\n")
-        except Exception:
+        except (ImportError, OSError, RuntimeError) as e:
             logger.debug("[LeftRing] telem write failed")
 
     @property

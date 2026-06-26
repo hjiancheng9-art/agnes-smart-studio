@@ -36,6 +36,15 @@
         "pro": "Qwen3.6-27B-PRISM-PRO-DQ",
         "light": "Qwen3.6-27B-PRISM-PRO-DQ"
       }
+    },
+    "codebuddy": {
+      "name": "CodeBuddy (Tencent Cloud AI)",
+      "base_url": "https://copilot.tencent.com",
+      "api_key": "",
+      "models": {
+        "pro": "codebuddy-pro",
+        "light": "codebuddy-pro"
+      }
     }
   },
   "active": "deepseek",
@@ -44,12 +53,11 @@
     "priority": [
       "deepseek",
       "siliconflow",
-      "local"
+      "local",
+      "codebuddy"
     ]
   },
-  "codebuddy": {
-    "api_key": "",
-    "base_url": "https://copilot.tencent.com",
+  "codebuddy_extra": {
     "marketplace_url": "https://copilot.tencent.com/api"
   }
 }

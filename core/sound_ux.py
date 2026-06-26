@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import logging
 import subprocess
 import sys
 import threading
@@ -22,6 +23,8 @@ __all__ = ["SoundUX", "SOUND_DIR"]
 ROOT = Path(__file__).resolve().parent.parent
 SOUND_DIR = ROOT / "output" / "sounds"
 SOUND_DIR.mkdir(parents=True, exist_ok=True)
+
+logger = logging.getLogger("crux.sound_ux")
 
 
 class SoundUX:
@@ -59,7 +62,8 @@ class SoundUX:
                         capture_output=True,
                         timeout=5,
                     )
-            except Exception:
+            except (OSError, RuntimeError, subprocess.SubprocessError) as e:
+                logger.debug("TTS playback failed (%s), falling back to beep", e)
                 cls._beep_fallback()
 
         threading.Thread(target=_run, daemon=True).start()
@@ -75,8 +79,8 @@ class SoundUX:
             else:
                 sys.stdout.write("\a")
                 sys.stdout.flush()
-        except Exception:
-            pass
+        except (ImportError, RuntimeError, OSError) as e:
+            logger.debug("Sound fallback: %s", e)
 
     # ── 音效 API ────────────────────────────────────────────
     @classmethod
@@ -97,8 +101,8 @@ class SoundUX:
             else:
                 sys.stdout.write("\a")
                 sys.stdout.flush()
-        except Exception:
-            pass
+        except (ImportError, OSError, RuntimeError) as e:
+            logger.debug('SFX fallback: %s', e)
 
     @classmethod
     def error(cls):
@@ -113,8 +117,8 @@ class SoundUX:
             else:
                 sys.stdout.write("\a\a")
                 sys.stdout.flush()
-        except Exception:
-            pass
+        except (ImportError, OSError, RuntimeError) as e:
+            logger.debug('SFX fallback: %s', e)
 
     @classmethod
     def alert(cls):
@@ -131,8 +135,8 @@ class SoundUX:
                     sys.stdout.write("\a")
                     sys.stdout.flush()
                     time.sleep(0.1)
-        except Exception:
-            pass
+        except (ImportError, OSError, RuntimeError) as e:
+            logger.debug('SFX fallback: %s', e)
 
     @classmethod
     def alchemy(cls):
@@ -151,8 +155,8 @@ class SoundUX:
                     sys.stdout.write("\a")
                     sys.stdout.flush()
                     time.sleep(0.15)
-        except Exception:
-            pass
+        except (ImportError, OSError, RuntimeError) as e:
+            logger.debug('SFX fallback: %s', e)
 
     @classmethod
     def toggle(cls, enabled: bool | None = None) -> bool:

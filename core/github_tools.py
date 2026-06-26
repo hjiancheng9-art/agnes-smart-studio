@@ -280,7 +280,7 @@ def execute_github_browse(repo: str = "", path: str = "", ref: str = "") -> str:
         content_b64 = data.get("content", "")
         try:
             content = base64.b64decode(content_b64).decode("utf-8", errors="replace")
-        except Exception:
+        except (ValueError, TypeError):
             content = content_b64  # fallback
         result = {
             "repo": slug,
@@ -316,7 +316,7 @@ def execute_github_readme(repo: str = "") -> str:
     content_b64 = data.get("content", "")
     try:
         content = base64.b64decode(content_b64).decode("utf-8", errors="replace")
-    except Exception:
+    except (ValueError, TypeError):
         content = content_b64
 
     return json.dumps(

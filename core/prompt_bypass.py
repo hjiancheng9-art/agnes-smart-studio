@@ -324,7 +324,7 @@ def rewrite_prompt(
                 cache["patterns"][strategy["name"]] += 1
                 _save_cache(cache)
             return rewritten
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError, TypeError, KeyError) as e:
         # OSError/ValueError/RuntimeError/KeyError/TypeError 以及
         # httpx.HTTPStatusError / JSONDecodeError 等均不中断整个 bypass 链，
         # 但记录日志便于排查策略失败原因。

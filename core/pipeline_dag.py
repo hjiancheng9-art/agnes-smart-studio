@@ -121,8 +121,8 @@ class DAG:
             from core.event_bus import bus
 
             bus.emit("dag:started", dag=self.name, nodes=len(self.nodes))
-        except Exception:
-            logger.debug("[DAG] event emit failed for %s", self.name)
+        except (ImportError, RuntimeError, OSError) as e:
+            logger.debug("[DAG] event emit failed for %s: %s", self.name, e)
         while queue:
             batch = [n for n in queue if self._ready(n)]
             if not batch:
@@ -141,7 +141,8 @@ class DAG:
                         node.status = NodeStatus.DONE
                         node.finished_at = time.time()
                         results[name] = node.result
-                    except Exception as e:
+                    except (RuntimeError, OSError, TypeError, ValueError, KeyError) as e:
+                        logger.exception("[DAG] Node '%s' failed: %s", name, e)
                         node.error = str(e)
                         if node.retries < node.max_retries:
                             node.retries += 1
@@ -163,8 +164,8 @@ class DAG:
                         from core.event_bus import bus
 
                         bus.emit("dag:node_done", node=name, owners=node.owners)
-                    except Exception:
-                        logger.debug("[DAG] node_done emit failed for %s", name)
+                    except (ImportError, RuntimeError, OSError) as e:
+                        logger.debug("[DAG] node_done emit failed for %s: %s", name, e)
                     for ds in self.nodes:
                         if name in self.nodes[ds].deps and ds not in queue:
                             queue.append(ds)
@@ -172,8 +173,8 @@ class DAG:
             from core.event_bus import bus
 
             bus.emit("dag:finished", dag=self.name, nodes_done=len(results))
-        except Exception:
-            logger.debug("[DAG] finished emit failed for %s", self.name)
+        except (ImportError, RuntimeError, OSError) as e:
+            logger.debug("[DAG] finished emit failed for %s: %s", self.name, e)
         return results
 
     def summary(self) -> str:

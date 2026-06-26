@@ -18,7 +18,8 @@ def activate_all_artifacts():
     try:
         from core.event_bus import bus
         from core.legendary_arsenal import _armory as armory
-    except Exception:
+    except (ImportError, RuntimeError, OSError) as e:
+        logger.debug("Artifact activation skipped: %s", e)
         return
 
     # ═══════ BAIHU: 刑天斧 + 攻防套 ═══════

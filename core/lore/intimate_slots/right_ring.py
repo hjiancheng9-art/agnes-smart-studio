@@ -29,7 +29,7 @@ class SelfHealer:
             from core.version import __version__
 
             self._version = __version__
-        except Exception:
+        except (ImportError, RuntimeError, OSError):
             self._version = "v5.0"
 
     def check(self) -> dict:
@@ -47,7 +47,8 @@ class SelfHealer:
             if not mgr.ping():
                 score -= 20
                 logger.warning("[右戒] provider not responding")
-        except Exception:
+        except (ImportError, OSError, RuntimeError) as e:
+            logger.debug("[RightRing] provider check failed: %s", e)
             score -= 10
         # Check disk
         try:
@@ -57,7 +58,7 @@ class SelfHealer:
             free_gb = usage.free / (1024**3)
             if free_gb < 1:
                 score -= 15
-        except Exception:
+        except (ImportError, OSError, RuntimeError) as e:
             logger.debug("[RightRing] disk check failed")
         # Check circuit breaker status
         try:
@@ -66,7 +67,7 @@ class SelfHealer:
             if circuit.status.get("tripped"):
                 score -= 25
                 logger.warning("[右戒] circuit breaker tripped")
-        except Exception:
+        except (ImportError, OSError, RuntimeError) as e:
             logger.debug("[RightRing] circuit check failed")
         self._health_score = max(0, score)
         self._save()

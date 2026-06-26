@@ -24,6 +24,12 @@ from collections.abc import Callable
 logger = logging.getLogger("crux.chat")
 
 from core.brain import SmartBrain
+from core.chat_prompt import (
+    CHAT_SYSTEM_PROMPT,
+    CODE_SYSTEM_PROMPT,
+    build_system_prompt,
+    get_cached_prompt,
+)
 from core.client import CruxClient
 from core.config import CRUX_VISION_MODEL
 from core.context_tools import truncate_messages
@@ -50,8 +56,8 @@ __all__ = [
     "TOOL_CALLING_MODELS",
 ]
 
-# ── System prompt 模块级缓存（(cache_key, prompt) 避免每轮重建 10+ import 链）──
-_cached_prompt: list[str] = ["", ""]
+# ── System prompt 模块级缓存（委托 chat_prompt.py 管理）──
+_cached_prompt: list[str] = ["", ""]  # 向后兼容旧引用
 
 
 CHAT_SYSTEM_PROMPT = """你是 {provider_name} 智能助手，当前运行在 {model_name} 模型上。你擅长：
@@ -184,7 +190,7 @@ class ChatSession:
 
             wire_all()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
 
     @property
     def supports_tools(self) -> bool:
@@ -370,179 +376,32 @@ class ChatSession:
     def _build_system_prompt(self) -> str:
         """构建动态系统提示词，注入当前供应商和模型名 + 已启用规则。
 
+        委托 core.chat_prompt.build_system_prompt() 处理 20 层谱系注入。
         使用模块级缓存：只有在 provider/model/mode/rules 变化时才重建。
-        避免每次对话轮都做 10+ import + 字符串拼接。
         """
-        provider = get_provider_name(self.model)
-        template = CODE_SYSTEM_PROMPT if self.code_mode else CHAT_SYSTEM_PROMPT
-        cache_key = f"{provider}|{self.model}|{self.code_mode}|b{self.browser_enabled}|n{self.notebook_enabled}|a{self.audio_enabled}"
-        # 检查缓存（规则 hash 也纳入 key 以保证规则变更时刷新）
+        # 规则 hash（纳入缓存 key 以保证规则变更时刷新）
+        rules_hash = ""
         try:
             from core.rules import get_rules
-            cache_key += f"|{hash(str([r.name for r in get_rules().active_rules]))}"
+            rules_hash = str(hash(str([r.name for r in get_rules().active_rules])))
         except (ImportError, OSError):
             pass
 
-        if _cached_prompt[0] == cache_key:
-            return _cached_prompt[1]
-
-        base = template.format(provider_name=provider, model_name=self.model)
-        base += (
-            "\n\n## 回答质量规范\n"
-            "- 直接回答，不要重复用户的问题\n"
-            "- 不要在 3 轮内重复相同内容\n"
-            "- 不要逐字复述已有的上下文\n"
-            "- 回答尽量在 2 段以内，简洁到位\n"
-            "- 避免无意义的寒暄和套话"
+        prompt = build_system_prompt(
+            model=self.model,
+            provider_name=get_provider_name(self.model),
+            code_mode=self.code_mode,
+            browser_enabled=self.browser_enabled,
+            notebook_enabled=self.notebook_enabled,
+            audio_enabled=self.audio_enabled,
+            active_skill_rules_hash=rules_hash,
+            skills_auto_prompt_manager=self.skills.auto_skills_prompt,
         )
-        # 注入已启用规则（与 get_provider_name 同模式，所有 mode 切换自动存活）
-        try:
-            from core.rules import get_rules
 
-            base += get_rules().inject_prompt()
-        except (ImportError, OSError):
-            pass  # rules 模块不可用时静默降级
-        # 注入技能市场概况 + 能力来源总览（让 AI 知道可用资源）
-        try:
-            from core.marketplace import get_marketplace
-
-            base += "\n\n" + get_marketplace().summary()
-        except (ImportError, OSError):
-            pass
-        try:
-            from core.orchestra import get_orchestra
-
-            base += "\n\n" + get_orchestra().summary()
-        except (ImportError, OSError):
-            pass
-        # #5 注入 Prompt Lab 变体差异化指令
-        try:
-            from core.prompt_lab import get_prompt_lab
-
-            base += get_prompt_lab().get_active_instructions()
-        except (ImportError, OSError):
-            pass
-        # 七兽融合注入（七兽同体·魂魄交融，替代独立七段）
-        try:
-            from core.seven_beasts_fusion import get_fusion_prompt
-
-            base += "\n\n" + get_fusion_prompt()
-        except (ImportError, OSError):
-            pass
-        # 五兽躯体注入
-        try:
-            from core.beast_wiring import get_wiring_summary
-
-            base += "\n\n" + get_wiring_summary()
-        except (ImportError, OSError):
-            pass
-        # 贴身七件行为规则注入
-        try:
-            from core.intimate_slots import get_intimate_prompt
-
-            base += "\n\n" + get_intimate_prompt()
-        except (ImportError, OSError):
-            pass
-        # 功法谱注入（五层功法·五兽归位）
-        try:
-            from core.gongfa_spectrum import get_gongfa_prompt
-
-            base += "\n\n" + get_gongfa_prompt()
-        except (ImportError, OSError):
-            pass
-        # 法宝谱注入（84 工具·五兽归鞘）
-        try:
-            from core.treasure_spectrum import get_treasure_prompt
-
-            base += "\n\n" + get_treasure_prompt()
-        except (ImportError, OSError):
-            pass
-        # 坐骑谱注入（20 驹·五兽各驭）
-        try:
-            from core.steed_spectrum import get_steed_prompt
-
-            base += "\n\n" + get_steed_prompt()
-        except (ImportError, OSError):
-            pass
-        # 武技谱注入（45 技·五兽归宗）
-        try:
-            from core.wuji_spectrum import get_wuji_prompt
-
-            base += "\n\n" + get_wuji_prompt()
-        except (ImportError, OSError):
-            pass
-        # 金手指谱注入（十三外挂·穿越者面板）
-        try:
-            from core.golden_finger import get_golden_finger_prompt
-
-            base += "\n\n" + get_golden_finger_prompt()
-        except (ImportError, OSError):
-            pass
-        # 灵兽谱注入（十大灵宠·常伴左右）
-        try:
-            from core.familiar_spectrum import get_familiar_prompt
-
-            base += "\n\n" + get_familiar_prompt()
-        except (ImportError, OSError):
-            pass
-        # 洞府谱注入（五堂一庭·修炼洞天）
-        try:
-            from core.dwelling_spectrum import get_dwelling_prompt
-
-            base += "\n\n" + get_dwelling_prompt()
-        except (ImportError, OSError):
-            pass
-        # 秘境谱注入（五大试炼·以战证道）
-        try:
-            from core.trial_spectrum import get_trial_prompt
-
-            base += "\n\n" + get_trial_prompt()
-        except (ImportError, OSError):
-            pass
-        # 化妆谱注入（七妆九变·像素真颜）
-        try:
-            from core.glamour_spectrum import get_glamour_prompt
-
-            base += "\n\n" + get_glamour_prompt()
-        except (ImportError, OSError):
-            pass
-        # 生存技能谱注入（八技合道）
-        try:
-            from core.survival_spectrum import get_survival_prompt
-
-            base += "\n\n" + get_survival_prompt()
-        except (ImportError, OSError):
-            pass
-        # #7/#9 条件注入：browser / notebook / audio 工具使用说明
-        if self.browser_enabled:
-            base += (
-                "\n\n## Browser Companion 网页生成\n"
-                "你可以通过 browser_generate 在 8 个网页平台上全自动生成图片/视频：\n"
-                "可灵(Kling) / 即梦(Jimeng) / Runway / Luma / DALL-E / Gemini / Opal / Veo\n"
-                "优先用官方 API（需配置 API Key），无 Key 时自动降级到 Playwright 浏览器自动化。\n"
-                "首次使用某个平台前需 browser_setup 登录一次，之后 session 自动保存。\n"
-                "用 browser_providers 查看可用平台状态，browser_check 查询任务进度。"
-            )
-        if self.notebook_enabled:
-            base += (
-                "\n\n## Notebook 工具\n"
-                "你可以操作 Jupyter notebook (.ipynb)：打开/编辑/执行代码单元格/保存。\n"
-                "适合数据分析、实验记录、可视化等数据科学场景。"
-            )
-        if self.audio_enabled:
-            base += (
-                "\n\n## 音频工具\n"
-                "你可以生成音频内容：tts_narration(文字转语音旁白)、generate_bgm(背景音乐)、\n"
-                "generate_sfx(音效)、audio_mixdown(多轨混音)。\n"
-                "所有输出保存到 output/audio/。补齐 Showrunner 旁白+BGM 音轨。"
-            )
-        # Skill 三态：注入所有 trigger=auto 的技能 prompt（对标 Claude auto-skills）
-        # 与手动 load 的技能（由 get_system_prompt 处理）正交：auto 类在此统一注入。
-        # skills.auto_skills_prompt 内部会跳过当前已手动加载的技能，避免重复。
-        base = self.skills.auto_skills_prompt(base)
-        # 存入缓存（下次同 key 直接返回，避免重建）
-        _cached_prompt[:] = (cache_key, base)
-        return base
+        # 同步回旧缓存（向后兼容 async_chat.py 的 _cached_prompt 引用）
+        cache = get_cached_prompt()
+        _cached_prompt[:] = [cache.key, cache.prompt]
+        return prompt
 
     def reset(self):
         """清空对话历史（保留 system）"""
@@ -720,7 +579,7 @@ class ChatSession:
             except RuntimeError as e:
                 last_reason = f"上游错误: {e}"
                 continue
-            except Exception as e:  # noqa: BLE001 — 视觉通道不能让流式中断
+            except (OSError, RuntimeError, KeyError, TypeError, ValueError) as e:  # noqa: BLE001 — 视觉通道不能让流式中断
                 last_reason = f"未知错误: {e}"
                 continue
 
@@ -1003,7 +862,7 @@ class ChatSession:
 
             get_prompt_lab().record_outcome()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
 
 
 def merge_tool_calls(fragments: list[dict]) -> list[dict]:
@@ -1194,7 +1053,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                 r = self.brain.enhance_image_prompt(prompt)
                 fp = r.get("optimized_prompt", prompt)
                 neg = r.get("negative_prompt", "") or None
-            except Exception as e:
+            except (OSError, RuntimeError, TypeError, ValueError, KeyError) as e:
                 # 增强失败不阻断生成——退化为原始 prompt 继续；记录原因便于排查上游间歇故障
                 logger.debug("brain.enhance_image_prompt failed: %s: %s", type(e).__name__, e)
                 fp, neg = prompt, None
@@ -1218,7 +1077,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
             except (ImportError, OSError) as e:
                 logger.debug("cost_tracker.record_usage(image) failed: %s: %s", type(e).__name__, e)
             return f"图片已生成并保存: {data.get('local_path', '')}", side
-        except Exception as e:
+        except (OSError, RuntimeError, TypeError, ValueError, KeyError) as e:
             return f"图片生成失败: {e}", side
 
     if name == "generate_video":
@@ -1230,7 +1089,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                 r = self.brain.enhance_video_prompt(prompt)
                 fp = r.get("optimized_prompt", prompt)
                 neg = r.get("negative_prompt", "") or None
-            except Exception as e:
+            except (OSError, RuntimeError, TypeError, ValueError, KeyError) as e:
                 # Brain 调用可能因上游间歇故障失败，增强失败不回退为原始 prompt 继续
                 logger.debug("brain.enhance_video_prompt failed: %s: %s", type(e).__name__, e)
                 fp, neg = prompt, None
@@ -1261,7 +1120,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                 pct = data.get("progress", 0)
                 return (f"视频生成超时（进度 {pct:.0f}%），请稍后用 video_id={vid} 查询状态"), side
             return f"视频已生成: {data.get('local_path', '')}", side
-        except Exception as e:
+        except (OSError, RuntimeError, TypeError, ValueError, KeyError) as e:
             return f"视频生成失败: {e}", side
 
     if name == "multi_agent":
@@ -1310,7 +1169,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
             if isinstance(post_evt.result, str) and post_evt.result:
                 result = post_evt.result
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
 
         side.append(("info", f"工具 {name} 执行完成"))
         return result, side

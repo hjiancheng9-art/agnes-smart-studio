@@ -139,7 +139,7 @@ class PluginManager:
             sys.modules[spec.name] = module
             spec.loader.exec_module(module)
             instance = module.Plugin() if hasattr(module, "Plugin") else None
-        except Exception as e:
+        except (RuntimeError, OSError, ImportError, TypeError, ValueError) as e:
             logger.exception("Failed to load plugin module: %s → %s", manifest.name, e)
             return None
 
@@ -174,7 +174,7 @@ class PluginManager:
             self._active.add(name)
             logger.info("Plugin activated: %s", name)
             return True
-        except Exception as e:
+        except (RuntimeError, OSError, TypeError, ValueError) as e:
             logger.exception("Failed to activate plugin: %s → %s", name, e)
             return False
 
@@ -191,7 +191,7 @@ class PluginManager:
             self._active.discard(name)
             logger.info("Plugin deactivated: %s", name)
             return True
-        except Exception as e:
+        except (RuntimeError, OSError, TypeError, ValueError) as e:
             logger.exception("Failed to deactivate plugin: %s → %s", name, e)
             return False
 

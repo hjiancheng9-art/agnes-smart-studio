@@ -49,7 +49,8 @@ def _get_browser():
             try:
                 _page.title()
                 return _page
-            except Exception:
+            except (RuntimeError, OSError) as e:
+                logger.debug("Browser page stale: %s", e)
                 _page = None
                 _browser = None
 

@@ -52,7 +52,7 @@ class EventBus:
         for handler in handlers:
             try:
                 handler(**kwargs)
-            except Exception:
+            except (OSError, RuntimeError, ImportError, ValueError, TypeError, KeyError, AttributeError):
                 logger.exception("Event handler failed: %s → %s", event, handler.__name__)
 
     def clear(self) -> None:

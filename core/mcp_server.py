@@ -133,7 +133,7 @@ class MCPServer:
             if is_notification:
                 return None
             return self._error(req_id, e.code, e.message)
-        except Exception as e:  # noqa: BLE001 — JSON-RPC server 必须吞所有异常
+        except (OSError, RuntimeError, ImportError, ValueError, TypeError, KeyError, AttributeError) as e:  # noqa: BLE001 — JSON-RPC 服务器必须吞运行期异常
             import traceback
 
             tb = traceback.format_exc()

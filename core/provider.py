@@ -145,6 +145,18 @@ def _register_defaults():
             tier="pro",
             aliases=("local", "qwen", "qwen3"),
         ),
+                # ── CodeBuddy (腾讯云 AI 代码助手) ──
+        ModelInfo(
+            id="codebuddy-pro",
+            name="CodeBuddy Pro",
+            provider_id="codebuddy",
+            provider_name="CodeBuddy (腾讯云 AI 代码助手)",
+            description="腾讯云 AI 代码助手，代码补全/审查/重构/工作流",
+            supports_tools=True,
+            supports_thinking=True,
+            tier="pro",
+            aliases=("codebuddy", "cb"),
+        ),
         # ── 图片/视频引擎模型（调用 create_image / create_video 端点）──
         ModelInfo(
             id="agnes-image-2.1-flash",
@@ -399,7 +411,7 @@ class ProviderManager:
             )
             urllib.request.urlopen(req, timeout=5)
             return True
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError) as e:
             # ping 是 watchdog/circuit-breaker 的决策依据，记录失败原因便于排查
             # （网络错误 vs API key 错误 vs DNS 失效在此可区分）
             logger.debug("provider.ping(%s) failed: %s: %s", self.state.active, type(e).__name__, e)
@@ -437,7 +449,17 @@ class ProviderManager:
         provider = self.providers[pid]
         api_key = provider.get("api_key") or os.getenv(f"{pid.upper()}_API_KEY", "")
         # Ensure ASCII-only (httpx rejects non-ASCII headers)
-        api_key = api_key.encode("ascii", errors="ignore").decode("ascii") if api_key else ""
+        # P2-fix: errors="strict" — 拒绝非ASCII字符（如中文引号/BOM），
+        # 避免 Key 被静默截断导致认证失败而不报错。
+        try:
+            api_key = api_key.encode("ascii", errors="strict").decode("ascii") if api_key else ""
+        except UnicodeEncodeError:
+            logger.error(
+                "API key for provider '%s' contains non-ASCII characters. "
+                "Check your .env / models.json for stray full-width chars or BOM.",
+                pid,
+            )
+            api_key = ""
         # Local providers (e.g. llama.cpp) may not require authentication.
         # auth_required=false → use a placeholder key instead of falling back to
         # another provider (which would cause session.model vs client.base_url mismatch).

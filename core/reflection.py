@@ -118,7 +118,7 @@ class ReflectionEngine:
                 self._recent_calls.clear()
                 return f"\n[反思] {critique.strip()}"
             return None
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, TypeError, KeyError) as e:
             # 降级：LLM 失败不阻塞主流程，但保留日志便于排查
             logger.warning("reflection critique failed (%s: %s)", type(e).__name__, e)
             if _m:

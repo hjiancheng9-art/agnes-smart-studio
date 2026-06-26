@@ -984,7 +984,7 @@ class ToolRegistry:
             except ImportError:
                 # resilience 不可用：退回原行为（raise）
                 raise
-        except Exception as e:
+        except (OSError, RuntimeError, TypeError, ValueError, KeyError) as e:
             if _m:
                 _m.increment("tool_errors")
                 _m.increment(f"tool_err.{name}")  # 按名分桶

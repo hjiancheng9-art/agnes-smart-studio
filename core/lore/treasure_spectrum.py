@@ -77,6 +77,6 @@ def get_treasure_summary() -> str:
         reg.load()
         names = reg.tool_names
         count = len(names)
-    except Exception:
+    except (ImportError, RuntimeError, OSError):
         count = 84
     return f"[法宝] {count} 工具 — 白虎4 · 青龙18 · 朱雀5 · 玄武26 · 麒麟31"

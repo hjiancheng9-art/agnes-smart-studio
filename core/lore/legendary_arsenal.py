@@ -91,7 +91,8 @@ class Armory:
         if a.activate:
             try:
                 a.forged = a.activate()
-            except Exception:
+            except (ImportError, RuntimeError, OSError) as e:
+                logger.debug("Artifact forge failed for %s: %s", a.name, e)
                 a.forged = False
         else:
             a.forged = True
@@ -100,7 +101,8 @@ class Armory:
                 from core.event_bus import bus
 
                 bus.emit("artifact:forged", beast=beast, slot=slot.value, artifact=a.name)
-            except Exception:
+            except (ImportError, RuntimeError, OSError) as e:
+                logger.debug("Artifact emit failed: %s", e)
                 pass
         return a.forged
 

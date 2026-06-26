@@ -90,7 +90,7 @@ def get_gongfa_summary() -> str:
         from core.commands import COMMANDS
 
         cmd_count = len(COMMANDS)
-    except Exception:
+    except (ImportError, NameError, OSError):
         cmd_count = 33
 
     try:
@@ -98,13 +98,13 @@ def get_gongfa_summary() -> str:
 
         skills_dir = Path(__file__).resolve().parent.parent / "skills"
         skill_count = len(list(skills_dir.glob("*.skill.json")))
-    except Exception:
+    except (ImportError, NameError, OSError):
         skill_count = 45
 
     try:
         rules_dir = Path(__file__).resolve().parent.parent / "rules"  # type: ignore[possibly-unbound]
         rule_count = len(list(rules_dir.glob("*.rules.md")))  # type: ignore[possibly-unbound]
-    except Exception:
+    except (ImportError, NameError, OSError):
         rule_count = 6
 
     return f"[功法谱] {rule_count}心法 · {skill_count}武技 · {cmd_count}招式 · 5修炼场 · 5秘籍库 — 五兽归位"

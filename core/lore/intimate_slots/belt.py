@@ -62,7 +62,7 @@ class DataPipeline:
                     f.write(json.dumps(item, ensure_ascii=False) + "\n")
             self._buffer.clear()
             self._last_flush = time.time()
-        except Exception as e:
+        except (ImportError, OSError, RuntimeError) as e:
             logger.debug("Belt flush: %s", e)
 
     def auto_flush(self):

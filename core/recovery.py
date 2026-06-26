@@ -75,6 +75,16 @@ class RecoveryEngine:
     def _disk_low(self, threshold_mb: int = 500, **ctx) -> dict:
         import shutil as _shutil
 
+        # P3-fix: 先检查磁盘剩余空间，低于阈值才清理（而非无脑删文件）
+        try:
+            usage = _shutil.disk_usage(self.root)
+            free_mb = usage.free / (1024 * 1024)
+            if free_mb >= threshold_mb:
+                return {"success": True, "message": f"Disk space OK ({free_mb:.0f} MB free > {threshold_mb} MB threshold)"}
+        except OSError:
+            # disk_usage 失败时保守清理（如网络文件系统不支持 statvfs）
+            pass
+
         freed = 0
         # Clean old browser sessions
         bs = self.root / "output" / "browser_sessions"
@@ -93,7 +103,7 @@ class RecoveryEngine:
                     break
             except (OSError, PermissionError):
                 pass
-        return {"success": True, "message": f"Cleaned {freed} items"}
+        return {"success": True, "message": f"Disk space low (<{threshold_mb} MB) — cleaned {freed} items"}
 
     def _model_error(self, error_msg: str = "", **ctx) -> dict:
         hints = []

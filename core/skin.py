@@ -54,7 +54,7 @@ class SkinManager:
             asset.data[SkinLayer.SVG] = svg
             asset.data[SkinLayer.WEB] = web
             self._assets["logo"] = asset
-        except Exception as e:
+        except (ImportError, RuntimeError, OSError) as e:
             logger.debug("Logo init: %s", e)
 
     def _init_banner(self):
@@ -62,8 +62,8 @@ class SkinManager:
             from ui.terminal_logo import build_banner
 
             self._assets["banner"] = SkinAsset(name="banner", data={SkinLayer.TERMINAL: build_banner()})
-        except Exception:
-            logger.debug("[Skin] banner init dynamic failed")
+        except (ImportError, RuntimeError, OSError) as e:
+            logger.debug("[Skin] banner init dynamic failed: %s", e)
 
     def _grid_to_svg(self, grid) -> str:
         from ui.theme import COLORS

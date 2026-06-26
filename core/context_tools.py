@@ -224,7 +224,7 @@ def extractive_compress(
         result_parts = [sentences[i] for i in sorted(selected_indices)]
         return " ".join(result_parts)
 
-    except Exception as e:
+    except (RuntimeError, ValueError, TypeError) as e:
         # 失败回退截断，但记录异常类型以便排查
         import logging
 
@@ -272,7 +272,7 @@ def abstractive_compress(
         summary = response["choices"][0]["message"]["content"]
         if summary:
             return summary.strip()
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError, TypeError, KeyError) as e:
         import logging
 
         _log = logging.getLogger("crux.context")
@@ -329,7 +329,7 @@ def compress_tool_result(
                 if _m:
                     _m.increment("tool_result_abstractive")
                 return abstracted
-        except Exception:
+        except (ImportError, RuntimeError, OSError):
             pass  # 静默降级
 
     # 兜底: 硬截断（Tier 1）

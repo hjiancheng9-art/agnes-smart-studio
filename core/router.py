@@ -94,7 +94,7 @@ def _detect_provider(model_id: str, mgr: Any | None = None) -> str:
             return info.provider_id
     except ImportError:
         pass
-    except Exception as e:
+    except (RuntimeError, ValueError, TypeError, KeyError) as e:
         import logging
 
         logging.getLogger("crux.router").warning(
@@ -115,7 +115,7 @@ def _detect_provider(model_id: str, mgr: Any | None = None) -> str:
                 return pid
     except ImportError:
         pass
-    except Exception as e:
+    except (RuntimeError, ValueError, TypeError, KeyError) as e:
         import logging
 
         logging.getLogger("crux.router").warning(
@@ -416,7 +416,7 @@ def apply(decision: RouteDecision, session: ChatSession) -> None:
             mgr.load()
         current_pid = _detect_provider(session.model, mgr)
         target_pid = _detect_provider(decision.model_id, mgr)
-    except Exception as e:
+    except (ImportError, RuntimeError, OSError) as e:
         # provider 加载失败 → 无法判定供应商归属，保守起见不切换 client。
         # 注意：不能继续往下走到 session.model 赋值，否则会造成
         # "model 名改了但 client 还是旧供应商" 的不一致。
@@ -445,7 +445,7 @@ def apply(decision: RouteDecision, session: ChatSession) -> None:
                 return
             session.client = new_client
             decision.switch_client = True
-        except Exception:
+        except (ImportError, RuntimeError, OSError):
             # 切换失败（无 Key / 供应商不可用）→ 保留当前供应商，不改 model
             return
 

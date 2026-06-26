@@ -72,13 +72,13 @@ class Daemon:
             wd = get_watchdog()
             wd.start()
             self.state.watchdog_alive = wd.alive
-        except Exception:
-            logger.debug("Watchdog unavailable")
+        except (ImportError, RuntimeError, OSError) as e:
+            logger.debug("Watchdog unavailable: %s", e)
         try:
             from core.provider import get_provider_manager
 
             self.state.provider_active = get_provider_manager().active_provider
-        except Exception:
+        except (ImportError, RuntimeError, OSError):
             logger.exception("[Daemon] provider init failed")
         self._save_state()
         signal.signal(signal.SIGINT, lambda *_: self.stop())
@@ -100,8 +100,8 @@ class Daemon:
             from core.watchdog import get_watchdog
 
             get_watchdog().stop()
-        except Exception:
-            logger.exception("[Daemon] watchdog stop failed")
+        except (ImportError, RuntimeError, OSError) as e:
+            logger.exception("[Daemon] watchdog stop failed: %s", e)
         self._save_state()
         logger.info("[Daemon] stopped")
 
@@ -109,7 +109,7 @@ class Daemon:
         while self._running:
             try:
                 self._accept_one()
-            except Exception as e:
+            except (RuntimeError, OSError, ValueError) as e:
                 logger.debug("Pipe accept: %s", e)
             time.sleep(1)
 
@@ -155,12 +155,13 @@ class Daemon:
                     resp = self._handle_command(data)
                     conn.send(resp.encode("utf-8"))
                     conn.close()
-                except TimeoutError:
+                except (RuntimeError, TimeoutError, OSError) as e:
+                    logger.debug("Socket accept: %s", e)
                     continue
-                except Exception:
+                except (RuntimeError, OSError, ValueError):
                     break
             s.close()
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError) as e:
             logger.debug("Socket serve: %s", e)
 
     def _handle_command(self, cmd: str) -> str:

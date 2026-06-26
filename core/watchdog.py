@@ -70,8 +70,8 @@ class Watchdog:
                 self._check_provider()
                 self._check_disk()
                 self._check_memory()
-            except Exception:
-                logger.exception("Watchdog cycle")
+            except (OSError, RuntimeError, ValueError) as e:
+                logger.exception("Watchdog cycle error: %s", e)
             self._stop_flag.wait(10)
 
     # ── provider (real ping) ────────────────────────────────
@@ -94,7 +94,7 @@ class Watchdog:
                     self._alert("provider", f"{active} -> {mgr.active_provider}")
             else:
                 self._state.provider_ok = True
-        except Exception as e:
+        except (ImportError, RuntimeError, OSError) as e:
             logger.debug("Provider check: %s", e)
 
     # ── disk (real cleanup) ────────────────────────────────
@@ -112,7 +112,7 @@ class Watchdog:
                 if n:
                     self._state.files_cleaned += n
                     self._alert("disk", f"cleaned {n} files, {free:.1f}GB free")
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError) as e:
             logger.debug("Disk check: %s", e)
 
     def _clean_disk(self) -> int:
@@ -144,7 +144,7 @@ class Watchdog:
             _gc.collect()
             # Check if any session has bloated context
             # (access via the module-level session registry if exists)
-        except Exception:
+        except (ImportError, RuntimeError, OSError):
             logger.debug("[Watchdog] gc collect skipped")
 
     def _alert(self, kind: str, msg: str) -> None:
@@ -156,8 +156,8 @@ class Watchdog:
             from core.event_bus import bus
 
             bus.emit("watchdog:alert", kind=kind, message=msg)
-        except Exception:
-            logger.debug("[Watchdog] alert emit failed")
+        except (ImportError, RuntimeError, OSError) as e:
+            logger.debug("[Watchdog] alert emit failed: %s", e)
 
     @property
     def status(self) -> WatchdogState:

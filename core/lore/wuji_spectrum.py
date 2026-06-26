@@ -81,6 +81,6 @@ def get_wuji_summary() -> str:
         # Count from skills dir
         skills_dir = Path(__file__).resolve().parent.parent / "skills"
         local = len(list(skills_dir.glob("*.skill.json"))) if skills_dir.exists() else 45
-    except Exception:
+    except (OSError, RuntimeError):
         local = 45
     return f"[武技] {local}技 — 白虎·攻防(6) · 青龙·工程(5) · 朱雀·品质(12) · 玄武·守卫(4) · 麒麟·创造(18)"

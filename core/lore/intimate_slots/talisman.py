@@ -55,7 +55,7 @@ class CircuitBreaker:
                     from core.event_bus import bus
 
                     bus.emit("talisman:tripped", provider=provider, failures=count)
-                except Exception:
+                except (ImportError, OSError, RuntimeError) as e:
                     logger.debug("[Talisman] alert emit failed")
 
     def record_success(self, provider: str = "default"):

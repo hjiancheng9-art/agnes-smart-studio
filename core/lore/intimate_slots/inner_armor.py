@@ -30,14 +30,14 @@ class KeyVault:
             raw = VAULT_FILE.read_text(encoding="utf-8")
             decoded = base64.b64decode(raw).decode("utf-8")
             self._cache = json.loads(decoded)
-        except Exception:
+        except (ImportError, OSError, RuntimeError) as e:
             logger.debug("[InnerArmor] load failed, using empty cache")
 
     def _save(self):
         try:
             encoded = base64.b64encode(json.dumps(self._cache).encode("utf-8")).decode("utf-8")
             VAULT_FILE.write_text(encoded, encoding="utf-8")
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, TypeError) as e:
             logger.error("Vault save: %s", e)
 
     def set(self, key: str, value: str):

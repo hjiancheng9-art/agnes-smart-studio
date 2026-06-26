@@ -208,7 +208,7 @@ class CapabilityRegistry:
             }
         except ImportError as e:
             results["rendering.invariants"] = {"renderer_present": False, "error": f"import: {e}"}
-        except Exception as e:
+        except (RuntimeError, OSError, TypeError, AttributeError) as e:
             results["rendering.invariants"] = {"renderer_present": False, "error": f"{type(e).__name__}: {e}"}
 
         # ── local_llm_health: 真反射探测本地 llama.cpp ──
@@ -229,7 +229,7 @@ class CapabilityRegistry:
                 "model_ids": [m.get("id", "") for m in models[:5]],
                 "endpoint": "http://127.0.0.1:8080/v1",
             }
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError, httpx.HTTPError) as e:
             results["local_llm_health"] = {"reachable": False, "error": f"{type(e).__name__}: {e}"}
 
         return results
@@ -250,7 +250,7 @@ def get_banner_counts() -> dict:
 
     try:
         c = CapabilityRegistry().counts()
-    except Exception as e:  # banner 是启动门面，绝不能因为统计抛错而中断启动
+    except (RuntimeError, OSError, ImportError, ValueError, TypeError) as e:  # banner 是启动门面，绝不能因为统计抛错而中断启动
         logger.debug("banner counts failed: %s", e)
         c = {"skills": None, "tools": None, "providers": None}
     return {

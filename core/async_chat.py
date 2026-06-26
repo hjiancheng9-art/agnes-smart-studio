@@ -105,7 +105,7 @@ class AsyncChatSession:
 
             wire_all()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
 
     # ── 属性 / 状态切换（纯计算，无需 async）─────────────────
 
@@ -220,7 +220,7 @@ class AsyncChatSession:
             from core.rules import get_rules
             cache_key += f"|{hash(str([r.name for r in get_rules().active_rules]))}"
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
         if _async_cached_prompt[0] == cache_key:
             return _async_cached_prompt[1]
 
@@ -238,117 +238,117 @@ class AsyncChatSession:
 
             base += get_rules().inject_prompt()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
         try:
             from core.marketplace import get_marketplace
 
             base += "\n\n" + get_marketplace().summary()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
         try:
             from core.orchestra import get_orchestra
 
             base += "\n\n" + get_orchestra().summary()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
         # #5 注入 Prompt Lab 变体差异化指令
         try:
             from core.prompt_lab import get_prompt_lab
 
             base += get_prompt_lab().get_active_instructions()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
         # 七兽融合注入（七兽同体·魂魄交融，替代独立七段）
         try:
             from core.seven_beasts_fusion import get_fusion_prompt
 
             base += "\n\n" + get_fusion_prompt()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
         # 五兽躯体注入
         try:
             from core.beast_wiring import get_wiring_summary
 
             base += "\n\n" + get_wiring_summary()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
         # 贴身七件行为规则注入
         try:
             from core.intimate_slots import get_intimate_prompt
 
             base += "\n\n" + get_intimate_prompt()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
         # 功法谱注入（五层功法·五兽归位）
         try:
             from core.gongfa_spectrum import get_gongfa_prompt
 
             base += "\n\n" + get_gongfa_prompt()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
         # 法宝谱注入（84 工具·五兽归鞘）
         try:
             from core.treasure_spectrum import get_treasure_prompt
 
             base += "\n\n" + get_treasure_prompt()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
         # 坐骑谱注入（20 驹·五兽各驭）
         try:
             from core.steed_spectrum import get_steed_prompt
 
             base += "\n\n" + get_steed_prompt()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
         # 武技谱注入（45 技·五兽归宗）
         try:
             from core.wuji_spectrum import get_wuji_prompt
 
             base += "\n\n" + get_wuji_prompt()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
         # 金手指谱注入（十三外挂·穿越者面板）
         try:
             from core.golden_finger import get_golden_finger_prompt
 
             base += "\n\n" + get_golden_finger_prompt()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
         # 灵兽谱注入（十大灵宠·常伴左右）
         try:
             from core.familiar_spectrum import get_familiar_prompt
 
             base += "\n\n" + get_familiar_prompt()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
         # 洞府谱注入（五堂一庭·修炼洞天）
         try:
             from core.dwelling_spectrum import get_dwelling_prompt
 
             base += "\n\n" + get_dwelling_prompt()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
         # 秘境谱注入（五大试炼·以战证道）
         try:
             from core.trial_spectrum import get_trial_prompt
 
             base += "\n\n" + get_trial_prompt()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
         # 化妆谱注入（七妆九变·像素真颜）
         try:
             from core.glamour_spectrum import get_glamour_prompt
 
             base += "\n\n" + get_glamour_prompt()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
         # 生存技能谱注入（八技合道）
         try:
             from core.survival_spectrum import get_survival_prompt
 
             base += "\n\n" + get_survival_prompt()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
         # 存入缓存
         _async_cached_prompt[:] = (cache_key, base)
         return base
@@ -394,7 +394,7 @@ class AsyncChatSession:
             except RuntimeError as e:
                 last_reason = f"上游错误: {e}"
                 continue
-            except Exception as e:  # noqa: BLE001
+            except (OSError, RuntimeError, KeyError, TypeError, ValueError) as e:  # noqa: BLE001
                 last_reason = f"未知错误: {e}"
                 continue
         return (
@@ -439,7 +439,7 @@ class AsyncChatSession:
             if pre_evt.stop_processing:
                 return "工具调用被拦截（PRE_TOOL_USE hook）", []
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
 
         prompt = args.get("prompt", "")
         image_url = args.get("image_url", "") or args.get("image", "")
@@ -726,4 +726,4 @@ class AsyncChatSession:
 
             get_prompt_lab().record_outcome()
         except (ImportError, OSError):
-            pass
+            logger.debug('spectrum module not available')
