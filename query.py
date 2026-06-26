@@ -24,7 +24,7 @@ OUTPUT = ROOT / "output"
 HISTORY_FILE = OUTPUT / "history.json"
 
 # ── Rich theme (replaces ANSI constants) ──
-from ui.theme import COLORS, ICONS, LAYOUT, console
+from ui.theme import COLORS, console
 
 
 def _clean_video_id(raw: str) -> str:
@@ -36,7 +36,7 @@ def _clean_video_id(raw: str) -> str:
         decoded = base64.b64decode(b64).decode("utf-8")
         if "video_id:" in decoded:
             idx = decoded.rfind("video_id:")
-            return decoded[idx + len("video_id:"):]
+            return decoded[idx + len("video_id:") :]
     except (ValueError, UnicodeDecodeError):
         pass
     return raw
@@ -79,19 +79,21 @@ def _find_recent_videos(limit: int = 20) -> list[dict]:
 
         vid = _clean_video_id(vid)
         if vid and vid.startswith("video_"):
-            prompt = (r.get("prompt", "") or "")
+            prompt = r.get("prompt", "") or ""
             # pipeline 类型的 prompt 可能在 result.image 里
             if not prompt and isinstance(result, dict):
                 img = result.get("image", {})
                 if isinstance(img, dict):
                     prompt = img.get("prompt", "")
-            videos.append({
-                "video_id": vid,
-                "prompt": prompt[:60] if prompt else "(no prompt)",
-                "status": "ready",
-                "ts": r.get("created_at", ""),
-                "model": r.get("model", ""),
-            })
+            videos.append(
+                {
+                    "video_id": vid,
+                    "prompt": prompt[:60] if prompt else "(no prompt)",
+                    "status": "ready",
+                    "ts": r.get("created_at", ""),
+                    "model": r.get("model", ""),
+                }
+            )
     videos.sort(key=lambda v: v["ts"])
     return videos[-limit:]  # 最新的在最后
 
@@ -141,6 +143,7 @@ def _format_status(data: dict) -> str:
 # 交互模式
 # ════════════════════════════════════════════════
 
+
 def _interactive(client: httpx.Client):
     """交互式查询最近视频"""
     videos = _find_recent_videos()
@@ -159,7 +162,7 @@ def _interactive(client: httpx.Client):
     console.print(f"  [{COLORS['primary']}]v <ID>[/] Enter video_id directly")
     console.print()
 
-    choice = input("  Choose (1-{}): ".format(len(videos))).strip()
+    choice = input(f"  Choose (1-{len(videos)}): ").strip()
 
     if choice == "0" or not choice:
         return
@@ -239,11 +242,13 @@ def _handle_result(data: dict, video_id: str):
 # CLI 模式
 # ════════════════════════════════════════════════
 
+
 def main():
     console.print(f"\n  [bold {COLORS['primary']}]CRUX Video Query[/]\n")
 
     # Load config
     from dotenv import load_dotenv
+
     load_dotenv()
     api_key = os.getenv("CRUX_API_KEY") or os.getenv("AGNES_API_KEY", "")
     if not api_key:

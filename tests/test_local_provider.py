@@ -9,16 +9,15 @@
 - _check_local_llm 正确写入 startup_checks 结果
 - _quick_health 包含 local_llm_health 字段（真反射探测）
 """
+
 from __future__ import annotations
 
 import json
 import sys
-import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import httpx
-import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -70,11 +69,13 @@ class TestLocalModelRegistry:
     def test_local_model_registered(self):
         """Qwen3.6-27B-PRISM-PRO-DQ 应在 MODEL_REGISTRY 中注册。"""
         from core.provider import MODEL_REGISTRY
+
         assert "Qwen3.6-27B-PRISM-PRO-DQ" in MODEL_REGISTRY
 
     def test_local_model_aliases(self):
         """local 模型应有 local / qwen / qwen3 别名。"""
         from core.provider import MODEL_REGISTRY
+
         info = MODEL_REGISTRY["Qwen3.6-27B-PRISM-PRO-DQ"]
         assert "local" in info.aliases
         assert "qwen" in info.aliases
@@ -82,12 +83,14 @@ class TestLocalModelRegistry:
     def test_local_model_provider_id(self):
         """local 模型的 provider_id 应为 "local"。"""
         from core.provider import MODEL_REGISTRY
+
         info = MODEL_REGISTRY["Qwen3.6-27B-PRISM-PRO-DQ"]
         assert info.provider_id == "local"
 
     def test_local_model_supports_tools(self):
         """local 模型应标记 supports_tools=True。"""
         from core.provider import MODEL_REGISTRY
+
         info = MODEL_REGISTRY["Qwen3.6-27B-PRISM-PRO-DQ"]
         assert info.supports_tools is True
 
@@ -197,6 +200,7 @@ class TestCheckLocalLlm:
     def _reset_results(self):
         """清空模块级 _results 列表。"""
         import core.startup_checks as _sc
+
         _sc._results.clear()
 
     def test_local_reachable(self):
@@ -217,9 +221,11 @@ class TestCheckLocalLlm:
         mock_resp.status_code = 200
 
         self._reset_results()
-        with patch("core.provider.get_provider_manager", return_value=mock_mgr):
-            with patch.object(httpx, "get", return_value=mock_resp):
-                _sc._check_local_llm()
+        with (
+            patch("core.provider.get_provider_manager", return_value=mock_mgr),
+            patch.object(httpx, "get", return_value=mock_resp),
+        ):
+            _sc._check_local_llm()
 
         cats = [r[0] for r in _sc._results]
         assert "local_llm" in cats
@@ -240,9 +246,11 @@ class TestCheckLocalLlm:
         }
 
         self._reset_results()
-        with patch("core.provider.get_provider_manager", return_value=mock_mgr):
-            with patch.object(httpx, "get", side_effect=httpx.ConnectError("refused")):
-                _sc._check_local_llm()
+        with (
+            patch("core.provider.get_provider_manager", return_value=mock_mgr),
+            patch.object(httpx, "get", side_effect=httpx.ConnectError("refused")),
+        ):
+            _sc._check_local_llm()
 
         ok_map = {r[0]: r[1] for r in _sc._results}
         assert ok_map.get("local_llm") is False

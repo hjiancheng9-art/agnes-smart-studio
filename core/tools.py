@@ -725,7 +725,13 @@ class ToolRegistry:
         def shell_executor(**kwargs):
             import shlex
             import shutil
+            import subprocess as _sp
             import sys
+
+            # ── 提取 shell 控制参数（Copilot CLI 三模式）──
+            run_in_background = kwargs.pop("run_in_background", False)
+            detach = kwargs.pop("detach", False)
+            description = kwargs.pop("description", "")
 
             safe_kwargs = {}
             for k, v in kwargs.items():
@@ -747,31 +753,49 @@ class ToolRegistry:
             except ImportError:
                 pass
 
+            # ── detach 模式：Popen 后台启动，立即返回 pid ──
+            if detach:
+                if sys.platform == "win32" and not shutil.which("bash"):
+                    full_cmd = f"chcp 65001 >nul && {cmd}"
+                    popen_cmd = full_cmd
+                else:
+                    popen_cmd = cmd
+                proc = _sp.Popen(
+                    popen_cmd,
+                    shell=True,
+                    stdout=_sp.DEVNULL,
+                    stderr=_sp.DEVNULL,
+                    stdin=_sp.DEVNULL,
+                    creationflags=_sp.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
+                )
+                return f"[detached] pid={proc.pid}" + (f" ({description})" if description else "")
+
+            # ── 超时控制：background 模式放宽超时 ──
+            _timeout = cfg.get("timeout", 30)
+            if run_in_background:
+                _timeout = max(_timeout, 300)  # 后台任务至少 5 分钟
+
             # ── 跨平台执行 ──
-            # 注意：此处 shell=True 为设计意图——agent 工具需支持管道/重定向/&& 等 shell 特性。
-            # 安全前提：上方 sandbox_restrict() 已做危险模式黑名单 + 路径白名单过滤，
-            # 且本执行点仅响应用户主动发起的 agent 工具调用。请勿在未加守卫的情况下保留 shell=True。
             if sys.platform == "win32" and not shutil.which("bash"):
-                # Windows 无 bash：cmd /c + chcp 65001 强制 UTF-8
                 full_cmd = f"chcp 65001 >nul && {cmd}"
-                r = subprocess.run(
+                r = _sp.run(
                     full_cmd,
                     shell=True,
                     capture_output=True,
                     text=True,
                     encoding="utf-8",
                     errors="replace",
-                    timeout=cfg.get("timeout", 30),
+                    timeout=_timeout,
                 )
             else:
-                r = subprocess.run(
+                r = _sp.run(
                     cmd,
                     shell=True,
                     capture_output=True,
                     text=True,
                     encoding="utf-8",
                     errors="replace",
-                    timeout=cfg.get("timeout", 30),
+                    timeout=_timeout,
                 )
             return r.stdout.strip() or r.stderr.strip() or f"[exit: {r.returncode}]"
 
@@ -896,6 +920,7 @@ class ToolRegistry:
             from core.observability import metrics as _m
         except ImportError:
             _m = None  # observability 不可用时静默降级
+            TraceContext = None  # type: ignore[assignment]
 
         # 调用日志（可选，失败时静默降级）
         try:
@@ -930,7 +955,7 @@ class ToolRegistry:
             return detail
 
         try:
-            ctx = TraceContext("registry_execute", tool_name=name) if _m else _noop_cm()
+            ctx = TraceContext("registry_execute", tool_name=name) if _m else _noop_cm()  # type: ignore[operator]
             with ctx as span:
                 result = executor(**args)
                 elapsed_ms = span.duration_ms() if span is not None else 0.0

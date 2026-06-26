@@ -7,6 +7,7 @@ from unittest.mock import patch
 class TestHookType:
     def test_enum_values(self):
         from core.hooks import HookType
+
         assert HookType.USER_PROMPT_SUBMIT.value == "user_prompt_submit"
         assert HookType.PRE_TOOL_USE.value == "pre_tool_use"
         assert HookType.POST_TOOL_USE.value == "post_tool_use"
@@ -17,6 +18,7 @@ class TestHookType:
 class TestHookEvent:
     def test_default_values(self):
         from core.hooks import HookEvent, HookType
+
         event = HookEvent(hook_type=HookType.PRE_TOOL_USE)
         assert event.data == {}
         assert event.result is None
@@ -24,6 +26,7 @@ class TestHookEvent:
 
     def test_with_values(self):
         from core.hooks import HookEvent, HookType
+
         event = HookEvent(
             hook_type=HookType.PRE_TOOL_USE,
             data={"key": "val"},
@@ -52,9 +55,10 @@ class TestHookManager:
     def _make_manager(self, tmp_path):
         """Create a HookManager with config pointing to tmp_path."""
         from core.hooks import HookManager
+
         mgr = HookManager.__new__(HookManager)
         mgr._hooks = {}
-        mgr._lock = mgr._lock if hasattr(mgr, '_lock') else __import__('threading').Lock()
+        mgr._lock = mgr._lock if hasattr(mgr, "_lock") else __import__("threading").Lock()
         return mgr
 
     def test_register_and_list(self):
@@ -76,8 +80,11 @@ class TestHookManager:
     def test_register_duplicate(self):
         from core.hooks import HookType
 
-        def h1(e): return e
-        def h2(e): return e
+        def h1(e):
+            return e
+
+        def h2(e):
+            return e
 
         mgr = self._make_manager(None)
         assert mgr.register("dup", HookType.PRE_TOOL_USE, h1) is True
@@ -86,7 +93,8 @@ class TestHookManager:
     def test_unregister(self):
         from core.hooks import HookType
 
-        def handler(e): return e
+        def handler(e):
+            return e
 
         mgr = self._make_manager(None)
         mgr.register("to_remove", HookType.PRE_TOOL_USE, handler)
@@ -100,7 +108,8 @@ class TestHookManager:
     def test_enable_disable(self):
         from core.hooks import HookType
 
-        def handler(e): return e
+        def handler(e):
+            return e
 
         mgr = self._make_manager(None)
         mgr.register("toggle", HookType.PRE_TOOL_USE, handler)
@@ -197,6 +206,7 @@ class TestHookManager:
 
     def test_fire_no_hooks(self):
         from core.hooks import HookType
+
         mgr = self._make_manager(None)
         event = mgr.fire(HookType.PRE_TOOL_USE)
         assert event.data == {}
@@ -204,11 +214,12 @@ class TestHookManager:
 
     def test_load_from_config_missing_file(self, tmp_path):
         from core.hooks import HookManager
+
         config_dir = tmp_path / "output"
         config_dir.mkdir()
         mgr = HookManager.__new__(HookManager)
         mgr._hooks = {}
-        mgr._lock = __import__('threading').Lock()
+        mgr._lock = __import__("threading").Lock()
         # _load_from_config with non-existent hooks.json should not raise
         mgr._load_from_config = HookManager._load_from_config.__get__(mgr)
         with patch("core.hooks.OUTPUT_DIR", config_dir):
@@ -217,6 +228,7 @@ class TestHookManager:
 
     def test_load_from_config_valid(self, tmp_path):
         from core.hooks import HookManager
+
         config_dir = tmp_path / "output"
         config_dir.mkdir()
         hooks_json = [
@@ -228,33 +240,31 @@ class TestHookManager:
                 "priority": 5,
             }
         ]
-        (config_dir / "hooks.json").write_text(
-            json.dumps(hooks_json), encoding="utf-8"
-        )
+        (config_dir / "hooks.json").write_text(json.dumps(hooks_json), encoding="utf-8")
         mgr = HookManager.__new__(HookManager)
         mgr._hooks = {}
-        mgr._lock = __import__('threading').Lock()
+        mgr._lock = __import__("threading").Lock()
         with patch("core.hooks.OUTPUT_DIR", config_dir):
             mgr._load_from_config()
         assert "test" in mgr._hooks
 
     def test_load_from_config_incomplete_entry(self, tmp_path):
         from core.hooks import HookManager
+
         config_dir = tmp_path / "output"
         config_dir.mkdir()
         hooks_json = [{"name": "incomplete"}]  # missing type, handler_module, handler_func
-        (config_dir / "hooks.json").write_text(
-            json.dumps(hooks_json), encoding="utf-8"
-        )
+        (config_dir / "hooks.json").write_text(json.dumps(hooks_json), encoding="utf-8")
         mgr = HookManager.__new__(HookManager)
         mgr._hooks = {}
-        mgr._lock = __import__('threading').Lock()
+        mgr._lock = __import__("threading").Lock()
         with patch("core.hooks.OUTPUT_DIR", config_dir):
             mgr._load_from_config()
         assert "incomplete" not in mgr._hooks
 
     def test_load_from_config_bad_type(self, tmp_path):
         from core.hooks import HookManager
+
         config_dir = tmp_path / "output"
         config_dir.mkdir()
         hooks_json = [
@@ -265,12 +275,10 @@ class TestHookManager:
                 "handler_func": "len",
             }
         ]
-        (config_dir / "hooks.json").write_text(
-            json.dumps(hooks_json), encoding="utf-8"
-        )
+        (config_dir / "hooks.json").write_text(json.dumps(hooks_json), encoding="utf-8")
         mgr = HookManager.__new__(HookManager)
         mgr._hooks = {}
-        mgr._lock = __import__('threading').Lock()
+        mgr._lock = __import__("threading").Lock()
         with patch("core.hooks.OUTPUT_DIR", config_dir):
             mgr._load_from_config()
         assert "bad_type" not in mgr._hooks
@@ -278,7 +286,8 @@ class TestHookManager:
 
 class TestSafetyFilter:
     def test_detects_dangerous_pattern(self):
-        from core.hooks import _safety_filter_handler, HookEvent, HookType
+        from core.hooks import HookEvent, HookType, _safety_filter_handler
+
         event = HookEvent(
             hook_type=HookType.USER_PROMPT_SUBMIT,
             data={"prompt": "run rm -rf / now"},
@@ -288,7 +297,8 @@ class TestSafetyFilter:
         assert "[SAFETY WARNING]" in result.result
 
     def test_safe_prompt_unchanged(self):
-        from core.hooks import _safety_filter_handler, HookEvent, HookType
+        from core.hooks import HookEvent, HookType, _safety_filter_handler
+
         event = HookEvent(
             hook_type=HookType.USER_PROMPT_SUBMIT,
             data={"prompt": "write a hello world program"},
@@ -298,7 +308,8 @@ class TestSafetyFilter:
         assert result.result == "hello response"
 
     def test_empty_prompt(self):
-        from core.hooks import _safety_filter_handler, HookEvent, HookType
+        from core.hooks import HookEvent, HookType, _safety_filter_handler
+
         event = HookEvent(
             hook_type=HookType.USER_PROMPT_SUBMIT,
             data={"prompt": ""},
@@ -306,32 +317,78 @@ class TestSafetyFilter:
         result = _safety_filter_handler(event)
         assert result.result is None
 
+    def test_uses_regex_semantics_not_substring(self):
+        """回归守护：必须用 re.search（正则语义），禁止 pattern in prompt。
+
+        历史 bug：旧实现 ``pattern in prompt`` 把模式里的 ``\\s``/``\\b`` 等
+        正则元字符当字面量匹配，导致 DANGEROUS_PATTERNS（均为正则）几乎永不命中
+        ——安全过滤形同虚设。本测试注入一个含 ``\\b`` 边界的正则模式，
+        并给出一个 prompt：其字面不包含模式字符串，但正则语义能命中。
+        若退化回子串匹配，此测试会失败。
+        """
+        import core.hooks as hooks_mod
+        from core.hooks import HookEvent, HookType, _safety_filter_handler
+
+        # 注入一个含 \b 的正则模式（\b 是单词边界，字面 prompt 不会出现它）
+        marker = r"\bdoomday\s+--nuke"
+        original_getter = hooks_mod._get_dangerous_patterns
+        hooks_mod._get_dangerous_patterns = lambda: [marker]
+        try:
+            # 正则语义：\bdoomday\s+--nuke 命中 "doomday --nuke"
+            event = HookEvent(
+                hook_type=HookType.USER_PROMPT_SUBMIT,
+                data={"prompt": "please doomday --nuke everything"},
+                result="",
+            )
+            result = _safety_filter_handler(event)
+            assert "[SAFETY WARNING]" in result.result, "re.search 应命中正则模式，但未触发警告（可能退化为子串匹配）"
+
+            # 反向验证：模式字符串本身作为 prompt 时，子串匹配会误中、正则不会
+            # （模式字面 "doomday\s+--nuke" 含反斜杠，正则 \s+ 要求空白，
+            #  而 prompt 里 "doomday\s" 之间没有空白 → 正则不命中）
+            # 这条确保实现走的是 re.search 而非 in
+            literal_prompt = "the pattern is doomday\\s+--nuke here"
+            event2 = HookEvent(
+                hook_type=HookType.USER_PROMPT_SUBMIT,
+                data={"prompt": literal_prompt},
+                result="ok",
+            )
+            result2 = _safety_filter_handler(event2)
+            # re.search(\bdoomday\s+--nuke, "doomday\s+--nuke") →
+            # \s+ 要匹配空白，但 prompt 中是字面反斜杠+s，无空白 → 不命中
+            assert "[SAFETY WARNING]" not in result2.result, "实现可能退化回子串匹配：模式字面被当作普通字符串匹配到了"
+        finally:
+            hooks_mod._get_dangerous_patterns = original_getter
+
 
 class TestHelperFunctions:
     def test_on_prompt_submit(self):
-        from core.hooks import on_prompt_submit, hook_manager
+        from core.hooks import hook_manager, on_prompt_submit
 
         def handler(e):
             return e
+
         result = on_prompt_submit("test_prompt", handler, priority=3)
         assert result is True
         # Clean up
         hook_manager.unregister("test_prompt")
 
     def test_on_pre_tool(self):
-        from core.hooks import on_pre_tool, hook_manager
+        from core.hooks import hook_manager, on_pre_tool
 
         def handler(e):
             return e
+
         result = on_pre_tool("test_pre", handler)
         assert result is True
         hook_manager.unregister("test_pre")
 
     def test_on_post_tool(self):
-        from core.hooks import on_post_tool, hook_manager
+        from core.hooks import hook_manager, on_post_tool
 
         def handler(e):
             return e
+
         result = on_post_tool("test_post", handler)
         assert result is True
         hook_manager.unregister("test_post")

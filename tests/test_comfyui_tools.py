@@ -13,6 +13,7 @@
     - execute_get_result: 参数校验
     - execute_preview_workflow: 参数校验
 """
+
 from __future__ import annotations
 
 import json
@@ -20,15 +21,12 @@ import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
-import pytest
-
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.comfyui_tools import (
     COMFYUI_BASE_URL,
-    COMFYUI_CUSTOM_NODES_DIR,
     COMFYUI_EXECUTOR_MAP,
     COMFYUI_POLL_INTERVAL,
     COMFYUI_TIMEOUT,
@@ -41,18 +39,18 @@ from core.comfyui_tools import (
     execute_create_custom_node,
     execute_get_node_info,
     execute_get_result,
+    execute_list_models,
     execute_lora_check_status,
     execute_lora_generate_config,
     execute_lora_prepare_dataset,
-    execute_list_models,
     execute_preview_workflow,
     execute_status,
     execute_submit_workflow,
     submit_comfyui_workflow,
 )
 
-
 # ── 常量/配置 ────────────────────────────────────────────────────
+
 
 class TestConstants:
     def test_base_url_is_http(self):
@@ -66,6 +64,7 @@ class TestConstants:
 
 
 # ── 工具定义完整性 ───────────────────────────────────────────────
+
 
 class TestToolDefinitions:
     def test_comfyui_tools_is_list(self):
@@ -87,9 +86,10 @@ class TestToolDefinitions:
     def test_tool_names_snake_case(self):
         """工具名应遵循 snake_case 约定。"""
         import re
+
         for tool in COMFYUI_TOOLS:
             name = tool.get("function", tool)["name"]
-            assert re.match(r'^[a-z][a-z0-9_]*$', name), f"非 snake_case: {name}"
+            assert re.match(r"^[a-z][a-z0-9_]*$", name), f"非 snake_case: {name}"
 
     def test_descriptions_are_meaningful(self):
         """description 至少 10 个字符。"""
@@ -99,6 +99,7 @@ class TestToolDefinitions:
 
 
 # ── Executor Map ─────────────────────────────────────────────────
+
 
 class TestExecutorMap:
     def test_executor_map_is_dict(self):
@@ -121,6 +122,7 @@ class TestExecutorMap:
 
 
 # ── _simplify_node_info 纯函数 ────────────────────────────────────
+
 
 class TestSimplifyNodeInfo:
     def test_full_info(self):
@@ -193,6 +195,7 @@ class TestSimplifyNodeInfo:
 
 # ── 无服务优雅降级 ──────────────────────────────────────────────
 
+
 class TestGracefulDegradation:
     """这些函数调用 ComfyUI 服务，无服务时不应抛异常。"""
 
@@ -232,6 +235,7 @@ class TestGracefulDegradation:
 
 # ── SSRF 防护 ─────────────────────────────────────────────────
 
+
 class TestSsrfProtection:
     """验证非本地 COMFYUI_BASE_URL 被重置。"""
 
@@ -243,18 +247,23 @@ class TestSsrfProtection:
 
 # ── execute_build_custom_workflow ───────────────────────────────
 
+
 class TestBuildCustomWorkflow:
     """纯文件系统操作，不需要 ComfyUI 服务。"""
 
     def test_valid_two_nodes(self, tmp_path, monkeypatch):
         """两个节点 + 连线应正确构建。"""
         monkeypatch.setattr("core.comfyui_tools.OUTPUT_ROOT", tmp_path)
-        nodes = json.dumps([
-            {"id": 1, "class_type": "CheckpointLoaderSimple",
-             "inputs": {"ckpt_name": "sd_xl_base_1.0.safetensors"}},
-            {"id": 2, "class_type": "CLIPTextEncode",
-             "inputs": {"text": "hello", "clip": [1, 0]}},
-        ])
+        nodes = json.dumps(
+            [
+                {
+                    "id": 1,
+                    "class_type": "CheckpointLoaderSimple",
+                    "inputs": {"ckpt_name": "sd_xl_base_1.0.safetensors"},
+                },
+                {"id": 2, "class_type": "CLIPTextEncode", "inputs": {"text": "hello", "clip": [1, 0]}},
+            ]
+        )
         result = json.loads(execute_build_custom_workflow(nodes))
         assert result["success"] is True
         assert result["node_count"] == 2
@@ -267,14 +276,13 @@ class TestBuildCustomWorkflow:
     def test_save_image_auto_detected(self, tmp_path, monkeypatch):
         """含 save/preview 的节点应自动作为 output_node（最后出现的 wins）。"""
         monkeypatch.setattr("core.comfyui_tools.OUTPUT_ROOT", tmp_path)
-        nodes = json.dumps([
-            {"id": 1, "class_type": "CheckpointLoaderSimple",
-             "inputs": {"ckpt_name": "x.safetensors"}},
-            {"id": 2, "class_type": "PreviewImage",
-             "inputs": {"images": [1, 0]}},
-            {"id": 3, "class_type": "SaveImage",
-             "inputs": {"images": [1, 0]}},
-        ])
+        nodes = json.dumps(
+            [
+                {"id": 1, "class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "x.safetensors"}},
+                {"id": 2, "class_type": "PreviewImage", "inputs": {"images": [1, 0]}},
+                {"id": 3, "class_type": "SaveImage", "inputs": {"images": [1, 0]}},
+            ]
+        )
         result = json.loads(execute_build_custom_workflow(nodes))
         # SaveImage 在 id=3（最后一个含 save 的），应被自动检测为输出
         assert result["output_node_id"] == "3"
@@ -282,10 +290,12 @@ class TestBuildCustomWorkflow:
     def test_explicit_output_node_id(self, tmp_path, monkeypatch):
         """手动指定 output_node_id 应覆盖自动检测。"""
         monkeypatch.setattr("core.comfyui_tools.OUTPUT_ROOT", tmp_path)
-        nodes = json.dumps([
-            {"id": 1, "class_type": "SaveImage", "inputs": {}},
-            {"id": 2, "class_type": "SaveImage", "inputs": {}},
-        ])
+        nodes = json.dumps(
+            [
+                {"id": 1, "class_type": "SaveImage", "inputs": {}},
+                {"id": 2, "class_type": "SaveImage", "inputs": {}},
+            ]
+        )
         result = json.loads(execute_build_custom_workflow(nodes, output_node_id=2))
         assert result["output_node_id"] == "2"
 
@@ -301,16 +311,19 @@ class TestBuildCustomWorkflow:
     def test_connection_ref_int_to_str(self, tmp_path, monkeypatch):
         """连线引用的源节点 ID 应被转为字符串。"""
         monkeypatch.setattr("core.comfyui_tools.OUTPUT_ROOT", tmp_path)
-        nodes = json.dumps([
-            {"id": 1, "class_type": "NodeA", "inputs": {}},
-            {"id": 2, "class_type": "NodeB", "inputs": {"link": [1, 0]}},
-        ])
+        nodes = json.dumps(
+            [
+                {"id": 1, "class_type": "NodeA", "inputs": {}},
+                {"id": 2, "class_type": "NodeB", "inputs": {"link": [1, 0]}},
+            ]
+        )
         result = json.loads(execute_build_custom_workflow(nodes))
         # 连线引用的源 ID 应为字符串 "1"
         assert result["workflow"]["2"]["inputs"]["link"][0] == "1"
 
 
 # ── execute_create_custom_node ──────────────────────────────────
+
 
 class TestCreateCustomNode:
     """文件系统操作 + 代码校验。"""
@@ -341,8 +354,7 @@ class TestCreateCustomNode:
         assert "缺少必要属性" in result.get("error", "")
 
     def test_dir_not_exists(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("core.comfyui_tools.COMFYUI_CUSTOM_NODES_DIR",
-                            str(tmp_path / "nonexistent"))
+        monkeypatch.setattr("core.comfyui_tools.COMFYUI_CUSTOM_NODES_DIR", str(tmp_path / "nonexistent"))
         result = json.loads(execute_create_custom_node("X", "pass"))
         assert result["success"] is False
 
@@ -365,6 +377,7 @@ class TestCreateCustomNode:
 
 # ── LoRA 训练工具 ───────────────────────────────────────────────
 
+
 class TestLoraPrepareDataset:
     """execute_lora_prepare_dataset — 纯文件系统操作。"""
 
@@ -384,9 +397,7 @@ class TestLoraPrepareDataset:
 
     def test_multiple_concepts(self, tmp_path, monkeypatch):
         monkeypatch.setattr("core.comfyui_tools.LORA_OUTPUT_ROOT", tmp_path)
-        result = json.loads(execute_lora_prepare_dataset(
-            "multi", concept_count=3, concept_names="face,body,outfit"
-        ))
+        result = json.loads(execute_lora_prepare_dataset("multi", concept_count=3, concept_names="face,body,outfit"))
         assert result["success"] is True
         assert len(result["concepts"]) == 3
         names = [c["name"] for c in result["concepts"]]
@@ -402,9 +413,7 @@ class TestLoraPrepareDataset:
     def test_concept_count_expands_names(self, tmp_path, monkeypatch):
         """concept_count 大于 concept_names 长度时，多余概念自动命名。"""
         monkeypatch.setattr("core.comfyui_tools.LORA_OUTPUT_ROOT", tmp_path)
-        result = json.loads(execute_lora_prepare_dataset(
-            "exp", concept_count=3, concept_names="alpha"
-        ))
+        result = json.loads(execute_lora_prepare_dataset("exp", concept_count=3, concept_names="alpha"))
         assert len(result["concepts"]) == 3
         assert result["concepts"][1]["name"] == "concept_2"
 
@@ -421,9 +430,7 @@ class TestLoraGenerateConfig:
     def test_sdxl_auto_detect(self, tmp_path, monkeypatch):
         monkeypatch.setattr("core.comfyui_tools.LORA_OUTPUT_ROOT", tmp_path)
         execute_lora_prepare_dataset("sdxl_test")
-        result = json.loads(execute_lora_generate_config(
-            "sdxl_test", "sd_xl_base_1.0.safetensors"
-        ))
+        result = json.loads(execute_lora_generate_config("sdxl_test", "sd_xl_base_1.0.safetensors"))
         assert result["success"] is True
         assert result["config_summary"]["lora_type"] == "sdxl"
         assert result["config_summary"]["learning_rate"] == "1.0e-04"
@@ -433,9 +440,7 @@ class TestLoraGenerateConfig:
     def test_sd15_auto_detect(self, tmp_path, monkeypatch):
         monkeypatch.setattr("core.comfyui_tools.LORA_OUTPUT_ROOT", tmp_path)
         execute_lora_prepare_dataset("sd15_test")
-        result = json.loads(execute_lora_generate_config(
-            "sd15_test", "dreamshaper_8.safetensors"
-        ))
+        result = json.loads(execute_lora_generate_config("sd15_test", "dreamshaper_8.safetensors"))
         assert result["success"] is True
         assert result["config_summary"]["lora_type"] == "sd15"
         assert result["config_summary"]["learning_rate"] == "5.0e-04"
@@ -443,9 +448,7 @@ class TestLoraGenerateConfig:
     def test_manual_lora_type(self, tmp_path, monkeypatch):
         monkeypatch.setattr("core.comfyui_tools.LORA_OUTPUT_ROOT", tmp_path)
         execute_lora_prepare_dataset("manual_test")
-        result = json.loads(execute_lora_generate_config(
-            "manual_test", "any_model.safetensors", lora_type="sd15"
-        ))
+        result = json.loads(execute_lora_generate_config("manual_test", "any_model.safetensors", lora_type="sd15"))
         assert result["config_summary"]["lora_type"] == "sd15"
 
     def test_no_concept_dirs(self, tmp_path, monkeypatch):
@@ -460,9 +463,7 @@ class TestLoraGenerateConfig:
     def test_config_contains_toml_content(self, tmp_path, monkeypatch):
         monkeypatch.setattr("core.comfyui_tools.LORA_OUTPUT_ROOT", tmp_path)
         execute_lora_prepare_dataset("toml_test")
-        result = json.loads(execute_lora_generate_config(
-            "toml_test", "sd_xl_base_1.0.safetensors"
-        ))
+        result = json.loads(execute_lora_generate_config("toml_test", "sd_xl_base_1.0.safetensors"))
         content = Path(result["config_path"]).read_text(encoding="utf-8")
         assert "[general]" in content
         assert "[network]" in content
@@ -509,6 +510,7 @@ class TestLoraCheckStatus:
 
 # ── submit_comfyui_workflow (Showrunner 接口) ──────────────────
 
+
 class TestSubmitComfyuiWorkflow:
     def test_invalid_json_returns_error(self):
         result = submit_comfyui_workflow({"bad": "json"})
@@ -520,6 +522,7 @@ class TestSubmitComfyuiWorkflow:
 
 
 # ── execute_submit_workflow 参数校验 ───────────────────────────
+
 
 class TestSubmitWorkflowValidation:
     def test_invalid_json_string(self):
@@ -539,6 +542,7 @@ class TestSubmitWorkflowValidation:
 
 
 # ── OUTPUT_ROOT / LORA_OUTPUT_ROOT ────────────────────────────
+
 
 class TestOutputPaths:
     def test_output_root_exists(self):

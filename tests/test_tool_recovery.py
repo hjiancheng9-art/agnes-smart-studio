@@ -7,28 +7,25 @@
 
 所有错误字符串都以 `[错误]` 开头（供 POST_TOOL_USE hook 的 error key 检测）。
 """
+# pyright: reportArgumentType=false
 
 import sys
 from pathlib import Path
-
-import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.tools import (
     ToolRegistry,
-    _validate_args,
-    _suggest_similar_tool,
     _levenshtein,
+    _suggest_similar_tool,
+    _validate_args,
 )
-
 
 # ── _validate_args ──────────────────────────────────────────────────
 
 
 class TestValidateArgs:
-
     def _make_definitions(self, name="read_file", properties=None, required=None):
         """构建 OpenAI function 格式的 definitions。"""
         properties = properties or {
@@ -36,18 +33,20 @@ class TestValidateArgs:
             "limit": {"type": "integer", "description": "行数限制"},
         }
         required = required or ["path"]
-        return [{
-            "type": "function",
-            "function": {
-                "name": name,
-                "description": "test tool",
-                "parameters": {
-                    "type": "object",
-                    "properties": properties,
-                    "required": required,
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "description": "test tool",
+                    "parameters": {
+                        "type": "object",
+                        "properties": properties,
+                        "required": required,
+                    },
                 },
-            },
-        }]
+            }
+        ]
 
     def test_valid_args_pass(self):
         """完整且类型正确的参数通过校验。"""
@@ -74,18 +73,24 @@ class TestValidateArgs:
 
     def test_optional_missing_passes(self):
         """非 required 字段缺失 → 通过。"""
-        defs = self._make_definitions(properties={
-            "path": {"type": "string"},
-            "limit": {"type": "integer"},
-        }, required=["path"])
+        defs = self._make_definitions(
+            properties={
+                "path": {"type": "string"},
+                "limit": {"type": "integer"},
+            },
+            required=["path"],
+        )
         ok, detail = _validate_args("read_file", {"path": "/x"}, defs)
         assert ok is True
 
     def test_type_mismatch_fails(self):
         """string 参数传 integer → 类型校验失败。"""
-        defs = self._make_definitions(properties={
-            "path": {"type": "string"},
-        }, required=["path"])
+        defs = self._make_definitions(
+            properties={
+                "path": {"type": "string"},
+            },
+            required=["path"],
+        )
         ok, detail = _validate_args("read_file", {"path": 123}, defs)
         assert ok is False
         assert "[错误]" in detail
@@ -95,17 +100,23 @@ class TestValidateArgs:
 
     def test_integer_rejects_bool(self):
         """integer 参数不接受 bool（Python 中 bool 是 int 子类）。"""
-        defs = self._make_definitions(properties={
-            "count": {"type": "integer"},
-        }, required=["count"])
+        defs = self._make_definitions(
+            properties={
+                "count": {"type": "integer"},
+            },
+            required=["count"],
+        )
         ok, detail = _validate_args("read_file", {"count": True}, defs)
         assert ok is False
 
     def test_boolean_accepts_bool(self):
         """boolean 参数接受 bool。"""
-        defs = self._make_definitions(properties={
-            "force": {"type": "boolean"},
-        }, required=["force"])
+        defs = self._make_definitions(
+            properties={
+                "force": {"type": "boolean"},
+            },
+            required=["force"],
+        )
         ok, detail = _validate_args("read_file", {"force": True}, defs)
         assert ok is True
 
@@ -131,7 +142,6 @@ class TestValidateArgs:
 
 
 class TestSuggestSimilarTool:
-
     def _make_defs(self, names):
         return [{"function": {"name": n}} for n in names]
 
@@ -186,7 +196,6 @@ class TestSuggestSimilarTool:
 
 
 class TestExecuteRecovery:
-
     def _make_registry_with_tool(self, name="divide", executor=None, schema=None):
         """构建带单个工具的 registry。"""
         reg = ToolRegistry()
@@ -199,10 +208,12 @@ class TestExecuteRecovery:
                 },
                 "required": ["a", "b"],
             }
-        reg._definitions = [{
-            "type": "function",
-            "function": {"name": name, "description": "test", "parameters": schema},
-        }]
+        reg._definitions = [
+            {
+                "type": "function",
+                "function": {"name": name, "description": "test", "parameters": schema},
+            }
+        ]
         reg._executors[name] = executor or (lambda **kw: "ok")
         return reg
 
@@ -232,8 +243,10 @@ class TestExecuteRecovery:
 
     def test_type_error_returns_recovery_hint(self):
         """执行抛 ValueError → 错误分类 + 恢复建议（不裸 raise）。"""
+
         def bad_executor(**kw):
             raise ValueError("invalid input: must be positive")
+
         reg = self._make_registry_with_tool(name="divide", executor=bad_executor)
         result = reg.execute("divide", {"a": 10, "b": -1})
         assert "[错误" in result
@@ -243,8 +256,10 @@ class TestExecuteRecovery:
 
     def test_os_error_returns_recovery_hint(self):
         """执行抛 OSError → 错误分类。"""
+
         def bad_executor(**kw):
             raise OSError("FileNotFoundError: no such file")
+
         reg = self._make_registry_with_tool(name="divide", executor=bad_executor)
         result = reg.execute("divide", {"a": 1, "b": 2})
         assert "[错误" in result
@@ -252,8 +267,10 @@ class TestExecuteRecovery:
 
     def test_generic_exception_returns_error_string(self):
         """执行抛 Exception 子类 → 错误字符串。"""
+
         def bad_executor(**kw):
             raise RuntimeError("unexpected failure")
+
         reg = self._make_registry_with_tool(name="divide", executor=bad_executor)
         result = reg.execute("divide", {"a": 1, "b": 2})
         assert "[错误" in result
@@ -261,8 +278,10 @@ class TestExecuteRecovery:
 
     def test_successful_execution_unchanged(self):
         """成功执行 → 正常返回结果字符串。"""
+
         def good_executor(**kw):
             return f"result: {kw.get('a')}/{kw.get('b')}"
+
         reg = self._make_registry_with_tool(name="divide", executor=good_executor)
         result = reg.execute("divide", {"a": 10, "b": 2})
         assert "result: 10/2" in result

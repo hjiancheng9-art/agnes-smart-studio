@@ -4,25 +4,25 @@
 
 不依赖外部服务,全 mock / 纯本地文件操作。
 """
+
 from __future__ import annotations
 
 import json
 import sys
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core.tools import ToolRegistry, BUILTIN_TOOLS, get_registry, reload_registry
-
+from core.tools import BUILTIN_TOOLS, ToolRegistry, get_registry, reload_registry
 
 # ════════════════════════════════════════════════════════════
 #  1. 注册链路
 # ════════════════════════════════════════════════════════════
+
 
 class TestRegistration:
     """工具注册 / 注销 / 重复注册。"""
@@ -48,28 +48,23 @@ class TestRegistration:
     def test_register_custom_tool(self):
         reg = ToolRegistry()
         reg.load()
-        reg.register("custom_tool", "desc", {"type": "object", "properties": {}},
-                     executor=lambda: "ok")
+        reg.register("custom_tool", "desc", {"type": "object", "properties": {}}, executor=lambda: "ok")
         assert reg.has("custom_tool")
         assert "custom_tool" in reg.tool_names
 
     def test_register_duplicate_without_override(self):
         reg = ToolRegistry()
         reg.load()
-        first = reg.register("dup", "desc1", {"type": "object", "properties": {}},
-                             executor=lambda: "1")
-        second = reg.register("dup", "desc2", {"type": "object", "properties": {}},
-                              executor=lambda: "2")
+        first = reg.register("dup", "desc1", {"type": "object", "properties": {}}, executor=lambda: "1")
+        second = reg.register("dup", "desc2", {"type": "object", "properties": {}}, executor=lambda: "2")
         assert first is True
         assert second is False  # 不覆盖
 
     def test_register_duplicate_with_override(self):
         reg = ToolRegistry()
         reg.load()
-        reg.register("dup", "desc1", {"type": "object", "properties": {}},
-                     executor=lambda: "1")
-        result = reg.register("dup", "desc2", {"type": "object", "properties": {}},
-                             executor=lambda: "2", override=True)
+        reg.register("dup", "desc1", {"type": "object", "properties": {}}, executor=lambda: "1")
+        result = reg.register("dup", "desc2", {"type": "object", "properties": {}}, executor=lambda: "2", override=True)
         assert result is True
         # executor 应为覆盖后的
         assert reg.execute("dup", {}) == "2"
@@ -77,8 +72,7 @@ class TestRegistration:
     def test_unregister(self):
         reg = ToolRegistry()
         reg.load()
-        reg.register("tmp", "desc", {"type": "object", "properties": {}},
-                     executor=lambda: "x")
+        reg.register("tmp", "desc", {"type": "object", "properties": {}}, executor=lambda: "x")
         assert reg.has("tmp")
         reg.unregister("tmp")
         assert not reg.has("tmp")
@@ -103,6 +97,7 @@ class TestRegistration:
 #  2. 参数校验链路
 # ════════════════════════════════════════════════════════════
 
+
 class TestParamValidation:
     """_validate_args + execute 的参数校验。"""
 
@@ -111,15 +106,22 @@ class TestParamValidation:
         tmp = ROOT / "tests" / "_test_e2e_tools.json"
         monkeypatch.setattr("core.tools.TOOLS_CONFIG", tmp)
         # 放一个需要 required 参数的 shell 工具
-        tmp.write_text(json.dumps({"tools": [{
-            "name": "e2e_echo",
-            "type": "shell",
-            "command": "echo {message}",
-            "description": "echo",
-            "parameters": {
-                "message": {"type": "string", "description": "msg", "required": True}
-            }
-        }]}), encoding="utf-8")
+        tmp.write_text(
+            json.dumps(
+                {
+                    "tools": [
+                        {
+                            "name": "e2e_echo",
+                            "type": "shell",
+                            "command": "echo {message}",
+                            "description": "echo",
+                            "parameters": {"message": {"type": "string", "description": "msg", "required": True}},
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
         self.tmp = tmp
         yield
         tmp.unlink(missing_ok=True)
@@ -142,6 +144,7 @@ class TestParamValidation:
 #  3. 执行链路 + 错误恢复
 # ════════════════════════════════════════════════════════════
 
+
 class TestExecutionAndRecovery:
     """执行成功 / 异常 / 错误恢复。"""
 
@@ -149,24 +152,29 @@ class TestExecutionAndRecovery:
     def setup(self, monkeypatch):
         tmp = ROOT / "tests" / "_test_e2e_tools.json"
         monkeypatch.setattr("core.tools.TOOLS_CONFIG", tmp)
-        tmp.write_text(json.dumps({"tools": [
-            {
-                "name": "e2e_ok",
-                "type": "shell",
-                "command": "echo ok",
-                "description": "ok",
-                "parameters": {},
-            },
-            {
-                "name": "e2e_fail",
-                "type": "python",
-                "function": "core.file_tools.read_file",  # 已知存在
-                "description": "reads file",
-                "parameters": {
-                    "path": {"type": "string", "description": "path", "required": True}
-                },
-            },
-        ]}), encoding="utf-8")
+        tmp.write_text(
+            json.dumps(
+                {
+                    "tools": [
+                        {
+                            "name": "e2e_ok",
+                            "type": "shell",
+                            "command": "echo ok",
+                            "description": "ok",
+                            "parameters": {},
+                        },
+                        {
+                            "name": "e2e_fail",
+                            "type": "python",
+                            "function": "core.file_tools.read_file",  # 已知存在
+                            "description": "reads file",
+                            "parameters": {"path": {"type": "string", "description": "path", "required": True}},
+                        },
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
         self.tmp = tmp
         yield
         tmp.unlink(missing_ok=True)
@@ -192,6 +200,7 @@ class TestExecutionAndRecovery:
 #  4. 未知工具 → 相似建议
 # ════════════════════════════════════════════════════════════
 
+
 class TestSimilarToolSuggestion:
     """execute 未知工具 → TF-IDF 相似建议。"""
 
@@ -199,12 +208,29 @@ class TestSimilarToolSuggestion:
     def setup(self, monkeypatch):
         tmp = ROOT / "tests" / "_test_e2e_tools.json"
         monkeypatch.setattr("core.tools.TOOLS_CONFIG", tmp)
-        tmp.write_text(json.dumps({"tools": [
-            {"name": "read_file", "type": "shell", "command": "echo read",
-             "description": "read", "parameters": {}},
-            {"name": "write_file", "type": "shell", "command": "echo write",
-             "description": "write", "parameters": {}},
-        ]}), encoding="utf-8")
+        tmp.write_text(
+            json.dumps(
+                {
+                    "tools": [
+                        {
+                            "name": "read_file",
+                            "type": "shell",
+                            "command": "echo read",
+                            "description": "read",
+                            "parameters": {},
+                        },
+                        {
+                            "name": "write_file",
+                            "type": "shell",
+                            "command": "echo write",
+                            "description": "write",
+                            "parameters": {},
+                        },
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
         self.tmp = tmp
         yield
         tmp.unlink(missing_ok=True)
@@ -228,6 +254,7 @@ class TestSimilarToolSuggestion:
 #  5. Sandbox 集成 (shell executor 唯一关卡)
 # ════════════════════════════════════════════════════════════
 
+
 class TestSandboxGate:
     """shell 类型工具走 sandbox_restrict。"""
 
@@ -235,10 +262,22 @@ class TestSandboxGate:
     def setup(self, monkeypatch):
         tmp = ROOT / "tests" / "_test_e2e_tools.json"
         monkeypatch.setattr("core.tools.TOOLS_CONFIG", tmp)
-        tmp.write_text(json.dumps({"tools": [
-            {"name": "e2e_safe", "type": "shell", "command": "echo hello",
-             "description": "safe", "parameters": {}},
-        ]}), encoding="utf-8")
+        tmp.write_text(
+            json.dumps(
+                {
+                    "tools": [
+                        {
+                            "name": "e2e_safe",
+                            "type": "shell",
+                            "command": "echo hello",
+                            "description": "safe",
+                            "parameters": {},
+                        },
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
         self.tmp = tmp
         yield
         tmp.unlink(missing_ok=True)
@@ -252,11 +291,22 @@ class TestSandboxGate:
     def test_dangerous_command_blocked(self):
         """rm -rf / 被 sandbox 拦截。"""
         tmp = ROOT / "tests" / "_test_e2e_tools.json"
-        tmp.write_text(json.dumps({"tools": [
-            {"name": "e2e_danger", "type": "shell",
-             "command": "rm -rf /tmp/__nonexistent__",
-             "description": "danger", "parameters": {}},
-        ]}), encoding="utf-8")
+        tmp.write_text(
+            json.dumps(
+                {
+                    "tools": [
+                        {
+                            "name": "e2e_danger",
+                            "type": "shell",
+                            "command": "rm -rf /tmp/__nonexistent__",
+                            "description": "danger",
+                            "parameters": {},
+                        },
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
         reg = ToolRegistry()
         reg.load()
         result = reg.execute("e2e_danger", {})
@@ -267,6 +317,7 @@ class TestSandboxGate:
 #  6. Metric / 观测链路
 # ════════════════════════════════════════════════════════════
 
+
 class TestMetrics:
     """execute 后 metrics counter 正确递增。"""
 
@@ -274,10 +325,22 @@ class TestMetrics:
     def setup(self, monkeypatch):
         tmp = ROOT / "tests" / "_test_e2e_tools.json"
         monkeypatch.setattr("core.tools.TOOLS_CONFIG", tmp)
-        tmp.write_text(json.dumps({"tools": [
-            {"name": "e2e_metric", "type": "shell", "command": "echo metric",
-             "description": "metric", "parameters": {}},
-        ]}), encoding="utf-8")
+        tmp.write_text(
+            json.dumps(
+                {
+                    "tools": [
+                        {
+                            "name": "e2e_metric",
+                            "type": "shell",
+                            "command": "echo metric",
+                            "description": "metric",
+                            "parameters": {},
+                        },
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
         self.tmp = tmp
         yield
         tmp.unlink(missing_ok=True)
@@ -293,6 +356,7 @@ class TestMetrics:
     def test_metrics_increment(self):
         """有 observability 时 counter 递增。"""
         from core.observability import Metrics
+
         mock_metrics = Metrics()
         with patch("core.observability.metrics", mock_metrics):
             reg = ToolRegistry()
@@ -306,6 +370,7 @@ class TestMetrics:
 # ════════════════════════════════════════════════════════════
 #  7. python_executor 安全守卫 (import 白名单 + 危险模块黑名单)
 # ════════════════════════════════════════════════════════════
+
 
 class TestPythonExecutorSecurity:
     """python 类型工具的 import 白名单和危险模块黑名单。"""
@@ -321,11 +386,22 @@ class TestPythonExecutorSecurity:
     def test_allowed_prefix_passes(self):
         """core.* 前缀允许。"""
         tmp = ROOT / "tests" / "_test_e2e_tools.json"
-        tmp.write_text(json.dumps({"tools": [
-            {"name": "e2e_py_ok", "type": "python",
-             "function": "core.file_tools.env_check",
-             "description": "ok", "parameters": {}},
-        ]}), encoding="utf-8")
+        tmp.write_text(
+            json.dumps(
+                {
+                    "tools": [
+                        {
+                            "name": "e2e_py_ok",
+                            "type": "python",
+                            "function": "core.file_tools.env_check",
+                            "description": "ok",
+                            "parameters": {},
+                        },
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
         reg = ToolRegistry()
         reg.load()
         result = reg.execute("e2e_py_ok", {})
@@ -335,11 +411,22 @@ class TestPythonExecutorSecurity:
     def test_blocked_prefix_rejected(self):
         """非白名单模块被拒绝。"""
         tmp = ROOT / "tests" / "_test_e2e_tools.json"
-        tmp.write_text(json.dumps({"tools": [
-            {"name": "e2e_py_bad", "type": "python",
-             "function": "some_random_module.func",
-             "description": "bad", "parameters": {}},
-        ]}), encoding="utf-8")
+        tmp.write_text(
+            json.dumps(
+                {
+                    "tools": [
+                        {
+                            "name": "e2e_py_bad",
+                            "type": "python",
+                            "function": "some_random_module.func",
+                            "description": "bad",
+                            "parameters": {},
+                        },
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
         reg = ToolRegistry()
         reg.load()
         result = reg.execute("e2e_py_bad", {})
@@ -350,11 +437,22 @@ class TestPythonExecutorSecurity:
         所以先命中 '禁止导入外部模块' 而非 '禁止导入危险模块'(后者只拦截
         白名单内但本身危险的如 core.os,实际不存在)。"""
         tmp = ROOT / "tests" / "_test_e2e_tools.json"
-        tmp.write_text(json.dumps({"tools": [
-            {"name": "e2e_py_os", "type": "python",
-             "function": "os.system",
-             "description": "os", "parameters": {}},
-        ]}), encoding="utf-8")
+        tmp.write_text(
+            json.dumps(
+                {
+                    "tools": [
+                        {
+                            "name": "e2e_py_os",
+                            "type": "python",
+                            "function": "os.system",
+                            "description": "os",
+                            "parameters": {},
+                        },
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
         reg = ToolRegistry()
         reg.load()
         result = reg.execute("e2e_py_os", {})
@@ -364,6 +462,7 @@ class TestPythonExecutorSecurity:
 # ════════════════════════════════════════════════════════════
 #  8. 单例线程安全
 # ════════════════════════════════════════════════════════════
+
 
 class TestSingleton:
     """get_registry / reload_registry 单例行为。"""
@@ -376,7 +475,7 @@ class TestSingleton:
 
     def test_reload_returns_new_instance(self):
         reload_registry()
-        old = get_registry()
+        _old = get_registry()
         reload_registry()
         new = get_registry()
         # reload 应重置单例 (非同一实例, 除非在同一 load 中)

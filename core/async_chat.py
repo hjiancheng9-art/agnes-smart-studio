@@ -21,7 +21,6 @@ yield 协议（send_stream）与同步版完全一致：
 
 import asyncio
 import json
-import re
 from collections.abc import AsyncIterator
 
 from core.async_client import AsyncCruxClient
@@ -33,6 +32,7 @@ from core.chat import (
     MAX_TOOL_LOOPS,
     _normalize_tool_args,
     merge_tool_calls,
+    sanitize_tool_call_history,
 )
 from core.config import CRUX_VISION_MODEL
 from core.context_tools import truncate_messages
@@ -49,6 +49,20 @@ from engines.text_to_image import AsyncTextToImageEngine
 from engines.video import AsyncVideoEngine
 
 __all__ = ["AsyncChatSession"]
+
+# ── Async session system prompt 模块级缓存 ──
+_async_cached_prompt: list[str] = ["", ""]
+
+
+def reset_system_prompt_cache():
+    """清空 system prompt 缓存（mode 切换时调用）。"""
+    global _cached_prompt, _async_cached_prompt
+    try:
+        from core.chat import _cached_prompt as _sync_cache
+        _sync_cache[:] = ["", ""]
+    except ImportError:
+        pass
+    _async_cached_prompt[:] = ["", ""]
 
 
 class AsyncChatSession:
@@ -78,10 +92,20 @@ class AsyncChatSession:
         self.mode = "chat"
         self.unlimited_tools = False
         self.agent_mode = False
+        self.browser_enabled = False
+        self.notebook_enabled = False
+        self.audio_enabled = False
         self.tools: ToolRegistry = get_registry()
         self.skills: SkillManager = get_manager()
         self.active_skill: str = ""
         self.messages: list[dict] = [{"role": "system", "content": self._build_system_prompt()}]
+        # 五兽躯体激活
+        try:
+            from core.beast_wiring import wire_all
+
+            wire_all()
+        except (ImportError, OSError):
+            pass
 
     # ── 属性 / 状态切换（纯计算，无需 async）─────────────────
 
@@ -188,9 +212,18 @@ class AsyncChatSession:
         return "\n".join(lines)
 
     def _build_system_prompt(self) -> str:
-        """构建动态系统提示词（纯计算，无 I/O）"""
+        """构建动态系统提示词（纯计算，无 I/O），带模块级缓存。"""
         provider = get_provider_name(self.model)
         template = CODE_SYSTEM_PROMPT if self.code_mode else CHAT_SYSTEM_PROMPT
+        cache_key = f"async|{provider}|{self.model}|{self.code_mode}|b{self.browser_enabled}|n{self.notebook_enabled}|a{self.audio_enabled}"
+        try:
+            from core.rules import get_rules
+            cache_key += f"|{hash(str([r.name for r in get_rules().active_rules]))}"
+        except (ImportError, OSError):
+            pass
+        if _async_cached_prompt[0] == cache_key:
+            return _async_cached_prompt[1]
+
         base = template.format(provider_name=provider, model_name=self.model)
         base += (
             "\n\n## 回答质量规范\n"
@@ -225,6 +258,99 @@ class AsyncChatSession:
             base += get_prompt_lab().get_active_instructions()
         except (ImportError, OSError):
             pass
+        # 七兽融合注入（七兽同体·魂魄交融，替代独立七段）
+        try:
+            from core.seven_beasts_fusion import get_fusion_prompt
+
+            base += "\n\n" + get_fusion_prompt()
+        except (ImportError, OSError):
+            pass
+        # 五兽躯体注入
+        try:
+            from core.beast_wiring import get_wiring_summary
+
+            base += "\n\n" + get_wiring_summary()
+        except (ImportError, OSError):
+            pass
+        # 贴身七件行为规则注入
+        try:
+            from core.intimate_slots import get_intimate_prompt
+
+            base += "\n\n" + get_intimate_prompt()
+        except (ImportError, OSError):
+            pass
+        # 功法谱注入（五层功法·五兽归位）
+        try:
+            from core.gongfa_spectrum import get_gongfa_prompt
+
+            base += "\n\n" + get_gongfa_prompt()
+        except (ImportError, OSError):
+            pass
+        # 法宝谱注入（84 工具·五兽归鞘）
+        try:
+            from core.treasure_spectrum import get_treasure_prompt
+
+            base += "\n\n" + get_treasure_prompt()
+        except (ImportError, OSError):
+            pass
+        # 坐骑谱注入（20 驹·五兽各驭）
+        try:
+            from core.steed_spectrum import get_steed_prompt
+
+            base += "\n\n" + get_steed_prompt()
+        except (ImportError, OSError):
+            pass
+        # 武技谱注入（45 技·五兽归宗）
+        try:
+            from core.wuji_spectrum import get_wuji_prompt
+
+            base += "\n\n" + get_wuji_prompt()
+        except (ImportError, OSError):
+            pass
+        # 金手指谱注入（十三外挂·穿越者面板）
+        try:
+            from core.golden_finger import get_golden_finger_prompt
+
+            base += "\n\n" + get_golden_finger_prompt()
+        except (ImportError, OSError):
+            pass
+        # 灵兽谱注入（十大灵宠·常伴左右）
+        try:
+            from core.familiar_spectrum import get_familiar_prompt
+
+            base += "\n\n" + get_familiar_prompt()
+        except (ImportError, OSError):
+            pass
+        # 洞府谱注入（五堂一庭·修炼洞天）
+        try:
+            from core.dwelling_spectrum import get_dwelling_prompt
+
+            base += "\n\n" + get_dwelling_prompt()
+        except (ImportError, OSError):
+            pass
+        # 秘境谱注入（五大试炼·以战证道）
+        try:
+            from core.trial_spectrum import get_trial_prompt
+
+            base += "\n\n" + get_trial_prompt()
+        except (ImportError, OSError):
+            pass
+        # 化妆谱注入（七妆九变·像素真颜）
+        try:
+            from core.glamour_spectrum import get_glamour_prompt
+
+            base += "\n\n" + get_glamour_prompt()
+        except (ImportError, OSError):
+            pass
+        # 生存技能谱注入（八技合道）
+        try:
+            from core.survival_spectrum import get_survival_prompt
+
+            base += "\n\n" + get_survival_prompt()
+        except (ImportError, OSError):
+            pass
+        # 存入缓存
+        _async_cached_prompt[:] = (cache_key, base)
         return base
 
     def reset(self):
@@ -279,7 +405,7 @@ class AsyncChatSession:
 
     # ── 工具调度（async I/O）───────────────────────────────
 
-    async def _dispatch_tool(self, name: str, args_json: str) -> tuple[str, list[tuple]]:
+    async def _dispatch_tool(self, name: str, args_json: str, *, confirmed: bool = False) -> tuple[str, list[tuple]]:
         """执行工具，返回 (给模型的文本, 给用户的副作用列表)。
 
         与同步版 _dispatch_tool_impl 逻辑完全一致，仅将阻塞 I/O
@@ -287,29 +413,23 @@ class AsyncChatSession:
         - SmartBrain.enhance_*_prompt → await
         - Engine.generate/edit/text_to_video/image_to_video → await
         - ToolRegistry.execute → asyncio.to_thread
+
+        Args:
+            confirmed: 若 True，跳过高风险工具确认检查（用户已在 UI 层确认）。
         """
         try:
             args = json.loads(args_json or "{}")
         except json.JSONDecodeError:
             args = {}
 
-        # ── 高风险工具确认机制 ──
-        _HIGH_RISK_TOOLS = {
-            "git_add_commit",
-            "git_push",
-            "git_pr_create",
-            "git_pr_merge",
-        }
-        _RISKY_ARGS_PATTERN = re.compile(r"\b(rm|delete|drop|truncate)\b", re.IGNORECASE)
-        is_write_to_default_branch = name == "github_write_file" and not args.get("branch", "").strip()
-        is_high_risk = (
-            name in _HIGH_RISK_TOOLS
-            or is_write_to_default_branch
-            or (name == "run_bash" and _RISKY_ARGS_PATTERN.search(args.get("command", "")))
-        )
-        if is_high_risk:
-            confirm_data = {"tool": name, "args": args}
-            return "", [("confirm", confirm_data)]
+        # ── 高风险工具确认机制（单一真源：core/constraints.py）──
+        # confirmed=True 表示 UI 层已确认，直接执行，不再拦截。
+        if not confirmed:
+            from core.constraints import is_tool_high_risk
+
+            if is_tool_high_risk(name, args):
+                confirm_data = {"tool": name, "args": args}
+                return "", [("confirm", confirm_data)]
 
         # ── PRE_TOOL_USE hook ──
         try:
@@ -396,7 +516,9 @@ class AsyncChatSession:
 
         # 外部工具（tools.json）→ asyncio.to_thread 包装
         if self.tools.has(name):
-            _LONG_RUNNING = {"run_bash", "run_test", "run_python", "web_fetch", "web_search"}
+            from core.constraints import LONG_RUNNING_TOOLS
+
+            _LONG_RUNNING = LONG_RUNNING_TOOLS
             side: list[tuple[str, str | dict]] = []
             if name in _LONG_RUNNING:
                 side.append(("info", f"正在执行 {name}..."))
@@ -457,7 +579,9 @@ class AsyncChatSession:
 
         _effective_max = MAX_TOOL_LOOPS * 2 if getattr(self, "unlimited_tools", False) else MAX_TOOL_LOOPS
         buffer = ""
-        _WRITE_TOOLS = {"write_file", "edit_file", "github_write_file", "git_add_commit", "git_push", "run_bash"}
+        from core.constraints import WRITE_TOOLS
+
+        _WRITE_TOOLS = set(WRITE_TOOLS)
         _executed_signatures: set[tuple[str, str]] = set()
         _executed_cache: dict[tuple[str, str], str] = {}
 
@@ -467,12 +591,15 @@ class AsyncChatSession:
             kwargs: dict = {}
             if self.enable_thinking:
                 kwargs["chat_template_kwargs"] = {"enable_thinking": True}
+            # 带工具时放大预算：tool_call arguments 计入输出 token，
+            # 大文件生成（create_html 等）需要足够空间避免截断
+            max_tok = 8192 if tools else 2048
 
             async for delta in self.client.chat_stream(
                 model=self.model,
-                messages=self.messages,
+                messages=sanitize_tool_call_history(self.messages),
                 tools=tools,
-                max_tokens=2048,
+                max_tokens=max_tok,
                 **kwargs,
             ):
                 if "content" in delta and delta["content"]:
@@ -502,6 +629,7 @@ class AsyncChatSession:
                     sig = (fname, _normalize_tool_args(fargs))
                     if fname not in _WRITE_TOOLS and sig in _executed_signatures:
                         tool_result = _executed_cache.get(sig, "")
+                        append_tool_result = True
                     else:
                         with TraceContext("tool_call", tool_name=fname, call_id=tc.get("id", "")) as span:
                             tool_result, side_effects = await self._dispatch_tool(fname, fargs)
@@ -517,8 +645,40 @@ class AsyncChatSession:
                                     get_prompt_lab().record_tool_error()
                             except (ImportError, OSError):
                                 pass
-                        for se in side_effects:
-                            yield se
+                        # ── 高风险工具确认：同意即执行，拒绝则占位跳过 ──
+                        is_confirm = any(k == "confirm" for k, _ in side_effects)
+                        if is_confirm:
+                            # a. 预追加占位 tool 结果（保证消息历史合法）。
+                            #    后续 yield confirm 会触发 UI 的 Confirm.ask。
+                            #    若用户拒绝: PermissionError → generator 关闭 → 占位安全 ✓
+                            #    若用户同意: yield 正常返回 → 进入步骤 b
+                            placeholder = f"[高风险工具 {fname}: 等待用户确认]"
+                            self.messages.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tc.get("id", ""),
+                                    "content": placeholder,
+                                }
+                            )
+                            for se in side_effects:
+                                yield se  # ← Confirm.ask 阻塞点
+                            # b. 用户同意 → 用 confirmed=True 重新执行
+                            tool_result, exec_side_effects = await self._dispatch_tool(fname, fargs, confirmed=True)
+                            for se in exec_side_effects:
+                                yield se
+                            # c. 用真实结果替换占位
+                            from core.context_tools import compress_tool_result
+
+                            self.messages[-1] = {
+                                "role": "tool",
+                                "tool_call_id": tc.get("id", ""),
+                                "content": compress_tool_result(tool_result, self.client, self.model),
+                            }
+                            append_tool_result = False
+                        else:
+                            for se in side_effects:
+                                yield se
+                            append_tool_result = True
                         if fname not in _WRITE_TOOLS:
                             _executed_signatures.add(sig)
                             # 缓存保留原始结果（高保真），跨轮复用时仍可重新截断
@@ -526,15 +686,17 @@ class AsyncChatSession:
 
                     # 上下文窗口防护：智能压缩（抽取→LLM→截断三级路由），
                     # 防止大文件/长输出撑爆 LLM 上下文。原始结果仍在 cache 中。
-                    from core.context_tools import compress_tool_result
+                    # confirm 分支已在上面追加 tool 结果，跳过此处追加。
+                    if append_tool_result:
+                        from core.context_tools import compress_tool_result
 
-                    self.messages.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": tc.get("id", ""),
-                            "content": compress_tool_result(tool_result, self.client, self.model),
-                        }
-                    )
+                        self.messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tc.get("id", ""),
+                                "content": compress_tool_result(tool_result, self.client, self.model),
+                            }
+                        )
                 continue  # 进入下一轮
 
             # 无 tool_calls：收尾

@@ -2,8 +2,8 @@
 """CRUX Studio launcher - environment check + mode select + quick start"""
 
 import os
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 # Windows UTF-8 兼容
@@ -21,17 +21,19 @@ ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT))
 
 # ── Rich theme (single source of truth) ──────────────────────────
-from ui.theme import COLORS, ICONS, LAYOUT, console
+from ui.theme import COLORS, ICONS, console
 
 
 def _show_banner():
-    """Display the Organic convergence-diamond logo banner."""
-    from ui.terminal_logo import show as _show_logo
+    """Display the CRUX Studio v2 welcome panel with live tool/skill counts."""
+    from core.version import __version__
+    from ui.terminal_logo import render_welcome
 
     # 动态获取真实工具数和技能数
     _tool_count = _skill_count = None
     try:
         from core.tools import ToolRegistry
+
         _reg = ToolRegistry()
         _reg.load()
         _tool_count = len(_reg.tool_names)
@@ -39,11 +41,12 @@ def _show_banner():
         pass
     try:
         from core.skills import get_manager
+
         _skill_count = len(get_manager().list_all())
     except Exception:
         pass
 
-    _show_logo(t=_tool_count, s=_skill_count)
+    render_welcome(v=f"v{__version__}", t=_tool_count, s=_skill_count)
 
 
 def print_step(msg: str):
@@ -72,11 +75,16 @@ def run_cmd(cmd: str) -> tuple[int, str]:
     字面量命令（无 Windows 反斜杠路径），故 posix 模式安全。
     """
     import shlex
+
     try:
         args = shlex.split(cmd, posix=True)
         r = subprocess.run(
-            args, shell=False, capture_output=True, text=True,
-            cwd=str(ROOT), timeout=30,
+            args,
+            shell=False,
+            capture_output=True,
+            text=True,
+            cwd=str(ROOT),
+            timeout=30,
         )
         return r.returncode, (r.stdout or r.stderr).strip()
     except Exception as e:
@@ -84,6 +92,7 @@ def run_cmd(cmd: str) -> tuple[int, str]:
 
 
 # ── 环境检测 ──────────────────────────────────────────────
+
 
 def check_python() -> bool:
     code, out = run_cmd("python --version")
@@ -108,9 +117,7 @@ def check_env() -> bool:
             console.print(f"  [{COLORS['primary']}]{ICONS['info']}[/] 请输入 CRUX_API_KEY: ", end="")
             api_key = input().strip()
             env_file.write_text(
-                f"# CRUX AI API 配置\n"
-                f"CRUX_API_KEY={api_key}\n"
-                f"CRUX_BASE_URL=https://apihub.agnes-ai.com/v1\n",
+                f"# CRUX AI API 配置\nCRUX_API_KEY={api_key}\nCRUX_BASE_URL=https://apihub.agnes-ai.com/v1\n",
                 encoding="utf-8",
             )
             print_ok(".env 已创建")
@@ -120,7 +127,11 @@ def check_env() -> bool:
 
     # 检查 API Key 是否已填写（兼容 AGNES_API_KEY 旧格式）
     content = env_file.read_text(encoding="utf-8")
-    if "sk-your-api-key-here" in content or "CRUX_API_KEY=\n" in content or ("CRUX_API_KEY=" not in content and "AGNES_API_KEY=" not in content):
+    if (
+        "sk-your-api-key-here" in content
+        or "CRUX_API_KEY=\n" in content
+        or ("CRUX_API_KEY=" not in content and "AGNES_API_KEY=" not in content)
+    ):
         print_warn("API Key 未配置")
         console.print(f"  [{COLORS['primary']}]{ICONS['info']}[/] 请输入 CRUX_API_KEY (留空跳过): ", end="")
         api_key = input().strip()
@@ -143,7 +154,7 @@ def check_env() -> bool:
 
 def check_deps() -> bool:
     """检查并安装依赖"""
-    code, _ = run_cmd("python -c \"import httpx, rich, PIL, dotenv\"")
+    code, _ = run_cmd('python -c "import httpx, rich, PIL, dotenv"')
     if code == 0:
         print_ok("依赖已安装")
         return True
@@ -173,27 +184,28 @@ def check_output_dir():
 # ── 模式选择 ──────────────────────────────────────────────
 
 MODES = {
-    "1": (f"{ICONS['primary']} 交互菜单",     "文生图/图生图/视频/历史/模板"),
-    "2": (f"{ICONS['primary']} 聊天+智能体",  "45技能 + Alt+Enter换行 + 一键制片/作图/炼丹"),
-    "3": (f"{ICONS['primary']} 快速生成",     "输入描述 → 选类型 → 选视频时长 → 一键生成"),
-    "4": (f"{ICONS['primary']} 图生图",       "图片编辑/风格迁移 → 进入交互菜单操作"),
-    "5": (f"{ICONS['primary']} 图生视频",     "图片→视频，可选3s~18s时长"),
-    "6": (f"{ICONS['primary']} 查询视频",     "video_id 查进度（不要用 task_id）"),
+    "1": (f"{ICONS['primary']} 交互菜单", "文生图/图生图/视频/历史/模板"),
+    "2": (f"{ICONS['primary']} 聊天+智能体", "45技能 + Alt+Enter换行 + 一键制片/作图/炼丹"),
+    "3": (f"{ICONS['primary']} 快速生成", "输入描述 → 选类型 → 选视频时长 → 一键生成"),
+    "4": (f"{ICONS['primary']} 图生图", "图片编辑/风格迁移 → 进入交互菜单操作"),
+    "5": (f"{ICONS['primary']} 图生视频", "图片→视频，可选3s~18s时长"),
+    "6": (f"{ICONS['primary']} 查询视频", "video_id 查进度（不要用 task_id）"),
     "7": (f"{ICONS['primary']} 一站式流水线", "文本→图片→视频 全自动"),
-    "8": (f"{ICONS['primary']} 查看FAQ",      "常见问题/APIKey/视频时长/thinking/programming"),
+    "8": (f"{ICONS['primary']} 查看FAQ", "常见问题/APIKey/视频时长/thinking/programming"),
     "0": (f"{ICONS['primary']} 退出", ""),
 }
 
 
 def show_menu():
     from rich.table import Table
+
     console.print()
     console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] [bold]选择模式[/]")
     console.print(f"  [{COLORS['muted']}{'─' * 55}[/]")
-    table = Table(show_header=False, box=None, padding=(0, 2), collapse=True)
+    table = Table(show_header=False, box=None, padding=(0, 2))
     table.add_column(style=f"bold {COLORS['accent']}", width=2)
     table.add_column(width=14)
-    table.add_column(style=COLORS['muted'])
+    table.add_column(style=COLORS["muted"])
     for key, (label, desc) in MODES.items():
         if desc:
             table.add_row(key, label, desc)
@@ -251,6 +263,7 @@ def ask_quick_prompt(kind: str = "image") -> tuple[str, list[str]] | None:
 def _crux_cmd(args: list[str]) -> list[str]:
     """Return best available crux command: 'crux' if on PATH, else 'python crux_studio.py'."""
     import shutil
+
     if shutil.which("crux"):
         return ["crux"] + args
     return ["python", "crux_studio.py"] + args
@@ -278,9 +291,11 @@ def launch(cmd_parts: list[str]):
 
 # ── 主流程 ──────────────────────────────────────────────
 
+
 def main():
     """默认入口：环境检测后直接启动聊天模式。用 --menu 回到旧版图形菜单。"""
     import argparse
+
     ap = argparse.ArgumentParser(add_help=False)
     ap.add_argument("--menu", action="store_true", help="显示图形菜单（旧版启动器）")
     ap.add_argument("--no-check", action="store_true", help="跳过环境检测")
@@ -293,7 +308,7 @@ def main():
     _show_banner()
     if not a.no_check:
         console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] [bold]环境检测[/]")
-        console.print(f"  [{COLORS['muted']}{'─' * 40}[/]")
+        console.print(f"  [{COLORS['muted']}]{'─' * 40}[/]")
         if not check_python():
             input("\n按 Enter 退出...")
             sys.exit(1)
@@ -301,8 +316,12 @@ def main():
         check_deps()
         check_output_dir()
     console.print(f"\n  [{COLORS['muted']}]直接进入 CRUX Chat 模式...[/]")
-    console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] [{COLORS['primary']}]命令[/]  /code /agent /plan /team /deploy /showrun /help")
-    console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] [{COLORS['primary']}]换行[/]  Alt+Enter / Ctrl+J  ·  图片: 直接粘贴路径")
+    console.print(
+        f"  [{COLORS['primary']}]{ICONS['primary']}[/] [{COLORS['primary']}]命令[/]  /code /agent /plan /team /deploy /showrun /help"
+    )
+    console.print(
+        f"  [{COLORS['primary']}]{ICONS['primary']}[/] [{COLORS['primary']}]换行[/]  Alt+Enter / Ctrl+J  ·  图片: 直接粘贴路径"
+    )
     launch(_crux_cmd(["-c"]))
 
 
@@ -319,6 +338,7 @@ def _main_menu():
     check_output_dir()
     try:
         from utils import memory
+
         tips = memory.get_tips()
         if tips:
             console.print(f"\n  [{COLORS['muted']}]💡 使用建议:[/]")
@@ -339,14 +359,22 @@ def _main_menu():
             continue
         if choice == "2":
             console.print(f"\n  [{COLORS['muted']}]正在启动聊天+智能体模式...[/]")
-            console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] 技能: /skill load 视频|作图|写剧本|分镜|炼丹...")
-            console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] 换行: Alt+Enter / Ctrl+J  ·  图片: 直接粘贴路径")
-            console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] 命令: /code /agent /plan /team /deploy /provider /help")
+            console.print(
+                f"  [{COLORS['primary']}]{ICONS['primary']}[/] 技能: /skill load 视频|作图|写剧本|分镜|炼丹..."
+            )
+            console.print(
+                f"  [{COLORS['primary']}]{ICONS['primary']}[/] 换行: Alt+Enter / Ctrl+J  ·  图片: 直接粘贴路径"
+            )
+            console.print(
+                f"  [{COLORS['primary']}]{ICONS['primary']}[/] 命令: /code /agent /plan /team /deploy /provider /help"
+            )
             launch(_crux_cmd(["-c"]))
             continue
         if choice == "3":
             console.print(f"\n  [{COLORS['muted']}]选择生成类型:[/]")
-            console.print(f"  [{COLORS['accent']}]{1}[/] 图片  [{COLORS['accent']}]{2}[/] 视频  [{COLORS['accent']}]{3}[/] 流水线")
+            console.print(
+                f"  [{COLORS['accent']}]{1}[/] 图片  [{COLORS['accent']}]{2}[/] 视频  [{COLORS['accent']}]{3}[/] 流水线"
+            )
             console.print(f"  [{COLORS['primary']}]{ICONS['info']}[/] 选择 (1-3): ", end="")
             ch = input().strip()
             kind_map = {"1": "image", "2": "video", "3": "pipeline"}
@@ -401,6 +429,7 @@ def _main_menu():
                 console.print(f"\n  [{COLORS['muted']}]正在打开 FAQ.md ...[/]")
                 try:
                     import os
+
                     os.startfile(str(faq_path))
                     console.print(f"  [{COLORS['success']}]{ICONS['success']}[/] 已打开 FAQ 文档")
                 except (OSError, AttributeError) as e:
@@ -411,7 +440,6 @@ def _main_menu():
             input("  按 Enter 返回菜单...")
             continue
         print_warn(f"无效选择 '{choice}'，请输入 0-8")
-
 
 
 if __name__ == "__main__":

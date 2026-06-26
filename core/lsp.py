@@ -507,50 +507,56 @@ class LSPClient:
 
         Reads from stdout until a matching response (by id) is found,
         skipping any notifications in between. Returns the response dict.
+
+        Thread-safety: the whole request→response cycle is serialized via
+        ``self._lock`` because a single LSP process has one stdin/stdout
+        pair — concurrent requests would interleave writes and misroute
+        responses.
         """
-        self._request_id += 1
-        req_id = self._request_id
+        with self._lock:
+            self._request_id += 1
+            req_id = self._request_id
 
-        message = {
-            "jsonrpc": "2.0",
-            "id": req_id,
-            "method": method,
-        }
-        if params is not None:
-            message["params"] = params
+            message = {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "method": method,
+            }
+            if params is not None:
+                message["params"] = params
 
-        payload = json.dumps(message, ensure_ascii=False)
-        data = self._format_message(payload)
+            payload = json.dumps(message, ensure_ascii=False)
+            data = self._format_message(payload)
 
-        stdin = process.stdin
-        if stdin is None:
-            return {"error": f"Failed to send request '{method}': process stdin is closed"}
-        try:
-            stdin.write(data)
-            stdin.flush()
-        except (BrokenPipeError, OSError, ValueError) as e:
-            return {"error": f"Failed to send request '{method}': {e}"}
+            stdin = process.stdin
+            if stdin is None:
+                return {"error": f"Failed to send request '{method}': process stdin is closed"}
+            try:
+                stdin.write(data)
+                stdin.flush()
+            except (BrokenPipeError, OSError, ValueError) as e:
+                return {"error": f"Failed to send request '{method}': {e}"}
 
-        # Read responses until we find the one matching our request id.
-        import time
+            # Read responses until we find the one matching our request id.
+            import time
 
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            remaining = deadline - time.time()
-            response = self._read_response(process, timeout=remaining)
-            if response is None:
-                return {"error": f"Timeout waiting for response to '{method}'"}
+            deadline = time.time() + timeout
+            while time.time() < deadline:
+                remaining = deadline - time.time()
+                response = self._read_response(process, timeout=remaining)
+                if response is None:
+                    return {"error": f"Timeout waiting for response to '{method}'"}
 
-            # If it's a notification (no id), skip it and keep reading.
-            if "id" not in response:
+                # If it's a notification (no id), skip it and keep reading.
+                if "id" not in response:
+                    continue
+
+                if response["id"] == req_id:
+                    return response
+                # Response for a different request (shouldn't happen in serial mode).
                 continue
 
-            if response["id"] == req_id:
-                return response
-            # Response for a different request (shouldn't happen in serial mode).
-            continue
-
-        return {"error": f"Timeout waiting for response to '{method}'"}
+            return {"error": f"Timeout waiting for response to '{method}'"}
 
     def _send_notification(self, process: subprocess.Popen, method: str, params: dict | None = None):
         """Send a JSON-RPC 2.0 notification (no response expected)."""
@@ -768,6 +774,20 @@ def get_lsp_client() -> LSPClient:
             if _lsp_client is None:
                 _lsp_client = LSPClient()
     return _lsp_client
+
+
+def reset_lsp_client() -> None:
+    """Stop all LSP servers and drop the global singleton.
+
+    Used for test isolation and hot reload. A subsequent get_lsp_client()
+    call will spin up a fresh LSPClient.
+    """
+    global _lsp_client
+    with _client_lock:
+        if _lsp_client is not None:
+            with contextlib.suppress(Exception):
+                _lsp_client.stop_all()
+            _lsp_client = None
 
 
 # ======================================================================

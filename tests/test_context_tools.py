@@ -9,11 +9,10 @@
 import sys
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from core.agent import ContextManager
 from core.context_tools import (
     DEFAULT_MAX_CHARS,
     abstractive_compress,
@@ -23,14 +22,11 @@ from core.context_tools import (
     truncate_messages,
     truncate_tool_result,
 )
-from core.agent import ContextManager
-
 
 # ── truncate_tool_result ────────────────────────────────────────
 
 
 class TestTruncateToolResult:
-
     def test_short_text_unchanged(self):
         assert truncate_tool_result("hello") == "hello"
 
@@ -50,7 +46,7 @@ class TestTruncateToolResult:
         text = "H" * 5000 + "M" * 5000 + "T" * 5000  # 15000 chars
         result = truncate_tool_result(text, max_chars=DEFAULT_MAX_CHARS)
         head = DEFAULT_MAX_CHARS * 2 // 3
-        tail = DEFAULT_MAX_CHARS - head
+        _tail = DEFAULT_MAX_CHARS - head
         # 头部应包含 H（前 5000 < head≈5333）
         assert result.startswith("H")
         # 尾部应包含 T（最后 tail≈2666 落在 T 区域 5000+5000=10000 之后）
@@ -95,7 +91,6 @@ class TestTruncateToolResult:
 
 
 class TestTruncateMessages:
-
     def test_empty_list(self):
         assert truncate_messages([]) == []
 
@@ -166,7 +161,6 @@ class TestTruncateMessages:
 
 
 class TestEstimateTokens:
-
     def test_empty(self):
         assert estimate_tokens("") == 0
 
@@ -196,7 +190,6 @@ class TestEstimateTokens:
 
 
 class TestConstants:
-
     def test_default_max_chars_matches_context_manager(self):
         """常量必须与 ContextManager._MAX_MSG_CHARS 一致（DNA 契约）。"""
         assert DEFAULT_MAX_CHARS == ContextManager._MAX_MSG_CHARS
@@ -223,9 +216,11 @@ class TestCachePointTruncation:
         # 第一轮：返回一个工具调用 read_file
         round1_deltas = [
             {"content": "我来读取文件"},
-            {"tool_calls": [{"index": 0, "id": "call_read",
-                             "function": {"name": "read_file",
-                                          "arguments": '{"path":"big.py"}'}}]},
+            {
+                "tool_calls": [
+                    {"index": 0, "id": "call_read", "function": {"name": "read_file", "arguments": '{"path":"big.py"}'}}
+                ]
+            },
             {"_finish": "tool_calls"},
         ]
         # 第二轮：模型总结
@@ -241,8 +236,7 @@ class TestCachePointTruncation:
             seq = [round1_deltas, round2_deltas]
             items = seq[min(call_idx, len(seq) - 1)]
             call_idx += 1
-            for item in items:
-                yield item
+            yield from items
 
         client.chat_stream = _mock_stream
         return client
@@ -250,6 +244,7 @@ class TestCachePointTruncation:
     def test_sync_send_stream_truncates_tool_result(self):
         """同步 ChatSession.send_stream 工具结果超限 → messages 截断。"""
         from unittest.mock import patch
+
         from core.chat import ChatSession
 
         client = self._make_mock_client()
@@ -273,14 +268,13 @@ class TestCachePointTruncation:
 
         # 关键断言：写入 messages 的内容已被截断
         content = tool_msgs[0]["content"]
-        assert len(content) < len(huge_result), (
-            "tool 结果未被截断——cache-point 契约违反"
-        )
+        assert len(content) < len(huge_result), "tool 结果未被截断——cache-point 契约违反"
         assert "truncated" in content
 
     def test_sync_cache_preserves_raw_result(self):
         """跨轮去重缓存应保留原始结果（非截断后）。"""
         from unittest.mock import patch
+
         from core.chat import ChatSession
 
         client = self._make_mock_client()
@@ -313,7 +307,6 @@ class TestCachePointTruncation:
 
 
 class TestExtractiveCompress:
-
     def test_short_text_passthrough(self):
         """短文本不处理，原样返回。"""
         text = "hello world"
@@ -322,7 +315,9 @@ class TestExtractiveCompress:
     def test_long_text_compressed(self):
         """长文本被抽取压缩，结果长度 ≤ max_chars。"""
         # 构造超长文本：80 个句子，每个 ~300 字符
-        sentences = [f"句子{i}: 这是第{i}个句子的内容。包含一些关键的函数名 func_{i} 和变量 var_{i}。" * 5 for i in range(80)]
+        sentences = [
+            f"句子{i}: 这是第{i}个句子的内容。包含一些关键的函数名 func_{i} 和变量 var_{i}。" * 5 for i in range(80)
+        ]
         text = "\n".join(sentences)
         assert len(text) > 8000
         result = extractive_compress(text, max_chars=8000)
@@ -368,15 +363,12 @@ class TestExtractiveCompress:
 
 
 class TestAbstractiveCompress:
-
     def test_mock_client_compresses(self):
         """mock client.chat 返回摘要时正确工作。"""
         from unittest.mock import MagicMock
 
         mock_client = MagicMock()
-        mock_client.chat.return_value = {
-            "choices": [{"message": {"content": "Summary: key information preserved."}}]
-        }
+        mock_client.chat.return_value = {"choices": [{"message": {"content": "Summary: key information preserved."}}]}
         text = "X" * 10000
         result = abstractive_compress(text, mock_client, model="test-model")
         assert "Summary" in result
@@ -414,9 +406,7 @@ class TestAbstractiveCompress:
         from unittest.mock import MagicMock
 
         mock_client = MagicMock()
-        mock_client.chat.return_value = {
-            "choices": [{"message": {"content": "ok"}}]
-        }
+        mock_client.chat.return_value = {"choices": [{"message": {"content": "ok"}}]}
 
         text = "Z" * 20000
         abstractive_compress(text, mock_client)
@@ -428,7 +418,6 @@ class TestAbstractiveCompress:
 
 
 class TestCompressToolResult:
-
     def test_short_text_passthrough(self):
         """短文本直接返回，不触发任何压缩。"""
         text = "hello"
@@ -462,9 +451,7 @@ class TestCompressToolResult:
         from unittest.mock import MagicMock
 
         mock_client = MagicMock()
-        mock_client.chat.return_value = {
-            "choices": [{"message": {"content": "Brief summary."}}]
-        }
+        mock_client.chat.return_value = {"choices": [{"message": {"content": "Brief summary."}}]}
 
         # 构造 extractive 无法充分压缩的文本（连续长句，切分效果差）
         text = "A" * 20000  # 无句子边界，extractive 基本保留原文
@@ -475,7 +462,7 @@ class TestCompressToolResult:
 
     def test_metrics_tracked(self):
         """验证 metrics 计数器被正确递增。"""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         mock_metrics = MagicMock()
         mock_client = MagicMock()

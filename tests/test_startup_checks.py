@@ -8,11 +8,12 @@ class TestReportHelpers:
 
     def test_critical_failures_filters_blocking(self):
         from core.startup_checks import critical_failures
+
         results = [
-            ("env", False, "missing key"),       # blocking
+            ("env", False, "missing key"),  # blocking
             ("deps", True, "ok"),
-            ("tools.json", False, "bad json"),   # blocking
-            ("api", False, "unreachable"),       # not blocking (api category)
+            ("tools.json", False, "bad json"),  # blocking
+            ("api", False, "unreachable"),  # not blocking (api category)
         ]
         failures = critical_failures(results)
         assert "missing key" in failures
@@ -21,11 +22,13 @@ class TestReportHelpers:
 
     def test_critical_failures_empty_on_all_pass(self):
         from core.startup_checks import critical_failures
+
         results = [("env", True, "ok"), ("deps", True, "ok")]
         assert critical_failures(results) == []
 
     def test_print_report_outputs(self, capsys):
         from core.startup_checks import print_report
+
         results = [("env", False, "broken"), ("deps", True, "ok")]
         print_report(results, show_ok=False)
         captured = capsys.readouterr()
@@ -35,6 +38,7 @@ class TestReportHelpers:
 
     def test_print_report_shows_ok_when_requested(self, capsys):
         from core.startup_checks import print_report
+
         results = [("deps", True, "all good")]
         print_report(results, show_ok=True)
         captured = capsys.readouterr()
@@ -46,6 +50,7 @@ class TestCheckToolsConfig:
 
     def test_missing_tools_json(self, tmp_path, monkeypatch):
         from core import startup_checks
+
         monkeypatch.setattr(startup_checks, "ROOT", tmp_path)
         startup_checks._results.clear()
         startup_checks._check_tools_config()
@@ -57,9 +62,13 @@ class TestCheckToolsConfig:
 
     def test_valid_tools_json(self, tmp_path, monkeypatch):
         from core import startup_checks
+
         monkeypatch.setattr(startup_checks, "ROOT", tmp_path)
-        cfg = {"tools": [{"name": "echo", "type": "shell", "command": "echo {text}",
-                          "parameters": {"text": {"type": "string"}}}]}
+        cfg = {
+            "tools": [
+                {"name": "echo", "type": "shell", "command": "echo {text}", "parameters": {"text": {"type": "string"}}}
+            ]
+        }
         (tmp_path / "tools.json").write_text(json.dumps(cfg), encoding="utf-8")
         startup_checks._results.clear()
         startup_checks._check_tools_config()
@@ -68,10 +77,19 @@ class TestCheckToolsConfig:
 
     def test_format_string_conflict_detected(self, tmp_path, monkeypatch):
         from core import startup_checks
+
         monkeypatch.setattr(startup_checks, "ROOT", tmp_path)
         # {undefined} placeholder has no matching parameter
-        cfg = {"tools": [{"name": "bad", "type": "shell", "command": "echo {undefined}",
-                          "parameters": {"text": {"type": "string"}}}]}
+        cfg = {
+            "tools": [
+                {
+                    "name": "bad",
+                    "type": "shell",
+                    "command": "echo {undefined}",
+                    "parameters": {"text": {"type": "string"}},
+                }
+            ]
+        }
         (tmp_path / "tools.json").write_text(json.dumps(cfg), encoding="utf-8")
         startup_checks._results.clear()
         startup_checks._check_tools_config()
@@ -81,6 +99,7 @@ class TestCheckToolsConfig:
 
     def test_invalid_json(self, tmp_path, monkeypatch):
         from core import startup_checks
+
         monkeypatch.setattr(startup_checks, "ROOT", tmp_path)
         (tmp_path / "tools.json").write_text("not valid {{{", encoding="utf-8")
         startup_checks._results.clear()
@@ -94,6 +113,7 @@ class TestCheckModelsConfig:
 
     def test_missing_models_json(self, tmp_path, monkeypatch):
         from core import startup_checks
+
         monkeypatch.setattr(startup_checks, "ROOT", tmp_path)
         startup_checks._results.clear()
         startup_checks._check_models_config()
@@ -103,10 +123,9 @@ class TestCheckModelsConfig:
 
     def test_valid_models_json(self, tmp_path, monkeypatch):
         from core import startup_checks
+
         monkeypatch.setattr(startup_checks, "ROOT", tmp_path)
-        cfg = {"providers": {"crux": {"base_url": "https://api.example.com",
-                                       "models": ["m1"]}},
-               "active": "crux"}
+        cfg = {"providers": {"crux": {"base_url": "https://api.example.com", "models": ["m1"]}}, "active": "crux"}
         (tmp_path / "models.json").write_text(json.dumps(cfg), encoding="utf-8")
         startup_checks._results.clear()
         startup_checks._check_models_config()
@@ -115,9 +134,9 @@ class TestCheckModelsConfig:
 
     def test_no_providers_fails(self, tmp_path, monkeypatch):
         from core import startup_checks
+
         monkeypatch.setattr(startup_checks, "ROOT", tmp_path)
-        (tmp_path / "models.json").write_text(json.dumps({"providers": {}}),
-                                              encoding="utf-8")
+        (tmp_path / "models.json").write_text(json.dumps({"providers": {}}), encoding="utf-8")
         startup_checks._results.clear()
         startup_checks._check_models_config()
         cat, ok, msg = startup_checks._results[0]
@@ -125,9 +144,9 @@ class TestCheckModelsConfig:
 
     def test_invalid_base_url_fails(self, tmp_path, monkeypatch):
         from core import startup_checks
+
         monkeypatch.setattr(startup_checks, "ROOT", tmp_path)
-        cfg = {"providers": {"x": {"base_url": "not-a-url", "models": []}},
-               "active": "x"}
+        cfg = {"providers": {"x": {"base_url": "not-a-url", "models": []}}, "active": "x"}
         (tmp_path / "models.json").write_text(json.dumps(cfg), encoding="utf-8")
         startup_checks._results.clear()
         startup_checks._check_models_config()
@@ -141,6 +160,7 @@ class TestCheckDeps:
 
     def test_runs_without_error(self):
         from core import startup_checks
+
         startup_checks._results.clear()
         startup_checks._check_deps()
         # Should produce one result entry (ok or fail depending on env)
@@ -152,6 +172,7 @@ class TestRunAll:
 
     def test_returns_results_list(self, monkeypatch, tmp_path):
         from core import startup_checks
+
         # Point ROOT at empty tmp_path so file-based checks don't hit real config
         monkeypatch.setattr(startup_checks, "ROOT", tmp_path)
         results = startup_checks.run_all()
@@ -162,6 +183,7 @@ class TestRunAll:
 
     def test_clears_previous_results(self, monkeypatch, tmp_path):
         from core import startup_checks
+
         monkeypatch.setattr(startup_checks, "ROOT", tmp_path)
         startup_checks._results.append(("stale", True, "old"))
         results = startup_checks.run_all()

@@ -10,6 +10,7 @@
   - 返回值格式一致性 (JSON 字符串)
   - 无真实 MCP server 子进程 (全 mock)
 """
+
 from __future__ import annotations
 
 import json
@@ -17,24 +18,22 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.mcp_client import (
-    MCP_TOOL_DEFS,
     MCP_EXECUTOR_MAP,
+    MCP_TOOL_DEFS,
+    _exec_mcp_call_tool,
     _exec_mcp_list_servers,
     _exec_mcp_list_tools,
-    _exec_mcp_call_tool,
     _exec_mcp_read_resource,
 )
-
 
 # ════════════════════════════════════════════════════════════
 #  基础结构验证
 # ════════════════════════════════════════════════════════════
+
 
 class TestMCPBridgeDefinitions:
     """MCP_TOOL_DEFS + MCP_EXECUTOR_MAP 结构完整性。"""
@@ -60,8 +59,7 @@ class TestMCPBridgeDefinitions:
 
     def test_mcp_call_tool_required_params(self):
         """mcp_call_tool 需要 server_name + tool_name, arguments 可选。"""
-        call_def = next(d for d in MCP_TOOL_DEFS
-                        if d["function"]["name"] == "mcp_call_tool")
+        call_def = next(d for d in MCP_TOOL_DEFS if d["function"]["name"] == "mcp_call_tool")
         required = call_def["function"]["parameters"].get("required", [])
         assert "server_name" in required
         assert "tool_name" in required
@@ -69,8 +67,7 @@ class TestMCPBridgeDefinitions:
 
     def test_mcp_read_resource_required_params(self):
         """mcp_read_resource 需要 server_name + uri。"""
-        read_def = next(d for d in MCP_TOOL_DEFS
-                         if d["function"]["name"] == "mcp_read_resource")
+        read_def = next(d for d in MCP_TOOL_DEFS if d["function"]["name"] == "mcp_read_resource")
         required = read_def["function"]["parameters"].get("required", [])
         assert "server_name" in required
         assert "uri" in required
@@ -79,6 +76,7 @@ class TestMCPBridgeDefinitions:
 # ════════════════════════════════════════════════════════════
 #  _exec_mcp_list_servers
 # ════════════════════════════════════════════════════════════
+
 
 class TestExecListServers:
     """mcp_list_servers executor: 空/非空配置。"""
@@ -120,6 +118,7 @@ class TestExecListServers:
 #  _exec_mcp_list_tools
 # ════════════════════════════════════════════════════════════
 
+
 class TestExecListTools:
     """mcp_list_tools executor: 未配置 / auto-connect 失败 / 已连接。"""
 
@@ -150,9 +149,7 @@ class TestExecListTools:
         """已连接的 server → 不调 connect, 直接 list_tools。"""
         mock_client = MagicMock()
         mock_client._processes = {"claude": MagicMock()}
-        mock_client.list_tools.return_value = [
-            {"name": "read_file", "description": "read a file"}
-        ]
+        mock_client.list_tools.return_value = [{"name": "read_file", "description": "read a file"}]
         mock_get.return_value = mock_client
         result = _exec_mcp_list_tools(server_name="claude")
         data = json.loads(result)
@@ -177,6 +174,7 @@ class TestExecListTools:
 # ════════════════════════════════════════════════════════════
 #  _exec_mcp_call_tool
 # ════════════════════════════════════════════════════════════
+
 
 class TestExecCallTool:
     """mcp_call_tool executor: JSON 解析 / auto-connect / 错误路径。"""
@@ -207,7 +205,7 @@ class TestExecCallTool:
             server_name="claude",
             tool_name="ping",
         )
-        data = json.loads(result)
+        _data = json.loads(result)
         # call_tool 被调用, arguments 应为 None
         mock_client.call_tool.assert_called_once()
         call_args = mock_client.call_tool.call_args
@@ -238,7 +236,7 @@ class TestExecCallTool:
         mock_client.connect.return_value = {"status": "connected"}
         mock_client.call_tool.return_value = {"result": "done"}
         mock_get.return_value = mock_client
-        result = _exec_mcp_call_tool(
+        _result = _exec_mcp_call_tool(
             server_name="claude",
             tool_name="ping",
         )
@@ -264,6 +262,7 @@ class TestExecCallTool:
 # ════════════════════════════════════════════════════════════
 #  _exec_mcp_read_resource
 # ════════════════════════════════════════════════════════════
+
 
 class TestExecReadResource:
     """mcp_read_resource executor: auto-connect / 未连接 / 空参。"""
@@ -319,6 +318,7 @@ class TestExecReadResource:
 #  通用: executor 与 ToolRegistry 集成
 # ════════════════════════════════════════════════════════════
 
+
 class TestMCPBridgeRegistryIntegration:
     """验证 MCP bridge executor 在 ToolRegistry 中的注册和执行。"""
 
@@ -330,6 +330,7 @@ class TestMCPBridgeRegistryIntegration:
             _processes={},
         )
         from core.tools import ToolRegistry
+
         reg = ToolRegistry()
         reg.load(mcp=True)
         for name in MCP_EXECUTOR_MAP:
@@ -338,6 +339,7 @@ class TestMCPBridgeRegistryIntegration:
     def test_mcp_tools_not_registered_when_mcp_false(self):
         """load(mcp=False) 后 MCP 工具不在注册表。"""
         from core.tools import ToolRegistry
+
         reg = ToolRegistry()
         reg.load(mcp=False)
         for name in MCP_EXECUTOR_MAP:
@@ -350,6 +352,7 @@ class TestMCPBridgeRegistryIntegration:
         mock_client.list_servers.return_value = [{"name": "test"}]
         mock_get.return_value = mock_client
         from core.tools import ToolRegistry
+
         reg = ToolRegistry()
         reg.load(mcp=True)
         result = reg.execute("mcp_list_servers", {})

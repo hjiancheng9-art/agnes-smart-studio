@@ -21,6 +21,10 @@ CRUX Studio v5.0.0 — AI-native creative + coding platform
 - 可观测/质量: core/observability.py (tracing/spans/metrics), core/cost_tracker.py (Token/预算追踪), core/audit_runner.py (统一诊断), core/eval_harness.py (智能体质量基准), core/self_audit.py (自审计)
 - 持久化/调度: core/task_manager.py (持久任务), core/scheduler.py (内置定时), core/pipeline_state.py (流水线状态/质量门)
 - 外部集成: core/browser_tools.py (网页生图生视频), core/git_tools.py + core/git_workflow.py (Git 自动化), core/mcp_client.py (MCP Client 桥接) + core/mcp_server.py (MCP Server stdio JSON-RPC), core/web_api.py (FastAPI REST 接口), core/codex_engines.py + core/codex_tools.py (Codex 引擎与工具集)
+- 安全/约束: core/constraints.py (高风险工具确认 + 危险参数匹配 + 写入/长运行工具白名单，单一真源)
+- 事件/插件: core/event_bus.py (发布/订阅事件总线), core/plugin_system.py (外部插件加载), core/capability_registry.py (工具能力守卫/白名单)
+- 守护/后台: core/watchdog.py (供应商健康探针), core/daemon.py (后台守护进程), core/pipeline_dag.py (DAG 并行编排), core/beast_wiring.py (五兽躯体初始化/接线)
+- prompt 注入: core/golden_finger.py (能力谱 prompt 注入), core/seven_beasts_fusion.py (融合 prompt)
 
 ## MCP 四象融合架构
 CRUX 同时作为 MCP **Server**（被外部调用）和 MCP **Client**（调用外部），双向可达：
@@ -31,7 +35,7 @@ CRUX 同时作为 MCP **Server**（被外部调用）和 MCP **Client**（调用
 - **配置持久化**: output/mcp_servers.json，auto-connect on first call，atexit cleanup
 
 ## Key Capabilities
-- 33 Commands: auto-registered in core/commands.py (COMMANDS list), /help auto-generated
+- 37 Commands: auto-registered in core/commands.py (COMMANDS list), /help auto-generated
 - Toggle-based feature switching (非 mode 架构):
   - code_mode / agent_mode: ChatSession.toggle_code_mode() / toggle_agent_mode()
   - Skill loading: ChatSession.load_skill() / unload_skill() (showrunner / comfyui-bridge)
@@ -40,9 +44,9 @@ CRUX 同时作为 MCP **Server**（被外部调用）和 MCP **Client**（调用
   - 质量基准: /eval [json] 跑 EvalEngine 基准集（表格/JSON 输出）
   - 每次切换通过 _build_system_prompt() 重建 system prompt
 - Showrunner: /showrun <goal> full creative pipeline (plan->decompose->storyboard->generate->QC)
-- Marketplace: 733 skills (45 local + 688 CodeBuddy), search/install/auto-discover
+- Marketplace: 734 skills (45 local + 689 CodeBuddy), search/install/auto-discover
 - Providers: CRUX AI / DeepSeek V4 Pro / SiliconFlow Kimi / Qwen3-Coder 30B (local CUDA)
-- 80 Tools: code editing, git (13), code intelligence (7), GitHub (10), ComfyUI (12), LoRA (3), browser, file ops, MCP bridge (4 tools), patch, execute_plan, codex, notebook, audio — 动态统计见 /tools
+- 84 Tools: code editing, git (13), code intelligence (7), GitHub (10), ComfyUI (12), LoRA (3), browser, file ops, MCP bridge (4 tools), patch, execute_plan, codex, notebook, audio — 动态统计见 /tools
 
 ## Rendering Contract (DNA — 输出不重复)
 - ui/render.py:StreamingRenderer 是所有流式渲染的唯一合法网关（强制契约）
@@ -78,13 +82,21 @@ CRUX 同时作为 MCP **Server**（被外部调用）和 MCP **Client**（调用
 - 流式渲染: 必须用 ui.render.StreamingRenderer，禁止直接 import rich.live.Live（守卫测试会拦）
 
 ## Current State
-- 33 commands, 80 tools, 45 local skills, 733 marketplace skills
-- Core modules: 64 .py files in core/ (含 v5.0 新增编排/智能体/可观测子系统，见上方 Extended Architecture)
+- 37 commands, 84 tools, 45 local skills, 734 marketplace skills
+- Core modules: 107 .py files in core/ (含 v5.0 新增编排/智能体/可观测子系统，见上方 Extended Architecture)
 - Toggle-based: code_mode / agent_mode / skill (showrunner / comfyui-bridge) / extend (notebook/audio/browser)
 - MCP 四象融合: MCP Client bridge (mcp_client.py) + MCP Server (mcp_server.py) 双向可达
 - Terminal logo displays on startup via ui/terminal_logo.py
 - llama-server with CUDA 13.3 on RTX 4060 Ti for local Qwen3-Coder 30B
-- Test baseline: 1809 tests passing (数字随测试增减自动变化，不再硬编码)
+- Test baseline: 2162 tests passing (数字随测试增减自动变化，不再硬编码)
+
+## Subsystem Docs (core/*.md)
+- core/executor.md — 自主任务执行器 (Plan→Execute→Verify→Report)
+- core/orchestra.md — 能力协调层 (多源冲突仲裁/组合/发现/动态切换)
+- core/multi_agent.md — 多智能体并行调度 (分解/派发/聚合/共识/偷取)
+- core/showrunner.md — 创意流水线导演 (Goal→Plan→Generate→Deliver)
+- core/observability_stack.md — 可观测体系 (Tracing/Cost/Self-Audit)
+- core/provider_resilience.md — 供应商+韧性 (Failover/CircuitBreaker/Recovery)
 </INSTRUCTIONS>
 
 # currentDate

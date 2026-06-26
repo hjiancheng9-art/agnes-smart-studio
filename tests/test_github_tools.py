@@ -6,12 +6,12 @@
 - 各 execute_* 函数的参数拼接与错误处理
 - 返回值的 JSON 格式
 """
+
 from __future__ import annotations
 
 import json
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -20,7 +20,6 @@ sys.path.insert(0, str(ROOT))
 
 from core.github_tools import (
     _parse_repo_arg,
-    _run_gh,
     execute_github_api,
     execute_github_browse,
     execute_github_issue,
@@ -32,7 +31,6 @@ from core.github_tools import (
     execute_github_search,
     execute_github_write_file,
 )
-
 
 # ── 辅助：可编程 mock _run_gh ──────────────────────────────────────
 
@@ -90,14 +88,17 @@ class TestParseRepoArg:
 
     def test_empty_returns_empty_when_no_git(self, monkeypatch):
         """空参数 + 无 git 仓库时返回空字符串。"""
-        monkeypatch.setattr("core.github_tools._run_gh",
-                            lambda args, timeout=5: {"success": False, "stdout": "", "stderr": ""})
+        monkeypatch.setattr(
+            "core.github_tools._run_gh", lambda args, timeout=5: {"success": False, "stdout": "", "stderr": ""}
+        )
         assert _parse_repo_arg("") == ""
 
     def test_empty_auto_detects_current_repo(self, monkeypatch):
         """空参数自动检测当前仓库。"""
-        monkeypatch.setattr("core.github_tools._run_gh",
-                            lambda args, timeout=5: {"success": True, "stdout": "huangjiancheng/crux-smart-studio"})
+        monkeypatch.setattr(
+            "core.github_tools._run_gh",
+            lambda args, timeout=5: {"success": True, "stdout": "huangjiancheng/crux-smart-studio"},
+        )
         assert _parse_repo_arg("") == "huangjiancheng/crux-smart-studio"
 
 
@@ -115,7 +116,7 @@ class TestGithubSearch:
         assert fake.calls[0][0] == "search" and fake.calls[0][1] == "repos"
 
     def test_search_issues_with_state_and_label(self, monkeypatch):
-        fake = FakeGh(returns={"issues": {"success": True, "stdout": '[]'}})
+        fake = FakeGh(returns={"issues": {"success": True, "stdout": "[]"}})
         monkeypatch.setattr("core.github_tools._run_gh", fake)
         execute_github_search(query="bug", search_type="issues", state="closed", label="bug")
         args = fake.calls[0]
@@ -152,8 +153,7 @@ class TestGithubRepoView:
         assert result["stargazerCount"] == 150000
 
     def test_repo_view_empty_repo_returns_error(self, monkeypatch):
-        monkeypatch.setattr("core.github_tools._run_gh",
-                            lambda args, timeout=5: {"success": False, "stdout": ""})
+        monkeypatch.setattr("core.github_tools._run_gh", lambda args, timeout=5: {"success": False, "stdout": ""})
         result = json.loads(execute_github_repo_view(repo=""))
         assert "error" in result
 
@@ -188,10 +188,14 @@ class TestGithubBrowse:
 
     def test_browse_file_decodes_base64(self, monkeypatch):
         import base64
+
         content = "Hello, world!"
         fake_data = {
-            "type": "file", "path": "hello.txt", "size": len(content),
-            "sha": "abc123", "content": base64.b64encode(content.encode()).decode(),
+            "type": "file",
+            "path": "hello.txt",
+            "size": len(content),
+            "sha": "abc123",
+            "content": base64.b64encode(content.encode()).decode(),
         }
         fake = FakeGh(default={"success": True, "stdout": json.dumps(fake_data)})
         monkeypatch.setattr("core.github_tools._run_gh", fake)
@@ -206,6 +210,7 @@ class TestGithubBrowse:
 class TestGithubReadme:
     def test_readme_returns_content(self, monkeypatch):
         import base64
+
         content = "# My Project\nHello!"
         fake_data = {"name": "README.md", "content": base64.b64encode(content.encode()).decode()}
         fake = FakeGh(default={"success": True, "stdout": json.dumps(fake_data)})
@@ -292,7 +297,11 @@ class TestGithubWriteFile:
     def test_create_new_file(self, monkeypatch):
         """创建新文件：不含 sha。"""
         fake_resp = {
-            "commit": {"sha": "abc123", "message": "Create hello.py", "html_url": "https://github.com/owner/repo/commit/abc123"},
+            "commit": {
+                "sha": "abc123",
+                "message": "Create hello.py",
+                "html_url": "https://github.com/owner/repo/commit/abc123",
+            },
             "content": {"sha": "def456", "path": "hello.py"},
         }
         fake = FakeGh(default={"success": True, "stdout": json.dumps(fake_resp)})
@@ -321,8 +330,7 @@ class TestGithubWriteFile:
         assert "branch=fix-branch" in args
 
     def test_empty_repo_returns_error(self, monkeypatch):
-        monkeypatch.setattr("core.github_tools._run_gh",
-                            lambda args, timeout=5: {"success": False, "stdout": ""})
+        monkeypatch.setattr("core.github_tools._run_gh", lambda args, timeout=5: {"success": False, "stdout": ""})
         result = json.loads(execute_github_write_file(repo="", path="x.py", content="x"))
         assert "error" in result
 
@@ -339,4 +347,3 @@ class TestGithubWriteFile:
         monkeypatch.setattr("core.github_tools._run_gh", fake)
         result = json.loads(execute_github_write_file(repo="owner/repo", path="hello.py", content="x"))
         assert "error" in result
-

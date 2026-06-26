@@ -4,26 +4,25 @@ skill_loader 是 Codex 兼容的渐进式技能加载器（SKILL.md / .skill.jso
 被 AGENTS.md 标注为"旧技能注入系统"（SKILL_DIRS @ line 22）。
 覆盖：MD/JSON 解析、sections 拆分、上下文匹配、任务分类、注入逻辑、单例。
 """
+# pyright: reportGeneralTypeIssues=false, reportInvalidTypeForm=false, reportReturnType=false
+
 from __future__ import annotations
 
 import json
 import sys
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.skill_loader import (
+    SKILL_DIRS,
     AgnetaSkillSystem,
     CodexSkill,
-    SKILL_DIRS,
     skill_inject,
     skill_list,
     skill_load,
 )
-
 
 # ── CodexSkill: Markdown 解析 ──────────────────────────────────────
 
@@ -43,14 +42,7 @@ def test_codex_skill_name_strips_skill_suffix(tmp_path):
 
 def test_codex_skill_load_md_splits_sections(tmp_path):
     """## 段落标题应被解析为 sections dict 的 key（小写+下划线）。"""
-    body = (
-        "# Python Expert\n"
-        "## Description\n"
-        "Python 编程专家\n"
-        "## Instructions\n"
-        "规则一：类型注解\n"
-        "规则二：PEP 8\n"
-    )
+    body = "# Python Expert\n## Description\nPython 编程专家\n## Instructions\n规则一：类型注解\n规则二：PEP 8\n"
     p = _make_md_skill(tmp_path, "python-expert", body)
     skill = CodexSkill(p)
     skill.load()
@@ -73,11 +65,7 @@ def test_codex_skill_get_level1_truncates_long_description(tmp_path):
 
 def test_codex_skill_get_level2_includes_all_sections(tmp_path):
     """level2 应包含全部 sections。"""
-    body = (
-        "# S\n"
-        "## Description\nA tool\n"
-        "## Instructions\nDo X\n"
-    )
+    body = "# S\n## Description\nA tool\n## Instructions\nDo X\n"
     p = _make_md_skill(tmp_path, "s", body)
     out = CodexSkill(p).get_level2()
     assert "# s" in out
@@ -183,6 +171,7 @@ def _make_system(tmp_path: Path) -> AgnetaSkillSystem:
     所以这里用 monkeypatch 替换模块级 SKILL_DIRS，保证测试隔离。
     """
     import core.skill_loader as sl
+
     original = sl.SKILL_DIRS
     sl.SKILL_DIRS = [tmp_path]
     sys = AgnetaSkillSystem(root=tmp_path)
@@ -209,6 +198,7 @@ def test_discover_finds_md_and_json_skills(tmp_path):
 def test_discover_skips_nonexistent_dirs(tmp_path):
     """SKILL_DIRS 含不存在路径时不应报错。"""
     import core.skill_loader as sl
+
     original = sl.SKILL_DIRS
     sl.SKILL_DIRS = [tmp_path / "nope1", tmp_path / "nope2"]
     try:

@@ -105,16 +105,19 @@ def execute_tts_narration(text: str, voice: str = "xiaoxiao", speed: str = "+0%"
             communicate = edge_tts.Communicate(text, voice_id, rate=speed)
             await communicate.save(out_path)
 
-        # ── 事件循环兼容：nest_asyncio 已由入口点应用 ──
-        # 若仍有 running loop，回退到 loop.run_until_complete
-        try:
-            asyncio.run(_gen())
-        except RuntimeError as e_run:
-            if "running event loop" in str(e_run).lower():
-                loop = asyncio.get_running_loop()
+        # 用独立线程 + 新事件循环隔离执行，避免与主事件循环冲突
+        # nest_asyncio 在复杂嵌套场景下仍可能死锁
+        import concurrent.futures
+
+        def _run_in_thread():
+            loop = asyncio.new_event_loop()
+            try:
                 loop.run_until_complete(_gen())
-            else:
-                raise
+            finally:
+                loop.close()
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            executor.submit(_run_in_thread).result(timeout=60)
 
     except ImportError:
         return json.dumps(

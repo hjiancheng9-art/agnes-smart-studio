@@ -17,6 +17,7 @@ API Provider：有官方API的直接调用（更快更稳定）
   DALL-E       |  Gemini       |  Opal    |  Veo/Flow
 """
 
+import contextlib
 import json
 import os
 import subprocess
@@ -37,6 +38,7 @@ __all__ = [
     "execute_browser_generate",
     "execute_browser_providers",
     "execute_browser_setup",
+    "reset_browser_tools",
 ]
 
 # ── 输出目录 ──
@@ -243,6 +245,27 @@ def _get_browser_context(provider_id: str):
         return playwright, browser, None
     except (AttributeError, TypeError) as e:
         return None, None, f"浏览器启动失败: {e}"
+
+
+def reset_browser_tools() -> None:
+    """Tear down all persistent browser contexts (test isolation / hot reload).
+
+    browser_tools holds one Playwright BrowserContext per provider (each a
+    real visible Chromium subprocess with its own user_data_dir). Failing to
+    close them leaks Chromium processes across test runs. Each context is
+    closed best-effort, then the Playwright driver is stopped and the module
+    globals are reset to their import-time state.
+    """
+    global _active_playwright, _active_browsers, _chromium_checked
+    for ctx in list(_active_browsers.values()):
+        with contextlib.suppress(Exception):
+            ctx.close()  # type: ignore[union-attr]
+    _active_browsers.clear()
+    if _active_playwright is not None:
+        with contextlib.suppress(Exception):
+            _active_playwright.stop()  # type: ignore[union-attr]
+    _active_playwright = None
+    _chromium_checked = False
 
 
 # ============================================================

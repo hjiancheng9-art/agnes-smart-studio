@@ -8,6 +8,7 @@ git_workflow.py 的所有操作都通过 _run() 调用 git 子进程。
 
 不触达真实 git 仓库。
 """
+
 from __future__ import annotations
 
 import sys
@@ -19,7 +20,6 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.git_workflow import GitWorkflow, git_autocommit, git_snapshot, git_status
-
 
 # ── 辅助：构造 mock _run ──────────────────────────────────────────
 
@@ -187,11 +187,13 @@ def test_log_empty_returns_no_commits_marker(wf, monkeypatch):
 
 def test_safe_autocommit_skips_when_clean(wf, monkeypatch):
     """工作区 clean 时不应 commit（返回 committed=False）。"""
-    fake = FakeRun(returns={
-        "add": (0, "", ""),
-        "status": (0, "", ""),  # clean
-        "commit": (0, "[main x] msg", ""),
-    })
+    fake = FakeRun(
+        returns={
+            "add": (0, "", ""),
+            "status": (0, "", ""),  # clean
+            "commit": (0, "[main x] msg", ""),
+        }
+    )
     monkeypatch.setattr(wf, "_run", fake)
     result = wf.safe_autocommit("auto save")
     assert result["committed"] is False
@@ -202,12 +204,14 @@ def test_safe_autocommit_skips_when_clean(wf, monkeypatch):
 
 def test_safe_autocommit_commits_when_dirty(wf, monkeypatch):
     """工作区有改动时应 commit 并返回分支信息。"""
-    fake = FakeRun(returns={
-        "add": (0, "", ""),
-        "status": (0, " M file.py", ""),
-        "commit": (0, "[main abc1234] auto save", ""),
-        "branch": (0, "main", ""),
-    })
+    fake = FakeRun(
+        returns={
+            "add": (0, "", ""),
+            "status": (0, " M file.py", ""),
+            "commit": (0, "[main abc1234] auto save", ""),
+            "branch": (0, "main", ""),
+        }
+    )
     monkeypatch.setattr(wf, "_run", fake)
     result = wf.safe_autocommit("auto save")
     assert result["committed"] is True
@@ -218,12 +222,14 @@ def test_safe_autocommit_commits_when_dirty(wf, monkeypatch):
 
 def test_safe_autocommit_never_pushes(wf, monkeypatch):
     """安全契约：safe_autocommit 永远不应触发 push。"""
-    fake = FakeRun(returns={
-        "add": (0, "", ""),
-        "status": (0, " M f.py", ""),
-        "commit": (0, "ok", ""),
-        "branch": (0, "main", ""),
-    })
+    fake = FakeRun(
+        returns={
+            "add": (0, "", ""),
+            "status": (0, " M f.py", ""),
+            "commit": (0, "ok", ""),
+            "branch": (0, "main", ""),
+        }
+    )
     monkeypatch.setattr(wf, "_run", fake)
     wf.safe_autocommit("msg")
     assert not any("push" in c for c in fake.calls)
@@ -269,9 +275,12 @@ def test_restore_snapshot_no_label_pops_latest(wf, monkeypatch):
 
 def test_restore_snapshot_with_label_searches_list(wf, monkeypatch):
     """传 label 时先 stash list 找匹配，再 pop 对应索引。"""
-    fake = FakeRun(returns={
-        "stash": (0, "stash@{0}: On main: mylabel", ""),  # list 输出
-    }, default=(0, "", ""))
+    fake = FakeRun(
+        returns={
+            "stash": (0, "stash@{0}: On main: mylabel", ""),  # list 输出
+        },
+        default=(0, "", ""),
+    )
     monkeypatch.setattr(wf, "_run", fake)
     result = wf.restore_snapshot("mylabel")
     # 第二次调用应是 stash pop stash@{0}
@@ -281,9 +290,15 @@ def test_restore_snapshot_with_label_searches_list(wf, monkeypatch):
 
 def test_restore_snapshot_label_not_found(wf, monkeypatch):
     """label 在 stash list 中找不到时返回 'not found'。"""
-    monkeypatch.setattr(wf, "_run", FakeRun(returns={
-        "stash": (0, "stash@{0}: other-label", ""),
-    }))
+    monkeypatch.setattr(
+        wf,
+        "_run",
+        FakeRun(
+            returns={
+                "stash": (0, "stash@{0}: other-label", ""),
+            }
+        ),
+    )
     result = wf.restore_snapshot("mylabel")
     assert "not found" in result
 

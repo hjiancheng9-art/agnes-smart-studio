@@ -56,5 +56,6 @@ class TestPrintVersion:
 class TestAll:
     def test_all_exports(self):
         import core.version as mod
+
         for name in mod.__all__:
             assert hasattr(mod, name)

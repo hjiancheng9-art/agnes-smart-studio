@@ -9,20 +9,18 @@ codex_engines.py 的 JSRepl 是 Node.js one-shot subprocess 执行引擎，
 
 MCP / Playwright / transcribe / imagegen 全需外部运行时，跳过。
 """
+
 from __future__ import annotations
 
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.codex_engines import JSRepl
-
 
 # ── _JS_BLOCKED 预检 ───────────────────────────────────────────────
 
@@ -152,7 +150,7 @@ def test_sandbox_wrapper_strips_dangerous_globals():
 
 def test_eval_escapes_backticks():
     """用户代码中的反引号应被转义，避免破坏 wrapper 的模板字面量。"""
-    repl = JSRepl()
+    _repl = JSRepl()
     escaped = "const s = `hello`".replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
     assert "`hello`" not in escaped  # 原始反引号应消失
     assert "\\`hello\\`" in escaped  # 应被转义
@@ -160,7 +158,7 @@ def test_eval_escapes_backticks():
 
 def test_eval_escapes_dollar_signs():
     """$ 符号应被转义（前面加反斜杠），避免模板字面量插值。"""
-    repl = JSRepl()
+    _repl = JSRepl()
     code = "const x = ${1 + 2}"
     escaped = code.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
     # 转义后 $ 前应有反斜杠（不被模板字面量插值）
@@ -173,11 +171,8 @@ def test_eval_escapes_dollar_signs():
 def test_eval_success_returns_stdout():
     """成功执行时应返回 stdout。"""
     repl = JSRepl()
-    mock_result = subprocess.CompletedProcess(
-        args=["node"], returncode=0, stdout="42", stderr=""
-    )
-    with patch.object(repl, "_node_path", "node"), \
-         patch("subprocess.run", return_value=mock_result):
+    mock_result = subprocess.CompletedProcess(args=["node"], returncode=0, stdout="42", stderr="")
+    with patch.object(repl, "_node_path", "node"), patch("subprocess.run", return_value=mock_result):
         result = repl.eval("6*7")
     assert result == "42"
 
@@ -185,11 +180,8 @@ def test_eval_success_returns_stdout():
 def test_eval_no_output_returns_no_output_marker():
     """stdout 为空时应返回 '(no output)'。"""
     repl = JSRepl()
-    mock_result = subprocess.CompletedProcess(
-        args=["node"], returncode=0, stdout="", stderr=""
-    )
-    with patch.object(repl, "_node_path", "node"), \
-         patch("subprocess.run", return_value=mock_result):
+    mock_result = subprocess.CompletedProcess(args=["node"], returncode=0, stdout="", stderr="")
+    with patch.object(repl, "_node_path", "node"), patch("subprocess.run", return_value=mock_result):
         result = repl.eval("let x = 1")
     assert result == "(no output)"
 
@@ -200,8 +192,7 @@ def test_eval_nonzero_exit_returns_stderr():
     mock_result = subprocess.CompletedProcess(
         args=["node"], returncode=1, stdout="", stderr="ReferenceError: x is not defined"
     )
-    with patch.object(repl, "_node_path", "node"), \
-         patch("subprocess.run", return_value=mock_result):
+    with patch.object(repl, "_node_path", "node"), patch("subprocess.run", return_value=mock_result):
         result = repl.eval("x")
     assert "[JS Error]" in result
     assert "ReferenceError" in result
@@ -210,8 +201,10 @@ def test_eval_nonzero_exit_returns_stderr():
 def test_eval_timeout_returns_timeout_message():
     """超时时应返回超时提示。"""
     repl = JSRepl()
-    with patch.object(repl, "_node_path", "node"), \
-         patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="node", timeout=5)):
+    with (
+        patch.object(repl, "_node_path", "node"),
+        patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="node", timeout=5)),
+    ):
         result = repl.eval("while(true){}", timeout_ms=100)
     assert "[JS Error]" in result
     assert "超时" in result
@@ -220,8 +213,7 @@ def test_eval_timeout_returns_timeout_message():
 def test_eval_subprocess_error_returns_error():
     """subprocess 异常（如文件不存在）应返回错误。"""
     repl = JSRepl()
-    with patch.object(repl, "_node_path", "node"), \
-         patch("subprocess.run", side_effect=FileNotFoundError("not found")):
+    with patch.object(repl, "_node_path", "node"), patch("subprocess.run", side_effect=FileNotFoundError("not found")):
         result = repl.eval("1+1")
     assert "[JS Error]" in result
 
@@ -229,12 +221,8 @@ def test_eval_subprocess_error_returns_error():
 def test_eval_stderr_truncated_to_500_chars():
     """错误 stderr 应截断到 500 字符，避免超长输出。"""
     repl = JSRepl()
-    mock_result = subprocess.CompletedProcess(
-        args=["node"], returncode=1, stdout="",
-        stderr="x" * 1000
-    )
-    with patch.object(repl, "_node_path", "node"), \
-         patch("subprocess.run", return_value=mock_result):
+    mock_result = subprocess.CompletedProcess(args=["node"], returncode=1, stdout="", stderr="x" * 1000)
+    with patch.object(repl, "_node_path", "node"), patch("subprocess.run", return_value=mock_result):
         result = repl.eval("bad code")
     # 错误消息中 stderr 部分不应超过 500 字符
     assert len(result) < 600  # "[JS Error] " 前缀 + 500 字符
@@ -346,10 +334,8 @@ def test_eval_escaping_integration(tmp_path, capsys):
     """验证 eval 中转义后的代码传给 subprocess 时格式正确。"""
     repl = JSRepl()
     code = "const x = `hello ${name}`"
-    escaped = code.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
-    mock_result = subprocess.CompletedProcess(
-        args=["node"], returncode=0, stdout="ok", stderr=""
-    )
+    _escaped = code.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
+    mock_result = subprocess.CompletedProcess(args=["node"], returncode=0, stdout="ok", stderr="")
     captured_code = None
 
     def mock_run(args, **kwargs):
@@ -357,8 +343,7 @@ def test_eval_escaping_integration(tmp_path, capsys):
         captured_code = args[2]  # -e 参数
         return mock_result
 
-    with patch.object(repl, "_node_path", "node"), \
-         patch("subprocess.run", side_effect=mock_run):
+    with patch.object(repl, "_node_path", "node"), patch("subprocess.run", side_effect=mock_run):
         result = repl.eval(code)
     assert result == "ok"
     assert captured_code is not None
@@ -376,12 +361,9 @@ def test_eval_clamps_timeout_to_30s():
 
     def mock_run(args, **kwargs):
         called_args.append((args, kwargs))
-        return subprocess.CompletedProcess(
-            args=["node"], returncode=0, stdout="ok", stderr=""
-        )
+        return subprocess.CompletedProcess(args=["node"], returncode=0, stdout="ok", stderr="")
 
-    with patch.object(repl, "_node_path", "node"), \
-         patch("subprocess.run", side_effect=mock_run):
+    with patch.object(repl, "_node_path", "node"), patch("subprocess.run", side_effect=mock_run):
         repl.eval("1+1", timeout_ms=60000)
     # subprocess.run 的 timeout 参数应是 (60000/1000) + 5 = 65s
     # 但 timeout_sec = min(60000, 30000) = 30000
@@ -397,12 +379,9 @@ def test_eval_subprocess_timeout_calculated_correctly():
 
     def mock_run(args, **kwargs):
         called_kwargs.update(kwargs)
-        return subprocess.CompletedProcess(
-            args=["node"], returncode=0, stdout="ok", stderr=""
-        )
+        return subprocess.CompletedProcess(args=["node"], returncode=0, stdout="ok", stderr="")
 
-    with patch.object(repl, "_node_path", "node"), \
-         patch("subprocess.run", side_effect=mock_run):
+    with patch.object(repl, "_node_path", "node"), patch("subprocess.run", side_effect=mock_run):
         repl.eval("1+1", timeout_ms=5000)
     # timeout_sec = min(5000, 30000) = 5000, subprocess timeout = 5000/1000 + 5 = 10s
     assert called_kwargs["timeout"] == 10.0
@@ -414,6 +393,7 @@ def test_eval_subprocess_timeout_calculated_correctly():
 def test_js_eval_returns_string():
     """js_eval 模块函数应返回字符串。"""
     from core.codex_engines import js_eval
+
     result = js_eval("1+1")
     assert isinstance(result, str)
 
@@ -424,6 +404,7 @@ def test_js_eval_returns_string():
 def test_mcp_list_tools_no_connection():
     """未连接时 list_tools 应返回空列表。"""
     from core.codex_engines import MCPConnector
+
     conn = MCPConnector()
     result = conn.list_tools("nonexistent")
     assert result == []
@@ -432,6 +413,7 @@ def test_mcp_list_tools_no_connection():
 def test_mcp_call_tool_no_connection():
     """未连接时 call_tool 应返回错误。"""
     from core.codex_engines import MCPConnector
+
     conn = MCPConnector()
     result = conn.call_tool("ghost", "some_tool", {})
     assert "[MCP Error]" in result
@@ -441,5 +423,6 @@ def test_mcp_call_tool_no_connection():
 def test_mcp_disconnect_nonexistent_is_noop():
     """断开不存在的连接不应报错。"""
     from core.codex_engines import MCPConnector
+
     conn = MCPConnector()
     conn.disconnect("ghost")  # 不抛异常

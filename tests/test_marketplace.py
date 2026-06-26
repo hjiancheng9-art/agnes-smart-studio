@@ -1,6 +1,7 @@
 """Tests for core.marketplace — skill marketplace with local/remote adapters."""
 
 import json
+
 import pytest
 
 
@@ -9,6 +10,7 @@ class TestSkillPackage:
 
     def test_default_construction(self):
         from core.marketplace import SkillPackage
+
         pkg = SkillPackage(name="test")
         assert pkg.name == "test"
         assert pkg.version == "1.0.0"
@@ -18,6 +20,7 @@ class TestSkillPackage:
 
     def test_to_dict_roundtrip(self):
         from core.marketplace import SkillPackage
+
         pkg = SkillPackage(name="x", description="d", tags=["a", "b"])
         d = pkg.to_dict()
         assert d["name"] == "x"
@@ -25,6 +28,7 @@ class TestSkillPackage:
 
     def test_from_dict_ignores_unknown_keys(self):
         from core.marketplace import SkillPackage
+
         d = {"name": "y", "unknown_field": "ignored", "version": "2.0.0"}
         pkg = SkillPackage.from_dict(d)
         assert pkg.name == "y"
@@ -33,8 +37,8 @@ class TestSkillPackage:
 
     def test_from_dict_to_dict_roundtrip(self):
         from core.marketplace import SkillPackage
-        original = SkillPackage(name="z", description="desc", author="me",
-                                category="video", rating=4.5)
+
+        original = SkillPackage(name="z", description="desc", author="me", category="video", rating=4.5)
         d = original.to_dict()
         restored = SkillPackage.from_dict(d)
         assert restored.name == original.name
@@ -48,18 +52,27 @@ class TestLocalRegistry:
 
     def test_name_is_local(self):
         from core.marketplace import LocalRegistry
+
         reg = LocalRegistry()
         assert reg.name == "local"
 
     def test_search_finds_skills(self, monkeypatch, tmp_path):
-        from core.marketplace import LocalRegistry
         import core.marketplace as mp
+        from core.marketplace import LocalRegistry
+
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
-        (skills_dir / "video-maker.skill.json").write_text(json.dumps({
-            "name": "video-maker", "description": "makes videos",
-            "category": "video", "version": "1.0.0",
-        }), encoding="utf-8")
+        (skills_dir / "video-maker.skill.json").write_text(
+            json.dumps(
+                {
+                    "name": "video-maker",
+                    "description": "makes videos",
+                    "category": "video",
+                    "version": "1.0.0",
+                }
+            ),
+            encoding="utf-8",
+        )
         monkeypatch.setattr(mp, "SKILLS_DIR", skills_dir)
         reg = LocalRegistry()
         reg._md_dir = tmp_path / "skills_md"  # avoid real md dir
@@ -68,13 +81,20 @@ class TestLocalRegistry:
         assert any(p.name == "video-maker" for p in results)
 
     def test_fetch_returns_package(self, monkeypatch, tmp_path):
-        from core.marketplace import LocalRegistry
         import core.marketplace as mp
+        from core.marketplace import LocalRegistry
+
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
-        (skills_dir / "my-skill.skill.json").write_text(json.dumps({
-            "name": "my-skill", "description": "test skill",
-        }), encoding="utf-8")
+        (skills_dir / "my-skill.skill.json").write_text(
+            json.dumps(
+                {
+                    "name": "my-skill",
+                    "description": "test skill",
+                }
+            ),
+            encoding="utf-8",
+        )
         monkeypatch.setattr(mp, "SKILLS_DIR", skills_dir)
         reg = LocalRegistry()
         reg._md_dir = tmp_path / "skills_md"
@@ -83,22 +103,30 @@ class TestLocalRegistry:
         assert pkg.name == "my-skill"
 
     def test_fetch_missing_returns_none(self, monkeypatch, tmp_path):
-        from core.marketplace import LocalRegistry
         import core.marketplace as mp
+        from core.marketplace import LocalRegistry
+
         monkeypatch.setattr(mp, "SKILLS_DIR", tmp_path / "skills")
         reg = LocalRegistry()
         reg._md_dir = tmp_path / "skills_md"
         assert reg.fetch("nonexistent") is None
 
     def test_category_inference_video(self, monkeypatch, tmp_path):
-        from core.marketplace import LocalRegistry
         import core.marketplace as mp
+        from core.marketplace import LocalRegistry
+
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         # No explicit category — should infer "video" from description
-        (skills_dir / "showrunner.skill.json").write_text(json.dumps({
-            "name": "showrunner", "description": "video production pipeline",
-        }), encoding="utf-8")
+        (skills_dir / "showrunner.skill.json").write_text(
+            json.dumps(
+                {
+                    "name": "showrunner",
+                    "description": "video production pipeline",
+                }
+            ),
+            encoding="utf-8",
+        )
         monkeypatch.setattr(mp, "SKILLS_DIR", skills_dir)
         reg = LocalRegistry()
         reg._md_dir = tmp_path / "skills_md"
@@ -107,8 +135,9 @@ class TestLocalRegistry:
         assert pkg.category == "video"
 
     def test_download_existing_skill_json(self, monkeypatch, tmp_path):
-        from core.marketplace import LocalRegistry
         import core.marketplace as mp
+        from core.marketplace import LocalRegistry
+
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         target = skills_dir / "existing.skill.json"
@@ -120,8 +149,9 @@ class TestLocalRegistry:
         assert result == target
 
     def test_download_missing_raises(self, monkeypatch, tmp_path):
-        from core.marketplace import LocalRegistry
         import core.marketplace as mp
+        from core.marketplace import LocalRegistry
+
         monkeypatch.setattr(mp, "SKILLS_DIR", tmp_path / "skills")
         reg = LocalRegistry()
         reg._md_dir = tmp_path / "skills_md"
@@ -134,21 +164,24 @@ class TestCodeBuddyAdapter:
 
     def test_name_property(self):
         from core.marketplace import CodeBuddyAdapter
+
         adapter = CodeBuddyAdapter(name="test-cb", market_dir="/nonexistent")
         assert adapter.name == "test-cb"
 
     def test_disabled_when_dir_missing(self):
         from core.marketplace import CodeBuddyAdapter
+
         adapter = CodeBuddyAdapter(market_dir="/definitely/not/here")
         assert adapter.enabled is False
 
     def test_parse_skill_md_frontmatter(self, tmp_path):
         from core.marketplace import CodeBuddyAdapter
+
         adapter = CodeBuddyAdapter(market_dir=str(tmp_path))
         md = tmp_path / "SKILL.md"
         md.write_text(
             "---\nname: my-plugin\ndescription: A test plugin\ncategory: Dev\nversion: 1.2.0\n---\n# My Plugin\nbody",
-            encoding="utf-8"
+            encoding="utf-8",
         )
         parsed = adapter._parse_skill_md(md)
         assert parsed is not None
@@ -158,6 +191,7 @@ class TestCodeBuddyAdapter:
 
     def test_parse_skill_md_missing_frontmatter(self, tmp_path):
         from core.marketplace import CodeBuddyAdapter
+
         adapter = CodeBuddyAdapter(market_dir=str(tmp_path))
         md = tmp_path / "SKILL.md"
         md.write_text("# Title only\nno frontmatter", encoding="utf-8")
@@ -165,6 +199,7 @@ class TestCodeBuddyAdapter:
 
     def test_category_map_dev_to_tool(self):
         from core.marketplace import CodeBuddyAdapter
+
         assert CodeBuddyAdapter.CATEGORY_MAP["Dev"] == "tool"
         assert CodeBuddyAdapter.CATEGORY_MAP["Education"] == "creative"
 
@@ -173,17 +208,20 @@ class TestMarketplaceClientInit:
     """MarketplaceClient initializes adapters."""
 
     def test_has_local_adapter(self):
-        from core.marketplace import MarketplaceClient, LocalRegistry
+        from core.marketplace import LocalRegistry, MarketplaceClient
+
         client = MarketplaceClient()
         assert isinstance(client.local, LocalRegistry)
 
     def test_has_codebuddy_adapter(self):
-        from core.marketplace import MarketplaceClient, CodeBuddyAdapter
+        from core.marketplace import CodeBuddyAdapter, MarketplaceClient
+
         client = MarketplaceClient()
         assert isinstance(client.codebuddy, CodeBuddyAdapter)
 
     def test_adapters_property_returns_list(self):
         from core.marketplace import MarketplaceClient
+
         client = MarketplaceClient()
         adapters = client.adapters
         assert isinstance(adapters, list)
@@ -194,15 +232,17 @@ class TestMarketplaceClientOperations:
     """MarketplaceClient search/install/uninstall."""
 
     def test_uninstall_missing_returns_false(self, monkeypatch, tmp_path):
-        from core.marketplace import MarketplaceClient
         import core.marketplace as mp
+        from core.marketplace import MarketplaceClient
+
         monkeypatch.setattr(mp, "SKILLS_DIR", tmp_path / "skills")
         client = MarketplaceClient()
         assert client.uninstall("nonexistent") is False
 
     def test_uninstall_existing(self, monkeypatch, tmp_path):
-        from core.marketplace import MarketplaceClient
         import core.marketplace as mp
+        from core.marketplace import MarketplaceClient
+
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         target = skills_dir / "remove-me.skill.json"
@@ -213,14 +253,17 @@ class TestMarketplaceClientOperations:
         assert not target.exists()
 
     def test_categories_returns_sorted_list(self, monkeypatch, tmp_path):
-        from core.marketplace import MarketplaceClient
         import core.marketplace as mp
+        from core.marketplace import MarketplaceClient
+
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
-        (skills_dir / "a.skill.json").write_text(json.dumps({
-            "name": "a", "description": "video tool", "category": "video"}), encoding="utf-8")
-        (skills_dir / "b.skill.json").write_text(json.dumps({
-            "name": "b", "description": "coding tool", "category": "tool"}), encoding="utf-8")
+        (skills_dir / "a.skill.json").write_text(
+            json.dumps({"name": "a", "description": "video tool", "category": "video"}), encoding="utf-8"
+        )
+        (skills_dir / "b.skill.json").write_text(
+            json.dumps({"name": "b", "description": "coding tool", "category": "tool"}), encoding="utf-8"
+        )
         monkeypatch.setattr(mp, "SKILLS_DIR", skills_dir)
         client = MarketplaceClient()
         client.local._md_dir = tmp_path / "skills_md"
@@ -229,8 +272,9 @@ class TestMarketplaceClientOperations:
         assert cats == sorted(cats)
 
     def test_summary_contains_status_info(self, monkeypatch, tmp_path):
-        from core.marketplace import MarketplaceClient
         import core.marketplace as mp
+        from core.marketplace import MarketplaceClient
+
         monkeypatch.setattr(mp, "SKILLS_DIR", tmp_path / "skills")
         client = MarketplaceClient()
         client.local._md_dir = tmp_path / "skills_md"
@@ -244,6 +288,7 @@ class TestGetMarketplaceSingleton:
 
     def test_returns_same_instance(self):
         from core.marketplace import get_marketplace
+
         m1 = get_marketplace()
         m2 = get_marketplace()
         assert m1 is m2

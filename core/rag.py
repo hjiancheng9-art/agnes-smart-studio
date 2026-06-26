@@ -38,12 +38,32 @@ class RAGEngine:
         self._loaded = False
 
     def _tokenize(self, text: str) -> list[str]:
-        """Tokenize text into meaningful word tokens."""
-        # Split on word boundaries, keep alphanumeric tokens >= 2 chars.
-        # 注意：\u4e00-\u9fff 必须用单反斜杠（Unicode 转义）；raw string 里的
-        # \\u 会被当成字面反斜杠+u，导致字符类解析成 ASCII 范围，中文失效。
-        tokens = re.findall(r"[a-zA-Z_]\w+|[\u4e00-\u9fff]+", text.lower())
-        return [t for t in tokens if len(t) >= 2]
+        """Tokenize text into meaningful word tokens.
+
+        English: word-boundary tokens (>=2 chars).
+        CJK (\\u4e00-\\u9fff): character bigrams for cross-document
+        overlap.  Greedy full-run matching (old behaviour) collapses
+        multi-character Chinese phrases into a single token that never
+        matches any document's vocabulary → zero recall.
+        """
+        text_lower = text.lower()
+        tokens: list[str] = []
+        # Split into CJK and non-CJK runs so we can handle each alphabet
+        # with the right strategy.
+        for segment in re.split(r"([\u4e00-\u9fff]+)", text_lower):
+            if not segment:
+                continue
+            if re.search(r"[\u4e00-\u9fff]", segment):
+                # Chinese run → character bigrams
+                n = len(segment)
+                if n == 1:
+                    tokens.append(segment)
+                else:
+                    tokens.extend(segment[i : i + 2] for i in range(n - 1))
+            else:
+                # ASCII / mixed → word tokens
+                tokens.extend(t for t in re.findall(r"[a-zA-Z_]\w+", segment) if len(t) >= 2)
+        return tokens
 
     def index_project(self, force: bool = False):
         """Index all project source files."""
@@ -73,17 +93,7 @@ class RAGEngine:
             ".sql",
         }
 
-        skip_dirs = {
-            "__pycache__",
-            ".git",
-            ".pytest_cache",
-            "node_modules",
-            ".venv",
-            "venv",
-            "output",
-            ".codebuddy",
-            "browser_sessions",
-        }
+        from core.constraints import PROJECT_SKIP_DIRS as skip_dirs
 
         files = list(self.root.rglob("*"))
         for f in files:
@@ -192,8 +202,8 @@ class RAGEngine:
 
 
 # Convenience
-def semantic_search(query: str, top_k: int = 10) -> list[dict]:
-    return RAGEngine().search(query, top_k)
+def semantic_search(query: str, top_k: int = 10) -> str:
+    return json.dumps(RAGEngine().search(query, top_k), ensure_ascii=False)
 
 
 def index_codebase():

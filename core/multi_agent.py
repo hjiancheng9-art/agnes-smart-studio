@@ -127,11 +127,22 @@ class MultiAgentCoordinator:
 
         # Wait for all
         for t in threads:
-            t.join(timeout=60)
+            t.join(timeout=120)
 
-        elapsed = time.time() - started
-        done = sum(1 for t in self.tasks if t.status == "done")
-        failed = sum(1 for t in self.tasks if t.status == "failed")
+        # 超时未完成的任务标记为 failed（不静默丢失）。
+        # 读 task.status + 改写必须在锁内：工作线程 join 超时返回时可能仍在
+        # 锁外持有 task 引用并即将写 status，整段检查-改写需原子。
+        with self._lock:
+            for task in self.tasks:
+                if task.status == "running":
+                    task.status = "failed"
+                    task.result = f"Task timed out after 120s (agent: {task.assigned_to})"
+                    task.finished_at = time.time()
+                    self._log.append({"event": "task_timeout", "task": task.id, "agent": task.assigned_to})
+
+            elapsed = time.time() - started
+            done = sum(1 for t in self.tasks if t.status == "done")
+            failed = sum(1 for t in self.tasks if t.status == "failed")
 
         return {
             "goal": goal,
@@ -160,14 +171,16 @@ class MultiAgentCoordinator:
         return None
 
     def _execute_task(self, task: AgentTask):
-        task.status = "running"
-        task.started_at = time.time()
+        # task.status / task.result / task.started_at / task.finished_at 是与主线程
+        # 共享的可变状态（主线程在 join 后读 status、超时时改写 status），所有读写
+        # 必须在 self._lock 内，避免 TOCTOU 竞态。
         with self._lock:
+            task.status = "running"
+            task.started_at = time.time()
             self._log.append({"event": "task_start", "task": task.id, "agent": task.assigned_to})
-        # tier 路由：若提供 model_router，按 task.tier/task_type 解析模型并注入 step
-        resolved_model = self._resolve_model_for_task(task)
-        if resolved_model:
-            with self._lock:
+            # tier 路由：若提供 model_router，按 task.tier/task_type 解析模型并注入 step
+            resolved_model = self._resolve_model_for_task(task)
+            if resolved_model:
                 self._log.append({"event": "tier_routed", "task": task.id, "tier": task.tier, "model": resolved_model})
         results = []
         for step in task.tool_sequence:
@@ -176,18 +189,19 @@ class MultiAgentCoordinator:
                 step_args = dict(step["args"])
                 if resolved_model and "model" not in step_args:
                     step_args["model"] = resolved_model
+                # execute_tool 是外部 I/O，不持锁（避免长任务阻塞主线程的锁内读）
                 r = self.execute_tool(step["tool"], step_args)
                 results.append(r[:200])
             except (OSError, ValueError, RuntimeError) as e:
-                task.status = "failed"
-                task.result = str(e)
                 with self._lock:
+                    task.status = "failed"
+                    task.result = str(e)
                     self._log.append({"event": "task_failed", "task": task.id, "error": str(e)})
                 return
-        task.status = "done"
-        task.result = "; ".join(results)
-        task.finished_at = time.time()
         with self._lock:
+            task.status = "done"
+            task.result = "; ".join(results)
+            task.finished_at = time.time()
             self._results[task.id] = task.result
             self._log.append({"event": "task_done", "task": task.id, "result_preview": task.result[:100]})
 

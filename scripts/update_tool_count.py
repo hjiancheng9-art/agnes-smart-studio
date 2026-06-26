@@ -13,6 +13,7 @@
     python scripts/update_tool_count.py --check  # 只检查是否需要更新，不写文件
                                                    # RC=0 已对齐 / RC=1 有漂移
 """
+
 from __future__ import annotations
 
 import re
@@ -28,14 +29,15 @@ AGENTS_MD = ROOT / "AGENTS.md"
 # 捕获组 1 = 数字。后跟边界字符 : , — 或行尾，且前导不是 "(" （排除 "MCP bridge (4 tools)"）
 _TOOL_COUNT_PATTERNS = [
     # "84 Tools:" / "84 tools," / "84 tools —" / "84 tools\n"
-    re.compile(r'(?<!\()\b(\d{1,3})\s+[Tt]ools\b(?=\s*[:,\u2014\n]|$)'),
-    re.compile(r'[Tt]ools:\s*(\d{1,3})\b'),                  # "Tools: 84"
+    re.compile(r"(?<!\()\b(\d{1,3})\s+[Tt]ools\b(?=\s*[:,\u2014\n]|$)"),
+    re.compile(r"[Tt]ools:\s*(\d{1,3})\b"),  # "Tools: 84"
 ]
 
 
 def get_tool_count() -> int:
     """加载真实 registry 返回工具总数。"""
     from core.tools import ToolRegistry
+
     reg = ToolRegistry()
     reg.load()
     return len(reg.tool_names)
@@ -43,9 +45,9 @@ def get_tool_count() -> int:
 
 def generate_scorecard() -> dict:
     """生成评分报告并持久化。"""
-    from core.tools import ToolRegistry
-    from core.tool_scorecard import score_all, save_report
     from core import tool_call_log
+    from core.tool_scorecard import save_report, score_all
+    from core.tools import ToolRegistry
 
     reg = ToolRegistry()
     reg.load()

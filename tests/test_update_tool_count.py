@@ -6,6 +6,7 @@
     - update_agents_md: 替换漂移数字，无漂移时不动文件
     - 子串陷阱: "line 280" / "1809 tests" 不应误判为工具数
 """
+
 from __future__ import annotations
 
 import sys
@@ -19,15 +20,14 @@ if str(SCRIPTS) not in sys.path:
 # update_tool_count 不是包内模块（在 scripts/ 下），用 importlib 按文件加载
 import importlib.util
 
-_spec = importlib.util.spec_from_file_location(
-    "update_tool_count", SCRIPTS / "update_tool_count.py"
-)
+_spec = importlib.util.spec_from_file_location("update_tool_count", SCRIPTS / "update_tool_count.py")
 assert _spec is not None and _spec.loader is not None
 ucm = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(ucm)
 
 
 # ── find_stale_counts 精确匹配 ──────────────────────────────────
+
 
 class TestFindStaleCounts:
     def test_no_tools_mention_returns_empty(self):
@@ -64,8 +64,9 @@ class TestFindStaleCounts:
 
 # ── 排除描述性数字（核心反例）──────────────────────────────────
 
+
 class TestExcludesDescriptiveNumbers:
-    """"(4 tools)" 这类括号内描述性数字不应被当成工具总数。"""
+    """ "(4 tools)" 这类括号内描述性数字不应被当成工具总数。"""
 
     def test_parenthesized_count_not_matched(self):
         content = "MCP bridge (4 tools), patch, execute_plan"
@@ -78,17 +79,18 @@ class TestExcludesDescriptiveNumbers:
         assert ucm.find_stale_counts(content, expected=80) == []
 
     def test_substring_in_line_number(self):
-        """"line 280" 不应被 "80" 子串误判（旧版 in 操作符的 bug）。"""
+        """ "line 280" 不应被 "80" 子串误判（旧版 in 操作符的 bug）。"""
         content = "SkillManager (line 280)"
         assert ucm.find_stale_counts(content, expected=80) == []
 
     def test_substring_in_test_count(self):
-        """"1809 tests passing" 不应误判。"""
+        """ "1809 tests passing" 不应误判。"""
         content = "Test baseline: 1809 tests passing"
         assert ucm.find_stale_counts(content, expected=80) == []
 
 
 # ── update_agents_md 文件写入 ───────────────────────────────────
+
 
 class TestUpdateAgentsMd:
     def test_no_drift_no_write(self, tmp_path, monkeypatch):
@@ -146,6 +148,7 @@ class TestUpdateAgentsMd:
 
 
 # ── 模式定义自检 ───────────────────────────────────────────────
+
 
 class TestPatternSanity:
     def test_patterns_are_compiled(self):

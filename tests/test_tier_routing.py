@@ -9,6 +9,7 @@
 阶段 1/3c 的核心契约: deepseek-v4-flash 覆盖 light+pro 档，
 heavy 档走 deepseek-v4-pro。视觉通道独立（agnes-1.5-flash）。
 """
+
 import sys
 from pathlib import Path
 
@@ -90,6 +91,7 @@ class TestRouterDefaults:
     def test_primary_is_valid_model(self):
         """primary 必须是已注册的有效模型 ID。"""
         from core.provider import MODEL_REGISTRY
+
         router = ModelRouter()
         assert router.primary in MODEL_REGISTRY or router.primary == "deepseek-v4-pro"
 

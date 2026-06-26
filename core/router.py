@@ -18,7 +18,7 @@ import contextlib
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from core.chat import ChatSession
@@ -79,7 +79,7 @@ _PROFILE_MODEL: dict[TaskProfile, str] = {
 }
 
 
-def _detect_provider(model_id: str, mgr: object | None = None) -> str:
+def _detect_provider(model_id: str, mgr: Any | None = None) -> str:
     """根据模型 ID 查找所属供应商 ID。
 
     优先查 MODEL_REGISTRY（单一真相源），缓存未命中再遍历 models.json。
@@ -92,22 +92,35 @@ def _detect_provider(model_id: str, mgr: object | None = None) -> str:
         info = MODEL_REGISTRY.get(model_id)
         if info is not None:
             return info.provider_id
-    except Exception:
+    except ImportError:
         pass
+    except Exception as e:
+        import logging
+
+        logging.getLogger("crux.router").warning(
+            "MODEL_REGISTRY lookup failed for %s (%s: %s)", model_id, type(e).__name__, e
+        )
 
     # 2. 回退：从 models.json 遍历反查
     try:
         from core.provider import get_provider_manager
 
         _mgr = mgr or get_provider_manager()
+        assert _mgr is not None
         if not _mgr.providers:
             _mgr.load()
         for pid, pdata in _mgr.providers.items():
             models = pdata.get("models", {})
             if isinstance(models, dict) and model_id in models.values():
                 return pid
-    except Exception:
+    except ImportError:
         pass
+    except Exception as e:
+        import logging
+
+        logging.getLogger("crux.router").warning(
+            "models.json fallback lookup failed for %s (%s: %s)", model_id, type(e).__name__, e
+        )
     return ""
 
 
@@ -403,16 +416,25 @@ def apply(decision: RouteDecision, session: ChatSession) -> None:
             mgr.load()
         current_pid = _detect_provider(session.model, mgr)
         target_pid = _detect_provider(decision.model_id, mgr)
-    except Exception:
-        pass
+    except Exception as e:
+        # provider 加载失败 → 无法判定供应商归属，保守起见不切换 client。
+        # 注意：不能继续往下走到 session.model 赋值，否则会造成
+        # "model 名改了但 client 还是旧供应商" 的不一致。
+        logging.getLogger("crux.router").warning(
+            "router model switch aborted: provider load failed (%s: %s)",
+            type(e).__name__,
+            e,
+        )
+        return
 
     if current_pid and target_pid and current_pid != target_pid:
         # 目标供应商在 models.json 中的 base_url，用于一致性校验
         target_base_url = ""
         with contextlib.suppress(Exception):
-            target_base_url = (mgr.providers.get(target_pid, {}) or {}).get("base_url", "")
+            target_base_url = (mgr.providers.get(target_pid, {}) or {}).get("base_url", "")  # type: ignore[optional-member]
 
         try:
+            assert mgr is not None
             new_client = mgr.create_client(target_pid)
             # 一致性校验：若 create_client 内部 fallback 到其他供应商，
             # new_client.base_url 会与目标供应商不匹配 → 回滚，保留旧 client。

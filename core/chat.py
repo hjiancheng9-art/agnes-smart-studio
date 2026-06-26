@@ -17,7 +17,11 @@ yield 协议（send_stream）：
 
 import contextlib
 import json
+import logging
 import re
+from collections.abc import Callable
+
+logger = logging.getLogger("crux.chat")
 
 from core.brain import SmartBrain
 from core.client import CruxClient
@@ -45,6 +49,9 @@ __all__ = [
     "MODEL_PROVIDER_MAP",
     "TOOL_CALLING_MODELS",
 ]
+
+# ── System prompt 模块级缓存（(cache_key, prompt) 避免每轮重建 10+ import 链）──
+_cached_prompt: list[str] = ["", ""]
 
 
 CHAT_SYSTEM_PROMPT = """你是 {provider_name} 智能助手，当前运行在 {model_name} 模型上。你擅长：
@@ -103,7 +110,6 @@ MODEL_INFO = {
     "agnes-1.5-flash": "1.5 Flash（多模态图片理解，快，无自动生成）",
     "agnes-2.0-flash": "2.0 Flash（深度思考 + AI自动生图/视频，无图片理解）",
     "deepseek-v4-pro": "DeepSeek V4 Pro（百万上下文，代码/推理，视觉走独立通道）",
-    "Pro/moonshotai/Kimi-K2.6": "Kimi K2.6 via SiliconFlow（备选，视觉走独立通道）",
 }
 
 # 以下两个现在从 provider 动态计算，不再硬编码
@@ -142,6 +148,10 @@ class ChatSession:
     vision_model:  视觉理解专用模型 ID，默认 agnes-1.5-flash。
     """
 
+    # ── 类型 stub（运行时由模块级函数注入，见文件末尾）──
+    _merge_tool_calls: staticmethod  # type: ignore[assignment]
+    _dispatch_tool: Callable[..., tuple[str, list[tuple]]]  # type: ignore[assignment]
+
     def __init__(
         self,
         client: CruxClient,
@@ -168,6 +178,13 @@ class ChatSession:
         self.skills: SkillManager = get_manager()
         self.active_skill: str = ""
         self.messages: list[dict] = [{"role": "system", "content": self._build_system_prompt()}]
+        # 五兽躯体激活
+        try:
+            from core.beast_wiring import wire_all
+
+            wire_all()
+        except (ImportError, OSError):
+            pass
 
     @property
     def supports_tools(self) -> bool:
@@ -351,9 +368,24 @@ class ChatSession:
         return "\n".join(lines)
 
     def _build_system_prompt(self) -> str:
-        """构建动态系统提示词，注入当前供应商和模型名 + 已启用规则"""
+        """构建动态系统提示词，注入当前供应商和模型名 + 已启用规则。
+
+        使用模块级缓存：只有在 provider/model/mode/rules 变化时才重建。
+        避免每次对话轮都做 10+ import + 字符串拼接。
+        """
         provider = get_provider_name(self.model)
         template = CODE_SYSTEM_PROMPT if self.code_mode else CHAT_SYSTEM_PROMPT
+        cache_key = f"{provider}|{self.model}|{self.code_mode}|b{self.browser_enabled}|n{self.notebook_enabled}|a{self.audio_enabled}"
+        # 检查缓存（规则 hash 也纳入 key 以保证规则变更时刷新）
+        try:
+            from core.rules import get_rules
+            cache_key += f"|{hash(str([r.name for r in get_rules().active_rules]))}"
+        except (ImportError, OSError):
+            pass
+
+        if _cached_prompt[0] == cache_key:
+            return _cached_prompt[1]
+
         base = template.format(provider_name=provider, model_name=self.model)
         base += (
             "\n\n## 回答质量规范\n"
@@ -390,6 +422,97 @@ class ChatSession:
             base += get_prompt_lab().get_active_instructions()
         except (ImportError, OSError):
             pass
+        # 七兽融合注入（七兽同体·魂魄交融，替代独立七段）
+        try:
+            from core.seven_beasts_fusion import get_fusion_prompt
+
+            base += "\n\n" + get_fusion_prompt()
+        except (ImportError, OSError):
+            pass
+        # 五兽躯体注入
+        try:
+            from core.beast_wiring import get_wiring_summary
+
+            base += "\n\n" + get_wiring_summary()
+        except (ImportError, OSError):
+            pass
+        # 贴身七件行为规则注入
+        try:
+            from core.intimate_slots import get_intimate_prompt
+
+            base += "\n\n" + get_intimate_prompt()
+        except (ImportError, OSError):
+            pass
+        # 功法谱注入（五层功法·五兽归位）
+        try:
+            from core.gongfa_spectrum import get_gongfa_prompt
+
+            base += "\n\n" + get_gongfa_prompt()
+        except (ImportError, OSError):
+            pass
+        # 法宝谱注入（84 工具·五兽归鞘）
+        try:
+            from core.treasure_spectrum import get_treasure_prompt
+
+            base += "\n\n" + get_treasure_prompt()
+        except (ImportError, OSError):
+            pass
+        # 坐骑谱注入（20 驹·五兽各驭）
+        try:
+            from core.steed_spectrum import get_steed_prompt
+
+            base += "\n\n" + get_steed_prompt()
+        except (ImportError, OSError):
+            pass
+        # 武技谱注入（45 技·五兽归宗）
+        try:
+            from core.wuji_spectrum import get_wuji_prompt
+
+            base += "\n\n" + get_wuji_prompt()
+        except (ImportError, OSError):
+            pass
+        # 金手指谱注入（十三外挂·穿越者面板）
+        try:
+            from core.golden_finger import get_golden_finger_prompt
+
+            base += "\n\n" + get_golden_finger_prompt()
+        except (ImportError, OSError):
+            pass
+        # 灵兽谱注入（十大灵宠·常伴左右）
+        try:
+            from core.familiar_spectrum import get_familiar_prompt
+
+            base += "\n\n" + get_familiar_prompt()
+        except (ImportError, OSError):
+            pass
+        # 洞府谱注入（五堂一庭·修炼洞天）
+        try:
+            from core.dwelling_spectrum import get_dwelling_prompt
+
+            base += "\n\n" + get_dwelling_prompt()
+        except (ImportError, OSError):
+            pass
+        # 秘境谱注入（五大试炼·以战证道）
+        try:
+            from core.trial_spectrum import get_trial_prompt
+
+            base += "\n\n" + get_trial_prompt()
+        except (ImportError, OSError):
+            pass
+        # 化妆谱注入（七妆九变·像素真颜）
+        try:
+            from core.glamour_spectrum import get_glamour_prompt
+
+            base += "\n\n" + get_glamour_prompt()
+        except (ImportError, OSError):
+            pass
+        # 生存技能谱注入（八技合道）
+        try:
+            from core.survival_spectrum import get_survival_prompt
+
+            base += "\n\n" + get_survival_prompt()
+        except (ImportError, OSError):
+            pass
         # #7/#9 条件注入：browser / notebook / audio 工具使用说明
         if self.browser_enabled:
             base += (
@@ -417,6 +540,8 @@ class ChatSession:
         # 与手动 load 的技能（由 get_system_prompt 处理）正交：auto 类在此统一注入。
         # skills.auto_skills_prompt 内部会跳过当前已手动加载的技能，避免重复。
         base = self.skills.auto_skills_prompt(base)
+        # 存入缓存（下次同 key 直接返回，避免重建）
+        _cached_prompt[:] = (cache_key, base)
         return base
 
     def reset(self):
@@ -570,8 +695,8 @@ class ChatSession:
                     from core.cost_tracker import record_usage
 
                     record_usage(model=model_id, kind="text", usage=r.get("usage"), label="vision")
-                except (ImportError, OSError, KeyError, TypeError):
-                    pass
+                except (ImportError, OSError, KeyError, TypeError) as e:
+                    logger.debug("cost_tracker.record_usage(vision) failed: %s: %s", type(e).__name__, e)
                 return content
             except (KeyError, IndexError) as e:
                 last_reason = f"返回格式异常: {e}"
@@ -585,8 +710,8 @@ class ChatSession:
                         from core.cost_tracker import record_usage
 
                         record_usage(model=model_id, kind="text", usage=_r_usage, label="vision_fail")
-                    except (ImportError, OSError, KeyError, TypeError):
-                        pass
+                    except (ImportError, OSError, KeyError, TypeError) as e:
+                        logger.debug("cost_tracker.record_usage(vision_fail) failed: %s: %s", type(e).__name__, e)
                 continue
             except (OSError, TimeoutError) as e:
                 last_reason = f"网络/超时: {e}"
@@ -620,8 +745,8 @@ class ChatSession:
             warning = check_budget()
             if warning:
                 yield ("info", warning)
-        except (ImportError, OSError):
-            pass
+        except (ImportError, OSError) as e:
+            logger.debug("cost_tracker.check_budget failed: %s: %s", type(e).__name__, e)
 
         # ── 多模态分支：有图片 → 走独立视觉客户端 ──
         if image_url:
@@ -661,6 +786,7 @@ class ChatSession:
         # 跨轮工具去重状态（见 _run_tool_calls 的注释）
         _executed_signatures: set[tuple[str, str]] = set()
         _executed_cache: dict[tuple[str, str], str] = {}
+        _stream_error_break = False
 
         while fallback_tried < len(fallback_chain):
             _use_model, _use_client = fallback_chain[fallback_tried]
@@ -681,13 +807,11 @@ class ChatSession:
                 # 收完一轮 delta：有 tool_calls → 执行并喂回，进入下一轮
                 if tool_calls:
                     buffer = self._append_assistant_with_tools(buffer, tool_calls)
-                    stop = yield from self._run_tool_calls(
+                    yield from self._run_tool_calls(
                         tool_calls,
                         _executed_signatures,
                         _executed_cache,
                     )
-                    if stop:
-                        return  # 写操作被用户取消等
                     continue  # 进入下一轮 tool loop
 
                 # 无 tool_calls：检查是否流错误（需 fallback）还是正常收尾
@@ -720,16 +844,9 @@ class ChatSession:
     # 认知负荷极高（CodeBuddy/Claude/Codex 三方评分一致点名）。拆分后 send_stream 只剩控制流骨架。
 
     # 写操作类工具不参与跨轮去重缓存（避免吞掉用户对同一文件的连续修改意图）
-    _WRITE_TOOLS = frozenset(
-        {
-            "write_file",
-            "edit_file",
-            "github_write_file",
-            "git_add_commit",
-            "git_push",
-            "run_bash",
-        }
-    )
+    from core.constraints import WRITE_TOOLS
+
+    _WRITE_TOOLS = WRITE_TOOLS
 
     def _consume_stream_delta(self, client: "CruxClient", model: str, tools):
         """吃一轮流式 delta，yield text chunks，return (buffer, tool_calls, stream_error, last_usage)。
@@ -739,18 +856,24 @@ class ChatSession:
         不修改 self.messages（写入由调用方负责）。
 
         yield from 此生成器时，返回值通过 StopIteration.value 传递。
+
+        max_tokens 自适应：纯文本对话 2048 省 token；携带工具时调到 8192，
+        避免 tool_call 的 arguments（如 create_html 的大段 HTML）被 max_tokens
+        截断 → JSON 残缺 → write_file 写入"3字节" → agent 反复重试"中断"。
         """
         buffer, tool_calls = "", []
         stream_error = False
         last_usage = None
         kwargs = {}
+        # 带工具时放大预算：tool_call arguments 计入输出 token，大文件生成需要空间
+        max_tok = 8192 if tools else 2048
         if self.enable_thinking:
             kwargs["chat_template_kwargs"] = {"enable_thinking": True}
         for delta in client.chat_stream(
             model=model,
-            messages=self.messages,
+            messages=sanitize_tool_call_history(self.messages),
             tools=tools,
-            max_tokens=2048,
+            max_tokens=max_tok,
             **kwargs,
         ):
             if "content" in delta and delta["content"]:
@@ -788,8 +911,7 @@ class ChatSession:
         - yield 用户可见的副作用（info/image/video/confirm）。
 
         Returns (via StopIteration.value):
-            True if a confirm action was dispatched (caller should return),
-            False otherwise.
+            False — confirm 不再中断流（拒绝时占位已在历史中，合法）。
         """
         from core.context_tools import compress_tool_result
 
@@ -802,6 +924,7 @@ class ChatSession:
             if fname not in self._WRITE_TOOLS and sig in executed_sigs:
                 tool_result = executed_cache.get(sig, "")
                 # 不 yield 副作用（用户已见过一次）
+                append_tool_result = True
             else:
                 with TraceContext("tool_call", tool_name=fname, call_id=tc.get("id", "")) as span:
                     tool_result, side_effects = self._dispatch_tool(fname, fargs)
@@ -817,22 +940,50 @@ class ChatSession:
                             get_prompt_lab().record_tool_error()
                     except (ImportError, OSError):
                         pass
-                yield from side_effects
-                # 高风险工具确认：返回 confirm 副作用时 tool_result 为空，需中断
-                if any(k == "confirm" for k, _ in side_effects):
-                    return True
+                # ── 高风险工具确认：同意即执行，拒绝则占位跳过 ──
+                is_confirm = any(k == "confirm" for k, _ in side_effects)
+                if is_confirm:
+                    # a. 预追加占位 tool 结果（保证消息历史始终合法）。
+                    #    后续 yield from side_effects 会触发 UI 的 Confirm.ask（同步阻塞）。
+                    #    若用户拒绝: PermissionError 从 yield from 抛出 → generator 关闭
+                    #      → 占位安全留在历史中 → 下一轮 API 不会报 orphan 错误 ✓
+                    #    若用户同意: yield from 正常返回 → 进入步骤 b
+                    placeholder = f"[高风险工具 {fname}: 等待用户确认]"
+                    self.messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc.get("id", ""),
+                            "content": placeholder,
+                        }
+                    )
+                    yield from side_effects  # ← Confirm.ask 阻塞点
+                    # b. 用户同意 → 用 confirmed=True 重新执行，跳过 confirm 检查
+                    tool_result, exec_side_effects = self._dispatch_tool(fname, fargs, confirmed=True)
+                    yield from exec_side_effects
+                    # c. 用真实结果替换占位
+                    self.messages[-1] = {
+                        "role": "tool",
+                        "tool_call_id": tc.get("id", ""),
+                        "content": compress_tool_result(tool_result, self.client, self.model),
+                    }
+                    append_tool_result = False  # 已在 confirm 分支内追加
+                else:
+                    yield from side_effects
+                    append_tool_result = True
                 if fname not in self._WRITE_TOOLS:
                     executed_sigs.add(sig)
                     executed_cache[sig] = tool_result
             # 上下文窗口防护：智能压缩（抽取→LLM→截断三级路由），
             # 防止大文件/长输出撑爆 LLM 上下文。原始结果仍在 cache 中。
-            self.messages.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": tc.get("id", ""),
-                    "content": compress_tool_result(tool_result, self.client, self.model),
-                }
-            )
+            # confirm 分支已在上面追加 tool 结果，跳过此处追加。
+            if append_tool_result:
+                self.messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tc.get("id", ""),
+                        "content": compress_tool_result(tool_result, self.client, self.model),
+                    }
+                )
         return False
 
     def _finalize_outcome(self, model: str, last_usage) -> None:
@@ -841,8 +992,8 @@ class ChatSession:
             from core.cost_tracker import record_usage
 
             record_usage(model=model, kind="text", usage=last_usage, label="text_stream")
-        except (ImportError, OSError):
-            pass
+        except (ImportError, OSError) as e:
+            logger.debug("cost_tracker.record_usage(text_stream) failed: %s: %s", type(e).__name__, e)
         self._record_outcome_promptlab()
 
     def _record_outcome_promptlab(self) -> None:
@@ -908,6 +1059,84 @@ ChatSession._merge_tool_calls = staticmethod(merge_tool_calls)
 
 
 # ═══════════════════════════════════════════════════════════════
+# 消息历史安全网 — 清洗孤儿 tool_calls
+# ═══════════════════════════════════════════════════════════════
+
+
+def sanitize_tool_call_history(messages: list[dict]) -> list[dict]:
+    """清洗消息历史中的孤儿 tool_calls，保证发给 API 的消息始终合法。
+
+    OpenAI 兼容 API 要求:含 tool_calls 的 assistant 消息后面必须有对应
+    数量的 role=tool 消息（每个 tool_call_id 匹配一条）。
+    若缺失配对 → API 返回 400 invalid_request_error。
+
+    本函数扫描消息列表，对每个含 tool_calls 的 assistant 消息:
+    1. 计算后续有多少条 role=tool 消息的 tool_call_id 在其 tool_calls 列表中
+    2. 若不足（或为零）→ 剥离该 assistant 消息的 tool_calls 字段（保留 content）
+    3. 同时剥离多余的 role=tool 消息（无对应 assistant 的 orphan tool 消息）
+
+    是纯函数（不修改输入），返回清洗后的副本。
+    同步/异步版 ChatSession 在发 API 前调用。
+    """
+    if not messages:
+        return messages
+
+    result = [dict(m) for m in messages]
+
+    # 收集所有 assistant 消息中 tool_calls 的 id 集合
+    # 同时找出 assistant→tool 的配对关系
+    assistant_indices: list[int] = []
+    for i, msg in enumerate(result):
+        if msg.get("role") == "assistant" and msg.get("tool_calls"):
+            assistant_indices.append(i)
+
+    # 对每个含 tool_calls 的 assistant，向后数配对的 tool 消息
+    tool_ids_from_assistant: dict[int, set[str]] = {}
+    for ai in assistant_indices:
+        tc_ids = {tc.get("id", "") for tc in result[ai].get("tool_calls", []) if tc.get("id")}
+        tool_ids_from_assistant[ai] = tc_ids
+
+    # 扫描所有 tool 消息，记录它们配对到哪个 assistant
+    tool_msg_indices: list[int] = []
+    tool_msg_matched_to: dict[int, int] = {}  # tool index → assistant index
+    unmatched_tool_indices: set[int] = set()
+
+    for i, msg in enumerate(result):
+        if msg.get("role") == "tool":
+            tool_msg_indices.append(i)
+            tcid = msg.get("tool_call_id", "")
+            # 找最近的、包含此 id 的 assistant
+            matched = False
+            for ai in assistant_indices:
+                if ai >= i:
+                    break  # assistant 在 tool 之后，不可能配对
+                if tcid in tool_ids_from_assistant.get(ai, set()):
+                    tool_msg_matched_to[i] = ai
+                    matched = True
+                    break
+            if not matched:
+                unmatched_tool_indices.add(i)
+
+    # 检测孤儿:含 tool_calls 的 assistant 消息配对不足
+    orphan_assistants: set[int] = set()
+    for ai in assistant_indices:
+        tc_ids = tool_ids_from_assistant[ai]
+        matched_tool_count = sum(1 for _, a in tool_msg_matched_to.items() if a == ai)
+        if matched_tool_count < len(tc_ids):
+            orphan_assistants.add(ai)
+
+    # 构建 result:剥离孤儿 assistant 的 tool_calls,移除 unmatched tool 消息
+    indices_to_remove = set(unmatched_tool_indices)
+    for ai in orphan_assistants:
+        # 剥离 tool_calls，保留 content
+        result[ai] = {k: v for k, v in result[ai].items() if k != "tool_calls"}
+
+    # 移除 unmatched tool 消息
+    cleaned = [msg for i, msg in enumerate(result) if i not in indices_to_remove]
+    return cleaned
+
+
+# ═══════════════════════════════════════════════════════════════
 # ChatSession._dispatch_tool — 放在 merge_tool_calls 之后（模块级函数下）
 # 实际上这是 ChatSession 的方法，放回类内更清晰，但当前结构为
 # merge_tool_calls 把 _dispatch_tool 包进去了。修复：将其作为独立函数
@@ -916,49 +1145,31 @@ ChatSession._merge_tool_calls = staticmethod(merge_tool_calls)
 # ═══════════════════════════════════════════════════════════════
 
 
-def _dispatch_tool_impl(self, name: str, args_json: str) -> tuple[str, list[tuple]]:
+def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = False) -> tuple[str, list[tuple]]:
     """执行工具，返回 (给模型的文本, 给用户的副作用列表)。
 
     副作用列表元素: ("info", str) / ("image", dict) / ("video", dict) / ("confirm", dict)
 
     与命令式路径对齐：均经过 SmartBrain Prompt 增强后再调引擎。
     支持生命周期 hook（PRE_TOOL_USE / POST_TOOL_USE）和高风险工具确认。
+
+    Args:
+        confirmed: 若 True，跳过高风险工具确认检查（用户已在 UI 层确认）。
+            由 _run_tool_calls 在 confirm 通过后二次调用时传入。
     """
     try:
         args = json.loads(args_json or "{}")
     except json.JSONDecodeError:
         args = {}
 
-    # ── 高风险工具确认机制 ──
-    _HIGH_RISK_TOOLS = {
-        "git_add_commit",  # 本地提交（可能误提交敏感内容）
-        "git_push",  # 推送到远端（force 已被 git_tools 二次拦截）
-        "git_pr_create",  # 创建 PR（含推送）
-        "git_pr_merge",  # 合并 PR（不可逆）
-        "git_tag",  # 创建/删除 tag（语义版本不可逆）
-    }
-    _RISKY_ARGS_PATTERN = re.compile(r"\b(rm|delete|drop|truncate|format|mkfs)\b", re.IGNORECASE)
-    # github_write_file: 推默认分支（main/master）视为高风险；feature 分支放行
-    is_write_to_default_branch = name == "github_write_file" and not args.get("branch", "").strip()
-    # git_push + force=True 参数侧拦截（即便用户绕过 git_tools 的默认确认）
-    is_force_push = name == "git_push" and bool(args.get("force", False))
-    # git_worktree remove + force 可递归删除目录
-    is_force_worktree_remove = (
-        name == "git_worktree" and args.get("action", "") == "remove" and bool(args.get("force", False))
-    )
-    # git_branch delete 删分支
-    is_branch_delete = name == "git_branch" and args.get("action", "") == "delete"
-    is_high_risk = (
-        name in _HIGH_RISK_TOOLS
-        or is_write_to_default_branch
-        or is_force_push
-        or is_force_worktree_remove
-        or is_branch_delete
-        or (name == "run_bash" and _RISKY_ARGS_PATTERN.search(args.get("command", "")))
-    )
-    if is_high_risk:
-        confirm_data = {"tool": name, "args": args}
-        return "", [("confirm", confirm_data)]
+    # ── 高风险工具确认机制（单一真源：core/constraints.py）──
+    # confirmed=True 表示 UI 层已确认，直接执行，不再拦截。
+    if not confirmed:
+        from core.constraints import is_tool_high_risk
+
+        if is_tool_high_risk(name, args):
+            confirm_data = {"tool": name, "args": args}
+            return "", [("confirm", confirm_data)]
 
     # ── PRE_TOOL_USE hook ──
     try:
@@ -977,9 +1188,16 @@ def _dispatch_tool_impl(self, name: str, args_json: str) -> tuple[str, list[tupl
         side: list[tuple[str, str | dict]] = [("info", f"正在生成图片: {prompt}")]
         try:
             # Prompt 增强（与命令式 /img 路径对齐）
-            r = self.brain.enhance_image_prompt(prompt)
-            fp = r.get("optimized_prompt", prompt)
-            neg = r.get("negative_prompt", "") or None
+            # Brain 调用走当前供应商，可能因上游间歇故障失败（404/5xx 等）；
+            # 增强失败不应阻断生成——退化为原始 prompt 继续。
+            try:
+                r = self.brain.enhance_image_prompt(prompt)
+                fp = r.get("optimized_prompt", prompt)
+                neg = r.get("negative_prompt", "") or None
+            except Exception as e:
+                # 增强失败不阻断生成——退化为原始 prompt 继续；记录原因便于排查上游间歇故障
+                logger.debug("brain.enhance_image_prompt failed: %s: %s", type(e).__name__, e)
+                fp, neg = prompt, None
 
             if image_url:
                 # 图生图/编辑路径
@@ -997,19 +1215,25 @@ def _dispatch_tool_impl(self, name: str, args_json: str) -> tuple[str, list[tupl
                 from core.cost_tracker import record_usage
 
                 record_usage(model="agnes-image-2.1-flash", kind="image", label="generate_image", call_count=1)
-            except (ImportError, OSError):
-                pass
+            except (ImportError, OSError) as e:
+                logger.debug("cost_tracker.record_usage(image) failed: %s: %s", type(e).__name__, e)
             return f"图片已生成并保存: {data.get('local_path', '')}", side
-        except (RuntimeError, OSError, ValueError) as e:
+        except Exception as e:
             return f"图片生成失败: {e}", side
 
     if name == "generate_video":
         side: list[tuple[str, str | dict]] = [("info", f"正在生成视频（可能需几分钟）: {prompt}")]
         try:
             # Prompt 增强（与命令式 /video 路径对齐）
-            r = self.brain.enhance_video_prompt(prompt)
-            fp = r.get("optimized_prompt", prompt)
-            neg = r.get("negative_prompt", "") or None
+            # Brain 调用可能因上游间歇故障失败，增强失败不回退为原始 prompt 继续
+            try:
+                r = self.brain.enhance_video_prompt(prompt)
+                fp = r.get("optimized_prompt", prompt)
+                neg = r.get("negative_prompt", "") or None
+            except Exception as e:
+                # Brain 调用可能因上游间歇故障失败，增强失败不回退为原始 prompt 继续
+                logger.debug("brain.enhance_video_prompt failed: %s: %s", type(e).__name__, e)
+                fp, neg = prompt, None
             w, h = 1152, 768
 
             if image_url:
@@ -1029,15 +1253,15 @@ def _dispatch_tool_impl(self, name: str, args_json: str) -> tuple[str, list[tupl
                 from core.cost_tracker import record_usage
 
                 record_usage(model="agnes-video-v2.0", kind="video", label="generate_video", call_count=1)
-            except (ImportError, OSError):
-                pass
+            except (ImportError, OSError) as e:
+                logger.debug("cost_tracker.record_usage(video) failed: %s: %s", type(e).__name__, e)
             # 检测超时状态
             if data.get("status") == "timeout":
                 vid = data.get("video_id", "")
                 pct = data.get("progress", 0)
                 return (f"视频生成超时（进度 {pct:.0f}%），请稍后用 video_id={vid} 查询状态"), side
             return f"视频已生成: {data.get('local_path', '')}", side
-        except (RuntimeError, OSError, ValueError) as e:
+        except Exception as e:
             return f"视频生成失败: {e}", side
 
     if name == "multi_agent":
@@ -1064,7 +1288,9 @@ def _dispatch_tool_impl(self, name: str, args_json: str) -> tuple[str, list[tupl
     # 外部工具（tools.json 中定义）→ 通过 ToolRegistry 执行
     if self.tools.has(name):
         # 中间状态可见：耗时工具先提示
-        _LONG_RUNNING = {"run_bash", "run_test", "run_python", "web_fetch", "web_search"}
+        from core.constraints import LONG_RUNNING_TOOLS
+
+        _LONG_RUNNING = LONG_RUNNING_TOOLS
         side: list[tuple[str, str | dict]] = []
         if name in _LONG_RUNNING:
             side.append(("info", f"正在执行 {name}..."))

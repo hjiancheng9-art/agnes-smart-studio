@@ -8,41 +8,56 @@ class TestExceptionHierarchy:
 
     def test_base_is_exception(self):
         from core.exceptions import CruxError
+
         assert issubclass(CruxError, Exception)
 
     def test_infrastructure_subclasses(self):
         from core.exceptions import (
-            CruxError, ConfigError, ProviderError, NetworkError, EncodingError,
+            ConfigError,
+            CruxError,
+            EncodingError,
+            NetworkError,
+            ProviderError,
         )
+
         for cls in (ConfigError, ProviderError, NetworkError, EncodingError):
             assert issubclass(cls, CruxError)
 
     def test_tool_subclasses(self):
         from core.exceptions import (
-            CruxError, ToolError, ToolTimeoutError, EngineError, GenerationError,
+            CruxError,
+            EngineError,
+            GenerationError,
+            ToolError,
+            ToolTimeoutError,
         )
+
         assert issubclass(ToolError, CruxError)
         assert issubclass(ToolTimeoutError, ToolError)
         assert issubclass(EngineError, CruxError)
         assert issubclass(GenerationError, EngineError)
 
     def test_agent_subclasses(self):
-        from core.exceptions import CruxError, AgentError, SessionError, MessageError
+        from core.exceptions import AgentError, CruxError, MessageError, SessionError
+
         for cls in (AgentError, SessionError, MessageError):
             assert issubclass(cls, CruxError)
 
     def test_self_subclasses(self):
-        from core.exceptions import CruxError, AuditError, EvolutionError, FixError
+        from core.exceptions import AuditError, CruxError, EvolutionError, FixError
+
         for cls in (AuditError, EvolutionError, FixError):
             assert issubclass(cls, CruxError)
 
     def test_skill_subclasses(self):
-        from core.exceptions import CruxError, SkillError, MarketplaceError
+        from core.exceptions import CruxError, MarketplaceError, SkillError
+
         assert issubclass(SkillError, CruxError)
         assert issubclass(MarketplaceError, CruxError)
 
     def test_security_subclasses(self):
         from core.exceptions import CruxError, SandboxError, SecurityError
+
         assert issubclass(SandboxError, CruxError)
         assert issubclass(SecurityError, CruxError)
 
@@ -52,6 +67,7 @@ class TestExceptionAttributes:
 
     def test_message_only(self):
         from core.exceptions import CruxError
+
         e = CruxError("something broke")
         assert str(e) == "something broke"
         assert e.message == "something broke"
@@ -59,6 +75,7 @@ class TestExceptionAttributes:
 
     def test_message_with_code(self):
         from core.exceptions import ToolError
+
         e = ToolError("ffmpeg not found", code="TOOL_MISSING")
         assert "[TOOL_MISSING]" in str(e)
         assert "ffmpeg not found" in str(e)
@@ -66,23 +83,27 @@ class TestExceptionAttributes:
 
     def test_subclass_inherits_code(self):
         from core.exceptions import ProviderError
+
         e = ProviderError("bad key", code="AUTH_FAIL")
         assert e.code == "AUTH_FAIL"
         assert isinstance(e, Exception)
 
     def test_empty_message(self):
         from core.exceptions import CruxError
+
         e = CruxError()
         assert str(e) == ""
         assert e.message == ""
 
     def test_catch_by_base(self):
         from core.exceptions import CruxError, ToolError
+
         with pytest.raises(CruxError):
             raise ToolError("boom")
 
     def test_catch_specific(self):
         from core.exceptions import GenerationError, ToolError
+
         with pytest.raises(GenerationError):
             raise GenerationError("img failed")
         # Does NOT catch as ToolError
@@ -99,16 +120,19 @@ class TestAllExports:
 
     def test_all_defined(self):
         import core.exceptions as mod
+
         assert hasattr(mod, "__all__")
         assert len(mod.__all__) > 15
 
     def test_all_names_exist(self):
         import core.exceptions as mod
+
         for name in mod.__all__:
             assert hasattr(mod, name), f"__all__ lists {name!r} but it's missing"
 
     def test_all_are_exception_classes(self):
         import core.exceptions as mod
+
         for name in mod.__all__:
             obj = getattr(mod, name)
             assert isinstance(obj, type), f"{name!r} should be a class"

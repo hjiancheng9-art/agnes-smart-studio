@@ -224,8 +224,12 @@ def extractive_compress(
         result_parts = [sentences[i] for i in sorted(selected_indices)]
         return " ".join(result_parts)
 
-    except Exception:
-        # 任何失败静默回退截断
+    except Exception as e:
+        # 失败回退截断，但记录异常类型以便排查
+        import logging
+
+        _log = logging.getLogger("crux.context")
+        _log.warning("extractive_compress failed (%s: %s), falling back to truncate", type(e).__name__, e)
         return truncate_tool_result(text, max_chars)
 
 
@@ -268,7 +272,11 @@ def abstractive_compress(
         summary = response["choices"][0]["message"]["content"]
         if summary:
             return summary.strip()
-    except Exception:
+    except Exception as e:
+        import logging
+
+        _log = logging.getLogger("crux.context")
+        _log.warning("abstractive_compress failed (%s: %s), falling back to extractive", type(e).__name__, e)
         pass  # 静默回退
 
     return extractive_compress(text)

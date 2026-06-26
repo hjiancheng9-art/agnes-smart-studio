@@ -27,6 +27,7 @@ from engines.image_to_image import ImageToImageEngine
 from engines.text_to_image import TextToImageEngine
 from engines.video import VideoEngine
 from pipeline.workflows import PipelineOrchestrator
+from ui.beautify import hr_dot, splash_full
 from ui.display import show_error, show_info, show_warning
 from ui.mixins import (
     CreativeCommandsMixin,
@@ -37,19 +38,21 @@ from ui.mixins import (
     InlineCommandsMixin,
     SharedMixin,
 )
-from ui.terminal_logo import render_rich as _render_logo_rich
+from ui.terminal_logo import render_rich
 from ui.theme import COLORS, ICONS, LAYOUT, console
 from utils import memory
 
 __all__ = ["CruxCLI", "LOGO"]
 
-
-def _build_logo() -> str:
-    """Build the organic pixel logo as Rich markup."""
-    return _render_logo_rich(v=f"v{__version__}")
+# Dynamic logo — built on first access
+LOGO = None
 
 
-LOGO = _build_logo()
+def _get_logo():
+    global LOGO
+    if LOGO is None:
+        LOGO = render_rich(v=f"v{__version__}")
+    return LOGO
 
 
 class CruxCLI(
@@ -95,11 +98,17 @@ class CruxCLI(
     _prompt_session = None  # 类级复用 prompt_toolkit session
 
     def run(self):
-        console.print(LOGO)
+        # v2 美化启动: 五行动画 + Logo 面板
+        splash_full(v=f"v{__version__}", t="84", s="734")
+        hr_dot()
         while True:
             console.print()
             menu = Table(
-                title=f"[{COLORS['primary']}]{ICONS['primary']} Menu[/]", show_header=False, box=None, padding=(0, 2)
+                title=f"[{COLORS['primary']}]{ICONS['primary']} Menu[/]",
+                show_header=False,
+                box=None,
+                padding=(0, 2),
+                row_styles=["", f"on {COLORS['surface']}"],
             )
             menu.add_column("Key", style=f"bold {COLORS['accent']}", width=4)
             menu.add_column("Name", style="white", width=16)
@@ -196,7 +205,7 @@ class CruxCLI(
         session.messages[0] = {"role": "system", "content": session._build_system_prompt()}
         while True:
             try:
-                raw = self._prompt_user(f"你 {self._mode_hint(session)}").strip()
+                raw = self._prompt_user(self._mode_hint(session)).strip()
             except (EOFError, KeyboardInterrupt):
                 console.print()
                 break

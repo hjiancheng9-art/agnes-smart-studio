@@ -1,18 +1,21 @@
 """Tests for core.scheduler — task scheduler with cron parsing."""
 
-import pytest
 from datetime import datetime
+
+import pytest
 
 
 class TestParseCron:
     def test_wildcard(self):
         from core.scheduler import parse_cron
+
         result = parse_cron("* * * * *")
         assert len(result["minute"]) == 60
         assert len(result["hour"]) == 24
 
     def test_specific_values(self):
         from core.scheduler import parse_cron
+
         result = parse_cron("30 9 * * 1")
         assert 30 in result["minute"]
         assert 9 in result["hour"]
@@ -20,6 +23,7 @@ class TestParseCron:
 
     def test_step(self):
         from core.scheduler import parse_cron
+
         result = parse_cron("*/15 * * * *")
         for v in [0, 15, 30, 45]:
             assert v in result["minute"]
@@ -27,6 +31,7 @@ class TestParseCron:
 
     def test_range(self):
         from core.scheduler import parse_cron
+
         result = parse_cron("0 9-17 * * 1-5")
         assert 9 in result["hour"]
         assert 17 in result["hour"]
@@ -35,28 +40,33 @@ class TestParseCron:
 
     def test_comma_separated(self):
         from core.scheduler import parse_cron
+
         result = parse_cron("0,30 9,18 * * *")
         assert result["minute"] == {0, 30}
         assert result["hour"] == {9, 18}
 
     def test_invalid_field_count(self):
         from core.scheduler import parse_cron
+
         with pytest.raises(ValueError, match="5 fields"):
             parse_cron("* * *")
 
     def test_invalid_step(self):
         from core.scheduler import parse_cron
+
         with pytest.raises(ValueError, match="positive"):
             parse_cron("*/0 * * * *")
 
     def test_weekday_normalization(self):
         from core.scheduler import parse_cron
+
         # 7 should be normalized to 0 (Sunday)
         result = parse_cron("0 0 * * 0,7")
         assert result["weekday"] == {0}
 
     def test_all_fields_present(self):
         from core.scheduler import parse_cron
+
         result = parse_cron("0 0 1 1 *")
         assert set(result.keys()) == {"minute", "hour", "day", "month", "weekday"}
 
@@ -64,6 +74,7 @@ class TestParseCron:
 class TestScheduledTask:
     def test_creation(self):
         from core.scheduler import ScheduledTask
+
         task = ScheduledTask(
             id="abc123",
             name="Test Task",
@@ -77,8 +88,8 @@ class TestScheduledTask:
 
     def test_to_dict(self):
         from core.scheduler import ScheduledTask
-        task = ScheduledTask(id="x", name="y", prompt="z",
-                              schedule_type="interval", schedule_value="60")
+
+        task = ScheduledTask(id="x", name="y", prompt="z", schedule_type="interval", schedule_value="60")
         d = task.to_dict()
         assert d["id"] == "x"
         assert d["name"] == "y"
@@ -86,17 +97,28 @@ class TestScheduledTask:
 
     def test_from_dict(self):
         from core.scheduler import ScheduledTask
-        data = {"id": "x", "name": "y", "prompt": "z",
-                "schedule_type": "interval", "schedule_value": "60",
-                "enabled": True, "last_run": "", "next_run": "",
-                "created_at": "", "run_count": 0}
+
+        data = {
+            "id": "x",
+            "name": "y",
+            "prompt": "z",
+            "schedule_type": "interval",
+            "schedule_value": "60",
+            "enabled": True,
+            "last_run": "",
+            "next_run": "",
+            "created_at": "",
+            "run_count": 0,
+        }
         task = ScheduledTask.from_dict(data)
         assert task.id == "x"
 
     def test_from_dict_missing_optional(self):
         from core.scheduler import ScheduledTask
-        task = ScheduledTask.from_dict({"id": "x", "name": "y", "prompt": "z",
-                                        "schedule_type": "interval", "schedule_value": "60"})
+
+        task = ScheduledTask.from_dict(
+            {"id": "x", "name": "y", "prompt": "z", "schedule_type": "interval", "schedule_value": "60"}
+        )
         assert task.enabled is True
         assert task.run_count == 0
 
@@ -109,8 +131,10 @@ class TestScheduler:
         don't pollute the real output directory.
         """
         import threading
+
         from core import scheduler as sched_mod
         from core.scheduler import Scheduler
+
         # Patch module-level constants directly (tests run serially)
         sched_mod._SCHEDULE_FILE = tmp_path / "scheduled_tasks.json"
         sched_mod._TRIGGER_FILE = tmp_path / "triggers.jsonl"
@@ -170,8 +194,17 @@ class TestScheduler:
         sched = self._make_scheduler(tmp_path)
         calls = []
         sched.set_execution_callback(lambda prompt: calls.append(prompt))
-        sched._execute_task(type('obj', (object,), {  # type: ignore[arg-type]  # dynamic mock for test
-            'id': 'x', 'name': 'test', 'prompt': 'hello'}))
+        sched._execute_task(
+            type(
+                "obj",
+                (object,),
+                {  # type: ignore[arg-type]  # dynamic mock for test
+                    "id": "x",
+                    "name": "test",
+                    "prompt": "hello",
+                },
+            )
+        )
         assert "hello" in calls
 
     def test_persistence(self, tmp_path):
@@ -196,6 +229,7 @@ class TestScheduler:
 class TestToolDefs:
     def test_tool_defs_exist(self):
         from core.scheduler import SCHEDULER_TOOL_DEFS
+
         assert len(SCHEDULER_TOOL_DEFS) == 6
         names = [d["function"]["name"] for d in SCHEDULER_TOOL_DEFS]
         assert "schedule_add" in names
@@ -204,5 +238,6 @@ class TestToolDefs:
 
     def test_executor_map_exists(self):
         from core.scheduler import SCHEDULER_EXECUTOR_MAP
+
         assert "schedule_add" in SCHEDULER_EXECUTOR_MAP
         assert "schedule_remove" in SCHEDULER_EXECUTOR_MAP

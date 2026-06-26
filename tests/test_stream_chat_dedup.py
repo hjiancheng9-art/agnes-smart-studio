@@ -9,8 +9,9 @@ answer appeared twice on screen.
 This test fakes the stream (no API) and asserts every distinct chunk is
 committed to the captured console exactly once.
 """
+# pyright: reportArgumentType=false
+
 import sys
-import types
 from io import StringIO
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -77,8 +78,9 @@ class TestStreamChatNoDuplicateOutput:
         shared, captured, _ = _make_shared()
         # 5 个 chunk，总长使 _render_counter 在结束时为 1（5 % 4 = 1），
         # 正是旧 bug 的触发条件。
-        session = _FakeSession([("text", "你好"), ("text", "，"), ("text", "世界"),
-                                ("text", "！"), ("text", "这是答案。")])
+        session = _FakeSession(
+            [("text", "你好"), ("text", "，"), ("text", "世界"), ("text", "！"), ("text", "这是答案。")]
+        )
 
         shared._stream_chat(session, "hi")
 
@@ -116,11 +118,13 @@ class TestStreamChatNoDuplicateOutput:
     def test_info_side_effect_does_not_reprint_text(self):
         """info 是落盘边界：前面已固化的文本不应在 info 后再被打印一遍。"""
         shared, captured, _ = _make_shared()
-        session = _FakeSession([
-            ("text", "前半段。"),
-            ("info", "中间提示"),
-            ("text", "后半段。"),
-        ])
+        session = _FakeSession(
+            [
+                ("text", "前半段。"),
+                ("info", "中间提示"),
+                ("text", "后半段。"),
+            ]
+        )
 
         shared._stream_chat(session, "x")
 

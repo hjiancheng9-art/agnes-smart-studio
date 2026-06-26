@@ -83,8 +83,8 @@ def _comfyui_request(path: str, method: str = "GET", body: dict | None = None, t
 
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        # timeout 参数: (connect_timeout, read_timeout) — 防止 TCP 连接 hang
-        with urllib.request.urlopen(req, timeout=(10, timeout)) as resp:  # type: ignore[arg-type]  # urllib 支持 (connect, read) 元组
+        # timeout: 单值秒数（Windows Python 3.11 不支持 (connect, read) 元组）
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             content = resp.read()
             content_type = resp.headers.get("Content-Type", "")
             if "json" in content_type:
@@ -458,7 +458,7 @@ def execute_submit_workflow(workflow_json: str, wait: bool = True) -> str:
 
             # 检查状态
             if status_data.get("completed") is False:
-                time.sleep(COMFYUI_POLL_INTERVAL)
+                time.sleep(COMFYUI_POLL_INTERVAL)  # TODO: async 化 — 需先将此文件整体迁移到 asyncio
                 continue
 
             # 提取输出文件
@@ -491,7 +491,7 @@ def execute_submit_workflow(workflow_json: str, wait: bool = True) -> str:
                 ensure_ascii=False,
             )
 
-        time.sleep(COMFYUI_POLL_INTERVAL)
+        time.sleep(COMFYUI_POLL_INTERVAL)  # TODO: async 化 — 需先将此文件整体迁移到 asyncio
 
     # 超时
     return json.dumps(

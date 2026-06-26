@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock
 
-
-
 # ── VideoProgressTracker ──────────────────────────────────────────────────
 
 
@@ -12,6 +10,7 @@ class TestVideoProgressTracker:
 
     def test_initial_state(self):
         from utils.progress import VideoProgressTracker
+
         t = VideoProgressTracker()
         assert t.progress_percent == 0
         assert t.current_status == "queued"
@@ -19,6 +18,7 @@ class TestVideoProgressTracker:
 
     def test_update_progress(self):
         from utils.progress import VideoProgressTracker
+
         t = VideoProgressTracker()
         t.update("processing", 50, {"step": "render"})
         assert t.progress_percent == 50
@@ -27,6 +27,7 @@ class TestVideoProgressTracker:
     def test_anti_regression(self):
         """Progress should never decrease."""
         from utils.progress import VideoProgressTracker
+
         t = VideoProgressTracker()
         t.update("processing", 80, {})
         t.update("processing", 50, {})  # Try to go backwards
@@ -34,12 +35,14 @@ class TestVideoProgressTracker:
 
     def test_capped_at_100(self):
         from utils.progress import VideoProgressTracker
+
         t = VideoProgressTracker()
         t.update("processing", 999, {})
         assert t.progress_percent == 100
 
     def test_history_records(self):
         from utils.progress import VideoProgressTracker
+
         t = VideoProgressTracker()
         t.update("queued", 0, {})
         t.update("processing", 30, {"step": "a"})
@@ -48,6 +51,7 @@ class TestVideoProgressTracker:
 
     def test_float_progress(self):
         from utils.progress import VideoProgressTracker
+
         t = VideoProgressTracker()
         t.update("processing", 33.7, {})
         # progress_percent returns the raw value (could be float)
@@ -55,6 +59,7 @@ class TestVideoProgressTracker:
 
     def test_multiple_updates(self):
         from utils.progress import VideoProgressTracker
+
         t = VideoProgressTracker()
         for i in range(0, 101, 10):
             t.update("processing", i, {})
@@ -63,6 +68,7 @@ class TestVideoProgressTracker:
 
     def test_status_transitions(self):
         from utils.progress import VideoProgressTracker
+
         t = VideoProgressTracker()
         t.update("queued", 0, {})
         t.update("processing", 10, {})
@@ -79,12 +85,14 @@ class TestCreateProgressCallback:
 
     def test_returns_callable(self):
         from utils.progress import create_progress_callback
+
         mock_progress = MagicMock()
         callback = create_progress_callback(mock_progress, "task-1")
         assert callable(callback)
 
     def test_callback_updates_progress(self):
         from utils.progress import create_progress_callback
+
         mock_progress = MagicMock()
         mock_progress.update.return_value = None
         callback = create_progress_callback(mock_progress, "task-1")
@@ -93,6 +101,7 @@ class TestCreateProgressCallback:
 
     def test_callback_anti_regression(self):
         from utils.progress import create_progress_callback
+
         mock_progress = MagicMock()
         callback = create_progress_callback(mock_progress, "task-1")
         callback("processing", 70, {})
@@ -102,6 +111,7 @@ class TestCreateProgressCallback:
 
     def test_callback_with_complete(self):
         from utils.progress import create_progress_callback
+
         mock_progress = MagicMock()
         callback = create_progress_callback(mock_progress, "task-1")
         callback("complete", 100, {"url": "http://example.com/vid.mp4"})

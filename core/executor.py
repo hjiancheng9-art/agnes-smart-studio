@@ -21,10 +21,14 @@ Lifecycle:
 from __future__ import annotations
 
 import asyncio
+import datetime
 import inspect
+import json
+import os
+import threading
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 __all__ = [
@@ -33,9 +37,15 @@ __all__ = [
     "Task",
     "TaskExecutor",
     "AsyncTaskExecutor",
+    "Goal",
+    "GoalManager",
     "quick_plan",
     "execute_plan_tool",
     "async_execute_plan_tool",
+    "create_goal_tool",
+    "get_goal_tool",
+    "set_goal_budget_tool",
+    "update_goal_tool",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -78,6 +88,16 @@ class TaskExecutor:
         errors = 0
 
         for step in task.steps:
+            # ── Goal 预算门 ──
+            try:
+                from core.executor import _get_goal_manager as _gm
+                if not _gm().record_step():
+                    step.status = "skipped"
+                    step.error = "Goal budget exhausted (max steps reached)"
+                    continue
+            except (ImportError, OSError):
+                pass
+
             ready = all(any(s.id == dep and s.status == "done" for s in task.steps) for dep in step.depends_on)
             if not ready:
                 step.status = "skipped"
@@ -90,6 +110,12 @@ class TaskExecutor:
                 result = self.execute_tool(step.tool, step.args)
                 step.result = result[:500]
                 step.status = "done"
+                # ── Goal 工具调用计数 ──
+                try:
+                    from core.executor import _get_goal_manager as _gm2
+                    _gm2().record_tool_call()
+                except (ImportError, OSError):
+                    pass
                 self._log.append({"ts": time.time(), "step": step.id, "event": "done", "result_preview": result[:100]})
             except (OSError, ValueError, RuntimeError) as e:
                 step.error = f"{type(e).__name__}: {e}"
@@ -104,26 +130,34 @@ class TaskExecutor:
                 try:
                     import ast
 
-                    py_files = list(self.root.rglob("*.py"))
-                    for pf in py_files[:30]:
-                        if "__pycache__" not in pf.parts:
-                            ast.parse(pf.read_text(encoding="utf-8"))
+                    # 限制范围: 只检查 core/ 和相关目录, 不扫描全项目
+                    _scan_dirs = [
+                        d for d in (self.root / "core", self.root / "engines", self.root / "pipeline")
+                        if d.exists()
+                    ]
+                    if not _scan_dirs:
+                        _scan_dirs = [self.root / "core"]
+                    for sd in _scan_dirs:
+                        for pf in sd.rglob("*.py"):
+                            if "__pycache__" not in pf.parts:
+                                ast.parse(pf.read_text(encoding="utf-8"))
                     self._log.append({"ts": time.time(), "step": step.id, "event": "verify_syntax_ok"})
                 except SyntaxError as se:
                     step.status = "failed"
                     step.error = f"Syntax check failed: {se}"
                     errors += 1
                     break
-            elif step.verify == "test":
-                # 经 run_pytest_safe 统一封装：在 pytest 内运行时自动短路，
-                # 避免验证步骤 spawn 子 pytest 跑完整 tests/ 造成无限递归 fork。
+            elif step.verify and step.verify.startswith("test"):
+                # test 或 test:<target_path> 格式
+                target = step.verify.split(":", 1)[1] if ":" in step.verify else "tests/"
                 from core.pytest_runner import run_pytest_safe
 
-                r = run_pytest_safe(test_target="tests/", timeout=30, cwd=self.root)
-                out = r.stdout or ""
-                if "failed" in out and "0 failed" not in out:
+                r = run_pytest_safe(test_target=target, timeout=30, cwd=self.root)
+                # 用 exit_code 判断，比字符串匹配更可靠
+                if r.returncode != 0:
+                    out = r.stdout or r.stderr or ""
                     step.status = "failed"
-                    step.error = f"Tests failed: {out[-200:]}"
+                    step.error = f"Tests failed (exit={r.returncode}): {out[-200:]}"
                     errors += 1
                     break
                 self._log.append({"ts": time.time(), "step": step.id, "event": "verify_tests_ok"})
@@ -222,16 +256,27 @@ class AsyncTaskExecutor:
             await self._verify_tests(step)
 
     async def _verify_syntax(self, step: Step) -> None:
-        """在 asyncio.to_thread 中做 ast.parse 语法验证。"""
+        """在 asyncio.to_thread 中做 ast.parse 语法验证（限制范围）。"""
         try:
 
             def _check():
                 import ast
 
-                py_files = list(self.root.rglob("*.py"))
-                for pf in py_files[:30]:
+                _scan_dirs = [
+                    d for d in (self.root / "core", self.root / "engines", self.root / "pipeline")
+                    if d.exists()
+                ]
+                if not _scan_dirs:
+                    _scan_dirs = [self.root / "core"]
+                # Also scan root-level .py files
+                _root_pys = list(self.root.glob("*.py"))
+                for pf in _root_pys:
                     if "__pycache__" not in pf.parts:
                         ast.parse(pf.read_text(encoding="utf-8"))
+                for sd in _scan_dirs:
+                    for pf in sd.rglob("*.py"):
+                        if "__pycache__" not in pf.parts:
+                            ast.parse(pf.read_text(encoding="utf-8"))
 
             await asyncio.to_thread(_check)
             async with self._lock:
@@ -245,19 +290,22 @@ class AsyncTaskExecutor:
                 )
 
     async def _verify_tests(self, step: Step) -> None:
-        """在 asyncio.to_thread 中调用 run_pytest_safe。"""
+        """在 asyncio.to_thread 中调用 run_pytest_safe。支持 test:<target> 格式。"""
         from core.pytest_runner import run_pytest_safe
+
+        verify = step.verify or ""
+        target = verify.split(":", 1)[1] if ":" in verify else "tests/"
 
         r = await asyncio.to_thread(
             run_pytest_safe,
-            test_target="tests/",
+            test_target=target,
             timeout=30,
             cwd=self.root,
         )
-        out = r.stdout or ""
-        if "failed" in out and "0 failed" not in out:
+        if r.returncode != 0:
+            out = r.stdout or r.stderr or ""
             step.status = "failed"
-            step.error = f"Tests failed: {out[-200:]}"
+            step.error = f"Tests failed (exit={r.returncode}): {out[-200:]}"
             async with self._lock:
                 self._log.append(
                     {"ts": time.time(), "step": step.id, "event": "verify_tests_failed", "error": step.error}
@@ -403,7 +451,7 @@ def execute_plan_tool(goal: str, steps: str, root: str | None = None) -> str:
     from core.tools import get_registry
 
     registry = get_registry()
-    registry.load()
+    registry.load(mcp=True)
 
     step_list = [Step(**s) for s in json.loads(steps)]
     task = Task(id=f"plan_{int(time.time())}", goal=goal, steps=step_list, errors_allowed=1)
@@ -426,7 +474,7 @@ async def async_execute_plan_tool(goal: str, steps: str, root: str | None = None
     from core.tools import get_registry
 
     registry = get_registry()
-    registry.load()
+    registry.load(mcp=True)
 
     step_list = [Step(**s) for s in json.loads(steps)]
     task = Task(id=f"plan_{int(time.time())}", goal=goal, steps=step_list, errors_allowed=1)
@@ -436,3 +484,254 @@ async def async_execute_plan_tool(goal: str, steps: str, root: str | None = None
     )
     result = await executor.arun(task)
     return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Goal Mode — 借鉴 Kimi Code Goal Mode
+# 将模糊意图转化为明确完成契约，含预算管理 + 停止规则
+# ═══════════════════════════════════════════════════════════════════
+
+_GOALS_FILE = ROOT / "output" / "goals.json"
+
+
+@dataclass
+class Goal:
+    """A goal-mode task with clear finish line, boundaries, and budget."""
+
+    id: str
+    intent: str
+    finish_line: str = ""
+    boundaries: str = ""
+    status: str = "active"  # active | paused | completed | cancelled
+    max_steps: int = 20
+    max_tool_calls: int = 100
+    max_duration_seconds: int = 0  # 0 = unlimited
+    steps_executed: int = 0
+    tool_calls_made: int = 0
+    created_at: str = ""
+    updated_at: str = ""
+    evidence: str = ""
+
+    def is_budget_exhausted(self) -> bool:
+        return self.steps_executed >= self.max_steps or self.tool_calls_made >= self.max_tool_calls
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Goal":
+        return cls(**data)
+
+
+class GoalManager:
+    """Persistent goal manager backed by a JSON file.
+
+    借鉴 Kimi Code 的 CreateGoal / GetGoal / SetGoalBudget / UpdateGoal 理念，
+    用 Python dataclass + JSON 实现，与 task_manager 风格一致。
+    """
+
+    def __init__(self, path: Path | None = None) -> None:
+        self._path = path or _GOALS_FILE
+        self._goals: dict[str, Goal] = {}
+        self._active_goal_id: str = ""
+        self._next_id: int = 1
+        self._lock = threading.RLock()
+        self._load()
+
+    def create(self, intent: str, finish_line: str = "", boundaries: str = "", max_steps: int = 20) -> Goal:
+        with self._lock:
+            gid = f"goal-{self._next_id:03d}"
+            self._next_id += 1
+            now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            goal = Goal(
+                id=gid,
+                intent=intent,
+                finish_line=finish_line,
+                boundaries=boundaries,
+                max_steps=max_steps,
+                created_at=now,
+                updated_at=now,
+            )
+            self._goals[gid] = goal
+            if not self._active_goal_id:
+                self._active_goal_id = gid
+            self._save()
+            return goal
+
+    def get(self, goal_id: str = "") -> Goal | None:
+        with self._lock:
+            gid = goal_id or self._active_goal_id
+            return self._goals.get(gid)
+
+    def set_budget(
+        self,
+        goal_id: str = "",
+        max_steps: int | None = None,
+        max_tool_calls: int | None = None,
+        max_duration_seconds: int | None = None,
+    ) -> Goal | None:
+        with self._lock:
+            gid = goal_id or self._active_goal_id
+            goal = self._goals.get(gid)
+            if goal is None:
+                return None
+            if max_steps is not None:
+                goal.max_steps = max_steps
+            if max_tool_calls is not None:
+                goal.max_tool_calls = max_tool_calls
+            if max_duration_seconds is not None:
+                goal.max_duration_seconds = max_duration_seconds
+            goal.updated_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            self._save()
+            return goal
+
+    def update(self, goal_id: str = "", status: str = "", evidence: str = "") -> Goal | None:
+        with self._lock:
+            gid = goal_id or self._active_goal_id
+            goal = self._goals.get(gid)
+            if goal is None:
+                return None
+            if status:
+                goal.status = status
+            if evidence:
+                goal.evidence = evidence
+            goal.updated_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            self._save()
+            return goal
+
+    def record_step(self) -> bool:
+        """Record a step execution; returns True if budget still available."""
+        with self._lock:
+            goal = self._goals.get(self._active_goal_id)
+            if goal is None:
+                return True
+            goal.steps_executed += 1
+            goal.updated_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            self._save()
+            return not goal.is_budget_exhausted()
+
+    def record_tool_call(self) -> bool:
+        """Record a tool call; returns True if budget still available."""
+        with self._lock:
+            goal = self._goals.get(self._active_goal_id)
+            if goal is None:
+                return True
+            goal.tool_calls_made += 1
+            goal.updated_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            self._save()
+            return not goal.is_budget_exhausted()
+
+    def _save(self) -> None:
+        data = {
+            "goals": [g.to_dict() for g in self._goals.values()],
+            "active_goal_id": self._active_goal_id,
+            "next_id": self._next_id,
+        }
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self._path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, self._path)
+
+    def _load(self) -> None:
+        if not self._path.exists():
+            return
+        try:
+            raw = self._path.read_text(encoding="utf-8")
+            data = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            return
+        self._next_id = data.get("next_id", 1)
+        self._active_goal_id = data.get("active_goal_id", "")
+        for gd in data.get("goals", []):
+            try:
+                goal = Goal.from_dict(gd)
+                self._goals[goal.id] = goal
+            except (TypeError, KeyError):
+                continue
+
+
+# ── Module-level singleton ──────────────────────────────────
+
+_goal_manager: GoalManager | None = None
+
+
+def _get_goal_manager() -> GoalManager:
+    global _goal_manager
+    if _goal_manager is None:
+        _goal_manager = GoalManager()
+    return _goal_manager
+
+
+# ── Tool-calling entry points (tools.json 引用) ─────────────
+
+
+def create_goal_tool(
+    intent: str,
+    finish_line: str = "",
+    boundaries: str = "",
+    max_steps: int = 20,
+) -> str:
+    """Create a new goal-mode task. 借鉴 Kimi Code CreateGoal."""
+    mgr = _get_goal_manager()
+    goal = mgr.create(intent, finish_line, boundaries, max_steps)
+    return json.dumps(
+        {"ok": True, "goal_id": goal.id, "intent": goal.intent, "max_steps": goal.max_steps},
+        ensure_ascii=False,
+    )
+
+
+def get_goal_tool(goal_id: str = "") -> str:
+    """Get full goal status. 借鉴 Kimi Code GetGoal."""
+    mgr = _get_goal_manager()
+    goal = mgr.get(goal_id)
+    if goal is None:
+        return json.dumps({"ok": False, "error": "Goal not found"}, ensure_ascii=False)
+    return json.dumps(
+        {
+            "ok": True,
+            "goal": goal.to_dict(),
+            "budget_remaining": {
+                "steps": goal.max_steps - goal.steps_executed,
+                "tool_calls": goal.max_tool_calls - goal.tool_calls_made,
+                "exhausted": goal.is_budget_exhausted(),
+            },
+        },
+        ensure_ascii=False,
+    )
+
+
+def set_goal_budget_tool(
+    goal_id: str = "",
+    max_steps: int | None = None,
+    max_tool_calls: int | None = None,
+    max_duration_seconds: int | None = None,
+) -> str:
+    """Set or adjust goal budget. 借鉴 Kimi Code SetGoalBudget."""
+    mgr = _get_goal_manager()
+    goal = mgr.set_budget(goal_id, max_steps, max_tool_calls, max_duration_seconds)
+    if goal is None:
+        return json.dumps({"ok": False, "error": "Goal not found"}, ensure_ascii=False)
+    return json.dumps(
+        {
+            "ok": True,
+            "goal_id": goal.id,
+            "budget": {
+                "max_steps": goal.max_steps,
+                "max_tool_calls": goal.max_tool_calls,
+                "max_duration_seconds": goal.max_duration_seconds,
+            },
+        },
+        ensure_ascii=False,
+    )
+
+
+def update_goal_tool(goal_id: str = "", status: str = "", evidence: str = "") -> str:
+    """Update goal status. 借鉴 Kimi Code UpdateGoal."""
+    mgr = _get_goal_manager()
+    goal = mgr.update(goal_id, status, evidence)
+    if goal is None:
+        return json.dumps({"ok": False, "error": "Goal not found"}, ensure_ascii=False)
+    return json.dumps(
+        {"ok": True, "goal_id": goal.id, "status": goal.status, "evidence": goal.evidence},
+        ensure_ascii=False,
+    )

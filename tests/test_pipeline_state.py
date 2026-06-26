@@ -6,16 +6,25 @@ import pytest
 class TestPipelinePresets:
     def test_pipeline_presets_exist(self):
         from core.pipeline_state import PIPELINES
+
         assert len(PIPELINES) >= 10
 
     def test_known_pipeline_ids(self):
         from core.pipeline_state import PIPELINES
-        for pid in ["video-production", "comfyui-studio", "creative-image",
-                     "world-building", "self-evolve", "api-development"]:
+
+        for pid in [
+            "video-production",
+            "comfyui-studio",
+            "creative-image",
+            "world-building",
+            "self-evolve",
+            "api-development",
+        ]:
             assert pid in PIPELINES
 
     def test_pipeline_structure(self):
         from core.pipeline_state import PIPELINES
+
         for _pid, pipe in PIPELINES.items():
             assert "name" in pipe
             assert "skills" in pipe
@@ -25,6 +34,7 @@ class TestPipelinePresets:
 
     def test_qa_gates_reference_existing_skills(self):
         from core.pipeline_state import PIPELINES
+
         for pid, pipe in PIPELINES.items():
             for gate in pipe.get("qa_gates", []):
                 assert gate in pipe["skills"], f"{pid}: QA gate '{gate}' not in skills"
@@ -33,6 +43,7 @@ class TestPipelinePresets:
 class TestPipelineState:
     def test_basic_state(self):
         from core.pipeline_state import PipelineState
+
         state = PipelineState("run_001")
         assert state.run_id == "run_001"
         assert state.data == {}
@@ -43,6 +54,7 @@ class TestPipelineState:
 
     def test_set_get(self):
         from core.pipeline_state import PipelineState
+
         state = PipelineState("run_001")
         state.set("key", "value")
         assert state.get("key") == "value"
@@ -50,6 +62,7 @@ class TestPipelineState:
 
     def test_record_step(self):
         from core.pipeline_state import PipelineState
+
         state = PipelineState("run_001")
         state.record_step("skill1", "result text here")
         assert "skill1" in state.step_results
@@ -61,6 +74,7 @@ class TestPipelineState:
 
     def test_add_asset(self):
         from core.pipeline_state import PipelineState
+
         state = PipelineState("run_001")
         state.add_asset("img/001.png", "skill1", "test image")
         assert len(state.assets) == 1
@@ -70,6 +84,7 @@ class TestPipelineState:
 
     def test_log_qa(self):
         from core.pipeline_state import PipelineState
+
         state = PipelineState("run_001")
         state.log_qa("qc-inspector", True, "passed")
         assert len(state.qa_log) == 1
@@ -77,11 +92,13 @@ class TestPipelineState:
 
     def test_context_for_next_empty(self):
         from core.pipeline_state import PipelineState
+
         state = PipelineState("run_001")
         assert state.context_for_next() == ""
 
     def test_context_for_next_with_steps(self):
         from core.pipeline_state import PipelineState
+
         state = PipelineState("run_001")
         state.record_step("skill1", "previous result")
         ctx = state.context_for_next()
@@ -90,6 +107,7 @@ class TestPipelineState:
 
     def test_context_for_next_with_constraints(self):
         from core.pipeline_state import PipelineState
+
         state = PipelineState("run_001")
         state.set("constraints", "no nudity")
         ctx = state.context_for_next()
@@ -97,6 +115,7 @@ class TestPipelineState:
 
     def test_context_for_next_with_assets(self):
         from core.pipeline_state import PipelineState
+
         state = PipelineState("run_001")
         state.add_asset("a.png", "s1", "img1")
         state.add_asset("b.png", "s2", "img2")
@@ -111,6 +130,7 @@ class TestPipelineState:
 class TestPipelineEngine:
     def test_list_pipelines(self):
         from core.pipeline_state import PipelineEngine
+
         engine = PipelineEngine()
         pipelines = engine.list_pipelines()
         assert len(pipelines) >= 10
@@ -121,23 +141,27 @@ class TestPipelineEngine:
 
     def test_run_unknown_pipeline(self):
         from core.pipeline_state import PipelineEngine
+
         engine = PipelineEngine()
         with pytest.raises(ValueError, match="Unknown pipeline"):
             engine.run("nonexistent_pipeline", "input")
 
     def test_prev_step(self):
         from core.pipeline_state import PipelineEngine
+
         engine = PipelineEngine()
         assert engine._prev_step(["a", "b", "c"], "b") == "a"
         assert engine._prev_step(["a", "b", "c"], "a") is None
 
     def test_prev_step_missing(self):
         from core.pipeline_state import PipelineEngine
+
         engine = PipelineEngine()
         assert engine._prev_step(["a", "b"], "z") is None
 
     def test_check_quality_empty_output(self):
         from core.pipeline_state import PipelineEngine, PipelineState
+
         engine = PipelineEngine()
         engine.state = PipelineState("test")
         assert engine._check_quality("qc", "") is False
@@ -145,6 +169,7 @@ class TestPipelineEngine:
 
     def test_check_quality_good_output(self):
         from core.pipeline_state import PipelineEngine, PipelineState
+
         engine = PipelineEngine()
         engine.state = PipelineState("test")
         assert engine._check_quality("qc", "good output here") is True

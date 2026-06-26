@@ -1,15 +1,20 @@
 """Tests for core.observability — tracing, spans, and metrics."""
 
 import json
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 
 class TestSpan:
     def test_creation(self):
         from core.observability import Span
+
         span = Span(
-            span_id="s1", trace_id="t1", parent_id="", name="test",
+            span_id="s1",
+            trace_id="t1",
+            parent_id="",
+            name="test",
             start_time=1000.0,
         )
         assert span.span_id == "s1"
@@ -18,36 +23,36 @@ class TestSpan:
 
     def test_finish(self):
         from core.observability import Span
-        span = Span(span_id="s1", trace_id="t1", parent_id="", name="test",
-                    start_time=1000.0)
+
+        span = Span(span_id="s1", trace_id="t1", parent_id="", name="test", start_time=1000.0)
         span.finish()
         assert span.end_time > 0.0
         assert span.status == "ok"
 
     def test_finish_with_status(self):
         from core.observability import Span
-        span = Span(span_id="s1", trace_id="t1", parent_id="", name="test",
-                    start_time=1000.0)
+
+        span = Span(span_id="s1", trace_id="t1", parent_id="", name="test", start_time=1000.0)
         span.finish(status="error")
         assert span.status == "error"
 
     def test_duration(self):
         from core.observability import Span
-        span = Span(span_id="s1", trace_id="t1", parent_id="", name="test",
-                    start_time=1000.0, end_time=1001.5)
+
+        span = Span(span_id="s1", trace_id="t1", parent_id="", name="test", start_time=1000.0, end_time=1001.5)
         assert span.duration_ms() == pytest.approx(1500.0)
 
     def test_attributes(self):
         from core.observability import Span
-        span = Span(span_id="s1", trace_id="t1", parent_id="", name="test",
-                    start_time=1000.0)
+
+        span = Span(span_id="s1", trace_id="t1", parent_id="", name="test", start_time=1000.0)
         span.set_attribute("key", "value")
         assert span.attributes["key"] == "value"
 
     def test_events(self):
         from core.observability import Span
-        span = Span(span_id="s1", trace_id="t1", parent_id="", name="test",
-                    start_time=1000.0)
+
+        span = Span(span_id="s1", trace_id="t1", parent_id="", name="test", start_time=1000.0)
         span.add_event("retry", attempt=2)
         assert len(span.events) == 1
         assert span.events[0]["name"] == "retry"
@@ -55,8 +60,8 @@ class TestSpan:
 
     def test_idempotent_finish(self):
         from core.observability import Span
-        span = Span(span_id="s1", trace_id="t1", parent_id="", name="test",
-                    start_time=1000.0, end_time=1001.0)
+
+        span = Span(span_id="s1", trace_id="t1", parent_id="", name="test", start_time=1000.0, end_time=1001.0)
         # finish() always overwrites end_time per current implementation
         span.finish()
         assert span.end_time > 0.0
@@ -66,6 +71,7 @@ class TestSpan:
 class TestTracer:
     def _make_tracer(self, tmp_path):
         from core.observability import Tracer
+
         return Tracer(log_file=str(tmp_path / "traces.jsonl"))
 
     def test_start_trace(self, tmp_path):
@@ -118,9 +124,7 @@ class TestTracer:
         span = tracer.start_trace("err_op")
         span.finish(status="error")
         tracer.finish_span(span)
-        record = json.loads(
-            (tmp_path / "traces.jsonl").read_text(encoding="utf-8").strip()
-        )
+        record = json.loads((tmp_path / "traces.jsonl").read_text(encoding="utf-8").strip())
         assert record["status"] == "error"
 
     def test_get_trace_summary_empty(self, tmp_path):
@@ -133,6 +137,7 @@ class TestTracer:
 
     def test_get_trace_summary(self, tmp_path):
         import time
+
         tracer = self._make_tracer(tmp_path)
         root = tracer.start_trace("pipeline")
         time.sleep(0.01)  # ensure measurable duration
@@ -156,6 +161,7 @@ class TestTracer:
 class TestMetrics:
     def test_increment(self):
         from core.observability import Metrics
+
         m = Metrics()
         m.increment("requests")
         assert m.get("requests") == 1
@@ -164,11 +170,13 @@ class TestMetrics:
 
     def test_get_unknown(self):
         from core.observability import Metrics
+
         m = Metrics()
         assert m.get("unknown") == 0
 
     def test_timing(self):
         from core.observability import Metrics
+
         m = Metrics()
         m.timing("api_call", 100.0)
         m.timing("api_call", 200.0)
@@ -183,6 +191,7 @@ class TestMetrics:
 
     def test_summary_counters(self):
         from core.observability import Metrics
+
         m = Metrics()
         m.increment("a")
         m.increment("b")
@@ -191,6 +200,7 @@ class TestMetrics:
 
     def test_empty_summary(self):
         from core.observability import Metrics
+
         m = Metrics()
         summary = m.summary()
         assert summary["counters"] == {}
@@ -200,6 +210,7 @@ class TestMetrics:
 class TestGetRecentTraces:
     def test_empty(self, tmp_path):
         from core.observability import get_recent_traces, tracer
+
         log_file = tmp_path / "traces.jsonl"
         with patch.object(tracer, "_log_file", log_file):
             result = get_recent_traces()
@@ -207,6 +218,7 @@ class TestGetRecentTraces:
 
     def test_returns_recent(self, tmp_path):
         from core.observability import get_recent_traces, tracer
+
         log_file = tmp_path / "traces.jsonl"
         # Append all records, not overwrite
         lines = []
@@ -224,6 +236,7 @@ class TestGetRecentTraces:
 class TestTraceContext:
     def test_basic_context(self, tmp_path):
         from core.observability import TraceContext, tracer
+
         log_file = tmp_path / "traces.jsonl"
         with patch.object(tracer, "_log_file", log_file), TraceContext("test_op") as span:
             span.set_attribute("key", "value")
@@ -236,11 +249,10 @@ class TestTraceContext:
 
     def test_error_context(self, tmp_path):
         from core.observability import TraceContext, tracer
+
         log_file = tmp_path / "traces.jsonl"
         with patch.object(tracer, "_log_file", log_file), pytest.raises(ValueError), TraceContext("fail_op") as _:
             raise ValueError("test error")
-        record = json.loads(
-            (tmp_path / "traces.jsonl").read_text(encoding="utf-8").strip()
-        )
+        record = json.loads((tmp_path / "traces.jsonl").read_text(encoding="utf-8").strip())
         assert record["status"] == "error"
         assert len(record["events"]) > 0

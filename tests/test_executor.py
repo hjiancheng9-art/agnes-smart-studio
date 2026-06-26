@@ -3,6 +3,7 @@
 TaskExecutor 把自然语言任务分解为 Step 序列，按依赖顺序执行，
 支持 verify="syntax" 和 verify="test" 两个验证门。
 """
+
 import subprocess
 import sys
 from pathlib import Path
@@ -14,7 +15,6 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.executor import Step, Task, TaskExecutor, quick_plan
-
 
 # ── quick_plan（纯函数，零 mock）──────────────────────────────────
 
@@ -110,7 +110,8 @@ class TestTaskExecutorRun:
     def test_linear_chain_all_success(self):
         mock_fn = MagicMock(return_value="ok")
         task = Task(
-            id="t1", goal="test goal",
+            id="t1",
+            goal="test goal",
             steps=[
                 Step("s1", "Step 1", "read_file", {"path": "x.py"}),
                 Step("s2", "Step 2", "env_check", {}),
@@ -133,11 +134,11 @@ class TestTaskExecutorRun:
             raise ValueError("tool error")
 
         task = Task(
-            id="t2", goal="dep test",
+            id="t2",
+            goal="dep test",
             steps=[
                 Step("s1", "Read", "read_file", {"path": "a.py"}),
-                Step("s2", "Fix", "edit_file", {"path": "a.py"},
-                     depends_on=["s1"]),
+                Step("s2", "Fix", "edit_file", {"path": "a.py"}, depends_on=["s1"]),
             ],
             errors_allowed=1,
         )
@@ -148,11 +149,11 @@ class TestTaskExecutorRun:
 
     def test_dependency_not_met_skipped(self):
         task = Task(
-            id="t3", goal="skip test",
+            id="t3",
+            goal="skip test",
             steps=[
                 Step("s1", "Read", "read_file", {}),
-                Step("s2", "Depends on s3", "edit_file", {},
-                     depends_on=["s3"]),  # s3 doesn't exist
+                Step("s2", "Depends on s3", "edit_file", {}, depends_on=["s3"]),  # s3 doesn't exist
                 Step("s3", "Independent", "env_check", {}),
             ],
             errors_allowed=0,
@@ -173,7 +174,8 @@ class TestTaskExecutorRun:
             raise RuntimeError("boom")
 
         task = Task(
-            id="t4", goal="budget test",
+            id="t4",
+            goal="budget test",
             steps=[
                 Step("s1", "Fail 1", "env_check", {}),
                 Step("s2", "Never runs", "read_file", {}),
@@ -194,7 +196,8 @@ class TestTaskExecutorRun:
             return "ok"
 
         task = Task(
-            id="t5", goal="budget test",
+            id="t5",
+            goal="budget test",
             steps=[
                 Step("s1", "Fail first", "env_check", {}),
                 Step("s2", "Succeed", "read_file", {}),
@@ -212,7 +215,8 @@ class TestTaskExecutorRun:
             raise KeyError("not caught")
 
         task = Task(
-            id="t6", goal="key error test",
+            id="t6",
+            goal="key error test",
             steps=[Step("s1", "Boom", "env_check", {})],
             errors_allowed=1,
         )
@@ -222,7 +226,8 @@ class TestTaskExecutorRun:
     def test_report_structure(self):
         mock_fn = MagicMock(return_value="ok")
         task = Task(
-            id="t7", goal="report test",
+            id="t7",
+            goal="report test",
             steps=[
                 Step("s1", "Done", "read_file", {}),
                 Step("s2", "Also done", "env_check", {}),
@@ -231,8 +236,17 @@ class TestTaskExecutorRun:
         )
         report = self._make_executor(mock_fn).run(task)
         # 必有字段
-        for key in ("goal", "status", "elapsed", "steps_total", "steps_done",
-                     "steps_failed", "steps_skipped", "details", "log"):
+        for key in (
+            "goal",
+            "status",
+            "elapsed",
+            "steps_total",
+            "steps_done",
+            "steps_failed",
+            "steps_skipped",
+            "details",
+            "log",
+        ):
             assert key in report
         # details 只含非 done 步骤 → 全 done 时 details 为空
         assert len(report["details"]) == 0
@@ -279,10 +293,7 @@ class TestVerifyTest:
 
     def test_test_failures_detected(self, monkeypatch):
         # 强制 run_pytest_safe 返回有 failed 的输出
-        fake = subprocess.CompletedProcess(
-            args=[], returncode=1,
-            stdout="1 failed, 2 passed", stderr=""
-        )
+        fake = subprocess.CompletedProcess(args=[], returncode=1, stdout="1 failed, 2 passed", stderr="")
         monkeypatch.setattr("core.pytest_runner.run_pytest_safe", lambda **kw: fake)
         step = Step("s1", "Test", "run_test", {}, verify="test")
         task = Task(id="t", goal="v", steps=[step], errors_allowed=0)
@@ -293,10 +304,7 @@ class TestVerifyTest:
 
     def test_zero_failed_ok(self, monkeypatch):
         # "0 failed" 在 stdout → 不触发失败（边界条件）
-        fake = subprocess.CompletedProcess(
-            args=[], returncode=0,
-            stdout="0 failed, 5 passed", stderr=""
-        )
+        fake = subprocess.CompletedProcess(args=[], returncode=0, stdout="0 failed, 5 passed", stderr="")
         monkeypatch.setattr("core.pytest_runner.run_pytest_safe", lambda **kw: fake)
         step = Step("s1", "Test", "run_test", {}, verify="test")
         task = Task(id="t", goal="v", steps=[step], errors_allowed=0)
@@ -305,9 +313,7 @@ class TestVerifyTest:
 
     def test_empty_output_passes(self, monkeypatch):
         # 空 stdout → "failed" not in "" → 验证通过
-        fake = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="", stderr=""
-        )
+        fake = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
         monkeypatch.setattr("core.pytest_runner.run_pytest_safe", lambda **kw: fake)
         step = Step("s1", "Test", "run_test", {}, verify="test")
         task = Task(id="t", goal="v", steps=[step], errors_allowed=0)

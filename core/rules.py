@@ -215,3 +215,13 @@ def get_rules() -> RulesManager:
         _manager.create_examples()
         _manager.discover()
     return _manager
+
+
+def reset_rules() -> None:
+    """Reset the rules singleton (test isolation / hot reload).
+
+    RulesManager is pure in-memory (rule/active dicts). The next get_rules()
+    call will re-run create_examples()/discover(), which is idempotent.
+    """
+    global _manager
+    _manager = None

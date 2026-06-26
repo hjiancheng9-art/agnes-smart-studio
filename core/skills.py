@@ -250,9 +250,9 @@ class SkillManager:
         Returns:
             True 写盘成功；False 写盘失败（调用方负责回滚内存）。
         """
+        tmp = self.OVERRIDES_FILE.with_suffix(".json.tmp")
         try:
             self.OVERRIDES_FILE.parent.mkdir(parents=True, exist_ok=True)
-            tmp = self.OVERRIDES_FILE.with_suffix(".json.tmp")
             tmp.write_text(
                 json.dumps(self._overrides, indent=2, ensure_ascii=False),
                 encoding="utf-8",
@@ -453,3 +453,15 @@ def get_manager() -> SkillManager:
                 _manager.create_examples()
                 _manager.discover()
     return _manager
+
+
+def reset_skill_manager() -> None:
+    """Reset the skill manager singleton (test isolation / hot reload).
+
+    SkillManager is pure in-memory (loaded/available/overrides dicts). The
+    next get_manager() call re-runs create_examples()/discover(), which is
+    idempotent. Lock is stateless and reused.
+    """
+    global _manager
+    with _manager_lock:
+        _manager = None

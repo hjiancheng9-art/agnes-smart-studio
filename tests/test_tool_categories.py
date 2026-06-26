@@ -6,6 +6,7 @@
 - 分类渲染输出包含 emoji + 分类名
 - definitions 全量不变（分组不影响发给 LLM 的工具集）
 """
+
 from __future__ import annotations
 
 import sys
@@ -17,8 +18,8 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core.tools import ToolRegistry, TOOL_CATEGORIES, get_registry
 from core.chat import ChatSession
+from core.tools import get_registry
 
 
 @pytest.fixture

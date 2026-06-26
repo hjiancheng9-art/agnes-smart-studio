@@ -1,6 +1,6 @@
 """参数校验器 - num_frames 8n+1、尺寸、模型名等"""
 
-from .config import IMAGE_SIZES, MODELS, VALID_NUM_FRAMES, VIDEO_ASPECT_RATIOS
+from .config import IMAGE_SIZES, VALID_NUM_FRAMES, VIDEO_ASPECT_RATIOS
 
 __all__ = [
     "ValidationError",
@@ -68,17 +68,18 @@ def validate_image_size(size: str) -> str:
 
 
 def validate_model(model_id: str, expected_type: str | None = None) -> str:
-    """校验模型ID是否存在，可选校验类型"""
-    all_model_ids = [m["id"] for m in MODELS.values()]
-    if model_id not in all_model_ids:
-        raise ValidationError(f"未知模型: {model_id}，可选: {all_model_ids}")
+    """校验模型ID是否存在（使用 provider.py MODEL_REGISTRY 单一真源），可选校验类型"""
+    from core.provider import MODEL_REGISTRY
+
+    if model_id not in MODEL_REGISTRY:
+        all_ids = list(MODEL_REGISTRY.keys())
+        raise ValidationError(f"未知模型: {model_id}，可选: {all_ids}")
 
     if expected_type:
-        for m in MODELS.values():
-            if m["id"] == model_id:
-                if m.get("type") != expected_type:
-                    raise ValidationError(f"模型 {model_id} 类型为 {m.get('type')}，期望 {expected_type}")
-                break
+        info = MODEL_REGISTRY[model_id]
+        if info.model_type != expected_type:
+            raise ValidationError(f"模型 {model_id} 类型为 {info.model_type}，期望 {expected_type}")
+
     return model_id
 
 

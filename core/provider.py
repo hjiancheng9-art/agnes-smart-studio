@@ -1,11 +1,6 @@
 """Provider manager with automatic failover + model registry.
 
 This module is the **single source of truth** for:
-  1. Provider configuration (base_url, api_key)    ← from models.json
-  2. Model metadata (capabilities, aliases)          ← MODEL_REGISTRY below
-  3. Failover logic (ProviderState + ProviderManager)
-
-Previously, model metadata was scattered across:
   - core/chat.py: MODEL_ALIASES, MODEL_INFO, TOOL_CALLING_MODELS, MODEL_PROVIDER_MAP
   - core/config.py: MODELS
   - models.json: runtime config
@@ -18,11 +13,14 @@ chronically slow providers and surface warnings (no auto-switch).
 """
 
 import json
+import logging
 import os
 import time
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
+
+logger = logging.getLogger("crux.provider")
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -65,6 +63,7 @@ class ModelInfo:
     supports_vision: bool = False  # 是否支持多模态图片理解
     tier: str = "pro"  # light / pro（用于 models.json 的 models 字段）
     aliases: tuple[str, ...] = ()  # 用户可用的快捷别名（如 "light", "pro"）
+    model_type: str = "text"  # "text" | "image" | "video" — 用于 validate_model 类型校验
 
 
 # 全局模型注册表 — 新增模型只需在这里加一条
@@ -145,6 +144,37 @@ def _register_defaults():
             supports_vision=True,
             tier="pro",
             aliases=("local", "qwen", "qwen3"),
+        ),
+        # ── 图片/视频引擎模型（调用 create_image / create_video 端点）──
+        ModelInfo(
+            id="agnes-image-2.1-flash",
+            name="CRUX Image 2.1 Flash",
+            provider_id="crux",
+            provider_name="CRUX AI",
+            description="高清图片生成，支持图生图，高密度输出",
+            tier="pro",
+            model_type="image",
+            aliases=("img-hd",),
+        ),
+        ModelInfo(
+            id="agnes-image-2.0-flash",
+            name="CRUX Image 2.0 Flash",
+            provider_id="crux",
+            provider_name="CRUX AI",
+            description="图片生成 + 编辑，支持多图参考和标签控制的图生图",
+            tier="pro",
+            model_type="image",
+            aliases=("img-edit",),
+        ),
+        ModelInfo(
+            id="agnes-video-v2.0",
+            name="CRUX Video V2.0",
+            provider_id="crux",
+            provider_name="CRUX AI",
+            description="视频生成，支持文生视频和图生视频双模式",
+            tier="pro",
+            model_type="video",
+            aliases=("video", "vid"),
         ),
     ]
     for m in models:
@@ -354,6 +384,46 @@ class ProviderManager:
         if provider_id in self.providers:
             self.state.active = provider_id
 
+    def ping(self) -> bool:
+        """Quick health check: probe active provider's /models endpoint. Returns True if alive."""
+        try:
+            import urllib.request
+
+            provider = self.providers.get(self.state.active, {})
+            base = provider.get("base_url", "")
+            if not base:
+                return False
+            api_key = provider.get("api_key") or os.getenv(f"{self.state.active.upper()}_API_KEY", "")
+            req = urllib.request.Request(
+                f"{base.rstrip('/')}/models", headers={"Authorization": f"Bearer {api_key}"} if api_key else {}
+            )
+            urllib.request.urlopen(req, timeout=5)
+            return True
+        except Exception as e:
+            # ping 是 watchdog/circuit-breaker 的决策依据，记录失败原因便于排查
+            # （网络错误 vs API key 错误 vs DNS 失效在此可区分）
+            logger.debug("provider.ping(%s) failed: %s: %s", self.state.active, type(e).__name__, e)
+            return False
+
+    @property
+    def active_provider(self) -> str:
+        return self.state.active
+
+    def fallback(self) -> bool:
+        """Switch to next available provider. Returns True on success."""
+        available = self.state.available(list(self.providers.keys()))
+        for pid in available:
+            if pid == self.state.active:
+                continue
+            try:
+                self.create_client(pid)
+                self.state.active = pid
+                self.save_active()
+                return True
+            except NoProviderAvailable:
+                continue
+        return False
+
     def create_client(self, provider_id: str | None = None):
         """Create an CruxClient for the given or active provider."""
         from core.client import CruxClient
@@ -435,3 +505,14 @@ def get_provider_manager() -> ProviderManager:
         _mgr = ProviderManager()
         _mgr.load()
     return _mgr
+
+
+def reset_provider_manager() -> None:
+    """Reset the provider singleton (test isolation / hot reload).
+
+    ProviderManager holds only in-memory latency/cooldown state, no threads
+    or OS resources. Note: MODEL_REGISTRY is repopulated at import time and
+    is intentionally left intact (it reflects the shipped models.json).
+    """
+    global _mgr
+    _mgr = None

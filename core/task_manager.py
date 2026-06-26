@@ -206,23 +206,25 @@ class TaskManager:
 
     def get_blocked_tasks(self) -> list[Task]:
         """Return tasks that have at least one uncompleted blocker."""
-        completed_ids = {t.id for t in self._tasks.values() if t.status == TaskStatus.COMPLETED}
-        return [
-            t
-            for t in self._tasks.values()
-            if t.blockedBy
-            and any(b not in completed_ids for b in t.blockedBy)
-            and t.status not in (TaskStatus.COMPLETED, TaskStatus.DELETED)
-        ]
+        with self._lock:
+            completed_ids = {t.id for t in self._tasks.values() if t.status == TaskStatus.COMPLETED}
+            return [
+                t
+                for t in self._tasks.values()
+                if t.blockedBy
+                and any(b not in completed_ids for b in t.blockedBy)
+                and t.status not in (TaskStatus.COMPLETED, TaskStatus.DELETED)
+            ]
 
     def get_available_tasks(self) -> list[Task]:
         """Return PENDING tasks with no uncompleted blockers."""
-        completed_ids = {t.id for t in self._tasks.values() if t.status == TaskStatus.COMPLETED}
-        return [
-            t
-            for t in self._tasks.values()
-            if t.status == TaskStatus.PENDING and all(b in completed_ids for b in t.blockedBy)
-        ]
+        with self._lock:
+            completed_ids = {t.id for t in self._tasks.values() if t.status == TaskStatus.COMPLETED}
+            return [
+                t
+                for t in self._tasks.values()
+                if t.status == TaskStatus.PENDING and all(b in completed_ids for b in t.blockedBy)
+            ]
 
     # ── Persistence ─────────────────────────────────────────
 

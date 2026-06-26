@@ -243,7 +243,8 @@ class CreativeCommandsMixin:
                 if n in alias_rev:
                     aliases_str = " [" + "/".join(alias_rev[n][:3]) + "]"
                 marker = " [cyan]← 当前[/]" if session.active_skill == n else ""
-                trig = _TRIGGER_MARK.get(session.skills.get_trigger(n), "[dim]手[/]")
+                trigger_val = session.skills.get_trigger(n)
+                trig = _TRIGGER_MARK.get(trigger_val, "[dim]手[/]") if trigger_val else "[dim]手[/]"
                 console.print(f"  {icon}[cyan]{n}[/]{aliases_str} {trig} [dim]{desc}{marker}[/]")
 
         elif arg.startswith("load "):
@@ -302,7 +303,8 @@ class CreativeCommandsMixin:
                 console.print(f"[bold]全部技能 ({len(all_skills)}) — 含 off 态:[/]")
                 console.print("[dim]切换: /skill mode <名称> <auto|manual|off>[/]")
                 for s in all_skills:
-                    trig = _TRIG_LABEL.get(session.skills.get_trigger(s.name), "?")
+                    trigger_val = session.skills.get_trigger(s.name)
+                    trig = _TRIG_LABEL.get(trigger_val, "?") if trigger_val else "?"
                     icon = s.icon + " " if s.icon else ""
                     console.print(f"  {icon}[cyan]{s.name}[/] [{trig}] [dim]{s.description}[/]")
                 return

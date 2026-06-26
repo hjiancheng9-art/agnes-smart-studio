@@ -62,13 +62,27 @@ if HAS_FASTAPI and app is not None and CORSMiddleware is not None:
     )
 
 
+# 会话级复用：避免每个请求都重建 TLS + 认证
+_session_cache: Any = None
+
+
 def _get_session():
-    """Lazy-import ChatSession to avoid heavy deps on health check."""
+    """获取或复用 ChatSession（线程安全懒初始化）。"""
+    global _session_cache
+    if _session_cache is not None:
+        return _session_cache
     from core.chat import ChatSession
     from core.client import CruxClient
 
     client = CruxClient()
-    return ChatSession(client=client)
+    _session_cache = ChatSession(client=client)
+    return _session_cache
+
+
+def _reset_session():
+    """重置会话（模型切换时调用）。"""
+    global _session_cache
+    _session_cache = None
 
 
 if HAS_FASTAPI and app is not None:

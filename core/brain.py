@@ -2,6 +2,8 @@
 
 import json
 
+import httpx
+
 from .async_client import AsyncCruxClient
 from .brain_data import (
     ANTI_PATTERN_MAP,
@@ -44,18 +46,61 @@ class SmartBrain:
         self.client = client
 
     def _ask_brain(self, system_prompt: str, user_input: str, temperature: float = 0.7) -> str:
-        """调用文本模型（自动使用当前激活的供应商）"""
+        """调用文本模型（自动使用当前激活的供应商）。
+
+        若当前供应商调用失败（HTTP 错误等），自动降级到 CRUX light
+        模型（agnes-1.5-flash），保证 prompt 增强不阻断主流程。
+        """
         model = self._get_model()
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_input},
         ]
-        result = self.client.chat(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=2048,
-        )
+        try:
+            result = self.client.chat(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=2048,
+            )
+        except (httpx.HTTPError, OSError) as primary_err:
+            # 当前供应商失败（网络/HTTP 错误）→ 降级到 CRUX light 模型。
+            # 注意：收窄到 httpx/OSError，避免把编程 bug（AttributeError 等）
+            # 当作"供应商故障"去降级，从而掩盖真实问题。
+            # 降级块自包含：空 key 或降级上游同故障时，抛原始异常，
+            # 由调用方（chat.py 已有 try/except 退化原始 prompt）兜底。
+            from core.client import CruxClient
+            from core.config import CRUX_VISION_BASE_URL
+
+            crux_key = ""
+            try:
+                from core.provider import get_provider_manager
+
+                mgr = get_provider_manager()
+                crux_p = mgr.providers.get("crux", {})
+                crux_key = crux_p.get("api_key") or ""
+            except (ImportError, OSError):
+                pass
+            if not crux_key:
+                import os
+
+                crux_key = os.getenv("CRUX_API_KEY", "") or os.getenv("AGNES_API_KEY", "")
+            try:
+                if not crux_key:
+                    raise RuntimeError("CRUX fallback api_key missing") from primary_err
+                fallback = CruxClient(api_key=crux_key, base_url=CRUX_VISION_BASE_URL)
+                result = fallback.chat(
+                    model="agnes-1.5-flash",
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=2048,
+                )
+            except (httpx.HTTPError, OSError, RuntimeError) as fallback_err:
+                # 降级链本身也失败 → 抛原始异常（primary_err 才是根因），
+                # 同时把降级链失败作为 __context__ 保留，便于排查二次故障。
+                # 切勿 `raise primary_err from primary_err`：那会把异常自身设成
+                # __cause__，因果链语义错乱（"自己是自己的原因"）。
+                raise primary_err from fallback_err
         try:
             msg = result["choices"][0]["message"]
             content = msg.get("content") or msg.get("reasoning_content")

@@ -12,6 +12,7 @@ video_models.py 是纯数据 + 纯逻辑模块（无 IO/网络/子进程），
 - execute_video_model_info JSON 序列化（命中/未命中/全部）
 - 工具定义与执行器映射
 """
+
 from __future__ import annotations
 
 import json
@@ -24,15 +25,14 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.video_models import (
-    VIDEO_MODELS,
     VIDEO_MODEL_EXECUTOR_MAP,
     VIDEO_MODEL_TOOL_DEFS,
+    VIDEO_MODELS,
     auto_select_model,
     execute_video_model_info,
     get_model_capability,
     list_video_models,
 )
-
 
 # ── VIDEO_MODELS 数据完整性 ────────────────────────────────────────
 
@@ -109,8 +109,7 @@ def test_list_video_models_item_shape():
     """每条记录应含 id/display_name/provider/max_duration_s/default_duration_s/modes/note。"""
     items = list_video_models()
     sample = items[0]
-    expected_keys = {"id", "display_name", "provider", "max_duration_s",
-                     "default_duration_s", "modes", "note"}
+    expected_keys = {"id", "display_name", "provider", "max_duration_s", "default_duration_s", "modes", "note"}
     assert expected_keys <= set(sample)
 
 
@@ -199,6 +198,7 @@ def test_auto_select_model_empty_registry_raises():
     通过临时清空表来模拟（用 monkeypatch 保护全局状态）。
     """
     import core.video_models as vm
+
     original = vm.VIDEO_MODELS
     vm.VIDEO_MODELS = {}
     try:

@@ -12,35 +12,34 @@
     - execute_generate_sfx: 无 ffmpeg 时优雅降级
     - execute_audio_mixdown: 无 ffmpeg 时优雅降级
 """
+
 from __future__ import annotations
 
 import json
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.audio_tools import (
+    _CHINESE_VOICES,
     AUDIO_EXECUTOR_MAP,
     AUDIO_OUT,
     AUDIO_TOOL_DEFS,
     OUTPUT_ROOT,
-    _safe_output_path,
     _check_ffmpeg,
-    _CHINESE_VOICES,
+    _safe_output_path,
     execute_audio_mixdown,
     execute_generate_bgm,
     execute_generate_sfx,
     execute_tts_narration,
 )
 
-
 # ── 常量/配置 ────────────────────────────────────────────────────
+
 
 class TestConstants:
     def test_audio_out_is_path(self):
@@ -54,6 +53,7 @@ class TestConstants:
 
 
 # ── _safe_output_path ────────────────────────────────────────────
+
 
 class TestSafeOutputPath:
     def test_returns_str(self):
@@ -87,6 +87,7 @@ class TestSafeOutputPath:
 
 # ── _check_ffmpeg ────────────────────────────────────────────────
 
+
 class TestCheckFfmpeg:
     def test_no_ffmpeg_returns_message(self):
         """ffmpeg 不存在时应返回错误提示字符串，而非抛异常。"""
@@ -106,6 +107,7 @@ class TestCheckFfmpeg:
 
 # ── 语音映射 ─────────────────────────────────────────────────────
 
+
 class TestVoiceMap:
     def test_has_common_voices(self):
         assert "xiaoxiao" in _CHINESE_VOICES
@@ -123,6 +125,7 @@ class TestVoiceMap:
 
 # ── 工具定义完整性 ───────────────────────────────────────────────
 
+
 class TestToolDefinitions:
     def test_audio_tools_is_list(self):
         assert isinstance(AUDIO_TOOL_DEFS, list)
@@ -130,15 +133,16 @@ class TestToolDefinitions:
     def test_each_tool_has_required_fields(self):
         for tool in AUDIO_TOOL_DEFS:
             fn = tool.get("function", tool)
-            assert "name" in fn, f"missing name"
+            assert "name" in fn, "missing name"
             assert "description" in fn, f"missing description in {fn.get('name')}"
             assert "parameters" in fn
 
     def test_tool_names_snake_case(self):
         import re
+
         for tool in AUDIO_TOOL_DEFS:
             name = tool.get("function", tool)["name"]
-            assert re.match(r'^[a-z][a-z0-9_]*$', name), f"非 snake_case: {name}"
+            assert re.match(r"^[a-z][a-z0-9_]*$", name), f"非 snake_case: {name}"
 
     def test_descriptions_meaningful(self):
         for tool in AUDIO_TOOL_DEFS:
@@ -147,6 +151,7 @@ class TestToolDefinitions:
 
 
 # ── Executor Map ─────────────────────────────────────────────────
+
 
 class TestExecutorMap:
     def test_executor_map_is_dict(self):
@@ -159,6 +164,7 @@ class TestExecutorMap:
 
 # ── 优雅降级（edge-tts / ffmpeg 不可用）────────────────────────
 
+
 class TestGracefulDegradation:
     """无外部依赖时应优雅返回 JSON 错误，不抛异常。"""
 
@@ -166,8 +172,6 @@ class TestGracefulDegradation:
         """edge-tts 未安装时应返回含 error 的 JSON。"""
         with patch.dict("sys.modules", {"edge_tts": None}):
             # 重新 import 以触发 ImportError 路径
-            import importlib
-            import core.audio_tools
             # 直接调用，不用 reimport（因为模块已缓存）
             # 改用 monkeypatch 方式让 edge_tts import 失败
             pass
@@ -179,12 +183,14 @@ class TestGracefulDegradation:
         assert "success" in parsed
 
     def test_bgm_no_ffmpeg(self):
-        with patch("core.audio_tools._run", side_effect=FileNotFoundError("no ffmpeg")):
-            with patch("core.audio_tools._check_ffmpeg", return_value="未找到 ffmpeg"):
-                result = execute_generate_bgm()
-                assert isinstance(result, str)
-                parsed = json.loads(result)
-                assert parsed.get("success") is False
+        with (
+            patch("core.audio_tools._run", side_effect=FileNotFoundError("no ffmpeg")),
+            patch("core.audio_tools._check_ffmpeg", return_value="未找到 ffmpeg"),
+        ):
+            result = execute_generate_bgm()
+            assert isinstance(result, str)
+            parsed = json.loads(result)
+            assert parsed.get("success") is False
 
     def test_sfx_no_ffmpeg(self):
         with patch("core.audio_tools._run", side_effect=FileNotFoundError("no ffmpeg")):
@@ -203,10 +209,12 @@ class TestGracefulDegradation:
 
 # ── BGM 预设 ──────────────────────────────────────────────────
 
+
 class TestBgmPresets:
     def test_all_moods_have_required_keys(self):
         """每个 BGM 预设必须有 freq/dur/desc。"""
         from core.audio_tools import _BGM_PRESETS
+
         for mood, preset in _BGM_PRESETS.items():
             assert "freq" in preset, f"bgm {mood}: missing freq"
             assert "dur" in preset, f"bgm {mood}: missing dur"
@@ -214,15 +222,18 @@ class TestBgmPresets:
 
     def test_known_moods(self):
         from core.audio_tools import _BGM_PRESETS
+
         expected = {"ambient", "tense", "hopeful", "epic", "mystery", "sad"}
         assert set(_BGM_PRESETS.keys()) >= expected
 
 
 # ── SFX 预设 ──────────────────────────────────────────────────
 
+
 class TestSfxPresets:
     def test_all_sfx_have_required_keys(self):
         from core.audio_tools import _SFX_PRESETS
+
         for sfx, preset in _SFX_PRESETS.items():
             assert "expr" in preset, f"sfx {sfx}: missing expr"
             assert "dur" in preset, f"sfx {sfx}: missing dur"
@@ -230,17 +241,19 @@ class TestSfxPresets:
 
     def test_known_sfx_types(self):
         from core.audio_tools import _SFX_PRESETS
-        expected = {"whoosh", "impact", "ambient_drone", "riser", "glitch",
-                     "heartbeat", "sparkle", "beep"}
+
+        expected = {"whoosh", "impact", "ambient_drone", "riser", "glitch", "heartbeat", "sparkle", "beep"}
         assert set(_SFX_PRESETS.keys()) >= expected
 
     def test_duration_reasonable(self):
         from core.audio_tools import _SFX_PRESETS
+
         for sfx, preset in _SFX_PRESETS.items():
             assert 0 < preset["dur"] <= 30, f"sfx {sfx}: duration {preset['dur']} out of range"
 
 
 # ── execute_generate_sfx 参数校验 ────────────────────────────
+
 
 class TestGenerateSfxValidation:
     def test_unknown_type_returns_error(self):
@@ -256,16 +269,19 @@ class TestGenerateSfxValidation:
         """未知音效类型应返回错误，即使 ffmpeg 可用。"""
         mock_proc = MagicMock()
         mock_proc.returncode = 0
-        with patch("core.audio_tools._check_ffmpeg", return_value=None):
-            with patch("core.audio_tools._run", return_value=mock_proc):
-                result = json.loads(execute_generate_sfx("nonexistent_type"))
-                # 预设查找在 _check_ffmpeg 之后
-                # 无 ffmpeg 返回 error（因为 _check_ffmpeg 返回 None，继续执行）
-                # 但 preset 不存在会报错
-                assert result.get("success") is False or "error" in result
+        with (
+            patch("core.audio_tools._check_ffmpeg", return_value=None),
+            patch("core.audio_tools._run", return_value=mock_proc),
+        ):
+            result = json.loads(execute_generate_sfx("nonexistent_type"))
+            # 预设查找在 _check_ffmpeg 之后
+            # 无 ffmpeg 返回 error（因为 _check_ffmpeg 返回 None，继续执行）
+            # 但 preset 不存在会报错
+            assert result.get("success") is False or "error" in result
 
 
 # ── execute_audio_mixdown 参数校验 ────────────────────────────
+
 
 class TestAudioMixdownValidation:
     def test_no_inputs_returns_error(self):
@@ -286,14 +302,13 @@ class TestAudioMixdownValidation:
     def test_nonexistent_files_treated_as_missing(self):
         """不存在的音频文件应被视为缺失输入。"""
         with patch("core.audio_tools._check_ffmpeg", return_value=None):
-            result = json.loads(execute_audio_mixdown(
-                narration_path="/nonexistent/audio.mp3"
-            ))
+            result = json.loads(execute_audio_mixdown(narration_path="/nonexistent/audio.mp3"))
             # 文件不存在 → has_narration=False → 无输入 → error
             assert result.get("success") is False
 
 
 # ── executor map 覆盖检查 ───────────────────────────────────
+
 
 class TestExecutorMapCoverage:
     def test_executor_covers_all_tools(self):

@@ -10,6 +10,9 @@
 
 所有测试用伪造的 session/registry，不打真实 API，不依赖 CruxClient。
 """
+# pyright: reportArgumentType=false, reportAttributeAccessIssue=false
+# pyright: reportOptionalSubscript=false
+
 import io
 import json
 import sys
@@ -23,16 +26,16 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.mcp_server import (
-    MCPServer,
-    MCP_PROTOCOL_VERSION,
-    ERR_METHOD_NOT_FOUND,
     ERR_INVALID_PARAMS,
-    ERR_PARSE_ERROR,
     ERR_INVALID_REQUEST,
+    ERR_METHOD_NOT_FOUND,
+    ERR_PARSE_ERROR,
+    MCP_PROTOCOL_VERSION,
+    MCPServer,
 )
 
-
 # ── Fixtures ────────────────────────────────────────────────
+
 
 def make_registry(defs=None):
     """构造一个 mock registry，definitions 返回给定（或默认）OpenAI tool defs。"""
@@ -91,6 +94,7 @@ def make_server(dispatch_impl=None, defs=None):
 
 # ── initialize ──────────────────────────────────────────────
 
+
 class TestInitialize:
     def test_returns_protocol_version(self):
         s = make_server()
@@ -113,17 +117,25 @@ class TestInitialize:
     def test_initialize_via_handle_full_envelope(self):
         """initialize 经 _handle 路由，返回合法 JSON-RPC 响应。"""
         s = make_server()
-        resp = s._handle({
-            "jsonrpc": "2.0", "id": 1, "method": "initialize",
-            "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                       "clientInfo": {"name": "test", "version": "1"}},
-        })
+        resp = s._handle(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": {"name": "test", "version": "1"},
+                },
+            }
+        )
         assert resp["jsonrpc"] == "2.0"
         assert resp["id"] == 1
         assert resp["result"]["protocolVersion"] == MCP_PROTOCOL_VERSION
 
 
 # ── tools/list + schema 转换 ────────────────────────────────
+
 
 class TestToolsList:
     def test_returns_mcp_shape(self):
@@ -149,30 +161,28 @@ class TestToolsList:
         defn = {
             "type": "function",
             "function": {
-                "name": "foo", "description": "bar",
-                "parameters": {"type": "object",
-                               "properties": {"x": {"type": "integer"}},
-                               "required": ["x"]},
+                "name": "foo",
+                "description": "bar",
+                "parameters": {"type": "object", "properties": {"x": {"type": "integer"}}, "required": ["x"]},
             },
         }
         out = MCPServer._openai_to_mcp_tool(defn)
-        assert out == {"name": "foo", "description": "bar",
-                       "inputSchema": {"type": "object",
-                                       "properties": {"x": {"type": "integer"}},
-                                       "required": ["x"]}}
+        assert out == {
+            "name": "foo",
+            "description": "bar",
+            "inputSchema": {"type": "object", "properties": {"x": {"type": "integer"}}, "required": ["x"]},
+        }
 
     def test_openai_to_mcp_missing_properties_defaults(self):
         """parameters 缺 properties/required 时补默认。"""
-        defn = {"type": "function", "function": {
-            "name": "x", "description": "y", "parameters": {"type": "object"}}}
+        defn = {"type": "function", "function": {"name": "x", "description": "y", "parameters": {"type": "object"}}}
         out = MCPServer._openai_to_mcp_tool(defn)
         assert out["inputSchema"]["properties"] == {}
         assert out["inputSchema"]["required"] == []
 
     def test_openai_to_mcp_non_object_params_normalized(self):
         """parameters 不是 object 时归一化。"""
-        defn = {"type": "function", "function": {
-            "name": "x", "description": "y", "parameters": {"type": "string"}}}
+        defn = {"type": "function", "function": {"name": "x", "description": "y", "parameters": {"type": "string"}}}
         out = MCPServer._openai_to_mcp_tool(defn)
         assert out["inputSchema"]["type"] == "object"
 
@@ -192,6 +202,7 @@ class TestToolsList:
 
 
 # ── tools/call 路由 ──────────────────────────────────────────
+
 
 class TestToolsCall:
     def test_routes_to_dispatch_with_serialized_args(self):
@@ -222,8 +233,13 @@ class TestToolsCall:
             tmp_path = f.name
 
         try:
-            payload = {"local_path": tmp_path, "url": "http://x/y.png",
-                       "model": "agnes-image-2.1-flash", "prompt": "cat", "size": "1024x768"}
+            payload = {
+                "local_path": tmp_path,
+                "url": "http://x/y.png",
+                "model": "agnes-image-2.1-flash",
+                "prompt": "cat",
+                "size": "1024x768",
+            }
             s = make_server(dispatch_impl=lambda n, a: ("图片已生成", [("image", payload)]))
             result = s._tools_call({"name": "generate_image", "arguments": {}})
             types = [c["type"] for c in result["content"]]
@@ -237,12 +253,24 @@ class TestToolsCall:
 
     def test_video_side_effect_becomes_text(self):
         """('video', dict) 副作用 → 文本（视频不内联 base64）。"""
-        payload = {"local_path": "/x/vid.mp4", "url": "http://x/vid.mp4",
-                   "task_id": "t1", "video_id": "v1", "model": "agnes-video-v2.0"}
+        payload = {
+            "local_path": "/x/vid.mp4",
+            "url": "http://x/vid.mp4",
+            "task_id": "t1",
+            "video_id": "v1",
+            "model": "agnes-video-v2.0",
+        }
         # registry 需含 generate_video，否则被未知工具拦截
-        defs = [{"type": "function", "function": {
-            "name": "generate_video", "description": "d",
-            "parameters": {"type": "object", "properties": {}, "required": []}}}]
+        defs = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "generate_video",
+                    "description": "d",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
+            }
+        ]
         s = make_server(dispatch_impl=lambda n, a: ("视频已生成", [("video", payload)]), defs=defs)
         result = s._tools_call({"name": "generate_video", "arguments": {}})
         # 没有视频 content，只有 text
@@ -253,9 +281,16 @@ class TestToolsCall:
     def test_video_timeout_payload_marked(self):
         """视频超时状态在文本里标记 timeout + progress。"""
         payload = {"status": "timeout", "progress": 0.45, "video_id": "v9"}
-        defs = [{"type": "function", "function": {
-            "name": "generate_video", "description": "d",
-            "parameters": {"type": "object", "properties": {}, "required": []}}}]
+        defs = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "generate_video",
+                    "description": "d",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
+            }
+        ]
         s = make_server(dispatch_impl=lambda n, a: ("", [("video", payload)]), defs=defs)
         result = s._tools_call({"name": "generate_video", "arguments": {}})
         text = result["content"][-1]["text"]
@@ -270,15 +305,23 @@ class TestToolsCall:
 
     def test_high_risk_confirm_returns_error(self):
         """高风险工具返回 ('confirm', dict) → isError:true。"""
-        defs = [{"type": "function", "function": {
-            "name": "git_push", "description": "d",
-            "parameters": {"type": "object", "properties": {}, "required": []}}}]
-        s = make_server(dispatch_impl=lambda n, a: ("", [("confirm", {"tool": "git_push"})]),
-                        defs=defs)
+        defs = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "git_push",
+                    "description": "d",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
+            }
+        ]
+        s = make_server(dispatch_impl=lambda n, a: ("", [("confirm", {"tool": "git_push"})]), defs=defs)
         result = s._tools_call({"name": "git_push", "arguments": {}})
         assert result["isError"] is True
-        assert "high-risk" in result["content"][0]["text"].lower() or \
-               "confirmation" in result["content"][0]["text"].lower()
+        assert (
+            "high-risk" in result["content"][0]["text"].lower()
+            or "confirmation" in result["content"][0]["text"].lower()
+        )
 
     def test_unknown_tool_returns_structured_error(self):
         """未知工具 → isError:true 文本，不抛异常。"""
@@ -315,6 +358,7 @@ class TestToolsCall:
 
 # ── 递归防护：MCP bridge tools 不可入向暴露 ───────────────────
 
+
 class TestRecursionGuard:
     """验证 MCP bridge tools (mcp_*) 不被 Server 暴露，阻断 A→B→A 死循环。
 
@@ -325,15 +369,30 @@ class TestRecursionGuard:
     def test_bridge_tools_filtered_from_list(self):
         """tools/list 不返回任何 mcp_* 工具。"""
         defs = [
-            {"type": "function", "function": {
-                "name": "generate_image", "description": "d",
-                "parameters": {"type": "object", "properties": {}, "required": []}}},
-            {"type": "function", "function": {
-                "name": "mcp_list_servers", "description": "d",
-                "parameters": {"type": "object", "properties": {}, "required": []}}},
-            {"type": "function", "function": {
-                "name": "mcp_call_tool", "description": "d",
-                "parameters": {"type": "object", "properties": {}, "required": []}}},
+            {
+                "type": "function",
+                "function": {
+                    "name": "generate_image",
+                    "description": "d",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "mcp_list_servers",
+                    "description": "d",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "mcp_call_tool",
+                    "description": "d",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
+            },
         ]
         s = make_server(defs=defs)
         tools = s._tools_list({})["tools"]
@@ -369,6 +428,7 @@ class TestRecursionGuard:
 
 
 # ── JSON-RPC envelope / framing / notifications ─────────────
+
 
 class TestJsonRpcEnvelope:
     def test_unknown_method_returns_32601(self):
@@ -425,13 +485,15 @@ class TestJsonRpcEnvelope:
         s = make_server()
         # 让 _tools_call 抛非 _JSONRPCError 的异常
         s._session._dispatch_tool_impl = MagicMock(side_effect=RuntimeError("boom"))
-        resp = s._handle({"jsonrpc": "2.0", "id": 9, "method": "tools/call",
-                          "params": {"name": "generate_image", "arguments": {}}})
+        resp = s._handle(
+            {"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": "generate_image", "arguments": {}}}
+        )
         # RuntimeError 在 _tools_call 之外被 _handle 的 try/except 兜住
         assert resp["error"]["code"] == -32603
 
 
 # ── run() 主循环 smoke ─────────────────────────────────────
+
 
 class TestRunLoop:
     def test_run_processes_pipe_and_exits_on_eof(self, monkeypatch):
@@ -450,7 +512,7 @@ class TestRunLoop:
 
         s.run()
 
-        responses = [json.loads(l) for l in out_buf.getvalue().splitlines() if l.strip()]
+        responses = [json.loads(line) for line in out_buf.getvalue().splitlines() if line.strip()]
         # 2 个响应（initialize + tools/list），通知不回，空行跳过
         assert len(responses) == 2
         assert responses[0]["id"] == 1
@@ -472,13 +534,14 @@ class TestRunLoop:
 
         s.run()
 
-        responses = [json.loads(l) for l in out_buf.getvalue().splitlines() if l.strip()]
+        responses = [json.loads(line) for line in out_buf.getvalue().splitlines() if line.strip()]
         assert len(responses) == 2
         assert responses[0]["error"]["code"] == ERR_PARSE_ERROR
         assert responses[1]["result"]["protocolVersion"] == MCP_PROTOCOL_VERSION
 
 
 # ── resources（轻量，只验契约形态）──────────────────────────
+
 
 class TestResources:
     def test_resources_list_returns_dict_with_resources_key(self):

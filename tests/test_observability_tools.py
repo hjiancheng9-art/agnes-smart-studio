@@ -6,6 +6,7 @@ Covers:
   - TraceContext nesting (tool_call -> registry_execute)
   - metrics counters integration
 """
+
 import json
 from pathlib import Path
 from unittest.mock import patch
@@ -14,6 +15,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 import sys
+
 sys.path.insert(0, str(ROOT))
 
 
@@ -31,19 +33,18 @@ class TestToolExecuteObservability:
         yield
 
     def _write_tools(self, tmp_path, tools_list):
-        (tmp_path / "tools.json").write_text(
-            json.dumps({"tools": tools_list}), encoding="utf-8"
-        )
+        (tmp_path / "tools.json").write_text(json.dumps({"tools": tools_list}), encoding="utf-8")
 
     def test_execute_success_creates_span(self, tmp_path):
         """Successful execute() should create a registry_execute span."""
+        from core.observability import metrics as _m
+        from core.observability import tracer
         from core.tools import ToolRegistry
-        from core.observability import tracer, metrics as _m
 
-        self._write_tools(tmp_path, [{
-            "name": "echo_ok", "type": "shell",
-            "description": "echo", "command": "echo ok", "parameters": {}
-        }])
+        self._write_tools(
+            tmp_path,
+            [{"name": "echo_ok", "type": "shell", "description": "echo", "command": "echo ok", "parameters": {}}],
+        )
         reg = ToolRegistry()
         reg.load()
 
@@ -64,13 +65,21 @@ class TestToolExecuteObservability:
 
     def test_execute_success_records_timing(self, tmp_path):
         """Successful execute() should record timing metric."""
-        from core.tools import ToolRegistry
         from core.observability import metrics as _m
+        from core.tools import ToolRegistry
 
-        self._write_tools(tmp_path, [{
-            "name": "echo_timing", "type": "shell",
-            "description": "echo", "command": "echo timing", "parameters": {}
-        }])
+        self._write_tools(
+            tmp_path,
+            [
+                {
+                    "name": "echo_timing",
+                    "type": "shell",
+                    "description": "echo",
+                    "command": "echo timing",
+                    "parameters": {},
+                }
+            ],
+        )
         reg = ToolRegistry()
         reg.load()
 
@@ -82,13 +91,21 @@ class TestToolExecuteObservability:
 
     def test_execute_success_records_result_chars(self, tmp_path):
         """Successful execute() span should have result_chars attribute."""
-        from core.tools import ToolRegistry
         from core.observability import tracer
+        from core.tools import ToolRegistry
 
-        self._write_tools(tmp_path, [{
-            "name": "echo_len", "type": "shell",
-            "description": "echo", "command": "echo hello_world", "parameters": {}
-        }])
+        self._write_tools(
+            tmp_path,
+            [
+                {
+                    "name": "echo_len",
+                    "type": "shell",
+                    "description": "echo",
+                    "command": "echo hello_world",
+                    "parameters": {},
+                }
+            ],
+        )
         reg = ToolRegistry()
         reg.load()
 
@@ -101,8 +118,8 @@ class TestToolExecuteObservability:
 
     def test_execute_unknown_tool_counts_error(self):
         """Unknown tool should increment tool_errors metric."""
-        from core.tools import ToolRegistry
         from core.observability import metrics as _m
+        from core.tools import ToolRegistry
 
         reg = ToolRegistry()
         prev_errors = _m.get("tool_errors")
@@ -111,12 +128,17 @@ class TestToolExecuteObservability:
 
     def test_execute_runtime_error_counts_error(self, tmp_path):
         """RuntimeError in executor should be caught (#4 error recovery) and return error string."""
-        from core.tools import ToolRegistry
         from core.observability import metrics as _m
+        from core.tools import ToolRegistry
 
         reg = ToolRegistry()
-        reg.register("fail_tool", "fail desc", {"type": "object", "properties": {}, "required": []},
-                      lambda: (_ for _ in ()).throw(RuntimeError("boom")), override=True)
+        reg.register(
+            "fail_tool",
+            "fail desc",
+            {"type": "object", "properties": {}, "required": []},
+            lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+            override=True,
+        )
 
         prev_errors = _m.get("tool_errors")
         result = reg.execute("fail_tool", {})
@@ -126,12 +148,17 @@ class TestToolExecuteObservability:
 
     def test_execute_generic_error_counts_error(self, tmp_path):
         """Non-RT/OSE/Value/Type errors should return error string + increment metric."""
-        from core.tools import ToolRegistry
         from core.observability import metrics as _m
+        from core.tools import ToolRegistry
 
         reg = ToolRegistry()
-        reg.register("generic_fail", "desc", {"type": "object", "properties": {}, "required": []},
-                      lambda: (_ for _ in ()).throw(KeyError("missing_key")), override=True)
+        reg.register(
+            "generic_fail",
+            "desc",
+            {"type": "object", "properties": {}, "required": []},
+            lambda: (_ for _ in ()).throw(KeyError("missing_key")),
+            override=True,
+        )
 
         prev_errors = _m.get("tool_errors")
         result = reg.execute("generic_fail", {})
@@ -144,19 +171,22 @@ class TestToolCallSpanNesting:
 
     def test_nested_spans_share_trace(self, tmp_path):
         """TraceContext auto-links parent-child: tool_call -> registry_execute."""
-        from core.observability import TraceContext, tracer, metrics as _m
+        from core.observability import TraceContext, tracer
+        from core.observability import metrics as _m
 
         log_file = tmp_path / "traces.jsonl"
-        with patch.object(tracer, "_log_file", log_file):
-            with TraceContext("tool_call", tool_name="generate_image", call_id="tc_123") as outer:
-                outer.set_attribute("result_chars", 42)
-                _m.increment("tool_calls")
-                _m.timing("tool_call_ms", outer.duration_ms())
-                # Simulate nested registry_execute
-                with TraceContext("registry_execute", tool_name="generate_image") as inner:
-                    inner.set_attribute("result_chars", 42)
-                    _m.increment("tool_executions")
-                    _m.timing("tool_execute_ms", inner.duration_ms())
+        with (
+            patch.object(tracer, "_log_file", log_file),
+            TraceContext("tool_call", tool_name="generate_image", call_id="tc_123") as outer,
+        ):
+            outer.set_attribute("result_chars", 42)
+            _m.increment("tool_calls")
+            _m.timing("tool_call_ms", outer.duration_ms())
+            # Simulate nested registry_execute
+            with TraceContext("registry_execute", tool_name="generate_image") as inner:
+                inner.set_attribute("result_chars", 42)
+                _m.increment("tool_executions")
+                _m.timing("tool_execute_ms", inner.duration_ms())
 
         lines = log_file.read_text(encoding="utf-8").strip().split("\n")
         assert len(lines) == 2
@@ -177,26 +207,22 @@ class TestAsyncChatObservabilityStructural:
     def test_async_chat_imports_observability(self):
         """AsyncChatSession module should import TraceContext and metrics."""
         import core.async_chat as ac
+
         # Module-level import
         assert hasattr(ac, "TraceContext") or "TraceContext" in dir(ac)
 
     def test_async_chat_tool_loop_has_trace_context(self):
         """Verify the tool dispatch loop in send_stream uses TraceContext."""
         import inspect
+
         import core.async_chat as ac
 
         source = inspect.getsource(ac.AsyncChatSession.send_stream)
         # The tool loop should contain TraceContext
-        assert "TraceContext" in source, (
-            "send_stream should use TraceContext for tool calls"
-        )
+        assert "TraceContext" in source, "send_stream should use TraceContext for tool calls"
         # And metrics increment/timing
-        assert "metrics.increment" in source, (
-            "send_stream should increment metrics for tool calls"
-        )
-        assert "metrics.timing" in source, (
-            "send_stream should record timing metrics for tool calls"
-        )
+        assert "metrics.increment" in source, "send_stream should increment metrics for tool calls"
+        assert "metrics.timing" in source, "send_stream should record timing metrics for tool calls"
 
 
 class TestTraceContextErrorPropagation:
@@ -207,9 +233,12 @@ class TestTraceContextErrorPropagation:
         from core.observability import TraceContext, tracer
 
         log_file = tmp_path / "traces.jsonl"
-        with patch.object(tracer, "_log_file", log_file), pytest.raises(OSError):
-            with TraceContext("failing_tool", tool_name="crash_tool"):
-                raise OSError("disk full")
+        with (
+            patch.object(tracer, "_log_file", log_file),
+            pytest.raises(OSError),
+            TraceContext("failing_tool", tool_name="crash_tool"),
+        ):
+            raise OSError("disk full")
 
         record = json.loads(log_file.read_text(encoding="utf-8").strip())
         assert record["status"] == "error"
@@ -221,9 +250,8 @@ class TestTraceContextErrorPropagation:
         from core.observability import TraceContext, tracer
 
         log_file = tmp_path / "traces.jsonl"
-        with patch.object(tracer, "_log_file", log_file), pytest.raises(RuntimeError):
-            with TraceContext("rt_fail"):
-                raise RuntimeError("boom")
+        with patch.object(tracer, "_log_file", log_file), pytest.raises(RuntimeError), TraceContext("rt_fail"):
+            raise RuntimeError("boom")
 
         record = json.loads(log_file.read_text(encoding="utf-8").strip())
         assert record["status"] == "error"
@@ -233,9 +261,8 @@ class TestTraceContextErrorPropagation:
         from core.observability import TraceContext, tracer
 
         log_file = tmp_path / "traces.jsonl"
-        with patch.object(tracer, "_log_file", log_file), pytest.raises(ValueError):
-            with TraceContext("val_fail"):
-                raise ValueError("bad value")
+        with patch.object(tracer, "_log_file", log_file), pytest.raises(ValueError), TraceContext("val_fail"):
+            raise ValueError("bad value")
 
         record = json.loads(log_file.read_text(encoding="utf-8").strip())
         assert record["status"] == "error"

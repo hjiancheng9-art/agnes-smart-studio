@@ -108,6 +108,13 @@ class HookManager:
             logger.debug("Unregistered hook '%s'", name)
             return True
 
+    def clear(self) -> None:
+        """Remove all registered hooks (test isolation / hot reload)."""
+        with self._lock:
+            n = len(self._hooks)
+            self._hooks.clear()
+            logger.debug("Cleared %d hook(s)", n)
+
     def enable(self, name: str) -> None:
         """Enable a hook by name."""
         with self._lock:
@@ -230,6 +237,15 @@ class HookManager:
 
 hook_manager = HookManager()
 
+
+def reset_hook_manager() -> None:
+    """Clear the global hook_manager (test isolation / hot reload).
+
+    Clears all registered hooks but keeps the same HookManager instance
+    so existing `hook_manager` references stay valid.
+    """
+    hook_manager.clear()
+
 # ── Helper Registration Functions ───────────────────────────────────────────
 
 
@@ -260,39 +276,52 @@ def on_post_tool(
     return hook_manager.register(name, HookType.POST_TOOL_USE, handler, priority)
 
 
-# ── Built-in Safety Filter Example ──────────────────────────────────────────
+# ── Built-in Safety Filter ──────────────────────────────────────────────
+# 提示词安全检查：复用 sandbox.py 的 DANGEROUS_PATTERNS 作为单一真源，
+# 不在 hooks 中维护重复列表（避免四象融合时安全规则漂移）。
 
-# Dangerous patterns to detect in user prompts
-_DANGEROUS_PATTERNS = [
-    "rm -rf",
-    "rm -r /",
-    "DROP TABLE",
-    "DELETE FROM",
-    "TRUNCATE TABLE",
-    "shutdown",
-    "format c:",
-    "del /s /q",
-    ":(){ :|:& };:",
-]
+
+def _get_dangerous_patterns() -> list[str]:
+    """从 sandbox.py 获取危险模式列表（单一真源，均为正则）。"""
+    try:
+        from core.sandbox import DANGEROUS_PATTERNS
+
+        return DANGEROUS_PATTERNS
+    except ImportError:
+        return []  # sandbox 不可用时降级为空（不阻断主流程）
 
 
 def _safety_filter_handler(event: HookEvent) -> HookEvent:
-    """Check user prompt for dangerous commands and prepend a warning."""
+    """Check user prompt for dangerous commands and prepend a warning.
+
+    DANGEROUS_PATTERNS 是正则（见 sandbox.py），必须用 ``re.search`` 匹配。
+    旧实现用 ``pattern in prompt`` 子串匹配会把 ``\\s``/``\\b`` 当字面量，
+    导致过滤几乎永不命中——这是一个真实的安全失效。
+    """
     prompt = event.data.get("prompt", "")
     if not prompt:
         return event
 
-    for pattern in _DANGEROUS_PATTERNS:
-        if pattern.lower() in prompt.lower():
-            warning = (
-                "[SAFETY WARNING] The prompt contains a potentially dangerous command "
-                f"('{pattern}'). Please verify before proceeding.\n\n"
-            )
-            if isinstance(event.result, str):
-                event.result = warning + event.result
-            else:
-                event.result = warning + prompt
-            break
+    import re
+
+    patterns = _get_dangerous_patterns()
+    for pattern in patterns:
+        if not isinstance(pattern, str):
+            continue
+        try:
+            if re.search(pattern, prompt, flags=re.IGNORECASE):
+                warning = (
+                    "[SAFETY WARNING] The prompt contains a potentially dangerous command "
+                    "pattern. Please verify before proceeding.\n\n"
+                )
+                if isinstance(event.result, str):
+                    event.result = warning + event.result
+                else:
+                    event.result = warning + prompt
+                break
+        except re.error:
+            # 个别模式正则编译失败：跳过该模式，不打断其它模式的检查
+            logger.warning("Invalid dangerous pattern regex skipped: %s", pattern[:60])
 
     return event
 

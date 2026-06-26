@@ -6,6 +6,7 @@ import json
 class TestTaskStatus:
     def test_enum_values(self):
         from core.task_manager import TaskStatus
+
         assert TaskStatus.PENDING.value == "pending"
         assert TaskStatus.IN_PROGRESS.value == "in_progress"
         assert TaskStatus.COMPLETED.value == "completed"
@@ -15,6 +16,7 @@ class TestTaskStatus:
 class TestTask:
     def test_task_creation(self):
         from core.task_manager import Task, TaskStatus
+
         task = Task(
             id="task-001",
             subject="Write tests",
@@ -28,6 +30,7 @@ class TestTask:
 
     def test_to_dict(self):
         from core.task_manager import Task
+
         task = Task(id="t1", subject="test")
         d = task.to_dict()
         assert d["id"] == "t1"
@@ -36,10 +39,20 @@ class TestTask:
 
     def test_from_dict(self):
         from core.task_manager import Task
-        data = {"id": "t1", "subject": "test", "status": "pending",
-                "description": "", "activeForm": "", "owner": "",
-                "blockedBy": [], "blocks": [], "metadata": {},
-                "created_at": "", "updated_at": ""}
+
+        data = {
+            "id": "t1",
+            "subject": "test",
+            "status": "pending",
+            "description": "",
+            "activeForm": "",
+            "owner": "",
+            "blockedBy": [],
+            "blocks": [],
+            "metadata": {},
+            "created_at": "",
+            "updated_at": "",
+        }
         task = Task.from_dict(data)
         assert task.id == "t1"
         assert task.subject == "test"
@@ -48,6 +61,7 @@ class TestTask:
 class TestTaskManager:
     def _make_manager(self, tmp_path):
         from core.task_manager import TaskManager
+
         return TaskManager(path=tmp_path / "tasks.json")
 
     def test_create_task(self, tmp_path):
@@ -174,6 +188,7 @@ class TestTaskManager:
 
     def test_persistence(self, tmp_path):
         from core.task_manager import TaskManager
+
         path = tmp_path / "persist_tasks.json"
         mgr1 = TaskManager(path=path)
         mgr1.create("Persistent task")
@@ -185,6 +200,7 @@ class TestTaskManager:
 
     def test_load_corrupted_file(self, tmp_path):
         from core.task_manager import TaskManager
+
         path = tmp_path / "bad_tasks.json"
         path.write_text("not json{{{", encoding="utf-8")
         mgr = TaskManager(path=path)
@@ -204,6 +220,7 @@ class TestTaskManager:
 class TestExecutorFunctions:
     def test_exec_task_create(self, tmp_path, monkeypatch):
         from core import task_manager as tm
+
         mgr = tm.TaskManager(path=tmp_path / "exec_tasks.json")
         monkeypatch.setattr(tm, "_manager", mgr)
         result = json.loads(tm._exec_task_create(subject="Test"))
@@ -212,15 +229,16 @@ class TestExecutorFunctions:
 
     def test_exec_task_update(self, tmp_path, monkeypatch):
         from core import task_manager as tm
+
         mgr = tm.TaskManager(path=tmp_path / "exec_tasks.json")
         monkeypatch.setattr(tm, "_manager", mgr)
         created = json.loads(tm._exec_task_create(subject="Test"))
-        result = json.loads(tm._exec_task_update(
-            task_id=created["id"], status="in_progress"))
+        result = json.loads(tm._exec_task_update(task_id=created["id"], status="in_progress"))
         assert result["status"] == "in_progress"
 
     def test_exec_task_get_not_found(self, tmp_path, monkeypatch):
         from core import task_manager as tm
+
         mgr = tm.TaskManager(path=tmp_path / "exec_tasks.json")
         monkeypatch.setattr(tm, "_manager", mgr)
         result = json.loads(tm._exec_task_get(task_id="nope"))
@@ -228,6 +246,7 @@ class TestExecutorFunctions:
 
     def test_exec_task_list(self, tmp_path, monkeypatch):
         from core import task_manager as tm
+
         mgr = tm.TaskManager(path=tmp_path / "exec_tasks.json")
         monkeypatch.setattr(tm, "_manager", mgr)
         tm._exec_task_create(subject="A")

@@ -29,8 +29,8 @@ sys.path.insert(0, str(ROOT))
 from core.multi_agent import (
     AgentTask,
     AsyncMultiAgentCoordinator,
-    async_coordinate,
     _topological_waves,
+    async_coordinate,
 )
 
 
@@ -50,6 +50,7 @@ def _run(coro):
 
 
 # ── 构造与 spawn ───────────────────────────────────────────
+
 
 class TestAsyncCoordinatorInit:
     """AsyncMultiAgentCoordinator 构造与 spawn_team。"""
@@ -88,6 +89,7 @@ class TestAsyncCoordinatorInit:
 
 # ── decompose（与同步版逻辑一致）──────────────────────────
 
+
 class TestAsyncDecompose:
     """async 版 decompose 与同步版逻辑一致（共用 _decompose_goal）。"""
 
@@ -117,6 +119,7 @@ class TestAsyncDecompose:
 
 # ── execute（核心 async 流程）──────────────────────────────
 
+
 class TestAsyncExecute:
     """async execute() 的端到端流程。"""
 
@@ -124,12 +127,12 @@ class TestAsyncExecute:
         coord = AsyncMultiAgentCoordinator(lambda t, a: "ok")
         result = _run(coord.execute("review the code"))
         assert isinstance(result, dict)
-        for key in ("goal", "tasks_total", "tasks_done", "tasks_failed",
-                    "elapsed", "results", "log"):
+        for key in ("goal", "tasks_total", "tasks_done", "tasks_failed", "elapsed", "results", "log"):
             assert key in result, f"缺 key: {key}"
 
     def test_execute_with_working_sync_executor(self):
         """同步 executor（自动 to_thread 包装）。"""
+
         def executor(tool, args):
             return f"executed {tool}"
 
@@ -143,6 +146,7 @@ class TestAsyncExecute:
 
     def test_execute_with_async_executor(self):
         """async executor（直接 await）。"""
+
         async def executor(tool, args):
             await asyncio.sleep(0)  # 让出事件循环
             return f"async-{tool}"
@@ -162,6 +166,7 @@ class TestAsyncExecute:
 
     def test_failed_task_marks_status(self):
         """executor 抛异常 → 任务标记 failed。"""
+
         def failing_executor(tool, args):
             raise RuntimeError("boom")
 
@@ -172,6 +177,7 @@ class TestAsyncExecute:
 
 
 # ── 依赖感知调度（核心新增能力）──────────────────────────
+
 
 class TestDependencyAwareScheduling:
     """asyncio 版真正按 depends_on 拓扑调度（同步版只 round-robin）。"""
@@ -209,7 +215,8 @@ class TestDependencyAwareScheduling:
         coord._execute_task = _traced
         # 复用 execute 的调度逻辑（但 tasks 已手工设置，跳过 decompose）
         import time as _time
-        started = _time.time()
+
+        _started = _time.time()
         coord._log = []
         coord._results = {}
         coord._sem = asyncio.Semaphore(coord.max_workers)
@@ -227,6 +234,7 @@ class TestDependencyAwareScheduling:
 
     def test_independent_tasks_run_in_parallel(self):
         """无依赖的任务应该并行（总耗时 ≈ 单任务，而非 N 倍）。"""
+
         async def executor(tool, args):
             await asyncio.sleep(0.1)
             return "ok"
@@ -252,6 +260,7 @@ class TestDependencyAwareScheduling:
 
     def test_dependency_chain_does_not_deadlock(self):
         """长依赖链不应死锁（拓扑分层正确推进）。"""
+
         async def executor(tool, args):
             return "ok"
 
@@ -281,12 +290,15 @@ class TestDependencyAwareScheduling:
 
 # ── _topological_waves（纯函数）───────────────────────────
 
+
 class TestTopologicalWaves:
     """_topological_waves 的分层逻辑。"""
 
     def test_independent_tasks_single_wave(self):
         tasks = [
-            AgentTask("a", "a"), AgentTask("b", "b"), AgentTask("c", "c"),
+            AgentTask("a", "a"),
+            AgentTask("b", "b"),
+            AgentTask("c", "c"),
         ]
         waves = _topological_waves(tasks)
         assert len(waves) == 1
@@ -337,6 +349,7 @@ class TestTopologicalWaves:
 
 # ── max_workers 并发上限 ───────────────────────────────────
 
+
 class TestConcurrencyLimit:
     """asyncio.Semaphore(max_workers) 限制同时在途任务数。"""
 
@@ -356,10 +369,7 @@ class TestConcurrencyLimit:
         async def _scenario():
             coord = AsyncMultiAgentCoordinator(executor, max_workers=2)
             # 4 个无依赖任务，理论上能同时跑 4 个，但被 semaphore 限到 2
-            coord.tasks = [
-                AgentTask(f"t{i}", f"task {i}", [{"tool": "x", "args": {}}])
-                for i in range(4)
-            ]
+            coord.tasks = [AgentTask(f"t{i}", f"task {i}", [{"tool": "x", "args": {}}]) for i in range(4)]
             coord.spawn_team()
             coord._log = []
             coord._results = {}
@@ -374,6 +384,7 @@ class TestConcurrencyLimit:
 
 # ── async_coordinate 顶层入口 ──────────────────────────────
 
+
 class TestAsyncCoordinateFunction:
     """模块级 async_coordinate() helper。"""
 
@@ -386,6 +397,7 @@ class TestAsyncCoordinateFunction:
     def test_async_coordinate_with_async_executor(self):
         async def executor(tool, args):
             return f"done-{tool}"
+
         result = _run(async_coordinate("analyze x", executor))
         assert result["tasks_done"] == result["tasks_total"]
 

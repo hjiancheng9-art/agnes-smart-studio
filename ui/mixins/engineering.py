@@ -233,7 +233,9 @@ class EngineeringCommandsMixin:
         show_info(f"扫描 {path} 中的 TODO/FIXME/HACK/XXX ...")
         markers = re.compile(r"TODO|FIXME|HACK|XXX|OPTIMIZE|BUG")
         exts = (".py", ".js", ".ts", ".md", ".html", ".css", ".sh", ".bat")
-        skip_dirs = {".git", "__pycache__", ".pytest_cache", "node_modules", ".venv", "output", ".codebuddy"}
+        from core.constraints import PROJECT_SKIP_DIRS
+
+        skip_dirs = PROJECT_SKIP_DIRS
         results = []
         try:
             for dp, dirs, files in os.walk(path):

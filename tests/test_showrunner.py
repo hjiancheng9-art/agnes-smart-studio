@@ -3,16 +3,23 @@
 Tests the pure-logic parts (plan selection, template structure) without
 needing a real API client. The generation steps are tested via mock client.
 """
-import sys
+
 import asyncio
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.showrunner import (
-    Showrunner, PipelineTemplates, StepKind, SourceKind,
-    StepResult, PipelineRun, create_showrunner, list_pipeline_templates,
+    PipelineRun,
+    PipelineTemplates,
+    Showrunner,
+    SourceKind,
+    StepKind,
+    StepResult,
+    create_showrunner,
+    list_pipeline_templates,
 )
 
 
@@ -87,10 +94,9 @@ class TestShowrunnerExecution:
     def setup_method(self):
         """用 mock client 测试执行逻辑。"""
         from unittest.mock import MagicMock
+
         self.mock_client = MagicMock()
-        self.mock_client.chat.return_value = {
-            "choices": [{"message": {"content": "mock response"}}]
-        }
+        self.mock_client.chat.return_value = {"choices": [{"message": {"content": "mock response"}}]}
         self.sr = Showrunner(client=self.mock_client)
 
     def test_think_without_client(self):

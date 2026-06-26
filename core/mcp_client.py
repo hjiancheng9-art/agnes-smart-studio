@@ -103,18 +103,19 @@ class MCPClient:
         Returns:
             Dict with the added server config and status.
         """
-        if name in self._servers:
-            return {"error": f"Server '{name}' already exists"}
+        with self._lock:
+            if name in self._servers:
+                return {"error": f"Server '{name}' already exists"}
 
-        cfg = MCPServerConfig(
-            name=name,
-            command=command,
-            args=args or [],
-            env=env or {},
-        )
-        self._servers[name] = cfg
-        self._save_config()
-        return {"status": "ok", "server": asdict(cfg)}
+            cfg = MCPServerConfig(
+                name=name,
+                command=command,
+                args=args or [],
+                env=env or {},
+            )
+            self._servers[name] = cfg
+            self._save_config()
+            return {"status": "ok", "server": asdict(cfg)}
 
     def remove_server(self, name: str) -> bool:
         """Remove a server configuration. Disconnects if running.
@@ -122,18 +123,20 @@ class MCPClient:
         Returns:
             True if the server was found and removed.
         """
-        if name not in self._servers:
-            return False
-        # Disconnect if currently connected
-        if name in self._processes:
-            self.disconnect(name)
-        del self._servers[name]
-        self._save_config()
-        return True
+        with self._lock:
+            if name not in self._servers:
+                return False
+            # Disconnect if currently connected
+            if name in self._processes:
+                self.disconnect(name)
+            del self._servers[name]
+            self._save_config()
+            return True
 
     def list_servers(self) -> list[dict]:
         """List all configured MCP servers as dicts."""
-        return [asdict(cfg) for cfg in self._servers.values()]
+        with self._lock:
+            return [asdict(cfg) for cfg in self._servers.values()]
 
     # ── Connection Lifecycle ───────────────────────────────
 
@@ -146,12 +149,12 @@ class MCPClient:
         Returns:
             Dict with server capabilities on success, or error dict on failure.
         """
-        if name not in self._servers:
-            return {"error": f"Server '{name}' not configured"}
-
-        cfg = self._servers[name]
-        if not cfg.enabled:
-            return {"error": f"Server '{name}' is disabled"}
+        with self._lock:
+            if name not in self._servers:
+                return {"error": f"Server '{name}' not configured"}
+            cfg = self._servers[name]
+            if not cfg.enabled:
+                return {"error": f"Server '{name}' is disabled"}
 
         if name in self._processes:
             return {"error": f"Server '{name}' already connected"}
@@ -503,6 +506,19 @@ def get_mcp_client() -> MCPClient:
     if _mcp_client is None:
         _mcp_client = MCPClient()
     return _mcp_client
+
+
+def reset_mcp_client() -> None:
+    """Terminate all MCP server processes and drop the global singleton.
+
+    Used for test isolation and hot reload. A subsequent get_mcp_client()
+    call will spin up a fresh MCPClient.
+    """
+    global _mcp_client
+    if _mcp_client is not None:
+        with contextlib.suppress(Exception):
+            _mcp_client._cleanup_all()
+        _mcp_client = None
 
 
 # ── Tool Definitions for ToolRegistry ─────────────────────

@@ -6,20 +6,18 @@
 3. **Outcome 记录**: 工具调用计数 → 自动推断满意度 → 持久化
 4. **统计聚合**: 按 variant 汇总 outcome 数据
 """
+# pyright: reportOptionalMemberAccess=false
 
-import sys
 import json
-import os
-import tempfile
+import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core.prompt_lab import PromptLab, Variant, Outcome, reset_prompt_lab
+from core.prompt_lab import PromptLab, reset_prompt_lab
 
 
 @pytest.fixture(autouse=True)
@@ -38,7 +36,6 @@ def _isolate():
 
 
 class TestVariantCRUD:
-
     def _make_lab(self):
         return PromptLab()
 
@@ -100,7 +97,6 @@ class TestVariantCRUD:
 
 
 class TestAssignment:
-
     def _make_lab(self):
         return PromptLab()
 
@@ -136,8 +132,8 @@ class TestAssignment:
     def test_auto_assign_weighted(self):
         """加权随机分配：验证分配结果在合法范围内。"""
         lab = self._make_lab()
-        v1 = lab.create_variant("a", "A", "- a", traffic_ratio=0.7)
-        v2 = lab.create_variant("b", "B", "- b", traffic_ratio=0.3)
+        _v1 = lab.create_variant("a", "A", "- a", traffic_ratio=0.7)
+        _v2 = lab.create_variant("b", "B", "- b", traffic_ratio=0.3)
 
         assigned_ids = set()
         for _ in range(50):
@@ -161,7 +157,6 @@ class TestAssignment:
 
 
 class TestOutcome:
-
     def _make_lab_with_variant(self):
         lab = PromptLab()
         v = lab.create_variant("test", "测试版", "- test")
@@ -221,7 +216,6 @@ class TestOutcome:
 
 
 class TestStats:
-
     def _make_lab_with_data(self):
         lab = PromptLab()
         v1 = lab.create_variant("concise", "简洁版", "- 简短", traffic_ratio=0.5)
@@ -258,7 +252,7 @@ class TestStats:
         stats = lab.stats(variant_id=v1.id)
         assert v1.id in stats
         assert v2.id not in stats
-        assert stats[v1.id]["avg_satisfaction"] == pytest.approx((4+5+4)/3, 0.01)
+        assert stats[v1.id]["avg_satisfaction"] == pytest.approx((4 + 5 + 4) / 3, 0.01)
 
     def test_summary_text(self):
         """summary_text 生成非空摘要。"""
@@ -283,7 +277,6 @@ class TestStats:
 
 
 class TestPersistence:
-
     def test_save_and_reload_variants(self):
         """变体持久化 + 重新加载。"""
         lab1 = PromptLab()
@@ -318,6 +311,7 @@ class TestPersistence:
         """损坏的持久化文件不崩溃。"""
         # 写入损坏数据
         from core.prompt_lab import _VARIANTS_FILE
+
         _VARIANTS_FILE.parent.mkdir(parents=True, exist_ok=True)
         _VARIANTS_FILE.write_text("NOT JSON{{{{", encoding="utf-8")
         lab = PromptLab()
@@ -325,10 +319,10 @@ class TestPersistence:
 
 
 class TestCommands:
-
     def test_commands_registered(self):
         """验证 /prompt-stats 和 /prompt-assign 已注册。"""
         from core.commands import COMMANDS
+
         keys = [c.key for c in COMMANDS]
         assert "prompt_stats" in keys
         assert "prompt_assign" in keys
@@ -336,6 +330,7 @@ class TestCommands:
     def test_prompt_stats_in_category(self):
         """命令在诊断配置分类。"""
         from core.commands import get_by_category
+
         cats = get_by_category()
         assert "诊断配置" in cats
         diag_names = [item[0] for item in cats["诊断配置"]]

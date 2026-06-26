@@ -3,21 +3,21 @@
 agent.py 是 /plan 命令和 agent_mode 的核心模块，但之前零测试覆盖。
 覆盖：token 估算、消息截断、依赖检查、plan 解析、状态机。
 """
-import json
+
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.agent import (
-    ContextManager, ModelRouter, PlanExecutor, PlanStep,
-    StepStatus, compress_messages, parse_plan,
+    ContextManager,
+    PlanExecutor,
+    PlanStep,
+    StepStatus,
+    parse_plan,
 )
-
 
 # ── ContextManager.estimate_tokens ────────────────────────────────────
 
@@ -66,10 +66,13 @@ class TestEstimateMessageTokens:
         assert tokens == 4  # overhead only
 
     def test_multimodal_content_extracts_text(self):
-        msg = {"role": "user", "content": [
-            {"type": "text", "text": "hello world"},
-            {"type": "image_url", "image_url": {"url": "http://example.com/img.png"}},
-        ]}
+        msg = {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "hello world"},
+                {"type": "image_url", "image_url": {"url": "http://example.com/img.png"}},
+            ],
+        }
         tokens = ContextManager.estimate_message_tokens(msg)
         assert tokens > 4  # text content + overhead
 
@@ -77,11 +80,13 @@ class TestEstimateMessageTokens:
         msg = {
             "role": "assistant",
             "content": "",
-            "tool_calls": [{
-                "id": "call_1",
-                "type": "function",
-                "function": {"name": "read_file", "arguments": '{"path": "/test.py"}'},
-            }],
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "read_file", "arguments": '{"path": "/test.py"}'},
+                }
+            ],
         }
         tokens = ContextManager.estimate_message_tokens(msg)
         assert tokens > 4  # argument tokens + overhead
@@ -246,9 +251,7 @@ class TestPlanExecutor:
 
     def test_execute_single_step(self):
         mock_client = MagicMock()
-        mock_client.chat.return_value = {
-            "choices": [{"message": {"content": "done: created file"}}]
-        }
+        mock_client.chat.return_value = {"choices": [{"message": {"content": "done: created file"}}]}
         executor = PlanExecutor(client=mock_client)
         step = PlanStep(name="create-file", tool="write_file")
         results = executor.execute([step])
@@ -263,7 +266,7 @@ class TestPlanExecutor:
         step1 = PlanStep(name="setup", tool="bash")
         step2 = PlanStep(name="implement", depends_on=[1])
         # Mock _execute_step to fail on step 1
-        with patch.object(executor, '_execute_step', side_effect=RuntimeError("fail")):
+        with patch.object(executor, "_execute_step", side_effect=RuntimeError("fail")):
             results = executor.execute([step1, step2])
         assert results[0].status == StepStatus.FAILED
         assert results[1].status == StepStatus.SKIPPED
@@ -282,16 +285,14 @@ class TestPlanExecutor:
         mock_client = MagicMock()
         executor = PlanExecutor(client=mock_client)
         step = PlanStep(name="test", tool="run_test")
-        with patch.object(executor, '_execute_step', side_effect=flaky_execute):
+        with patch.object(executor, "_execute_step", side_effect=flaky_execute):
             results = executor.execute([step])
         assert results[0].status == StepStatus.COMPLETED
         assert call_count == 2  # first failed, second succeeded
 
     def test_execute_skips_beyond_max_steps(self):
         mock_client = MagicMock()
-        mock_client.chat.return_value = {
-            "choices": [{"message": {"content": "ok"}}]
-        }
+        mock_client.chat.return_value = {"choices": [{"message": {"content": "ok"}}]}
         executor = PlanExecutor(client=mock_client, model="test-model")
         executor.max_steps = 2
         steps = [PlanStep(name=f"step-{i}") for i in range(5)]

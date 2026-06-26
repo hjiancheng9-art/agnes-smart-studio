@@ -15,6 +15,8 @@ CUSTOM_TOOLS_DIR 来隔离测试。
 ⚠ list_custom_tools / delete_tool 需要真实文件系统 + registry unregister，
 用 tmp_path + mock registry 做有限覆盖。
 """
+# pyright: reportArgumentType=false
+
 from __future__ import annotations
 
 import json
@@ -28,13 +30,11 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.self_tool import (
-    CUSTOM_TOOLS_DIR,
+    _NAME_RE,
     SELF_TOOL_EXECUTOR_MAP,
     SELF_TOOL_TOOL_DEFS,
     ToolBuilder,
-    _NAME_RE,
 )
-
 
 # ── _NAME_RE 正则 ──────────────────────────────────────────────────
 
@@ -131,7 +131,9 @@ def test_create_tool_rejects_syntax_error_in_code():
     reg = _mock_registry()
     builder = ToolBuilder(reg)
     result = builder.create_tool(
-        "valid_name", "desc", {},
+        "valid_name",
+        "desc",
+        {},
         "def valid_name(**kwargs):\n    return 0 /",  # 不完整语句
     )
     assert result["success"] is False
@@ -144,12 +146,13 @@ def test_create_tool_accepts_valid_parameters_dict():
     builder = ToolBuilder(reg)
     # 语法合法但函数名不匹配 → 会在动态 import 阶段失败（Function not found）
     result = builder.create_tool(
-        "valid_name", "desc",
+        "valid_name",
+        "desc",
         {"type": "object", "properties": {"x": {"type": "number"}}},
         "return x",  # 语法合法
     )
     # 应通过名称/语言/参数/语法校验，失败发生在后续步骤
-    #（可能是 Function not found 或写入/导入）
+    # （可能是 Function not found 或写入/导入）
     if not result["success"]:
         assert "Invalid tool name" not in result["error"]
         assert "Unsupported language" not in result["error"]
@@ -235,10 +238,7 @@ def test_list_custom_tools_discovers_files(tmp_path, monkeypatch):
     custom_dir = tmp_path / "custom_tools"
     custom_dir.mkdir()
     (custom_dir / "good_tool.py").write_text(
-        "# Auto-generated custom tool: good_tool\n"
-        "# A useful description\n"
-        "def good_tool(**kwargs):\n"
-        "    pass\n",
+        "# Auto-generated custom tool: good_tool\n# A useful description\ndef good_tool(**kwargs):\n    pass\n",
         encoding="utf-8",
     )
     (custom_dir / "_private.py").write_text("# skip me\ndef _private():\n    pass\n", encoding="utf-8")
@@ -418,7 +418,10 @@ def test_create_tool_function_not_found(tmp_path, monkeypatch):
 
     with patch.object(Path, "write_text", mock_write):
         result = builder.create_tool(
-            "wrong_func", "desc", {}, "pass",
+            "wrong_func",
+            "desc",
+            {},
+            "pass",
         )
 
     assert result["success"] is False
@@ -471,9 +474,7 @@ def test_list_custom_tools_registered_field(tmp_path, monkeypatch):
     custom_dir = tmp_path / "custom_tools"
     custom_dir.mkdir()
     (custom_dir / "checker.py").write_text(
-        "# Auto-generated custom tool: checker\n"
-        "# check desc\n"
-        "def checker(**kwargs):\n    pass\n",
+        "# Auto-generated custom tool: checker\n# check desc\ndef checker(**kwargs):\n    pass\n",
         encoding="utf-8",
     )
     monkeypatch.setattr("core.self_tool.CUSTOM_TOOLS_DIR", custom_dir)

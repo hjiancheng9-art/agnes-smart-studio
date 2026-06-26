@@ -4,6 +4,7 @@ Protects the v2 command system refactor (commands.py CommandDef + build_dispatch
 from regressions. Every command handler in the table must resolve to a real method
 on CruxCLI via getattr reflection.
 """
+
 import sys
 from pathlib import Path
 
@@ -11,8 +12,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.commands import (
-    COMMANDS, CommandDef, build_dispatch_table, get_by_category,
-    get_all, register, auto_category,
+    COMMANDS,
+    CommandDef,
+    auto_category,
+    build_dispatch_table,
+    get_all,
+    get_by_category,
+    register,
 )
 
 
@@ -27,7 +33,7 @@ class TestCommandRegistry:
 
     def test_no_duplicate_keys(self):
         keys = [c.key for c in COMMANDS]
-        assert len(keys) == len(set(keys)), f"duplicate keys: {[k for k in keys if keys.count(k)>1]}"
+        assert len(keys) == len(set(keys)), f"duplicate keys: {[k for k in keys if keys.count(k) > 1]}"
 
     def test_exit_has_quit_q_aliases(self):
         exit_cmd = next(c for c in COMMANDS if c.key == "exit")
@@ -97,8 +103,7 @@ class TestRegister:
     def test_register_update_existing(self):
         # 更新 img 的 desc，保留原 handler（_chat_img_inline）
         original = next(c for c in COMMANDS if c.key == "img")
-        register("img", "/img", "<new>", "updated desc", "创意生产",
-                 handler=original.handler)
+        register("img", "/img", "<new>", "updated desc", "创意生产", handler=original.handler)
         cmd = next(c for c in COMMANDS if c.key == "img")
         assert cmd.desc == "updated desc"
         assert cmd.handler == original.handler  # handler 未被清空

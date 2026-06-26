@@ -330,7 +330,7 @@ class InlineCommandsMixin:
 
     当前模型: {current_model} | 模式: {code_state}
     能力: {"AI 可自动触发生成" if current_model == "agnes-2.0-flash" else "需用 /img /video 手动生成"} | 视觉: {"独立通道可用" if current_model != "agnes-1.5-flash" else "主模型内置"}
-    供应商: /provider switch agnes|deepseek|siliconflow""",
+    供应商: /provider switch crux|deepseek|local""",
                 title=f"[bold {COLORS['accent']}]✿ Chat commands[/]",
                 border_style=COLORS["primary"],
                 padding=LAYOUT["panel_padding"],

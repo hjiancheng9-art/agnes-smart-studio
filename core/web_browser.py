@@ -15,6 +15,7 @@ Falls back gracefully if Playwright is not available.
 
 import contextlib
 import json
+import threading
 
 __all__ = [
     "BROWSER_GENERAL_EXECUTOR_MAP",
@@ -27,6 +28,7 @@ __all__ = [
     "execute_browser_screenshot",
     "execute_browser_scroll",
     "execute_browser_wait_for",
+    "reset_web_browser",
 ]
 
 # ======================================================================
@@ -35,38 +37,57 @@ __all__ = [
 
 _browser = None
 _page = None
+_browser_lock = threading.Lock()
 
 
 def _get_browser():
-    """Get or create a persistent browser instance."""
+    """Get or create a persistent browser instance (thread-safe)."""
     global _browser, _page
-    if _page is not None:
+    with _browser_lock:
+        if _page is not None:
+            # Verify the page is still alive; if crashed, recreate
+            try:
+                _page.title()
+                return _page
+            except Exception:
+                _page = None
+                _browser = None
+
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            raise RuntimeError(
+                "Playwright not installed. Run: pip install playwright && playwright install chromium"
+            ) from None
+
+        pw = sync_playwright().start()
+        _browser = pw.chromium.launch(headless=True)
+        _page = _browser.new_page(viewport={"width": 1280, "height": 720})
         return _page
-
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        raise RuntimeError(
-            "Playwright not installed. Run: pip install playwright && playwright install chromium"
-        ) from None
-
-    pw = sync_playwright().start()
-    _browser = pw.chromium.launch(headless=True)
-    _page = _browser.new_page(viewport={"width": 1280, "height": 720})
-    return _page
 
 
 def _close_browser():
-    """Close the browser session."""
+    """Close the browser session (thread-safe)."""
     global _browser, _page
-    if _page:
-        with contextlib.suppress(OSError, RuntimeError, ValueError):
-            _page.close()
-    if _browser:
-        with contextlib.suppress(OSError, RuntimeError, ValueError):
-            _browser.close()
-    _page = None
-    _browser = None
+    with _browser_lock:
+        if _page:
+            with contextlib.suppress(OSError, RuntimeError, ValueError):
+                _page.close()
+        if _browser:
+            with contextlib.suppress(OSError, RuntimeError, ValueError):
+                _browser.close()
+        _page = None
+        _browser = None
+
+
+def reset_web_browser() -> None:
+    """Tear down the shared browser session (test isolation / hot reload).
+
+    Closes the persistent Playwright browser/page (real Chromium subprocess)
+    and drops the module-level references. Safe to call when no session is
+    open.
+    """
+    _close_browser()
 
 
 # ======================================================================

@@ -6,19 +6,18 @@
 输出结构化报告到 stdout + JSON 文件,供后续测试/修复决策。
 非 pytest 测试,可独立运行: python tests/smoke_tools_audit.py
 """
+
 from __future__ import annotations
 
 import json
-import os
 import sys
-import tempfile
 import traceback
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core.tools import get_registry, reload_registry  # noqa: E402
+from core.tools import reload_registry  # noqa: E402
 
 # ════════════════════════════════════════════════════════════
 #  P0 工具实跑清单 (name, args, 期望类别)
@@ -82,13 +81,22 @@ HIGH_RISK_TOOL_NAMES = ["git_add_commit", "git_push", "git_pr_create", "git_pr_m
 def smoke_one(reg, name: str, args: dict, timeout_s: float = 8.0) -> dict:
     """跑单个工具, 记录全链路状态。带超时护栏防止单工具卡死。"""
     import time
-    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FTimeout
-    record = {"name": name, "args": args, "registered": False, "result_ok": False,
-              "result_preview": "", "error": "", "latency_ms": 0}
+    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import TimeoutError as FTimeout
+
+    record = {
+        "name": name,
+        "args": args,
+        "registered": False,
+        "result_ok": False,
+        "result_preview": "",
+        "error": "",
+        "latency_ms": 0,
+    }
     # 0. 跳过标记 (用于已知缺陷/环境依赖项, 只查注册不实跑)
     if args.get("__skip_exec"):
         record["registered"] = reg.has(name)
-        record["result_preview"] = f"[跳过实跑] {args.get('__reason','')}"
+        record["result_preview"] = f"[跳过实跑] {args.get('__reason', '')}"
         record["result_ok"] = True  # 注册检查通过即算 ok
         record["skipped"] = True
         return record
@@ -152,7 +160,9 @@ def main():
     unregistered = sum(1 for r in results if not r["registered"])
 
     print("\n" + "=" * 70)
-    print(f"[汇总] 通过 {ok}/{len(results)}  |  失败 {fail}  |  sandbox拦截 {sandbox_blocked}  |  未注册 {unregistered}")
+    print(
+        f"[汇总] 通过 {ok}/{len(results)}  |  失败 {fail}  |  sandbox拦截 {sandbox_blocked}  |  未注册 {unregistered}"
+    )
     print("=" * 70)
 
     # ── 高风险门核查 (静态: 名单里的工具是否真的注册了) ──
@@ -165,6 +175,7 @@ def main():
     # ── 计费/metric 核查 ──
     try:
         from core.observability import metrics
+
         m = metrics.summary()
         counters = m.get("counters", {})
         tool_exec = counters.get("tool_executions", 0)
@@ -191,6 +202,7 @@ def main():
     # 清理 tmp
     try:
         import shutil
+
         shutil.rmtree(TMP_DIR, ignore_errors=True)
     except Exception:
         pass

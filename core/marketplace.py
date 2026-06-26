@@ -872,3 +872,14 @@ def get_marketplace() -> MarketplaceClient:
             if _marketplace is None:
                 _marketplace = MarketplaceClient()
     return _marketplace
+
+
+def reset_marketplace() -> None:
+    """Reset the marketplace singleton (test isolation / hot reload).
+
+    MarketplaceClient adapters hold short-TTL caches only; no threads or
+    open handles. Lock is stateless and reused.
+    """
+    global _marketplace
+    with _marketplace_lock:
+        _marketplace = None

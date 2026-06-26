@@ -163,6 +163,14 @@ class Tracer:
             "spans": spans,
         }
 
+    def reset(self) -> None:
+        """Reset transient tracer state (test isolation / hot reload).
+
+        Clears the in-memory "current trace" pointer. The on-disk JSONL log
+        is append-only audit data and is intentionally preserved.
+        """
+        self._current_trace_id = ""
+
 
 # ---------------------------------------------------------------------------
 # Metrics
@@ -204,6 +212,15 @@ class Metrics:
             "timings": timing_summary,
         }
 
+    def reset(self) -> None:
+        """Drop all in-memory counters/timings (test isolation / hot reload).
+
+        The JSONL trace log on disk is intentionally left intact — it is an
+        append-only audit trail, not transient state.
+        """
+        self._counters.clear()
+        self._timings.clear()
+
 
 # ---------------------------------------------------------------------------
 # Global singletons
@@ -211,6 +228,16 @@ class Metrics:
 
 tracer = Tracer()
 metrics = Metrics()
+
+
+def reset_observability() -> None:
+    """Reset both global singletons (test isolation / hot reload).
+
+    tracer/metrics are module-level singletons imported by name elsewhere, so
+    we reset their internal state in place rather than rebinding the names.
+    """
+    tracer.reset()
+    metrics.reset()
 
 
 # ---------------------------------------------------------------------------

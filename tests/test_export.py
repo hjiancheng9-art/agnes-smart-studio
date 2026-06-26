@@ -7,6 +7,7 @@ from pathlib import Path
 class TestExportEngine:
     def _make_engine(self, tmp_path):
         from core.export import ExportEngine
+
         return ExportEngine(root=tmp_path)
 
     def test_init_creates_export_dir(self, tmp_path):
@@ -34,11 +35,14 @@ class TestExportEngine:
         """Multimodal content (list of parts) should be flattened to text."""
         engine = self._make_engine(tmp_path)
         messages = [
-            {"role": "user", "content": [
-                {"type": "text", "text": "part one"},
-                {"type": "text", "text": "part two"},
-                {"type": "image_url", "image_url": {"url": "x"}},
-            ]},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "part one"},
+                    {"type": "text", "text": "part two"},
+                    {"type": "image_url", "image_url": {"url": "x"}},
+                ],
+            },
         ]
         path = engine.conversation_to_md(messages)
         text = Path(path).read_text(encoding="utf-8")
@@ -102,6 +106,7 @@ class TestExportEngine:
 class TestModuleFunctions:
     def test_export_chat_returns_path(self, tmp_path, monkeypatch):
         from core import export as export_mod
+
         # Redirect ROOT so we don't pollute the real project
         monkeypatch.setattr(export_mod, "ROOT", tmp_path)
         path = export_mod.export_chat([{"role": "user", "content": "hi"}], "T")
@@ -109,6 +114,7 @@ class TestModuleFunctions:
 
     def test_export_assets_returns_dict(self, tmp_path, monkeypatch):
         from core import export as export_mod
+
         monkeypatch.setattr(export_mod, "ROOT", tmp_path)
         assets = export_mod.export_assets()
         assert isinstance(assets, dict)

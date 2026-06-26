@@ -10,20 +10,17 @@ using MagicMock for AsyncCruxClient and async generators for stream mocks.
 """
 
 import asyncio
-import json
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.async_chat import AsyncChatSession
 
-
 # ── Helpers ────────────────────────────────────────────────
+
 
 def _run(coro):
     """同步运行 async 协程。
@@ -43,9 +40,7 @@ def make_mock_client():
     # chat_stream 是 async generator 函数调用 → 返回 async generator 对象
     client.chat_stream = lambda *a, **kw: _empty_async_iter()
     client.chat = AsyncMock(return_value={"choices": [{"message": {"content": "ok"}}]})
-    client.chat_multimodal = AsyncMock(return_value={
-        "choices": [{"message": {"content": "描述：一只猫"}}]
-    })
+    client.chat_multimodal = AsyncMock(return_value={"choices": [{"message": {"content": "描述：一只猫"}}]})
     return client
 
 
@@ -63,8 +58,10 @@ async def _async_iter_items(*items):
 
 def async_iter_of(*items):
     """工厂函数：返回一个可调用，调用时返回包含 items 的 async generator。"""
+
     def _make(*a, **kw):
         return _async_iter_items(*items)
+
     return _make
 
 
@@ -84,6 +81,7 @@ async def _collect(agen):
 
 
 # ── Test: Construction & State ─────────────────────────────
+
 
 class TestAsyncChatSessionInit:
     """测试 AsyncChatSession 初始化和状态。"""
@@ -120,6 +118,7 @@ class TestAsyncChatSessionInit:
 
 # ── Test: Toggle Modes ─────────────────────────────────────
 
+
 class TestAsyncChatSessionToggle:
     """测试模式切换。"""
 
@@ -153,14 +152,13 @@ class TestAsyncChatSessionToggle:
 
 # ── Test: Vision Fallback ────────────────────────────────
 
+
 class TestAsyncVisionFallback:
     """测试视觉理解 fallback 链（async）。"""
 
     def test_vision_fallback_first_model_succeeds(self):
         client = make_mock_client()
-        client.chat_multimodal = AsyncMock(return_value={
-            "choices": [{"message": {"content": "一只橘猫坐在沙发上"}}]
-        })
+        client.chat_multimodal = AsyncMock(return_value={"choices": [{"message": {"content": "一只橘猫坐在沙发上"}}]})
         session = AsyncChatSession(client)
         result = _run(session._vision_fallback("描述这张图", "http://example.com/cat.jpg"))
         assert "橘猫" in result
@@ -196,6 +194,7 @@ class TestAsyncVisionFallback:
 
 # ── Test: Tool Dispatch ──────────────────────────────────
 
+
 class TestAsyncDispatchTool:
     """测试 async _dispatch_tool。"""
 
@@ -215,9 +214,7 @@ class TestAsyncDispatchTool:
 
     def test_high_risk_bash_with_delete(self):
         session = make_session()
-        text, effects = _run(session._dispatch_tool(
-            "run_bash", '{"command":"rm -rf /tmp/stuff"}'
-        ))
+        text, effects = _run(session._dispatch_tool("run_bash", '{"command":"rm -rf /tmp/stuff"}'))
         assert text == ""
         assert effects[0][0] == "confirm"
 
@@ -225,17 +222,19 @@ class TestAsyncDispatchTool:
         """generate_image 调用 brain enhance + t2i.generate。"""
         client = make_mock_client()
         session = AsyncChatSession(client)
-        session.brain.enhance_image_prompt = AsyncMock(return_value={
-            "optimized_prompt": "optimized: cat",
-            "negative_prompt": "blurry",
-        })
-        session.t2i.generate = AsyncMock(return_value={
-            "local_path": "/tmp/cat.png",
-            "url": "http://example.com/cat.png",
-        })
-        text, effects = _run(session._dispatch_tool(
-            "generate_image", '{"prompt":"一只猫"}'
-        ))
+        session.brain.enhance_image_prompt = AsyncMock(
+            return_value={
+                "optimized_prompt": "optimized: cat",
+                "negative_prompt": "blurry",
+            }
+        )
+        session.t2i.generate = AsyncMock(
+            return_value={
+                "local_path": "/tmp/cat.png",
+                "url": "http://example.com/cat.png",
+            }
+        )
+        text, effects = _run(session._dispatch_tool("generate_image", '{"prompt":"一只猫"}'))
         assert "已生成" in text
         kinds = [e[0] for e in effects]
         assert "info" in kinds
@@ -245,18 +244,20 @@ class TestAsyncDispatchTool:
         """generate_video 调用 brain enhance + vid.text_to_video。"""
         client = make_mock_client()
         session = AsyncChatSession(client)
-        session.brain.enhance_video_prompt = AsyncMock(return_value={
-            "optimized_prompt": "optimized: ocean waves",
-            "negative_prompt": "static",
-        })
-        session.vid.text_to_video = AsyncMock(return_value={
-            "local_path": "/tmp/video.mp4",
-            "video_id": "vid_123",
-            "status": "completed",
-        })
-        text, effects = _run(session._dispatch_tool(
-            "generate_video", '{"prompt":"海浪拍打"}'
-        ))
+        session.brain.enhance_video_prompt = AsyncMock(
+            return_value={
+                "optimized_prompt": "optimized: ocean waves",
+                "negative_prompt": "static",
+            }
+        )
+        session.vid.text_to_video = AsyncMock(
+            return_value={
+                "local_path": "/tmp/video.mp4",
+                "video_id": "vid_123",
+                "status": "completed",
+            }
+        )
+        text, effects = _run(session._dispatch_tool("generate_video", '{"prompt":"海浪拍打"}'))
         assert "已生成" in text
         kinds = [e[0] for e in effects]
         assert "video" in kinds
@@ -266,15 +267,14 @@ class TestAsyncDispatchTool:
         client = make_mock_client()
         session = AsyncChatSession(client)
         session.tools.register("test_echo", "echo tool", {}, lambda **kw: kw.get("msg", "echo"))
-        text, effects = _run(session._dispatch_tool(
-            "test_echo", '{"msg":"hello world"}'
-        ))
+        text, effects = _run(session._dispatch_tool("test_echo", '{"msg":"hello world"}'))
         assert "hello world" in text
         kinds = [e[0] for e in effects]
         assert "info" in kinds
 
 
 # ── Test: send_stream (pure text) ──────────────────────────
+
 
 class TestAsyncSendStream:
     """测试 async send_stream 核心流程。"""
@@ -302,15 +302,11 @@ class TestAsyncSendStream:
     def test_multimodal_calls_vision(self):
         """带图片的消息：走 vision_client。"""
         client = make_mock_client()
-        client.chat_multimodal = AsyncMock(return_value={
-            "choices": [{"message": {"content": "这是日落照片"}}]
-        })
+        client.chat_multimodal = AsyncMock(return_value={"choices": [{"message": {"content": "这是日落照片"}}]})
         session = AsyncChatSession(client)
         session.model = "agnes-1.5-flash"
 
-        collected = _run(_collect(session.send_stream(
-            "描述", image_url="http://example.com/sunset.jpg"
-        )))
+        collected = _run(_collect(session.send_stream("描述", image_url="http://example.com/sunset.jpg")))
 
         assert len(collected) >= 1
         assert collected[0][0] == "text"
@@ -324,9 +320,15 @@ class TestAsyncSendStream:
         # 第一轮流式：有 tool_call
         round1_deltas = [
             {"content": "我来帮你生成图片"},
-            {"tool_calls": [{"index": 0, "id": "call_1",
-                             "function": {"name": "generate_image",
-                                          "arguments": '{"prompt":"星空"}'}}]},
+            {
+                "tool_calls": [
+                    {
+                        "index": 0,
+                        "id": "call_1",
+                        "function": {"name": "generate_image", "arguments": '{"prompt":"星空"}'},
+                    }
+                ]
+            },
             {"_finish": "tool_calls"},
         ]
         # 第二轮流式：模型总结
@@ -347,12 +349,18 @@ class TestAsyncSendStream:
 
         client.chat_stream = _mock_stream
         session = AsyncChatSession(client)
-        session.brain.enhance_image_prompt = AsyncMock(return_value={
-            "optimized_prompt": "star sky", "negative_prompt": None,
-        })
-        session.t2i.generate = AsyncMock(return_value={
-            "local_path": "/tmp/star.png", "url": "http://x/star.png",
-        })
+        session.brain.enhance_image_prompt = AsyncMock(
+            return_value={
+                "optimized_prompt": "star sky",
+                "negative_prompt": None,
+            }
+        )
+        session.t2i.generate = AsyncMock(
+            return_value={
+                "local_path": "/tmp/star.png",
+                "url": "http://x/star.png",
+            }
+        )
         # 确保 supports_tools 为 True
         with patch("core.async_chat.model_supports_tools", return_value=True):
             collected = _run(_collect(session.send_stream("帮我画星空")))
@@ -372,29 +380,39 @@ class TestAsyncSendStream:
         # 每轮都返回 tool_call，迫使循环持续
         async def _infinite_tool_stream(*a, **kw):
             yield {"content": "思考中"}
-            yield {"tool_calls": [{"index": 0, "id": "call_x",
-                                   "function": {"name": "generate_image",
-                                                "arguments": '{"prompt":"x"}'}}]}
+            yield {
+                "tool_calls": [
+                    {"index": 0, "id": "call_x", "function": {"name": "generate_image", "arguments": '{"prompt":"x"}'}}
+                ]
+            }
             yield {"_finish": "tool_calls"}
 
         client.chat_stream = _infinite_tool_stream
         session = AsyncChatSession(client)
-        session.brain.enhance_image_prompt = AsyncMock(return_value={
-            "optimized_prompt": "x", "negative_prompt": None,
-        })
-        session.t2i.generate = AsyncMock(return_value={
-            "local_path": "/tmp/x.png",
-        })
+        session.brain.enhance_image_prompt = AsyncMock(
+            return_value={
+                "optimized_prompt": "x",
+                "negative_prompt": None,
+            }
+        )
+        session.t2i.generate = AsyncMock(
+            return_value={
+                "local_path": "/tmp/x.png",
+            }
+        )
         # 缩小最大轮次以便测试
-        with patch("core.async_chat.MAX_TOOL_LOOPS", 2):
-            with patch("core.async_chat.model_supports_tools", return_value=True):
-                collected = _run(_collect(session.send_stream("无限循环")))
-                # 应该有 "已达到最大" 的 info
-                info_msgs = [p for k, p in collected if k == "info"]
-                assert any("已达到最大工具调用轮次" in msg for msg in info_msgs)
+        with (
+            patch("core.async_chat.MAX_TOOL_LOOPS", 2),
+            patch("core.async_chat.model_supports_tools", return_value=True),
+        ):
+            collected = _run(_collect(session.send_stream("无限循环")))
+            # 应该有 "已达到最大" 的 info
+            info_msgs = [p for k, p in collected if k == "info"]
+            assert any("已达到最大工具调用轮次" in msg for msg in info_msgs)
 
 
 # ── Test: Cross-round Dedup ────────────────────────────────
+
 
 class TestAsyncCrossRoundDedup:
     """测试跨轮工具去重。"""
@@ -408,9 +426,15 @@ class TestAsyncCrossRoundDedup:
             call_count += 1
             if call_count == 1:
                 yield {"content": ""}
-                yield {"tool_calls": [{"index": 0, "id": "call_1",
-                                       "function": {"name": "web_search",
-                                                    "arguments": '{"query":"python"}'}}]}
+                yield {
+                    "tool_calls": [
+                        {
+                            "index": 0,
+                            "id": "call_1",
+                            "function": {"name": "web_search", "arguments": '{"query":"python"}'},
+                        }
+                    ]
+                }
                 yield {"_finish": "tool_calls"}
             else:
                 yield {"content": "结果已获取"}
@@ -423,7 +447,7 @@ class TestAsyncCrossRoundDedup:
         session.tools.register("web_search", "search", {}, lambda **kw: "result: python")
 
         with patch("core.async_chat.model_supports_tools", return_value=True):
-            collected = _run(_collect(session.send_stream("搜索python")))
+            _collected = _run(_collect(session.send_stream("搜索python")))
 
         # 验证 messages 结构正确
         tool_msgs = [m for m in session.messages if m.get("role") == "tool"]
@@ -431,6 +455,7 @@ class TestAsyncCrossRoundDedup:
 
 
 # ── Test: Session State Management ─────────────────────────
+
 
 class TestAsyncSessionState:
     """测试会话状态管理。"""

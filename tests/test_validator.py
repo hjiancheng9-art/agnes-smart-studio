@@ -1,15 +1,21 @@
 """Unit tests for input validation module."""
-import pytest
+
 import sys
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.validator import (
-    validate_image_size, validate_model, validate_seed,
-    validate_num_frames, validate_frame_rate,
-    validate_image_urls, validate_video_resolution,
+    validate_frame_rate,
+    validate_image_size,
+    validate_image_urls,
+    validate_model,
+    validate_num_frames,
+    validate_seed,
+    validate_video_resolution,
 )
 
 
@@ -87,10 +93,7 @@ class TestImageUrlValidation:
         assert result == ["https://example.com/img.png"]
 
     def test_multiple_urls(self):
-        result = validate_image_urls([
-            "https://a.com/1.jpg",
-            "https://b.com/2.jpg"
-        ])
+        result = validate_image_urls(["https://a.com/1.jpg", "https://b.com/2.jpg"])
         assert len(result) == 2
 
     def test_empty_urls(self):

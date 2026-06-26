@@ -9,7 +9,7 @@ import time
 from collections import deque
 from pathlib import Path
 
-__all__ = ["MEMORY_FILE", "ROOT", "SemanticMemory", "get_memory"]
+__all__ = ["MEMORY_FILE", "ROOT", "SemanticMemory", "get_memory", "reset_memory"]
 
 ROOT = Path(__file__).resolve().parent.parent
 MEMORY_FILE = ROOT / "output" / "memory.json"
@@ -96,3 +96,15 @@ _memory = SemanticMemory()
 
 def get_memory() -> SemanticMemory:
     return _memory
+
+
+def reset_memory() -> None:
+    """Reset the semantic-memory singleton (test isolation / hot reload).
+
+    SemanticMemory is eagerly instantiated at import. Reassigning a fresh
+    instance drops the in-memory state (preferences/decisions/recent queue)
+    and re-reads the on-disk store. Callers that imported ``_memory`` by
+    value keep their old reference; always go through get_memory() after reset.
+    """
+    global _memory
+    _memory = SemanticMemory()

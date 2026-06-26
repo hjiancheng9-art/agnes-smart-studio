@@ -7,3 +7,11 @@ prompt_toolkit>=3.0
 nest_asyncio>=1.5
 playwright>=1.40
 edge-tts>=6.1
+
+# Dev / testing
+pytest>=8.0
+pytest-cov>=4.0
+coverage>=7.0
+ruff>=0.4
+pyright>=1.1.400
+

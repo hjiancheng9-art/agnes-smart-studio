@@ -101,15 +101,16 @@ def deploy_netlify(project_dir: str = ".", token: str = "") -> str:
 
 
 def create_markdown(title: str, content: str) -> str:
-    """Create a .md file."""
+    """Create a .md file. Returns the written file path."""
     out = ROOT / "output" / f"{title.replace(' ', '_')[:50]}.md"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(f"# {title}\n\n{content}", encoding="utf-8")
+    full = f"# {title}\n\n{content}"
+    out.write_text(full, encoding="utf-8")
     return str(out)
 
 
 def create_html(title: str, body: str) -> str:
-    """Create a standalone .html file."""
+    """Create a standalone .html file. Returns the written file path."""
     out = ROOT / "output" / f"{title.replace(' ', '_')[:50]}.html"
     out.parent.mkdir(parents=True, exist_ok=True)
     html = f"""<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">

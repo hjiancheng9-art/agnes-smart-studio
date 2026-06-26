@@ -8,6 +8,7 @@
     - 调用日志 round-trip (log_call -> load_recent -> group_by_tool)
     - 端到端 smoke (真实 registry 全量评分不抛异常)
 """
+
 from __future__ import annotations
 
 import sys
@@ -19,22 +20,22 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from core import tool_call_log
 from core.tool_scorecard import (
+    DESTRUCTIVE_TOOLS,
     GRADE_THRESHOLDS,
     HIGH_RISK_TOOLS,
-    DESTRUCTIVE_TOOLS,
     grade_from_score,
-    score_tool_static,
-    score_tool_runtime,
-    score_all,
-    save_report,
     reset_test_coverage_cache,
+    save_report,
+    score_all,
+    score_tool_runtime,
+    score_tool_static,
 )
-from core import tool_call_log
 from core.tools import ToolRegistry
 
-
 # ── fixtures ────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def fresh_registry():
@@ -102,6 +103,7 @@ def reset_caches():
 
 # ── 等级阈值 ────────────────────────────────────────────────────
 
+
 class TestGradeThresholds:
     def test_a_threshold(self):
         assert grade_from_score(90) == "A"
@@ -128,6 +130,7 @@ class TestGradeThresholds:
 
 
 # ── 静态评分 ────────────────────────────────────────────────────
+
 
 class TestStaticScoring:
     def test_safe_well_typed_tool_gets_high_score(self, fresh_registry):
@@ -199,6 +202,7 @@ class TestStaticScoring:
 
 # ── 运行时评分 ──────────────────────────────────────────────────
 
+
 class TestRuntimeScoring:
     def test_empty_calls_returns_na(self):
         """无调用数据 → score=None, grade=N/A。"""
@@ -243,7 +247,7 @@ class TestRuntimeScoring:
         ]
         r = score_tool_runtime("flaky", calls)
         assert r["arg_fail_rate"] == 50.0  # 2/4
-        assert r["success_rate"] == 50.0   # 2/4
+        assert r["success_rate"] == 50.0  # 2/4
 
     def test_p95_from_durations(self):
         """P95 应取接近最大值的样本。"""
@@ -277,13 +281,22 @@ class TestRuntimeScoring:
 
 # ── 全量聚合报告 ────────────────────────────────────────────────
 
+
 class TestScoreAll:
     def test_report_structure(self, fresh_registry):
         """聚合报告必须含所有约定字段。"""
         report = score_all(fresh_registry)
-        for key in ("generated_at", "total_tools", "grade_distribution",
-                    "average_score", "worst_5", "untested", "untested_count",
-                    "high_risk", "tools"):
+        for key in (
+            "generated_at",
+            "total_tools",
+            "grade_distribution",
+            "average_score",
+            "worst_5",
+            "untested",
+            "untested_count",
+            "high_risk",
+            "tools",
+        ):
             assert key in report, f"missing {key}"
 
     def test_total_tools_matches_registry(self, fresh_registry):
@@ -338,6 +351,7 @@ class TestScoreAll:
     def test_save_report_writes_file(self, fresh_registry, tmp_path):
         """save_report 应写出可被 json 重新加载的文件。"""
         import json
+
         report = score_all(fresh_registry)
         out = save_report(report, path=tmp_path / "sc.json")
         assert out.exists()
@@ -346,6 +360,7 @@ class TestScoreAll:
 
 
 # ── 调用日志 round-trip ─────────────────────────────────────────
+
 
 class TestCallLog:
     def test_log_and_load_round_trip(self, tmp_path, monkeypatch):
@@ -411,6 +426,7 @@ class TestCallLog:
 
 
 # ── 端到端 smoke (真实 registry) ────────────────────────────────
+
 
 class TestE2EWithRealRegistry:
     """用真实 ToolRegistry 全量评分, 验证不抛异常 + 数据合理。"""

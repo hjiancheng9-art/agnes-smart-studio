@@ -6,16 +6,19 @@ import json
 class TestToolResultCache:
     def _make_cache(self, max_size=128):
         from core.tool_cache import ToolResultCache
+
         return ToolResultCache(max_size=max_size)
 
     def test_make_key_deterministic(self):
         from core.tool_cache import ToolResultCache
+
         k1 = ToolResultCache.make_key("read_file", '{"path": "/tmp/a.py"}')
         k2 = ToolResultCache.make_key("read_file", '{"path": "/tmp/a.py"}')
         assert k1 == k2
 
     def test_make_key_differs_by_args(self):
         from core.tool_cache import ToolResultCache
+
         k1 = ToolResultCache.make_key("read_file", '{"path": "/tmp/a.py"}')
         k2 = ToolResultCache.make_key("read_file", '{"path": "/tmp/b.py"}')
         assert k1 != k2
@@ -110,12 +113,14 @@ class TestToolResultCache:
 class TestConstants:
     def test_cacheable_tools_set(self):
         from core.tool_cache import CACHEABLE_TOOLS
+
         assert "read_file" in CACHEABLE_TOOLS
         assert "search_files" in CACHEABLE_TOOLS
         assert "run_bash" not in CACHEABLE_TOOLS
 
     def test_write_tools_invalidate_set(self):
         from core.tool_cache import WRITE_TOOLS_INVALIDATE
+
         assert "run_bash" in WRITE_TOOLS_INVALIDATE
         assert "write_file" in WRITE_TOOLS_INVALIDATE
         assert "read_file" not in WRITE_TOOLS_INVALIDATE

@@ -2,10 +2,21 @@
 
 Restricts shell command execution with path allowlists, command denylists,
 and destructive operation detection.
+
+设计原则（v2 修订）:
+    1. **CWD 自动信任**: 用户在哪个目录启动 crux，该目录即合法工作根。
+       不再"只信任 crux 安装目录"——这会把用户自己项目的所有操作误杀。
+    2. **路径匹配用 is_relative_to**: 替代 startswith，修前缀匹配坑
+       (C:\\foo 不应被当作 C:\\foobar 的祖先)。
+    3. **跨平台临时目录**: 用 tempfile.gettempdir() 而非硬编码 /tmp。
+    4. **危险模式仍是第一道闸**: 路径白名单只防"读外部敏感文件"，
+       不防"在自己工作区搞破坏"——后者由 DANGEROUS_PATTERNS 兜底。
 """
 
+import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 __all__ = [
@@ -39,18 +50,94 @@ DANGEROUS_PATTERNS = [
     r"\bformat\s+[A-Za-z]:",  # format X: 格式化盘
     r"\bdiskpart",  # 磁盘分区操作
     r"\bcipher\s*/w",  # cipher /w 覆写删除
-    r"\bcd\s+[A-Za-z]:[\\/]",  # cd 到绝对路径外（防止跳盘）
     r"\bpowershell.*-enc\s+[A-Za-z0-9]",  # powershell 编码命令（绕过审计）
     r"reg\s+delete.*/f",  # 注册表强删
 ]
 
-# Allowed working directories for shell commands
-ALLOWED_ROOTS = [
-    str(ROOT),
-    str(Path.home()),
-    str(Path.home() / "tmp"),
-    "/tmp",
-]
+
+def _normalize_path(p: Path) -> Path:
+    r"""规范化路径用于比较：resolve + 大小写归一(Windows) + 斜杠统一。
+
+    resolve() 在 Windows 上会自动把 / 转 \ 并补绝对路径，
+    但对不存在的路径不抛错（用于校验用户输入的任意路径）。
+    """
+    try:
+        # strict=False（默认）：路径不存在也不抛错，适合校验场景
+        return p.resolve()
+    except (OSError, RuntimeError):
+        # resolve 在某些边界（UNC 路径、符号链接环）会失败，降级用原值
+        return p
+
+
+def _build_allowed_roots() -> list[Path]:
+    """构建允许的根目录列表（Path 形式，已规范化）。
+
+    包含三类信任源：
+      1. crux 自身安装目录及其 output/tmp 子目录（管理 crux 自己的产物）
+      2. 当前工作目录 CWD（用户启动 crux 的地方 = 用户自己的项目）
+      3. 系统临时目录（跨平台）
+
+    可通过 CRUX_ALLOWED_ROOTS 环境变量覆盖（逗号分隔的绝对路径），
+    设置后则 *只* 信任环境变量列出的目录（用于 CI/受控环境锁定）。
+    """
+    env_roots = os.environ.get("CRUX_ALLOWED_ROOTS", "")
+    if env_roots:
+        # 环境变量覆盖模式：完全替换默认列表
+        raw = [r.strip() for r in env_roots.split(",") if r.strip()]
+    else:
+        raw = [
+            str(ROOT),
+            str(ROOT / "output"),
+            str(ROOT / "tmp"),
+            os.getcwd(),  # ← 关键修复：CWD 自动信任
+            tempfile.gettempdir(),  # ← 跨平台临时目录（替代硬编码 /tmp）
+        ]
+    return [_normalize_path(Path(r)) for r in raw]
+
+
+# 模块加载时计算一次静态部分；CWD 部分每次校验时动态刷新（用户可能 cd）
+_STATIC_ALLOWED_ROOTS = _build_allowed_roots()
+
+
+def _current_allowed_roots() -> list[Path]:
+    """返回当前生效的允许根列表。
+
+    CWD 可能随会话变化（用户在 REPL 里 cd），所以每次校验都重新拿 os.getcwd()。
+    环境变量覆盖模式下不追加 CWD（用户已显式锁定信任域）。
+    """
+    if os.environ.get("CRUX_ALLOWED_ROOTS", ""):
+        return _STATIC_ALLOWED_ROOTS  # 锁定模式，不变
+    # 非锁定模式：动态追加当前 CWD（去重）
+    cwd = _normalize_path(Path.cwd())
+    if cwd not in _STATIC_ALLOWED_ROOTS:
+        return _STATIC_ALLOWED_ROOTS + [cwd]
+    return _STATIC_ALLOWED_ROOTS
+
+
+# 对外暴露的 ALLOWED_ROOTS（保持向后兼容，值为静态列表；
+# 运行时校验请用 _current_allowed_roots() 以包含动态 CWD）
+ALLOWED_ROOTS = _STATIC_ALLOWED_ROOTS
+
+
+def _path_is_allowed(p: Path, roots: list[Path]) -> bool:
+    """判断路径 p 是否在任一允许根之下（含本身相等）。
+
+    用 is_relative_to 替代 startswith，避免前缀匹配坑：
+    'C:\\foo' 不应被认为覆盖 'C:\\foobar'。
+    """
+    norm = _normalize_path(p)
+    for root in roots:
+        try:
+            if norm == root or norm.is_relative_to(root):
+                return True
+        except (TypeError, ValueError):
+            # is_relative_to 在老版本 Python 或跨盘符场景可能行为异常，降级
+            if str(norm).lower() == str(root).lower() or str(norm).lower().startswith(
+                str(root).lower() + os.sep
+            ):
+                return True
+    return False
+
 
 # 跨平台超时命令
 if sys.platform == "win32":
@@ -65,6 +152,7 @@ class Sandbox:
     """Validates shell commands before execution."""
 
     def __init__(self, root: Path | None = None) -> None:
+        # root 参数保留向后兼容，但 v2 起实际信任域由 _current_allowed_roots() 决定
         self.root = root or ROOT
 
     def validate(self, command: str) -> tuple[bool, str]:
@@ -76,7 +164,7 @@ class Sandbox:
 
         cmd_lower = command.lower().strip()
 
-        # Check dangerous patterns
+        # Check dangerous patterns (第一道闸：无论路径如何，危险模式直接拒)
         for pattern in DANGEROUS_PATTERNS:
             if re.search(pattern, cmd_lower):
                 return False, f"blocked dangerous pattern: {pattern[:40]}"
@@ -84,13 +172,13 @@ class Sandbox:
         # Check for absolute path references outside allowed roots
         # Unix 风格: /path/to/...
         # Windows 风格: C:\... / C:/... / \\host\share
+        roots = _current_allowed_roots()
         unix_paths = re.findall(r"(/[^\s]+)", command)
         win_paths = re.findall(r"(?:[A-Za-z]:[\\/][^\s]+|\\\\[^\s]+)", command)
         for p in unix_paths + win_paths:
             p_obj = Path(p)
             if p_obj.is_absolute():
-                allowed = any(str(p_obj).startswith(root) for root in ALLOWED_ROOTS)
-                if not allowed:
+                if not _path_is_allowed(p_obj, roots):
                     return False, f"path outside allowed roots: {p}"
 
         return True, "ok"
@@ -108,9 +196,20 @@ class Sandbox:
         return command
 
 
+# ── 模块级单例，避免每次调用都创建 Sandbox 实例 ──
+_SANDBOX: Sandbox | None = None
+
+
+def _get_sandbox() -> Sandbox:
+    global _SANDBOX
+    if _SANDBOX is None:
+        _SANDBOX = Sandbox()
+    return _SANDBOX
+
+
 def sandbox_check(command: str) -> tuple[bool, str]:
-    return Sandbox().validate(command)
+    return _get_sandbox().validate(command)
 
 
 def sandbox_restrict(command: str) -> str:
-    return Sandbox().restrict_bash(command)
+    return _get_sandbox().restrict_bash(command)

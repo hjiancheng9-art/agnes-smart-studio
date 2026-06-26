@@ -154,7 +154,9 @@ def search_files(pattern: str) -> str:
         ".rst",
         ".csv",
     }
-    SKIP_DIRS = {".git", "__pycache__", ".pytest_cache", "node_modules", ".venv", "venv", "output", ".codebuddy"}
+    from core.constraints import PROJECT_SKIP_DIRS
+
+    SKIP_DIRS = PROJECT_SKIP_DIRS
     try:
         regex = re.compile(pattern)
     except re.error as e:
@@ -413,10 +415,11 @@ def run_python(code: str) -> str:
 
     _prelude = """
 import builtins
-# Only remove truly dangerous builtins that enable code injection / debugging escape.
-# subprocess isolation already prevents filesystem / network side-effects from
-# persisting, so import/open/getattr/class are safe to allow.
-_DANGEROUS = ("exec", "eval", "compile", "breakpoint")
+# Only remove breakpoint to prevent debugger escape from subprocess.
+# exec/eval/compile are KEPT because Python's import machinery (exec_module)
+# requires them — deleting them breaks all imports in the sandbox.
+# The subprocess boundary is the real security layer here.
+_DANGEROUS = ("breakpoint",)
 for _d in _DANGEROUS:
     try:
         delattr(builtins, _d)
@@ -676,8 +679,9 @@ def tree_dir(depth: int = 3) -> str:
 
 
 def download_file(url: str, save_path: str) -> str:
-    """下载文件到指定路径。纯 Python + SSRF 防护 + 路径限制。"""
+    """下载文件到指定路径。纯 Python + SSRF 防护 + 路径限制 + 磁盘空间检查。"""
     import os as _os
+    import shutil as _shutil
 
     err = _validate_url(url)
     if err:
@@ -690,13 +694,23 @@ def download_file(url: str, save_path: str) -> str:
         _os.makedirs(_os.path.dirname(str(sp)) or ".", exist_ok=True)
         r = httpx.get(url, follow_redirects=True, timeout=httpx.Timeout(60.0, connect=8.0), trust_env=False)
         r.raise_for_status()
+        content_len = len(r.content)
+        # 磁盘空间检查（写前预检，避免半写损坏）
+        if content_len > 0:
+            disk_free = _shutil.disk_usage(_os.path.dirname(str(sp)) or ".").free
+            if content_len > disk_free:
+                return f"[错误] 磁盘空间不足: 需要 {content_len} bytes，可用 {disk_free} bytes"
         sp.write_bytes(r.content)
-        return f"Downloaded: {sp} ({len(r.content)} bytes)"
+        return f"Downloaded: {sp} ({content_len} bytes)"
     except httpx.ConnectError:
         return f"[错误] 无法连接: {url[:60]}"
     except httpx.TimeoutException:
         return f"[错误] 下载超时: {url[:60]}"
     except (httpx.HTTPError, OSError) as e:
+        # 清理可能的部分写入
+        if sp.exists():
+            with contextlib.suppress(OSError):
+                sp.unlink()
         return f"[错误] 下载失败: {e}"
 
 

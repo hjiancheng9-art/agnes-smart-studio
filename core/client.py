@@ -191,52 +191,76 @@ class CruxClient:
             body["tool_choice"] = tool_choice
         body.update(kwargs)
 
-        # 流式不套 _request_with_retry（重试难以处理已建立的流），
-        # 但捕获网络异常并优雅降级，避免静默失败。
-        try:
-            with self._http.stream(
-                "POST",
-                "/chat/completions",
-                json=body,
-                timeout=httpx.Timeout(timeout, connect=30.0),
-            ) as resp:
-                resp.raise_for_status()
-                for line in resp.iter_lines():
-                    if not line or not line.startswith("data:"):
-                        continue
-                    data = line[5:].strip()
-                    if data == "[DONE]":
-                        break
-                    try:
-                        chunk = json.loads(data)
-                    except json.JSONDecodeError:
-                        continue
-                    choices = chunk.get("choices") or []
-                    if not choices:
-                        continue
-                    choice = choices[0]
-                    delta = choice.get("delta", {}) or {}
-                    out = {k: v for k, v in delta.items() if v}
-                    finish = choice.get("finish_reason")
-                    if finish:
-                        out["_finish"] = finish
-                    # 最后一帧通常携带顶层 usage,透传给上层用于计费
-                    usage = chunk.get("usage")
-                    if usage:
-                        out["_usage"] = usage
-                    if out:
-                        yield out
-        except (
-            httpx.ConnectError,
-            httpx.ReadError,
-            httpx.RemoteProtocolError,
-            httpx.PoolTimeout,
-            httpx.TimeoutException,
-        ) as e:
-            # 网络层错误：yield 错误信息让上层优雅降级
-            yield {"content": f"\n[流中断: {type(e).__name__}]", "_finish": "error"}
-        except httpx.HTTPStatusError as e:
-            yield {"content": f"\n[HTTP {e.response.status_code}]", "_finish": "error"}
+        # 流式连接重试：在流数据消费之前检查状态码，
+        # 此时服务器尚未处理请求体，重试安全且幂等。
+        # 4xx 不重试（客户端错误），5xx / 网络错误重试最多 2 次。
+        _stream_retries = 2
+        for _attempt in range(_stream_retries + 1):
+            try:
+                with self._http.stream(
+                    "POST",
+                    "/chat/completions",
+                    json=body,
+                    timeout=httpx.Timeout(timeout, connect=30.0),
+                ) as resp:
+                    # 错误状态码：连接仍活着，在此消费错误体后再决定重试/返回。
+                    # 不能用 raise_for_status() + except 读 e.response.text —— 流式
+                    # 响应体在 with 退出后已关闭，再读会抛 ResponseNotRead。
+                    if resp.status_code >= 400:
+                        status = resp.status_code
+                        err_detail = ""
+                        try:
+                            resp.read()  # 同步消费错误响应体（连接未关闭，安全）
+                            body_text = resp.text[:500]
+                            if body_text:
+                                err_detail = f" - {body_text}"
+                        except (OSError, ValueError, httpx.HTTPError):
+                            pass
+                        # 429 / 5xx 可重试，4xx 不重试
+                        if _attempt < _stream_retries and (status == 429 or status >= 500):
+                            wait = (2**_attempt) if status == 429 else (0.5 * (_attempt + 1))
+                            time.sleep(wait)
+                            continue  # continue 先退出 with（关闭连接），再进入下一轮
+                        yield {"content": f"\n[HTTP {status}{err_detail}]", "_finish": "error"}
+                        return
+                    # 连接成功，开始消费流
+                    for line in resp.iter_lines():
+                        if not line or not line.startswith("data:"):
+                            continue
+                        data = line[5:].strip()
+                        if data == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(data)
+                        except json.JSONDecodeError:
+                            continue
+                        choices = chunk.get("choices") or []
+                        if not choices:
+                            continue
+                        choice = choices[0]
+                        delta = choice.get("delta", {}) or {}
+                        out = {k: v for k, v in delta.items() if v}
+                        finish = choice.get("finish_reason")
+                        if finish:
+                            out["_finish"] = finish
+                        usage = chunk.get("usage")
+                        if usage:
+                            out["_usage"] = usage
+                        if out:
+                            yield out
+                    return  # 正常完成，不触发错误
+            except (
+                httpx.ConnectError,
+                httpx.ReadError,
+                httpx.RemoteProtocolError,
+                httpx.PoolTimeout,
+                httpx.TimeoutException,
+            ) as e:
+                if _attempt < _stream_retries:
+                    time.sleep(0.5 * (_attempt + 1))
+                    continue
+                yield {"content": f"\n[流中断: {type(e).__name__} (retries exhausted)]", "_finish": "error"}
+                return
 
     # ── 图像 ──────────────────────────────────────────────
     def create_image(
@@ -458,6 +482,7 @@ class CruxClient:
         安全策略：仅在 URL 与当前 base_url 同源时才附加认证头，
         防止 Bearer token 被重定向泄露到第三方 CDN。
         """
+        from pathlib import Path as _Path
         from urllib.parse import urlparse
 
         same_origin = urlparse(url).netloc == urlparse(self.base_url).netloc
@@ -467,11 +492,13 @@ class CruxClient:
             with httpx.Client(follow_redirects=True, timeout=120.0) as client:
                 resp = client.get(url)
                 if resp.status_code == 200:
+                    _Path(save_path).parent.mkdir(parents=True, exist_ok=True)
                     with open(save_path, "wb") as f:
                         f.write(resp.content)
                     return save_path
         except (httpx.HTTPError, httpx.TimeoutException):
-            pass
+            # 清理可能的部分下载
+            _Path(save_path).unlink(missing_ok=True)
 
         # 策略2：仅同源 URL 使用认证头（私有存储）
         if same_origin:
@@ -479,11 +506,12 @@ class CruxClient:
                 with httpx.Client(follow_redirects=True, timeout=120.0) as client:
                     resp = client.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
                     if resp.status_code == 200:
+                        _Path(save_path).parent.mkdir(parents=True, exist_ok=True)
                         with open(save_path, "wb") as f:
                             f.write(resp.content)
                         return save_path
             except (httpx.HTTPError, httpx.TimeoutException):
-                pass
+                _Path(save_path).unlink(missing_ok=True)
 
         raise RuntimeError(f"视频下载失败: {url}")
 
@@ -492,6 +520,7 @@ class CruxClient:
 
         安全策略：仅在 URL 与当前 base_url 同源时才附加认证头。
         """
+        from pathlib import Path as _Path
         from urllib.parse import urlparse
 
         same_origin = urlparse(url).netloc == urlparse(self.base_url).netloc
@@ -501,11 +530,12 @@ class CruxClient:
             with httpx.Client(follow_redirects=True, timeout=60.0) as client:
                 resp = client.get(url)
                 if resp.status_code == 200:
+                    _Path(save_path).parent.mkdir(parents=True, exist_ok=True)
                     with open(save_path, "wb") as f:
                         f.write(resp.content)
                     return save_path
         except (httpx.HTTPError, httpx.TimeoutException):
-            pass
+            _Path(save_path).unlink(missing_ok=True)
 
         # 策略2：仅同源 URL 使用认证头（私有存储）
         if same_origin:
@@ -513,11 +543,12 @@ class CruxClient:
                 with httpx.Client(follow_redirects=True, timeout=60.0) as client:
                     resp = client.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
                     if resp.status_code == 200:
+                        _Path(save_path).parent.mkdir(parents=True, exist_ok=True)
                         with open(save_path, "wb") as f:
                             f.write(resp.content)
                         return save_path
             except (httpx.HTTPError, httpx.TimeoutException):
-                pass
+                _Path(save_path).unlink(missing_ok=True)
 
         raise RuntimeError(f"图片下载失败: {url}")
 

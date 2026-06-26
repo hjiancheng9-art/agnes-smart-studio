@@ -1,20 +1,7 @@
-"""CRUX Badge system — unified session state visualization.
-
-The sole legal converter from session state → colored tag stream.
+"""CRUX Badge system v2 — 盒式徽章 + 状态条 + 模式横幅。
+v2 升级: 盒式徽章(彩色边框+图标+标签) · 状态条 · 模式切换横幅 · 路由提示
+Style: Box-style badges with colored borders, icons and labels.
 All "what mode am I in" terminal display goes through here.
-
-Style: Organic badge stream — each segment independently colored, separated by ∘
-  🧬 Agent  ∘  ✨ Think  ∘  🎬 showrunner  ∘  🌊 CRUX 2.0 Flash · CRUX
-
-Entry points:
-- ui/mixins/shared.py:_mode_hint()      → prompt suffix (plain text badge)
-- ui/mixins/shared.py:_stream_chat()     → per-reply dim badge header
-- ui/mixins/engineering.py:_chat_plan()  → /plan standalone render path
-- Various toggle handlers                 → post-switch prominent banner
-
-Rendering contract: this module only prints plain text lines, never touching
-StreamingRenderer's transient Live or single-commit-point (commit). Badge lines
-are printed before renderer.start(), immune to transient preview interference.
 """
 
 from __future__ import annotations
@@ -25,7 +12,6 @@ from ui.theme import BADGE_ICONS, COLORS, ICONS, LAYOUT, console
 
 if TYPE_CHECKING:
     from core.chat import ChatSession
-
 __all__ = [
     "Badge",
     "session_badges",
@@ -34,15 +20,13 @@ __all__ = [
     "print_reply_header",
     "print_mode_banner",
     "print_route_reason",
+    "render_box_badges",
+    "render_status_bar",
+    "print_welcome_banner",
 ]
 
 
-# ── Data model ───────────────────────────────────────────────
-
-
 class Badge:
-    """Single state tag: icon + text + color."""
-
     __slots__ = ("icon", "text", "color")
 
     def __init__(self, icon: str, text: str, color: str):
@@ -51,23 +35,19 @@ class Badge:
         self.color = color
 
     def render(self, *, dim: bool = False) -> str:
-        """Return Rich markup fragment, e.g. '[magenta]🧬 Agent[/]'."""
         style = self.color if not dim else f"dim {self.color}"
         return f"[{style}]{self.icon} {self.text}[/]"
 
+    def render_box(self) -> str:
+        """盒式徽章: [icon LABEL] 带彩色边框."""
+        c = self.color
+        return f"[{c}]┃[/] [{c}]{self.icon} {self.text}[/] [{c}]┃[/]"
 
-# ── Provider short-name map ──────────────────────────────
 
-_PROVIDER_SHORT = {
-    "CRUX AI": "CRUX",
-    "DeepSeek": "DeepSeek",
-    "SiliconFlow": "SiliconFlow",
-    "Moonshot": "Kimi",
-}
+_PROVIDER_SHORT = {"CRUX AI": "CRUX", "DeepSeek": "DeepSeek", "SiliconFlow": "SF", "Moonshot": "Kimi"}
 
 
 def _model_label(session: ChatSession) -> tuple[str, str]:
-    """Return (model display text, color). Model name + provider short (dedup)."""
     model = getattr(session, "model", "") or "unknown"
     try:
         from core.provider import get_model_info, get_provider_name
@@ -80,36 +60,20 @@ def _model_label(session: ChatSession) -> tuple[str, str]:
             label = f"{label} · {short}"
     except Exception:
         label = model
-    # Default model → muted, pro/agent model → teal (organic feel)
     color = COLORS["muted"] if model in ("agnes-1.5-flash",) else "#26A69A"
     return label, color
 
 
-# ── Core: session → badge list ────────────────────────────
-
-
 def session_badges(session: ChatSession | None) -> list[Badge]:
-    """Generate ordered badge list from session state.
-
-    Fixed order: mode(code/agent) → think → skill → model/provider.
-    None or menu (no session) → empty list.
-    """
     if session is None:
         return []
-
     badges: list[Badge] = []
-
-    # Mode (mutually exclusive display: code and agent are independent toggles)
     if getattr(session, "code_mode", False):
-        badges.append(Badge(BADGE_ICONS["code"], "Code", COLORS["primary"]))
+        badges.append(Badge(BADGE_ICONS["code"], "Code", COLORS["badge_code"]))
     if getattr(session, "agent_mode", False):
-        badges.append(Badge(BADGE_ICONS["agent"], "Agent", COLORS["accent"]))
-
-    # Deep thinking
+        badges.append(Badge(BADGE_ICONS["agent"], "Agent", COLORS["badge_agent"]))
     if getattr(session, "enable_thinking", False):
-        badges.append(Badge(BADGE_ICONS["think"], "Think", COLORS["warning"]))
-
-    # Loaded skill (prefer skill's own icon)
+        badges.append(Badge(BADGE_ICONS["think"], "Think", COLORS["badge_think"]))
     skill = getattr(session, "active_skill", "")
     if skill:
         icon = BADGE_ICONS.get("skill", "🎬")
@@ -121,23 +85,13 @@ def session_badges(session: ChatSession | None) -> list[Badge]:
                     icon = s.icon
         except Exception:
             pass
-        badges.append(Badge(icon, skill, COLORS["success"]))
-
-    # Model / provider (always shown)
+        badges.append(Badge(icon, skill, COLORS["badge_skill"]))
     model_text, model_color = _model_label(session)
     badges.append(Badge(BADGE_ICONS["model"], model_text, model_color))
-
     return badges
 
 
-# ── Render entry points ───────────────────────────────────
-
-
 def render_badge_line(session: ChatSession | None, *, dim: bool = True) -> str:
-    """Return full badge line as Rich markup string (for console.print).
-
-    Segments separated by badge_separator, overall optionally dimmed.
-    """
     badges = session_badges(session)
     if not badges:
         return ""
@@ -146,12 +100,6 @@ def render_badge_line(session: ChatSession | None, *, dim: bool = True) -> str:
 
 
 def render_badge_plain(session: ChatSession | None) -> str:
-    """Return plain-text badge line (for prompt_toolkit input prompt).
-
-    prompt_toolkit doesn't parse Rich markup, giving it Rich tags would
-    show '[#26A69A]🌊...' as raw text. Here we output clean
-    '🧬 Agent  ∘  ✨ Think  ∘  🌊 CRUX 2.0 Flash' plain text.
-    """
     badges = session_badges(session)
     if not badges:
         return ""
@@ -159,35 +107,54 @@ def render_badge_plain(session: ChatSession | None) -> str:
     return sep.join(f"{b.icon} {b.text}" for b in badges)
 
 
-def print_reply_header(session: ChatSession | None) -> None:
-    """Print dim badge line above each AI reply.
+def render_box_badges(session: ChatSession | None) -> str:
+    """盒式徽章行 — 彩色边框包裹，更醒目."""
+    badges = session_badges(session)
+    if not badges:
+        return ""
+    return "  ".join(b.render_box() for b in badges)
 
-    Called before StreamingRenderer.start() — no transient Live preview,
-    plain console.print directly committed, outside rendering contract.
-    """
+
+def render_status_bar(session: ChatSession | None) -> str:
+    """状态条: [模式徽章] ◆ 模型 · 供应商 · 工具数."""
+    badges = session_badges(session)
+    if not badges:
+        return ""
+    parts = []
+    for b in badges:
+        parts.append(f"[{b.color}]{b.icon}[/] [{b.color}]{b.text}[/]")
+    return f"  [{COLORS['muted']}]┌─[/] " + f" [{COLORS['muted']}]◆[/] ".join(parts) + f" [{COLORS['muted']}]─┐[/]"
+
+
+def print_reply_header(session: ChatSession | None) -> None:
     line = render_badge_line(session, dim=True)
     if line:
-        console.print(line)
+        console.print(f"  {line}")
 
 
 def print_mode_banner(session: ChatSession | None) -> None:
-    """Print prominent badge banner on mode switch (non-dim).
-
-    Lets user see new state immediately after toggle / load_skill / switch_model.
-    """
     badges = session_badges(session)
     if not badges:
         return
     sep = f" [{COLORS['muted']}]{ICONS['info']}[/] "
     line = sep.join(b.render(dim=False) for b in badges)
-    console.print(f"  {line}")
+    console.print(f"\n  [{COLORS['primary']}]{ICONS['primary']}[/] {line}\n")
 
 
 def print_route_reason(reason: str) -> None:
-    """Display routing decision reason (dim, unobtrusive).
-
-    Called after print_reply_header, so user knows why router switched model.
-    Effect: '  〜 multi-file refactor → switch to DeepSeek (1M context deep reasoning)'
-    """
     if reason:
         console.print(f"  [{COLORS['muted']}]{ICONS['route']} {reason}[/]")
+
+
+def print_welcome_banner(session: ChatSession | None = None):
+    """启动欢迎横幅 — 模式切换后调用."""
+    from rich.panel import Panel
+
+    from ui.terminal_logo import render_mini_logo
+
+    mini = render_mini_logo()
+    badge_line = render_box_badges(session) if session else ""
+    body = f"  {mini}  [dim]五兽归真 · 十四环贯通[/]"
+    if badge_line:
+        body += f"\n\n  {badge_line}"
+    console.print(Panel(body, border_style=COLORS["primary"], padding=(1, 2)))

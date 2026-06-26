@@ -302,3 +302,14 @@ def get_orchestra() -> Orchestra:
             if _orchestra is None:
                 _orchestra = Orchestra()
     return _orchestra
+
+
+def reset_orchestra() -> None:
+    """Tear down the orchestra singleton (test isolation / hot reload).
+
+    Orchestra is pure in-memory (capability/rule/profile dicts, no threads or
+    OS resources), so nulling the reference is sufficient.
+    """
+    global _orchestra
+    with _orchestra_lock:
+        _orchestra = None

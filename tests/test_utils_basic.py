@@ -5,7 +5,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-
 # ── utils.templates ──────────────────────────────────────────────────────
 
 
@@ -14,12 +13,14 @@ class TestTemplates:
 
     def test_list_templates_returns_list(self):
         from utils.templates import list_templates
+
         templates = list_templates()
         assert isinstance(templates, list)
         assert len(templates) > 0
 
     def test_get_template_exists(self):
-        from utils.templates import list_templates, get_template
+        from utils.templates import get_template, list_templates
+
         names = list_templates()
         # Pick first template that exists
         tpl = get_template(names[0])
@@ -27,10 +28,12 @@ class TestTemplates:
 
     def test_get_template_nonexistent(self):
         from utils.templates import get_template
+
         assert get_template("nonexistent_xyz") is None
 
     def test_apply_template_enhances_prompt(self):
-        from utils.templates import list_templates, apply_template
+        from utils.templates import apply_template, list_templates
+
         names = list_templates()
         enhanced, negative = apply_template(names[0], "a cat")
         assert isinstance(enhanced, str)
@@ -39,12 +42,14 @@ class TestTemplates:
 
     def test_apply_template_nonexistent_returns_original(self):
         from utils.templates import apply_template
+
         enhanced, negative = apply_template("nonexistent_xyz", "my prompt")
         assert enhanced == "my prompt"
         assert negative == ""
 
     def test_get_template_info_string(self):
-        from utils.templates import list_templates, get_template_info
+        from utils.templates import get_template_info, list_templates
+
         names = list_templates()
         info = get_template_info(names[0])
         assert isinstance(info, str)
@@ -52,6 +57,7 @@ class TestTemplates:
 
     def test_get_template_info_nonexistent(self):
         from utils.templates import get_template_info
+
         info = get_template_info("nonexistent_xyz")
         assert "未找到" in info
 
@@ -64,6 +70,7 @@ class TestVideoProgressTracker:
 
     def test_create_tracker(self):
         from utils.progress import VideoProgressTracker
+
         tracker = VideoProgressTracker()
         assert tracker.last_known_progress == 0
         assert tracker.current_status == "queued"
@@ -71,6 +78,7 @@ class TestVideoProgressTracker:
 
     def test_update_progress(self):
         from utils.progress import VideoProgressTracker
+
         tracker = VideoProgressTracker()
         tracker.update("processing", 50, {})
         assert tracker.last_known_progress == 50
@@ -81,6 +89,7 @@ class TestVideoProgressTracker:
     def test_anti_regression(self):
         """Progress should never go backwards."""
         from utils.progress import VideoProgressTracker
+
         tracker = VideoProgressTracker()
         tracker.update("processing", 80, {})
         tracker.update("queued", 10, {})  # API regressed
@@ -89,12 +98,14 @@ class TestVideoProgressTracker:
 
     def test_progress_percent_capped_at_100(self):
         from utils.progress import VideoProgressTracker
+
         tracker = VideoProgressTracker()
         tracker.update("done", 150, {})
         assert tracker.progress_percent == 100
 
     def test_history_records_raw_progress(self):
         from utils.progress import VideoProgressTracker
+
         tracker = VideoProgressTracker()
         tracker.update("processing", 80, {})
         tracker.update("queued", 10, {})
@@ -103,6 +114,7 @@ class TestVideoProgressTracker:
 
     def test_non_numeric_progress_treated_as_zero(self):
         from utils.progress import VideoProgressTracker
+
         tracker = VideoProgressTracker()
         tracker.update("weird", "not-a-number", {})  # type: ignore[arg-type]  # tests non-numeric resilience
         assert tracker.last_known_progress == 0
@@ -113,6 +125,7 @@ class TestCreateProgressCallback:
 
     def test_callback_updates_progress(self):
         from utils.progress import create_progress_callback
+
         progress = MagicMock()
         task_id = 1
         cb = create_progress_callback(progress, task_id)
@@ -125,6 +138,7 @@ class TestCreateProgressCallback:
     def test_callback_anti_regression_on_zero(self):
         """When API returns progress=0 (simplified response), keep last known."""
         from utils.progress import create_progress_callback
+
         progress = MagicMock()
         cb = create_progress_callback(progress, 0)
         cb("processing", 80, {})
@@ -142,32 +156,38 @@ class TestImageInput:
 
     def test_url_passthrough(self):
         from utils.image_input import load_image_as_url_or_data
+
         url = "https://example.com/image.png"
         assert load_image_as_url_or_data(url) == url
 
     def test_http_url_passthrough(self):
         from utils.image_input import load_image_as_url_or_data
+
         url = "http://example.com/image.jpg"
         assert load_image_as_url_or_data(url) == url
 
     def test_data_uri_passthrough(self):
         from utils.image_input import load_image_as_url_or_data
+
         uri = "data:image/png;base64,iVBORw0KGgo="
         assert load_image_as_url_or_data(uri) == uri
 
     def test_invalid_input_raises(self):
         from utils.image_input import load_image_as_url_or_data
+
         with pytest.raises(ValueError):
             load_image_as_url_or_data("not-a-url-or-file-or-base64!!!")
 
     def test_strips_quotes(self):
         from utils.image_input import load_image_as_url_or_data
+
         url = '"https://example.com/img.png"'
         result = load_image_as_url_or_data(url)
         assert result == "https://example.com/img.png"
 
     def test_file_to_data_uri(self, tmp_path):
         from utils.image_input import file_to_data_uri
+
         img_file = tmp_path / "test.png"
         img_file.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
         uri = file_to_data_uri(img_file)
@@ -179,6 +199,7 @@ class TestImageInput:
 
     def test_file_to_data_uri_jpeg(self, tmp_path):
         from utils.image_input import file_to_data_uri
+
         img_file = tmp_path / "test.jpg"
         img_file.write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 50)
         uri = file_to_data_uri(img_file)

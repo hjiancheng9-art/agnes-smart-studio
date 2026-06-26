@@ -261,9 +261,11 @@ class Showrunner:
             src = spec.get("source", SourceKind.AGNES)
             fb = spec.get("fallback")
             desc = spec.get("desc", "")
+            # 步骤级 max_retries 优先于流水线默认值
+            step_retries = spec.get("max_retries", max_retries)
 
             self._notify(name, "running")
-            res = await self._exec(name, kind, src, desc, max_retries, fb)
+            res = await self._exec(name, kind, src, desc, step_retries, fb)
             rec.steps.append(res)
             self._notify(name, "done" if res.success else "failed")
 

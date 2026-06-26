@@ -379,6 +379,6 @@ def imagegen(prompt: str, size: str = "1024x1024", style: str = "") -> dict:
         if style:
             enhanced = f"{prompt}, {style} style"
         result = engine.generate(prompt=enhanced, size=size)
-        return {"status": "ok", "local_path": result.get("local_path", ""), "prompt": enhanced}
+        return json.dumps({"status": "ok", "local_path": result.get("local_path", ""), "prompt": enhanced}, ensure_ascii=False)
     except (OSError, ValueError, RuntimeError) as e:
-        return {"status": "error", "message": str(e)}
+        return json.dumps({"status": "error", "message": str(e)}, ensure_ascii=False)

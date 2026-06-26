@@ -1,10 +1,9 @@
-"""Organic theme engine — single source of truth for CRUX Studio terminal aesthetics.
+"""Retro 8-bit theme engine — single source of truth for CRUX Studio terminal aesthetics.
+
+v2 升级: 扩展色板(五兽色+功能色+) · Badge样式槽 · 输入框样式 · 分隔线样式 · 面板样式
 
 All colors, icons, layout parameters, and the Rich Theme are defined here.
-Every UI module must import from this file (never define colors/icons locally).
-
-Style: Organic — curved borders, natural colors, flowing symbols, soft transitions.
-The dual-DNA (primary + accent) is preserved but softened towards natural hues.
+Every UI module must import from this file (never define colors/logos locally).
 """
 
 from rich.console import Console
@@ -12,106 +11,190 @@ from rich.theme import Theme
 
 __all__ = [
     "COLORS",
-    "ORGANIC_THEME",
+    "RETRO_THEME",
     "ICONS",
+    "BADGE_ICONS",
+    "BADGE_STYLES",
     "LAYOUT",
+    "INPUT_STYLE",
+    "DIVIDER_STYLE",
+    "PANEL_STYLE",
     "create_console",
     "console",
 ]
 
-# ── Color palette (Organic) ──────────────────────────────────────
-# Dual-DNA preserved: primary (river blue) + accent (lavender purple)
-# All values shifted from hard/industrial to soft/natural
-
+# ── Color palette v2 (Retro 8-bit + 五兽色) ───────────────────
 COLORS = {
-    "primary": "#5BA3CF",  # River blue — calm flowing
-    "accent": "#C084FC",  # Lavender — soft creative
-    "success": "#7BC47F",  # Leaf green — natural growth
-    "warning": "#E8B86D",  # Warm amber — steady caution
-    "error": "#E86D6D",  # Coral red — warm alert
-    "muted": "#8B9DAF",  # Fog blue-gray — gentle dim
-    "surface": "#1C2333",  # Deep sea — Panel subtle background
-    "highlight": "#F0C674",  # Golden wheat — focus accent
-    "transition": "#A8D8EA",  # Ice blue — secondary/transition
+    "primary": "#00E5FF",
+    "accent": "#FFD700",
+    "success": "#00FF88",
+    "warning": "#FFD700",
+    "error": "#FF4444",
+    "muted": "#556677",
+    "surface": "#0F0F2D",
+    "highlight": "#C084FC",
+    "transition": "#66BBFF",
+    # v2 新增
+    "baihu": "#FFD700",  # 白虎·金
+    "qinglong": "#00E5FF",  # 青龙·青
+    "zhuque": "#C084FC",  # 朱雀·紫
+    "xuanwu": "#5566AA",  # 玄武·蓝
+    "qilin": "#00FF88",  # 麒麟·绿
+    "badge_code": "#00E5FF",
+    "badge_agent": "#FFD700",
+    "badge_think": "#C084FC",
+    "badge_skill": "#00FF88",
+    "badge_model": "#26A69A",
+    "input_prompt": "#00E5FF",
+    "input_border": "#334455",
+    "input_text": "#CCDDEE",
+    "divider_primary": "#1A2A44",
+    "card_border": "#1A2A44",
+    "card_hover": "#00E5FF",
+    "status_ok": "#00FF88",
+    "status_warn": "#FFD700",
+    "status_err": "#FF4444",
 }
 
-# ── Rich Theme ────────────────────────────────────────────────────
-
-ORGANIC_THEME = Theme(
+# ── Rich Theme v2 ────────────────────────────────────────────
+RETRO_THEME = Theme(
     {
-        "primary": "bold #5BA3CF",
-        "accent": "bold #C084FC",
-        "success": "#7BC47F",
-        "warning": "#E8B86D",
-        "error": "bold #E86D6D",
-        "muted": "#8B9DAF",
-        "surface": "on #1C2333",
-        "highlight": "bold #F0C674",
-        "transition": "#A8D8EA",
-        "panel.title": "bold #C084FC",
-        "panel.border": "#5BA3CF",
-        "table.header": "bold #5BA3CF",
-        "table.border": "#8B9DAF",
-        "bar.fill": "#5BA3CF",
-        "bar.background": "#8B9DAF",
+        "primary": "bold #00E5FF",
+        "accent": "bold #FFD700",
+        "success": "#00FF88",
+        "warning": "#FFD700",
+        "error": "bold #FF4444",
+        "muted": "#556677",
+        "surface": "on #0F0F2D",
+        "highlight": "bold #C084FC",
+        "transition": "#66BBFF",
+        "panel.title": "bold #FFD700",
+        "panel.border": "#00E5FF",
+        "table.header": "bold #00E5FF",
+        "table.border": "#556677",
+        "bar.fill": "#00E5FF",
+        "bar.background": "#556677",
+        "baihu": "#FFD700",
+        "qinglong": "#00E5FF",
+        "zhuque": "#C084FC",
+        "xuanwu": "#5566AA",
+        "qilin": "#00FF88",
+        "badge.code": "bold #00E5FF",
+        "badge.agent": "bold #FFD700",
+        "badge.think": "bold #C084FC",
+        "badge.skill": "#00FF88",
+        "badge.model": "#26A69A",
+        "input.prompt": "#00E5FF",
+        "input.border": "#1A2A44",
+        "divider": "#1A2A44",
     }
 )
 
-# ── Icon system (Geometric → Organic) ────────────────────────────
-# Unicode symbols chosen for curved/flowing character
-
+# ── Icons ─────────────────────────────────────────────────────
 ICONS = {
-    "primary": "❧",  # Rotated floral heart — replaces ◈ (diamond)
-    "info": "∘",  # Hollow dot — replaces ⬡ (hexagon)
-    "success": "✿",  # Flower — replaces ◆ (filled diamond)
-    "warning": "⠶",  # Braille petal — replaces ◈
-    "error": "⊗",  # Circled cross — replaces ✖ (hard cross)
-    "video": "↝",  # Flowing arrow — replaces ▷ (hard arrow)
-    "route": "〜",  # Wave — replaces ↳ (hard arrow)
-    "on": "●",  # Filled circle (already organic)
-    "off": "○",  # Hollow circle (already organic)
-    "enabled": "✓",  # Check mark (kept)
-    "disabled": "✗",  # Cross mark (kept)
-    "star": "★",  # Star (kept)
-    "empty": "◇",  # Curved diamond (kept)
-    "pipeline": "∞",  # Infinity — replaces ⟐
-    "history": "≋",  # Wave lines — replaces ▤
-    "template": "❋",  # Six-petal flower — replaces ▦
-    "separator": " · ",  # Separator (kept, minimal)
+    "primary": "◆",
+    "info": "▸",
+    "success": "★",
+    "warning": "▼",
+    "error": "✕",
+    "video": "▶",
+    "route": "►",
+    "on": "■",
+    "off": "□",
+    "enabled": "✓",
+    "disabled": "✗",
+    "star": "★",
+    "empty": "○",
+    "pipeline": "⇌",
+    "history": "≡",
+    "template": "◈",
+    "separator": " · ",
+    # v2 新符号
+    "baihu": "◇",
+    "qinglong": "◆",
+    "zhuque": "❖",
+    "xuanwu": "◎",
+    "qilin": "◉",
+    "crown": "♛",
+    "shield": "🛡",
+    "bolt": "⚡",
+    "spark": "✦",
+    "ring": "◎",
+    "input": "▸",
+    "divider_dot": "◆",
 }
-
-# ── Badge emoji (Organic) ────────────────────────────────────────
 
 BADGE_ICONS = {
-    "code": "🌿",  # Herb leaf — natural growth
-    "agent": "🧬",  # DNA helix — intelligent organic
-    "think": "✨",  # Sparkle — inspiration
-    "model": "🌊",  # Wave — flowing
+    "code": "⚡",
+    "agent": "🧬",
+    "think": "✨",
+    "model": "🧩",
+    "skill": "🎬",
 }
 
-# ── Layout parameters ────────────────────────────────────────────
+# ── Badge 样式槽 v2 ─────────────────────────────────────────
+BADGE_STYLES = {
+    "code": {"icon": "⚡", "color": "badge.code", "bg": "#0A1A2E", "label": "CODE"},
+    "agent": {"icon": "🧬", "color": "badge.agent", "bg": "#1A1A0A", "label": "AGENT"},
+    "think": {"icon": "✨", "color": "badge.think", "bg": "#1A0A2A", "label": "THINK"},
+    "skill": {"icon": "🎬", "color": "badge.skill", "bg": "#0A1A0A", "label": "SKILL"},
+    "model": {"icon": "🧩", "color": "badge.model", "bg": "#0A1A1A", "label": "MODEL"},
+    "provider": {"icon": "◉", "color": "muted", "bg": "#111122", "label": "PROV"},
+}
 
+# ── Layout ────────────────────────────────────────────────────
 LAYOUT = {
-    "panel_padding": (1, 2),  # (vertical, horizontal)
-    "panel_border_style": "round",  # Curved border
-    "table_show_lines": False,  # No internal row lines (more breathable)
-    "table_box": "ROUNDED",  # Curved table frame
-    "indent": "  ",  # 2-space indent
-    "separator_len": 42,  # Separator line length
-    "separator_char": "─",  # Separator character
-    "badge_separator": "  ∘  ",  # Badge inter-item separator
-    "bar_style": "#5BA3CF",  # Progress bar fill color
-    "bar_complete_style": "#7BC47F",  # Progress bar completion color
+    "panel_padding": (1, 2),
+    "panel_border_style": "round",
+    "table_show_lines": False,
+    "table_box": "ROUNDED",
+    "indent": "  ",
+    "separator_len": 42,
+    "separator_char": "─",
+    "badge_separator": "  ◆  ",
+    "bar_style": "#00E5FF",
+    "bar_complete_style": "#00FF88",
+    "input_indent": "  ",
+    "welcome_width": 64,
+    "card_min_width": 22,
 }
 
-# ── Console factory ──────────────────────────────────────────────
+# ── 输入框样式 ───────────────────────────────────────────────
+INPUT_STYLE = {
+    "prompt_symbol": "▸",
+    "prompt_color": "primary",
+    "border_char": "─",
+    "border_color": "muted",
+    "hint_color": "muted",
+    "width": 60,
+}
+
+# ── 分隔线样式 ───────────────────────────────────────────────
+DIVIDER_STYLE = {
+    "char": "─",
+    "dot": "◆",
+    "length": 50,
+    "color": "muted",
+    "heavy_char": "━",
+    "double_char": "═",
+}
+
+# ── 面板预设 ──────────────────────────────────────────────────
+PANEL_STYLE = {
+    "success": {"border": "success", "title_color": "success"},
+    "error": {"border": "error", "title_color": "error"},
+    "info": {"border": "primary", "title_color": "primary"},
+    "warn": {"border": "warning", "title_color": "warning"},
+    "baihu": {"border": "#FFD700", "title_color": "#FFD700"},
+    "qinglong": {"border": "#00E5FF", "title_color": "#00E5FF"},
+    "zhuque": {"border": "#C084FC", "title_color": "#C084FC"},
+    "xuanwu": {"border": "#5566AA", "title_color": "#5566AA"},
+    "qilin": {"border": "#00FF88", "title_color": "#00FF88"},
+}
 
 
 def create_console() -> Console:
-    """Create an Organic-themed Console instance."""
-    return Console(theme=ORGANIC_THEME, force_terminal=True)
+    return Console(theme=RETRO_THEME, force_terminal=True)
 
-
-# ── Global console (single instance) ────────────────────────────
 
 console = create_console()

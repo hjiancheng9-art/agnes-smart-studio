@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """CRUX Studio main entry point"""
+
 import sys
 from pathlib import Path
 
-from ui.theme import COLORS, ICONS, console
+from ui.theme import COLORS, console
 
 # ── UTF-8 encoding setup: must be first import ──
 
@@ -12,8 +13,11 @@ from ui.theme import COLORS, ICONS, console
 # asyncio.run() 在已有运行事件循环时抛出 RuntimeError 的问题
 try:
     import nest_asyncio
+
     nest_asyncio.apply()
-except ImportError:
+except Exception:
+    # nest_asyncio 缺失或损坏（如 .so 与 Python 版本不兼容）时降级，
+    # 后续 async 调用仍能通过 asyncio.run() / asyncio.new_event_loop() 工作
     pass
 
 ROOT = Path(__file__).parent
@@ -21,8 +25,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.config import SETTINGS
+
 # Clean up stale error file from previous crashed sessions
-_stale_err = ROOT / 'output' / 'last_error.txt'
+_stale_err = ROOT / "output" / "last_error.txt"
 if _stale_err.exists():
     _stale_err.unlink()
 
@@ -33,13 +38,13 @@ def main():
     # 同时完全保留 -q/-v/-c/-p/--video-id 等短选项（向后兼容所有 bat/sh 脚本）。
     # 子命令会被翻译成等价的 argv flags，然后走下面的 argparse 流程。
     _SUBCOMMANDS = {
-        "gen":     lambda rest: ["-q", *rest],          # crux gen "猫" → -q "猫"
-        "image":   lambda rest: ["-q", *rest],          # 别名
-        "video":   lambda rest: ["-q", *rest, "-v"],    # crux video "海边" → -q "海边" -v
-        "chat":    lambda rest: ["-c", *rest],
-        "pipeline":lambda rest: ["-q" if rest else "", "-p", *rest] if rest else ["-p", *rest],
-        "query":   lambda rest: ["--video-id", *rest],  # crux query <id> → --video-id <id>
-        "check":   lambda rest: ["--check", *rest],
+        "gen": lambda rest: ["-q", *rest],  # crux gen "猫" → -q "猫"
+        "image": lambda rest: ["-q", *rest],  # 别名
+        "video": lambda rest: ["-q", *rest, "-v"],  # crux video "海边" → -q "海边" -v
+        "chat": lambda rest: ["-c", *rest],
+        "pipeline": lambda rest: ["-q" if rest else "", "-p", *rest] if rest else ["-p", *rest],
+        "query": lambda rest: ["--video-id", *rest],  # crux query <id> → --video-id <id>
+        "check": lambda rest: ["--check", *rest],
     }
 
     if len(sys.argv) >= 2 and sys.argv[1] in _SUBCOMMANDS:
@@ -52,6 +57,7 @@ def main():
     elif len(sys.argv) >= 2 and sys.argv[1] in ("version", "--version", "-V"):
         # crux version — 不需要 API Key，直接打印并退出
         from core.version import __version__
+
         print(f"CRUX Studio v{__version__}")
         sys.exit(0)
     elif len(sys.argv) >= 2 and sys.argv[1] in ("init", "login"):
@@ -65,6 +71,7 @@ def main():
         # （server 自己从 config / auth.json 读取，与 init/version 同为早退分支）。
         # 程序化调用，不进 REPL，不出现在 launcher 菜单里。
         from core.mcp_server import run_mcp_server
+
         run_mcp_server(sys.argv[2:])
         sys.exit(0)
 
@@ -76,6 +83,7 @@ def main():
         sys.exit(1)
 
     import argparse
+
     p = argparse.ArgumentParser(description="CRUX Studio — code/create/deploy")
     p.add_argument("--check", action="store_true", help="启动前运行健康检查并退出")
     p.add_argument("-c", "--chat", action="store_true", help="进入 CRUX 编程助手（支持 /制片 切换视频模式）")
@@ -92,20 +100,27 @@ def main():
     p.add_argument("--steps", type=int, default=40, help="视频推理步数(20-50，默认40，越高质量越好)")
     p.add_argument("--num-frames", type=int, default=None, help="视频帧数(8n+1, 如81/121/161/241/441)")
     p.add_argument("--frame-rate", type=int, default=None, help="视频帧率(默认24)")
-    p.add_argument("--creative", "--leap", action="store_true", help="启用创意飞跃模式（运用超越常人的思维方法生成突破性创意）")
-    p.add_argument("--methods", type=str, default=None, help="指定创意方法（逗号分隔），如：cross_domain_graft,anti_pattern")
+    p.add_argument(
+        "--creative", "--leap", action="store_true", help="启用创意飞跃模式（运用超越常人的思维方法生成突破性创意）"
+    )
+    p.add_argument(
+        "--methods", type=str, default=None, help="指定创意方法（逗号分隔），如：cross_domain_graft,anti_pattern"
+    )
     args = p.parse_args()
 
-    # ── 显示启动 Logo ──
+    # ── 显示启动 Logo v2 ──
     try:
-        from ui.terminal_logo import show
-        show()
+        from core.version import __version__
+        from ui.terminal_logo import render_welcome
+
+        render_welcome(v=f"v{__version__}")
     except (ImportError, AttributeError, OSError):
         pass
 
     # ── 健康检查 ──
     if args.check:
-        from core.startup_checks import run_all, print_report
+        from core.startup_checks import print_report, run_all
+
         results = run_all()
         print_report(results, show_ok=True)
         failures = [msg for _, ok, msg in results if not ok]
@@ -119,37 +134,41 @@ def main():
     if args.video_id:
         # 清洗 litellm 包装的 video_id
         from engines.video import _clean_video_id
+
         args.video_id = _clean_video_id(args.video_id)
         _check_task(args)
     elif args.chat:
         # ── 快速启动检查（仅本地，不阻塞网络）──
         try:
-            from core.startup_checks import run_all, print_report, critical_failures
             import core.startup_checks as _sc
+            from core.startup_checks import critical_failures, print_report, run_all
+
             # 跳过慢速网络检查（chat 模式不需要等 API 响应）
             _sc._check_api_connectivity = lambda: None
             results = run_all()
             crit = critical_failures(results)
             if crit:
-                console.print("\n  [bold {0}]=== Startup check found issues ===[/]".format(COLORS["error"]))
+                console.print("\n  [bold {}]=== Startup check found issues ===[/]".format(COLORS["error"]))
                 print_report(results, show_ok=False)
-                console.print("  [{0}]Run: crux check[/]\n".format(COLORS["warning"]))
+                console.print("  [{}]Run: crux check[/]\n".format(COLORS["warning"]))
             else:
                 # 只在有 warning 时才输出
                 warnings = [(c, m) for c, ok, m in results if not ok]
                 if warnings:
                     for _cat, msg in warnings:
-                        console.print("  [{0}]![/] {1}".format(COLORS["warning"], msg))
+                        console.print("  [{}]![/] {}".format(COLORS["warning"], msg))
         except (ImportError, AttributeError, OSError):
             pass
 
         from ui.cli import CruxCLI
+
         try:
             with CruxCLI() as cli:
                 try:
                     cli._chat()
                 except Exception:
                     import traceback
+
                     err = traceback.format_exc()
                     print(err, file=sys.stderr)
                     err_path = ROOT / "output" / "last_error.txt"
@@ -157,6 +176,7 @@ def main():
                     err_path.write_text(err, encoding="utf-8")
         except Exception:
             import traceback
+
             err = traceback.format_exc()
             print(err, file=sys.stderr)
             err_path = ROOT / "output" / "last_error.txt"
@@ -167,11 +187,13 @@ def main():
     elif args.menu:
         # 旧版功能菜单（--menu 触发）
         from ui.cli import CruxCLI
+
         try:
             with CruxCLI() as cli:
                 cli.run()
         except Exception:
             import traceback
+
             err = traceback.format_exc()
             print(err, file=sys.stderr)
             err_path = ROOT / "output" / "last_error.txt"
@@ -180,12 +202,14 @@ def main():
     else:
         # 默认入口：直接进入 Chat 模式
         from ui.cli import CruxCLI
+
         try:
             with CruxCLI() as cli:
                 try:
                     cli._chat()
                 except Exception:
                     import traceback
+
                     err = traceback.format_exc()
                     print(err, file=sys.stderr)
                     err_path = ROOT / "output" / "last_error.txt"
@@ -193,16 +217,18 @@ def main():
                     err_path.write_text(err, encoding="utf-8")
         except Exception:
             import traceback
+
             err = traceback.format_exc()
             print(err, file=sys.stderr)
             err_path = ROOT / "output" / "last_error.txt"
             err_path.parent.mkdir(parents=True, exist_ok=True)
             err_path.write_text(err, encoding="utf-8")
 
+
 def _check_task(args):
     """查询视频任务状态"""
     from core.client import CruxClient
-    from ui.display import show_info, show_success, show_warning, show_video_result
+    from ui.display import show_info, show_success, show_video_result, show_warning
 
     with CruxClient() as client:
         video_id = args.video_id
@@ -219,8 +245,10 @@ def _check_task(args):
             video_url = data.get("video_url") or data.get("remixed_from_video_id", "")
             local_path = ""
             if video_url and video_url.startswith("http"):
-                from core.config import OUTPUT_DIR
                 from datetime import datetime
+
+                from core.config import OUTPUT_DIR
+
                 ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                 local_path = str(OUTPUT_DIR / "videos" / f"vid_{ts}.mp4")
                 try:
@@ -228,23 +256,24 @@ def _check_task(args):
                     show_success(f"已下载: {local_path}")
                 except RuntimeError as e:
                     show_warning(f"下载失败: {e}")
-            show_video_result({"url": video_url, "local_path": local_path,
-                               "video_id": video_id})
+            show_video_result({"url": video_url, "local_path": local_path, "video_id": video_id})
         elif status == "failed":
             from ui.display import show_error
+
             show_error(f"视频生成失败: {data.get('error', '未知错误')}")
         else:
             show_info(f"状态: {status} | 进度: {progress:.0f}%")
             if status in ("processing", "in_progress", "pending", "queued"):
                 show_info(f"使用 --video-id {video_id} 可再次查询，或加 --timeout 等待完成")
 
+
 def _quick(args):
-    from core.client import CruxClient, ContentPolicyError
     from core.brain import SmartBrain
+    from core.client import ContentPolicyError, CruxClient
     from engines.text_to_image import TextToImageEngine
     from engines.video import VideoEngine
     from pipeline.workflows import PipelineOrchestrator
-    from ui.display import show_image_result, show_video_result, show_pipeline_result, show_info, show_warning
+    from ui.display import show_image_result, show_info, show_pipeline_result, show_video_result, show_warning
     from utils import history
 
     with CruxClient() as client:
@@ -262,17 +291,22 @@ def _quick(args):
             show_info("一站式流水线...")
             try:
                 result = PipelineOrchestrator(client).text_to_image_to_video(
-                    args.quick, enhance=enhance, submit_only=args.submit_only,
-                    num_frames=nf, frame_rate=fps,
-                    num_inference_steps=args.steps, timeout=timeout)
+                    args.quick,
+                    enhance=enhance,
+                    submit_only=args.submit_only,
+                    num_frames=nf,
+                    frame_rate=fps,
+                    num_inference_steps=args.steps,
+                    timeout=timeout,
+                )
             except ContentPolicyError as e:
                 show_warning(str(e))
                 sys.exit(0)
             if args.submit_only:
-                vid_result = result.get('video', {})
-                display_id = vid_result.get('video_id', 'N/A')
+                vid_result = result.get("video", {})
+                display_id = vid_result.get("video_id", "N/A")
                 show_info(f"视频任务已提交! ID: {display_id}")
-                query_id = vid_result.get('video_id', '')
+                query_id = vid_result.get("video_id", "")
                 if query_id:
                     show_info(f"使用以下命令查询: crux query {query_id}")
                 else:
@@ -312,12 +346,16 @@ def _quick(args):
             if args.submit_only:
                 show_info("提交视频任务（仅提交，不等待）...")
                 data = VideoEngine(client).submit_only(
-                    prompt=vid_prompt, seed=args.seed,
-                    negative_prompt=neg or None, num_frames=nf, frame_rate=fps,
-                    num_inference_steps=args.steps)
-                display_id = data.get('video_id', 'N/A')
+                    prompt=vid_prompt,
+                    seed=args.seed,
+                    negative_prompt=neg or None,
+                    num_frames=nf,
+                    frame_rate=fps,
+                    num_inference_steps=args.steps,
+                )
+                display_id = data.get("video_id", "N/A")
                 show_info(f"任务已提交! ID: {display_id}")
-                query_id = data.get('video_id', '')
+                query_id = data.get("video_id", "")
                 if query_id:
                     show_info(f"使用以下命令查询: crux query {query_id}")
                 else:
@@ -330,14 +368,19 @@ def _quick(args):
                     print(f"\r  [{status}] {progress:.0f}%", end="", flush=True)
 
                 data = VideoEngine(client).text_to_video(
-                    prompt=vid_prompt, negative_prompt=neg or None, seed=args.seed,
-                    num_frames=nf, frame_rate=fps,
+                    prompt=vid_prompt,
+                    negative_prompt=neg or None,
+                    seed=args.seed,
+                    num_frames=nf,
+                    frame_rate=fps,
                     num_inference_steps=args.steps,
-                    on_progress=on_p, timeout=timeout)
+                    on_progress=on_p,
+                    timeout=timeout,
+                )
                 print()
                 if data.get("status") == "timeout":
                     show_warning(f"超时({timeout}s)，当前进度 {data.get('progress', 0):.0f}%")
-                    query_id = data.get('video_id', '')
+                    query_id = data.get("video_id", "")
                     if query_id:
                         show_info(f"使用以下命令继续等待: crux query {query_id} --watch")
                     else:
@@ -376,10 +419,11 @@ def _quick(args):
 
             show_info("生成图片...")
             data = TextToImageEngine(client).generate(
-                prompt=img_prompt, size=args.size, seed=args.seed,
-                negative_prompt=neg or None)
+                prompt=img_prompt, size=args.size, seed=args.seed, negative_prompt=neg or None
+            )
             show_image_result(data)
-            history.add_record("text_to_image", args.quick, data.get("model",""), data)
+            history.add_record("text_to_image", args.quick, data.get("model", ""), data)
+
 
 def _run_init():
     """crux init / crux login — 写全局 ~/.crux/auth.json。
@@ -409,7 +453,7 @@ def _run_init():
         print("  未输入 key，已取消。")
         return
 
-    base_url = input(f"  CRUX_BASE_URL (回车用默认 https://apihub.agnes-ai.com/v1): ").strip()
+    base_url = input("  CRUX_BASE_URL (回车用默认 https://apihub.agnes-ai.com/v1): ").strip()
     base_url = base_url or "https://apihub.agnes-ai.com/v1"
 
     try:
@@ -420,13 +464,14 @@ def _run_init():
 
     print()
     print(f"  ✓ 已保存到 {path}")
-    print(f"  ✓ 现在在任意目录敲 crux 都能用。")
+    print("  ✓ 现在在任意目录敲 crux 都能用。")
     print()
 
 
 def main_chat():
     """命令行入口：直接进入 CRUX 编程助手"""
     import sys
+
     sys.argv = [sys.argv[0], "-c"]
     main()
 
@@ -434,6 +479,7 @@ def main_chat():
 def main_query():
     """命令行入口：查询未完成视频"""
     from query import main as qmain
+
     qmain()
 
 

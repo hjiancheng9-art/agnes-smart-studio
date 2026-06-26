@@ -10,6 +10,8 @@
 
 全部 mock，零网络零文件 I/O 依赖。
 """
+# pyright: reportArgumentType=false
+
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -20,16 +22,24 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.router import (
-    TaskProfile, RouteDecision,
-    classify, route_command, resolve, apply, route,
-    _detect_provider, _PROFILE_MODEL, COMMAND_ROUTE_MAP,
+    _PROFILE_MODEL,
+    COMMAND_ROUTE_MAP,
+    RouteDecision,
+    TaskProfile,
+    _detect_provider,
+    apply,
+    classify,
+    resolve,
+    route,
+    route_command,
 )
-
 
 # ── 辅助：FakeSession（轻量 mock，避免依赖 ChatSession）────────
 
+
 class FakeSession:
     """最小化的 ChatSession 替身，只含 router 关心的属性。"""
+
     def __init__(self, model="agnes-1.5-flash", client_base_url="https://agnes.example.com/v1"):
         self.model = model
         self.client = MagicMock()
@@ -47,6 +57,7 @@ class FakeSession:
 # ════════════════════════════════════════════════════════════
 #  classify() — 自然语言分类器
 # ════════════════════════════════════════════════════════════
+
 
 class TestClassifyBasic:
     """classify 的基础输入处理。"""
@@ -66,47 +77,59 @@ class TestClassifyBasic:
 class TestClassifyKeywords:
     """关键词匹配（按优先级 DEEP > CREATIVE > QUICK_FIX > CODING）。"""
 
-    @pytest.mark.parametrize("text", [
-        "帮我重构整个认证系统",
-        "这个架构需要重新设计",
-        "做一次系统级全面分析",
-        "我们评估一下技术选型",
-        "这个方案的可行性怎么样",
-    ])
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "帮我重构整个认证系统",
+            "这个架构需要重新设计",
+            "做一次系统级全面分析",
+            "我们评估一下技术选型",
+            "这个方案的可行性怎么样",
+        ],
+    )
     def test_deep_keywords(self, text):
         assert classify(text, session=None) == TaskProfile.DEEP
 
-    @pytest.mark.parametrize("text", [
-        "生成一张图片",
-        "帮我画一个 logo",
-        "做一张海报",
-        "文生图",
-        "图生视频",
-        "用 showrun 制片",
-    ])
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "生成一张图片",
+            "帮我画一个 logo",
+            "做一张海报",
+            "文生图",
+            "图生视频",
+            "用 showrun 制片",
+        ],
+    )
     def test_creative_keywords(self, text):
         assert classify(text, session=None) == TaskProfile.CREATIVE
 
-    @pytest.mark.parametrize("text", [
-        "修复这个 bug",
-        "有个 bug 需要修复",
-        "帮我 fix 一下",
-        "打个 hotfix 补丁",
-        "改一下按钮颜色",
-        "改一下文案",
-        "这里有个 typo",
-    ])
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "修复这个 bug",
+            "有个 bug 需要修复",
+            "帮我 fix 一下",
+            "打个 hotfix 补丁",
+            "改一下按钮颜色",
+            "改一下文案",
+            "这里有个 typo",
+        ],
+    )
     def test_quick_fix_keywords(self, text):
         assert classify(text, session=None) == TaskProfile.QUICK_FIX
 
-    @pytest.mark.parametrize("text", [
-        "写一个函数计算阶乘",
-        "写一个类处理用户",
-        "实现这个功能",
-        "新增一个接口",
-        "加一个测试",
-        "帮我做开发",
-    ])
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "写一个函数计算阶乘",
+            "写一个类处理用户",
+            "实现这个功能",
+            "新增一个接口",
+            "加一个测试",
+            "帮我做开发",
+        ],
+    )
     def test_coding_keywords(self, text):
         assert classify(text, session=None) == TaskProfile.CODING
 
@@ -205,6 +228,7 @@ class TestClassifyDefault:
 #  route_command() — 命令级静态路由表
 # ════════════════════════════════════════════════════════════
 
+
 class TestRouteCommand:
     """命令路由表查找。"""
 
@@ -234,13 +258,37 @@ class TestRouteCommand:
         assert d.profile == TaskProfile.CREATIVE
         assert d.model_id is None
 
-    @pytest.mark.parametrize("cmd", [
-        "help", "model", "thinking", "code", "agent", "tools",
-        "clear", "exit", "quit", "q", "compress", "project",
-        "todo", "commit", "changelog", "audit", "rules",
-        "automate", "provider", "evolve", "know", "skill",
-        "img", "video", "vision", "deploy",
-    ])
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "help",
+            "model",
+            "thinking",
+            "code",
+            "agent",
+            "tools",
+            "clear",
+            "exit",
+            "quit",
+            "q",
+            "compress",
+            "project",
+            "todo",
+            "commit",
+            "changelog",
+            "audit",
+            "rules",
+            "automate",
+            "provider",
+            "evolve",
+            "know",
+            "skill",
+            "img",
+            "video",
+            "vision",
+            "deploy",
+        ],
+    )
     def test_skip_commands(self, cmd):
         d = route_command(cmd, "", session=None)
         assert d.profile == TaskProfile.SKIP
@@ -260,6 +308,7 @@ class TestRouteCommand:
 # ════════════════════════════════════════════════════════════
 #  resolve() — TaskProfile → RouteDecision
 # ════════════════════════════════════════════════════════════
+
 
 class TestResolve:
     """resolve 的决策合成。"""
@@ -309,6 +358,7 @@ class TestResolve:
 #  apply() — 执行决策（含一致性校验、回滚、防御）
 # ════════════════════════════════════════════════════════════
 
+
 def _patched_mgr(providers, create_client_return):
     """构造一个 mock ProviderManager。"""
     mgr = MagicMock()
@@ -344,13 +394,11 @@ class TestApplySameProviderSwitch:
 
     def test_switch_within_agnes(self):
         # agnes-1.5-flash → agnes-2.0-flash，同供应商，不切 client
-        session = FakeSession(model="agnes-1.5-flash",
-                              client_base_url="https://agnes.example.com/v1")
+        session = FakeSession(model="agnes-1.5-flash", client_base_url="https://agnes.example.com/v1")
         original_client = session.client
         d = RouteDecision(profile=TaskProfile.QUICK_FIX, model_id="agnes-2.0-flash")
 
-        with patch("core.provider.get_provider_manager",
-                   return_value=_patched_mgr({}, MagicMock())):
+        with patch("core.provider.get_provider_manager", return_value=_patched_mgr({}, MagicMock())):
             apply(d, session)
 
         assert session.model == "agnes-2.0-flash"
@@ -363,8 +411,7 @@ class TestApplyCrossProviderSwitch:
 
     def test_successful_cross_provider_switch(self):
         # agnes → deepseek，client base_url 匹配
-        session = FakeSession(model="agnes-2.0-flash",
-                              client_base_url="https://agnes.example.com/v1")
+        session = FakeSession(model="agnes-2.0-flash", client_base_url="https://agnes.example.com/v1")
         deepseek_client = MagicMock()
         deepseek_client.base_url = "https://deepseek.example.com/v1"
         providers = {
@@ -373,8 +420,7 @@ class TestApplyCrossProviderSwitch:
         }
         d = RouteDecision(profile=TaskProfile.DEEP, model_id="deepseek-v4-pro")
 
-        with patch("core.provider.get_provider_manager",
-                   return_value=_patched_mgr(providers, deepseek_client)):
+        with patch("core.provider.get_provider_manager", return_value=_patched_mgr(providers, deepseek_client)):
             apply(d, session)
 
         assert session.model == "deepseek-v4-pro"
@@ -383,8 +429,7 @@ class TestApplyCrossProviderSwitch:
 
     def test_fallback_rolls_back_model(self):
         # create_client 内部 fallback：返回的 client base_url 不是目标供应商 → 回滚
-        session = FakeSession(model="agnes-2.0-flash",
-                              client_base_url="https://agnes.example.com/v1")
+        session = FakeSession(model="agnes-2.0-flash", client_base_url="https://agnes.example.com/v1")
         fallback_client = MagicMock()
         # 期望 deepseek，但返回了 crux 的 base_url（fallback）
         fallback_client.base_url = "https://crux.example.com/v1"
@@ -394,8 +439,7 @@ class TestApplyCrossProviderSwitch:
         }
         d = RouteDecision(profile=TaskProfile.DEEP, model_id="deepseek-v4-pro")
 
-        with patch("core.provider.get_provider_manager",
-                   return_value=_patched_mgr(providers, fallback_client)):
+        with patch("core.provider.get_provider_manager", return_value=_patched_mgr(providers, fallback_client)):
             apply(d, session)
 
         # 回滚：model 保留旧值，client 未换
@@ -431,8 +475,7 @@ class TestApplyEdgeCases:
         session.messages = []
         d = RouteDecision(profile=TaskProfile.QUICK_FIX, model_id="agnes-1.5-flash")
 
-        with patch("core.provider.get_provider_manager",
-                   return_value=_patched_mgr({}, MagicMock())):
+        with patch("core.provider.get_provider_manager", return_value=_patched_mgr({}, MagicMock())):
             apply(d, session)
 
         assert session.model == "agnes-1.5-flash"
@@ -441,8 +484,7 @@ class TestApplyEdgeCases:
 
     def test_base_url_trailing_slash_tolerant(self):
         # 目标 base_url 末尾有斜杠也应视为匹配
-        session = FakeSession(model="agnes-2.0-flash",
-                              client_base_url="https://agnes.example.com/v1")
+        session = FakeSession(model="agnes-2.0-flash", client_base_url="https://agnes.example.com/v1")
         deepseek_client = MagicMock()
         deepseek_client.base_url = "https://deepseek.example.com/v1/"  # 末尾斜杠
         providers = {
@@ -451,8 +493,7 @@ class TestApplyEdgeCases:
         }
         d = RouteDecision(profile=TaskProfile.DEEP, model_id="deepseek-v4-pro")
 
-        with patch("core.provider.get_provider_manager",
-                   return_value=_patched_mgr(providers, deepseek_client)):
+        with patch("core.provider.get_provider_manager", return_value=_patched_mgr(providers, deepseek_client)):
             apply(d, session)
 
         assert session.model == "deepseek-v4-pro"
@@ -461,6 +502,7 @@ class TestApplyEdgeCases:
 # ════════════════════════════════════════════════════════════
 #  route() — 顶层统一入口
 # ════════════════════════════════════════════════════════════
+
 
 class TestRoute:
     """route() 自动分发命令 vs 自然语言。"""
@@ -500,6 +542,7 @@ class TestRoute:
 # ════════════════════════════════════════════════════════════
 #  _detect_provider() — 模型 → 供应商查找
 # ════════════════════════════════════════════════════════════
+
 
 class TestDetectProvider:
     """_detect_provider 的多级查找。"""

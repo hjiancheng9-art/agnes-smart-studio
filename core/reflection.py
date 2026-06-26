@@ -14,7 +14,10 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
+
+logger = logging.getLogger("crux.reflection")
 
 if TYPE_CHECKING:
     pass
@@ -115,8 +118,9 @@ class ReflectionEngine:
                 self._recent_calls.clear()
                 return f"\n[反思] {critique.strip()}"
             return None
-        except Exception:
-            # 静默降级：LLM 失败不阻塞主流程
+        except Exception as e:
+            # 降级：LLM 失败不阻塞主流程，但保留日志便于排查
+            logger.warning("reflection critique failed (%s: %s)", type(e).__name__, e)
             if _m:
                 _m.increment("reflection_skipped")
             return None

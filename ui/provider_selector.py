@@ -22,7 +22,6 @@ class ProviderSelector:
         self._on_client_swap = on_client_swap
 
     # ── 配置加载 ──────────────────────────────────
-
     @staticmethod
     def load_models_config() -> dict:
         """安全加载 models.json（项目根），文件缺失/空/损坏时返回默认配置"""
@@ -61,7 +60,6 @@ class ProviderSelector:
             with contextlib.suppress(OSError, TypeError):
                 Path(cfg_path).write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
             return cfg
-
         raw = ""
         try:
             raw = Path(cfg_path).read_text(encoding="utf-8")
@@ -83,22 +81,17 @@ class ProviderSelector:
             return cfg
 
     # ── 供应商选择 ──────────────────────────────────
-
     def select_provider(self):
         """交互式供应商选择（多 Key 时弹出菜单，单 Key 自动激活）
-
         1. 扫描所有 providers，收集有 API Key 的
         2. 1 个外部供应商 → 自动激活
         3. ≥2 个外部供应商 → 弹出菜单让用户选择
         4. 0 个外部供应商 → 使用 CRUX
-
         Returns: (provider_id, model_id)
         """
         cfg = self.load_models_config()
         cfg_path = Path(__file__).resolve().parent.parent / "models.json"
-
         providers = cfg.get("providers", {})
-
         # 收集所有有 Key 的供应商
         available = []
         for pid, p in providers.items():
@@ -107,28 +100,23 @@ class ProviderSelector:
             if api_key:
                 model = p.get("models", {}).get("pro", "unknown")
                 available.append((pid, p, model, api_key))
-
         if not available:
             # 没有任何 Key → CRUX
             p = providers.get("crux", providers.get(list(providers.keys())[0], {}))
             model = p.get("models", {}).get("light", "agnes-1.5-flash")
             show_info("无外部供应商 Key，使用默认 CRUX light")
             return ("crux", model)
-
         # 只有 CRUX → 直接用
         if len(available) == 1 and available[0][0] == "crux":
             pid, p, model, _ = available[0]
             return (pid, model)
-
         # 过滤出非 CRUX 的外部供应商
         external = [(pid, p, m, k) for pid, p, m, k in available if pid != "crux"]
-
         if len(external) == 1:
             # 只有一个外部供应商 → 自动激活
             pid, p, model, api_key = external[0]
             self._activate_provider(pid, p, model, api_key, cfg, cfg_path)
             return (pid, model)
-
         # ≥2 个外部供应商 → 弹出菜单
         console.print()
         table = Table(
@@ -138,25 +126,22 @@ class ProviderSelector:
         table.add_column("供应商", style="white", width=16)
         table.add_column("模型", style="dim")
         table.add_column("说明", style="dim")
-
         choices = []
         idx = 1
         for pid, p, model, _ in available:
+            if pid == "siliconflow":
+                continue  #
             label = f"{idx}"
             desc = ""
             if pid == "deepseek":
                 desc = "百万上下文 · 代码/推理"
-            elif pid == "siliconflow":
-                desc = "Kimi-K2.6 · 备选链路"
             elif pid == "crux":
                 desc = "原生模型 · 轻量快速"
             table.add_row(label, p["name"], model, desc)
             choices.append((str(idx), pid, p, model))
             idx += 1
-
         console.print(table)
         console.print()
-
         choice = Prompt.ask(
             "[cyan]选择供应商[/]",
             choices=[c[0] for c in choices] + ["q"],
@@ -166,7 +151,6 @@ class ProviderSelector:
             show_info("已取消，使用默认 CRUX light")
             p = providers.get("crux", {})
             return ("crux", p.get("models", {}).get("light", "agnes-1.5-flash"))
-
         # 找到选中的供应商
         for num, pid, p, model in choices:
             if num == choice:
@@ -177,11 +161,9 @@ class ProviderSelector:
                 api_key = p.get("api_key") or os.getenv(key_env)
                 self._activate_provider(pid, p, model, api_key, cfg, cfg_path)
                 return (pid, model)
-
         return ("crux", "agnes-1.5-flash")
 
     # ── 激活 ──────────────────────────────────────
-
     def _activate_provider(self, pid, p, model, api_key, cfg, cfg_path):
         """激活指定供应商：切换 client 并写入 models.json"""
         self._on_client_swap(api_key, p["base_url"])

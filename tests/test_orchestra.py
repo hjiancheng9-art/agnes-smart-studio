@@ -1,12 +1,12 @@
 """Tests for core.orchestra — multi-source capability coordination."""
 
 
-
 class TestEnums:
     """CapabilitySource and Priority enums have expected values."""
 
     def test_capability_sources(self):
         from core.orchestra import CapabilitySource
+
         assert CapabilitySource.CLAUDE.value == "claude"
         assert CapabilitySource.CODEBUDDY.value == "codebuddy"
         assert CapabilitySource.ZBODY.value == "zbody"
@@ -15,6 +15,7 @@ class TestEnums:
 
     def test_priority_ordering(self):
         from core.orchestra import Priority
+
         assert Priority.OVERRIDE.value > Priority.HIGH.value
         assert Priority.HIGH.value > Priority.NORMAL.value
         assert Priority.NORMAL.value > Priority.LOW.value
@@ -26,6 +27,7 @@ class TestCapability:
 
     def test_default_construction(self):
         from core.orchestra import Capability, CapabilitySource, Priority
+
         cap = Capability("test", CapabilitySource.AGNES)
         assert cap.name == "test"
         assert cap.source == CapabilitySource.AGNES
@@ -35,17 +37,18 @@ class TestCapability:
 
     def test_add_tag_and_matches(self):
         from core.orchestra import Capability, CapabilitySource
+
         cap = Capability("image_gen", CapabilitySource.AGNES, description="generate images")
         cap.add_tag("vision")
-        assert cap.matches("image") is True       # name match
-        assert cap.matches("generate") is True    # description match
-        assert cap.matches("vision") is True      # tag match
+        assert cap.matches("image") is True  # name match
+        assert cap.matches("generate") is True  # description match
+        assert cap.matches("vision") is True  # tag match
         assert cap.matches("zzz_nothing") is False
 
     def test_custom_conflicts_with(self):
         from core.orchestra import Capability, CapabilitySource, Priority
-        cap = Capability("a", CapabilitySource.AGNES, Priority.NORMAL,
-                         conflicts_with=["b"])
+
+        cap = Capability("a", CapabilitySource.AGNES, Priority.NORMAL, conflicts_with=["b"])
         assert cap.conflicts_with == ["b"]
 
 
@@ -53,7 +56,8 @@ class TestOrchestraRegister:
     """Orchestra.register() respects priority semantics."""
 
     def test_register_new_capability(self):
-        from core.orchestra import Orchestra, Capability, CapabilitySource, Priority
+        from core.orchestra import Capability, CapabilitySource, Orchestra, Priority
+
         orch = Orchestra()
         # Clear builtins for a clean test
         orch._capabilities.clear()
@@ -62,7 +66,8 @@ class TestOrchestraRegister:
         assert "x" in orch._capabilities
 
     def test_higher_priority_replaces_lower(self):
-        from core.orchestra import Orchestra, Capability, CapabilitySource, Priority
+        from core.orchestra import Capability, CapabilitySource, Orchestra, Priority
+
         orch = Orchestra()
         orch._capabilities.clear()
         low = Capability("x", CapabilitySource.AGNES, Priority.LOW)
@@ -72,7 +77,8 @@ class TestOrchestraRegister:
         assert orch._capabilities["x"].priority == Priority.OVERRIDE
 
     def test_lower_priority_does_not_replace_higher(self):
-        from core.orchestra import Orchestra, Capability, CapabilitySource, Priority
+        from core.orchestra import Capability, CapabilitySource, Orchestra, Priority
+
         orch = Orchestra()
         orch._capabilities.clear()
         high = Capability("x", CapabilitySource.CLAUDE, Priority.OVERRIDE)
@@ -83,7 +89,8 @@ class TestOrchestraRegister:
         assert orch._capabilities["x"].priority == Priority.OVERRIDE
 
     def test_equal_priority_keeps_existing(self):
-        from core.orchestra import Orchestra, Capability, CapabilitySource, Priority
+        from core.orchestra import Capability, CapabilitySource, Orchestra, Priority
+
         orch = Orchestra()
         orch._capabilities.clear()
         first = Capability("x", CapabilitySource.AGNES, Priority.NORMAL, description="first")
@@ -99,11 +106,13 @@ class TestOrchestraResolve:
 
     def test_resolve_unknown_returns_none(self):
         from core.orchestra import Orchestra
+
         orch = Orchestra()
         assert orch.resolve("zzz_nonexistent") is None
 
     def test_resolve_known_capability(self):
-        from core.orchestra import Orchestra, Capability, CapabilitySource, Priority
+        from core.orchestra import Capability, CapabilitySource, Orchestra, Priority
+
         orch = Orchestra()
         orch._capabilities.clear()
         orch.register(Capability("y", CapabilitySource.AGNES, Priority.NORMAL))
@@ -112,12 +121,12 @@ class TestOrchestraResolve:
         assert resolved.name == "y"
 
     def test_resolve_disabled_by_conflict(self):
-        from core.orchestra import Orchestra, Capability, CapabilitySource, Priority
+        from core.orchestra import Capability, CapabilitySource, Orchestra, Priority
+
         orch = Orchestra()
         orch._capabilities.clear()
         # "low_cap" conflicts with "high_cap"; high_cap has higher priority → low disabled
-        orch.register(Capability("low_cap", CapabilitySource.AGNES, Priority.LOW,
-                                 conflicts_with=["high_cap"]))
+        orch.register(Capability("low_cap", CapabilitySource.AGNES, Priority.LOW, conflicts_with=["high_cap"]))
         orch.register(Capability("high_cap", CapabilitySource.CLAUDE, Priority.OVERRIDE))
         assert orch.resolve("low_cap") is None
         assert orch.resolve("high_cap") is not None
@@ -128,6 +137,7 @@ class TestOrchestraProfiles:
 
     def test_builtin_coding_profile(self):
         from core.orchestra import Orchestra
+
         orch = Orchestra()
         active = orch.active_profile("coding")
         names = {c.name for c in active}
@@ -136,6 +146,7 @@ class TestOrchestraProfiles:
 
     def test_builtin_video_profile(self):
         from core.orchestra import Orchestra
+
         orch = Orchestra()
         active = orch.active_profile("video")
         names = {c.name for c in active}
@@ -144,6 +155,7 @@ class TestOrchestraProfiles:
 
     def test_unknown_profile_falls_back_to_coding(self):
         from core.orchestra import Orchestra
+
         orch = Orchestra()
         active = orch.active_profile("zzz_unknown")
         # Falls back to "coding" profile
@@ -151,6 +163,7 @@ class TestOrchestraProfiles:
 
     def test_define_custom_profile(self):
         from core.orchestra import Orchestra
+
         orch = Orchestra()
         orch.define_profile("custom", ["image_gen", "vision_analysis"])
         active = orch.active_profile("custom")
@@ -162,7 +175,8 @@ class TestOrchestraQuery:
     """list_by_source / search / summary."""
 
     def test_list_by_source(self):
-        from core.orchestra import Orchestra, CapabilitySource
+        from core.orchestra import CapabilitySource, Orchestra
+
         orch = Orchestra()
         agnes_caps = orch.list_by_source(CapabilitySource.AGNES)
         names = {c.name for c in agnes_caps}
@@ -171,6 +185,7 @@ class TestOrchestraQuery:
 
     def test_search_finds_matching(self):
         from core.orchestra import Orchestra
+
         orch = Orchestra()
         results = orch.search("image")
         assert len(results) > 0
@@ -179,12 +194,14 @@ class TestOrchestraQuery:
 
     def test_search_no_match(self):
         from core.orchestra import Orchestra
+
         orch = Orchestra()
         results = orch.search("zzz_nonexistent_term")
         assert results == []
 
     def test_summary_contains_source_headers(self):
         from core.orchestra import Orchestra
+
         orch = Orchestra()
         s = orch.summary()
         assert "能力来源" in s
@@ -195,7 +212,8 @@ class TestOrchestraRules:
     """add_rule stores coordination rules."""
 
     def test_add_rule_appends(self):
-        from core.orchestra import Orchestra, CapabilitySource
+        from core.orchestra import CapabilitySource, Orchestra
+
         orch = Orchestra()
         initial = len(orch._rules)
         orch.add_rule("test_condition", "activate:test", CapabilitySource.CLAUDE)
@@ -210,12 +228,14 @@ class TestGetOrchestraSingleton:
 
     def test_returns_same_instance(self):
         from core.orchestra import get_orchestra
+
         o1 = get_orchestra()
         o2 = get_orchestra()
         assert o1 is o2
 
     def test_singleton_has_builtins(self):
         from core.orchestra import get_orchestra
+
         orch = get_orchestra()
         assert "self_verification" in orch._capabilities
         assert "image_gen" in orch._capabilities

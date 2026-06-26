@@ -6,6 +6,7 @@ from pathlib import Path
 
 from rich.rule import Rule
 
+from core.constraints import PROJECT_SKIP_DIRS
 from core.pytest_runner import parse_test_summary, run_pytest_safe
 
 __all__ = ["AuditEngine", "ROOT", "audit"]
@@ -13,7 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 class AuditEngine:
-    _SKIP_DIRS = {"__pycache__", ".git", ".pytest_cache", "browser_sessions", ".codebuddy", "node_modules", ".venv"}
+    _SKIP_DIRS = PROJECT_SKIP_DIRS
 
     def __init__(self, root=None) -> None:
         self.root = root or ROOT

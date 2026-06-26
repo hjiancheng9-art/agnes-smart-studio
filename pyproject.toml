@@ -87,5 +87,17 @@ ignore = [
 "tests/*.py" = ["E402"]
 
 [tool.pyright]
-# 与 ruff extend-exexclude 保持一致：临时脚本/生成产物不纳入静态分析
+# 与 ruff extend-exclude 保持一致：临时脚本/生成产物不纳入静态分析
 exclude = ["scripts/scratch", "tests/manual", "output", ".codebuddy", "**/__pycache__"]
+
+[tool.coverage.run]
+source = ["core", "ui", "engines", "utils", "pipeline"]
+omit = ["*/__pycache__/*", "*/tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+# 门禁策略：设为略低于当前实际总覆盖率（约 57%），留 ~2% 防抖余量，
+# 防止边缘测试波动导致 CI 误报，同时守住"不得大幅倒退"的底线。
+fail_under = 55
+

@@ -1,16 +1,18 @@
 """Unit tests for generation engines with mocked client."""
-import sys
+
 import base64
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock
+
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.client import CruxClient
-from engines.text_to_image import TextToImageEngine
 from engines.image_to_image import ImageToImageEngine
+from engines.text_to_image import TextToImageEngine
 from engines.video import VideoEngine, VideoFuture
 
 
@@ -46,11 +48,11 @@ class TestImageToImageEngine:
     def mock_client(self):
         c = MagicMock(spec=CruxClient)
         return c
-    
+
     @pytest.fixture
     def engine(self, mock_client):
         return ImageToImageEngine(mock_client)
-    
+
     def test_edit_returns_dict(self, engine, mock_client):
         mock_client.create_image.return_value = {"data": [{"url": "https://test.com/img.png"}]}
         mock_client.download_image.return_value = "/tmp/out.png"
@@ -58,7 +60,7 @@ class TestImageToImageEngine:
         assert isinstance(result, dict)
         assert "local_path" in result
         assert result["source_images"] == ["https://test.com/src.png"]
-    
+
     def test_style_transfer_delegates_to_edit(self, engine, mock_client):
         mock_client.create_image.return_value = {"data": [{"url": "https://test.com/out.png"}]}
         mock_client.download_image.return_value = "/tmp/out.png"
@@ -71,11 +73,11 @@ class TestVideoEngine:
     def mock_client(self):
         c = MagicMock(spec=CruxClient)
         return c
-    
+
     @pytest.fixture
     def engine(self, mock_client):
         return VideoEngine(mock_client)
-    
+
     def test_submit_only_returns_basic_info(self, engine, mock_client):
         mock_client.create_video.return_value = {
             "task_id": "task-123",
@@ -85,7 +87,7 @@ class TestVideoEngine:
         assert result["status"] == "submitted"
         assert result["task_id"] == "task-123"
         assert "video_id" in result
-    
+
     def test_submit_and_wait_blocks_until_done(self, engine, mock_client):
         mock_client.create_video.return_value = {"task_id": "t1", "video_id": "v1"}
         mock_client.poll_video.return_value = {
@@ -96,7 +98,7 @@ class TestVideoEngine:
         mock_client.download_video.return_value = "/tmp/vid.mp4"
         result = engine.submit_and_wait(prompt="waves", num_frames=81)
         assert "local_path" in result
-    
+
     def test_submit_async_returns_future(self, engine, mock_client):
         mock_client.create_video.return_value = {"task_id": "t2", "video_id": "v2"}
         mock_client.poll_video.return_value = {

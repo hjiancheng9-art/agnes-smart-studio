@@ -1,10 +1,10 @@
 """Tests for core.session_mgr — named persistent sessions."""
 
 
-
 class TestSessionManager:
     def _make_manager(self, tmp_path):
         from core.session_mgr import SessionManager
+
         return SessionManager(root=tmp_path)
 
     def test_save_and_restore(self, tmp_path):
@@ -73,6 +73,7 @@ class TestSessionManager:
 class TestGlobalFunctions:
     def test_session_save(self, tmp_path, monkeypatch):
         from core import session_mgr as sm
+
         mgr = sm.SessionManager(root=tmp_path)
         monkeypatch.setattr(sm, "_session_mgr", mgr)
         name = sm.session_save("test", [{"role": "user", "content": "hi"}])
@@ -80,6 +81,7 @@ class TestGlobalFunctions:
 
     def test_session_restore(self, tmp_path, monkeypatch):
         from core import session_mgr as sm
+
         mgr = sm.SessionManager(root=tmp_path)
         monkeypatch.setattr(sm, "_session_mgr", mgr)
         sm.session_save("test", [{"role": "user", "content": "hi"}])
@@ -88,6 +90,7 @@ class TestGlobalFunctions:
 
     def test_session_list(self, tmp_path, monkeypatch):
         from core import session_mgr as sm
+
         mgr = sm.SessionManager(root=tmp_path)
         monkeypatch.setattr(sm, "_session_mgr", mgr)
         sm.session_save("a", [{"role": "user", "content": "1"}])
@@ -97,6 +100,7 @@ class TestGlobalFunctions:
 
     def test_session_delete(self, tmp_path, monkeypatch):
         from core import session_mgr as sm
+
         mgr = sm.SessionManager(root=tmp_path)
         monkeypatch.setattr(sm, "_session_mgr", mgr)
         name = sm.session_save("del", [{"role": "user", "content": "x"}])

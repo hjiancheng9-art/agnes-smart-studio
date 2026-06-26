@@ -192,16 +192,19 @@ class SharedMixin:
 
     @staticmethod
     def _mode_hint(session: "ChatSession") -> str:
-        """返回当前模式的提示标签，显示在输入提示符后。
+        """返回当前模型名 + 冒号，用作输入提示符。
 
-        ⚠ 输入行由 prompt_toolkit 渲染，它不认 Rich markup——必须用
-        render_badge_plain() 返回纯文本，否则颜色码会原文泄漏。
-        回复头走 console.print 才用 render_badge_line() 的 Rich 版。
+        prompt_toolkit 不认 Rich markup，返回纯文本。
         """
-        from ui.badges import render_badge_plain
+        model = getattr(session, "model", "") or ""
+        try:
+            from core.provider import get_model_info
 
-        line = render_badge_plain(session)
-        return f" {line}" if line else ""
+            info = get_model_info(model)
+            label = info.name if info and info.name != model else model
+        except Exception:
+            label = model
+        return f"{label}: "
 
     def _get_dispatch_table(self) -> dict:
         """构建/缓存命令分发表。"""

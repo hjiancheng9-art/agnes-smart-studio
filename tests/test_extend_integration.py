@@ -8,12 +8,10 @@
 4. notebook/audio 工具执行（纯本地无外部依赖）
 5. /extend handler 存在并可调用
 """
+
 import sys
-import json
 from pathlib import Path
 from unittest.mock import MagicMock
-
-import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -22,6 +20,7 @@ sys.path.insert(0, str(ROOT))
 def _mocked_session():
     """构造一个 mock client 的 ChatSession（不打真实 API）。"""
     from core.chat import ChatSession
+
     mock_client = MagicMock()
     mock_client.chat_stream.return_value = iter([])
     return ChatSession(mock_client)
@@ -31,16 +30,19 @@ def _mocked_session():
 #  /extend 命令注册
 # ============================================================
 
+
 class TestExtendCommandRegistration:
     """/extend 命令应注册到 COMMANDS 并正确路由。"""
 
     def test_extend_in_commands(self):
         from core.commands import get_all
+
         keys = [c.key for c in get_all()]
         assert "extend" in keys
 
     def test_extend_command_def(self):
         from core.commands import get_all
+
         cmd = next(c for c in get_all() if c.key == "extend")
         assert cmd.name == "/extend"
         assert cmd.handler == "_chat_extend"
@@ -48,6 +50,7 @@ class TestExtendCommandRegistration:
 
     def test_extend_in_dispatch_table(self):
         from core.commands import build_dispatch_table
+
         table = build_dispatch_table()
         assert "extend" in table
         handler, cmd_def = table["extend"]
@@ -55,30 +58,33 @@ class TestExtendCommandRegistration:
 
     def test_extend_handler_in_mixin(self):
         from ui.mixins.diag import DiagCommandsMixin
-        assert hasattr(DiagCommandsMixin, '_chat_extend')
-        assert callable(getattr(DiagCommandsMixin, '_chat_extend'))
+
+        assert hasattr(DiagCommandsMixin, "_chat_extend")
+        assert callable(DiagCommandsMixin._chat_extend)
 
 
 # ============================================================
 #  Notebook 工具集成
 # ============================================================
 
+
 class TestNotebookToolIntegration:
     """ToolRegistry.load(notebook=True) 应注册 5 个 notebook_* 工具。"""
 
     def test_notebook_tools_registered_on_load(self):
         from core.tools import ToolRegistry
+
         reg = ToolRegistry(config_path=ROOT / "tests" / "__nonexistent__.json")
         count = reg.load(notebook=True)
         # 至少 3 builtin + 5 notebook = 8
         assert count >= 8
-        expected = {"notebook_open", "notebook_edit_cell", "notebook_add_cell",
-                    "notebook_run_cell", "notebook_save"}
+        expected = {"notebook_open", "notebook_edit_cell", "notebook_add_cell", "notebook_run_cell", "notebook_save"}
         for name in expected:
             assert reg.has(name), f"notebook tool '{name}' not registered"
 
     def test_notebook_tools_not_loaded_by_default(self):
         from core.tools import ToolRegistry
+
         reg = ToolRegistry(config_path=ROOT / "tests" / "__nonexistent__.json")
         reg.load()
         nb_names = [n for n in reg.tool_names if n.startswith("notebook_")]
@@ -86,6 +92,7 @@ class TestNotebookToolIntegration:
 
     def test_notebook_in_tool_categories(self):
         from core.tools import ToolRegistry
+
         reg = ToolRegistry(config_path=ROOT / "tests" / "__nonexistent__.json")
         reg.load(notebook=True)
         cats = reg.tool_categories
@@ -105,8 +112,7 @@ class TestToggleNotebook:
         is_on = session.toggle_notebook()
         assert is_on is True
         assert session.notebook_enabled is True
-        nb_core = {"notebook_open", "notebook_edit_cell", "notebook_add_cell",
-                   "notebook_run_cell", "notebook_save"}
+        nb_core = {"notebook_open", "notebook_edit_cell", "notebook_add_cell", "notebook_run_cell", "notebook_save"}
         tool_set = set(session.tools.tool_names)
         assert nb_core.issubset(tool_set)
 
@@ -115,8 +121,7 @@ class TestToggleNotebook:
         session.toggle_notebook()  # on
         is_on = session.toggle_notebook()  # off
         assert is_on is False
-        nb_core = {"notebook_open", "notebook_edit_cell", "notebook_add_cell",
-                   "notebook_run_cell", "notebook_save"}
+        nb_core = {"notebook_open", "notebook_edit_cell", "notebook_add_cell", "notebook_run_cell", "notebook_save"}
         tool_set = set(session.tools.tool_names)
         assert nb_core.isdisjoint(tool_set)
 
@@ -131,11 +136,13 @@ class TestToggleNotebook:
 #  Audio 工具集成
 # ============================================================
 
+
 class TestAudioToolIntegration:
     """ToolRegistry.load(audio=True) 应注册 4 个音频工具。"""
 
     def test_audio_tools_registered_on_load(self):
         from core.tools import ToolRegistry
+
         reg = ToolRegistry(config_path=ROOT / "tests" / "__nonexistent__.json")
         count = reg.load(audio=True)
         # 至少 3 builtin + 4 audio = 7
@@ -146,14 +153,17 @@ class TestAudioToolIntegration:
 
     def test_audio_tools_not_loaded_by_default(self):
         from core.tools import ToolRegistry
+
         reg = ToolRegistry(config_path=ROOT / "tests" / "__nonexistent__.json")
         reg.load()
-        audio_names = {n for n in reg.tool_names
-                       if n in {"tts_narration", "generate_bgm", "generate_sfx", "audio_mixdown"}}
+        audio_names = {
+            n for n in reg.tool_names if n in {"tts_narration", "generate_bgm", "generate_sfx", "audio_mixdown"}
+        }
         assert len(audio_names) == 0
 
     def test_audio_in_tool_categories(self):
         from core.tools import ToolRegistry
+
         reg = ToolRegistry(config_path=ROOT / "tests" / "__nonexistent__.json")
         reg.load(audio=True)
         cats = reg.tool_categories
@@ -197,6 +207,7 @@ class TestToggleAudio:
 #  组合：notebook + audio + browser 同时启用
 # ============================================================
 
+
 class TestCombinedExtensions:
     """三个扩展可同时启用，工具数累加。"""
 
@@ -207,11 +218,16 @@ class TestCombinedExtensions:
         session.toggle_browser()
         tool_set = set(session.tools.tool_names)
         # notebook 5 + audio 4 + browser 6 = 15 个扩展工具
-        nb_core = {"notebook_open", "notebook_edit_cell", "notebook_add_cell",
-                   "notebook_run_cell", "notebook_save"}
+        nb_core = {"notebook_open", "notebook_edit_cell", "notebook_add_cell", "notebook_run_cell", "notebook_save"}
         audio_core = {"tts_narration", "generate_bgm", "generate_sfx", "audio_mixdown"}
-        browser_core = {"browser_generate", "browser_check", "browser_download",
-                        "browser_providers", "browser_setup", "browser_cancel"}
+        browser_core = {
+            "browser_generate",
+            "browser_check",
+            "browser_download",
+            "browser_providers",
+            "browser_setup",
+            "browser_cancel",
+        }
         assert nb_core.issubset(tool_set)
         assert audio_core.issubset(tool_set)
         assert browser_core.issubset(tool_set)
@@ -220,7 +236,7 @@ class TestCombinedExtensions:
         """notebook 开关不影响 audio 状态。"""
         session = _mocked_session()
         session.toggle_notebook()  # nb on
-        session.toggle_audio()     # audio on
+        session.toggle_audio()  # audio on
         # 切 notebook 不应影响 audio
         session.toggle_notebook()  # nb off
         assert session.notebook_enabled is False

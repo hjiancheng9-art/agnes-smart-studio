@@ -324,9 +324,16 @@ def rewrite_prompt(
                 cache["patterns"][strategy["name"]] += 1
                 _save_cache(cache)
             return rewritten
-    except (OSError, ValueError, RuntimeError):
-        pass
-    return None
+    except Exception as e:
+        # OSError/ValueError/RuntimeError/KeyError/TypeError 以及
+        # httpx.HTTPStatusError / JSONDecodeError 等均不中断整个 bypass 链，
+        # 但记录日志便于排查策略失败原因。
+        import logging
+
+        logging.getLogger("crux.bypass").warning(
+            "rewrite_prompt strategy=%s failed (%s: %s)", strategy["name"], type(e).__name__, e
+        )
+        return None
 
 
 def is_policy_error(error: Exception) -> bool:

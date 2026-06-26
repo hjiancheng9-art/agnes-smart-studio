@@ -68,9 +68,9 @@ class MCPServer:
         self._registry = registry
         # Windows 上 stdout 默认可能翻译换行，显式锁定为 \n + utf-8
         try:
-            sys.stdout.reconfigure(newline="\n", encoding="utf-8", write_through=True)
-            sys.stdin.reconfigure(encoding="utf-8")
-            sys.stderr.reconfigure(encoding="utf-8")
+            sys.stdout.reconfigure(newline="\n", encoding="utf-8", write_through=True)  # type: ignore[attr-defined]
+            sys.stdin.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+            sys.stderr.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
         except (AttributeError, ValueError):
             # 某些 stdin/stdout 不是 TextIOWrapper（如重定向），静默降级
             pass
@@ -134,10 +134,13 @@ class MCPServer:
                 return None
             return self._error(req_id, e.code, e.message)
         except Exception as e:  # noqa: BLE001 — JSON-RPC server 必须吞所有异常
-            self._log(f"internal error handling {method}: {e!r}")
+            import traceback
+
+            tb = traceback.format_exc()
+            self._log(f"internal error handling {method}: {e!r}\n{tb}")
             if is_notification:
                 return None
-            return self._error(req_id, ERR_INTERNAL, f"Internal error: {e}")
+            return self._error(req_id, ERR_INTERNAL, f"Internal error: {type(e).__name__}: {e}")
 
     # ── MCP 方法 ──────────────────────────────────────────────
 
@@ -240,7 +243,8 @@ class MCPServer:
             from core.config import OUTPUT_DIR
 
             path = path.resolve()
-            OUTPUT_DIR.resolve().relative_to(path.parent)  # 抛 ValueError 即越界
+            # 正确方向: 确保 path 在 OUTPUT_DIR 内
+            path.relative_to(OUTPUT_DIR.resolve())  # 抛 ValueError 即越界
         except (ImportError, ValueError) as err:
             raise _JSONRPCError(ERR_INVALID_PARAMS, "URI must point inside CRUX output/ dir") from err
         if not path.is_file():

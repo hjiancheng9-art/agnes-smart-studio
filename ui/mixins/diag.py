@@ -19,20 +19,16 @@ from utils import memory
 
 # 项目根目录：diag.py 在 ui/mixins/ 下，往上两级是项目根
 _DIAG_ROOT = Path(__file__).resolve().parent.parent.parent
-
 if TYPE_CHECKING:
     from core.chat import ChatSession
-
 __all__ = ["DiagCommandsMixin"]
 
 
 class DiagCommandsMixin:
     # Method provided by SharedMixin (sibling in MRO)
-    def _stream_chat(self, session: "ChatSession", user: str) -> None: ...  # defined in SharedMixin, available via MRO
-
+    def _stream_chat(self, session: "ChatSession", user: str) -> None: ...  #
     def _self_diagnose(self, session: "ChatSession", arg: str):
         """工具自诊断 — 让工具检查自身健康、分析源码、发现并修复 bug
-
         用法:
             /self check  — 遍历所有 .py 文件进行语法检查
             /self files  — 树状打印项目目录结构
@@ -42,7 +38,6 @@ class DiagCommandsMixin:
         from core.audit_runner import audit_syntax, collect_source_snippets, health_checks, project_tree_data
 
         arg = arg.strip()
-
         # ── /self check：语法扫描 ──────────────────────
         if arg == "check":
             errors = audit_syntax()
@@ -52,7 +47,6 @@ class DiagCommandsMixin:
                     console.print(f"  ❌ {e}")
             else:
                 show_success("所有 Python 文件语法检查通过")
-
         # ── /self files：项目结构展示 ──────────────────
         elif arg == "files":
             from rich.tree import Tree
@@ -69,7 +63,6 @@ class DiagCommandsMixin:
                 else:
                     tree.add(f"[white]{item['name']}[/]")
             console.print(tree)
-
         # ── /self health：健康度诊断 ──────────────────
         elif arg == "health":
             for check in health_checks():
@@ -81,7 +74,6 @@ class DiagCommandsMixin:
             console.print(
                 f"  📊 生成: {stats.get('total', 0)} 次 | ⭐评分: {stats.get('rated_count', 0)} 条 | 🚫过滤: {stats.get('content_policy_hits', 0)} 次"
             )
-
         # ── /self fix：AI 源码分析 ─────────────────────
         elif arg == "fix":
             session.unlimited_tools = True
@@ -91,7 +83,6 @@ class DiagCommandsMixin:
             show_info("AI 正在分析源码...")
             session.messages.append({"role": "user", "content": ctx})
             self._stream_chat(session, ctx)
-
         elif arg in ("audit", "all"):
             show_info("═══ 阶段 1/3: 语法扫描 ═══")
             errors = audit_syntax()
@@ -111,7 +102,6 @@ class DiagCommandsMixin:
                 session, "你是 CRUX Studio 维护者。请对项目做源码审计，输出：Bug 风险 | API 合规性 | 优化建议。"
             )
             session.unlimited_tools = False
-
         else:
             show_info("用法: /self [check|files|health|fix|audit]")
             console.print("  [dim]check[/]  - 扫描所有 .py 语法")
@@ -123,7 +113,6 @@ class DiagCommandsMixin:
     def _chat_audit(self, session: "ChatSession", arg: str):
         """依赖安全审计：检查过期版本 + 已知漏洞 (pip/npm/all)"""
         kinds = arg.strip() or "all"
-
         if kinds in ("pip", "all"):
             show_info("检查 pip 依赖...")
             try:
@@ -145,7 +134,6 @@ class DiagCommandsMixin:
                 console.print("  [dim]pip-audit 未安装 (pip install pip-audit)[/]")
             except (subprocess.SubprocessError, OSError):
                 pass
-
         if kinds in ("npm", "all"):
             show_info("检查 npm 依赖...")
             try:
@@ -171,7 +159,6 @@ class DiagCommandsMixin:
 
         rules = get_rules()
         arg = arg.strip()
-
         if not arg or arg == "list":
             rules.discover()
             names = rules.available_names
@@ -182,18 +169,15 @@ class DiagCommandsMixin:
                 r = rules.load(n)
                 active = " [green]● 激活[/]" if n in rules._active else ""
                 console.print(f"  [cyan]{n}[/] [dim]{r.description if r else ''}{active}[/]")
-
         elif arg.startswith("enable "):
             name = arg[7:].strip()
             if rules.enable(name):
                 show_success(f"已启用规则: {name}")
             else:
                 show_warning(f"未找到规则 '{name}'")
-
         elif arg == "disable":
             rules._active.clear()
             show_info("已禁用所有规则")
-
         elif arg.startswith("create "):
             parts = arg[7:].strip().split(" ", 1)
             name = parts[0] if parts else ""
@@ -203,10 +187,8 @@ class DiagCommandsMixin:
                 return
             path = rules.create_rule(name, content, f"{name} 规则")
             show_success(f"规则已创建: {path}")
-
         else:
             show_info("用法: /rules [list|enable <name>|disable|create <name> <内容>]")
-
         # 每次操作后重建 system prompt（rules 现已在 _build_system_prompt 内部注入）
         session.messages[0] = {"role": "system", "content": session._build_system_prompt()}
 
@@ -223,16 +205,13 @@ class DiagCommandsMixin:
         if os.path.exists(data_path):
             with open(data_path, encoding="utf-8") as fh:
                 tasks = json.loads(fh.read())
-
         arg = arg.strip()
-
         if not arg or arg == "list":
             if not tasks:
                 show_info("无自动化任务")
                 return
             for i, t in enumerate(tasks, 1):
                 console.print(f"  {i}. [{t.get('cron', '?')}] {t.get('desc', '')[:50]} [dim]({t.get('id', '')})[/]")
-
         elif arg.startswith("add "):
             parts = arg[4:].strip().split(" ", 2)
             if len(parts) < 2:
@@ -252,7 +231,6 @@ class DiagCommandsMixin:
                 fh.write(json.dumps(tasks, indent=2, ensure_ascii=False))
             show_success(f"已添加: {desc} ({cron})")
             console.print("  [dim]提示: cron 格式为 '分 时 日 月 周'，如 '0 9 * * 1'=每周一早9点[/]")
-
         elif arg.startswith("remove "):
             tid = arg[7:].strip()
             before = len(tasks)
@@ -263,24 +241,24 @@ class DiagCommandsMixin:
                 show_success("已移除")
             else:
                 show_warning("未找到该任务")
-
         else:
             show_info("用法: /automate [list|add <描述> <cron>|remove <id>]")
 
     def _chat_provider(self, session: "ChatSession", arg: str):
-        """切换模型供应商 (list|switch crux/deepseek/siliconflow)"""
+        """切换模型供应商 (list|switch crux/deepseek/local)"""
         import json
 
         cfg_path = os.path.join(_DIAG_ROOT, "models.json")
         cfg = self._load_models_config()
         providers = cfg.get("providers", {})
         arg = arg.strip()
-
         if not arg or arg == "list":
             active = cfg.get("active", "crux")
             fallback = cfg.get("fallback", {})
             priority = fallback.get("priority", [])
             for pid, p in providers.items():
+                if pid == "siliconflow":
+                    continue  #
                 marker = " [green]← 当前[/]" if pid == active else ""
                 models = p.get("models", {})
                 model_info = ", ".join(f"{k}={v}" for k, v in models.items())
@@ -291,20 +269,17 @@ class DiagCommandsMixin:
             if priority:
                 console.print(f"  [dim]回退链: {' → '.join(priority)}[/]")
             return
-
         if arg.startswith("switch "):
             pid = arg[7:].strip()
             if pid not in providers:
                 show_warning(f"未知供应商 '{pid}'，支持: {list(providers.keys())}")
                 return
-
             p = providers[pid]
             # 从 .env 或 provider 配置查找 API key
             key_env = f"{pid.upper()}_API_KEY"
             api_key = (
                 os.getenv(key_env) or os.getenv("CRUX_API_KEY") or os.getenv("AGNES_API_KEY") or p.get("api_key") or ""
             )
-
             # auth_required=false 的 provider（如 local llama.cpp）无需 Key
             if not api_key and not p.get("auth_required", True):
                 api_key = "no-auth-needed"
@@ -314,7 +289,6 @@ class DiagCommandsMixin:
                     show_warning("已取消")
                     return
                 api_key = key
-
             # 更新 client 和 session
             from core.client import CruxClient
 
@@ -323,12 +297,10 @@ class DiagCommandsMixin:
             cfg["active"] = pid
             with open(cfg_path, "w", encoding="utf-8") as fh:
                 fh.write(json.dumps(cfg, indent=2, ensure_ascii=False))
-
             # 切换 model 到该供应商的 pro 模型
             pro_model = p.get("models", {}).get("pro", "")
             if pro_model:
                 session.model = pro_model
-
             show_success(f"已切换到 {p['name']} ({pro_model})")
             print_mode_banner(session)
             # 刷新系统提示词，让 AI 知道当前供应商
@@ -345,7 +317,6 @@ class DiagCommandsMixin:
         console.print("[bold]Prompt 进化库:[/]")
         console.print(f"  图片: {stats['image']} 条成功案例")
         console.print(f"  视频: {stats['video']} 条成功案例")
-
         for kind in ["image", "video"]:
             samples = get_successful_prompts(kind, limit=3)
             if samples:
@@ -353,7 +324,6 @@ class DiagCommandsMixin:
                 for s in samples:
                     console.print(f"    ⭐{s['rating']} | 你: {s['user'][:50]}")
                     console.print(f"    → 增强: {s['enhanced'][:80]}...")
-
         if stats["image"] + stats["video"] < 5:
             console.print("\n  [dim]评分越多，进化越快。生成后给 4-5 星即可积累案例。[/]")
             console.print("\n  [bold]提示词速成:[/]")
@@ -367,7 +337,6 @@ class DiagCommandsMixin:
         from core.brain import ANTI_PATTERN_MAP, CREATIVE_DOMAIN_MAP, SWEET_SPOT_TEMPLATES, THINKING_METHOD_MAP
 
         arg = arg.strip()
-
         if not arg or arg == "list":
             console.print("[bold]内置知识库:[/]")
             console.print("  [cyan]methods[/]       思维方法 (SCAMPER,六顶帽...)")
@@ -375,7 +344,6 @@ class DiagCommandsMixin:
             console.print("  [cyan]sweetspot[/]     甜点区参数 (每种模板的 suffix+negative)")
             console.print("  [cyan]antipatterns[/]  反模式 (常见失败模式+修复方案)")
             console.print("  [cyan]domain[/]        跨域创意嫁接 (动作×载体×物理×视觉)")
-
         elif arg == "methods":
             console.print(f"[bold]思维方法 ({len(THINKING_METHOD_MAP)} 种):[/]")
             for k, v in THINKING_METHOD_MAP.items():
@@ -383,7 +351,6 @@ class DiagCommandsMixin:
                 console.print(f"  [cyan]{k}[/] — {desc}")
                 if v.get("description"):
                     console.print(f"    [dim]{v['description'][:100]}[/]")
-
         elif arg == "templates" or arg == "sweetspot":
             console.print("[bold]提示词模板:[/]")
             for k, v in SWEET_SPOT_TEMPLATES.items():
@@ -392,7 +359,6 @@ class DiagCommandsMixin:
                 neg = v.get("negative", "")
                 if neg:
                     console.print(f"    [dim]- {neg[:60]}[/]")
-
         elif arg == "antipatterns":
             console.print(f"[bold]反模式 ({len(ANTI_PATTERN_MAP)} 种):[/]")
             for k, v in ANTI_PATTERN_MAP.items():
@@ -403,7 +369,6 @@ class DiagCommandsMixin:
                 formula = v.get("prompt_formula", "")
                 if formula:
                     console.print(f"    [dim]修复: {formula[:80]}[/]")
-
         elif arg == "domain":
             for domain_key, items in CREATIVE_DOMAIN_MAP.items():
                 console.print(f"\n[bold cyan]{domain_key} 域:[/]")
@@ -413,25 +378,20 @@ class DiagCommandsMixin:
                             console.print(f"  {v.get('name_cn', k)} [dim]{v.get('description', '')[:60]}[/]")
                         else:
                             console.print(f"  [dim]{v[:60]}[/]")
-
         else:
             show_info("用法: /know [methods|templates|antipatterns|domain|list]")
 
     def _select_provider(self):
         """交互式供应商选择（多 Key 时弹出菜单，单 Key 自动激活）
-
         1. 扫描所有 providers，收集有 API Key 或 auth_required=false 的
         2. 1 个外部供应商 → 自动激活
         3. ≥2 个外部供应商 → 弹出菜单让用户选择
         4. 0 个外部供应商 → 使用 CRUX
-
         Returns: (provider_id, model_id)
         """
         cfg = self._load_models_config()
         cfg_path = os.path.join(_DIAG_ROOT, "models.json")
-
         providers = cfg.get("providers", {})
-
         # 收集所有可用供应商：有 API Key 或 auth_required=false（如本地 llama.cpp）
         available = []
         for pid, p in providers.items():
@@ -443,28 +403,23 @@ class DiagCommandsMixin:
                 if not api_key:
                     api_key = "no-auth-needed"
                 available.append((pid, p, model, api_key))
-
         if not available:
             # 没有任何 Key → CRUX
             p = providers.get("crux", providers.get(list(providers.keys())[0], {}))
             model = p.get("models", {}).get("light", "agnes-1.5-flash")
             show_info("无外部供应商 Key，使用默认 CRUX light")
             return ("crux", model)
-
         # 只有 CRUX → 直接用
         if len(available) == 1 and available[0][0] == "crux":
             pid, p, model, _ = available[0]
             return (pid, model)
-
         # 过滤出非 CRUX 的外部供应商
         external = [(pid, p, m, k) for pid, p, m, k in available if pid != "crux"]
-
         if len(external) == 1:
             # 只有一个外部供应商 → 自动激活
             pid, p, model, api_key = external[0]
             self._activate_provider(pid, p, model, api_key, cfg, cfg_path)
             return (pid, model)
-
         # ≥2 个外部供应商 → 弹出菜单
         console.print()
         table = Table(
@@ -474,20 +429,18 @@ class DiagCommandsMixin:
         table.add_column("供应商", style="white", width=16)
         table.add_column("模型", style="dim")
         table.add_column("说明", style="dim")
-
         choices = []
         idx = 1
         for pid, p, model, _ in available:
+            if pid == "siliconflow":
+                continue  #
             label = f"{idx}"
-            # 通用描述：优先从 provider 配置的 description 字段取，否则按 pid 推断
             desc = p.get("description", "")
             if not desc:
                 if pid == "crux":
                     desc = "原生模型 · 轻量快速"
                 elif pid == "deepseek":
                     desc = "百万上下文 · 代码/推理"
-                elif pid == "siliconflow":
-                    desc = "Kimi-K2.6 · 备选链路"
                 elif "local" in pid:
                     desc = "本地推理 · 离线可用"
                 else:
@@ -495,10 +448,8 @@ class DiagCommandsMixin:
             table.add_row(label, p["name"], model, desc)
             choices.append((str(idx), pid, p, model))
             idx += 1
-
         console.print(table)
         console.print()
-
         choice = Prompt.ask(
             "[cyan]选择供应商[/]",
             choices=[c[0] for c in choices] + ["q"],
@@ -508,7 +459,6 @@ class DiagCommandsMixin:
             show_info("已取消，使用默认 CRUX light")
             p = providers.get("crux", {})
             return ("crux", p.get("models", {}).get("light", "agnes-1.5-flash"))
-
         # 找到选中的供应商
         for num, pid, p, model in choices:
             if num == choice:
@@ -519,7 +469,6 @@ class DiagCommandsMixin:
                 api_key = p.get("api_key") or os.getenv(key_env)
                 self._activate_provider(pid, p, model, api_key, cfg, cfg_path)
                 return (pid, model)
-
         return ("crux", "agnes-1.5-flash")
 
     def _activate_provider(self, pid, p, model, api_key, cfg, cfg_path):
@@ -580,7 +529,6 @@ class DiagCommandsMixin:
             with contextlib.suppress(OSError, TypeError):
                 Path(cfg_path).write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
             return cfg
-
         raw = ""
         try:
             raw = Path(cfg_path).read_text(encoding="utf-8")
@@ -639,9 +587,9 @@ class DiagCommandsMixin:
                         )
                         # 回滚 session.model（未实际切换成功）
                         if arg in MODEL_ALIASES:
-                            session.model = arg  # 别名切回原值
+                            session.model = arg  #
                         else:
-                            session.model = target  # 已是 raw ID
+                            session.model = target  #
                         return
                     session.client = new_client
                     console.print(f"  [dim]已切至 {pdata.get('name', pid)} 供应商[/]")
@@ -662,14 +610,11 @@ class DiagCommandsMixin:
         except ImportError:
             show_warning("Prompt Lab 模块不可用")
             return
-
         lab = get_prompt_lab()
         arg = arg.strip()
-
         if not arg or arg == "summary":
             console.print(lab.summary_text())
             return
-
         # 查看变体列表
         if arg == "variants" or arg == "list":
             variants = lab.list_variants()
@@ -684,12 +629,10 @@ class DiagCommandsMixin:
                 console.print(f"  {active} [cyan]{v.id}[/] {v.label} ({v.name}) ratio={v.traffic_ratio}{cur}")
                 console.print(f"    [dim]{v.instructions[:100]}[/]")
             return
-
         if arg == "reset":
             lab.reset_session()
             show_success("Prompt Lab 会话已重置")
             return
-
         show_info("用法: /prompt-stats [summary|variants|reset]")
 
     def _chat_prompt_assign(self, session: "ChatSession", arg: str):
@@ -699,7 +642,6 @@ class DiagCommandsMixin:
         except ImportError:
             show_warning("Prompt Lab 模块不可用")
             return
-
         arg = arg.strip()
         if not arg:
             # 显示可用变体
@@ -714,7 +656,6 @@ class DiagCommandsMixin:
                 console.print(f"  [cyan]{v.id}[/] {v.label}{cur}")
             show_info("用法: /prompt-assign <变体ID>")
             return
-
         lab = get_prompt_lab()
         v = lab.assign_variant(arg)
         if v:
@@ -727,7 +668,6 @@ class DiagCommandsMixin:
 
     def _chat_extend(self, session: "ChatSession", arg: str):
         """切换扩展工具集 — 统一入口管理 notebook/audio/browser。
-
         用法:
             /extend                  显示所有扩展状态（list 视图）
             /extend notebook         切换 Notebook (.ipynb) 工具
@@ -736,7 +676,6 @@ class DiagCommandsMixin:
             /extend list             等同于无参，显示状态表
         """
         arg = arg.strip().lower()
-
         # ── 子命令分发 ──
         toggles = {
             "notebook": ("notebook_enabled", "toggle_notebook", "📓 Notebook", "打开/编辑/执行/保存 .ipynb 文件"),
@@ -748,7 +687,6 @@ class DiagCommandsMixin:
                 "可灵/即梦/Runway/Luma/DALL-E/Gemini/Opal/Veo 网页生成",
             ),
         }
-
         # 无参或 list：显示状态表
         if not arg or arg == "list":
             tbl = Table(title="[bold]🔌 扩展工具集状态[/]", border_style=COLORS["primary"], show_lines=True)
@@ -762,13 +700,11 @@ class DiagCommandsMixin:
             console.print(tbl)
             console.print("  [dim]用法: /extend <notebook|audio|browser> 切换 · /extend list 重显状态[/]")
             return
-
         # 切换指定扩展
         if arg not in toggles:
             show_warning(f"未知扩展: {arg}。可用: notebook / audio / browser")
             console.print("  [dim]用法: /extend <notebook|audio|browser|list>[/]")
             return
-
         attr, toggle_fn, label, desc = toggles[arg]
         toggle = getattr(session, toggle_fn)
         is_on = toggle()
@@ -780,7 +716,6 @@ class DiagCommandsMixin:
 
     def _chat_eval(self, session: "ChatSession", arg: str):
         """运行智能体质量基准测试 — 覆盖代码搜索/代码质量/理解能力。
-
         无参或 table：表格展示结果
         json：输出 JSON 格式报告（适合 CI/CD 集成）
         """
@@ -789,18 +724,14 @@ class DiagCommandsMixin:
         except ImportError:
             show_warning("eval_harness 模块不可用")
             return
-
         arg = arg.strip()
         output_json = arg.lower() == "json"
-
         show_info("正在运行智能体质量基准测试...")
         engine = EvalEngine()
         report = engine.run_all()
-
         if output_json:
             console.print(json.dumps(report, indent=2, ensure_ascii=False))
             return
-
         # ── 表格展示 ──
         summary_tbl = Table(title="[bold]📊 智能体质量基准[/]", border_style=COLORS["primary"], show_lines=True)
         summary_tbl.add_column("指标", style="bold cyan", width=20)
@@ -809,7 +740,6 @@ class DiagCommandsMixin:
         summary_tbl.add_row("通过", f"{report['passed']} / {report['total']}")
         summary_tbl.add_row("失败", f"{report['failed']}")
         console.print(summary_tbl)
-
         # ── 各项详情表 ──
         detail_tbl = Table(title="详细结果", border_style="dim", show_lines=True)
         detail_tbl.add_column("ID", style="cyan", width=22)
@@ -817,7 +747,6 @@ class DiagCommandsMixin:
         detail_tbl.add_column("状态", width=6)
         detail_tbl.add_column("得分", justify="right", width=6)
         detail_tbl.add_column("耗时", justify="right", width=8)
-
         for r in report.get("results", []):
             status_icon = (
                 "[green]PASS[/]"
@@ -831,13 +760,11 @@ class DiagCommandsMixin:
                 f"{r['score']:.2f}",
                 f"{r['elapsed']}s",
             )
-
         console.print(detail_tbl)
         console.print(f"  [dim]基准集: {report['suite']} · {len(BENCHMARKS)} 项 · /eval json 输出 JSON 格式[/]")
 
     def _chat_cost(self, session: "ChatSession", arg: str):
         """花费统计 — 查看 / 设日预算 / 清零
-
         无参或 summary：显示总花费 + 今日 + 按模型分桶表格
         budget <usd>：设置每日预算上限（美元），超过时 send_stream 开头会提示
         budget off：关闭预算
@@ -853,10 +780,8 @@ class DiagCommandsMixin:
         except ImportError:
             show_warning("cost_tracker 模块不可用")
             return
-
         arg = arg.strip()
         parts = arg.split() if arg else []
-
         # ── budget <usd>|off ──
         if parts and parts[0] == "budget":
             if len(parts) < 2:
@@ -877,13 +802,11 @@ class DiagCommandsMixin:
             set_budget(usd)
             show_success(f"已设置每日预算上限: ${usd:.2f}")
             return
-
         # ── reset ──
         if parts and parts[0] == "reset":
             result = reset_cost()
             show_success(f"已清零花费统计（此前累计 ${result.get('cleared_total', 0):.4f}），旧日志已归档")
             return
-
         # ── 默认：汇总表格 ──
         summary = get_summary()
         total = summary.get("total_cost", 0.0)
@@ -894,7 +817,6 @@ class DiagCommandsMixin:
 
         today_key = datetime.now().strftime("%Y-%m-%d")
         today_cost = today.get(today_key, {}).get("cost", 0.0)
-
         # 预算状态行
         budget = summary.get("budget")
         if budget and "daily" in budget:
@@ -903,7 +825,6 @@ class DiagCommandsMixin:
             budget_line = f"  [dim]日预算: ${daily_limit:.2f} · 今日已用 {pct:.0f}%[/]"
         else:
             budget_line = "  [dim]日预算: 未设置（/cost budget <usd> 设置）[/]"
-
         console.print(
             Panel(
                 f"[bold green]总花费: ${total:.4f}[/]  ·  [cyan]{calls} 次调用[/]  ·  [yellow]今日: ${today_cost:.4f}[/]\n"
@@ -912,7 +833,6 @@ class DiagCommandsMixin:
                 border_style=COLORS["primary"],
             )
         )
-
         # 按模型分桶表格
         by_model = summary.get("by_model", {})
         if by_model:
@@ -923,7 +843,6 @@ class DiagCommandsMixin:
             for model, info in sorted(by_model.items(), key=lambda x: x[1].get("cost", 0), reverse=True):
                 tbl.add_row(model, f"${info.get('cost', 0):.4f}", str(info.get("calls", 0)))
             console.print(tbl)
-
         # 最近 7 天趋势
         daily = get_daily_breakdown(7)
         if daily:
@@ -934,14 +853,11 @@ class DiagCommandsMixin:
             for d in daily:
                 dtbl.add_row(d["day"], f"${d.get('cost', 0):.4f}", str(d.get("calls", 0)))
             console.print(dtbl)
-
         console.print("  [dim]子命令: /cost budget <usd> · /cost budget off · /cost reset[/]")
 
     # ── MCP 服务器管理 ──────────────────────────────────────────
-
     def _chat_mcp(self, session: "ChatSession", arg: str):
         """MCP 服务器管理 — 注册/启停/查看远程 MCP server 连接。
-
         子命令：
             /mcp list                         显示所有配置的服务器
             /mcp add <name> -- <command>      注册新服务器
@@ -955,7 +871,6 @@ class DiagCommandsMixin:
         except ImportError:
             show_warning("mcp_client 模块不可用")
             return
-
         from rich.console import Console
 
         console = Console()
@@ -963,7 +878,6 @@ class DiagCommandsMixin:
         arg = arg.strip()
         parts = arg.split() if arg else []
         sub = parts[0] if parts else ""
-
         # ── list：显示所有服务器 ──
         if not sub or sub == "list":
             servers = client.list_servers()
@@ -972,13 +886,11 @@ class DiagCommandsMixin:
                 console.print("  [dim]用 /mcp add <name> -- <command> 注册服务器[/]")
                 console.print("  [dim]例: /mcp add claude -- claude-code mcp[/]")
                 return
-
             tbl = Table(title="MCP 服务器", show_lines=False, border_style="cyan")
             tbl.add_column("名称", style="bold cyan")
             tbl.add_column("命令", style="white")
             tbl.add_column("状态", justify="center")
             tbl.add_column("启用", justify="center")
-
             for s in servers:
                 name = s.get("name", "?")
                 cmd = s.get("command", "?")
@@ -990,11 +902,9 @@ class DiagCommandsMixin:
                 status = "[green]● 已连接[/]" if connected else "[dim]○ 未连接[/]"
                 enabled_str = "[green]✓[/]" if enabled else "[red]✗[/]"
                 tbl.add_row(name, full_cmd, status, enabled_str)
-
             console.print(tbl)
             console.print("  [dim]子命令: /mcp add · /mcp remove · /mcp connect · /mcp disconnect · /mcp tools[/]")
             return
-
         # ── add：注册新服务器 ──
         if sub == "add":
             # 格式: /mcp add <name> -- <command> [args...]
@@ -1003,7 +913,6 @@ class DiagCommandsMixin:
                 console.print("  [dim]例: /mcp add claude -- claude-code mcp[/]")
                 console.print("  [dim]例: /mcp add fs -- node /path/to/server.js[/]")
                 return
-
             sep_idx = parts.index("--")
             name = parts[1]
             if sep_idx < 2:
@@ -1011,11 +920,9 @@ class DiagCommandsMixin:
                 return
             command = parts[sep_idx + 1] if sep_idx + 1 < len(parts) else ""
             cmd_args = parts[sep_idx + 2 :] if sep_idx + 2 < len(parts) else []
-
             if not name or not command:
                 show_warning("服务器名称和命令不能为空")
                 return
-
             result = client.add_server(name=name, command=command, args=cmd_args if cmd_args else None)
             if "error" in result:
                 show_warning(result["error"])
@@ -1023,7 +930,6 @@ class DiagCommandsMixin:
                 show_success(f"已注册 MCP 服务器 [bold]{name}[/]（命令: {command} {' '.join(cmd_args)}）")
                 console.print(f"  [dim]用 /mcp connect {name} 启动连接[/]")
             return
-
         # ── remove：移除服务器 ──
         if sub == "remove":
             if len(parts) < 2:
@@ -1035,7 +941,6 @@ class DiagCommandsMixin:
             else:
                 show_warning(f"服务器 '{name}' 不存在")
             return
-
         # ── connect：启动连接 ──
         if sub == "connect":
             if len(parts) < 2:
@@ -1051,7 +956,6 @@ class DiagCommandsMixin:
                 tools_count = len(caps.get("tools", []))
                 show_success(f"已连接到 [bold]{name}[/]（发现 {tools_count} 个工具）")
             return
-
         # ── disconnect：断开连接 ──
         if sub == "disconnect":
             if len(parts) < 2:
@@ -1064,7 +968,6 @@ class DiagCommandsMixin:
             else:
                 show_success(f"已断开 [bold]{name}[/]")
             return
-
         # ── tools：查看服务器工具 ──
         if sub == "tools":
             if len(parts) < 2:
@@ -1079,7 +982,6 @@ class DiagCommandsMixin:
             if not tools:
                 show_info(f"{name} 没有暴露任何工具")
                 return
-
             ttbl = Table(title=f"{name} 的工具", show_lines=False, border_style="green")
             ttbl.add_column("#", justify="right", style="dim", width=3)
             ttbl.add_column("工具名", style="bold green")
@@ -1090,7 +992,6 @@ class DiagCommandsMixin:
                 ttbl.add_row(str(i), tname, tdesc)
             console.print(ttbl)
             return
-
         # ── 未知子命令 ──
         show_warning(f"未知子命令: {sub}")
         console.print("  [dim]可用: list · add · remove · connect · disconnect · tools[/]")

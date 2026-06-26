@@ -5,15 +5,17 @@ reassembly. If it breaks, all tool calling (generate_image/generate_video)
 silently fails. These tests protect that critical path without needing
 a real API connection.
 """
-import sys
+# pyright: reportOptionalMemberAccess=false
+
 import json
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core.chat import ChatSession, MAX_TOOL_LOOPS, _normalize_tool_args
+from core.chat import MAX_TOOL_LOOPS, ChatSession, _normalize_tool_args
 
 
 def make_session():
@@ -28,12 +30,14 @@ class TestMergeToolCalls:
 
     def test_single_complete_call(self):
         """单个完整 tool_call（无分片）。"""
-        fragments = [{
-            "index": 0,
-            "id": "call_abc",
-            "type": "function",
-            "function": {"name": "generate_image", "arguments": '{"prompt":"cat"}'},
-        }]
+        fragments = [
+            {
+                "index": 0,
+                "id": "call_abc",
+                "type": "function",
+                "function": {"name": "generate_image", "arguments": '{"prompt":"cat"}'},
+            }
+        ]
         result = ChatSession._merge_tool_calls(fragments)
         assert len(result) == 1
         assert result[0]["id"] == "call_abc"
@@ -67,7 +71,7 @@ class TestMergeToolCalls:
         """name 也可能被拆分（罕见但 API 可能这么做）。"""
         fragments = [
             {"index": 0, "id": "x", "function": {"name": "generate_", "arguments": ""}},
-            {"index": 0, "function": {"name": "image", "arguments": '{}'}},
+            {"index": 0, "function": {"name": "image", "arguments": "{}"}},
         ]
         result = ChatSession._merge_tool_calls(fragments)
         assert result[0]["function"]["name"] == "generate_image"
@@ -161,6 +165,7 @@ class TestMaxToolLoops:
 # v5.0+ 回归：语义去重 / 模型默认值 / 视觉 fallback 链
 # ═══════════════════════════════════════════════════════════════════
 
+
 class TestSemanticDedup:
     """测试 _merge_tool_calls 的语义去重（推理模型跨阶段重复发工具）。"""
 
@@ -219,7 +224,7 @@ class TestNormalizeToolArgs:
         assert _normalize_tool_args("   ") == ""
 
     def test_invalid_json_falls_back_to_whitespace_strip(self):
-        assert _normalize_tool_args('{a: 1, b: 2}') == '{a:1,b:2}'
+        assert _normalize_tool_args("{a: 1, b: 2}") == "{a:1,b:2}"
 
     def test_dict_keys_sorted(self):
         a = _normalize_tool_args('{"b":2,"a":1}')
@@ -276,6 +281,7 @@ class TestVisionFallback:
         chain = s._vision_model_chain("complex")
         # 首项必须是 pro tier（agnes-2.0-flash / Kimi / Qwen）
         from core.provider import get_model_info
+
         first_tier = get_model_info(chain[0]).tier if get_model_info(chain[0]) else "pro"
         assert first_tier != "light", f"Complex task should not pick light tier first: {chain[0]}"
         # agnes-1.5-flash 应在链末尾（作为最后 fallback）
@@ -299,23 +305,18 @@ class TestVisionFallback:
         """阶段4b: 复杂视觉任务应调用 pro tier 模型（非 agnes-1.5-flash）。"""
         s = make_session()
         s.vision_client = MagicMock()
-        s.vision_client.chat_multimodal.return_value = {
-            "choices": [{"message": {"content": "有 3 只猫"}}]
-        }
+        s.vision_client.chat_multimodal.return_value = {"choices": [{"message": {"content": "有 3 只猫"}}]}
         out = s._vision_fallback("数一数有几只猫", "http://img")
         assert out == "有 3 只猫"
         # 被调用的模型不应该是 agnes-1.5-flash（complex 应走 pro tier）
         called_model = s.vision_client.chat_multimodal.call_args.kwargs.get("model", "")
-        assert called_model != "agnes-1.5-flash", \
-            f"Complex vision task should not use light tier: {called_model}"
+        assert called_model != "agnes-1.5-flash", f"Complex vision task should not use light tier: {called_model}"
 
     def test_vision_fallback_first_model_success(self):
         """首选模型成功时直接返回内容。"""
         s = make_session()
         s.vision_client = MagicMock()
-        s.vision_client.chat_multimodal.return_value = {
-            "choices": [{"message": {"content": "这是一只猫"}}]
-        }
+        s.vision_client.chat_multimodal.return_value = {"choices": [{"message": {"content": "这是一只猫"}}]}
         out = s._vision_fallback("描述图", "http://img")
         assert out == "这是一只猫"
         # 只调了一次（首选成功）
@@ -348,16 +349,19 @@ class TestProviderVisionAPI:
 
     def test_get_vision_models_non_empty(self):
         from core.provider import get_vision_models
+
         models = get_vision_models()
         assert isinstance(models, list)
         assert "agnes-1.5-flash" in models
 
     def test_model_supports_vision_true_for_agnes_flash(self):
         from core.provider import model_supports_vision
+
         assert model_supports_vision("agnes-1.5-flash") is True
 
     def test_model_supports_vision_false_for_text_only(self):
         from core.provider import model_supports_vision
+
         # 阶段4a: deepseek-* 不支持视觉；其余模型（agnes/Kimi/Qwen）均支持
         assert model_supports_vision("deepseek-v4-pro") is False
         assert model_supports_vision("deepseek-v4-flash") is False
@@ -371,50 +375,64 @@ class TestDefaultModelsDeepseek:
     """修复2a/2b/2c/2d：默认模型统一为 deepseek-v4-pro。"""
 
     def test_plan_executor_default_model(self):
-        from core.agent import PlanExecutor
         import inspect
+
+        from core.agent import PlanExecutor
+
         sig = inspect.signature(PlanExecutor.__init__)
         assert sig.parameters["model"].default == "deepseek-v4-pro"
 
     def test_subagent_default_model(self):
-        from core.agent import SubAgent
         import inspect
+
+        from core.agent import SubAgent
+
         sig = inspect.signature(SubAgent.__init__)
         assert sig.parameters["model"].default == "deepseek-v4-pro"
 
     def test_model_router_default_primary(self):
         from core.agent import ModelRouter
+
         router = ModelRouter()
         # primary 取决于 models.json active provider 的 pro model
         assert router.primary in ("deepseek-v4-pro", "agnes-2.0-flash")
 
     def test_spawn_subagent_default_model(self):
-        from core.agent import spawn_subagent
         import inspect
+
+        from core.agent import spawn_subagent
+
         sig = inspect.signature(spawn_subagent)
         assert sig.parameters["model"].default == "deepseek-v4-pro"
 
     def test_run_team_default_model(self):
-        from core.project import run_team
         import inspect
+
+        from core.project import run_team
+
         sig = inspect.signature(run_team)
         assert sig.parameters["model"].default == "deepseek-v4-pro"
 
     def test_test_generator_default_model(self):
-        from core.test_loop import TestGenerator
         import inspect
+
+        from core.test_loop import TestGenerator
+
         sig = inspect.signature(TestGenerator.__init__)
         assert sig.parameters["model"].default == "deepseek-v4-pro"
 
     def test_test_loop_default_model(self):
-        from core.test_loop import TestLoop
         import inspect
+
+        from core.test_loop import TestLoop
+
         sig = inspect.signature(TestLoop.__init__)
         assert sig.parameters["model"].default == "deepseek-v4-pro"
 
     def test_router_profile_model_all_deepseek_except_chat(self):
         """router._PROFILE_MODEL: 非 CHAT/SKIP 档位全部 deepseek。"""
         from core.router import _PROFILE_MODEL, TaskProfile
+
         assert _PROFILE_MODEL[TaskProfile.QUICK_FIX] == "deepseek-v4-pro"
         assert _PROFILE_MODEL[TaskProfile.CODING] == "deepseek-v4-pro"
         assert _PROFILE_MODEL[TaskProfile.CREATIVE] == "deepseek-v4-pro"
@@ -426,6 +444,7 @@ class TestDefaultModelsDeepseek:
 # ═══════════════════════════════════════════════════════════════════
 # 阶段 4: send_stream 模型级 fallback 测试
 # ═══════════════════════════════════════════════════════════════════
+
 
 class TestTextFallbackChain:
     """_text_fallback_chain 构建 (model, client) 备选列表。"""
@@ -514,13 +533,17 @@ class TestSendStreamFallback:
         mock_fallback = MagicMock()
 
         # 主模型产生错误标记
-        mock_primary.chat_stream.return_value = iter([
-            {"content": primary_error, "_finish": "error"},
-        ])
+        mock_primary.chat_stream.return_value = iter(
+            [
+                {"content": primary_error, "_finish": "error"},
+            ]
+        )
         # 备选模型产生正常回复
-        mock_fallback.chat_stream.return_value = iter([
-            {"content": fallback_response},
-        ])
+        mock_fallback.chat_stream.return_value = iter(
+            [
+                {"content": fallback_response},
+            ]
+        )
 
         s = ChatSession(mock_primary)
         # 手动注入 fallback chain
@@ -546,9 +569,11 @@ class TestSendStreamFallback:
     def test_no_fallback_on_normal_response(self):
         """正常响应时不触发 fallback。"""
         mock_client = MagicMock()
-        mock_client.chat_stream.return_value = iter([
-            {"content": "正常回复"},
-        ])
+        mock_client.chat_stream.return_value = iter(
+            [
+                {"content": "正常回复"},
+            ]
+        )
         s = ChatSession(mock_client)
         results = list(s.send_stream("hello"))
         texts = [r[1] for r in results if r[0] == "text"]
@@ -559,9 +584,11 @@ class TestSendStreamFallback:
     def test_no_fallback_when_chain_exhausted(self):
         """fallback 链耗尽时返回错误信息。"""
         mock_client = MagicMock()
-        mock_client.chat_stream.return_value = iter([
-            {"content": "\n[HTTP 503]", "_finish": "error"},
-        ])
+        mock_client.chat_stream.return_value = iter(
+            [
+                {"content": "\n[HTTP 503]", "_finish": "error"},
+            ]
+        )
         s = ChatSession(mock_client)
         # 只有主模型，无备选
         s._text_fallback_chain = lambda: [

@@ -216,7 +216,8 @@ def record_usage(
 
 def get_summary() -> dict:
     """获取花费汇总（从 state 缓存读，O(1)）"""
-    return _load_state()
+    with _lock:
+        return _load_state()
 
 
 def get_recent_records(limit: int = 20) -> list[dict]:
@@ -244,11 +245,11 @@ def get_recent_records(limit: int = 20) -> list[dict]:
 
 def get_daily_breakdown(days: int = 7) -> list[dict]:
     """最近 N 天每日花费明细"""
-    state = _load_state()
-    by_day = state.get("by_day", {})
-    # 按日期排序，取最近 N 天
-    sorted_days = sorted(by_day.items(), key=lambda x: x[0], reverse=True)[:days]
-    return [{"day": d, "cost": v.get("cost", 0), "calls": v.get("calls", 0)} for d, v in sorted_days]
+    with _lock:
+        state = _load_state()
+        by_day = state.get("by_day", {})
+        sorted_days = sorted(by_day.items(), key=lambda x: x[0], reverse=True)[:days]
+        return [{"day": d, "cost": v.get("cost", 0), "calls": v.get("calls", 0)} for d, v in sorted_days]
 
 
 # ════════════════════════════════════════════════════════════
@@ -276,23 +277,24 @@ def check_budget() -> str | None:
 
     基于今日累计花费 vs budget.daily。
     """
-    state = _load_state()
-    budget = state.get("budget")
-    if not budget or "daily" not in budget:
+    with _lock:
+        state = _load_state()
+        budget = state.get("budget")
+        if not budget or "daily" not in budget:
+            return None
+        daily_limit = budget["daily"]
+        today = _today()
+        today_cost = state.get("by_day", {}).get(today, {}).get("cost", 0.0)
+        if today_cost >= daily_limit:
+            pct = (today_cost / daily_limit * 100) if daily_limit > 0 else 999
+            return (
+                f"⚠️ 今日花费 ${today_cost:.4f} 已达预算上限 ${daily_limit:.4f} "
+                f"({pct:.0f}%)。建议暂停高消耗操作（视频生成/大量图片）。"
+            )
+        if today_cost >= daily_limit * 0.8:
+            pct = today_cost / daily_limit * 100
+            return f"⏰ 今日花费 ${today_cost:.4f} 已用预算 {pct:.0f}% (上限 ${daily_limit:.2f})，接近上限请注意。"
         return None
-    daily_limit = budget["daily"]
-    today = _today()
-    today_cost = state.get("by_day", {}).get(today, {}).get("cost", 0.0)
-    if today_cost >= daily_limit:
-        pct = (today_cost / daily_limit * 100) if daily_limit > 0 else 999
-        return (
-            f"⚠️ 今日花费 ${today_cost:.4f} 已达预算上限 ${daily_limit:.4f} "
-            f"({pct:.0f}%)。建议暂停高消耗操作（视频生成/大量图片）。"
-        )
-    if today_cost >= daily_limit * 0.8:
-        pct = today_cost / daily_limit * 100
-        return f"⏰ 今日花费 ${today_cost:.4f} 已用预算 {pct:.0f}% (上限 ${daily_limit:.2f})，接近上限请注意。"
-    return None
 
 
 def reset_cost() -> dict:

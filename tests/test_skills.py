@@ -3,16 +3,18 @@
 SkillManager 是启动路径模块（chat.py:29 顶层 import），坏就崩。
 覆盖：发现、加载、卸载、prompt 拼接、工具注入、validate、单例。
 """
+# pyright: reportOptionalMemberAccess=false
+
 import json
 import sys
 from pathlib import Path
+
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core.skills import Skill, SkillManager, get_manager, SKILLS_DIR
-
+from core.skills import Skill, SkillManager, get_manager
 
 # ── 模拟 skill JSON 数据 ─────────────────────────────────────────────
 

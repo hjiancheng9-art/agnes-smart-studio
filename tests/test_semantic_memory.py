@@ -8,21 +8,27 @@ class TestSemanticMemoryInit:
 
     def test_loads_from_custom_path(self, tmp_path):
         from core.semantic_memory import SemanticMemory
+
         path = tmp_path / "memory.json"
-        path.write_text(json.dumps({"preferences": {"k": "v"}, "decisions": []}),
-                        encoding="utf-8")
+        path.write_text(json.dumps({"preferences": {"k": "v"}, "decisions": []}), encoding="utf-8")
         mem = SemanticMemory(path=path)
         assert mem.data["preferences"]["k"] == "v"
 
     def test_defaults_on_missing_file(self, tmp_path):
         from core.semantic_memory import SemanticMemory
+
         mem = SemanticMemory(path=tmp_path / "nonexistent.json")
-        assert mem.data == {"preferences": {}, "decisions": [],
-                            "project_context": {}, "corrections": [],
-                            "learned_patterns": {}}
+        assert mem.data == {
+            "preferences": {},
+            "decisions": [],
+            "project_context": {},
+            "corrections": [],
+            "learned_patterns": {},
+        }
 
     def test_defaults_on_corrupt_file(self, tmp_path):
         from core.semantic_memory import SemanticMemory
+
         path = tmp_path / "memory.json"
         path.write_text("not json {{{", encoding="utf-8")
         mem = SemanticMemory(path=path)
@@ -35,6 +41,7 @@ class TestRecordDecision:
 
     def test_records_decision(self, tmp_path):
         from core.semantic_memory import SemanticMemory
+
         mem = SemanticMemory(path=tmp_path / "m.json")
         mem.record_decision("chose option A", "A", "worked well")
         assert len(mem.data["decisions"]) == 1
@@ -46,6 +53,7 @@ class TestRecordDecision:
 
     def test_truncates_long_fields(self, tmp_path):
         from core.semantic_memory import SemanticMemory
+
         mem = SemanticMemory(path=tmp_path / "m.json")
         long_text = "x" * 500
         mem.record_decision(long_text, long_text, long_text)
@@ -56,6 +64,7 @@ class TestRecordDecision:
 
     def test_caps_at_100_decisions(self, tmp_path):
         from core.semantic_memory import SemanticMemory
+
         mem = SemanticMemory(path=tmp_path / "m.json")
         for i in range(110):
             mem.record_decision(f"ctx{i}", f"ch{i}", f"out{i}")
@@ -65,6 +74,7 @@ class TestRecordDecision:
 
     def test_persists_to_disk(self, tmp_path):
         from core.semantic_memory import SemanticMemory
+
         path = tmp_path / "m.json"
         mem = SemanticMemory(path=path)
         mem.record_decision("c", "a", "o")
@@ -78,6 +88,7 @@ class TestRecordCorrection:
 
     def test_records_correction(self, tmp_path):
         from core.semantic_memory import SemanticMemory
+
         mem = SemanticMemory(path=tmp_path / "m.json")
         mem.record_correction("used mutable default", "use None + copy")
         assert len(mem.data["corrections"]) == 1
@@ -87,6 +98,7 @@ class TestRecordCorrection:
 
     def test_caps_at_50_corrections(self, tmp_path):
         from core.semantic_memory import SemanticMemory
+
         mem = SemanticMemory(path=tmp_path / "m.json")
         for i in range(55):
             mem.record_correction(f"p{i}", f"f{i}")
@@ -98,6 +110,7 @@ class TestLearnPattern:
 
     def test_stores_pattern(self, tmp_path):
         from core.semantic_memory import SemanticMemory
+
         mem = SemanticMemory(path=tmp_path / "m.json")
         mem.learn_pattern("naming", "camelCase", "snake_case")
         assert "naming" in mem.data["learned_patterns"]
@@ -112,17 +125,20 @@ class TestPreferences:
 
     def test_set_and_get(self, tmp_path):
         from core.semantic_memory import SemanticMemory
+
         mem = SemanticMemory(path=tmp_path / "m.json")
         mem.set_preference("language", "python")
         assert mem.get_preference("language") == "python"
 
     def test_get_with_default(self, tmp_path):
         from core.semantic_memory import SemanticMemory
+
         mem = SemanticMemory(path=tmp_path / "m.json")
         assert mem.get_preference("nonexistent", default="fallback") == "fallback"
 
     def test_overwrite_preference(self, tmp_path):
         from core.semantic_memory import SemanticMemory
+
         mem = SemanticMemory(path=tmp_path / "m.json")
         mem.set_preference("x", "1")
         mem.set_preference("x", "2")
@@ -134,6 +150,7 @@ class TestProjectContext:
 
     def test_sets_context(self, tmp_path):
         from core.semantic_memory import SemanticMemory
+
         mem = SemanticMemory(path=tmp_path / "m.json")
         mem.set_project_context("framework", "fastapi")
         assert mem.data["project_context"]["framework"] == "fastapi"
@@ -144,11 +161,13 @@ class TestBuildContextInjection:
 
     def test_empty_when_no_data(self, tmp_path):
         from core.semantic_memory import SemanticMemory
+
         mem = SemanticMemory(path=tmp_path / "m.json")
         assert mem.build_context_injection() == ""
 
     def test_includes_preferences(self, tmp_path):
         from core.semantic_memory import SemanticMemory
+
         mem = SemanticMemory(path=tmp_path / "m.json")
         mem.set_preference("lang", "python")
         text = mem.build_context_injection()
@@ -157,6 +176,7 @@ class TestBuildContextInjection:
 
     def test_includes_corrections(self, tmp_path):
         from core.semantic_memory import SemanticMemory
+
         mem = SemanticMemory(path=tmp_path / "m.json")
         mem.record_correction("the mistake", "the fix")
         text = mem.build_context_injection()
@@ -166,6 +186,7 @@ class TestBuildContextInjection:
 
     def test_includes_patterns(self, tmp_path):
         from core.semantic_memory import SemanticMemory
+
         mem = SemanticMemory(path=tmp_path / "m.json")
         mem.learn_pattern("style", "old", "new")
         text = mem.build_context_injection()
@@ -173,6 +194,7 @@ class TestBuildContextInjection:
 
     def test_includes_project_context(self, tmp_path):
         from core.semantic_memory import SemanticMemory
+
         mem = SemanticMemory(path=tmp_path / "m.json")
         mem.set_project_context("db", "postgres")
         text = mem.build_context_injection()
@@ -185,6 +207,7 @@ class TestGetMemorySingleton:
 
     def test_returns_same_instance(self):
         from core.semantic_memory import get_memory
+
         m1 = get_memory()
         m2 = get_memory()
         assert m1 is m2

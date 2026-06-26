@@ -9,13 +9,13 @@ Invariant 3: Side-effects are commit boundaries — text before the effect is fi
 Invariant 4: Empty streams produce no output.
 Invariant 5: Double-commit is idempotent (no duplicate output).
 """
+# pyright: reportAttributeAccessIssue=false
+
 import io
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
-
 from rich.console import Console
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -95,7 +95,7 @@ class TestStreamingRendererBasic:
         text = "这是很长的一段测试文本。" * 30  # ~450 chars
         r.start()
         for i in range(0, len(text), 10):
-            r.append_text(text[i:i+10])
+            r.append_text(text[i : i + 10])
         r.stop()
         r.commit()
         out = cap.getvalue()
@@ -258,7 +258,6 @@ class TestLiveImportGateway:
 
     def test_live_import_only_in_renderer(self):
         """扫描仓库 .py 文件，确认只有 ui/render.py import Live。"""
-        import re
         root = Path(__file__).resolve().parent.parent
         violations: list[str] = []
         for py_file in root.rglob("*.py"):
@@ -283,7 +282,7 @@ class TestLiveImportGateway:
                         violations.append(f"{rel}:{lineno}: {stripped}")
 
         assert not violations, (
-            f"rich.live.Live 在 ui/render.py 外被导入（违反强制网关）:\n"
+            "rich.live.Live 在 ui/render.py 外被导入（违反强制网关）:\n"
             + "\n".join(violations)
             + "\n\n请将 Live 使用下沉到 ui/render.StreamingRenderer，或改用 StreamingRenderer。"
         )

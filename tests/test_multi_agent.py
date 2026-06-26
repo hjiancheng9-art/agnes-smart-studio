@@ -1,12 +1,12 @@
 """Tests for core.multi_agent — parallel multi-agent task coordination."""
 
 
-
 class TestAgentTask:
     """AgentTask dataclass defaults."""
 
     def test_minimal_construction(self):
         from core.multi_agent import AgentTask
+
         t = AgentTask(id="t1", description="do thing")
         assert t.id == "t1"
         assert t.description == "do thing"
@@ -17,8 +17,10 @@ class TestAgentTask:
 
     def test_full_construction(self):
         from core.multi_agent import AgentTask
+
         t = AgentTask(
-            id="t2", description="complex",
+            id="t2",
+            description="complex",
             tool_sequence=[{"tool": "x", "args": {}}],
             depends_on=["t1"],
         )
@@ -31,6 +33,7 @@ class TestAgent:
 
     def test_defaults(self):
         from core.multi_agent import Agent
+
         a = Agent(id="a1", role="reviewer")
         assert a.id == "a1"
         assert a.role == "reviewer"
@@ -43,21 +46,25 @@ class TestCoordinatorInit:
 
     def test_requires_tool_executor(self):
         from core.multi_agent import MultiAgentCoordinator
+
         coord = MultiAgentCoordinator(lambda t, a: "ok")
         assert callable(coord.execute_tool)
 
     def test_default_max_workers(self):
         from core.multi_agent import MultiAgentCoordinator
+
         coord = MultiAgentCoordinator(lambda t, a: "ok")
         assert coord.max_workers == 4
 
     def test_custom_max_workers(self):
         from core.multi_agent import MultiAgentCoordinator
+
         coord = MultiAgentCoordinator(lambda t, a: "ok", max_workers=2)
         assert coord.max_workers == 2
 
     def test_starts_empty(self):
         from core.multi_agent import MultiAgentCoordinator
+
         coord = MultiAgentCoordinator(lambda t, a: "ok")
         assert coord.agents == []
         assert coord.tasks == []
@@ -68,6 +75,7 @@ class TestSpawnTeam:
 
     def test_default_roles(self):
         from core.multi_agent import MultiAgentCoordinator
+
         coord = MultiAgentCoordinator(lambda t, a: "ok")
         coord.spawn_team()
         roles = [a.role for a in coord.agents]
@@ -78,6 +86,7 @@ class TestSpawnTeam:
 
     def test_custom_roles(self):
         from core.multi_agent import MultiAgentCoordinator
+
         coord = MultiAgentCoordinator(lambda t, a: "ok")
         coord.spawn_team(["alpha", "beta"])
         assert len(coord.agents) == 2
@@ -85,6 +94,7 @@ class TestSpawnTeam:
 
     def test_respects_max_workers(self):
         from core.multi_agent import MultiAgentCoordinator
+
         coord = MultiAgentCoordinator(lambda t, a: "ok", max_workers=2)
         coord.spawn_team(["a", "b", "c", "d"])
         assert len(coord.agents) == 2  # capped at max_workers
@@ -95,6 +105,7 @@ class TestDecompose:
 
     def test_review_pattern(self):
         from core.multi_agent import MultiAgentCoordinator
+
         coord = MultiAgentCoordinator(lambda t, a: "ok")
         tasks = coord.decompose("review the code")
         assert len(tasks) >= 3
@@ -104,12 +115,14 @@ class TestDecompose:
 
     def test_debug_pattern(self):
         from core.multi_agent import MultiAgentCoordinator
+
         coord = MultiAgentCoordinator(lambda t, a: "ok")
         tasks = coord.decompose("debug the failing test")
         assert len(tasks) >= 3
 
     def test_default_pattern(self):
         from core.multi_agent import MultiAgentCoordinator
+
         coord = MultiAgentCoordinator(lambda t, a: "ok")
         tasks = coord.decompose("analyze performance")
         assert len(tasks) >= 3
@@ -118,6 +131,7 @@ class TestDecompose:
 
     def test_each_task_has_tool_sequence(self):
         from core.multi_agent import MultiAgentCoordinator
+
         coord = MultiAgentCoordinator(lambda t, a: "ok")
         tasks = coord.decompose("review code")
         for t in tasks:
@@ -129,6 +143,7 @@ class TestExecute:
 
     def test_execute_returns_result_dict(self):
         from core.multi_agent import MultiAgentCoordinator
+
         coord = MultiAgentCoordinator(lambda t, a: "ok")
         result = coord.execute("review the code")
         assert isinstance(result, dict)
@@ -150,6 +165,7 @@ class TestExecute:
 
     def test_execute_logs_decomposition(self):
         from core.multi_agent import MultiAgentCoordinator
+
         coord = MultiAgentCoordinator(lambda t, a: "ok")
         result = coord.execute("review code")
         log_events = [e["event"] for e in result["log"]]
@@ -171,6 +187,7 @@ class TestCoordinateFunction:
 
     def test_coordinate_runs_pipeline(self):
         from core.multi_agent import coordinate
+
         result = coordinate("review code", lambda t, a: "ok")
         assert isinstance(result, dict)
         assert "tasks_total" in result

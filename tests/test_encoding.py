@@ -1,9 +1,7 @@
 """Tests for core.encoding, core.notify, core.session_mgr."""
 
-import sys
 import subprocess
-
-
+import sys
 
 # ── core.encoding ────────────────────────────────────────────────────────
 
@@ -13,26 +11,31 @@ class TestEncodingSetup:
 
     def test_setup_win32_console_returns_bool(self):
         from core.encoding import _setup_win32_console
+
         result = _setup_win32_console()
         # On Windows returns True; on non-Windows returns False
         assert isinstance(result, bool)
 
     def test_setup_win32_console_idempotent(self):
         from core.encoding import _setup_win32_console
+
         r1 = _setup_win32_console()
         r2 = _setup_win32_console()
         assert r1 == r2
 
     def test_reconfigure_stdio_no_crash(self):
         from core.encoding import _reconfigure_stdio
+
         _reconfigure_stdio()  # should not raise
 
     def test_setup_no_crash(self):
         from core.encoding import setup
+
         setup()  # should not raise
 
     def test_subprocess_patched(self):
         from core.encoding import setup
+
         setup()
         # Verify subprocess.run has been patched with encoding default
         r = subprocess.run(
@@ -51,11 +54,13 @@ class TestSessionManager:
 
     def test_create_manager(self, tmp_path):
         from core.session_mgr import SessionManager
+
         mgr = SessionManager(root=tmp_path)
         assert mgr.dir.exists()
 
     def test_save_and_restore(self, tmp_path):
         from core.session_mgr import SessionManager
+
         mgr = SessionManager(root=tmp_path)
         messages = [{"role": "user", "content": "hello"}]
         name = mgr.save("test_session", messages, meta={"key": "val"})
@@ -69,11 +74,13 @@ class TestSessionManager:
 
     def test_restore_nonexistent(self, tmp_path):
         from core.session_mgr import SessionManager
+
         mgr = SessionManager(root=tmp_path)
         assert mgr.restore("no_such_session") is None
 
     def test_list_sessions(self, tmp_path):
         from core.session_mgr import SessionManager
+
         mgr = SessionManager(root=tmp_path)
         mgr.save("s1", [{"role": "user", "content": "a"}])
         mgr.save("s2", [{"role": "user", "content": "b"}])
@@ -85,6 +92,7 @@ class TestSessionManager:
 
     def test_delete_session(self, tmp_path):
         from core.session_mgr import SessionManager
+
         mgr = SessionManager(root=tmp_path)
         mgr.save("del_me", [{"role": "user", "content": "x"}])
         assert mgr.delete("del_me") is True
@@ -92,6 +100,7 @@ class TestSessionManager:
 
     def test_list_corrupted_skips(self, tmp_path):
         from core.session_mgr import SessionManager
+
         mgr = SessionManager(root=tmp_path)
         mgr.save("good", [{"role": "user", "content": "ok"}])
         # Write corrupted JSON
@@ -102,15 +111,18 @@ class TestSessionManager:
 
     def test_safe_name_sanitization(self, tmp_path):
         from core.session_mgr import SessionManager
+
         mgr = SessionManager(root=tmp_path)
         name = mgr.save("../../etc/passwd", [])
         assert "/" not in name
 
     def test_convenience_functions(self, tmp_path):
         from core.session_mgr import SessionManager
+
         mgr = SessionManager(root=tmp_path)
         # Patch global
         import core.session_mgr as sm
+
         sm._session_mgr = mgr
         sm.session_save("fn_test", [{"role": "user", "content": "hi"}])
         data = sm.session_restore("fn_test")

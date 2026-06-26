@@ -2,15 +2,17 @@
 
 Tests cover: registry loading, tool execution, error handling, edge cases.
 """
-import sys
+
 import json
+import sys
 from pathlib import Path
+
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core.tools import ToolRegistry, get_registry, BUILTIN_TOOLS
+from core.tools import BUILTIN_TOOLS, ToolRegistry, get_registry
 
 
 class TestToolRegistry:
@@ -71,15 +73,22 @@ class TestToolRegistry:
 
     def test_registry_execute_shell_tool_success(self):
         """Execute a simple shell tool and capture output."""
-        self.tmp_path.write_text(json.dumps({
-            "tools": [{
-                "name": "echo_test",
-                "type": "shell",
-                "description": "Test echo",
-                "command": "echo hello_world",
-                "parameters": {}
-            }]
-        }), encoding="utf-8")
+        self.tmp_path.write_text(
+            json.dumps(
+                {
+                    "tools": [
+                        {
+                            "name": "echo_test",
+                            "type": "shell",
+                            "description": "Test echo",
+                            "command": "echo hello_world",
+                            "parameters": {},
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
         registry = ToolRegistry()
         registry.load()
         result = registry.execute("echo_test", {})
@@ -120,8 +129,7 @@ class TestBuiltinToolsFormat:
             fn = tool["function"]
             if "parameters" in fn:
                 params = fn["parameters"]
-                assert params.get("type") == "object", \
-                    f"{fn['name']} parameters type is not 'object'"
+                assert params.get("type") == "object", f"{fn['name']} parameters type is not 'object'"
 
     def test_required_params_exist_in_properties(self):
         for tool in BUILTIN_TOOLS:
@@ -130,5 +138,4 @@ class TestBuiltinToolsFormat:
             required = params.get("required", [])
             properties = params.get("properties", {})
             for req in required:
-                assert req in properties, \
-                    f"{fn['name']}: required param '{req}' not in properties"
+                assert req in properties, f"{fn['name']}: required param '{req}' not in properties"

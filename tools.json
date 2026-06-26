@@ -138,13 +138,28 @@
     {
       "name": "run_bash",
       "type": "shell",
-      "description": "执行任意 shell/bash 命令并返回输出。支持管道、重定向。用于构建、部署、系统操作等。超时30秒。⚠ 命令会经过沙箱验证。",
+      "description": "执行任意 shell/bash 命令并返回输出。三模式：sync(默认,30s超时)、background(后台运行,完成后通知)、detach(完全分离,会话关闭后仍存活)。用于构建/部署/服务启动等。⚠ 命令会经过沙箱验证。借鉴: Copilot CLI powershell 三模式设计。",
       "command": "bash -c \"{command}\"",
       "parameters": {
         "command": {
           "type": "string",
           "description": "要执行的 shell 命令",
           "required": true
+        },
+        "run_in_background": {
+          "type": "boolean",
+          "description": "是否后台运行（默认false）。true=后台异步执行,完成后通知; 适合长时间构建/测试/安装。",
+          "required": false
+        },
+        "detach": {
+          "type": "boolean",
+          "description": "是否完全分离（默认false）。true=进程脱离会话,关闭后仍存活; 适合启动服务/守护进程。需run_in_background=true。",
+          "required": false
+        },
+        "description": {
+          "type": "string",
+          "description": "后台任务描述（run_in_background=true时建议填写,用于任务列表显示）。",
+          "required": false
         }
       }
     },
@@ -1127,6 +1142,98 @@
           "type": "string",
           "description": "JSON 数组字符串，每项格式：{\"id\": \"step_1\", \"description\": \"步骤描述\", \"tool\": \"read_file\", \"args\": {\"path\": \"README.md\"}, \"depends_on\": [], \"verify\": null}。depends_on 是前置步骤 id 列表（默认空）；verify 可选 \"syntax\"（AST校验）或 \"test\"（跑pytest）或 null（不校验）。",
           "required": true
+        }
+      }
+    },
+    {
+      "name": "create_goal",
+      "type": "python",
+      "description": "创建目标模式任务：将模糊意图转化为明确的完成契约——包含清晰终点、验证方式、边界条件和停止规则。借鉴: Kimi Code Goal Mode。",
+      "function": "core.executor.create_goal_tool",
+      "parameters": {
+        "intent": {
+          "type": "string",
+          "description": "用户的原始意图/目标描述（可以是模糊的自然语言）",
+          "required": true
+        },
+        "finish_line": {
+          "type": "string",
+          "description": "完成标准（如何判断目标已达成？用可验证的客观标准描述）",
+          "required": false
+        },
+        "boundaries": {
+          "type": "string",
+          "description": "边界条件（什么不在范围内？哪些事情绝对不能做？）",
+          "required": false
+        },
+        "max_steps": {
+          "type": "integer",
+          "description": "最大步骤数（超过此数自动停止,防止无限循环,默认20）",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "get_goal",
+      "type": "python",
+      "description": "获取当前活跃目标的完整状态——包括进度、预算消耗、已完成步骤、剩余步骤。",
+      "function": "core.executor.get_goal_tool",
+      "parameters": {
+        "goal_id": {
+          "type": "string",
+          "description": "目标ID（不传则返回当前活跃目标）",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "set_goal_budget",
+      "type": "python",
+      "description": "为目标设置/调整预算限制——最大步骤数、最大工具调用数、最大耗时(秒)。借鉴: Kimi Code SetGoalBudget。",
+      "function": "core.executor.set_goal_budget_tool",
+      "parameters": {
+        "goal_id": {
+          "type": "string",
+          "description": "目标ID（不传则作用于当前活跃目标）",
+          "required": false
+        },
+        "max_steps": {
+          "type": "integer",
+          "description": "最大执行步骤数",
+          "required": false
+        },
+        "max_tool_calls": {
+          "type": "integer",
+          "description": "最大工具调用数",
+          "required": false
+        },
+        "max_duration_seconds": {
+          "type": "integer",
+          "description": "最大执行时长(秒)",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "update_goal",
+      "type": "python",
+      "description": "更新目标状态——标记完成/暂停/取消,或修改目标描述。借鉴: Kimi Code UpdateGoal。",
+      "function": "core.executor.update_goal_tool",
+      "parameters": {
+        "goal_id": {
+          "type": "string",
+          "description": "目标ID（不传则作用于当前活跃目标）",
+          "required": false
+        },
+        "status": {
+          "type": "string",
+          "description": "新状态: completed|paused|cancelled|active",
+          "required": false
+        },
+        "evidence": {
+          "type": "string",
+          "description": "完成证据（status=completed时建议提供）",
+          "required": false
         }
       }
     }

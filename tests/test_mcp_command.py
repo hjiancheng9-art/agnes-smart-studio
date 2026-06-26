@@ -6,12 +6,11 @@
 3. get_registry() 单例初始加载自带 mcp=True
 4. _chat_mcp handler 对各子命令的正确响应
 """
+# pyright: reportAttributeAccessIssue=false
 
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -25,11 +24,13 @@ class TestMCPCommandRegistration:
 
     def test_mcp_in_commands(self):
         from core.commands import get_all
+
         keys = [c.key for c in get_all()]
         assert "mcp" in keys
 
     def test_mcp_command_def(self):
         from core.commands import get_all
+
         cmd = next(c for c in get_all() if c.key == "mcp")
         assert cmd.name == "/mcp"
         assert cmd.handler == "_chat_mcp"
@@ -37,6 +38,7 @@ class TestMCPCommandRegistration:
 
     def test_mcp_in_dispatch_table(self):
         from core.commands import build_dispatch_table
+
         table = build_dispatch_table()
         assert "mcp" in table
         handler, cmd_def = table["mcp"]
@@ -44,10 +46,12 @@ class TestMCPCommandRegistration:
 
     def test_mcp_handler_reachable_on_cli(self):
         from ui.cli import CruxCLI
+
         assert hasattr(CruxCLI, "_chat_mcp")
 
     def test_total_command_count_includes_mcp(self):
         from core.commands import get_all
+
         # /mcp 使总数至少 33
         assert len(get_all()) >= 33
 
@@ -60,40 +64,38 @@ class TestMCPToolInjection:
 
     def test_mcp_tools_injected_with_flag(self):
         from core.tools import ToolRegistry
+
         reg = ToolRegistry()
         reg.load(mcp=True)
         names = reg.tool_names
-        for expected in ("mcp_list_servers", "mcp_list_tools",
-                        "mcp_call_tool", "mcp_read_resource"):
+        for expected in ("mcp_list_servers", "mcp_list_tools", "mcp_call_tool", "mcp_read_resource"):
             assert expected in names, f"{expected} missing from tool_names"
 
     def test_mcp_tools_not_injected_without_flag(self):
         from core.tools import ToolRegistry
+
         reg = ToolRegistry()
         reg.load(mcp=False)
         names = reg.tool_names
-        for unexpected in ("mcp_list_servers", "mcp_list_tools",
-                           "mcp_call_tool", "mcp_read_resource"):
-            assert unexpected not in names, \
-                f"{unexpected} should not be present without mcp=True"
+        for unexpected in ("mcp_list_servers", "mcp_list_tools", "mcp_call_tool", "mcp_read_resource"):
+            assert unexpected not in names, f"{unexpected} should not be present without mcp=True"
 
     def test_mcp_executors_registered(self):
         from core.tools import ToolRegistry
+
         reg = ToolRegistry()
         reg.load(mcp=True)
         # 每个 MCP tool 都必须有 executor
-        for name in ("mcp_list_servers", "mcp_list_tools",
-                     "mcp_call_tool", "mcp_read_resource"):
+        for name in ("mcp_list_servers", "mcp_list_tools", "mcp_call_tool", "mcp_read_resource"):
             assert name in reg._executors, f"executor missing for {name}"
 
     def test_mcp_tool_modules_tracked(self):
         from core.tools import ToolRegistry
+
         reg = ToolRegistry()
         reg.load(mcp=True)
-        for name in ("mcp_list_servers", "mcp_list_tools",
-                     "mcp_call_tool", "mcp_read_resource"):
-            assert reg._tool_modules.get(name) == "core.mcp_client", \
-                f"module tracking wrong for {name}"
+        for name in ("mcp_list_servers", "mcp_list_tools", "mcp_call_tool", "mcp_read_resource"):
+            assert reg._tool_modules.get(name) == "core.mcp_client", f"module tracking wrong for {name}"
 
 
 class TestGetRegistryMCP:
@@ -103,14 +105,13 @@ class TestGetRegistryMCP:
         """全局单例应包含 MCP bridge tools。"""
         # 先清理单例以获得干净状态
         import core.tools as tools_mod
+
         tools_mod._registry = None
         try:
             reg = tools_mod.get_registry()
             names = reg.tool_names
-            for expected in ("mcp_list_servers", "mcp_list_tools",
-                            "mcp_call_tool", "mcp_read_resource"):
-                assert expected in names, \
-                    f"{expected} missing from get_registry() singleton"
+            for expected in ("mcp_list_servers", "mcp_list_tools", "mcp_call_tool", "mcp_read_resource"):
+                assert expected in names, f"{expected} missing from get_registry() singleton"
         finally:
             # 恢复单例（下次 load 时会自动处理）
             tools_mod._registry = None
@@ -118,6 +119,7 @@ class TestGetRegistryMCP:
     def test_reload_registry_preserves_mcp(self):
         """reload_registry() 重建后应仍包含 MCP tools。"""
         import core.tools as tools_mod
+
         tools_mod._registry = None
         try:
             reg = tools_mod.reload_registry()
@@ -165,10 +167,8 @@ class TestChatMCPHandler:
         cli, session = self._make_cli_and_session()
         mock_client = MagicMock()
         mock_client.list_servers.return_value = [
-            {"name": "claude", "command": "claude-code", "args": ["mcp"],
-             "enabled": True},
-            {"name": "fs", "command": "node", "args": ["/server.js"],
-             "enabled": True},
+            {"name": "claude", "command": "claude-code", "args": ["mcp"], "enabled": True},
+            {"name": "fs", "command": "node", "args": ["/server.js"], "enabled": True},
         ]
         mock_client._processes = {}  # 未连接
 
@@ -186,7 +186,8 @@ class TestChatMCPHandler:
             cli._chat_mcp(session, "add claude -- claude-code mcp")
 
         mock_client.add_server.assert_called_once_with(
-            name="claude", command="claude-code",
+            name="claude",
+            command="claude-code",
             args=["mcp"],
         )
 
@@ -238,7 +239,8 @@ class TestChatMCPHandler:
         cli, session = self._make_cli_and_session()
         mock_client = MagicMock()
         mock_client.connect.return_value = {
-            "status": "connected", "name": "claude",
+            "status": "connected",
+            "name": "claude",
             "capabilities": {"tools": [{"name": "read_file"}]},
         }
 
@@ -287,9 +289,7 @@ class TestChatMCPHandler:
         """tools 服务器未连接时应显示错误。"""
         cli, session = self._make_cli_and_session()
         mock_client = MagicMock()
-        mock_client.list_tools.return_value = [
-            {"error": "Server 'claude' not connected"}
-        ]
+        mock_client.list_tools.return_value = [{"error": "Server 'claude' not connected"}]
 
         with patch("core.mcp_client.get_mcp_client", return_value=mock_client):
             cli._chat_mcp(session, "tools claude")
@@ -306,4 +306,3 @@ class TestChatMCPHandler:
 
         # 不应调用任何 client 方法
         mock_client.list_servers.assert_not_called()
-

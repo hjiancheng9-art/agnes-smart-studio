@@ -6,33 +6,29 @@
 3. **失败降级**: LLM 异常 → 返回 None，绝不阻塞主流程
 4. **配置开关**: enabled=False 永不触发
 """
+# pyright: reportOptionalMemberAccess=false
 
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core.reflection import ReflectionEngine, CRITIQUE_PROMPT
 from core.hooks import (
     HookEvent,
     HookType,
-    hook_manager,
-    register_reflection_hook,
-    get_reflection_engine,
-    reset_reflection_engine,
     _reflection_handler,
+    get_reflection_engine,
+    register_reflection_hook,
+    reset_reflection_engine,
 )
-
+from core.reflection import ReflectionEngine
 
 # ── ReflectionEngine 单元测试 ─────────────────────────────────────────
 
 
 class TestReflectionEngineTrigger:
-
     def _make_engine(self, interval=3, client=None, enabled=True):
         return ReflectionEngine(
             client=client or MagicMock(),
@@ -43,16 +39,14 @@ class TestReflectionEngineTrigger:
     def test_no_critique_before_interval(self):
         """未到 interval 不触发。"""
         engine = self._make_engine(interval=5)
-        for i in range(4):
+        for _i in range(4):
             engine.record_call("read_file", '{"path":"x"}', "content", False)
             assert engine.maybe_critique() is None
 
     def test_triggers_at_interval(self):
         """正好到 interval 时触发。"""
         mock_client = MagicMock()
-        mock_client.chat.return_value = {
-            "choices": [{"message": {"content": "计划正常，继续。"}}]
-        }
+        mock_client.chat.return_value = {"choices": [{"message": {"content": "计划正常，继续。"}}]}
         engine = self._make_engine(interval=3, client=mock_client)
         engine.record_call("read_file", "{}", "ok", False)
         assert engine.maybe_critique() is None  # 1
@@ -66,12 +60,10 @@ class TestReflectionEngineTrigger:
     def test_triggers_every_n_calls(self):
         """每 N 次都触发（3, 6, 9...）。"""
         mock_client = MagicMock()
-        mock_client.chat.return_value = {
-            "choices": [{"message": {"content": "继续。"}}]
-        }
+        mock_client.chat.return_value = {"choices": [{"message": {"content": "继续。"}}]}
         engine = self._make_engine(interval=3, client=mock_client)
         triggers = 0
-        for i in range(10):
+        for _i in range(10):
             engine.record_call("t", "{}", "ok", False)
             if engine.maybe_critique() is not None:
                 triggers += 1
@@ -102,13 +94,10 @@ class TestReflectionEngineTrigger:
 
 
 class TestReflectionEngineLLM:
-
     def test_critique_format(self):
         """critique 文本格式正确。"""
         mock_client = MagicMock()
-        mock_client.chat.return_value = {
-            "choices": [{"message": {"content": "  建议换用 search 工具。  "}}]
-        }
+        mock_client.chat.return_value = {"choices": [{"message": {"content": "  建议换用 search 工具。  "}}]}
         engine = ReflectionEngine(client=mock_client, interval=1)
         engine.record_call("read_file", "{}", "not found", True)
         result = engine.maybe_critique()
@@ -128,9 +117,7 @@ class TestReflectionEngineLLM:
     def test_empty_response_returns_none(self):
         """LLM 返回空内容 → 返回 None。"""
         mock_client = MagicMock()
-        mock_client.chat.return_value = {
-            "choices": [{"message": {"content": ""}}]
-        }
+        mock_client.chat.return_value = {"choices": [{"message": {"content": ""}}]}
         engine = ReflectionEngine(client=mock_client, interval=1)
         engine.record_call("t", "{}", "ok", False)
         result = engine.maybe_critique()
@@ -139,12 +126,8 @@ class TestReflectionEngineLLM:
     def test_llm_call_args(self):
         """验证 client.chat 调用参数正确。"""
         mock_client = MagicMock()
-        mock_client.chat.return_value = {
-            "choices": [{"message": {"content": "ok"}}]
-        }
-        engine = ReflectionEngine(
-            client=mock_client, interval=1, model="deepseek-v4-pro"
-        )
+        mock_client.chat.return_value = {"choices": [{"message": {"content": "ok"}}]}
+        engine = ReflectionEngine(client=mock_client, interval=1, model="deepseek-v4-pro")
         engine.record_call("t", "{}", "ok", False)
         engine.maybe_critique()
         mock_client.chat.assert_called_once()
@@ -154,13 +137,10 @@ class TestReflectionEngineLLM:
 
 
 class TestReflectionEngineContext:
-
     def test_error_calls_prioritized(self):
         """error=True 的调用在 context 中排在前面。"""
         mock_client = MagicMock()
-        mock_client.chat.return_value = {
-            "choices": [{"message": {"content": "ok"}}]
-        }
+        mock_client.chat.return_value = {"choices": [{"message": {"content": "ok"}}]}
         engine = ReflectionEngine(client=mock_client, interval=1)
         engine.record_call("read_file", "{}", "ok", False)
         engine.record_call("bad_tool", "{}", "[错误] failed", True)
@@ -194,9 +174,7 @@ class TestReflectionEngineContext:
     def test_clears_recent_after_critique(self):
         """触发 critique 后清空 recent_calls（避免重复分析）。"""
         mock_client = MagicMock()
-        mock_client.chat.return_value = {
-            "choices": [{"message": {"content": "ok"}}]
-        }
+        mock_client.chat.return_value = {"choices": [{"message": {"content": "ok"}}]}
         engine = ReflectionEngine(client=mock_client, interval=1)
         engine.record_call("t", "{}", "ok", False)
         engine.maybe_critique()
@@ -207,7 +185,6 @@ class TestReflectionEngineContext:
 
 
 class TestReflectionHook:
-
     def teardown_method(self):
         """每个测试后重置全局反思引擎。"""
         reset_reflection_engine()
@@ -224,9 +201,7 @@ class TestReflectionHook:
     def test_handler_appends_critique(self):
         """handler 将 critique 拼接到 event.result。"""
         mock_client = MagicMock()
-        mock_client.chat.return_value = {
-            "choices": [{"message": {"content": "方向正确，继续。"}}]
-        }
+        mock_client.chat.return_value = {"choices": [{"message": {"content": "方向正确，继续。"}}]}
         register_reflection_hook(client=mock_client, interval=1, enabled=True)
 
         event = HookEvent(
@@ -284,6 +259,7 @@ class TestReflectionConfig:
     def test_config_has_reflection_fields(self):
         """Settings 包含 reflection_enabled 和 reflection_interval。"""
         from core.config import SETTINGS
+
         assert hasattr(SETTINGS, "reflection_enabled")
         assert hasattr(SETTINGS, "reflection_interval")
         assert isinstance(SETTINGS.reflection_enabled, bool)
@@ -292,6 +268,7 @@ class TestReflectionConfig:
     def test_default_values(self):
         """默认值正确。"""
         from core.config import Settings
+
         s = Settings()
         assert s.reflection_enabled is True
         assert s.reflection_interval == 5

@@ -410,6 +410,20 @@ def get_scheduler() -> Scheduler:
     return _scheduler
 
 
+def reset_scheduler() -> None:
+    """Tear down the scheduler singleton (test isolation / hot reload).
+
+    Scheduler runs a background daemon thread; shutdown() signals the stop
+    event and joins before we drop the reference, otherwise the thread leaks
+    across tests.
+    """
+    global _scheduler
+    if _scheduler is not None:
+        with contextlib.suppress(Exception):
+            _scheduler.shutdown()
+    _scheduler = None
+
+
 def _get_scheduler() -> Scheduler:
     """Internal accessor for executor functions."""
     return get_scheduler()

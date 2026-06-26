@@ -1,17 +1,27 @@
 """Unit tests for provider management."""
-import sys
+
 import json
+import sys
 from pathlib import Path
+
 import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 import core.provider
 from core.provider import (
-    ProviderManager, get_provider_manager,
-    MODEL_REGISTRY, ModelInfo, resolve_model_alias,
-    get_tool_calling_models, get_model_description,
-    get_provider_name, model_supports_tools, register_model,
+    MODEL_REGISTRY,
+    ModelInfo,
+    ProviderManager,
+    get_model_description,
+    get_provider_manager,
+    get_provider_name,
+    get_tool_calling_models,
+    model_supports_tools,
+    register_model,
+    resolve_model_alias,
 )
+
 
 class TestModelRegistry:
     def test_builtin_models_registered(self):
@@ -37,8 +47,11 @@ class TestModelRegistry:
 
     def test_register_custom_model(self):
         info = ModelInfo(
-            id="custom-model", name="Custom", provider_id="custom",
-            provider_name="Custom Provider", supports_tools=True,
+            id="custom-model",
+            name="Custom",
+            provider_id="custom",
+            provider_name="Custom Provider",
+            supports_tools=True,
         )
         register_model(info)
         assert "custom-model" in MODEL_REGISTRY
@@ -113,34 +126,102 @@ class TestProviderManager:
         return tmp_path / "models.json"
 
     def test_load_providers(self, tmp_models):
-        tmp_models.write_text(json.dumps({"providers": {"tp": {"name": "T", "base_url": "https://t.com/v1", "api_key": "k", "models": {"pro": "tp", "light": "tl"}}}, "active": "tp"}), encoding="utf-8")
+        tmp_models.write_text(
+            json.dumps(
+                {
+                    "providers": {
+                        "tp": {
+                            "name": "T",
+                            "base_url": "https://t.com/v1",
+                            "api_key": "k",
+                            "models": {"pro": "tp", "light": "tl"},
+                        }
+                    },
+                    "active": "tp",
+                }
+            ),
+            encoding="utf-8",
+        )
         mgr = ProviderManager()
         mgr.load()
         assert "tp" in mgr.providers
         assert mgr.state.active == "tp"
 
     def test_set_active(self, tmp_models):
-        tmp_models.write_text(json.dumps({"providers": {"a": {"name": "A", "base_url": "https://a.com/v1", "api_key": "ka", "models": {"pro": "ap", "light": "al"}}, "b": {"name": "B", "base_url": "https://b.com/v1", "api_key": "kb", "models": {"pro": "bp", "light": "bl"}}}, "active": "b"}), encoding="utf-8")
+        tmp_models.write_text(
+            json.dumps(
+                {
+                    "providers": {
+                        "a": {
+                            "name": "A",
+                            "base_url": "https://a.com/v1",
+                            "api_key": "ka",
+                            "models": {"pro": "ap", "light": "al"},
+                        },
+                        "b": {
+                            "name": "B",
+                            "base_url": "https://b.com/v1",
+                            "api_key": "kb",
+                            "models": {"pro": "bp", "light": "bl"},
+                        },
+                    },
+                    "active": "b",
+                }
+            ),
+            encoding="utf-8",
+        )
         mgr = ProviderManager()
         mgr.load()
         mgr.set_active("a")
         assert mgr.state.active == "a"
 
     def test_get_model(self, tmp_models):
-        tmp_models.write_text(json.dumps({"providers": {"x": {"name": "X", "base_url": "https://x.com/v1", "api_key": "kx", "models": {"pro": "x-pro", "light": "x-light"}}}, "active": "x"}), encoding="utf-8")
+        tmp_models.write_text(
+            json.dumps(
+                {
+                    "providers": {
+                        "x": {
+                            "name": "X",
+                            "base_url": "https://x.com/v1",
+                            "api_key": "kx",
+                            "models": {"pro": "x-pro", "light": "x-light"},
+                        }
+                    },
+                    "active": "x",
+                }
+            ),
+            encoding="utf-8",
+        )
         mgr = ProviderManager()
         mgr.load()
         assert mgr.get_model("pro").endswith("x-pro")
 
     def test_set_active_unknown(self, tmp_models):
-        tmp_models.write_text(json.dumps({"providers": {"a": {"name": "A", "base_url": "https://a.com/v1", "api_key": "ka", "models": {"pro": "ap", "light": "al"}}}, "active": "a"}), encoding="utf-8")
+        tmp_models.write_text(
+            json.dumps(
+                {
+                    "providers": {
+                        "a": {
+                            "name": "A",
+                            "base_url": "https://a.com/v1",
+                            "api_key": "ka",
+                            "models": {"pro": "ap", "light": "al"},
+                        }
+                    },
+                    "active": "a",
+                }
+            ),
+            encoding="utf-8",
+        )
         mgr = ProviderManager()
         mgr.load()
         mgr.set_active("nonexistent")
         assert mgr.state.active in ("a", "nonexistent")
 
+
 class TestSingletonProvider:
     def test_singleton(self):
         assert get_provider_manager() is get_provider_manager()
+
     def test_type(self):
         assert isinstance(get_provider_manager(), ProviderManager)

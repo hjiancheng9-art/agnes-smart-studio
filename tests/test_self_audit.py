@@ -1,6 +1,5 @@
 """Tests for core.self_audit — comprehensive codebase scanning."""
 
-
 import pytest
 
 
@@ -8,14 +7,11 @@ import pytest
 def audit_project(tmp_path):
     """Create a project with known issues for AuditEngine to find."""
     # Wildcard import (medium severity)
-    (tmp_path / "wildcard.py").write_text(
-        'from os import *\n', encoding="utf-8")
+    (tmp_path / "wildcard.py").write_text("from os import *\n", encoding="utf-8")
     # Bare except (high severity)
-    (tmp_path / "bare_except.py").write_text(
-        'try:\n    pass\nexcept:\n    pass\n', encoding="utf-8")
+    (tmp_path / "bare_except.py").write_text("try:\n    pass\nexcept:\n    pass\n", encoding="utf-8")
     # Clean file
-    (tmp_path / "clean.py").write_text(
-        'import os\n\n\ndef hello():\n    return "hi"\n', encoding="utf-8")
+    (tmp_path / "clean.py").write_text('import os\n\n\ndef hello():\n    return "hi"\n', encoding="utf-8")
     # Empty file (medium severity)
     (tmp_path / "empty.py").write_text("", encoding="utf-8")
     # Invalid tools.json (critical)
@@ -33,6 +29,7 @@ class TestAuditEngine:
 
     def test_scan_returns_report(self, audit_project):
         from core.self_audit import AuditEngine
+
         engine = AuditEngine(root=audit_project)
         report = engine.scan()
         assert isinstance(report, dict)
@@ -42,6 +39,7 @@ class TestAuditEngine:
 
     def test_finds_wildcard_imports(self, audit_project):
         from core.self_audit import AuditEngine
+
         engine = AuditEngine(root=audit_project)
         report = engine.scan()
         imports = [f for f in report["findings"] if f.get("category") == "imports"]
@@ -50,6 +48,7 @@ class TestAuditEngine:
 
     def test_finds_bare_except(self, audit_project):
         from core.self_audit import AuditEngine
+
         engine = AuditEngine(root=audit_project)
         report = engine.scan()
         exceptions = [f for f in report["findings"] if f.get("category") == "exceptions"]
@@ -57,6 +56,7 @@ class TestAuditEngine:
 
     def test_finds_empty_files(self, audit_project):
         from core.self_audit import AuditEngine
+
         engine = AuditEngine(root=audit_project)
         report = engine.scan()
         files = [f for f in report["findings"] if f.get("category") == "files"]
@@ -65,6 +65,7 @@ class TestAuditEngine:
 
     def test_finds_invalid_tools_json(self, audit_project):
         from core.self_audit import AuditEngine
+
         engine = AuditEngine(root=audit_project)
         report = engine.scan()
         config = [f for f in report["findings"] if f.get("category") == "config"]
@@ -73,6 +74,7 @@ class TestAuditEngine:
 
     def test_finds_bad_skill_json(self, audit_project):
         from core.self_audit import AuditEngine
+
         engine = AuditEngine(root=audit_project)
         report = engine.scan()
         skills = [f for f in report["findings"] if f.get("category") == "skills"]
@@ -80,6 +82,7 @@ class TestAuditEngine:
 
     def test_severity_counts(self, audit_project):
         from core.self_audit import AuditEngine
+
         engine = AuditEngine(root=audit_project)
         report = engine.scan()
         sev = report["by_severity"]
@@ -89,8 +92,8 @@ class TestAuditEngine:
 
     def test_clean_project_no_findings(self, tmp_path):
         from core.self_audit import AuditEngine
-        (tmp_path / "clean.py").write_text(
-            'import os\n\n\ndef hello():\n    return "hi"\n', encoding="utf-8")
+
+        (tmp_path / "clean.py").write_text('import os\n\n\ndef hello():\n    return "hi"\n', encoding="utf-8")
         engine = AuditEngine(root=tmp_path)
         report = engine.scan()
         # May still find encoding/git findings, but no import/exception issues
@@ -98,12 +101,14 @@ class TestAuditEngine:
         assert imports == []
 
     def test_default_root(self):
-        from core.self_audit import AuditEngine, ROOT
+        from core.self_audit import ROOT, AuditEngine
+
         engine = AuditEngine()
         assert engine.root == ROOT
 
     def test_audit_function(self):
         from core.self_audit import audit
+
         report = audit()
         assert isinstance(report, dict)
         assert "findings" in report
@@ -114,6 +119,7 @@ class TestReportStructure:
 
     def test_finding_has_required_fields(self, audit_project):
         from core.self_audit import AuditEngine
+
         engine = AuditEngine(root=audit_project)
         report = engine.scan()
         for finding in report["findings"]:
@@ -123,6 +129,7 @@ class TestReportStructure:
 
     def test_severity_values(self, audit_project):
         from core.self_audit import AuditEngine
+
         engine = AuditEngine(root=audit_project)
         report = engine.scan()
         valid_severities = {"critical", "high", "medium", "low", "info"}
@@ -131,6 +138,7 @@ class TestReportStructure:
 
     def test_auto_fixable_count(self, audit_project):
         from core.self_audit import AuditEngine
+
         engine = AuditEngine(root=audit_project)
         report = engine.scan()
         assert "auto_fixable" in report
@@ -143,10 +151,11 @@ class TestSkipDirs:
 
     def test_skips_pycache(self, tmp_path):
         from core.self_audit import AuditEngine
+
         cache = tmp_path / "__pycache__"
         cache.mkdir()
         # Put a file with issues in __pycache__
-        (cache / "cached.py").write_text('from os import *\n', encoding="utf-8")
+        (cache / "cached.py").write_text("from os import *\n", encoding="utf-8")
         engine = AuditEngine(root=tmp_path)
         report = engine.scan()
         imports = [f for f in report["findings"] if f.get("category") == "imports"]
@@ -154,11 +163,11 @@ class TestSkipDirs:
 
     def test_skips_git_dir(self, tmp_path):
         from core.self_audit import AuditEngine
+
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
         (git_dir / "empty.py").write_text("", encoding="utf-8")
         engine = AuditEngine(root=tmp_path)
         report = engine.scan()
-        files = [f for f in report["findings"]
-                 if f.get("category") == "files" and ".git" in f.get("file", "")]
+        files = [f for f in report["findings"] if f.get("category") == "files" and ".git" in f.get("file", "")]
         assert files == []
