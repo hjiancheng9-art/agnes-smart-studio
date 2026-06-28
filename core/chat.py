@@ -736,25 +736,44 @@ class ChatSession:
                 _stream_error = False
                 _last_usage = None
                 # _consume_stream_delta 是生成器：yield text chunks + return (buffer, tool_calls, error, usage)
-                delta_result = yield from self._consume_stream_delta(
-                    _use_client,
-                    _use_model,
-                    tools,
-                )
+                try:
+                    delta_result = yield from self._consume_stream_delta(
+                        _use_client,
+                        _use_model,
+                        tools,
+                    )
+                except Exception as e:
+                    logger.exception("_consume_stream_delta 异常")
+                    yield ("error", f"流式接收中断: {type(e).__name__}: {e}")
+                    _stream_error_break = True
+                    break
                 buffer, tool_calls, _stream_error, _last_usage = delta_result
                 # 收完一轮 delta：有 tool_calls → 执行并喂回，进入下一轮
                 if tool_calls:
                     buffer = self._append_assistant_with_tools(buffer, tool_calls)
-                    yield from self._run_tool_calls(
-                        tool_calls,
-                        _executed_signatures,
-                        _executed_cache,
-                    )
+                    try:
+                        yield from self._run_tool_calls(
+                            tool_calls,
+                            _executed_signatures,
+                            _executed_cache,
+                        )
+                    except Exception as e:
+                        logger.exception("_run_tool_calls 异常")
+                        yield ("error", f"工具执行中断: {type(e).__name__}: {e}")
+                        _stream_error_break = True
+                        break
                     continue  # 进入下一轮 tool loop
 
                 # 无 tool_calls：检查是否流错误（需 fallback）还是正常收尾
                 if _stream_error or self._is_stream_error(buffer):
                     if _loop == 0 and fallback_tried < len(fallback_chain):
+                        # 通知 ProviderManager 标记当前供应商为 down
+                        try:
+                            from core.provider import get_provider_manager
+                            mgr = get_provider_manager()
+                            mgr.state.mark_down(mgr.state.active)
+                        except Exception:
+                            pass
                         yield ("info", f"模型 {_use_model} 连接中断，尝试 fallback...")
                         metrics.increment("fallback.text_model")
                         _stream_error_break = True
@@ -865,7 +884,13 @@ class ChatSession:
                 append_tool_result = True
             else:
                 with TraceContext("tool_call", tool_name=fname, call_id=tc.get("id", "")) as span:
-                    tool_result, side_effects = self._dispatch_tool(fname, fargs)
+                    try:
+                        tool_result, side_effects = self._dispatch_tool(fname, fargs)
+                    except Exception as e:
+                        logger.exception("工具 %s 执行异常", fname)
+                        tool_result = f"[错误] 工具 {fname} 执行失败: {type(e).__name__}: {e}"
+                        side_effects = [("info", tool_result)]
+                        metrics.increment("tool_errors")
                     span.set_attribute("result_chars", len(tool_result) if isinstance(tool_result, str) else -1)
                     metrics.increment("tool_calls")
                     metrics.timing("tool_call_ms", span.duration_ms())

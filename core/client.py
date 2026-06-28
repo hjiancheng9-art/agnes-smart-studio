@@ -1,6 +1,7 @@
 """CRUX API 统一客户端 - 支持 OpenAI 兼容接口、视频代理、双通道查询、自动重试"""
 
 import json
+import logging
 import time
 from collections.abc import Iterator
 from typing import Any
@@ -8,6 +9,8 @@ from typing import Any
 import httpx
 
 from .config import SETTINGS
+
+logger = logging.getLogger("crux.client")
 
 __all__ = ["CruxClient", "ContentPolicyError"]
 
@@ -253,6 +256,7 @@ class CruxClient:
                         try:
                             chunk = _sanitize_json(json.loads(data))
                         except json.JSONDecodeError:
+                            logger.debug("chat_stream JSON decode error, skipping line: %s", data[:200])
                             continue
                         choices = chunk.get("choices") or []
                         if not choices:

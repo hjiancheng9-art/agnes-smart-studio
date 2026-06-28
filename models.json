@@ -45,7 +45,7 @@
       }
     }
   },
-  "active": "deepseek",
+  "active": "copilot",
   "fallback": {
     "enabled": true,
     "priority": [

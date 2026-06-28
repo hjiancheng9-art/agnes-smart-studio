@@ -1,6 +1,7 @@
 {
   "name": "aria2-downloader",
   "description": "aria2 multi-threaded download engine - download large files (model weights, datasets, videos) with 16-thread acceleration and resume support",
+  "prompt": "你是 aria2 下载管理器，负责大型文件（模型权重、数据集、视频）的高速多线程下载。可用工具：start（启动服务）、stop（停止）、download（下载）、pause/resume/remove（管理任务）、status/list_active/list_all（查询状态）、clear_completed（清理）。",
   "module": "core.aria2_bridge",
   "class": "Aria2Bridge",
   "functions": [

@@ -33,6 +33,8 @@ class RecoveryEngine:
             "config_corrupt": self._config_corrupt,
             "disk_low": self._disk_low,
             "model_error": self._model_error,
+            "rate_limit": self._rate_limit,
+            "history_corrupt": self._history_corrupt,
         }
         handler = playbooks.get(scenario)
         if not handler:
@@ -117,6 +119,53 @@ class RecoveryEngine:
         if "rate" in el:
             hints.append("Rate limited — wait and retry")
         return {"success": len(hints) > 0, "message": "; ".join(hints) or "Unknown model error"}
+
+    def _rate_limit(self, provider: str = "", retry_after: int = 5, **ctx) -> dict:
+        """Handle rate limiting (429) — wait and try fallback provider."""
+        hints = []
+        if provider:
+            from core.provider import get_provider_manager
+            mgr = get_provider_manager()
+            mgr.state.mark_down(provider)
+            hints.append(f"Provider {provider} temporarily marked down (cooldown)")
+
+            # Try switching to another available provider
+            available = mgr.state.available(list(mgr.providers.keys()))
+            alt = next((p for p in available if p != provider), None)
+            if alt:
+                mgr.state.active = alt
+                hints.append(f"Switched to {alt}")
+
+        hints.append(f"Rate limited — retry after {retry_after}s")
+        return {"success": True, "message": "; ".join(hints)}
+
+    def _history_corrupt(self, session_id: str = "", **ctx) -> dict:
+        """Handle corrupted chat history — truncate and rebuild."""
+        import os
+        history_path = self.root / "output" / "history.json"
+        backup_path = self.root / "output" / "history.json.bak"
+
+        if history_path.exists():
+            shutil.copy2(history_path, backup_path)
+
+            # Attempt to load and sanitize
+            try:
+                import json as _json
+                with open(history_path, "r", encoding="utf-8") as f:
+                    data = _json.load(f)
+                # Trim to last valid session
+                if isinstance(data, list) and len(data) > 0:
+                    data = data[-1:]  # keep only most recent
+                    with open(history_path, "w", encoding="utf-8") as f:
+                        _json.dump(data, f, ensure_ascii=False)
+                    return {"success": True, "message": "Chat history truncated to last session"}
+            except (_json.JSONDecodeError, KeyError, TypeError):
+                # Severely corrupted — wipe and restart
+                with open(history_path, "w", encoding="utf-8") as f:
+                    _json.dump([], f)
+                return {"success": True, "message": "Corrupted history reset to empty"}
+
+        return {"success": False, "message": "No history file to recover"}
 
 
 def recover(scenario: str, **ctx) -> dict:

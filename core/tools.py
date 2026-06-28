@@ -819,8 +819,7 @@ class ToolRegistry:
             # ── detach 模式：Popen 后台启动，立即返回 pid ──
             if detach:
                 if sys.platform == "win32" and not shutil.which("bash"):
-                    full_cmd = f"chcp 65001 >nul && {cmd}"
-                    popen_cmd = full_cmd
+                    popen_cmd = cmd
                 else:
                     popen_cmd = cmd
                 proc = _sp.Popen(
@@ -840,9 +839,8 @@ class ToolRegistry:
 
             # ── 跨平台执行 ──
             if sys.platform == "win32" and not shutil.which("bash"):
-                full_cmd = f"chcp 65001 >nul && {cmd}"
                 r = _sp.run(
-                    full_cmd,
+                    cmd,
                     shell=True,
                     capture_output=True,
                     text=True,
