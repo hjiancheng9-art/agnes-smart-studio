@@ -1,84 +1,149 @@
-"""Tests for root tools.py — _view_image, _update_plan, _tool_search, _mcp_*, _request_user_input."""
+"""Tests for the ToolRegistry — builtin tool definitions, registration, and loading.
 
-import sys
-from unittest.mock import patch
+These tests validate the tool registry and tool definition structures
+without requiring actual HTTP calls or external services.
+"""
 
-from tools import (
-    _mcp_list_resources,
-    _mcp_read_resource,
-    _request_user_input,
-    _tool_search,
-    _update_plan,
-    _view_image,
+from core.tools import (
+    BUILTIN_TOOLS,
+    COMFYUI_TOOL_DEFS,
+    PIPELINE_TOOL_DEFS,
+    ToolRegistry,
+    get_registry,
 )
 
 
-class TestToolSearch:
-    def test_finds_image_tools(self):
-        result = _tool_search("image")
-        assert "imagegen" in result or "view_image" in result
+class TestBuiltinTools:
+    """BUILTIN_TOOLS should have valid structure."""
 
-    def test_no_match(self):
-        result = _tool_search("zzz_nonexistent_xyz")
-        assert "No tools found" in result
+    def test_builtin_tools_not_empty(self):
+        assert len(BUILTIN_TOOLS) >= 3
 
+    def test_each_tool_has_name_and_params(self):
+        for tool in BUILTIN_TOOLS:
+            fn = tool.get("function", {})
+            assert "name" in fn, f"Tool missing name: {fn}"
+            assert "parameters" in fn, f"Tool {fn['name']} missing parameters"
+            params = fn["parameters"]
+            assert "properties" in params
 
-class TestUpdatePlan:
-    def test_add(self):
-        result = _update_plan(action="add", name="step1", tool="read_file", reason="test")
-        assert "added step 0" in result
+    def test_generate_image_tool_structure(self):
+        tool = next((t for t in BUILTIN_TOOLS if t["function"]["name"] == "generate_image"), None)
+        assert tool is not None
+        params = tool["function"]["parameters"]["properties"]
+        assert "prompt" in params
 
-    def test_modify(self):
-        _update_plan(action="add", name="orig", tool="run_bash")
-        result = _update_plan(action="modify", step_id=0, name="changed", tool="run_python")
-        assert "modified step 0" in result
+    def test_generate_video_tool_structure(self):
+        tool = next((t for t in BUILTIN_TOOLS if t["function"]["name"] == "generate_video"), None)
+        assert tool is not None
+        params = tool["function"]["parameters"]["properties"]
+        assert "prompt" in params
 
-    def test_remove(self):
-        _update_plan(action="add", name="tmp", tool="read_file")
-        result = _update_plan(action="remove", step_id=0)
-        assert "removed step 0" in result
-
-    def test_insert(self):
-        _update_plan(action="add", name="first", tool="a")
-        result = _update_plan(action="insert", step_id=0, name="inserted", tool="b")
-        assert "inserted step 0" in result
-
-    def test_invalid(self):
-        result = _update_plan(action="bogus", step_id=999)
-        assert "Invalid" in result
+    def test_multi_agent_tool_structure(self):
+        tool = next((t for t in BUILTIN_TOOLS if t["function"]["name"] == "multi_agent"), None)
+        assert tool is not None
+        params = tool["function"]["parameters"]["properties"]
+        assert "goal" in params
 
 
-class TestViewImage:
-    def test_nonexistent(self):
-        result = _view_image("/nonexistent/img.png")
-        assert "not found" in result
+class TestComfyuiToolDefs:
+    def test_comfyui_tools_defined(self):
+        assert isinstance(COMFYUI_TOOL_DEFS, list)
+        assert len(COMFYUI_TOOL_DEFS) > 0
 
-    @patch("sys.platform", "linux")
-    @patch("subprocess.Popen")
-    def test_linux_opens(self, mock_popen):
-        with patch("pathlib.Path.exists", return_value=True), \
-             patch("pathlib.Path.resolve", return_value="/tmp/test.png"):
-            result = _view_image("/tmp/test.png")
-            assert "Opened" in result
+    def test_each_comfyui_tool_has_function_block(self):
+        for tool in COMFYUI_TOOL_DEFS:
+            fn = tool.get("function", {})
+            assert "name" in fn
 
 
-class TestMcpTools:
-    def test_list_no_connection(self):
-        result = _mcp_list_resources()
-        assert "No MCP servers" in result or "MCP client" in result
+class TestPipelineToolDefs:
+    def test_pipeline_tools_defined(self):
+        assert isinstance(PIPELINE_TOOL_DEFS, list)
 
-    def test_read_no_connection(self):
-        result = _mcp_read_resource("file:///test")
-        assert "No MCP servers" in result or "MCP client" in result
+    def test_each_pipeline_tool_has_name(self):
+        for tool in PIPELINE_TOOL_DEFS:
+            fn = tool.get("function", {})
+            assert "name" in fn
 
 
-class TestRequestUserInput:
-    @patch("builtins.input", return_value="yes")
-    def test_returns_input(self, mock_input):
-        result = _request_user_input("Continue?")
-        assert result == "yes"
+class TestToolRegistryInit:
+    def test_get_registry_returns_instance(self):
+        reg = get_registry()
+        assert isinstance(reg, ToolRegistry)
 
-    @patch("builtins.input", side_effect=EOFError)
-    def test_eof_cancels(self, mock_input):
-        result = _request_user_input("Question?")
-        assert "cancelled" in result
+    def test_get_registry_singleton(self):
+        reg1 = get_registry()
+        reg2 = get_registry()
+        assert reg1 is reg2
+
+    def test_registry_has_definitions_property(self):
+        reg = get_registry()
+        assert hasattr(reg, "definitions")
+        assert isinstance(reg.definitions, list)
+        assert len(reg.definitions) >= 3  # generate_image, generate_video, multi_agent
+
+    def test_registry_has_tool_names(self):
+        reg = get_registry()
+        names = reg.tool_names
+        assert isinstance(names, list)
+        assert "generate_image" in names
+        assert "generate_video" in names
+
+    def test_registry_has_execute(self):
+        reg = get_registry()
+        assert hasattr(reg, "execute")
+        assert callable(reg.execute)
+
+
+class TestToolRegistryLoad:
+    def test_load_basic(self):
+        reg = ToolRegistry()
+        count = reg.load()
+        assert count >= 3  # generate_image, generate_video, multi_agent
+
+    def test_load_twice_rebuilds(self):
+        reg = ToolRegistry()
+        count1 = reg.load()
+        count2 = reg.load()
+        assert count1 == count2  # should be deterministic
+
+    def test_load_browser_adds_more(self):
+        reg = ToolRegistry()
+        base = reg.load()
+        count = reg.load(browser=True)
+        assert count >= base
+
+    def test_load_mcp_adds_more(self):
+        reg = ToolRegistry()
+        base = reg.load()
+        count = reg.load(mcp=True)
+        assert count >= base
+
+    def test_has_method_works(self):
+        reg = ToolRegistry()
+        reg.load()
+        # builtin tools don't have executors in ToolRegistry (handled by ChatSession)
+        # but externally-loaded tools do
+        assert reg.has("generate_image") is False  # builtin, no executor in registry
+        assert reg.has("nonexistent_tool_xyz") is False
+
+
+class TestToolDefinitionsJSON:
+    """Validate tools.json structure (the external config file)."""
+
+    def test_tools_json_exists(self):
+        import json
+        from pathlib import Path
+
+        path = Path(__file__).resolve().parent.parent / "tools.json"
+        assert path.exists()
+
+    def test_tools_json_valid(self):
+        import json
+        from pathlib import Path
+
+        path = Path(__file__).resolve().parent.parent / "tools.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert "tools" in data
+        assert isinstance(data["tools"], list)
