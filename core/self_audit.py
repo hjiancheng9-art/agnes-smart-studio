@@ -184,7 +184,7 @@ class AuditEngine:
             if "__pycache__" in pyfile.parts:
                 continue
             try:
-                if "chcp 65001" in pyfile.read_text(encoding="utf-8", errors="replace"):
+                if "chcp 65001" in pyfile.read_text(encoding="utf-8", errors="replace") and pyfile.name != "self_audit.py":
                     self._add(
                         category="encoding",
                         severity="low",

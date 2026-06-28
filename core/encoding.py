@@ -1,7 +1,7 @@
 """UTF-8 encoding setup for Windows console and subprocess interoperability.
 
 Import this once at startup before any other module that prints or spawns
-subprocesses. It replaces the fragile chcp 65001 hack with proper Win32 API
+subprocesses. It replaces the fragile code page hack with proper Win32 API
 calls and Python-level reconfiguration.
 """
 
