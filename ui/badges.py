@@ -60,13 +60,13 @@ def _model_label(session: ChatSession) -> tuple[str, str]:
             label = f"{label} · {short}"
     except Exception:
         label = model
-    color = COLORS["muted"] if model in ("agnes-1.5-flash",) else "#26A69A"
+    color = COLORS["muted"] if model in ("agnes-1.5-flash",) else COLORS["badge_model"]
     # 动态从 MODEL_REGISTRY 判定：light tier → 柔和色，pro tier → 强调色
     try:
         from core.provider import get_model_info
         info = get_model_info(model)
         if info:
-            color = COLORS["muted"] if info.tier == "light" else "#26A69A"
+            color = COLORS["muted"] if info.tier == "light" else COLORS["badge_model"]
     except Exception:
         pass
     return label, color

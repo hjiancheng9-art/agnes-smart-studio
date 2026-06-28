@@ -17,7 +17,6 @@
 
 from rich.panel import Panel
 from rich.prompt import Prompt
-from rich.table import Table
 
 from core.brain import SmartBrain
 from core.client import ContentPolicyError, CruxClient
@@ -27,7 +26,7 @@ from engines.image_to_image import ImageToImageEngine
 from engines.text_to_image import TextToImageEngine
 from engines.video import VideoEngine
 from pipeline.workflows import PipelineOrchestrator
-from ui.beautify import hr_dot, splash_full
+from ui.beautify import splash_full
 from ui.display import show_error, show_info, show_warning
 from ui.mixins import (
     CreativeCommandsMixin,
@@ -98,53 +97,43 @@ class CruxCLI(
     _prompt_session = None  # 类级复用 prompt_toolkit session
 
     def run(self):
-        # v2 美化启动: 五行动画 + Logo 面板
-        splash_full(v=f"v{__version__}", t="84", s="734")
-        hr_dot()
-        while True:
-            console.print()
-            menu = Table(
-                title=f"[{COLORS['primary']}]{ICONS['primary']} Menu[/]",
-                show_header=False,
-                box=None,
-                padding=(0, 2),
-                row_styles=["", f"on {COLORS['surface']}"],
-            )
-            menu.add_column("Key", style=f"bold {COLORS['accent']}", width=4)
-            menu.add_column("Name", style="white", width=16)
-            menu.add_column("Desc", style="dim")
-            for k, n, d in [
-                ("1", f"{ICONS['primary']} Text→Image", "Generate image from text"),
-                ("2", f"{ICONS['empty']} Image→Image", "Edit / style transfer"),
-                ("3", f"{ICONS['video']} Text→Video", "Generate video from text"),
-                ("4", f"{ICONS['video']} Image→Video", "Animate an image"),
-                ("5", f"{ICONS['pipeline']} Pipeline", "Text → Image → Video"),
-                ("6", f"{ICONS['history']} History", "View generation history"),
-                ("7", f"{ICONS['template']} Templates", "Browse style templates"),
-                ("8", f"{ICONS['primary']} Chat", "AI conversation with generation"),
-                ("0", f"{ICONS['error']} Exit", ""),
-            ]:
-                menu.add_row(k, n, d)
-            console.print(menu)
+        """v6 启动流程 — 欢迎页 → 紧凑启动器 → 聊天直达。
 
-            ch = Prompt.ask(
-                f"[{COLORS['primary']}]{ICONS['primary']} Select[/]",
-                choices=["0", "1", "2", "3", "4", "5", "6", "7", "8"],
-                default="1",
+        Chat 是默认入口（Enter 即进入）。创意工具通过 [g] 子菜单访问。
+        """
+        from ui.terminal_logo import render_welcome
+
+        # 欢迎页
+        render_welcome(v=f"v{__version__}", t="84", s="734")
+
+        P = COLORS["primary"]
+        M = COLORS["text_secondary"]
+        T = COLORS["text_tertiary"]
+        G = COLORS["success"]
+        A = COLORS["accent"]
+
+        while True:
+            choice = Prompt.ask(
+                f"\n  [{P}]Chat[/] [{T}](Enter)[/]  "
+                f"[{A}]Generate[/] [{T}](g)[/]  "
+                f"[{P}]History[/] [{T}](h)[/]  "
+                f"[{P}]Templates[/] [{T}](t)[/]  "
+                f"[{COLORS['error']}]Exit[/] [{T}](q)[/]",
+                choices=["", "g", "h", "t", "q"],
+                default="",
+                show_choices=False,
             )
-            if ch == "0":
+            if choice == "q":
                 break
             try:
-                {
-                    "1": self._t2i,
-                    "2": self._i2i,
-                    "3": self._t2v,
-                    "4": self._i2v,
-                    "5": self._pipeline,
-                    "6": self._hist,
-                    "7": self._tmpl,
-                    "8": self._chat,
-                }[ch]()
+                if choice == "":
+                    self._chat()
+                elif choice == "g":
+                    self._gen_menu()
+                elif choice == "h":
+                    self._hist()
+                elif choice == "t":
+                    self._tmpl()
             except ContentPolicyError as e:
                 show_warning(str(e))
             except Exception as e:
@@ -153,9 +142,42 @@ class CruxCLI(
         # 退出时显示记忆统计
         tips = memory.get_tips()
         if tips:
-            console.print(f"\n[dim]{LAYOUT['separator_char'] * LAYOUT['separator_len']}[/]")
+            console.print(f"\n[{T}]{LAYOUT['separator_char'] * LAYOUT['separator_len']}[/]")
             for t in tips:
-                console.print(f"  [{COLORS['primary']}]{ICONS['primary']}[/] [dim]{t}[/]")
+                console.print(f"  [{T}]·[/] [{T}]{t}[/]")
+
+    def _gen_menu(self):
+        """v6 生成子菜单 — 紧凑，替代旧 1-5 选项。"""
+        P = COLORS["primary"]
+        M = COLORS["text_secondary"]
+        T = COLORS["text_tertiary"]
+        A = COLORS["accent"]
+
+        console.print(f"\n  [{A}]── 生成工具 ──────────────────────────────[/]")
+        items = [
+            ("1", "Text → Image", self._t2i),
+            ("2", "Image → Image", self._i2i),
+            ("3", "Text → Video", self._t2v),
+            ("4", "Image → Video", self._i2v),
+            ("5", "Pipeline (T→I→V)", self._pipeline),
+        ]
+        for key, label, _fn in items:
+            console.print(f"  [{P}]{key}[/] [{M}]{label}[/]")
+
+        ch = Prompt.ask(
+            f"  [{T}]选择 (Enter=返回)[/]",
+            choices=["", "1", "2", "3", "4", "5"],
+            default="",
+            show_choices=False,
+        )
+        fn_map = {k: f for k, _, f in items}
+        if ch and ch in fn_map:
+            try:
+                fn_map[ch]()
+            except ContentPolicyError as e:
+                show_warning(str(e))
+            except Exception as e:
+                show_error(str(e))
 
     # ── 命令分发基础设施 ──────────────────────────────────
 
@@ -183,12 +205,14 @@ class CruxCLI(
         # 自助选择供应商（多 Key 时弹出菜单，单 Key 自动激活）
         active_provider, active_model = self._select_provider()
 
+        console.print()
         console.print(
             Panel(
-                f"[bold {COLORS['primary']}]◆ Studio v{__version__}[/]  [{COLORS['muted']}]·[/]  [{COLORS['accent']}]{active_model}[/]\n"
-                f"[dim {COLORS['muted']}]流式对话 · /命令调度 · 图片识别 · 七兽协同[/]\n"
-                "[dim]/help /model /img /video /vision /skill /code /exit[/]",
-                border_style=COLORS["primary"],
+                f"[bold {COLORS['primary']}]◆ Studio v{__version__}[/]  "
+                f"[{COLORS['text_secondary']}]{active_model}[/]  "
+                f"[{COLORS['success']}]● online[/]\n"
+                f"[{COLORS['text_tertiary']}]流式对话 · /命令调度 · 图片识别 · 七兽协同[/]",
+                border_style=COLORS["border_focus"],
                 padding=LAYOUT["panel_padding"],
             )
         )

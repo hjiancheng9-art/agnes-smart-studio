@@ -1,6 +1,13 @@
-"""Retro 8-bit theme engine — single source of truth for CRUX Studio terminal aesthetics.
+"""暗夜工坊 Dark Atelier — CRUX Studio v6 现代开发者主题。
 
-v2 升级: 扩展色板(五兽色+功能色+) · Badge样式槽 · 输入框样式 · 分隔线样式 · 面板样式
+基于 GitHub Dark 骨架，融入七兽色作为功能区分色。层次感取代扁平，
+信息密度优先，终端原生表现力最大化。
+
+设计原则:
+- bg 三层: base(底色) → surface(卡片) → elevated(悬停)
+- text 三层: primary(主文字) → secondary(次要) → tertiary(极淡)
+- 七兽色: 降饱和做功能色，非装饰
+- 边框: 极淡，不抢内容
 
 All colors, icons, layout parameters, and the Rich Theme are defined here.
 Every UI module must import from this file (never define colors/logos locally).
@@ -23,132 +30,174 @@ __all__ = [
     "console",
 ]
 
-# ── Color palette v2 (Retro 8-bit + 五兽色) ───────────────────
+# ═══════════════════════════════════════════════
+#  Color palette — 暗夜工坊 v3
+# ═══════════════════════════════════════════════
 COLORS = {
-    "primary": "#00E5FF",
-    "accent": "#FFD700",
-    "success": "#00FF88",
-    "warning": "#FFD700",
-    "error": "#FF4444",
-    "muted": "#556677",
-    "surface": "#0F0F2D",
-    "highlight": "#C084FC",
-    "transition": "#66BBFF",
-    # v2 新增
-    "baihu": "#FFD700",  # 白虎·金
-    "qinglong": "#00E5FF",  # 青龙·青
-    "zhuque": "#C084FC",  # 朱雀·紫
-    "xuanwu": "#5566AA",  # 玄武·蓝
-    "qilin": "#00FF88",  # 麒麟·绿
-    "tengshe": "#FF9800",  # 螣蛇·橙
-    "yinglong": "#90CAF9",  # 应龙·银蓝
-    "badge_code": "#00E5FF",
-    "badge_agent": "#FFD700",
-    "badge_think": "#C084FC",
-    "badge_skill": "#00FF88",
-    "badge_model": "#26A69A",
-    "input_prompt": "#00E5FF",
-    "input_border": "#334455",
-    "input_text": "#CCDDEE",
-    "divider_primary": "#1A2A44",
-    "card_border": "#1A2A44",
-    "card_hover": "#00E5FF",
-    "status_ok": "#00FF88",
-    "status_warn": "#FFD700",
-    "status_err": "#FF4444",
+    # ── 背景层次 (darkest → lightest) ──
+    "base": "#0D1117",         # GitHub dark 底色
+    "surface": "#161B22",      # 卡片/面板底色
+    "elevated": "#1C2128",     # 悬停/聚焦层
+    "overlay": "#30363D44",    # 半透明叠加
+
+    # ── 文字层次 ──
+    "text": "#E6EDF3",         # 主文字 · 暖白
+    "text_secondary": "#8B949E",  # 次要文字 · 钢灰
+    "text_tertiary": "#6E7681",   # 极淡文字
+
+    # ── 边框 ──
+    "border": "#21262D",       # 极淡边框
+    "border_focus": "#30363D", # 聚焦边框
+    "border_bright": "#484F58",# 高亮边框
+
+    # ── 七兽色 — 功能区分 · 低饱和专业 ──
+    "baihu": "#E3B341",        # 白虎·金 → 权威/警告
+    "qinglong": "#58A6FF",     # 青龙·青 → 信息/链接
+    "zhuque": "#F78166",       # 朱雀·赤 → 创意/洞察
+    "xuanwu": "#7B85D6",       # 玄武·靛 → 系统/守卫
+    "qilin": "#3FB950",        # 麒麟·翠 → 成功/创造
+    "tengshe": "#DB8A3A",      # 螣蛇·琥珀 → 记忆/历史
+    "yinglong": "#A5C8E4",     # 应龙·银蓝 → 规划/调度
+
+    # ── 语义色 ──
+    "success": "#3FB950",      # 成功 · 麒麟绿
+    "warning": "#D29922",      # 警告 · 暖金
+    "error": "#F85149",        # 错误 · 暖红
+    "info": "#58A6FF",         # 信息 · 青龙蓝
+
+    # ── 兼容别名 (旧代码不报错) ──
+    "primary": "#58A6FF",
+    "accent": "#E3B341",
+    "muted": "#8B949E",
+    "highlight": "#F78166",
+    "transition": "#A5C8E4",
+
+    # ── Badge 色 ──
+    "badge_code": "#58A6FF",
+    "badge_agent": "#E3B341",
+    "badge_think": "#F78166",
+    "badge_skill": "#3FB950",
+    "badge_model": "#7B85D6",
+
+    # ── 输入/交互 ──
+    "input_prompt": "#58A6FF",
+    "input_border": "#21262D",
+    "input_text": "#E6EDF3",
+    "input_placeholder": "#6E7681",
+
+    # ── 组件色 ──
+    "divider_primary": "#21262D",
+    "card_border": "#21262D",
+    "card_hover": "#58A6FF",
+    "status_ok": "#3FB950",
+    "status_warn": "#D29922",
+    "status_err": "#F85149",
+    "status_idle": "#6E7681",
 }
 
-# ── Rich Theme v2 ────────────────────────────────────────────
-RETRO_THEME = Theme(
-    {
-        "primary": "bold #00E5FF",
-        "accent": "bold #FFD700",
-        "success": "#00FF88",
-        "warning": "#FFD700",
-        "error": "bold #FF4444",
-        "muted": "#556677",
-        "surface": "on #0F0F2D",
-        "highlight": "bold #C084FC",
-        "transition": "#66BBFF",
-        "panel.title": "bold #FFD700",
-        "panel.border": "#00E5FF",
-        "table.header": "bold #00E5FF",
-        "table.border": "#556677",
-        "bar.fill": "#00E5FF",
-        "bar.background": "#556677",
-        "baihu": "#FFD700",
-        "qinglong": "#00E5FF",
-        "zhuque": "#C084FC",
-        "xuanwu": "#5566AA",
-        "qilin": "#00FF88",
-        "tengshe": "#FF9800",
-        "yinglong": "#90CAF9",
-        "badge.code": "bold #00E5FF",
-        "badge.agent": "bold #FFD700",
-        "badge.think": "bold #C084FC",
-        "badge.skill": "#00FF88",
-        "badge.model": "#26A69A",
-        "input.prompt": "#00E5FF",
-        "input.border": "#1A2A44",
-        "divider": "#1A2A44",
-    }
-)
+# ═══════════════════════════════════════════════
+#  Rich Theme
+# ═══════════════════════════════════════════════
+RETRO_THEME = Theme({
+    "primary": "bold #58A6FF",
+    "accent": "bold #E3B341",
+    "success": "#3FB950",
+    "warning": "#D29922",
+    "error": "bold #F85149",
+    "muted": "#8B949E",
+    "surface": "on #161B22",
+    "highlight": "#F78166",
+    "transition": "#A5C8E4",
+    "panel.title": "bold #E3B341",
+    "panel.border": "#30363D",
+    "table.header": "bold #58A6FF",
+    "table.border": "#30363D",
+    "bar.fill": "#58A6FF",
+    "bar.background": "#21262D",
+    "baihu": "#E3B341",
+    "qinglong": "#58A6FF",
+    "zhuque": "#F78166",
+    "xuanwu": "#7B85D6",
+    "qilin": "#3FB950",
+    "tengshe": "#DB8A3A",
+    "yinglong": "#A5C8E4",
+    "badge.code": "bold #58A6FF",
+    "badge.agent": "bold #E3B341",
+    "badge.think": "bold #F78166",
+    "badge.skill": "#3FB950",
+    "badge.model": "#7B85D6",
+    "input.prompt": "#58A6FF",
+    "input.border": "#21262D",
+    "divider": "#21262D",
+})
 
-# ── Icons ─────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════
+#  Icons — 现代 Unicode 符号集
+# ═══════════════════════════════════════════════
 ICONS = {
-    "primary": "◆",
-    "info": "▸",
-    "success": "★",
-    "warning": "▼",
-    "error": "✕",
+    "primary": "●",
+    "info": "○",
+    "success": "●",
+    "warning": "▲",
+    "error": "●",
     "video": "▶",
-    "route": "►",
-    "on": "■",
-    "off": "□",
+    "route": "›",
+    "on": "●",
+    "off": "○",
     "enabled": "✓",
     "disabled": "✗",
     "star": "★",
     "empty": "○",
-    "pipeline": "⇌",
-    "history": "≡",
-    "template": "◈",
+    "pipeline": "◎",
+    "history": "☰",
+    "template": "◇",
     "separator": " · ",
-    # v2 新符号
-    "baihu": "◇",
-    "qinglong": "◆",
-    "zhuque": "❖",
+    # 七兽符号
+    "baihu": "◆",
+    "qinglong": "◇",
+    "zhuque": "◈",
     "xuanwu": "◎",
-    "qilin": "◉",
-    "tengshe": "⬡",
-    "yinglong": "⬢",
+    "qilin": "●",
+    "tengshe": "◆",
+    "yinglong": "◇",
     "crown": "♛",
-    "shield": "🛡",
+    "shield": "⊡",
     "bolt": "⚡",
     "spark": "✦",
     "ring": "◎",
-    "input": "▸",
-    "divider_dot": "◆",
+    "input": "›",
+    "divider_dot": "·",
+    # 新增
+    "check": "✓",
+    "cross": "✗",
+    "arrow": "→",
+    "bullet": "·",
+    "dot": "·",
 }
 
 BADGE_ICONS = {
     "code": "⚡",
-    "agent": "🧬",
-    "think": "✨",
-    "model": "🧩",
-    "skill": "🎬",
+    "agent": "◈",
+    "think": "◇",
+    "model": "◎",
+    "skill": "✦",
 }
 
-# ── Badge 样式槽 v2 ─────────────────────────────────────────
+# ═══════════════════════════════════════════════
+#  Badge 样式槽
+# ═══════════════════════════════════════════════
 BADGE_STYLES = {
-    "code": {"icon": "⚡", "color": "badge.code", "bg": "#0A1A2E", "label": "CODE"},
-    "agent": {"icon": "🧬", "color": "badge.agent", "bg": "#1A1A0A", "label": "AGENT"},
-    "think": {"icon": "✨", "color": "badge.think", "bg": "#1A0A2A", "label": "THINK"},
-    "skill": {"icon": "🎬", "color": "badge.skill", "bg": "#0A1A0A", "label": "SKILL"},
-    "model": {"icon": "🧩", "color": "badge.model", "bg": "#0A1A1A", "label": "MODEL"},
-    "provider": {"icon": "◉", "color": "muted", "bg": "#111122", "label": "PROV"},
+    "code": {"icon": "⚡", "color": "badge.code", "bg": "#0D2B4A", "label": "CODE"},
+    "agent": {"icon": "◈", "color": "badge.agent", "bg": "#2B2000", "label": "AGENT"},
+    "think": {"icon": "◇", "color": "badge.think", "bg": "#2A1530", "label": "THINK"},
+    "skill": {"icon": "✦", "color": "badge.skill", "bg": "#0D2A18", "label": "SKILL"},
+    "model": {"icon": "◎", "color": "badge.model", "bg": "#1A1E35", "label": "MODEL"},
+    "provider": {"icon": "●", "color": "muted", "bg": "#161B22", "label": "PROV"},
 }
 
-# ── Layout ────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════
+#  Layout
+# ═══════════════════════════════════════════════
 LAYOUT = {
     "panel_padding": (1, 2),
     "panel_border_style": "round",
@@ -157,17 +206,17 @@ LAYOUT = {
     "indent": "  ",
     "separator_len": 42,
     "separator_char": "─",
-    "badge_separator": "  ◆  ",
-    "bar_style": "#00E5FF",
-    "bar_complete_style": "#00FF88",
+    "badge_separator": "  ·  ",
+    "bar_style": "#58A6FF",
+    "bar_complete_style": "#3FB950",
     "input_indent": "  ",
-    "welcome_width": 64,
+    "welcome_width": 68,
     "card_min_width": 22,
 }
 
-# ── 输入框样式 ───────────────────────────────────────────────
+# ── 输入框样式 ──
 INPUT_STYLE = {
-    "prompt_symbol": "▸",
+    "prompt_symbol": "›",
     "prompt_color": "primary",
     "border_char": "─",
     "border_color": "muted",
@@ -175,29 +224,29 @@ INPUT_STYLE = {
     "width": 60,
 }
 
-# ── 分隔线样式 ───────────────────────────────────────────────
+# ── 分隔线样式 ──
 DIVIDER_STYLE = {
     "char": "─",
-    "dot": "◆",
+    "dot": "·",
     "length": 50,
     "color": "muted",
     "heavy_char": "━",
     "double_char": "═",
 }
 
-# ── 面板预设 ──────────────────────────────────────────────────
+# ── 面板预设 ──
 PANEL_STYLE = {
-    "success": {"border": "success", "title_color": "success"},
-    "error": {"border": "error", "title_color": "error"},
-    "info": {"border": "primary", "title_color": "primary"},
-    "warn": {"border": "warning", "title_color": "warning"},
-    "baihu": {"border": "#FFD700", "title_color": "#FFD700"},
-    "qinglong": {"border": "#00E5FF", "title_color": "#00E5FF"},
-    "zhuque": {"border": "#C084FC", "title_color": "#C084FC"},
-    "xuanwu": {"border": "#5566AA", "title_color": "#5566AA"},
-    "qilin": {"border": "#00FF88", "title_color": "#00FF88"},
-    "tengshe": {"border": "#FF9800", "title_color": "#FF9800"},
-    "yinglong": {"border": "#90CAF9", "title_color": "#90CAF9"},
+    "success": {"border": "#3FB950", "title_color": "#3FB950"},
+    "error": {"border": "#F85149", "title_color": "#F85149"},
+    "info": {"border": "#58A6FF", "title_color": "#58A6FF"},
+    "warn": {"border": "#D29922", "title_color": "#D29922"},
+    "baihu": {"border": "#E3B341", "title_color": "#E3B341"},
+    "qinglong": {"border": "#58A6FF", "title_color": "#58A6FF"},
+    "zhuque": {"border": "#F78166", "title_color": "#F78166"},
+    "xuanwu": {"border": "#7B85D6", "title_color": "#7B85D6"},
+    "qilin": {"border": "#3FB950", "title_color": "#3FB950"},
+    "tengshe": {"border": "#DB8A3A", "title_color": "#DB8A3A"},
+    "yinglong": {"border": "#A5C8E4", "title_color": "#A5C8E4"},
 }
 
 

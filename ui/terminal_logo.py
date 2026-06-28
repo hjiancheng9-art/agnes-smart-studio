@@ -1,11 +1,11 @@
-"""CRUX Studio terminal logo — v5 现代简约设计。
-七兽环绕 · 无大字 CRUX · 信息层次分明 · 专业开发者工具风格。
+"""CRUX Studio terminal logo — v6 暗夜工坊设计。
+紧凑专业 · 七兽色光谱 · 信息密度优先 · 无冗余装饰。
 
-与 v4 的差异:
-- 移除像素化 CRUX 大字，改用 ◆ Studio v5.0 极简标识
-- 七兽从 emoji 堆叠改为网格卡片布局，更紧凑专业
-- 欢迎页用 Rich Panel 做头部容器，信息一目了然
-- build_banner 从居中横幅改为左对齐紧凑行
+设计原则:
+- 单面板承载全部启动信息，不超过 8 行
+- 七兽从卡片网格改为单行色带（功能色区分，非装饰）
+- 命令用标签式呈现，留白充足
+- 无像素字、无 emoji 堆砌
 
 向后兼容:
 - render_pixel_grid() / GLYPHS / ICON / PIXEL_KIND 保留，
@@ -17,7 +17,6 @@ from __future__ import annotations
 from typing import Any
 
 from rich.panel import Panel
-from rich.table import Table
 from rich.text import Text
 
 from ui.theme import COLORS, console
@@ -49,11 +48,9 @@ GLYPHS = {
 ICON = [".+.#.+.", "#.@.@.#", "..@@@..", "#.@.@.#", ".+.#.+."]
 PIXEL_KIND = {"#": "primary", "@": "accent", "+": "highlight", ".": None}
 
-# 每字母颜色覆写：R 用 accent（青）与其它字母 primary（蓝）区分，
-# 避免 R 像素密集时被误认为外框 → "CUX" 无法辨识。
 _LETTER_COLOR_MAP = {
     "C": {"primary": "primary"},
-    "R": {"primary": "accent"},   # R 用青色，跳脱边框感
+    "R": {"primary": "accent"},
     "U": {"primary": "primary"},
     "X": {"primary": "primary"},
 }
@@ -68,7 +65,7 @@ _SHADOW_DX = 1
 _SHADOW_DY = 1
 
 
-def render_pixel_grid():
+def render_pixel_grid() -> list[list[Any]]:
     """像素网格 — 供 skin.py / make_logo_svg.py SVG 导出。
 
     终端欢迎页不再使用，保留仅为向后兼容。
@@ -89,7 +86,6 @@ def render_pixel_grid():
                 if kind is None:
                     continue
                 c = base_col + ci
-                # 字母级颜色覆写（R 用 accent 跳出边框感）
                 color = _LETTER_COLOR_MAP.get(ch, {}).get(kind, kind)
                 grid[r][c] = {"color": color, "shadow": False}
                 main_pixels.append((r, c))
@@ -100,157 +96,133 @@ def render_pixel_grid():
     return grid
 
 
-def build_banner(v="v5.0", t=None, s=None, provider=None):
-    """现代横幅 — 左对齐紧凑单行，无 CRUX 大字。
+# ═══════════════════════════════════════════════════════════════
+#  v6 欢迎页 — 暗夜工坊
+# ═══════════════════════════════════════════════════════════════
 
-    用于对话中的 logo 引用、skin 层的 terminal banner 等。
+
+def build_banner(v: str = "v6.0", t=None, s=None, provider=None) -> Text:
+    """紧凑单行横幅 — 用于对话头部 / skin 层引用。
+
+    格式: ◆ Studio v6.0 · 84 tools · 734 skills · ●
     """
     P = COLORS["primary"]
-    A = COLORS["accent"]
     M = COLORS["muted"]
-    S = COLORS["success"]
+    G = COLORS["success"]
     _t = t if t is not None else "84"
     _s = s if s is not None else "734"
 
     return Text.from_markup(
-        f" [bold {P}]◆ Studio {v}[/]"
-        f"  [{M}]{_t} tools[/]"
+        f"[bold {P}]◆[/] Studio {v}"
+        f"  [{M}]· {_t} tools[/]"
         f"  [{M}]· {_s} skills[/]"
-        f"  [{S}]●[/]"
+        f"  [{G}]●[/]"
     )
 
 
-def render_welcome(v="v5.0", t=None, s=None):
-    """v5 欢迎页 — 现代简约 · 七兽环绕 · 无大字 CRUX。
+def render_welcome(
+    v: str = "v6.0",
+    t: str | None = None,
+    s: str | None = None,
+    model: str = "deepseek-v4-pro",
+) -> None:
+    """v6 欢迎页 — 暗夜工坊 · 单面板 · 紧凑专业。
 
-    布局:
-      头部面板 (Studio + 模型/状态)
-      内核信息行
-      七兽卡片网格 (上4下3)
-      命令速查
-      光标提示
+    布局 (7 行含边框):
+      ┌─ 头部: Studio + 模型 + 状态 ──────────────────────────┐
+      │  七兽色带 (单行)                                        │
+      │  统计行                                                  │
+      │  命令标签                                                │
+      │  提示行                                                  │
+      └─────────────────────────────────────────────────────────┘
     """
     P = COLORS["primary"]
-    A = COLORS["accent"]
-    M = COLORS["muted"]
-    S = COLORS["success"]
-    H = COLORS["highlight"]
-    BAI = COLORS["baihu"]
-    QIN = COLORS["qinglong"]
-    ZHU = COLORS["zhuque"]
-    XUA = COLORS["xuanwu"]
-    QIL = COLORS["qilin"]
-    TEN = COLORS["tengshe"]
-    YIN = COLORS["yinglong"]
+    M = COLORS["text_secondary"]
+    T = COLORS["text_tertiary"]
+    G = COLORS["success"]
+    border = COLORS["border_focus"]
+
     _t = t if t is not None else "84"
     _s = s if s is not None else "734"
 
-    # ── 1. 头部面板 ──
-    header = Table(show_header=False, box=None, padding=(0, 1), expand=True)
-    header.add_column(style="", ratio=1)
-    header.add_column(style="", justify="right")
-    header.add_row(
-        f"[bold {P}]◆ Studio {v}[/]  [{M}]deepseek-v4-pro[/]",
-        f"[{S}]● 就绪[/]  [{M}]{_t} tools · {_s} skills · 1M context[/]",
-    )
+    # ── 组装面板内容 ──
+    body = Text()
+    # 行1: 头部信息
+    body.append(f"◆ Studio {v}", style=f"bold {P}")
+    body.append(f"    {model}", style=M)
+    body.append(f"    1M context", style=M)
+    body.append(f"    ● online", style=G)
+    body.append("\n\n")
+    # 行2: 七兽色带
+    body.append(_build_beasts_spectrum())
+    body.append("\n\n")
+    # 行3: 统计
+    body.append(f"{_t} tools  ·  {_s} skills  ·  37 commands  ·  7 beasts", style=T)
+    body.append("\n\n")
+    # 行4: 命令
+    body.append(_build_cmd_tags())
+    body.append("\n\n")
+    # 行5: 提示
+    body.append("› 输入指令开始", style=f"bold {P}")
+    body.append("    ")
+    body.append("粘贴图片即识别  ·  /help 查看命令  ·  Ctrl+C 退出", style=T)
 
     console.print()
-    console.print(Panel(header, border_style=P, padding=(0, 1)))
-    console.print()
-
-    # ── 2. 七兽阵列 ──
-    _render_beasts_grid()
-    console.print()
-
-    # ── 3. 命令速查 ──
-    cmds = [
-        ("/model", "模型"), ("/code", "编码"), ("/img", "生图"),
-        ("/video", "视频"), ("/skill", "技能"), ("/plan", "规划"),
-        ("/help", "帮助"),
-    ]
-    cmd_parts = []
-    for name, desc in cmds:
-        cmd_parts.append(f"[bold {P}]{name}[/] [{M}]{desc}[/]")
-    console.print(f"  {'  '.join(cmd_parts)}")
-    console.print()
-
-    # ── 4. 光标提示 ──
-    cursor = Text()
-    cursor.append("> ", style=f"bold {S}")
-    cursor.append("输入指令开始", style=f"bold {P}")
-    cursor.append(" · ", style=M)
-    cursor.append("Alt+Enter 换行", style=M)
-    cursor.append(" · ", style=M)
-    cursor.append("粘贴图片即识别", style=M)
-    console.print(f"  {cursor}")
+    console.print(Panel(body, border_style=border, padding=(1, 2)))
     console.print()
 
 
-def _render_beasts_grid():
-    """七兽卡片网格 — 上排4 + 下排3。"""
-    M = COLORS["muted"]
+def _build_beasts_spectrum() -> Text:
+    """七兽色带 — 单行紧凑，每个兽名用自身颜色渲染 + 职责标注。"""
+    S = COLORS["text_tertiary"]
 
     beasts = [
-        ("白虎", COLORS["baihu"],    "自愈·锻造", "金·西"),
-        ("青龙", COLORS["qinglong"],  "并行·开拓", "木·东"),
-        ("朱雀", COLORS["zhuque"],    "验证·洞察", "火·南"),
-        ("玄武", COLORS["xuanwu"],    "守卫·容灾", "水·北"),
-        ("麒麟", COLORS["qilin"],     "创造·万类", "土·中"),
-        ("螣蛇", COLORS["tengshe"],   "记忆·沉淀", "忆·传承"),
-        ("应龙", COLORS["yinglong"],  "规划·调度", "令·协同"),
+        (COLORS["baihu"], "白虎", "自愈"),
+        (COLORS["qinglong"], "青龙", "并行"),
+        (COLORS["zhuque"], "朱雀", "洞察"),
+        (COLORS["xuanwu"], "玄武", "守卫"),
+        (COLORS["qilin"], "麒麟", "创造"),
+        (COLORS["tengshe"], "螣蛇", "记忆"),
+        (COLORS["yinglong"], "应龙", "调度"),
     ]
-
-    console.print(f"  [{M}]── 七兽归位 · 魂盏交汇 ──────────────────────────────────[/]")
-    console.print()
-
-    # 上排4
-    row1 = beasts[:4]
-    _print_beast_cards(row1)
-    console.print()
-    # 下排3（居中偏左）
-    row2 = beasts[4:]
-    _print_beast_cards(row2, indent=8)
+    result = Text()
+    for i, (color, name, role) in enumerate(beasts):
+        result.append(name, style=f"bold {color}")
+        result.append(f"·{role}", style=S)
+        if i < len(beasts) - 1:
+            result.append("  ", style=S)
+    return result
 
 
-def _print_beast_cards(beasts: list, indent: int = 4):
-    """打印一行兽卡 — 无边框，简洁紧凑。
+def _build_cmd_tags() -> Text:
+    """命令标签行 — 斜杠命令用主色加亮。"""
+    P = COLORS["primary"]
+    T = COLORS["text_tertiary"]
+    cmds = ["/chat", "/img", "/video", "/code", "/skill", "/plan", "/model", "/help"]
 
-    每张卡:
-      兽名·元素
-      职责
-
-    卡片间用足够的空格分隔。
-    """
-    M = COLORS["muted"]
-    prefix = " " * indent
-
-    # Line 1: 兽名 + 元素方向
-    names = []
-    for name, color, _role, elem in beasts:
-        names.append(f"[bold {color}]{name}[/] [{M}]{elem}[/]")
-    console.print(f"{prefix}{'    '.join(names)}")
-
-    # Line 2: 职责描述
-    roles = []
-    for name, color, role, _elem in beasts:
-        roles.append(f"[{color}]{role}[/]")
-    console.print(f"{prefix}{'    '.join(roles)}")
+    result = Text()
+    result.append("命令  ", style=T)
+    for i, c in enumerate(cmds):
+        result.append(c, style=f"bold {P}")
+        if i < len(cmds) - 1:
+            result.append("  ", style=T)
+    return result
 
 
-def render_mini_logo():
+def render_mini_logo() -> str:
     """微型标识 — 用于对话内嵌引用。"""
     return f"[bold {COLORS['primary']}]◆[/]"
 
 
-def show(v=None, t=None, s=None, provider=None):
+def show(v=None, t=None, s=None, provider=None) -> None:
     """打印横幅（用于 --menu 等场景）。"""
     console.print()
-    console.print(build_banner(v or "v5.0", t=t, s=s, provider=provider))
+    console.print(build_banner(v or "v6.0", t=t, s=s, provider=provider))
 
 
-def render_rich(v=None, t=None, s=None, provider=None):
+def render_rich(v=None, t=None, s=None, provider=None) -> Text:
     """返回 Rich Text 横幅（供 skin/crux_studio.py 引用）。"""
-    return build_banner(v or "v5.0", t=t, s=s, provider=provider)
+    return build_banner(v or "v6.0", t=t, s=s, provider=provider)
 
 
 if __name__ == "__main__":

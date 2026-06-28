@@ -109,7 +109,7 @@ class TestGridToSvg:
         grid = [[{"color": "primary", "shadow": False}]]
         svg = mgr._grid_to_svg(grid)
         assert "<rect" in svg
-        assert "primary" in svg or "#00E5FF" in svg
+        assert "#58A6FF" in svg
 
     def test_grid_shadow_cell(self):
         mgr = SkinManager()
@@ -129,7 +129,7 @@ class TestGridToWeb:
         grid = [[{"color": "primary", "shadow": False}]]
         html = mgr._grid_to_web(grid)
         assert "pixelated" in html
-        assert "#0F0F2D" in html  # surface color from COLORS["surface"]
+        assert "#161B22" in html  # surface color from COLORS["surface"]
 
 
 class TestGetSkin:

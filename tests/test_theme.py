@@ -16,19 +16,19 @@ from ui.theme import (
 
 class TestColors:
     def test_has_primary(self):
-        assert COLORS["primary"] == "#00E5FF"
+        assert COLORS["primary"] == "#58A6FF"
 
     def test_has_all_five_beasts(self):
-        assert COLORS["baihu"] == "#FFD700"
-        assert COLORS["qinglong"] == "#00E5FF"
-        assert COLORS["zhuque"] == "#C084FC"
-        assert COLORS["xuanwu"] == "#5566AA"
-        assert COLORS["qilin"] == "#00FF88"
+        assert COLORS["baihu"] == "#E3B341"
+        assert COLORS["qinglong"] == "#58A6FF"
+        assert COLORS["zhuque"] == "#F78166"
+        assert COLORS["xuanwu"] == "#7B85D6"
+        assert COLORS["qilin"] == "#3FB950"
 
     def test_has_status_colors(self):
-        assert COLORS["success"] == "#00FF88"
-        assert COLORS["warning"] == "#FFD700"
-        assert COLORS["error"] == "#FF4444"
+        assert COLORS["success"] == "#3FB950"
+        assert COLORS["warning"] == "#D29922"
+        assert COLORS["error"] == "#F85149"
 
     def test_has_badge_colors(self):
         assert "badge_code" in COLORS
@@ -38,7 +38,7 @@ class TestColors:
 
 class TestIcons:
     def test_has_primary_icon(self):
-        assert ICONS["primary"] == "◆"
+        assert ICONS["primary"] == "●"
 
     def test_has_all_beast_icons(self):
         assert "baihu" in ICONS

@@ -1,5 +1,6 @@
-"""Display utilities v2 — 美化面板 · 彩色表格 · 文件预览。
-v2 升级: beautify 面板集成 · 交替行色 · 原生图片/视频面板 · 分隔线
+"""Display utilities v3 — 暗夜工坊风格 · 层次感面板 · 紧凑专业。
+
+v3 升级: 适配暗夜工坊色板 · 边框减淡 · 信息密度提升 · 类型化面板
 """
 
 import os
@@ -63,11 +64,16 @@ def open_file(path: str) -> bool:
         return False
 
 
+# ═══════════════════════════════════════════════
+#  v3 消息函数 — 紧凑 · 层次感
+# ═══════════════════════════════════════════════
+
+
 def show_error(message: str):
     console.print(
         Panel(
             message,
-            title=f"[bold {COLORS['error']}]{ICONS['error']} Error[/]",
+            title=f"[bold {COLORS['error']}]● Error[/]",
             border_style=COLORS["error"],
             padding=LAYOUT["panel_padding"],
         )
@@ -75,31 +81,37 @@ def show_error(message: str):
 
 
 def show_warning(message: str):
-    console.print(f"  [{COLORS['warning']}]{ICONS['warning']} {message}[/]")
+    console.print(f"  [{COLORS['warning']}]▲ {message}[/]")
 
 
 def show_success(message: str):
-    console.print(f"  [{COLORS['success']}]{ICONS['success']} {message}[/]")
+    console.print(f"  [{COLORS['success']}]● {message}[/]")
 
 
 def show_info(message: str):
-    console.print(f"  [{COLORS['primary']}]{ICONS['info']} {message}[/]")
+    console.print(f"  [{COLORS['text_secondary']}]○ {message}[/]")
 
 
 def show_result(result: dict, title: str = "Results"):
+    P = COLORS["primary"]
+    M = COLORS["text_secondary"]
+    E = COLORS["error"]
+    S = COLORS["surface"]
+
     table = Table(
-        title=f"[{COLORS['primary']}]{ICONS['primary']} {title}[/]",
+        title=f"[bold {P}]{title}[/]",
         show_header=True,
-        header_style=f"bold {COLORS['primary']}",
+        header_style=f"bold {P}",
         box=ROUNDED,
         show_lines=LAYOUT["table_show_lines"],
-        row_styles=["", f"on {COLORS['surface']}"],
+        border_style=COLORS["border_focus"],
+        row_styles=["", f"on {S}"],
     )
-    table.add_column("Property", style=COLORS["primary"])
-    table.add_column("Value", style="white")
+    table.add_column("Property", style=P)
+    table.add_column("Value", style=COLORS["text"])
     for key, val in result.items():
         if key == "error":
-            table.add_row(key, f"[{COLORS['error']}]{ICONS['error']} {val}[/]")
+            table.add_row(key, f"[{E}]● {val}[/]")
         elif isinstance(val, str) and len(val) > 80:
             table.add_row(key, val[:77] + "...")
         elif isinstance(val, list):
@@ -110,57 +122,69 @@ def show_result(result: dict, title: str = "Results"):
 
 
 def show_image_result(data: dict):
+    """图片生成结果面板 — 紧凑专业。"""
     track_output("image", data)
+    P = COLORS["primary"]
+    S = COLORS["success"]
+    M = COLORS["text_secondary"]
+    T = COLORS["text_tertiary"]
+
     path = data.get("local_path", "")
-    items = []
+    lines = []
     if path:
-        items.append(f"[bold {COLORS['primary']}]{ICONS['primary']} File:[/] {path}")
+        lines.append(f"[{P}]File[/]  {path}")
     if data.get("url"):
-        items.append(f"[bold {COLORS['primary']}]{ICONS['primary']} URL:[/] {data['url'][:60]}...")
+        lines.append(f"[{P}]URL[/]   {data['url'][:60]}...")
     if data.get("model"):
-        items.append(f"[bold {COLORS['primary']}]{ICONS['primary']} Model:[/] {data['model']}")
+        lines.append(f"[{P}]Model[/] {data['model']}")
     if data.get("prompt"):
-        items.append(f"[bold {COLORS['primary']}]{ICONS['primary']} Prompt:[/] {data['prompt'][:80]}...")
+        lines.append(f"[{P}]Prompt[/] {data['prompt'][:80]}")
     if path:
-        items.append('\n[dim]  /open preview  |  say "modify xxx" to regenerate[/]')
+        lines.append(f"\n[{T}]/open 预览  ·  输入修改意见重新生成[/]")
+
     console.print(
         Panel(
-            "\n".join(items),
-            title=f"[bold {COLORS['success']}]{ICONS['success']} Image Generated[/]",
-            border_style=COLORS["success"],
+            "\n".join(lines),
+            title=f"[bold {S}]● Image Generated[/]",
+            border_style=COLORS["border_focus"],
             padding=LAYOUT["panel_padding"],
         )
     )
     if path:
         try:
             open_file(path)
-            console.print("[dim]  Auto-opened preview[/]")
+            console.print(f"  [{T}]已自动打开预览[/]")
         except Exception:
             pass
 
 
 def show_video_result(data: dict):
+    """视频生成结果面板 — 紧凑专业。"""
     track_output("video", data)
+    P = COLORS["primary"]
+    A = COLORS["accent"]
+    M = COLORS["text_secondary"]
+    T = COLORS["text_tertiary"]
+
     path = data.get("local_path", "")
-    items = []
+    lines = []
     if path:
-        items.append(f"[bold {COLORS['primary']}]{ICONS['primary']} File:[/] {path}")
+        lines.append(f"[{P}]File[/]  {path}")
     if data.get("url"):
-        items.append(f"[bold {COLORS['primary']}]{ICONS['primary']} URL:[/] {data['url'][:60]}...")
+        lines.append(f"[{P}]URL[/]   {data['url'][:60]}...")
     if data.get("video_id"):
-        items.append(f"[bold {COLORS['primary']}]{ICONS['primary']} ID:[/] {data['video_id']}")
+        lines.append(f"[{P}]ID[/]    {data['video_id']}")
     if path:
-        items.append("\n[dim]  /open preview  |  /outputs all[/]")
+        lines.append(f"\n[{T}]输入 /open 预览 · /outputs 查看所有[/]")
+
     console.print(
         Panel(
-            "\n".join(items),
-            title=f"[bold {COLORS['accent']}]{ICONS['video']} Video Generated[/]",
-            border_style=COLORS["accent"],
+            "\n".join(lines),
+            title=f"[bold {A}]▶ Video Generated[/]",
+            border_style=COLORS["border_focus"],
             padding=LAYOUT["panel_padding"],
         )
     )
-    if path:
-        console.print("[dim]  Enter /open to preview[/]")
 
 
 def show_pipeline_result(data: dict):
@@ -175,24 +199,30 @@ def show_pipeline_result(data: dict):
 
 def show_history_table(records: list[dict]):
     if not records:
-        console.print(f"  [{COLORS['muted']}]{ICONS['empty']} No records[/]")
+        console.print(f"  [{COLORS['text_tertiary']}]○ No records[/]")
         return
+    P = COLORS["primary"]
+    M = COLORS["text_secondary"]
+    T = COLORS["text_tertiary"]
+    S = COLORS["surface"]
+
     table = Table(
-        title=f"[{COLORS['primary']}]{ICONS['primary']} History[/]",
+        title=f"[bold {P}]History[/]",
         show_header=True,
-        header_style=f"bold {COLORS['primary']}",
+        header_style=f"bold {P}",
         box=ROUNDED,
         show_lines=LAYOUT["table_show_lines"],
-        row_styles=["", f"on {COLORS['surface']}"],
+        border_style=COLORS["border_focus"],
+        row_styles=["", f"on {S}"],
     )
-    table.add_column("ID", style="dim", max_width=20)
-    table.add_column("Type", style=COLORS["primary"])
+    table.add_column("ID", style=T, max_width=20)
+    table.add_column("Type", style=P)
     table.add_column("Prompt", max_width=40)
-    table.add_column("Model", style=COLORS["accent"])
+    table.add_column("Model", style=M)
     table.add_column("★", justify="center")
-    table.add_column("Time", style="dim")
+    table.add_column("Time", style=T)
     for r in records[:20]:
-        fav = ICONS["star"] if r.get("favorited") else ""
+        fav = "★" if r.get("favorited") else ""
         prompt = r.get("prompt", "")[:37] + "..." if len(r.get("prompt", "")) > 40 else r.get("prompt", "")
         table.add_row(
             r.get("id", "")[:20], r.get("type", ""), prompt, r.get("model", ""), fav, r.get("created_at", "")[:16]
@@ -203,15 +233,19 @@ def show_history_table(records: list[dict]):
 def show_templates_list():
     from core.config import PROMPT_TEMPLATES
 
+    P = COLORS["primary"]
+    S = COLORS["surface"]
+
     table = Table(
-        title=f"[{COLORS['primary']}]{ICONS['primary']} Templates[/]",
+        title=f"[bold {P}]Templates[/]",
         show_header=True,
-        header_style=f"bold {COLORS['primary']}",
+        header_style=f"bold {P}",
         box=ROUNDED,
         show_lines=LAYOUT["table_show_lines"],
-        row_styles=["", f"on {COLORS['surface']}"],
+        border_style=COLORS["border_focus"],
+        row_styles=["", f"on {S}"],
     )
-    table.add_column("Template", style=COLORS["primary"])
+    table.add_column("Template", style=P)
     table.add_column("Keywords", max_width=50)
     table.add_column("Negative", max_width=30)
     for name, tpl in PROMPT_TEMPLATES.items():
