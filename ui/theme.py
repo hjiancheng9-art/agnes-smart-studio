@@ -40,6 +40,8 @@ COLORS = {
     "zhuque": "#C084FC",  # 朱雀·紫
     "xuanwu": "#5566AA",  # 玄武·蓝
     "qilin": "#00FF88",  # 麒麟·绿
+    "tengshe": "#FF9800",  # 螣蛇·橙
+    "yinglong": "#90CAF9",  # 应龙·银蓝
     "badge_code": "#00E5FF",
     "badge_agent": "#FFD700",
     "badge_think": "#C084FC",
@@ -79,6 +81,8 @@ RETRO_THEME = Theme(
         "zhuque": "#C084FC",
         "xuanwu": "#5566AA",
         "qilin": "#00FF88",
+        "tengshe": "#FF9800",
+        "yinglong": "#90CAF9",
         "badge.code": "bold #00E5FF",
         "badge.agent": "bold #FFD700",
         "badge.think": "bold #C084FC",
@@ -115,6 +119,8 @@ ICONS = {
     "zhuque": "❖",
     "xuanwu": "◎",
     "qilin": "◉",
+    "tengshe": "⬡",
+    "yinglong": "⬢",
     "crown": "♛",
     "shield": "🛡",
     "bolt": "⚡",
@@ -190,6 +196,8 @@ PANEL_STYLE = {
     "zhuque": {"border": "#C084FC", "title_color": "#C084FC"},
     "xuanwu": {"border": "#5566AA", "title_color": "#5566AA"},
     "qilin": {"border": "#00FF88", "title_color": "#00FF88"},
+    "tengshe": {"border": "#FF9800", "title_color": "#FF9800"},
+    "yinglong": {"border": "#90CAF9", "title_color": "#90CAF9"},
 }
 
 

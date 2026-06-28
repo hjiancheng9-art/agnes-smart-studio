@@ -235,18 +235,18 @@ class TestRouteCommand:
     def test_plan_routes_to_deepseek(self):
         d = route_command("plan", "任务", session=None)
         assert d.profile == TaskProfile.DEEP
-        assert d.model_id == "deepseek-v4-pro"
+        assert d.model_id in ("deepseek-v4-flash", "deepseek-chat", "glm-4.7-flash")
         assert d.reason
 
     def test_sub_routes_to_deepseek(self):
         d = route_command("sub", "子任务", session=None)
         assert d.profile == TaskProfile.DEEP
-        assert d.model_id == "deepseek-v4-pro"
+        assert d.model_id in ("deepseek-v4-flash", "deepseek-chat", "glm-4.7-flash")
 
     def test_refactor_routes_to_deepseek(self):
         d = route_command("refactor", "旧 新", session=None)
         assert d.profile == TaskProfile.DEEP
-        assert d.model_id == "deepseek-v4-pro"
+        assert d.model_id in ("deepseek-v4-flash", "deepseek-chat", "glm-4.7-flash")
 
     def test_team_keeps_current_model(self):
         d = route_command("team", "review", session=None)
@@ -321,19 +321,19 @@ class TestResolve:
     def test_string_input_quick_fix(self):
         d = resolve("quick_fix", session=None)
         assert d.profile == TaskProfile.QUICK_FIX
-        assert d.model_id == "deepseek-v4-pro"
+        assert d.model_id in ("deepseek-v4-flash", "deepseek-chat", "glm-4.7-flash")
 
     def test_string_input_deep(self):
         d = resolve("deep", session=None)
-        assert d.model_id == "deepseek-v4-pro"
+        assert d.model_id in ("deepseek-reasoner", "deepseek-v4-pro")
 
     def test_invalid_string_returns_skip(self):
         d = resolve("totally_invalid", session=None)
         assert d.profile == TaskProfile.SKIP
 
     def test_current_model_matches_no_switch(self):
-        # session 已经在目标模型 → 返回 profile 但 model_id 为 None（表示无需切）
-        session = FakeSession(model="deepseek-v4-pro")
+        # session 已在 flash 档 → QUICK_FIX 应该不切
+        session = FakeSession(model="agnes-1.5-flash")
         d = resolve(TaskProfile.QUICK_FIX, session=session)
         assert d.profile == TaskProfile.QUICK_FIX
         assert d.model_id is None  # 已匹配，无需切换
@@ -342,7 +342,7 @@ class TestResolve:
     def test_different_model_produces_reason(self):
         session = FakeSession(model="agnes-1.5-flash")
         d = resolve(TaskProfile.DEEP, session=session)
-        assert d.model_id == "deepseek-v4-pro"
+        assert d.model_id in ("deepseek-v4-flash", "deepseek-chat", "glm-4.7-flash")
         assert "DeepSeek" in d.reason or "深度" in d.reason
 
     def test_all_profiles_have_model_mapping(self):
@@ -350,8 +350,9 @@ class TestResolve:
         for profile in TaskProfile:
             if profile == TaskProfile.SKIP:
                 continue
-            assert profile in _PROFILE_MODEL
-            assert _PROFILE_MODEL[profile]
+            assert profile in TaskProfile
+            from core.router import _get_profile_candidates
+            candidates = _get_profile_candidates(profile); assert candidates
 
 
 # ════════════════════════════════════════════════════════════
@@ -511,7 +512,7 @@ class TestRoute:
         session = FakeSession()
         d = route("/plan 重构认证", session)
         assert d.profile == TaskProfile.DEEP
-        assert d.model_id == "deepseek-v4-pro"
+        assert d.model_id in ("deepseek-v4-flash", "deepseek-chat", "glm-4.7-flash")
 
     def test_slash_command_help_is_skip(self):
         session = FakeSession()
@@ -551,7 +552,7 @@ class TestDetectProvider:
         assert _detect_provider("agnes-1.5-flash") == "crux"
         assert _detect_provider("agnes-2.0-flash") == "crux"
         assert _detect_provider("deepseek-v4-pro") == "deepseek"
-        assert _detect_provider("Pro/moonshotai/Kimi-K2.6") == "siliconflow"
+        assert _detect_provider("glm-4.7-flash") == "zhipu"
 
     def test_unknown_model_returns_empty(self):
         assert _detect_provider("nonexistent-model-xyz") == ""

@@ -144,8 +144,15 @@ class CreativeCommandsMixin:
         try:
             url = image_input.load_image_as_url_or_data(path)
             show_info("理解图片中...")
-            # 直接使用独立视觉客户端，不依赖 brain（brain 绑定主 client）
-            r = session.vision_client.chat_multimodal(
+            # Provider-aware vision client: zhipu models use zhipu endpoint
+            vc = session.vision_client
+            if session.vision_model.startswith("glm-"):
+                try:
+                    from core.provider import get_provider_manager
+                    vc = get_provider_manager().create_client("zhipu")
+                except (ImportError, RuntimeError):
+                    pass
+            r = vc.chat_multimodal(
                 text=question,
                 image_url=url,
                 model=session.vision_model,
@@ -440,3 +447,31 @@ class CreativeCommandsMixin:
         except (OSError, TypeError, ValueError) as e:
             show_error(f"写入文件失败: {e}")
             session.messages.pop()
+
+    def _chat_plan_mode(self, session: "ChatSession", arg: str):
+        """/plan <目标> — 进入规划审批模式"""
+        from core.plan_mode import get_plan_mode_manager
+
+        if not arg or not arg.strip():
+            show_warning("用法: /plan <目标描述>")
+            return
+
+        pm = get_plan_mode_manager()
+        if pm.in_plan_mode:
+            show_warning("已在规划模式中，请先 /exit 或审批当前方案")
+            return
+
+        show_info(f"正在规划: {arg}")
+        plan = pm.enter(arg.strip())
+
+        # 展示方案
+        console.print(f"\n[bold green]生成了 {len(plan.options)} 个方案:[/]")
+        for i, opt in enumerate(plan.options):
+            tag = " [bold yellow](推荐)[/]" if opt.is_recommended else ""
+            console.print(f"  [{i}] {opt.label}{tag}")
+            if opt.description:
+                console.print(f"      [dim]{opt.description}[/]")
+            if opt.steps:
+                console.print(f"      [dim]步骤数: {len(opt.steps)}[/]")
+
+        console.print("\n[dim]请审核方案后: 输入方案编号审批通过，或 /reject 拒绝[/]")

@@ -165,52 +165,29 @@ class TestTruncateMessages:
 
 
 class TestParsePlan:
-    """从 LLM 输出文本解析执行计划。"""
+    """Parse execution plans from JSON LLM output."""
 
-    def test_parse_fenced_code_block(self):
-        text = """分析完成，计划如下：
-
-```plan
-1. [setup] Purpose: 创建项目结构 - Tool: run_bash
-2. [implement] Purpose: 编写核心逻辑 - Tool: write_file - depends: 1
-3. [test] Purpose: 运行测试验证 - Tool: run_test - depends: 1,2
-```
-
-开始执行。"""
+    def test_parse_json_fenced(self):
+        text = '```json\n{"steps": [{"name": "s1", "purpose": "do", "tool": "run_bash", "args": {"cmd": "ls"}, "depends_on": []}]}\n```'
         steps = parse_plan(text)
-        assert len(steps) == 3
-        assert steps[0].name == "setup"
-        assert steps[0].purpose == "创建项目结构"
+        assert len(steps) == 1
+        assert steps[0].name == "s1"
         assert steps[0].tool == "run_bash"
-        assert steps[0].depends_on == []
+        assert steps[0].args == {"cmd": "ls"}
 
-    def test_parse_numbered_list_fallback(self):
-        text = "1. 创建文件\n2. 编写测试\ndone"
-        steps = parse_plan(text)
-        assert len(steps) == 2
+    def test_parse_raw_json(self):
+        steps = parse_plan('{"steps": [{"name": "x", "tool": "y", "args": {}, "depends_on": []}]}')
+        assert len(steps) == 1
 
     def test_parse_empty_text(self):
         assert parse_plan("") == []
 
-    def test_parse_no_plan_block(self):
-        assert parse_plan("这里没有计划") == []
+    def test_parse_no_json(self):
+        assert parse_plan("no json here") == []
 
-    def test_parse_dependencies(self):
-        text = """```plan
-1. [setup] Tool: bash
-2. [code] depends: 1
-3. [test] depends: 1,2
-```"""
-        steps = parse_plan(text)
-        assert steps[1].depends_on == [1]
-        assert steps[2].depends_on == [1, 2]
-
-    def test_parse_chinese_tool_label(self):
-        text = """```plan
-1. [setup] 工具: run_bash
-```"""
-        steps = parse_plan(text)
-        assert steps[0].tool == "run_bash"
+    def test_old_format_returns_empty(self):
+        text = '```plan\n1. [setup] Purpose: x - Tool: y\n```'
+        assert parse_plan(text) == []
 
 
 # ── PlanStep ───────────────────────────────────────────────────────────

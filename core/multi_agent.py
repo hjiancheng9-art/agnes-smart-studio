@@ -24,8 +24,11 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
+import re
 import threading
 import time
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -35,9 +38,13 @@ __all__ = [
     "AgentTask",
     "MultiAgentCoordinator",
     "ROOT",
+    "SmartDecomposer",
     "coordinate",
     "AsyncMultiAgentCoordinator",
     "async_coordinate",
+    "AgentSwarm",
+    "AGENT_SWARM_TOOL_DEF",
+    "_exec_agent_swarm",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -67,6 +74,9 @@ class Agent:
     role: str  # "reviewer" | "debugger" | "implementer" | "tester"
     status: str = "idle"
     current_task: str = ""
+    context_history: list[dict] = field(default_factory=list)  # 持久化上下文历史
+    created_at: float = 0.0
+    total_tasks_completed: int = 0
 
 
 # ── 同步版（threading + Lock，保留兼容）─────────────────────
@@ -86,11 +96,142 @@ class MultiAgentCoordinator:
         # 可选 ModelRouter — 当 tool_executor 是 LLM-backed 时，按 task.tier 选模型
         # None 时退回原行为（tool_executor 内部自决模型），完全向后兼容
         self.model_router = model_router
+        # 持久化智能体注册表（agent_id → Agent）
+        self._agent_registry: dict[str, Agent] = {}
+        # 后台任务线程追踪
+        self._background_threads: dict[str, threading.Thread] = {}
 
     def spawn_team(self, roles: list[str] | None = None):
         """Create agent team. Default: reviewer, debugger, implementer, tester."""
         roles = roles or ["reviewer", "debugger", "implementer", "tester"]
         self.agents = [Agent(id=f"agent_{i}", role=role) for i, role in enumerate(roles[: self.max_workers])]
+        # 注册到持久化注册表
+        with self._lock:
+            for agent in self.agents:
+                agent.created_at = time.time()
+                self._agent_registry[agent.id] = agent
+
+    def resume(self, agent_id: str, new_goal: str | None = None) -> Agent | None:
+        """恢复持久化智能体实例，可选注入新目标。
+
+        Args:
+            agent_id: 智能体 ID
+            new_goal: 可选，新的执行目标（追加到 context_history）
+
+        Returns:
+            Agent 实例，未找到返回 None
+        """
+        with self._lock:
+            agent = self._agent_registry.get(agent_id)
+            if agent is None:
+                return None
+            if new_goal:
+                agent.context_history.append({
+                    "ts": time.time(),
+                    "event": "new_goal",
+                    "goal": new_goal,
+                })
+            # 确保 agent 在活跃列表中
+            if agent not in self.agents:
+                self.agents.append(agent)
+            agent.status = "idle"
+            return agent
+
+    def spawn_background(self, goal: str, role: str = "implementer") -> Agent:
+        """在后台异步执行目标，返回 Agent 实例。
+
+        Args:
+            goal: 执行目标
+            role: 智能体角色
+
+        Returns:
+            Agent 实例（含 agent_id 用于后续 resume）
+        """
+        import uuid
+
+        agent_id = f"bg_{uuid.uuid4().hex[:8]}"
+        agent = Agent(
+            id=agent_id,
+            role=role,
+            status="busy",
+            created_at=time.time(),
+        )
+        agent.context_history.append({
+            "ts": time.time(),
+            "event": "spawned",
+            "goal": goal,
+        })
+
+        with self._lock:
+            self._agent_registry[agent_id] = agent
+            self.agents.append(agent)
+
+        # 在后台线程执行
+        t = threading.Thread(
+            target=self._execute_background,
+            args=(agent, goal),
+            daemon=True,
+        )
+        t.start()
+
+        with self._lock:
+            self._background_threads[agent_id] = t
+
+        return agent
+
+    def get_agent(self, agent_id: str) -> Agent | None:
+        """获取持久化的智能体实例。"""
+        return self._agent_registry.get(agent_id)
+
+    def list_agents(self) -> list[Agent]:
+        """列出所有持久化智能体。"""
+        return list(self._agent_registry.values())
+
+    def _execute_background(self, agent: Agent, goal: str) -> None:
+        """后台执行目标（用于 spawn_background）。"""
+        import contextlib
+
+        try:
+            tasks = self.decompose(goal)
+            agent.current_task = goal
+            for task in tasks:
+                task.assigned_to = agent.id
+                with self._lock:
+                    task.status = "running"
+                    task.started_at = time.time()
+                results = []
+                for step in task.tool_sequence:
+                    try:
+                        r = self.execute_tool(step["tool"], step["args"])
+                        results.append(r[:200])
+                    except (OSError, ValueError, RuntimeError) as e:
+                        with self._lock:
+                            task.status = "failed"
+                            task.result = f"Failed at step {step['tool']}: {e}"
+                            task.finished_at = time.time()
+                        break
+                else:
+                    with self._lock:
+                        task.status = "done"
+                        task.result = "; ".join(results) if results else "completed"
+                        task.finished_at = time.time()
+
+            with self._lock:
+                agent.status = "idle"
+                agent.total_tasks_completed += 1
+                agent.context_history.append({
+                    "ts": time.time(),
+                    "event": "completed",
+                    "goal": goal,
+                })
+        except Exception as e:
+            with self._lock:
+                agent.status = "failed"
+                agent.context_history.append({
+                    "ts": time.time(),
+                    "event": "error",
+                    "error": str(e),
+                })
 
     def decompose(self, goal: str) -> list[AgentTask]:
         """Break a goal into agent-sized tasks with dependencies.
@@ -397,60 +538,217 @@ async def async_coordinate(goal: str, tool_executor: Callable) -> dict:
 # ── 模块级共享逻辑（decompose + 拓扑分层）──────────────────
 
 
-def _decompose_goal(goal: str) -> list[AgentTask]:
-    """任务分解的纯计算实现（同步/asyncio 两版共用，避免漂移）。
+# ── #4 Qoder-style: Smart Multi-Agent Decomposition ──
 
-    与原 ``MultiAgentCoordinator.decompose`` 逻辑完全一致，仅下沉到模块级。
+_SMART_DECOMPOSE_PROMPT = """你是多智能体任务规划专家。将用户目标分解为 3-5 个子任务，每个子任务分配给一个专门的 Agent。
+
+可用工具：read_file, search_files, glob_files, code_analyze, find_symbol, find_references,
+           graph_neighbors, graph_ancestors, graph_descendants, run_test, run_bash,
+           run_python, edit_file, write_file, web_search, web_fetch, github_search
+
+规则：
+1. 每个子任务只做一件事，用 1-2 个工具
+2. 标注依赖关系（depends_on）：B 需要 A 的结果时，B.depends_on = ["A的id"]
+3. 第一波（无依赖）的任务至少 2 个，可以并行
+4. 给每个任务分配 role: explorer(探索) | analyst(分析) | fixer(修改) | tester(验证)
+5. 给每个任务分配 tier: light(简单搜索/读文件) | pro(分析/修改) | heavy(架构审查)
+6. 返回纯 JSON 数组，每项含 id/description/role/tier/tools/depends_on 字段
+
+目标：{goal}
+
+只返回 JSON 数组，不要其他文字。"""
+
+
+class SmartDecomposer:
+    """LLM-driven task decomposition for multi-agent coordination.
+
+    Qoder 理念：不再用关键词匹配暴力分解任务，而是让 LLM 理解意图后
+    智能拆解，自动分配角色（explorer/analyst/fixer/tester）和
+    模型层级（light/pro/heavy），失败时退回关键词匹配。
+
+    Usage:
+        decomposer = SmartDecomposer()
+        tasks = decomposer.decompose("审查认证模块的安全性")
+        # → 4-5 个带角色和 tier 的 AgentTask
+    """
+
+    def __init__(self, client=None, model: str | None = None) -> None:
+        self._client = client
+        self._model = model
+
+    def decompose(self, goal: str, tool_names: list[str] | None = None) -> list[AgentTask]:
+        """Smart decompose with LLM, fallback to keyword matching."""
+        try:
+            return self._llm_decompose(goal, tool_names)
+        except Exception:
+            # Any LLM failure → fallback to keyword-based decomposition
+            return _keyword_decompose(goal)
+
+    def _llm_decompose(self, goal: str, tool_names: list[str] | None = None) -> list[AgentTask]:
+        """Use LLM to decompose the goal into structured tasks."""
+        prompt = _SMART_DECOMPOSE_PROMPT.format(goal=goal)
+
+        # Try via CruxClient if available, otherwise via raw chat
+        raw = ""
+        try:
+            from core.client import CruxClient
+
+            client = self._client or CruxClient()
+            raw = client.chat(prompt)
+        except ImportError:
+            # Last resort: try via run_bash calling a simple script
+            raise RuntimeError("No LLM client available for SmartDecomposer")
+
+        # Parse JSON from response
+        tasks_json = _extract_json(raw)
+
+        tasks: list[AgentTask] = []
+        for item in tasks_json:
+            tools = []
+            for t in item.get("tools", []):
+                tools.append({"tool": t.get("name", "read_file"), "args": t.get("args", {})})
+            if not tools:
+                tools = [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}]
+
+            task = AgentTask(
+                id=item.get("id", f"t{len(tasks)}"),
+                description=item.get("description", ""),
+                tool_sequence=tools,
+                depends_on=item.get("depends_on", []),
+                tier=item.get("tier", "auto"),
+                task_type=item.get("role", ""),
+            )
+            tasks.append(task)
+
+        # Ensure at least 2 independent tasks (wave 0)
+        independent = [t for t in tasks if not t.depends_on]
+        if len(independent) < 2 and len(tasks) >= 2:
+            tasks[1].depends_on = []
+
+        return tasks if tasks else _keyword_decompose(goal)
+
+
+def _decompose_goal(goal: str) -> list[AgentTask]:
+    """任务分解入口：优先智能分解，失败退回关键词匹配。
+
+    所有调用方（MultiAgentCoordinator / AsyncMultiAgentCoordinator）通过
+    此函数获得统一的行为，不需要关心内部是 LLM 还是关键词。
+    """
+    try:
+        decomposer = SmartDecomposer()
+        return decomposer.decompose(goal)
+    except Exception:
+        return _keyword_decompose(goal)
+
+
+def _keyword_decompose(goal: str) -> list[AgentTask]:
+    """关键词匹配的快速分解（LLM 不可用时的可靠降级）。
+
+    保留原有逻辑：review / debug / default 三条路径。
     """
     goal_lower = goal.lower()
 
-    if "review" in goal_lower:
+    if "review" in goal_lower or "审查" in goal_lower or "audit" in goal_lower:
         return [
             AgentTask(
-                "t1", "Read and analyze the target file", [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}]
+                "t1", "探索并读取目标文件", [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}],
+                tier="light", task_type="explorer"
             ),
             AgentTask(
-                "t2",
-                "Check for bugs and anti-patterns",
-                [{"tool": "search_files", "args": {"pattern": "TODO|FIXME|HACK"}}],
-                depends_on=["t1"],
+                "t2", "搜索潜在问题和反模式",
+                [{"tool": "search_files", "args": {"pattern": "TODO|FIXME|HACK|bug|error"}}],
+                depends_on=["t1"], tier="light", task_type="explorer"
             ),
-            AgentTask("t3", "Run tests", [{"tool": "run_test", "args": {}}], depends_on=["t2"]),
             AgentTask(
-                "t4",
-                "Generate review report",
-                [{"tool": "read_file", "args": {"path": "README.md"}}],
-                depends_on=["t2", "t3"],
+                "t3", "分析代码结构和依赖",
+                [{"tool": "code_analyze", "args": {"file_path": "PLACEHOLDER"}}],
+                depends_on=["t1"], tier="pro", task_type="analyst"
+            ),
+            AgentTask(
+                "t4", "运行测试验证",
+                [{"tool": "run_test", "args": {}}],
+                depends_on=["t2", "t3"], tier="heavy", task_type="tester"
             ),
         ]
 
-    if "debug" in goal_lower or "fix" in goal_lower:
+    if "debug" in goal_lower or "fix" in goal_lower or "调试" in goal_lower or "修复" in goal_lower:
         return [
-            AgentTask("t1", "Check error logs", [{"tool": "read_file", "args": {"path": "output/last_error.txt"}}]),
             AgentTask(
-                "t2",
-                "Search for related code",
-                [{"tool": "search_files", "args": {"pattern": "error|exception|fail"}}],
-                depends_on=["t1"],
+                "t1", "检查错误日志", [{"tool": "search_files", "args": {"pattern": "error|exception|traceback"}}],
+                tier="light", task_type="explorer"
             ),
             AgentTask(
-                "t3", "Identify root cause", [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}], depends_on=["t2"]
+                "t2", "全局搜索相关代码",
+                [{"tool": "search_files", "args": {"pattern": "def |class "}}],
+                tier="light", task_type="explorer"
             ),
-            AgentTask("t4", "Apply fix and verify", [{"tool": "run_test", "args": {}}], depends_on=["t3"]),
+            AgentTask(
+                "t3", "定位根因并读取文件",
+                [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}],
+                depends_on=["t1", "t2"], tier="pro", task_type="analyst"
+            ),
+            AgentTask(
+                "t4", "实施修复",
+                [{"tool": "edit_file", "args": {"path": "PLACEHOLDER", "old_text": "", "new_text": ""}}],
+                depends_on=["t3"], tier="pro", task_type="fixer"
+            ),
+            AgentTask(
+                "t5", "验证修复并运行测试",
+                [{"tool": "run_test", "args": {}}],
+                depends_on=["t4"], tier="heavy", task_type="tester"
+            ),
         ]
 
-    # Default: investigate -> understand -> act -> verify
+    # Default: investigate → understand → act → verify
+    first_word = goal.split()[0] if goal.split() else "main"
     return [
-        AgentTask("t1", "Understand the codebase", [{"tool": "read_file", "args": {"path": "README.md"}}]),
         AgentTask(
-            "t2",
-            "Find relevant files",
-            [{"tool": "search_files", "args": {"pattern": goal.split()[0] if goal.split() else "main"}}],
-            depends_on=["t1"],
+            "t1", "探索项目结构", [{"tool": "list_files", "args": {}}],
+            tier="light", task_type="explorer"
         ),
-        AgentTask("t3", "Execute the task", [{"tool": "env_check", "args": {}}], depends_on=["t2"]),
-        AgentTask("t4", "Verify results", [{"tool": "run_test", "args": {}}], depends_on=["t3"]),
+        AgentTask(
+            "t2", "搜索相关文件",
+            [{"tool": "search_files", "args": {"pattern": first_word}}],
+            tier="light", task_type="explorer"
+        ),
+        AgentTask(
+            "t3", "读取并分析关键文件",
+            [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}],
+            depends_on=["t2"], tier="pro", task_type="analyst"
+        ),
+        AgentTask(
+            "t4", "执行操作并验证",
+            [{"tool": "run_test", "args": {}}],
+            depends_on=["t3"], tier="heavy", task_type="tester"
+        ),
     ]
+
+
+def _extract_json(raw: str) -> list[dict]:
+    """Extract JSON array from LLM response."""
+    import json as _json
+
+    raw = raw.strip()
+    # Try direct parse
+    try:
+        return _json.loads(raw)
+    except _json.JSONDecodeError:
+        pass
+    # Try extracting from code blocks
+    m = re.search(r"```(?:json)?\s*(\[[\s\S]*?\])\s*```", raw)
+    if m:
+        try:
+            return _json.loads(m.group(1))
+        except _json.JSONDecodeError:
+            pass
+    # Try finding any array
+    m = re.search(r"\[[\s\S]*\]", raw)
+    if m:
+        try:
+            return _json.loads(m.group(0))
+        except _json.JSONDecodeError:
+            pass
+    return []
 
 
 def _topological_waves(tasks: list[AgentTask]) -> list[list[AgentTask]]:
@@ -477,3 +775,169 @@ def _topological_waves(tasks: list[AgentTask]) -> list[list[AgentTask]]:
         placed.update(t.id for t in wave)
 
     return waves
+
+
+# ── AgentSwarm: 模板化批量并行分派 ──────────────────────────
+
+class AgentSwarm:
+    """模板化大规模并行子智能体分派。
+
+    用法:
+        swarm = AgentSwarm(tool_executor)
+        results = swarm.dispatch(
+            template="Review {{item}} for bugs and security issues",
+            items=["src/auth.py", "src/db.py", "src/api.py"],
+            role="reviewer",
+        )
+    """
+
+    def __init__(
+        self,
+        tool_executor: Callable,
+        max_workers: int = 8,
+        model_router=None,
+    ) -> None:
+        self.execute_tool = tool_executor
+        self.max_workers = max_workers
+        self.model_router = model_router
+        self._results: dict[str, str] = {}
+        self._lock = threading.Lock()
+
+    def dispatch(
+        self,
+        template: str,
+        items: list[str],
+        role: str = "implementer",
+        max_concurrency: int | None = None,
+    ) -> dict:
+        """使用模板并行分派 N 个同类型子智能体。
+
+        Args:
+            template: 提示模板，{{item}} 占位符会被替换为 items 中的值
+            items: 每个 item 启动一个子智能体
+            role: 子智能体角色
+            max_concurrency: 最大并发数，默认 min(len(items), max_workers)
+
+        Returns:
+            dict: {item: result_str}
+        """
+        import uuid
+
+        concurrency = min(max_concurrency or self.max_workers, len(items))
+        sem = threading.Semaphore(concurrency)
+        threads: list[threading.Thread] = []
+        results: dict[str, str] = {}
+
+        def _work(item: str):
+            sem.acquire()
+            try:
+                goal = template.replace("{{item}}", item)
+                agent_id = f"swarm_{uuid.uuid4().hex[:8]}"
+                coordinator = MultiAgentCoordinator(
+                    tool_executor=self.execute_tool,
+                    max_workers=1,
+                    model_router=self.model_router,
+                )
+                coordinator.spawn_team([role])
+                r = coordinator.execute(goal)
+                with self._lock:
+                    results[item] = (
+                        f"done={r['tasks_done']}/{r['tasks_total']} failed={r['tasks_failed']}"
+                        f" elapsed={r['elapsed']}s"
+                    )
+            except (OSError, ValueError, RuntimeError) as e:
+                with self._lock:
+                    results[item] = f"error: {e}"
+            finally:
+                sem.release()
+
+        for item in items:
+            t = threading.Thread(target=_work, args=(item,), daemon=True)
+            threads.append(t)
+            t.start()
+
+        for t in threads:
+            t.join(timeout=300)
+
+        return results
+
+
+# ── Coordination entry points (backward-compatible) ──────────
+
+_coordinator: MultiAgentCoordinator | None = None
+_coordinator_lock = threading.Lock()
+
+
+def _get_coordinator(tool_executor: Callable) -> MultiAgentCoordinator:
+    global _coordinator
+    if _coordinator is None:
+        with _coordinator_lock:
+            if _coordinator is None:
+                _coordinator = MultiAgentCoordinator(tool_executor=tool_executor)
+    else:
+        _coordinator.execute_tool = tool_executor
+    return _coordinator
+
+
+def coordinate(goal: str, tool_executor: Callable) -> dict:
+    return _get_coordinator(tool_executor).execute(goal)
+
+
+# ── Agent Swarm tool definition ──
+
+AGENT_SWARM_TOOL_DEF = {
+    "type": "function",
+    "function": {
+        "name": "agent_swarm",
+        "description": (
+            "大规模并行子智能体分派。使用模板将同一提示应用于多个目标，"
+            "并行执行并汇总结果。适用于批量审查、批量重构、批量测试等场景。"
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "template": {
+                    "type": "string",
+                    "description": "提示模板，使用 {{item}} 作为占位符",
+                },
+                "items": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "每个 item 启动一个子智能体",
+                },
+                "role": {
+                    "type": "string",
+                    "description": "子智能体角色: reviewer/debugger/implementer/tester",
+                },
+                "max_concurrency": {
+                    "type": "integer",
+                    "description": "最大并发数，默认 8",
+                },
+            },
+            "required": ["template", "items"],
+        },
+    },
+}
+
+
+def _exec_agent_swarm(**kwargs) -> str:
+    """执行 AgentSwarm 分派。"""
+    # tool_executor 需要从外部注入（caller 闭包）
+    # 这里使用 import 级别的默认 executor
+    from core.tools import get_registry
+
+    registry = get_registry()
+
+    def _exec(tool: str, args: dict) -> str:
+        if registry.has(tool):
+            return registry.execute(tool, args)
+        return f"[agent_swarm] 工具 {tool} 不可用"
+
+    swarm = AgentSwarm(tool_executor=_exec)
+    results = swarm.dispatch(
+        template=kwargs["template"],
+        items=kwargs["items"],
+        role=kwargs.get("role", "implementer"),
+        max_concurrency=kwargs.get("max_concurrency"),
+    )
+    return json.dumps(results, ensure_ascii=False, indent=2)

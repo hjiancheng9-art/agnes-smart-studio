@@ -35,7 +35,7 @@ __all__ = [
 ]
 
 # 与 ContextManager._MAX_MSG_CHARS 保持一致（agent.py:179）
-DEFAULT_MAX_CHARS = 8000
+DEFAULT_MAX_CHARS = 24000  # token-aware: ~6K tokens (was 8000)
 
 # 截断标记（与 ContextManager._truncate_messages 的格式逐字一致，保证行为兼容）
 _TRUNCATED_MARKER = "\n\n...[truncated {n} chars]...\n\n"

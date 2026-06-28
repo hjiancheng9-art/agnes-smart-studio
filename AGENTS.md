@@ -87,7 +87,6 @@ CRUX 同时作为 MCP **Server**（被外部调用）和 MCP **Client**（调用
 - Toggle-based: code_mode / agent_mode / skill (showrunner / comfyui-bridge) / extend (notebook/audio/browser)
 - MCP 四象融合: MCP Client bridge (mcp_client.py) + MCP Server (mcp_server.py) 双向可达
 - Terminal logo displays on startup via ui/terminal_logo.py
-- llama-server with CUDA 13.3 on RTX 4060 Ti for local Qwen3-Coder 30B
 - Test baseline: 2162 tests passing (数字随测试增减自动变化，不再硬编码)
 
 ## Subsystem Docs (core/*.md)

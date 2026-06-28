@@ -292,3 +292,22 @@ class TestEnvVarOverride:
         assert d1.resolve() in [r.resolve() for r in new_roots]
         assert d2.resolve() in [r.resolve() for r in new_roots]
 
+
+
+class TestTokenizeCommand:
+    def test_simple(self):
+        from core.sandbox import tokenize_command
+        t = tokenize_command("ls -la /tmp")
+        assert t["command"] == "ls"
+        assert "-la" in t["args"]
+    def test_empty(self):
+        from core.sandbox import tokenize_command
+        t = tokenize_command("")
+        assert t["command"] == ""
+
+class TestFileAudit:
+    def test_record_and_retrieve(self):
+        from core.sandbox import FileAudit, get_audit_trail
+        FileAudit.record("delete", "/tmp/x")
+        trail = get_audit_trail()
+        assert any(e["op"] == "delete" for e in trail)

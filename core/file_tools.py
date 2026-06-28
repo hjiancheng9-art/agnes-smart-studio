@@ -102,6 +102,21 @@ def read_file(path: str, offset: int = 0, limit: int = 0) -> str:
         return f"[错误] 读取失败: {e}"
 
 
+def _snapshot_if_core(p: Path) -> None:
+    """Auto-snapshot core/*.py files before modification (anti-self-damage)."""
+    try:
+        core_root = Path(__file__).resolve().parent
+        if p.resolve().is_relative_to(core_root) and p.suffix == ".py":
+            snap_dir = core_root.parent / "output" / "snapshots"
+            snap_dir.mkdir(parents=True, exist_ok=True)
+            import time
+            ts = time.strftime("%Y%m%d_%H%M%S")
+            snap_path = snap_dir / f"{p.stem}_{ts}.py.bak"
+            snap_path.write_text(p.read_text(encoding="utf-8"), encoding="utf-8")
+    except (OSError, ValueError):
+        pass  # snapshot failure must not block the write
+
+
 def write_file(path: str, content: str) -> str:
     """Create or overwrite a file with UTF-8 encoding.
 
@@ -113,9 +128,34 @@ def write_file(path: str, content: str) -> str:
         Confirmation message with file path
     """
     p = _safe_path(path)
+    _snapshot_if_core(p)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(content, encoding="utf-8")
     return f"Written: {p}"
+
+
+def safe_rewrite_file(path: str, old_lines: str, new_lines: str) -> str:
+    """Replace old_lines with new_lines in a file — context is code-computed, not LLM-generated.
+
+    Unlike apply_patch/edit_file where the model must guess the exact context,
+    this tool reads the actual file, finds old_lines precisely, and replaces.
+    Multi-line blocks are supported. Returns the number of replacements made.
+
+    This is CRUX's most reliable self-repair tool — zero context-match failures.
+    """
+    p = _safe_path(path)
+    if not p.is_file():
+        return f"[错误] 文件不存在: {path}"
+    _snapshot_if_core(p)
+    original = p.read_text(encoding="utf-8")
+    count = original.count(old_lines)
+    if count == 0:
+        return f"[错误] 未找到匹配文本（{len(old_lines)} 字符），文件可能已被修改。请重新 read_file 获取最新内容。"
+    if count > 1:
+        return f"[警告] 找到 {count} 处匹配，为安全起见不执行。请提供更精确的上下文（包含前后各 1-2 行唯一特征）。"
+    result = original.replace(old_lines, new_lines, 1)
+    p.write_text(result, encoding="utf-8")
+    return f"Replaced 1 occurrence in {p}"
 
 
 def search_files(pattern: str) -> str:
@@ -338,6 +378,7 @@ def edit_file(path: str, old_text: str, new_text: str) -> str:
         return f"[安全拒绝] {e}"
     if not p.is_file():
         return f"[错误] 文件不存在: {path}"
+    _snapshot_if_core(p)
     original = p.read_text(encoding="utf-8")
     if old_text not in original:
         return f"Not found in {p}"
@@ -347,55 +388,9 @@ def edit_file(path: str, old_text: str, new_text: str) -> str:
 
 
 def think_deep(prompt: str, max_tokens: int = 2000) -> str:
-    """Use local LLM (llama-server on :8080) for heavy reasoning.
-    Auto-detects model name from /v1/models. Returns text or error.
-    """
-    import json
-
-    import httpx
-
-    LLAMA_BASE = "http://127.0.0.1:8080"
-    LLAMA_TIMEOUT = 300
-
-    model_id = "local-model"
-    try:
-        with httpx.Client(trust_env=False, timeout=10) as probe:
-            r = probe.get(f"{LLAMA_BASE}/v1/models")
-            if r.status_code == 200:
-                models = r.json().get("models", [])
-                if models:
-                    model_id = models[0].get("name", model_id)
-    except (httpx.HTTPError, OSError, KeyError):
-        pass  # llama-server probe failed, use default model_id
-
-    try:
-        with httpx.Client(trust_env=False, timeout=LLAMA_TIMEOUT) as client:
-            r = client.post(
-                f"{LLAMA_BASE}/v1/chat/completions",
-                json={
-                    "model": model_id,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": max_tokens,
-                    "temperature": 0.3,
-                },
-            )
-        if r.status_code == 200:
-            body = r.json()
-            choices = body.get("choices", [])
-            if choices:
-                content = choices[0].get("message", {}).get("content", "")
-                return content or "(empty response)"
-            return "[local model: empty choices]"
-        err = ""
-        try:
-            err = r.json().get("error", {}).get("message", r.text[:200])
-        except (json.JSONDecodeError, KeyError, AttributeError):
-            err = r.text[:200]
-        return f"[local model error HTTP {r.status_code}: {err}]"
-    except httpx.ConnectError:
-        return "[local model not connected: llama-server not running on :8080]"
-    except (httpx.HTTPError, OSError, KeyError) as e:
-        return f"[local model call failed: {type(e).__name__}: {e}]"
+    """[已弃用] llama.cpp 已停止维护，本地重型推理不再可用。
+    请直接在当前对话中提出深度推理需求，无需通过此工具。"""
+    return "[已弃用] llama.cpp 不再维护，think_deep 不可用。请直接在当前对话中提出深度推理需求。"
 
 
 def run_python(code: str) -> str:

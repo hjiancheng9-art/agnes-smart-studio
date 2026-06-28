@@ -25,7 +25,7 @@
 | `/audit [pip\|npm]` | 依赖审计 | /audit |
 | `/rules [cmd]` | 规则管理 | /rules enable python-style |
 | `/automate [cmd]` | 自动化任务 | /automate add 检查 "0 9 * * 1" |
-| `/provider [cmd]` | 模型供应商 | /provider switch kimi |
+| `/provider [cmd]` | 模型供应商 | /provider switch zhipu |
 | `/evolve` | 进化状态 | /evolve |
 | `/know [cmd]` | 知识库 | /know methods |
 | `/skill [cmd]` | 技能管理 | /skill load cinematic-master |

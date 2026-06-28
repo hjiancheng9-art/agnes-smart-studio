@@ -50,7 +50,7 @@ class RecoveryEngine:
             mgr = get_provider_manager()
             mgr.load()
             current = mgr.state.active
-            priority = mgr.fallback_priority if hasattr(mgr, "fallback_priority") else ["deepseek", "siliconflow"]
+            priority = mgr.fallback_priority if hasattr(mgr, "fallback_priority") else ["deepseek", "zhipu"]
             for alt in priority:
                 if alt in mgr.providers and alt != current:
                     mgr.set_active(alt)

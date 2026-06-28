@@ -211,27 +211,6 @@ class CapabilityRegistry:
         except (RuntimeError, OSError, TypeError, AttributeError) as e:
             results["rendering.invariants"] = {"renderer_present": False, "error": f"{type(e).__name__}: {e}"}
 
-        # ── local_llm_health: 真反射探测本地 llama.cpp ──
-        try:
-            import time
-
-            import httpx
-
-            endpoint = "http://127.0.0.1:8080/v1/models"
-            t0 = time.time()
-            r = httpx.get(endpoint, timeout=3.0, trust_env=False)
-            models = r.json().get("data", []) if r.status_code == 200 else []
-            results["local_llm_health"] = {
-                "reachable": r.status_code == 200,
-                "status_code": r.status_code,
-                "latency_ms": int((time.time() - t0) * 1000),
-                "model_count": len(models),
-                "model_ids": [m.get("id", "") for m in models[:5]],
-                "endpoint": "http://127.0.0.1:8080/v1",
-            }
-        except (RuntimeError, OSError, ValueError, httpx.HTTPError) as e:
-            results["local_llm_health"] = {"reachable": False, "error": f"{type(e).__name__}: {e}"}
-
         return results
 
 

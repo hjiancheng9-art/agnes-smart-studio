@@ -28,7 +28,7 @@ class TestModelRegistry:
         assert "agnes-1.5-flash" in MODEL_REGISTRY
         assert "agnes-2.0-flash" in MODEL_REGISTRY
         assert "deepseek-v4-pro" in MODEL_REGISTRY
-        assert "Pro/moonshotai/Kimi-K2.6" in MODEL_REGISTRY
+        assert "glm-4.7-flash" in MODEL_REGISTRY
 
     def test_model_info_fields(self):
         m = MODEL_REGISTRY["agnes-2.0-flash"]
@@ -66,7 +66,7 @@ class TestResolveAlias:
     def test_resolve_third_party_alias(self):
         assert resolve_model_alias("deepseek") == "deepseek-v4-pro"
         assert resolve_model_alias("ds") == "deepseek-v4-pro"
-        assert resolve_model_alias("kimi") == "Pro/moonshotai/Kimi-K2.6"
+        assert resolve_model_alias("glm") == "glm-4.7-flash"
 
     def test_resolve_exact_id(self):
         assert resolve_model_alias("agnes-2.0-flash") == "agnes-2.0-flash"
@@ -89,7 +89,7 @@ class TestToolCallingModels:
     def test_third_party_supports_tools(self):
         models = get_tool_calling_models()
         assert "deepseek-v4-pro" in models
-        assert "Pro/moonshotai/Kimi-K2.6" in models
+        assert "glm-4.7-flash" in models
 
     def test_model_supports_tools_helper(self):
         assert model_supports_tools("agnes-2.0-flash") is True

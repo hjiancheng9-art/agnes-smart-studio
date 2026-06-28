@@ -46,7 +46,6 @@ def run_all() -> list[tuple[str, bool, str]]:
     _check_tools_config()
     _check_api_connectivity()
     _check_provider_liveness()
-    _check_local_llm()
     return list(_results)
 
 
@@ -109,9 +108,6 @@ def _check_provider_liveness():
 
 def wait_for_provider(base_url: str, timeout: float = 60.0, interval: float = 2.0) -> tuple[bool, str]:
     """轮询等待 OpenAI 兼容端点就绪。
-
-    llama-server 启动后加载 GGUF 模型需要 10-30s（取决于模型大小 / NVMe 速度），
-    这期间 HTTP 端口可能已开但 /v1/models 还没响应。本函数封装"轮询直到就绪"逻辑，
     复用 `_check_provider_liveness` 的探测内核（裸 GET /models, trust_env=False）。
 
     Returns: (ok, message)
@@ -134,44 +130,6 @@ def wait_for_provider(base_url: str, timeout: float = 60.0, interval: float = 2.
             last_err = f"{type(e).__name__}: {e}"
         time.sleep(interval)
     return False, last_err or f"timeout after {timeout:.0f}s"
-
-
-def _check_local_llm():
-    """Probe the local llama.cpp provider (regardless of whether it is active).
-
-    Unlike `_check_provider_liveness` (which only probes the active provider),
-    this always checks the `local` entry so users can see at startup whether
-    the本地模型 is running — without making it the default. 非阻断（category 不在
-    critical_failures 列表里），仅 advisory。
-    """
-    try:
-        from core.provider import get_provider_manager
-    except ImportError as e:
-        _add("local_llm", False, f"Import error: {e}")
-        return
-    try:
-        mgr = get_provider_manager()
-        mgr.load()
-        cfg = mgr.providers.get("local")
-        if not cfg:
-            # 没配 local provider 是合法状态（用户可能没装本地模型），静默跳过
-            return
-        base_url = cfg.get("base_url", "")
-        if not base_url:
-            _add("local_llm", False, "local provider 配置缺 base_url")
-            return
-        ok, msg = wait_for_provider(base_url, timeout=5.0, interval=1.0)
-        if ok:
-            _add("local_llm", True, f"本地模型 {cfg.get('name', 'local')} 就绪 @ {base_url}")
-        else:
-            _add("local_llm", False, f"本地模型未启动 ({msg}) — 双击 llama.cpp/launch-qwen3.6.bat 启动后可用")
-    except (OSError, ValueError) as e:
-        _add("local_llm", False, f"local check failed: {e}")
-
-
-# ══════════════════════════════════════════════════════════════════════
-# Individual checks
-# ══════════════════════════════════════════════════════════════════════
 
 
 def _check_env():

@@ -19,7 +19,7 @@ STEED_PROMPT = """
 [坐骑谱 — 五兽坐骑·各驭其驹]
 
 ## 白虎·容灾骑 — 自愈驰骋 (4驹)
-  `ProviderFailover`   — 四线供应商自动切换：deepseek → siliconflow → local → 降级
+  `ProviderFailover`   — 四线供应商自动切换：deepseek → zhipu → local → 降级
   `ResilienceEngine`   — 错误分类 + 指数退避重试 + 检查点保存恢复
   `Watchdog`           — 心跳监控 + provider存活检测 + 自动告警
   `RecoveryPlaybook`   — 失败剧本引擎：provider/disk/process/memory 四维恢复
@@ -28,7 +28,7 @@ STEED_PROMPT = """
   `PythonSandbox`      — Python 子进程隔离，30s 超时，禁用 exec/eval/compile
   `BashSandbox`        — Shell 沙箱：路径白名单 + 危险模式拦截 + 项目根锁定
   `JSRepl`             — Node.js 持久 REPL，跨调用状态保持
-  `ThinkDeep`          — 本地 llama.cpp 重型推理 (8080)，不调工具纯文本深度思考
+  `ThinkDeep`          — 已弃用（llama.cpp 不再维护）
 
 ## 朱雀·洞察骑 — 智能驰骋 (3驹)
   `ProviderRouter`     — 按能力自动选模型：推理→pro / 简单→light / 视觉→vision / 工具→tool-calling

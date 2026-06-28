@@ -50,7 +50,7 @@ SURVIVAL_PROMPT = """
 
 ## 御兽 · Taming — 五兽模型驯化
   驯服各路 AI 模型，按能力分派任务，让对的兽干对的事。
-  **兽群**: deepseek(百万上下文推理) | crux(生图/视频/视觉) | siliconflow(备选) | local llama.cpp(离线)
+  **兽群**: deepseek(百万上下文推理) | crux(生图/视频/视觉) | zhipu(免费备选)
   **驭兽术**: ProviderRouter 自动判断能力 → 选模型 → failover 自动换兽
   **兽语**: /model 切换 | /provider 切换 | /thinking 深度思考开关
   **心诀**: 推理走 pro，简单走 light，视觉走 vision，工具走 tool-calling，失败自动降级

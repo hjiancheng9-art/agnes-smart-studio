@@ -7,21 +7,31 @@ Provides:
 - SafeExecutor: sandboxed tool execution with rollback
 """
 
+import asyncio
 import json
+import threading
 import time
 import traceback
 from collections.abc import Callable
 from enum import Enum
-from typing import Any
+from typing import Any, TypeVar
+
+T = TypeVar("T")
 
 from core.config import OUTPUT_DIR
 
 __all__ = [
     "Checkpoint",
+    "CircuitBreaker",
+    "CircuitOpenError",
+    "CircuitState",
     "ErrorClassifier",
     "ErrorType",
+    "GracefulDegradation",
     "RetryPolicy",
     "SafeExecutor",
+    "get_circuit",
+    "reset_all_circuits",
 ]
 
 
@@ -297,5 +307,214 @@ class SafeExecutor:
         try:
             with open(self.LOG_FILE, "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-        except (json.JSONDecodeError, TypeError, KeyError):
+        except (json.JSONDecodeError, TypeError, KeyError, OSError):
             pass  # don't let logging break execution
+
+
+# ======================================================================
+# #1 Qoder-style: Global Circuit Breaker + Graceful Degradation
+# ======================================================================
+
+
+class CircuitState(Enum):
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+
+
+class CircuitOpenError(RuntimeError):
+    """Raised when a circuit is open and rejecting requests."""
+
+    def __init__(self, circuit_name: str, failure_count: int) -> None:
+        super().__init__(
+            f"熔断器 [{circuit_name}] 已断开（连续失败 {failure_count} 次）。"
+            f"请等待恢复超时后重试。"
+        )
+        self.circuit_name = circuit_name
+        self.failure_count = failure_count
+
+
+class CircuitBreaker:
+    """Universal circuit breaker — prevent cascading failures.
+
+    Qoder 理念：错误不只靠单点恢复，更要全局熔断，防止级联烧穿。
+
+    States:
+        CLOSED → failures >= threshold → OPEN → timeout → HALF_OPEN
+        HALF_OPEN → success → CLOSED  |  failure → OPEN
+    """
+
+    def __init__(
+        self,
+        name: str,
+        threshold: int = 5,
+        recovery_timeout: float = 60.0,
+        half_open_max: int = 1,
+    ) -> None:
+        self.name = name
+        self.threshold = threshold
+        self.recovery_timeout = recovery_timeout
+        self.half_open_max = half_open_max
+        self.state: CircuitState = CircuitState.CLOSED
+        self.failure_count = 0
+        self.last_failure_time = 0.0
+        self.half_open_count = 0
+        self._lock = threading.RLock()
+
+    def _transition(self, new_state: CircuitState) -> None:
+        with self._lock:
+            old = self.state
+            self.state = new_state
+            if new_state == CircuitState.HALF_OPEN:
+                self.half_open_count = 0
+            if new_state == CircuitState.CLOSED:
+                self.failure_count = 0
+            try:
+                from core.observability import metrics as _m
+
+                _m.increment(f"circuit.{self.name}.{old.value}_to_{new_state.value}")
+            except ImportError:
+                pass
+
+    def record_success(self) -> None:
+        with self._lock:
+            if self.state == CircuitState.HALF_OPEN:
+                self.half_open_count += 1
+                if self.half_open_count >= self.half_open_max:
+                    self._transition(CircuitState.CLOSED)
+            elif self.state == CircuitState.CLOSED:
+                self.failure_count = max(0, self.failure_count - 1)
+
+    def record_failure(self) -> None:
+        with self._lock:
+            self.failure_count += 1
+            self.last_failure_time = time.time()
+            if self.state == CircuitState.CLOSED and self.failure_count >= self.threshold:
+                self._transition(CircuitState.OPEN)
+            elif self.state == CircuitState.HALF_OPEN:
+                self._transition(CircuitState.OPEN)
+
+    def allow_request(self) -> bool:
+        with self._lock:
+            if self.state == CircuitState.CLOSED:
+                return True
+            if self.state == CircuitState.OPEN:
+                if time.time() - self.last_failure_time >= self.recovery_timeout:
+                    self._transition(CircuitState.HALF_OPEN)
+                    return True
+                return False
+            return self.half_open_count < self.half_open_max
+
+    def __enter__(self):
+        if not self.allow_request():
+            raise CircuitOpenError(self.name, self.failure_count)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            self.record_success()
+        else:
+            self.record_failure()
+        return False
+
+    async def __aenter__(self):
+        if not self.allow_request():
+            raise CircuitOpenError(self.name, self.failure_count)
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            self.record_success()
+        else:
+            self.record_failure()
+        return False
+
+    def call(self, func: Callable[..., T], *args, **kwargs) -> T:
+        """Execute a function under circuit breaker protection."""
+        with self:
+            return func(*args, **kwargs)
+
+    async def acall(self, func: Callable[..., T], *args, **kwargs) -> T:
+        """Async version of call()."""
+        async with self:
+            if asyncio.iscoroutinefunction(func):
+                return await func(*args, **kwargs)
+            return await asyncio.to_thread(func, *args, **kwargs)
+
+    @property
+    def is_open(self) -> bool:
+        return self.state == CircuitState.OPEN
+
+
+class GracefulDegradation:
+    """Graceful degradation — fallback chain on failure.
+
+    Qoder 理念：失败不直接暴露给用户，而是沿降级链尝试备选方案。
+
+    Usage:
+        gd = GracefulDegradation("image_gen")
+        gd.add_fallback(primary_func, "primary")
+        gd.add_fallback(fallback_func, "fallback")
+        result = gd.execute(arg1)
+    """
+
+    def __init__(self, name: str = "") -> None:
+        self.name = name
+        self._fallbacks: list[tuple[Callable, str, tuple[type[BaseException], ...]]] = []
+        self._last_error: BaseException | None = None
+
+    def add_fallback(
+        self,
+        func: Callable,
+        label: str = "",
+        catch: tuple[type[BaseException], ...] = (Exception,),
+    ) -> "GracefulDegradation":
+        self._fallbacks.append((func, label, catch))
+        return self
+
+    def execute(self, *args, **kwargs):
+        """Execute fallback chain. Returns first success, raises last error."""
+        for func, label, catch in self._fallbacks:
+            try:
+                return func(*args, **kwargs)
+            except catch as e:
+                self._last_error = e
+                try:
+                    from core.observability import metrics as _m
+
+                    _m.increment(f"degradation.{self.name}.{label}_failed")
+                except ImportError:
+                    pass
+                continue
+        raise self._last_error or RuntimeError(f"GracefulDegradation [{self.name}]: no fallbacks registered")
+
+    async def aexecute(self, *args, **kwargs):
+        """Async version of execute."""
+        for func, label, catch in self._fallbacks:
+            try:
+                if asyncio.iscoroutinefunction(func):
+                    return await func(*args, **kwargs)
+                return await asyncio.to_thread(func, *args, **kwargs)
+            except catch as e:
+                self._last_error = e
+                continue
+        raise self._last_error or RuntimeError(f"GracefulDegradation [{self.name}]: no fallbacks registered")
+
+
+# ── Global circuit breaker registry ──
+_circuits: dict[str, CircuitBreaker] = {}
+_circuits_lock = threading.RLock()
+
+
+def get_circuit(name: str, **kwargs) -> CircuitBreaker:
+    """Get or create a named circuit breaker (thread-safe singleton)."""
+    with _circuits_lock:
+        if name not in _circuits:
+            _circuits[name] = CircuitBreaker(name, **kwargs)
+        return _circuits[name]
+
+
+def reset_all_circuits() -> None:
+    """Reset all circuit breakers (for testing/recovery)."""
+    with _circuits_lock:
+        _circuits.clear()

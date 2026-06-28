@@ -21,7 +21,7 @@ from rich.table import Table
 
 from core.brain import SmartBrain
 from core.client import ContentPolicyError, CruxClient
-from core.config import CRUX_VISION_BASE_URL, CRUX_VISION_MODEL, SETTINGS
+from core.config import CRUX_VISION_BASE_URL, get_crux_vision_model, SETTINGS
 from core.version import __version__  # 单一版本真源
 from engines.image_to_image import ImageToImageEngine
 from engines.text_to_image import TextToImageEngine
@@ -185,21 +185,15 @@ class CruxCLI(
 
         console.print(
             Panel(
-                "直接输入文字即可对话（流式输出）。\n"
-                "命令: /help /model /img /video /vision /clear /exit\n"
-                "技能: /skill load 视频|作图|写剧本|分镜|质检...\n"
-                "换行: Alt+Enter / Ctrl+J 换行，Enter 发送\n"
-                "图片: 直接粘贴图片路径即可自动识别\n"
-                "提示: Ctrl+C 中止运行 · Ctrl+C 再次退出\n"
-                f"默认模型: {active_model}（{MODEL_INFO.get(active_model, active_provider)}）\n"
-                "视觉通道: 独立 CRUX · 图片理解始终可用",
-                title=f"[{COLORS['accent']}]✿ Chat mode[/]",
-                border_style=COLORS["accent"],
+                f"[bold {COLORS['primary']}]◆ Studio v{__version__}[/]  [{COLORS['muted']}]·[/]  [{COLORS['accent']}]{active_model}[/]\n"
+                f"[dim {COLORS['muted']}]流式对话 · /命令调度 · 图片识别 · 七兽协同[/]\n"
+                "[dim]/help /model /img /video /vision /skill /code /exit[/]",
+                border_style=COLORS["primary"],
                 padding=LAYOUT["panel_padding"],
             )
         )
 
-        session = ChatSession(self.client, vision_client=self.vision_client, vision_model=CRUX_VISION_MODEL)
+        session = ChatSession(self.client, vision_client=self.vision_client, vision_model=get_crux_vision_model())
         session.model = active_model
         # 用实际模型重建系统提示词（避免 init 用默认模型构建的过期提示词）
         session.messages[0] = {"role": "system", "content": session._build_system_prompt()}

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      width: 360px;
+      padding: 12px;
+      font-family: system-ui, sans-serif;
+      font-size: 13px;
+      background: #0d1117;
+      color: #c9d1d9;
+      margin: 0;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    h2 {
+      font-size: 15px;
+      margin: 0;
+      color: #58a6ff;
+    }
+    #status {
+      font-size: 11px;
+      color: #8b949e;
+    }
+    #list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 360px;
+      overflow-y: auto;
+    }
+    .item {
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 10px;
+      background: #161b22;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .title {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 600;
+    }
+    .label {
+      color: #3fb950;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .url {
+      color: #8b949e;
+      font-size: 11px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-bottom: 8px;
+    }
+    button {
+      background: #238636;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: #21262d;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+    }
+    button:disabled {
+      cursor: default;
+      opacity: 0.65;
+    }
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .toolbar button {
+      flex: 1;
+    }
+    .variants {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding-top: 8px;
+      border-top: 1px solid #30363d;
+    }
+    .variant {
+      width: auto;
+      margin-top: 0;
+      padding: 6px 8px;
+    }
+    .warning {
+      flex-basis: 100%;
+      color: #d29922;
+      font-size: 11px;
+      line-height: 1.4;
+    }
+    .empty {
+      color: #8b949e;
+      border: 1px dashed #30363d;
+      border-radius: 8px;
+      padding: 18px 12px;
+      text-align: center;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h2 id="appTitle"></h2>
+    <span id="status"></span>
+  </header>
+  <div class="toolbar">
+    <button id="scan" class="secondary"></button>
+  </div>
+  <div id="list"></div>
+  <script src="messages.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

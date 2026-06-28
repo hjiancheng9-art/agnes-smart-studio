@@ -23,6 +23,7 @@ from collections.abc import Callable
 
 logger = logging.getLogger("crux.chat")
 
+from core.agent import ContextManager
 from core.brain import SmartBrain
 from core.chat_prompt import (
     CHAT_SYSTEM_PROMPT,
@@ -31,7 +32,7 @@ from core.chat_prompt import (
     get_cached_prompt,
 )
 from core.client import CruxClient
-from core.config import CRUX_VISION_MODEL
+from core.config import get_crux_vision_model
 from core.context_tools import truncate_messages
 from core.observability import TraceContext, metrics
 from core.provider import (
@@ -101,22 +102,57 @@ CODE_SYSTEM_PROMPT = """你是 {provider_name} 编程助手，当前运行在 {m
 - 如需调用图片/视频工具，明确告知用户用 /img 或 /video 命令
 - 如果用户询问你使用的模型，直接告知当前运行的是 {model_name}，由 {provider_name} 提供"""
 
-# ── 模型元数据已迁移到 core/provider.py (MODEL_REGISTRY) ──
-# 以下别名保留向后兼容，但新代码应使用 core.provider 的函数接口。
-# 支持接口:
+# ── 模型别名 / 信息从 MODEL_REGISTRY 动态派生 ──
 #   resolve_model_alias(name)      → 别名/名 → 模型ID
 #   get_tool_calling_models()       → set[str] 支持 tool calling 的模型 ID
 #   get_model_description(id)       → str 模型能力描述
 #   get_provider_name(id)           → str 供应商名称
 #   model_supports_tools(id)        → bool
+#
+# MODEL_ALIASES / MODEL_INFO 现在惰性从 MODEL_REGISTRY + models.json 构建，
+# 不再硬编码，跟随 active provider 自动刷新。
 
-MODEL_ALIASES = {"light": "agnes-1.5-flash", "pro": "agnes-2.0-flash"}
 
-MODEL_INFO = {
-    "agnes-1.5-flash": "1.5 Flash（多模态图片理解，快，无自动生成）",
-    "agnes-2.0-flash": "2.0 Flash（深度思考 + AI自动生图/视频，无图片理解）",
-    "deepseek-v4-pro": "DeepSeek V4 Pro（百万上下文，代码/推理，视觉走独立通道）",
-}
+def _build_model_aliases() -> dict[str, str]:
+    """从 models.json active provider 的 models 字段动态构建别名映射。
+    "light" → active 供应商的 light 模型, "pro" → pro 模型。
+    """
+    try:
+        from core.provider import get_provider_manager
+
+        mgr = get_provider_manager()
+        mgr.load()
+        pmap = mgr.get_active_models()
+        return {k: v for k, v in pmap.items() if k in ("light", "pro")}
+    except Exception:
+        return {}
+
+
+def _build_model_info() -> dict[str, str]:
+    """从 MODEL_REGISTRY 构建模型 ID → 描述 映射。"""
+    try:
+        from core.provider import MODEL_REGISTRY
+
+        return {mid: info.description for mid, info in MODEL_REGISTRY.items() if info.description}
+    except Exception:
+        return {}
+
+
+def _refresh_aliases_and_info() -> tuple[dict[str, str], dict[str, str]]:
+    """惰性初始化 MODEL_ALIASES 和 MODEL_INFO（含模块缓存）。"""
+    global MODEL_ALIASES, MODEL_INFO
+    if not MODEL_ALIASES:
+        MODEL_ALIASES = _build_model_aliases()
+    if not MODEL_INFO:
+        MODEL_INFO = _build_model_info()
+    return MODEL_ALIASES, MODEL_INFO
+
+
+MODEL_ALIASES: dict[str, str] = {}
+MODEL_INFO: dict[str, str] = {}
+
+# 模块加载时初始化（provider.py 已先加载，无循环导入风险）
+_refresh_aliases_and_info()
 
 # 以下两个现在从 provider 动态计算，不再硬编码
 TOOL_CALLING_MODELS = get_tool_calling_models()
@@ -161,17 +197,18 @@ class ChatSession:
     def __init__(
         self,
         client: CruxClient,
-        default_model: str = "agnes-1.5-flash",
+        default_model: str = "",
         vision_client: CruxClient | None = None,
-        vision_model: str = CRUX_VISION_MODEL,
+        vision_model: str = "",
     ) -> None:
         self.client = client
         self.vision_client = vision_client or client  # 未指定时退化为主客户端（向后兼容）
-        self.vision_model = vision_model
+        self.vision_model = vision_model or get_crux_vision_model()
         self.brain = SmartBrain(client)
+        self.ctx_mgr = ContextManager(max_tokens=60000)
         self.t2i = TextToImageEngine(client)
         self.vid = VideoEngine(client)
-        self.model = default_model
+        self.model = default_model or self._resolve_default_model()
         self.enable_thinking = False
         self.code_mode = False
         self.mode = "chat"
@@ -192,6 +229,17 @@ class ChatSession:
         except (ImportError, OSError):
             logger.debug('spectrum module not available')
 
+    @staticmethod
+    def _resolve_default_model() -> str:
+        """从 active provider 派生默认 light 模型。"""
+        try:
+            from core.provider import get_provider_manager
+
+            mgr = get_provider_manager()
+            return mgr.get_model("light") or "deepseek-v4-flash"
+        except Exception:
+            return "deepseek-v4-flash"
+
     @property
     def supports_tools(self) -> bool:
         """支持 tool calling 自动调度的模型（含第三方兼容 OpenAI tools 的模型）"""
@@ -209,7 +257,10 @@ class ChatSession:
         self.enable_thinking = self.code_mode  # 代码模式自动开启 thinking（供应商支持时生效）
         prompt = self._build_system_prompt()
         self.messages[0] = {"role": "system", "content": prompt}
-        self.messages = [self.messages[0]]  # 清空历史
+        for msg in self.messages[1:]:
+            c = msg.get("content", "")
+            if isinstance(c, str) and len(c) > 2000 and msg.get("role") == "tool":
+                msg["content"] = c[:2000] + "\n...[trimmed]"
         return self.code_mode
 
     def toggle_agent_mode(self) -> bool:
@@ -257,7 +308,10 @@ class ChatSession:
             prompt = self._build_system_prompt()
         prompt = self.skills.get_system_prompt(prompt)
         self.messages[0] = {"role": "system", "content": prompt}
-        self.messages = [self.messages[0]]
+        for msg in self.messages[1:]:
+            c = msg.get("content", "")
+            if isinstance(c, str) and len(c) > 2000 and msg.get("role") == "tool":
+                msg["content"] = c[:2000] + "\n...[trimmed]"
         return self.agent_mode
 
     def toggle_browser(self) -> bool:
@@ -266,7 +320,10 @@ class ChatSession:
         self._reload_tools()
         prompt = self._build_system_prompt()
         self.messages[0] = {"role": "system", "content": prompt}
-        self.messages = [self.messages[0]]
+        for msg in self.messages[1:]:
+            c = msg.get("content", "")
+            if isinstance(c, str) and len(c) > 2000 and msg.get("role") == "tool":
+                msg["content"] = c[:2000] + "\n...[trimmed]"
         return self.browser_enabled
 
     def toggle_notebook(self) -> bool:
@@ -275,7 +332,10 @@ class ChatSession:
         self._reload_tools()
         prompt = self._build_system_prompt()
         self.messages[0] = {"role": "system", "content": prompt}
-        self.messages = [self.messages[0]]
+        for msg in self.messages[1:]:
+            c = msg.get("content", "")
+            if isinstance(c, str) and len(c) > 2000 and msg.get("role") == "tool":
+                msg["content"] = c[:2000] + "\n...[trimmed]"
         return self.notebook_enabled
 
     def toggle_audio(self) -> bool:
@@ -284,7 +344,10 @@ class ChatSession:
         self._reload_tools()
         prompt = self._build_system_prompt()
         self.messages[0] = {"role": "system", "content": prompt}
-        self.messages = [self.messages[0]]
+        for msg in self.messages[1:]:
+            c = msg.get("content", "")
+            if isinstance(c, str) and len(c) > 2000 and msg.get("role") == "tool":
+                msg["content"] = c[:2000] + "\n...[trimmed]"
         return self.audio_enabled
 
     def _reload_tools(self):
@@ -331,11 +394,16 @@ class ChatSession:
             base = self._current_base_prompt()
             prompt = self.skills.get_system_prompt(base)
             self.messages[0] = {"role": "system", "content": prompt}
-            self.messages = [self.messages[0]]
+            for msg in self.messages[1:]:
+                c = msg.get("content", "")
+                if isinstance(c, str) and len(c) > 2000 and msg.get("role") == "tool":
+                    msg["content"] = c[:2000] + "\n...[trimmed]"
             # 注入技能的额外工具
             for t in self.skills.get_extra_tools():
+                from core.skills import resolve_skill_executor
                 self.tools.register(
-                    t["name"], t.get("description", ""), t.get("parameters", {}), lambda **kw: f"[{name}] 工具已执行"
+                    t["name"], t.get("description", ""), t.get("parameters", {}),
+                    resolve_skill_executor(t["name"], t)
                 )
             return name
         return None
@@ -349,7 +417,10 @@ class ChatSession:
         self.tools.load(pipeline=False, comfyui=False, mcp=True)
         base = self._current_base_prompt()
         self.messages[0] = {"role": "system", "content": base}
-        self.messages = [self.messages[0]]
+        for msg in self.messages[1:]:
+            c = msg.get("content", "")
+            if isinstance(c, str) and len(c) > 2000 and msg.get("role") == "tool":
+                msg["content"] = c[:2000] + "\n...[trimmed]"
 
     def _current_base_prompt(self) -> str:
         """获取当前模式的基础提示词（动态注入供应商和模型名）"""
@@ -542,7 +613,16 @@ class ChatSession:
         for model_id in chain:
             tried.append(model_id)
             try:
-                r = self.vision_client.chat_multimodal(
+                # Use provider-aware client: zhipu models need zhipu endpoint
+                vc = self.vision_client
+                if model_id.startswith("glm-") or model_id.startswith("cog"):
+                    try:
+                        from core.provider import get_provider_manager
+                        mgr = get_provider_manager()
+                        vc = mgr.create_client("zhipu")
+                    except (ImportError, RuntimeError):
+                        pass  # fall through to default vision_client
+                r = vc.chat_multimodal(
                     text=vision_text,
                     image_url=image_url,
                     model=model_id,
@@ -627,9 +707,8 @@ class ChatSession:
         self.messages.append({"role": "user", "content": user_text})
 
         # Tier 1 轻量截断：对历史 messages 中超限单条做 head+tail 截断。
-        # 零 API 调用、O(n) 纯计算——防止之前轮次未截断的历史消息撑爆上下文。
-        # 新写入的 tool result 已由 cache-point 截断（task ②），此步兜底历史。
-        self.messages = truncate_messages(self.messages)
+        if self.ctx_mgr.needs_compression(self.messages):
+            self.messages = self.ctx_mgr.compress(self.messages, self.client, self.model)
 
         tools = self.tools.definitions if self.supports_tools else None
 
@@ -1021,13 +1100,15 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
     except json.JSONDecodeError:
         args = {}
 
-    # ── 高风险工具确认机制（单一真源：core/constraints.py）──
+    # ── 权限分级确认机制（核心：core/permission.py + core/constraints.py）──
+    # PermissionManager 根据当前模式（YOLO/AUTO/MANUAL）决定是否需要确认。
     # confirmed=True 表示 UI 层已确认，直接执行，不再拦截。
     if not confirmed:
-        from core.constraints import is_tool_high_risk
+        from core.permission import get_permission_manager
 
-        if is_tool_high_risk(name, args):
-            confirm_data = {"tool": name, "args": args}
+        pm = get_permission_manager()
+        if pm.needs_confirmation(name, args):
+            confirm_data = {"tool": name, "args": args, "mode": pm.get_mode_name()}
             return "", [("confirm", confirm_data)]
 
     # ── PRE_TOOL_USE hook ──
@@ -1043,8 +1124,18 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
     prompt = args.get("prompt", "")
     image_url = args.get("image_url", "") or args.get("image", "")
 
+    def _zhipu_media_client(self):
+        """Get a zhipu provider client for free image/video generation."""
+        try:
+            from core.provider import get_provider_manager
+            return get_provider_manager().create_client("zhipu")
+        except (ImportError, RuntimeError):
+            return self.media_client
+
     if name == "generate_image":
         side: list[tuple[str, str | dict]] = [("info", f"正在生成图片: {prompt}")]
+        # Use zhipu client for cogview (free); fallback to media_client for agnes models
+        gen_client = self._zhipu_media_client() if "cogview" in str(args.get("model","")) or not args.get("model") else self.media_client
         try:
             # Prompt 增强（与命令式 /img 路径对齐）
             # Brain 调用走当前供应商，可能因上游间歇故障失败（404/5xx 等）；
@@ -1059,15 +1150,14 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                 fp, neg = prompt, None
 
             if image_url:
-                # 图生图/编辑路径
                 from engines.image_to_image import ImageToImageEngine
                 from utils import image_input
-
                 url = image_input.load_image_as_url_or_data(image_url)
-                i2i = ImageToImageEngine(self.client)
+                i2i = ImageToImageEngine(gen_client)
                 data = i2i.edit(prompt=fp, image_urls=url)
             else:
-                data = self.t2i.generate(prompt=fp, negative_prompt=neg)
+                t2i = TextToImageEngine(gen_client)
+                data = t2i.generate(prompt=fp, negative_prompt=neg)
             side.append(("image", data))
             # #6 成本追踪：记录本次图像调用花费（失败时静默降级，不阻断生成）
             try:

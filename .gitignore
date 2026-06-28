@@ -72,3 +72,17 @@ pyright_baseline.json
 # Audio
 output/audio/
 output/sounds/
+
+# Windows reserved device names (cannot be indexed by git)
+nul
+prn
+con
+aux
+
+# Node.js
+node_modules/
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/

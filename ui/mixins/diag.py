@@ -257,8 +257,6 @@ class DiagCommandsMixin:
             fallback = cfg.get("fallback", {})
             priority = fallback.get("priority", [])
             for pid, p in providers.items():
-                if pid == "siliconflow":
-                    continue  #
                 marker = " [green]← 当前[/]" if pid == active else ""
                 models = p.get("models", {})
                 model_info = ", ".join(f"{k}={v}" for k, v in models.items())
@@ -280,7 +278,7 @@ class DiagCommandsMixin:
             api_key = (
                 os.getenv(key_env) or os.getenv("CRUX_API_KEY") or os.getenv("AGNES_API_KEY") or p.get("api_key") or ""
             )
-            # auth_required=false 的 provider（如 local llama.cpp）无需 Key
+            # auth_required=false 的 provider 无需 Key
             if not api_key and not p.get("auth_required", True):
                 api_key = "no-auth-needed"
             elif not api_key:
@@ -392,12 +390,12 @@ class DiagCommandsMixin:
         cfg = self._load_models_config()
         cfg_path = os.path.join(_DIAG_ROOT, "models.json")
         providers = cfg.get("providers", {})
-        # 收集所有可用供应商：有 API Key 或 auth_required=false（如本地 llama.cpp）
+        # 收集所有可用供应商：有 API Key 或 auth_required=false
         available = []
         for pid, p in providers.items():
             key_env = f"{pid.upper()}_API_KEY"
             api_key = p.get("api_key") or os.getenv(key_env)
-            # auth_required=false 的 provider（如 local llama.cpp）无需 Key
+            # auth_required=false 的 provider 无需 Key
             if api_key or not p.get("auth_required", True):
                 model = p.get("models", {}).get("pro", "unknown")
                 if not api_key:
@@ -432,8 +430,6 @@ class DiagCommandsMixin:
         choices = []
         idx = 1
         for pid, p, model, _ in available:
-            if pid == "siliconflow":
-                continue  #
             label = f"{idx}"
             desc = p.get("description", "")
             if not desc:
@@ -503,24 +499,17 @@ class DiagCommandsMixin:
                         "name": "DeepSeek V4 Pro (1M)",
                         "base_url": "https://api.deepseek.com/v1",
                         "api_key": "",
-                        "models": {"pro": "deepseek-v4-pro", "light": "deepseek-v4-pro"},
+                        "models": {"pro": "deepseek-v4-pro", "light": "deepseek-v4-flash", "chat": "deepseek-chat", "reasoner": "deepseek-reasoner"},
                     },
-                    "siliconflow": {
-                        "name": "SiliconFlow (Kimi-K2.6)",
-                        "base_url": "https://api.siliconflow.cn/v1",
+                    "zhipu": {
+                        "name": "Zhipu GLM (Free)",
+                        "base_url": "https://open.bigmodel.cn/api/paas/v4",
                         "api_key": "",
-                        "models": {"pro": "Pro/moonshotai/Kimi-K2.6", "light": "Pro/moonshotai/Kimi-K2.6"},
-                    },
-                    "local": {
-                        "name": "Local llama.cpp (Qwen3.6-27B-PRISM-PRO-DQ)",
-                        "base_url": "http://127.0.0.1:8080/v1",
-                        "api_key": "no-auth-needed",
-                        "auth_required": False,
-                        "models": {"pro": "Qwen3.6-27B-PRISM-PRO-DQ", "light": "Qwen3.6-27B-PRISM-PRO-DQ"},
+                        "cost_tier": "free",
                     },
                 },
-                "active": "crux",
-                "fallback": {"enabled": True, "priority": ["deepseek", "siliconflow", "local"]},
+                "active": "deepseek",
+                "fallback": {"enabled": True, "priority": ["deepseek", "zhipu"]},
             }
 
         if not os.path.exists(cfg_path):
@@ -566,6 +555,7 @@ class DiagCommandsMixin:
                 arg = aliases[arg]
                 break
         # 先查别名，再查 raw ID（如 deepseek-chat、kimi-k2.6）
+        _refresh_aliases_and_info()
         if arg in MODEL_ALIASES:
             session.model = MODEL_ALIASES[arg]
             target = session.model
@@ -594,9 +584,11 @@ class DiagCommandsMixin:
                     session.client = new_client
                     console.print(f"  [dim]已切至 {pdata.get('name', pid)} 供应商[/]")
                 break
-        if target in MODEL_INFO:
-            cap = MODEL_INFO[target]
-        else:
+        # 从 provider 派生描述，避免回退到旧缓存
+        try:
+            from core.provider import get_model_description
+            cap = get_model_description(target) or f"外部模型（{'支持 tool calling' if session.supports_tools else '纯文本对话'}）"
+        except Exception:
             cap = f"外部模型（{'支持 tool calling' if session.supports_tools else '纯文本对话'}）"
         # 刷新系统提示词，让 AI 知道当前使用的模型
         session.messages[0] = {"role": "system", "content": session._build_system_prompt()}
@@ -952,8 +944,9 @@ class DiagCommandsMixin:
             if "error" in result:
                 show_warning(f"连接失败: {result['error']}")
             else:
-                caps = result.get("capabilities", {})
-                tools_count = len(caps.get("tools", []))
+                # 连接成功后调 tools/list 获取真实工具数
+                tools = client.list_tools(name)
+                tools_count = len(tools) if isinstance(tools, list) else 0
                 show_success(f"已连接到 [bold]{name}[/]（发现 {tools_count} 个工具）")
             return
         # ── disconnect：断开连接 ──
@@ -995,3 +988,49 @@ class DiagCommandsMixin:
         # ── 未知子命令 ──
         show_warning(f"未知子命令: {sub}")
         console.print("  [dim]可用: list · add · remove · connect · disconnect · tools[/]")
+
+    def _chat_permission(self, session: "ChatSession", arg: str):
+        """/permission <yolo|auto|manual> — 切换权限模式"""
+        from core.permission import PermissionMode, get_permission_manager
+
+        pm = get_permission_manager()
+        arg = (arg or "").strip().lower()
+
+        if arg == "yolo":
+            pm.set_mode(PermissionMode.YOLO)
+            show_success("权限模式 → YOLO（全部直接执行，无需确认）")
+        elif arg == "auto":
+            pm.set_mode(PermissionMode.AUTO)
+            show_success("权限模式 → AUTO（仅高危工具需确认）")
+        elif arg == "manual":
+            pm.set_mode(PermissionMode.MANUAL)
+            show_success("权限模式 → MANUAL（所有写操作需确认）")
+        else:
+            show_warning(f"未知模式: {arg}")
+            console.print("  [dim]可用: yolo · auto · manual[/]")
+            console.print(f"  [dim]当前: {pm.get_mode_name()}[/]")
+
+    def _chat_tasks(self, session: "ChatSession", arg: str):
+        """/tasks — 查看后台任务状态"""
+        from core.background import get_background_manager
+
+        mgr = get_background_manager()
+        tasks = mgr.list_tasks(active_only=True)
+
+        if not tasks:
+            show_info("暂无活跃后台任务")
+            return
+
+        tbl = Table(title="后台任务", show_lines=False, border_style="blue")
+        tbl.add_column("ID", style="dim", width=10)
+        tbl.add_column("状态", width=10)
+        tbl.add_column("描述", width=40)
+        tbl.add_column("耗时", width=8, justify="right")
+
+        for t in tasks:
+            import time
+            elapsed = round(time.time() - t.started_at, 1) if t.started_at else 0
+            status_color = {"running": "green", "done": "blue", "failed": "red", "timed_out": "yellow"}.get(t.status, "white")
+            tbl.add_row(t.id[:8], f"[{status_color}]{t.status}[/]", t.description[:40], f"{elapsed}s")
+
+        console.print(tbl)

@@ -654,6 +654,69 @@ class ToolRegistry:
             self._executors[name] = executor
             self._tool_modules[name] = "core.git_tools"
 
+        # ── 后台任务管理工具（常驻加载）──
+        # task_launch / task_list / task_output / task_stop
+        # 移植自 Kimi Code CLI，填补 run_in_background 功能空白
+        from core.background import BACKGROUND_EXECUTOR_MAP, BACKGROUND_TOOL_DEFS
+
+        self._definitions.extend(BACKGROUND_TOOL_DEFS)
+        for name, executor in BACKGROUND_EXECUTOR_MAP.items():
+            self._executors[name] = executor
+            self._tool_modules[name] = "core.background"
+
+        # ── 目标评估器工具（常驻加载）──
+        # goal_evaluate: 评估目标完成度，给出 pass/fail/needs_fix 裁决
+        from core.goal_evaluator import GOAL_EVALUATE_TOOL_DEF, _exec_goal_evaluate
+
+        self._definitions.append(GOAL_EVALUATE_TOOL_DEF)
+        self._executors["goal_evaluate"] = _exec_goal_evaluate
+        self._tool_modules["goal_evaluate"] = "core.goal_evaluator"
+
+        # ── 规划模式工具（常驻加载）──
+        # enter_plan_mode / exit_plan_mode / plan_status
+        from core.plan_mode import PLAN_MODE_EXECUTOR_MAP, PLAN_MODE_TOOL_DEFS
+
+        self._definitions.extend(PLAN_MODE_TOOL_DEFS)
+        for name, executor in PLAN_MODE_EXECUTOR_MAP.items():
+            self._executors[name] = executor
+            self._tool_modules[name] = "core.plan_mode"
+
+        # ── Agent Swarm 工具（常驻加载）──
+        from core.multi_agent import AGENT_SWARM_TOOL_DEF, _exec_agent_swarm
+
+        self._definitions.append(AGENT_SWARM_TOOL_DEF)
+        self._executors["agent_swarm"] = _exec_agent_swarm
+        self._tool_modules["agent_swarm"] = "core.multi_agent"
+
+        # ── 代码审查工具（常驻加载）──
+        # code_review / security_review — 借鉴 Copilot CLI /review + /security-review
+        from core.code_review import CODE_REVIEW_EXECUTOR_MAP, CODE_REVIEW_TOOL_DEFS
+
+        self._definitions.extend(CODE_REVIEW_TOOL_DEFS)
+        for name, executor in CODE_REVIEW_EXECUTOR_MAP.items():
+            self._executors[name] = executor
+            self._tool_modules[name] = "core.code_review"
+
+        # ── Copilot AI 审查工具（常驻加载）──
+        # copilot_review / copilot_security_review / copilot_research
+        # 移植 Copilot CLI 的 GPT-5-mini AI 能力到 CRUX，补充规则引擎
+        from core.copilot_tools import COPILOT_EXECUTOR_MAP, COPILOT_TOOL_DEFS
+
+        self._definitions.extend(COPILOT_TOOL_DEFS)
+        for name, executor in COPILOT_EXECUTOR_MAP.items():
+            self._executors[name] = executor
+            self._tool_modules[name] = "core.copilot_tools"
+
+        # ── 会话任务追踪工具（常驻加载）──
+        # todo_add / todo_list / todo_update / todo_delete / todo_dep / todo_blocked / todo_stats
+        # 借鉴 Copilot CLI SQL todos + todo_deps 表设计
+        from core.session_tracker import SESSION_TRACKER_EXECUTOR_MAP, SESSION_TRACKER_TOOL_DEFS
+
+        self._definitions.extend(SESSION_TRACKER_TOOL_DEFS)
+        for name, executor in SESSION_TRACKER_EXECUTOR_MAP.items():
+            self._executors[name] = executor
+            self._tool_modules[name] = "core.session_tracker"
+
         # ── MCP Client 桥接工具（四象融合）──
         # 注入 mcp_list_servers / mcp_list_tools / mcp_call_tool / mcp_read_resource，
         # 让 LLM 能通过 MCP 协议调 claude/codex/codebuddy 的工具。
@@ -906,8 +969,16 @@ class ToolRegistry:
     def has(self, name: str) -> bool:
         return name in self._executors
 
+    def schema(self, name: str) -> dict | None:
+        """Return the JSON Schema for a registered tool."""
+        for d in self.definitions():
+            if d.get("name") == name:
+                params = d.get("parameters")
+                return {"parameters": params} if params else None
+        return None
+
     # ── 执行 ──
-    def execute(self, name: str, args: dict) -> str:
+    def execute(self, name: str, args: dict, validate_result: bool = True) -> str:
         """执行工具并返回结果文本（含轻量观测 + 错误自动恢复 #4）
 
         错误恢复策略（#4 新增）:
@@ -967,7 +1038,13 @@ class ToolRegistry:
                     _m.timing(f"tool_ms.{name}", elapsed_ms)  # 按名耗时
             if _log_call:
                 _log_call(name, "ok", elapsed_ms, args)
-            return str(result)
+
+            # NEW: Qoder-style Semantic Return Validation
+            result_str = str(result)
+            if validate_result:
+                result_str = self._validate_result(name, result_str, args)
+
+            return result_str
         except (RuntimeError, OSError, ValueError, TypeError) as e:
             # NEW (#4): 错误分类 + 恢复建议（让模型自我修正，而非裸 raise）
             if _m:
@@ -991,6 +1068,52 @@ class ToolRegistry:
             if _log_call:
                 _log_call(name, "exception", 0.0, args)
             return f"[错误] 工具 '{name}' 执行失败: {e}"
+
+    # ── #2 Qoder-style: Semantic Return Validator ──
+    @staticmethod
+    def _validate_result(tool_name: str, result: str, args: dict) -> str:
+        """Lightweight semantic validation of tool results.
+
+        Qoder 理念：不只校验输入参数，还要嗅探结果质量——
+        空结果、误判成功、格式异常都应标记，让 LLM 自行修正。
+
+        Returns annotated result string with optional quality tags.
+        """
+        annotations: list[str] = []
+
+        # 1. 空结果检测（写了文件/搜索了代码却返回空，大概率有问题）
+        empty_sensitive_tools = {
+            "read_file", "search_files", "glob_files", "find_symbol",
+            "search_symbols", "find_references", "graph_neighbors",
+            "graph_ancestors", "graph_descendants", "code_analyze",
+            "web_search", "web_fetch", "github_search", "github_browse",
+            "github_readme", "list_files", "tree_dir", "skill_search",
+            "env_check", "run_test",
+        }
+        if tool_name in empty_sensitive_tools and (not result or not result.strip()):
+            annotations.append("[语义警告] 结果为空——可能工具未找到目标，请检查参数或尝试其他工具")
+
+        # 2. 读文件但内容是截断标记（说明读取范围可能不对）
+        if tool_name == "read_file" and len(result) < 50 and result.strip():
+            annotations.append("[语义提示] 返回内容很短，可能需要调整 offset/limit")
+
+        # 3. 搜索返回 "no matches" / "not found" 模式
+        if tool_name in ("search_files", "find_symbol", "search_symbols", "find_references"):
+            if "no matches" in result.lower() or "not found" in result.lower():
+                annotations.append("[语义提示] 未匹配到结果，建议放宽搜索条件或更换关键词")
+
+        # 4. 编辑/写入操作返回空（正常：write_file/edit_file 成功时不返回值）
+        if tool_name in ("write_file", "edit_file", "safe_rewrite_file", "patch_file",
+                         "git_add_commit", "github_write_file"):
+            if not result.strip():
+                # 这些工具成功时通常无输出，这是预期的
+                return result  # 不加标记
+
+        if annotations:
+            sep = "\n\n" if "\n" in result else " | "
+            return result + sep + " | ".join(annotations)
+
+        return result
 
 
 # ── 全局单例（线程安全双重检查锁） ──

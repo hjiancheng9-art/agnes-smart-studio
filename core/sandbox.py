@@ -22,6 +22,9 @@ from pathlib import Path
 __all__ = [
     "ALLOWED_ROOTS",
     "DANGEROUS_PATTERNS",
+    "tokenize_command",
+    "FileAudit",
+    "get_audit_trail",
     "ROOT",
     "Sandbox",
     "sandbox_check",
@@ -31,28 +34,22 @@ __all__ = [
 ROOT = Path(__file__).resolve().parent.parent
 
 
-# Dangerous command patterns (will be blocked entirely)
-DANGEROUS_PATTERNS = [
-    r"rm\s+(-rf?|--recursive)",  # recursive delete
-    r">\s*/dev/",  # write to device
-    r"mkfs\.",  # format filesystem
-    r"dd\s+if=",  # raw disk write
-    r"chmod\s+777",  # world-writable
-    r"curl.*\|\s*(ba)?sh",  # pipe to shell
-    r"wget.*\|\s*(ba)?sh",  # pipe to shell
+# Always blocked — no path context can make these safe
+ALWAYS_DANGEROUS = [
+    r">\s*/dev/", r"mkfs\.", r"dd\s+if=",
+    r"curl.*\|\s*(ba)?sh", r"wget.*\|\s*(ba)?sh",
     r":\(\)\s*\{\s*:\|:&\s*\}\s*;:",  # fork bomb
-    r"git\s+push\s+--force",  # force push (destructive git)
-    r"git\s+reset\s+--hard",  # hard reset (destructive git)
-    # Windows 破坏性命令（跨平台覆盖）
-    r"\brmdir\s+[/\-]?s",  # rmdir /s 递归删目录
-    r"\bdel\s+[/\\]?[sfq]",  # del /s /f /q 强制删除
-    r"\berase\s+[/\\]?[sfq]",  # erase /s /f /q
-    r"\bformat\s+[A-Za-z]:",  # format X: 格式化盘
-    r"\bdiskpart",  # 磁盘分区操作
-    r"\bcipher\s*/w",  # cipher /w 覆写删除
-    r"\bpowershell.*-enc\s+[A-Za-z0-9]",  # powershell 编码命令（绕过审计）
-    r"reg\s+delete.*/f",  # 注册表强删
+    r"\bformat\s+[A-Za-z]:", r"\bdiskpart", r"\bcipher\s*/w",
+    r"\bpowershell.*-enc\s+[A-Za-z0-9]",
+    r"reg\s+delete.*/f",
 ]
+# Path-aware — blocked only when targeting external paths
+PATH_AWARE_DANGEROUS = [
+    r"\brm\s+(-rf?|--recursive)", r"\brmdir\s+[/\-]?s",
+    r"\bdel\s+[/\\]?[sfq]", r"\berase\s+[/\\]?[sfq]",
+    r"chmod\s+777",
+]
+DANGEROUS_PATTERNS = ALWAYS_DANGEROUS + PATH_AWARE_DANGEROUS  # backward compat
 
 
 def _normalize_path(p: Path) -> Path:
@@ -114,6 +111,34 @@ def _current_allowed_roots() -> list[Path]:
     return _STATIC_ALLOWED_ROOTS
 
 
+# ── Command tokenizer ───────────────────────────────────────
+
+def tokenize_command(command: str) -> dict:
+    """Tokenize a shell command into structural components using shlex."""
+    import shlex
+    try:
+        parts = shlex.split(command, posix=True)
+    except (ValueError, TypeError):
+        parts = command.split()
+    if not parts:
+        return {"command": "", "args": []}
+    return {"command": parts[0], "args": parts[1:], "raw": command}
+
+
+# ── File Audit Trail ────────────────────────────────────────
+
+_AUDIT_TRAIL: list[dict] = []
+
+class FileAudit:
+    """Lightweight file operation audit with hash verification."""
+    @staticmethod
+    def record(op: str, path: str, before_hash: str = "", after_hash: str = "") -> None:
+        _AUDIT_TRAIL.append({"op": op, "path": path, "before": before_hash, "after": after_hash})
+
+def get_audit_trail() -> list[dict]:
+    return list(_AUDIT_TRAIL)
+
+
 # 对外暴露的 ALLOWED_ROOTS（保持向后兼容，值为静态列表；
 # 运行时校验请用 _current_allowed_roots() 以包含动态 CWD）
 ALLOWED_ROOTS = _STATIC_ALLOWED_ROOTS
@@ -164,10 +189,20 @@ class Sandbox:
 
         cmd_lower = command.lower().strip()
 
-        # Check dangerous patterns (第一道闸：无论路径如何，危险模式直接拒)
-        for pattern in DANGEROUS_PATTERNS:
+        roots = _current_allowed_roots()
+        # Always dangerous patterns — blocked regardless
+        for pattern in ALWAYS_DANGEROUS:
             if re.search(pattern, cmd_lower):
                 return False, f"blocked dangerous pattern: {pattern[:40]}"
+        # Path-aware patterns — only block if targeting external paths
+        for pattern in PATH_AWARE_DANGEROUS:
+            if re.search(pattern, cmd_lower):
+                all_paths = re.findall(r"(/[^\s]+)", command) + re.findall(r"(?:[A-Za-z]:[\\/][^\s]+|\\\\[^\s]+)", command)
+                if all_paths:
+                    for p in all_paths:
+                        if Path(p).is_absolute() and not _path_is_allowed(Path(p), roots):
+                            return False, f"blocked destructive operation to external path: {p}"
+                break  # relative paths → allowed within project
 
         # Check for absolute path references outside allowed roots
         # Unix 风格: /path/to/...

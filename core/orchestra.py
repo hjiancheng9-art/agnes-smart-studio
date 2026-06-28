@@ -163,6 +163,35 @@ class Orchestra:
             lines.append(f"- {src}: {', '.join(sorted(names)[:10])}")
         return "\n".join(lines)
 
+    def evaluate_rules(self, event="", tool_name="", error_count=0, provider=""):
+        triggered = []
+        for rule in self._rules:
+            cond, action = rule["condition"], rule["action"]
+            if cond.startswith("tool_failed_twice:") and event == "tool_error" and tool_name == cond.split(":",1)[1] and error_count >= 2:
+                triggered.append(action)
+            elif cond == "tool_failed_twice" and event == "tool_error" and error_count >= 2:
+                triggered.append(action)
+            elif cond.startswith("provider_down:") and event == "provider_down" and provider == cond.split(":",1)[1]:
+                triggered.append(action)
+            elif cond.startswith("error_count:>=") and error_count >= int(cond.split(">=",1)[1]):
+                triggered.append(action)
+        return triggered
+
+    def execute_actions(self, actions):
+        results = {}
+        for action in actions:
+            if action.startswith("activate:"):
+                cap_name = action.split(":",1)[1]
+                cap = self.resolve(cap_name)
+                if cap:
+                    cap.enabled = True
+                    results[action] = f"activated {cap_name}"
+            elif action.startswith("notify:"):
+                results[action] = action.split(":",1)[1]
+            else:
+                results[action] = "unknown action"
+        return results
+
     # ════════════════════════════════════════════════
     # 内置能力
     # ════════════════════════════════════════════════

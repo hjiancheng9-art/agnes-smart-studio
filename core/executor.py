@@ -40,6 +40,7 @@ __all__ = [
     "Goal",
     "GoalManager",
     "quick_plan",
+    "smart_plan",
     "execute_plan_tool",
     "async_execute_plan_tool",
     "create_goal_tool",
@@ -71,6 +72,8 @@ class Task:
     steps: list[Step] = field(default_factory=list)
     status: str = "pending"
     errors_allowed: int = 0
+    reflection_enabled: bool = False  # enable self-reflection on step failure
+    max_retries_per_step: int = 2  # max reflection/retry attempts per step
 
 
 class TaskExecutor:
@@ -88,13 +91,25 @@ class TaskExecutor:
         errors = 0
 
         for step in task.steps:
-            # ── Goal 预算门 ──
+            # ── Goal 预算门（仅在活跃 goal 存在且未耗尽时生效）──
             try:
-                from core.executor import _get_goal_manager as _gm
-                if not _gm().record_step():
-                    step.status = "skipped"
-                    step.error = "Goal budget exhausted (max steps reached)"
-                    continue
+                from core.goal_manager import get_goal_manager as _gm
+                _gm_instance = _gm()
+                _active = _gm_instance.get()
+                # No active goal → unlimited execution
+                if _active is None:
+                    pass
+                elif _active.is_budget_exhausted():
+                    # Try to auto-switch via record_step (which calls _ensure_active_goal)
+                    if not _gm_instance.record_step():
+                        step.status = "skipped"
+                        step.error = "Goal budget exhausted (max steps reached)"
+                        continue
+                else:
+                    if not _gm_instance.record_step():
+                        step.status = "skipped"
+                        step.error = "Goal budget exhausted (max steps reached)"
+                        continue
             except (ImportError, OSError):
                 pass
 
@@ -112,8 +127,10 @@ class TaskExecutor:
                 step.status = "done"
                 # ── Goal 工具调用计数 ──
                 try:
-                    from core.executor import _get_goal_manager as _gm2
-                    _gm2().record_tool_call()
+                    from core.goal_manager import get_goal_manager as _gm2
+                    _active = _gm2().get()
+                    if _active is not None:
+                        _gm2().record_tool_call()
                 except (ImportError, OSError):
                     pass
                 self._log.append({"ts": time.time(), "step": step.id, "event": "done", "result_preview": result[:100]})
@@ -122,6 +139,14 @@ class TaskExecutor:
                 step.status = "failed"
                 errors += 1
                 self._log.append({"ts": time.time(), "step": step.id, "event": "failed", "error": step.error})
+
+                # ── Self-Reflection: 尝试分析并恢复 ──
+                if task.reflection_enabled:
+                    recovered = self._try_reflect_and_recover(task, step, errors)
+                    if recovered:
+                        errors -= 1  # 恢复成功，回退错误计数
+                        continue  # 继续下一步
+                # 恢复失败或 reflection 未启用，检查是否超过错误预算
                 if errors > task.errors_allowed:
                     break
 
@@ -137,6 +162,11 @@ class TaskExecutor:
                     ]
                     if not _scan_dirs:
                         _scan_dirs = [self.root / "core"]
+                    # Also scan root-level .py files
+                    _root_pys = list(self.root.glob("*.py"))
+                    for pf in _root_pys:
+                        if "__pycache__" not in pf.parts:
+                            ast.parse(pf.read_text(encoding="utf-8"))
                     for sd in _scan_dirs:
                         for pf in sd.rglob("*.py"):
                             if "__pycache__" not in pf.parts:
@@ -181,6 +211,61 @@ class TaskExecutor:
             ],
             "log": self._log[-10:],
         }
+
+    def _try_reflect_and_recover(self, task: Task, step: Step, errors: int) -> bool:
+        """Self-reflection: analyze failure, retry / replan / skip. Returns True if recovered."""
+        retries = getattr(step, "_reflection_retries", 0)
+        if retries >= task.max_retries_per_step:
+            self._log.append({"ts": time.time(), "step": step.id, "event": "reflection_max_retries"})
+            return False
+
+        reflector = SelfReflection()
+        result = reflector.analyze_and_adjust(task.goal, step, step.error)
+        self._log.append(
+            {"ts": time.time(), "step": step.id, "event": "reflection", "action": result.action, "reason": result.reason}
+        )
+
+        if result.action == "skip":
+            step.status = "skipped"
+            step.error = f"Skipped (reflection): {result.reason}"
+            return True  # treated as recovered
+
+        if result.action == "retry":
+            step._reflection_retries = retries + 1  # type: ignore[attr-defined]
+            step.status = "running"
+            step.error = ""
+            self._log.append({"ts": time.time(), "step": step.id, "event": "reflection_retry"})
+            try:
+                result_exec = self.execute_tool(step.tool, step.args)
+                step.result = result_exec[:500]
+                step.status = "done"
+                self._log.append({"ts": time.time(), "step": step.id, "event": "done_after_reflection"})
+                return True
+            except (OSError, ValueError, RuntimeError) as e2:
+                step.error = f"{type(e2).__name__}: {e2}"
+                step.status = "failed"
+                step._reflection_retries = retries + 1  # type: ignore[attr-defined]
+                return False
+
+        if result.action == "replan":
+            step._reflection_retries = retries + 1  # type: ignore[attr-defined]
+            step.status = "running"
+            step.error = ""
+            step.tool = result.tool
+            step.args = result.args
+            self._log.append({"ts": time.time(), "step": step.id, "event": "reflection_replan", "new_tool": result.tool})
+            try:
+                result_exec = self.execute_tool(step.tool, step.args)
+                step.result = result_exec[:500]
+                step.status = "done"
+                self._log.append({"ts": time.time(), "step": step.id, "event": "done_after_reflection"})
+                return True
+            except (OSError, ValueError, RuntimeError) as e2:
+                step.error = f"{type(e2).__name__}: {e2}"
+                step.status = "failed"
+                return False
+
+        return False
 
 
 class AsyncTaskExecutor:
@@ -247,6 +332,17 @@ class AsyncTaskExecutor:
                 step.status = "failed"
                 async with self._lock:
                     self._log.append({"ts": time.time(), "step": step.id, "event": "failed", "error": step.error})
+
+                # ── Self-Reflection: 尝试分析并恢复 ──
+                if task.reflection_enabled:
+                    recovered = await self._try_reflect_and_recover_async(task, step)
+                    if recovered:
+                        # continue to verification
+                        if step.verify == "syntax":
+                            await self._verify_syntax(step)
+                        elif step.verify == "test":
+                            await self._verify_tests(step)
+                        return
                 return  # don't verify on failure
 
         # Verification (outside semaphore — gate checks are lightweight)
@@ -313,6 +409,71 @@ class AsyncTaskExecutor:
         else:
             async with self._lock:
                 self._log.append({"ts": time.time(), "step": step.id, "event": "verify_tests_ok"})
+
+    async def _try_reflect_and_recover_async(self, task: Task, step: Step) -> bool:
+        """Self-reflection (async): analyze failure, retry / replan / skip."""
+        retries = getattr(step, "_reflection_retries", 0)
+        if retries >= task.max_retries_per_step:
+            async with self._lock:
+                self._log.append({"ts": time.time(), "step": step.id, "event": "reflection_max_retries"})
+            return False
+
+        reflector = SelfReflection()
+        result = reflector.analyze_and_adjust(task.goal, step, step.error)
+        async with self._lock:
+            self._log.append(
+                {"ts": time.time(), "step": step.id, "event": "reflection", "action": result.action, "reason": result.reason}
+            )
+
+        if result.action == "skip":
+            step.status = "skipped"
+            step.error = f"Skipped (reflection): {result.reason}"
+            return True
+
+        if result.action == "retry":
+            step._reflection_retries = retries + 1  # type: ignore[attr-defined]
+            step.status = "running"
+            step.error = ""
+            async with self._lock:
+                self._log.append({"ts": time.time(), "step": step.id, "event": "reflection_retry"})
+            try:
+                result_exec = await self._call_tool(step.tool, step.args)
+                step.result = result_exec[:500]
+                step.status = "done"
+                async with self._lock:
+                    self._log.append({"ts": time.time(), "step": step.id, "event": "done_after_reflection"})
+                return True
+            except (OSError, ValueError, RuntimeError) as e2:
+                step.error = f"{type(e2).__name__}: {e2}"
+                step.status = "failed"
+                step._reflection_retries = retries + 1  # type: ignore[attr-defined]
+                async with self._lock:
+                    self._log.append({"ts": time.time(), "step": step.id, "event": "failed_after_reflection", "error": step.error})
+                return False
+
+        if result.action == "replan":
+            step._reflection_retries = retries + 1  # type: ignore[attr-defined]
+            step.status = "running"
+            step.error = ""
+            step.tool = result.tool
+            step.args = result.args
+            async with self._lock:
+                self._log.append({"ts": time.time(), "step": step.id, "event": "reflection_replan", "new_tool": result.tool})
+            try:
+                result_exec = await self._call_tool(step.tool, step.args)
+                step.result = result_exec[:500]
+                step.status = "done"
+                async with self._lock:
+                    self._log.append({"ts": time.time(), "step": step.id, "event": "done_after_reflection"})
+                return True
+            except (OSError, ValueError, RuntimeError) as e2:
+                step.error = f"{type(e2).__name__}: {e2}"
+                step.status = "failed"
+                async with self._lock:
+                    self._log.append({"ts": time.time(), "step": step.id, "event": "failed_after_reflection", "error": step.error})
+                return False
+
+        return False
 
     async def arun(self, task: Task) -> dict:
         """并行执行所有步骤（拓扑依赖感知），返回结构化报告。
@@ -439,12 +600,31 @@ def quick_plan(goal: str) -> Task:
     return Task(id=f"task_{int(time.time())}", goal=goal, steps=steps, errors_allowed=1)
 
 
-def execute_plan_tool(goal: str, steps: str, root: str | None = None) -> str:
+def smart_plan(
+    goal: str,
+    context: str = "",
+    tool_names: list[str] | None = None,
+    client=None,
+    model: str = "",
+) -> Task:
+    """LLM 驱动的智能规划，失败时退回 quick_plan。
+
+    这是 quick_plan 的智能替代：让 LLM 理解意图后生成结构化计划，
+    而非简单的关键词匹配。自动启用 reflection（步骤失败时自我修复）。
+    """
+    planner = SmartPlanner(client=client, model=model)
+    return planner.plan(goal, context=context, tool_names=tool_names)
+
+
+def execute_plan_tool(goal: str, steps: str, root: str | None = None, use_llm_plan: bool = False) -> str:
     """tools.json 适配入口：接受 JSON steps 字符串，构造 Task 并执行。
 
     LLM 在 agent 模式下通过 execute_plan 工具调用此函数，传入结构化计划，
     由 TaskExecutor 自主跑完所有步骤（依赖排序、错误追踪、语法/测试校验门）
     并返回结构化报告。不需要 LLM 自己逐个调工具。
+
+    Args:
+        use_llm_plan: 若 True 且 steps 为空，用 LLM 智能规划替代 quick_plan。
     """
     import json
 
@@ -453,8 +633,12 @@ def execute_plan_tool(goal: str, steps: str, root: str | None = None) -> str:
     registry = get_registry()
     registry.load(mcp=True)
 
-    step_list = [Step(**s) for s in json.loads(steps)]
-    task = Task(id=f"plan_{int(time.time())}", goal=goal, steps=step_list, errors_allowed=1)
+    if use_llm_plan and (not steps or steps.strip() == ""):
+        task = smart_plan(goal, tool_names=registry.tool_names)
+    else:
+        step_list = [Step(**s) for s in json.loads(steps)]
+        task = Task(id=f"plan_{int(time.time())}", goal=goal, steps=step_list, errors_allowed=1)
+
     executor = TaskExecutor(
         tool_executor=lambda name, args: registry.execute(name, args),
         root=Path(root) if root else ROOT,
@@ -735,3 +919,381 @@ def update_goal_tool(goal_id: str = "", status: str = "", evidence: str = "") ->
         {"ok": True, "goal_id": goal.id, "status": goal.status, "evidence": goal.evidence},
         ensure_ascii=False,
     )
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Qoder-style upgrades: Smart Planner, Semantic Verifier, Self-Reflection
+# ═══════════════════════════════════════════════════════════════════
+
+# ── Prompt templates ──
+
+_PLANNER_PROMPT = """你是任务规划专家。将用户目标分解为可执行的步骤序列。
+
+可用工具：{tool_list}
+
+规则：
+1. 每步只调一个工具，args 必须具体（不能 PLACEHOLDER）
+2. 标注依赖关系（depends_on）
+3. 对代码修改类步骤标注 verify="syntax" 或 verify="test"
+4. 复杂任务先探索（read_file/search_files）再修改（edit_file）
+5. 返回纯 JSON 数组，每步含 id/description/tool/args/depends_on/verify 字段
+
+目标：{goal}
+{context}
+
+只返回 JSON 数组，不要其他文字。"""
+
+_SEMANTIC_VERIFY_PROMPT = """目标：{goal}
+已完成步骤：{steps_info}
+
+当前相关文件内容：
+{file_contents}
+
+请判断目标是否已达成。
+返回纯 JSON：{{"achieved": true/false, "gap": "未达成的缺口描述，已达成则为空字符串"}}
+
+只返回 JSON，不要其他文字。"""
+
+_REFLECTION_PROMPT = """步骤执行失败，请分析原因并调整计划。
+
+目标：{goal}
+失败的步骤：{step_description}
+使用的工具：{tool_name}
+参数：{tool_args}
+错误信息：{error}
+错误类型：{error_type}
+恢复建议：{error_hint}
+
+请决定下一步行动：
+- 如果是临时故障（网络/超时），选择 "retry"
+- 如果是参数/工具选择错误，选择 "replan" 并给出新的 tool/args
+- 如果是不可恢复的错误（权限/文件不存在），选择 "skip"
+
+返回纯 JSON：{{"action": "retry"|"replan"|"skip", "tool": "新工具名", "args": {{}}, "reason": "原因"}}
+只返回 JSON，不要其他文字。"""
+
+
+@dataclass
+class AdjustResult:
+    """Self-reflection 的输出：决定下一步行动。"""
+
+    action: str  # "retry" | "replan" | "skip"
+    tool: str = ""
+    args: dict = field(default_factory=dict)
+    reason: str = ""
+
+
+class SmartPlanner:
+    """LLM 驱动的任务规划器，失败时退回 quick_plan。"""
+
+    def __init__(self, client=None, model: str = "") -> None:
+        self.client = client
+        self.model = model
+
+    def plan(self, goal: str, context: str = "", tool_names: list[str] | None = None) -> Task:
+        """用 LLM 生成计划；失败时退回 quick_plan。"""
+        try:
+            steps_json_str = self._call_llm(goal, context, tool_names)
+            if not steps_json_str:
+                return quick_plan(goal)
+            step_dicts = json.loads(steps_json_str)
+            steps = [Step(**s) for s in step_dicts]
+            if not steps:
+                return quick_plan(goal)
+            return Task(
+                id=f"smart_{int(time.time())}",
+                goal=goal,
+                steps=steps,
+                errors_allowed=1,
+                reflection_enabled=True,
+            )
+        except Exception:
+            return quick_plan(goal)
+
+    def _call_llm(self, goal: str, context: str, tool_names: list[str] | None) -> str:
+        """调用 LLM 生成计划 JSON。"""
+        # 尝试多种解析策略提取 JSON
+        raw = self._llm_chat(goal, context, tool_names)
+        return self._extract_json(raw)
+
+    def _llm_chat(self, goal: str, context: str, tool_names: list[str] | None) -> str:
+        """通过 CruxClient 调用 LLM。"""
+        if self.client is None:
+            try:
+                from core.client import CruxClient
+
+                self.client = CruxClient()
+            except (ImportError, OSError):
+                return ""
+
+        tool_list = ", ".join(tool_names) if tool_names else "read_file, search_files, edit_file, run_test, env_check"
+        ctx = f"\n额外上下文：{context}" if context else ""
+        prompt = _PLANNER_PROMPT.format(tool_list=tool_list, goal=goal, context=ctx)
+
+        model = self.model or "deepseek-v4-flash"
+        try:
+            r = self.client.chat(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=4096,
+            )
+            return r.get("choices", [{}])[0].get("message", {}).get("content", "")
+        except (OSError, RuntimeError, KeyError, IndexError, TypeError):
+            return ""
+
+    @staticmethod
+    def _extract_json(raw: str) -> str:
+        """从 LLM 回复中提取纯 JSON 数组。"""
+        if not raw:
+            return ""
+        # 策略 1: 直接解析
+        stripped = raw.strip()
+        if stripped.startswith("["):
+            if stripped.endswith("]"):
+                return stripped
+            # 找最后一个 ]
+            idx = stripped.rfind("]")
+            if idx > 0:
+                return stripped[: idx + 1]
+        # 策略 2: 找 ```json 代码块
+        import re
+
+        m = re.search(r"```(?:json)?\s*\n([\s\S]*?)\n```", raw)
+        if m:
+            return m.group(1).strip()
+        # 策略 3: 找第一个 [ 到最后一个 ]
+        start = raw.find("[")
+        end = raw.rfind("]")
+        if start >= 0 and end > start:
+            return raw[start: end + 1]
+        return ""
+
+
+class SemanticVerifier:
+    """语义级目标验证：不仅检查语法/测试，还判断目标是否真正达成。"""
+
+    def __init__(self, client=None, model: str = "", root: Path | None = None) -> None:
+        self.client = client
+        self.model = model
+        self.root = root or ROOT
+
+    def verify(self, goal: str, task: Task) -> tuple[bool, str]:
+        """验证目标是否达成。
+
+        检查所有标注了 verify 的 step，对 verify="goal" 的步骤走 LLM 语义验证。
+        返回 (achieved, gap_description)。
+        """
+        for step in task.steps:
+            if step.status != "done":
+                continue
+            if step.verify == "goal":
+                achieved, gap = self._verify_goal(goal, task, step)
+                if not achieved:
+                    return False, gap
+        return True, ""
+
+    def _verify_goal(self, goal: str, task: Task, step: Step) -> tuple[bool, str]:
+        """用 LLM 判断目标是否达成。"""
+        steps_info = "\n".join(
+            f"- {s.id}: {s.description} → {s.result[:200]}"
+            for s in task.steps
+            if s.status == "done"
+        )
+
+        # 收集相关文件内容（限制大小）
+        file_contents = self._collect_related_files(step)
+
+        prompt = _SEMANTIC_VERIFY_PROMPT.format(
+            goal=goal,
+            steps_info=steps_info,
+            file_contents=file_contents or "（无相关文件内容可提供）",
+        )
+
+        raw = self._llm_chat_verify(prompt)
+        if not raw:
+            return True, ""  # LLM 不可用时放行，不阻断流程
+
+        result = self._parse_verify_json(raw)
+        return result.get("achieved", True), result.get("gap", "")
+
+    def _llm_chat_verify(self, prompt: str) -> str:
+        model = self.model or "deepseek-v4-flash"
+        if self.client is None:
+            try:
+                from core.client import CruxClient
+
+                self.client = CruxClient()
+            except (ImportError, OSError):
+                return ""
+        try:
+            r = self.client.chat(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1024,
+            )
+            return r.get("choices", [{}])[0].get("message", {}).get("content", "")
+        except (OSError, RuntimeError, KeyError, IndexError, TypeError):
+            return ""
+
+    def _collect_related_files(self, step: Step) -> str:
+        """收集步骤相关文件内容（限制大小，防止撑爆上下文）。"""
+        files: list[str] = []
+        # 从 step.args 中提取文件路径
+        args = step.args or {}
+        for key in ("path", "file", "file_path", "target"):
+            p = args.get(key, "")
+            if isinstance(p, str) and p:
+                fp = self.root / p if not Path(p).is_absolute() else Path(p)
+                if fp.exists() and fp.is_file():
+                    try:
+                        content = fp.read_text(encoding="utf-8")[:2000]
+                        files.append(f"=== {p} ===\n{content}")
+                    except (OSError, UnicodeDecodeError):
+                        pass
+        # 也尝试读取 step.args 中 edit_file 的 path
+        for key in ("path", "file_path"):
+            p = args.get(key, "")
+            if isinstance(p, str) and p and f"=== {p} ===" not in "\n".join(files):
+                fp = self.root / p if not Path(p).is_absolute() else Path(p)
+                if fp.exists() and fp.is_file():
+                    try:
+                        content = fp.read_text(encoding="utf-8")[:2000]
+                        files.append(f"=== {p} ===\n{content}")
+                    except (OSError, UnicodeDecodeError):
+                        pass
+        return "\n\n".join(files)
+
+    @staticmethod
+    def _parse_verify_json(raw: str) -> dict:
+        """解析 verify JSON，失败返回安全默认值。"""
+        try:
+            stripped = raw.strip()
+            if stripped.startswith("{"):
+                end = stripped.rfind("}")
+                if end > 0:
+                    return json.loads(stripped[: end + 1])
+            # 找 ```json 块
+            import re
+
+            m = re.search(r"```(?:json)?\s*\n([\s\S]*?)\n```", raw)
+            if m:
+                return json.loads(m.group(1).strip())
+            return {"achieved": True, "gap": ""}
+        except (json.JSONDecodeError, ValueError):
+            return {"achieved": True, "gap": ""}
+
+
+class SelfReflection:
+    """失败分析 + 计划调整引擎。"""
+
+    def __init__(self, client=None, model: str = "") -> None:
+        self.client = client
+        self.model = model
+
+    def analyze_and_adjust(self, goal: str, step: Step, error: str) -> AdjustResult:
+        """分析失败原因，决定 retry / replan / skip。"""
+        # 先用 ErrorClassifier 分类
+        error_type = "unknown"
+        error_hint = ""
+        try:
+            from core.resilience import ErrorClassifier
+
+            exc = RuntimeError(error)
+            error_type = ErrorClassifier.classify(exc).value
+            error_hint = ErrorClassifier.get_recovery_hint(exc)
+        except ImportError:
+            pass
+
+        # 自动判断可重试错误
+        retryable_types = {"network_error", "timeout", "api_error", "rate_limit"}
+        if error_type in retryable_types:
+            return AdjustResult(
+                action="retry",
+                tool=step.tool,
+                args=step.args,
+                reason=f"可重试错误 ({error_type}): {error_hint}",
+            )
+
+        # 其他错误 → 调用 LLM 反思
+        return self._llm_reflect(goal, step, error, error_type, error_hint)
+
+    def _llm_reflect(
+        self, goal: str, step: Step, error: str, error_type: str, error_hint: str
+    ) -> AdjustResult:
+        """用 LLM 分析失败并决定下一步。"""
+        prompt = _REFLECTION_PROMPT.format(
+            goal=goal,
+            step_description=step.description,
+            tool_name=step.tool,
+            tool_args=json.dumps(step.args, ensure_ascii=False)[:500],
+            error=error[:500],
+            error_type=error_type,
+            error_hint=error_hint,
+        )
+
+        raw = self._llm_chat_reflect(prompt)
+        return self._parse_reflect_json(raw, step)
+
+    def _llm_chat_reflect(self, prompt: str) -> str:
+        model = self.model or "deepseek-v4-flash"
+        if self.client is None:
+            try:
+                from core.client import CruxClient
+
+                self.client = CruxClient()
+            except (ImportError, OSError):
+                return ""
+        try:
+            r = self.client.chat(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1024,
+            )
+            return r.get("choices", [{}])[0].get("message", {}).get("content", "")
+        except (OSError, RuntimeError, KeyError, IndexError, TypeError):
+            return ""
+
+    @staticmethod
+    def _parse_reflect_json(raw: str, fallback_step: Step) -> AdjustResult:
+        """解析反思 JSON，失败返回安全默认值（skip）。"""
+        try:
+            stripped = raw.strip()
+            if stripped.startswith("{"):
+                end = stripped.rfind("}")
+                if end > 0:
+                    data = json.loads(stripped[: end + 1])
+                    return AdjustResult(
+                        action=data.get("action", "skip"),
+                        tool=data.get("tool", fallback_step.tool),
+                        args=data.get("args", fallback_step.args),
+                        reason=data.get("reason", ""),
+                    )
+            import re
+
+            m = re.search(r"```(?:json)?\s*\n([\s\S]*?)\n```", raw)
+            if m:
+                data = json.loads(m.group(1).strip())
+                return AdjustResult(
+                    action=data.get("action", "skip"),
+                    tool=data.get("tool", fallback_step.tool),
+                    args=data.get("args", fallback_step.args),
+                    reason=data.get("reason", ""),
+                )
+        except (json.JSONDecodeError, ValueError):
+            pass
+        return AdjustResult(
+            action="skip",
+            tool=fallback_step.tool,
+            args=fallback_step.args,
+            reason="反思失败，跳过该步骤",
+        )
+
+
+# ── 更新 __all__ ──
+
+__all__.extend([
+    "SmartPlanner",
+    "SemanticVerifier",
+    "SelfReflection",
+    "AdjustResult",
+])

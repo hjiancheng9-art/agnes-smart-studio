@@ -20,6 +20,8 @@ from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 
+import httpx
+
 logger = logging.getLogger("crux.provider")
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -75,12 +77,77 @@ def _register_defaults():
     global MODEL_REGISTRY
 
     models = [
+        # ── 智谱免费模型（视觉优先，理解能力优于 agnes）──
+        ModelInfo(
+            id="glm-4.6v-flash",
+            name="GLM-4.6V-Flash (智谱视觉)",
+            provider_id="zhipu",
+            provider_name="Zhipu GLM",
+            description="智谱新一代视觉理解，128K，OCR/描述/场景理解（免费，优于 agnes）",
+            supports_vision=True,
+            tier="light",
+            aliases=("glm-v", "zhipu-vision"),
+        ),
+        ModelInfo(
+            id="glm-4.1v-thinking-flash",
+            name="GLM-4.1V-Thinking-Flash (智谱)",
+            provider_id="zhipu",
+            provider_name="Zhipu GLM",
+            description="智谱视觉+深度推理，支持thinking参数，复杂图表/代码/计数（免费）",
+            supports_vision=True,
+            supports_thinking=True,
+            tier="pro",
+            aliases=("glm-vt", "zhipu-think-v"),
+        ),
+        # ── 智谱免费对话模型 ──
+        ModelInfo(
+            id="glm-4.7-flash",
+            name="GLM-4.7-Flash (智谱免费)",
+            provider_id="zhipu",
+            provider_name="Zhipu GLM",
+            description="智谱旗舰免费对话，128K，tool calling，免费",
+            supports_tools=True,
+            tier="pro",
+            aliases=("glm", "zhipu-chat", "glm4"),
+        ),
+        ModelInfo(
+            id="glm-4-flash-250414",
+            name="GLM-4-Flash (智谱稳定)",
+            provider_id="zhipu",
+            provider_name="Zhipu GLM",
+            description="智谱稳定版，128K，日常任务，免费",
+            supports_tools=True,
+            tier="light",
+            aliases=("glm-stable", "zhipu-light"),
+        ),
+        # ── 智谱免费生图/生视频 ──
+        ModelInfo(
+            id="cogview-3-flash",
+            name="CogView-3-Flash (智谱免费)",
+            provider_id="zhipu",
+            provider_name="Zhipu GLM",
+            description="免费文生图，智谱 API",
+            tier="light",
+            model_type="image",
+            aliases=("cogview", "zhipu-img"),
+        ),
+        ModelInfo(
+            id="cogvideox-flash",
+            name="CogVideoX-Flash (智谱免费)",
+            provider_id="zhipu",
+            provider_name="Zhipu GLM",
+            description="免费文生视频，智谱 API",
+            tier="light",
+            model_type="video",
+            aliases=("cogvideo", "zhipu-vid"),
+        ),
+        # ── CRUX AI models ──
         ModelInfo(
             id="agnes-1.5-flash",
             name="CRUX 1.5 Flash",
             provider_id="crux",
             provider_name="CRUX AI",
-            description="多模态图片理解，快，无自动生成",
+            description="多模态图片理解（fallback，智谱不可用时启用）",
             supports_vision=True,
             tier="light",
             aliases=("light",),
@@ -90,10 +157,10 @@ def _register_defaults():
             name="CRUX 2.0 Flash",
             provider_id="crux",
             provider_name="CRUX AI",
-            description="深度思考 + AI自动生图/视频 + 复杂视觉推理",
+            description="深度思考 + AI自动生图/视频（fallback）",
             supports_tools=True,
             supports_thinking=True,
-            supports_vision=True,  # 复杂视觉任务（代码/图表/计数等推理）
+            supports_vision=True,
             tier="pro",
             aliases=("pro",),
         ),
@@ -113,49 +180,42 @@ def _register_defaults():
             name="DeepSeek V4 Flash",
             provider_id="deepseek",
             provider_name="DeepSeek V4 Flash (1M 上下文)",
-            # Flash 同 key 同 base_url，非思考模式；价格约 Pro 的 50%，对标 Claude Haiku
-            # 旧名 deepseek-chat (非思考) / deepseek-reasoner (思考) 将于 2026/07/24 废弃，
-            # 统一收敛到 deepseek-v4-flash 的非思考/思考双模。
-            description="轻量快档，日常对话/简单任务，1M 上下文，成本约 Pro 的一半",
+            description="轻量快档，日常对话/简单任务，1M 上下文，免费",
             supports_tools=True,
-            supports_thinking=False,  # Flash 非思考模式（思考需切 Pro）
             tier="light",
             aliases=("flash", "dsflash", "dsv4flash"),
         ),
         ModelInfo(
-            id="Pro/moonshotai/Kimi-K2.6",
-            name="Kimi K2.6",
-            provider_id="siliconflow",
-            provider_name="Kimi K2.6 (via SiliconFlow)",
-            description="备选，支持视觉理解（复杂推理 fallback）",
+            id="deepseek-chat",
+            name="DeepSeek Chat (V3)",
+            provider_id="deepseek",
+            provider_name="DeepSeek Chat",
+            description="DeepSeek V3 对话模型，免费",
             supports_tools=True,
-            supports_vision=True,
-            tier="pro",
-            aliases=("kimi", "sf"),
+            tier="light",
+            aliases=("ds-chat",),
         ),
         ModelInfo(
-            id="Qwen3.6-27B-PRISM-PRO-DQ",
-            name="Qwen3.6-27B-PRISM-PRO-DQ (本地)",
-            provider_id="local",
-            provider_name="Local llama.cpp (Qwen3.6-27B-PRISM-PRO-DQ)",
-            description="本地推理，离线可用，代码/推理 + 视觉；需手动启动 llama-server",
-            supports_tools=True,
-            supports_thinking=True,
-            supports_vision=True,
-            tier="pro",
-            aliases=("local", "qwen", "qwen3"),
-        ),
-                # ── CodeBuddy (腾讯云 AI 代码助手) ──
-        ModelInfo(
-            id="codebuddy-pro",
-            name="CodeBuddy Pro",
-            provider_id="codebuddy",
-            provider_name="CodeBuddy (腾讯云 AI 代码助手)",
-            description="腾讯云 AI 代码助手，代码补全/审查/重构/工作流",
+            id="deepseek-reasoner",
+            name="DeepSeek Reasoner (R1)",
+            provider_id="deepseek",
+            provider_name="DeepSeek Reasoner",
+            description="DeepSeek R1 深度推理，复杂分析/架构/数学",
             supports_tools=True,
             supports_thinking=True,
             tier="pro",
-            aliases=("codebuddy", "cb"),
+            aliases=("reasoner", "ds-reasoner", "dsr1"),
+        ),
+        # ── Copilot GPT-5-mini (via proxy) ──
+        ModelInfo(
+            id="gpt-5-mini",
+            name="GPT-5-mini (Copilot)",
+            provider_id="copilot",
+            provider_name="GPT-5-mini (GitHub Copilot)",
+            description="OpenAI 最新轻量模型，GitHub Copilot 订阅免费，快速对话/代码",
+            supports_tools=True,
+            tier="light",
+            aliases=("gpt5", "copilot", "gpt5mini"),
         ),
         # ── 图片/视频引擎模型（调用 create_image / create_video 端点）──
         ModelInfo(
@@ -205,7 +265,7 @@ def get_model_info(model_id: str) -> ModelInfo | None:
 
 
 def resolve_model_alias(name: str) -> str | None:
-    """将用户输入的别名（light/pro/deepseek/kimi 等）解析为模型 ID。
+    """将用户输入的别名（light/pro/deepseek/zhipu 等）解析为模型 ID。
 
     优先查 MODEL_REGISTRY 的别名，再直接查 ID 匹配，最后查 models.json。
     """
@@ -272,7 +332,7 @@ def get_vision_models() -> list[str]:
     """返回所有支持多模态视觉理解的模型 ID 列表（按注册顺序，保持稳定）。
 
     视觉通道 fallback 链的单一真相源：调用方按此列表顺序尝试，
-    首个成功即返回。除 deepseek-* 外，其余模型（agnes 系列 / Kimi / Qwen）
+    首个成功即返回。除 deepseek-* 外，其余模型（agnes 系列 /  / Qwen）
     均支持视觉。调用方应按任务复杂度选择首选项：
     - 轻量（OCR/描述）→ agnes-1.5-flash（tier=light，最便宜）
     - 复杂（计数/读代码/图表推理）→ agnes-2.0-flash 或更强（tier=pro）
@@ -460,7 +520,7 @@ class ProviderManager:
                 pid,
             )
             api_key = ""
-        # Local providers (e.g. llama.cpp) may not require authentication.
+        # Non-authenticated providers may bypass auth checks.
         # auth_required=false → use a placeholder key instead of falling back to
         # another provider (which would cause session.model vs client.base_url mismatch).
         if not api_key and provider.get("auth_required", True):
@@ -504,6 +564,11 @@ class ProviderManager:
             if key:
                 return pid
         return None
+
+    def get_active_models(self) -> dict[str, str]:
+        """Get all tier→model-id mappings for the active provider."""
+        provider = self.providers.get(self.state.active, {})
+        return dict(provider.get("models", {}))
 
     def get_model(self, tier: str = "pro") -> str:
         """Get the model ID for the active provider."""

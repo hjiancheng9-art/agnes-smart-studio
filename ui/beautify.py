@@ -159,15 +159,12 @@ def spinner(message: str, duration: float = 1.5):
 
 
 def splash_full(v="v5.0", t=None, s=None):
-    """完整启动动画 — 直接委托新版五兽归位欢迎页。
+    """启动欢迎页 — v5 现代简约 · 无 CRUX 大字 · 七兽网格。
 
-    v2 新版 render_welcome 已内置五兽卡牌网格 + 内核信息 + 光标，
-    此处不再重复打印色条。
+    直接委托 terminal_logo.render_welcome()。
     """
     from ui.terminal_logo import render_welcome
 
-    console.print()
-    time.sleep(0.1)
     render_welcome(v, t, s)
 
 

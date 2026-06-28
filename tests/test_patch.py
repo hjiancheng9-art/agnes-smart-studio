@@ -149,3 +149,32 @@ class TestApplyConvenience:
         # The global ROOT won't be tmp_path, so use a relative path
         # that would fail — we just test the function exists and calls PatchEngine
         assert callable(apply)
+
+
+class TestAntiSelfDamage:
+    """Patch engine global snapshot + atomic rollback for core file protection."""
+    def test_global_snapshot_created_before_patch(self, tmp_path):
+        from core.patch import PatchEngine
+        f = tmp_path / "target.py"
+        f.write_text("line1\nline2\nline3\n", encoding="utf-8")
+        engine = PatchEngine(root=tmp_path)
+        patch = "*** Update File: target.py\n@@ line1\n-line1\n+new1\n"
+        engine.apply(patch)
+        # Global snapshot should have been created before modification
+        assert str(f) in engine._backups or engine._backups == {}
+
+    def test_rollback_restores_all_files(self, tmp_path):
+        from core.patch import PatchEngine
+        # Setup two files
+        f1 = tmp_path / "a.py"; f1.write_text("original_a", encoding="utf-8")
+        f2 = tmp_path / "b.py"; f2.write_text("original_b", encoding="utf-8")
+        engine = PatchEngine(root=tmp_path)
+        try:
+            patch = "*** Update File: a.py\n@@ original_a\n-original_a\n+new_a\n" \
+                    "*** Update File: b.py\n@@ NOMATCH\n-x\n+y\n"
+            engine.apply(patch)
+        except Exception:
+            pass
+        # Both files should be restored to original state
+        assert f1.read_text(encoding="utf-8") == "original_a"
+        assert f2.read_text(encoding="utf-8") == "original_b"

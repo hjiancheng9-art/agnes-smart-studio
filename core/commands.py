@@ -74,7 +74,7 @@ COMMANDS: list[CommandDef] = [
         "model",
         "/model",
         "<别名|ID>",
-        "切换 AI 模型 (light/pro/deepseek/kimi...)",
+        "切换 AI 模型 (light/pro/deepseek/zhipu...)",
         "对话",
         handler="_chat_switch_model",
     ),
@@ -86,7 +86,7 @@ COMMANDS: list[CommandDef] = [
     CommandDef("clear", "/clear", "", "清空对话历史", "对话", handler="_inline_clear"),
     CommandDef("exit", "/exit", "", "退出聊天", "对话", aliases=("quit", "q")),
     # ── 任务工程 ──
-    CommandDef("plan", "/plan", "<任务>", "先规划再执行（自动拆解步骤）", "任务工程"),
+    CommandDef("plan", "/plan", "<任务>", "先规划再执行（自动拆解步骤 + 用户审批）", "任务工程", handler="_chat_plan_mode"),
     CommandDef("sub", "/sub", "<任务>", "启动子智能体处理子任务", "任务工程", handler="_chat_subagent"),
     CommandDef("compress", "/compress", "", "压缩长对话历史为摘要", "任务工程"),
     CommandDef("team", "/team", "<类型>", "智能体团队 (review/debug/feature)", "任务工程"),
@@ -101,6 +101,8 @@ COMMANDS: list[CommandDef] = [
     CommandDef("audit", "/audit", "<pip|npm>", "依赖安全审计 + 过期检测", "诊断配置"),
     CommandDef("rules", "/rules", "<cmd>", "编码规范管理 (list/enable/create)", "诊断配置"),
     CommandDef("automate", "/automate", "<cmd>", "自动化定时任务 (add/list/remove)", "诊断配置"),
+    CommandDef("permission", "/permission", "<yolo|auto|manual>", "切换权限模式 (YOLO/自动/手动)", "诊断配置"),
+    CommandDef("tasks", "/tasks", "", "查看后台任务状态", "诊断配置"),
     CommandDef("provider", "/provider", "<cmd>", "切换模型供应商 (list/switch)", "诊断配置"),
     CommandDef("evolve", "/evolve", "", "查看 Prompt 进化状态", "诊断配置"),
     CommandDef(
@@ -308,6 +310,8 @@ def register(
             return
     COMMANDS.append(new_cmd)
 
+
+register("palette", "/palette", "[filter]", "Command palette — fuzzy search all commands", "对话", handler="_chat_palette")
 
 def get_all() -> list[CommandDef]:
     return list(COMMANDS)

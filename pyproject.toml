@@ -61,7 +61,7 @@ asyncio_mode = "strict"
 [tool.ruff]
 line-length = 120
 target-version = "py310"
-extend-exclude = ["scripts/scratch", "tests/manual", "output", ".codebuddy", "models", "llama.cpp"]
+extend-exclude = ["scripts/scratch", "tests/manual", "output", ".codebuddy", "models"]
 
 [tool.ruff.lint]
 select = [
@@ -99,5 +99,5 @@ show_missing = true
 skip_covered = true
 # 门禁策略：设为略低于当前实际总覆盖率（约 57%），留 ~2% 防抖余量，
 # 防止边缘测试波动导致 CI 误报，同时守住"不得大幅倒退"的底线。
-fail_under = 55
+fail_under = 96
 

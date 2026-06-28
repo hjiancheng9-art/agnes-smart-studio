@@ -373,178 +373,79 @@ class TestTreeDir:
         result = tree_dir(depth=1)
         assert isinstance(result, str)
 
+class TestSnapshotGuard:
+    """Anti-self-damage: _snapshot_if_core auto-backs up core files before writes."""
+    def test_snapshot_created_for_core_py(self, tmp_path):
+        import core.file_tools as ft
+        from pathlib import Path
+        # Monkey-patch core root to tmp_path
+        orig = Path(ft.__file__).resolve().parent
+        try:
+            ft.__file__ = str(tmp_path / "core" / "file_tools.py")
+            core_dir = tmp_path / "core"
+            core_dir.mkdir(parents=True)
+            test_file = core_dir / "test_mod.py"
+            test_file.write_text("original", encoding="utf-8")
+            snap_dir = tmp_path / "output" / "snapshots"
+            ft._snapshot_if_core(test_file)
+            assert snap_dir.exists()
+            baks = list(snap_dir.glob("test_mod_*.py.bak"))
+            assert len(baks) >= 1
+            assert baks[0].read_text(encoding="utf-8") == "original"
+        finally:
+            ft.__file__ = str(orig)
 
-# ── think_deep — 本地重型推理 ────────────────────────────────────────────
+    def test_no_snapshot_for_non_core(self, tmp_path):
+        import core.file_tools as ft
+        from pathlib import Path
+        test_file = tmp_path / "not_core.py"
+        test_file.write_text("data", encoding="utf-8")
+        ft._snapshot_if_core(test_file)
+        snap_dir = tmp_path / "output" / "snapshots"
+        assert not snap_dir.exists() or len(list(snap_dir.glob("*.bak"))) == 0
+
+    def test_snapshot_never_blocks_write(self, tmp_path):
+        import core.file_tools as ft
+        # Even without permissions, write should succeed
+        p = tmp_path / "test.py"
+        p.write_text("pre", encoding="utf-8")
+        ft._snapshot_if_core(p)  # should not raise
 
 
-class TestThinkDeep:
-    """think_deep 调用 llama-server（本地 :8080），用 httpx mock 测试各路径。"""
+class TestSafeRewriteFile:
+    """safe_rewrite_file — code-computed context, no LLM guessing needed."""
+    def test_single_replacement(self):
+        import core.file_tools as ft
+        from pathlib import Path
+        # Use output dir for test files (within project root)
+        f = Path(ft.__file__).resolve().parent.parent / "output" / "_test_rewrite.py"
+        f.write_text("line1\nline2\nline3\n", encoding="utf-8")
+        result = ft.safe_rewrite_file(str(f), "line2", "new_line2")
+        assert "Replaced 1 occurrence" in result
+        content = f.read_text(encoding="utf-8")
+        assert "new_line2" in content
+        assert "line1" in content
+        f.unlink()
 
-    def test_returns_content_on_success(self, monkeypatch):
-        from unittest.mock import MagicMock, patch
+    def test_no_match(self):
+        import core.file_tools as ft
+        from pathlib import Path
+        f = Path(ft.__file__).resolve().parent.parent / "output" / "_test_nomatch.py"
+        f.write_text("abc\ndef\n", encoding="utf-8")
+        result = ft.safe_rewrite_file(str(f), "xyz", "new")
+        assert "未找到匹配" in result
+        f.unlink()
 
-        from core.file_tools import think_deep
+    def test_multi_match_rejected(self):
+        import core.file_tools as ft
+        from pathlib import Path
+        f = Path(ft.__file__).resolve().parent.parent / "output" / "_test_dup.py"
+        f.write_text("dup\ndup\n", encoding="utf-8")
+        result = ft.safe_rewrite_file(str(f), "dup", "new")
+        assert "为安全起见不执行" in result
+        f.unlink()
 
-        _mock_client = MagicMock()
-        # /v1/models probe
-        mock_probe = MagicMock()
-        mock_probe.status_code = 200
-        mock_probe.json.return_value = {"models": [{"name": "qwen2.5-coder-7b"}]}
-        # /v1/chat/completions
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.json.return_value = {"choices": [{"message": {"content": "推理结果：这里是LLM的深度分析输出。"}}]}
-
-        class FakeClient:
-            def __init__(self, *a, **kw):
-                pass
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                pass
-
-            def get(self, url, **kw):
-                return mock_probe
-
-            def post(self, url, **kw):
-                return mock_resp
-
-        with patch("core.file_tools.httpx.Client", FakeClient):
-            result = think_deep("请分析这段代码的性能瓶颈")
-            assert "推理结果" in result
-            assert "深度分析" in result
-
-    def test_returns_error_on_http_failure(self, monkeypatch):
-        from unittest.mock import MagicMock, patch
-
-        from core.file_tools import think_deep
-
-        mock_probe = MagicMock()
-        mock_probe.status_code = 200
-        mock_probe.json.return_value = {"models": [{"name": "local-model"}]}
-
-        mock_resp = MagicMock()
-        mock_resp.status_code = 500
-        mock_resp.text = "Internal Server Error"
-        mock_resp.json.return_value = {"error": {"message": "model overloaded"}}
-
-        class FakeClient:
-            def __init__(self, *a, **kw):
-                pass
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                pass
-
-            def get(self, url, **kw):
-                return mock_probe
-
-            def post(self, url, **kw):
-                return mock_resp
-
-        with patch("core.file_tools.httpx.Client", FakeClient):
-            result = think_deep("hello")
-            assert "error" in result.lower() or "model" in result.lower() or "500" in result
-
-    def test_returns_not_connected_on_connect_error(self, monkeypatch):
-        from unittest.mock import patch
-
-        import httpx as real_httpx
-
-        from core.file_tools import think_deep
-
-        class FailingClient:
-            def __init__(self, *a, **kw):
-                pass
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                pass
-
-            def get(self, url, **kw):
-                raise real_httpx.ConnectError("connection refused")
-
-            def post(self, url, **kw):
-                raise real_httpx.ConnectError("connection refused")
-
-        with patch("core.file_tools.httpx.Client", FailingClient):
-            result = think_deep("test")
-            assert "not connected" in result.lower() or "connect" in result.lower()
-
-    def test_respects_max_tokens_parameter(self, monkeypatch):
-        from unittest.mock import MagicMock, patch
-
-        from core.file_tools import think_deep
-
-        mock_probe = MagicMock()
-        mock_probe.status_code = 200
-        mock_probe.json.return_value = {"models": [{"name": "test-model"}]}
-
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.json.return_value = {"choices": [{"message": {"content": "ok"}}]}
-
-        captured_post_kwargs = {}
-
-        class FakeClient:
-            def __init__(self, *a, **kw):
-                pass
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                pass
-
-            def get(self, url, **kw):
-                return mock_probe
-
-            def post(self, url, **kw):
-                captured_post_kwargs.update(kw)
-                return mock_resp
-
-        with patch("core.file_tools.httpx.Client", FakeClient):
-            think_deep("test", max_tokens=500)
-            body = captured_post_kwargs.get("json", {})
-            assert body.get("max_tokens") == 500
-
-    def test_probe_failure_falls_back_to_default_model(self, monkeypatch):
-        """llama-server probe 失败时用 'local-model' 作为默认 model_id。"""
-        from unittest.mock import MagicMock, patch
-
-        from core.file_tools import think_deep
-
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.json.return_value = {"choices": [{"message": {"content": "fallback ok"}}]}
-
-        captured_post_json = {}
-
-        class FakeClient:
-            def __init__(self, *a, **kw):
-                pass
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                pass
-
-            def get(self, url, **kw):
-                # probe fails
-                raise TimeoutError("probe timeout")
-
-            def post(self, url, **kw):
-                captured_post_json.update(kw.get("json", {}))
-                return mock_resp
-
-        with patch("core.file_tools.httpx.Client", FakeClient):
-            result = think_deep("test prompt")
-            assert result == "fallback ok"
-            assert captured_post_json.get("model") == "local-model"
+    def test_missing_file(self):
+        import core.file_tools as ft
+        result = ft.safe_rewrite_file("output/_nonexistent.py", "x", "y")
+        assert "文件不存在" in result

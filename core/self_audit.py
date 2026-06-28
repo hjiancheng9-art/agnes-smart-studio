@@ -101,13 +101,6 @@ class AuditEngine:
             try:
                 d = json.loads(mp.read_text(encoding="utf-8"))
                 active = d.get("active", "")
-                if active == "llamacpp":
-                    self._add(
-                        category="config",
-                        severity="high",
-                        title="Active provider is llamacpp (local)",
-                        file="models.json",
-                    )
                 if active not in d.get("providers", {}):
                     self._add(
                         category="config",

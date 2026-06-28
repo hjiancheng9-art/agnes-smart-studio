@@ -21,6 +21,8 @@ __all__ = [
     # TOOL
     "WRITE_TOOLS",
     "LONG_RUNNING_TOOLS",
+    "READONLY_TOOLS",
+    "CONFIRMABLE_TOOLS",
 ]
 
 # ═══════════════════════════════════════════════════════════════════
@@ -95,6 +97,8 @@ WRITE_TOOLS = frozenset(
     {
         "write_file",
         "edit_file",
+        "patch_file",        # structured patch (PatchEngine.apply)
+        "apply_patch",       # convenience alias
         "github_write_file",
         "git_add_commit",
         "git_push",
@@ -104,3 +108,72 @@ WRITE_TOOLS = frozenset(
 
 # 耗时工具 — 执行前先发 info 提示，让用户知道正在干活
 LONG_RUNNING_TOOLS = frozenset({"run_bash", "run_test", "run_python", "web_fetch", "web_search"})
+
+# 只读工具 — Plan 模式下允许执行的工具集合
+# 注意: "run_bash" 不在此列表中（Plan 模式禁止执行命令）
+READONLY_TOOLS = frozenset(
+    {
+        "read_file",
+        "search_files",
+        "glob_files",
+        "find_symbol",
+        "search_symbols",
+        "find_references",
+        "graph_neighbors",
+        "graph_ancestors",
+        "graph_descendants",
+        "code_analyze",
+        "list_files",
+        "tree_dir",
+        "check_file_exists",
+        "list_project_files",
+        "fetch_url_content",
+        "web_search",
+        "web_fetch",
+        "skill_search",
+        "env_check",
+        "health_check",
+        "comfyui_status",
+        "comfyui_list_models",
+        "comfyui_get_node_info",
+        "mcp_list_servers",
+        "mcp_list_tools",
+        "mcp_read_resource",
+    }
+)
+
+# 确认类工具 — Manual 模式下需要用户确认的工具（写入操作超集）
+# 基于 WRITE_TOOLS 扩展，包含所有会产生副作用的工具
+CONFIRMABLE_TOOLS = frozenset(
+    {
+        "write_file",
+        "edit_file",
+        "patch_file",
+        "apply_patch",
+        "safe_rewrite_file",
+        "github_write_file",
+        "git_add_commit",
+        "git_push",
+        "git_pr_create",
+        "git_pr_merge",
+        "git_tag",
+        "git_branch",
+        "git_worktree",
+        "git_stash",
+        "run_bash",
+        "run_test",
+        "run_python",
+        "generate_image",
+        "generate_video",
+        "comfyui_submit_workflow",
+        "comfyui_create_custom_node",
+        "comfyui_clear_queue",
+        "schedule_add",
+        "schedule_remove",
+        "browser_navigate",
+        "browser_click",
+        "browser_type",
+        "execute_plan",
+        "multi_agent",
+    }
+)

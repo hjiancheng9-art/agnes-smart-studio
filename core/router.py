@@ -15,6 +15,8 @@
 from __future__ import annotations
 
 import contextlib
+import logging
+import os
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -61,22 +63,131 @@ class RouteDecision:
     switch_client: bool = False  # 是否需要切 client（跨供应商）
 
 
-# ── 模型/供应商映射 ─────────────────────────────────────────
+# ── Cost Tier ──────────────────────────────────────────────
 
-# 各 TaskProfile 的推荐模型 ID
-# v5.0+: DeepSeek 双档化（同 key 同 base_url），按 Claude Haiku/Sonnet/Opus 分层：
-# - CHAT (闲聊/问答) → deepseek-v4-flash（轻量档，对标 Haiku，省 ~50% 成本）
-# - QUICK_FIX/CODING/DEEP/CREATIVE → deepseek-v4-pro（深度思考 + 1M 上下文，对标 Sonnet/Opus）
-# 视觉走独立通道（agnes-1.5-flash），不经 router，不在此表。
-# 注：flash 与 pro 同属 deepseek 供应商，CHAT→flash 不触发 client 切换，零成本降档。
-_PROFILE_MODEL: dict[TaskProfile, str] = {
-    TaskProfile.CHAT: "deepseek-v4-flash",
-    TaskProfile.QUICK_FIX: "deepseek-v4-pro",
-    TaskProfile.CODING: "deepseek-v4-pro",
-    TaskProfile.DEEP: "deepseek-v4-pro",
-    TaskProfile.CREATIVE: "deepseek-v4-pro",
-    TaskProfile.SKIP: "",  # 不干预
+class CostTier(Enum):
+    SAVE = "save"
+    BALANCED = "balanced"
+    BEST = "best"
+
+_COST_TIER_FILTER: dict[CostTier, set[str]] = {
+    CostTier.SAVE: {"glm-4.7-flash", "glm-4-flash-250414", "deepseek-chat", "deepseek-v4-flash"},
+    CostTier.BALANCED: {"glm-4.7-flash", "glm-4-flash-250414", "deepseek-chat", "deepseek-v4-flash", "deepseek-v4-pro", "deepseek-reasoner"},
+    CostTier.BEST: set(),
 }
+
+_user_cost_tier: CostTier = CostTier.BALANCED
+
+def set_cost_tier(tier: CostTier | str) -> None:
+    global _user_cost_tier
+    _user_cost_tier = CostTier(tier) if isinstance(tier, str) else tier
+
+def get_cost_tier() -> CostTier:
+    return _user_cost_tier
+
+_LIGHT_BUT_FREE: set[str] = {"deepseek-chat", "deepseek-v4-flash"}
+
+def _model_cost_tier(model_id: str) -> str:
+    try:
+        from core.provider import MODEL_REGISTRY, get_provider_manager
+        info = MODEL_REGISTRY.get(model_id)
+        if info is None: return "unknown"
+        if info.model_type in ("image", "video"):
+            return "free" if info.provider_id == "zhipu" else "premium"
+        if info.provider_id == "local": return "free"
+        mgr = get_provider_manager()
+        if not mgr.providers: mgr.load()
+        pdata = mgr.providers.get(info.provider_id, {})
+        provider_tier = pdata.get("cost_tier", "")
+        if provider_tier == "free": return "free"
+        if info.tier == "light":
+            return "free" if model_id in _LIGHT_BUT_FREE else "budget"
+        return provider_tier or "unknown"
+    except (ImportError, RuntimeError):
+        return "unknown"
+
+
+# ── Profile → Model candidates ─────────────────────────────
+
+_PROFILE_MODEL: dict[TaskProfile, list[str]] = {}
+_PROFILE_MODEL_built = False
+
+def _build_profile_models() -> dict[TaskProfile, list[str]]:
+    """从 MODEL_REGISTRY + models.json fallback.priority 动态构建画像候选模型。
+
+    排序规则：
+    1. 按 models.json fallback.priority 供应商顺序（active 自然排第一）
+    2. 同供应商内 pro > light
+    3. 仅含 text 类型模型
+    """
+    try:
+        from core.provider import get_provider_manager, MODEL_REGISTRY  # noqa: F811
+
+        mgr = get_provider_manager()
+        mgr.load()
+        priority = list(mgr.fallback_priority)
+    except Exception:
+        priority = ["deepseek", "zhipu", "crux"]
+
+    provider_rank = {pid: i for i, pid in enumerate(priority)}
+
+    text_models: list[tuple[int, int, str]] = []
+    for mid, info in MODEL_REGISTRY.items():
+        if info.model_type != "text":
+            continue
+        rank = provider_rank.get(info.provider_id, 99)
+        tier_prio = 0 if info.tier == "pro" else 1
+        text_models.append((rank, tier_prio, mid))
+    text_models.sort()
+
+    sorted_ids = [m[2] for m in text_models]
+    flash_ids = [m for m in sorted_ids if "flash" in m.lower()]
+    chat_ids = [m for m in sorted_ids if "flash" in m.lower() or "chat" in m.lower()]
+    pro_ids = [m for m in sorted_ids if "pro" in m.lower() or "reasoner" in m.lower()]
+
+    return {
+        TaskProfile.CHAT: chat_ids[:3] or flash_ids[:3] or sorted_ids[:3],
+        TaskProfile.QUICK_FIX: flash_ids[:3] or sorted_ids[:3],
+        TaskProfile.CODING: (pro_ids[:2] + flash_ids[:2])[:4] or sorted_ids[:4],
+        TaskProfile.DEEP: pro_ids[:3] or sorted_ids[:3],
+        TaskProfile.CREATIVE: pro_ids[:2] or sorted_ids[:2],
+        TaskProfile.SKIP: [],
+    }
+
+
+def _get_profile_candidates(profile: TaskProfile) -> list[str]:
+    """获取画像对应的候选模型列表（惰性构建，首次调用后缓存）。"""
+    global _PROFILE_MODEL, _PROFILE_MODEL_built
+    if not _PROFILE_MODEL_built:
+        _PROFILE_MODEL = _build_profile_models()
+        _PROFILE_MODEL_built = True
+    return _PROFILE_MODEL.get(profile, [])
+
+
+_PROFILE_MODEL: dict[TaskProfile, list[str]] = {}
+
+def _pick_best_model(candidates: list[str], session=None) -> str:
+    allowed = _COST_TIER_FILTER.get(_user_cost_tier, set())
+    if allowed:
+        candidates = [m for m in candidates if m in allowed]
+        if not candidates: return ""
+    try:
+        from core.provider import get_provider_manager, MODEL_REGISTRY
+        mgr = get_provider_manager()
+        if not mgr.providers: mgr.load()
+        state = mgr.state
+        for mid in candidates:
+            info = MODEL_REGISTRY.get(mid)
+            if info is None: continue
+            pid = info.provider_id
+            if state.is_down(pid): continue
+            pdata = mgr.providers.get(pid, {})
+            key = pdata.get("api_key", "") or os.getenv(f"{pid.upper()}_API_KEY", "")
+            auth_required = pdata.get("auth_required", True)
+            if key or not auth_required: return mid
+        return ""
+    except (ImportError, RuntimeError):
+        return candidates[0] if candidates else ""
 
 
 def _detect_provider(model_id: str, mgr: Any | None = None) -> str:
@@ -367,13 +478,17 @@ def resolve(profile: TaskProfile | str, session: ChatSession | None) -> RouteDec
     if profile == TaskProfile.SKIP:
         return RouteDecision(profile=TaskProfile.SKIP)
 
-    target_model = _PROFILE_MODEL.get(profile, "")
-    if not target_model:
+    candidates = _get_profile_candidates(profile)
+    if not candidates:
         return RouteDecision(profile=TaskProfile.SKIP)
 
-    # 当前模型已经匹配 → 不切
-    if session is not None and session.model == target_model:
+    # 当前模型已在候选前2 → 不切
+    if session is not None and session.model in candidates[:2]:
         return RouteDecision(profile=profile, reason="")
+
+    target_model = _pick_best_model(candidates, session)
+    if not target_model:
+        return RouteDecision(profile=TaskProfile.SKIP)
 
     # 构建理由
     reason_map = {

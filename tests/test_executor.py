@@ -16,6 +16,21 @@ sys.path.insert(0, str(ROOT))
 
 from core.executor import Step, Task, TaskExecutor, quick_plan
 
+
+# ── 测试隔离：每个测试前重置 goal 状态，避免测试间污染 ──────────
+@pytest.fixture(autouse=True)
+def _reset_goal_state():
+    """确保每个测试从干净 goal 状态开始。"""
+    try:
+        from core.goal_manager import get_goal_manager
+        mgr = get_goal_manager()
+        mgr._goals.clear()
+        mgr._active_goal_id = ""
+        mgr._next_id = 1
+    except Exception:
+        pass
+
+
 # ── quick_plan（纯函数，零 mock）──────────────────────────────────
 
 

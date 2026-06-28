@@ -107,7 +107,7 @@
     {
       "name": "think_deep",
       "type": "python",
-      "description": "用本地重型模型做深度推理（代码分析/架构审查/方案设计）。需 llama-server 在 8080 端口。不调工具，纯文本推理。",
+      "description": "已弃用。llama.cpp 不再维护，think_deep 不再可用。请直接在当前对话中进行深度推理。",
       "function": "core.file_tools.think_deep",
       "parameters": {
         "prompt": {
@@ -1130,7 +1130,7 @@
     {
       "name": "execute_plan",
       "type": "python",
-      "description": "自主执行多步计划：按依赖顺序执行步骤、自动校验（语法/测试）、追踪错误并生成报告。用于 bug 修复（读错误→搜代码→改→验证）、审计检查（环境检测→跑测试）、批量操作等需要多步编排的场景。LLM 不需要自己逐个调工具，把完整计划一次传入即可。",
+      "description": "自主执行多步计划：按依赖顺序执行步骤、自动校验（语法/测试）、错误自反思重试、追踪错误并生成报告。不传 steps 时自动用 LLM 智能规划。用于 bug 修复、审计检查、批量操作等多步编排场景。",
       "function": "core.executor.execute_plan_tool",
       "parameters": {
         "goal": {
@@ -1140,8 +1140,11 @@
         },
         "steps": {
           "type": "string",
-          "description": "JSON 数组字符串，每项格式：{\"id\": \"step_1\", \"description\": \"步骤描述\", \"tool\": \"read_file\", \"args\": {\"path\": \"README.md\"}, \"depends_on\": [], \"verify\": null}。depends_on 是前置步骤 id 列表（默认空）；verify 可选 \"syntax\"（AST校验）或 \"test\"（跑pytest）或 null（不校验）。",
-          "required": true
+          "description": "JSON 数组字符串，每项含 id/description/tool/args/depends_on/verify。不传时自动用 LLM 智能规划。"
+        },
+        "use_llm_plan": {
+          "type": "boolean",
+          "description": "是否用 LLM 智能规划生成步骤（默认 false）。steps 为空且此值为 true 时自动分解任务。"
         }
       }
     },
@@ -1235,6 +1238,52 @@
           "description": "完成证据（status=completed时建议提供）",
           "required": false
         }
+      }
+    },
+    {
+      "name": "view_image",
+      "type": "python",
+      "description": "Open image with system default viewer. Supports PNG, JPG, GIF, WebP, SVG.",
+      "function": "tools._view_image",
+      "parameters": {"path": {"type": "string", "description": "Path to image file", "required": true}}
+    },
+    {
+      "name": "update_plan",
+      "type": "python",
+      "description": "Update the current execution plan mid-task — add, remove, modify, or insert a step.",
+      "function": "tools._update_plan",
+      "parameters": {
+        "action": {"type": "string", "description": "add | remove | modify | insert", "required": true},
+        "step_id": {"type": "integer", "description": "Step index (0-based)", "required": false},
+        "name": {"type": "string", "description": "Step name", "required": false},
+        "tool": {"type": "string", "description": "Tool for the step", "required": false},
+        "args": {"type": "object", "description": "Tool arguments", "required": false},
+        "reason": {"type": "string", "description": "Why the plan changed", "required": false}
+      }
+    },
+    {
+      "name": "tool_search",
+      "type": "python",
+      "description": "Search available tools by keyword. Returns matching tool names and descriptions.",
+      "function": "tools._tool_search",
+      "parameters": {"query": {"type": "string", "description": "Keyword to search", "required": true}}
+    },
+    {
+      "name": "request_user_input",
+      "type": "python",
+      "description": "Pause and ask the user a question. Returns the user's text response.",
+      "function": "tools._request_user_input",
+      "parameters": {"question": {"type": "string", "description": "Question to ask", "required": true}}
+    },
+    {
+      "name": "safe_rewrite_file",
+      "type": "python",
+      "description": "Safer than apply_patch: provide old_lines + new_lines, code finds exact match and replaces. For self-repair of core files — no context guessing needed.",
+      "function": "core.file_tools.safe_rewrite_file",
+      "parameters": {
+        "path": {"type": "string", "description": "File path", "required": true},
+        "old_lines": {"type": "string", "description": "Exact text to replace (multi-line OK)", "required": true},
+        "new_lines": {"type": "string", "description": "Replacement text", "required": true}
       }
     }
   ]

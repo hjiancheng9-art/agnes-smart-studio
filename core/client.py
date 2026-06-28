@@ -20,6 +20,24 @@ class ContentPolicyError(Exception):
         self.detail = detail or {}
 
 
+def _sanitize_json(data):
+    """Recursively remove surrogate characters from JSON data.
+
+    Some models return text with lone surrogates (U+D800-U+DFFF) which
+    are invalid in UTF-8. This cleans them before they reach the chat system.
+    """
+    if isinstance(data, str):
+        # Fast path: if clean, return as-is
+        if not any(0xD800 <= ord(c) <= 0xDFFF for c in data):
+            return data
+        return "".join(c for c in data if not (0xD800 <= ord(c) <= 0xDFFF))
+    if isinstance(data, dict):
+        return {k: _sanitize_json(v) for k, v in data.items()}
+    if isinstance(data, list):
+        return [_sanitize_json(v) for v in data]
+    return data
+
+
 class CruxClient:
     """CRUX AI API 统一客户端，封装文本/图像/视频三类端点"""
 
@@ -60,7 +78,9 @@ class CruxClient:
                     time.sleep(0.5 * (attempt + 1))
                 continue
             except httpx.HTTPStatusError as e:
-                # 429 Too Many Requests 和 5xx 可重试，其他 4xx 不重试
+                # 401/403/402 不重试（鉴权失败），429 和 5xx 可重试
+                if e.response.status_code in (401, 403, 402):
+                    raise
                 if attempt < retries - 1 and (e.response.status_code == 429 or e.response.status_code >= 500):
                     # 429 指数退避：1s, 2s, 4s...；5xx 线性退避
                     wait = (2**attempt) if e.response.status_code == 429 else (0.5 * (attempt + 1))
@@ -133,13 +153,13 @@ class CruxClient:
         body.update(kwargs)
 
         resp = self._request_with_retry("POST", "/chat/completions", json=body)
-        return resp.json()
+        return _sanitize_json(resp.json())
 
     def chat_multimodal(
         self,
         text: str,
         image_url: str,
-        model: str = "agnes-1.5-flash",
+        model: str = "",
         **kwargs,
     ) -> dict:
         """调用 1.5-flash 多模态接口（文本+图像理解）"""
@@ -231,7 +251,7 @@ class CruxClient:
                         if data == "[DONE]":
                             break
                         try:
-                            chunk = json.loads(data)
+                            chunk = _sanitize_json(json.loads(data))
                         except json.JSONDecodeError:
                             continue
                         choices = chunk.get("choices") or []

@@ -15,35 +15,33 @@
       "api_key": "",
       "models": {
         "pro": "deepseek-v4-pro",
-        "light": "deepseek-v4-flash"
+        "light": "deepseek-v4-flash",
+        "chat": "deepseek-chat",
+        "reasoner": "deepseek-reasoner"
       }
     },
-    "siliconflow": {
-      "name": "SiliconFlow (Kimi-K2.6)",
-      "base_url": "https://api.siliconflow.cn/v1",
+    "zhipu": {
+      "name": "Zhipu GLM (Free)",
+      "base_url": "https://open.bigmodel.cn/api/paas/v4",
       "api_key": "",
+      "cost_tier": "free",
       "models": {
-        "pro": "Pro/moonshotai/Kimi-K2.6",
-        "light": "Pro/moonshotai/Kimi-K2.6"
+        "pro": "glm-4.7-flash",
+        "light": "glm-4-flash-250414"
+      },
+      "vision_models": {
+        "light": "glm-4.6v-flash",
+        "pro": "glm-4.1v-thinking-flash"
       }
     },
-    "local": {
-      "name": "Local llama.cpp (Qwen3.6-27B-PRISM-PRO-DQ)",
-      "base_url": "http://127.0.0.1:8080/v1",
-      "api_key": "no-auth-needed",
+    "copilot": {
+      "name": "Copilot GPT-5-mini",
+      "base_url": "http://127.0.0.1:11436/v1",
+      "api_key": "copilot-proxy-no-key",
       "auth_required": false,
       "models": {
-        "pro": "Qwen3.6-27B-PRISM-PRO-DQ",
-        "light": "Qwen3.6-27B-PRISM-PRO-DQ"
-      }
-    },
-    "codebuddy": {
-      "name": "CodeBuddy (Tencent Cloud AI)",
-      "base_url": "https://copilot.tencent.com",
-      "api_key": "",
-      "models": {
-        "pro": "codebuddy-pro",
-        "light": "codebuddy-pro"
+        "pro": "gpt-5-mini",
+        "light": "gpt-5-mini"
       }
     }
   },
@@ -52,9 +50,7 @@
     "enabled": true,
     "priority": [
       "deepseek",
-      "siliconflow",
-      "local",
-      "codebuddy"
+      "zhipu"
     ]
   },
   "codebuddy_extra": {

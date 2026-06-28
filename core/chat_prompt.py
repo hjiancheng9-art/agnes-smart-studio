@@ -8,6 +8,7 @@ ChatSession._build_system_prompt() 调用 build_system_prompt()。
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 logger = logging.getLogger("crux.chat_prompt")
 
@@ -100,25 +101,59 @@ def set_cached_prompt(key: str, prompt: str) -> None:
 
 
 # ── 谱系注入注册表（每项: (模块路径, 函数名, 描述)）───
+# CHAT mode: 7 useful layers (trimmed from 17 decorative spectrum layers)
 _SPECTRUM_INJECTIONS: list[tuple[str, str, str]] = [
+    ("core.lore.claude_dna", "get_claude_dna_prompt", "Claude DNA"),
     ("core.rules", "get_rules", "规则注入"),
     ("core.marketplace", "get_marketplace", "技能市场"),
     ("core.orchestra", "get_orchestra", "调度总览"),
     ("core.prompt_lab", "get_prompt_lab", "Prompt Lab"),
     ("core.seven_beasts_fusion", "get_fusion_prompt", "七兽融合"),
     ("core.beast_wiring", "get_wiring_summary", "五兽躯体"),
-    ("core.intimate_slots", "get_intimate_prompt", "贴身七件"),
-    ("core.gongfa_spectrum", "get_gongfa_prompt", "功法谱"),
-    ("core.treasure_spectrum", "get_treasure_prompt", "法宝谱"),
-    ("core.steed_spectrum", "get_steed_prompt", "坐骑谱"),
-    ("core.wuji_spectrum", "get_wuji_prompt", "武技谱"),
-    ("core.golden_finger", "get_golden_finger_prompt", "金手指谱"),
-    ("core.familiar_spectrum", "get_familiar_prompt", "灵兽谱"),
-    ("core.dwelling_spectrum", "get_dwelling_prompt", "洞府谱"),
-    ("core.trial_spectrum", "get_trial_prompt", "秘境谱"),
-    ("core.glamour_spectrum", "get_glamour_prompt", "化妆谱"),
-    ("core.survival_spectrum", "get_survival_prompt", "生存技能谱"),
 ]
+
+_CODE_SPECTRUM_INJECTIONS: list[tuple[str, str, str]] = [
+    ("core.lore.claude_dna", "get_claude_dna_prompt", "Claude DNA"),
+    ("core.rules", "get_rules", "rules injection"),
+    ("core.marketplace", "get_marketplace", "marketplace"),
+]
+
+
+# ── 注入模块文件指纹（改任意谱系文件自动破缓存）─────────
+
+def _get_injections_fingerprint() -> str:
+    """所有注入模块 + core/lore/ 目录下 .py 的 mtime 指纹。
+
+    任何 lore 文件被编辑后，下次 build_system_prompt 自动重建缓存，
+    无需手动重启进程。
+    """
+    import hashlib
+    import os
+
+    mtimes: list[str] = []
+    seen = set()
+    for mod_path, _, _ in _SPECTRUM_INJECTIONS + _CODE_SPECTRUM_INJECTIONS:
+        if mod_path in seen:
+            continue
+        seen.add(mod_path)
+        try:
+            import importlib
+
+            mod = importlib.import_module(mod_path)
+            f = getattr(mod, "__file__", None)
+            if f:
+                mtimes.append(str(int(os.path.getmtime(f))))
+        except Exception:
+            pass
+    # 兜底：lore 目录下所有 .py（含新增/重命名文件）
+    lore_dir = os.path.join(os.path.dirname(__file__), "lore")
+    if os.path.isdir(lore_dir):
+        for f in sorted(os.listdir(lore_dir)):
+            if f.endswith(".py"):
+                mtimes.append(str(int(os.path.getmtime(os.path.join(lore_dir, f)))))
+    if not mtimes:
+        return ""
+    return hashlib.md5("|".join(mtimes).encode()).hexdigest()[:12]
 
 
 # ── 公共构建函数 ────────────────────────────────────────
@@ -153,6 +188,7 @@ def build_system_prompt(
         f"{provider_name}|{model}|{code_mode}"
         f"|b{browser_enabled}|n{notebook_enabled}|a{audio_enabled}"
         f"|{active_skill_rules_hash}"
+        f"|{_get_injections_fingerprint()}"
     )
 
     cached = _cache.get(cache_key)
@@ -169,8 +205,9 @@ def build_system_prompt(
         "- 避免无意义的寒暄和套话"
     )
 
-    # 谱系注入：统一循环替代 17 个 try/except 块
-    for mod_path, func_name, label in _SPECTRUM_INJECTIONS:
+    # 谱系注入：CODE 模式只注 3 层，CHAT 模式注全部
+    injections = _CODE_SPECTRUM_INJECTIONS if code_mode else _SPECTRUM_INJECTIONS
+    for mod_path, func_name, label in injections:
         try:
             import importlib
 

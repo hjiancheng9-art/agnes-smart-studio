@@ -112,7 +112,7 @@ class TestChatSessionState:
 
     def test_initial_state(self):
         s = make_session()
-        assert s.model == "agnes-1.5-flash"
+        assert s.model == "deepseek-v4-flash"
         assert s.mode == "chat"
         assert s.code_mode is False
         assert s.agent_mode is False
@@ -292,11 +292,10 @@ class TestVisionFallback:
         s = make_session()
         s.vision_model = "agnes-1.5-flash"
         chain = s._vision_model_chain("light")
-        # 应包含 4 个视觉模型
+        # 应包含视觉模型（zhipu + crux）
         assert "agnes-1.5-flash" in chain
         assert "agnes-2.0-flash" in chain
-        assert "Pro/moonshotai/Kimi-K2.6" in chain
-        assert "Qwen3.6-27B-PRISM-PRO-DQ" in chain
+        assert "glm-4.6v-flash" in chain
         # deepseek 不在链中
         assert "deepseek-v4-pro" not in chain
         assert "deepseek-v4-flash" not in chain
@@ -367,8 +366,9 @@ class TestProviderVisionAPI:
         assert model_supports_vision("deepseek-v4-flash") is False
         # 非 deepseek 模型均支持视觉
         assert model_supports_vision("agnes-2.0-flash") is True
-        assert model_supports_vision("Pro/moonshotai/Kimi-K2.6") is True
-        assert model_supports_vision("Qwen3.6-27B-PRISM-PRO-DQ") is True
+        assert model_supports_vision("glm-4.6v-flash") is True
+        assert model_supports_vision("glm-4.6v-flash") is True
+        assert model_supports_vision("Qwen3.6-27B-PRISM-PRO-DQ") is False
 
 
 class TestDefaultModelsDeepseek:
@@ -431,14 +431,21 @@ class TestDefaultModelsDeepseek:
 
     def test_router_profile_model_all_deepseek_except_chat(self):
         """router._PROFILE_MODEL: 非 CHAT/SKIP 档位全部 deepseek。"""
-        from core.router import _PROFILE_MODEL, TaskProfile
+        from core.router import _get_profile_candidates, TaskProfile
 
-        assert _PROFILE_MODEL[TaskProfile.QUICK_FIX] == "deepseek-v4-pro"
-        assert _PROFILE_MODEL[TaskProfile.CODING] == "deepseek-v4-pro"
-        assert _PROFILE_MODEL[TaskProfile.CREATIVE] == "deepseek-v4-pro"
-        assert _PROFILE_MODEL[TaskProfile.DEEP] == "deepseek-v4-pro"
-        # CHAT 仍是轻量 (阶段3d: 改用 deepseek-v4-flash 替代 agnes-1.5-flash)
-        assert _PROFILE_MODEL[TaskProfile.CHAT] == "deepseek-v4-flash"
+        # profile → 候选列表（从 active provider 动态派生）
+        candidates = _get_profile_candidates(TaskProfile.QUICK_FIX)
+        # quick_fix 应优先 flash 档
+        assert all("flash" in m.lower() for m in candidates[:2]), f"quick_fix candidates {candidates} should prioritize flash"
+
+        candidates = _get_profile_candidates(TaskProfile.CODING)
+        assert any("pro" in m.lower() or "reasoner" in m.lower() for m in candidates[:2]), f"coding candidates {candidates} should prioritize pro/reasoner"
+
+        candidates = _get_profile_candidates(TaskProfile.DEEP)
+        assert any("pro" in m.lower() or "reasoner" in m.lower() for m in candidates[:2]), f"deep candidates {candidates} should prioritize pro/reasoner"
+
+        candidates = _get_profile_candidates(TaskProfile.CHAT)
+        assert any("flash" in m.lower() for m in candidates[:2]), f"chat candidates {candidates} should prioritize flash"
 
 
 # ═══════════════════════════════════════════════════════════════════

@@ -1,0 +1,23 @@
+{
+  "name": "aria2-downloader",
+  "description": "aria2 multi-threaded download engine - download large files (model weights, datasets, videos) with 16-thread acceleration and resume support",
+  "module": "core.aria2_bridge",
+  "class": "Aria2Bridge",
+  "functions": [
+    "start",
+    "stop",
+    "download",
+    "pause",
+    "resume",
+    "remove",
+    "force_remove",
+    "status",
+    "list_active",
+    "list_all",
+    "clear_completed"
+  ],
+  "auto_start": true,
+  "rpc_port": 6801,
+  "download_dir": "downloads/",
+  "source": "extracted from nsp-downloader"
+}

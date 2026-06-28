@@ -32,8 +32,7 @@ class ProviderRegistry:
 |--------|------|--------|
 | CRUX AI | crux-pro | 最高 |
 | DeepSeek | deepseek-v4-pro | 高 |
-| SiliconFlow | kimi | 中 |
-| Qwen3-Coder 30B | local CUDA (llama-server) | 低（本地兜底） |
+| Zhipu GLM | glm-4.7-flash | 中 |
 
 ### 集成点
 - `core/client.py` — 每次 API 调用通过 ProviderRegistry 选择供应商

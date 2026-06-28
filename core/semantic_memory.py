@@ -5,6 +5,8 @@ project-context awareness. Designed to be called at session start/end.
 """
 
 import json
+import os
+import threading
 import time
 from collections import deque
 from pathlib import Path
@@ -18,6 +20,7 @@ MEMORY_FILE = ROOT / "output" / "memory.json"
 class SemanticMemory:
     def __init__(self, path: Path | None = None) -> None:
         self.path = path or MEMORY_FILE
+        self._lock = threading.Lock()
         self.data = self._load()
         self._recent_decisions: deque = deque(maxlen=20)
 
@@ -30,8 +33,11 @@ class SemanticMemory:
         return {"preferences": {}, "decisions": [], "project_context": {}, "corrections": [], "learned_patterns": {}}
 
     def _save(self):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(self.data, ensure_ascii=False, indent=2), encoding="utf-8")
+        with self._lock:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.path.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(self.data, ensure_ascii=False, indent=2), encoding="utf-8")
+            os.replace(tmp, self.path)
 
     def record_decision(self, context: str, choice: str, outcome: str):
         entry = {"ts": time.time(), "context": context[:200], "choice": choice[:200], "outcome": outcome[:200]}

@@ -44,7 +44,7 @@ class Badge:
         return f"[{c}]┃[/] [{c}]{self.icon} {self.text}[/] [{c}]┃[/]"
 
 
-_PROVIDER_SHORT = {"CRUX AI": "CRUX", "DeepSeek": "DeepSeek", "SiliconFlow": "SF", "Moonshot": "Kimi"}
+_PROVIDER_SHORT = {"CRUX AI": "CRUX", "DeepSeek": "DeepSeek", "Zhipu GLM": "GLM"}
 
 
 def _model_label(session: ChatSession) -> tuple[str, str]:
@@ -61,6 +61,14 @@ def _model_label(session: ChatSession) -> tuple[str, str]:
     except Exception:
         label = model
     color = COLORS["muted"] if model in ("agnes-1.5-flash",) else "#26A69A"
+    # 动态从 MODEL_REGISTRY 判定：light tier → 柔和色，pro tier → 强调色
+    try:
+        from core.provider import get_model_info
+        info = get_model_info(model)
+        if info:
+            color = COLORS["muted"] if info.tier == "light" else "#26A69A"
+    except Exception:
+        pass
     return label, color
 
 
@@ -150,11 +158,8 @@ def print_welcome_banner(session: ChatSession | None = None):
     """启动欢迎横幅 — 模式切换后调用."""
     from rich.panel import Panel
 
-    from ui.terminal_logo import render_mini_logo
-
-    mini = render_mini_logo()
     badge_line = render_box_badges(session) if session else ""
-    body = f"  {mini}  [dim]五兽归真 · 十四环贯通[/]"
+    body = "  [bold]◆ Studio[/]  [dim]七兽归位 · 魂盏交汇[/]"
     if badge_line:
         body += f"\n\n  {badge_line}"
     console.print(Panel(body, border_style=COLORS["primary"], padding=(1, 2)))

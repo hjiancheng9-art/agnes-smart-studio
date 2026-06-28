@@ -46,6 +46,8 @@ class ScheduledTask:
     next_run: str = ""
     created_at: str = ""
     run_count: int = 0
+    run_once: bool = False  # 一次性任务：执行后自动 disable
+    coalesced_count: int = 0  # 合并的错过触发次数
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -143,7 +145,7 @@ class Scheduler:
 
     # ── Public API ─────────────────────────────────────────
 
-    def add_task(self, name: str, prompt: str, schedule_type: str, schedule_value: str) -> ScheduledTask:
+    def add_task(self, name: str, prompt: str, schedule_type: str, schedule_value: str, run_once: bool = False) -> ScheduledTask:
         """Create and add a new scheduled task.
 
         Args:
@@ -151,6 +153,7 @@ class Scheduler:
             prompt: The prompt to execute when the task is due.
             schedule_type: "interval" or "cron".
             schedule_value: Seconds as string (interval) or cron expr (cron).
+            run_once: If True, task auto-disables after first execution.
 
         Returns:
             The created ScheduledTask.
@@ -170,6 +173,7 @@ class Scheduler:
             schedule_type=schedule_type,
             schedule_value=schedule_value,
             enabled=True,
+            run_once=run_once,
             created_at=datetime.now().isoformat()[:19],
         )
         task.next_run = self._calculate_next_run(task)
@@ -289,31 +293,50 @@ class Scheduler:
     # ── Scheduling logic ───────────────────────────────────
 
     def _calculate_next_run(self, task: ScheduledTask) -> str:
-        """Calculate the next run time as an ISO-format string."""
+        """Calculate the next run time as an ISO-format string.
+        
+        Applies anti-herd jitter: random offset up to min(period*0.1, 900)s
+        to prevent multiple timers from firing simultaneously.
+        """
+        import random
+
+        base: datetime
         if task.schedule_type == "interval":
             seconds = int(task.schedule_value)
-            return (datetime.now() + timedelta(seconds=seconds)).isoformat()[:19]
+            base = datetime.now() + timedelta(seconds=seconds)
+            # Jitter: ± min(interval*0.1, 900) seconds
+            jitter_max = min(seconds * 0.1, 900)
+        else:
+            # cron: find the next matching minute
+            parsed = parse_cron(task.schedule_value)
+            now = datetime.now()
+            # Start from the next whole minute
+            candidate = now.replace(second=0, microsecond=0) + timedelta(minutes=1)
+            # Search up to ~4 years
+            max_iter = 4 * 366 * 24 * 60
+            for _ in range(max_iter):
+                cron_wd = (candidate.weekday() + 1) % 7
+                if (
+                    candidate.minute in parsed["minute"]
+                    and candidate.hour in parsed["hour"]
+                    and candidate.day in parsed["day"]
+                    and candidate.month in parsed["month"]
+                    and cron_wd in parsed["weekday"]
+                ):
+                    base = candidate
+                    break
+                candidate += timedelta(minutes=1)
+            else:
+                base = now + timedelta(days=1)
+            # Jitter for cron: ± min(period_min*0.1, 900) seconds
+            # Estimate period: if it's a daily cron (~1440 min), use daily jitter
+            jitter_max = 900  # default 15 min max for cron
 
-        # cron: find the next matching minute
-        parsed = parse_cron(task.schedule_value)
-        now = datetime.now()
-        # Start from the next whole minute
-        candidate = now.replace(second=0, microsecond=0) + timedelta(minutes=1)
-        # Search up to ~4 years to handle leap-year-only expressions
-        max_iter = 4 * 366 * 24 * 60
-        for _ in range(max_iter):
-            cron_wd = (candidate.weekday() + 1) % 7  # Python 0=Mon -> cron 0=Sun
-            if (
-                candidate.minute in parsed["minute"]
-                and candidate.hour in parsed["hour"]
-                and candidate.day in parsed["day"]
-                and candidate.month in parsed["month"]
-                and cron_wd in parsed["weekday"]
-            ):
-                return candidate.isoformat()[:19]
-            candidate += timedelta(minutes=1)
-        # Fallback: should not reach here for valid cron expressions
-        return (now + timedelta(days=1)).isoformat()[:19]
+        if jitter_max > 0:
+            offset = random.uniform(-jitter_max, jitter_max)
+            base += timedelta(seconds=offset)
+
+        return base.isoformat()[:19]
 
     # ── Background thread ─────────────────────────────────
 
@@ -325,13 +348,47 @@ class Scheduler:
             self._stop_event.wait(timeout=10)
 
     def _check_and_run(self) -> None:
-        """Check all enabled tasks and execute those that are due."""
-        now_str = datetime.now().isoformat()[:19]
+        """Check all enabled tasks and execute those that are due.
+        
+        Stale detection: tasks that are overdue by more than 2× the expected
+        interval are skipped (system was likely down). Their coalesced_count
+        reflects how many cycles were missed.
+        """
+        now = datetime.now()
+        now_str = now.isoformat()[:19]
         due: list[ScheduledTask] = []
+        stale: list[str] = []
         with self._lock:
             for task in self._tasks.values():
-                if task.enabled and task.next_run and task.next_run <= now_str:
+                if not task.enabled or not task.next_run:
+                    continue
+                if task.next_run <= now_str:
+                    # Stale detection: if overdue by more than 2× interval, skip
+                    if task.schedule_type == "interval":
+                        interval_s = int(task.schedule_value)
+                        try:
+                            next_dt = datetime.fromisoformat(task.next_run)
+                            overdue_s = (now - next_dt).total_seconds()
+                            if overdue_s > interval_s * 2:
+                                # Calculate coalesced count
+                                task.coalesced_count = int(overdue_s / interval_s)
+                                # Mark as stale: fire once with stale flag
+                                if overdue_s > interval_s * 10:
+                                    stale.append(task.id)
+                                    continue
+                        except (ValueError, TypeError):
+                            pass
                     due.append(task)
+        
+        # Handle stale tasks: disable them
+        with self._lock:
+            for tid in stale:
+                t = self._tasks.get(tid)
+                if t:
+                    t.enabled = False
+                    t.last_run = f"stale at {now_str}"
+                    self._save()
+
         for task in due:
             with contextlib.suppress(OSError, ValueError, RuntimeError):
                 self._execute_task(task)
@@ -341,7 +398,12 @@ class Scheduler:
                 if t is not None:
                     t.last_run = now_str
                     t.run_count += 1
-                    t.next_run = self._calculate_next_run(t)
+                    t.coalesced_count = 0  # Reset after execution
+                    # One-shot: auto-disable after execution
+                    if t.run_once:
+                        t.enabled = False
+                    else:
+                        t.next_run = self._calculate_next_run(t)
                     self._save()
 
     # ── Task execution ─────────────────────────────────────
@@ -358,6 +420,8 @@ class Scheduler:
             "name": task.name,
             "prompt": task.prompt,
             "timestamp": datetime.now().isoformat()[:19],
+            "coalesced_count": task.coalesced_count,
+            "run_once": task.run_once,
         }
         try:
             with open(_TRIGGER_FILE, "a", encoding="utf-8") as f:
@@ -465,6 +529,10 @@ SCHEDULER_TOOL_DEFS = [
                             '(e.g. "0 9 * * 1-5" for 9 AM weekdays)'
                         ),
                     },
+                    "run_once": {
+                        "type": "boolean",
+                        "description": "If true, task auto-disables after first execution (one-shot). Default false.",
+                    },
                 },
                 "required": ["name", "prompt", "schedule_type", "schedule_value"],
             },
@@ -562,6 +630,7 @@ def _exec_schedule_add(**kwargs) -> str:
         prompt=kwargs["prompt"],
         schedule_type=kwargs["schedule_type"],
         schedule_value=kwargs["schedule_value"],
+        run_once=kwargs.get("run_once", False),
     )
     return json.dumps(task.to_dict(), ensure_ascii=False)
 

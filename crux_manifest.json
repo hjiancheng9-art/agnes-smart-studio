@@ -42,10 +42,6 @@
     {
       "what": "launcher启动修复",
       "detail": "nest_asyncio导入顺序, Python 3.11兼容"
-    },
-    {
-      "what": "CUDA GPU支持",
-      "detail": "llama-server CUDA 13.3, RTX 4060 Ti 16GB"
     }
   ]
 }

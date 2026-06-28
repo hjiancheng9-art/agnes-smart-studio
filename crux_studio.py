@@ -4,9 +4,10 @@
 import sys
 from pathlib import Path
 
-from ui.theme import COLORS, console
+import core.encoding as _enc
+_enc.setup()
 
-# ── UTF-8 encoding setup: must be first import ──
+from ui.theme import COLORS, console
 
 # ── 必须在任何异步操作之前应用 nest_asyncio ──
 # 解决 prompt_toolkit / Playwright / edge-tts 等库
@@ -15,14 +16,23 @@ try:
     import nest_asyncio
 
     nest_asyncio.apply()
-except Exception:
+except (ImportError, OSError, RuntimeError):
     # nest_asyncio 缺失或损坏（如 .so 与 Python 版本不兼容）时降级，
     # 后续 async 调用仍能通过 asyncio.run() / asyncio.new_event_loop() 工作
-    pass
+    import logging
+    logging.getLogger("crux").debug("nest_asyncio unavailable, continuing")
 
 ROOT = Path(__file__).parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+# Clear stale bytecode cache to prevent old .pyc from shadowing source changes
+for _d in ROOT.rglob("__pycache__"):
+    try:
+        for _f in _d.iterdir():
+            _f.unlink()
+    except OSError:
+        pass
 
 from core.config import SETTINGS
 
@@ -73,6 +83,12 @@ def main():
         from core.mcp_server import run_mcp_server
 
         run_mcp_server(sys.argv[2:])
+        sys.exit(0)
+    elif len(sys.argv) >= 2 and sys.argv[1] == "mcp-bridge":
+        # crux mcp-bridge — 启动 Claude Code MCP Bridge（让 CRUX 获得软件工程工具）
+        from core.claude_mcp_bridge import main as bridge_main
+
+        bridge_main()
         sys.exit(0)
 
     if not SETTINGS.api_key:
@@ -166,7 +182,7 @@ def main():
             with CruxCLI() as cli:
                 try:
                     cli._chat()
-                except Exception:
+                except (OSError, RuntimeError, ValueError, ImportError):
                     import traceback
 
                     err = traceback.format_exc()
@@ -174,7 +190,7 @@ def main():
                     err_path = ROOT / "output" / "last_error.txt"
                     err_path.parent.mkdir(parents=True, exist_ok=True)
                     err_path.write_text(err, encoding="utf-8")
-        except Exception:
+        except (OSError, RuntimeError, ValueError, ImportError):
             import traceback
 
             err = traceback.format_exc()
@@ -191,7 +207,7 @@ def main():
         try:
             with CruxCLI() as cli:
                 cli.run()
-        except Exception:
+        except (OSError, RuntimeError, ValueError, ImportError):
             import traceback
 
             err = traceback.format_exc()
@@ -207,7 +223,7 @@ def main():
             with CruxCLI() as cli:
                 try:
                     cli._chat()
-                except Exception:
+                except (OSError, RuntimeError, ValueError, ImportError):
                     import traceback
 
                     err = traceback.format_exc()
@@ -215,7 +231,7 @@ def main():
                     err_path = ROOT / "output" / "last_error.txt"
                     err_path.parent.mkdir(parents=True, exist_ok=True)
                     err_path.write_text(err, encoding="utf-8")
-        except Exception:
+        except (OSError, RuntimeError, ValueError, ImportError):
             import traceback
 
             err = traceback.format_exc()

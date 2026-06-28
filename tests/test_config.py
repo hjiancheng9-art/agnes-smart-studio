@@ -60,9 +60,10 @@ class TestConstants:
             assert "negative" in tpl, f"{name} missing negative prompt"
 
     def test_vision_constants(self):
-        from core.config import CRUX_VISION_BASE_URL, CRUX_VISION_MODEL
+        from core.config import CRUX_VISION_BASE_URL, get_crux_vision_model
 
-        assert CRUX_VISION_MODEL.startswith("agnes")
+        vmodel = get_crux_vision_model()
+        assert vmodel  # 非空即可，具体值由 models.json 决定
         assert CRUX_VISION_BASE_URL.startswith("https://")
 
     def test_output_dir_exists(self):

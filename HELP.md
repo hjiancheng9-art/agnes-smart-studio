@@ -17,7 +17,7 @@
 | 命令 | 中文 | 作用 |
 |------|------|------|
 | `/model` | `/模型` | 切换对话模型 (light/pro) |
-| `/provider` | `/提供商` | 切换供应商 (crux/deepseek/siliconflow) |
+| `/provider` | `/提供商` | 切换供应商 (crux/deepseek/zhipu) |
 | `/thinking` | `/思考` | 开关深度思考模式 |
 | `/code` | `/编码` | 开关代码助手模式 |
 | `/agent` | `/代理` | 开关智能体模式（加载全部工具） |

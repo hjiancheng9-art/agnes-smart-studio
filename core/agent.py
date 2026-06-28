@@ -99,7 +99,7 @@ class ContextManager:
         """Check if messages need compression."""
         return self.total_tokens(messages) > self.max_tokens
 
-    def compress(self, messages: list[dict], client, model: str = "agnes-1.5-flash") -> list[dict]:
+    def compress(self, messages: list[dict], client, model: str = "") -> list[dict]:
         """Compress conversation history using layered strategy.
 
         - Never touch system messages
@@ -108,6 +108,8 @@ class ContextManager:
         - Preserve user's original messages (truncate if too long)
         - Summarize old assistant/tool messages
         """
+        if not model:
+            model = ModelRouter._default_light()
         if len(messages) <= self.preserve_recent + 1:
             return self._truncate_messages(messages)
 
@@ -195,13 +197,15 @@ class ContextManager:
 
         return truncate_messages(messages, ContextManager._MAX_MSG_CHARS)
 
-    def auto_compress_if_needed(self, messages: list[dict], client, model: str = "agnes-1.5-flash") -> list[dict]:
+    def auto_compress_if_needed(self, messages: list[dict], client, model: str = "") -> list[dict]:
         """Two-tier compression: truncate first (free), LLM summary only if still over.
 
         Tier 1 (free): _truncate_messages — cap each message at _MAX_MSG_CHARS.
             This alone often resolves token pressure caused by large tool results.
         Tier 2 (costly): full LLM compress — only triggered if tier 1 is insufficient.
         """
+        if not model:
+            model = ModelRouter._default_light()
         # Tier 1: free truncation (always applied)
         truncated = self._truncate_messages(messages)
         if not self.needs_compression(truncated):
@@ -227,10 +231,12 @@ class StepStatus(Enum):
 class PlanStep:
     """A single step in an execution plan."""
 
-    def __init__(self, name: str, purpose: str = "", tool: str = "", depends_on: list[int] | None = None) -> None:
+    def __init__(self, name: str, purpose: str = "", tool: str = "",
+                 args: dict | None = None, depends_on: list[int] | None = None) -> None:
         self.name = name
         self.purpose = purpose
         self.tool = tool
+        self.args: dict = args or {}
         self.depends_on = depends_on or []
         self.status = StepStatus.PENDING
         self.result: str = ""
@@ -430,6 +436,7 @@ class SubAgent:
         self.max_rounds = max_rounds
         self.history: list[dict] = []
         self.context_mgr = ContextManager(max_tokens=20000)
+        self._session_approved: set[str] = set()  # high-risk tools auto-approved for this session
         # tier 路由：model 显式指定时尊重之；否则按 tier/task_type 自动选
         if model != "deepseek-v4-pro" or tier == "auto":
             # 用户显式传了 model（非默认值）→ 直接用
@@ -465,7 +472,7 @@ class SubAgent:
 
         for _round_num in range(self.max_rounds):
             # Auto-compress if needed
-            self.history = self.context_mgr.auto_compress_if_needed(self.history, self.client, "agnes-1.5-flash")
+            self.history = self.context_mgr.auto_compress_if_needed(self.history, self.client)
 
             try:
                 r = self.client.chat(
@@ -617,15 +624,6 @@ class ModelRouter:
             "best_for": ["chat", "simple_qa", "search", "read_file", "format", "summarize", "tool_calling", "code"],
             "tier": "light",
         },
-        "Pro/moonshotai/Kimi-K2.6": {
-            "cost": 4,
-            "supports_tools": True,
-            "supports_thinking": False,
-            "supports_vision": False,
-            "max_tokens": 8192,
-            "best_for": ["code", "reasoning", "long_context"],
-            "tier": "pro",
-        },
         "Qwen3.6-27B-PRISM-PRO-DQ": {
             "cost": 0,  # local, 离线
             "supports_tools": True,
@@ -638,15 +636,20 @@ class ModelRouter:
     }
 
     def __init__(
-        self, primary: str | None = None, light: str = "deepseek-v4-flash", vision_model: str = "agnes-1.5-flash"
+        self, primary: str | None = None, light: str = "", pro: str = "", vision_model: str = ""
     ) -> None:
-        # primary 默认从 models.json active provider 的 pro 模型读，
-        # 读不到则退回 deepseek-v4-pro（向后兼容）
         if primary is None:
             primary = self._default_primary()
+        if not light:
+            light = self._default_light()
+        if not pro:
+            pro = self._default_pro()
+        if not vision_model:
+            vision_model = self._default_vision()
         self.primary = primary  # heavy tier（深度推理/长上下文）
-        self.light = light  # light tier（机械任务/简单对话，默认 deepseek-v4-flash）
-        self.vision_model = vision_model  # 视觉通道独立（唯一原生多模态 agnes-1.5-flash）
+        self.light = light  # light tier（机械任务，动态跟随 active provider）
+        self.pro = pro  # pro tier（日常编码 tool calling，动态跟随 active provider）
+        self.vision_model = vision_model  # 跟随 models.json vision_models 配置
         self._fallback_chain = self._build_fallback_chain()
 
     def select(
@@ -750,31 +753,73 @@ class ModelRouter:
         except (ImportError, OSError, RuntimeError):
             return "deepseek-v4-pro"
 
-    def _build_fallback_chain(self) -> list[str]:
-        """从 models.json fallback.priority 动态构建模型级 fallback 链。
-
-        链结构：[active_pro_model, 其他 provider 的 pro 模型, light 兜底]
-        对标 Claude 的 fallbackModel 数组。
-        """
-        chain: list[str] = [self.primary]
+    @staticmethod
+    def _default_light() -> str:
+        """从 models.json active provider 读 light 模型，读不到退回 deepseek-v4-flash。"""
         try:
             from core.provider import get_provider_manager
 
             mgr = get_provider_manager()
-            for pid in mgr.fallback_priority:
-                provider = mgr.providers.get(pid, {})
-                mid = provider.get("models", {}).get("pro")
-                if mid and mid not in chain:
-                    chain.append(mid)
-            # light 兜底
-            if self.light not in chain:
-                chain.append(self.light)
+            return mgr.get_model("light") or "deepseek-v4-flash"
         except (ImportError, OSError, RuntimeError):
-            # 退回硬编码（向后兼容）
-            for m in ("agnes-2.0-flash", "agnes-1.5-flash"):
-                if m not in chain:
-                    chain.append(m)
-        return chain
+            return "deepseek-v4-flash"
+
+    @staticmethod
+    def _default_pro() -> str:
+        """从 models.json active provider 读 pro 模型，读不到退回 deepseek-v4-flash。"""
+        try:
+            from core.provider import get_provider_manager
+
+            mgr = get_provider_manager()
+            return mgr.get_model("pro") or "deepseek-v4-flash"
+        except (ImportError, OSError, RuntimeError):
+            return "deepseek-v4-flash"
+
+    @staticmethod
+    def _default_vision() -> str:
+        """从 models.json active provider 读 vision_models.light，读不到退回 deepseek-chat。"""
+        try:
+            from core.provider import get_provider_manager
+
+            mgr = get_provider_manager()
+            mgr.load()
+            provider = mgr.providers.get(mgr.state.active, {})
+            vmodels = provider.get("vision_models", {})
+            return vmodels.get("light") or vmodels.get("pro") or "deepseek-chat"
+        except (ImportError, OSError, RuntimeError):
+            return "deepseek-chat"
+
+    def _build_fallback_chain(self) -> list[str]:
+        """动态构建 fallback 链：免费优先，付费兜底。
+
+        每个 provider 收集 pro + light 模型，按 cost_tier 排序。
+        """
+        chain: list[str] = []
+        try:
+            from core.provider import get_provider_manager
+            mgr = get_provider_manager()
+            seen: set[str] = set()
+            # Sort: free providers first, then by fallback priority
+            def _sort_key(pid):
+                p = mgr.providers.get(pid, {})
+                is_free = 0 if p.get("cost_tier") == "free" else 1
+                try: idx = mgr.fallback_priority.index(pid)
+                except ValueError: idx = 99
+                return (is_free, idx)
+            sorted_pids = sorted(mgr.fallback_priority, key=_sort_key)
+            for pid in sorted_pids:
+                provider = mgr.providers.get(pid, {})
+                models = provider.get("models", {})
+                for tier_key in ("pro", "light"):
+                    mid = models.get(tier_key, "")
+                    if mid and isinstance(mid, str) and mid not in seen:
+                        chain.append(mid); seen.add(mid)
+                for mid_val in models.values():
+                    if isinstance(mid_val, str) and mid_val not in seen:
+                        chain.append(mid_val); seen.add(mid_val)
+        except (ImportError, OSError, RuntimeError):
+            pass
+        return chain or ["deepseek-v4-pro", "deepseek-chat", "deepseek-v4-flash"]
 
     def get_fallback(self, failed_model: str) -> str | None:
         """Get the next model in the fallback chain."""
@@ -811,70 +856,38 @@ class ModelRouter:
 # Plan prompt and parse_plan (kept for backward compatibility)
 # ======================================================================
 
-PLAN_PROMPT = """You are a task planner. Given a user request, output an execution plan.
+PLAN_PROMPT = """You are a task planner. Output JSON:
 
-Output format:
-```plan
-1. [Step Name] - Purpose: xxx - Tool: tool_name
-2. [Step Name] - Purpose: xxx - Tool: tool_name
-...
+```json
+{"steps": [{"name": "...", "purpose": "...", "tool": "tool_name", "args": {}, "depends_on": []}]}
 ```
 
-Rules:
-- Each step should specify what tool to use and expected result
-- Steps should be in execution order
-- If a step depends on a previous step, note it as "depends: N"
-- Keep plans under 10 steps
-- After the plan, begin executing step 1"""
+Rules: steps in execution order, max 10, depends_on is 0-based indices. args must be valid JSON."""
 
 
 def parse_plan(text: str) -> list[PlanStep]:
-    """Parse an execution plan from LLM output text.
-
-    Returns a list of PlanStep objects (was list[dict] before).
-    """
-    # Extract ```plan ... ``` block
-    match = re.search(r"```plan\s*\n(.+?)```", text, re.DOTALL)
-    if not match:
-        # Also try plain numbered list
-        match = re.search(r"((?:\d+\..+\n?)+)", text)
-        if not match:
-            return []
-        plan_text = match.group(1)
+    """Parse execution plan from LLM JSON output. Tries ```json``` block first, then raw JSON."""
+    import json as _json
+    json_text = ""
+    match = re.search(r"```(?:json)?\s*\n(.+?)```", text, re.DOTALL)
+    if match:
+        json_text = match.group(1)
     else:
-        plan_text = match.group(1)
-
+        json_text = text.strip()
+    try:
+        data = _json.loads(json_text)
+        step_list = data.get("steps", []) if isinstance(data, dict) else data
+        if not isinstance(step_list, list): return []
+    except (_json.JSONDecodeError, TypeError, ValueError):
+        return []
     steps = []
-    for line in plan_text.strip().split("\n"):
-        line = line.strip()
-        if not line:
-            continue
-
-        num_match = re.match(r"(\d+)\.\s*(.+)", line)
-        if not num_match:
-            continue
-
-        step_text = num_match.group(2)
-
-        # Extract components
-        name_match = re.match(r"\[(.+?)\]", step_text)
-        purpose_match = re.search(r"(?:Purpose|目的)[：:]\s*(.+?)(?:\s*-|\s—|$)", step_text)
-        tool_match = re.search(r"(?:Tool|工具)[：:]\s*(\w+)", step_text)
-        dep_match = re.search(r"(?:depends|依赖)[：:]\s*(\d+(?:\s*,\s*\d+)*)", step_text)
-
-        deps = []
-        if dep_match:
-            deps = [int(d.strip()) for d in dep_match.group(1).split(",")]
-
-        steps.append(
-            PlanStep(
-                name=name_match.group(1) if name_match else step_text[:30],
-                purpose=purpose_match.group(1).strip() if purpose_match else "",
-                tool=tool_match.group(1) if tool_match else "",
-                depends_on=deps,
-            )
-        )
-
+    for i, s in enumerate(step_list):
+        if not isinstance(s, dict): continue
+        steps.append(PlanStep(
+            name=s.get("name", f"step_{i+1}"), purpose=s.get("purpose", ""),
+            tool=s.get("tool", ""), args=s.get("args", {}),
+            depends_on=s.get("depends_on", []),
+        ))
     return steps
 
 
@@ -915,8 +928,10 @@ COMPRESS_PROMPT = """Summarize the following conversation, preserving:
 Output a concise summary (max 300 words):"""
 
 
-def compress_messages(messages: list[dict], client, model: str = "agnes-1.5-flash") -> str:
+def compress_messages(messages: list[dict], client, model: str = "") -> str:
     """Compress conversation history into a summary (backward compatible)."""
     mgr = ContextManager()
+    if not model:
+        model = ModelRouter._default_light()
     mgr.compress(messages, client, model)
     return mgr._summary

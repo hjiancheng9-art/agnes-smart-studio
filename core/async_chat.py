@@ -1,729 +1,582 @@
-"""AsyncChatSession — ChatSession 的 asyncio 原生异步对应物。
+"""CRUX API 统一客户端 - 支持 OpenAI 兼容接口、视频代理、双通道查询、自动重试"""
 
-与 core/chat.py 同步版 ChatSession 对应，提供完全 async 的多轮对话能力。
-所有阻塞点替换为 await / async for / asyncio.to_thread。
-
-核心映射：
-- CruxClient            → AsyncCruxClient
-- SmartBrain             → AsyncSmartBrain
-- TextToImageEngine      → AsyncTextToImageEngine
-- ImageToImageEngine     → AsyncImageToImageEngine
-- VideoEngine            → AsyncVideoEngine
-- ToolRegistry.execute() → asyncio.to_thread(self.tools.execute, ...)
-
-yield 协议（send_stream）与同步版完全一致：
-    ("text", str)            文本增量
-    ("info", str)            中间提示
-    ("image", dict)          图片生成结果
-    ("video", dict)          视频生成结果
-    ("confirm", dict)        高风险工具确认
-"""
-
-import asyncio
 import json
-from collections.abc import AsyncIterator
+import time
+from collections.abc import Iterator
+from typing import Any
 
-from core.async_client import AsyncCruxClient
-from core.brain import AsyncSmartBrain
-from core.chat import (
-    AGENT_SYSTEM_PROMPT,
-    CHAT_SYSTEM_PROMPT,
-    CODE_SYSTEM_PROMPT,
-    MAX_TOOL_LOOPS,
-    _normalize_tool_args,
-    merge_tool_calls,
-    sanitize_tool_call_history,
-)
-from core.config import CRUX_VISION_MODEL
-from core.context_tools import truncate_messages
-from core.observability import TraceContext, metrics
-from core.provider import (
-    get_provider_name,
-    get_vision_models,
-    model_supports_tools,
-)
-from core.skills import SkillManager, get_manager
-from core.tools import ToolRegistry, get_registry
-from engines.image_to_image import AsyncImageToImageEngine
-from engines.text_to_image import AsyncTextToImageEngine
-from engines.video import AsyncVideoEngine
+import httpx
 
-__all__ = ["AsyncChatSession"]
+from .config import SETTINGS
 
-# ── Async session system prompt 模块级缓存 ──
-_async_cached_prompt: list[str] = ["", ""]
+__all__ = ["CruxClient", "ContentPolicyError"]
 
 
-def reset_system_prompt_cache():
-    """清空 system prompt 缓存（mode 切换时调用）。"""
-    global _cached_prompt, _async_cached_prompt
-    try:
-        from core.chat import _cached_prompt as _sync_cache
-        _sync_cache[:] = ["", ""]
-    except ImportError:
-        pass
-    _async_cached_prompt[:] = ["", ""]
+class ContentPolicyError(Exception):
+    """内容安全过滤异常 - 提示词触发 API 安全策略"""
+
+    def __init__(self, message: str, detail: dict | None = None) -> None:
+        super().__init__(message)
+        self.detail = detail or {}
 
 
-class AsyncChatSession:
-    """ChatSession 的 asyncio 原生异步版本。
+def _sanitize_json(data):
+    """Recursively remove surrogate characters from JSON data.
 
-    维护 messages 历史 + 混合调度（纯聊天 / tool calling / 多模态），
-    所有 I/O 操作均为 async，可安全嵌入 asyncio event loop。
+    Some models return text with lone surrogates (U+D800-U+DFFF) which
+    are invalid in UTF-8. This cleans them before they reach the chat system.
     """
+    if isinstance(data, str):
+        # Fast path: if clean, return as-is
+        if not any(0xD800 <= ord(c) <= 0xDFFF for c in data):
+            return data
+        return "".join(c for c in data if not (0xD800 <= ord(c) <= 0xDFFF))
+    if isinstance(data, dict):
+        return {k: _sanitize_json(v) for k, v in data.items()}
+    if isinstance(data, list):
+        return [_sanitize_json(v) for v in data]
+    return data
+
+
+class CruxClient:
+    """CRUX AI API 统一客户端，封装文本/图像/视频三类端点"""
 
     def __init__(
         self,
-        client: AsyncCruxClient,
-        default_model: str = "agnes-1.5-flash",
-        vision_client: AsyncCruxClient | None = None,
-        vision_model: str = CRUX_VISION_MODEL,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        timeout: float = 60.0,
     ) -> None:
-        self.client = client
-        self.vision_client = vision_client or client
-        self.vision_model = vision_model
-        self.brain = AsyncSmartBrain(client)
-        self.t2i = AsyncTextToImageEngine(client)
-        self.i2i = AsyncImageToImageEngine(client)
-        self.vid = AsyncVideoEngine(client)
-        self.model = default_model
-        self.enable_thinking = False
-        self.code_mode = False
-        self.mode = "chat"
-        self.unlimited_tools = False
-        self.agent_mode = False
-        self.browser_enabled = False
-        self.notebook_enabled = False
-        self.audio_enabled = False
-        self.tools: ToolRegistry = get_registry()
-        self.skills: SkillManager = get_manager()
-        self.active_skill: str = ""
-        self.messages: list[dict] = [{"role": "system", "content": self._build_system_prompt()}]
-        # 五兽躯体激活
-        try:
-            from core.beast_wiring import wire_all
-
-            wire_all()
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-
-    # ── 属性 / 状态切换（纯计算，无需 async）─────────────────
-
-    @property
-    def supports_tools(self) -> bool:
-        """支持 tool calling 自动调度的模型"""
-        return model_supports_tools(self.model)
-
-    def toggle_code_mode(self) -> bool:
-        """切换代码助手模式（纯状态操作，无需 await）"""
-        self.code_mode = not self.code_mode
-        self.enable_thinking = self.code_mode
-        prompt = self._build_system_prompt()
-        self.messages[0] = {"role": "system", "content": prompt}
-        self.messages = [self.messages[0]]
-        return self.code_mode
-
-    def toggle_agent_mode(self) -> bool:
-        """切换智能体模式（纯状态操作，无需 await）"""
-        self.agent_mode = not self.agent_mode
-        self.enable_thinking = True
-        self.unlimited_tools = self.agent_mode
-        if self.agent_mode:
-            self.tools = get_registry()
-            self.tools.load()
-            try:
-                from core.hooks import register_code_hooks
-
-                register_code_hooks()
-            except (ImportError, OSError):
-                pass
-            # #2 激活反思 hook（定期 critique，辅助模型分析工具调用序列）
-            try:
-                from core.config import SETTINGS
-                from core.hooks import register_reflection_hook
-
-                register_reflection_hook(
-                    client=self.client,
-                    interval=SETTINGS.reflection_interval,
-                    enabled=SETTINGS.reflection_enabled,
-                )
-            except (ImportError, OSError):
-                pass
-            prompt = AGENT_SYSTEM_PROMPT + self._render_tool_categories()
-        else:
-            prompt = self._build_system_prompt()
-        prompt = self.skills.get_system_prompt(prompt)
-        self.messages[0] = {"role": "system", "content": prompt}
-        self.messages = [self.messages[0]]
-        return self.agent_mode
-
-    def load_skill(self, name: str) -> str | None:
-        """加载技能包（纯状态操作）"""
-        self.skills.discover()
-        skill = self.skills.load(name)
-        if skill:
-            self.active_skill = name
-            self.enable_thinking = True
-            pipeline = self.active_skill == "showrunner"
-            comfyui = self.active_skill == "comfyui-bridge"
-            if pipeline or comfyui:
-                self.tools = get_registry()
-                self.tools.load(pipeline=pipeline, comfyui=comfyui)
-            base = self._current_base_prompt()
-            prompt = self.skills.get_system_prompt(base)
-            self.messages[0] = {"role": "system", "content": prompt}
-            self.messages = [self.messages[0]]
-            for t in self.skills.get_extra_tools():
-                self.tools.register(
-                    t["name"],
-                    t.get("description", ""),
-                    t.get("parameters", {}),
-                    lambda **kw: f"[{name}] 工具已执行",
-                )
-            return name
-        return None
-
-    def unload_skill(self):
-        """卸载当前技能（纯状态操作）"""
-        self.active_skill = ""
-        self.skills.unload()
-        self.tools = get_registry()
-        self.tools.load(pipeline=False, comfyui=False)
-        base = self._current_base_prompt()
-        self.messages[0] = {"role": "system", "content": base}
-        self.messages = [self.messages[0]]
-
-    def _current_base_prompt(self) -> str:
-        """获取当前模式的基础提示词"""
-        if self.code_mode:
-            return self._build_system_prompt()
-        if self.agent_mode:
-            return AGENT_SYSTEM_PROMPT + self._render_tool_categories()
-        return self._build_system_prompt()
-
-    def _render_tool_categories(self) -> str:
-        """渲染工具分类为 system prompt 片段"""
-        cats = self.tools.tool_categories
-        if not cats:
-            return f"\n当前可用工具: {self.tools.tool_names}"
-        lines = ["\n\n## 当前可用工具（按分类）"]
-        for cat_name, tools in cats.items():
-            lines.append(f"- **{cat_name}**: {', '.join(tools)}")
-        return "\n".join(lines)
-
-    def _build_system_prompt(self) -> str:
-        """构建动态系统提示词（纯计算，无 I/O），带模块级缓存。"""
-        provider = get_provider_name(self.model)
-        template = CODE_SYSTEM_PROMPT if self.code_mode else CHAT_SYSTEM_PROMPT
-        cache_key = f"async|{provider}|{self.model}|{self.code_mode}|b{self.browser_enabled}|n{self.notebook_enabled}|a{self.audio_enabled}"
-        try:
-            from core.rules import get_rules
-            cache_key += f"|{hash(str([r.name for r in get_rules().active_rules]))}"
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-        if _async_cached_prompt[0] == cache_key:
-            return _async_cached_prompt[1]
-
-        base = template.format(provider_name=provider, model_name=self.model)
-        base += (
-            "\n\n## 回答质量规范\n"
-            "- 直接回答，不要重复用户的问题\n"
-            "- 不要在 3 轮内重复相同内容\n"
-            "- 不要逐字复述已有的上下文\n"
-            "- 回答尽量在 2 段以内，简洁到位\n"
-            "- 避免无意义的寒暄和套话"
-        )
-        try:
-            from core.rules import get_rules
-
-            base += get_rules().inject_prompt()
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-        try:
-            from core.marketplace import get_marketplace
-
-            base += "\n\n" + get_marketplace().summary()
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-        try:
-            from core.orchestra import get_orchestra
-
-            base += "\n\n" + get_orchestra().summary()
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-        # #5 注入 Prompt Lab 变体差异化指令
-        try:
-            from core.prompt_lab import get_prompt_lab
-
-            base += get_prompt_lab().get_active_instructions()
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-        # 七兽融合注入（七兽同体·魂魄交融，替代独立七段）
-        try:
-            from core.seven_beasts_fusion import get_fusion_prompt
-
-            base += "\n\n" + get_fusion_prompt()
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-        # 五兽躯体注入
-        try:
-            from core.beast_wiring import get_wiring_summary
-
-            base += "\n\n" + get_wiring_summary()
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-        # 贴身七件行为规则注入
-        try:
-            from core.intimate_slots import get_intimate_prompt
-
-            base += "\n\n" + get_intimate_prompt()
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-        # 功法谱注入（五层功法·五兽归位）
-        try:
-            from core.gongfa_spectrum import get_gongfa_prompt
-
-            base += "\n\n" + get_gongfa_prompt()
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-        # 法宝谱注入（84 工具·五兽归鞘）
-        try:
-            from core.treasure_spectrum import get_treasure_prompt
-
-            base += "\n\n" + get_treasure_prompt()
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-        # 坐骑谱注入（20 驹·五兽各驭）
-        try:
-            from core.steed_spectrum import get_steed_prompt
-
-            base += "\n\n" + get_steed_prompt()
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-        # 武技谱注入（45 技·五兽归宗）
-        try:
-            from core.wuji_spectrum import get_wuji_prompt
-
-            base += "\n\n" + get_wuji_prompt()
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-        # 金手指谱注入（十三外挂·穿越者面板）
-        try:
-            from core.golden_finger import get_golden_finger_prompt
-
-            base += "\n\n" + get_golden_finger_prompt()
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-        # 灵兽谱注入（十大灵宠·常伴左右）
-        try:
-            from core.familiar_spectrum import get_familiar_prompt
-
-            base += "\n\n" + get_familiar_prompt()
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-        # 洞府谱注入（五堂一庭·修炼洞天）
-        try:
-            from core.dwelling_spectrum import get_dwelling_prompt
-
-            base += "\n\n" + get_dwelling_prompt()
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-        # 秘境谱注入（五大试炼·以战证道）
-        try:
-            from core.trial_spectrum import get_trial_prompt
-
-            base += "\n\n" + get_trial_prompt()
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-        # 化妆谱注入（七妆九变·像素真颜）
-        try:
-            from core.glamour_spectrum import get_glamour_prompt
-
-            base += "\n\n" + get_glamour_prompt()
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-        # 生存技能谱注入（八技合道）
-        try:
-            from core.survival_spectrum import get_survival_prompt
-
-            base += "\n\n" + get_survival_prompt()
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-        # 存入缓存
-        _async_cached_prompt[:] = (cache_key, base)
-        return base
-
-    def reset(self):
-        """清空对话历史（保留 system）"""
-        self.messages = [self.messages[0]]
-
-    # ── 视觉 fallback（async I/O）──────────────────────────
-
-    def _vision_model_chain(self) -> list[str]:
-        """构建视觉模型 fallback 链"""
-        chain: list[str] = []
-        if self.vision_model:
-            chain.append(self.vision_model)
-        for mid in get_vision_models():
-            if mid not in chain:
-                chain.append(mid)
-        return chain
-
-    async def _vision_fallback(self, text: str, image_url: str) -> str:
-        """视觉理解调用 + fallback 链（async 版）"""
-        chain = self._vision_model_chain()
-        tried: list[str] = []
-        last_reason = ""
-        for model_id in chain:
-            tried.append(model_id)
-            try:
-                r = await self.vision_client.chat_multimodal(
-                    text=text,
-                    image_url=image_url,
-                    model=model_id,
-                    max_tokens=2048,
-                )
-                content = r["choices"][0]["message"]["content"] or ""
-                return content
-            except (KeyError, IndexError) as e:
-                last_reason = f"返回格式异常: {e}"
-                continue
-            except (OSError, TimeoutError) as e:
-                last_reason = f"网络/超时: {e}"
-                continue
-            except RuntimeError as e:
-                last_reason = f"上游错误: {e}"
-                continue
-            except (OSError, RuntimeError, KeyError, TypeError, ValueError) as e:  # noqa: BLE001
-                last_reason = f"未知错误: {e}"
-                continue
-        return (
-            f"(视觉理解失败 · 已尝试 {len(tried)} 个模型: {', '.join(tried)})\n"
-            f"最后错误: {last_reason}\n"
-            "建议：检查网络/供应商 Key，或用 /provider 切换视觉供应商后重试。"
+        self.api_key = api_key or SETTINGS.api_key
+        self.base_url = (base_url or SETTINGS.base_url).rstrip("/")
+        self.timeout = timeout
+        self.max_retries = SETTINGS.max_retries
+        self._http = httpx.Client(
+            base_url=self.base_url,
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            timeout=httpx.Timeout(timeout, connect=30.0),
         )
 
-    # ── 工具调度（async I/O）───────────────────────────────
-
-    async def _dispatch_tool(self, name: str, args_json: str, *, confirmed: bool = False) -> tuple[str, list[tuple]]:
-        """执行工具，返回 (给模型的文本, 给用户的副作用列表)。
-
-        与同步版 _dispatch_tool_impl 逻辑完全一致，仅将阻塞 I/O
-        替换为 async 版本：
-        - SmartBrain.enhance_*_prompt → await
-        - Engine.generate/edit/text_to_video/image_to_video → await
-        - ToolRegistry.execute → asyncio.to_thread
-
-        Args:
-            confirmed: 若 True，跳过高风险工具确认检查（用户已在 UI 层确认）。
-        """
-        try:
-            args = json.loads(args_json or "{}")
-        except json.JSONDecodeError:
-            args = {}
-
-        # ── 高风险工具确认机制（单一真源：core/constraints.py）──
-        # confirmed=True 表示 UI 层已确认，直接执行，不再拦截。
-        if not confirmed:
-            from core.constraints import is_tool_high_risk
-
-            if is_tool_high_risk(name, args):
-                confirm_data = {"tool": name, "args": args}
-                return "", [("confirm", confirm_data)]
-
-        # ── PRE_TOOL_USE hook ──
-        try:
-            from core.hooks import HookType, hook_manager
-
-            pre_evt = hook_manager.fire(HookType.PRE_TOOL_USE, data={"tool_name": name, "args": args})
-            if pre_evt.stop_processing:
-                return "工具调用被拦截（PRE_TOOL_USE hook）", []
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-
-        prompt = args.get("prompt", "")
-        image_url = args.get("image_url", "") or args.get("image", "")
-
-        if name == "generate_image":
-            side: list[tuple[str, str | dict]] = [("info", f"正在生成图片: {prompt}")]
+    def _request_with_retry(self, method: str, url: str, **kwargs) -> httpx.Response:
+        """带重试的HTTP请求"""
+        retries = kwargs.pop("retries", self.max_retries)
+        last_exc = None
+        for attempt in range(retries):
             try:
-                r = await self.brain.enhance_image_prompt(prompt)
-                fp = r.get("optimized_prompt", prompt)
-                neg = r.get("negative_prompt", "") or None
-
-                if image_url:
-                    from utils import image_input
-
-                    url = image_input.load_image_as_url_or_data(image_url)
-                    data = await self.i2i.edit(prompt=fp, image_urls=url)
-                else:
-                    data = await self.t2i.generate(prompt=fp, negative_prompt=neg)
-                side.append(("image", data))
-                return f"图片已生成并保存: {data.get('local_path', '')}", side
-            except (RuntimeError, OSError, ValueError) as e:
-                return f"图片生成失败: {e}", side
-
-        if name == "generate_video":
-            side: list[tuple[str, str | dict]] = [("info", f"正在生成视频（可能需几分钟）: {prompt}")]
-            try:
-                r = await self.brain.enhance_video_prompt(prompt)
-                fp = r.get("optimized_prompt", prompt)
-                neg = r.get("negative_prompt", "") or None
-                w, h = 1152, 768
-
-                if image_url:
-                    from utils import image_input
-
-                    url = image_input.load_image_as_url_or_data(image_url)
-                    data = await self.vid.image_to_video(
-                        prompt=fp, image_url=url, width=w, height=h, negative_prompt=neg, timeout=120.0
+                resp = self._http.post(url, **kwargs) if method == "POST" else self._http.get(url, **kwargs)
+                resp.raise_for_status()
+                return resp
+            except (
+                httpx.ConnectError,
+                httpx.ReadError,
+                httpx.WriteError,
+                httpx.PoolTimeout,
+                httpx.TimeoutException,
+            ) as e:
+                last_exc = e
+                if attempt < retries - 1:
+                    time.sleep(0.5 * (attempt + 1))
+                continue
+            except httpx.HTTPStatusError as e:
+                # 401/403/402 不重试（鉴权失败），429 和 5xx 可重试
+                if e.response.status_code in (401, 403, 402):
+                    raise
+                if attempt < retries - 1 and (e.response.status_code == 429 or e.response.status_code >= 500):
+                    # 429 指数退避：1s, 2s, 4s...；5xx 线性退避
+                    wait = (2**attempt) if e.response.status_code == 429 else (0.5 * (attempt + 1))
+                    time.sleep(wait)
+                    last_exc = e
+                    continue
+                # 4xx: 解析响应体，提供可操作的错误信息（不泄露敏感字段）
+                detail = ""
+                raw = ""
+                try:
+                    raw = e.response.text[:1000]
+                    detail = json.loads(raw)
+                except (json.JSONDecodeError, ValueError, KeyError):
+                    detail = raw[:500]
+                # 内容安全过滤 → 提供重新措辞建议
+                if isinstance(detail, dict) and detail.get("code") == "content_policy_violation":
+                    msg = (
+                        "提示词触发了内容安全过滤，请尝试：\n"
+                        "1. 用更温和的词汇替换攻击性描述（如'对抗'代替'打架'）\n"
+                        "2. 删除暴力/血腥/武器相关的视觉描述\n"
+                        "3. 以'科幻场景、非攻击性互动'重述你的创意"
                     )
-                else:
-                    data = await self.vid.text_to_video(
-                        prompt=fp, width=w, height=h, negative_prompt=neg, timeout=120.0
-                    )
-
-                side.append(("video", data))
-                if data.get("status") == "timeout":
-                    vid = data.get("video_id", "")
-                    pct = data.get("progress", 0)
-                    return (f"视频生成超时（进度 {pct:.0f}%），请稍后用 video_id={vid} 查询状态"), side
-                return f"视频已生成: {data.get('local_path', '')}", side
-            except (RuntimeError, OSError, ValueError) as e:
-                return f"视频生成失败: {e}", side
-
-        if name == "multi_agent":
-            goal = args.get("goal", "")
-            side: list[tuple[str, str | dict]] = [("info", f"正在启动多智能体协调: {goal}")]
-            try:
-                from core.multi_agent import async_coordinate
-
-                def _tool_exec(tool, tool_args):
-                    if self.tools.has(tool):
-                        return self.tools.execute(tool, tool_args)
-                    return f"[multi_agent] 工具 {tool} 不可用"
-
-                result = await async_coordinate(goal, _tool_exec)
-                summary = (
-                    f"多智能体协调完成: {result['tasks_done']}/{result['tasks_total']} 任务成功, "
-                    f"耗时 {result['elapsed']}s"
-                )
-                if result["tasks_failed"]:
-                    summary += f", {result['tasks_failed']} 失败"
-                return summary, side
-            except (RuntimeError, OSError, ValueError) as e:
-                return f"多智能体协调失败: {e}", side
-
-        # 外部工具（tools.json）→ asyncio.to_thread 包装
-        if self.tools.has(name):
-            from core.constraints import LONG_RUNNING_TOOLS
-
-            _LONG_RUNNING = LONG_RUNNING_TOOLS
-            side: list[tuple[str, str | dict]] = []
-            if name in _LONG_RUNNING:
-                side.append(("info", f"正在执行 {name}..."))
-            result = await asyncio.to_thread(self.tools.execute, name, args)
-
-            # POST_TOOL_USE hook
-            try:
-                from core.hooks import HookType, hook_manager
-
-                # NEW (#4): 标记 error key，供反思引擎优先分析失败序列
-                is_error = isinstance(result, str) and result.startswith("[错误]")
-                post_evt = hook_manager.fire(
-                    HookType.POST_TOOL_USE,
-                    data={"tool_name": name, "args": args, "result": result, "error": is_error},
-                )
-                if isinstance(post_evt.result, str) and post_evt.result:
-                    result = post_evt.result
-            except (ImportError, OSError):
-                pass
-
-            side.append(("info", f"工具 {name} 执行完成"))
-            return result, side
-
-        return f"未知工具: {name}", []
-
-    # ── 流式对话（核心 async generator）────────────────────
-
-    async def send_stream(self, user_text: str, image_url: str | None = None) -> AsyncIterator[tuple]:
-        """发送用户消息，流式 yield (kind, payload) 元组。
-
-        与同步版 ChatSession.send_stream 协议完全一致，
-        仅将所有 I/O 替换为 async 版本。
-        """
-        # ── 多模态分支 ──
-        if image_url:
-            self.messages.append(
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": user_text},
-                        {"type": "image_url", "image_url": {"url": image_url}},
-                    ],
-                }
-            )
-            content = await self._vision_fallback(user_text, image_url)
-            self.messages.append({"role": "assistant", "content": content})
-            yield ("text", content)
-            return
-
-        # ── 纯文本分支 ──
-        self.messages.append({"role": "user", "content": user_text})
-
-        # Tier 1 轻量截断：对历史 messages 中超限单条做 head+tail 截断。
-        # 零 API 调用、O(n) 纯计算——防止之前轮次未截断的历史消息撑爆上下文。
-        self.messages = truncate_messages(self.messages)
-
-        tools = self.tools.definitions if self.supports_tools else None
-
-        _effective_max = MAX_TOOL_LOOPS * 2 if getattr(self, "unlimited_tools", False) else MAX_TOOL_LOOPS
-        buffer = ""
-        from core.constraints import WRITE_TOOLS
-
-        _WRITE_TOOLS = set(WRITE_TOOLS)
-        _executed_signatures: set[tuple[str, str]] = set()
-        _executed_cache: dict[tuple[str, str], str] = {}
-
-        for _loop in range(_effective_max):
-            buffer, tool_calls = "", []
-            _last_usage = None  # 捕获最后一帧的 usage 用于计费
-            kwargs: dict = {}
-            if self.enable_thinking:
-                kwargs["chat_template_kwargs"] = {"enable_thinking": True}
-            # 带工具时放大预算：tool_call arguments 计入输出 token，
-            # 大文件生成（create_html 等）需要足够空间避免截断
-            max_tok = 8192 if tools else 2048
-
-            async for delta in self.client.chat_stream(
-                model=self.model,
-                messages=sanitize_tool_call_history(self.messages),
-                tools=tools,
-                max_tokens=max_tok,
-                **kwargs,
-            ):
-                if "content" in delta and delta["content"]:
-                    chunk = delta["content"]
-                    buffer += chunk
-                    yield ("text", chunk)
-                if "tool_calls" in delta and delta["tool_calls"]:
-                    tool_calls.extend(delta["tool_calls"])
-                # 捕获顶层 usage(最后一帧)用于计费
-                if "_usage" in delta:
-                    _last_usage = delta["_usage"]
-
-            if tool_calls:
-                merged = merge_tool_calls(tool_calls)
-                self.messages.append(
-                    {
-                        "role": "assistant",
-                        "content": buffer,
-                        "tool_calls": merged,
+                    raise ContentPolicyError(msg, detail) from None
+                # 从错误详情中剥离可能的敏感字段再拼入异常消息
+                safe_detail = detail
+                if isinstance(safe_detail, dict):
+                    safe_detail = {
+                        k: v for k, v in safe_detail.items() if k not in ("api_key", "token", "secret", "password")
                     }
-                )
-                for tc in merged:
-                    fname = tc["function"]["name"]
-                    fargs = tc["function"].get("arguments", "{}")
+                raise httpx.HTTPStatusError(
+                    f"{e.response.status_code} {e.response.reason_phrase} - {safe_detail}",
+                    request=e.request,
+                    response=e.response,
+                ) from e
+        # 所有重试耗尽
+        assert last_exc is not None  # guaranteed by loop logic
+        raise last_exc
 
-                    # 跨轮去重（与同步版逻辑一致）
-                    sig = (fname, _normalize_tool_args(fargs))
-                    if fname not in _WRITE_TOOLS and sig in _executed_signatures:
-                        tool_result = _executed_cache.get(sig, "")
-                        append_tool_result = True
-                    else:
-                        with TraceContext("tool_call", tool_name=fname, call_id=tc.get("id", "")) as span:
-                            tool_result, side_effects = await self._dispatch_tool(fname, fargs)
-                            span.set_attribute("result_chars", len(tool_result) if isinstance(tool_result, str) else -1)
-                            metrics.increment("tool_calls")
-                            metrics.timing("tool_call_ms", span.duration_ms())
-                            # #5 Prompt Lab: 记录工具调用和错误
-                            try:
-                                from core.prompt_lab import get_prompt_lab
+    # ── 文本 ──────────────────────────────────────────────
+    def chat(
+        self,
+        model: str = "agnes-2.0-flash",
+        messages: list[dict] | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+        stream: bool = False,
+        tools: list[dict] | None = None,
+        tool_choice: str | dict = "auto",
+        enable_thinking: bool = False,
+        frequency_penalty: float = 0.3,
+        presence_penalty: float = 0.3,
+        **kwargs,
+    ) -> dict:
+        """调用文本对话接口 /v1/chat/completions"""
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": messages or [],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": stream,
+            "frequency_penalty": frequency_penalty,
+            "presence_penalty": presence_penalty,
+        }
+        if tools:
+            body["tools"] = tools
+            body["tool_choice"] = tool_choice
+            body["parallel_tool_calls"] = True
+        if enable_thinking:
+            body["chat_template_kwargs"] = {"enable_thinking": True}
+        body.update(kwargs)
 
-                                get_prompt_lab().record_tool_call()
-                                if "[错误]" in str(tool_result) or "error" in str(tool_result).lower():
-                                    get_prompt_lab().record_tool_error()
-                            except (ImportError, OSError):
-                                pass
-                        # ── 高风险工具确认：同意即执行，拒绝则占位跳过 ──
-                        is_confirm = any(k == "confirm" for k, _ in side_effects)
-                        if is_confirm:
-                            # a. 预追加占位 tool 结果（保证消息历史合法）。
-                            #    后续 yield confirm 会触发 UI 的 Confirm.ask。
-                            #    若用户拒绝: PermissionError → generator 关闭 → 占位安全 ✓
-                            #    若用户同意: yield 正常返回 → 进入步骤 b
-                            placeholder = f"[高风险工具 {fname}: 等待用户确认]"
-                            self.messages.append(
-                                {
-                                    "role": "tool",
-                                    "tool_call_id": tc.get("id", ""),
-                                    "content": placeholder,
-                                }
-                            )
-                            for se in side_effects:
-                                yield se  # ← Confirm.ask 阻塞点
-                            # b. 用户同意 → 用 confirmed=True 重新执行
-                            tool_result, exec_side_effects = await self._dispatch_tool(fname, fargs, confirmed=True)
-                            for se in exec_side_effects:
-                                yield se
-                            # c. 用真实结果替换占位
-                            from core.context_tools import compress_tool_result
+        resp = self._request_with_retry("POST", "/chat/completions", json=body)
+        return _sanitize_json(resp.json())
 
-                            self.messages[-1] = {
-                                "role": "tool",
-                                "tool_call_id": tc.get("id", ""),
-                                "content": compress_tool_result(tool_result, self.client, self.model),
-                            }
-                            append_tool_result = False
+    def chat_multimodal(
+        self,
+        text: str,
+        image_url: str,
+        model: str = "",
+        **kwargs,
+    ) -> dict:
+        """调用 1.5-flash 多模态接口（文本+图像理解）"""
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": text},
+                    {"type": "image_url", "image_url": {"url": image_url}},
+                ],
+            }
+        ]
+        return self.chat(model=model, messages=messages, **kwargs)
+
+    def chat_stream(
+        self,
+        model: str = "agnes-2.0-flash",
+        messages: list[dict] | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+        tools: list[dict] | None = None,
+        tool_choice: str | dict = "auto",
+        timeout: float = 120.0,
+        frequency_penalty: float = 0.3,
+        presence_penalty: float = 0.3,
+        **kwargs,
+    ) -> Iterator[dict]:
+        """流式调用 /chat/completions，逐增量 yield delta 字典。
+
+        注意：不修改 chat() 的 stream 参数（其当前行为是整块 JSON，多个调用方依赖）。
+        本方法独立用 httpx stream + SSE 解析，yield 格式：
+            {"content": "..."}              文本增量
+            {"reasoning_content": "..."}    thinking 增量（pro 模型）
+            {"tool_calls": [...]}           工具调用分片（需上层按 index 合并）
+            {"_finish": "stop|tool_calls"}  终止原因
+        用法: for delta in client.chat_stream(...): ...
+        """
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": messages or [],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": True,
+            "frequency_penalty": frequency_penalty,
+            "presence_penalty": presence_penalty,
+        }
+        if tools:
+            body["tools"] = tools
+            body["tool_choice"] = tool_choice
+        body.update(kwargs)
+
+        # 流式连接重试：在流数据消费之前检查状态码，
+        # 此时服务器尚未处理请求体，重试安全且幂等。
+        # 4xx 不重试（客户端错误），5xx / 网络错误重试最多 2 次。
+        _stream_retries = 2
+        for _attempt in range(_stream_retries + 1):
+            try:
+                with self._http.stream(
+                    "POST",
+                    "/chat/completions",
+                    json=body,
+                    timeout=httpx.Timeout(timeout, connect=30.0),
+                ) as resp:
+                    # 错误状态码：连接仍活着，在此消费错误体后再决定重试/返回。
+                    # 不能用 raise_for_status() + except 读 e.response.text —— 流式
+                    # 响应体在 with 退出后已关闭，再读会抛 ResponseNotRead。
+                    if resp.status_code >= 400:
+                        status = resp.status_code
+                        err_detail = ""
+                        try:
+                            resp.read()  # 同步消费错误响应体（连接未关闭，安全）
+                            body_text = resp.text[:500]
+                            if body_text:
+                                err_detail = f" - {body_text}"
+                        except (OSError, ValueError, httpx.HTTPError):
+                            pass
+                        # 429 / 5xx 可重试，4xx 不重试
+                        if _attempt < _stream_retries and (status == 429 or status >= 500):
+                            wait = (2**_attempt) if status == 429 else (0.5 * (_attempt + 1))
+                            time.sleep(wait)
+                            continue  # continue 先退出 with（关闭连接），再进入下一轮
+                        yield {"content": f"\n[HTTP {status}{err_detail}]", "_finish": "error"}
+                        return
+                    # 连接成功，开始消费流
+                    for line in resp.iter_lines():
+                        if not line or not line.startswith("data:"):
+                            continue
+                        data = line[5:].strip()
+                        if data == "[DONE]":
+                            break
+                        try:
+                            chunk = _sanitize_json(json.loads(data))
+                        except json.JSONDecodeError:
+                            continue
+                        choices = chunk.get("choices") or []
+                        if not choices:
+                            continue
+                        choice = choices[0]
+                        delta = choice.get("delta", {}) or {}
+                        out = {k: v for k, v in delta.items() if v}
+                        finish = choice.get("finish_reason")
+                        if finish:
+                            out["_finish"] = finish
+                        usage = chunk.get("usage")
+                        if usage:
+                            out["_usage"] = usage
+                        if out:
+                            yield out
+                    return  # 正常完成，不触发错误
+            except (
+                httpx.ConnectError,
+                httpx.ReadError,
+                httpx.RemoteProtocolError,
+                httpx.PoolTimeout,
+                httpx.TimeoutException,
+            ) as e:
+                if _attempt < _stream_retries:
+                    time.sleep(0.5 * (_attempt + 1))
+                    continue
+                yield {"content": f"\n[流中断: {type(e).__name__} (retries exhausted)]", "_finish": "error"}
+                return
+
+    # ── 图像 ──────────────────────────────────────────────
+    def create_image(
+        self,
+        prompt: str,
+        model: str = "agnes-image-2.1-flash",
+        size: str = "1024x768",
+        seed: int | None = None,
+        negative_prompt: str | None = None,
+        return_base64: bool = False,
+        extra_body: dict | None = None,
+    ) -> dict:
+        """调用图像生成接口 /v1/images/generations
+
+        return_base64=True 时通过 extra_body.response_format=\"b64_json\" 请求 base64 输出。
+        根据官方文档，response_format 必须放在 extra_body 内，不能放请求顶层。
+        extra_body 中的其他字段（如 image）也会被一起嵌套发送。
+        """
+        body: dict[str, Any] = {
+            "model": model,
+            "prompt": prompt,
+            "size": size,
+        }
+        if seed is not None:
+            body["seed"] = seed
+        if negative_prompt:
+            body["negative_prompt"] = negative_prompt
+        # 构建 extra_body，response_format 和 image 都必须在 extra_body 内
+        merged_extra = dict(extra_body) if extra_body else {}
+        if return_base64:
+            merged_extra.setdefault("response_format", "b64_json")
+        if merged_extra:
+            body["extra_body"] = merged_extra
+
+        resp = self._request_with_retry("POST", "/images/generations", json=body)
+        return resp.json()
+
+    # ── 视频 ──────────────────────────────────────────────
+    def create_video(
+        self,
+        prompt: str,
+        model: str = "agnes-video-v2.0",
+        width: int = 1152,
+        height: int = 768,
+        num_frames: int = 121,
+        frame_rate: int = 24,
+        image: str | list[str] | None = None,
+        negative_prompt: str | None = None,
+        num_inference_steps: int | None = None,
+        seed: int | None = None,
+        extra_body: dict | None = None,
+    ) -> dict:
+        """创建视频任务 POST /v1/videos
+
+        单图视频：image 放在请求体顶层。
+        多图/关键帧：通过 extra_body 传入 image 和 mode（嵌套格式）。
+        """
+        body: dict[str, Any] = {
+            "model": model,
+            "prompt": prompt,
+            "width": width,
+            "height": height,
+            "num_frames": num_frames,
+            "frame_rate": frame_rate,
+        }
+        if image:
+            # 视频 API 的 image 字段只接受纯 base64 或 HTTP URL
+            # data URI 格式需剥离前缀，否则 API 解析 base64 长度不对
+            if isinstance(image, str) and image.startswith("data:image/"):
+                # 提取 data:image/png;base64,XXXXXX 中的 XXXXXX 部分
+                before, sep, b64_data = image.partition(";base64,")
+                if sep:  # 仅当 ;base64, 分隔符存在时才剥离，防止空字符串
+                    image = b64_data
+            body["image"] = image
+        if negative_prompt:
+            body["negative_prompt"] = negative_prompt
+        if num_inference_steps is not None:
+            body["num_inference_steps"] = num_inference_steps
+        if seed is not None:
+            body["seed"] = seed
+        if extra_body:
+            # extra_body 中的 image 如果是 data URI，也需转为纯 base64
+            if "image" in extra_body:
+                imgs = extra_body["image"]
+                if isinstance(imgs, str):
+                    if imgs.startswith("data:image/"):
+                        before, sep, b64 = imgs.partition(";base64,")
+                        if sep:
+                            extra_body = {**extra_body, "image": b64}
+                elif isinstance(imgs, list):
+                    converted = []
+                    for img in imgs:
+                        if isinstance(img, str) and img.startswith("data:image/"):
+                            before, sep, b64 = img.partition(";base64,")
+                            converted.append(b64 if sep else img)
                         else:
-                            for se in side_effects:
-                                yield se
-                            append_tool_result = True
-                        if fname not in _WRITE_TOOLS:
-                            _executed_signatures.add(sig)
-                            # 缓存保留原始结果（高保真），跨轮复用时仍可重新截断
-                            _executed_cache[sig] = tool_result
+                            converted.append(img)
+                    extra_body = {**extra_body, "image": converted}
+            body["extra_body"] = extra_body
 
-                    # 上下文窗口防护：智能压缩（抽取→LLM→截断三级路由），
-                    # 防止大文件/长输出撑爆 LLM 上下文。原始结果仍在 cache 中。
-                    # confirm 分支已在上面追加 tool 结果，跳过此处追加。
-                    if append_tool_result:
-                        from core.context_tools import compress_tool_result
+        resp = self._request_with_retry("POST", "/videos", json=body)
+        return resp.json()
 
-                        self.messages.append(
-                            {
-                                "role": "tool",
-                                "tool_call_id": tc.get("id", ""),
-                                "content": compress_tool_result(tool_result, self.client, self.model),
-                            }
-                        )
-                continue  # 进入下一轮
+    def get_video_status(self, video_id: str) -> dict:
+        """查询视频任务状态
 
-            # 无 tool_calls：收尾
-            self.messages.append({"role": "assistant", "content": buffer})
-            # 成本追踪：文本流式调用按真实 usage 计费
-            try:
-                from core.cost_tracker import record_usage
+        必须使用 video_id 查询（GET /agnesapi?video_id=），不要使用 task_id，
+        后者会导致排队异常延长（超过5分钟）。
+        """
+        if not video_id:
+            raise ValueError(
+                "必须提供 video_id 查询视频状态。"
+                "请勿使用 task_id，否则会导致排队异常延长。"
+                "video_id 可在创建视频任务的响应中获取。"
+            )
 
-                record_usage(model=self.model, kind="text", usage=_last_usage, label="async_text_stream")
-            except (ImportError, OSError):
+        agnesapi_url = self.base_url
+        if agnesapi_url.endswith("/v1"):
+            agnesapi_url = agnesapi_url[:-3]
+        resp = self._request_with_retry(
+            "GET",
+            f"{agnesapi_url}/agnesapi",
+            params={"video_id": video_id},
+            timeout=30.0,
+        )
+        return resp.json()
+
+    def check_video(self, video_id: str) -> dict:
+        """查询单次视频任务状态（不轮询），返回当前状态 dict"""
+        return self.get_video_status(video_id=video_id)
+
+    def _poll_video_loop(
+        self,
+        video_id: str,
+        deadline: float = 0,
+        interval: float = 5.0,
+        on_progress: Any | None = None,
+        raise_on_fail: bool = True,
+    ) -> dict | None:
+        """内部轮询循环：进度防回退，共享逻辑。超时返回 None。"""
+        last_progress = 0
+
+        while time.time() < deadline:
+            data = self.get_video_status(video_id=video_id)
+            status = data.get("status", "unknown")
+            raw_progress = data.get("progress", 0)
+
+            # 进度防回退：API 偶发简化响应
+            current_progress = max(
+                last_progress, raw_progress if isinstance(raw_progress, (int, float)) else last_progress
+            )
+            last_progress = current_progress
+
+            if on_progress:
+                on_progress(status, current_progress, data)
+
+            if status == "completed":
+                return data
+            if status == "failed":
+                if raise_on_fail:
+                    raise RuntimeError(f"视频生成失败: {data.get('error', '未知错误')}")
+                return data
+
+            # 兼容新版API的 in_progress 状态
+            if status == "in_progress":
                 pass
-            # #5 Prompt Lab: 记录本次会话 outcome
-            try:
-                from core.prompt_lab import get_prompt_lab
 
-                get_prompt_lab().record_outcome()
-            except (ImportError, OSError):
-                pass
-            return
+            time.sleep(interval)
 
-        # 超出最大轮次
-        yield ("info", f"已达到最大工具调用轮次 ({_effective_max})，已中止。请尝试简化你的请求。")
-        self.messages.append({"role": "assistant", "content": buffer})
-        # #5 Prompt Lab: 超限也记录 outcome
+        return None  # 超时
+
+    def poll_video(
+        self,
+        video_id: str,
+        interval: float = 5.0,
+        max_wait: float = 600.0,
+        on_progress: Any | None = None,
+    ) -> dict:
+        """
+        轮询视频任务直到完成/失败。
+        on_progress: 回调函数 (status, progress, data)
+        返回最终结果 dict，含 remixed_from_video_id
+        """
+        deadline = time.time() + max_wait
+        result = self._poll_video_loop(
+            video_id=video_id, deadline=deadline, interval=interval, on_progress=on_progress, raise_on_fail=True
+        )
+        if result is None:
+            raise TimeoutError(f"视频生成超时 ({max_wait}s)")
+        return result
+
+    def wait_for_video(
+        self,
+        video_id: str,
+        timeout: float = 120.0,
+        interval: float = 5.0,
+        on_progress: Any | None = None,
+    ) -> dict:
+        """
+        限时轮询视频任务。超时返回当前状态（不抛异常）。
+        适合IDE等有总执行时间限制的环境。
+        """
+        deadline = time.time() + timeout
+        result = self._poll_video_loop(
+            video_id=video_id, deadline=deadline, interval=interval, on_progress=on_progress, raise_on_fail=False
+        )
+        if result is not None:
+            return result
+
+        # 超时：返回当前状态，附加 _timed_out 标记
+        data = self.get_video_status(video_id=video_id)
+        data["_timed_out"] = True
+        return data
+
+    # ── 下载 ──────────────────────────────────────────────
+    def download_video(self, url: str, save_path: str) -> str:
+        """下载视频文件。CDN/GCS URL 为公开链接，无需 Authorization 头。
+
+        安全策略：仅在 URL 与当前 base_url 同源时才附加认证头，
+        防止 Bearer token 被重定向泄露到第三方 CDN。
+        """
+        from pathlib import Path as _Path
+        from urllib.parse import urlparse
+
+        same_origin = urlparse(url).netloc == urlparse(self.base_url).netloc
+
+        # 策略1：无认证头直接下载（CDN 公开链接）
         try:
-            from core.prompt_lab import get_prompt_lab
+            with httpx.Client(follow_redirects=True, timeout=120.0) as client:
+                resp = client.get(url)
+                if resp.status_code == 200:
+                    _Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+                    with open(save_path, "wb") as f:
+                        f.write(resp.content)
+                    return save_path
+        except (httpx.HTTPError, httpx.TimeoutException):
+            # 清理可能的部分下载
+            _Path(save_path).unlink(missing_ok=True)
 
-            get_prompt_lab().record_outcome()
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
+        # 策略2：仅同源 URL 使用认证头（私有存储）
+        if same_origin:
+            try:
+                with httpx.Client(follow_redirects=True, timeout=120.0) as client:
+                    resp = client.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
+                    if resp.status_code == 200:
+                        _Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+                        with open(save_path, "wb") as f:
+                            f.write(resp.content)
+                        return save_path
+            except (httpx.HTTPError, httpx.TimeoutException):
+                _Path(save_path).unlink(missing_ok=True)
+
+        raise RuntimeError(f"视频下载失败: {url}")
+
+    def download_image(self, url: str, save_path: str) -> str:
+        """下载图片文件。CDN URL 为公开链接，无需 Authorization 头（带了反而 401）。
+
+        安全策略：仅在 URL 与当前 base_url 同源时才附加认证头。
+        """
+        from pathlib import Path as _Path
+        from urllib.parse import urlparse
+
+        same_origin = urlparse(url).netloc == urlparse(self.base_url).netloc
+
+        # 策略1：无认证头直接下载（CDN 公开链接）
+        try:
+            with httpx.Client(follow_redirects=True, timeout=60.0) as client:
+                resp = client.get(url)
+                if resp.status_code == 200:
+                    _Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+                    with open(save_path, "wb") as f:
+                        f.write(resp.content)
+                    return save_path
+        except (httpx.HTTPError, httpx.TimeoutException):
+            _Path(save_path).unlink(missing_ok=True)
+
+        # 策略2：仅同源 URL 使用认证头（私有存储）
+        if same_origin:
+            try:
+                with httpx.Client(follow_redirects=True, timeout=60.0) as client:
+                    resp = client.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
+                    if resp.status_code == 200:
+                        _Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+                        with open(save_path, "wb") as f:
+                            f.write(resp.content)
+                        return save_path
+            except (httpx.HTTPError, httpx.TimeoutException):
+                _Path(save_path).unlink(missing_ok=True)
+
+        raise RuntimeError(f"图片下载失败: {url}")
+
+    def close(self):
+        self._http.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()

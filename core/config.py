@@ -158,11 +158,24 @@ MODELS = {
 
 # 视觉模型常量 — 始终指向 CRUX 多模态模型，与主对话供应商解耦
 # 用途：ChatSession 的 vision_client 专用，/vision 命令 + send_stream 图片路由
-CRUX_VISION_MODEL = "agnes-1.5-flash"
 CRUX_VISION_BASE_URL = "https://apihub.agnes-ai.com/v1"
 
-# 遗留别名（其他模块可能仍在 import 这些名称）
-AGNES_VISION_MODEL = CRUX_VISION_MODEL
+
+def get_crux_vision_model() -> str:
+    """从 models.json active provider 读取视觉模型，fallback 到 deepseek-chat。"""
+    try:
+        from core.provider import get_provider_manager
+        mgr = get_provider_manager()
+        mgr.load()
+        provider = mgr.providers.get(mgr.state.active, {})
+        vmodels = provider.get("vision_models", {})
+        return vmodels.get("light") or vmodels.get("pro") or "deepseek-chat"
+    except Exception:
+        return "deepseek-chat"
+
+
+# 遗留别名 — 无人实际 import，保留仅防 break
+AGNES_VISION_MODEL = "deepseek-chat"  # 不再使用，保留占位
 AGNES_VISION_BASE_URL = CRUX_VISION_BASE_URL
 
 # 视频分辨率预设 (比例名 -> (width, height))
