@@ -1,0 +1,80 @@
+{
+  "total_calls_ever": 26,
+  "saved_at": "2026-06-29T18:00:34",
+  "intents": {
+    "search": {
+      "intent": "search",
+      "tools": {
+        "codebuddy_search": {
+          "tool": "codebuddy_search",
+          "source": "",
+          "calls": 6,
+          "successes": 6,
+          "failures": 0,
+          "total_latency_ms": 720.0,
+          "consecutive_failures": 0,
+          "demoted": false,
+          "probation_successes": 0,
+          "last_call_ts": 159128.015
+        },
+        "qoder_search": {
+          "tool": "qoder_search",
+          "source": "",
+          "calls": 6,
+          "successes": 0,
+          "failures": 6,
+          "total_latency_ms": 30000.0,
+          "consecutive_failures": 6,
+          "demoted": true,
+          "probation_successes": 0,
+          "last_call_ts": 159128.015
+        },
+        "copilot_explore": {
+          "tool": "copilot_explore",
+          "source": "",
+          "calls": 2,
+          "successes": 2,
+          "failures": 0,
+          "total_latency_ms": 400.0,
+          "consecutive_failures": 0,
+          "demoted": false,
+          "probation_successes": 0,
+          "last_call_ts": 159128.015
+        }
+      },
+      "total_calls": 14,
+      "last_recalc_at": 10
+    },
+    "review": {
+      "intent": "review",
+      "tools": {
+        "codex_review": {
+          "tool": "codex_review",
+          "source": "",
+          "calls": 8,
+          "successes": 8,
+          "failures": 0,
+          "total_latency_ms": 2400.0,
+          "consecutive_failures": 0,
+          "demoted": false,
+          "probation_successes": 0,
+          "last_call_ts": 159128.015
+        },
+        "codebuddy_review": {
+          "tool": "codebuddy_review",
+          "source": "",
+          "calls": 4,
+          "successes": 0,
+          "failures": 4,
+          "total_latency_ms": 40000.0,
+          "consecutive_failures": 4,
+          "demoted": true,
+          "probation_successes": 0,
+          "last_call_ts": 159128.015
+        }
+      },
+      "total_calls": 12,
+      "last_recalc_at": 10
+    }
+  }
+}

@@ -9,12 +9,35 @@ Provides:
 
 import asyncio
 import json
+import re
 import threading
 import time
 import traceback
 from collections.abc import Callable
 from enum import Enum
 from typing import Any, TypeVar
+
+
+# ── 敏感数据脱敏模式 ─────────────────────────────────────
+REDACT_PATTERNS: dict[str, re.Pattern] = {
+    "api_key": re.compile(r'(?:api[_-]?key|token|secret|password|apikey)[=:]\s*["\']?\S{8,}', re.IGNORECASE),
+    "sk_key": re.compile(r'sk-[a-zA-Z0-9]{20,}', re.IGNORECASE),
+    "bearer_token": re.compile(r'Authorization:\s*Bearer\s+\S{8,}', re.IGNORECASE),
+    "auth_header": re.compile(r'(Authorization|X-Api-Key|X-Auth-Token)[=:]\s*["\']?\S{8,}', re.IGNORECASE),
+    "jwt_token": re.compile(r'eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'),
+    "password_in_json": re.compile(r'"[Pp]assword"\s*:\s*"[^"]{4,}"'),
+}
+
+REDACT_REPLACEMENT = "<REDACTED>"
+
+
+def redact_sensitive(text: str) -> str:
+    """脱敏：扫描常见敏感数据模式并替换为 <REDACTED>。"""
+    if not text:
+        return text
+    for pattern in REDACT_PATTERNS.values():
+        text = pattern.sub(REDACT_REPLACEMENT, text)
+    return text
 
 T = TypeVar("T")
 
@@ -272,7 +295,8 @@ class SafeExecutor:
         start_time = time.time()
         result = {
             "tool": tool_name,
-            "args": {k: str(v)[:100] for k, v in args.items()},  # truncate for log
+            # 截断 + 脱敏
+            "args": {k: redact_sensitive(str(v))[:100] for k, v in args.items()},
             "success": False,
             "result": "",
             "error": "",
@@ -285,14 +309,14 @@ class SafeExecutor:
             raw_result = tool_func(**args)
             if isinstance(raw_result, str) and len(raw_result) > self.max_result_size:
                 raw_result = raw_result[: self.max_result_size] + "\n[truncated]"
-            result["result"] = str(raw_result)
+            result["result"] = redact_sensitive(str(raw_result))
             result["success"] = True
         except (OSError, RuntimeError, ValueError) as e:
             error_type = ErrorClassifier.classify(e)
-            result["error"] = str(e)[:500]
+            result["error"] = redact_sensitive(str(e)[:500])
             result["error_type"] = error_type.value
             result["recovery_hint"] = ErrorClassifier.get_recovery_hint(e)
-            result["traceback"] = traceback.format_exc()[:1000]
+            result["traceback"] = redact_sensitive(traceback.format_exc()[:1000])
 
         result["execution_time"] = round(time.time() - start_time, 3)
 

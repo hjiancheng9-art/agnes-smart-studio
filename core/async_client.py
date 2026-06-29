@@ -24,6 +24,19 @@ from .config import SETTINGS
 __all__ = ["AsyncCruxClient"]
 
 
+def _sanitize_json(data: Any) -> Any:
+    """Recursively remove surrogate characters from JSON data."""
+    if isinstance(data, str):
+        if not any(0xD800 <= ord(c) <= 0xDFFF for c in data):
+            return data
+        return "".join(c for c in data if not (0xD800 <= ord(c) <= 0xDFFF))
+    if isinstance(data, dict):
+        return {k: _sanitize_json(v) for k, v in data.items()}
+    if isinstance(data, list):
+        return [_sanitize_json(v) for v in data]
+    return data
+
+
 class AsyncCruxClient:
     """CRUX AI API 异步客户端，封装文本/图像/视频三类端点 (asyncio 原生)"""
 
@@ -138,7 +151,7 @@ class AsyncCruxClient:
         body.update(kwargs)
 
         resp = await self._request_with_retry("POST", "/chat/completions", json=body)
-        return resp.json()
+        return _sanitize_json(resp.json())
 
     async def chat_multimodal(
         self,
@@ -198,52 +211,58 @@ class AsyncCruxClient:
             body["tool_choice"] = tool_choice
         body.update(kwargs)
 
-        # 流式不套 _request_with_retry（重试难以处理已建立的流），
-        # 但捕获网络异常并优雅降级，避免静默失败。
-        try:
-            async with self._http.stream(
-                "POST",
-                "/chat/completions",
-                json=body,
-                timeout=httpx.Timeout(timeout, connect=30.0),
-            ) as resp:
-                resp.raise_for_status()
-                async for line in resp.aiter_lines():
-                    if not line or not line.startswith("data:"):
-                        continue
-                    data = line[5:].strip()
-                    if data == "[DONE]":
-                        break
-                    try:
-                        chunk = json.loads(data)
-                    except json.JSONDecodeError:
-                        continue
-                    choices = chunk.get("choices") or []
-                    if not choices:
-                        continue
-                    choice = choices[0]
-                    delta = choice.get("delta", {}) or {}
-                    out = {k: v for k, v in delta.items() if v}
-                    finish = choice.get("finish_reason")
-                    if finish:
-                        out["_finish"] = finish
-                    # 最后一帧通常携带顶层 usage,透传给上层用于计费
-                    usage = chunk.get("usage")
-                    if usage:
-                        out["_usage"] = usage
-                    if out:
-                        yield out
-        except (
-            httpx.ConnectError,
-            httpx.ReadError,
-            httpx.RemoteProtocolError,
-            httpx.PoolTimeout,
-            httpx.TimeoutException,
-        ) as e:
-            # 网络层错误：yield 错误信息让上层优雅降级
-            yield {"content": f"\n[流中断: {type(e).__name__}]", "_finish": "error"}
-        except httpx.HTTPStatusError as e:
-            yield {"content": f"\n[HTTP {e.response.status_code}]", "_finish": "error"}
+        # 流式连接重试（与同步版一致：最多 2 次额外尝试）
+        stream_retries = 2
+        last_stream_error = None
+        for stream_attempt in range(stream_retries + 1):
+            try:
+                async with self._http.stream(
+                    "POST",
+                    "/chat/completions",
+                    json=body,
+                    timeout=httpx.Timeout(timeout, connect=30.0),
+                ) as resp:
+                    resp.raise_for_status()
+                    async for line in resp.aiter_lines():
+                        if not line or not line.startswith("data:"):
+                            continue
+                        data = line[5:].strip()
+                        if data == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(data)
+                        except json.JSONDecodeError:
+                            continue
+                        choices = chunk.get("choices") or []
+                        if not choices:
+                            continue
+                        choice = choices[0]
+                        delta = choice.get("delta", {}) or {}
+                        out = {k: v for k, v in delta.items() if v}
+                        finish = choice.get("finish_reason")
+                        if finish:
+                            out["_finish"] = finish
+                        usage = chunk.get("usage")
+                        if usage:
+                            out["_usage"] = usage
+                        if out:
+                            yield out
+                    return  # 成功完成，不再重试
+            except (
+                httpx.ConnectError,
+                httpx.ReadError,
+                httpx.RemoteProtocolError,
+                httpx.PoolTimeout,
+                httpx.TimeoutException,
+            ) as e:
+                last_stream_error = e
+                if stream_attempt < stream_retries:
+                    await asyncio.sleep(1.0 * (stream_attempt + 1))
+                    continue
+                yield {"content": f"\n[流中断: {type(e).__name__} (retries exhausted)]", "_finish": "error"}
+            except httpx.HTTPStatusError as e:
+                yield {"content": f"\n[HTTP {e.response.status_code}]", "_finish": "error"}
+                return
 
     # ── 图像 ──────────────────────────────────────────────
 

@@ -29,3 +29,8 @@ handoffs:                        # 可交接目标
 | Ask | read-only | 路由(不调模型) | 只读问答 |
 | Explore | read-only | deepseek-v4-pro | 快速探索 |
 | Plan | read-only | 路由(不调模型) | 结构化规划 |
+| Implementer | write | deepseek-v4-pro | 通用兜底，无专属 Agent 时使用 |
+| Implementer-Backend | write | deepseek-v4-pro | 后端：core/CLI/引擎/API |
+| Implementer-Frontend | write | deepseek-v4-pro | 前端：UI/渲染/Mixin |
+| Implementer-Test | write | deepseek-v4-pro | 测试：补齐/修复/边界 |
+| Implementer-Refactor | write | deepseek-v4-pro | 重构：结构优化(+图工具) |

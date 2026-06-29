@@ -39,13 +39,57 @@ class SharedMixin:
     # 延迟构建的 dispatch table
     _dispatch_table: dict | None = None
 
+    # 图片粘贴目录（懒创建，一次）
+    _paste_dir_ready = False
+
+    @staticmethod
+    def _ensure_paste_dir():
+        import os
+        if not SharedMixin._paste_dir_ready:
+            os.makedirs("output/screenshots", exist_ok=True)
+            SharedMixin._paste_dir_ready = True
+
     @classmethod
-    def _prompt_user(cls, label: str) -> str:
-        """支持换行的用户输入。
+    def _paste_image_handler(cls, event) -> bool:
+        """检测剪贴板是否有图片，有则保存并插入路径。返回 True 表示已处理。"""
+        try:
+            from PIL import ImageGrab
+
+            img = ImageGrab.grabclipboard()
+            if img is None:
+                return False
+
+            cls._ensure_paste_dir()
+
+            if isinstance(img, list):
+                # 文件路径列表（Windows 资源管理器复制文件）
+                if not img:
+                    return False
+                text = " ".join(str(p) for p in img)
+            else:
+                # PIL Image 对象 — 保存为 PNG
+                import time
+                ts = int(time.time() * 1000)
+                path = f"output/screenshots/paste_{ts}.png"
+                img.save(path, "PNG")
+                text = path
+
+            event.current_buffer.insert_text(text)
+            return True
+        except Exception:
+            return False
+
+    @classmethod
+    def _prompt_user(cls, label: str, session=None) -> str:
+        """支持换行的用户输入 — Claude Code / Copilot CLI 风格。
 
         Enter → 发送
         Alt+Enter → 换行
         Ctrl+J → 换行
+        Ctrl+V → 智能粘贴（图片自动保存为文件路径，文本正常粘贴）
+        Ctrl+C → 中断
+
+        底部 toolbar 显示键盘提示。
         """
         if cls._prompt_session is None:
             kb = KeyBindings()
@@ -62,9 +106,20 @@ class SharedMixin:
             def ctrl_j_newline(event):
                 event.current_buffer.insert_text("\n")
 
+            @kb.add("c-v")
+            def paste_handler(event):
+                # 图片优先：剪贴板有图片 → 保存为文件并插入路径
+                if cls._paste_image_handler(event):
+                    return
+                # 无图片 → 默认文本粘贴
+                data = event.app.clipboard.get_data()
+                if data:
+                    event.current_buffer.paste_clipboard_data(data)
+
             style = Style.from_dict(
                 {
-                    "prompt": "cyan bold",
+                    "prompt": "#58a6ff bold",
+                    "input": "#e6edf3",
                 }
             )
             cls._prompt_session = PromptSession(
@@ -74,6 +129,28 @@ class SharedMixin:
             )
 
         return cls._prompt_session.prompt([("class:prompt", label)])
+
+    @classmethod
+    async def _prompt_user_async(cls, label: str) -> str:
+        """Async variant: prompt with full blocking wait."""
+        return cls._prompt_user(label)
+
+    @classmethod
+    async def _poll_input_async(cls, label: str, timeout: float = 0.5) -> str | None:
+        """Poll for input with timeout. Returns None if no input within timeout.
+
+        Uses prompt_toolkit's async prompt with a timeout. The user can type
+        while AI is generating; their input is captured and queued.
+        """
+        import asyncio
+        try:
+            result = await asyncio.wait_for(
+                asyncio.to_thread(cls._prompt_user, label),
+                timeout=timeout,
+            )
+            return result
+        except asyncio.TimeoutError:
+            return None
 
     def _ask_rating(self, record: dict, kind: str, prompt: str, data: dict):
         """生成后询问评分，记录偏好用于学习"""
@@ -192,9 +269,11 @@ class SharedMixin:
 
     @staticmethod
     def _mode_hint(session: "ChatSession") -> str:
-        """返回当前模型名 + 冒号，用作输入提示符。
+        """返回提示符文本，用作 prompt_toolkit 输入提示。
 
+        格式: ``model_name › ``  或  ``⚡ model_name › ``（Code 模式）
         prompt_toolkit 不认 Rich markup，返回纯文本。
+        参考 Claude Code 的简洁提示风格。
         """
         model = getattr(session, "model", "") or ""
         try:
@@ -204,7 +283,15 @@ class SharedMixin:
             label = info.name if info and info.name != model else model
         except Exception:
             label = model
-        return f"{label}: "
+
+        # 模式前缀图标（纯 Unicode，兼容 prompt_toolkit）
+        prefix = ""
+        if getattr(session, "code_mode", False):
+            prefix = "⚡ "
+        elif getattr(session, "agent_mode", False):
+            prefix = "◈ "
+
+        return f"{prefix}{label} › "
 
     def _get_dispatch_table(self) -> dict:
         """构建/缓存命令分发表。"""
@@ -234,23 +321,16 @@ class SharedMixin:
         return self._DISPATCH_UNKNOWN
 
     def _prepare_chat_renderer(self, session: "ChatSession", user: str) -> StreamingRenderer:
-        """构造流式渲染器 + 打印 badge 头 + 智能路由。
+        """构造流式渲染器 + 智能路由。
 
         渲染/执行分离（Phase 5）后，本方法是同步/异步两条接入点
         （`_stream_chat` / `_stream_async_chat`）共享的"流开始前"动作：
-        - 构造带默认副作用 handler 的 StreamingRenderer（副作用 handler 来自
-          core.async_render.default_side_effect_handlers，单一来源）。
-        - 打印 badge 头（模式/技能/模型），让用户一眼看到当前上下文。
-        - 智能路由：分析 user 输入，自动切到最优模型/供应商，必要时重打 badge。
+        - 构造带默认副作用 handler 的 StreamingRenderer
+        - 智能路由：分析 user 输入，自动切到最优模型/供应商
 
         返回**已构造但未 start**的 renderer —— start()/stop()/commit() 的生命周期
-        交给调用方（与 _stream_chat / _stream_async_chat 的 try/finally 配套），
-        因为这些动作跨同步/异步路径，无法在本方法内统一收尾。
-
-        渲染契约不变：badge 头在 Live 启动前纯 console.print 落盘，不违反
-        "transient 预览 + 单一落盘点"约束。
+        交给调用方。
         """
-        # 副作用 handler 统一来自 async_render（单一来源，避免 sync/async 两份实现漂移）
         from core.async_render import default_side_effect_handlers
 
         renderer = StreamingRenderer(
@@ -258,21 +338,14 @@ class SharedMixin:
             side_effect_handlers=default_side_effect_handlers(),
         )
 
-        # badge 头：在 transient Live 启动前直接落盘，用户一眼看到当前模式/技能/模型。
-        # 此时无浮层，纯 console.print 不违反渲染契约的单一落地点约束。
-        from ui.badges import print_reply_header, print_route_reason
-
-        print_reply_header(session)
-
         # 智能路由：分析用户输入，自动切到最优模型/供应商
         from core.router import apply, route
 
         decision = route(user, session)
         if decision.profile.value != "skip" and decision.model_id:
             apply(decision, session)
-            # 模型已切换 → 重打 badge 头（反映真实模型）
-            print_reply_header(session)
             if decision.reason:
+                from ui.badges import print_route_reason
                 print_route_reason(decision.reason)
 
         return renderer
@@ -315,10 +388,12 @@ class SharedMixin:
                 on_interrupt=_on_interrupt,
             )
         finally:
-            # 正常完成路径：stop() 擦除预览 + commit() 落盘末尾增量（无增量空操作）。
-            # KeyboardInterrupt 在 raise 前已 stop()，此处再 stop()/commit() 是空安全操作。
             renderer.stop()
             renderer.commit()
+
+        # 回复完成后打印对话分隔线（输入提示前的视觉断点）
+        from ui.badges import print_chat_separator
+        print_chat_separator()
 
     async def _stream_async_chat(self, session, user: str):
         """AsyncChatSession 的流式渲染前端 —— `_stream_chat` 的 async 对应物。

@@ -3,6 +3,7 @@
 import json
 import os
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -165,6 +166,7 @@ class MCPConnector:
                 stderr=subprocess.PIPE,
                 text=True,
                 env=proc_env,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
             )
             self._connections[server_name] = proc
             return True

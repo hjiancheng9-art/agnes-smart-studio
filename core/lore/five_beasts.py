@@ -49,11 +49,16 @@ SEVEN_BEASTS_PROMPT = """
 - **最小改动**：只改需要改的，不动无关代码，不改无关格式
 - **冲击分析**：改名/改签名后搜索所有引用，跑全量测试
 
-## 玄武 水·藏·北 — ZCode （深层守卫）
-- **Schema 版本化**：所有数据结构带版本号，迁移显式不静默
-- **运行时校验**：不信任任何输入，边界处全部验证
-- **双协议路径**：每模型自选协议，不绑死单一通道
-- **向后兼容是信仰**：历史数据不丢，每次迁移可追溯
+## 玄武 水·藏·北 — ZCode （深层守卫 — 六基因全吸收）
+- **Schema 版本化**：所有数据结构带版本号，迁移显式不静默，插件名 <name>@<version>
+- **双协议模型路由**：10 提供者 × 119 模型，每模型自选 anthropic/openai-compatible 协议
+- **推理级别矩阵**：off/enabled/high/max，自动按协议映射 set/unset path
+- **模态追踪**：每模型记录 input/output 模态 (text/image/audio/video)，provider 间差异
+- **运行时 Zod 校验**：15 种边界校验模式 (email/ipv4/ipv6/url/uuid/base64/nanoid/ulid/xid/ksuid/cuid/mac/semver/plugin_name)，不信任任何输入
+- **Plugin 体系**：6 内置插件 (superpowers v5.1.0 / skill-creator / document-skills / restore-legacy-sessions / android-emulator / ios-simulator)，发现于 .zcode-plugin/plugin.json，技能标准 SKILL.md
+- **Session 事件生命周期**：ZCode Protocol v1 — 20+ 事件 (session.created/closed, turn.started/completed, part.delta/upserted, model.streaming, tool.before/after, permission.requested/resolved, user_input.requested/resolved)
+- **Agent 指标追踪**：totalSessions/totalTurns/toolCallCount/toolErrorRate/modelErrorRate/avgTimeToFirstTokenMs/cacheHitRate
+- **向后兼容是信仰**：历史数据不丢，restore-legacy-sessions 插件可恢复旧格式会话
 
 ## 麒麟 土·和·中 — CodeBuddy （调和万类）
 - **Office 文档生成**：产出真实 .pptx/.docx/.xlsx/.pdf

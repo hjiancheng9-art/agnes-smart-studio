@@ -78,12 +78,14 @@ class StreamingRenderer:
         self._buf = ""
         self._flushed_len = 0  # 已固化到屏幕的 buf 前缀长度
         self._render_counter = 0
+        self._last_para_check = 0  # char offset of last paragraph boundary check
 
     # ── 生命周期 ──────────────────────────────────────────────
 
     def start(self) -> StreamingRenderer:
         self._live = self._new_live("")
         self._live.start()
+        self._last_para_check = len(self._buf)  # reset paragraph tracker
         return self
 
     def stop(self) -> None:
@@ -103,14 +105,23 @@ class StreamingRenderer:
     # ── 核心操作 ──────────────────────────────────────────────
 
     def append_text(self, chunk: str) -> None:
-        """累积一段文本增量并节流刷新 transient 预览（不落盘）。"""
+        """累积文本增量，在段落边界或节流时刷新预览。
+
+        遇到 \\n\\n（Markdown 段落分隔）时立即刷新，让长文本按自然段落节奏输出，
+        不再等全篇写完才渲染。
+        """
         if not chunk:
             return
         self._buf += chunk
         self._render_counter += 1
-        if self._render_counter >= self.RENDER_EVERY_N and self._live is not None:
+        # 刷新条件：节流计数 或 段落边界（双换行）
+        new_text = self._buf[self._last_para_check:]
+        hit_para = "\n\n" in new_text
+        if (self._render_counter >= self.RENDER_EVERY_N or hit_para) and self._live is not None:
             self._live.update(Markdown(self._buf))
             self._render_counter = 0
+            if hit_para:
+                self._last_para_check = len(self._buf)
 
     def commit(self) -> None:
         """单一落盘点：把尚未固化的尾部 buf 打印一次（每个字符只打印一遍）。

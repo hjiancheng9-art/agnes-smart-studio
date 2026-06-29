@@ -204,10 +204,10 @@ class MultiAgentCoordinator:
                     try:
                         r = self.execute_tool(step["tool"], step["args"])
                         results.append(r[:200])
-                    except (OSError, ValueError, RuntimeError) as e:
+                    except Exception as e:
                         with self._lock:
                             task.status = "failed"
-                            task.result = f"Failed at step {step['tool']}: {e}"
+                            task.result = f"Failed at step {step['tool']}: {type(e).__name__}: {e}"
                             task.finished_at = time.time()
                         break
                 else:
@@ -237,9 +237,9 @@ class MultiAgentCoordinator:
         """Break a goal into agent-sized tasks with dependencies.
 
         实现已下沉到模块级 ``_decompose_goal``，同步/asyncio 两版共用同一份
-        分解逻辑，避免漂移。
+        分解逻辑，避免漂移。若 coordinator 有 model_router，传递给分解器以选最优模型。
         """
-        return _decompose_goal(goal)
+        return _decompose_goal(goal, model_router=self.model_router)
 
     def execute(self, goal: str) -> dict:
         """Full execution: spawn -> decompose -> dispatch -> aggregate."""
@@ -254,14 +254,16 @@ class MultiAgentCoordinator:
 
         # Simple round-robin dispatch (parallel via threading)
         threads = []
+        with self._lock:
+            for task in self.tasks:
+                agent = next((a for a in self.agents if a.status == "idle"), None)
+                if not agent:
+                    # All busy, assign to first
+                    agent = self.agents[0]
+                task.assigned_to = agent.id
+                agent.status = "busy"
+                agent.current_task = task.id
         for task in self.tasks:
-            agent = next((a for a in self.agents if a.status == "idle"), None)
-            if not agent:
-                # All busy, assign to first
-                agent = self.agents[0]
-            task.assigned_to = agent.id
-            agent.status = "busy"
-            agent.current_task = task.id
             t = threading.Thread(target=self._execute_task, args=(task,), daemon=True)
             threads.append(t)
             t.start()
@@ -333,7 +335,7 @@ class MultiAgentCoordinator:
                 # execute_tool 是外部 I/O，不持锁（避免长任务阻塞主线程的锁内读）
                 r = self.execute_tool(step["tool"], step_args)
                 results.append(r[:200])
-            except (OSError, ValueError, RuntimeError) as e:
+            except Exception as e:
                 with self._lock:
                     task.status = "failed"
                     task.result = str(e)
@@ -512,7 +514,7 @@ class AsyncMultiAgentCoordinator:
                         step_args["model"] = resolved_model
                     r = await self._call_tool(step["tool"], step_args)
                     results.append(str(r)[:200])
-                except (OSError, ValueError, RuntimeError) as e:
+                except Exception as e:
                     task.status = "failed"
                     task.result = str(e)
                     await self._log_append({"event": "task_failed", "task": task.id, "error": str(e)})
@@ -572,9 +574,10 @@ class SmartDecomposer:
         # → 4-5 个带角色和 tier 的 AgentTask
     """
 
-    def __init__(self, client=None, model: str | None = None) -> None:
+    def __init__(self, client=None, model: str | None = None, model_router=None) -> None:
         self._client = client
         self._model = model
+        self._model_router = model_router
 
     def decompose(self, goal: str, tool_names: list[str] | None = None) -> list[AgentTask]:
         """Smart decompose with LLM, fallback to keyword matching."""
@@ -585,8 +588,33 @@ class SmartDecomposer:
             return _keyword_decompose(goal)
 
     def _llm_decompose(self, goal: str, tool_names: list[str] | None = None) -> list[AgentTask]:
-        """Use LLM to decompose the goal into structured tasks."""
+        """Use LLM to decompose the goal into structured tasks.
+
+        Model tier adapts to goal complexity: simple goals use light model,
+        complex architecture/planning use heavy. Saves cost on routine tasks.
+
+        Results are cached — repeated calls with the same goal skip the LLM.
+        """
+        # ── Check cache first ──
+        from core.agent_cache import get_cache
+        cache = get_cache()
+        cached = cache.get_decomposition(goal, "decompose")
+        if cached is not None:
+            return cached
+
         prompt = _SMART_DECOMPOSE_PROMPT.format(goal=goal)
+
+        # Resolve model via router: match tier to goal complexity
+        model = self._model
+        if not model and self._model_router:
+            # Classify goal first → light goals don't need heavy-tier decomposition
+            goal_tier = self._model_router.classify_prompt(goal)
+            if goal_tier == "light":
+                model = self._model_router.select(task_type="search")  # light tier
+            elif goal_tier == "reasoner":
+                model = self._model_router.select(task_type="planning")  # heavy tier
+            else:
+                model = self._model_router.select(task_type="tool_calling")  # pro tier
 
         # Try via CruxClient if available, otherwise via raw chat
         raw = ""
@@ -594,7 +622,9 @@ class SmartDecomposer:
             from core.client import CruxClient
 
             client = self._client or CruxClient()
-            raw = client.chat(prompt)
+            chat_model = model or "deepseek-v4-pro"
+            resp = client.chat(chat_model, messages=[{"role": "user", "content": prompt}])
+            raw = resp.get("choices", [{}])[0].get("message", {}).get("content", "") if isinstance(resp, dict) else str(resp)
         except ImportError:
             # Last resort: try via run_bash calling a simple script
             raise RuntimeError("No LLM client available for SmartDecomposer")
@@ -625,17 +655,21 @@ class SmartDecomposer:
         if len(independent) < 2 and len(tasks) >= 2:
             tasks[1].depends_on = []
 
-        return tasks if tasks else _keyword_decompose(goal)
+        result = tasks if tasks else _keyword_decompose(goal)
+        # Cache successful decompositions
+        if tasks:
+            cache.set_decomposition(goal, "decompose", result)
+        return result
 
 
-def _decompose_goal(goal: str) -> list[AgentTask]:
+def _decompose_goal(goal: str, model_router=None) -> list[AgentTask]:
     """任务分解入口：优先智能分解，失败退回关键词匹配。
 
     所有调用方（MultiAgentCoordinator / AsyncMultiAgentCoordinator）通过
     此函数获得统一的行为，不需要关心内部是 LLM 还是关键词。
     """
     try:
-        decomposer = SmartDecomposer()
+        decomposer = SmartDecomposer(model_router=model_router)
         return decomposer.decompose(goal)
     except Exception:
         return _keyword_decompose(goal)
@@ -829,7 +863,10 @@ class AgentSwarm:
         results: dict[str, str] = {}
 
         def _work(item: str):
-            sem.acquire()
+            if not sem.acquire(timeout=300):
+                with self._lock:
+                    results[item] = "error: semaphore timeout"
+                return
             try:
                 goal = template.replace("{{item}}", item)
                 agent_id = f"swarm_{uuid.uuid4().hex[:8]}"
@@ -845,9 +882,9 @@ class AgentSwarm:
                         f"done={r['tasks_done']}/{r['tasks_total']} failed={r['tasks_failed']}"
                         f" elapsed={r['elapsed']}s"
                     )
-            except (OSError, ValueError, RuntimeError) as e:
+            except Exception as e:
                 with self._lock:
-                    results[item] = f"error: {e}"
+                    results[item] = f"error: {type(e).__name__}: {e}"
             finally:
                 sem.release()
 
@@ -933,7 +970,10 @@ def _exec_agent_swarm(**kwargs) -> str:
             return registry.execute(tool, args)
         return f"[agent_swarm] 工具 {tool} 不可用"
 
-    swarm = AgentSwarm(tool_executor=_exec)
+    swarm = AgentSwarm(
+        tool_executor=_exec,
+        model_router=getattr(registry, "model_router", None),
+    )
     results = swarm.dispatch(
         template=kwargs["template"],
         items=kwargs["items"],

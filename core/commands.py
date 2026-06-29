@@ -58,17 +58,38 @@ COMMANDS: list[CommandDef] = [
         "showrun",
         "/showrun",
         "<目标>",
-        "CRUX 总导演全自动创意流水线",
+        "Showrunner 全自动视频流水线（故事板→关键帧→动画→合成→音频）",
         "创意生产",
         "全自动：理解创意→拆解资产→分镜→生成→质检→导出",
         handler="_chat_showrun",
     ),
-    CommandDef("video", "/video", "<描述>", "直接生成视频（支持图生视频）", "创意生产", handler="_chat_video_inline"),
-    CommandDef("img", "/img", "<描述>", "生成图片（带 Prompt 增强）", "创意生产", handler="_chat_img_inline"),
-    CommandDef("vision", "/vision", "<图> <问>", "图片理解（独立视觉通道，始终可用）", "创意生产"),
+    CommandDef(
+        "comfy",
+        "/comfy",
+        "<cmd>",
+        "ComfyUI 工作流管理 (list/run/status/connect)",
+        "创意生产",
+        "远程/本地 ComfyUI 节点式生成，list=查看工作流，run=执行，status=状态",
+        handler="_chat_comfy",
+    ),
+    CommandDef(
+        "agnes",
+        "/agnes",
+        "<模式>",
+        "Agnes 多模态生成 (t2i/i2i/t2v/i2v/pipeline)",
+        "创意生产",
+        "文生图/图生图/文生视频/图生视频/一键流水线，可选尺寸和时长",
+        handler="_chat_agnes",
+    ),
+    CommandDef("video", "/video", "<描述>", "快速生成视频（支持图生视频，可 --size --duration）", "创意生产", handler="_chat_video_inline"),
+    CommandDef("img", "/img", "<描述>", "快速生成图片（支持图生图，可 --size）", "创意生产", handler="_chat_img_inline"),
+    CommandDef("vision", "/vision", "<图> <问>", "图片理解（智谱 GLM-4V-Flash 主视觉）", "创意生产"),
     # ── 对话 ──
     CommandDef(
         "help", "/help", "", "显示本帮助（/help /all 完整列表）", "对话", aliases=("all",), handler="_chat_help_inline"
+    ),
+    CommandDef(
+        "vote", "/vote", "on|off", "多模型表决开关（复杂问题自动并行咨询多个AI）", "对话", handler="_chat_vote_toggle"
     ),
     CommandDef(
         "model",

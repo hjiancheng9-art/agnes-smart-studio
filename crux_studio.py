@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """CRUX Studio main entry point"""
 
+import asyncio
 import sys
 from pathlib import Path
 
@@ -124,15 +125,6 @@ def main():
     )
     args = p.parse_args()
 
-    # ── 显示启动 Logo v2 ──
-    try:
-        from core.version import __version__
-        from ui.terminal_logo import render_welcome
-
-        render_welcome(v=f"v{__version__}")
-    except (ImportError, AttributeError, OSError):
-        pass
-
     # ── 健康检查 ──
     if args.check:
         from core.startup_checks import print_report, run_all
@@ -181,7 +173,7 @@ def main():
         try:
             with CruxCLI() as cli:
                 try:
-                    cli._chat()
+                    asyncio.run(cli._chat())
                 except (OSError, RuntimeError, ValueError, ImportError):
                     import traceback
 
@@ -222,7 +214,7 @@ def main():
         try:
             with CruxCLI() as cli:
                 try:
-                    cli._chat()
+                    asyncio.run(cli._chat())
                 except (OSError, RuntimeError, ValueError, ImportError):
                     import traceback
 
@@ -288,7 +280,7 @@ def _quick(args):
     from core.client import ContentPolicyError, CruxClient
     from engines.text_to_image import TextToImageEngine
     from engines.video import VideoEngine
-    from pipeline.workflows import PipelineOrchestrator
+    from engines.pipeline.workflows import PipelineOrchestrator
     from ui.display import show_image_result, show_info, show_pipeline_result, show_video_result, show_warning
     from utils import history
 

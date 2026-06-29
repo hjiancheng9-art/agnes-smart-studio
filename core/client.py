@@ -58,6 +58,7 @@ class CruxClient:
             base_url=self.base_url,
             headers={"Authorization": f"Bearer {self.api_key}"},
             timeout=httpx.Timeout(timeout, connect=30.0),
+            proxy=None,  # 显式绕过系统代理（如 Astar/Clash），避免间歇性 503
         )
 
     def _request_with_retry(self, method: str, url: str, **kwargs) -> httpx.Response:

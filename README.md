@@ -1,57 +1,148 @@
-# CRUX Studio
+# CRUX Studio v5.0
 
-基于 CRUX AI 的智能图片/视频生成工具。
+七兽融合的 AI 开发工作室 — 代码 / 图像 / 视频 / 多智能体。
 
-## 安装
+> 白虎为骨(容灾) · 青龙为脉(并行) · 朱雀为眼(洞察)  
+> 玄武为甲(守卫) · 麒麟为手(生成) · 螣蛇为忆(记忆) · 应龙为令(号令)
+
+---
+
+## 五分钟上手
+
+### 1. 安装
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env  # 填入 API Key
+cp .env.example .env   # 填入你的 API Key
 ```
 
-## 快速启动
-
-### 方式一：启动器（推荐）
-
-双击 `launch.bat`（Windows）或运行 `./launch.sh`（macOS/Linux），自动检测环境并进入模式选择菜单。
+### 2. 启动
 
 ```bash
-# Windows
-launch.bat
-
-# macOS / Linux
-./launch.sh
-
-# 也可以直接传参
-launch.bat -q "一只猫"
-./launch.sh -q "海边" -v
+python crux.py          # 交互模式
+python crux.py -q "你的问题"  # 快速模式
 ```
 
-### 方式二：Python 启动器
+### 3. 常用命令
+
+| 命令 | 用途 |
+|------|------|
+| `/help` | 查看所有命令 |
+| `/skill list` | 列出可用技能 |
+| `/model` | 切换/查看模型 |
+| `/img` 描述 | 生成图片 |
+| `/video` 描述 | 生成视频 |
+| `/git commit` | 提交代码 |
+| `/todo` | 任务追踪 |
+| `/plan` | 多步规划执行 |
+| `/audit` | 代码审查 |
+| `/self heal` | 系统自检修复 |
+
+### 4. 权限模式
+
+```
+/yolo    → 所有工具直接执行（信任模式）
+/auto    → 高危工具需确认（默认）
+/manual  → 所有写入操作需确认（安全模式）
+```
+
+### 5. 七兽快速索引
+
+```
+/白虎    → 查看容灾自愈状态
+/青龙    → 查看并行任务
+/朱雀    → 代码审查
+/玄武    → 安全规则
+/麒麟    → 文档生成
+/螣蛇    → 用户记忆
+/应龙    → 目标管理
+```
+
+---
+
+## 核心架构
+
+```
+crux/                    # 入口
+├── core/                # 核心引擎
+│   ├── agent.py         # 智能体/规划器
+│   ├── event_bus.py     # 事件中枢（ZCode 协议）
+│   ├── plugin_system.py # 插件体系
+│   ├── session_mgr.py   # 会话管理
+│   ├── skill_loader.py  # 技能系统
+│   ├── model_routing.py # 模型路由（10 供应商 77 模型）
+│   ├── resilience.py    # 熔断/自愈/审计日志
+│   ├── sandbox.py       # 安全沙箱
+│   ├── permission.py    # 三级权限管理
+│   ├── lore/            # 七兽 DNA
+│   │   ├── crux_dna.py  # 白虎·容灾
+│   │   ├── codex_dna.py # 青龙·并行
+│   │   ├── claude_dna.py# 朱雀·洞察
+│   │   ├── zcode_dna.py # 玄武·守卫（ZCode 吸收）
+│   │   ├── codebuddy_dna.py # 麒麟·生成
+│   │   ├── tengshe_dna.py   # 螣蛇·记忆
+│   │   ├── yinglong_dna.py  # 应龙·号令
+│   │   └── five_beasts.py   # 五兽总览
+│   ├── ... (30+ 模块)
+├── ui/                  # 终端 UI
+├── skills_md/           # 技能目录（渐进披露）
+├── output/              # 输出 / 日志
+│   └── plugins/         # 插件目录
+│       ├── superpowers/            # 快捷键 + 超级模式
+│       ├── skill-creator/          # 运行时创建技能
+│       └── restore-legacy-sessions/ # 旧会话迁移
+└── tests/               # ~203 测试
+    ├── test_e2e.py      # 端到端冒烟测试
+    └── ... (30+ 测试文件)
+```
+
+---
+
+## 核心能力
+
+| 类别 | 能力 | 说明 |
+|------|------|------|
+| 🎨 图像 | 文生图 · 图生图 · 批量变种 · AI 裁判 | ComfyUI + API |
+| 🎬 视频 | 文生视频 · 图生视频 · 流水线 · 关键帧 | ComfyUI 管线 |
+| 💻 编程 | 代码生成/修改 · Bug 修复 · 审查 · 重构 | 多智能体 |
+| 🔧 插件 | 插件发现/加载/卸载 · 技能创作 | ZCode 兼容 |
+| 🤖 模型 | 10 供应商 77 模型 · 自动故障切换 | 双协议路由 |
+| 🛡️ 安全 | 三级权限 · 沙箱 · 日志脱敏 · 熔断器 | 5 层自愈 |
+| 📊 Git | 全工作流 · GitHub API · PR 管理 | 一站式 |
+| 🧠 记忆 | 跨会话用户画像 · 技能匹配 | 渐进披露 |
+| 🌐 工具 | 77 工具 · MCP 协议 · 代码知识图谱 | 可扩展 |
+
+---
+
+## 独特价值
+
+- **七兽融合**：不是装饰，每个兽有对应的代码 DNA 和实践
+- **ComfyUI 管线**：对话中直接编排生图/视频工作流
+- **MCP 协议桥**：连接外部 MCP 服务器扩展能力
+- **5 层自愈**：熔断器 → 指数退避 → 自动回滚 → 供应商切换 → 检查点恢复
+- **ZCode 全吸收**：模型路由 + 插件体系 + 事件生命周期 + 技能系统
+- **技能市场**：67 已安装 + 735 可用技能
+
+---
+
+## 状态自检
 
 ```bash
-python launcher.py       # 图形化菜单 + 环境检测
+python -m pytest tests/ --tb=short -q    # 运行测试
+python -m pytest tests/test_e2e.py -v    # 端到端冒烟
 ```
 
-### 方式三：命令行直接使用
+评分（自检）：**8.4/10** — 接近生产级，主要短板在安全/测试/文档。
 
-```bash
-# 交互模式
-crux
-
-# 快速模式
-crux gen "一只猫"               # 文生图
-crux video "海边"               # 文生视频
-crux pipeline "城市"            # 一站式流水线（文本→图片→视频）
-
-# 异步模式（避免IDE超时）
-crux gen "日落" -v --submit-only   # 仅提交，返回 video_id
-crux query VIDEO_ID               # 查询任务状态（⚠ 必须用 video_id）
-crux query VIDEO_ID --timeout 60  # 查询并限时等待
-
-# 测试
-python test_advanced.py              # 运行全部快速测试
-python test_advanced.py i2v         # 图生视频（submit-only）
-python test_advanced.py i2v-wait    # 图生视频（限时等待）
-python test_advanced.py check ID    # 查询视频任务
 ```
+架构  🟢  9/10  代码  🟡  8/10  测试  🟡  8/10
+工具  🟢  9/10  自愈  🟢  9/10  UX    🟡  8/10
+文档  🟡  8/10  安全  🟠  7/10  特性  🟢  9/10
+性能  🟢  9/10
+```
+
+---
+
+## 许可证
+
+MIT

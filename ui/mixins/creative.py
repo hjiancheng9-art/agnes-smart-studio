@@ -51,8 +51,13 @@ class CreativeCommandsMixin:
         # 把目标作为用户消息送入会话，触发 AI 总导演编排
         self._stream_chat(session, f"目标：{arg}\n请作为总导演规划并执行完整创意流水线。")
 
-    def _chat_generate(self, session: "ChatSession", kind: str, prompt: str):
-        """命令式生成：增强 + 引擎，支持自动检测图片路径做图生图/图生视频"""
+    def _chat_generate(self, session: "ChatSession", kind: str, prompt: str, flags: dict | None = None):
+        """命令式生成：增强 + 引擎，支持自动检测图片路径做图生图/图生视频
+
+        Optional flags: --size WxH, --duration Ns, --system name
+        """
+        if flags is None:
+            flags = {}
         if not prompt:
             prompt = Prompt.ask("[cyan]描述[/]").strip()
             if not prompt:
@@ -65,13 +70,18 @@ class CreativeCommandsMixin:
         if not final_prompt:
             final_prompt = prompt
 
+        # Apply system flag: prepend style tag to prompt
+        system = flags.get("system", "")
+        if system:
+            final_prompt = f"[{system}] {final_prompt}"
+
         try:
             if kind == "image":
                 show_info("优化图片提示词...")
                 r = session.brain.enhance_image_prompt(final_prompt)
                 fp = r.get("optimized_prompt", final_prompt)
                 neg = r.get("negative_prompt", "") or None
-                size = "1024x768"
+                size = flags.get("size", "1024x768")
 
                 if has_image:
                     url = image_input.load_image_as_url_or_data(img_path)
@@ -90,8 +100,28 @@ class CreativeCommandsMixin:
                 r = session.brain.enhance_video_prompt(final_prompt)
                 fp = r.get("optimized_prompt", final_prompt)
                 neg = r.get("negative_prompt", "") or None
-                w = SETTINGS.default_video_width
-                h = SETTINGS.default_video_height
+                # Parse --size and --duration flags for video
+                size_flag = flags.get("size", "")
+                if size_flag and "x" in size_flag:
+                    try:
+                        w_str, h_str = size_flag.split("x")
+                        w, h = int(w_str), int(h_str)
+                    except (ValueError, AttributeError):
+                        w = SETTINGS.default_video_width
+                        h = SETTINGS.default_video_height
+                else:
+                    w = SETTINGS.default_video_width
+                    h = SETTINGS.default_video_height
+                dur_flag = flags.get("duration", "")
+                if dur_flag:
+                    try:
+                        nf = int(float(dur_flag.rstrip("s")) * 24)  # seconds → frames at 24fps
+                        nf = ((nf - 1) // 8) * 8 + 1  # normalize to 8n+1
+                        nf = max(81, min(401, nf))
+                    except (ValueError, TypeError):
+                        nf = 121
+                else:
+                    nf = 121
 
                 show_info("Generating video (may take several minutes)...")
                 with Progress(
@@ -113,13 +143,15 @@ class CreativeCommandsMixin:
                             image_url=url,
                             width=w,
                             height=h,
+                            num_frames=nf,
                             negative_prompt=neg,
                             on_progress=on_p,
                             timeout=120.0,
                         )
                     else:
                         data = session.vid.text_to_video(
-                            prompt=fp, width=w, height=h, negative_prompt=neg, on_progress=on_p, timeout=120.0
+                            prompt=fp, width=w, height=h, num_frames=nf,
+                            negative_prompt=neg, on_progress=on_p, timeout=120.0
                         )
 
                 if data.get("status") == "timeout":
@@ -129,13 +161,17 @@ class CreativeCommandsMixin:
                 record_type = "image_to_video" if has_image else "text_to_video"
                 history.add_record(record_type, final_prompt, "agnes-video-v2.0", data)
 
-        except (RuntimeError, OSError, ValueError, KeyError) as e:
-            show_error(str(e))
+        except Exception as e:
+            import httpx
+            if isinstance(e, httpx.HTTPStatusError):
+                show_error(f"API 错误 (HTTP {e.response.status_code})，请稍后重试")
+            else:
+                show_error(f"{type(e).__name__}: {e}")
 
     def _chat_vision(self, session: "ChatSession", arg: str):
         """图片理解：始终使用独立视觉客户端（CRUX light），与主模型供应商解耦"""
         path, question = self._extract_path_and_text(arg)
-        img_exts = (".png", ".jpg", ".jpeg", ".webp", ".gif")
+        img_exts = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")
         if not path.lower().endswith(img_exts) and not path.startswith(("http://", "https://")):
             path = Prompt.ask("[cyan]图片路径/URL[/]").strip()
             question = Prompt.ask("[cyan]问什么[/]", default="描述这张图片").strip()
@@ -144,26 +180,48 @@ class CreativeCommandsMixin:
         try:
             url = image_input.load_image_as_url_or_data(path)
             show_info("理解图片中...")
-            # Provider-aware vision client: zhipu models use zhipu endpoint
-            vc = session.vision_client
-            if session.vision_model.startswith("glm-"):
+            # Try Zhipu first (free, capable), fallback to Agnes on content rejection
+            content = None
+            for attempt in ("zhipu", "agnes"):
+                if attempt == "zhipu":
+                    vc = session.vision_client
+                    vision_model = session.vision_model
+                    if vision_model.lower().startswith("glm-"):
+                        try:
+                            from core.provider import get_provider_manager
+                            vc = get_provider_manager().create_client("zhipu")
+                        except (ImportError, RuntimeError):
+                            pass
+                else:
+                    vc = session.vision_client  # CRUX endpoint
+                    vision_model = "agnes-1.5-flash"
                 try:
-                    from core.provider import get_provider_manager
-                    vc = get_provider_manager().create_client("zhipu")
-                except (ImportError, RuntimeError):
-                    pass
-            r = vc.chat_multimodal(
-                text=question,
-                image_url=url,
-                model=session.vision_model,
-                temperature=0.3,
-                max_tokens=1024,
-            )
-            content = r["choices"][0]["message"]["content"] or ""
+                    r = vc.chat_multimodal(
+                        text=question, image_url=url, model=vision_model, temperature=0.3, max_tokens=1024
+                    )
+                    raw = r["choices"][0]["message"]["content"] or ""
+                    # Detect Zhipu content rejection
+                    rejected = any(phrase in raw for phrase in (
+                        "超出", "能力范围", "建议您尝试其他", "无法", "不支持",
+                    ))
+                    if rejected and attempt == "zhipu":
+                        continue  # 智谱内容审核拒绝 → 降级到 Agnes
+                    content = raw
+                    break
+                except (RuntimeError, OSError, ValueError, KeyError, IndexError):
+                    if attempt == "zhipu":
+                        continue
+                    raise
+            if content is None:
+                content = "(视觉模型均不可用，请稍后重试)"
         except (KeyError, IndexError):
             content = "(多模态返回格式异常)"
-        except (RuntimeError, OSError, ValueError) as e:
-            show_error(str(e))
+        except Exception as e:
+            import httpx
+            if isinstance(e, httpx.HTTPStatusError):
+                show_error(f"视觉 API 错误 (HTTP {e.response.status_code})，请检查网络或切换供应商")
+            else:
+                show_error(f"图片理解失败: {type(e).__name__}: {e}")
             return
         console.print(
             Panel(Markdown(content), title=f"[{COLORS['success']}]图片理解[/]", border_style=COLORS["success"])

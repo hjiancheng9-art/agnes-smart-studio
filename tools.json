@@ -1244,14 +1244,14 @@
       "name": "view_image",
       "type": "python",
       "description": "Open image with system default viewer. Supports PNG, JPG, GIF, WebP, SVG.",
-      "function": "tools._view_image",
+      "function": "ui.display._view_image",
       "parameters": {"path": {"type": "string", "description": "Path to image file", "required": true}}
     },
     {
       "name": "update_plan",
       "type": "python",
       "description": "Update the current execution plan mid-task — add, remove, modify, or insert a step.",
-      "function": "tools._update_plan",
+      "function": "ui.display._update_plan",
       "parameters": {
         "action": {"type": "string", "description": "add | remove | modify | insert", "required": true},
         "step_id": {"type": "integer", "description": "Step index (0-based)", "required": false},
@@ -1265,14 +1265,14 @@
       "name": "tool_search",
       "type": "python",
       "description": "Search available tools by keyword. Returns matching tool names and descriptions.",
-      "function": "tools._tool_search",
+      "function": "ui.display._tool_search",
       "parameters": {"query": {"type": "string", "description": "Keyword to search", "required": true}}
     },
     {
       "name": "request_user_input",
       "type": "python",
       "description": "Pause and ask the user a question. Returns the user's text response.",
-      "function": "tools._request_user_input",
+      "function": "ui.display._request_user_input",
       "parameters": {"question": {"type": "string", "description": "Question to ask", "required": true}}
     },
     {

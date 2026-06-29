@@ -1,374 +1,268 @@
-"""Kimi Bridge MCP Server — CRUX ↔ Kimi CLI 桥接。
+"""Kimi Bridge MCP Server v2 — CRUX <-> Kimi CLI bridge.
 
-将 Kimi CLI 包装为 MCP stdio 服务器，让 CRUX 可以：
-- kimi_explore  — 委托代码探索（只读：Glob/Grep/ReadFile）
-- kimi_think   — 委托深度分析（架构审查/方案设计）
-- kimi_code    — 委托代码实现（完整读写能力）
-
-架构：
-    CRUX → MCP Client → kimi_bridge.py (stdio) → kimi CLI subprocess
-                                                      ↓
-                                              --agent-file 控制权限
-
-Agent 文件:
-    kimi_explore → read-only agent (排除 WriteFile/StrReplaceFile/Shell)
-    kimi_code    → default agent (完整工具集)
-
-通信:
-    JSON-RPC 2.0 over stdin/stdout (newline-delimited)
-    工具调用 → 构造 kimi prompt → 等待子进程完成 → 返回结果
-
-参考:
-    - claude-code-kimi-agent (zcyyyds-test) — agent YAML 权限控制
-    - kimi-plugin-cross-platform (luhfilho) — 多宿主适配器模式
+Wraps Kimi CLI as an MCP stdio server. Provides:
+- kimi_exec    — Delegate task execution to Kimi
+- kimi_review  — Code review via Kimi  
+- kimi_login   — Refresh Kimi authentication
 """
 
-import json
-import os
-import shutil
-import subprocess
-import sys
-import tempfile
-import time
+import json, os, shutil, subprocess, sys, time
 from pathlib import Path
 
-__all__ = ["KimiBridgeServer", "run_kimi_bridge"]
+# ── Constants ──────────────────────────────────────────────────
 
-# ── 常量 ───────────────────────────────────────────────────────
+KIMI_BINARY = shutil.which("kimi") or os.path.expanduser(
+    "~/.kimi-code/bin/kimi.EXE"
+)
 
-KIMI_BINARY = shutil.which("kimi") or os.path.expanduser("~/.kimi-code/bin/kimi.EXE") or os.path.expanduser("~/.kimi-code/bin/kimi")
-AGENTS_DIR = Path(__file__).resolve().parent / "kimi_agents"
-AGENTS_DIR.mkdir(parents=True, exist_ok=True)
+JSONRPC_VERSION = "2.0"
 
-# Agent 定义：只读探索模式
-READONLY_AGENT_YAML = """version: 1
-agent:
-  name: crux-explore
-  description: Read-only code exploration agent for CRUX Studio
-  extend: default
-  exclude_tools:
-    - "kimi_cli.tools.file:WriteFile"
-    - "kimi_cli.tools.file:StrReplaceFile"
-    - "kimi_cli.tools.shell:Shell"
-"""
-
-# Agent 定义：完整代码实现模式
-FULL_AGENT_YAML = """version: 1
-agent:
-  name: crux-code
-  description: Full code implementation agent for CRUX Studio
-  extend: default
-"""
-
-MCP_PROTOCOL_VERSION = "2024-11-05"
 ERR_PARSE = -32700
-ERR_INVALID_REQUEST = -32600
 ERR_METHOD_NOT_FOUND = -32601
 ERR_INVALID_PARAMS = -32602
 ERR_INTERNAL = -32603
 
-# 工具定义
+# ── Tool Definitions ───────────────────────────────────────────
+
 TOOL_DEFS = [
     {
-        "name": "kimi_explore",
-        "description": "委托 Kimi 做只读代码探索：读文件、搜索、Glob。不进写操作，安全可并行。适合定位 bug/理解代码结构。",
+        "name": "kimi_exec",
+        "description": (
+            "Execute a task using Kimi CLI. Suitable for code generation, "
+            "explanation, debugging, refactoring, and general coding tasks."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
-                "prompt": {"type": "string", "description": "探索任务描述（中文/英文均可）"},
-                "work_dir": {"type": "string", "description": "工作目录（默认当前项目根）"},
-                "timeout": {"type": "integer", "description": "超时秒数（默认 120）", "default": 120},
+                "prompt": {"type": "string", "description": "Task description for Kimi"},
+                "work_dir": {"type": "string", "description": "Working directory"},
+                "timeout": {"type": "integer", "description": "Timeout in seconds (default: 180)"},
             },
             "required": ["prompt"],
         },
     },
     {
-        "name": "kimi_think",
-        "description": "委托 Kimi 做深度分析：架构审查、方案设计、代码审查。不触碰文件系统。",
+        "name": "kimi_review",
+        "description": "Code review via Kimi CLI.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "prompt": {"type": "string", "description": "分析任务描述"},
-                "model": {"type": "string", "description": "模型别名（默认 default）"},
-                "timeout": {"type": "integer", "description": "超时秒数（默认 300）", "default": 300},
+                "target": {"type": "string", "description": "File/directory to review"},
+                "work_dir": {"type": "string", "description": "Working directory"},
+                "timeout": {"type": "integer", "description": "Timeout in seconds (default: 180)"},
             },
-            "required": ["prompt"],
-        },
-    },
-    {
-        "name": "kimi_code",
-        "description": "委托 Kimi 执行完整编码任务：读-改-写-验证。CRUX 负责规划，Kimi 负责实现。",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "plan": {"type": "string", "description": "实现计划（CRUX 规划好传给 Kimi 执行）"},
-                "work_dir": {"type": "string", "description": "工作目录（默认当前项目根）"},
-                "timeout": {"type": "integer", "description": "超时秒数（默认 600）", "default": 600},
-            },
-            "required": ["plan"],
+            "required": ["target"],
         },
     },
     {
         "name": "kimi_status",
-        "description": "检查 Kimi CLI 状态：是否安装、是否登录、版本号。",
+        "description": "Check Kimi CLI status: installed, logged in, version.",
+        "inputSchema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "kimi_login",
+        "description": "Refresh Kimi authentication. Call this when API returns 401/403 (token expired). Runs kimi login to refresh OAuth token.",
         "inputSchema": {
             "type": "object",
-            "properties": {},
-            "required": [],
+            "properties": {
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds (default: 120)"
+                }
+            },
+            "required": []
         },
     },
 ]
 
-TOOL_MAP = {t["name"]: t for t in TOOL_DEFS}
+
+# ── JSON-RPC Helpers ───────────────────────────────────────────
+
+def _response(id_val, result=None, error=None):
+    resp = {"jsonrpc": JSONRPC_VERSION, "id": id_val}
+    if error: resp["error"] = error
+    else: resp["result"] = result
+    return resp
+
+def _error(id_val, code, message):
+    return _response(id_val, error={"code": code, "message": message})
 
 
-def _find_kimi() -> str | None:
-    """定位 kimi 可执行文件。"""
-    p = shutil.which("kimi")
-    if p:
-        return p
-    for base in [
-        os.path.expanduser("~/.kimi-code/bin/kimi.EXE"),
-        os.path.expanduser("~/.kimi-code/bin/kimi"),
-        os.path.expanduser("~/kimi-code/bin/kimi"),
-    ]:
-        p2 = os.path.expanduser(base)
-        if os.path.isfile(p2):
-            return p2
-    return None
+# ── Kimi Runner ────────────────────────────────────────────────
+
+def _find_kimi():
+    if os.path.isfile(KIMI_BINARY):
+        return KIMI_BINARY
+    return shutil.which("kimi")
 
 
-def _check_kimi_status() -> dict:
-    """检查 Kimi CLI 状态。"""
+def _check_status():
     kimi = _find_kimi()
     if not kimi:
-        return {"installed": False, "error": "kimi CLI 未找到。请安装: npm i -g kimi-cli 或从 https://github.com/MoonshotAI/kimi-cli 下载"}
-
+        return {"installed": False, "error": "Kimi CLI not found"}
+    
+    ver = "unknown"
     try:
-        r = subprocess.run([kimi, "--version"], capture_output=True, text=True, timeout=10)
-        version = r.stdout.strip() if r.returncode == 0 else "unknown"
-    except Exception:
-        version = "unknown"
-
-    # 检查是否登录
-    logged_in = False
-    try:
-        r2 = subprocess.run([kimi, "-p", "echo ok", "--output-format", "text"], capture_output=True, text=True, timeout=20)
-        logged_in = "failed to run prompt" not in r2.stderr.lower() and r2.returncode == 0
-    except Exception:
+        r = subprocess.run([kimi, "-V"], capture_output=True, text=True,
+                           timeout=10, env={**os.environ, "NO_COLOR": "1"})
+        ver = r.stdout.strip() or r.stderr.strip()
+    except:
         pass
-
-    return {
-        "installed": True,
-        "path": kimi,
-        "version": version,
-        "logged_in": logged_in,
-        "hint": None if logged_in else "请运行 'kimi login' 完成认证",
-    }
+    
+    return {"installed": True, "binary": kimi, "version": ver}
 
 
-def _get_agent_file(mode: str) -> str:
-    """获取或创建 agent YAML 文件路径。"""
-    if mode == "explore":
-        path = AGENTS_DIR / "crux-explore.yaml"
-        path.write_text(READONLY_AGENT_YAML, encoding="utf-8")
-    elif mode == "code":
-        path = AGENTS_DIR / "crux-code.yaml"
-        path.write_text(FULL_AGENT_YAML, encoding="utf-8")
-    else:
-        path = AGENTS_DIR / "crux-code.yaml"
-        path.write_text(FULL_AGENT_YAML, encoding="utf-8")
-    return str(path)
-
-
-def _run_kimi_prompt(prompt: str, *, work_dir: str | None = None, timeout: int = 120, mode: str = "code", model: str | None = None) -> dict:
-    """执行 kimi -p 并返回结构化结果。"""
+def _run_kimi(prompt, *, work_dir=None, timeout=180):
     kimi = _find_kimi()
     if not kimi:
-        return {"success": False, "error": "kimi CLI 未安装", "output": ""}
-
-    work_dir = work_dir or os.getcwd()
-    agent_file = _get_agent_file(mode)
-
-    cmd = [
-        kimi,
-        "-p", prompt,
-        "--agent-file", agent_file,
-        "-w", work_dir,
-        "--output-format", "text",
-        "-y",  # 自动批准（仅限 explore 模式安全；code 模式需用户确认）
-    ]
-    if model:
-        cmd.extend(["-m", model])
-
+        return {"success": False, "error": "Kimi CLI not found", "output": ""}
+    
+    cmd = [kimi, "-p", prompt]
+    wd = work_dir or os.getcwd()
+    timeout = min(timeout, 600)
+    
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=work_dir)
-        output = (r.stdout or "") + (r.stderr or "")
-        success = r.returncode == 0 and "error:" not in r.stderr.lower()
+        result = subprocess.run(
+            cmd, capture_output=True, text=True,
+            timeout=timeout, cwd=wd,
+            env={**os.environ, "NO_COLOR": "1"},
+        )
         return {
-            "success": success,
-            "output": output.strip()[:10000],  # 截断
-            "rc": r.returncode,
-            "mode": mode,
-            "work_dir": work_dir,
+            "success": result.returncode == 0,
+            "output": result.stdout[:50000],
+            "stderr": result.stderr[:10000],
+            "exit_code": result.returncode,
         }
     except subprocess.TimeoutExpired:
-        return {"success": False, "error": f"Kimi 任务超时 ({timeout}s)", "output": ""}
+        return {"success": False, "error": f"Timeout ({timeout}s)", "output": ""}
     except Exception as e:
         return {"success": False, "error": str(e), "output": ""}
 
 
-def _make_jsonrpc_response(id_val, result=None, error=None):
-    """构造 JSON-RPC 2.0 响应。"""
-    resp = {"jsonrpc": "2.0", "id": id_val}
-    if error:
-        resp["error"] = error
-    else:
-        resp["result"] = result
-    return resp
-
-
-def _make_jsonrpc_error(id_val, code, message):
-    return _make_jsonrpc_response(id_val, error={"code": code, "message": message})
-
-
-# ── MCP Server ──────────────────────────────────────────────────
-
+# ── MCP Server ─────────────────────────────────────────────────
 
 class KimiBridgeServer:
-    """Kimi Bridge MCP Server — stdio JSON-RPC 2.0。"""
-
     def __init__(self):
-        self._initialized = False
+        self._status = _check_status()
+
+    def _send(self, resp):
+        line = json.dumps(resp, ensure_ascii=True) + "\n"
+        sys.stdout.buffer.write(line.encode('utf-8'))
+        sys.stdout.buffer.flush()
+
+    def _dispatch(self, method, req_id, params):
         try:
-            sys.stdout.reconfigure(newline="\n", encoding="utf-8", write_through=True)
-            sys.stdin.reconfigure(encoding="utf-8")
-        except (AttributeError, ValueError):
-            pass
+            if method == "tools/list":
+                return self._tools_list(req_id)
+            elif method == "tools/call":
+                return self._tools_call(req_id, params)
+            elif method == "initialize":
+                return _response(req_id, result={
+                    "protocolVersion": "2024-11-05",
+                    "serverInfo": {"name": "kimi-bridge", "version": "2.0"},
+                    "capabilities": {"tools": {}},
+                })
+            elif method == "ping":
+                return _response(req_id, result={"pong": True})
+            return _error(req_id, ERR_METHOD_NOT_FOUND, f"Unknown: {method}")
+        except Exception as e:
+            return _error(req_id, ERR_INTERNAL, str(e))
 
-    def _send(self, msg: dict):
-        """发送 JSON-RPC 响应（单行）。"""
-        sys.stdout.write(json.dumps(msg, ensure_ascii=False) + "\n")
-        sys.stdout.flush()
-
-    def _handle_initialize(self, req_id, params):
-        self._initialized = True
-        return _make_jsonrpc_response(req_id, result={
-            "protocolVersion": MCP_PROTOCOL_VERSION,
-            "capabilities": {"tools": {}},
-            "serverInfo": {"name": "kimi-bridge", "version": "1.0.0"},
-        })
-
-    def _handle_tools_list(self, req_id, params=None):
-        status = _check_kimi_status()
+    def _tools_list(self, req_id):
+        status = _check_status()
         tools = []
         for t in TOOL_DEFS:
-            tool_copy = dict(t)
-            if not status["installed"] or not status.get("logged_in"):
-                tool_copy["description"] = "[⚠ 不可用] " + tool_copy["description"]
-            tools.append(tool_copy)
-        return _make_jsonrpc_response(req_id, result={"tools": tools})
+            tc = dict(t)
+            if not status["installed"]:
+                tc["description"] = "[NOT_AVAILABLE] " + tc["description"]
+            tools.append(tc)
+        return _response(req_id, result={"tools": tools})
 
-    def _handle_tools_call(self, req_id, params):
-        tool_name = (params or {}).get("name", "")
-        arguments = (params or {}).get("arguments", {}) or {}
+    def _tools_call(self, req_id, params):
+        name = params.get("name", "")
+        args = params.get("arguments", {})
 
-        if tool_name == "kimi_status":
-            status = _check_kimi_status()
-            return _make_jsonrpc_response(req_id, result={
-                "content": [{"type": "text", "text": json.dumps(status, ensure_ascii=False, indent=2)}],
+        if name == "kimi_login":
+            timeout = args.get("timeout", 120)
+            if not _check_status():
+                # Force re-login
+                try:
+                    cmd = _find_kimi()
+                    if cmd:
+                        result = subprocess.run(
+                            [cmd, "login", "--status"],
+                            capture_output=True, text=True, timeout=timeout,
+                            encoding="utf-8", errors="replace",
+                        )
+                        ok = "Success" in result.stdout or "signed in" in (result.stdout + result.stderr).lower() or result.returncode == 0
+                        return _response(req_id, result={
+                            "ok": ok,
+                            "stdout": result.stdout.strip()[:500],
+                            "stderr": result.stderr.strip()[:500],
+                        })
+                    else:
+                        return _response(req_id, result={
+                            "ok": False,
+                            "error": "Kimi CLI not found",
+                        })
+                except Exception as e:
+                    return _error(req_id, ERR_INTERNAL, str(e))
+            else:
+                return _response(req_id, result={
+                    "ok": True,
+                    "message": "Already authenticated",
+                })
+        elif name == "kimi_status":
+            return _response(req_id, result={
+                "content": [{"type": "text", "text": json.dumps(_check_status(), indent=2, ensure_ascii=False)}],
             })
-
-        status = _check_kimi_status()
-        if not status["installed"]:
-            return _make_jsonrpc_response(req_id, result={
-                "content": [{"type": "text", "text": "❌ Kimi CLI 未安装。安装: npm i -g kimi-cli"}],
-                "isError": True,
+        elif name == "kimi_exec":
+            prompt = args.get("prompt", "")
+            if not prompt:
+                return _error(req_id, ERR_INVALID_PARAMS, "Missing 'prompt'")
+            start = time.time()
+            r = _run_kimi(prompt, work_dir=args.get("work_dir"), timeout=args.get("timeout", 180))
+            elapsed = round(time.time() - start, 2)
+            text = r.get("output", "") or r.get("error", "") or "(empty)"
+            return _response(req_id, result={
+                "content": [{"type": "text", "text": text}],
+                "isError": not r["success"],
+                "meta": {"success": r["success"], "elapsed": elapsed},
             })
-        if not status.get("logged_in"):
-            return _make_jsonrpc_response(req_id, result={
-                "content": [{"type": "text", "text": "❌ Kimi 未登录。请运行: kimi login"}],
-                "isError": True,
+        elif name == "kimi_review":
+            target = args.get("target", "")
+            if not target:
+                return _error(req_id, ERR_INVALID_PARAMS, "Missing 'target'")
+            start = time.time()
+            r = _run_kimi(f"Review: {target}", work_dir=args.get("work_dir"), timeout=args.get("timeout", 180))
+            elapsed = round(time.time() - start, 2)
+            text = r.get("output", "") or r.get("error", "") or "(empty)"
+            return _response(req_id, result={
+                "content": [{"type": "text", "text": text}],
+                "isError": not r["success"],
+                "meta": {"success": r["success"], "elapsed": elapsed},
             })
-
-        if tool_name == "kimi_explore":
-            prompt = arguments.get("prompt", "")
-            work_dir = arguments.get("work_dir") or os.getcwd()
-            timeout = int(arguments.get("timeout", 120))
-            # 增强 prompt：添加只读约束
-            enhanced = f"[ROLE: READ-ONLY CODE EXPLORER]\n{prompt}\n\n⚠ You have NO write/shell tools. Read and report only."
-            result = _run_kimi_prompt(enhanced, work_dir=work_dir, timeout=timeout, mode="explore")
-            return _make_jsonrpc_response(req_id, result={
-                "content": [{"type": "text", "text": result.get("output", "")}],
-                "structuredContent": result,
-            })
-
-        elif tool_name == "kimi_think":
-            prompt = arguments.get("prompt", "")
-            model = arguments.get("model")
-            timeout = int(arguments.get("timeout", 300))
-            enhanced = f"[ROLE: DEEP ANALYSIS]\n{prompt}\n\nAnalyze thoroughly. No filesystem writes."
-            result = _run_kimi_prompt(enhanced, timeout=timeout, mode="code", model=model)
-            return _make_jsonrpc_response(req_id, result={
-                "content": [{"type": "text", "text": result.get("output", "")}],
-                "structuredContent": result,
-            })
-
-        elif tool_name == "kimi_code":
-            plan = arguments.get("plan", "")
-            work_dir = arguments.get("work_dir") or os.getcwd()
-            timeout = int(arguments.get("timeout", 600))
-            enhanced = f"[ROLE: CODE IMPLEMENTER]\nExecute the following plan:\n\n{plan}\n\nImplement, verify, report."
-            result = _run_kimi_prompt(enhanced, work_dir=work_dir, timeout=timeout, mode="code")
-            return _make_jsonrpc_response(req_id, result={
-                "content": [{"type": "text", "text": result.get("output", "")}],
-                "structuredContent": result,
-            })
-
-        return _make_jsonrpc_error(req_id, ERR_METHOD_NOT_FOUND, f"Unknown tool: {tool_name}")
-
-    def _dispatch(self, method: str, req_id, params):
-        handlers = {
-            "initialize": self._handle_initialize,
-            "tools/list": self._handle_tools_list,
-            "tools/call": self._handle_tools_call,
-        }
-        handler = handlers.get(method)
-        if handler is None:
-            return _make_jsonrpc_error(req_id, ERR_METHOD_NOT_FOUND, f"Method not found: {method}")
-        try:
-            return handler(req_id, params)
-        except Exception as e:
-            return _make_jsonrpc_error(req_id, ERR_INTERNAL, str(e))
+        return _error(req_id, ERR_METHOD_NOT_FOUND, f"Unknown tool: {name}")
 
     def run(self):
-        """主循环：逐行读取 JSON-RPC 请求，路由并响应。"""
-        for line in sys.stdin:
-            line = line.strip()
-            if not line:
-                continue
+        for line in sys.stdin.buffer:
+            line = line.decode('utf-8').strip()
+            if not line: continue
             try:
                 req = json.loads(line)
             except json.JSONDecodeError:
-                self._send(_make_jsonrpc_error(None, ERR_PARSE, "Invalid JSON"))
+                self._send(_error(None, ERR_PARSE, "Invalid JSON"))
                 continue
-
-            req_id = req.get("id")
+            rid = req.get("id")
             method = req.get("method", "")
             params = req.get("params")
-
             if method == "notifications/initialized":
-                continue  # 跳过通知，不回复
-
-            resp = self._dispatch(method, req_id, params)
-            self._send(resp)
+                continue
+            self._send(self._dispatch(method, rid, params))
 
 
-def run_kimi_bridge():
-    """入口：启动 Kimi Bridge MCP Server。"""
-    server = KimiBridgeServer()
-    server.run()
-
+def main():
+    KimiBridgeServer().run()
 
 if __name__ == "__main__":
-    run_kimi_bridge()
+    main()

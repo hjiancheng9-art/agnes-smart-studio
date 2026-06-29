@@ -1,10 +1,60 @@
-"""Tests for core.resilience — error classification, retry, checkpoint."""
+"""Tests for core.resilience — error classification, retry, checkpoint, redaction."""
 
 import contextlib
 import json
 from unittest.mock import patch
 
 import pytest
+
+from core.resilience import redact_sensitive, SafeExecutor
+
+
+class TestRedactSensitive:
+    """安全脱敏功能测试。"""
+
+    def test_sk_key_redacted(self):
+        assert redact_sensitive("sk-abc123def456ghi789jkl012") == "<REDACTED>"
+
+    def test_api_key_param_redacted(self):
+        assert redact_sensitive("api_key=sk-abc123def456ghi789jkl012") == "<REDACTED>"
+
+    def test_bearer_token_redacted(self):
+        result = redact_sensitive("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.test")
+        assert "<REDACTED>" in result
+
+    def test_normal_text_unchanged(self):
+        assert redact_sensitive("hello world") == "hello world"
+
+    def test_empty_string(self):
+        assert redact_sensitive("") == ""
+
+    def test_none_returns_none(self):
+        assert redact_sensitive(None) is None  # type: ignore
+
+    def test_password_in_json_redacted(self):
+        result = redact_sensitive('{"password": "mySecretPass123!"}')
+        assert "<REDACTED>" in result
+
+    def test_multiple_patterns_in_one_string(self):
+        # 两个独立字符串分别触发不同脱敏规则
+        result1 = redact_sensitive('api_key=sk-abc123def456ghi789jkl012')
+        result2 = redact_sensitive('{"password": "mySecretPass123!"}')
+        assert "<REDACTED>" in result1
+        assert "<REDACTED>" in result2
+
+    def test_safe_executor_redacts_args(self):
+        executor = SafeExecutor()
+        safe_tool = lambda **kw: f"result with {kw.get('input', '')}"
+        r = executor.execute("test_tool", safe_tool, {"input": "sk-aaaabbbbccccddddeeeeffff"})
+        assert "<REDACTED>" in str(r["args"])
+        assert "sk-" not in str(r["args"])
+
+    def test_safe_executor_redacts_result(self):
+        executor = SafeExecutor()
+        safe_tool = lambda: "Response: sk-abc123def456ghi789jkl012"
+        r = executor.execute("test_tool", safe_tool, {})
+        assert "<REDACTED>" in r["result"]
+
 
 # ── ErrorClassifier ──────────────────────────────────────────────────────
 

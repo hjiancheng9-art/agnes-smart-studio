@@ -21,6 +21,8 @@ import logging
 import re
 from collections.abc import Callable
 
+import httpx
+
 logger = logging.getLogger("crux.chat")
 
 from core.agent import ContextManager
@@ -208,7 +210,11 @@ class ChatSession:
         self.ctx_mgr = ContextManager(max_tokens=60000)
         self.t2i = TextToImageEngine(client)
         self.vid = VideoEngine(client)
+        self.media_client = client  # unified media client for tool-calling generation
         self.model = default_model or self._resolve_default_model()
+        self.auto_model = True  # auto-select model per prompt
+        self._model_router = None  # lazy init
+        self._auto_tier_order = ["reasoner", "pro", "light"]  # preferred tier order
         self.enable_thinking = False
         self.code_mode = False
         self.mode = "chat"
@@ -220,6 +226,10 @@ class ChatSession:
         self.tools: ToolRegistry = get_registry()
         self.skills: SkillManager = get_manager()
         self.active_skill: str = ""
+        self._reflection: object = None  # ReflectionLoop, lazy init
+        self._memory: object = None  # MemoryBridge, lazy init
+        self._cog: object = None  # CognitiveOrchestrator, lazy init
+        self._vote_enabled: bool = True  # /vote toggle
         self.messages: list[dict] = [{"role": "system", "content": self._build_system_prompt()}]
         # 五兽躯体激活
         try:
@@ -239,6 +249,69 @@ class ChatSession:
             return mgr.get_model("light") or "deepseek-v4-flash"
         except Exception:
             return "deepseek-v4-flash"
+
+    @property
+    def model_router(self):
+        """Get or create the unified ModelRouter instance (shared with sub-agents)."""
+        if self._model_router is None:
+            from core.agent import ModelRouter
+            self._model_router = ModelRouter()
+        return self._model_router
+
+    def _auto_route(self, prompt: str) -> str | None:
+        """Analyze prompt and switch model if auto_model is enabled.
+
+        Returns the selected tier string ('light'/'pro'/'reasoner') or None if
+        auto_model is disabled.  Caller should check the return value and show
+        a brief indicator if the model changed.
+        """
+        if not self.auto_model:
+            return None
+
+        router = self.model_router
+        tier = router.classify_and_track(prompt)
+
+        # Resolve tier → model ID from current provider, fallback across providers
+        target_model = None
+        try:
+            from core.provider import get_provider_manager
+            mgr = get_provider_manager()
+            mgr.load()
+
+            current_pid = mgr.state.active
+            pdata = mgr.providers.get(current_pid, {})
+            provider_models = pdata.get("models", {})
+
+            target_model = router.resolve_model(tier, provider_models)
+
+            # If current provider doesn't have this tier, search other providers
+            # by latency (fastest first) to minimize response time
+            if target_model not in provider_models.values() or target_model == "unknown":
+                # Sort providers by latency: faster providers preferred for same tier
+                all_pids = list(mgr.providers.keys())
+                ordered_pids = mgr.state.available_by_latency(all_pids)
+                for pid in ordered_pids:
+                    pd = mgr.providers.get(pid, {})
+                    pm = pd.get("models", {})
+                    candidate = router.resolve_model(tier, pm)
+                    if candidate != "unknown" and candidate in pm.values():
+                        target_model = candidate
+                        # Switch provider if needed
+                        if pid != current_pid:
+                            new_client = mgr.create_client(pid)
+                            expected_url = pd.get("base_url", "")
+                            if new_client.base_url.rstrip("/") == expected_url.rstrip("/"):
+                                self.client = new_client
+                        break
+        except Exception:
+            return tier  # routing failed silently, keep current model
+
+        # Switch if different
+        if target_model and target_model != self.model and target_model != "unknown":
+            self.model = target_model
+            self.messages[0] = {"role": "system", "content": self._build_system_prompt()}
+
+        return tier
 
     @property
     def supports_tools(self) -> bool:
@@ -303,6 +376,8 @@ class ChatSession:
                 )
             except (ImportError, OSError):
                 pass
+            # 注入 ModelRouter 到 ToolRegistry，供 agent_swarm / 子智能体分派使用
+            self.tools.model_router = self.model_router
             prompt = AGENT_SYSTEM_PROMPT + self._render_tool_categories()
         else:
             prompt = self._build_system_prompt()
@@ -479,18 +554,18 @@ class ChatSession:
         self.messages = [self.messages[0]]
 
     def _vision_model_chain(self, complexity: str = "light") -> list[str]:
-        """构建视觉模型 fallback 链（按复杂度选首选，去重保持稳定）。
+        """构建视觉模型 fallback 链（供应商优先于 tier，智谱质量 > CRUX）。
 
-        阶段 4b: 除 deepseek 外所有模型均支持视觉。按复杂度自动选首选：
-        - complexity="light":  首选 light tier 模型（agnes-1.5-flash，最便宜快档）
-        - complexity="complex": 首选 pro tier 模型（agnes-2.0-flash，支持推理）
+        阶段 4b: 除 deepseek 外所有模型均支持视觉。按供应商质量排序：
+        - 智谱 (zhipu): 视觉理解质量好，优先使用
+        - CRUX (agnes): 仅作兜底，智谱全部不可用时才启用
 
-        首选失败后，按 tier 升序（light → pro）补位其余视觉模型，
-        保证 fallback 链稳定可预测。单一真相源 provider.get_vision_models()。
+        同一供应商内按思考能力 + tier 排序：
+        - thinking 模型优先（支持深度推理），非 thinking 模型靠后
+        - thinking 组内 / 非 thinking 组内，再按 tier 排序（跟随复杂度）
 
         self.vision_model 仅作为"用户显式首选偏好"：当其 tier 匹配任务复杂度时
-        排首位；否则不干预自动 tier 选择（避免轻量任务强制走 pro、或复杂任务
-        被钉在 light tier）。
+        排首位；否则不干预自动选择。
         """
         from core.provider import get_model_info
 
@@ -498,20 +573,36 @@ class ChatSession:
         if not vision_models:
             return [self.vision_model] if self.vision_model else []
 
-        def _tier_of(mid: str) -> str:
-            info = get_model_info(mid)
-            return info.tier if info else "pro"
+        def _info_of(mid: str):
+            return get_model_info(mid)
 
-        light_models = [m for m in vision_models if _tier_of(m) == "light"]
-        pro_models = [m for m in vision_models if _tier_of(m) != "light"]
+        # 按供应商分组：智谱在前，CRUX 在后（质量优先）
+        zhipu_models = [m for m in vision_models if _info_of(m).provider_id == "zhipu"]
+        crux_models = [m for m in vision_models if _info_of(m).provider_id == "crux"]
+        other_models = [m for m in vision_models if _info_of(m).provider_id not in ("zhipu", "crux")]
 
-        # 复杂任务 → pro 优先；轻量任务 → light 优先
-        ordered = (pro_models + light_models) if complexity == "complex" else (light_models + pro_models)
+        def _sort_within_provider(models: list[str], pro_first: bool) -> list[str]:
+            """组内排序：thinking 优先 → tier 次之。"""
+            thinking = [m for m in models if _info_of(m).supports_thinking]
+            no_thinking = [m for m in models if not _info_of(m).supports_thinking]
+
+            def _by_tier(ms):
+                light = [m for m in ms if _info_of(m).tier == "light"]
+                pro = [m for m in ms if _info_of(m).tier != "light"]
+                return (pro + light) if pro_first else (light + pro)
+
+            return _by_tier(thinking) + _by_tier(no_thinking)
+
+        pro_first = complexity == "complex"
+        ordered: list[str] = []
+        ordered.extend(_sort_within_provider(zhipu_models, pro_first))
+        ordered.extend(_sort_within_provider(crux_models, pro_first))
+        ordered.extend(_sort_within_provider(other_models, pro_first))
 
         # self.vision_model 仅在 tier 匹配时提到链首（用户偏好尊重 tier 路由）
         if self.vision_model and self.vision_model in ordered:
-            vm_tier = _tier_of(self.vision_model)
-            target_tier = "light" if complexity != "complex" else "pro"
+            vm_tier = _info_of(self.vision_model).tier
+            target_tier = "light" if not pro_first else "pro"
             if vm_tier == target_tier:
                 ordered.remove(self.vision_model)
                 ordered.insert(0, self.vision_model)
@@ -586,14 +677,14 @@ class ChatSession:
         return "[流中断" in buffer or "[HTTP " in buffer
 
     def _vision_fallback(self, text: str, image_url: str) -> str:
-        """视觉理解调用 + fallback 链（按复杂度自动选首选模型）。
+        """视觉理解调用 + fallback 链（供应商质量优先，智谱 > CRUX）。
 
         依次尝试 _vision_model_chain(complexity) 中的模型，首个成功即返回；
         全部失败时返回包含尝试列表的人类可读错误（不抛异常，保证流式不中断）。
 
-        阶段 4b: 复杂度不仅决定 max_tokens，还决定首选模型 tier：
-        - light: 首选 agnes-1.5-flash（便宜快档），失败再升 pro
-        - complex: 首选 pro tier（agnes-2.0-flash / Kimi / Qwen），失败再降 light
+        阶段 4b: 供应商优先于 tier：
+        - 智谱全系列 > CRUX 全系列（智谱视觉质量更好）
+        - 同供应商内按复杂度选 tier 首发
 
         失败原因分类：
         - KeyError/IndexError: 返回 JSON 结构异常（供应商换了 schema）
@@ -612,56 +703,81 @@ class ChatSession:
             vision_text = f"请仔细观察图片，逐步推理分析：\n{text}"
         for model_id in chain:
             tried.append(model_id)
-            try:
-                # Use provider-aware client: zhipu models need zhipu endpoint
-                vc = self.vision_client
-                if model_id.startswith("glm-") or model_id.startswith("cog"):
-                    try:
-                        from core.provider import get_provider_manager
-                        mgr = get_provider_manager()
-                        vc = mgr.create_client("zhipu")
-                    except (ImportError, RuntimeError):
-                        pass  # fall through to default vision_client
-                r = vc.chat_multimodal(
-                    text=vision_text,
-                    image_url=image_url,
-                    model=model_id,
-                    max_tokens=max_tok,
-                )
-                content = r["choices"][0]["message"]["content"] or ""
-                # #6 成本追踪：视觉调用按 token 计费（text kind），usage 来自 API 返回
+            # 503 瞬时故障：同模型最多重试 2 次 (backoff 1s/4s)
+            retry_503 = 0
+            while True:
                 try:
-                    from core.cost_tracker import record_usage
-
-                    record_usage(model=model_id, kind="text", usage=r.get("usage"), label="vision")
-                except (ImportError, OSError, KeyError, TypeError) as e:
-                    logger.debug("cost_tracker.record_usage(vision) failed: %s: %s", type(e).__name__, e)
-                return content
-            except (KeyError, IndexError) as e:
-                last_reason = f"返回格式异常: {e}"
-                # P1-10: 请求成功但解析失败 → 尝试从响应中提取 usage 记费
-                # 注意: r 可能在 chat_multimodal 本身抛异常时未赋值（side_effect）
-                _r_usage = None
-                with contextlib.suppress(NameError):
-                    _r_usage = r.get("usage")  # type: ignore[possibly-undefined]
-                if _r_usage:
+                    # Use provider-aware client: route to correct API endpoint
+                    vc = self.vision_client
+                    model_lower = model_id.lower()
+                    if model_lower.startswith("glm-") or model_lower.startswith("cog"):
+                        try:
+                            from core.provider import get_provider_manager
+                            mgr = get_provider_manager()
+                            vc = mgr.create_client("zhipu")
+                        except (ImportError, RuntimeError, OSError) as e:
+                            last_reason = f"智谱客户端创建失败: {e}"
+                            logger.warning("zhipu client creation failed for model %s: %s", model_id, e)
+                            break  # skip this model, try next in chain
+                    elif model_lower.startswith("agnes-"):
+                        # CRUX/Agnes vision models must route to CRUX API, not main client
+                        try:
+                            from core.provider import get_provider_manager
+                            mgr = get_provider_manager()
+                            vc = mgr.create_client("crux")
+                        except (ImportError, RuntimeError, OSError) as e:
+                            last_reason = f"CRUX客户端创建失败: {e}"
+                            logger.warning("crux client creation failed for model %s: %s", model_id, e)
+                            break
+                    r = vc.chat_multimodal(
+                        text=vision_text,
+                        image_url=image_url,
+                        model=model_id,
+                        max_tokens=max_tok,
+                    )
+                    content = r["choices"][0]["message"]["content"] or ""
+                    # #6 成本追踪：视觉调用按 token 计费（text kind），usage 来自 API 返回
                     try:
                         from core.cost_tracker import record_usage
 
-                        record_usage(model=model_id, kind="text", usage=_r_usage, label="vision_fail")
+                        record_usage(model=model_id, kind="text", usage=r.get("usage"), label="vision")
                     except (ImportError, OSError, KeyError, TypeError) as e:
-                        logger.debug("cost_tracker.record_usage(vision_fail) failed: %s: %s", type(e).__name__, e)
-                continue
-            except (OSError, TimeoutError) as e:
-                last_reason = f"网络/超时: {e}"
-                metrics.increment("fallback.vision_model")
-                continue
-            except RuntimeError as e:
-                last_reason = f"上游错误: {e}"
-                continue
-            except (OSError, RuntimeError, KeyError, TypeError, ValueError) as e:  # noqa: BLE001 — 视觉通道不能让流式中断
-                last_reason = f"未知错误: {e}"
-                continue
+                        logger.debug("cost_tracker.record_usage(vision) failed: %s: %s", type(e).__name__, e)
+                    return content
+                except httpx.HTTPStatusError as e:
+                    last_reason = f"HTTP {e.response.status_code}: {e}"
+                    logger.warning("vision model %s returned HTTP %s", model_id, e.response.status_code)
+                    metrics.increment("fallback.vision_model")
+                    # 503: 瞬时故障 → 重试同模型（最多 2 次，backoff 1s/4s）
+                    if e.response.status_code == 503 and retry_503 < 2:
+                        retry_503 += 1
+                        import time as _time
+                        _time.sleep(retry_503 * retry_503)
+                        continue  # retry same model
+                    break  # 非 503 或重试耗尽 → 下一个模型
+                except (KeyError, IndexError) as e:
+                    last_reason = f"返回格式异常: {e}"
+                    _r_usage = None
+                    with contextlib.suppress(NameError):
+                        _r_usage = r.get("usage")
+                    if _r_usage:
+                        try:
+                            from core.cost_tracker import record_usage
+                            record_usage(model=model_id, kind="text", usage=_r_usage, label="vision_fail")
+                        except (ImportError, OSError, KeyError, TypeError) as e:
+                            logger.debug("cost_tracker.record_usage(vision_fail) failed: %s: %s", type(e).__name__, e)
+                    break
+                except (OSError, TimeoutError) as e:
+                    last_reason = f"网络/超时: {e}"
+                    metrics.increment("fallback.vision_model")
+                    break
+                except RuntimeError as e:
+                    last_reason = f"上游错误: {e}"
+                    break
+                except Exception as e:
+                    last_reason = f"未知错误({type(e).__name__}): {e}"
+                    logger.exception("vision fallback unexpected error for model %s", model_id)
+                    break
 
         # 全部失败：返回可读错误，列出已尝试模型与最后原因
         return (
@@ -687,6 +803,21 @@ class ChatSession:
         except (ImportError, OSError) as e:
             logger.debug("cost_tracker.check_budget failed: %s: %s", type(e).__name__, e)
 
+        # ── 预热检查：ping 当前供应商，挂掉则提前 failover ──
+        try:
+            from core.provider import get_provider_manager, ProviderState
+            mgr = get_provider_manager()
+            if not mgr.ping():
+                logger.warning("Provider %s ping failed, attempting failover", mgr.state.active)
+                if mgr.fallback():
+                    self.client = mgr.create_client()
+                    new_model = self._resolve_default_model()
+                    if new_model != self.model:
+                        self.model = new_model
+                        self.messages[0] = {"role": "system", "content": self._build_system_prompt()}
+        except (ImportError, OSError) as e:
+            logger.debug("Pre-flight health check skipped: %s", e)
+
         # ── 多模态分支：有图片 → 走独立视觉客户端 ──
         if image_url:
             self.messages.append(
@@ -698,13 +829,35 @@ class ChatSession:
                     ],
                 }
             )
-            content = self._vision_fallback(user_text, image_url)
+            try:
+                content = self._vision_fallback(user_text, image_url)
+            except Exception as e:
+                logger.exception("Vision fallback crashed unexpectedly")
+                content = f"(视觉理解异常: {type(e).__name__}: {e})"
             self.messages.append({"role": "assistant", "content": content})
             yield ("text", content)
             return
 
         # ── 纯文本分支：加 user message ──
         self.messages.append({"role": "user", "content": user_text})
+
+        # Inject relevant past memories as context
+        self._inject_memory(user_text)
+
+        # Multi-model deliberation for complex questions
+        from core.cognitive_orchestrator import is_complex
+        if self._vote_enabled and is_complex(user_text) and not image_url:
+            result = self._deliberate(user_text)
+            if result and result.get("confidence") in ("high", "medium"):
+                content = (
+                    f"{result['answer']}\n\n"
+                    f"[{result['models_used']} models, confidence: {result['confidence']}]"
+                )
+                if result.get("dissenting") and result["dissenting"] != "none":
+                    content += f"\n[dim]Dissent: {result['dissenting']}[/]"
+                self.messages.append({"role": "assistant", "content": content})
+                yield ("text", content)
+                return
 
         # Tier 1 轻量截断：对历史 messages 中超限单条做 head+tail 截断。
         if self.ctx_mgr.needs_compression(self.messages):
@@ -784,6 +937,8 @@ class ChatSession:
                 # 正常收尾
                 self._finalize_outcome(_use_model, _last_usage)
                 self.messages.append({"role": "assistant", "content": buffer})
+                self._trigger_reflection()
+                self._auto_remember()
                 return
 
         # for _loop 结束：区分两种情况
@@ -891,6 +1046,10 @@ class ChatSession:
                         tool_result = f"[错误] 工具 {fname} 执行失败: {type(e).__name__}: {e}"
                         side_effects = [("info", tool_result)]
                         metrics.increment("tool_errors")
+                    # Fold oversized tool results for cleaner display
+                    if isinstance(tool_result, str) and len(tool_result) > 800:
+                        preview = "\n".join(tool_result.split("\n")[:5])
+                        tool_result = f"{preview}\n... [{len(tool_result)} chars folded, result sent to model]"
                     span.set_attribute("result_chars", len(tool_result) if isinstance(tool_result, str) else -1)
                     metrics.increment("tool_calls")
                     metrics.timing("tool_call_ms", span.duration_ms())
@@ -958,6 +1117,61 @@ class ChatSession:
         except (ImportError, OSError) as e:
             logger.debug("cost_tracker.record_usage(text_stream) failed: %s: %s", type(e).__name__, e)
         self._record_outcome_promptlab()
+
+    def _trigger_reflection(self) -> None:
+        """Post-turn reflection: light model reviews output quality."""
+        if self._reflection is None:
+            try:
+                from core.reflection_loop import ReflectionLoop
+                self._reflection = ReflectionLoop()
+            except (ImportError, OSError) as e:
+                logger.debug("ReflectionLoop init failed: %s", e)
+                return
+        try:
+            self._reflection.review(self)
+        except Exception as e:
+            logger.debug("reflection review failed: %s", e)
+
+    def _inject_memory(self, user_input: str) -> None:
+        """Inject relevant past memories as system context."""
+        if self._memory is None:
+            try:
+                from core.memory_bridge import MemoryBridge
+                self._memory = MemoryBridge()
+            except (ImportError, OSError) as e:
+                logger.debug("MemoryBridge init failed: %s", e)
+                return
+        try:
+            self._memory.inject_context(self.messages, user_input)
+        except Exception as e:
+            logger.debug("memory inject failed: %s", e)
+
+    def _auto_remember(self) -> None:
+        """Auto-extract and store key facts from the conversation."""
+        if self._memory is None:
+            return
+        try:
+            facts = self._memory.extract_key_facts(self.messages)
+            for fact in facts:
+                self._memory.remember(fact)
+            self._memory.flush()
+        except Exception as e:
+            logger.debug("auto remember failed: %s", e)
+
+    def _deliberate(self, prompt: str) -> dict | None:
+        """Multi-model deliberation for complex questions."""
+        if self._cog is None:
+            try:
+                from core.cognitive_orchestrator import CognitiveOrchestrator
+                self._cog = CognitiveOrchestrator()
+            except (ImportError, OSError) as e:
+                logger.debug("CognitiveOrchestrator init failed: %s", e)
+                return None
+        try:
+            return self._cog.deliberate(prompt)
+        except Exception as e:
+            logger.debug("deliberation failed: %s", e)
+            return None
 
     def _record_outcome_promptlab(self) -> None:
         """记录会话 outcome 到 Prompt Lab（可选模块，失败静默降级）。"""
@@ -1149,45 +1363,51 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
     prompt = args.get("prompt", "")
     image_url = args.get("image_url", "") or args.get("image", "")
 
-    def _zhipu_media_client(self):
-        """Get a zhipu provider client for free image/video generation."""
+    # ── Resolve media client: zhipu (cogview/cogvideo) or primary ──
+    _model = args.get("model", "")
+    _use_zhipu = bool("cogview" in str(_model).lower() or "cogvideo" in str(_model).lower())
+
+    def _get_zhipu_client():
         try:
             from core.provider import get_provider_manager
             return get_provider_manager().create_client("zhipu")
         except (ImportError, RuntimeError):
             return self.media_client
 
+    gen_client = _get_zhipu_client() if _use_zhipu else self.media_client
+
     if name == "generate_image":
+        # Parse optional params from tool call args
+        size = args.get("size", "1024x768")
+        seed = args.get("seed")
+        system = args.get("system")
+        neg_from_args = args.get("negative_prompt")
+
         side: list[tuple[str, str | dict]] = [("info", f"正在生成图片: {prompt}")]
-        # Use zhipu client for cogview (free); fallback to media_client for agnes models
-        gen_client = self._zhipu_media_client() if "cogview" in str(args.get("model","")) or not args.get("model") else self.media_client
         try:
-            # Prompt 增强（与命令式 /img 路径对齐）
-            # Brain 调用走当前供应商，可能因上游间歇故障失败（404/5xx 等）；
-            # 增强失败不应阻断生成——退化为原始 prompt 继续。
             try:
                 r = self.brain.enhance_image_prompt(prompt)
                 fp = r.get("optimized_prompt", prompt)
-                neg = r.get("negative_prompt", "") or None
+                neg = neg_from_args or r.get("negative_prompt", "") or None
             except (OSError, RuntimeError, TypeError, ValueError, KeyError) as e:
-                # 增强失败不阻断生成——退化为原始 prompt 继续；记录原因便于排查上游间歇故障
                 logger.debug("brain.enhance_image_prompt failed: %s: %s", type(e).__name__, e)
-                fp, neg = prompt, None
+                fp, neg = prompt, neg_from_args
+
+            if system:
+                fp = f"[{system}] {fp}"
 
             if image_url:
                 from engines.image_to_image import ImageToImageEngine
                 from utils import image_input
                 url = image_input.load_image_as_url_or_data(image_url)
                 i2i = ImageToImageEngine(gen_client)
-                data = i2i.edit(prompt=fp, image_urls=url)
+                data = i2i.edit(prompt=fp, image_urls=url, size=size)
             else:
                 t2i = TextToImageEngine(gen_client)
-                data = t2i.generate(prompt=fp, negative_prompt=neg)
+                data = t2i.generate(prompt=fp, size=size, seed=seed, negative_prompt=neg)
             side.append(("image", data))
-            # #6 成本追踪：记录本次图像调用花费（失败时静默降级，不阻断生成）
             try:
                 from core.cost_tracker import record_usage
-
                 record_usage(model="agnes-image-2.1-flash", kind="image", label="generate_image", call_count=1)
             except (ImportError, OSError) as e:
                 logger.debug("cost_tracker.record_usage(image) failed: %s: %s", type(e).__name__, e)
@@ -1196,40 +1416,51 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
             return f"图片生成失败: {e}", side
 
     if name == "generate_video":
+        # Parse optional params from tool call args
+        size_str = args.get("size", "1152x768")
+        num_frames = args.get("num_frames", 121)
+        seed = args.get("seed")
+        system = args.get("system")
+        neg_from_args = args.get("negative_prompt")
+        # Parse WxH from size string
+        try:
+            w_str, h_str = size_str.split("x")
+            w, h = int(w_str), int(h_str)
+        except (ValueError, AttributeError):
+            w, h = 1152, 768
+
         side: list[tuple[str, str | dict]] = [("info", f"正在生成视频（可能需几分钟）: {prompt}")]
         try:
-            # Prompt 增强（与命令式 /video 路径对齐）
-            # Brain 调用可能因上游间歇故障失败，增强失败不回退为原始 prompt 继续
             try:
                 r = self.brain.enhance_video_prompt(prompt)
                 fp = r.get("optimized_prompt", prompt)
-                neg = r.get("negative_prompt", "") or None
+                neg = neg_from_args or r.get("negative_prompt", "") or None
             except (OSError, RuntimeError, TypeError, ValueError, KeyError) as e:
-                # Brain 调用可能因上游间歇故障失败，增强失败不回退为原始 prompt 继续
                 logger.debug("brain.enhance_video_prompt failed: %s: %s", type(e).__name__, e)
-                fp, neg = prompt, None
-            w, h = 1152, 768
+                fp, neg = prompt, neg_from_args
+
+            if system:
+                fp = f"[{system}] {fp}"
 
             if image_url:
-                # 图生视频路径
                 from utils import image_input
-
                 url = image_input.load_image_as_url_or_data(image_url)
                 data = self.vid.image_to_video(
-                    prompt=fp, image_url=url, width=w, height=h, negative_prompt=neg, timeout=120.0
+                    prompt=fp, image_url=url, width=w, height=h,
+                    num_frames=num_frames, negative_prompt=neg, timeout=120.0
                 )
             else:
-                data = self.vid.text_to_video(prompt=fp, width=w, height=h, negative_prompt=neg, timeout=120.0)
+                data = self.vid.text_to_video(
+                    prompt=fp, width=w, height=h, num_frames=num_frames,
+                    negative_prompt=neg, timeout=120.0
+                )
 
             side.append(("video", data))
-            # #6 成本追踪：视频调用按次计费（较贵），记录花费供 /cost 查询
             try:
                 from core.cost_tracker import record_usage
-
                 record_usage(model="agnes-video-v2.0", kind="video", label="generate_video", call_count=1)
             except (ImportError, OSError) as e:
                 logger.debug("cost_tracker.record_usage(video) failed: %s: %s", type(e).__name__, e)
-            # 检测超时状态
             if data.get("status") == "timeout":
                 vid = data.get("video_id", "")
                 pct = data.get("progress", 0)
@@ -1258,6 +1489,131 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
             return summary, side
         except (RuntimeError, OSError, ValueError) as e:
             return f"多智能体协调失败: {e}", side
+
+    # ── TRM 工具路由 (Tool Registry Mesh) ──
+    if name == "trm_tune":
+        try:
+            from core.growth_engine import get_growth_engine
+            ge = get_growth_engine()
+            do_apply = args.get("apply", False)
+            result = ge.auto_tune(apply=do_apply)
+            bottlenecks = ge.detect_bottlenecks()
+            suggestions = ge.suggest_improvements()
+
+            lines = ["CRUX Self-Optimization Results", "=" * 40]
+            lines.append(f"Total calls analyzed: {ge._total_calls_ever}")
+
+            if result.get("applied"):
+                lines.append(f"\nApplied changes ({len(result['applied'])}):")
+                for change in result["applied"]:
+                    lines.append(f"  + {change['action']}: {change.get('intent','')}/{change.get('tool','')}")
+                    if "new_order" in change:
+                        lines.append(f"    -> {' > '.join(change['new_order'])}")
+
+            if not do_apply:
+                lines.append("\n[Dry run — use apply=true to commit changes]")
+
+            if bottlenecks:
+                lines.append(f"\nBottlenecks ({len(bottlenecks)}):")
+                for b in bottlenecks[:3]:
+                    lines.append(f"  ! [{b['severity']}] {b['intent']}/{b['tool']}: {', '.join(b['reasons'])}")
+
+            if suggestions:
+                lines.append(f"\nSuggestions:")
+                for s in suggestions:
+                    lines.append(f"  ? {s}")
+
+            return "\n".join(lines), []
+        except Exception as e:
+            return f"Auto-tune error: {e}", []
+
+    if name == "trm_growth":
+        try:
+            from core.growth_engine import get_growth_engine
+            ge = get_growth_engine()
+            if args.get("reset"):
+                ge.reset()
+                return "Growth data reset.", []
+            intent_filter = args.get("intent", "")
+            if intent_filter and intent_filter in ge.intents:
+                is_ = ge.intents[intent_filter]
+                lines = [f"Growth — [{intent_filter}] ({is_.total_calls} calls)"]
+                for ts in is_.ordered_tools:
+                    status = "D" if ts.demoted else "✓"
+                    lines.append(
+                        f"  {status} {ts.tool}: {ts.success_rate:.0%} success, "
+                        f"{ts.avg_latency_ms:.0f}ms avg, {ts.calls} calls"
+                        + (f" (CF:{ts.consecutive_failures})" if ts.consecutive_failures else "")
+                    )
+                return "\n".join(lines), []
+            return ge.get_summary(), []
+        except Exception as e:
+            return f"Growth engine error: {e}", []
+
+    if name == "trm_catalog":
+        try:
+            from core.tool_registry_mesh import CATEGORY_META, get_trm
+            trm = get_trm()
+            trm.discover_all(timeout=5.0)
+            cat_filter = args.get("category", "")
+            src_filter = args.get("source", "")
+            tools_found = trm.find(category=cat_filter, source=src_filter)
+            lines = [
+                f"TRM Catalog — {len(tools_found)} tools",
+                f"Sources: {trm.sources}",
+                f"Categories: {trm.categories}",
+            ]
+            for intent, meta in sorted(CATEGORY_META.items()):
+                available = [t for t in meta["order"] if t in trm._tools or "*" in t]
+                lines.append(f"\n  [{intent}] {meta['desc']}")
+                lines.append(f"    路由: {' → '.join(available) if available else '(none)'}")
+            lines.append("\n--- Tools ---")
+            for t in sorted(tools_found, key=lambda x: (x.category, x.name)):
+                desc = t.description[:80].replace("\n", " ")
+                lines.append(f"  [{t.category}] {t.name} ({t.source}) — {desc}")
+            return "\n".join(lines), []
+        except Exception as e:
+            return f"TRM catalog error: {e}", []
+
+    if name == "trm_route":
+        intent = args.get("intent", "")
+        if not intent:
+            return "trm_route requires 'intent' parameter (search/review/execute/think/generate/status)", []
+        try:
+            from core.tool_registry_mesh import get_trm
+            trm = get_trm()
+            trm.discover_all(timeout=5.0)
+            # Build kwargs by picking the most relevant field
+            route_kwargs = {}
+            if args.get("query"):
+                route_kwargs["query"] = args["query"]
+            if args.get("prompt"):
+                route_kwargs["prompt"] = args["prompt"]
+            if args.get("target"):
+                route_kwargs["target"] = args["target"]
+            if args.get("plan"):
+                route_kwargs["prompt"] = args["plan"]
+            if args.get("work_dir"):
+                route_kwargs["work_dir"] = args["work_dir"]
+            if args.get("timeout"):
+                route_kwargs["timeout"] = args["timeout"]
+            # Default: use prompt/query as fallback
+            if not route_kwargs:
+                route_kwargs["prompt"] = args.get("query") or args.get("prompt") or intent
+
+            result = trm.route(intent, **route_kwargs)
+            summary = (
+                f"TRM Route [{intent}] → {result.tool} ({result.source}) "
+                f"[{'fallback' if result.fallback_used else 'primary'}] "
+                f"({result.latency_ms:.0f}ms)\n"
+            )
+            if result.error:
+                summary += f"Error: {result.error}\n"
+            if result.result:
+                summary += f"Result: {json.dumps(result.result, ensure_ascii=False, default=str)[:2000]}"
+            return summary, [("info", f"Routed to {result.tool}")]
+        except Exception as e:
+            return f"TRM route error: {e}", []
 
     # 外部工具（tools.json 中定义）→ 通过 ToolRegistry 执行
     if self.tools.has(name):
@@ -1292,5 +1648,6 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
     return f"未知工具: {name}", []
 
 
-# 注入到 ChatSession
+# 注入到 ChatSession（两个名字：_dispatch_tool 是内部调用名，_dispatch_tool_impl 供 MCP server 使用）
 ChatSession._dispatch_tool = _dispatch_tool_impl
+ChatSession._dispatch_tool_impl = _dispatch_tool_impl

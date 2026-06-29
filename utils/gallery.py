@@ -141,7 +141,7 @@ def generate_gallery(filter_type: str = "all", open_browser: bool = True) -> str
         size = r.get("result", {}).get("size", "")
 
         thumb = _make_thumbnail(lp)
-        thumb_attr = f'src="{thumb}"' if thumb else f'src="file:///{lp.replace(os.sep, "/")}"'
+        thumb_attr = f'src="{thumb}"' if thumb else f'src="{Path(lp).as_uri()}"'
 
         # 评分星星
         stars_html = '<div class="stars">'
@@ -244,7 +244,7 @@ def generate_gallery(filter_type: str = "all", open_browser: bool = True) -> str
                     {f'<span class="meta">{frames}帧</span>' if frames else ""}
                     {f'<span class="meta vid-id" title="点击复制">{vid[:20]}...</span>' if vid else ""}
                 </div>
-                {f'<a class="open-btn" href="file:///{local_file.replace(chr(92), "/")}" target="_blank">▶ 打开视频</a>' if local_file else ""}
+                {f'<a class="open-btn" href="{Path(local_file).as_uri()}" target="_blank">▶ 打开视频</a>' if local_file else ""}
             </div>
         </div>'''
         video_cards_html.append(card)
@@ -429,6 +429,6 @@ document.querySelectorAll('.vid-id').forEach(el => {{
     GALLERY_FILE.write_text(html, encoding="utf-8")
 
     if open_browser:
-        webbrowser.open(f"file:///{GALLERY_FILE.as_posix()}")
+        webbrowser.open(GALLERY_FILE.as_uri())
 
     return str(GALLERY_FILE)

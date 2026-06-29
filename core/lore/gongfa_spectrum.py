@@ -42,11 +42,15 @@ GONGFA_PROMPT = """
   **招式**: /rules /prompt-stats /prompt-assign /compare
   **道**: 先读后写，自验焚妄。任何输出过自查镜，不确凿内容烧掉。
 
-## 玄武·不破盾 — 深层守卫 (Rules x2 + Skills x4)
+## 玄武·不破盾 — 深层守卫 (Rules x2 + Skills x6)
   **心法**: secret-security(密钥安全) | encoding-i18n(国际化编码)
-  **武技**: security-hardening(安全加固) | api-designer | model-routing | shell-master
-  **招式**: /audit /deploy /mcp
-  **道**: Schema版本化，运行时校验，双协议路径，向后兼容是信仰。非法数据零穿透。
+  **武技**: security-hardening(安全加固) | api-designer | model-routing | shell-master |
+           model-routing-matrix(10提供者×119模型×双协议×推理级别) |
+           plugin-system(6插件·技能市场·SKILL.md标准)
+  **招式**: /audit /deploy /mcp /model /plugin /skill
+  **道**: Schema版本化，运行时15种Zod校验，双协议模型路由，推理级别自动映射，
+          6插件体系自扩展，20+事件生命周期追踪，Agent指标全监控。
+          非法数据零穿透，历史数据不丢失。
 
 ## 麒麟·神农鼎 — 创意调和 (Skills x14 + Brain)
   **武技**: showrunner → core-showrunner → storyboard-director → script-writer → visual-director → motion-director → audio-director → cinematic-master → cinematic-keyframe → i2v-motion-rules → video-pipeline → copywriting-master → story-copywriter → world-building-engine

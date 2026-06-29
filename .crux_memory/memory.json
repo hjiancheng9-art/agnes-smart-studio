@@ -1,0 +1,15 @@
+{
+  "memories": [
+    {
+      "id": "mem_1782715204_0",
+      "entity": "crux-test",
+      "fact": "test fact",
+      "ts": 1782715204.482442,
+      "metadata": {}
+    }
+  ],
+  "stats": {
+    "total_stored": 1,
+    "total_recalled": 1
+  }
+}

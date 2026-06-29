@@ -34,6 +34,8 @@ __all__ = [
 class TestGenerator:
     """Generate pytest test code for Python source files using LLM."""
 
+    __test__ = False  # Not a pytest test class
+
     def __init__(self, client, model: str = "deepseek-v4-pro") -> None:
         """Initialize with an CruxClient for LLM calls.
 
@@ -282,6 +284,8 @@ class TestLoop:
     5. Re-run tests
     6. Repeat up to max_iterations
     """
+
+    __test__ = False  # Not a pytest test class
 
     def __init__(self, client, model: str = "deepseek-v4-pro") -> None:
         """Initialize with CruxClient.

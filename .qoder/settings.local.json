@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "crux": {
+      "command": "python",
+      "args": [
+        "C:\\Users\\huangjiancheng\\agnes-smart-studio\\crux_studio.py",
+        "mcp-serve"
+      ]
+    }
+  }
+}

@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from engines.image_to_image import ImageToImageEngine
     from engines.text_to_image import TextToImageEngine
     from engines.video import VideoEngine
-    from pipeline.workflows import PipelineOrchestrator
+    from engines.pipeline.workflows import PipelineOrchestrator
 
 __all__ = ["GeneratorsMenuMixin"]
 
@@ -290,3 +290,27 @@ class GeneratorsMenuMixin:
 
     def _tmpl(self):
         show_templates_list()
+
+    def _chat_agnes(self, session, arg: str):
+        """Open Agnes multimodal generation menu (/agnes [t2i/i2i/t2v/i2v/pipeline])."""
+        mode = arg.strip().lower()
+        mode_map = {"t2i": self._t2i, "i2i": self._i2i, "t2v": self._t2v, "i2v": self._i2v, "pipeline": self._pipeline}
+        if mode in mode_map:
+            mode_map[mode]()
+        else:
+            show_info("Agnes 多模态生成:")
+            console.print("  /agnes t2i  — 文生图（可选尺寸 + prompt增强）")
+            console.print("  /agnes i2i  — 图生图/编辑/风格迁移")
+            console.print("  /agnes t2v  — 文生视频（可选尺寸 + 时长）")
+            console.print("  /agnes i2v  — 图生视频")
+            console.print("  /agnes pipeline — 一键创作流水线")
+            console.print("  [dim]不加参数 = 打开交互式菜单[/]")
+            self._gen_menu() if not mode else None
+
+    def _chat_comfy(self, session, arg: str):
+        """ComfyUI bridge management (/comfy [connect/list/run/status])."""
+        show_info("ComfyUI 工作流管理")
+        console.print("  [dim]ComfyUI 桥接通过 tools.json 自动加载[/]")
+        console.print("  [dim]可用工具: comfy_list_workflows, comfy_run_workflow, comfy_check_status[/]")
+        console.print("  [dim]用法: 在智能体模式中直接对话即可调用[/]")
+        console.print("  [dim]状态: 检查 MCP 连接 → /mcp tools comfy[/]")

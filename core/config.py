@@ -162,16 +162,33 @@ CRUX_VISION_BASE_URL = "https://apihub.agnes-ai.com/v1"
 
 
 def get_crux_vision_model() -> str:
-    """从 models.json active provider 读取视觉模型，fallback 到 deepseek-chat。"""
+    """Get the best available vision model — prefers Zhipu GLM-4V-Flash (free, capable).
+
+    Checks active provider first, then falls back across all providers for vision models.
+    Returns GLM-4V-Flash as ultimate fallback (Zhipu free vision).
+    """
     try:
         from core.provider import get_provider_manager
         mgr = get_provider_manager()
         mgr.load()
+        # Prefer Zhipu vision models — thinking version first (glm-4.1v-thinking-flash)
+        zhipu = mgr.providers.get("zhipu", {})
+        zhipu_v = zhipu.get("vision_models", {})
+        if zhipu_v:
+            return zhipu_v.get("pro") or zhipu_v.get("light") or next(iter(zhipu_v.values()))
+        # Check active provider
         provider = mgr.providers.get(mgr.state.active, {})
         vmodels = provider.get("vision_models", {})
-        return vmodels.get("light") or vmodels.get("pro") or "deepseek-chat"
+        if vmodels:
+            return vmodels.get("light") or vmodels.get("pro")
+        # Search all providers for vision models
+        for pid, p in mgr.providers.items():
+            vm = p.get("vision_models", {})
+            if vm:
+                return vm.get("light") or vm.get("pro") or next(iter(vm.values()))
+        return "GLM-4V-Flash"
     except Exception:
-        return "deepseek-chat"
+        return "GLM-4V-Flash"
 
 
 # 遗留别名 — 无人实际 import，保留仅防 break

@@ -1,5 +1,8 @@
 """Session manager -- named, persistent sessions across CRUX restarts.
 
+ZCode EventBridge: save/restore/delete 自动触发 EventBus 事件，
+使 Session 生命周期可追踪 (session:created / resumed / closed)。
+
 Saves full message history with metadata. Supports save, list, restore, delete.
 """
 
@@ -8,6 +11,8 @@ import logging
 import os
 import time
 from pathlib import Path
+
+from core.event_bus import bus, SESSION_CREATED, SESSION_RESUMED, SESSION_CLOSED
 
 __all__ = [
     "ROOT",
@@ -55,6 +60,8 @@ class SessionManager:
             except OSError:
                 pass
             raise
+        # ZCode EventBridge: 会话创建事件
+        bus.emit(SESSION_CREATED, name=safe_name, message_count=len(messages), meta=meta or {})
         return safe_name
 
     def restore(self, name: str) -> dict | None:
@@ -62,7 +69,10 @@ class SessionManager:
         if not path.exists():
             return None
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            data = json.loads(path.read_text(encoding="utf-8"))
+            # ZCode EventBridge: 会话恢复事件
+            bus.emit(SESSION_RESUMED, name=name, message_count=data.get("message_count", 0))
+            return data
         except (json.JSONDecodeError, OSError) as e:
             # 容错:损坏/半写文件不应让 restore 崩溃调用方。
             # 与 list_sessions 行为一致(后者早有同类容错)。
@@ -90,6 +100,8 @@ class SessionManager:
     def delete(self, name: str) -> bool:
         path = self.dir / f"{name}.json"
         if path.exists():
+            # ZCode EventBridge: 会话关闭事件
+            bus.emit(SESSION_CLOSED, name=name, reason="deleted")
             path.unlink()
             return True
         return False

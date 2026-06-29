@@ -8,7 +8,7 @@ class TestAsyncCruxClientInit:
     def test_init_with_defaults(self):
         client = AsyncCruxClient()
         assert client.base_url == "https://apihub.agnes-ai.com/v1"
-        assert client.timeout == 120.0
+        assert client.timeout == 60.0
         assert client.max_retries > 0
 
     def test_init_with_custom_params(self):

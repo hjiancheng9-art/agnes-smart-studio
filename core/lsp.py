@@ -16,6 +16,7 @@ import contextlib
 import json
 import os
 import subprocess
+import sys
 import threading
 from dataclasses import dataclass, field
 from enum import Enum
@@ -211,6 +212,7 @@ class LSPClient:
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     bufsize=0,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
                 )
             except FileNotFoundError:
                 return {

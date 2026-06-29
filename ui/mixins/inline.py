@@ -29,34 +29,52 @@ class InlineCommandsMixin:
         show_success("Conversation history cleared")
 
     def _inline_thinking(self, session, arg: str):
-        session.enable_thinking = not session.enable_thinking
+        arg = (arg or "").strip().lower()
+        if arg in ("on", "1", "true", "yes"):
+            session.enable_thinking = True
+        elif arg in ("off", "0", "false", "no"):
+            session.enable_thinking = False
+        else:
+            session.enable_thinking = not session.enable_thinking
         state = "on" if session.enable_thinking else "off"
-        show_success(f"Deep thinking {state} (pro models only)")
+        show_success(f"Deep thinking {state}")
         print_mode_banner(session)
 
     def _inline_code(self, session, arg: str):
-        is_code = session.toggle_code_mode()
-        if is_code:
-            show_success("🌿 Code mode enabled (type /code again to exit, Ctrl+C to stop)")
+        arg = (arg or "").strip().lower()
+        was_code = session.code_mode
+        if arg in ("on", "1", "true", "yes"):
+            session.toggle_code_mode() if not session.code_mode else None
+        elif arg in ("off", "0", "false", "no"):
+            session.toggle_code_mode() if session.code_mode else None
         else:
-            show_success("Exited code mode, back to general chat")
+            session.toggle_code_mode()
+        is_code = session.code_mode
+        if is_code and not was_code:
+            show_success("🌿 Code mode on")
+        elif not is_code and was_code:
+            show_success("Code mode off")
         print_mode_banner(session)
 
     def _inline_agent(self, session, arg: str):
-        is_agent = session.toggle_agent_mode()
-        if is_agent:
+        arg = (arg or "").strip().lower()
+        was_agent = session.agent_mode
+        if arg in ("on", "1", "true", "yes"):
+            session.toggle_agent_mode() if not session.agent_mode else None
+        elif arg in ("off", "0", "false", "no"):
+            session.toggle_agent_mode() if session.agent_mode else None
+        else:
+            session.toggle_agent_mode()
+        is_agent = session.agent_mode
+        if is_agent and not was_agent:
             cnt = len(session.tools.tool_names)
-            show_success(f"🧬 Agent mode enabled, loaded {cnt} tools")
-            console.print(f"  [dim]Tools: {', '.join(session.tools.tool_names[:8])}[/]")
-            console.print("  [dim]Type /agent again to exit · Ctrl+C to stop[/]")
-            # Capability hint: suggest switching if current model doesn't support tool calling
+            show_success(f"🧬 Agent mode on ({cnt} tools)")
             if not session.supports_tools:
                 show_warning(
-                    f"Current model {session.model} doesn't support tool calling, "
-                    "agent dispatch will degrade to pure text reasoning. Use /model to switch to a tools-capable model (e.g. deepseek-v4-pro)."
+                    f"{session.model} doesn't support tools — use /model to switch"
                 )
-        else:
-            show_success("Exited agent mode, back to general chat")
+        elif not is_agent and was_agent:
+            show_success("Agent mode off")
         print_mode_banner(session)
 
     def _inline_tools(self, session, arg: str):
@@ -230,27 +248,64 @@ class InlineCommandsMixin:
         )
 
     def _inline_browser(self, session, arg: str):
-        is_on = session.toggle_browser()
-        if is_on:
-            cnt = len([n for n in session.tools.tool_names if n.startswith("browser_")])
-            show_success(f"🌐 Browser Companion enabled ({cnt} tools: generate/check/download/providers/setup/cancel)")
-            console.print("  [dim]Covers 8 platforms: Kling/Dreamina/Runway/Luma/DALL-E/Gemini/Opal/Veo[/]")
-            console.print("  [dim]Run browser_setup to login first, type /browser again to close[/]")
+        arg = (arg or "").strip().lower()
+        was_on = session.browser_enabled
+        if arg in ("on", "1", "true", "yes"):
+            session.toggle_browser() if not session.browser_enabled else None
+        elif arg in ("off", "0", "false", "no"):
+            session.toggle_browser() if session.browser_enabled else None
         else:
-            show_success("Browser Companion disabled, back to general chat")
+            session.toggle_browser()
+        is_on = session.browser_enabled
+        if is_on and not was_on:
+            cnt = len([n for n in session.tools.tool_names if n.startswith("browser_")])
+            show_success(f"🌐 Browser on ({cnt} tools)")
+        elif not is_on and was_on:
+            show_success("Browser off")
         print_mode_banner(session)
 
     def _chat_help_inline(self, session, show_all: bool = False):
         """Inline wrapper: /help → _chat_help (保持与原始接口兼容)。"""
         self._chat_help(session.model, session.enable_thinking, session.code_mode, show_all=show_all)
 
+    @staticmethod
+    def _chat_vote_toggle(session, arg: str):
+        """Toggle multi-model voting (/vote on|off)."""
+        if arg.strip().lower() in ("off", "disable", "0"):
+            session._vote_enabled = False
+            show_info("Multi-model voting disabled — direct responses only")
+        else:
+            session._vote_enabled = True
+            show_success("Multi-model voting enabled — complex questions will consult multiple AIs")
+
+    @staticmethod
+    def _parse_gen_flags(arg: str) -> tuple[str, dict]:
+        """Extract --size, --duration, --system flags from arg. Returns (clean_prompt, flags_dict)."""
+        flags = {}
+        for flag in ("--size", "--duration", "--system"):
+            if f" {flag}" in f" {arg}":
+                parts = arg.split(flag, 1)
+                arg = parts[0].strip()
+                rest = parts[1].strip()
+                val = rest.split()[0] if rest.split() else ""
+                key = flag[2:]  # strip --
+                if val:
+                    flags[key] = val
+                    arg = arg.replace(flag, "").strip()
+        # Clean up leftover flag values
+        import re
+        arg = re.sub(r"\s+", " ", arg).strip()
+        return arg, flags
+
     def _chat_img_inline(self, session, arg: str):
-        """/img → _chat_generate(image)。"""
-        self._chat_generate(session, "image", arg)
+        """/img [--size WxH] [--system name] <prompt> → _chat_generate(image)。"""
+        prompt, flags = self._parse_gen_flags(arg)
+        self._chat_generate(session, "image", prompt, flags=flags)
 
     def _chat_video_inline(self, session, arg: str):
-        """/video → _chat_generate(video)。"""
-        self._chat_generate(session, "video", arg)
+        """/video [--size WxH] [--duration Ns] [--system name] <prompt> → _chat_generate(video)。"""
+        prompt, flags = self._parse_gen_flags(arg)
+        self._chat_generate(session, "video", prompt, flags=flags)
 
     @staticmethod
     def _chat_help(current_model: str, thinking: bool = False, code_mode: bool = False, show_all: bool = False):

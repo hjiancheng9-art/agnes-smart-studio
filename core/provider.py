@@ -79,14 +79,14 @@ def _register_defaults():
     models = [
         # ── 智谱免费模型（视觉优先，理解能力优于 agnes）──
         ModelInfo(
-            id="glm-4.6v-flash",
-            name="GLM-4.6V-Flash (智谱视觉)",
+            id="GLM-4V-Flash",
+            name="GLM-4V-Flash (智谱视觉)",
             provider_id="zhipu",
             provider_name="Zhipu GLM",
-            description="智谱新一代视觉理解，128K，OCR/描述/场景理解（免费，优于 agnes）",
+            description="智谱最新免费视觉理解，OCR/描述/场景识别（新版，替代 glm-4.6v）",
             supports_vision=True,
             tier="light",
-            aliases=("glm-v", "zhipu-vision"),
+            aliases=("glm-4v", "glm-v", "zhipu-vision"),
         ),
         ModelInfo(
             id="glm-4.1v-thinking-flash",
@@ -120,34 +120,45 @@ def _register_defaults():
             tier="light",
             aliases=("glm-stable", "zhipu-light"),
         ),
-        # ── 智谱免费生图/生视频 ──
         ModelInfo(
-            id="cogview-3-flash",
-            name="CogView-3-Flash (智谱免费)",
+            id="GLM-Z1-Flash",
+            name="GLM-Z1-Flash (智谱推理)",
             provider_id="zhipu",
             provider_name="Zhipu GLM",
-            description="免费文生图，智谱 API",
+            description="智谱免费推理模型，数学/代码/逻辑深度思考",
+            supports_tools=True,
+            supports_thinking=True,
+            tier="heavy",
+            aliases=("z1", "glm-z1", "zhipu-reasoner"),
+        ),
+        # ── 智谱免费生图/生视频 ──
+        ModelInfo(
+            id="CogView-3-Flash",
+            name="CogView-3-Flash (智谱生图)",
+            provider_id="zhipu",
+            provider_name="Zhipu GLM",
+            description="智谱免费文生图，支持多尺寸",
             tier="light",
             model_type="image",
             aliases=("cogview", "zhipu-img"),
         ),
         ModelInfo(
-            id="cogvideox-flash",
-            name="CogVideoX-Flash (智谱免费)",
+            id="CogVideoX-Flash",
+            name="CogVideoX-Flash (智谱生视频)",
             provider_id="zhipu",
             provider_name="Zhipu GLM",
-            description="免费文生视频，智谱 API",
+            description="智谱免费文生视频/图生视频，5秒+",
             tier="light",
             model_type="video",
             aliases=("cogvideo", "zhipu-vid"),
         ),
-        # ── CRUX AI models ──
+        # ── CRUX AI models (vision fallback + media generation only, not for coding) ──
         ModelInfo(
             id="agnes-1.5-flash",
             name="CRUX 1.5 Flash",
             provider_id="crux",
             provider_name="CRUX AI",
-            description="多模态图片理解（fallback，智谱不可用时启用）",
+            description="视觉理解 fallback（智谱超载时启用），不参与编码",
             supports_vision=True,
             tier="light",
             aliases=("light",),
@@ -157,7 +168,7 @@ def _register_defaults():
             name="CRUX 2.0 Flash",
             provider_id="crux",
             provider_name="CRUX AI",
-            description="深度思考 + AI自动生图/视频（fallback）",
+            description="视觉 + 多模态生图/视频，不参与编码",
             supports_tools=True,
             supports_thinking=True,
             supports_vision=True,
@@ -229,14 +240,14 @@ def _register_defaults():
             aliases=("img-hd",),
         ),
         ModelInfo(
-            id="agnes-image-2.0-flash",
-            name="CRUX Image 2.0 Flash",
+            id="agnes-image-2.1-flash",
+            name="CRUX Image 2.1 Flash",
             provider_id="crux",
             provider_name="CRUX AI",
-            description="图片生成 + 编辑，支持多图参考和标签控制的图生图",
+            description="多模态图片生成 + 编辑，图生图/文生图，支持多图参考和标签控制",
             tier="pro",
             model_type="image",
-            aliases=("img-edit",),
+            aliases=("img-edit", "agnes-image"),
         ),
         ModelInfo(
             id="agnes-video-v2.0",
@@ -331,11 +342,11 @@ def model_supports_tools(model_id: str) -> bool:
 def get_vision_models() -> list[str]:
     """返回所有支持多模态视觉理解的模型 ID 列表（按注册顺序，保持稳定）。
 
-    视觉通道 fallback 链的单一真相源：调用方按此列表顺序尝试，
-    首个成功即返回。除 deepseek-* 外，其余模型（agnes 系列 /  / Qwen）
-    均支持视觉。调用方应按任务复杂度选择首选项：
-    - 轻量（OCR/描述）→ agnes-1.5-flash（tier=light，最便宜）
-    - 复杂（计数/读代码/图表推理）→ agnes-2.0-flash 或更强（tier=pro）
+    视觉通道 fallback 链的单一真相源：智谱主视觉 → Agnes 兜底。
+    调用方应按任务复杂度选择首选项：
+    - 轻量（OCR/描述）→ GLM-4V-Flash（tier=light，免费）
+    - 复杂（计数/图表推理）→ glm-4.1v-thinking-flash（tier=pro，免费）
+    - 智谱超载时 → agnes-1.5-flash / agnes-2.0-flash 兜底
     """
     return [m.id for m in MODEL_REGISTRY.values() if m.supports_vision]
 
@@ -400,6 +411,30 @@ class ProviderState:
         """Return providers that are not in cooldown, active first."""
         ordered = [self.active] + [p for p in provider_ids if p != self.active]
         return [p for p in ordered if not self.is_down(p)]
+
+    def available_by_latency(self, provider_ids: list[str]) -> list[str]:
+        """Return available providers sorted by average latency (fastest first).
+
+        When choosing between equally-capable providers for the same model tier,
+        prefer the one with lower historical latency. Active provider gets a
+        slight boost (treated as 20% faster than measured) to avoid unnecessary
+        flapping.
+        """
+        available = self.available(provider_ids)
+        if len(available) <= 1:
+            return available
+
+        def avg_latency(pid: str) -> float:
+            samples = self._latencies.get(pid, deque())
+            if not samples:
+                return 999.0
+            avg = sum(samples) / len(samples)
+            # Active provider gets 20% speed boost to avoid flapping
+            if pid == self.active:
+                avg *= 0.8
+            return avg
+
+        return sorted(available, key=avg_latency)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -508,6 +543,9 @@ class ProviderManager:
 
         provider = self.providers[pid]
         api_key = provider.get("api_key") or os.getenv(f"{pid.upper()}_API_KEY", "")
+        # Legacy fallback: CRUX provider also accepts AGNES_API_KEY (pre-rename)
+        if not api_key and pid == "crux":
+            api_key = os.getenv("AGNES_API_KEY", "")
         # Ensure ASCII-only (httpx rejects non-ASCII headers)
         # P2-fix: errors="strict" — 拒绝非ASCII字符（如中文引号/BOM），
         # 避免 Key 被静默截断导致认证失败而不报错。
@@ -561,6 +599,9 @@ class ProviderManager:
                 continue
             p = self.providers[pid]
             key = p.get("api_key") or os.getenv(f"{pid.upper()}_API_KEY", "")
+            # Legacy fallback: CRUX provider also accepts AGNES_API_KEY
+            if not key and pid == "crux":
+                key = os.getenv("AGNES_API_KEY", "")
             if key:
                 return pid
         return None

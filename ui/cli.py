@@ -15,6 +15,9 @@
 因此采用多重继承 Mixin 而非组合。core/commands.py 的 dispatch 表零改动。
 """
 
+import os
+import sys
+
 from rich.panel import Panel
 from rich.prompt import Prompt
 
@@ -25,7 +28,7 @@ from core.version import __version__  # 单一版本真源
 from engines.image_to_image import ImageToImageEngine
 from engines.text_to_image import TextToImageEngine
 from engines.video import VideoEngine
-from pipeline.workflows import PipelineOrchestrator
+from engines.pipeline.workflows import PipelineOrchestrator
 from ui.beautify import splash_full
 from ui.display import show_error, show_info, show_warning
 from ui.mixins import (
@@ -102,9 +105,14 @@ class CruxCLI(
         Chat 是默认入口（Enter 即进入）。创意工具通过 [g] 子菜单访问。
         """
         from ui.terminal_logo import render_welcome
+        from ui.screen import render_boot
+
+        # 启动动画 (~1s)
+        render_boot(v=f"v{__version__}", animate=True)
+        console.print()  # 分隔
 
         # 欢迎页
-        render_welcome(v=f"v{__version__}", t="84", s="734")
+        render_welcome(v=f"v{__version__}")
 
         P = COLORS["primary"]
         M = COLORS["text_secondary"]
@@ -127,7 +135,8 @@ class CruxCLI(
                 break
             try:
                 if choice == "":
-                    self._chat()
+                    import asyncio
+                    asyncio.run(self._chat())
                 elif choice == "g":
                     self._gen_menu()
                 elif choice == "h":
@@ -191,27 +200,25 @@ class CruxCLI(
 
     # ── 聊天模式 ──────────────────────────────────────────
 
-    def _chat(self):
-        """聊天模式：多轮流式对话 + 命令式生成 + AI 自动调度（pro）
+    async def _chat(self):
+        """聊天模式：异步引擎 — AI 生成时输入框不消失，可插话排队。
 
-        按 models.json fallback.priority 自动探测可用供应商，
-        主对话走优先供应商，视觉始终走 CRUX 独立通道。
-        - 多行输入：首行输入 \"\"\" 进入，再输入 \"\"\" 结束
-        - 中止操作：Ctrl+C 中断当前运行
-        - 退出模式：/code、/agent 再次输入即切回，/exit 完全退出
+        流式生成在后台线程运行，主线程立即恢复输入等待。
         """
-        from core.chat import MODEL_INFO, ChatSession
+        import asyncio
+        import threading
+        from core.chat import ChatSession
 
-        # 自助选择供应商（多 Key 时弹出菜单，单 Key 自动激活）
         active_provider, active_model = self._select_provider()
+        auto_mode = active_provider == "auto"
 
         console.print()
+        display_model = "auto" if auto_mode else active_model
         console.print(
             Panel(
                 f"[bold {COLORS['primary']}]◆ Studio v{__version__}[/]  "
-                f"[{COLORS['text_secondary']}]{active_model}[/]  "
-                f"[{COLORS['success']}]● online[/]\n"
-                f"[{COLORS['text_tertiary']}]流式对话 · /命令调度 · 图片识别 · 七兽协同[/]",
+                f"[{COLORS['text_secondary']}]{display_model}[/]  "
+                f"[{COLORS['success']}]● online[/]",
                 border_style=COLORS["border_focus"],
                 padding=LAYOUT["panel_padding"],
             )
@@ -219,22 +226,43 @@ class CruxCLI(
 
         session = ChatSession(self.client, vision_client=self.vision_client, vision_model=get_crux_vision_model())
         session.model = active_model
-        # 用实际模型重建系统提示词（避免 init 用默认模型构建的过期提示词）
+        session.auto_model = auto_mode
         session.messages[0] = {"role": "system", "content": session._build_system_prompt()}
+
+        from ui.badges import print_context_bar, render_badge_line
+        _last_badge_line = ""
+        _pending: str | None = None  # 排队中的输入
+        _stream_done = threading.Event()
+        _stream_done.set()  # 初始状态：无流在跑
+
         while True:
-            try:
-                raw = self._prompt_user(self._mode_hint(session)).strip()
-            except (EOFError, KeyboardInterrupt):
-                console.print()
-                break
+            current = render_badge_line(session, dim=False)
+            if current != _last_badge_line:
+                print_context_bar(session)
+                _last_badge_line = current
+
+            # 如果上一轮排队了输入，直接处理
+            if _pending is not None:
+                raw = _pending
+                _pending = None
+            else:
+                try:
+                    raw = self._prompt_user(self._mode_hint(session)).strip()
+                except (EOFError, KeyboardInterrupt):
+                    console.print()
+                    break
+                except OSError as e:
+                    # stdin 不可用时优雅降级（例如被重定向或终端已关闭）
+                    show_error(f"输入不可用: {e}")
+                    break
+                except Exception as e:
+                    show_error(f"输入异常: {type(e).__name__}: {e}")
+                    continue
             if not raw:
                 continue
 
-            # ── 文本 \\n → 真实换行 ──
             if "\\n" in raw:
                 raw = raw.replace("\\n", "\n")
-
-            # ── 多行输入：\\\"\\\"\\\" 开头进入多行模式 ──
             if raw == '"""':
                 user = self._read_multiline()
                 if user is None:
@@ -242,15 +270,12 @@ class CruxCLI(
             else:
                 user = raw
 
-            # ── 斜杠命令（确定性，不过 LLM）── 表驱动分发
+            # 斜杠命令
             if user.startswith("/"):
                 cmd, _, arg = user[1:].partition(" ")
                 arg = arg.strip()
-
-                # exit 特殊处理：break 退出循环
                 if cmd in ("exit", "quit", "q"):
                     break
-
                 dispatched = self._dispatch_command(cmd, arg, session)
                 if dispatched == self._DISPATCH_EXIT:
                     break
@@ -258,26 +283,41 @@ class CruxCLI(
                     show_warning(f"未知命令 /{cmd}，输入 /help 查看")
                 continue
 
-            # ── 智能图片路由：检测到图片路径 → 自动走视觉通道 ──
+            # 图片路由
             img_path, clean_text = self._extract_path_and_text(user)
             if img_path and img_path.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")):
-                self._chat_vision(session, user)
+                try:
+                    self._chat_vision(session, user)
+                except Exception as e:
+                    show_error(f"图片处理异常: {type(e).__name__}: {e}")
                 continue
 
-                # ── 自然语言对话（流式）──
-            try:
-                self._stream_chat(session, user)
-            except KeyboardInterrupt:
-                console.print()
-                show_info("已中止 · 按 Ctrl+C 退出聊天，或继续输入")
-                # 回滚刚加进去的 user message
-                if session.messages and session.messages[-1].get("role") == "user":
-                    session.messages.pop()
-            except Exception as e:
-                show_error(f"对话出错: {e}")
-                # 回滚刚加进去的 user message，避免历史污染
-                if session.messages and session.messages[-1].get("role") == "user":
-                    session.messages.pop()
+            # ── 自然语言对话：后台流式生成 ──
+            if session.auto_model:
+                tier = session._auto_route(user)
+                if tier:
+                    tier_icon = {"light": "⚡", "pro": "◆", "reasoner": "🔬"}.get(tier, "◆")
+                    console.print(f"  [dim]{tier_icon} auto → {session.model}[/]")
+
+            _stream_done.clear()
+
+            def _run_stream():
+                try:
+                    self._stream_chat(session, user)
+                except Exception:
+                    pass
+                finally:
+                    _stream_done.set()
+
+            stream_thread = threading.Thread(target=_run_stream, daemon=True)
+            stream_thread.start()
+
+            # 流式生成期间：显示可见的状态提示（不用 promp_toolkit，避免与 Live 终端冲突）
+            # 不支持排队输入——简化方案保证终端状态干净，流结束后立即恢复输入框
+            hint = "  [dim]⏳ AI 生成中... 请等待[/]"
+            console.print(hint)
+            _stream_done.wait()
+            stream_thread.join(timeout=2)
 
     # ── TODO 扫描 ─────────────────────────────
     # 递归遍历项目文件，用正则匹配 TODO / FIXME / HACK / XXX / OPTIMIZE / BUG 标签

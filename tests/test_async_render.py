@@ -95,7 +95,7 @@ class TestDefaultSideEffectHandlers:
         h = default_side_effect_handlers()
         from unittest.mock import patch
 
-        with patch("rich.prompt.Confirm.ask", return_value=False), pytest.raises(PermissionError):
+        with patch("rich.prompt.Prompt.ask", return_value="n"), pytest.raises(PermissionError):
             h["confirm"]("confirm", {"tool": "git_push", "args": {}})
 
     def test_confirm_handler_passes_on_accept(self):
@@ -103,7 +103,7 @@ class TestDefaultSideEffectHandlers:
         h = default_side_effect_handlers()
         from unittest.mock import patch
 
-        with patch("rich.prompt.Confirm.ask", return_value=True):
+        with patch("rich.prompt.Prompt.ask", return_value="y"):
             h["confirm"]("confirm", {"tool": "git_push", "args": {}})  #
 
 

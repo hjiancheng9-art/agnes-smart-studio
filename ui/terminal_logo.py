@@ -142,22 +142,26 @@ def render_welcome(
     G = COLORS["success"]
     border = COLORS["border_focus"]
 
-    _t = t if t is not None else "84"
-    _s = s if s is not None else "734"
+    # ── 动态统计 ──
+    _t = str(_count_tools()) if t is None else t
+    _s = str(_count_skills()) if s is None else s
+    _c = str(_count_commands())
 
     # ── 组装面板内容 ──
     body = Text()
     # 行1: 头部信息
     body.append(f"◆ Studio {v}", style=f"bold {P}")
     body.append(f"    {model}", style=M)
-    body.append(f"    1M context", style=M)
+    # 动态上下文
+    ctx = _get_model_context(model)
+    body.append(f"    {ctx}", style=M)
     body.append(f"    ● online", style=G)
     body.append("\n\n")
     # 行2: 七兽色带
     body.append(_build_beasts_spectrum())
     body.append("\n\n")
     # 行3: 统计
-    body.append(f"{_t} tools  ·  {_s} skills  ·  37 commands  ·  7 beasts", style=T)
+    body.append(f"{_t} tools  ·  {_s} skills  ·  {_c} commands  ·  7 beasts", style=T)
     body.append("\n\n")
     # 行4: 命令
     body.append(_build_cmd_tags())
@@ -170,6 +174,57 @@ def render_welcome(
     console.print()
     console.print(Panel(body, border_style=border, padding=(1, 2)))
     console.print()
+
+
+def _count_tools() -> int:
+    """动态获取工具数量。"""
+    try:
+        from core.tools import TOOLS_CONFIG
+        import json
+        if TOOLS_CONFIG.exists():
+            data = json.loads(TOOLS_CONFIG.read_text(encoding="utf-8"))
+            return len(data.get("tools", []))
+    except Exception:
+        pass
+    return 0
+
+
+def _count_skills() -> int:
+    """动态获取技能数量。"""
+    try:
+        from pathlib import Path
+        root = Path(__file__).resolve().parent.parent
+        skills_dir = root / "skills"
+        if skills_dir.is_dir():
+            return len(list(skills_dir.glob("*.skill.json")))
+    except Exception:
+        pass
+    return 0
+
+
+def _count_commands() -> int:
+    """动态获取命令数量。"""
+    try:
+        from core.commands import COMMANDS
+        return len(COMMANDS)
+    except Exception:
+        return 0
+
+
+def _get_model_context(model: str) -> str:
+    """获取模型上下文窗口大小。"""
+    try:
+        from core.provider import get_model_info
+        info = get_model_info(model)
+        if info:
+            ctx = getattr(info, "context_window", 0) or 0
+            if ctx >= 1_000_000:
+                return "1M context"
+            elif ctx >= 128_000:
+                return f"{ctx // 1000}K context"
+    except Exception:
+        pass
+    return "1M context"
 
 
 def _build_beasts_spectrum() -> Text:

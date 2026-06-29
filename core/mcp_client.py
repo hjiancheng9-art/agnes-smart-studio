@@ -25,6 +25,7 @@ import contextlib
 import json
 import os
 import subprocess
+import sys
 import threading
 from dataclasses import asdict, dataclass, field
 
@@ -171,6 +172,7 @@ class MCPClient:
                 text=True,
                 encoding="utf-8",
                 env=proc_env,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
             )
         except (subprocess.SubprocessError, OSError) as e:
             return {"error": f"Failed to start server '{name}': {e}"}
@@ -360,7 +362,7 @@ class MCPClient:
             def _read():
                 try:
                     response_line_holder[0] = stdout.readline()
-                except (json.JSONDecodeError, TypeError, KeyError) as e:
+                except Exception as e:
                     read_error_holder[0] = e
 
             response_line_holder: list[str | None] = [None]

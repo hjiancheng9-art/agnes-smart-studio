@@ -69,12 +69,20 @@ BUILTIN_TOOLS = [
         "type": "function",
         "function": {
             "name": "generate_image",
-            "description": "根据文字描述生成图片。用于生成资产图（角色/场景/道具/载具）或关键帧融合图。可传入参考图片做图生图编辑。",
+            "description": "Generate an image from a text description. Supports text-to-image and image-to-image (pass image_url). Choose size to match the desired aspect ratio and composition.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "prompt": {"type": "string", "description": "图片内容描述（需包含风格/光影/构图/负面约束）"},
-                    "image_url": {"type": "string", "description": "可选，参考图片URL或路径，用于图生图/资产融合"},
+                    "prompt": {"type": "string", "description": "Image description including style, lighting, composition, and negative constraints"},
+                    "image_url": {"type": "string", "description": "Optional reference image URL/path for image-to-image editing"},
+                    "size": {
+                        "type": "string",
+                        "enum": ["1024x768", "1024x1024", "768x1024", "576x1024", "1024x576", "448x1024", "1024x448", "684x1024", "1024x684"],
+                        "description": "Image resolution: 1024x768=4:3, 1024x1024=1:1, 768x1024=3:4, 576x1024=9:16, 1024x576=16:9, 448x1024=9:21, 1024x448=21:9, 684x1024=2:3, 1024x684=3:2. Default 1024x768."
+                    },
+                    "seed": {"type": "integer", "description": "Optional random seed for reproducibility"},
+                    "system": {"type": "string", "description": "Optional style preset: cinematic, anime, watercolor, cyberpunk, fantasy, product, portrait, landscape"},
+                    "negative_prompt": {"type": "string", "description": "What to avoid in the generated image"},
                 },
                 "required": ["prompt"],
             },
@@ -84,12 +92,25 @@ BUILTIN_TOOLS = [
         "type": "function",
         "function": {
             "name": "generate_video",
-            "description": "根据文字描述或关键帧图生成视频。支持文生视频和图生视频两种模式。",
+            "description": "Generate a video from a text description or keyframe image. Supports text-to-video and image-to-video (pass image_url).",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "prompt": {"type": "string", "description": "视频内容/运动描述"},
-                    "image_url": {"type": "string", "description": "可选，关键帧图片URL或路径，传入时走图生视频"},
+                    "prompt": {"type": "string", "description": "Video content / motion description"},
+                    "image_url": {"type": "string", "description": "Optional keyframe image URL/path for image-to-video mode"},
+                    "size": {
+                        "type": "string",
+                        "enum": ["1152x768", "1280x720", "720x1280", "1024x1024", "1024x768", "768x1024"],
+                        "description": "Video resolution: 1152x768=3:2(default), 1280x720=16:9, 720x1280=9:16, 1024x1024=1:1, 1024x768=4:3, 768x1024=3:4"
+                    },
+                    "num_frames": {
+                        "type": "integer",
+                        "enum": [81, 121, 161, 201, 241, 281, 321, 361, 401],
+                        "description": "Video length in frames (8n+1): 81=3.4s, 121=5.0s, 161=6.7s, 201, 241=10s, 281, 321, 361, 401=18.4s. Default 121."
+                    },
+                    "seed": {"type": "integer", "description": "Optional random seed for reproducibility"},
+                    "system": {"type": "string", "description": "Optional style preset: cinematic, anime, watercolor, cyberpunk, fantasy"},
+                    "negative_prompt": {"type": "string", "description": "What to avoid in the generated video"},
                 },
                 "required": ["prompt"],
             },
@@ -106,6 +127,85 @@ BUILTIN_TOOLS = [
                     "goal": {"type": "string", "description": "需要多智能体协同完成的目标描述"},
                 },
                 "required": ["goal"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "trm_route",
+            "description": "TRM (Tool Registry Mesh) 智能工具路由：根据任务意图自动选择最优工具链并执行。支持自动 fallback。intent: search(代码搜索)/review(代码审查)/execute(编码实现)/think(深度分析)/generate(媒体生成)/status(状态检查)。query/prompt/target 等参数会传递给选中的工具。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "intent": {
+                        "type": "string",
+                        "enum": ["search", "review", "execute", "think", "generate", "status"],
+                        "description": "任务意图类型"
+                    },
+                    "query": {"type": "string", "description": "search/review 用的搜索/审查目标"},
+                    "prompt": {"type": "string", "description": "execute/think 用的任务描述"},
+                    "target": {"type": "string", "description": "review/search 的文件/目录路径"},
+                    "plan": {"type": "string", "description": "execute 用的实现计划"},
+                    "work_dir": {"type": "string", "description": "工作目录（默认当前项目根）"},
+                    "timeout": {"type": "integer", "description": "超时秒数（默认根据 intent 自动选择）"},
+                },
+                "required": ["intent"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "trm_growth",
+            "description": "查看 CRUX 成长引擎状态：总调用次数、每个意图的优化路由排序、各工具的成功率/延迟/降级状态。展示 CRUX 从每次调用中学到了什么。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "intent": {
+                        "type": "string",
+                        "enum": ["search", "review", "execute", "think", "generate", "status"],
+                        "description": "按意图筛选（不传则显示全部）"
+                    },
+                    "reset": {"type": "boolean", "description": "重置成长数据（危险操作）"},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "trm_tune",
+            "description": "CRUX 内秀优化：自动分析成长数据，检测瓶颈，生成自优化建议。CRUX 从每次调用中学到的经验用于优化自身参数和路由策略。返回自调参结果、瓶颈检测和改进建议。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "apply": {
+                        "type": "boolean",
+                        "description": "是否自动应用调参建议（默认 false，仅分析）"
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "trm_catalog",
+            "description": "查看 TRM 工具目录：列出九兽网格中所有可用工具及其分类、来源、路由规则。不执行任何操作，仅返回目录信息。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "enum": ["search", "review", "execute", "think", "generate", "status"],
+                        "description": "按分类筛选（不传则显示全部）"
+                    },
+                    "source": {"type": "string", "description": "按来源筛选 (crux/codex/kimi/copilot/qoder/codebuddy)"},
+                },
+                "required": [],
             },
         },
     },
@@ -568,6 +668,7 @@ class ToolRegistry:
         self._definitions: list[dict] = []  # OpenAI function 格式
         self._executors: dict[str, Callable[..., str]] = {}  # name → 执行函数
         self._tool_modules: dict[str, str] = {}  # name → 模块路径（分类用）
+        self.model_router = None  # Optional ModelRouter for sub-agent dispatch
 
     # ── 加载 ──
     def load(

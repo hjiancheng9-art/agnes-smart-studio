@@ -64,6 +64,19 @@ def open_file(path: str) -> bool:
         return False
 
 
+def _view_image(path: str) -> str:
+    """工具入口：用系统默认查看器打开图片，返回操作结果字符串"""
+    if not path:
+        return "[view_image] 未提供图片路径"
+    if not os.path.exists(path):
+        return f"[view_image] 文件不存在: {path}"
+    success = open_file(path)
+    if success:
+        return f"[view_image] 已打开: {path}"
+    else:
+        return f"[view_image] 无法打开: {path}（检查文件格式或系统默认查看器）"
+
+
 # ═══════════════════════════════════════════════
 #  v3 消息函数 — 紧凑 · 层次感
 # ═══════════════════════════════════════════════
@@ -81,11 +94,25 @@ def show_error(message: str):
 
 
 def show_warning(message: str):
-    console.print(f"  [{COLORS['warning']}]▲ {message}[/]")
+    console.print(
+        Panel(
+            message,
+            title=f"[bold {COLORS['warning']}]▲ Warning[/]",
+            border_style=COLORS["warning"],
+            padding=LAYOUT["panel_padding"],
+        )
+    )
 
 
 def show_success(message: str):
-    console.print(f"  [{COLORS['success']}]● {message}[/]")
+    console.print(
+        Panel(
+            message,
+            title=f"[bold {COLORS['success']}]● Success[/]",
+            border_style=COLORS["success"],
+            padding=LAYOUT["panel_padding"],
+        )
+    )
 
 
 def show_info(message: str):
@@ -154,8 +181,8 @@ def show_image_result(data: dict):
         try:
             open_file(path)
             console.print(f"  [{T}]已自动打开预览[/]")
-        except Exception:
-            pass
+        except Exception as e:
+            console.print(f"  [{COLORS['error']}]⚠ 自动打开预览失败: {e}[/]")
 
 
 def show_video_result(data: dict):
@@ -253,3 +280,110 @@ def show_templates_list():
         neg = tpl.get("negative", "")[:27] + "..." if len(tpl.get("negative", "")) > 30 else tpl.get("negative", "")
         table.add_row(name, img_kw, neg)
     console.print(table)
+
+
+# ═══════════════════════════════════════════════
+#  工具函数 — 供 ToolRegistry 调用
+# ═══════════════════════════════════════════════
+
+def _tool_search(query: str) -> str:
+    """搜索可用工具，返回匹配的工具名和描述"""
+    import json
+    from pathlib import Path as _Path
+
+    tf = _Path(__file__).resolve().parent.parent / "tools.json"
+    if not tf.exists():
+        return "[tool_search] tools.json 未找到"
+    try:
+        data = json.loads(tf.read_text(encoding="utf-8"))
+        tools = data.get("tools", []) if isinstance(data, dict) else data
+    except (json.JSONDecodeError, OSError) as e:
+        return f"[tool_search] 读取 tools.json 失败: {e}"
+
+    q = query.lower()
+    matches = []
+    for t in tools:
+        if not isinstance(t, dict):
+            continue
+        name = t.get("name", "")
+        desc = t.get("description", "")
+        if q in name.lower() or q in desc.lower():
+            matches.append(f"  • {name} — {desc[:80]}")
+
+    if not matches:
+        return f"[tool_search] 未找到与 '{query}' 匹配的工具"
+    return f"[tool_search] 找到 {len(matches)} 个匹配:\n" + "\n".join(matches[:20])
+
+
+def _request_user_input(question: str) -> str:
+    """暂停并询问用户问题，返回用户文本回复"""
+    try:
+        from rich.prompt import Prompt
+
+        return Prompt.ask(f"\n  [bold yellow]?[/] {question}").strip()
+    except (EOFError, KeyboardInterrupt):
+        return "[request_user_input] 用户取消或输入不可用"
+
+
+def _update_plan(
+    action: str,
+    step_id: int | None = None,
+    name: str | None = None,
+    tool: str | None = None,
+    args: dict | None = None,
+    reason: str = "",
+) -> str:
+    """更新当前执行计划：添加/删除/修改/插入步骤"""
+    try:
+        from core.plan_mode import get_plan_mode_manager
+
+        mgr = get_plan_mode_manager()
+        plan = mgr.current_plan()
+        if plan is None:
+            return "[update_plan] 当前没有活跃的计划"
+        if plan.selected_option < 0 or plan.selected_option >= len(plan.options):
+            return "[update_plan] 没有选中的方案"
+
+        option = plan.options[plan.selected_option]
+        steps = option.steps  # list[dict]
+
+        if action == "add":
+            new_step = {
+                "id": step_id or (len(steps) + 1),
+                "name": name or "未命名步骤",
+                "tool": tool or "",
+                "args": args or {},
+            }
+            steps.append(new_step)
+            return f"[update_plan] 已添加步骤: {new_step['name']}"
+        elif action == "remove":
+            if step_id is not None:
+                option.steps = [s for s in steps if s.get("id") != step_id]
+                return f"[update_plan] 已移除步骤 {step_id}"
+            return "[update_plan] 需要提供 step_id"
+        elif action == "modify":
+            if step_id is not None:
+                for s in steps:
+                    if s.get("id") == step_id:
+                        if name:
+                            s["name"] = name
+                        if tool:
+                            s["tool"] = tool
+                        if args:
+                            s["args"] = args
+                        return f"[update_plan] 已修改步骤 {step_id}"
+            return f"[update_plan] 未找到步骤 {step_id}"
+        elif action == "insert":
+            new_step = {
+                "id": step_id or (len(steps) + 1),
+                "name": name or "未命名步骤",
+                "tool": tool or "",
+                "args": args or {},
+            }
+            pos = max(0, min(step_id or 0, len(steps)))
+            steps.insert(pos, new_step)
+            return f"[update_plan] 已插入步骤: {new_step['name']} 到位置 {pos}"
+        else:
+            return f"[update_plan] 未知操作: {action}，支持 add/remove/modify/insert"
+    except Exception as e:
+        return f"[update_plan] 操作失败: {e}"

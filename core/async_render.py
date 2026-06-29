@@ -85,11 +85,16 @@ def default_side_effect_handlers() -> HandlerMap:
     def _on_confirm(kind: str, payload: object) -> None:
         data: dict = payload  # type: ignore[assignment]
         tool = data.get("tool", "?")
-        show_warning(f"⚠ 即将执行高风险工具: {tool}")
-        from rich.prompt import Confirm
+        args_preview = str(data.get("args", ""))[:80]
+        from rich.prompt import Prompt
 
-        if not Confirm.ask("[bold]确认执行？[/]", default=False):
-            raise PermissionError(f"用户拒绝了 {tool} 的执行")
+        choice = Prompt.ask(
+            f"  ⚠ {tool} ({args_preview})  [dim][y/n][/]",
+            choices=["y", "n"],
+            default="n",
+        )
+        if choice != "y":
+            raise PermissionError(f"user denied {tool}")
 
     return {
         "info": _on_info,

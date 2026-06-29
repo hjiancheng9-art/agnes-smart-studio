@@ -29,6 +29,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+import re
+
 logger = logging.getLogger("crux.plugins")
 
 PLUGIN_DIR = Path(__file__).resolve().parent.parent / "output" / "plugins"
@@ -67,9 +69,13 @@ class PluginManifest:
         )
 
     def validate(self) -> tuple[bool, str]:
-        """玄武校验：schema_version 必须匹配，permissions 必须合法。"""
+        """玄武校验：schema_version + 插件名 + permissions 三关。"""
         if self.schema_version != SCHEMA_VERSION:
             return False, f"Schema mismatch: expected {SCHEMA_VERSION}, got {self.schema_version}"
+        # ZCode Gene 3: 插件名校验
+        plugin_name_re = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
+        if not plugin_name_re.match(self.name):
+            return False, f"Invalid plugin name '{self.name}': must match ^[a-z0-9][a-z0-9._-]{{0,127}}$"
         valid_perms = {"fs", "network", "gpu", "browser", "audio", "process", "self"}
         stray = set(self.permissions) - valid_perms
         if stray:
@@ -98,13 +104,27 @@ class PluginManager:
     # ── scan ──────────────────────────────────────────────────
 
     def discover(self) -> list[Path]:
-        """扫描 output/plugins/ 下的所有有效插件目录。"""
+        """扫描所有插件发现路径（ZCode 兼容多路径）。
+
+        搜索优先级:
+        1. output/plugins/          — CRUX 主目录（已有）
+        2. .zcode-plugin/          — ZCode 标准插件发现
+        3. .claude-plugin/         — Claude 兼容发现
+        4. .codex-plugin/          — Codex 兼容发现
+        """
         plugins: list[Path] = []
-        if not PLUGIN_DIR.exists():
-            return plugins
-        for d in sorted(PLUGIN_DIR.iterdir()):
-            if d.is_dir() and (d / "plugin.json").exists() and (d / "main.py").exists():
-                plugins.append(d)
+        scan_dirs = [
+            PLUGIN_DIR,
+            Path(__file__).resolve().parent.parent / ".zcode-plugin",
+            Path(__file__).resolve().parent.parent / ".claude-plugin",
+            Path(__file__).resolve().parent.parent / ".codex-plugin",
+        ]
+        for scan_dir in scan_dirs:
+            if not scan_dir.exists():
+                continue
+            for d in sorted(scan_dir.iterdir()):
+                if d.is_dir() and (d / "plugin.json").exists() and (d / "main.py").exists():
+                    plugins.append(d)
         return plugins
 
     # ── load ──────────────────────────────────────────────────

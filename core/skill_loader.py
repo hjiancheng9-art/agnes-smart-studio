@@ -12,11 +12,14 @@ Injects relevant skills into agent system prompt based on task context.
 """
 
 import json
+import re
+from dataclasses import dataclass, field
 from pathlib import Path
 
 __all__ = [
     "AgnetaSkillSystem",
     "CodexSkill",
+    "SkillHeader",
     "ROOT",
     "SKILL_DIRS",
     "skill_inject",
@@ -27,11 +30,119 @@ __all__ = [
 ROOT = Path(__file__).resolve().parent.parent
 SKILL_DIRS = [ROOT / "skills_md", ROOT / "skills", ROOT / "output" / "custom_tools"]
 
+SCHEMA_VERSION = "crux.zcode-dna.v1"
+
+
+@dataclass
+class SkillHeader:
+    """ZCode Gene 1: SKILL.md frontmatter 的完整 Schema 定义。
+
+    解析 skills 的 frontmatter 元数据，支持 YAML 和 Markdown 两种格式。
+    遵循 ZCode Plugin identity pattern: <name>@<version>。
+    """
+
+    name: str = ""
+    version: str = "0.1.0"
+    description: str = ""
+    tags: list[str] = field(default_factory=list)
+    author: str | None = None
+    schema_version: str = SCHEMA_VERSION
+    raw_frontmatter: str = ""
+
+    PLUGIN_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
+
+    @classmethod
+    def parse(cls, content: str) -> "SkillHeader":
+        """从 SKILL.md 全文解析 frontmatter 元数据。
+
+        支持标准 YAML frontmatter (--- ... ---) 和 ## Metadata 节两种格式。
+        """
+        header = cls()
+        header.raw_frontmatter = content[:500]
+
+        # 尝试 YAML frontmatter: ---\nkey: value\n---
+        yaml_match = re.match(r"^---\s*\n(.+?)\n---", content, re.DOTALL)
+        if yaml_match:
+            header._parse_yaml_block(yaml_match.group(1))
+            return header
+
+        # 尝试 ## Metadata 节（用 MULTILINE 使 ^ 匹配行首）
+        meta_match = re.search(r"^## Metadata\s*\n(.+?)(?=\n## |\Z)", content, re.DOTALL | re.MULTILINE)
+        if meta_match:
+            header._parse_yaml_block(meta_match.group(1))
+
+        # 从 H1 提取 name
+        h1_match = re.search(r"^#\s+(.+)$", content, re.MULTILINE)
+        if h1_match and not header.name:
+            header.name = h1_match.group(1).strip()
+
+        # 从 ## Description 节提取 description
+        desc_match = re.search(r"^## Description\s*\n(.+?)(?:\n## |\Z)", content, re.DOTALL)
+        if desc_match and not header.description:
+            header.description = desc_match.group(1).strip()[:200]
+
+        return header
+
+    def _parse_yaml_block(self, block: str) -> None:
+        """解析 YAML 风格的键值对块。
+
+        支持两种格式：
+          key: value
+          - key: value  (列表项格式)"""
+        for raw_line in block.strip().split("\n"):
+            line = raw_line.strip()
+            if not line or ":" not in line:
+                continue
+            # 去掉列表项前缀 "- "
+            if line.startswith("- "):
+                line = line[2:]
+            # 清理两端空格
+            line = line.strip()
+            if ":" not in line:
+                continue
+            key, _, val = line.partition(":")
+            key = key.strip().lower().replace(" ", "_")
+            val = val.strip()
+            if key == "name":
+                self.name = val
+            elif key == "version":
+                self.version = val
+            elif key == "description":
+                self.description = val[:200]
+            elif key == "tags":
+                self.tags = [t.strip() for t in val.split(",") if t.strip()]
+            elif key == "author":
+                self.author = val
+
+    def validate(self) -> tuple[bool, list[str]]:
+        """Gene 3: Zod-style 边界校验。"""
+        errors = []
+        if not self.name:
+            errors.append("name is required")
+        elif not self.PLUGIN_NAME_RE.match(self.name):
+            errors.append(f"name '{self.name}' must match {self.PLUGIN_NAME_RE.pattern}")
+        if not self.version:
+            errors.append("version is required")
+        if self.schema_version != SCHEMA_VERSION:
+            errors.append(f"schema_version must be {SCHEMA_VERSION}, got {self.schema_version}")
+        return (len(errors) == 0, errors)
+
+    def to_dict(self) -> dict:
+        """序列化（用于事件负载 / 插件注册）。"""
+        import dataclasses
+        return dataclasses.asdict(self)
+
 
 class CodexSkill:
     def __init__(self, path: Path) -> None:
         self.path = path
-        self.name = path.stem.replace(".skill", "")
+        raw = path.stem
+        # 处理 .skill.md 和 .SKILL.md 两种后缀
+        lower_stem = raw.lower()
+        if lower_stem.endswith(".skill"):
+            self.name = raw[:-6]
+        else:
+            self.name = raw
         self._content = ""
         self._sections: dict[str, str] = {}
         self._loaded = False
@@ -268,6 +379,8 @@ class AgnetaSkillSystem:
         return ""
 
 
+# ── ZCode Skill API 别名 ─────────────────────────────────────
+
 _skill_system = AgnetaSkillSystem()
 
 
@@ -281,3 +394,37 @@ def skill_load(name: str) -> str | None:
 
 def skill_list() -> list[dict]:
     return _skill_system.list_skills()
+
+
+# ZCode 兼容 API (Gene 4 Self-extending)
+def listZCodeSkills() -> list[dict]:
+    """ZCode 兼容：枚举所有可发现技能。"""
+    return _skill_system.list_skills()
+
+
+def inspectZCodeSkill(name: str) -> str | None:
+    """ZCode 兼容：检查单个技能的完整内容。"""
+    return _skill_system.load_skill(name)
+
+
+def createSkillDiscovery(name: str, description: str, instructions: str) -> str:
+    """ZCode 兼容：AI 在运行时创建新技能。
+
+    将技能写入 skills_md/ 目录，下次自动被发现。
+    返回技能文件路径。
+    """
+    import time
+    safe_name = name.replace(" ", "-").replace("/", "_").lower()[:60]
+    path = ROOT / "skills_md" / f"{safe_name}.SKILL.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    content = (
+        f"# {name}\n\n"
+        f"## Description\n{description}\n\n"
+        f"## Instructions\n{instructions}\n\n"
+        f"## Metadata\n"
+        f"- created_at: {time.time():.0f}\n"
+        f"- zcode_generated: true\n"
+    )
+    path.write_text(content, encoding="utf-8")
+    _skill_system.refresh()
+    return str(path)

@@ -86,3 +86,6 @@ node_modules/
 .coverage
 coverage.xml
 htmlcov/
+
+# Beast launcher PID file
+.beasts_pids.json

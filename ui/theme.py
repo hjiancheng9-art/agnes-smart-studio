@@ -26,6 +26,8 @@ __all__ = [
     "INPUT_STYLE",
     "DIVIDER_STYLE",
     "PANEL_STYLE",
+    "CHAT_SEPARATOR_STYLE",
+    "CONTEXT_BAR_STYLE",
     "create_console",
     "console",
 ]
@@ -84,6 +86,10 @@ COLORS = {
     "input_border": "#21262D",
     "input_text": "#E6EDF3",
     "input_placeholder": "#6E7681",
+    "input_frame_top": "#30363D",
+    "input_frame_bottom": "#21262D",
+    "input_hint": "#8B949E",
+    "input_cursor": "#58A6FF",
 
     # ── 组件色 ──
     "divider_primary": "#21262D",
@@ -93,6 +99,10 @@ COLORS = {
     "status_warn": "#D29922",
     "status_err": "#F85149",
     "status_idle": "#6E7681",
+
+    # ── 聊天分隔符 ──
+    "chat_separator": "#21262D",
+    "chat_separator_accent": "#30363D",
 }
 
 # ═══════════════════════════════════════════════
@@ -128,7 +138,25 @@ RETRO_THEME = Theme({
     "badge.model": "#7B85D6",
     "input.prompt": "#58A6FF",
     "input.border": "#21262D",
+    "input.frame": "#30363D",
+    "input.hint": "#484F58",
     "divider": "#21262D",
+    "chat.separator": "#21262D",
+    "context.bar": "#30363D",
+    # ── Markdown 渲染样式 ──
+    "markdown.h1": "bold #E3B341",
+    "markdown.h2": "bold #58A6FF",
+    "markdown.h3": "bold #7B85D6",
+    "markdown.h4": "bold #8B949E",
+    "markdown.code": "#F78166 on #1C2128",
+    "markdown.code_block": "on #161B22",
+    "markdown.block_quote": "dim #8B949E",
+    "markdown.link": "#58A6FF",
+    "markdown.hr": "#21262D",
+    "markdown.item.bullet": "#58A6FF",
+    "markdown.item.number": "#58A6FF",
+    "markdown.strong": "bold #E6EDF3",
+    "markdown.em": "italic #E6EDF3",
 })
 
 # ═══════════════════════════════════════════════
@@ -217,11 +245,38 @@ LAYOUT = {
 # ── 输入框样式 ──
 INPUT_STYLE = {
     "prompt_symbol": "›",
+    "prompt_symbol_alt": "❯",
     "prompt_color": "primary",
     "border_char": "─",
     "border_color": "muted",
     "hint_color": "muted",
-    "width": 60,
+    "frame_top_left": "╭",
+    "frame_top_right": "╮",
+    "frame_bottom_left": "╰",
+    "frame_bottom_right": "╯",
+    "frame_vertical": "│",
+    "frame_horizontal": "─",
+    "width": 72,
+    "min_padding": 2,
+}
+
+# ── 聊天分隔线样式 ──
+CHAT_SEPARATOR_STYLE = {
+    "char": "─",
+    "heavy_char": "━",
+    "double_char": "═",
+    "dot_char": "◆",
+    "length": 50,
+    "color": "chat_separator",
+    "accent_color": "chat_separator_accent",
+}
+
+# ── 状态栏/上下文栏样式 ──
+CONTEXT_BAR_STYLE = {
+    "left_edge": "├",
+    "right_edge": "┤",
+    "fill": "─",
+    "color": "context_bar",
 }
 
 # ── 分隔线样式 ──

@@ -34,8 +34,8 @@ class TestPricing:
     def test_image_model_cost(self):
         from core.cost_tracker import calc_cost
 
-        cost = calc_cost("agnes-image-2.0-flash", "image", call_count=1)
-        assert abs(cost - 0.02) < 1e-6
+        cost = calc_cost("agnes-image-2.1-flash", "image", call_count=1)
+        assert abs(cost - 0.03) < 1e-6
 
     def test_video_model_cost(self):
         from core.cost_tracker import calc_cost
@@ -98,27 +98,27 @@ class TestRecordUsage:
     def test_record_writes_to_log(self):
         from core.cost_tracker import COST_LOG, record_usage
 
-        record_usage("agnes-image-2.0-flash", "image", label="gen")
+        record_usage("agnes-image-2.1-flash", "image", label="gen")
         assert COST_LOG.exists()
         lines = COST_LOG.read_text(encoding="utf-8").strip().split("\n")
         assert len(lines) == 1
         data = json.loads(lines[0])
-        assert data["model"] == "agnes-image-2.0-flash"
+        assert data["model"] == "agnes-image-2.1-flash"
         assert data["kind"] == "image"
 
     def test_by_model_breakdown(self):
         from core.cost_tracker import get_summary, record_usage
 
         record_usage("agnes-2.0-flash", "text", {"prompt_tokens": 1000, "completion_tokens": 0})
-        record_usage("agnes-image-2.0-flash", "image")
+        record_usage("agnes-image-2.1-flash", "image")
         summary = get_summary()
         assert "agnes-2.0-flash" in summary["by_model"]
-        assert "agnes-image-2.0-flash" in summary["by_model"]
+        assert "agnes-image-2.1-flash" in summary["by_model"]
 
     def test_by_kind_breakdown(self):
         from core.cost_tracker import get_summary, record_usage
 
-        record_usage("agnes-image-2.0-flash", "image")
+        record_usage("agnes-image-2.1-flash", "image")
         summary = get_summary()
         assert "image" in summary["by_kind"]
         assert summary["by_kind"]["image"]["calls"] == 1
@@ -185,7 +185,7 @@ class TestBudget:
         from core.cost_tracker import check_budget, record_usage, set_budget
 
         set_budget(daily_usd=0.001)  # very low limit
-        record_usage("agnes-image-2.0-flash", "image")  # costs 0.02
+        record_usage("agnes-image-2.1-flash", "image")  # costs 0.02
         warning = check_budget()
         assert warning is not None
         assert "预算" in warning or "%" in warning
@@ -202,7 +202,7 @@ class TestReset:
     def test_reset_returns_old_total(self):
         from core.cost_tracker import get_summary, record_usage, reset_cost
 
-        record_usage("agnes-image-2.0-flash", "image")
+        record_usage("agnes-image-2.1-flash", "image")
         result = reset_cost()
         assert result["cleared_total"] > 0
         # After reset, state should be clean

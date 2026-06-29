@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -282,6 +283,7 @@ class BackgroundManager:
                 stdout=output_f,
                 stderr=subprocess.STDOUT,
                 cwd=cwd or os.getcwd(),
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
             )
 
             with self._lock:

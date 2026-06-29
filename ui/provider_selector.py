@@ -256,10 +256,23 @@ class DiagCommandsMixin:
             active = cfg.get("active", "crux")
             fallback = cfg.get("fallback", {})
             priority = fallback.get("priority", [])
+            from core.provider import MODEL_REGISTRY
+
             for pid, p in providers.items():
                 marker = " [green]← 当前[/]" if pid == active else ""
                 models = p.get("models", {})
-                model_info = ", ".join(f"{k}={v}" for k, v in models.items())
+                # 从 MODEL_REGISTRY 动态构建带能力标签的模型列表
+                model_parts = []
+                for tier, mid in models.items():
+                    mi = MODEL_REGISTRY.get(mid)
+                    cap = ""
+                    if mi:
+                        if mi.supports_tools: cap += "🔧"
+                        if mi.supports_vision: cap += "👁"
+                        if mi.supports_thinking: cap += "🧠"
+                    cap_str = f" {cap}" if cap else ""
+                    model_parts.append(f"[dim]{tier}=[/]{mid}{cap_str}")
+                model_info = ", ".join(model_parts)
                 key_env = f"{pid.upper()}_API_KEY"
                 has_key = "有 Key" if os.getenv(key_env) else "无 Key"
                 prio_marker = f" [yellow]#{priority.index(pid) + 1}优先[/]" if pid in priority else ""
@@ -420,37 +433,70 @@ class DiagCommandsMixin:
             return (pid, model)
         # ≥2 个外部供应商 → 弹出菜单
         console.print()
+        # 从 MODEL_REGISTRY（模型编排单一真源）动态获取描述和能力标签
+        from core.provider import MODEL_REGISTRY
+
+        def _capability_badges(mid: str) -> str:
+            """从 MODEL_REGISTRY 构建能力徽章字符串。"""
+            mi = MODEL_REGISTRY.get(mid)
+            if not mi:
+                return "[dim]—[/]"
+            badges = []
+            if mi.supports_tools:
+                badges.append("🔧")
+            if mi.supports_vision:
+                badges.append("👁")
+            if mi.supports_thinking:
+                badges.append("🧠")
+            return " ".join(badges) if badges else "[dim]对话[/]"
+
+        def _model_desc(pid: str, p: dict, mid: str) -> str:
+            """从 MODEL_REGISTRY 获取模型描述，fallback 到供应商级描述。"""
+            mi = MODEL_REGISTRY.get(mid)
+            if mi and mi.description:
+                return mi.description
+            return p.get("description", "") or {
+                "crux": "原生模型 · 轻量快速",
+                "deepseek": "百万上下文 · 代码/推理",
+                "zhipu": "免费模型矩阵 · 视觉/推理/生图",
+                "copilot": "Copilot 订阅免费 · 快速对话/代码",
+            }.get(pid, "外部供应商")
+
         table = Table(
             title="[bold cyan]选择主对话供应商[/]（视觉始终走 CRUX 独立通道）", border_style=COLORS["primary"]
         )
         table.add_column("#", style="bold cyan", width=3)
         table.add_column("供应商", style="white", width=16)
-        table.add_column("模型", style="dim")
+        table.add_column("主模型", style="bold", width=20)
+        table.add_column("能力", style="cyan", width=10)
         table.add_column("说明", style="dim")
         choices = []
         idx = 1
         for pid, p, model, _ in available:
             label = f"{idx}"
-            desc = p.get("description", "")
-            if not desc:
-                if pid == "crux":
-                    desc = "原生模型 · 轻量快速"
-                elif pid == "deepseek":
-                    desc = "百万上下文 · 代码/推理"
-                elif "local" in pid:
-                    desc = "本地推理 · 离线可用"
-                else:
-                    desc = "外部供应商"
-            table.add_row(label, p["name"], model, desc)
+            badges = _capability_badges(model)
+            desc = _model_desc(pid, p, model)
+            table.add_row(label, p["name"], model, badges, desc)
             choices.append((str(idx), pid, p, model))
             idx += 1
+        # Add auto-select option
+        table.add_row("[bold green]0[/]", "[bold green]自动选择[/]", "auto", "[green]智能[/]", "根据任务复杂度智能路由到最优模型")
         console.print(table)
         console.print()
         choice = Prompt.ask(
             "[cyan]选择供应商[/]",
-            choices=[c[0] for c in choices] + ["q"],
+            choices=["0"] + [c[0] for c in choices] + ["q"],
             default="1",
         )
+        if choice == "0":
+            # Auto mode: use the first available external provider as default, route per-prompt
+            best_pid, best_p, best_model = available[0][0], available[0][1], available[0][2]
+            if best_pid != "crux":
+                key_env = f"{best_pid.upper()}_API_KEY"
+                api_key = best_p.get("api_key") or os.getenv(key_env)
+                self._activate_provider(best_pid, best_p, best_model, api_key, cfg, cfg_path)
+            show_success("已激活自动选择模式 — 每轮对话智能路由到最优模型")
+            return ("auto", best_model)
         if choice == "q":
             show_info("已取消，使用默认 CRUX light")
             p = providers.get("crux", {})
@@ -474,9 +520,9 @@ class DiagCommandsMixin:
         cfg["active"] = pid
         with contextlib.suppress(OSError, TypeError):
             Path(cfg_path).write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
-        from core.chat import MODEL_INFO
+        from core.provider import get_model_description
 
-        cap = MODEL_INFO.get(model, pid)
+        cap = get_model_description(model) or model
         show_success(f"已激活 {p['name']} → {model}（{cap}）")
 
     @staticmethod
@@ -540,7 +586,7 @@ class DiagCommandsMixin:
 
     @staticmethod
     def _chat_switch_model(session: "ChatSession", arg: str):
-        from core.chat import MODEL_ALIASES, MODEL_INFO
+        from core.chat import MODEL_ALIASES, MODEL_INFO, _refresh_aliases_and_info
         from core.provider import get_provider_manager
 
         if not arg:

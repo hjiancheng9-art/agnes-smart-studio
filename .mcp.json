@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "crux": {
+      "command": "C:/Users/huangjiancheng/AppData/Local/Programs/Python/Python311/python.exe",
+      "args": ["C:/Users/huangjiancheng/agnes-smart-studio/crux_studio.py", "mcp-serve"]
+    }
+  }
+}

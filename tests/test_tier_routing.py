@@ -1,13 +1,10 @@
-"""三级 tier 路由测试（对标 Claude Haiku/Sonnet/Opus 分层）。
+"""三级 tier 路由测试（v6.0 动态路由，配置来源 models.json）。
 
 覆盖:
 - ModelRouter.select_for_tier: light / pro / heavy / auto 映射
 - ModelRouter.select: 按任务类型 + 能力旗标路由
 - ModelRouter tier 常量与 MODEL_PROFILES 一致性
 - 三级 tier 接入点（agent.py / multi_agent.py 调用契约）
-
-阶段 1/3c 的核心契约: deepseek-v4-flash 覆盖 light+pro 档，
-heavy 档走 deepseek-v4-pro。视觉通道独立（agnes-1.5-flash）。
 """
 
 import sys
@@ -42,14 +39,13 @@ class TestSelectForTier:
     - auto/未知 → primary（最稳）
     """
 
-    def test_light_tier_returns_flash(self):
+    def test_light_tier_returns_light(self):
         router = ModelRouter()
         assert router.select_for_tier("light") == router.light
 
-    def test_pro_tier_returns_flash(self):
-        """阶段 3c: pro 档复用 flash（比 agnes-2.0-flash 更稳）。"""
+    def test_pro_tier_returns_pro(self):
         router = ModelRouter()
-        assert router.select_for_tier("pro") == router.light
+        assert router.select_for_tier("pro") == router.pro
 
     def test_heavy_tier_returns_primary(self):
         router = ModelRouter()
@@ -64,10 +60,11 @@ class TestSelectForTier:
         router = ModelRouter()
         assert router.select_for_tier("nonexistent") == router.primary
 
-    def test_light_and_pro_share_flash(self):
-        """阶段 3c 契约: light 和 pro 都映射到 flash（成本最优）。"""
+    def test_light_and_pro_are_valid_models(self):
+        """light 和 pro 都是有效的模型 ID（不一定相同）。"""
         router = ModelRouter()
-        assert router.select_for_tier("light") == router.select_for_tier("pro")
+        assert isinstance(router.light, str) and len(router.light) > 0
+        assert isinstance(router.pro, str) and len(router.pro) > 0
 
     def test_heavy_distinct_from_light(self):
         """heavy 档必须与 light 档不同（深度思考 vs 快速响应）。"""
@@ -76,17 +73,17 @@ class TestSelectForTier:
 
 
 class TestRouterDefaults:
-    """ModelRouter 默认值契约。"""
+    """ModelRouter 默认值契约（v6.0 动态读取 models.json）。"""
 
     def test_default_light_is_flash(self):
-        """阶段 3c: light 默认 deepseek-v4-flash。"""
+        """当前 models.json active=deepseek → light=deepseek-v4-flash。"""
         router = ModelRouter()
         assert router.light == "deepseek-v4-flash"
 
-    def test_default_vision_is_agnes_flash(self):
-        """视觉通道独立于 tier，固定 agnes-1.5-flash。"""
+    def test_default_vision_is_glm_4v_flash(self):
+        """视觉模型优先智谱多模态（GLM-4V-Flash），比 agnes-1.5-flash 视觉能力更强。"""
         router = ModelRouter()
-        assert router.vision_model == "agnes-1.5-flash"
+        assert router.vision_model == "GLM-4V-Flash"
 
     def test_primary_is_valid_model(self):
         """primary 必须是已注册的有效模型 ID。"""
@@ -168,18 +165,25 @@ class TestModelProfiles:
 
 
 class TestFallbackChain:
-    """ModelRouter fallback 链构建。"""
+    """ModelRouter fallback 链构建（v6.0: 免费优先，付费兜底）。"""
 
-    def test_fallback_chain_starts_with_primary(self):
+    def test_fallback_chain_is_non_empty(self):
         router = ModelRouter()
         chain = router._fallback_chain
-        assert chain[0] == router.primary
+        assert len(chain) >= 1
+        assert all(isinstance(m, str) and len(m) > 0 for m in chain)
 
-    def test_fallback_chain_ends_with_light(self):
-        """light 模型作为最后兜底。"""
+    def test_fallback_chain_first_is_free_provider(self):
+        """免费 provider (zhipu) 的模型排在链首。"""
         router = ModelRouter()
         chain = router._fallback_chain
-        assert chain[-1] == router.light
+        assert chain[0] == "glm-4.7-flash"
+
+    def test_fallback_chain_last_is_paid_provider(self):
+        """付费 provider (copilot) 的模型排在链尾。"""
+        router = ModelRouter()
+        chain = router._fallback_chain
+        assert chain[-1] == "gpt-5-mini"
 
     def test_get_fallback_returns_next(self):
         router = ModelRouter()

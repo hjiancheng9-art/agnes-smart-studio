@@ -15,6 +15,11 @@
 - QoderWork：v0.6.4 (桌面应用)
 - CRUX Studio：v5.0
 
+## 用户偏好
+- 讨厌啰嗦确认，直接执行不要问"是否继续"
+- CRUX 是指挥官/编排者，具体任务优先分发给其他兽，不要自己死磕
+- 复杂任务用 trm_route 或 multi_agent 并行派发
+
 ## 关键决策
 - 2026-06-25：从 Qoder 生态抽取觉知系统，锻造第六兽·螣蛇
 - 2026-06-25：创建 awareness/ 三层分离结构（AGENTS/MEMORY/USER）

@@ -5,9 +5,14 @@ This module provides the "thinking brain" behind crux-studio:
 - PlanExecutor: step-by-step task execution with state machine and dependencies
 - SubAgent: independent agent with its own tool-calling loop and session history
 - ModelRouter: intelligent model selection based on task type and cost
+
+ModelRouter now unifies two routing paths:
+- Heuristic prompt classification (classify_prompt) — for main chat auto-model
+- Tier/task-type selection (select / select_for_tier) — for sub-agent dispatch
 """
 
 import json
+import re
 import re
 import unicodedata
 from enum import Enum
@@ -22,6 +27,7 @@ __all__ = [
     "SUBAGENT_PROMPT",
     "StepStatus",
     "SubAgent",
+    "classify_prompt",
     "compress_messages",
     "parse_plan",
     "spawn_subagent",
@@ -544,39 +550,142 @@ class SubAgent:
 # ======================================================================
 
 
+# ── Heuristic prompt classification (for main chat auto-model) ──
+
+_CODE_SIGNALS = re.compile(
+    r"```|import\s+\w+|def\s+\w+|class\s+\w+|"
+    r"Traceback|Error:|Exception|"
+    r"\.py\b|\.js\b|\.ts\b|\.go\b|\.rs\b|"
+    r"function|component|hook|api|endpoint|"
+    r"bug|fix|debug|refactor|test|commit|"
+    r"error|crash|fail|broken|"
+    r"函数|类\b|模块|接口|错误|异常|修复|提交|测试|重构|"
+    r"代码|实现|写|改|加|补|删|优化|拆分",
+    re.IGNORECASE,
+)
+
+_STRONG_REASONER = re.compile(
+    r"security\s+(?:audit|review|assessment|hole|flaw|vulnerability)|"
+    r"threat\s+model|attack\s+(?:surface|vector|tree)|"
+    r"architecture\s+(?:design|review|decision)|"
+    r"architect\s+(?:a\s+)?(?:new|system|solution|pattern)|"
+    r"refactor\s+(?:across|entire|whole)|"
+    r"event\s+sourcing|CQRS|domain[\s-]?driven|"
+    r"comprehensive\s+(?:review|audit|analysis)|"
+    r"root\s+cause|diagnose\s+(?:this|the|why)|"
+    r"database\s+(?:schema|migration|design|architecture)|"
+    r"investigate\s+(?:this|the|why|how)|"
+    r"optimize\s+(?:.*\s)?performance|"
+    r"架构\s*(?:设计|审查|决策|重构)|"
+    r"安全\s*(?:审计|漏洞|审查|扫描)|"
+    r"(?:全面|深度|彻底|详细)\s*(?:审查|分析|检查|方案)|"
+    r"性能\s*(?:优化|调优|瓶颈)|"
+    r"数据库\s*(?:设计|迁移|架构)|"
+    r"根因|底层原因|排查|"
+    r"内存\s*泄漏|OOM|死循环|"
+    r"分析\s*(?:这段|这个|代码|为什么|原因)",
+    re.IGNORECASE,
+)
+
+_MODERATE_REASONER = re.compile(
+    r"architect(?:ure|ural)?\b|"
+    r"design\s+(?:system|pattern|decision|doc|spec)|"
+    r"multi[\s-]?file|"
+    r"refactor|"
+    r"security\s+vulnerability|"
+    r"why\s+(?:.*\s)?(?:fail|crash|break|wrong)|"
+    r"\bmath\b|algorithm\s+(?:design|analysis|complexity|ic)|"
+    r"proof|prove\s+(?:that|it|the|this)|"
+    r"distributed|concurrent|race\s+condition|deadlock|"
+    r"scal(?:e|able|ability)\b|throughput|latency|"
+    r"migrat(?:e|ion)\s+(?:plan|strategy|to|from)|"
+    r"upgrade\s+.*major|breaking\s+change|"
+    r"deep\s+(?:dive|analysis)\b|"
+    r"设计\s*(?:方案|模式|系统)|"
+    r"算法|排序|搜索|加密|解密|"
+    r"为什么\s*(?:失败|崩溃|出错|不对)|"
+    r"多\s*(?:文件|模块|服务)|"
+    r"重构\s*(?:整个|全面|大|代码)|"
+    r"迁移\s*(?:计划|方案|到)|"
+    r"并发|死锁|扩展|吞吐|延迟",
+    re.IGNORECASE,
+)
+
+_LIGHT_SIGNALS = re.compile(
+    r"^(?:what\s+is|who\s+is|when\s+|where\s+|"
+    r"how\s+(?:do|to|can)\s+I\s+|"
+    r"show\s+me|list\s+|find\s+|search\s+|grep\s+|"
+    r"explain\s+(?:this|what)|what\s+does|meaning\s+of|"
+    r"definition\s+of|example\s+of|"
+    r"\bformat\b|\bconvert\b|\btranslate\b|"
+    r"run\s+(?:the\s+)?(?:test|pytest|smoke|check|lint))",
+    re.IGNORECASE,
+)
+
+_LIGHT_COMMANDS = re.compile(
+    r"^(?:run|执行|跑)\s*(?:测试|test|smoke|check|lint)|"
+    r"^(?:format|lint|sort|organize)\s",
+    re.IGNORECASE,
+)
+
+
+def _count_matches(pattern: re.Pattern, text: str) -> int:
+    """Count non-overlapping matches of pattern in text."""
+    return sum(1 for _ in pattern.finditer(text))
+
+
+def _resolve_tier_from_dict(tier: str, provider_models: dict[str, str]) -> str:
+    """Map a tier to an actual model ID from a provider's model dict.
+
+    Search order tries exact tier first, then falls back through canonical tiers.
+    Normalizes 'reasoner' to look for 'reasoner' key, then 'heavy', then 'pro', etc.
+    """
+    # Build search order: exact tier, then canonical fallback chain
+    search_order = [tier]
+    if tier == "reasoner":
+        search_order += ["heavy", "pro", "light"]
+    elif tier == "heavy":
+        search_order += ["pro", "light"]
+    elif tier == "pro":
+        search_order += ["light", "heavy", "reasoner"]
+    elif tier == "light":
+        search_order += ["pro", "heavy"]
+    else:
+        search_order += ["pro", "light", "heavy", "reasoner"]
+
+    for t in search_order:
+        if t in provider_models:
+            return provider_models[t]
+    if provider_models:
+        return next(iter(provider_models.values()))
+    return "unknown"
+
+
 class ModelRouter:
-    """Intelligent model selection based on task type, cost, and capability.
+    """Unified model selection — prompt heuristics + task-type routing + tier dispatch.
 
     三级 tier 路由（对标 Claude Haiku/Sonnet/Opus 分层）:
-    - light tier (≈ Haiku):  deepseek-v4-flash — 搜索/读文件/grep/格式化/简单对话，最便宜（同 key 同 base_url）
-    - pro tier (≈ Sonnet):   deepseek-v4-flash（轻量 tool calling）/ agnes-2.0-flash — 单文件修改、写测试
-    - heavy tier (≈ Opus):   deepseek-v4-pro — 架构设计、多文件分析、安全审查（深度思考 + 1M 上下文）
+    - light tier (≈ Haiku):  机械任务，最便宜 — 搜索/读文件/grep/格式化/简单对话
+    - pro tier (≈ Sonnet):   中等复杂度 — 单文件修改/写测试/tool calling
+    - heavy tier (≈ Opus):   深度推理 — 架构设计/多文件分析/安全审查
 
-    视觉通道独立：agnes-1.5-flash（唯一原生多模态），由 self.vision_model 固定，
-    不受 light/pro/heavy tier 切换影响。
-
-    Routing logic (v5.0+):
-    - Simple chat/Q&A / 搜索/读文件 -> light tier (deepseek-v4-flash, 省 ~50% vs Pro)
-    - Code/complex reasoning / long context -> heavy tier (deepseek-v4-pro, 1M context)
-    - Image generation -> agnes-image-2.1-flash
-    - Video generation -> agnes-video-v2.0
-    - Tool calling + thinking -> heavy tier; tool calling 无 thinking -> light (flash)
-    - Vision/multimodal -> agnes-1.5-flash（独立通道，非 light tier）
+    视觉通道独立：agnes-1.5-flash（唯一原生多模态），不受 tier 切换影响。
     """
 
     # 三级 tier 常量 — 对标 Claude 的 haiku/sonnet/opus
-    TIER_LIGHT = "light"  # 机械任务（搜索/读文件/grep/简单对话）
-    TIER_PRO = "pro"  # 中等复杂度（单文件修改/写测试）
-    TIER_HEAVY = "heavy"  # 深度推理（架构/多文件/安全审查）
+    TIER_LIGHT = "light"
+    TIER_PRO = "pro"
+    TIER_HEAVY = "heavy"
+    TIER_REASONER = "reasoner"  # 同 heavy，语义更明确（用于 prompt 分类）
 
     MODEL_PROFILES = {
         "agnes-1.5-flash": {
-            "cost": 1,  # relative cost unit
+            "cost": 1,
             "supports_tools": True,
             "supports_thinking": False,
             "supports_vision": True,
             "max_tokens": 4096,
-            "best_for": ["chat", "simple_qa", "vision", "summarize", "search", "read_file"],
+            "best_for": ["vision", "image_understanding"],
             "tier": "light",
         },
         "agnes-2.0-flash": {
@@ -585,7 +694,7 @@ class ModelRouter:
             "supports_thinking": True,
             "supports_vision": True,
             "max_tokens": 8192,
-            "best_for": ["code", "reasoning", "planning", "agent", "tool_calling"],
+            "best_for": ["vision", "image_understanding", "image_generation", "video_generation"],
             "tier": "pro",
         },
         "agnes-image-2.1-flash": {
@@ -624,14 +733,95 @@ class ModelRouter:
             "best_for": ["chat", "simple_qa", "search", "read_file", "format", "summarize", "tool_calling", "code"],
             "tier": "light",
         },
-        "Qwen3.6-27B-PRISM-PRO-DQ": {
-            "cost": 0,  # local, 离线
+        "deepseek-chat": {
+            "cost": 1,  # 付费，但比 v4-pro 便宜（≈ v4-flash 同档）
+            "supports_tools": True,
+            "supports_thinking": False,
+            "supports_vision": False,
+            "max_tokens": 8192,
+            "best_for": ["chat", "simple_qa", "search", "read_file", "format", "summarize"],
+            "tier": "light",
+        },
+        "deepseek-reasoner": {
+            "cost": 2,
             "supports_tools": True,
             "supports_thinking": True,
             "supports_vision": False,
             "max_tokens": 8192,
-            "best_for": ["code", "reasoning", "offline"],
+            "best_for": ["reasoning", "architecture", "security", "math", "deep_analysis"],
             "tier": "heavy",
+        },
+        "glm-4.7-flash": {
+            "cost": 0,  # 智谱免费 API
+            "supports_tools": True,
+            "supports_thinking": False,
+            "supports_vision": False,
+            "max_tokens": 4096,
+            "best_for": ["chat", "simple_qa", "summarize", "search", "read_file", "format"],
+            "tier": "light",
+        },
+        "glm-4-flash-250414": {
+            "cost": 0,  # 智谱免费 API
+            "supports_tools": True,
+            "supports_thinking": False,
+            "supports_vision": False,
+            "max_tokens": 4096,
+            "best_for": ["chat", "simple_qa", "tool_calling"],
+            "tier": "light",
+        },
+        "GLM-4V-Flash": {
+            "cost": 0,  # 智谱免费视觉模型（新版，替代 glm-4.6v-flash）
+            "supports_tools": False,
+            "supports_thinking": False,
+            "supports_vision": True,
+            "max_tokens": 4096,
+            "best_for": ["vision", "image_understanding"],
+            "tier": "light",
+        },
+        "GLM-Z1-Flash": {
+            "cost": 0,  # 智谱免费推理模型（数学/代码/逻辑）
+            "supports_tools": True,
+            "supports_thinking": True,
+            "supports_vision": False,
+            "max_tokens": 4096,
+            "best_for": ["reasoning", "math", "code", "logic"],
+            "tier": "heavy",
+        },
+        "CogView-3-Flash": {
+            "cost": 0,  # 智谱免费生图模型
+            "supports_tools": False,
+            "supports_thinking": False,
+            "supports_vision": False,
+            "max_tokens": 0,
+            "best_for": ["image_generation"],
+            "tier": "pro",
+        },
+        "CogVideoX-Flash": {
+            "cost": 0,  # 智谱免费生视频模型
+            "supports_tools": False,
+            "supports_thinking": False,
+            "supports_vision": False,
+            "max_tokens": 0,
+            "best_for": ["video_generation"],
+            "tier": "pro",
+        },
+        "glm-4.1v-thinking-flash": {
+            "cost": 0,  # 智谱免费视觉思维模型
+            "supports_tools": False,
+            "supports_thinking": True,
+            "supports_vision": True,
+            "max_tokens": 4096,
+            "best_for": ["vision", "image_understanding", "reasoning"],
+            "tier": "pro",
+        },
+        "gpt-5-mini": {
+            "cost": 1,  # Copilot 订阅内免费，但本质是付费 API
+            "supports_tools": True,
+            "supports_thinking": False,
+            "supports_vision": False,
+            "max_tokens": 4096,
+            "best_for": ["chat", "simple_qa", "code", "tool_calling", "search", "format"],
+            "tier": "light",
         },
     }
 
@@ -651,6 +841,92 @@ class ModelRouter:
         self.pro = pro  # pro tier（日常编码 tool calling，动态跟随 active provider）
         self.vision_model = vision_model  # 跟随 models.json vision_models 配置
         self._fallback_chain = self._build_fallback_chain()
+        # Session tracking for auto-model mode
+        self.switch_count: int = 0
+        self.last_tier: str = "pro"
+        self.tier_stats: dict[str, int] = {"light": 0, "pro": 0, "reasoner": 0}
+
+    # ── Heuristic prompt classification (auto-model) ──────────
+
+    @staticmethod
+    def classify_prompt(prompt: str) -> str:
+        """Classify a user prompt into model tier: 'light', 'pro', or 'reasoner'.
+
+        Pure heuristics — no extra LLM call. Used by main chat auto-model mode.
+        Returns one of: 'light', 'pro', 'reasoner'. Never raises.
+        """
+        if not prompt or not isinstance(prompt, str):
+            return "pro"
+
+        stripped = prompt.strip()
+        length = len(stripped)
+
+        # Light: very short or pure command (unless strong reasoner signals present)
+        if length < 30 and not _CODE_SIGNALS.search(stripped) and not _STRONG_REASONER.search(stripped):
+            return "light"
+        if _LIGHT_COMMANDS.search(stripped):
+            return "light"
+        if _LIGHT_SIGNALS.search(stripped) and length < 200:
+            has_code = _CODE_SIGNALS.search(stripped)
+            if has_code:
+                code_match = has_code.group()
+                if code_match in (".py", ".js", ".ts", ".go", ".rs"):
+                    has_code = False
+            if not has_code and not _MODERATE_REASONER.search(stripped):
+                return "light"
+
+        # Reasoner check
+        strong_hits = _count_matches(_STRONG_REASONER, stripped)
+        moderate_hits = _count_matches(_MODERATE_REASONER, stripped)
+
+        if strong_hits >= 1:
+            return "reasoner"
+        if moderate_hits >= 2:
+            return "reasoner"
+        if moderate_hits >= 1 and length > 400:
+            return "reasoner"
+        code_hits = _count_matches(_CODE_SIGNALS, stripped)
+        if code_hits >= 5 and length > 300:
+            return "reasoner"
+
+        # Code/engineering → pro (default)
+        if code_hits >= 1 or length >= 30:
+            return "pro"
+
+        return "pro"
+
+    def classify_and_track(self, prompt: str) -> str:
+        """Classify prompt and update session stats. Returns tier string."""
+        tier = self.classify_prompt(prompt)
+        self.tier_stats[tier] = self.tier_stats.get(tier, 0) + 1
+        if tier != self.last_tier:
+            self.switch_count += 1
+            self.last_tier = tier
+        return tier
+
+    def resolve_model(self, tier: str, provider_models: dict[str, str] | None = None) -> str:
+        """Map a tier to an actual model ID.
+
+        Args:
+            tier: 'light' / 'pro' / 'reasoner' / 'heavy'
+            provider_models: optional dict like {'light': '...', 'pro': '...', 'reasoner': '...'}
+                            If None, uses self.light / self.pro / self.primary.
+
+        Falls back through _resolve_tier_from_dict chain.
+        """
+        if provider_models:
+            return _resolve_tier_from_dict(tier, provider_models)
+
+        # Use internal model assignments (normalize reasoner→heavy)
+        resolved_tier = "heavy" if tier == "reasoner" else tier
+        tier_map = {
+            "light": self.light,
+            "pro": self.light,  # flash covers pro-tier tool calling
+            "heavy": self.primary,
+        }
+        return tier_map.get(resolved_tier, self.primary)
+
+    # ── Task-type routing (sub-agent dispatch) ──────────────────
 
     def select(
         self,
@@ -669,7 +945,8 @@ class ModelRouter:
             needs_thinking: Whether deep reasoning is required
             needs_long_context: Whether 1M+ token context is needed
         """
-        # Hard requirements first
+        # 媒体生成走 Agnes 独立体系（多模态生成 + prompt增强 + pipeline编排）
+        # 智谱 CogView/CogVideoX 仅作备用通道，不参与路由
         if task_type == "image_generation":
             return "agnes-image-2.1-flash"
         if task_type == "video_generation":
@@ -728,15 +1005,15 @@ class ModelRouter:
         Returns:
             模型 ID。auto 时退回 self.primary（heavy tier）。
 
-        tier 映射（v5.0+，DeepSeek 双档化后）:
-        - light: deepseek-v4-flash（机械任务/简单对话，最便宜）
-        - pro:   deepseek-v4-flash（轻量 tool calling；比 agnes-2.0-flash 更稳）
-        - heavy: deepseek-v4-pro（深度思考 + 1M 上下文）
+        tier 映射（v6.0 统一路由）:
+        - light:    light 模型（机械任务/简单对话，最便宜）
+        - pro:      pro 模型（编码/工具调用/日常推理）
+        - heavy:    heavy 模型（深度思考 + 大上下文）
         """
         if tier == self.TIER_LIGHT:
             return self.light
         if tier == self.TIER_PRO:
-            return self.light  # flash 覆盖 pro 档的轻量 tool calling 场景
+            return self.pro  # 统一路由：与主对话 auto-model 一致
         if tier == self.TIER_HEAVY:
             return self.primary
         # auto / unknown → 主力模型（最稳）
@@ -777,17 +1054,26 @@ class ModelRouter:
 
     @staticmethod
     def _default_vision() -> str:
-        """从 models.json active provider 读 vision_models.light，读不到退回 deepseek-chat。"""
+        """优先用智谱视觉模型（真正能"看见"），其次当前 provider 的 vision_models。
+
+        智谱 glm-4.6v-flash 原生多模态，比 agnes-1.5-flash 视觉能力强得多。
+        """
         try:
             from core.provider import get_provider_manager
 
             mgr = get_provider_manager()
             mgr.load()
+            # 优先智谱视觉模型（跨 provider fallback）
+            zhipu = mgr.providers.get("zhipu", {})
+            zhipu_vmodels = zhipu.get("vision_models", {})
+            if zhipu_vmodels:
+                return zhipu_vmodels.get("pro") or zhipu_vmodels.get("light") or next(iter(zhipu_vmodels.values()))
+            # 其次当前 provider 的 vision_models
             provider = mgr.providers.get(mgr.state.active, {})
             vmodels = provider.get("vision_models", {})
-            return vmodels.get("light") or vmodels.get("pro") or "deepseek-chat"
+            return vmodels.get("light") or vmodels.get("pro") or "GLM-4V-Flash"
         except (ImportError, OSError, RuntimeError):
-            return "deepseek-chat"
+            return "GLM-4V-Flash"
 
     def _build_fallback_chain(self) -> list[str]:
         """动态构建 fallback 链：免费优先，付费兜底。
@@ -852,6 +1138,12 @@ class ModelRouter:
         raise last_error
 
 
+# Module-level shortcut for backward compatibility
+def classify_prompt(prompt: str) -> str:
+    """Module-level shortcut for ModelRouter.classify_prompt."""
+    return ModelRouter.classify_prompt(prompt)
+
+
 # ======================================================================
 # Plan prompt and parse_plan (kept for backward compatibility)
 # ======================================================================
@@ -906,16 +1198,23 @@ Rules:
 - Be concise"""
 
 
-def spawn_subagent(client, task: str, model: str = "deepseek-v4-pro") -> str:
+def spawn_subagent(client, task: str, model: str = "", task_type: str = "search") -> str:
     """Spawn a sub-agent with a real tool-calling loop.
 
-    This is the upgraded version that can actually execute tools,
-    not just make a single LLM call.
+    Args:
+        client: CruxClient instance
+        task: Task description for the sub-agent
+        model: Explicit model ID (empty = auto-route by task_type)
+        task_type: Task type for auto-routing ("search"/"read_file"/"code"/"planning" etc.)
+                   Default "search" since most sub-agents do exploration.
     """
     from core.tools import get_registry
 
     tools = get_registry()
-    agent = SubAgent(client, tools=tools, model=model)
+    if model:
+        agent = SubAgent(client, tools=tools, model=model)
+    else:
+        agent = SubAgent(client, tools=tools, tier="auto", task_type=task_type)
     return agent.run(task)
 
 

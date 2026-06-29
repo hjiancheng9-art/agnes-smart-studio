@@ -295,7 +295,7 @@ class TestVisionFallback:
         # 应包含视觉模型（zhipu + crux）
         assert "agnes-1.5-flash" in chain
         assert "agnes-2.0-flash" in chain
-        assert "glm-4.6v-flash" in chain
+        assert "GLM-4V-Flash" in chain
         # deepseek 不在链中
         assert "deepseek-v4-pro" not in chain
         assert "deepseek-v4-flash" not in chain
@@ -366,9 +366,9 @@ class TestProviderVisionAPI:
         assert model_supports_vision("deepseek-v4-flash") is False
         # 非 deepseek 模型均支持视觉
         assert model_supports_vision("agnes-2.0-flash") is True
-        assert model_supports_vision("glm-4.6v-flash") is True
-        assert model_supports_vision("glm-4.6v-flash") is True
-        assert model_supports_vision("Qwen3.6-27B-PRISM-PRO-DQ") is False
+        assert model_supports_vision("GLM-4V-Flash") is True
+        assert model_supports_vision("glm-4.1v-thinking-flash") is True
+        assert model_supports_vision("deepseek-v4-pro") is False
 
 
 class TestDefaultModelsDeepseek:

@@ -1,4 +1,4 @@
-"""图生图/编辑/多图合成引擎 - 基于 agnes-image-2.0-flash"""
+"""图生图/编辑/多图合成引擎 - 基于 agnes-image-2.1-flash"""
 
 from datetime import datetime
 
@@ -22,7 +22,7 @@ class ImageToImageEngine:
         image_urls: str | list[str],
         size: str = "1024x768",
         seed: int | None = None,
-        model: str = "agnes-image-2.0-flash",
+        model: str = "agnes-image-2.1-flash",
     ) -> dict:
         """图生图/编辑 - 单图或多图编辑"""
         size = validate_image_size(size)
@@ -56,11 +56,11 @@ class ImageToImageEngine:
 
     def compose(self, prompt: str, image_urls: list[str], size: str = "1024x768", seed: int | None = None) -> dict:
         """多图合成 - 融合多张图元素"""
-        return self.edit(prompt=prompt, image_urls=image_urls, size=size, seed=seed, model="agnes-image-2.0-flash")
+        return self.edit(prompt=prompt, image_urls=image_urls, size=size, seed=seed, model="agnes-image-2.1-flash")
 
     def style_transfer(self, prompt: str, image_url: str, size: str = "1024x768", seed: int | None = None) -> dict:
         """风格迁移 - 保持构图改风格"""
-        return self.edit(prompt=prompt, image_urls=[image_url], size=size, seed=seed, model="agnes-image-2.0-flash")
+        return self.edit(prompt=prompt, image_urls=[image_url], size=size, seed=seed, model="agnes-image-2.1-flash")
 
     def edit_with_21(self, prompt: str, image_urls: str | list[str], size: str = "1024x768") -> dict:
         """使用 2.1-flash 图生图（高密度优化）"""
@@ -104,7 +104,7 @@ class AsyncImageToImageEngine:
         image_urls: str | list[str],
         size: str = "1024x768",
         seed: int | None = None,
-        model: str = "agnes-image-2.0-flash",
+        model: str = "agnes-image-2.1-flash",
     ) -> dict:
         """异步图生图/编辑 - 单图或多图编辑"""
         size = validate_image_size(size)
@@ -145,7 +145,7 @@ class AsyncImageToImageEngine:
             image_urls=image_urls,
             size=size,
             seed=seed,
-            model="agnes-image-2.0-flash",
+            model="agnes-image-2.1-flash",
         )
 
     async def style_transfer(
@@ -157,7 +157,7 @@ class AsyncImageToImageEngine:
             image_urls=[image_url],
             size=size,
             seed=seed,
-            model="agnes-image-2.0-flash",
+            model="agnes-image-2.1-flash",
         )
 
     async def edit_with_21(self, prompt: str, image_urls: str | list[str], size: str = "1024x768") -> dict:
