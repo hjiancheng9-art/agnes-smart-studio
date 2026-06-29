@@ -418,8 +418,19 @@ class ProcessManager:
             proc.kill()
 
     def stop_all(self) -> None:
+        """Stop all persistent services and clean up zombie entries."""
+        self.cleanup_zombies()
         for name in list(self._procs):
             self.stop(name)
+
+    def cleanup_zombies(self) -> int:
+        """Remove dead process entries from _procs dict. Returns count removed."""
+        removed = 0
+        for name, proc in list(self._procs.items()):
+            if proc.poll() is not None:
+                del self._procs[name]
+                removed += 1
+        return removed
 
     @property
     def running(self) -> list[str]:

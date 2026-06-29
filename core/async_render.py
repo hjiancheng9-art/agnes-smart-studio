@@ -67,14 +67,17 @@ def default_side_effect_handlers() -> HandlerMap:
     from utils import history
 
     def _on_info(kind: str, payload: object) -> None:
+        assert isinstance(payload, (str, dict)), f"expected str/dict, got {type(payload)}"
         show_info(payload)  # type: ignore[arg-type]
 
     def _on_image(kind: str, payload: object) -> None:
+        assert isinstance(payload, dict), f"expected dict, got {type(payload)}"
         img_data: dict = payload  # type: ignore[assignment]
         show_image_result(img_data)
         history.add_record("text_to_image", "chat", img_data.get("model", ""), img_data)
 
     def _on_video(kind: str, payload: object) -> None:
+        assert isinstance(payload, dict), f"expected dict, got {type(payload)}"
         vid_data: dict = payload  # type: ignore[assignment]
         if vid_data.get("status") == "timeout":
             show_warning(f"视频超时，进度 {vid_data.get('progress', 0):.0f}%")
@@ -83,6 +86,7 @@ def default_side_effect_handlers() -> HandlerMap:
         history.add_record("text_to_video", "chat", "agnes-video-v2.0", vid_data)
 
     def _on_confirm(kind: str, payload: object) -> None:
+        assert isinstance(payload, dict), f"expected dict, got {type(payload)}"
         data: dict = payload  # type: ignore[assignment]
         tool = data.get("tool", "?")
         args_preview = str(data.get("args", ""))[:80]
@@ -111,6 +115,7 @@ def _dispatch_to_renderer(renderer: StreamingRenderer, kind: str, payload: Any) 
     让"渲染/执行分离"的调用方不需要依赖 renderer 的私有方法。
     """
     if kind == "text":
+        assert isinstance(payload, str), f"expected str, got {type(payload)}"
         renderer.append_text(payload)  # type: ignore[arg-type]
     else:
         renderer.run_side_effect(kind, payload)

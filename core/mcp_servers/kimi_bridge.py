@@ -106,7 +106,7 @@ def _check_status():
         r = subprocess.run([kimi, "-V"], capture_output=True, text=True,
                            timeout=10, env={**os.environ, "NO_COLOR": "1"})
         ver = r.stdout.strip() or r.stderr.strip()
-    except:
+    except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
     
     return {"installed": True, "binary": kimi, "version": ver}

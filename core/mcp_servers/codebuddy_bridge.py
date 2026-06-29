@@ -227,7 +227,7 @@ def get_status() -> dict:
         r = subprocess.run([cb, "mcp", "list"], capture_output=True, text=True, timeout=10)
         if r.returncode == 0:
             result["mcp_servers"] = r.stdout.strip()
-    except:
+    except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
 
     return result

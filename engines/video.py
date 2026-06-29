@@ -63,6 +63,9 @@ class VideoFuture:
         """Signal the background poller to stop polling."""
         self._cancel.set()
         self._done.set()
+        # Cancel the asyncio task to prevent resource leak
+        if hasattr(self, '_task') and self._task and not self._task.done():
+            self._task.cancel()
 
     def wait(self, timeout: float | None = None) -> bool:
         """Wait for completion. Returns True if done, False if timeout."""
