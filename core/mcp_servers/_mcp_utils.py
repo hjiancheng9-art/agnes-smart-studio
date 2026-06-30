@@ -1,7 +1,8 @@
-"""MCP Bridge 共享工具 — 二进制查找、版本检测、MCP 消息格式"""
+"""MCP Bridge shared utilities — binary discovery, version detection, MCP message format."""
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import shutil
@@ -9,47 +10,47 @@ import subprocess
 import sys
 from typing import Any
 
-# ── MCP JSON-RPC 消息构造 ──────────────────────────────────
-
-def make_result(req_id: str | None, data: Any) -> str:
-    """构造 MCP result 响应 JSON。"""
-    return json.dumps({"jsonrpc": "2.0", "id": req_id, "result": data}, ensure_ascii=False)
+# ── MCP JSON-RPC message helpers ──────────────────────────────
 
 
-def make_error(req_id: str | None, code: int, message: str) -> str:
-    """构造 MCP error 响应 JSON。"""
-    return json.dumps({
-        "jsonrpc": "2.0", "id": req_id,
-        "error": {"code": code, "message": message}
-    }, ensure_ascii=False)
-
-
-def make_tool_result(req_id: str | None, text: str, is_error: bool = False, meta: dict | None = None) -> str:
-    """构造 tool_call result（tool 级别的返回）。"""
-    content = [{"type": "text", "text": text}]
-    result = {"content": content, "isError": is_error}
-    if meta:
-        result["meta"] = meta
+def make_result(req_id: str, result: object, ensure_ascii: bool = False) -> str:
+    """Build a MCP result JSON response."""
     return json.dumps({"jsonrpc": "2.0", "id": req_id, "result": result}, ensure_ascii=False)
 
 
-# ── 二进制查找 ─────────────────────────────────────────────
-
-def find_binary(name: str) -> str | None:
-    """在 PATH 中查找二进制文件。"""
-    return shutil.which(name)
+def make_error(req_id: str | None, code: int, message: str) -> str:
+    """Build a MCP error JSON response."""
+    return json.dumps({"jsonrpc": "2.0", "id": req_id, "error": {"code": code, "message": message}}, ensure_ascii=False)
 
 
-def find_binary_at(paths: list[str]) -> str | None:
-    """从多个候选路径中查找存在的二进制。"""
-    for p in paths:
-        expanded = os.path.expanduser(os.path.expandvars(p))
-        if os.path.isfile(expanded):
-            return expanded
+def make_tool_result(req_id: str | None, text: str, is_error: bool = False, meta: dict | None = None) -> str:
+    """Build a tool_call result JSON response."""
+    result = {"content": [{"type": "text", "text": text}], "isError": is_error}
+    if meta:
+        result["_meta"] = meta
+    return json.dumps({"jsonrpc": "2.0", "id": req_id, "result": result}, ensure_ascii=False)
+
+
+def find_binary(*names: str) -> str | None:
+    """Find the first available binary in PATH (or common install paths)."""
+    for name in names:
+        binary = shutil.which(name)
+        if binary:
+            return binary
     return None
 
 
-# ── 子进程运行（UTF-8 安全） ──────────────────────────────
+def find_binary_at(path: str, *names: str) -> str | None:
+    """Find a binary under a specified directory prefix."""
+    for name in names:
+        candidate = os.path.join(path, name)
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    return None
+
+
+# ── Subprocess runner (UTF-8 safe) ────────────────────────────
+
 
 def run_subprocess(
     cmd: list[str],
@@ -65,33 +66,123 @@ def run_subprocess(
     capture_output: bool = True,
     **extra_kwargs: Any,
 ) -> subprocess.CompletedProcess:
-    """以 UTF-8 编码运行子进程，Windows GBK 区域友好。"""
+    """UTF-8 safe subprocess runner with automatic async context detection.
+
+    If called from within a running event loop (asyncio.get_running_loop),
+    offloads subprocess.run to a ThreadPoolExecutor so rich.Live rendering
+    stays responsive and the input box does not disappear.
+
+    In sync contexts (no running loop), executes directly for backward
+    compatibility.  Timeout is extended by 30s in async mode for thread safety.
+    """
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
     env["LANG"] = "en_US.UTF-8"
     if env_add:
         env.update(env_add)
 
-    return subprocess.run(
-        cmd,
-        capture_output=capture_output,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=timeout,
-        input=input_data,
+    extra_kwargs.pop("text", None)
+    extra_kwargs.pop("encoding", None)
+    extra_kwargs.pop("errors", None)
+
+    def _sync_worker():
+        return subprocess.run(
+            cmd,
+            capture_output=capture_output,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            input=input_data,
+            env=env,
+            cwd=cwd,
+            shell=shell,
+            check=check,
+            stdin=stdin,
+            startupinfo=startupinfo,
+            **extra_kwargs,
+        )
+
+    try:
+        loop = asyncio.get_running_loop()
+        if loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(_sync_worker)
+                try:
+                    return future.result(timeout=timeout + 30)
+                except concurrent.futures.TimeoutError:
+                    raise subprocess.TimeoutExpired(cmd, timeout)
+    except RuntimeError:
+        pass
+
+    return _sync_worker()
+
+
+async def run_subprocess_async(
+    cmd: list[str],
+    *,
+    timeout: float = 30,
+    input_data: str | None = None,
+    env_add: dict[str, str] | None = None,
+    cwd: str | None = None,
+    shell: bool = False,
+    check: bool = False,
+    **extra_kwargs: Any,
+) -> subprocess.CompletedProcess:
+    """Async subprocess — does NOT block the event loop.
+
+    Uses asyncio.create_subprocess_exec under the hood, keeping the
+    event loop alive (rich.Live stays responsive, input box stays visible).
+
+    Same signature as run_subprocess. Use this from async contexts
+    (chat loop, tool dispatch via run_side_effect) instead of the
+    blocking run_subprocess.
+    """
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["LANG"] = "en_US.UTF-8"
+    if env_add:
+        env.update(env_add)
+
+    stdin_arg = asyncio.subprocess.PIPE if input_data else None
+    stdin_data = input_data.encode("utf-8", errors="replace") if input_data else None
+
+    proc = await asyncio.subprocess.create_subprocess_exec(
+        *cmd,
+        stdin=stdin_arg,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
         cwd=cwd,
         env=env,
-        shell=shell,
-        check=check,
-        stdin=stdin,
-        startupinfo=startupinfo,
-        **extra_kwargs,
+    )
+
+    try:
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(
+            proc.communicate(input=stdin_data), timeout=timeout
+        )
+    except asyncio.TimeoutError:
+        proc.kill()
+        raise subprocess.TimeoutExpired(cmd, timeout)
+
+    stdout = stdout_bytes.decode("utf-8", errors="replace") if stdout_bytes else ""
+    stderr = stderr_bytes.decode("utf-8", errors="replace") if stderr_bytes else ""
+
+    if check and proc.returncode != 0:
+        raise subprocess.CalledProcessError(
+            proc.returncode or -1, cmd, output=stdout, stderr=stderr
+        )
+
+    return subprocess.CompletedProcess(
+        args=cmd,
+        returncode=proc.returncode or 0,
+        stdout=stdout,
+        stderr=stderr,
     )
 
 
 def get_version(binary: str, version_flag: str = "--version") -> str:
-    """获取二进制版本号（静默容错）。"""
+    """Get binary version string, with tolerant defaults."""
     try:
         r = run_subprocess([binary, version_flag], timeout=10)
         return (r.stdout.strip() or r.stderr.strip())[:200]
@@ -99,10 +190,8 @@ def get_version(binary: str, version_flag: str = "--version") -> str:
         return "unknown"
 
 
-# ── MCP 健康检查 ──────────────────────────────────────────
-
 def check_binary_health(name: str, binary: str | None) -> tuple[bool, str]:
-    """检查二进制是否可用，返回 (ok, version_or_error)。"""
+    """Check if binary is usable, returns (ok, version_or_error)."""
     if not binary:
         return False, f"{name} binary not found in PATH"
     version = get_version(binary)
@@ -111,10 +200,11 @@ def check_binary_health(name: str, binary: str | None) -> tuple[bool, str]:
     return True, version
 
 
-# ── 工具注册辅助 ──────────────────────────────────────────
+# ── Tool registry helpers ─────────────────────────────────────
+
 
 def build_tools_json(tools: list[dict[str, Any]]) -> str:
-    """构造 tools/list 响应 JSON。"""
+    """Build a tools/list JSON response."""
     return json.dumps({
         "jsonrpc": "2.0",
         "result": {"tools": tools},
