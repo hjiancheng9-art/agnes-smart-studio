@@ -17,6 +17,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -255,8 +256,8 @@ class ToolRegistryMesh:
                 line = proc.stdout.readline()
                 if line:
                     result.append(line)
-            except Exception:
-                pass
+            except Exception as e:
+                logging.debug("MCP response read error: %s", str(e)[:120])
 
         t = threading.Thread(target=_reader, daemon=True)
         t.start()

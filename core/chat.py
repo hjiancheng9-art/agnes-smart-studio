@@ -925,8 +925,8 @@ class ChatSession:
                             from core.provider import get_provider_manager
                             mgr = get_provider_manager()
                             mgr.state.mark_down(mgr.state.active)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logging.debug("Failed to mark provider down: %s", str(e)[:120])
                         yield ("info", f"模型 {_use_model} 连接中断，尝试 fallback...")
                         metrics.increment("fallback.text_model")
                         _stream_error_break = True

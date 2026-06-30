@@ -748,8 +748,8 @@ def _interactive_menu() -> None:
             try:
                 trm_text = launcher.discover_trm()
                 print(f"  {trm_text}")
-            except Exception:
-                pass
+            except Exception as e:
+                logging.debug("TRM discovery failed: %s", str(e)[:120])
             launcher.start_persistent()
 
         elif choice == "3":
@@ -767,8 +767,8 @@ def _interactive_menu() -> None:
             try:
                 trm_text = launcher.discover_trm()
                 print(f"  {trm_text}")
-            except Exception:
-                pass
+            except Exception as e:
+                logging.debug("TRM discovery failed: %s", str(e)[:120])
             launcher.start_persistent()
             print("  正在拉起主战窗口 (Codex)...")
             launcher.launch_main_window()

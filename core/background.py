@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -330,7 +331,7 @@ class BackgroundManager:
                 try:
                     output_f.close()
                 except OSError:
-                    pass
+                    logging.debug("Failed to close temp file: %s", getattr(output_f, 'name', '?'))
 
 
 # ── Module-level singleton ──

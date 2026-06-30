@@ -528,6 +528,9 @@ class AsyncCruxClient:
     # ── 生命周期 ──────────────────────────────────────────────
 
     async def close(self):
+        if getattr(self, '_closed', False):
+            return
+        self._closed = True
         await self._http.aclose()
 
     async def __aenter__(self):
