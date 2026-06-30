@@ -7,11 +7,16 @@ Wraps the OpenAI Codex CLI as an MCP stdio server, enabling CRUX to:
 
 import json
 import os
+import shutil
 import sys
 import time
 from pathlib import Path
 
-from ._mcp_utils import find_binary, run_subprocess, make_error, make_tool_result
+# ── Path fix: run as script → relative imports fail ──
+_SCRIPT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_SCRIPT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_ROOT))
+from core.mcp_servers._mcp_utils import find_binary, run_subprocess, make_error, make_tool_result
 
 # ── Constants ──────────────────────────────────────────────────
 

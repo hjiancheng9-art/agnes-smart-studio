@@ -3,6 +3,7 @@ chcp 65001 >nul
 set PYTHONUTF8=1
 set PYTHONIOENCODING=utf-8
 title CRUX STUDIO (Nine Beasts Mesh)
+
 set "PY=C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\python.exe"
 set "SCRIPT=C:\Users\huangjiancheng\agnes-smart-studio\launcher.py"
 set "CRUX=C:\Users\huangjiancheng\agnes-smart-studio\crux_studio.py"

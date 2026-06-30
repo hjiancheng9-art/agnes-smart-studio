@@ -410,12 +410,20 @@ class AsyncMultiAgentCoordinator:
         if self._log_lock is None:
             self._log_lock = asyncio.Lock()
 
+    _AUTO_TASK_TIMEOUT = 240   # seconds per task — prevents infinite-hang deadlock in multi-agent waves
+    _WAVE_DEADLOCK_TIMEOUT = 300  # seconds per wave — upper-bound on any single wave
+
     async def execute(self, goal: str) -> dict:
         """Full async execution: spawn -> decompose -> dispatch -> aggregate。
 
         调度策略：拓扑分层。把 tasks 按 depends_on 分成若干"波"，
         每波内的任务无相互依赖 → ``asyncio.gather`` 并行；波与波之间串行 await，
         保证依赖在前置完成后才启动。
+
+        内建死锁防护：
+        - 每任务有独立超时 _AUTO_TASK_TIMEOUT；
+        - 每波有全局超时 _WAVE_DEADLOCK_TIMEOUT；
+        - 拓扑分层自动检测循环依赖并抛 ValueError。
         """
         started = time.time()
         self._log = []
@@ -431,8 +439,31 @@ class AsyncMultiAgentCoordinator:
 
         # 拓扑分层：每层是可并行的任务集合
         waves = _topological_waves(self.tasks)
-        for wave in waves:
-            await asyncio.gather(*(self._execute_task(task) for task in wave))
+        for wave_idx, wave in enumerate(waves):
+            async def _run_task_safe(task: AgentTask) -> None:
+                """Wrap _execute_task with per-task timeout for deadlock prevention."""
+                try:
+                    await asyncio.wait_for(
+                        self._execute_task(task),
+                        timeout=self._AUTO_TASK_TIMEOUT,
+                    )
+                except asyncio.TimeoutError:
+                    task.status = "failed"
+                    task.result = f"[deadlock] task timed out after {self._AUTO_TASK_TIMEOUT}s"
+                    await self._log_append({"event": "task_timeout", "task": task.id, "wave": wave_idx})
+
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*[_run_task_safe(task) for task in wave]),
+                    timeout=self._WAVE_DEADLOCK_TIMEOUT,
+                )
+            except asyncio.TimeoutError:
+                await self._log_append({"event": "wave_timeout", "wave": wave_idx, "tasks_remaining": len(wave)})
+                # Mark remaining unfinished tasks as failed
+                for t in wave:
+                    if t.status not in ("done", "failed"):
+                        t.status = "failed"
+                        t.result = f"[deadlock] wave {wave_idx} global timeout after {self._WAVE_DEADLOCK_TIMEOUT}s"
 
         elapsed = time.time() - started
         done = sum(1 for t in self.tasks if t.status == "done")

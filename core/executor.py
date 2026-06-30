@@ -292,11 +292,18 @@ class AsyncTaskExecutor:
         self._lock = asyncio.Lock()  # protects _log + error count
         self._break_event = asyncio.Event()
 
+    _DEFAULT_TOOL_TIMEOUT = 120  # seconds  — prevents executor deadlock from hung tools
+
     async def _call_tool(self, tool: str, args: dict) -> str:
-        """调用 tool executor，自动区分同步/异步。"""
-        if self._is_async:
-            return await self.execute_tool(tool, args)
-        return await asyncio.to_thread(self.execute_tool, tool, args)
+        """调用 tool executor，自动区分同步/异步。120s 超时防死锁。"""
+        try:
+            if self._is_async:
+                coro = self.execute_tool(tool, args)
+            else:
+                coro = asyncio.to_thread(self.execute_tool(tool, args))
+            return await asyncio.wait_for(coro, timeout=self._DEFAULT_TOOL_TIMEOUT)
+        except asyncio.TimeoutError:
+            return f"[错误] 工具 {tool} 执行超时 ({self._DEFAULT_TOOL_TIMEOUT}s)"
 
     async def _run_step(self, step: Step, task: Task) -> None:
         """执行单个 step（含依赖检查、验证门、错误计数）。"""

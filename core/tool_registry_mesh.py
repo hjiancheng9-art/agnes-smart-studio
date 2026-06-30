@@ -75,6 +75,9 @@ BRIDGES = {
     "zcode": {
         "script": "core/mcp_servers/zcode_bridge.py",
     },
+    "claude-code": {
+        "script": "core/mcp_servers/claude_code_bridge.py",
+    },
 }
 
 # CRUX built-in tools (defined in core/chat.py and tools.json)

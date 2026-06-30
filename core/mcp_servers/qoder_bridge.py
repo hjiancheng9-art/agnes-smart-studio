@@ -12,13 +12,15 @@ Usage:
     mcp_call_tool("qoder-bridge", "qoder_exec", {"prompt": "..."})
 """
 
-from ._mcp_utils import run_subprocess
-import sys
-import os
-import asyncio
-import json
-import subprocess
+import sys, os, json, subprocess
 from typing import Optional
+from pathlib import Path
+
+# ── Path fix: run as script → relative imports fail ──
+_SCRIPT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_SCRIPT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_ROOT))
+from core.mcp_servers._mcp_utils import run_subprocess
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -129,7 +131,7 @@ class QoderMCPBridge:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def qoder_exec(self, prompt: str, work_dir: str = ".", model: str = "", timeout: int = 180) -> dict:
+    def qoder_exec(self, prompt: str, work_dir: str = ".", model: str = "", timeout: int = 180) -> dict:
         args = ["-c", prompt]
         if work_dir != ".":
             args.extend(["--work-dir", work_dir])
@@ -137,13 +139,13 @@ class QoderMCPBridge:
             args.extend(["--model", model])
         return self._run_qoder(args, timeout, work_dir)
 
-    async def qoder_review(self, target: str, focus: str = "all", work_dir: str = ".", timeout: int = 180) -> dict:
+    def qoder_review(self, target: str, focus: str = "all", work_dir: str = ".", timeout: int = 180) -> dict:
         prompt = f"Review this code: {target}"
         if focus != "all":
             prompt += f". Focus on {focus}."
         return self._run_qoder(["-c", prompt], timeout, work_dir)
 
-    async def qoder_status(self) -> dict:
+    def qoder_status(self) -> dict:
         try:
             result = run_subprocess([QODER_PATH, "--version"], timeout=10)
             version = result.stdout.strip()
@@ -158,111 +160,110 @@ class QoderMCPBridge:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def qoder_plan(self, prompt: str, work_dir: str = ".", timeout: int = 180) -> dict:
+    def qoder_plan(self, prompt: str, work_dir: str = ".", timeout: int = 180) -> dict:
         args = ["-c", f"Create a plan for: {prompt}"]
         if work_dir != ".":
             args.extend(["--work-dir", work_dir])
         return self._run_qoder(args, timeout, work_dir)
 
-    async def qoder_search(self, query: str, work_dir: str = ".", timeout: int = 60) -> dict:
+    def qoder_search(self, query: str, work_dir: str = ".", timeout: int = 60) -> dict:
         return self._run_qoder(["-c", f"Search codebase for: {query}"], timeout, work_dir)
 
+    def _make_jsonrpc_response(self, req_id: int | str | None, result: dict | None = None, error: dict | None = None) -> dict:
+        resp = {"jsonrpc": "2.0"}
+        if req_id is not None:
+            resp["id"] = req_id
+        if error:
+            resp["error"] = error
+        else:
+            resp["result"] = result or {}
+        return resp
 
-async def handle_request(request: dict) -> dict:
-    method = request.get("method")
-    params = request.get("params", {})
-    id_ = request.get("id")
+    def _make_jsonrpc_error(self, req_id: int | str | None, code: int, message: str) -> dict:
+        return self._make_jsonrpc_response(req_id, error={"code": code, "message": message})
 
-    bridge = QoderMCPBridge()
-
-    try:
+    def _dispatch(self, req_id: int | str | None, method: str, params: dict) -> dict:
         if method == "initialize":
-            return {
-                "jsonrpc": "2.0",
-                "id": id_,
-                "result": {
-                    "protocolVersion": "2024-11-05",
-                    "serverInfo": {"name": "qoder-bridge", "version": "1.0.0"},
-                    "capabilities": {"tools": {}}
-                }
-            }
+            return self._make_jsonrpc_response(req_id, {
+                "protocolVersion": "2024-11-05",
+                "serverInfo": {"name": "qoder-bridge", "version": "1.0.0"},
+                "capabilities": {"tools": {}}
+            })
 
-        elif method == "tools/list":
-            return {
-                "jsonrpc": "2.0",
-                "id": id_,
-                "result": {"tools": bridge.tools}
-            }
+        if method == "tools/list":
+            return self._make_jsonrpc_response(req_id, {"tools": self.tools})
 
-        elif method == "tools/call":
+        if method == "tools/call":
             name = params.get("name")
             arguments = params.get("arguments", {})
 
             dispatch = {
-                "qoder_exec": lambda: bridge.qoder_exec(
+                "qoder_exec": lambda: self.qoder_exec(
                     arguments.get("prompt", ""),
                     arguments.get("work_dir", "."),
                     arguments.get("model", ""),
                     arguments.get("timeout", 180)
                 ),
-                "qoder_review": lambda: bridge.qoder_review(
+                "qoder_review": lambda: self.qoder_review(
                     arguments.get("target", ""),
                     arguments.get("focus", "all"),
                     arguments.get("work_dir", "."),
                     arguments.get("timeout", 180)
                 ),
-                "qoder_status": lambda: bridge.qoder_status(),
-                "qoder_plan": lambda: bridge.qoder_plan(
-                    arguments.get("prompt", ""),
-                    arguments.get("work_dir", "."),
-                    arguments.get("timeout", 180)
+                "qoder_search": lambda: self.qoder_search(
+                    query=arguments.get("query", ""),
+                    work_dir=arguments.get("work_dir", "."),
+                    timeout=arguments.get("timeout", 60),
                 ),
-                "qoder_search": lambda: bridge.qoder_search(
-                    arguments.get("query", ""),
-                    arguments.get("work_dir", "."),
-                    arguments.get("timeout", 60)
-                ),
+                "qoder_status": lambda: self.qoder_status(),
             }
 
             if name in dispatch:
-                result = await dispatch[name]()
-                return {"jsonrpc": "2.0", "id": id_, "result": result}
+                try:
+                    result = dispatch[name]()
+                    return self._make_jsonrpc_response(req_id, result)
+                except Exception as e:
+                    return self._make_jsonrpc_error(req_id, -32603, f"Tool error: {str(e)}")
             else:
-                return {
-                    "jsonrpc": "2.0", "id": id_,
-                    "error": {"code": -32601, "message": f"Tool not found: {name}"}
-                }
+                return self._make_jsonrpc_error(req_id, -32601, f"Tool not found: {name}")
 
-        else:
-            return {
-                "jsonrpc": "2.0", "id": id_,
-                "error": {"code": -32601, "message": f"Method not found: {method}"}
-            }
+        return self._make_jsonrpc_error(req_id, -32601, f"Method not found: {method}")
 
-    except Exception as e:
-        return {
-            "jsonrpc": "2.0", "id": id_,
-            "error": {"code": -32603, "message": f"Internal error: {str(e)}"}
-        }
+    def run(self):
+        """主循环：逐行读取 JSON-RPC 请求，路由并响应。"""
+        for line in sys.stdin:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                req = json.loads(line)
+            except json.JSONDecodeError:
+                self._send(self._make_jsonrpc_error(None, -32700, "Parse error"))
+                continue
+
+            req_id = req.get("id")
+            method = req.get("method", "")
+            params = req.get("params", {})
+
+            if method == "notifications/initialized":
+                continue
+
+            resp = self._dispatch(req_id, method, params)
+            self._send(resp)
+
+    def _send(self, resp: dict):
+        output = json.dumps(resp, ensure_ascii=False)
+        if not output.endswith('\n'):
+            output += '\n'
+        sys.stdout.write(output)
+        sys.stdout.flush()
 
 
-async def main():
-    """Run MCP server over stdio."""
-    for line in sys.stdin:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            request = json.loads(line)
-            response = await handle_request(request)
-            output = json.dumps(response)
-            if not output.endswith('\n'):
-                output += '\n'
-            sys.stdout.write(output)
-            sys.stdout.flush()
-        except json.JSONDecodeError:
-            continue
+def run_qoder_bridge():
+    """入口：启动 Qoder Bridge MCP Server。"""
+    server = QoderMCPBridge()
+    server.run()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    run_qoder_bridge()

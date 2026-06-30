@@ -14,6 +14,8 @@ from urllib.parse import urlparse
 
 import httpx
 
+from core.mcp_servers._mcp_utils import run_subprocess
+
 __all__ = [
     "ROOT",
     "count_lines",

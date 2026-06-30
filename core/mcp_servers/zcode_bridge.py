@@ -11,13 +11,14 @@ Usage:
     mcp_call_tool("zcode-bridge", "zcode_exec", {"prompt": "..."})
 """
 
-from ._mcp_utils import run_subprocess
-import json
-import os
-import shutil
-import subprocess
-import sys
-import time
+import json, os, shutil, subprocess, sys, time
+from pathlib import Path
+
+# ── Path fix: run as script → relative imports fail ──
+_SCRIPT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_SCRIPT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_ROOT))
+from core.mcp_servers._mcp_utils import run_subprocess
 
 # ── Constants ──────────────────────────────────────────────────
 
