@@ -286,6 +286,7 @@ LAYOUT = {
     "panel_padding": (1, 2),
     "panel": {"padding": (1, 2), "border_style": COLORS["border"]},
     "input": {"padding": (0, 1)},
+    "separator_len": 50,
 }
 
 PANEL_STYLE = {
@@ -306,6 +307,25 @@ RETRO_THEME = {
 }
 
 console = _RichConsole()
+
+# ── 兼容旧导出（badges.py 依赖）────────────────────────
+CHAT_SEPARATOR_STYLE = {
+    "char": "─",
+    "heavy_char": "━",
+    "double_char": "═",
+    "dot_char": "◆",
+    "length": 50,
+    "color": "chat_separator",
+    "accent_color": "chat_separator_accent",
+}
+
+CONTEXT_BAR_STYLE = {
+    "left_edge": "├",
+    "right_edge": "┤",
+    "fill": "─",
+    "color": "status_bar_bg",
+    "text_color": "status_bar_text",
+}
 
 # ── 模块级导出 ─────────────────────────────────────────────
 S = dark_atelier_styles("pygments")

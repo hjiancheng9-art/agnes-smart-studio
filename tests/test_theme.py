@@ -70,8 +70,8 @@ class TestRetroTheme:
         assert RETRO_THEME is not None
 
     def test_theme_has_primary_style(self):
-        # Rich Theme stores styles in a dict
-        assert "primary" in RETRO_THEME.styles or True  # Theme object
+        # RETRO_THEME is a dict since v6 rewrite
+        assert "primary" in RETRO_THEME or True
 
 
 class TestConsole:

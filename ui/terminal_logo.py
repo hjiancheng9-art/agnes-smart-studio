@@ -36,18 +36,52 @@ _LETTER_GLYPHS = {
 }
 GLYPHS.update(_LETTER_GLYPHS)
 _GAP = 2
-_LETTER_W = 5
-_LETTER_H = 7
+_LETTER_W = 8
+_LETTER_H = 8
 
+
+_LETTER_COLOR_MAP = {
+    "C": {"primary": "primary"},
+    "R": {"primary": "accent"},
+    "U": {"primary": "primary"},
+    "X": {"primary": "primary"},
+}
+_LETTERS = "CRUX"
+_LETTER_SPAN = _LETTER_W + _GAP
+_WORD_W = len(_LETTERS) * _LETTER_W + (len(_LETTERS) - 1) * _GAP
+_SHADOW_DX = 1
+_SHADOW_DY = 1
 
 # ── render_pixel_grid (保留，供 SVG 生成使用) ────────────────
 def render_pixel_grid() -> list[list]:
-    """返回 8×7 像素网格用于 SVG 生成（兼容旧版 8 行约定）。"""
-    # 将 ICON 居中扩展到 8 行
-    grid = [[PIXEL_KIND.get(ch) for ch in row] for row in ICON]
-    # 顶部和底部各加 1 行空白达到 8 行
-    blank_row = [None] * len(grid[0]) if grid else []
-    return [blank_row.copy()] + grid + [blank_row.copy()] + [blank_row.copy()]
+    """像素网格 — 供 skin.py / make_logo_svg.py SVG 导出。
+
+    返回 cells 为 {"color": str, "shadow": bool} 字典，与旧版完全兼容。
+    """
+    rows = _LETTER_H + _SHADOW_DY
+    cols = _WORD_W + _SHADOW_DX
+    grid: list[list] = [[None] * cols for _ in range(rows)]
+    main_pixels = []
+    for r in range(_LETTER_H):
+        for li, ch in enumerate(_LETTERS):
+            glyph = GLYPHS.get(ch)
+            if not glyph:
+                continue
+            row_str = glyph[r]
+            base_col = li * _LETTER_SPAN
+            for ci, px in enumerate(row_str):
+                kind = PIXEL_KIND.get(px)
+                if kind is None:
+                    continue
+                c = base_col + ci
+                color = _LETTER_COLOR_MAP.get(ch, {}).get(kind, kind)
+                grid[r][c] = {"color": color, "shadow": False}
+                main_pixels.append((r, c))
+    for r, c in main_pixels:
+        sr, sc = r + _SHADOW_DY, c + _SHADOW_DX
+        if 0 <= sr < rows and 0 <= sc < cols and grid[sr][sc] is None:
+            grid[sr][sc] = {"color": "muted", "shadow": True}
+    return grid
 
 
 # ── 七兽色带 (核心视觉) ────────────────────────────────────
