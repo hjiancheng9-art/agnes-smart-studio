@@ -7,6 +7,7 @@ All operations are safe (no force push, no destructive resets unless explicit).
 import subprocess
 import time
 from pathlib import Path
+from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = [
     "GitWorkflow",
@@ -26,7 +27,7 @@ class GitWorkflow:
         self.root = root or ROOT
 
     def _run(self, *args, capture: bool = True) -> tuple[int, str, str]:
-        r = subprocess.run(["git"] + list(args), capture_output=capture, text=True, timeout=30, cwd=str(self.root))
+        r = run_subprocess(["git"] + list(args), timeout=30, cwd=str(self.root))
         return r.returncode, r.stdout.strip(), r.stderr.strip()
 
     def status(self) -> str:

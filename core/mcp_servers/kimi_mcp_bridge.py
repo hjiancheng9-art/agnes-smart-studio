@@ -14,6 +14,7 @@ Usage:
     # kimi mcp add crux -- python core/mcp_servers/kimi_mcp_bridge.py
 """
 
+from ._mcp_utils import run_subprocess
 import sys
 import os
 import asyncio
@@ -120,14 +121,10 @@ class KimiMCPBridge:
             cmd.extend(["-c", prompt, "--work-dir", work_dir])
 
         try:
-            result = subprocess.run(
+            result = run_subprocess(
                 cmd,
-                capture_output=True,
-                text=True,
                 timeout=timeout,
-                encoding="utf-8",
-                errors="replace",
-                shell=True
+                shell=True,
             )
 
             return {
@@ -154,14 +151,10 @@ class KimiMCPBridge:
         cmd = ["kimi", "-c", f"Review this: {target}", "--work-dir", work_dir]
 
         try:
-            result = subprocess.run(
+            result = run_subprocess(
                 cmd,
-                capture_output=True,
-                text=True,
                 timeout=timeout,
-                encoding="utf-8",
-                errors="replace",
-                shell=True
+                shell=True,
             )
 
             return {
@@ -187,27 +180,19 @@ class KimiMCPBridge:
 
         try:
             # Check if kimi is installed
-            result = subprocess.run(
+            result = run_subprocess(
                 ["kimi", "--version"],
-                capture_output=True,
-                text=True,
                 timeout=10,
-                encoding="utf-8",
-                errors="replace",
-                shell=True
+                shell=True,
             )
 
             version = result.stdout.strip() or "unknown"
 
             # Check if logged in
-            login_result = subprocess.run(
+            login_result = run_subprocess(
                 ["kimi", "provider", "list"],
-                capture_output=True,
-                text=True,
                 timeout=10,
-                encoding="utf-8",
-                errors="replace",
-                shell=True
+                shell=True,
             )
 
             logged_in = "provider" in login_result.stdout.lower()
@@ -235,14 +220,10 @@ class KimiMCPBridge:
         import subprocess
 
         try:
-            result = subprocess.run(
+            result = run_subprocess(
                 ["kimi", "acp", "--login"],
-                capture_output=True,
-                text=True,
                 timeout=timeout,
-                encoding="utf-8",
-                errors="replace",
-                shell=True
+                shell=True,
             )
 
             return {

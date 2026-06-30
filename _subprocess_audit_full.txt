@@ -1,0 +1,36 @@
+Found 34 files with subprocess.run
+
+core\audio_tools.py: 1 calls
+core\background.py: 1 calls
+core\browser_tools.py: 2 calls
+core\claude_mcp_bridge.py: 4 calls
+core\code_review.py: 1 calls
+core\codex_engines.py: 1 calls
+core\codex_tools.py: 4 calls
+core\copilot_proxy.py: 1 calls
+core\copilot_tools.py: 3 calls
+core\file_tools.py: 3 calls
+core\git_tools.py: 7 calls
+core\git_workflow.py: 1 calls
+core\github_tools.py: 2 calls
+core\image_tools.py: 1 calls
+core\mcp_servers\_mcp_utils.py: 1 calls
+core\mcp_servers\codebuddy_bridge.py: 4 calls
+core\mcp_servers\copilot_bridge.py: 4 calls
+core\mcp_servers\kimi_bridge.py: 3 calls
+core\mcp_servers\kimi_mcp_bridge.py: 5 calls
+core\mcp_servers\qoder_bridge.py: 2 calls
+core\mcp_servers\zcode_bridge.py: 3 calls
+core\notebook.py: 1 calls
+core\nsp-downloader\node_modules\@electron\node-gyp\gyp\pylib\gyp\common.py: 2 calls
+core\nsp-downloader\node_modules\@electron\node-gyp\gyp\pylib\gyp\input.py: 1 calls
+core\nsp-downloader\node_modules\@electron\node-gyp\gyp\pylib\packaging\_musllinux.py: 1 calls
+core\nsp-downloader\node_modules\@electron\node-gyp\gyp\pylib\packaging\tags.py: 1 calls
+core\pipeline_tools.py: 1 calls
+core\plan_verify.py: 1 calls
+core\pytest_runner.py: 1 calls
+core\skills.py: 3 calls
+core\sound_ux.py: 3 calls
+core\test_loop.py: 2 calls
+core\three_way_coordinator.py: 4 calls
+core\video_editor.py: 1 calls

@@ -12,6 +12,7 @@ Usage:
     mcp_call_tool("qoder-bridge", "qoder_exec", {"prompt": "..."})
 """
 
+from ._mcp_utils import run_subprocess
 import sys
 import os
 import asyncio
@@ -110,13 +111,9 @@ class QoderMCPBridge:
 
         try:
             cwd = os.path.abspath(work_dir) if work_dir != "." else os.getcwd()
-            result = subprocess.run(
+            result = run_subprocess(
                 cmd,
-                capture_output=True,
-                text=True,
                 timeout=timeout,
-                encoding="utf-8",
-                errors="replace",
                 cwd=cwd
             )
             return {
@@ -148,11 +145,7 @@ class QoderMCPBridge:
 
     async def qoder_status(self) -> dict:
         try:
-            result = subprocess.run(
-                [QODER_PATH, "--version"],
-                capture_output=True, text=True, timeout=10,
-                encoding="utf-8", errors="replace"
-            )
+            result = run_subprocess([QODER_PATH, "--version"], timeout=10)
             version = result.stdout.strip()
             return {
                 "success": True,

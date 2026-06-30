@@ -25,6 +25,7 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = ["ThreeWayCoordinator", "SystemStatus", "get_coordinator"]
 
@@ -68,16 +69,13 @@ class ThreeWayCoordinator:
             if not kimi or not os.path.isfile(kimi):
                 return SystemStatus(name="kimi", available=False, error="kimi CLI 未安装")
 
-            r = subprocess.run([kimi, "--version"], capture_output=True, text=True, timeout=10)
+            r = run_subprocess([kimi, "--version"], timeout=10)
             version = r.stdout.strip() if r.returncode == 0 else "unknown"
 
             # 检查登录
             logged_in = False
             try:
-                r2 = subprocess.run(
-                    [kimi, "-p", "ok", "--output-format", "text"],
-                    capture_output=True, text=True, timeout=20,
-                )
+                r2 = run_subprocess([kimi, "-p", "ok", "--output-format", "text"], timeout=20)
                 logged_in = r2.returncode == 0 and "error" not in r2.stderr.lower()
             except Exception:
                 pass
@@ -102,15 +100,13 @@ class ThreeWayCoordinator:
             if not copilot or not os.path.isfile(copilot):
                 return SystemStatus(name="copilot", available=False, error="Copilot CLI 未安装")
 
-            r = subprocess.run([copilot, "--version"], capture_output=True, text=True, timeout=10)
+            r = run_subprocess([copilot, "--version"], timeout=10)
             version = r.stdout.strip() if r.returncode == 0 else "unknown"
 
             # 检查 gh 登录
             logged_in = False
             try:
-                r2 = subprocess.run(
-                    ["gh", "auth", "status"], capture_output=True, text=True, timeout=10,
-                )
+                r2 = run_subprocess(["gh", "auth", "status"], timeout=10)
                 logged_in = r2.returncode == 0
             except Exception:
                 pass

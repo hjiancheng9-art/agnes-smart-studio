@@ -2,6 +2,8 @@ import os
 import subprocess
 import sys
 
+from core.mcp_servers._mcp_utils import run_subprocess
+
 nl = chr(10)
 tb = chr(96) * 3
 
@@ -17,7 +19,7 @@ def run_audit(self, session, root):
                     if f.endswith('.py'):
                         fp = os.path.join(dp2, f)
                         try:
-                            subprocess.run([sys.executable,'-m','py_compile',fp],capture_output=True,check=True)
+                            run_subprocess([sys.executable,'-m','py_compile',fp],check=True)
                         except Exception:
                             console.print(f'[red]FAIL: {fp}[/]')
                             ok = False

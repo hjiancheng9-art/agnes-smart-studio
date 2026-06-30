@@ -10,6 +10,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = [
     "CODE_REVIEW_TOOL_DEFS",
@@ -291,10 +292,7 @@ class CodeReviewer:
         # 自动获取 git diff 中的文件
         import subprocess
         try:
-            r = subprocess.run(
-                ["git", "diff", "--name-only", "HEAD"],
-                capture_output=True, text=True, cwd=os.getcwd(), timeout=10,
-            )
+            r = run_subprocess(["git", "diff", "--name-only", "HEAD"], cwd=os.getcwd(), timeout=10)
             files = [f.strip() for f in r.stdout.splitlines() if f.strip().endswith(".py")]
         except Exception:
             files = []

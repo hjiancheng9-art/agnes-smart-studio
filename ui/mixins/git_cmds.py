@@ -3,6 +3,7 @@
 import subprocess
 from typing import TYPE_CHECKING
 
+from core.mcp_servers._mcp_utils import run_subprocess
 from rich.panel import Panel
 from rich.prompt import Confirm
 
@@ -22,11 +23,11 @@ class GitCommandsMixin:
     def _chat_commit(self, session: "ChatSession"):
         """从 git staged diff 自动生成 commit 消息并提交"""
         try:
-            diff = subprocess.run(["git", "diff", "--staged", "--stat"], capture_output=True, text=True, timeout=10)
+            diff = run_subprocess(["git", "diff", "--staged", "--stat"], timeout=10)
             if not diff.stdout.strip():
                 show_warning("无 staged 更改，先 git add")
                 return
-            full_diff = subprocess.run(["git", "diff", "--staged"], capture_output=True, text=True, timeout=10)
+            full_diff = run_subprocess(["git", "diff", "--staged"], timeout=10)
             prompt = f"根据以下 git diff 生成简洁中文 commit 消息（格式：<类型>: <一句话描述>）：\n\n{full_diff.stdout[:3000]}"
             # 用 router 统一处理模型切换（避免直接设 model 不切 client 导致不匹配）
             from core.router import apply, resolve
@@ -43,7 +44,7 @@ class GitCommandsMixin:
             show_success(f"建议 commit: {msg}")
             if Confirm.ask("执行 commit?", default=True):
                 # 用列表传参避免 shell 注入
-                subprocess.run(["git", "commit", "-m", msg], timeout=10)
+                run_subprocess(["git", "commit", "-m", msg], timeout=10)
                 show_success("已提交")
         except (RuntimeError, OSError, KeyError, subprocess.SubprocessError) as e:
             show_error(str(e))
@@ -52,10 +53,8 @@ class GitCommandsMixin:
         """从 git log 自动生成 CHANGELOG.md（分组：新增/修复/优化/其他）"""
         since = arg.strip() or "7 days ago"
         try:
-            log = subprocess.run(
+            log = run_subprocess(
                 ["git", "log", f"--since={since}", "--oneline", "--no-merges"],
-                capture_output=True,
-                text=True,
                 timeout=10,
             )
             if not log.stdout.strip():

@@ -27,6 +27,8 @@ import sys
 import time
 from pathlib import Path
 
+from ._mcp_utils import find_binary, run_subprocess
+
 __all__ = ["CopilotBridgeServer", "run_copilot_bridge"]
 
 # ── 常量 ───────────────────────────────────────────────────────
@@ -115,7 +117,7 @@ TOOL_MAP = {t["name"]: t for t in TOOL_DEFS}
 
 def _find_copilot() -> str | None:
     """定位 copilot 可执行文件。"""
-    p = shutil.which("copilot")
+    p = find_binary("copilot")
     if p:
         return p
     npm_cmd = os.path.expanduser("~/AppData/Roaming/npm/copilot.CMD")
@@ -134,7 +136,7 @@ def _check_copilot_status() -> dict:
         }
 
     try:
-        r = subprocess.run([copilot, "--version"], capture_output=True, text=True, timeout=10)
+        r = run_subprocess([copilot, "--version"], timeout=10)
         version = r.stdout.strip() if r.returncode == 0 else "unknown"
     except Exception:
         version = "unknown"
@@ -142,9 +144,7 @@ def _check_copilot_status() -> dict:
     # 检查 gh 登录状态
     gh_logged_in = False
     try:
-        r2 = subprocess.run(
-            ["gh", "auth", "status"], capture_output=True, text=True, timeout=10,
-        )
+        r2 = run_subprocess(["gh", "auth", "status"], timeout=10)
         gh_logged_in = r2.returncode == 0
     except Exception:
         pass
@@ -152,9 +152,7 @@ def _check_copilot_status() -> dict:
     # 检查可用模型
     models = []
     try:
-        r3 = subprocess.run(
-            [copilot, "/model"], capture_output=True, text=True, timeout=15,
-        )
+        r3 = run_subprocess([copilot, "/model"], timeout=15)
         if r3.returncode == 0:
             out = r3.stdout + r3.stderr
             # 简单提取模型名
@@ -204,9 +202,7 @@ def _run_copilot_prompt(
         cmd.extend(extra_flags)
 
     try:
-        r = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout, cwd=work_dir,
-        )
+        r = run_subprocess(cmd, timeout=timeout, cwd=work_dir)
         output = (r.stdout or "") + (r.stderr or "")
         success = r.returncode == 0 and "error:" not in r.stderr.lower()
         return {

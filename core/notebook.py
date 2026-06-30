@@ -9,9 +9,10 @@ and saving Jupyter notebooks programmatically.
 
 import json
 import os
-import subprocess
 import sys
 from dataclasses import dataclass, field
+
+from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = [
     "NOTEBOOK_EXECUTOR_MAP",
@@ -198,12 +199,9 @@ class Notebook:
         if cell.cell_type != "code":
             raise ValueError(f"Cell {index} is type '{cell.cell_type}', not 'code'")
 
-        result = subprocess.run(
+        result = run_subprocess(
             [sys.executable, "-c", cell.source],
-            capture_output=True,
-            text=True,
             timeout=30,
-            encoding="utf-8",
         )
 
         output = {

@@ -33,12 +33,9 @@ AUDIO_OUT.mkdir(parents=True, exist_ok=True)
 
 
 def _run(cmd: list, timeout: int = 120, **kwargs) -> subprocess.CompletedProcess:
-    """subprocess.run 安全封装"""
-    kwargs.setdefault("capture_output", True)
-    kwargs.setdefault("text", True)
-    kwargs.setdefault("encoding", "utf-8")
-    kwargs.setdefault("errors", "replace")
-    return subprocess.run(cmd, timeout=timeout, **kwargs)
+    """subprocess.run 安全封装（委托给 run_subprocess）"""
+    from core.mcp_servers._mcp_utils import run_subprocess as _rs
+    return _rs(cmd, timeout=timeout, **kwargs)
 
 
 def _check_ffmpeg() -> str | None:

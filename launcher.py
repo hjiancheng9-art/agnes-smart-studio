@@ -27,6 +27,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
+from core.mcp_servers._mcp_utils import run_subprocess
 
 ROOT = Path(__file__).parent
 PID_FILE = ROOT / ".beasts_pids.json"
@@ -193,13 +194,7 @@ def _spawn_and_initialize(cfg: BeastConfig) -> HealthResult:
     # For non-MCP CLIs, just verify binary exists and returns 0
     if not cfg.mcp_initialize:
         try:
-            r = subprocess.run(
-                cmd, capture_output=True, text=True,
-                encoding="utf-8", errors="replace",
-                timeout=cfg.timeout,
-                cwd=str(ROOT),
-                env={**os.environ, **cfg.env},
-            )
+            r = run_subprocess(cmd, timeout=cfg.timeout, cwd=str(ROOT), env_add={**cfg.env})
             latency = (time.monotonic() - t0) * 1000
             if r.returncode == 0:
                 version_line = (r.stdout or "").split("\n")[0].strip()
@@ -376,9 +371,14 @@ class ProcessManager:
         self._procs: dict[str, subprocess.Popen] = {}
 
     def start(self, name: str, cfg: BeastConfig) -> bool:
-        """Start a persistent service."""
-        if name in self._procs:
+        """Start a persistent service. Auto-cleans zombie entries."""
+        # Clean up zombie before checking if running
+        proc = self._procs.get(name)
+        if proc and proc.poll() is None:
             return True  # already running
+        # Remove zombie entry if present
+        if name in self._procs:
+            del self._procs[name]
 
         if cfg.bridge_script:
             script = ROOT / cfg.bridge_script
@@ -407,15 +407,20 @@ class ProcessManager:
             return False
 
     def stop(self, name: str) -> None:
-        """Stop a persistent service."""
+        """Stop a persistent service. Auto-cleans zombie entries."""
         proc = self._procs.pop(name, None)
         if proc is None:
+            return
+        # Skip if process already dead
+        if proc.poll() is not None:
             return
         try:
             proc.terminate()
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
+        except (OSError, ProcessLookupError):
+            pass  # already dead
 
     def stop_all(self) -> None:
         """Stop all persistent services and clean up zombie entries."""
@@ -434,6 +439,7 @@ class ProcessManager:
 
     @property
     def running(self) -> list[str]:
+        self.cleanup_zombies()
         return [n for n, p in self._procs.items() if p.poll() is None]
 
     def save_pids(self) -> None:

@@ -39,7 +39,7 @@ __all__ = [
 ]
 
 # 副作用处理器签名：(kind, payload) -> None
-SideEffectHandler = Callable[[str, object], None]
+SideEffectHandler = Callable[[str, Any], None]
 HandlerMap = dict[str, SideEffectHandler]
 
 
@@ -68,17 +68,17 @@ def default_side_effect_handlers() -> HandlerMap:
 
     def _on_info(kind: str, payload: object) -> None:
         assert isinstance(payload, (str, dict)), f"expected str/dict, got {type(payload)}"
-        show_info(payload)  # type: ignore[arg-type]
+        show_info(payload)
 
     def _on_image(kind: str, payload: object) -> None:
         assert isinstance(payload, dict), f"expected dict, got {type(payload)}"
-        img_data: dict = payload  # type: ignore[assignment]
+        img_data: dict = payload
         show_image_result(img_data)
         history.add_record("text_to_image", "chat", img_data.get("model", ""), img_data)
 
     def _on_video(kind: str, payload: object) -> None:
         assert isinstance(payload, dict), f"expected dict, got {type(payload)}"
-        vid_data: dict = payload  # type: ignore[assignment]
+        vid_data: dict = payload
         if vid_data.get("status") == "timeout":
             show_warning(f"视频超时，进度 {vid_data.get('progress', 0):.0f}%")
         else:
@@ -87,7 +87,7 @@ def default_side_effect_handlers() -> HandlerMap:
 
     def _on_confirm(kind: str, payload: object) -> None:
         assert isinstance(payload, dict), f"expected dict, got {type(payload)}"
-        data: dict = payload  # type: ignore[assignment]
+        data: dict = payload
         tool = data.get("tool", "?")
         args_preview = str(data.get("args", ""))[:80]
         from rich.prompt import Prompt
@@ -116,7 +116,7 @@ def _dispatch_to_renderer(renderer: StreamingRenderer, kind: str, payload: Any) 
     """
     if kind == "text":
         assert isinstance(payload, str), f"expected str, got {type(payload)}"
-        renderer.append_text(payload)  # type: ignore[arg-type]
+        renderer.append_text(payload)
     else:
         renderer.run_side_effect(kind, payload)
 

@@ -18,6 +18,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = ["SoundUX", "SOUND_DIR"]
 ROOT = Path(__file__).resolve().parent.parent
@@ -44,24 +45,15 @@ class SoundUX:
                 # 优先 edge-tts
                 mp3_path = SOUND_DIR / f"sfx_{hash(text) % 10000}.mp3"
                 if not mp3_path.exists():
-                    r = subprocess.run(
-                        ["edge-tts", "--text", text, "--voice", "zh-CN-XiaoxiaoNeural", "--write-media", str(mp3_path)],
-                        capture_output=True,
-                        timeout=8,
-                        cwd=str(ROOT),
-                    )
+                    r = run_subprocess(["edge-tts", "--text", text, "--voice", "zh-CN-XiaoxiaoNeural", "--write-media", str(mp3_path)], timeout=8, cwd=str(ROOT))
                     if r.returncode != 0:
                         cls._beep_fallback()
                         return
                 # 播放
                 if sys.platform == "win32":
-                    subprocess.run(["start", "/min", "wmplayer", str(mp3_path)], shell=True, timeout=3)
+                    run_subprocess(["start", "/min", "wmplayer", str(mp3_path)], shell=True, timeout=3)
                 else:
-                    subprocess.run(
-                        ["ffplay", "-nodisp", "-autoexit", "-t", str(duration), str(mp3_path)],
-                        capture_output=True,
-                        timeout=5,
-                    )
+                    run_subprocess(["ffplay", "-nodisp", "-autoexit", "-t", str(duration), str(mp3_path)], timeout=5)
             except (OSError, RuntimeError, subprocess.SubprocessError) as e:
                 logger.debug("TTS playback failed (%s), falling back to beep", e)
                 cls._beep_fallback()

@@ -28,6 +28,7 @@ Skill 文件格式 (JSON):
 import json
 import threading
 from pathlib import Path
+from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = ["SKILLS_DIR", "Skill", "SkillManager", "get_manager"]
 
@@ -501,7 +502,7 @@ def resolve_skill_executor(tool_name: str, tool_def: dict | None = None):
         def _exec(**kw):
             text = kw.get("text", "")
             out = kw.get("output", "") or os.path.join(tempfile.gettempdir(), f"tts_{hash(text) % 10000}.mp3")
-            r = subprocess.run(["edge-tts", "--text", text, "--write-media", out], capture_output=True, timeout=30)
+            r = run_subprocess(["edge-tts", "--text", text, "--write-media", out], timeout=30)
             return f"TTS generated: {out}" if r.returncode == 0 else f"TTS failed: {r.stderr}"
         return _exec
 
@@ -510,14 +511,14 @@ def resolve_skill_executor(tool_name: str, tool_def: dict | None = None):
             code = kw.get("code", "")
             f = tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8")
             f.write(code); f.close()
-            r = subprocess.run(["python", f.name], capture_output=True, text=True, timeout=30)
+            r = run_subprocess(["python", f.name], timeout=30)
             return r.stdout or r.stderr or "[no output]"
         return _exec
 
     if tool_name in ("run_test", "run_pytest"):
         def _exec(**kw):
             path = kw.get("path", "tests/")
-            r = subprocess.run(["python", "-m", "pytest", path, "-q", "--tb=short"], capture_output=True, text=True, timeout=120)
+            r = run_subprocess(["python", "-m", "pytest", path, "-q", "--tb=short"], timeout=120)
             return r.stdout or r.stderr or "[pytest done]"
         return _exec
 

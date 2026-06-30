@@ -1,0 +1,106 @@
+[NEED_WORK] core\audio_tools.py L41: issues=['no_capture_output'], kwargs={'timeout': 'timeout', None: 'kwargs'}
+[OK] core\background.py L213: {'capture_output': 'True', 'timeout': '10'}
+[NEED_WORK] core\browser_tools.py L60: issues=['no_capture_output'], kwargs={None: 'kwargs'}
+[OK] core\browser_tools.py L201: {'capture_output': 'True', 'text': 'True', 'timeout': '120'}
+[OK] core\claude_mcp_bridge.py L338: {'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd or str(ROOT)', 'timeout': '30'}
+[OK] core\claude_mcp_bridge.py L425: {'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'timeout': '30'}
+[OK] core\claude_mcp_bridge.py L685: {'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd', 'timeout': 'timeout_val'}
+[NEED_WORK] core\claude_mcp_bridge.py L695: issues=['shell=True'], kwargs={'shell': 'True', 'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd', 'timeout': 'timeout_val'}
+[OK] core\code_review.py L294: {'capture_output': 'True', 'text': 'True', 'cwd': 'os.getcwd()', 'timeout': '10'}
+[OK] core\codex_engines.py L99: {'capture_output': 'True', 'text': 'True', 'timeout': '(timeout_sec / 1000) + 5', 'cwd': 'str(ROOT)'}
+[OK] core\codex_tools.py L82: {'capture_output': 'True', 'text': 'True', 'timeout': '120', 'cwd': 'str(target)'}
+[OK] core\codex_tools.py L92: {'capture_output': 'True', 'text': 'True', 'timeout': '120', 'cwd': 'str(ROOT)'}
+[NEED_WORK] core\codex_tools.py L197: issues=['no_capture_output'], kwargs={'timeout': '10'}
+[NEED_WORK] core\codex_tools.py L200: issues=['no_capture_output'], kwargs={'timeout': '10'}
+[OK] core\copilot_proxy.py L136: {'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"'}
+[OK] core\copilot_tools.py L72: {'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd or str(ROOT)'}
+[OK] core\copilot_tools.py L170: {'capture_output': 'True', 'text': 'True', 'timeout': '10', 'cwd': 'str(ROOT)'}
+[OK] core\copilot_tools.py L506: {'capture_output': 'True', 'timeout': '5'}
+[OK] core\file_tools.py L313: {'capture_output': 'True', 'text': 'True', 'timeout': '120'}
+[OK] core\file_tools.py L438: {'capture_output': 'True', 'text': 'True', 'timeout': '30', 'cwd': 'str(ROOT)', 'encoding': '"utf-8"', 'errors': '"replace"'}
+[OK] core\file_tools.py L718: {'capture_output': 'True', 'text': 'True', 'timeout': '60'}
+[OK] core\git_tools.py L39: {'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd or None', 'timeout': '30'}
+[OK] core\git_tools.py L66: {'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd or None', 'timeout': '30'}
+[OK] core\git_tools.py L590: {'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+[OK] core\git_tools.py L598: {'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+[OK] core\git_tools.py L606: {'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+[OK] core\git_tools.py L615: {'capture_output': 'True', 'text': 'True', 'timeout': '30'}
+[OK] core\git_tools.py L619: {'capture_output': 'True', 'text': 'True', 'timeout': '30'}
+[NEED_WORK] core\git_workflow.py L29: issues=['capture_output=capture'], kwargs={'capture_output': 'capture', 'text': 'True', 'timeout': '30', 'cwd': 'str(self.root)'}
+[OK] core\github_tools.py L44: {'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'timeout': 'timeout'}
+[OK] core\github_tools.py L538: {'input': 'raw_input', 'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'timeout': '30'}
+[NEED_WORK] core\image_tools.py L44: issues=['no_capture_output'], kwargs={'timeout': 'timeout', None: 'kwargs'}
+[OK] core\mcp_servers\_mcp_utils.py L69: {'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'timeout': 'timeout', 'input': 'input_data', 'cwd': 'cwd', 'env': 'env'}
+[OK] core\mcp_servers\codebuddy_bridge.py L154: {'capture_output': 'True', 'text': 'True', 'timeout': '5'}
+[NEED_WORK] core\mcp_servers\codebuddy_bridge.py L182: issues=["encoding='utf-8'"], kwargs={'cwd': 'work_dir or None', 'capture_output': 'True', 'text': 'True', 'encoding': "'utf-8'", 'timeout': 'timeout'}
+[OK] core\mcp_servers\codebuddy_bridge.py L219: {'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+[OK] core\mcp_servers\codebuddy_bridge.py L227: {'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+[OK] core\mcp_servers\copilot_bridge.py L139: {'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+[OK] core\mcp_servers\copilot_bridge.py L147: {'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+[OK] core\mcp_servers\copilot_bridge.py L157: {'capture_output': 'True', 'text': 'True', 'timeout': '15'}
+[OK] core\mcp_servers\copilot_bridge.py L209: {'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'cwd': 'work_dir'}
+[OK] core\mcp_servers\kimi_bridge.py L108: {'capture_output': 'True', 'text': 'True', 'timeout': '10', 'env': '{**os.environ, "NO_COLOR": "1"}'}
+[OK] core\mcp_servers\kimi_bridge.py L127: {'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'cwd': 'wd', 'env': '{**os.environ, "NO_COLOR": "1"}'}
+[OK] core\mcp_servers\kimi_bridge.py L194: {'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"'}
+[NEED_WORK] core\mcp_servers\kimi_mcp_bridge.py L123: issues=['shell=True'], kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"', 'shell': 'True'}
+[NEED_WORK] core\mcp_servers\kimi_mcp_bridge.py L157: issues=['shell=True'], kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"', 'shell': 'True'}
+[NEED_WORK] core\mcp_servers\kimi_mcp_bridge.py L190: issues=['shell=True'], kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10', 'encoding': '"utf-8"', 'errors': '"replace"', 'shell': 'True'}
+[NEED_WORK] core\mcp_servers\kimi_mcp_bridge.py L203: issues=['shell=True'], kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10', 'encoding': '"utf-8"', 'errors': '"replace"', 'shell': 'True'}
+[NEED_WORK] core\mcp_servers\kimi_mcp_bridge.py L238: issues=['shell=True'], kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"', 'shell': 'True'}
+[OK] core\mcp_servers\qoder_bridge.py L113: {'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd'}
+[OK] core\mcp_servers\qoder_bridge.py L151: {'capture_output': 'True', 'text': 'True', 'timeout': '10', 'encoding': '"utf-8"', 'errors': '"replace"'}
+[OK] core\mcp_servers\zcode_bridge.py L160: {'capture_output': 'True', 'text': 'True', 'timeout': '15', 'env': '{**os.environ, "NO_COLOR": "1"}'}
+[OK] core\mcp_servers\zcode_bridge.py L194: {'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'cwd': 'wd', 'env': 'env', 'encoding': '"utf-8"', 'errors': '"replace"'}
+[OK] core\mcp_servers\zcode_bridge.py L430: {'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'env': '{**os.environ, "NO_COLOR": "1"}', 'encoding': '"utf-8"', 'errors': '"replace"'}
+[OK] core\notebook.py L201: {'capture_output': 'True', 'text': 'True', 'timeout': '30', 'encoding': '"utf-8"'}
+[NEED_WORK] core\pipeline_tools.py L47: issues=['no_capture_output'], kwargs={None: 'kwargs'}
+[OK] core\plan_verify.py L326: {'capture_output': 'True', 'text': 'True', 'cwd': 'ROOT'}
+[OK] core\pytest_runner.py L79: {'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'cwd': 'str(cwd) if cwd else None'}
+[OK] core\skills.py L504: {'capture_output': 'True', 'timeout': '30'}
+[OK] core\skills.py L513: {'capture_output': 'True', 'text': 'True', 'timeout': '30'}
+[OK] core\skills.py L520: {'capture_output': 'True', 'text': 'True', 'timeout': '120'}
+[OK] core\sound_ux.py L47: {'capture_output': 'True', 'timeout': '8', 'cwd': 'str(ROOT)'}
+[NEED_WORK] core\sound_ux.py L58: issues=['shell=True', 'no_capture_output'], kwargs={'shell': 'True', 'timeout': '3'}
+[OK] core\sound_ux.py L60: {'capture_output': 'True', 'timeout': '5'}
+[OK] core\test_loop.py L145: {'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'timeout': '120'}
+[OK] core\test_loop.py L226: {'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'timeout': '60'}
+[OK] core\three_way_coordinator.py L71: {'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+[OK] core\three_way_coordinator.py L77: {'capture_output': 'True', 'text': 'True', 'timeout': '20'}
+[OK] core\three_way_coordinator.py L105: {'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+[OK] core\three_way_coordinator.py L111: {'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+[NEED_WORK] core\video_editor.py L42: issues=['no_capture_output'], kwargs={'timeout': 'timeout', None: 'kwargs'}
+
+
+=== COMPATIBLE (19) ===
+  core\background.py
+  core\code_review.py
+  core\codex_engines.py
+  core\copilot_proxy.py
+  core\copilot_tools.py
+  core\file_tools.py
+  core\git_tools.py
+  core\github_tools.py
+  core\mcp_servers\_mcp_utils.py
+  core\mcp_servers\copilot_bridge.py
+  core\mcp_servers\kimi_bridge.py
+  core\mcp_servers\qoder_bridge.py
+  core\mcp_servers\zcode_bridge.py
+  core\notebook.py
+  core\plan_verify.py
+  core\pytest_runner.py
+  core\skills.py
+  core\test_loop.py
+  core\three_way_coordinator.py
+
+=== NEEDS ADAPTATION (11) ===
+  core\audio_tools.py
+  core\browser_tools.py
+  core\claude_mcp_bridge.py
+  core\codex_tools.py
+  core\git_workflow.py
+  core\image_tools.py
+  core\mcp_servers\codebuddy_bridge.py
+  core\mcp_servers\kimi_mcp_bridge.py
+  core\pipeline_tools.py
+  core\sound_ux.py
+  core\video_editor.py

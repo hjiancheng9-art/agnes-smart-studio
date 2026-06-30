@@ -27,6 +27,7 @@ Why proxy instead of direct API:
     - Proxy is a thin translation layer (~200 lines)
 """
 
+from core.mcp_servers._mcp_utils import run_subprocess
 import json
 import os
 import re
@@ -133,14 +134,7 @@ def _call_copilot(
     ]
 
     try:
-        r = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            encoding="utf-8",
-            errors="replace",
-        )
+        r = run_subprocess(cmd, timeout=timeout)
         output = r.stdout.strip()
         stderr = r.stderr.strip()
 

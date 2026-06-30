@@ -9,6 +9,8 @@ Wraps Kimi CLI as an MCP stdio server. Provides:
 import json, os, shutil, subprocess, sys, time
 from pathlib import Path
 
+from ._mcp_utils import find_binary, make_error, make_tool_result, run_subprocess
+
 # ── Constants ──────────────────────────────────────────────────
 
 KIMI_BINARY = shutil.which("kimi") or os.path.expanduser(
@@ -93,7 +95,7 @@ def _error(id_val, code, message):
 def _find_kimi():
     if os.path.isfile(KIMI_BINARY):
         return KIMI_BINARY
-    return shutil.which("kimi")
+    return find_binary("kimi")
 
 
 def _check_status():
@@ -103,8 +105,7 @@ def _check_status():
     
     ver = "unknown"
     try:
-        r = subprocess.run([kimi, "-V"], capture_output=True, text=True,
-                           timeout=10, env={**os.environ, "NO_COLOR": "1"})
+        r = run_subprocess([kimi, "-V"], timeout=10, env_add={"NO_COLOR": "1"})
         ver = r.stdout.strip() or r.stderr.strip()
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
@@ -122,10 +123,9 @@ def _run_kimi(prompt, *, work_dir=None, timeout=180):
     timeout = min(timeout, 600)
     
     try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True,
-            timeout=timeout, cwd=wd,
-            env={**os.environ, "NO_COLOR": "1"},
+        result = run_subprocess(
+            cmd, timeout=timeout, cwd=wd,
+            env_add={"NO_COLOR": "1"},
         )
         return {
             "success": result.returncode == 0,
@@ -189,10 +189,9 @@ class KimiBridgeServer:
                 try:
                     cmd = _find_kimi()
                     if cmd:
-                        result = subprocess.run(
+                        result = run_subprocess(
                             [cmd, "login", "--status"],
-                            capture_output=True, text=True, timeout=timeout,
-                            encoding="utf-8", errors="replace",
+                            timeout=timeout,
                         )
                         ok = "Success" in result.stdout or "signed in" in (result.stdout + result.stderr).lower() or result.returncode == 0
                         return _response(req_id, result={

@@ -1,0 +1,146 @@
+=== Files with subprocess.run: 34 ===
+
+FILE: core\audio_tools.py
+  call[1] L41-41: kwargs={'timeout': 'timeout', None: 'kwargs'}
+
+FILE: core\background.py
+  call[1] L213-217: kwargs={'capture_output': 'True', 'timeout': '10'}
+
+FILE: core\browser_tools.py
+  call[1] L60-60: kwargs={None: 'kwargs'}
+  call[2] L201-206: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '120'}
+
+FILE: core\claude_mcp_bridge.py
+  call[1] L338-346: kwargs={'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd or str(ROOT)', 'timeout': '30'}
+  call[2] L425-432: kwargs={'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'timeout': '30'}
+  call[3] L685-693: kwargs={'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd', 'timeout': 'timeout_val'}
+  call[4] L695-704: kwargs={'shell': 'True', 'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd', 'timeout': 'timeout_val'}
+
+FILE: core\code_review.py
+  call[1] L294-297: kwargs={'capture_output': 'True', 'text': 'True', 'cwd': 'os.getcwd()', 'timeout': '10'}
+
+FILE: core\codex_engines.py
+  call[1] L99-105: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '(timeout_sec / 1000) + 5', 'cwd': 'str(ROOT)'}
+
+FILE: core\codex_tools.py
+  call[1] L82-82: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '120', 'cwd': 'str(target)'}
+  call[2] L92-92: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '120', 'cwd': 'str(ROOT)'}
+  call[3] L197-197: kwargs={'timeout': '10'}
+  call[4] L200-200: kwargs={'timeout': '10'}
+
+FILE: core\copilot_proxy.py
+  call[1] L136-143: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"'}
+
+FILE: core\copilot_tools.py
+  call[1] L72-80: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd or str(ROOT)'}
+  call[2] L170-174: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10', 'cwd': 'str(ROOT)'}
+  call[3] L506-509: kwargs={'capture_output': 'True', 'timeout': '5'}
+
+FILE: core\file_tools.py
+  call[1] L313-318: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '120'}
+  call[2] L438-446: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '30', 'cwd': 'str(ROOT)', 'encoding': '"utf-8"', 'errors': '"replace"'}
+  call[3] L718-723: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '60'}
+
+FILE: core\git_tools.py
+  call[1] L39-47: kwargs={'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd or None', 'timeout': '30'}
+  call[2] L66-74: kwargs={'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd or None', 'timeout': '30'}
+  call[3] L590-590: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+  call[4] L598-598: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+  call[5] L606-606: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+  call[6] L615-615: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '30'}
+  call[7] L619-619: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '30'}
+
+FILE: core\git_workflow.py
+  call[1] L29-29: kwargs={'capture_output': 'capture', 'text': 'True', 'timeout': '30', 'cwd': 'str(self.root)'}
+
+FILE: core\github_tools.py
+  call[1] L44-51: kwargs={'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'timeout': 'timeout'}
+  call[2] L538-546: kwargs={'input': 'raw_input', 'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'timeout': '30'}
+
+FILE: core\image_tools.py
+  call[1] L44-44: kwargs={'timeout': 'timeout', None: 'kwargs'}
+
+FILE: core\mcp_servers\_mcp_utils.py
+  call[1] L69-79: kwargs={'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'timeout': 'timeout', 'input': 'input_data', 'cwd': 'cwd', 'env': 'env'}
+
+FILE: core\mcp_servers\codebuddy_bridge.py
+  call[1] L154-154: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '5'}
+  call[2] L182-189: kwargs={'cwd': 'work_dir or None', 'capture_output': 'True', 'text': 'True', 'encoding': "'utf-8'", 'timeout': 'timeout'}
+  call[3] L219-219: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+  call[4] L227-227: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+
+FILE: core\mcp_servers\copilot_bridge.py
+  call[1] L139-139: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+  call[2] L147-149: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+  call[3] L157-159: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '15'}
+  call[4] L209-211: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'cwd': 'work_dir'}
+
+FILE: core\mcp_servers\kimi_bridge.py
+  call[1] L108-109: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10', 'env': '{**os.environ, "NO_COLOR": "1"}'}
+  call[2] L127-131: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'cwd': 'wd', 'env': '{**os.environ, "NO_COLOR": "1"}'}
+  call[3] L194-198: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"'}
+
+FILE: core\mcp_servers\kimi_mcp_bridge.py
+  call[1] L123-131: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"', 'shell': 'True'}
+  call[2] L157-165: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"', 'shell': 'True'}
+  call[3] L190-198: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10', 'encoding': '"utf-8"', 'errors': '"replace"', 'shell': 'True'}
+  call[4] L203-211: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10', 'encoding': '"utf-8"', 'errors': '"replace"', 'shell': 'True'}
+  call[5] L238-246: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"', 'shell': 'True'}
+
+FILE: core\mcp_servers\qoder_bridge.py
+  call[1] L113-121: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd'}
+  call[2] L151-155: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10', 'encoding': '"utf-8"', 'errors': '"replace"'}
+
+FILE: core\mcp_servers\zcode_bridge.py
+  call[1] L160-165: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '15', 'env': '{**os.environ, "NO_COLOR": "1"}'}
+  call[2] L194-200: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'cwd': 'wd', 'env': 'env', 'encoding': '"utf-8"', 'errors': '"replace"'}
+  call[3] L430-436: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'env': '{**os.environ, "NO_COLOR": "1"}', 'encoding': '"utf-8"', 'errors': '"replace"'}
+
+FILE: core\notebook.py
+  call[1] L201-207: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '30', 'encoding': '"utf-8"'}
+
+FILE: core\nsp-downloader\node_modules\@electron\node-gyp\gyp\pylib\gyp\common.py
+  call[1] L451-454: kwargs={'shell': 'True', 'capture_output': 'True', 'check': 'True'}
+  call[2] L460-463: kwargs={'shell': 'False', 'capture_output': 'True', 'check': 'True'}
+
+FILE: core\nsp-downloader\node_modules\@electron\node-gyp\gyp\pylib\gyp\input.py
+  call[1] L962-968: kwargs={'stdout': 'subprocess.PIPE', 'shell': 'use_shell', 'cwd': 'build_file_dir', 'check': 'False'}
+
+FILE: core\nsp-downloader\node_modules\@electron\node-gyp\gyp\pylib\packaging\_musllinux.py
+  call[1] L50-50: kwargs={'stderr': 'subprocess.PIPE', 'text': 'True'}
+
+FILE: core\nsp-downloader\node_modules\@electron\node-gyp\gyp\pylib\packaging\tags.py
+  call[1] L400-411: kwargs={'check': 'True', 'env': '{"SYSTEM_VERSION_COMPAT": "0"}', 'stdout': 'subprocess.PIPE', 'text': 'True'}
+
+FILE: core\pipeline_tools.py
+  call[1] L47-47: kwargs={None: 'kwargs'}
+
+FILE: core\plan_verify.py
+  call[1] L326-326: kwargs={'capture_output': 'True', 'text': 'True', 'cwd': 'ROOT'}
+
+FILE: core\pytest_runner.py
+  call[1] L79-85: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'cwd': 'str(cwd) if cwd else None'}
+
+FILE: core\skills.py
+  call[1] L504-504: kwargs={'capture_output': 'True', 'timeout': '30'}
+  call[2] L513-513: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '30'}
+  call[3] L520-520: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '120'}
+
+FILE: core\sound_ux.py
+  call[1] L47-52: kwargs={'capture_output': 'True', 'timeout': '8', 'cwd': 'str(ROOT)'}
+  call[2] L58-58: kwargs={'shell': 'True', 'timeout': '3'}
+  call[3] L60-64: kwargs={'capture_output': 'True', 'timeout': '5'}
+
+FILE: core\test_loop.py
+  call[1] L145-152: kwargs={'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'timeout': '120'}
+  call[2] L226-233: kwargs={'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'timeout': '60'}
+
+FILE: core\three_way_coordinator.py
+  call[1] L71-71: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+  call[2] L77-80: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '20'}
+  call[3] L105-105: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+  call[4] L111-113: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+
+FILE: core\video_editor.py
+  call[1] L42-42: kwargs={'timeout': 'timeout', None: 'kwargs'}
+

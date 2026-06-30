@@ -8,6 +8,7 @@
 - codebuddy_status — 检查 CodeBuddy 状态
 """
 
+from ._mcp_utils import run_subprocess
 import os
 import sys
 import json
@@ -151,7 +152,7 @@ def find_codebuddy_cli() -> Optional[str]:
         if os.path.exists(c):
             return c
         try:
-            r = subprocess.run(["where", c], capture_output=True, text=True, timeout=5)
+            r = run_subprocess(["where", c], timeout=5)
             if r.returncode == 0 and r.stdout.strip():
                 return r.stdout.strip().split('\n')[0]
         except Exception:
@@ -179,12 +180,9 @@ def run_codebuddy(prompt: str = "", *, work_dir: str = None, model: str = None,
         cmd.extend(extra_flags)
 
     try:
-        r = subprocess.run(
+        r = run_subprocess(
             cmd,
             cwd=work_dir or None,
-            capture_output=True,
-            text=True,
-            encoding='utf-8',
             timeout=timeout
         )
         return {
@@ -216,7 +214,7 @@ def get_status() -> dict:
         return result
 
     try:
-        r = subprocess.run([cb, "--version"], capture_output=True, text=True, timeout=10)
+        r = run_subprocess([cb, "--version"], timeout=10)
         if r.returncode == 0:
             result["version"] = r.stdout.strip()
     except Exception as e:
@@ -224,7 +222,7 @@ def get_status() -> dict:
 
     # Check MCP server list
     try:
-        r = subprocess.run([cb, "mcp", "list"], capture_output=True, text=True, timeout=10)
+        r = run_subprocess([cb, "mcp", "list"], timeout=10)
         if r.returncode == 0:
             result["mcp_servers"] = r.stdout.strip()
     except (FileNotFoundError, subprocess.TimeoutExpired):

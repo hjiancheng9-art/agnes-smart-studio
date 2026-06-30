@@ -323,7 +323,7 @@ class PlanVerifyLoop:
         if method.startswith("grep"):
             pattern = method.split(":", 1)[1] if ":" in method else ""
             try:
-                r = subprocess.run(["rg", "-l", pattern, "core/"], capture_output=True, text=True, cwd=ROOT)
+                r = run_subprocess(["rg", "-l", pattern, "core/"], cwd=str(ROOT))
                 if r.returncode == 0:
                     files = r.stdout.strip().split("\n")
                     return VerificationResult(

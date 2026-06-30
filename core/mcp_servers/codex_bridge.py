@@ -7,11 +7,11 @@ Wraps the OpenAI Codex CLI as an MCP stdio server, enabling CRUX to:
 
 import json
 import os
-import shutil
-import subprocess
 import sys
 import time
 from pathlib import Path
+
+from ._mcp_utils import find_binary, run_subprocess, make_error, make_tool_result
 
 # ── Constants ──────────────────────────────────────────────────
 
@@ -164,12 +164,10 @@ def _check_codex_status() -> dict:
     # Check if authenticated
     auth_ok = False
     try:
-        r = subprocess.run(
+        r = run_subprocess(
             [codex_path, "login", "--status"],
-            capture_output=True,
-            text=True,
             timeout=15,
-            env={**os.environ, "NO_COLOR": "1"},
+            env_add={"NO_COLOR": "1"},
         )
         auth_ok = r.returncode == 0 and "logged in" in (r.stdout + r.stderr).lower()
     except Exception:
@@ -223,13 +221,11 @@ def _run_codex_exec(
     timeout = min(timeout, 600)
 
     try:
-        result = subprocess.run(
+        result = run_subprocess(
             cmd,
-            capture_output=True,
-            text=True,
             timeout=timeout,
-            cwd=work_dir or os.getcwd(),
-            env={**os.environ, "NO_COLOR": "1"},
+            cwd=work_dir,
+            env_add={"NO_COLOR": "1"},
         )
         return {
             "success": result.returncode == 0,
@@ -285,13 +281,11 @@ def _run_codex_review(
     timeout = min(timeout, 600)
 
     try:
-        result = subprocess.run(
+        result = run_subprocess(
             cmd,
-            capture_output=True,
-            text=True,
             timeout=timeout,
-            cwd=work_dir or os.getcwd(),
-            env={**os.environ, "NO_COLOR": "1"},
+            cwd=work_dir,
+            env_add={"NO_COLOR": "1"},
         )
         return {
             "success": result.returncode == 0,

@@ -39,6 +39,7 @@ COPILOT_BIN = (
 
 # 自动检测 copilot 路径
 import shutil
+from core.mcp_servers._mcp_utils import run_subprocess
 
 if not os.path.isfile(COPILOT_BIN):
     found = shutil.which("copilot")
@@ -69,15 +70,7 @@ def _run_copilot(prompt: str, timeout: int = 120, cwd: str | None = None) -> dic
     start = time.time()
 
     try:
-        r = subprocess.run(
-            [copilot, "-p", prompt, "--allow-all-tools", "--allow-all-paths"],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            encoding="utf-8",
-            errors="replace",
-            cwd=cwd or str(ROOT),
-        )
+        r = run_subprocess([copilot, "-p", prompt, "--allow-all-tools", "--allow-all-paths"], timeout=timeout, cwd=cwd or str(ROOT))
         elapsed = time.time() - start
         output = r.stdout.strip()
 
@@ -167,11 +160,7 @@ def run_copilot_review(
         target_files = [f for f in files if os.path.isfile(f)]
     elif diff_only:
         try:
-            r = subprocess.run(
-                ["git", "diff", "--name-only", "HEAD"],
-                capture_output=True, text=True, timeout=10,
-                cwd=str(ROOT),
-            )
+            r = run_subprocess(["git", "diff", "--name-only", "HEAD"], timeout=10, cwd=str(ROOT))
             target_files = [
                 f.strip() for f in r.stdout.splitlines()
                 if f.strip() and os.path.isfile(f.strip())
@@ -503,10 +492,7 @@ class CopilotToolRunner:
     def ping(self) -> bool:
         """快速检查 Copilot CLI 是否可用。"""
         try:
-            r = subprocess.run(
-                [self.copilot_bin, "--version"],
-                capture_output=True, timeout=5,
-            )
+            r = run_subprocess([self.copilot_bin, "--version"], timeout=5)
             return r.returncode == 0
         except Exception:
             return False

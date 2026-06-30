@@ -58,6 +58,12 @@ def run_subprocess(
     input_data: str | None = None,
     env_add: dict[str, str] | None = None,
     cwd: str | None = None,
+    shell: bool = False,
+    check: bool = False,
+    stdin: Any | None = None,
+    startupinfo: Any | None = None,
+    capture_output: bool = True,
+    **extra_kwargs: Any,
 ) -> subprocess.CompletedProcess:
     """以 UTF-8 编码运行子进程，Windows GBK 区域友好。"""
     env = os.environ.copy()
@@ -68,7 +74,7 @@ def run_subprocess(
 
     return subprocess.run(
         cmd,
-        capture_output=True,
+        capture_output=capture_output,
         text=True,
         encoding="utf-8",
         errors="replace",
@@ -76,6 +82,11 @@ def run_subprocess(
         input=input_data,
         cwd=cwd,
         env=env,
+        shell=shell,
+        check=check,
+        stdin=stdin,
+        startupinfo=startupinfo,
+        **extra_kwargs,
     )
 
 

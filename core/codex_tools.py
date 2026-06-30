@@ -4,6 +4,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = [
     "ROOT",
@@ -79,7 +80,7 @@ def deploy_vercel(project_dir: str = ".", token: str = "") -> str:
     if token:
         cmd = ["vercel", str(target), "--prod", "--token", token, "--confirm"]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=str(target))
+        r = run_subprocess(cmd, timeout=120, cwd=str(target))
         return r.stdout[-1000:] or r.stderr[-1000:]
     except FileNotFoundError:
         return "[错误] Vercel CLI 未安装。运行: npm install -g vercel"
@@ -89,7 +90,7 @@ def deploy_netlify(project_dir: str = ".", token: str = "") -> str:
     """Deploy to Netlify. Requires: npm install -g netlify-cli"""
     try:
         cmd = ["npx", "netlify-cli", "deploy", "--prod", f"--dir={project_dir}"]
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=str(ROOT))
+        r = run_subprocess(cmd, timeout=120, cwd=str(ROOT))
         return r.stdout[-1000:] or r.stderr[-1000:]
     except FileNotFoundError:
         return "[错误] Netlify CLI 未安装"
@@ -194,10 +195,10 @@ def desktop_screenshot(output: str = "") -> str:
             img.save(str(out_path))
             return str(out_path)
         elif system == "darwin":
-            subprocess.run(["screencapture", "-x", str(out_path)], timeout=10)
+            run_subprocess(["screencapture", "-x", str(out_path)], timeout=10)
             return str(out_path)
         else:
-            subprocess.run(["import", "-window", "root", str(out_path)], timeout=10)
+            run_subprocess(["import", "-window", "root", str(out_path)], timeout=10)
             return str(out_path)
     except (subprocess.SubprocessError, OSError) as e:
         return f"[错误] 截图失败: {e}"

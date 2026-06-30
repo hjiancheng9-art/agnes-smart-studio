@@ -11,6 +11,7 @@ Usage:
     mcp_call_tool("zcode-bridge", "zcode_exec", {"prompt": "..."})
 """
 
+from ._mcp_utils import run_subprocess
 import json
 import os
 import shutil
@@ -157,11 +158,10 @@ def _check_status():
 
     ver = "unknown"
     try:
-        r = subprocess.run(
+        r = run_subprocess(
             [node, zcode, "--version"],
-            capture_output=True, text=True,
             timeout=15,
-            env={**os.environ, "NO_COLOR": "1"},
+            env_add={"NO_COLOR": "1"},
         )
         ver = r.stdout.strip() or r.stderr.strip()
     except Exception:
@@ -191,12 +191,10 @@ def _run_zcode(prompt, *, work_dir=None, mode="yolo", timeout=300, api_key=None)
         env["ANTHROPIC_API_KEY"] = api_key
 
     try:
-        result = subprocess.run(
+        result = run_subprocess(
             cmd,
-            capture_output=True, text=True,
             timeout=timeout, cwd=wd,
-            env=env,
-            encoding="utf-8", errors="replace",
+            env_add=env,
         )
         stderr = result.stderr[:10000]
         stdout = result.stdout[:50000]
@@ -427,12 +425,10 @@ class ZCodeBridgeServer:
                     cmd = [node, zcode, "login"]
                     if no_browser:
                         cmd.append("--no-browser")
-                    result = subprocess.run(
+                    result = run_subprocess(
                         cmd,
-                        capture_output=True, text=True,
                         timeout=timeout,
-                        env={**os.environ, "NO_COLOR": "1"},
-                        encoding="utf-8", errors="replace",
+                        env_add={"NO_COLOR": "1"},
                     )
                     output = (result.stdout + result.stderr).strip()
                     ok = result.returncode == 0

@@ -1,0 +1,13 @@
+13:                                                  --agent 控制权限
+14:
+15:与 kimi_bridge.py 镜像设计，让 CRUX 可以同时委派 Kimi 和 Copilot，
+16:实现三方协同（CRUX 规划 → Kimi/Copilot 并行执行）。
+17:
+18:使用方法：
+19:    python core/mcp_servers/copilot_bridge.py
+20:"""
+21:
+22:import json
+23:import os
+24:import shutil
+25:import subprocess

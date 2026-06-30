@@ -7,6 +7,8 @@ import sys
 import time
 from pathlib import Path
 
+from core.mcp_servers._mcp_utils import run_subprocess
+
 __all__ = [
     "JSRepl",
     "MCPConnector",
@@ -96,10 +98,8 @@ try {
         timeout_sec = min(timeout_ms, 30000)  # 上限 30s
         wrapped = self._SANDBOX_WRAPPER % (escaped_code, timeout_ms)
         try:
-            result = subprocess.run(
+            result = run_subprocess(
                 [self._node_path, "-e", wrapped],
-                capture_output=True,
-                text=True,
                 timeout=(timeout_sec / 1000) + 5,
                 cwd=str(ROOT),
             )

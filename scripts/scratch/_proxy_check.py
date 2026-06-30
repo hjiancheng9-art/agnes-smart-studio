@@ -5,6 +5,8 @@ import subprocess
 import time
 from pathlib import Path
 
+from core.mcp_servers._mcp_utils import run_subprocess
+
 import httpx
 
 out = {}
@@ -14,18 +16,18 @@ for k in ['HTTP_PROXY','HTTPS_PROXY','NO_PROXY','http_proxy','https_proxy','no_p
     if v: out[k] = v
 
 try:
-    r = subprocess.run(['netsh','winhttp','show','proxy'], capture_output=True, text=True, timeout=8)
+    r = run_subprocess(['netsh','winhttp','show','proxy'], timeout=8)
     out['winhttp'] = r.stdout.replace('\r','').replace('\n','|')[:300]
 except Exception:
     pass
 
 try:
-    r = subprocess.run(['reg','query',r'HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings','/v','ProxyEnable'], capture_output=True, text=True, timeout=5)
+    r = run_subprocess(['reg','query',r'HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings','/v','ProxyEnable'], timeout=5)
     out['ie_proxy_enable'] = '0x1' in r.stdout
 except Exception:
     pass
 try:
-    r = subprocess.run(['reg','query',r'HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings','/v','ProxyServer'], capture_output=True, text=True, timeout=5)
+    r = run_subprocess(['reg','query',r'HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings','/v','ProxyServer'], timeout=5)
     m = re.search(r'REG_SZ\s+(.+)', r.stdout)
     if m: out['ie_proxy_server'] = m.group(1).strip()
 except Exception:

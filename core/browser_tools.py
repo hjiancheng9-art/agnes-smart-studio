@@ -17,6 +17,7 @@ API Provider：有官方API的直接调用（更快更稳定）
   DALL-E       |  Gemini       |  Opal    |  Veo/Flow
 """
 
+from core.mcp_servers._mcp_utils import run_subprocess
 import contextlib
 import json
 import os
@@ -57,7 +58,7 @@ def _run(cmd: list, **kwargs) -> subprocess.CompletedProcess:
     kwargs.setdefault("errors", "replace")
     # 默认 60s 超时兜底：外部命令（chromium/playwright 等）卡住不会永久阻塞主进程
     kwargs.setdefault("timeout", 60)
-    return subprocess.run(cmd, **kwargs)
+    return run_subprocess(cmd, **kwargs)
 
 
 # ============================================================
@@ -198,12 +199,7 @@ def _ensure_chromium():
         return None
     _chromium_checked = True
     try:
-        r = subprocess.run(
-            ["playwright", "install", "chromium"],
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
+        r = run_subprocess(["playwright", "install", "chromium"], timeout=120)
         if r.returncode != 0:
             return f"Chromium 安装失败: {r.stderr[-200:]}"
     except FileNotFoundError:

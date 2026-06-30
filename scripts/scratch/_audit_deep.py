@@ -10,6 +10,8 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 os.chdir(ROOT)
 sys.path.insert(0, ROOT)
 
+from core.mcp_servers._mcp_utils import run_subprocess
+
 print("=" * 60)
 print("AUDIT REPORT")
 print("=" * 60)
@@ -107,7 +109,7 @@ for f in os.listdir(ROOT):
 
 # ── 5. Git deleted files that might be important ──
 print("\n── 5. Git Deleted Files ──")
-result = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, cwd=ROOT)
+result = run_subprocess(["git", "status", "--porcelain"], cwd=ROOT)
 for line in result.stdout.splitlines():
     if line.startswith(" D"):
         fname = line[3:].strip()

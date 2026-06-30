@@ -23,6 +23,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from core.config import OUTPUT_DIR
+from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = [
     "BACKGROUND_EXECUTOR_MAP",
@@ -210,11 +211,7 @@ class BackgroundManager:
         # Graceful terminate
         try:
             if os.name == "nt":
-                subprocess.run(
-                    ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
-                    capture_output=True,
-                    timeout=10,
-                )
+                run_subprocess(["taskkill", "/PID", str(proc.pid), "/T", "/F"], timeout=10)
             else:
                 proc.terminate()
                 try:

@@ -21,6 +21,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
+from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = ["ClaudeMcpBridge", "main"]
 
@@ -335,15 +336,7 @@ def _resolve_path(raw: str) -> Path:
 def _run_git(args: list[str], cwd: str = "") -> dict:
     """Run a git command, return {success, stdout, stderr, returncode}."""
     try:
-        r = subprocess.run(
-            ["git"] + args,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            cwd=cwd or str(ROOT),
-            timeout=30,
-        )
+        r = run_subprocess(["git"] + args, cwd=cwd or str(ROOT), timeout=30)
         return {
             "success": r.returncode == 0,
             "stdout": r.stdout.strip(),
@@ -422,14 +415,7 @@ def _handle_search_code(params: dict) -> dict:
     cmd.append(search_path)
 
     try:
-        r = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=30,
-        )
+        r = run_subprocess(cmd, timeout=30)
     except FileNotFoundError:
         # Fallback: use Python's re module for basic search
         return _search_fallback(pattern, search_path, glob_filter, output_mode, context_lines, head_limit, offset, multiline, case_insensitive)
@@ -682,26 +668,9 @@ def _handle_run_bash(params: dict) -> dict:
     is_windows = sys.platform == "win32"
     try:
         if is_windows:
-            r = subprocess.run(
-                ["cmd.exe", "/c", command],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                cwd=cwd,
-                timeout=timeout_val,
-            )
+            r = run_subprocess(["cmd.exe", "/c", command], cwd=cwd, timeout=timeout_val)
         else:
-            r = subprocess.run(
-                command,
-                shell=True,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                cwd=cwd,
-                timeout=timeout_val,
-            )
+            r = run_subprocess(command, shell=True, cwd=cwd, timeout=timeout_val)
     except subprocess.TimeoutExpired:
         return _tool_error(f"Command timed out after {timeout_val}s")
     except (subprocess.SubprocessError, OSError) as e:

@@ -12,6 +12,7 @@ import base64
 import json
 import re
 import subprocess
+from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = [
     "execute_github_api",
@@ -41,14 +42,7 @@ def _run_gh(args: list[str], timeout: int = 30) -> dict:
     """
     cmd = ["gh"] + args
     try:
-        r = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-        )
+        r = run_subprocess(cmd, timeout=timeout)
         return {
             "success": r.returncode == 0,
             "stdout": r.stdout.strip() if r.stdout else "",
@@ -535,15 +529,7 @@ def execute_github_api(
     if raw_input:
         # 用 --input 传入 JSON body（适合 GraphQL）
         args += ["--input", "-", "--method", "POST"]
-        r = subprocess.run(
-            ["gh"] + args,
-            input=raw_input,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=30,
-        )
+        r = run_subprocess(["gh"] + args, input_data=raw_input, timeout=30)
         result = {
             "success": r.returncode == 0,
             "stdout": r.stdout.strip() if r.stdout else "",

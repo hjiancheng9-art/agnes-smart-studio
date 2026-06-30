@@ -76,10 +76,8 @@ def run_pytest_safe(
     if extra_args:
         args.extend(extra_args)
 
-    return subprocess.run(
+    return run_subprocess(
         args,
-        capture_output=True,
-        text=True,
         timeout=timeout,
         cwd=str(cwd) if cwd else None,
     )

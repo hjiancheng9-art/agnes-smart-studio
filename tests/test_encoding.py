@@ -38,9 +38,8 @@ class TestEncodingSetup:
 
         setup()
         # Verify subprocess.run has been patched with encoding default
-        r = subprocess.run(
+        r = run_subprocess(
             [sys.executable, "-c", "import sys; print('ok')"],
-            capture_output=True,
         )
         assert r.returncode == 0
         assert "ok" in r.stdout  # type: ignore[operator]  # setup() 注入 encoding=utf-8，运行时 stdout 为 str

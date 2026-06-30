@@ -1,0 +1,479 @@
+
+core\audio_tools.py (1 calls):
+  L41-41: kwargs={'timeout': 'timeout', None: 'kwargs'}
+    |    return subprocess.run(cmd, timeout=timeout, **kwargs)
+
+core\background.py (1 calls):
+  L213-217: kwargs={'capture_output': 'True', 'timeout': '10'}
+    |                subprocess.run(
+    |                    ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+    |                    capture_output=True,
+    |                    timeout=10,
+    |                )
+
+core\browser_tools.py (2 calls):
+  L60-60: kwargs={None: 'kwargs'}
+    |    return subprocess.run(cmd, **kwargs)
+  L201-206: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '120'}
+    |        r = subprocess.run(
+    |            ["playwright", "install", "chromium"],
+    |            capture_output=True,
+    |            text=True,
+    |            timeout=120,
+    |        )
+
+core\claude_mcp_bridge.py (4 calls):
+  L338-346: kwargs={'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd or str(ROOT)', 'timeout': '30'}
+    |        r = subprocess.run(
+    |            ["git"] + args,
+    |            capture_output=True,
+    |            text=True,
+    |            encoding="utf-8",
+    |            errors="replace",
+    |            cwd=cwd or str(ROOT),
+    |            timeout=30,
+    |        )
+  L425-432: kwargs={'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'timeout': '30'}
+    |        r = subprocess.run(
+    |            cmd,
+    |            capture_output=True,
+    |            text=True,
+    |            encoding="utf-8",
+    |            errors="replace",
+    |            timeout=30,
+    |        )
+  L685-693: kwargs={'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd', 'timeout': 'timeout_val'}
+    |            r = subprocess.run(
+    |                ["cmd.exe", "/c", command],
+    |                capture_output=True,
+    |                text=True,
+    |                encoding="utf-8",
+    |                errors="replace",
+    |                cwd=cwd,
+    |                timeout=timeout_val,
+    |            )
+  L695-704: kwargs={'shell': 'True', 'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd', 'timeout': 'timeout_val'}
+    |            r = subprocess.run(
+    |                command,
+    |                shell=True,
+    |                capture_output=True,
+    |                text=True,
+    |                encoding="utf-8",
+    |                errors="replace",
+    |                cwd=cwd,
+    |                timeout=timeout_val,
+    |            )
+
+core\code_review.py (1 calls):
+  L294-297: kwargs={'capture_output': 'True', 'text': 'True', 'cwd': 'os.getcwd()', 'timeout': '10'}
+    |            r = subprocess.run(
+    |                ["git", "diff", "--name-only", "HEAD"],
+    |                capture_output=True, text=True, cwd=os.getcwd(), timeout=10,
+    |            )
+
+core\codex_engines.py (1 calls):
+  L99-105: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '(timeout_sec / 1000) + 5', 'cwd': 'str(ROOT)'}
+    |            result = subprocess.run(
+    |                [self._node_path, "-e", wrapped],
+    |                capture_output=True,
+    |                text=True,
+    |                timeout=(timeout_sec / 1000) + 5,
+    |                cwd=str(ROOT),
+    |            )
+
+core\codex_tools.py (4 calls):
+  L82-82: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '120', 'cwd': 'str(target)'}
+    |        r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=str(target))
+  L92-92: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '120', 'cwd': 'str(ROOT)'}
+    |        r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=str(ROOT))
+  L197-197: kwargs={'timeout': '10'}
+    |            subprocess.run(["screencapture", "-x", str(out_path)], timeout=10)
+  L200-200: kwargs={'timeout': '10'}
+    |            subprocess.run(["import", "-window", "root", str(out_path)], timeout=10)
+
+core\copilot_proxy.py (1 calls):
+  L136-143: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"'}
+    |        r = subprocess.run(
+    |            cmd,
+    |            capture_output=True,
+    |            text=True,
+    |            timeout=timeout,
+    |            encoding="utf-8",
+    |            errors="replace",
+    |        )
+
+core\copilot_tools.py (3 calls):
+  L72-80: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd or str(ROOT)'}
+    |        r = subprocess.run(
+    |            [copilot, "-p", prompt, "--allow-all-tools", "--allow-all-paths"],
+    |            capture_output=True,
+    |            text=True,
+    |            timeout=timeout,
+    |            encoding="utf-8",
+    |            errors="replace",
+    |            cwd=cwd or str(ROOT),
+    |        )
+  L170-174: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10', 'cwd': 'str(ROOT)'}
+    |            r = subprocess.run(
+    |                ["git", "diff", "--name-only", "HEAD"],
+    |                capture_output=True, text=True, timeout=10,
+    |                cwd=str(ROOT),
+    |            )
+  L506-509: kwargs={'capture_output': 'True', 'timeout': '5'}
+    |            r = subprocess.run(
+    |                [self.copilot_bin, "--version"],
+    |                capture_output=True, timeout=5,
+    |            )
+
+core\file_tools.py (3 calls):
+  L313-318: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '120'}
+    |        result = subprocess.run(
+    |            [sys.executable, "-m", "pip", "install"] + packages,
+    |            capture_output=True,
+    |            text=True,
+    |            timeout=120,
+    |        )
+  L438-446: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '30', 'cwd': 'str(ROOT)', 'encoding': '"utf-8"', 'errors': '"replace"'}
+    |        r = subprocess.run(
+    |            [sys.executable, tmp_path],
+    |            capture_output=True,
+    |            text=True,
+    |            timeout=30,
+    |            cwd=str(ROOT),
+    |            encoding="utf-8",
+    |            errors="replace",
+    |        )
+  L718-723: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '60'}
+    |        r = subprocess.run(
+    |            [sys.executable, "-m", "pytest", path, "-q", "--tb=short"],
+    |            capture_output=True,
+    |            text=True,
+    |            timeout=60,
+    |        )
+
+core\git_tools.py (7 calls):
+  L39-47: kwargs={'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd or None', 'timeout': '30'}
+    |        r = subprocess.run(
+    |            cmd,
+    |            capture_output=True,
+    |            text=True,
+    |            encoding="utf-8",
+    |            errors="replace",
+    |            cwd=cwd or None,
+    |            timeout=30,
+    |        )
+  L66-74: kwargs={'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd or None', 'timeout': '30'}
+    |        r = subprocess.run(
+    |            cmd,
+    |            capture_output=True,
+    |            text=True,
+    |            encoding="utf-8",
+    |            errors="replace",
+    |            cwd=cwd or None,
+    |            timeout=30,
+    |        )
+  L590-590: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+    |    r = subprocess.run(["git", "status", "--short"], capture_output=True, text=True, timeout=10)
+  L598-598: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+    |    r = subprocess.run(["git", "diff", "--stat"], capture_output=True, text=True, timeout=10)
+  L606-606: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+    |    r = subprocess.run(["git", "log", "--oneline", "-10"], capture_output=True, text=True, timeout=10)
+  L615-615: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '30'}
+    |    r1 = subprocess.run(["git", "add", "-A"], capture_output=True, text=True, timeout=30)
+  L619-619: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '30'}
+    |    r2 = subprocess.run(["git", "commit", "-m", message], capture_output=True, text=True, timeout=30)
+
+core\git_workflow.py (1 calls):
+  L29-29: kwargs={'capture_output': 'capture', 'text': 'True', 'timeout': '30', 'cwd': 'str(self.root)'}
+    |        r = subprocess.run(["git"] + list(args), capture_output=capture, text=True, timeout=30, cwd=str(self.root))
+
+core\github_tools.py (2 calls):
+  L44-51: kwargs={'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'timeout': 'timeout'}
+    |        r = subprocess.run(
+    |            cmd,
+    |            capture_output=True,
+    |            text=True,
+    |            encoding="utf-8",
+    |            errors="replace",
+    |            timeout=timeout,
+    |        )
+  L538-546: kwargs={'input': 'raw_input', 'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'timeout': '30'}
+    |        r = subprocess.run(
+    |            ["gh"] + args,
+    |            input=raw_input,
+    |            capture_output=True,
+    |            text=True,
+    |            encoding="utf-8",
+    |            errors="replace",
+    |            timeout=30,
+    |        )
+
+core\image_tools.py (1 calls):
+  L44-44: kwargs={'timeout': 'timeout', None: 'kwargs'}
+    |    return subprocess.run(cmd, timeout=timeout, **kwargs)
+
+core\mcp_servers\_mcp_utils.py (1 calls):
+  L75-90: kwargs={'capture_output': 'capture_output', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'timeout': 'timeout', 'input': 'input_data', 'cwd': 'cwd', 'env': 'env', 'shell': 'shell', 'check': 'check', 'stdin': 'stdin', 'startupinfo': 'startupinfo', None: 'extra_kwargs'}
+    |    return subprocess.run(
+    |        cmd,
+    |        capture_output=capture_output,
+    |        text=True,
+    |        encoding="utf-8",
+    |        errors="replace",
+    |        timeout=timeout,
+    |        input=input_data,
+    |        cwd=cwd,
+    |        env=env,
+    |        shell=shell,
+    |        check=check,
+    |        stdin=stdin,
+    |        startupinfo=startupinfo,
+    |        **extra_kwargs,
+    |    )
+
+core\mcp_servers\codebuddy_bridge.py (4 calls):
+  L154-154: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '5'}
+    |            r = subprocess.run(["where", c], capture_output=True, text=True, timeout=5)
+  L182-189: kwargs={'cwd': 'work_dir or None', 'capture_output': 'True', 'text': 'True', 'encoding': "'utf-8'", 'timeout': 'timeout'}
+    |        r = subprocess.run(
+    |            cmd,
+    |            cwd=work_dir or None,
+    |            capture_output=True,
+    |            text=True,
+    |            encoding='utf-8',
+    |            timeout=timeout
+    |        )
+  L219-219: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+    |        r = subprocess.run([cb, "--version"], capture_output=True, text=True, timeout=10)
+  L227-227: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+    |        r = subprocess.run([cb, "mcp", "list"], capture_output=True, text=True, timeout=10)
+
+core\mcp_servers\copilot_bridge.py (4 calls):
+  L139-139: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+    |        r = subprocess.run([copilot, "--version"], capture_output=True, text=True, timeout=10)
+  L147-149: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+    |        r2 = subprocess.run(
+    |            ["gh", "auth", "status"], capture_output=True, text=True, timeout=10,
+    |        )
+  L157-159: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '15'}
+    |        r3 = subprocess.run(
+    |            [copilot, "/model"], capture_output=True, text=True, timeout=15,
+    |        )
+  L209-211: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'cwd': 'work_dir'}
+    |        r = subprocess.run(
+    |            cmd, capture_output=True, text=True, timeout=timeout, cwd=work_dir,
+    |        )
+
+core\mcp_servers\kimi_bridge.py (3 calls):
+  L108-109: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10', 'env': '{**os.environ, "NO_COLOR": "1"}'}
+    |        r = subprocess.run([kimi, "-V"], capture_output=True, text=True,
+    |                           timeout=10, env={**os.environ, "NO_COLOR": "1"})
+  L127-131: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'cwd': 'wd', 'env': '{**os.environ, "NO_COLOR": "1"}'}
+    |        result = subprocess.run(
+    |            cmd, capture_output=True, text=True,
+    |            timeout=timeout, cwd=wd,
+    |            env={**os.environ, "NO_COLOR": "1"},
+    |        )
+  L194-198: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"'}
+    |                        result = subprocess.run(
+    |                            [cmd, "login", "--status"],
+    |                            capture_output=True, text=True, timeout=timeout,
+    |                            encoding="utf-8", errors="replace",
+    |                        )
+
+core\mcp_servers\kimi_mcp_bridge.py (5 calls):
+  L123-131: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"', 'shell': 'True'}
+    |            result = subprocess.run(
+    |                cmd,
+    |                capture_output=True,
+    |                text=True,
+    |                timeout=timeout,
+    |                encoding="utf-8",
+    |                errors="replace",
+    |                shell=True
+    |            )
+  L157-165: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"', 'shell': 'True'}
+    |            result = subprocess.run(
+    |                cmd,
+    |                capture_output=True,
+    |                text=True,
+    |                timeout=timeout,
+    |                encoding="utf-8",
+    |                errors="replace",
+    |                shell=True
+    |            )
+  L190-198: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10', 'encoding': '"utf-8"', 'errors': '"replace"', 'shell': 'True'}
+    |            result = subprocess.run(
+    |                ["kimi", "--version"],
+    |                capture_output=True,
+    |                text=True,
+    |                timeout=10,
+    |                encoding="utf-8",
+    |                errors="replace",
+    |                shell=True
+    |            )
+  L203-211: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10', 'encoding': '"utf-8"', 'errors': '"replace"', 'shell': 'True'}
+    |            login_result = subprocess.run(
+    |                ["kimi", "provider", "list"],
+    |                capture_output=True,
+    |                text=True,
+    |                timeout=10,
+    |                encoding="utf-8",
+    |                errors="replace",
+    |                shell=True
+    |            )
+  L238-246: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"', 'shell': 'True'}
+    |            result = subprocess.run(
+    |                ["kimi", "acp", "--login"],
+    |                capture_output=True,
+    |                text=True,
+    |                timeout=timeout,
+    |                encoding="utf-8",
+    |                errors="replace",
+    |                shell=True
+    |            )
+
+core\mcp_servers\qoder_bridge.py (2 calls):
+  L113-121: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"', 'cwd': 'cwd'}
+    |            result = subprocess.run(
+    |                cmd,
+    |                capture_output=True,
+    |                text=True,
+    |                timeout=timeout,
+    |                encoding="utf-8",
+    |                errors="replace",
+    |                cwd=cwd
+    |            )
+  L151-155: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10', 'encoding': '"utf-8"', 'errors': '"replace"'}
+    |            result = subprocess.run(
+    |                [QODER_PATH, "--version"],
+    |                capture_output=True, text=True, timeout=10,
+    |                encoding="utf-8", errors="replace"
+    |            )
+
+core\mcp_servers\zcode_bridge.py (3 calls):
+  L160-165: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '15', 'env': '{**os.environ, "NO_COLOR": "1"}'}
+    |        r = subprocess.run(
+    |            [node, zcode, "--version"],
+    |            capture_output=True, text=True,
+    |            timeout=15,
+    |            env={**os.environ, "NO_COLOR": "1"},
+    |        )
+  L194-200: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'cwd': 'wd', 'env': 'env', 'encoding': '"utf-8"', 'errors': '"replace"'}
+    |        result = subprocess.run(
+    |            cmd,
+    |            capture_output=True, text=True,
+    |            timeout=timeout, cwd=wd,
+    |            env=env,
+    |            encoding="utf-8", errors="replace",
+    |        )
+  L430-436: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'env': '{**os.environ, "NO_COLOR": "1"}', 'encoding': '"utf-8"', 'errors': '"replace"'}
+    |                    result = subprocess.run(
+    |                        cmd,
+    |                        capture_output=True, text=True,
+    |                        timeout=timeout,
+    |                        env={**os.environ, "NO_COLOR": "1"},
+    |                        encoding="utf-8", errors="replace",
+    |                    )
+
+core\notebook.py (1 calls):
+  L201-207: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '30', 'encoding': '"utf-8"'}
+    |        result = subprocess.run(
+    |            [sys.executable, "-c", cell.source],
+    |            capture_output=True,
+    |            text=True,
+    |            timeout=30,
+    |            encoding="utf-8",
+    |        )
+
+core\pipeline_tools.py (1 calls):
+  L47-47: kwargs={None: 'kwargs'}
+    |    return subprocess.run(cmd, **kwargs)
+
+core\plan_verify.py (1 calls):
+  L326-326: kwargs={'capture_output': 'True', 'text': 'True', 'cwd': 'ROOT'}
+    |                r = subprocess.run(["rg", "-l", pattern, "core/"], capture_output=True, text=True, cwd=ROOT)
+
+core\pytest_runner.py (1 calls):
+  L79-85: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'cwd': 'str(cwd) if cwd else None'}
+    |    return subprocess.run(
+    |        args,
+    |        capture_output=True,
+    |        text=True,
+    |        timeout=timeout,
+    |        cwd=str(cwd) if cwd else None,
+    |    )
+
+core\skills.py (3 calls):
+  L504-504: kwargs={'capture_output': 'True', 'timeout': '30'}
+    |            r = subprocess.run(["edge-tts", "--text", text, "--write-media", out], capture_output=True, timeout=30)
+  L513-513: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '30'}
+    |            r = subprocess.run(["python", f.name], capture_output=True, text=True, timeout=30)
+  L520-520: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '120'}
+    |            r = subprocess.run(["python", "-m", "pytest", path, "-q", "--tb=short"], capture_output=True, text=True, timeout=120)
+
+core\sound_ux.py (3 calls):
+  L47-52: kwargs={'capture_output': 'True', 'timeout': '8', 'cwd': 'str(ROOT)'}
+    |                    r = subprocess.run(
+    |                        ["edge-tts", "--text", text, "--voice", "zh-CN-XiaoxiaoNeural", "--write-media", str(mp3_path)],
+    |                        capture_output=True,
+    |                        timeout=8,
+    |                        cwd=str(ROOT),
+    |                    )
+  L58-58: kwargs={'shell': 'True', 'timeout': '3'}
+    |                    subprocess.run(["start", "/min", "wmplayer", str(mp3_path)], shell=True, timeout=3)
+  L60-64: kwargs={'capture_output': 'True', 'timeout': '5'}
+    |                    subprocess.run(
+    |                        ["ffplay", "-nodisp", "-autoexit", "-t", str(duration), str(mp3_path)],
+    |                        capture_output=True,
+    |                        timeout=5,
+    |                    )
+
+core\test_loop.py (2 calls):
+  L145-152: kwargs={'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'timeout': '120'}
+    |        result = subprocess.run(
+    |            args,
+    |            capture_output=True,
+    |            text=True,
+    |            encoding="utf-8",
+    |            errors="replace",
+    |            timeout=120,
+    |        )
+  L226-233: kwargs={'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'timeout': '60'}
+    |        result = subprocess.run(
+    |            args,
+    |            capture_output=True,
+    |            text=True,
+    |            encoding="utf-8",
+    |            errors="replace",
+    |            timeout=60,
+    |        )
+
+core\three_way_coordinator.py (4 calls):
+  L71-71: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+    |            r = subprocess.run([kimi, "--version"], capture_output=True, text=True, timeout=10)
+  L77-80: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '20'}
+    |                r2 = subprocess.run(
+    |                    [kimi, "-p", "ok", "--output-format", "text"],
+    |                    capture_output=True, text=True, timeout=20,
+    |                )
+  L105-105: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+    |            r = subprocess.run([copilot, "--version"], capture_output=True, text=True, timeout=10)
+  L111-113: kwargs={'capture_output': 'True', 'text': 'True', 'timeout': '10'}
+    |                r2 = subprocess.run(
+    |                    ["gh", "auth", "status"], capture_output=True, text=True, timeout=10,
+    |                )
+
+core\video_editor.py (1 calls):
+  L42-42: kwargs={'timeout': 'timeout', None: 'kwargs'}
+    |    return subprocess.run(cmd, timeout=timeout, **kwargs)
+
+launcher.py (1 calls):
+  L196-202: kwargs={'capture_output': 'True', 'text': 'True', 'encoding': '"utf-8"', 'errors': '"replace"', 'timeout': 'cfg.timeout', 'cwd': 'str(ROOT)', 'env': '{**os.environ, **cfg.env}'}
+    |            r = subprocess.run(
+    |                cmd, capture_output=True, text=True,
+    |                encoding="utf-8", errors="replace",
+    |                timeout=cfg.timeout,
+    |                cwd=str(ROOT),
+    |                env={**os.environ, **cfg.env},
+    |            )

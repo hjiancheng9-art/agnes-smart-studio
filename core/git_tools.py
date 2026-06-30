@@ -12,6 +12,7 @@ Extends basic git commands with full workflow:
 
 import json
 import subprocess
+from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = [
     "GIT_WORKFLOW_EXECUTOR_MAP",
@@ -36,15 +37,7 @@ def _run_git(args: list[str], cwd: str = "") -> dict:
     """Run a git command and return structured result."""
     cmd = ["git"] + args
     try:
-        r = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            cwd=cwd or None,
-            timeout=30,
-        )
+        r = run_subprocess(cmd, cwd=cwd or None, timeout=30)
         return {
             "success": r.returncode == 0,
             "stdout": r.stdout.strip() if r.stdout else "",
@@ -63,15 +56,7 @@ def _run_gh(args: list[str], cwd: str = "") -> dict:
     """Run a gh CLI command."""
     cmd = ["gh"] + args
     try:
-        r = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            cwd=cwd or None,
-            timeout=30,
-        )
+        r = run_subprocess(cmd, cwd=cwd or None, timeout=30)
         return {
             "success": r.returncode == 0,
             "stdout": r.stdout.strip() if r.stdout else "",
@@ -587,7 +572,7 @@ def git_status() -> str:
     """git status --short 的安全包装。"""
     import subprocess
 
-    r = subprocess.run(["git", "status", "--short"], capture_output=True, text=True, timeout=10)
+    r = run_subprocess(["git", "status", "--short"], timeout=10)
     return r.stdout.strip() or r.stderr.strip() or "not a git repo"
 
 
@@ -595,7 +580,7 @@ def git_diff() -> str:
     """git diff --stat 的安全包装。"""
     import subprocess
 
-    r = subprocess.run(["git", "diff", "--stat"], capture_output=True, text=True, timeout=10)
+    r = run_subprocess(["git", "diff", "--stat"], timeout=10)
     return r.stdout.strip() or r.stderr.strip() or "no changes"
 
 
@@ -603,7 +588,7 @@ def git_log() -> str:
     """git log --oneline -10 的安全包装。"""
     import subprocess
 
-    r = subprocess.run(["git", "log", "--oneline", "-10"], capture_output=True, text=True, timeout=10)
+    r = run_subprocess(["git", "log", "--oneline", "-10"], timeout=10)
     return r.stdout.strip() or r.stderr.strip() or "not a git repo"
 
 
@@ -612,11 +597,11 @@ def git_add_commit(message: str) -> str:
     import subprocess
 
     # Step 1: git add -A
-    r1 = subprocess.run(["git", "add", "-A"], capture_output=True, text=True, timeout=30)
+    r1 = run_subprocess(["git", "add", "-A"], timeout=30)
     if r1.returncode != 0:
         return f"[错误] git add 失败: {r1.stderr.strip()}"
     # Step 2: git commit -m (message 作列表元素，不会被 shell 解析)
-    r2 = subprocess.run(["git", "commit", "-m", message], capture_output=True, text=True, timeout=30)
+    r2 = run_subprocess(["git", "commit", "-m", message], timeout=30)
     if r2.returncode == 0:
         return r2.stdout.strip() or "已提交"
     if "nothing to commit" in (r2.stdout + r2.stderr):

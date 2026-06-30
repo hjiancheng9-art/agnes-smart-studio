@@ -2,6 +2,8 @@ import os
 import re
 import subprocess
 
+from core.mcp_servers._mcp_utils import run_subprocess
+
 report = {}
 
 # env proxy vars
@@ -11,14 +13,14 @@ for k in ['HTTP_PROXY','HTTPS_PROXY','http_proxy','https_proxy']:
 
 # netsh
 try:
-    r = subprocess.run(['netsh','winhttp','show','proxy'], capture_output=True, text=True, timeout=6)
+    r = run_subprocess(['netsh','winhttp','show','proxy'], timeout=6)
     report['winhttp'] = r.stdout.strip()[:400]
 except Exception as e:
     report['winhttp'] = str(e)
 
 # reg
 try:
-    r = subprocess.run(['reg','query',r'HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings','/v','ProxyServer'], capture_output=True, text=True, timeout=6)
+    r = run_subprocess(['reg','query',r'HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings','/v','ProxyServer'], timeout=6)
     m = re.search(r'REG_SZ\s+(.+)', r.stdout)
     if m: report['ie_proxy'] = m.group(1).strip()
 except Exception as e:

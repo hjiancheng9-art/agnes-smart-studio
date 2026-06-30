@@ -310,12 +310,7 @@ def pip_install(package: str) -> str:
             "如需安装其他包，请手动在终端执行。"
         )
     try:
-        result = subprocess.run(
-            [sys.executable, "-m", "pip", "install"] + packages,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
+        result = run_subprocess([sys.executable, "-m", "pip", "install"] + packages, timeout=120)
         return result.stdout + result.stderr
     except subprocess.TimeoutExpired:
         return "[错误] pip install 超时"
@@ -410,6 +405,7 @@ def run_python(code: str) -> str:
 
     _prelude = """
 import builtins
+from core.mcp_servers._mcp_utils import run_subprocess
 # Only remove breakpoint to prevent debugger escape from subprocess.
 # exec/eval/compile are KEPT because Python's import machinery (exec_module)
 # requires them — deleting them breaks all imports in the sandbox.
@@ -435,15 +431,7 @@ for _d in _DANGEROUS:
         return f"[错误] 临时文件创建失败: {e}"
 
     try:
-        r = subprocess.run(
-            [sys.executable, tmp_path],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            cwd=str(ROOT),
-            encoding="utf-8",
-            errors="replace",
-        )
+        r = run_subprocess([sys.executable, tmp_path], timeout=30, cwd=str(ROOT))
         out = r.stdout.strip()
         err = r.stderr.strip()
         if err:
@@ -715,12 +703,7 @@ def run_test(path: str = "tests/") -> str:
     import sys
 
     try:
-        r = subprocess.run(
-            [sys.executable, "-m", "pytest", path, "-q", "--tb=short"],
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
+        r = run_subprocess([sys.executable, "-m", "pytest", path, "-q", "--tb=short"], timeout=60)
         return r.stdout.strip() or r.stderr.strip() or "(no output)"
     except subprocess.TimeoutExpired:
         return "[错误] 测试超时"

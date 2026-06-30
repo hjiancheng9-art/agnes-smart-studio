@@ -1,0 +1,108 @@
+=== zcode_bridge.py ===
+Imports:
+  14:import json
+  15:import os
+  16:import shutil
+  17:import subprocess
+  18:import sys
+  19:import time
+
+subprocess.run calls (3):
+  Call 1: L160-L165
+    |        r = subprocess.run(
+    |            [node, zcode, "--version"],
+    |            capture_output=True, text=True,
+    |            timeout=15,
+    |            env={**os.environ, "NO_COLOR": "1"},
+    |        )
+    kwargs: {'capture_output': 'True', 'text': 'True', 'timeout': '15', 'env': '{**os.environ, "NO_COLOR": "1"}'}
+
+  Call 2: L194-L200
+    |        result = subprocess.run(
+    |            cmd,
+    |            capture_output=True, text=True,
+    |            timeout=timeout, cwd=wd,
+    |            env=env,
+    |            encoding="utf-8", errors="replace",
+    |        )
+    kwargs: {'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'cwd': 'wd', 'env': 'env', 'encoding': '"utf-8"', 'errors': '"replace"'}
+
+  Call 3: L430-L436
+    |                    result = subprocess.run(
+    |                        cmd,
+    |                        capture_output=True, text=True,
+    |                        timeout=timeout,
+    |                        env={**os.environ, "NO_COLOR": "1"},
+    |                        encoding="utf-8", errors="replace",
+    |                    )
+    kwargs: {'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'env': '{**os.environ, "NO_COLOR": "1"}', 'encoding': '"utf-8"', 'errors': '"replace"'}
+
+=== kimi_mcp_bridge.py ===
+Imports:
+  17:import sys
+  18:import os
+  19:import asyncio
+  20:import json
+  21:from typing import Any, Optional
+
+subprocess.run calls (5):
+  Call 1: L123-L131
+    |            result = subprocess.run(
+    |                cmd,
+    |                capture_output=True,
+    |                text=True,
+    |                timeout=timeout,
+    |                encoding="utf-8",
+    |                errors="replace",
+    |                shell=True
+    |            )
+    kwargs: {'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"', 'shell': 'True'}
+
+  Call 2: L157-L165
+    |            result = subprocess.run(
+    |                cmd,
+    |                capture_output=True,
+    |                text=True,
+    |                timeout=timeout,
+    |                encoding="utf-8",
+    |                errors="replace",
+    |                shell=True
+    |            )
+    kwargs: {'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"', 'shell': 'True'}
+
+  Call 3: L190-L198
+    |            result = subprocess.run(
+    |                ["kimi", "--version"],
+    |                capture_output=True,
+    |                text=True,
+    |                timeout=10,
+    |                encoding="utf-8",
+    |                errors="replace",
+    |                shell=True
+    |            )
+    kwargs: {'capture_output': 'True', 'text': 'True', 'timeout': '10', 'encoding': '"utf-8"', 'errors': '"replace"', 'shell': 'True'}
+
+  Call 4: L203-L211
+    |            login_result = subprocess.run(
+    |                ["kimi", "provider", "list"],
+    |                capture_output=True,
+    |                text=True,
+    |                timeout=10,
+    |                encoding="utf-8",
+    |                errors="replace",
+    |                shell=True
+    |            )
+    kwargs: {'capture_output': 'True', 'text': 'True', 'timeout': '10', 'encoding': '"utf-8"', 'errors': '"replace"', 'shell': 'True'}
+
+  Call 5: L238-L246
+    |            result = subprocess.run(
+    |                ["kimi", "acp", "--login"],
+    |                capture_output=True,
+    |                text=True,
+    |                timeout=timeout,
+    |                encoding="utf-8",
+    |                errors="replace",
+    |                shell=True
+    |            )
+    kwargs: {'capture_output': 'True', 'text': 'True', 'timeout': 'timeout', 'encoding': '"utf-8"', 'errors': '"replace"', 'shell': 'True'}
+

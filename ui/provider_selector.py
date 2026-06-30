@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from core.mcp_servers._mcp_utils import run_subprocess
 from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
@@ -116,8 +117,8 @@ class DiagCommandsMixin:
         if kinds in ("pip", "all"):
             show_info("检查 pip 依赖...")
             try:
-                r = subprocess.run(
-                    ["pip", "list", "--outdated", "--format", "columns"], capture_output=True, text=True, timeout=30
+                r = run_subprocess(
+                    ["pip", "list", "--outdated", "--format", "columns"], timeout=30
                 )
                 if r.stdout.strip():
                     console.print(Panel(r.stdout[:2000], title="[yellow]pip 过期包[/]"))
@@ -127,7 +128,7 @@ class DiagCommandsMixin:
                 pass
             # 安全检查
             try:
-                r2 = subprocess.run(["pip-audit"], capture_output=True, text=True, timeout=60)
+                r2 = run_subprocess(["pip-audit"], timeout=60)
                 if r2.stdout.strip():
                     console.print(Panel(r2.stdout[:1500], title="[red]安全漏洞[/]"))
             except FileNotFoundError:
@@ -137,7 +138,7 @@ class DiagCommandsMixin:
         if kinds in ("npm", "all"):
             show_info("检查 npm 依赖...")
             try:
-                r = subprocess.run(["npm", "outdated"], capture_output=True, text=True, timeout=30)
+                r = run_subprocess(["npm", "outdated"], timeout=30)
                 if r.stdout.strip():
                     console.print(Panel(r.stdout[:2000], title="[yellow]npm 过期包[/]"))
                 else:
@@ -147,7 +148,7 @@ class DiagCommandsMixin:
             except (subprocess.SubprocessError, OSError):
                 pass
             try:
-                r2 = subprocess.run(["npm", "audit"], capture_output=True, text=True, timeout=60)
+                r2 = run_subprocess(["npm", "audit"], timeout=60)
                 if "vulnerabilities" in (r2.stdout + r2.stderr).lower():
                     console.print(Panel((r2.stdout + r2.stderr)[:1500], title="[red]npm 安全漏洞[/]"))
             except (subprocess.SubprocessError, OSError):

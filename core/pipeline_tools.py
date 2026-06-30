@@ -37,14 +37,10 @@ OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 
 
 def _run(cmd: list, **kwargs) -> subprocess.CompletedProcess:
-    """subprocess.run 的安全封装，强制 UTF-8 编码，默认 120s 超时"""
-    kwargs.setdefault("capture_output", True)
-    kwargs.setdefault("text", True)
-    kwargs.setdefault("encoding", "utf-8")
-    kwargs.setdefault("errors", "replace")
-    # 默认 120s 超时兜底：ffmpeg 等大文件处理可能较慢，但不允许无限阻塞
+    """subprocess.run 的安全封装，委托给 run_subprocess"""
+    from core.mcp_servers._mcp_utils import run_subprocess as _rs
     kwargs.setdefault("timeout", 120)
-    return subprocess.run(cmd, **kwargs)
+    return _rs(cmd, **kwargs)
 
 
 # ============================================================

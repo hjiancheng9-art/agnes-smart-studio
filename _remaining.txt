@@ -1,0 +1,21 @@
+core/copilot_proxy.py:136 | ,\n    ]\n\n    try:\n        r = subprocess.run(\n            cmd,\n            capture_output=True,\n            text=True,\n            timeout=timeou
+core/notebook.py:201 | ot 'code'")\n\n        result = subprocess.run(\n            [sys.executable, "-c", cell.source],\n            capture_output=True,\n            text=
+core/pipeline_tools.py:47 | lt("timeout", 120)\n    return subprocess.run(cmd, **kwargs)\n\n\n# ============================================================\n#  管道工具定义（OpenAI fun
+core/plan_verify.py:326 |      try:\n                r = subprocess.run(["rg", "-l", pattern, "core/"], capture_output=True, text=True, cwd=ROOT)\n                if r.retur
+core/pytest_runner.py:4 | / self_fix / executor 等模块会用\n``subprocess.run([sys.executable, "-m", "pytest", "tests/", ...])`` 做自检。\n但测试运行时若被间接触发（例如 test_audit_function -> audit
+core/pytest_runner.py:79 | xtend(extra_args)\n\n    return subprocess.run(\n        args,\n        capture_output=True,\n        text=True,\n        timeout=timeout,\n        cwd=
+core/sandbox.py:169 | rm == "win32":\n    # Windows: subprocess.run(..., timeout=N) 已提供超时保护\n    # timeout 命令在 Windows 语法不同（/t /nobreak），不在命令层面包裹\n    _TIMEOUT_WRAPPER = 
+core/sandbox.py:228 | nux 用 timeout 命令包裹，Windows 依赖 subprocess.run(timeout=)\n        if _TIMEOUT_WRAPPER and not command.startswith("timeout "):\n            command = 
+core/encoding.py:82 | econfigure_stdio()\n\n    # Fix subprocess.run() default text encoding\n    _orig_run = subprocess.run\n\n    def _patched_run(*args, **kwargs):\n     
+ui/provider_selector.py:119 |      try:\n                r = subprocess.run(\n                    ["pip", "list", "--outdated", "--format", "columns"], capture_output=True, text
+ui/provider_selector.py:130 |     try:\n                r2 = subprocess.run(["pip-audit"], capture_output=True, text=True, timeout=60)\n                if r2.stdout.strip():\n   
+ui/provider_selector.py:140 |      try:\n                r = subprocess.run(["npm", "outdated"], capture_output=True, text=True, timeout=30)\n                if r.stdout.strip()
+ui/provider_selector.py:150 |     try:\n                r2 = subprocess.run(["npm", "audit"], capture_output=True, text=True, timeout=60)\n                if "vulnerabilities" i
+ui/mixins/diag.py:119 |      try:\n                r = subprocess.run(\n                    ["pip", "list", "--outdated", "--format", "columns"], capture_output=True, text
+ui/mixins/diag.py:130 |     try:\n                r2 = subprocess.run(["pip-audit"], capture_output=True, text=True, timeout=60)\n                if r2.stdout.strip():\n   
+ui/mixins/diag.py:140 |      try:\n                r = subprocess.run(["npm", "outdated"], capture_output=True, text=True, timeout=30)\n                if r.stdout.strip()
+ui/mixins/diag.py:150 |     try:\n                r2 = subprocess.run(["npm", "audit"], capture_output=True, text=True, timeout=60)\n                if "vulnerabilities" i
+ui/mixins/git_cmds.py:25 |       try:\n            diff = subprocess.run(["git", "diff", "--staged", "--stat"], capture_output=True, text=True, timeout=10)\n            if no
+ui/mixins/git_cmds.py:29 | eturn\n            full_diff = subprocess.run(["git", "diff", "--staged"], capture_output=True, text=True, timeout=10)\n            prompt = f"根据以下
+ui/mixins/git_cmds.py:46 | 传参避免 shell 注入\n                subprocess.run(["git", "commit", "-m", msg], timeout=10)\n                show_success("已提交")\n        except (Runtim
+ui/mixins/git_cmds.py:55 |        try:\n            log = subprocess.run(\n                ["git", "log", f"--since={since}", "--oneline", "--no-merges"],\n                cap

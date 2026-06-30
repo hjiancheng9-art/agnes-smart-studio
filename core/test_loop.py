@@ -16,6 +16,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = [
     "TEST_LOOP_EXECUTOR_MAP",
@@ -142,14 +143,7 @@ class TestRunner:
             args.append("-vv")
 
         start = time.time()
-        result = subprocess.run(
-            args,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=120,
-        )
+        result = run_subprocess(args, timeout=120)
         duration = time.time() - start
 
         output = result.stdout + result.stderr
@@ -223,14 +217,7 @@ class TestRunner:
         ]
 
         start = time.time()
-        result = subprocess.run(
-            args,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=60,
-        )
+        result = run_subprocess(args, timeout=60)
         duration = time.time() - start
 
         output = result.stdout + result.stderr
