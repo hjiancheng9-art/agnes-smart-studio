@@ -89,3 +89,8 @@ htmlcov/
 
 # Beast launcher PID file
 .beasts_pids.json
+
+# Temp debug dumps
+_copilot_*.txt
+_qoder_*.txt
+_mcp_client_*.txt
