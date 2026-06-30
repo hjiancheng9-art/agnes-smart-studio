@@ -228,7 +228,7 @@ class CruxTerminalApp:
             return
         self._input_area.text = ""
         self.add_message("user", text)
-        self._app._refresh()
+        self._app.invalidate()
         if self.submit_callback:
             try:
                 self.submit_callback(text)
@@ -239,14 +239,14 @@ class CruxTerminalApp:
     def set_header(self, text: str) -> None:
         """设置状态栏自定义文本（兼容旧接口）。"""
         self._custom_status = text
-        if self._app and hasattr(self._app, '_refresh'):
-            self._app._refresh()
+        if self._app and True:
+            self._app.invalidate()
 
     def set_status(self, text: str) -> None:
         """设置状态栏右侧文本。"""
         self._custom_status = text
-        if self._app and hasattr(self._app, '_refresh'):
-            self._app._refresh()
+        if self._app and True:
+            self._app.invalidate()
 
     def set_beast(self, name: str) -> str:
         """切换兽主题并返回已格式化的状态标签。"""
@@ -265,22 +265,22 @@ class CruxTerminalApp:
     def sparkle(self):
         """轻量视觉反馈 — 状态栏闪烁。"""
         self._sparkle_count = getattr(self, '_sparkle_count', 0) + 1
-        if self._app and hasattr(self._app, '_refresh'):
-            self._app._refresh()
+        if self._app and True:
+            self._app.invalidate()
 
     def flash_error(self):
         """错误闪烁 — 状态栏短暂标红。"""
         self._error_flash = True
-        if self._app and hasattr(self._app, '_refresh'):
-            self._app._refresh()
+        if self._app and True:
+            self._app.invalidate()
         # 0.5s 后自动恢复
         import threading
         def _clear():
             import time
             time.sleep(0.5)
             self._error_flash = False
-            if self._app and hasattr(self._app, '_refresh'):
-                self._app._refresh()
+            if self._app and True:
+                self._app.invalidate()
         threading.Thread(target=_clear, daemon=True).start()
 
     # ── 状态栏文本 ────────────────────────────────────────
@@ -360,15 +360,15 @@ class CruxTerminalApp:
         with self._lock:
             self.buffer.add_message(role, content)
             self._message_count = len(self.buffer)
-        if self._app and hasattr(self._app, '_refresh'):
-            self._app._refresh()
+        if self._app and True:
+            self._app.invalidate()
 
     def add_stream_chunk(self, chunk: str):
         """追加流式输出文本。"""
         with self._lock:
             self._stream_buffer += chunk
-        if self._app and hasattr(self._app, '_refresh'):
-            self._app._refresh()
+        if self._app and True:
+            self._app.invalidate()
 
     def commit_stream(self):
         """结束流式输出，将缓冲提交为完整消息。"""
@@ -378,21 +378,21 @@ class CruxTerminalApp:
                 self._stream_buffer = ""
                 self._generating = False
                 self._message_count = len(self.buffer)
-        if self._app and hasattr(self._app, '_refresh'):
-            self._app._refresh()
+        if self._app and True:
+            self._app.invalidate()
 
     def start_generating(self):
         """标记开始生成。"""
         self._generating = True
         self._stream_buffer = ""
-        if self._app and hasattr(self._app, '_refresh'):
-            self._app._refresh()
+        if self._app and True:
+            self._app.invalidate()
 
     def stop_generating(self):
         """停止生成（保留已接收内容）。"""
         self._generating = False
-        if self._app and hasattr(self._app, '_refresh'):
-            self._app._refresh()
+        if self._app and True:
+            self._app.invalidate()
 
     def clear(self):
         """清空所有消息。"""
@@ -400,8 +400,8 @@ class CruxTerminalApp:
         self._stream_buffer = ""
         self._message_count = 0
         self._generating = False
-        if self._app and hasattr(self._app, '_refresh'):
-            self._app._refresh()
+        if self._app and True:
+            self._app.invalidate()
 
     def run(self):
         """启动终端应用。"""
