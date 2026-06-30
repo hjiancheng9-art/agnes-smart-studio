@@ -93,6 +93,35 @@ class CruxCLI(
     def __enter__(self):
         return self
 
+    def _select_provider_tui(self):
+        """Auto-select provider for TUI mode (no interactive console menu)."""
+        import json
+        import os as _os
+        from pathlib import Path as _Path
+
+        cfg = self._load_models_config()
+        cfg_path = _Path(__file__).parent.parent / "models.json"
+        providers = cfg.get("providers", {})
+        # Find first available external provider with an API key
+        first_external = None
+        for pid, p in providers.items():
+            if pid == "crux":
+                continue
+            key_env = f"{pid.upper()}_API_KEY"
+            api_key = p.get("api_key") or _os.getenv(key_env)
+            if api_key or not p.get("auth_required", True):
+                first_external = (pid, p, api_key or "")
+                break
+        if first_external:
+            pid, p, api_key = first_external
+            model = p.get("models", {}).get("pro", "unknown")
+            # Actually activate the provider (reconfigures client + writes config)
+            self._activate_provider(pid, p, model, api_key, cfg, str(cfg_path))
+            return (pid, model)
+        # Fall back to CRUX
+        p = providers.get("crux", {})
+        return ("crux", p.get("models", {}).get("light", "agnes-1.5-flash"))
+
     def __exit__(self, *_):
         self.close()
 
@@ -319,6 +348,215 @@ class CruxCLI(
             console.print(hint)
             _stream_done.wait()
             stream_thread.join(timeout=2)
+
+    # ── Terminal 聊天模式 ─────────────────────────
+
+    def _chat_terminal(self):
+        """全屏终端聊天模式 — 固定输入框不被滚动消息打扰。
+
+        使用 prompt_toolkit Application 构建 Claude Code 风格界面：
+        - 上部消息区（可滚动，Rich 渲染）
+        - 中部状态栏（模型/耗时）
+        - 下部输入框（固定，始终可见可交互）
+        """
+        import asyncio
+        import threading
+        from core.chat import ChatSession
+        from ui.terminal_app import CruxTerminalApp
+
+        # In TUI mode, auto-select the first available provider to avoid
+        # the interactive console menu (which blocks the event loop).
+        active_provider, active_model = self._select_provider_tui()
+        auto_mode = active_provider == "auto"
+        display_model = "auto" if auto_mode else active_model
+
+        session = ChatSession(
+            self.client,
+            vision_client=self.vision_client,
+            vision_model=get_crux_vision_model(),
+        )
+        session.model = active_model
+        session.auto_model = auto_mode
+        session.messages[0] = {"role": "system", "content": session._build_system_prompt()}
+
+        _stream_done = threading.Event()
+        _stream_done.set()
+        _interrupted = False
+
+        _stream_thread_ref: list = []  # mutable ref to active stream thread
+
+        # ── on_submit 回调：处理用户输入 ──
+        def _handle_input(user: str) -> None:
+            nonlocal _interrupted
+
+            # 等待上一轮流结束
+            if not _stream_done.is_set():
+                _stream_done.wait()
+
+            _interrupted = False
+
+            try:
+                # 斜杠命令
+                if user.startswith("/"):
+                    cmd, _, arg = user[1:].partition(" ")
+                    arg = arg.strip()
+                    if cmd in ("exit", "quit", "q"):
+                        terminal_app.exit()
+                        return
+                    # ── /beast — 兽魂主题切换 ──
+                    if cmd == "beast":
+                        from ui.flourish import BEAST_THEMES
+                        if not arg:
+                            names = "  ".join(
+                                f"{t.icon} {n}" for n, t in BEAST_THEMES.items()
+                            )
+                            terminal_app.add_message(
+                                "system",
+                                f"Beasts:\n{names}\n\nUsage: /beast <name>",
+                            )
+                        else:
+                            label = terminal_app.set_beast(arg)
+                            if label:
+                                terminal_app.add_message(
+                                    "system",
+                                    f"{terminal_app.beast_theme.icon} Beast: {label}",
+                                )
+                                terminal_app.sparkle()
+                            else:
+                                terminal_app.add_message(
+                                    "system",
+                                    f"Unknown beast '{arg}'. Try: {', '.join(BEAST_THEMES)}",
+                                )
+                        return
+                    dispatched = self._dispatch_command(cmd, arg, session)
+                    if dispatched == self._DISPATCH_EXIT:
+                        terminal_app.exit()
+                        return
+                    if dispatched == self._DISPATCH_UNKNOWN:
+                        terminal_app.add_message("system", f"Unknown command /{cmd}, type /help")
+                    return
+
+                # 图片路由
+                img_path, clean_text = self._extract_path_and_text(user)
+                if img_path and img_path.lower().endswith(
+                    (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")
+                ):
+                    try:
+                        self._chat_vision(session, user)
+                    except Exception as e:
+                        terminal_app.add_message("system", f"Image error: {e}")
+                    return
+
+                # 自动路由
+                if session.auto_model:
+                    tier = session._auto_route(user)
+                    if tier:
+                        tier_icon = {"light": "⚡", "pro": "◆", "reasoner": "🔬"}.get(tier, "◆")
+                        terminal_app.add_message("system", f"{tier_icon} auto → {session.model}")
+
+                # ── 显示用户消息 ──
+                terminal_app.add_message("user", user)
+
+                # ── 自然语言：后台流式生成 ──
+                _stream_done.clear()
+
+                def _run_stream():
+                    """Consume send_stream directly, route to terminal app."""
+                    terminal_app.start_generating()
+                    try:
+                        stream = session.send_stream(user)
+                        for kind, payload in stream:
+                            if _interrupted:
+                                break
+                            if kind == "text":
+                                terminal_app.add_stream_chunk(payload)
+                            elif kind == "error":
+                                terminal_app.commit_stream()
+                                terminal_app.add_message("system", f"✗ {payload}")
+                            elif kind == "info":
+                                terminal_app.commit_stream()
+                                terminal_app.add_message("system", payload)
+                            elif kind in ("image", "video"):
+                                terminal_app.commit_stream()
+                                terminal_app.sparkle()
+                                try:
+                                    from core.async_render import default_side_effect_handlers
+                                    handler = default_side_effect_handlers().get(kind)
+                                    if handler:
+                                        handler(kind, payload)
+                                except Exception:
+                                    pass
+                            elif kind == "confirm":
+                                terminal_app.commit_stream()
+                                msg = payload if isinstance(payload, str) else payload.get("message", "Permission required")
+                                terminal_app.add_message("system", msg)
+                        terminal_app.commit_stream()
+                    except Exception as _e:
+                        import traceback as _tb
+                        _err_msg = f"{type(_e).__name__}: {_e}"
+                        terminal_app.add_message("system", f"✗ {_err_msg}")
+                        terminal_app.flash_error()
+                        # Write full traceback to log for debugging
+                        try:
+                            from pathlib import Path as _Path
+                            _log = _Path(__file__).parent.parent / "output" / "last_error.txt"
+                            _log.parent.mkdir(parents=True, exist_ok=True)
+                            _log.write_text(_tb.format_exc(), encoding="utf-8")
+                        except Exception:
+                            pass
+                    finally:
+                        terminal_app.stop_generating()
+                        terminal_app.set_status(f"● {display_model}  ·  ready")
+                        _stream_done.set()
+
+                stream_thread = threading.Thread(target=_run_stream, daemon=True)
+                # Update stream thread ref for interrupt handling
+                _stream_thread_ref.clear()
+                _stream_thread_ref.append(stream_thread)
+                stream_thread.start()
+
+                # Update status
+                terminal_app.set_status(
+                    f"● {display_model}  ·  generating..."
+                )
+
+            except Exception as e:
+                terminal_app.add_message("system", f"Error: {e}")
+                _stream_done.set()
+
+        # ── on_interrupt 回调 ──
+        def _handle_interrupt():
+            nonlocal _interrupted
+            _interrupted = True
+            terminal_app.commit_stream()
+            terminal_app.add_message("system", "⏹ Interrupted")
+            terminal_app.set_status(f"● {display_model}  ·  ready")
+
+        # ── 轮询流完成状态，更新状态栏 ──
+        def _poll_stream_done(app: CruxTerminalApp):
+            """After stream completes, update status bar."""
+            if _stream_done.is_set():
+                app.set_status(f"● {display_model}  ·  ready")
+
+        # ── 启动终端应用 ──
+        terminal_app = CruxTerminalApp(
+            on_submit=_handle_input,
+            on_interrupt=_handle_interrupt,
+        )
+        terminal_app.set_header(f"◆ Studio v{__version__}  ·  {display_model}  ·  ● online")
+
+        # Swap console to route Rich output → terminal app
+        from ui.theme import _LayoutSink
+        old_sink = console._sink
+        sink = _LayoutSink(layout=terminal_app, real_console=console._real_console)
+        console.set_sink(sink)
+
+        try:
+            terminal_app.run()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            console.restore_real_console()
 
     # ── TODO 扫描 ─────────────────────────────
     # 递归遍历项目文件，用正则匹配 TODO / FIXME / HACK / XXX / OPTIMIZE / BUG 标签

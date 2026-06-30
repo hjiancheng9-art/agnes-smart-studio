@@ -306,7 +306,21 @@ PANEL_STYLE = {
 
 
 def create_console() -> Console:
-    return Console(theme=RETRO_THEME, force_terminal=True)
+    # Ensure stdout uses UTF-8 on Windows to avoid GBK emoji crashes.
+    import sys as _sys, io as _io
+    if _sys.platform == "win32":
+        try:
+            _sys.stdout = _io.TextIOWrapper(
+                _sys.stdout.buffer, encoding="utf-8", errors="replace"
+            )
+        except Exception:
+            pass
+    return Console(
+        theme=RETRO_THEME,
+        force_terminal=True,
+        legacy_windows=False,
+        file=_sys.stdout,
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════

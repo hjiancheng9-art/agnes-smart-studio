@@ -956,6 +956,10 @@ class ChatSession:
             self._record_outcome_promptlab()
             return
 
+        # All fallback models exhausted — tell the user something went wrong.
+        tried = ", ".join(m for m, _ in fallback_chain)
+        yield ("error", f"所有模型均不可用（已尝试: {tried}），请稍后重试或 /provider 切换")
+
     # ── send_stream 的拆分子方法（行为不变，仅降低单方法复杂度）──
     # 以下三个方法由 send_stream 调用，分别处理：吃 delta / 执行工具 / 收尾计费。
     # 提取动机：原 send_stream 170 行三层嵌套（while fallback × for tool_loop × for delta），
@@ -996,7 +1000,9 @@ class ChatSession:
             if "content" in delta and delta["content"]:
                 chunk = delta["content"]
                 buffer += chunk
-                yield ("text", chunk)  # type: ignore[misc]
+                # Don't render HTTP error bodies as assistant text.
+                if not delta.get("_error"):
+                    yield ("text", chunk)  # type: ignore[misc]
             if "tool_calls" in delta and delta["tool_calls"]:
                 tool_calls.extend(delta["tool_calls"])
             if delta.get("_finish") == "error":

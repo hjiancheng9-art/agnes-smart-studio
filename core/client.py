@@ -245,7 +245,13 @@ class CruxClient:
                             wait = (2**_attempt) if status == 429 else (0.5 * (_attempt + 1))
                             time.sleep(wait)
                             continue  # continue 先退出 with（关闭连接），再进入下一轮
-                        yield {"content": f"\n[HTTP {status}{err_detail}]", "_finish": "error"}
+                        # Yield error as metadata only — the error body is not
+                        # meaningful user-facing text and should not be rendered.
+                        yield {
+                            "content": f"\n[HTTP {status}{err_detail}]",
+                            "_finish": "error",
+                            "_error": True,
+                        }
                         return
                     # 连接成功，开始消费流
                     for line in resp.iter_lines():

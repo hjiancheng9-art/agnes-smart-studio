@@ -104,6 +104,7 @@ def main():
     p = argparse.ArgumentParser(description="CRUX Studio — code/create/deploy")
     p.add_argument("--check", action="store_true", help="启动前运行健康检查并退出")
     p.add_argument("-c", "--chat", action="store_true", help="进入 CRUX 编程助手（支持 /制片 切换视频模式）")
+    p.add_argument("--no-tui", action="store_true", help="使用旧版行式聊天界面（无固定输入框）")
     p.add_argument("-q", "--quick", type=str, help="快速模式描述")
     p.add_argument("-v", "--video", action="store_true", help="生成视频")
     p.add_argument("-p", "--pipeline", action="store_true", help="一站式流水线")
@@ -173,7 +174,10 @@ def main():
         try:
             with CruxCLI() as cli:
                 try:
-                    asyncio.run(cli._chat())
+                    if args.no_tui:
+                        asyncio.run(cli._chat())
+                    else:
+                        cli._chat_terminal()
                 except (OSError, RuntimeError, ValueError, ImportError):
                     import traceback
 
@@ -208,13 +212,16 @@ def main():
             err_path.parent.mkdir(parents=True, exist_ok=True)
             err_path.write_text(err, encoding="utf-8")
     else:
-        # 默认入口：直接进入 Chat 模式
+        # 默认入口：直接进入 Chat 模式（TUI 终端）
         from ui.cli import CruxCLI
 
         try:
             with CruxCLI() as cli:
                 try:
-                    asyncio.run(cli._chat())
+                    if args.no_tui:
+                        asyncio.run(cli._chat())
+                    else:
+                        cli._chat_terminal()
                 except (OSError, RuntimeError, ValueError, ImportError):
                     import traceback
 
