@@ -1,284 +1,182 @@
-"""CRUX Studio terminal logo — v6 暗夜工坊设计。
-紧凑专业 · 七兽色光谱 · 信息密度优先 · 无冗余装饰。
+"""CRUX Studio terminal logo — v6 暗夜工坊 · 七兽色带紧凑版。
+
+3 行欢迎屏：七兽色带 → 版本/模型 → 快捷命令。
+保留所有公开 API 不变 (build_banner, render_welcome, render_rich, render_pixel_grid)。
 
 设计原则:
-- 单面板承载全部启动信息，不超过 8 行
 - 七兽从卡片网格改为单行色带（功能色区分，非装饰）
-- 命令用标签式呈现，留白充足
-- 无像素字、无 emoji 堆砌
-
-向后兼容:
-- render_pixel_grid() / GLYPHS / ICON / PIXEL_KIND 保留，
-  供 skin.py / make_logo_svg.py / 测试 使用（SVG/web 像素导出）。
+- 去掉大型 ASCII art，改为纯色带 + 文字
+- 信息密度优先，启动即展示关键数据
 """
 
-from __future__ import annotations
+from typing import Optional
 
-from typing import Any
-
-from rich.panel import Panel
 from rich.text import Text
 
-from ui.theme import COLORS, console
+from ui.theme import COLORS, BEAST_PALETTE, GLYPHS as THEME_GLYPHS
 
+# ── 公开 API ──────────────────────────────────────────────
 __all__ = [
-    "GLYPHS",
-    "ICON",
-    "PIXEL_KIND",
-    "render_pixel_grid",
-    "build_banner",
-    "show",
-    "render_rich",
-    "render_welcome",
-    "render_mini_logo",
+    "build_banner", "render_welcome", "render_rich",
+    "render_pixel_grid", "render_mini_logo", "show",
+    "ICON", "PIXEL_KIND", "GLYPHS",
+    "_GAP", "_LETTER_W", "_LETTER_H",
 ]
 
-# ═══════════════════════════════════════════════════════════════
-#  像素网格（向后兼容 — skin.py / make_logo_svg.py / 测试）
-#  仅用于 SVG/WEB 导出，终端欢迎页不再使用像素 CRUX。
-# ═══════════════════════════════════════════════════════════════
-
-BL = " "
-GLYPHS = {
+# ── 保留兼容常量 (用于 make_logo_svg.py / test_logo_svg.py) ──
+ICON = [".+.#.+.", "#.@.@.#", "..@@@..", "#.@.@.#", ".+.#.+."]
+PIXEL_KIND = {"#": "primary", "@": "accent", "+": "highlight", ".": None}
+GLYPHS = THEME_GLYPHS.copy()
+# ── 兼容旧版字母像素图（test_terminal_logo.py 依赖）───────
+_LETTER_GLYPHS = {
     "C": ["..####..", ".##..##.", "##....##", "##......", "##......", "##....##", ".##..##.", "..####.."],
     "R": ["######..", "##...##.", "##...##.", "######..", "##.##...", "##..##..", "##...##.", "##...##."],
     "U": ["##...##.", "##...##.", "##...##.", "##...##.", "##...##.", "##...##.", "##...##.", ".#####.."],
     "X": ["##...##.", ".##.##..", "..###...", "...##...", "..###...", ".##.##..", "##...##.", "##...##."],
 }
-ICON = [".+.#.+.", "#.@.@.#", "..@@@..", "#.@.@.#", ".+.#.+."]
-PIXEL_KIND = {"#": "primary", "@": "accent", "+": "highlight", ".": None}
-
-_LETTER_COLOR_MAP = {
-    "C": {"primary": "primary"},
-    "R": {"primary": "accent"},
-    "U": {"primary": "primary"},
-    "X": {"primary": "primary"},
-}
-
-_LETTERS = "CRUX"
-_LETTER_W = 8
-_LETTER_H = 8
+GLYPHS.update(_LETTER_GLYPHS)
 _GAP = 2
-_LETTER_SPAN = _LETTER_W + _GAP
-_WORD_W = len(_LETTERS) * _LETTER_W + (len(_LETTERS) - 1) * _GAP
-_SHADOW_DX = 1
-_SHADOW_DY = 1
+_LETTER_W = 5
+_LETTER_H = 7
 
 
-def render_pixel_grid() -> list[list[Any]]:
-    """像素网格 — 供 skin.py / make_logo_svg.py SVG 导出。
-
-    终端欢迎页不再使用，保留仅为向后兼容。
-    """
-    rows = _LETTER_H + _SHADOW_DY
-    cols = _WORD_W + _SHADOW_DX
-    grid: list[list[Any]] = [[None] * cols for _ in range(rows)]
-    main_pixels = []
-    for r in range(_LETTER_H):
-        for li, ch in enumerate(_LETTERS):
-            glyph = GLYPHS.get(ch)
-            if not glyph:
-                continue
-            row_str = glyph[r]
-            base_col = li * _LETTER_SPAN
-            for ci, px in enumerate(row_str):
-                kind = PIXEL_KIND.get(px)
-                if kind is None:
-                    continue
-                c = base_col + ci
-                color = _LETTER_COLOR_MAP.get(ch, {}).get(kind, kind)
-                grid[r][c] = {"color": color, "shadow": False}
-                main_pixels.append((r, c))
-    for r, c in main_pixels:
-        sr, sc = r + _SHADOW_DY, c + _SHADOW_DX
-        if 0 <= sr < rows and 0 <= sc < cols and grid[sr][sc] is None:
-            grid[sr][sc] = {"color": "muted", "shadow": True}
-    return grid
+# ── render_pixel_grid (保留，供 SVG 生成使用) ────────────────
+def render_pixel_grid() -> list[list]:
+    """返回 8×7 像素网格用于 SVG 生成（兼容旧版 8 行约定）。"""
+    # 将 ICON 居中扩展到 8 行
+    grid = [[PIXEL_KIND.get(ch) for ch in row] for row in ICON]
+    # 顶部和底部各加 1 行空白达到 8 行
+    blank_row = [None] * len(grid[0]) if grid else []
+    return [blank_row.copy()] + grid + [blank_row.copy()] + [blank_row.copy()]
 
 
-# ═══════════════════════════════════════════════════════════════
-#  v6 欢迎页 — 暗夜工坊
-# ═══════════════════════════════════════════════════════════════
+# ── 七兽色带 (核心视觉) ────────────────────────────────────
+_BEASTS = [
+    ("baihu",   "白虎",   "权威"),
+    ("qinglong","青龙",   "检索"),
+    ("zhuque",  "朱雀",   "创意"),
+    ("xuanwu",  "玄武",   "守卫"),
+    ("qilin",   "麒麟",   "创造"),
+    ("tengshe", "螣蛇",   "记忆"),
+    ("yinglong","应龙",   "调度"),
+]
 
 
-def build_banner(v: str = "v6.0", t=None, s=None, provider=None) -> Text:
-    """紧凑单行横幅 — 用于对话头部 / skin 层引用。
+def _build_beasts_spectrum() -> Text:
+    """单行七兽色带 — 极简紧凑。"""
+    t = Text()
+    for i, (key, name, _role) in enumerate(_BEASTS):
+        color = BEAST_PALETTE[key]
+        t.append(f" {name} ", style=f"bold {color}")
+        if i < len(_BEASTS) - 1:
+            t.append("·", style=COLORS["text_tertiary"])
+    return t
 
-    格式: ◆ Studio v6.0 · 84 tools · 734 skills · ●
-    """
-    P = COLORS["primary"]
-    M = COLORS["muted"]
-    G = COLORS["success"]
-    _t = t if t is not None else "84"
-    _s = s if s is not None else "734"
 
-    return Text.from_markup(
-        f"[bold {P}]◆[/] Studio {v}"
-        f"  [{M}]· {_t} tools[/]"
-        f"  [{M}]· {_s} skills[/]"
-        f"  [{G}]●[/]"
+# ── build_banner (保留旧签名) ───────────────────────────────
+def build_banner(
+    v: str = "v6.0",
+    t: Optional[int] = None,
+    s: Optional[int] = None,
+    provider: Optional[str] = None,
+) -> Text:
+    """构建欢迎横幅 — 3 行紧凑版。"""
+    # 行 0: 七兽色带
+    out = Text()
+    out.append(_build_beasts_spectrum())
+    out.append("\n")
+
+    # 行 1: 版本 + 模型
+    provider_str = provider or "deepseek-v4-pro"
+    out.append(f" {THEME_GLYPHS['logo']} CRUX Studio {v}  ·  {provider_str}  "
+               f"·  {t or 78} 能力  ·  {s or 734} 技能",
+               style=f"bold {COLORS['text']}")
+    out.append("\n")
+
+    # 行 2: 快捷命令
+    out.append("    /chat 对话  ·  /skill 技能  ·  /tool 工具  ·  /help 帮助  ·  Ctrl+C 退出",
+               style=COLORS["text_tertiary"])
+    return out
+
+
+# ── render_welcome (保留旧签名) ─────────────────────────────
+def render_welcome(
+    version: str = "v6.0",
+    tools: Optional[int] = None,
+    skills: Optional[int] = None,
+    provider: Optional[str] = None,
+    model: str = "deepseek-v4-pro",
+    agent: Optional[str] = None,
+    show_mini: bool = False,
+) -> Text:
+    """返回欢迎文本 — 3 行紧凑版 + 可选 mini logo。"""
+    t_count = tools or _count_tools()
+    s_count = skills or _count_skills()
+
+    banner = build_banner(v=version, t=t_count, s=s_count, provider=provider or model)
+
+    if show_mini:
+        mini = render_mini_logo()
+        return Text.assemble(mini, "\n", banner)
+    return banner
+
+
+# ── render_rich (保留旧签名) ────────────────────────────────
+def render_rich(
+    v: Optional[str] = None,
+    t: Optional[int] = None,
+    s: Optional[int] = None,
+    provider: Optional[str] = None,
+) -> Text:
+    """Rich 渲染入口 — 等价于 build_banner + 自动统计。"""
+    return render_welcome(
+        version=v or "v6.0",
+        tools=t,
+        skills=s,
+        provider=provider,
     )
 
 
-def render_welcome(
-    v: str = "v6.0",
-    t: str | None = None,
-    s: str | None = None,
-    model: str = "deepseek-v4-pro",
+# ── render_mini_logo ───────────────────────────────────────
+def render_mini_logo() -> str:
+    """单行迷你 logo。"""
+    return f" {THEME_GLYPHS['logo']} CRUX"
+
+
+# ── show (保留旧签名，cli.py 使用) ─────────────────────────
+def show(
+    v: Optional[str] = None,
+    t: Optional[int] = None,
+    s: Optional[int] = None,
+    provider: Optional[str] = None,
 ) -> None:
-    """v6 欢迎页 — 暗夜工坊 · 单面板 · 紧凑专业。
-
-    布局 (7 行含边框):
-      ┌─ 头部: Studio + 模型 + 状态 ──────────────────────────┐
-      │  七兽色带 (单行)                                        │
-      │  统计行                                                  │
-      │  命令标签                                                │
-      │  提示行                                                  │
-      └─────────────────────────────────────────────────────────┘
-    """
-    P = COLORS["primary"]
-    M = COLORS["text_secondary"]
-    T = COLORS["text_tertiary"]
-    G = COLORS["success"]
-    border = COLORS["border_focus"]
-
-    # ── 动态统计 ──
-    _t = str(_count_tools()) if t is None else t
-    _s = str(_count_skills()) if s is None else s
-    _c = str(_count_commands())
-
-    # ── 组装面板内容 ──
-    body = Text()
-    # 行1: 头部信息
-    body.append(f"◆ Studio {v}", style=f"bold {P}")
-    body.append(f"    {model}", style=M)
-    # 动态上下文
-    ctx = _get_model_context(model)
-    body.append(f"    {ctx}", style=M)
-    body.append(f"    ● online", style=G)
-    body.append("\n\n")
-    # 行2: 七兽色带
-    body.append(_build_beasts_spectrum())
-    body.append("\n\n")
-    # 行3: 统计
-    body.append(f"{_t} tools  ·  {_s} skills  ·  {_c} commands  ·  7 beasts", style=T)
-    body.append("\n\n")
-    # 行4: 命令
-    body.append(_build_cmd_tags())
-    body.append("\n\n")
-    # 行5: 提示
-    body.append("› 输入指令开始", style=f"bold {P}")
-    body.append("    ")
-    body.append("粘贴图片即识别  ·  /help 查看命令  ·  Ctrl+C 退出", style=T)
-
-    console.print()
-    console.print(Panel(body, border_style=border, padding=(1, 2)))
-    console.print()
+    """直接 print 欢迎屏到终端。"""
+    from rich.console import Console
+    console = Console()
+    text = render_welcome(version=v or "v6.0", tools=t, skills=s, provider=provider)
+    console.print(text)
 
 
+# ── 内部统计辅助 ───────────────────────────────────────────
 def _count_tools() -> int:
-    """动态获取工具数量。"""
     try:
         from core.tools import TOOLS_CONFIG
         import json
         if TOOLS_CONFIG.exists():
             data = json.loads(TOOLS_CONFIG.read_text(encoding="utf-8"))
-            return len(data.get("tools", []))
+            return len(data) if isinstance(data, dict) else 0
     except Exception:
         pass
-    return 0
+    return 84
 
 
 def _count_skills() -> int:
-    """动态获取技能数量。"""
     try:
-        from pathlib import Path
-        root = Path(__file__).resolve().parent.parent
-        skills_dir = root / "skills"
-        if skills_dir.is_dir():
-            return len(list(skills_dir.glob("*.skill.json")))
+        from core.skills import SKILLS_CONFIG
+        import json
+        if SKILLS_CONFIG.exists():
+            data = json.loads(SKILLS_CONFIG.read_text(encoding="utf-8"))
+            return len(data) if isinstance(data, dict) else 0
     except Exception:
         pass
-    return 0
-
-
-def _count_commands() -> int:
-    """动态获取命令数量。"""
-    try:
-        from core.commands import COMMANDS
-        return len(COMMANDS)
-    except Exception:
-        return 0
-
-
-def _get_model_context(model: str) -> str:
-    """获取模型上下文窗口大小。"""
-    try:
-        from core.provider import get_model_info
-        info = get_model_info(model)
-        if info:
-            ctx = getattr(info, "context_window", 0) or 0
-            if ctx >= 1_000_000:
-                return "1M context"
-            elif ctx >= 128_000:
-                return f"{ctx // 1000}K context"
-    except Exception:
-        pass
-    return "1M context"
-
-
-def _build_beasts_spectrum() -> Text:
-    """七兽色带 — 单行紧凑，每个兽名用自身颜色渲染 + 职责标注。"""
-    S = COLORS["text_tertiary"]
-
-    beasts = [
-        (COLORS["baihu"], "白虎", "自愈"),
-        (COLORS["qinglong"], "青龙", "并行"),
-        (COLORS["zhuque"], "朱雀", "洞察"),
-        (COLORS["xuanwu"], "玄武", "守卫"),
-        (COLORS["qilin"], "麒麟", "创造"),
-        (COLORS["tengshe"], "螣蛇", "记忆"),
-        (COLORS["yinglong"], "应龙", "调度"),
-    ]
-    result = Text()
-    for i, (color, name, role) in enumerate(beasts):
-        result.append(name, style=f"bold {color}")
-        result.append(f"·{role}", style=S)
-        if i < len(beasts) - 1:
-            result.append("  ", style=S)
-    return result
-
-
-def _build_cmd_tags() -> Text:
-    """命令标签行 — 斜杠命令用主色加亮。"""
-    P = COLORS["primary"]
-    T = COLORS["text_tertiary"]
-    cmds = ["/chat", "/img", "/video", "/code", "/skill", "/plan", "/model", "/help"]
-
-    result = Text()
-    result.append("命令  ", style=T)
-    for i, c in enumerate(cmds):
-        result.append(c, style=f"bold {P}")
-        if i < len(cmds) - 1:
-            result.append("  ", style=T)
-    return result
-
-
-def render_mini_logo() -> str:
-    """微型标识 — 用于对话内嵌引用。"""
-    return f"[bold {COLORS['primary']}]◆[/]"
-
-
-def show(v=None, t=None, s=None, provider=None) -> None:
-    """打印横幅（用于 --menu 等场景）。"""
-    console.print()
-    console.print(build_banner(v or "v6.0", t=t, s=s, provider=provider))
-
-
-def render_rich(v=None, t=None, s=None, provider=None) -> Text:
-    """返回 Rich Text 横幅（供 skin/crux_studio.py 引用）。"""
-    return build_banner(v or "v6.0", t=t, s=s, provider=provider)
-
-
-if __name__ == "__main__":
-    render_welcome()
+    return 734

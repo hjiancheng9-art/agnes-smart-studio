@@ -1,170 +1,158 @@
-"""Thread-safe message buffer with Rich→ANSI→prompt_toolkit rendering.
+"""Message buffer — Rich Panel 气泡渲染。
 
-All existing console.print() output is captured, rendered to ANSI via Rich,
-then displayed in the prompt_toolkit message area as ANSI(...) formatted text.
+每条消息渲染为独立的 Rich Panel，按角色区分颜色和缩进：
+  - user:      右侧缩进 + 青龙色左边框 + 微蓝底
+  - assistant: 左侧无边栏 + surface 底 + Markdown 渲染
+  - system:    居中 + 细灰线框 + 小字灰色
+  - tool:      左侧 + 麒麟色左边框 + 微绿底 + 紧凑
+
+线程安全：所有 add_* / commit 方法持有 _lock。
+输出同时写入 Rich 控制台面板和 ANSI 后备缓冲区。
 """
 
-from __future__ import annotations
-
-import io
 import threading
-import time
-from dataclasses import dataclass, field
+import time as _time
+from typing import Optional
 
-from prompt_toolkit.formatted_text import ANSI, FormattedText, to_formatted_text
 from rich.console import Console as RichConsole
 from rich.markdown import Markdown
 from rich.panel import Panel
-from rich.text import Text as RichText
+from rich.padding import Padding
+from rich.text import Text
 
-__all__ = ["MessageBuffer", "Message"]
+from ui.theme import COLORS, GLYPHS
 
 
-@dataclass
-class Message:
-    role: str          # "user" | "assistant" | "system" | "tool"
-    content: str       # plain text (already stripped of Rich markup)
-    timestamp: float = field(default_factory=time.time)
+class MessageBlock:
+    """单条消息的气泡数据。"""
 
-    def age_str(self) -> str:
-        delta = time.time() - self.timestamp
-        if delta < 60:
-            return f"{delta:.0f}s"
-        elif delta < 3600:
-            return f"{delta / 60:.0f}m"
-        return f"{delta / 3600:.1f}h"
+    __slots__ = ("role", "content", "timestamp", "panel")
+
+    def __init__(self, role: str, content: str):
+        self.role = role          # "user" | "assistant" | "system" | "tool"
+        self.content = content
+        self.timestamp = _time.time()
+        self.panel: Optional[Panel] = None
+
+
+def _build_panel(block: MessageBlock) -> Panel:
+    """根据角色构建 Rich Panel 气泡。"""
+    role = block.role
+    content = block.content
+
+    if role == "user":
+        # 右侧缩进，青龙色左边框
+        text = Text(content)
+        text.stylize(COLORS["text"])
+        return Panel(
+            text,
+            border_style=COLORS["user_bubble_border"],
+            style=f"on {COLORS['user_bubble_bg']}",
+            padding=(0, 1),
+            title=GLYPHS["send"],
+            title_align="right",
+            subtitle="",
+            width=None,
+        )
+
+    elif role == "assistant":
+        # 左侧无缩进，Markdown 渲染，低调边框
+        md = Markdown(content, code_theme="github-dark")
+        return Panel(
+            md,
+            border_style=COLORS["assistant_bubble_border"],
+            style=f"on {COLORS['assistant_bubble_bg']}",
+            padding=(1, 2),
+            title="",
+            title_align="left",
+            subtitle="",
+            width=None,
+        )
+
+    elif role == "tool":
+        # 紧凑工具调用，麒麟色左边框
+        text = Text(content)
+        text.stylize(COLORS["text_secondary"])
+        return Panel(
+            Padding(text, (0, 1)),
+            border_style=COLORS["tool_bubble_border"],
+            style=f"on {COLORS['tool_bubble_bg']}",
+            padding=(0, 0),
+            title=f" {GLYPHS['hammer']} ",
+            title_align="left",
+            width=None,
+        )
+
+    else:  # system
+        text = Text(content)
+        text.stylize(f"italic {COLORS['text_tertiary']}")
+        return Panel(
+            Padding(text, (0, 2)),
+            border_style=COLORS["system_bubble_border"],
+            style=f"on {COLORS['system_bubble_bg']}",
+            padding=(0, 0),
+            width=None,
+        )
 
 
 class MessageBuffer:
-    """Thread-safe message store, renders to prompt_toolkit FormattedText.
+    """线程安全的消息气泡缓冲区。
 
-    Uses a Rich Console to convert Markdown content to ANSI strings, which
-    prompt_toolkit's ``ANSI()`` class can parse into formatted text tuples.
+    用法:
+        buf = MessageBuffer()
+        buf.add_message("user", "你好")
+        buf.add_message("assistant", "你好，有什么可以帮你的？")
+        panels = buf.render_all()
     """
 
-    def __init__(self, max_messages: int = 500):
+    def __init__(self):
         self._lock = threading.Lock()
-        self._messages: list[Message] = []
-        self._max = max_messages
-        # Rich console that renders to an ANSI string buffer
-        self._ansi_buf = io.StringIO()
-        self._rich = RichConsole(
-            file=self._ansi_buf,
-            force_terminal=True,
-            color_system="truecolor",
-            width=120,
-            height=9999,
-        )
+        self._blocks: list[MessageBlock] = []
 
-    # ── Write ────────────────────────────────────────────────
-
-    def add(self, role: str, content: str) -> None:
+    def add_message(self, role: str, content: str):
+        """追加一条完整消息。"""
         with self._lock:
-            self._messages.append(Message(role=role, content=content))
-            if len(self._messages) > self._max:
-                self._messages = self._messages[-self._max:]
+            block = MessageBlock(role, content)
+            block.panel = _build_panel(block)
+            self._blocks.append(block)
 
-    def clear(self) -> None:
+    def update_last(self, content: str):
+        """更新最后一条消息的内容（用于流式输出）。"""
         with self._lock:
-            self._messages.clear()
+            if self._blocks:
+                last = self._blocks[-1]
+                last.content = content
+                last.panel = _build_panel(last)
 
-    # ── Read ─────────────────────────────────────────────────
-
-    @property
-    def count(self) -> int:
+    def append_last(self, chunk: str):
+        """追加文本到末尾消息。"""
         with self._lock:
-            return len(self._messages)
+            if self._blocks:
+                last = self._blocks[-1]
+                last.content += chunk
+                last.panel = _build_panel(last)
+            else:
+                # 第一条 chunk 从哪来就按什么角色
+                self.add_message("assistant", chunk)
 
-    def latest(self, n: int = 1) -> list[Message]:
+    def render_all(self) -> list[Panel]:
+        """返回所有气泡面板列表。"""
         with self._lock:
-            return self._messages[-n:]
+            return [b.panel for b in self._blocks if b.panel is not None]
 
-    def all(self) -> list[Message]:
+    def render_latest(self, n: int = 5) -> list[Panel]:
+        """返回最近 n 条消息的面板。"""
         with self._lock:
-            return list(self._messages)
+            blocks = self._blocks[-n:] if n > 0 else self._blocks
+            return [b.panel for b in blocks if b.panel is not None]
 
-    # ── Render ───────────────────────────────────────────────
-
-    def _rich_to_ansi(self, renderable) -> str:
-        """Render a Rich renderable to an ANSI string."""
-        self._ansi_buf.truncate(0)
-        self._ansi_buf.seek(0)
-        self._rich.print(renderable)
-        return self._ansi_buf.getvalue().rstrip("\n")
-
-    def render_message(self, msg: Message, width: int = 100) -> str:  # noqa: ARG002
-        """Render a single message as ANSI string with beast-themed decorations."""
-        from ui.theme import COLORS
-
-        if msg.role == "user":
-            # User messages: blue dragon-themed, left-aligned
-            label = RichText("◇ You", style=f"bold {COLORS['qinglong']}")
-            prefix = RichText("╭─", style=f"dim {COLORS['qinglong']}")
-            panel = Panel(
-                Markdown(msg.content) if msg.content else RichText(""),
-                title=label,
-                border_style=COLORS["qinglong"],
-                padding=(0, 1),
-            )
-            return self._rich_to_ansi(panel)
-
-        elif msg.role == "assistant":
-            # AI responses: green kirin-themed with spark border
-            label = RichText("● CRUX", style=f"bold {COLORS['qilin']}")
-            panel = Panel(
-                Markdown(msg.content) if msg.content else RichText(""),
-                title=label,
-                border_style=COLORS["qilin"],
-                padding=(0, 1),
-            )
-            return self._rich_to_ansi(panel)
-
-        elif msg.role == "system":
-            # System messages: subtle, dim with xuanwu shield
-            shield = "◎" if len(msg.content) < 60 else ""
-            prefix = f"{shield} " if shield else ""
-            return self._rich_to_ansi(
-                RichText(
-                    f"{prefix}{msg.content}",
-                    style=f"dim italic {COLORS['text_tertiary']}",
-                )
-            )
-
-        elif msg.role == "tool":
-            return self._rich_to_ansi(
-                Panel(
-                    RichText(msg.content, style=COLORS["text_secondary"]),
-                    border_style=COLORS["border"],
-                    padding=(0, 1),
-                )
-            )
-
-        return msg.content
-
-    def render_all(self, width: int = 100) -> FormattedText:
-        """Render all messages as prompt_toolkit FormattedText."""
+    def clear(self):
+        """清空所有消息。"""
         with self._lock:
-            if not self._messages:
-                return FormattedText([("class:dim", "No messages yet.")])
+            self._blocks.clear()
 
-            parts = []
-            for msg in self._messages:
-                ansi = self.render_message(msg, width)
-                if parts:
-                    parts.append(("", "\n"))
-                # ANSI() returns a non-iterable object in prompt_toolkit 3.0.52+,
-                # expand it to flat (style, text) tuples via to_formatted_text().
-                parts.extend(to_formatted_text(ANSI(ansi)))
+    def __len__(self):
+        return len(self._blocks)
 
-            return FormattedText(parts)
-
-    def render_all_plain(self, width: int = 100) -> str:
-        """Render all messages as a single ANSI string (for Window control)."""
-        with self._lock:
-            if not self._messages:
-                return "No messages yet."
-
-            lines = []
-            for msg in self._messages:
-                lines.append(self.render_message(msg, width))
-            return "\n".join(lines)
+    def __bool__(self):
+        return bool(self._blocks)

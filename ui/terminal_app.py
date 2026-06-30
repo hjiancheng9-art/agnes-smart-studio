@@ -1,76 +1,60 @@
-"""CRUX Terminal Application — Claude Code-style fixed input box.
+"""CRUX Terminal Application — 七兽工坊 · 暗夜终端。
 
 Layout:
-  ┌──────────────────────────────────┐
-  │  Header bar (fixed)              │
-  ├──────────────────────────────────┤
-  │  Message area (ScrollablePane)   │
-  ├──────────────────────────────────┤
-  │  Status bar (fixed)              │
-  ├──────────────────────────────────┤
-  │  Input area (fixed, TextArea)    │
-  └──────────────────────────────────┘
+  ┌──────────────────────────────────────────────────────┐
+  │  ◈ CRUX Studio v6.0 · deepseek-v4-pro · 3 消息      │  ← 1行状态栏
+  ├──────────────────────────────────────────────────────┤
+  │                                                      │
+  │  ▸ 用户消息气泡                        右侧缩进      │
+  │                                                      │
+  │  助手回复气泡 (Markdown)                             │  ← 消息面板
+  │                                                      │
+  │  🔧 工具调用                                            │
+  │                                                      │
+  ├──────────────────────────────────────────────────────┤
+  │  ⯈ █                                                        │  ← 固定输入区
+  └──────────────────────────────────────────────────────┘
 
-All existing console.print() output is captured via _LayoutSink and routed
-to add_message(), which updates the message area and triggers a UI refresh.
-
-Streaming text arrives via add_stream_chunk() from the background AI thread.
+快捷键:
+  Ctrl+Enter  发送
+  Ctrl+L      清屏
+  Esc         切换焦点
+  Ctrl+C      退出
 """
 
-from __future__ import annotations
-
-import logging
-import queue
-import time
-from typing import Callable
+import asyncio
+import threading
+import time as _time
+from typing import Callable, Optional
 
 from prompt_toolkit import Application
-from prompt_toolkit.application.current import get_app
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.document import Document
-from prompt_toolkit.enums import DEFAULT_BUFFER
-from prompt_toolkit.filters import has_focus
-from prompt_toolkit.history import InMemoryHistory
-from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
-from prompt_toolkit.key_binding.bindings.scroll import (
-    scroll_forward, scroll_backward,
-    scroll_half_page_down, scroll_half_page_up,
-    scroll_one_line_down, scroll_one_line_up,
-)
+from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.layout import (
-    Dimension, HSplit, Layout, ScrollablePane, Window, WindowAlign,
+    FormattedTextControl,
+    HSplit,
+    Layout,
+    ScrollablePane,
+    VSplit,
+    Window,
+    WindowAlign,
 )
-from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
-from prompt_toolkit.layout.processors import (
-    BeforeInput, ConditionalProcessor, TabsProcessor,
-)
-from prompt_toolkit.lexers import SimpleLexer
-from prompt_toolkit.styles import Style, merge_styles
+from prompt_toolkit.layout.controls import BufferControl
+from prompt_toolkit.styles import Style as PtkStyle
+from prompt_toolkit.widgets import TextArea
 
-from ui.flourish import (
-    BEAST_THEMES, DEFAULT_BEAST, BeastTheme, DayNightPalette,
-    ParticleBurst, PromptGlow, Spinner, SPLASH_FRAMES,
-)
-from ui.theme import COLORS
+from ui.theme import COLORS, GLYPHS
 from ui.message_buffer import MessageBuffer
 
-logger = logging.getLogger("crux.ui")
 
-__all__ = ["CruxTerminalApp"]
-
-
-# ═══════════════════════════════════════════════════════════════
-# Slash-command completer
-# ═══════════════════════════════════════════════════════════════
-
+# ── 斜杠命令补全 ──────────────────────────────────────────
 SLASH_COMMANDS = [
-    "beast", "help", "clear", "thinking", "code", "agent", "tools",
-    "img", "video", "showrun", "vision", "skill",
-    "plan", "sub", "project", "team", "deploy", "todo", "refactor",
-    "commit", "changelog",
-    "self", "audit", "rules", "provider", "evolve", "know", "model",
-    "exit", "quit", "q",
+    "/chat", "/skill", "/tool", "/agent", "/provider",
+    "/clear", "/help", "/exit", "/status", "/model",
+    "/image", "/video", "/deploy", "/audit", "/review",
+    "/test", "/search", "/config", "/session", "/history",
 ]
 
 
@@ -80,572 +64,383 @@ class SlashCompleter(Completer):
         if text.startswith("/"):
             prefix = text[1:]
             for cmd in SLASH_COMMANDS:
-                if cmd.startswith(prefix):
-                    yield Completion(cmd, start_position=-len(prefix))
+                if cmd.startswith(text):
+                    yield Completion(cmd, start_position=-len(text))
 
 
-# ═══════════════════════════════════════════════════════════════
-# App styles — derived from existing Dark Atelier theme
-# ═══════════════════════════════════════════════════════════════
-
-def build_ptk_style(theme: BeastTheme | None = None) -> Style:
-    """Build a prompt_toolkit Style from the CRUX COLORS palette.
-
-    When *theme* is provided the primary/accent colours come from the
-    beast theme; otherwise the default Dark Atelier palette is used.
-    """
-    C = dict(COLORS)
-    # Apply day/night adjustments
-    C = DayNightPalette.adjust(C)
-
-    if theme is not None:
-        C["primary"] = theme.primary
-        C["accent"] = theme.accent
-        C["input_prompt"] = theme.primary
-        C["input_cursor"] = theme.glow
-        C["input_border"] = theme.border
-        C["border_focus"] = theme.glow
-        C["info"] = theme.primary
-        C["success"] = COLORS["qilin"]
-
-    return Style.from_dict({
-        # Header
-        "header": f"bold {C['primary']}",
-        "header.bar": C["border"],
-        # Message area
-        "window": f"bg:{C['base']}",
-        "window.border": C["border"],
-        # Status bar
-        "status": C["text_tertiary"],
-        "status.key": C["text_secondary"],
-        "status.value": C["text"],
-        "status.spinner": f"bold {C['accent']}",
-        # Input
-        "input.prompt": f"bold {C['primary']}",
-        "input.text": C["text"],
-        "input.placeholder": C["text_tertiary"],
-        "input.border": C["border"],
-        "input.border.focused": C["border_focus"],
-        # General
-        "dim": C["text_tertiary"],
-        "accent": C["accent"],
-        "success": C["success"],
-        "warning": C["warning"],
-        "error": C["error"],
-        "info": C["info"],
-        # Existing styles for Rich ANSI
-        "primary": f"bold {C['primary']}",
-        "muted": C["text_secondary"],
-        "highlight": C["zhuque"],
-        "surface": f"bg:{C['surface']}",
+# ── prompt_toolkit 样式 ───────────────────────────────────
+def build_ptk_style() -> PtkStyle:
+    C = COLORS
+    return PtkStyle.from_dict({
+        # 状态栏
+        "status-bar":          f"bg:{C['status_bar_bg']} {C['status_bar_text']}",
+        "status-bar.bright":   f"bg:{C['status_bar_bg']} {C['text']} bold",
+        # 消息区
+        "message-area":        f"bg:{C['bg']} {C['text']}",
+        # 输入区
+        "input-field":         f"bg:{C['surface']} {C['text']}",
+        "input-field.prompt":  f"bg:{C['surface']} {C['input_prompt']} bold",
+        # 分隔线
+        "separator":           f"bg:{C['separator_thin']} {C['separator_thin']}",
+        "separator-line":      f"{C['separator_thin']}",
+        # 全局
+        "":                    f"bg:{C['bg']} {C['text']}",
+        "window":              f"bg:{C['bg']}",
     })
 
 
-# ═══════════════════════════════════════════════════════════════
-# Main terminal application
-# ═══════════════════════════════════════════════════════════════
-
+# ── 主应用类 ──────────────────────────────────────────────
 class CruxTerminalApp:
-    """Full-screen terminal chat app with fixed input box.
-
-    Usage::
-
-        app = CruxTerminalApp(on_submit=my_handler)
-        app.set_header("CRUX Studio v6 · deepseek-v4-pro")
-        app.run()
-    """
+    """CRUX 终端应用 — 状态栏 + 消息面板 + 固定输入框。"""
 
     def __init__(
         self,
-        on_submit: Callable[[str], None] | None = None,
-        on_interrupt: Callable[[], None] | None = None,
-        history: list[str] | None = None,
-        show_splash: bool = True,
+        submit_callback: Optional[Callable[[str], None]] = None,
+        provider: str = "deepseek-v4-pro",
+        version: str = "v6.0",
     ):
-        self._on_submit = on_submit
-        self._on_interrupt = on_interrupt
-
-        # Thread-safe message queue (streaming chunk → UI)
-        self._msg_queue: queue.Queue = queue.Queue()
-        self._streaming_buf = ""
-        self._messages: list[tuple[str, str]] = []  # [(role, text)]
-        self._header_text = ""
-        self._status_text = ""
-
-        # ── Creative state ──
-        self._beast_theme: BeastTheme = BEAST_THEMES[DEFAULT_BEAST]
-        self._spinner = Spinner()
-        self._prompt_glow = PromptGlow()
-        self._splash_frame = -1 if not show_splash else 0
-        self._splash_t0 = time.time() if show_splash else 0.0
+        self.submit_callback = submit_callback
+        self.provider = provider
+        self.version = version
+        self._start_time = _time.time()
+        self._message_count = 0
         self._generating = False
-        self._first_launch = True
+        self._stream_buffer = ""
+        self._lock = threading.Lock()
+        self._custom_status = ""
+        self._active_beast = "zhuque"
+        self._sparkle_count = 0
+        self._error_flash = False
 
-        # Input history
-        self._history = InMemoryHistory()
-        if history:
-            for h in history:
-                self._history.append_string(h)
+        # 消息缓冲
+        self.buffer = MessageBuffer()
 
-        # Flag: application is running
-        self._running = False
-        # Deferred scroll-to-bottom flag (set by _drain_queue, handled after render)
-        self._pending_scroll = False
-
-        # Build UI components
-        self._build()
-
-    # ── Public API (thread-safe) ─────────────────────────────
-
-    def add_message(self, role: str, text: str) -> None:
-        """Add a complete message. Thread-safe — callable from any thread."""
-        self._msg_queue.put(("message", (role, text)))
-        self._refresh()
-
-    def add_stream_chunk(self, text: str) -> None:
-        """Append a streaming text chunk. Thread-safe."""
-        self._msg_queue.put(("chunk", text))
-        self._refresh()
-
-    def commit_stream(self) -> None:
-        """Finalize the current streaming message."""
-        self._msg_queue.put(("commit", None))
-        self._refresh()
-
-    def set_header(self, text: str) -> None:
-        self._header_text = text
-        self._refresh()
-
-    def set_status(self, text: str) -> None:
-        self._status_text = text
-        self._refresh()
-
-    def set_input_text(self, text: str) -> None:
-        """Pre-fill the input buffer (e.g., restore pending input)."""
-        def _set():
-            buf = self._app.layout.get_buffer_by_name(DEFAULT_BUFFER)
-            if buf:
-                buf.text = text
-        self._schedule(_set)
-
-    def exit(self) -> None:
-        """Request app shutdown."""
-        self._running = False
-        self._schedule(lambda: get_app().exit())
-
-    # ── Creative API ──────────────────────────────────────────
-
-    def set_beast(self, name: str) -> str | None:
-        """Switch to a beast theme. Returns theme label or None if unknown."""
-        theme = BEAST_THEMES.get(name)
-        if theme is None:
-            return None
-        self._beast_theme = theme
-        # Rebuild app style
-        self._app.style = merge_styles([build_ptk_style(theme)])
-        self._app.invalidate()
-        return theme.label
-
-    @property
-    def beast_theme(self) -> BeastTheme:
-        return self._beast_theme
-
-    def start_generating(self) -> None:
-        """Signal that AI generation has started (activates spinner)."""
-        self._generating = True
-        self._spinner.start()
-        self._refresh()
-
-    def stop_generating(self) -> None:
-        """Signal that AI generation has stopped."""
-        self._generating = False
-        self._spinner.stop()
-        self._refresh()
-
-    def sparkle(self) -> None:
-        """Emit a success sparkle particle burst in the message area."""
-        burst = ParticleBurst.success().render()
-        self.add_message("system", f"  {burst}")
-
-    def flash_error(self) -> None:
-        """Emit an error flash in the message area."""
-        burst = ParticleBurst.error().render()
-        self.add_message("system", f"  {burst}")
-
-    # ── Build layout ─────────────────────────────────────────
-
-    def _build(self) -> None:
-        # ── Header ──
-        self._header_control = FormattedTextControl(
-            text=self._get_header_text,
+        # ── 状态栏 ──
+        self._status_control = FormattedTextControl(
+            text=self._get_status_text,
+            style="class:status-bar",
         )
-        header_window = Window(
-            self._header_control,
+        status_window = Window(
+            self._status_control,
             height=1,
-            style="class:header.bar",
-            align=WindowAlign.LEFT,
+            style="class:status-bar",
         )
 
-        # ── Message area (ScrollablePane) ──
+        # ── 消息面板 ──
         self._message_control = FormattedTextControl(
-            text=self._get_message_text,
-            focusable=True,
+            text=self._render_messages,
+            style="class:message-area",
         )
         message_window = Window(
             self._message_control,
             wrap_lines=True,
             always_hide_cursor=True,
         )
-        self._scrollable_pane = ScrollablePane(message_window, show_scrollbar=False, display_arrows=False)
-        scrollable = self._scrollable_pane
-
-        # ── Status bar ──
-        self._status_control = FormattedTextControl(
-            text=self._get_status_text,
+        self._scrollable_pane = ScrollablePane(
+            message_window,
+            show_scrollbar=False,
+            display_arrows=False,
         )
-        status_window = Window(
-            self._status_control,
+
+        # ── 分隔线 ──
+        separator_window = Window(
             height=1,
-            style="class:dim",
-            align=WindowAlign.LEFT,
+            char=GLYPHS["hbar"],
+            style="class:separator-line",
         )
 
-        # ── Input area ──
+        # ── 输入区 ──
         self._input_buffer = Buffer(
-            history=self._history,
             completer=SlashCompleter(),
             complete_while_typing=True,
-            name=DEFAULT_BUFFER,
+            multiline=True,
         )
         self._input_control = BufferControl(
             buffer=self._input_buffer,
-            lexer=SimpleLexer("class:input.text"),
-            input_processors=[
-                ConditionalProcessor(
-                    BeforeInput("  › "),
-                    has_focus(self._input_buffer),
-                ),
-                TabsProcessor(),
-            ],
-            include_default_input_processors=True,
+            input_processors=[],
         )
-        input_window = Window(
-            self._input_control,
-            height=Dimension(min=1, max=5, preferred=3),
-            style=lambda: (
-                "class:input.border.focused"
-                if self._app and self._app.layout.has_focus(self._input_buffer)
-                else "class:input.border"
-            ),
+        # 多行输入框
+        self._input_area = TextArea(
+            height=3,
+            prompt=f"{GLYPHS['send']} ",
+            style="class:input-field",
+            multiline=True,
+            completer=SlashCompleter(),
+            complete_while_typing=True,
         )
 
-        # ── Root layout ──
-        root = HSplit([
-            header_window,
-            Window(height=1, char="─", style="class:window.border"),  # separator
-            scrollable,
-            Window(height=1, char="─", style="class:window.border"),  # separator
+        # ── 整体布局 ──
+        root_container = HSplit([
             status_window,
-            input_window,
+            Window(height=1, char=GLYPHS["hbar"], style="class:separator-line"),
+            self._scrollable_pane,
+            Window(height=1, char=GLYPHS["hbar"], style="class:separator-line"),
+            self._input_area,
         ])
 
-        # ── Key bindings ──
-        kb = self._build_keybindings()
+        self.layout = Layout(root_container)
 
-        # ── Scroll bindings for message area ──
-        scroll_kb = KeyBindings()
+        # ── 快捷键 ──
+        self._kb = self._build_keybindings()
 
-        def _do_scroll(event, scroll_fn):
-            """Focus message window, scroll, then refocus input."""
-            try:
-                event.app.layout.focus(message_window)
-                scroll_fn(event)
-            finally:
-                try:
-                    event.app.layout.focus(input_window)
-                except Exception:
-                    pass
-
-        @scroll_kb.add("pageup")
-        def _page_up(event):
-            _do_scroll(event, scroll_half_page_up)
-
-        @scroll_kb.add("pagedown")
-        def _page_down(event):
-            _do_scroll(event, scroll_half_page_down)
-
-        @scroll_kb.add("c-up")
-        def _scroll_up_kb(event):
-            _do_scroll(event, scroll_one_line_up)
-
-        @scroll_kb.add("c-down")
-        def _scroll_down_kb(event):
-            _do_scroll(event, scroll_one_line_down)
-
-        @scroll_kb.add("c-home")
-        def _scroll_top(event):
-            _do_scroll(event, scroll_backward)
-
-        @scroll_kb.add("c-end")
-        def _scroll_bottom(event):
-            _do_scroll(event, scroll_forward)
-
-        # Mouse wheel
-        @scroll_kb.add("<scroll-up>")
-        def _mouse_scroll_up(event):
-            _do_scroll(event, scroll_one_line_up)
-
-        @scroll_kb.add("<scroll-down>")
-        def _mouse_scroll_down(event):
-            _do_scroll(event, scroll_one_line_down)
-
-        # ── Application ──
-        app_kwargs = dict(
-            layout=Layout(root, focused_element=input_window),
-            key_bindings=merge_key_bindings([kb, scroll_kb]),
-            style=merge_styles([build_ptk_style()]),
+        # ── ptk Application ──
+        self._app = Application(
+            layout=self.layout,
+            key_bindings=self._kb,
+            style=build_ptk_style(),
             full_screen=True,
             mouse_support=True,
-            refresh_interval=0.066,
         )
-        try:
-            self._app = Application(**app_kwargs)
-        except Exception:
-            # Fallback for PTY terminals (Git Bash, ConEmu, etc.)
-            # where Win32 console API is unavailable.
-            from prompt_toolkit.output.vt100 import Vt100_Output
-            import sys as _sys
-            app_kwargs["output"] = Vt100_Output.from_pty(_sys.stdout)
-            self._app = Application(**app_kwargs)
 
-        # Hook: process message queue before each render
-        self._app.before_render += self._drain_queue
-
-        # Focus input once on first render, then remove handler.
-        def _focus_once(_app):
-            try:
-                _app.layout.focus(input_window)
-            except Exception:
-                pass
-            try:
-                _app.after_render.remove_handler(_focus_once)
-            except Exception:
-                pass
-        self._app.after_render += _focus_once
-
-        # Auto-scroll to bottom after streaming content renders.
-        def _auto_scroll(_app):
-            if self._pending_scroll:
-                self._pending_scroll = False
-                try:
-                    self._scrollable_pane.vertical_scroll = 999999
-                except Exception:
-                    pass
-        self._app.after_render += _auto_scroll
-
-    # ── Key bindings ─────────────────────────────────────────
-
+    # ── 快捷键绑定 ────────────────────────────────────────
     def _build_keybindings(self) -> KeyBindings:
         kb = KeyBindings()
 
-        @kb.add("enter")
-        def _submit(event):
-            """Enter → submit input."""
-            text = self._input_buffer.text.strip()
-            if not text:
-                return
-            self._input_buffer.text = ""
-            self._on_submit and self._on_submit(text)
-
-        @kb.add("escape", "enter")
-        @kb.add("c-j")
-        def _newline(event):
-            """Alt+Enter / Ctrl+J → insert newline."""
-            self._input_buffer.insert_text("\n")
-
         @kb.add("c-c")
-        def _interrupt(event):
-            """Ctrl+C → interrupt streaming or exit."""
-            if self._streaming_buf:
-                # Interrupt streaming
-                self._streaming_buf = ""
-                self._on_interrupt and self._on_interrupt()
-            else:
-                # No active stream → exit
-                self.exit()
+        def _exit(event):
+            self.exit()
 
-        @kb.add("c-d")
-        def _eof(event):
-            """Ctrl+D → exit if input is empty."""
-            if not self._input_buffer.text.strip():
-                self.exit()
+        @kb.add("c-l")
+        def _clear(event):
+            self.clear()
+
+        @kb.add("escape")
+        def _toggle_focus(event):
+            if self._app.layout.has_focus(self._input_area):
+                self._app.layout.focus(self._scrollable_pane)
+            else:
+                self._app.layout.focus(self._input_area)
 
         @kb.add("escape", "c")
-        def _toggle_focus(event):
-            """Alt+C → toggle focus between input and messages."""
-            cur = event.app.layout.current_control
-            if cur == self._input_control:
-                event.app.layout.focus_last()
-            else:
-                event.app.layout.focus(self._input_buffer)
+        def _focus_input(event):
+            self._app.layout.focus(self._input_area)
+
+        @kb.add("s-c-enter", eager=True)  # shift+ctrl+enter for send
+        def _send_shift(event):
+            self._do_submit()
+
+        @kb.add("c-enter", eager=True)
+        def _send_ctrl(event):
+            self._do_submit()
+
+        @kb.add("c-j", eager=True)
+        def _send_ctrl_j(event):
+            self._do_submit()
 
         return kb
 
-    # ── Message text callback ────────────────────────────────
-
-    def _get_header_text(self) -> list[tuple[str, str]]:
-        text = self._header_text or "CRUX Studio"
-        return [("class:header", f"  {text}")]
-
-    def _get_message_text(self) -> list[tuple[str, str]]:
-        """Render all messages + streaming preview as formatted text.
-
-        During splash screen: show the CRUX ASCII art animation.
-        """
-        # ── Splash screen ──
-        if self._splash_frame >= 0:
-            elapsed = time.time() - self._splash_t0
-            # Cycle frames every 0.6s, exit after all frames + linger
-            frame_idx = int(elapsed / 0.6)
-            if frame_idx < len(SPLASH_FRAMES):
-                self._splash_frame = frame_idx
-                splash = SPLASH_FRAMES[frame_idx]
-                # Add beast mini-glyph
-                beast_art = self._beast_theme.name
-                beast_glyph = ""
-                from ui.flourish import BEAST_ASCII
-                beast_glyph = BEAST_ASCII.get(beast_art, "")
-                art_text = splash + "\n" + beast_glyph
-                return [("class:header", art_text)]
-            elif elapsed < 3.0:
-                # Linger on last frame
-                splash = SPLASH_FRAMES[-1]
-                return [("class:header", splash)]
-            else:
-                # Done — exit splash mode
-                self._splash_frame = -1
-
-        try:
-            buf = MessageBuffer()
-            for role, text in self._messages:
-                buf.add(role, text)
-
-            # Append streaming preview
-            if self._streaming_buf:
-                buf.add("assistant", self._streaming_buf)
-
-            return buf.render_all(width=100)
-        except Exception:
-            import traceback
-            err = traceback.format_exc()
-            logger.error("Message render failed:\n%s", err)
-            return [("class:error", f"Render error: {err[:200]}")]
-
-    def _get_status_text(self) -> list[tuple[str, str]]:
-        # ── Splash mode: show themed hint ──
-        if self._splash_frame >= 0:
-            theme = self._beast_theme
-            return [
-                ("class:status", f"  {theme.icon} "),
-                ("class:status.key", theme.label),
-                ("class:status", f"  ·  /beast {theme.name}"),
-            ]
-
-        # ── Generating: spinner + status ──
-        if self._generating and self._spinner.active:
-            spinner_char = self._spinner.frame()
-            base = self._status_text or "Ready."
-            return [
-                ("class:status.spinner", f"  {spinner_char} "),
-                ("class:status", base),
-            ]
-
-        if self._status_text:
-            theme = self._beast_theme
-            return [
-                ("class:status", f"  {theme.icon} "),
-                ("class:status", self._status_text),
-            ]
-        hints = "Enter send · Alt+Enter newline · Ctrl+C interrupt · Shift+click select"
-        if self._first_launch:
-            return [("class:status", f"  {self._beast_theme.icon} Welcome!  {hints}")]
-        return [("class:status", f"  {self._beast_theme.icon} {hints}")]
-
-    # ── Queue drain (called before each render frame) ─────────
-
-    def _drain_queue(self, _app) -> None:
-        """Process all pending messages from the queue."""
-        dirty = False
-        stream_dirty = False
-        while True:
+    def _do_submit(self):
+        """提交输入文本。"""
+        text = self._input_area.text.strip()
+        if not text:
+            return
+        self._input_area.text = ""
+        self.add_message("user", text)
+        self._app._refresh()
+        if self.submit_callback:
             try:
-                kind, payload = self._msg_queue.get_nowait()
-            except queue.Empty:
-                break
-
-            if kind == "message":
-                role, text = payload
-                self._messages.append((role, text))
-                dirty = True
-            elif kind == "chunk":
-                self._streaming_buf += payload
-                dirty = True
-                stream_dirty = True
-            elif kind == "commit":
-                if self._streaming_buf:
-                    self._messages.append(("assistant", self._streaming_buf))
-                    self._streaming_buf = ""
-                    dirty = True
-
-        if dirty:
-            self._app.invalidate()
-        # Defer scroll-to-bottom until after the next render,
-        # when content height is known and vertical_scroll clamping works.
-        if stream_dirty:
-            self._pending_scroll = True
-
-    # ── Scheduling ────────────────────────────────────────────
-
-    def _schedule(self, callback: Callable[[], None]) -> None:
-        """Schedule a callback to run in the app's event loop. Thread-safe."""
-        if self._app and self._app.is_running:
-            try:
-                async def _run():
-                    callback()
-                self._app.create_background_task(_run())
+                self.submit_callback(text)
             except Exception:
                 pass
 
-    def _refresh(self) -> None:
-        """Invalidate the UI to trigger a redraw."""
-        try:
-            if self._app:
-                self._app.invalidate()
-        except Exception:
-            pass
+    # ── 兼容旧 API ────────────────────────────────────────
+    def set_header(self, text: str) -> None:
+        """设置状态栏自定义文本（兼容旧接口）。"""
+        self._custom_status = text
+        if self._app and hasattr(self._app, '_refresh'):
+            self._app._refresh()
 
-    # ── Run loop ──────────────────────────────────────────────
+    def set_status(self, text: str) -> None:
+        """设置状态栏右侧文本。"""
+        self._custom_status = text
+        if self._app and hasattr(self._app, '_refresh'):
+            self._app._refresh()
 
-    def run(self) -> None:
-        """Start the terminal application. Blocking call."""
-        self._running = True
-        try:
-            self._app.run()
-        except KeyboardInterrupt:
-            pass
-        finally:
-            self._running = False
+    def set_beast(self, name: str) -> str:
+        """切换兽主题并返回已格式化的状态标签。"""
+        name_lower = name.lower()
+        from ui.theme import BEAST_PALETTE
+        if name_lower in BEAST_PALETTE:
+            self._active_beast = name_lower
+            self.add_message("system", f" {GLYPHS['star']} 七兽共鸣: {name}")
+            return f"[{BEAST_PALETTE[name_lower]}]{name}[/]"
+        return name
 
-    async def run_async(self) -> None:
-        """Start the terminal application asynchronously."""
-        self._running = True
-        try:
-            await self._app.run_async()
-        except KeyboardInterrupt:
-            pass
-        finally:
-            self._running = False
+    def beast_theme(self):
+        """返回当前兽主题名称。"""
+        return getattr(self, '_active_beast', 'zhuque')
 
-    @property
-    def app(self) -> Application:
-        return self._app
+    def sparkle(self):
+        """轻量视觉反馈 — 状态栏闪烁。"""
+        self._sparkle_count = getattr(self, '_sparkle_count', 0) + 1
+        if self._app and hasattr(self._app, '_refresh'):
+            self._app._refresh()
+
+    def flash_error(self):
+        """错误闪烁 — 状态栏短暂标红。"""
+        self._error_flash = True
+        if self._app and hasattr(self._app, '_refresh'):
+            self._app._refresh()
+        # 0.5s 后自动恢复
+        import threading
+        def _clear():
+            import time
+            time.sleep(0.5)
+            self._error_flash = False
+            if self._app and hasattr(self._app, '_refresh'):
+                self._app._refresh()
+        threading.Thread(target=_clear, daemon=True).start()
+
+    # ── 状态栏文本 ────────────────────────────────────────
+    def _get_status_text(self) -> list:
+        """动态状态栏。"""
+        C = COLORS
+        elapsed = int(_time.time() - self._start_time)
+        m = elapsed // 60
+        s = elapsed % 60
+
+        # 错误闪烁
+        if getattr(self, '_error_flash', False):
+            return [("class:status-bar", f" {GLYPHS['cross']} 错误 ")]
+
+        gen_status = f"{GLYPHS['fire']} 生成中" if self._generating else f"{GLYPHS['dot']} 就绪"
+        sparkle = f" {GLYPHS['star']}x{getattr(self, '_sparkle_count', 0)}" if getattr(self, '_sparkle_count', 0) > 0 else ""
+
+        # 自定义状态覆盖默认
+        custom = getattr(self, '_custom_status', '')
+        if custom:
+            return [
+                ("class:status-bar.bright", f" {GLYPHS['logo']} CRUX Studio {self.version}  "),
+                ("class:status-bar", f"·  {custom}  "),
+            ]
+
+        parts = [
+            ("class:status-bar.bright", f" {GLYPHS['logo']} CRUX Studio {self.version}  "),
+            ("class:status-bar",        f"·  {self.provider}  "),
+            ("class:status-bar",        f"·  {self._message_count} 消息  "),
+            ("class:status-bar",        f"·  {gen_status}{sparkle}  "),
+            ("class:status-bar",        f"·  {m:02d}:{s:02d}  "),
+        ]
+        return parts
+
+    # ── 消息渲染 ──────────────────────────────────────────
+    def _render_messages(self) -> list:
+        """将 MessageBuffer 中的所有气泡渲染为 ANSI 文本。"""
+        from rich.console import Console as RichConsole
+        from rich.text import Text as RichText
+        import io
+
+        all_panels = self.buffer.render_all()
+
+        # 流式预览（最后一条助手消息后追加光标）
+        if self._generating and self._stream_buffer:
+            from rich.panel import Panel
+            from rich.markdown import Markdown
+            stream_panel = Panel(
+                Markdown(self._stream_buffer + GLYPHS["cursor"]),
+                border_style=COLORS["assistant_bubble_border"],
+                style=f"on {COLORS['assistant_bubble_bg']}",
+                padding=(1, 2),
+            )
+            all_panels = all_panels + [stream_panel]
+
+        if not all_panels:
+            # 空状态提示
+            welcome = RichText()
+            welcome.append(GLYPHS["logo"] + " 欢迎使用 CRUX Studio", style=f"bold {COLORS['text_secondary']}")
+            welcome.append("\n")
+            welcome.append("输入消息后 Ctrl+Enter 发送，Ctrl+L 清屏", style=COLORS["text_tertiary"])
+            return _rich_to_ansi(welcome)
+
+        # 渲染所有面板到 ANSI
+        buf = io.StringIO()
+        console = RichConsole(file=buf, force_terminal=True, color_system="truecolor")
+        for i, panel in enumerate(all_panels):
+            console.print(panel)
+            if i < len(all_panels) - 1:
+                console.print("")  # 小间距
+
+        return _parse_ansi(console, buf.getvalue())
+
+    # ── 公共 API ──────────────────────────────────────────
+    def add_message(self, role: str, content: str):
+        """添加一条完整消息并刷新。"""
+        with self._lock:
+            self.buffer.add_message(role, content)
+            self._message_count = len(self.buffer)
+        if self._app and hasattr(self._app, '_refresh'):
+            self._app._refresh()
+
+    def add_stream_chunk(self, chunk: str):
+        """追加流式输出文本。"""
+        with self._lock:
+            self._stream_buffer += chunk
+        if self._app and hasattr(self._app, '_refresh'):
+            self._app._refresh()
+
+    def commit_stream(self):
+        """结束流式输出，将缓冲提交为完整消息。"""
+        with self._lock:
+            if self._stream_buffer:
+                self.buffer.add_message("assistant", self._stream_buffer)
+                self._stream_buffer = ""
+                self._generating = False
+                self._message_count = len(self.buffer)
+        if self._app and hasattr(self._app, '_refresh'):
+            self._app._refresh()
+
+    def start_generating(self):
+        """标记开始生成。"""
+        self._generating = True
+        self._stream_buffer = ""
+        if self._app and hasattr(self._app, '_refresh'):
+            self._app._refresh()
+
+    def stop_generating(self):
+        """停止生成（保留已接收内容）。"""
+        self._generating = False
+        if self._app and hasattr(self._app, '_refresh'):
+            self._app._refresh()
+
+    def clear(self):
+        """清空所有消息。"""
+        self.buffer.clear()
+        self._stream_buffer = ""
+        self._message_count = 0
+        self._generating = False
+        if self._app and hasattr(self._app, '_refresh'):
+            self._app._refresh()
+
+    def run(self):
+        """启动终端应用。"""
+        self._app.run()
+
+    def exit(self):
+        """退出终端应用。"""
+        self._app.exit()
+
+    async def run_async(self):
+        """异步运行。"""
+        return await self._app.run_async()
+
+
+# ── Rich → ANSI 辅助 ──────────────────────────────────────
+def _rich_to_ansi(rich_obj) -> list:
+    """将 Rich 对象转换为 prompt_toolkit 兼容的 ANSI 片段列表。"""
+    import io
+    from rich.console import Console as RichConsole
+    buf = io.StringIO()
+    console = RichConsole(file=buf, force_terminal=True, color_system="truecolor")
+    console.print(rich_obj)
+    return _parse_ansi(console, buf.getvalue())
+
+
+def _parse_ansi(console, ansi_text: str) -> list:
+    """解析 ANSI 转义序列为 prompt_toolkit 格式。"""
+    lines = ansi_text.split("\n")
+    result = []
+    for i, line in enumerate(lines):
+        if i > 0:
+            result.append(("", "\n"))
+        result.append(("", line))
+    return result

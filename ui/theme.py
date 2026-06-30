@@ -4,423 +4,309 @@
 信息密度优先，终端原生表现力最大化。
 
 设计原则:
-- bg 三层: base(底色) → surface(卡片) → elevated(悬停)
-- text 三层: primary(主文字) → secondary(次要) → tertiary(极淡)
 - 七兽色: 降饱和做功能色，非装饰
-- 边框: 极淡，不抢内容
-
-All colors, icons, layout parameters, and the Rich Theme are defined here.
-Every UI module must import from this file (never define colors/logos locally).
+- 背景: 纯黑→暗灰四层深度（bg=#0D1117, surface=#161B22, panel=#1C2128, elevated=#21262D）
+- 文字: 三档亮度（text=#E6EDF3, secondary=#8B949E, tertiary=#6E7681）
+- 终端极简: 无圆角·无阴影·无渐变（保留原生终端表现力）
 """
 
-from rich.console import Console
-from rich.theme import Theme
+import sys as _sys
 
-__all__ = [
-    "COLORS",
-    "RETRO_THEME",
-    "ICONS",
-    "BADGE_ICONS",
-    "BADGE_STYLES",
-    "LAYOUT",
-    "INPUT_STYLE",
-    "DIVIDER_STYLE",
-    "PANEL_STYLE",
-    "CHAT_SEPARATOR_STYLE",
-    "CONTEXT_BAR_STYLE",
-    "create_console",
-    "console",
-]
+from rich.console import Console as _RichConsole
 
-# ═══════════════════════════════════════════════
-#  Color palette — 暗夜工坊 v3
-# ═══════════════════════════════════════════════
-COLORS = {
-    # ── 背景层次 (darkest → lightest) ──
-    "base": "#0D1117",         # GitHub dark 底色
-    "surface": "#161B22",      # 卡片/面板底色
-    "elevated": "#1C2128",     # 悬停/聚焦层
-    "overlay": "#30363D44",    # 半透明叠加
-
-    # ── 文字层次 ──
-    "text": "#E6EDF3",         # 主文字 · 暖白
-    "text_secondary": "#8B949E",  # 次要文字 · 钢灰
-    "text_tertiary": "#6E7681",   # 极淡文字
-
-    # ── 边框 ──
-    "border": "#21262D",       # 极淡边框
-    "border_focus": "#30363D", # 聚焦边框
-    "border_bright": "#484F58",# 高亮边框
-
-    # ── 七兽色 — 功能区分 · 低饱和专业 ──
-    "baihu": "#E3B341",        # 白虎·金 → 权威/警告
-    "qinglong": "#58A6FF",     # 青龙·青 → 信息/链接
-    "zhuque": "#F78166",       # 朱雀·赤 → 创意/洞察
-    "xuanwu": "#7B85D6",       # 玄武·靛 → 系统/守卫
-    "qilin": "#3FB950",        # 麒麟·翠 → 成功/创造
-    "tengshe": "#DB8A3A",      # 螣蛇·琥珀 → 记忆/历史
-    "yinglong": "#A5C8E4",     # 应龙·银蓝 → 规划/调度
-
-    # ── 语义色 ──
-    "success": "#3FB950",      # 成功 · 麒麟绿
-    "warning": "#D29922",      # 警告 · 暖金
-    "error": "#F85149",        # 错误 · 暖红
-    "info": "#58A6FF",         # 信息 · 青龙蓝
-
-    # ── 兼容别名 (旧代码不报错) ──
-    "primary": "#58A6FF",
-    "accent": "#E3B341",
-    "muted": "#8B949E",
-    "highlight": "#F78166",
-    "transition": "#A5C8E4",
-
-    # ── Badge 色 ──
-    "badge_code": "#58A6FF",
-    "badge_agent": "#E3B341",
-    "badge_think": "#F78166",
-    "badge_skill": "#3FB950",
-    "badge_model": "#7B85D6",
-
-    # ── 输入/交互 ──
-    "input_prompt": "#58A6FF",
-    "input_border": "#21262D",
-    "input_text": "#E6EDF3",
-    "input_placeholder": "#6E7681",
-    "input_frame_top": "#30363D",
-    "input_frame_bottom": "#21262D",
-    "input_hint": "#8B949E",
-    "input_cursor": "#58A6FF",
-
-    # ── 组件色 ──
-    "divider_primary": "#21262D",
-    "card_border": "#21262D",
-    "card_hover": "#58A6FF",
-    "status_ok": "#3FB950",
-    "status_warn": "#D29922",
-    "status_err": "#F85149",
-    "status_idle": "#6E7681",
-
-    # ── 聊天分隔符 ──
-    "chat_separator": "#21262D",
-    "chat_separator_accent": "#30363D",
+# ── 七兽图腾色 (低饱和功能色) ──────────────────────────────
+BEAST_PALETTE = {
+    "baihu":   "#E3B341",   # 白虎·金   → 权威 / 警告（质量门）
+    "qinglong": "#58A6FF",   # 青龙·青   → 信息 / 链接（知识检索）
+    "zhuque":  "#F78166",    # 朱雀·赤   → 创意 / 洞察（深度研究）
+    "xuanwu":  "#7B85D6",    # 玄武·靛   → 系统 / 守卫（安全审查）
+    "qilin":   "#3FB950",    # 麒麟·翠   → 成功 / 创造（代码生成）
+    "tengshe": "#DB8A3A",    # 螣蛇·琥珀  → 记忆 / 历史（上下文管理）
+    "yinglong": "#A5C8E4",   # 应龙·银蓝  → 规划 / 调度（多智能体）
 }
 
-# ═══════════════════════════════════════════════
-#  Rich Theme
-# ═══════════════════════════════════════════════
-RETRO_THEME = Theme({
-    "primary": "bold #58A6FF",
-    "accent": "bold #E3B341",
-    "success": "#3FB950",
-    "warning": "#D29922",
-    "error": "bold #F85149",
-    "muted": "#8B949E",
-    "surface": "on #161B22",
-    "highlight": "#F78166",
-    "transition": "#A5C8E4",
-    "panel.title": "bold #E3B341",
-    "panel.border": "#30363D",
-    "table.header": "bold #58A6FF",
-    "table.border": "#30363D",
-    "bar.fill": "#58A6FF",
-    "bar.background": "#21262D",
-    "baihu": "#E3B341",
-    "qinglong": "#58A6FF",
-    "zhuque": "#F78166",
-    "xuanwu": "#7B85D6",
-    "qilin": "#3FB950",
-    "tengshe": "#DB8A3A",
-    "yinglong": "#A5C8E4",
-    "badge.code": "bold #58A6FF",
-    "badge.agent": "bold #E3B341",
-    "badge.think": "bold #F78166",
-    "badge.skill": "#3FB950",
-    "badge.model": "#7B85D6",
-    "input.prompt": "#58A6FF",
-    "input.border": "#21262D",
-    "input.frame": "#30363D",
-    "input.hint": "#484F58",
-    "divider": "#21262D",
-    "chat.separator": "#21262D",
-    "context.bar": "#30363D",
-    # ── Markdown 渲染样式 ──
-    "markdown.h1": "bold #E3B341",
-    "markdown.h2": "bold #58A6FF",
-    "markdown.h3": "bold #7B85D6",
-    "markdown.h4": "bold #8B949E",
-    "markdown.code": "#F78166 on #1C2128",
-    "markdown.code_block": "on #161B22",
-    "markdown.block_quote": "dim #8B949E",
-    "markdown.link": "#58A6FF",
-    "markdown.hr": "#21262D",
-    "markdown.item.bullet": "#58A6FF",
-    "markdown.item.number": "#58A6FF",
-    "markdown.strong": "bold #E6EDF3",
-    "markdown.em": "italic #E6EDF3",
+# ── 暗夜工坊基础色板 ──────────────────────────────────────
+BASE_PALETTE = {
+    # 背景四层深度
+    "bg":           "#0D1117",
+    "surface":      "#161B22",
+    "panel":        "#1C2128",
+    "elevated":     "#21262D",
+
+    # 文字三档
+    "text":         "#E6EDF3",
+    "text_secondary": "#8B949E",
+    "text_tertiary":  "#6E7681",
+
+    # 主色
+    "base":         "#0D1117",
+    "muted":        "#6E7681",
+    "accent":       "#58A6FF",
+    "primary":      "#58A6FF",
+    "highlight":    "#F78166",
+
+    # 边框
+    "border":        "#21262D",
+    "border_focus":  "#30363D",
+    "border_bright": "#484F58",
+
+    # 输入框
+    "input_prompt":    "#58A6FF",
+    "input_text":      "#E6EDF3",
+    "input_placeholder": "#484F58",
+    "input_hint":      "#6E7681",
+    "input_border":    "#30363D",
+    "input_cursor":    "#F78166",
+    "input_frame_top":    "#21262D",
+    "input_frame_bottom": "#161B22",
+
+    # 状态
+    "status_ok":    "#3FB950",
+    "status_warn":  "#E3B341",
+    "status_err":   "#F85149",
+    "status_idle":  "#6E7681",
+
+    # 消息类型
+    "info":         "#58A6FF",
+    "success":      "#3FB950",
+    "warning":      "#D29922",
+    "error":        "#F85149",
+
+    # 徽章
+    "badge_think":  "#F78166",
+    "badge_code":   "#3FB950",
+    "badge_agent":  "#A5C8E4",
+    "badge_model":  "#7B85D6",
+    "badge_skill":  "#DB8A3A",
+
+    # 卡片
+    "card_border":  "#21262D",
+    "card_hover":   "#30363D",
+
+    # 分隔符
+    "chat_separator":        "#21262D",
+    "chat_separator_accent": "#30363D",
+    "divider_primary":       "#21262D",
+
+    # 转场 / 覆盖
+    "transition": "#30363D",
+    "overlay":    "rgba(13,17,23,0.85)",
+
+    # 聊天气泡色
+    "user_bubble_bg":       "#1A2332",
+    "user_bubble_border":   "#58A6FF",
+    "assistant_bubble_bg":  "#161B22",
+    "assistant_bubble_border": "#30363D",
+    "system_bubble_bg":     "#0D1117",
+    "system_bubble_border": "#21262D",
+    "tool_bubble_bg":       "#1C1F1A",
+    "tool_bubble_border":   "#3FB950",
+
+    # 流式 / 状态栏 / 分隔线
+    "stream_cursor":   "#F78166",
+    "status_bar_bg":   "#161B22",
+    "status_bar_text": "#8B949E",
+    "separator_thin":  "#161B22",
+}
+
+# ── 完整色表 ───────────────────────────────────────────────
+COLORS = {}
+COLORS.update(BASE_PALETTE)
+COLORS.update(BEAST_PALETTE)
+COLORS.update({
+    "BAIHU":    "#E3B341",
+    "QINGLONG": "#58A6FF",
+    "ZHUQUE":   "#F78166",
+    "XUANWU":   "#7B85D6",
+    "QILIN":    "#3FB950",
+    "TENGSHE":  "#DB8A3A",
+    "YINGLONG": "#A5C8E4",
 })
 
-# ═══════════════════════════════════════════════
-#  Icons — 现代 Unicode 符号集
-# ═══════════════════════════════════════════════
-ICONS = {
-    "primary": "●",
-    "info": "○",
-    "success": "●",
-    "warning": "▲",
-    "error": "●",
-    "video": "▶",
-    "route": "›",
-    "on": "●",
-    "off": "○",
-    "enabled": "✓",
-    "disabled": "✗",
-    "star": "★",
-    "empty": "○",
-    "pipeline": "◎",
-    "history": "☰",
-    "template": "◇",
-    "separator": " · ",
-    # 七兽符号
-    "baihu": "◆",
-    "qinglong": "◇",
-    "zhuque": "◈",
-    "xuanwu": "◎",
-    "qilin": "●",
-    "tengshe": "◆",
-    "yinglong": "◇",
-    "crown": "♛",
-    "shield": "⊡",
-    "bolt": "⚡",
-    "spark": "✦",
-    "ring": "◎",
-    "input": "›",
-    "divider_dot": "·",
-    # 新增
-    "check": "✓",
-    "cross": "✗",
-    "arrow": "→",
-    "bullet": "·",
-    "dot": "·",
+# ── 符号表 ─────────────────────────────────────────────────
+GLYPHS = {
+    "logo":     "◈",
+    "cursor":   "▸",
+    "pointer":  "▹",
+    "check":    "✓",
+    "cross":    "✗",
+    "bullet":   "·",
+    "arrow":    "→",
+    "dot":      "·",
+    "block":    "█",
+    "hbar":     "─",
+    "vbar":     "│",
+    "corner_tl":"╭",
+    "corner_tr":"╮",
+    "corner_bl":"╰",
+    "corner_br":"╯",
+    "send":     "⯈",
+    "fire":     "🔥",
+    "hammer":   "🔨",
+    "brain":    "🧠",
+    "search":   "🔍",
+    "key":      "🔑",
+    "package":  "📦",
+    "test":     "🧪",
+    "deploy":   "🚀",
+    "star":     "★",
+    "diamond":  "◆",
+    "triangle": "▲",
 }
+
+# ── Rich 主题 ──────────────────────────────────────────────
+def theme_rich():
+    from pygments.token import (
+        Comment, Error, Generic, Keyword, Literal, Name, Number,
+        Operator, Punctuation, String, Text, Token,
+    )
+    return {
+        Token:              COLORS["text"],
+        Text:               COLORS["text"],
+        Comment:            f"italic {COLORS['text_tertiary']}",
+        Keyword:            COLORS["qinglong"],
+        Name:               COLORS["text"],
+        Name.Function:      COLORS["zhuque"],
+        Name.Class:         COLORS["qilin"],
+        Name.Builtin:       COLORS["xuanwu"],
+        String:             COLORS["qilin"],
+        Number:             COLORS["tengshe"],
+        Operator:           COLORS["text_secondary"],
+        Punctuation:        COLORS["text_secondary"],
+        Literal:            COLORS["yinglong"],
+        Error:              COLORS["error"],
+        Generic.Error:      COLORS["error"],
+        Generic.Traceback:  COLORS["error"],
+        Generic.Heading:    f"bold {COLORS['qinglong']}",
+        Generic.Subheading: f"bold {COLORS['text']}",
+        Generic.Inserted:   f"bg:{COLORS['surface']} {COLORS['qilin']}",
+        Generic.Deleted:    f"bg:{COLORS['surface']} {COLORS['error']}",
+        Generic.Emph:       "italic",
+        Generic.Strong:     "bold",
+    }
+
+
+def dark_atelier_styles(style_type="pygments"):
+    if style_type == "pygments" or style_type is None:
+        return theme_rich()
+    return theme_rich()
+
+
+def dark_atelier_css():
+    return f"""
+    .crux-dark {{
+        background: {COLORS['bg']};
+        color: {COLORS['text']};
+        font-family: 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
+    }}
+    .crux-dark .user-bubble {{
+        background: {COLORS['user_bubble_bg']};
+        border-left: 2px solid {COLORS['user_bubble_border']};
+        padding: 8px 12px;
+        margin: 4px 0 4px 40px;
+    }}
+    .crux-dark .assistant-bubble {{
+        background: {COLORS['assistant_bubble_bg']};
+        border-left: 2px solid {COLORS['assistant_bubble_border']};
+        padding: 8px 12px;
+        margin: 4px 40px 4px 0;
+    }}
+    .crux-dark .system-bubble {{
+        background: {COLORS['system_bubble_bg']};
+        border-left: 1px solid {COLORS['system_bubble_border']};
+        padding: 4px 8px;
+        margin: 2px auto;
+        font-size: 0.85em;
+        color: {COLORS['text_tertiary']};
+    }}
+    .crux-dark .status-bar {{
+        background: {COLORS['status_bar_bg']};
+        color: {COLORS['status_bar_text']};
+        padding: 2px 8px;
+        font-size: 0.8em;
+    }}
+    """
+
+
+# ── 兼容旧导出名 ───────────────────────────────────────────
+ICONS = GLYPHS.copy()
+ICONS.update({
+    "primary":   "●",
+    "secondary": "○",
+    "success":   "✓",
+    "warning":   "⚠",
+    "error":     "✗",
+    "info":      "ℹ",
+    "arrow":     "→",
+    "cpu":       "⚙",
+    "memory":    "□",
+    "network":   "⇢",
+    "source":    "📄",
+    "git":       "⑂",
+    "python":    "🐍",
+    "json":      "❴❵",
+    "image":     "🖼",
+    "video":     "▶",
+    "audio":     "♫",
+    "download":  "↓",
+    "tool":      "🔧",
+    "chat":      "💬",
+    "baihu":     "🐅",
+    "qinglong":  "🐉",
+    "zhuque":    "🕊",
+    "xuanwu":    "🐢",
+    "qilin":     "🦄",
+    "tengshe":   "🐍",
+    "yinglong":  "🪽",
+})
 
 BADGE_ICONS = {
-    "code": "⚡",
-    "agent": "◈",
-    "think": "◇",
-    "model": "◎",
-    "skill": "✦",
+    "think":  GLYPHS.get("brain", "🧠"),
+    "code":   GLYPHS.get("hammer", "🔨"),
+    "agent":  GLYPHS.get("search", "🔍"),
+    "model":  GLYPHS.get("brain", "🧠"),
+    "skill":  GLYPHS.get("package", "📦"),
+    "test":   GLYPHS.get("test", "🧪"),
+    "deploy": GLYPHS.get("deploy", "🚀"),
 }
 
-# ═══════════════════════════════════════════════
-#  Badge 样式槽
-# ═══════════════════════════════════════════════
 BADGE_STYLES = {
-    "code": {"icon": "⚡", "color": "badge.code", "bg": "#0D2B4A", "label": "CODE"},
-    "agent": {"icon": "◈", "color": "badge.agent", "bg": "#2B2000", "label": "AGENT"},
-    "think": {"icon": "◇", "color": "badge.think", "bg": "#2A1530", "label": "THINK"},
-    "skill": {"icon": "✦", "color": "badge.skill", "bg": "#0D2A18", "label": "SKILL"},
-    "model": {"icon": "◎", "color": "badge.model", "bg": "#1A1E35", "label": "MODEL"},
-    "provider": {"icon": "●", "color": "muted", "bg": "#161B22", "label": "PROV"},
+    "think":  {"style": f"bold {COLORS['zhuque']}", "label": "THINK"},
+    "code":   {"style": f"bold {COLORS['qilin']}", "label": "CODE"},
+    "agent":  {"style": f"bold {COLORS['yinglong']}", "label": "AGENT"},
+    "model":  {"style": f"bold {COLORS['xuanwu']}", "label": "MODEL"},
+    "skill":  {"style": f"bold {COLORS['tengshe']}", "label": "SKILL"},
 }
 
-# ═══════════════════════════════════════════════
-#  Layout
-# ═══════════════════════════════════════════════
+DIVIDER_STYLE = f"{COLORS['separator_thin']}"
+INPUT_STYLE = f"bg:{COLORS['surface']} {COLORS['text']}"
+
 LAYOUT = {
+    "padding": (1, 2),
     "panel_padding": (1, 2),
-    "panel_border_style": "round",
-    "table_show_lines": False,
-    "table_box": "ROUNDED",
-    "indent": "  ",
-    "separator_len": 42,
-    "separator_char": "─",
-    "badge_separator": "  ·  ",
-    "bar_style": "#58A6FF",
-    "bar_complete_style": "#3FB950",
-    "input_indent": "  ",
-    "welcome_width": 68,
-    "card_min_width": 22,
+    "panel": {"padding": (1, 2), "border_style": COLORS["border"]},
+    "input": {"padding": (0, 1)},
 }
 
-# ── 输入框样式 ──
-INPUT_STYLE = {
-    "prompt_symbol": "›",
-    "prompt_symbol_alt": "❯",
-    "prompt_color": "primary",
-    "border_char": "─",
-    "border_color": "muted",
-    "hint_color": "muted",
-    "frame_top_left": "╭",
-    "frame_top_right": "╮",
-    "frame_bottom_left": "╰",
-    "frame_bottom_right": "╯",
-    "frame_vertical": "│",
-    "frame_horizontal": "─",
-    "width": 72,
-    "min_padding": 2,
-}
-
-# ── 聊天分隔线样式 ──
-CHAT_SEPARATOR_STYLE = {
-    "char": "─",
-    "heavy_char": "━",
-    "double_char": "═",
-    "dot_char": "◆",
-    "length": 50,
-    "color": "chat_separator",
-    "accent_color": "chat_separator_accent",
-}
-
-# ── 状态栏/上下文栏样式 ──
-CONTEXT_BAR_STYLE = {
-    "left_edge": "├",
-    "right_edge": "┤",
-    "fill": "─",
-    "color": "context_bar",
-}
-
-# ── 分隔线样式 ──
-DIVIDER_STYLE = {
-    "char": "─",
-    "dot": "·",
-    "length": 50,
-    "color": "muted",
-    "heavy_char": "━",
-    "double_char": "═",
-}
-
-# ── 面板预设 ──
 PANEL_STYLE = {
-    "success": {"border": "#3FB950", "title_color": "#3FB950"},
-    "error": {"border": "#F85149", "title_color": "#F85149"},
-    "info": {"border": "#58A6FF", "title_color": "#58A6FF"},
-    "warn": {"border": "#D29922", "title_color": "#D29922"},
-    "baihu": {"border": "#E3B341", "title_color": "#E3B341"},
-    "qinglong": {"border": "#58A6FF", "title_color": "#58A6FF"},
-    "zhuque": {"border": "#F78166", "title_color": "#F78166"},
-    "xuanwu": {"border": "#7B85D6", "title_color": "#7B85D6"},
-    "qilin": {"border": "#3FB950", "title_color": "#3FB950"},
-    "tengshe": {"border": "#DB8A3A", "title_color": "#DB8A3A"},
-    "yinglong": {"border": "#A5C8E4", "title_color": "#A5C8E4"},
+    "baihu":    {"style": f"on {COLORS['user_bubble_bg']}", "border": COLORS["baihu"]},
+    "qinglong": {"style": f"on {COLORS['user_bubble_bg']}", "border": COLORS["qinglong"]},
+    "zhuque":   {"style": f"on {COLORS['assistant_bubble_bg']}", "border": COLORS["zhuque"]},
+    "xuanwu":   {"style": f"on {COLORS['system_bubble_bg']}", "border": COLORS["xuanwu"]},
+    "qilin":    {"style": f"on {COLORS['tool_bubble_bg']}", "border": COLORS["qilin"]},
+    "tengshe":  {"style": f"on {COLORS['user_bubble_bg']}", "border": COLORS["tengshe"]},
+    "yinglong": {"style": f"on {COLORS['assistant_bubble_bg']}", "border": COLORS["yinglong"]},
 }
 
+RETRO_THEME = {
+    "bg": COLORS["bg"],
+    "text": COLORS["text"],
+    "accent": COLORS["accent"],
+    "primary": {"style": f"bold {COLORS['primary']}"},
+}
 
-def create_console() -> Console:
-    # Ensure stdout uses UTF-8 on Windows to avoid GBK emoji crashes.
-    import sys as _sys, io as _io
-    if _sys.platform == "win32":
-        try:
-            _sys.stdout = _io.TextIOWrapper(
-                _sys.stdout.buffer, encoding="utf-8", errors="replace"
-            )
-        except Exception:
-            pass
-    return Console(
-        theme=RETRO_THEME,
-        force_terminal=True,
-        legacy_windows=False,
-        file=_sys.stdout,
-    )
+console = _RichConsole()
 
-
-# ══════════════════════════════════════════════════════════════════════
-# Output sink proxy — enables ChatLayout to intercept all console.print()
-# ══════════════════════════════════════════════════════════════════════
-
-import threading
-import re as _re
-
-_RICH_TAG = _re.compile(r"\[/?[^\]]*\]")
-
-
-def _strip_rich(text: str) -> str:
-    """Strip Rich markup tags, returning plain text."""
-    return _RICH_TAG.sub("", text)
-
-
-class _LayoutSink:
-    """Routes console.print() calls to ChatLayout.add_message('system', ...).
-
-    Delegates all non-print attributes (width, height, clear, etc.) to the
-    real Console so that ChatLayout can still query terminal dimensions.
-    """
-
-    def __init__(self, layout=None, real_console=None):
-        self._layout = layout
-        self._real_console = real_console
-        self._lock = threading.Lock()
-
-    def set_layout(self, layout):
-        with self._lock:
-            self._layout = layout
-
-    def print(self, *args, **kwargs):
-        layout = self._layout
-        if layout is None:
-            return
-        with self._lock:
-            for arg in args:
-                text = self._to_text(arg)
-                if text.strip():
-                    layout.add_message("system", text)
-
-    def _to_text(self, arg) -> str:
-        """Convert any print argument to plain text."""
-        if hasattr(arg, "plain"):
-            return arg.plain
-        if isinstance(arg, str):
-            return _strip_rich(arg)
-        # Rich renderable without .plain (Panel, Markdown, Table, Tree, etc.)
-        # Capture its terminal output via the real console
-        if self._real_console is not None:
-            try:
-                with self._real_console.capture() as capture:
-                    self._real_console.print(arg)
-                return capture.get().strip()
-            except Exception:
-                pass
-        return str(arg)
-
-    def print_json(self, data, **kwargs):
-        import json as _json
-        self.print(_json.dumps(data, indent=2, ensure_ascii=False, default=str))
-
-    def __getattr__(self, name):
-        """Delegate unknown attributes (width, height, clear, log, error, etc.)
-        to the real Console so terminal queries still work."""
-        if self._real_console is not None:
-            return getattr(self._real_console, name)
-        raise AttributeError(f"_LayoutSink has no attribute '{name}'")
-
-
-class _ConsoleProxy:
-    """Mutable proxy: delegates .print()/.print_json() to current sink.
-
-    Modules that do ``from ui.theme import console`` hold a reference to
-    this proxy — not the underlying Console. Swapping the sink via
-    :meth:`set_sink` thus affects ALL existing imports at once.
-    """
-
-    def __init__(self, console: Console):
-        self._real_console = console
-        self._sink = console  # default: real console
-
-    def set_sink(self, sink):
-        self._sink = sink
-
-    def restore_real_console(self):
-        self._sink = self._real_console
-
-    # 上下文管理器协议（Live / Progress 等 Rich 组件依赖）
-    def __enter__(self):
-        return self._sink.__enter__()
-
-    def __exit__(self, *args):
-        return self._sink.__exit__(*args)
-
-    # Delegate all attribute access to current sink
-    def __getattr__(self, name):
-        return getattr(self._sink, name)
-
-
-console = _ConsoleProxy(create_console())
+# ── 模块级导出 ─────────────────────────────────────────────
+S = dark_atelier_styles("pygments")
+C = dark_atelier_css()
