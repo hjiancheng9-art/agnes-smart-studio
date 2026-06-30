@@ -14,8 +14,8 @@ Usage:
     from core.growth_engine import get_growth_engine
 
     ge = get_growth_engine()
-    ge.record("search", "codebuddy_search", success=True, latency_ms=120)
-    optimized = ge.get_route("search")  # → ["qoder_search", "codebuddy_search", ...]
+    ge.record("search", "code_search", success=True, latency_ms=120)
+    optimized = ge.get_route("search")  # → ["code_search", ...]
 """
 
 from __future__ import annotations

@@ -173,7 +173,7 @@ def main():
         try:
             with CruxCLI() as cli:
                 try:
-                    asyncio.run(cli._chat_layout())
+                    asyncio.run(cli._chat())
                 except (OSError, RuntimeError, ValueError, ImportError):
                     import traceback
 
@@ -214,7 +214,7 @@ def main():
         try:
             with CruxCLI() as cli:
                 try:
-                    asyncio.run(cli._chat_layout())
+                    asyncio.run(cli._chat())
                 except (OSError, RuntimeError, ValueError, ImportError):
                     import traceback
 

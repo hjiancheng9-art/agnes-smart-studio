@@ -1,0 +1,37 @@
+def __init__(
+        self,
+        client,
+        tools=None,
+        model: str = "deepseek-v4-pro",
+        max_rounds: int = 5,
+        tier: str = "auto",
+        task_type: str = "",
+    ) -> None:
+        """Init sub-agent.
+
+        Args:
+            model: 显式模型 ID（向后兼容，优先级最高）
+            tier: "auto" / "light" / "pro" / "heavy" — auto 时按 task_type 路由
+            task_type: 传给 ModelRouter.select() 的任务类型（tier=auto 时生效）
+        """
+        self.client = client
+        self.tools = tools
+        self.max_rounds = max_rounds
+        self.history: list[dict] = []
+        self.context_mgr = ContextManager(max_tokens=20000)
+        self._session_approved: set[str] = set()  # high-risk tools auto-approved for this session
+        # tier 路由：model 显式指定时尊重之；否则按 tier/task_type 自动选
+        if model != "deepseek-v4-pro" or tier == "auto":
+            # 用户显式传了 model（非默认值）→ 直接用
+            if model != "deepseek-v4-pro":
+                self.model = model
+            else:
+                router = ModelRouter()
+                if tier in ("light", "pro", "heavy"):
+                    self.model = router.select_for_tier(tier)
+                elif task_type:
+                    self.model = router.select(task_type=task_type)
+                else:
+                    self.model = model  # auto + 无 task_type → 退回默认
+        else:
+            self.model = model

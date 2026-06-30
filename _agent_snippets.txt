@@ -1,0 +1,26 @@
+L108:     def compress(self, messages: list[dict], client, model: str = "") -> list[dict]:
+L206:     def auto_compress_if_needed(self, messages: list[dict], client, model: str = "") -> list[dict]:
+L829:         self, primary: str | None = None, light: str = "", pro: str = "", vision_model: str = ""
+L830:     ) -> None:
+L831:         if primary is None:
+L832:             primary = self._default_primary()
+L833:         if not light:
+L834:             light = self._default_light()
+L835:         if not pro:
+L836:             pro = self._default_pro()
+L837:         if not vision_model:
+L838:             vision_model = self._default_vision()
+L839:         self.primary = primary  # heavy tier（深度推理/长上下文）
+L840:         self.light = light  # light tier（机械任务，动态跟随 active provider）
+L977:             # ── light tier（机械任务，最便宜，deepseek-v4-flash）──
+L1035:         """从 models.json active provider 读 light 模型，读不到退回 deepseek-v4-flash。"""
+L1040:             return mgr.get_model("light") or "deepseek-v4-flash"
+L1042:             return "deepseek-v4-flash"
+L1201: def spawn_subagent(client, task: str, model: str = "", task_type: str = "search") -> str:
+L1202:     """Spawn a sub-agent with a real tool-calling loop.
+L1210:     """
+L1220: 
+L1230: def compress_messages(messages: list[dict], client, model: str = "") -> str:
+L1235:     mgr.compress(messages, client, model)
+
+Total lines: 1236

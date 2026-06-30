@@ -35,15 +35,13 @@ PYTHON = os.path.expanduser(
 # ── Task categories for routing ────────────────────────────
 
 CATEGORY_META = {
-    "search":    {"order": ["codebuddy_search", "qoder_search", "copilot_explore", "zcode_exec", "kimi_exec"],
+    "search":    {"order": [],
                   "desc": "代码探索 / 搜索"},
-    "review":    {"order": ["codex_review", "codebuddy_review", "copilot_review",
-                            "qoder_review", "zcode_review", "kimi_review"],
+    "review":    {"order": [],
                   "desc": "代码审查"},
-    "execute":   {"order": ["codebuddy_exec", "codex_exec", "copilot_code",
-                            "qoder_exec", "zcode_exec", "kimi_exec"],
+    "execute":   {"order": [],
                   "desc": "编码实现"},
-    "think":     {"order": ["codebuddy_think", "copilot_think", "qoder_plan", "zcode_plan", "codex_exec"],
+    "think":     {"order": [],
                   "desc": "深度分析 / 架构"},
     "generate":  {"order": ["generate_image", "generate_video"],
                   "desc": "媒体生成"},
@@ -62,9 +60,6 @@ BRIDGES = {
     },
     "kimi": {
         "script": "core/mcp_servers/kimi_bridge.py",
-    },
-    "copilot": {
-        "script": "core/mcp_servers/copilot_bridge.py",
     },
     "qoder": {
         "script": "core/mcp_servers/qoder_bridge.py",

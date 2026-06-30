@@ -203,7 +203,7 @@ BUILTIN_TOOLS = [
                         "enum": ["search", "review", "execute", "think", "generate", "status"],
                         "description": "按分类筛选（不传则显示全部）"
                     },
-                    "source": {"type": "string", "description": "按来源筛选 (crux/codex/kimi/copilot/qoder/codebuddy)"},
+                    "source": {"type": "string", "description": "按来源筛选 (crux/codex/kimi/qoder/codebuddy)"},
                 },
                 "required": [],
             },
@@ -797,16 +797,6 @@ class ToolRegistry:
         for name, executor in CODE_REVIEW_EXECUTOR_MAP.items():
             self._executors[name] = executor
             self._tool_modules[name] = "core.code_review"
-
-        # ── Copilot AI 审查工具（常驻加载）──
-        # copilot_review / copilot_security_review / copilot_research
-        # 移植 Copilot CLI 的 GPT-5-mini AI 能力到 CRUX，补充规则引擎
-        from core.copilot_tools import COPILOT_EXECUTOR_MAP, COPILOT_TOOL_DEFS
-
-        self._definitions.extend(COPILOT_TOOL_DEFS)
-        for name, executor in COPILOT_EXECUTOR_MAP.items():
-            self._executors[name] = executor
-            self._tool_modules[name] = "core.copilot_tools"
 
         # ── 会话任务追踪工具（常驻加载）──
         # todo_add / todo_list / todo_update / todo_delete / todo_dep / todo_blocked / todo_stats

@@ -309,4 +309,104 @@ def create_console() -> Console:
     return Console(theme=RETRO_THEME, force_terminal=True)
 
 
-console = create_console()
+# ══════════════════════════════════════════════════════════════════════
+# Output sink proxy — enables ChatLayout to intercept all console.print()
+# ══════════════════════════════════════════════════════════════════════
+
+import threading
+import re as _re
+
+_RICH_TAG = _re.compile(r"\[/?[^\]]*\]")
+
+
+def _strip_rich(text: str) -> str:
+    """Strip Rich markup tags, returning plain text."""
+    return _RICH_TAG.sub("", text)
+
+
+class _LayoutSink:
+    """Routes console.print() calls to ChatLayout.add_message('system', ...).
+
+    Delegates all non-print attributes (width, height, clear, etc.) to the
+    real Console so that ChatLayout can still query terminal dimensions.
+    """
+
+    def __init__(self, layout=None, real_console=None):
+        self._layout = layout
+        self._real_console = real_console
+        self._lock = threading.Lock()
+
+    def set_layout(self, layout):
+        with self._lock:
+            self._layout = layout
+
+    def print(self, *args, **kwargs):
+        layout = self._layout
+        if layout is None:
+            return
+        with self._lock:
+            for arg in args:
+                text = self._to_text(arg)
+                if text.strip():
+                    layout.add_message("system", text)
+
+    def _to_text(self, arg) -> str:
+        """Convert any print argument to plain text."""
+        if hasattr(arg, "plain"):
+            return arg.plain
+        if isinstance(arg, str):
+            return _strip_rich(arg)
+        # Rich renderable without .plain (Panel, Markdown, Table, Tree, etc.)
+        # Capture its terminal output via the real console
+        if self._real_console is not None:
+            try:
+                with self._real_console.capture() as capture:
+                    self._real_console.print(arg)
+                return capture.get().strip()
+            except Exception:
+                pass
+        return str(arg)
+
+    def print_json(self, data, **kwargs):
+        import json as _json
+        self.print(_json.dumps(data, indent=2, ensure_ascii=False, default=str))
+
+    def __getattr__(self, name):
+        """Delegate unknown attributes (width, height, clear, log, error, etc.)
+        to the real Console so terminal queries still work."""
+        if self._real_console is not None:
+            return getattr(self._real_console, name)
+        raise AttributeError(f"_LayoutSink has no attribute '{name}'")
+
+
+class _ConsoleProxy:
+    """Mutable proxy: delegates .print()/.print_json() to current sink.
+
+    Modules that do ``from ui.theme import console`` hold a reference to
+    this proxy — not the underlying Console. Swapping the sink via
+    :meth:`set_sink` thus affects ALL existing imports at once.
+    """
+
+    def __init__(self, console: Console):
+        self._real_console = console
+        self._sink = console  # default: real console
+
+    def set_sink(self, sink):
+        self._sink = sink
+
+    def restore_real_console(self):
+        self._sink = self._real_console
+
+    # 上下文管理器协议（Live / Progress 等 Rich 组件依赖）
+    def __enter__(self):
+        return self._sink.__enter__()
+
+    def __exit__(self, *args):
+        return self._sink.__exit__(*args)
+
+    # Delegate all attribute access to current sink
+    def __getattr__(self, name):
+        return getattr(self._sink, name)
+
+
+console = _ConsoleProxy(create_console())

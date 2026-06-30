@@ -46,16 +46,6 @@
         "light": "GLM-4V-Flash",
         "pro": "glm-4.1v-thinking-flash"
       }
-    },
-    "copilot": {
-      "name": "Copilot GPT-5-mini",
-      "base_url": "http://127.0.0.1:11436/v1",
-      "api_key": "copilot-proxy-no-key",
-      "auth_required": false,
-      "models": {
-        "pro": "gpt-5-mini",
-        "light": "gpt-5-mini"
-      }
     }
   },
   "active": "deepseek",
@@ -63,8 +53,7 @@
     "enabled": true,
     "priority": [
       "deepseek",
-      "zhipu",
-      "copilot"
+      "zhipu"
     ]
   },
   "codebuddy_extra": {

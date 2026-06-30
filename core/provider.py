@@ -217,17 +217,6 @@ def _register_defaults():
             tier="pro",
             aliases=("reasoner", "ds-reasoner", "dsr1"),
         ),
-        # ── Copilot GPT-5-mini (via proxy) ──
-        ModelInfo(
-            id="gpt-5-mini",
-            name="GPT-5-mini (Copilot)",
-            provider_id="copilot",
-            provider_name="GPT-5-mini (GitHub Copilot)",
-            description="OpenAI 最新轻量模型，GitHub Copilot 订阅免费，快速对话/代码",
-            supports_tools=True,
-            tier="light",
-            aliases=("gpt5", "copilot", "gpt5mini"),
-        ),
         # ── 图片/视频引擎模型（调用 create_image / create_video 端点）──
         ModelInfo(
             id="agnes-image-2.1-flash",

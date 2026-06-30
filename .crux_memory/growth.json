@@ -1,6 +1,6 @@
 {
-  "total_calls_ever": 26,
-  "saved_at": "2026-06-29T18:00:34",
+  "total_calls_ever": 31,
+  "saved_at": "2026-06-30T17:35:01",
   "intents": {
     "search": {
       "intent": "search",
@@ -8,41 +8,41 @@
         "codebuddy_search": {
           "tool": "codebuddy_search",
           "source": "",
-          "calls": 6,
+          "calls": 8,
           "successes": 6,
-          "failures": 0,
-          "total_latency_ms": 720.0,
-          "consecutive_failures": 0,
+          "failures": 2,
+          "total_latency_ms": 639016.0000000021,
+          "consecutive_failures": 2,
           "demoted": false,
           "probation_successes": 0,
-          "last_call_ts": 159128.015
+          "last_call_ts": 243932.546
         },
         "qoder_search": {
           "tool": "qoder_search",
           "source": "",
-          "calls": 6,
+          "calls": 7,
           "successes": 0,
-          "failures": 6,
-          "total_latency_ms": 30000.0,
-          "consecutive_failures": 6,
+          "failures": 7,
+          "total_latency_ms": 90125.0,
+          "consecutive_failures": 7,
           "demoted": true,
           "probation_successes": 0,
-          "last_call_ts": 159128.015
+          "last_call_ts": 243992.671
         },
         "copilot_explore": {
           "tool": "copilot_explore",
           "source": "",
-          "calls": 2,
-          "successes": 2,
-          "failures": 0,
-          "total_latency_ms": 400.0,
-          "consecutive_failures": 0,
+          "calls": 4,
+          "successes": 3,
+          "failures": 1,
+          "total_latency_ms": 253728.9999999979,
+          "consecutive_failures": 1,
           "demoted": false,
           "probation_successes": 0,
-          "last_call_ts": 159128.015
+          "last_call_ts": 243562.359
         }
       },
-      "total_calls": 14,
+      "total_calls": 19,
       "last_recalc_at": 10
     },
     "review": {

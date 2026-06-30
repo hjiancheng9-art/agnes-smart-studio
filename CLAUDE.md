@@ -17,9 +17,6 @@ settings.json 已把模型别名重定向到 DeepSeek：
 | 写测试 | **general-purpose** | `haiku` | deepseek-v4-flash | test-automator 太重，日常够用 |
 | 调试错误/测试失败 | **debugger** | `haiku` | deepseek-v4-flash | 先排查，搞不定再升级 |
 | 实现方案设计 | **Plan** | `haiku` | deepseek-v4-flash | 出计划，不出代码 |
-| 代码审查 | **copilot_review** MCP | — | gpt-5-mini | 免费，别用 Agent |
-| 安全审计 | **copilot_security_review** MCP | — | gpt-5-mini | 免费 |
-| 技术搜索/查文档 | **copilot_research** MCP | — | gpt-5-mini | 免费 |
 | 架构设计、多文件重构 | 主对话 | — | deepseek-v4-pro | 需要全局视野 |
 | 复杂调试根因分析 | 主对话 | — | deepseek-v4-pro | 需要深度推理 |
 
@@ -27,10 +24,10 @@ settings.json 已把模型别名重定向到 DeepSeek：
 
 1. **读文件 / 搜索 → Explore agent + haiku**，不要派 general-purpose（Explore 更快更省）
 2. **写代码 → general-purpose agent + haiku**，简单修改不派 Pro
-3. **审查 / 安全 → copilot MCP**，这是免费通道，优先走
+3. **审查 / 安全 → code_review / security_review**，规则引擎本地执行
 4. **出方案 → Plan agent + haiku**，把方案拿回来看再决定要不要自己动手
 5. 独立子任务**一次并行发出**（1-3 个），不要串行等
-6. 子 Agent 失败不重试同一类型，换通路（haiku 挂了换 copilot）
+6. 子 Agent 失败不重试同一类型，换通路（haiku 挂了换 flash）
 7. 禁止：派 haiku 做架构决策 / 派 Pro 做 grep / 串行等独立任务
 8. Explore agent 的描述里写清搜索广度（medium / very thorough）
 

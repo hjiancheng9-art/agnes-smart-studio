@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul 2>&1
-title CRUX Studio v5.0
+title CRUX Studio
 cd /d "%~dp0"
 
 :: ── VT100 色彩 ──
@@ -23,7 +23,7 @@ echo  %D%║%R%     %C%██████╗%R%  %C%╚██████╔╝%
 echo  %D%║%R%      %C%╚═════╝%R%   %C%╚═════╝%R%   %C%╚═╝  ╚═╝%R%                   %D%║%R%
 echo  %D%║%R%                                                          %D%║%R%
 echo  %D%║%R%         %W%七兽融合  ·  AI-Native Creative Studio%R%              %D%║%R%
-echo  %D%║%R%         %D%v5.0  ·  deepseek-v4-pro  ·  1M context%R%                %D%║%R%
+echo  %D%║%R%         %D%CRUX ChatLayout  ·  固定输入框  ·  流式输出%R%                %D%║%R%
 echo  %D%║%R%                                                          %D%║%R%
 echo  %D%╚══════════════════════════════════════════════════════════════╝%R%
 echo.

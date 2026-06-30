@@ -94,3 +94,6 @@ htmlcov/
 _copilot_*.txt
 _qoder_*.txt
 _mcp_client_*.txt
+
+# Large binaries
+core/nsp-downloader/resources/ffmpeg.exe

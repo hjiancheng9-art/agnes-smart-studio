@@ -1,0 +1,224 @@
+============================================================
+SubAgent.__init__
+============================================================
+class SubAgent:
+    """An independent sub-agent with its own session history and tool-calling loop.
+
+    Unlike the old spawn_subagent(), this agent can:
+    - Execute tools in a loop (up to max_rounds)
+    - Maintain independent conversation history
+    - Report results back to the parent
+    """
+
+    def __init__(
+        self,
+        client,
+        tools=None,
+        model: str = "deepseek-v4-pro",
+        max_rounds: int = 5,
+        tier: str = "auto",
+        task_type: str = "",
+    ) -> None:
+        """Init sub-agent.
+
+        Args:
+            model: 显式模型 ID（向后兼容，优先级最高）
+            tier: "auto" / "light" / "pro" / "heavy" — auto 时按 task_type 路由
+            task_type: 传给 ModelRouter.select() 的任务类型（tier=auto 时生效）
+        """
+        self.client = client
+        self.tools = tools
+        self.max_rounds = max_rounds
+        self.history: list[dict] = []
+        self.context_mgr = ContextManager(max_tokens=20000)
+        self._session_approved: set[str] = set()  # high-risk tools auto-approved for this session
+        # tier 路由：model 显式指定时尊重之；否则按 tier/task_type 自动选
+        if model != "deepseek-v4-pro" or tier == "auto":
+            # 用户显式传了 model（非默认值）→ 直接用
+            if model != "deepseek-v4-pro":
+                self.model = model
+            else:
+                router = ModelRouter()
+                if tier in ("light", "pro", "heavy"):
+                    self.model = router.select_for_tier(tier)
+                elif task_type:
+                    self.model = router.select(task_type=task_type)
+                else:
+                    self.model = model  # auto + 无 task_type → 退回默认
+        else:
+            self.model = model
+
+    def run(self, task: str, system_prompt: str = "") -> str:
+        """Execute a task with tool-calling loop.
+
+        Returns the final text result.
+        """
+        if not system_prompt:
+            system_prompt = SUBAGENT_PROMPT.format(task=task)
+
+        self.history = [
+            {"role": "system", "content": sy
+
+============================================================
+spawn_subagent
+============================================================
+def spawn_subagent(client, task: str, model: str = "", task_type: str = "search") -> str:
+    """Spawn a sub-agent with a real tool-calling loop.
+
+    Args:
+        client: CruxClient instance
+        task: Task description for the sub-agent
+        model: Explicit model ID (empty = auto-route by task_type)
+        task_type: Task type for auto-routing ("search"/"read_file"/"code"/"planning" etc.)
+                   Default "search" since most sub-agents do exploration.
+    """
+    from core.tools import get_registry
+
+    tools = get_registry()
+    if model:
+        agent = SubAgent(client, tools=tools, model=model)
+    else:
+        agent = SubAgent(client, tools=tools, tier="auto", task_type=task_type)
+    return agent.run(task)
+
+
+COMPRESS_PROMPT = """Summarize the following conversation, preserving:
+- User's requirements and preferences
+- Completed steps and results
+- Important decisions and corrections
+- Pending items
+
+Output a concise summary (max 300 words):"""
+
+
+
+============================================================
+ModelRouter.select_for_tier
+============================================================
+def select_for_tier(self, tier: str) -> str:
+        """按三级 tier 直接选模型（对标 Claude Haiku/Sonnet/Opus）。
+
+        Args:
+            tier: "light" / "pro" / "heavy"（或 "auto"）
+        Returns:
+            模型 ID。auto 时退回 self.primary（heavy tier）。
+
+        tier 映射（v6.0 统一路由）:
+        - light:    light 模型（机械任务/简单对话，最便宜）
+        - pro:      pro 模型（编码/工具调用/日常推理）
+        - heavy:    heavy 模型（深度思考 + 大上下文）
+        """
+        if tier == self.TIER_LIGHT:
+            return self.light
+        if tier == self.TIER_PRO:
+            return self.pro  # 统一路由：与主对话 auto-model 一致
+        if tier == self.TIER_HEAVY:
+            return self.primary
+        # auto / unknown → 主力模型（最稳）
+        return self.primary
+
+    @staticmethod
+
+============================================================
+ModelRouter.select
+============================================================
+
+    def select(
+        self,
+        task_type: str = "",
+        needs_tools: bool = False,
+        needs_vision: bool = False,
+        needs_thinking: bool = False,
+        needs_long_context: bool = False,
+    ) -> str:
+        """Select the best model for the task.
+
+        Args:
+            task_type: "chat", "code", "reasoning", "image_generation", etc.
+            needs_tools: Whether tool calling is required
+            needs_vision: Whether image understanding is required
+            needs_thinking: Whether deep reasoning is required
+            needs_long_context: Whether 1M+ token context is needed
+        """
+        # 媒体生成走 Agnes 独立体系（多模态生成 + prompt增强 + pipeline编排）
+        # 智谱 CogView/CogVideoX 仅作备用通道，不参与路由
+        if task_type == "image_generation":
+            return "agnes-image-2.1-flash"
+        if task_type == "video_generation":
+            return "agnes-video-v2.0"
+
+        # Vision requirement — 独立通道，不受 light/pro/heavy tier 影响
+        if needs_vision:
+            return self.vision_model  # agnes-1.5-flash（唯一原生多模态）
+
+        # Long context
+        if needs_long_context:
+            return self.primary  # deepseek-v4-pro: 1M context
+
+        # Tools + thinking -> need a capable model
+        if needs_tools and needs_thinking:
+            return self.primary  # heavy tier
+
+        # Just tools, no deep thinking -> light model is cheaper
+        if needs_tools and not needs_thinking:
+            return self.light  # agnes-1.5-flash
+
+        # Thinking but no tools
+        if needs_thinking:
+            return self.primary
+
+        # Task type routing — 对标 Claude 的 tier 分层
+        type_map = {
+            # ── light tier（机械任务，最便宜，deepseek-v4-flash）──
+            "chat": self.light,
+            "simple_qa": self.light,
+            "summarize": self.light,
+            "search": self.light,  # 搜索/读文件/grep
+            "read_file": self.light,  # 机械读文件
+            "format": self.light,  # 格式化
+            "tool_calling": self.light,  # 轻量 tool calling（flash 支持 tools，无需思考）
+            # ── 视觉通道（独立，非 tier 体系）──
+            "vision": self.vision_model,
+            # ── heavy tier（深度推理，deepseek-v4-pro）──
+            "code": self.primary,
+            "reasoning": self.primary,
+            "planning": self.primary,
+            "agent": self.primary,
+            "architecture": self.primary,
+            "security": self.primary,
+        }
+        if task_type in type_map:
+            return type_map[task_type]
+
+        return self.primary
+
+
+============================================================
+_default_light
+============================================================
+def _default_light() -> str:
+        """从 models.json active provider 读 light 模型，读不到退回 deepseek-v4-flash。"""
+        try:
+            from core.provider import get_provider_manager
+
+            mgr = get_provider_manager()
+            return mgr.get_model("light") or "deepseek-v4-flash"
+        except (ImportError, OSError, RuntimeError):
+            return "deepseek-v4-flash"
+
+    @staticmethod
+
+============================================================
+_default_pro
+============================================================
+def _default_pro() -> str:
+        """从 models.json active provider 读 pro 模型，读不到退回 deepseek-v4-flash。"""
+        try:
+            from core.provider import get_provider_manager
+
+            mgr = get_provider_manager()
+            return mgr.get_model("pro") or "deepseek-v4-flash"
+        except (ImportError, OSError, RuntimeError):
+            return "deepseek-v4-flash"
+
+    @staticmethod

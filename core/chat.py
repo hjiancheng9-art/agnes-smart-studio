@@ -975,16 +975,15 @@ class ChatSession:
 
         yield from 此生成器时，返回值通过 StopIteration.value 传递。
 
-        max_tokens 自适应：纯文本对话 2048 省 token；携带工具时调到 8192，
-        避免 tool_call 的 arguments（如 create_html 的大段 HTML）被 max_tokens
-        截断 → JSON 残缺 → write_file 写入"3字节" → agent 反复重试"中断"。
+        max_tokens 自适应：纯文本 16384（覆盖长文案/脚本/分析），工具 8192，
         """
         buffer, tool_calls = "", []
         stream_error = False
         last_usage = None
         kwargs = {}
-        # 带工具时放大预算：tool_call arguments 计入输出 token，大文件生成需要空间
-        max_tok = 8192 if tools else 2048
+        # 工具调用只需承载 function arguments，8192 足够
+        # 纯文本覆盖长剧本/长文案/深度分析等工作室场景，给足空间
+        max_tok = 8192 if tools else 16384
         if self.enable_thinking:
             kwargs["chat_template_kwargs"] = {"enable_thinking": True}
         for delta in client.chat_stream(

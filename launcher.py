@@ -70,7 +70,7 @@ PYTHON = os.path.expanduser(r"C:\Users\huangjiancheng\AppData\Local\Programs\Pyt
 # Binary locations discovered during research
 CODEX_BIN = os.path.expanduser(r"C:\Users\huangjiancheng\AppData\Local\Programs\OpenAI\Codex\bin\codex.exe")
 KIMI_BIN = os.path.expanduser(r"~\.kimi-code\bin\kimi.exe")
-COPILOT_BIN = os.path.expanduser(r"~\AppData\Roaming\npm\copilot.cmd")
+
 CODEBUDDY_BIN = os.path.expanduser(r"~\AppData\Roaming\npm\codebuddy.cmd")
 ZCODE_BIN = os.path.expanduser(r"~\.zcode\cli\zcode.cjs")
 ZCODE_NODE = shutil.which("node") or "node"
@@ -96,55 +96,10 @@ BEASTS: dict[str, BeastConfig] = {
         persistent=True,
         timeout=30,
     ),
-    "codex": BeastConfig(
-        name="Codex",
-        role="视觉编码 · 网页浏览",
-        icon="\U0001f441",
-        binary=CODEX_BIN,
-        startup_args=["--help"],
-        mcp_initialize=False,
-        timeout=20,
-    ),
-    "kimi": BeastConfig(
-        name="Kimi",
-        role="超长上下文 · 中文内容处理",
-        icon="\U0001f4dc",
-        binary=PYTHON,
-        bridge_script="core/mcp_servers/kimi_bridge.py",
-        timeout=20,
-    ),
-    "copilot": BeastConfig(
-        name="Copilot",
-        role="IDE 神经末梢 · 行内补全",
-        icon="\U0001f916",
-        binary=PYTHON,
-        bridge_script="core/mcp_servers/copilot_bridge.py",
-        timeout=20,
-    ),
-    "qoder-bridge": BeastConfig(
-        name="Qoder 桥接",
-        role="Qoder MCP 桥接器",
-        icon="\U0001f517",
-        binary=PYTHON,
-        bridge_script="core/mcp_servers/qoder_bridge.py",
-        timeout=20,
-    ),
-    "codebuddy": BeastConfig(
-        name="CodeBuddy",
-        role="生态延伸 · 备选编码视角",
-        icon="\U0001f4a1",
-        binary=PYTHON,
-        bridge_script="core/mcp_servers/codebuddy_bridge.py",
-        timeout=20,
-    ),
-    "zcode": BeastConfig(
-        name="ZCode (GLM)",
-        role="智谱清言 · GLM-5.2 旗舰模型",
-        icon="\U0001f40c",
-        binary=PYTHON,
-        bridge_script="core/mcp_servers/zcode_bridge.py",
-        timeout=30,
-    ),
+    # "codex": BeastConfig( ... )  # DISABLED — bridge removed, see bridge-essence-extracted.md
+    # "qoder-bridge": BeastConfig( ... )  # DISABLED — bridge removed, see bridge-essence-extracted.md
+    # "codebuddy": BeastConfig( ... )  # DISABLED — bridge removed, see bridge-essence-extracted.md
+    # "zcode": BeastConfig( ... )  # DISABLED — bridge removed, see bridge-essence-extracted.md
 }
 
 
@@ -615,8 +570,7 @@ class MeshLauncher:
         """Run health check on all beasts sequentially."""
         results = []
         # CRUX first (heart), then others
-        order = ["crux", "claude", "codex", "kimi", "copilot",
-                  "qoder-bridge", "codebuddy", "zcode"]
+        order = ["crux", "claude"]
         for key in order:
             cfg = BEASTS.get(key)
             if cfg is None:
@@ -654,30 +608,21 @@ class MeshLauncher:
         print()
 
     def launch_main_window(self) -> None:
-        """Open Kimi interactive main window in a new terminal."""
-        exe_path = KIMI_BIN
-
-        if not os.path.isfile(exe_path):
-            found = shutil.which("kimi")
-            if found:
-                exe_path = found
-            else:
-                print("  ⚠️ 未找到 Kimi CLI")
-                print(f"  期望路径: {KIMI_BIN}")
-                print("  请安装 Kimi Code 客户端")
-                return
+        """Open CRUX Studio interactive main window in a new terminal."""
+        crux_script = ROOT / "crux_studio.py"
+        exe_path = PYTHON
 
         try:
             subprocess.Popen(
-                ["cmd", "/c", "start", "", exe_path],
+                ["cmd", "/c", "start", "CRUX Studio", exe_path, str(crux_script), "-c"],
                 cwd=str(ROOT),
                 creationflags=subprocess.CREATE_NEW_CONSOLE
                 if sys.platform == "win32" else 0,
             )
-            print(f"  ✅ 主战窗口已拉起 (Kimi)")
+            print(f"  ✅ 主战窗口已拉起 (CRUX)")
         except Exception as e:
-            logging.warning("Failed to launch Kimi Code: %s", str(e)[:120])
-            print("  ⚠️ 拉起 Kimi 失败，请手动启动。")
+            logging.warning("Failed to launch CRUX Studio: %s", str(e)[:120])
+            print("  ⚠️ 拉起 CRUX 失败，请手动启动。")
 
     def stop_all(self) -> None:
         killed = self.proc_mgr.load_and_kill()
@@ -690,9 +635,8 @@ class MeshLauncher:
 TITLE_ART = r"""
    ╔══════════════════════════════════════════════╗
    ║           七 兽 互 联 启 动 器              ║
-   ║     CRUX · Claude · Codex · Kimi · Copilot  ║
-   ║     CodeBuddy · ZCode · Qoder桥 · 全互联    ║
-   ║         全 MCP 网格互联 · 一键拉起           ║
+   ║          CRUX · Claude · 全 MCP 网格         ║
+   ║         一键启动 · 七兽协同 · 万象共生        ║
    ╚══════════════════════════════════════════════╝
 """
 

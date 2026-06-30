@@ -1,0 +1,11 @@
+def _default_pro() -> str:
+        """从 models.json active provider 读 pro 模型，读不到退回 deepseek-v4-flash。"""
+        try:
+            from core.provider import get_provider_manager
+
+            mgr = get_provider_manager()
+            return mgr.get_model("pro") or "deepseek-v4-flash"
+        except (ImportError, OSError, RuntimeError):
+            return "deepseek-v4-flash"
+
+    @staticmethod

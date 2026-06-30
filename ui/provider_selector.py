@@ -460,7 +460,7 @@ class DiagCommandsMixin:
                 "crux": "原生模型 · 轻量快速",
                 "deepseek": "百万上下文 · 代码/推理",
                 "zhipu": "免费模型矩阵 · 视觉/推理/生图",
-                "copilot": "Copilot 订阅免费 · 快速对话/代码",
+
             }.get(pid, "外部供应商")
 
         table = Table(

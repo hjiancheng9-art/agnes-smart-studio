@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul 2>&1
-title CRUX Studio v5.0
+title CRUX Studio
 cd /d "%~dp0"
 
 :: Try crux command first (fast path, for installed environments)
