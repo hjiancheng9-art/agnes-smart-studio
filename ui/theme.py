@@ -308,6 +308,51 @@ RETRO_THEME = {
 
 console = _RichConsole()
 
+# ── _LayoutSink — Rich console → TUI 路由 ──────────────
+class _LayoutSink:
+    """文件类对象：拦截 console.print() 输出，路由到 CruxTerminalApp。
+
+    所有 Rich 渲染输出先写到这里，去除 ANSI 转义码后作为系统消息
+    追加到终端应用的消息面板中，同时写回真实控制台以供调试。
+    """
+
+    def __init__(self, layout, real_console):
+        self.layout = layout
+        self.real_console = real_console
+
+    def write(self, text: str) -> int:
+        if self.real_console:
+            self.real_console.write(text)
+        # 去除 ANSI 转义码，提取纯文本
+        import re as _re
+        plain = _re.sub(r'\x1b\[[0-9;]*m', '', text)
+        plain = plain.strip()
+        if plain:
+            self.layout.add_message("system", plain)
+        return len(text)
+
+    def flush(self) -> None:
+        if self.real_console:
+            self.real_console.flush()
+
+    def isatty(self) -> bool:
+        return False
+
+# 为 console 动态挂载 set_sink / restore_real_console
+console._real_console = console.file
+console._sink = None
+
+def _set_sink(self, sink):
+    self._sink = sink
+    self.file = sink
+
+def _restore_real_console(self):
+    self.file = self._real_console
+    self._sink = None
+
+console.set_sink = _set_sink.__get__(console)
+console.restore_real_console = _restore_real_console.__get__(console)
+
 # ── 兼容旧导出（badges.py 依赖）────────────────────────
 CHAT_SEPARATOR_STYLE = {
     "char": "─",

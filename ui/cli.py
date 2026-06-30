@@ -540,8 +540,7 @@ class CruxCLI(
 
         # ── 启动终端应用 ──
         terminal_app = CruxTerminalApp(
-            on_submit=_handle_input,
-            on_interrupt=_handle_interrupt,
+            submit_callback=_handle_input,
         )
         terminal_app.set_header(f"◆ Studio v{__version__}  ·  {display_model}  ·  ● online")
 

@@ -215,15 +215,7 @@ class CruxTerminalApp:
         def _focus_input(event):
             self._app.layout.focus(self._input_area)
 
-        @kb.add("s-c-enter", eager=True)  # shift+ctrl+enter for send
-        def _send_shift(event):
-            self._do_submit()
-
-        @kb.add("c-enter", eager=True)
-        def _send_ctrl(event):
-            self._do_submit()
-
-        @kb.add("c-j", eager=True)
+        @kb.add("c-j", eager=True)  # Ctrl+Enter / Ctrl+J → send
         def _send_ctrl_j(event):
             self._do_submit()
 
