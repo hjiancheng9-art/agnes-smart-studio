@@ -35,7 +35,7 @@ CRUX 同时作为 MCP **Server**（被外部调用）和 MCP **Client**（调用
 - **配置持久化**: output/mcp_servers.json，auto-connect on first call，atexit cleanup
 
 ## Key Capabilities
-- 37 Commands: auto-registered in core/commands.py (COMMANDS list), /help auto-generated
+- 53 Commands: auto-registered in core/commands.py (COMMANDS list), /help auto-generated
 - Toggle-based feature switching (非 mode 架构):
   - code_mode / agent_mode: ChatSession.toggle_code_mode() / toggle_agent_mode()
   - Skill loading: ChatSession.load_skill() / unload_skill() (showrunner / comfyui-bridge)
@@ -44,9 +44,9 @@ CRUX 同时作为 MCP **Server**（被外部调用）和 MCP **Client**（调用
   - 质量基准: /eval [json] 跑 EvalEngine 基准集（表格/JSON 输出）
   - 每次切换通过 _build_system_prompt() 重建 system prompt
 - Showrunner: /showrun <goal> full creative pipeline (plan->decompose->storyboard->generate->QC)
-- Marketplace: 734 skills (45 local + 689 CodeBuddy), search/install/auto-discover
+- Marketplace: 731 skills (63 local + 668 marketplace), search/install/auto-discover
 - Providers: CRUX AI / DeepSeek V4 Pro / SiliconFlow Kimi / Qwen3-Coder 30B (local CUDA)
-- 84 Tools: code editing, git (13), code intelligence (7), GitHub (10), ComfyUI (12), LoRA (3), browser, file ops, MCP bridge (4 tools), patch, execute_plan, codex, notebook, audio — 动态统计见 /tools
+- 113 Tools: code editing, git (13), code intelligence (7), GitHub (10), ComfyUI (10), LoRA (3), browser, file ops, MCP bridge (4 tools), patch, execute_plan, codex, notebook, audio — 动态统计见 /tools
 
 ## Rendering Contract (DNA — 输出不重复)
 - ui/render.py:StreamingRenderer 是所有流式渲染的唯一合法网关（强制契约）
@@ -82,12 +82,12 @@ CRUX 同时作为 MCP **Server**（被外部调用）和 MCP **Client**（调用
 - 流式渲染: 必须用 ui.render.StreamingRenderer，禁止直接 import rich.live.Live（守卫测试会拦）
 
 ## Current State
-- 37 commands, 84 tools, 45 local skills, 734 marketplace skills
-- Core modules: 107 .py files in core/ (含 v5.0 新增编排/智能体/可观测子系统，见上方 Extended Architecture)
+- 53 commands, 113 tools, 63 local skills, 668 marketplace skills
+- Core modules: 113 .py files in core/ (含 v5.0 新增编排/智能体/可观测子系统，见上方 Extended Architecture)
 - Toggle-based: code_mode / agent_mode / skill (showrunner / comfyui-bridge) / extend (notebook/audio/browser)
 - MCP 四象融合: MCP Client bridge (mcp_client.py) + MCP Server (mcp_server.py) 双向可达
 - Terminal logo displays on startup via ui/terminal_logo.py
-- Test baseline: 2162 tests passing (数字随测试增减自动变化，不再硬编码)
+- Test baseline: 151 test files (动态统计见 `pytest tests/ --co -q`)
 
 ## Subsystem Docs (core/*.md)
 - core/executor.md — 自主任务执行器 (Plan→Execute→Verify→Report)

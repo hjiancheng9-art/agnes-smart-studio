@@ -48,6 +48,6 @@ python -c "from core.provider import ProviderManager; ..."
 ## 项目环境
 
 - Python: `C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\python.exe`
-- 测试: `python agnes_studio.py --check`
-- 冒烟: `python test_smoke.py --quick`
-- 启动: 双击 `start.bat` 或 `python launcher.py`
+- 测试: `python crux_studio.py --check`
+- 冒烟: `python tests/test_smoke.py --quick`
+- 启动: 双击 `launch.bat` 或 `python launcher.py`

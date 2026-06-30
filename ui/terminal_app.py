@@ -60,7 +60,7 @@ def build_ptk_style() -> PtkStyle:
     return PtkStyle.from_dict({
         "status-bar":        f"bg:{COLORS['surface']}",
         "status-bar.bright": f"bg:{COLORS['surface']} bold {COLORS['primary']}",
-        "message-area":      f"bg:{COLORS['background']}",
+        "message-area":      f"bg:{COLORS['base']}",
         "separator-line":    f"fg:{COLORS['separator_thin']}",
         "input-field":       f"bg:{COLORS['surface']} {COLORS['text']}",
         "scrollbar":         f"fg:{COLORS['text_tertiary']} bg:{COLORS['surface']}",

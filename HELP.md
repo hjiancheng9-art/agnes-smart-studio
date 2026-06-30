@@ -143,7 +143,7 @@
 
 ---
 
-## 工具（84 个）
+## 工具（113 个）
 
 模型会自动调用，你也可以直接在对话中说"用 xxx 工具"。
 
@@ -193,6 +193,6 @@
 技能:  /skill list  →  /skill load showrunner
 工具:  直接说"读取 README.md"或"搜索 TODO"
 退出:  /exit 或 Ctrl+C 两次
-诊断:  crux check
-测试:  python test_smoke.py
+诊断:  python crux_studio.py --check
+测试:  python tests/test_smoke.py
 ```

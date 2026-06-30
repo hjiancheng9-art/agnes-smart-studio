@@ -78,6 +78,7 @@ nul
 prn
 con
 aux
+cd
 
 # Node.js
 node_modules/
@@ -94,6 +95,10 @@ htmlcov/
 _copilot_*.txt
 _qoder_*.txt
 _mcp_client_*.txt
+_fail_*.txt
+test_summary.txt
 
-# Large binaries
+# Large binaries (downloaded at runtime, not committed)
+core/resources/*.exe
 core/nsp-downloader/resources/ffmpeg.exe
+downloads/
