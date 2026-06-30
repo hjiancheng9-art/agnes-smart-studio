@@ -137,9 +137,15 @@ class CruxTerminalApp:
             wrap_lines=True,
             always_hide_cursor=True,
         )
+        # 滚动锚点 — 1 行高 + 可见光标，用于触发 ScrollablePane 自动滚底
+        self._scroll_anchor_buffer = Buffer(read_only=True)
+        self._scroll_anchor = Window(
+            BufferControl(buffer=self._scroll_anchor_buffer, focusable=True),
+            height=1,
+        )
         self._scrollable_pane = ScrollablePane(
-            message_window,
-            show_scrollbar=False,
+            HSplit([message_window, self._scroll_anchor]),
+            show_scrollbar=True,
             display_arrows=False,
         )
 
@@ -208,7 +214,7 @@ class CruxTerminalApp:
         @kb.add("escape")
         def _toggle_focus(event):
             if self._app.layout.has_focus(self._input_area):
-                self._app.layout.focus(self._scrollable_pane)
+                self._app.layout.focus(self._scroll_anchor)
             else:
                 self._app.layout.focus(self._input_area)
 
@@ -229,10 +235,22 @@ class CruxTerminalApp:
             return
         self._input_area.text = ""
         self.add_message("user", text)
-        self._app.invalidate()
         if self.submit_callback:
             try:
                 self.submit_callback(text)
+            except Exception:
+                pass
+
+    def _auto_scroll(self) -> None:
+        """自动滚动消息面板到底部。
+
+        通过短暂聚焦滚动锚点触发 ScrollablePane 的
+        keep_focused_window_visible 机制，然后立即将焦点归还输入区。
+        """
+        if self._app:
+            try:
+                self._app.layout.focus(self._scroll_anchor)
+                self._app.layout.focus(self._input_area)
             except Exception:
                 pass
 
@@ -363,6 +381,7 @@ class CruxTerminalApp:
             self._message_count = len(self.buffer)
         if self._app and True:
             self._app.invalidate()
+            self._auto_scroll()
 
     def add_stream_chunk(self, chunk: str):
         """追加流式输出文本。"""
@@ -370,6 +389,7 @@ class CruxTerminalApp:
             self._stream_buffer += chunk
         if self._app and True:
             self._app.invalidate()
+            self._auto_scroll()
 
     def commit_stream(self):
         """结束流式输出，将缓冲提交为完整消息。"""
@@ -381,6 +401,7 @@ class CruxTerminalApp:
                 self._message_count = len(self.buffer)
         if self._app and True:
             self._app.invalidate()
+            self._auto_scroll()
 
     def start_generating(self):
         """标记开始生成。"""
