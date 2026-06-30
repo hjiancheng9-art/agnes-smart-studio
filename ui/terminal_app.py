@@ -31,6 +31,7 @@ from prompt_toolkit import Application
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.document import Document
+from prompt_toolkit.formatted_text import ANSI
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.layout import (
     FormattedTextControl,
@@ -352,7 +353,7 @@ class CruxTerminalApp:
             if i < len(all_panels) - 1:
                 console.print("")  # 小间距
 
-        return _parse_ansi(console, buf.getvalue())
+        return ANSI(buf.getvalue())
 
     # ── 公共 API ──────────────────────────────────────────
     def add_message(self, role: str, content: str):
@@ -417,22 +418,11 @@ class CruxTerminalApp:
 
 
 # ── Rich → ANSI 辅助 ──────────────────────────────────────
-def _rich_to_ansi(rich_obj) -> list:
-    """将 Rich 对象转换为 prompt_toolkit 兼容的 ANSI 片段列表。"""
+def _rich_to_ansi(rich_obj) -> "ANSI":
+    """将 Rich 对象转换为 prompt_toolkit 兼容的 ANSI 文本。"""
     import io
     from rich.console import Console as RichConsole
     buf = io.StringIO()
     console = RichConsole(file=buf, force_terminal=True, color_system="truecolor")
     console.print(rich_obj)
-    return _parse_ansi(console, buf.getvalue())
-
-
-def _parse_ansi(console, ansi_text: str) -> list:
-    """解析 ANSI 转义序列为 prompt_toolkit 格式。"""
-    lines = ansi_text.split("\n")
-    result = []
-    for i, line in enumerate(lines):
-        if i > 0:
-            result.append(("", "\n"))
-        result.append(("", line))
-    return result
+    return ANSI(buf.getvalue())

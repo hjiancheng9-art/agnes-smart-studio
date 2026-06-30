@@ -541,8 +541,9 @@ class CruxCLI(
         # ── 启动终端应用 ──
         terminal_app = CruxTerminalApp(
             submit_callback=_handle_input,
+            version=f"v{__version__}",
+            provider=display_model,
         )
-        terminal_app.set_header(f"◆ Studio v{__version__}  ·  {display_model}  ·  ● online")
 
         # Swap console to route Rich output → terminal app
         from ui.theme import _LayoutSink
