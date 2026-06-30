@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Nine Beasts One-Click Launcher --- start and interconnect all AI tools.
+"""Seven Beasts One-Click Launcher --- start and interconnect all AI tools.
 
 Usage:
     python launcher.py              # health check + TRM catalog + dashboard
@@ -9,7 +9,7 @@ Usage:
     python launcher.py --tools      # TRM tool catalog only
 
 Architecture:
-    CRUX (heart) -- MCP mesh -- 8 beasts (organs)
+    CRUX (heart) -- MCP mesh -- 7 beasts (organs)
     Each beast exposes tools via MCP stdio bridges.
     Launcher discovers, health-checks, and optionally keeps services alive.
     TRM (Tool Registry Mesh) indexes all tools across all beasts.
@@ -483,7 +483,7 @@ def print_ascii_dashboard(results: list[HealthResult], elapsed: float) -> None:
     """Fallback ASCII dashboard when Rich is not available."""
     print()
     print("=" * 70)
-    print("  九兽互联 — 连通性面板")
+    print("  七兽互联 — 连通性面板")
     print("=" * 70)
     online = sum(1 for r in results if r.status == "online")
     degraded = sum(1 for r in results if r.status == "degraded")
@@ -579,7 +579,7 @@ def _render_rich_dashboard(results: list[HealthResult], elapsed: float) -> None:
 
     console.print()
     console.print(Panel(
-        Align.center("[bold]九兽互联 — 连通性面板[/]\n" + mesh_status),
+        Align.center("[bold]七兽互联 — 连通性面板[/]\n" + mesh_status),
         border_style="bright_blue",
     ))
     console.print(table)
@@ -689,7 +689,7 @@ class MeshLauncher:
 
 TITLE_ART = r"""
    ╔══════════════════════════════════════════════╗
-   ║           八 兽 互 联 启 动 器              ║
+   ║           七 兽 互 联 启 动 器              ║
    ║     CRUX · Claude · Codex · Kimi · Copilot  ║
    ║     CodeBuddy · ZCode · Qoder桥 · 全互联    ║
    ║         全 MCP 网格互联 · 一键拉起           ║
@@ -776,7 +776,7 @@ def main() -> None:
     import argparse
 
     p = argparse.ArgumentParser(
-        description="Nine Beasts MESH Launcher — one-click startup for all AI tools"
+        description="Seven Beasts MESH Launcher — one-click startup for all AI tools"
     )
     p.add_argument("--start", action="store_true",
                    help="Start persistent services (CRUX + Claude MCP serve)")
