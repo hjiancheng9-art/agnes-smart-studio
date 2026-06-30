@@ -71,7 +71,6 @@ PYTHON = os.path.expanduser(r"C:\Users\huangjiancheng\AppData\Local\Programs\Pyt
 CODEX_BIN = os.path.expanduser(r"C:\Users\huangjiancheng\AppData\Local\Programs\OpenAI\Codex\bin\codex.exe")
 KIMI_BIN = os.path.expanduser(r"~\.kimi-code\bin\kimi.exe")
 COPILOT_BIN = os.path.expanduser(r"~\AppData\Roaming\npm\copilot.cmd")
-QODER_BIN = os.path.expanduser(r"~\.qoder\bin\qodercli\qodercli.exe")
 CODEBUDDY_BIN = os.path.expanduser(r"~\AppData\Roaming\npm\codebuddy.cmd")
 ZCODE_BIN = os.path.expanduser(r"~\.zcode\cli\zcode.cjs")
 ZCODE_NODE = shutil.which("node") or "node"
@@ -121,15 +120,6 @@ BEASTS: dict[str, BeastConfig] = {
         binary=PYTHON,
         bridge_script="core/mcp_servers/copilot_bridge.py",
         timeout=20,
-    ),
-    "qoder": BeastConfig(
-        name="Qoder",
-        role="终端原住民 · Shell 操作",
-        icon="\U0001f5a5",
-        binary=QODER_BIN,
-        startup_args=["--version"],
-        mcp_initialize=False,
-        timeout=15,
     ),
     "qoder-bridge": BeastConfig(
         name="Qoder 桥接",
@@ -626,7 +616,7 @@ class MeshLauncher:
         results = []
         # CRUX first (heart), then others
         order = ["crux", "claude", "codex", "kimi", "copilot",
-                  "qoder", "qoder-bridge", "codebuddy", "zcode"]
+                  "qoder-bridge", "codebuddy", "zcode"]
         for key in order:
             cfg = BEASTS.get(key)
             if cfg is None:
@@ -699,9 +689,9 @@ class MeshLauncher:
 
 TITLE_ART = r"""
    ╔══════════════════════════════════════════════╗
-   ║           九 兽 互 联 启 动 器              ║
-   ║     CRUX · Claude · Codex · Kimi            ║
-   ║     Copilot · Qoder · CodeBuddy · ZCode     ║
+   ║           八 兽 互 联 启 动 器              ║
+   ║     CRUX · Claude · Codex · Kimi · Copilot  ║
+   ║     CodeBuddy · ZCode · Qoder桥 · 全互联    ║
    ║         全 MCP 网格互联 · 一键拉起           ║
    ╚══════════════════════════════════════════════╝
 """

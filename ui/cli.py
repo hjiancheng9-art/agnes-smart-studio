@@ -17,6 +17,7 @@
 
 import os
 import sys
+import threading
 
 from rich.panel import Panel
 from rich.prompt import Prompt
@@ -42,6 +43,7 @@ from ui.mixins import (
 )
 from ui.terminal_logo import render_rich
 from ui.theme import COLORS, ICONS, LAYOUT, console
+from ui.chat_layout import ChatLayout
 from utils import memory
 
 __all__ = ["CruxCLI", "LOGO"]
@@ -135,8 +137,7 @@ class CruxCLI(
                 break
             try:
                 if choice == "":
-                    import asyncio
-                    asyncio.run(self._chat())
+                    self._chat_layout()
                 elif choice == "g":
                     self._gen_menu()
                 elif choice == "h":
@@ -198,7 +199,131 @@ class CruxCLI(
     # 延迟构建的 dispatch table（首次调用时初始化）
     _dispatch_table: dict | None = None
 
-    # ── 聊天模式 ──────────────────────────────────────────
+    # ── 聊天模式 v2：固定输入框 ────────────────────────
+
+    def _chat_layout(self):
+        """聊天模式 v2 — 全屏布局：固定输入框 + 消息面板 + 流式输出。
+
+        ChatLayout 管理全屏 Live 渲染，输入框永不消失。AI 生成在后台线程运行。
+        """
+        from core.chat import ChatSession
+
+        layout = ChatLayout(console, COLORS, LAYOUT)
+        session = ChatSession(client=self.client)
+        if hasattr(self, "_active_model"):
+            session.model = self._active_model
+
+        # ── 并发守卫：同一时间只允许一个 AI 流 ──
+        _stream_lock = threading.Lock()
+        _pending_queue: list[str] = []
+
+        def handle_submit(text: str):
+            """用户提交消息回调（在输入线程中执行）。"""
+            # ── 命令分发 ──
+            if text.startswith("/"):
+                self._handle_layout_command(text, layout, session)
+                return
+
+            # ── 排队或启动 AI 流式生成 ──
+            def stream_response(user_text: str):
+                try:
+                    layout.start_streaming("ai")
+                    for kind, payload in session.send_stream(user_text):
+                        if kind == "text":
+                            layout.append_stream(payload)
+                        elif kind == "info":
+                            layout.commit_stream()
+                            layout.add_message("system", payload)
+                            layout.start_streaming("ai")
+                        elif kind == "image":
+                            layout.commit_stream()
+                            layout.add_message("ai", f"🖼 {payload}")
+                        elif kind == "video":
+                            layout.commit_stream()
+                            layout.add_message("ai", f"🎬 {payload}")
+                        elif kind == "confirm":
+                            layout.add_message("system", f"⚠ 确认: {payload}")
+                        elif kind == "warning":
+                            layout.add_message("system", f"⚠ {payload}")
+                    layout.commit_stream()
+                except Exception as e:
+                    layout.commit_stream()
+                    layout.add_message("system", f"❌ {e}")
+                finally:
+                    # 释放锁，处理排队输入
+                    with _stream_lock:
+                        pass  # Lock released via context manager exit
+                    _drain_queue()
+
+            def _drain_queue():
+                """处理排队中的输入。"""
+                while True:
+                    with _stream_lock:
+                        if not _pending_queue:
+                            break
+                        next_text = _pending_queue.pop(0)
+                    stream_response(next_text)
+
+            # 获取流锁
+            acquired = _stream_lock.acquire(blocking=False)
+            if acquired:
+                # 立即释放（stream_response 的 finally 会释放）
+                _stream_lock.release()
+                threading.Thread(target=stream_response, args=(text,), daemon=True).start()
+            else:
+                # AI 正忙，排队
+                _pending_queue.append(text)
+                layout.add_message("system", f"⏳ AI 正忙，消息已排队（队列: {len(_pending_queue)}）")
+
+        layout.run(on_submit=handle_submit)
+
+    def _handle_layout_command(self, text: str, layout, session):
+        """在 ChatLayout 上下文中处理命令。"""
+        parts = text[1:].strip().split(maxsplit=1)
+        cmd = parts[0].lower() if parts else ""
+        arg = parts[1] if len(parts) > 1 else ""
+
+        if cmd in ("exit", "quit", "q"):
+            layout.stop()
+            return
+        elif cmd == "clear":
+            layout.messages.clear()
+            layout.add_message("system", "对话已清空")
+        elif cmd == "help":
+            layout.add_message("system", self._help_text())
+        elif cmd == "model":
+            if arg:
+                session.model = arg
+                layout.add_message("system", f"模型已切换: {arg}")
+            else:
+                layout.add_message("system", f"当前模型: {session.model}")
+        elif cmd == "code":
+            # Toggle code mode
+            session.code_mode = not session.code_mode
+            layout.add_message("system", f"Code 模式: {'ON' if session.code_mode else 'OFF'}")
+        elif cmd == "tools":
+            layout.add_message("system", "可用: generate_image, generate_video, read_file, write_file, run_bash...")
+        else:
+            # Try dispatch via legacy system for complex commands
+            try:
+                dispatched = self._dispatch_command(cmd, arg, session)
+                if dispatched == self._DISPATCH_EXIT:
+                    layout.stop()
+                elif dispatched == self._DISPATCH_UNKNOWN:
+                    layout.add_message("system", f"未知命令: /{cmd}")
+                else:
+                    layout.add_message("system", f"命令已执行: /{cmd}")
+            except Exception as e:
+                layout.add_message("system", f"命令错误: {e}")
+
+    def _help_text(self):
+        return (
+            "命令: /exit /clear /help /model /code /tools\n"
+            "      /generate /plan /self /audit /rules /provider\n"
+            "      /showrun /vision /skill /todo /commit /changelog"
+        )
+
+    # ── 聊天模式 v1（保留兼容） ────────────────────────
 
     async def _chat(self):
         """聊天模式：异步引擎 — AI 生成时输入框不消失，可插话排队。
