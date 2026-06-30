@@ -10,7 +10,20 @@ from typing import Any
 
 import httpx
 
-from core.settings import SETTINGS
+from core.config import SETTINGS
+
+
+def _sanitize_json(data: Any) -> Any:
+    """Recursively remove surrogate characters from JSON data."""
+    if isinstance(data, str):
+        if not any(0xD800 <= ord(c) <= 0xDFFF for c in data):
+            return data
+        return "".join(c for c in data if not (0xD800 <= ord(c) <= 0xDFFF))
+    if isinstance(data, dict):
+        return {k: _sanitize_json(v) for k, v in data.items()}
+    if isinstance(data, list):
+        return [_sanitize_json(v) for v in data]
+    return data
 
 
 class AsyncCruxClient:
