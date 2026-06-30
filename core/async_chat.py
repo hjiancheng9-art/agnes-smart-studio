@@ -51,6 +51,7 @@ class AsyncCruxClient:
         self.base_url = (base_url or SETTINGS.base_url).rstrip("/")
         self.timeout = timeout
         self.max_retries = SETTINGS.max_retries
+        self._closed = False
         self._http = httpx.AsyncClient(
             base_url=self.base_url,
             headers={"Authorization": f"Bearer {self.api_key}"},
@@ -58,6 +59,9 @@ class AsyncCruxClient:
         )
 
     async def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
         await self._http.aclose()
 
     async def __aenter__(self):

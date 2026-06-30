@@ -24,6 +24,7 @@ import signal
 import subprocess
 import sys
 import time
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
@@ -303,7 +304,8 @@ def _spawn_and_initialize(cfg: BeastConfig) -> HealthResult:
             try:
                 stderr_text = proc.stderr.read(500)
             except Exception:
-                pass
+                logging.warning("Failed to read stderr from %s health check", cfg.name)
+                stderr_text = "<read error>"
             proc.kill()
             return HealthResult(
                 name=cfg.name, icon=cfg.icon, status="offline",
@@ -358,6 +360,10 @@ def _spawn_and_initialize(cfg: BeastConfig) -> HealthResult:
             version="", latency_ms=(time.monotonic() - t0) * 1000,
             error=str(exc)[:120]
         )
+    finally:
+        # Ensure subprocess is always cleaned up on exception paths
+        if 'proc' in locals():
+            proc.kill()
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -403,7 +409,8 @@ class ProcessManager:
             )
             self._procs[name] = proc
             return True
-        except Exception:
+        except Exception as e:
+            logging.warning("Failed to start service %s: %s", cfg.name, str(e)[:120])
             return False
 
     def stop(self, name: str) -> None:
@@ -678,7 +685,8 @@ class MeshLauncher:
                 if sys.platform == "win32" else 0,
             )
             print(f"  ✅ 主战窗口已拉起 (Kimi)")
-        except Exception:
+        except Exception as e:
+            logging.warning("Failed to launch Kimi Code: %s", str(e)[:120])
             print("  ⚠️ 拉起 Kimi 失败，请手动启动。")
 
     def stop_all(self) -> None:
@@ -728,8 +736,8 @@ def _interactive_menu() -> None:
             try:
                 trm_text = launcher.discover_trm()
                 print(f"  {trm_text}")
-            except Exception:
-                pass
+            except Exception as e:
+                logging.debug("TRM discovery in menu failed: %s", str(e)[:120])
 
         elif choice == "2":
             print("\n  正在健康检查...\n")

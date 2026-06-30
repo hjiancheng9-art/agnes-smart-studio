@@ -240,7 +240,9 @@ class ToolRegistryMesh:
             data = json.loads(tools_raw.strip())
             return data.get("result", {}).get("tools", [])
 
-        except Exception:
+        except Exception as e:
+            if 'proc' in locals():
+                proc.kill()
             return []
 
     @staticmethod
@@ -532,6 +534,8 @@ class ToolRegistryMesh:
             return None
 
         except Exception as e:
+            if 'proc' in locals():
+                proc.kill()
             return {"error": str(e)}
 
     def register_callback(self, tool_name: str, callback: Callable) -> None:
