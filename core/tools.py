@@ -1258,6 +1258,37 @@ class ToolRegistry:
             self._executors[name] = self._make_executor(name, tool_cfg)
             self._tool_modules[name] = tool_cfg.get("function", "").rsplit(".", 1)[0]
 
+        # ── Fast Scanner ──
+        try:
+            from core.fast_scanner import SCANNER_EXECUTOR_MAP, SCANNER_TOOL_DEFS
+            self._definitions.extend(SCANNER_TOOL_DEFS)
+            for _n, _e in SCANNER_EXECUTOR_MAP.items():
+                self._executors[_n] = _e
+        except Exception:
+            pass
+
+        # ── MCP Health Check ──
+        try:
+            self._definitions.append({"type": "function", "function": {
+                "name": "mcp_health_check",
+                "description": "Check MCP connection health and reconnect if dead.",
+                "parameters": {"type": "object", "properties": {"server_name": {"type": "string"}}}
+            }})
+            from core.mcp_client import get_mcp_client
+            def _hchk(**kw):
+                import json
+                mc = get_mcp_client()
+                if kw.get("server_name"):
+                    return json.dumps(mc.health_check(kw["server_name"]))
+                return json.dumps(mc.health_check_all())
+            self._executors["mcp_health_check"] = _hchk
+        except Exception:
+            pass
+
+        # 去重
+        seen = set()
+        self._definitions = [d for d in self._definitions if not (d.get("function", {}).get("name") in seen or seen.add(d.get("function", {}).get("name")))]
+
         return len(self._definitions)
 
     # ── 执行器工厂 ──
@@ -1373,9 +1404,8 @@ class ToolRegistry:
             mod = importlib.import_module(mod_path)
             return getattr(mod, func_name)(**kwargs)
 
-        return {"shell": shell_executor, "http": http_executor, "python": python_executor}[t]
-
-    # ── 注册/注销 ──
+        
+# ── 注册/注销 ──
     def register(
         self, name: str, description: str, parameters: dict, executor: Callable[..., str], override: bool = False
     ):
@@ -1392,6 +1422,7 @@ class ToolRegistry:
         }
         self._definitions.append(func_def)
         self._executors[name] = executor
+
         return True
 
     def unregister(self, name: str) -> bool:

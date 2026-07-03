@@ -134,10 +134,28 @@ class MCPClient:
             self._save_config()
             return True
 
-    def list_servers(self) -> list[dict]:
-        """List all configured MCP servers as dicts."""
-        with self._lock:
-            return [asdict(cfg) for cfg in self._servers.values()]
+    def health_check(self, name: str) -> dict:
+        """Check if an MCP connection is alive. Reconnect if dead."""
+        proc = self._processes.get(name)
+        if proc is None:
+            result = self.connect(name)
+            return {"name": name, "status": result.get("status", "reconnected"), "action": "connected"}
+        
+        poll = proc.poll()
+        if poll is not None:
+            # Process died, reconnect
+            self._processes.pop(name, None)
+            result = self.connect(name)
+            return {"name": name, "status": result.get("status", "reconnected"), "action": "reconnected"}
+        
+        return {"name": name, "status": "alive", "action": "none"}
+    
+    def health_check_all(self) -> list[dict]:
+        """Health check all registered servers."""
+        results = []
+        for name in list(self._servers.keys()):
+            results.append(self.health_check(name))
+        return results
 
     # ── Connection Lifecycle ───────────────────────────────
 
@@ -224,14 +242,15 @@ class MCPClient:
     # ── Tool Discovery & Invocation ───────────────────────
 
     def list_tools(self, name: str) -> list[dict]:
-        """Call tools/list on a connected server.
-
-        Returns:
-            List of tool definition dicts, or error list on failure.
-        """
+        """Call tools/list on a connected server. Auto-connect if needed."""
         proc = self._processes.get(name)
         if proc is None:
-            return [{"error": f"Server '{name}' not connected"}]
+            result = self.connect(name)
+            if "error" in result:
+                return [{"error": result["error"]}]
+            proc = self._processes.get(name)
+            if proc is None:
+                return [{"error": f"Server '{name}' not connected"}]
 
         result = self._send_request(proc, "tools/list")
         if "error" in result:
@@ -251,7 +270,12 @@ class MCPClient:
         """
         proc = self._processes.get(name)
         if proc is None:
-            return {"error": f"Server '{name}' not connected"}
+            result = self.connect(name)
+            if "error" in result:
+                return {"error": result["error"]}
+            proc = self._processes.get(name)
+            if proc is None:
+                return {"error": f"Server '{name}' not connected"}
 
         params: dict[str, str | dict] = {"name": tool_name}
         if arguments is not None:
