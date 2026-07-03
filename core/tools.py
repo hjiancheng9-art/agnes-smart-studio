@@ -37,7 +37,7 @@ __all__ = [
     "CORE_TOOL_NAMES",
     "COMFYUI_TOOL_DEFS",
     "PIPELINE_TOOL_DEFS",
-                "TOOLS_CONFIG",
+    "TOOLS_CONFIG",
     "TOOL_EXPANSION_CATEGORIES",
     "ToolRegistry",
     "_resolve_tool_names",
@@ -57,16 +57,39 @@ BUILTIN_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "prompt": {"type": "string", "description": "Image description including style, lighting, composition, and negative constraints"},
-                    "image_url": {"type": "string", "description": "Optional single reference image URL/path for image-to-image editing"},
-                    "image_urls": {"type": "array", "items": {"type": "string"}, "description": "Optional multiple reference image URLs for multi-image guided generation"},
+                    "prompt": {
+                        "type": "string",
+                        "description": "Image description including style, lighting, composition, and negative constraints",
+                    },
+                    "image_url": {
+                        "type": "string",
+                        "description": "Optional single reference image URL/path for image-to-image editing",
+                    },
+                    "image_urls": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional multiple reference image URLs for multi-image guided generation",
+                    },
                     "size": {
                         "type": "string",
-                        "enum": ["1024x768", "1024x1024", "768x1024", "576x1024", "1024x576", "448x1024", "1024x448", "684x1024", "1024x684"],
-                        "description": "Image size (WxH). Default 1024x768."
+                        "enum": [
+                            "1024x768",
+                            "1024x1024",
+                            "768x1024",
+                            "576x1024",
+                            "1024x576",
+                            "448x1024",
+                            "1024x448",
+                            "684x1024",
+                            "1024x684",
+                        ],
+                        "description": "Image size (WxH). Default 1024x768.",
                     },
                     "seed": {"type": "integer", "description": "Optional random seed for reproducibility"},
-                    "system": {"type": "string", "description": "Optional style preset: cinematic, anime, watercolor, cyberpunk, fantasy, product, portrait, landscape"},
+                    "system": {
+                        "type": "string",
+                        "description": "Optional style preset: cinematic, anime, watercolor, cyberpunk, fantasy, product, portrait, landscape",
+                    },
                     "negative_prompt": {"type": "string", "description": "What to avoid in the generated image"},
                 },
                 "required": ["prompt"],
@@ -83,21 +106,35 @@ BUILTIN_TOOLS = [
                 "properties": {
                     "prompt": {"type": "string", "description": "Video content / motion / transition description"},
                     "image_url": {"type": "string", "description": "Optional single image URL for image-to-video mode"},
-                    "image_urls": {"type": "array", "items": {"type": "string"}, "description": "Optional array of image URLs for multi-image video or keyframe animation"},
-                    "mode": {"type": "string", "enum": ["ti2vid", "keyframes"], "description": "Generation mode: ti2vid (text/image-to-video, default), keyframes (smooth transition between images)"},
+                    "image_urls": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional array of image URLs for multi-image video or keyframe animation",
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": ["ti2vid", "keyframes"],
+                        "description": "Generation mode: ti2vid (text/image-to-video, default), keyframes (smooth transition between images)",
+                    },
                     "size": {
                         "type": "string",
                         "enum": ["1152x768", "1280x720", "720x1280", "1024x1024", "1024x768", "768x1024"],
-                        "description": "Video size (WxH). Default 1152x768."
+                        "description": "Video size (WxH). Default 1152x768.",
                     },
                     "num_frames": {
                         "type": "integer",
                         "enum": [81, 121, 161, 201, 241, 281, 321, 361, 401, 441],
-                        "description": "Video frames (8n+1). Default 121 (5.0s at 24fps). Max 441 (18.4s)."
+                        "description": "Video frames (8n+1). Default 121 (5.0s at 24fps). Max 441 (18.4s).",
                     },
-                    "frame_rate": {"type": "integer", "description": "Frame rate 1-60. Default 24, use 30 for smoother motion."},
+                    "frame_rate": {
+                        "type": "integer",
+                        "description": "Frame rate 1-60. Default 24, use 30 for smoother motion.",
+                    },
                     "seed": {"type": "integer", "description": "Optional random seed for reproducible results"},
-                    "system": {"type": "string", "description": "Optional style preset: cinematic, anime, watercolor, cyberpunk, fantasy"},
+                    "system": {
+                        "type": "string",
+                        "description": "Optional style preset: cinematic, anime, watercolor, cyberpunk, fantasy",
+                    },
                     "negative_prompt": {"type": "string", "description": "What to avoid in the generated video"},
                 },
                 "required": ["prompt"],
@@ -129,7 +166,7 @@ BUILTIN_TOOLS = [
                     "intent": {
                         "type": "string",
                         "enum": ["search", "review", "execute", "think", "generate", "status"],
-                        "description": "任务意图类型"
+                        "description": "任务意图类型",
                     },
                     "query": {"type": "string", "description": "search/review 用的搜索/审查目标"},
                     "prompt": {"type": "string", "description": "execute/think 用的任务描述"},
@@ -153,7 +190,7 @@ BUILTIN_TOOLS = [
                     "intent": {
                         "type": "string",
                         "enum": ["search", "review", "execute", "think", "generate", "status"],
-                        "description": "按意图筛选（不传则显示全部）"
+                        "description": "按意图筛选（不传则显示全部）",
                     },
                     "reset": {"type": "boolean", "description": "重置成长数据（危险操作）"},
                 },
@@ -169,10 +206,7 @@ BUILTIN_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "apply": {
-                        "type": "boolean",
-                        "description": "是否自动应用调参建议（默认 false，仅分析）"
-                    },
+                    "apply": {"type": "boolean", "description": "是否自动应用调参建议（默认 false，仅分析）"},
                 },
                 "required": [],
             },
@@ -189,7 +223,7 @@ BUILTIN_TOOLS = [
                     "category": {
                         "type": "string",
                         "enum": ["search", "review", "execute", "think", "generate", "status"],
-                        "description": "按分类筛选（不传则显示全部）"
+                        "description": "按分类筛选（不传则显示全部）",
                     },
                     "source": {"type": "string", "description": "按来源筛选 (crux/codex/kimi/qoder/codebuddy)"},
                 },
@@ -652,88 +686,181 @@ def _suggest_similar_tool(name: str, definitions: list[dict], top_n: int = 2) ->
 
 CORE_TOOL_NAMES: set[str] = {
     # Web
-    "web_search", "web_fetch", "http_request",
+    "web_search",
+    "web_fetch",
+    "http_request",
     # File I/O
-    "read_file", "write_file", "search_files", "glob_files", "list_files",
+    "read_file",
+    "write_file",
+    "search_files",
+    "glob_files",
+    "list_files",
     # Code basics
-    "code_analyze", "code_review", "run_python", "run_bash", "run_format", "run_lint",
+    "code_analyze",
+    "code_review",
+    "run_python",
+    "run_bash",
+    "run_format",
+    "run_lint",
     # System introspection
-    "env_check", "think_deep", "estimate_tokens", "tool_search",
+    "env_check",
+    "think_deep",
+    "estimate_tokens",
+    "tool_search",
     # Task management
-    "task_launch", "task_list",
+    "task_launch",
+    "task_list",
     # Core media
-    "generate_image", "generate_video",
+    "generate_image",
+    "generate_video",
     # Document
-    "create_markdown", "create_html", "download_file", "view_image",
+    "create_markdown",
+    "create_html",
+    "download_file",
+    "view_image",
     # Debug
-    "debug_inspect", "inspect_last_error",
+    "debug_inspect",
+    "inspect_last_error",
 }
 
 # 扩展分类 → 工具名集合（注意：与上面的 TOOL_CATEGORIES 展示分类不同，这里是动态展开用）
 TOOL_EXPANSION_CATEGORIES: dict[str, set[str]] = {
     "git": {
-        "git_status", "git_diff", "git_log", "git_branch", "git_push", "git_pull",
-        "git_stash", "git_tag", "git_worktree", "git_add_commit", "git_conflict_check",
-        "git_pr_create", "git_pr_merge",
-        "github_search", "github_repo_view", "github_repo_list", "github_browse",
-        "github_readme", "github_release", "github_issue", "github_pr",
-        "github_api", "github_write_file",
+        "git_status",
+        "git_diff",
+        "git_log",
+        "git_branch",
+        "git_push",
+        "git_pull",
+        "git_stash",
+        "git_tag",
+        "git_worktree",
+        "git_add_commit",
+        "git_conflict_check",
+        "git_pr_create",
+        "git_pr_merge",
+        "github_search",
+        "github_repo_view",
+        "github_repo_list",
+        "github_browse",
+        "github_readme",
+        "github_release",
+        "github_issue",
+        "github_pr",
+        "github_api",
+        "github_write_file",
     },
     "comfyui": {
-        "comfyui_status", "comfyui_list_models", "comfyui_submit_workflow",
-        "comfyui_get_result", "comfyui_preview_workflow", "comfyui_clear_queue",
-        "comfyui_get_node_info", "comfyui_build_custom_workflow",
-        "comfyui_create_custom_node", "comfyui_lora_prepare",
-        "comfyui_lora_generate_config", "comfyui_lora_check_status",
+        "comfyui_status",
+        "comfyui_list_models",
+        "comfyui_submit_workflow",
+        "comfyui_get_result",
+        "comfyui_preview_workflow",
+        "comfyui_clear_queue",
+        "comfyui_get_node_info",
+        "comfyui_build_custom_workflow",
+        "comfyui_create_custom_node",
+        "comfyui_lora_prepare",
+        "comfyui_lora_generate_config",
+        "comfyui_lora_check_status",
     },
     "lsp": {
-        "lsp_goto_definition", "lsp_hover", "lsp_diagnostics",
-        "lsp_find_references", "lsp_completion", "lsp_rename",
+        "lsp_goto_definition",
+        "lsp_hover",
+        "lsp_diagnostics",
+        "lsp_find_references",
+        "lsp_completion",
+        "lsp_rename",
     },
     "notebook": {
-        "notebook_open", "notebook_edit_cell", "notebook_add_cell",
-        "notebook_run_cell", "notebook_save",
+        "notebook_open",
+        "notebook_edit_cell",
+        "notebook_add_cell",
+        "notebook_run_cell",
+        "notebook_save",
     },
     "code_extended": {
-        "edit_file", "patch_file", "patch_undo", "safe_rewrite_file",
-        "run_test", "pip_install", "self_heal", "security_review",
+        "edit_file",
+        "patch_file",
+        "patch_undo",
+        "safe_rewrite_file",
+        "run_test",
+        "pip_install",
+        "self_heal",
+        "security_review",
     },
     "browser": {"browser_screenshot", "pw_navigate", "pw_screenshot"},
     "task_extended": {
-        "todo_add", "todo_list", "todo_update", "todo_delete",
-        "todo_dep", "todo_blocked", "todo_stats",
-        "create_goal", "get_goal", "set_goal_budget", "update_goal",
-        "goal_evaluate", "execute_plan", "enter_plan_mode", "exit_plan_mode",
-        "plan_status", "update_plan",
+        "todo_add",
+        "todo_list",
+        "todo_update",
+        "todo_delete",
+        "todo_dep",
+        "todo_blocked",
+        "todo_stats",
+        "create_goal",
+        "get_goal",
+        "set_goal_budget",
+        "update_goal",
+        "goal_evaluate",
+        "execute_plan",
+        "enter_plan_mode",
+        "exit_plan_mode",
+        "plan_status",
+        "update_plan",
     },
     "trm": {"trm_route", "trm_growth", "trm_tune", "trm_catalog"},
     "knowledge_graph": {
-        "find_symbol", "search_symbols", "find_references",
-        "graph_neighbors", "graph_ancestors", "graph_descendants",
+        "find_symbol",
+        "search_symbols",
+        "find_references",
+        "graph_neighbors",
+        "graph_ancestors",
+        "graph_descendants",
     },
     "media_extended": {"imagegen", "text_to_speech", "transcribe_audio", "desktop_screenshot"},
     "mcp": {
-        "mcp_connect", "mcp_call", "mcp_list_servers", "mcp_list_tools",
-        "mcp_call_tool", "mcp_read_resource",
+        "mcp_connect",
+        "mcp_call",
+        "mcp_list_servers",
+        "mcp_list_tools",
+        "mcp_call_tool",
+        "mcp_read_resource",
     },
     "agent": {"agent_swarm", "multi_agent", "skill_search"},
     "deploy": {"deploy_vercel"},
     "misc": {
-        "db_query", "js_eval",
-        "create_pdf", "request_user_input", "count_lines", "tree_dir",
+        "db_query",
+        "js_eval",
+        "create_pdf",
+        "request_user_input",
+        "count_lines",
+        "tree_dir",
     },
 }
 
 # 关键词 → 分类映射（用户输入匹配后自动展开对应分类）
 CATEGORY_HINTS: dict[str, str] = {}
 for _cat, _kws in {
-    "git": ["git", "commit", "push", "pull", "branch", "merge", "pr", "pull request",
-            "github", "repo", "仓库", "提交", "推送"],
+    "git": [
+        "git",
+        "commit",
+        "push",
+        "pull",
+        "branch",
+        "merge",
+        "pr",
+        "pull request",
+        "github",
+        "repo",
+        "仓库",
+        "提交",
+        "推送",
+    ],
     "comfyui": ["comfyui", "stable diffusion", "lora", "workflow", "node"],
     "lsp": ["lsp", "goto definition", "hover", "diagnostic", "代码跳转", "重命名"],
     "notebook": ["notebook", "jupyter", "ipynb", "cell", "单元格"],
-    "code_extended": ["edit", "patch", "rewrite", "refactor", "改代码", "修改", "测试",
-                      "test", "install", "安装"],
+    "code_extended": ["edit", "patch", "rewrite", "refactor", "改代码", "修改", "测试", "test", "install", "安装"],
     "browser": ["browser", "screenshot", "截图", "navigate", "网页"],
     "task_extended": ["goal", "todo", "plan mode", "目标", "计划", "任务"],
     "deploy": ["deploy", "vercel", "部署"],
@@ -761,8 +888,6 @@ def _resolve_tool_names(user_input: str, *, full: bool = False) -> set[str]:
             if keyword in text_lower:
                 names.update(TOOL_EXPANSION_CATEGORIES.get(category, set()))
     return names
-
-
 
 
 class ToolRegistry:
@@ -936,36 +1061,42 @@ class ToolRegistry:
 
         # ── Quest Engine (方法论第5章) ──
         from core.quest_engine import QUEST_EXECUTOR_MAP, QUEST_TOOL_DEFS
+
         self._definitions.extend(QUEST_TOOL_DEFS)
         for name, executor in QUEST_EXECUTOR_MAP.items():
             self._executors[name] = executor
 
         # ── WorkBuddy 办公Agent (方法论第19章) ──
         from core.workbuddy import WORKBUDDY_EXECUTOR_MAP, WORKBUDDY_TOOL_DEFS
+
         self._definitions.extend(WORKBUDDY_TOOL_DEFS)
         for name, executor in WORKBUDDY_EXECUTOR_MAP.items():
             self._executors[name] = executor
 
         # ── Repo Wiki 知识库 (方法论第6章) ──
         from core.repo_wiki import WIKI_EXECUTOR_MAP, WIKI_TOOL_DEFS
+
         self._definitions.extend(WIKI_TOOL_DEFS)
         for name, executor in WIKI_EXECUTOR_MAP.items():
             self._executors[name] = executor
 
         # ── ADR 架构决策记录 (方法论第8章) ──
         from core.adr_engine import ADR_EXECUTOR_MAP, ADR_TOOL_DEFS
+
         self._definitions.extend(ADR_TOOL_DEFS)
         for name, executor in ADR_EXECUTOR_MAP.items():
             self._executors[name] = executor
 
         # ── TDD 工作流 (方法论第10章) ──
         from core.tdd_workflow import TDD_EXECUTOR_MAP, TDD_TOOL_DEFS
+
         self._definitions.extend(TDD_TOOL_DEFS)
         for name, executor in TDD_EXECUTOR_MAP.items():
             self._executors[name] = executor
 
         # ── Retro 复盘 (方法论第9章) ──
         from core.retro_engine import RETRO_EXECUTOR_MAP, RETRO_TOOL_DEFS
+
         self._definitions.extend(RETRO_TOOL_DEFS)
         for name, executor in RETRO_EXECUTOR_MAP.items():
             self._executors[name] = executor
@@ -1019,21 +1150,29 @@ class ToolRegistry:
         # ── 自愈工具（常驻加载）──
         # self_heal: audit + auto-fix the entire codebase
 
-        self._definitions.append({
-            "type": "function",
-            "function": {
-                "name": "self_heal",
-                "description": "Audit and auto-fix the CRUX codebase. Scans for: silent exceptions, syntax errors, config drift, import failures, test failures. Use --fix to auto-patch fixable issues.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "fix": {"type": "boolean", "description": "Auto-fix what can be safely fixed (default: audit only)"},
-                        "quick": {"type": "boolean", "description": "Skip slow scans (imports, tests) for fast feedback"},
+        self._definitions.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": "self_heal",
+                    "description": "Audit and auto-fix the CRUX codebase. Scans for: silent exceptions, syntax errors, config drift, import failures, test failures. Use --fix to auto-patch fixable issues.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "fix": {
+                                "type": "boolean",
+                                "description": "Auto-fix what can be safely fixed (default: audit only)",
+                            },
+                            "quick": {
+                                "type": "boolean",
+                                "description": "Skip slow scans (imports, tests) for fast feedback",
+                            },
+                        },
+                        "required": [],
                     },
-                    "required": [],
                 },
-            },
-        })
+            }
+        )
         self._executors["self_heal"] = lambda **kw: _exec_self_heal(
             fix=bool(kw.get("fix", False)),
             quick=bool(kw.get("quick", False)),
@@ -1394,7 +1533,7 @@ class ToolRegistry:
             except ImportError:
                 # resilience 不可用：退回原行为（raise）
                 raise
-        except (OSError, RuntimeError, TypeError, ValueError, KeyError) as e:
+        except Exception as e:
             if _m:
                 _m.increment("tool_errors")
                 _m.increment(f"tool_err.{name}")  # 按名分桶
@@ -1416,12 +1555,26 @@ class ToolRegistry:
 
         # 1. 空结果检测（写了文件/搜索了代码却返回空，大概率有问题）
         empty_sensitive_tools = {
-            "read_file", "search_files", "glob_files", "find_symbol",
-            "search_symbols", "find_references", "graph_neighbors",
-            "graph_ancestors", "graph_descendants", "code_analyze",
-            "web_search", "web_fetch", "github_search", "github_browse",
-            "github_readme", "list_files", "tree_dir", "skill_search",
-            "env_check", "run_test",
+            "read_file",
+            "search_files",
+            "glob_files",
+            "find_symbol",
+            "search_symbols",
+            "find_references",
+            "graph_neighbors",
+            "graph_ancestors",
+            "graph_descendants",
+            "code_analyze",
+            "web_search",
+            "web_fetch",
+            "github_search",
+            "github_browse",
+            "github_readme",
+            "list_files",
+            "tree_dir",
+            "skill_search",
+            "env_check",
+            "run_test",
         }
         if tool_name in empty_sensitive_tools and (not result or not result.strip()):
             annotations.append("[语义警告] 结果为空——可能工具未找到目标，请检查参数或尝试其他工具")
@@ -1431,13 +1584,17 @@ class ToolRegistry:
             annotations.append("[语义提示] 返回内容很短，可能需要调整 offset/limit")
 
         # 3. 搜索返回 "no matches" / "not found" 模式
-        if tool_name in ("search_files", "find_symbol", "search_symbols", "find_references"):
-            if "no matches" in result.lower() or "not found" in result.lower():
-                annotations.append("[语义提示] 未匹配到结果，建议放宽搜索条件或更换关键词")
+        if tool_name in ("search_files", "find_symbol", "search_symbols", "find_references") and (
+            "no matches" in result.lower() or "not found" in result.lower()
+        ):
+            annotations.append("[语义提示] 未匹配到结果，建议放宽搜索条件或更换关键词")
 
         # 4. 编辑/写入操作返回空（正常：write_file/edit_file 成功时不返回值）
-        if tool_name in ("write_file", "edit_file", "safe_rewrite_file", "patch_file",
-                         "git_add_commit", "github_write_file") and not result.strip():
+        if (
+            tool_name
+            in ("write_file", "edit_file", "safe_rewrite_file", "patch_file", "git_add_commit", "github_write_file")
+            and not result.strip()
+        ):
             # 这些工具成功时通常无输出，这是预期的
             return result  # 不加标记
 
@@ -1456,6 +1613,7 @@ _registry_lock = threading.Lock()
 def _exec_self_heal(fix: bool = False, quick: bool = False) -> str:
     """Execute self_heal tool — audit + optionally fix the codebase."""
     from core.self_heal import SelfHealer
+
     healer = SelfHealer()
     if quick:
         healer.scan_syntax()

@@ -5,23 +5,29 @@
 """
 
 import json
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 
 ADR_DIR = Path("docs/adr")
 ADR_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def adr_create(title: str, context: str, decision: str, consequences: str,
-               status: str = "proposed", related: list[str] | None = None) -> dict:
+def adr_create(
+    title: str,
+    context: str,
+    decision: str,
+    consequences: str,
+    status: str = "proposed",
+    related: list[str] | None = None,
+) -> dict:
     """Create an Architecture Decision Record.
-    
+
     Status: proposed | accepted | deprecated | superseded
     """
     # Find next number
     existing = list(ADR_DIR.glob("*.json"))
     num = len(existing) + 1
-    
+
     adr = {
         "id": f"ADR-{num:04d}",
         "number": num,
@@ -34,37 +40,35 @@ def adr_create(title: str, context: str, decision: str, consequences: str,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
-    (ADR_DIR / f"ADR-{num:04d}.json").write_text(
-        json.dumps(adr, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    (ADR_DIR / f"ADR-{num:04d}.json").write_text(json.dumps(adr, indent=2, ensure_ascii=False), encoding="utf-8")
     # Also generate markdown
     _adr_to_markdown(adr)
     return adr
 
 
 def _adr_to_markdown(adr: dict):
-    md = f"""# {adr['id']}: {adr['title']}
+    md = f"""# {adr["id"]}: {adr["title"]}
 
-- **Status**: {adr['status']}
-- **Date**: {adr['created_at'][:10]}
+- **Status**: {adr["status"]}
+- **Date**: {adr["created_at"][:10]}
 
 ## Context
 
-{adr['context']}
+{adr["context"]}
 
 ## Decision
 
-{adr['decision']}
+{adr["decision"]}
 
 ## Consequences
 
-{adr['consequences']}
+{adr["consequences"]}
 """
-    if adr.get('related'):
+    if adr.get("related"):
         md += "\n## Related\n\n"
-        for r in adr['related']:
+        for r in adr["related"]:
             md += f"- {r}\n"
-    
+
     (ADR_DIR / f"{adr['id']}.md").write_text(md, encoding="utf-8")
 
 
@@ -79,13 +83,14 @@ def adr_list(status: str | None = None) -> list[dict]:
     return results
 
 
-def adr_update(adr_id: str, status: str | None = None, decision: str | None = None,
-               consequences: str | None = None) -> dict:
+def adr_update(
+    adr_id: str, status: str | None = None, decision: str | None = None, consequences: str | None = None
+) -> dict:
     """Update an ADR's status or content."""
     path = ADR_DIR / f"{adr_id}.json"
     if not path.exists():
         return {"error": f"{adr_id} not found"}
-    
+
     adr = json.loads(path.read_text(encoding="utf-8"))
     if status:
         adr["status"] = status
@@ -94,7 +99,7 @@ def adr_update(adr_id: str, status: str | None = None, decision: str | None = No
     if consequences:
         adr["consequences"] = consequences
     adr["updated_at"] = datetime.now(timezone.utc).isoformat()
-    
+
     path.write_text(json.dumps(adr, indent=2, ensure_ascii=False), encoding="utf-8")
     _adr_to_markdown(adr)
     return adr
@@ -105,14 +110,19 @@ def adr_mermaid() -> str:
     adrs = adr_list()
     if not adrs:
         return "No ADRs recorded."
-    
-    lines = ["gantt", "    title Architecture Decision Timeline", "    dateFormat  YYYY-MM-DD", "    axisFormat  %Y-%m-%d"]
+
+    lines = [
+        "gantt",
+        "    title Architecture Decision Timeline",
+        "    dateFormat  YYYY-MM-DD",
+        "    axisFormat  %Y-%m-%d",
+    ]
     for adr in adrs:
         date = adr.get("created_at", "")[:10]
         title = adr["title"].replace('"', "'")
         lines.append(f"    section {adr['status']}")
         lines.append(f"    {title} : {date}, 1d")
-    
+
     return "\n".join(lines)
 
 
@@ -121,54 +131,54 @@ ADR_TOOL_DEFS = [
         "type": "function",
         "function": {
             "name": "adr_create",
-        "description": "Create an Architecture Decision Record (ADR).",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "title": {"type": "string"},
-                "context": {"type": "string", "description": "Why this decision was needed"},
-                "decision": {"type": "string", "description": "What was decided"},
-                "consequences": {"type": "string", "description": "Impact of this decision"},
-                "status": {"type": "string", "enum": ["proposed", "accepted", "deprecated", "superseded"]},
-                "related": {"type": "array", "items": {"type": "string"}}
+            "description": "Create an Architecture Decision Record (ADR).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "context": {"type": "string", "description": "Why this decision was needed"},
+                    "decision": {"type": "string", "description": "What was decided"},
+                    "consequences": {"type": "string", "description": "Impact of this decision"},
+                    "status": {"type": "string", "enum": ["proposed", "accepted", "deprecated", "superseded"]},
+                    "related": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["title", "context", "decision", "consequences"],
             },
-            "required": ["title", "context", "decision", "consequences"]
-        }
-            }
         },
+    },
     {
         "type": "function",
         "function": {
             "name": "adr_list",
-        "description": "List all ADRs.",
-        "parameters": {"type": "object", "properties": {"status": {"type": "string"}}}
-            }
+            "description": "List all ADRs.",
+            "parameters": {"type": "object", "properties": {"status": {"type": "string"}}},
         },
+    },
     {
         "type": "function",
         "function": {
             "name": "adr_update",
-        "description": "Update ADR status or content.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "adr_id": {"type": "string"},
-                "status": {"type": "string", "enum": ["proposed", "accepted", "deprecated", "superseded"]},
-                "decision": {"type": "string"},
-                "consequences": {"type": "string"}
+            "description": "Update ADR status or content.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "adr_id": {"type": "string"},
+                    "status": {"type": "string", "enum": ["proposed", "accepted", "deprecated", "superseded"]},
+                    "decision": {"type": "string"},
+                    "consequences": {"type": "string"},
+                },
+                "required": ["adr_id"],
             },
-            "required": ["adr_id"]
-        }
-            }
         },
+    },
     {
         "type": "function",
         "function": {
             "name": "adr_mermaid",
-        "description": "Generate Mermaid timeline diagram of all ADRs.",
-        "parameters": {"type": "object", "properties": {}}
-            }
+            "description": "Generate Mermaid timeline diagram of all ADRs.",
+            "parameters": {"type": "object", "properties": {}},
         },
+    },
 ]
 
 ADR_EXECUTOR_MAP = {

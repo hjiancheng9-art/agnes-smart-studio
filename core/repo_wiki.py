@@ -5,8 +5,8 @@
 """
 
 import json
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 
 WIKI_DIR = Path(".crux_wiki")
 WIKI_DIR.mkdir(parents=True, exist_ok=True)
@@ -36,10 +36,8 @@ def wiki_create(title: str, content: str, category: str = "general", tags: list[
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "word_count": len(content),
     }
-    (WIKI_DIR / f"{page_id}.json").write_text(
-        json.dumps(page, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
-    
+    (WIKI_DIR / f"{page_id}.json").write_text(json.dumps(page, indent=2, ensure_ascii=False), encoding="utf-8")
+
     index = _load_index()
     if page_id not in index["pages"]:
         index["pages"].append(page_id)
@@ -67,12 +65,14 @@ def wiki_search(query: str, category: str | None = None) -> list[dict]:
         if category and page.get("category") != category:
             continue
         if query_lower in page["title"].lower() or query_lower in page["content"].lower():
-            results.append({
-                "id": page["id"],
-                "title": page["title"],
-                "category": page["category"],
-                "snippet": page["content"][:200],
-            })
+            results.append(
+                {
+                    "id": page["id"],
+                    "title": page["title"],
+                    "category": page["category"],
+                    "snippet": page["content"][:200],
+                }
+            )
     return results
 
 
@@ -85,7 +85,9 @@ def wiki_list(category: str | None = None) -> list[dict]:
         page = json.loads(p.read_text(encoding="utf-8"))
         if category and page.get("category") != category:
             continue
-        results.append({"id": page["id"], "title": page["title"], "category": page["category"], "tags": page.get("tags", [])})
+        results.append(
+            {"id": page["id"], "title": page["title"], "category": page["category"], "tags": page.get("tags", [])}
+        )
     return results
 
 
@@ -104,12 +106,13 @@ def wiki_delete(page_id: str) -> dict:
 
 # ── Knowledge import helpers ──
 
+
 def wiki_import_from_memory() -> dict:
     """Import knowledge from .crux_memory into wiki."""
     memory_dir = Path(".crux_memory")
     if not memory_dir.exists():
         return {"status": "skipped", "reason": "No .crux_memory directory"}
-    
+
     imported = 0
     for p in memory_dir.glob("*.json"):
         try:
@@ -120,7 +123,7 @@ def wiki_import_from_memory() -> dict:
             imported += 1
         except (json.JSONDecodeError, OSError):
             pass
-    
+
     return {"status": "ok", "imported": imported}
 
 
@@ -131,69 +134,55 @@ WIKI_TOOL_DEFS = [
         "type": "function",
         "function": {
             "name": "wiki_create",
-        "description": "Create a wiki page for persistent project knowledge.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "title": {"type": "string"},
-                "content": {"type": "string"},
-                "category": {"type": "string", "description": "e.g. architecture, decision, api, guide"},
-                "tags": {"type": "array", "items": {"type": "string"}}
+            "description": "Create a wiki page for persistent project knowledge.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "content": {"type": "string"},
+                    "category": {"type": "string", "description": "e.g. architecture, decision, api, guide"},
+                    "tags": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["title", "content"],
             },
-            "required": ["title", "content"]
-        }
-            }
         },
+    },
     {
         "type": "function",
         "function": {
             "name": "wiki_read",
-        "description": "Read a wiki page by ID.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "page_id": {"type": "string"}
-            },
-            "required": ["page_id"]
-        }
-            }
+            "description": "Read a wiki page by ID.",
+            "parameters": {"type": "object", "properties": {"page_id": {"type": "string"}}, "required": ["page_id"]},
         },
+    },
     {
         "type": "function",
         "function": {
             "name": "wiki_search",
-        "description": "Search wiki pages by keyword.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string"},
-                "category": {"type": "string"}
+            "description": "Search wiki pages by keyword.",
+            "parameters": {
+                "type": "object",
+                "properties": {"query": {"type": "string"}, "category": {"type": "string"}},
+                "required": ["query"],
             },
-            "required": ["query"]
-        }
-            }
         },
+    },
     {
         "type": "function",
         "function": {
             "name": "wiki_list",
-        "description": "List all wiki pages.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "category": {"type": "string"}
-            }
-        }
-            }
+            "description": "List all wiki pages.",
+            "parameters": {"type": "object", "properties": {"category": {"type": "string"}}},
         },
+    },
     {
         "type": "function",
         "function": {
             "name": "wiki_import_from_memory",
-        "description": "Import .crux_memory data into structured wiki.",
-        "parameters": {"type": "object", "properties": {}}
-            }
+            "description": "Import .crux_memory data into structured wiki.",
+            "parameters": {"type": "object", "properties": {}},
         },
+    },
 ]
 
 WIKI_EXECUTOR_MAP = {
