@@ -933,6 +933,42 @@ class ToolRegistry:
         self._definitions.extend(PLAN_MODE_TOOL_DEFS)
         for name, executor in PLAN_MODE_EXECUTOR_MAP.items():
             self._executors[name] = executor
+
+        # ── Quest Engine (方法论第5章) ──
+        from core.quest_engine import QUEST_EXECUTOR_MAP, QUEST_TOOL_DEFS
+        self._definitions.extend(QUEST_TOOL_DEFS)
+        for name, executor in QUEST_EXECUTOR_MAP.items():
+            self._executors[name] = executor
+
+        # ── WorkBuddy 办公Agent (方法论第19章) ──
+        from core.workbuddy import WORKBUDDY_EXECUTOR_MAP, WORKBUDDY_TOOL_DEFS
+        self._definitions.extend(WORKBUDDY_TOOL_DEFS)
+        for name, executor in WORKBUDDY_EXECUTOR_MAP.items():
+            self._executors[name] = executor
+
+        # ── Repo Wiki 知识库 (方法论第6章) ──
+        from core.repo_wiki import WIKI_EXECUTOR_MAP, WIKI_TOOL_DEFS
+        self._definitions.extend(WIKI_TOOL_DEFS)
+        for name, executor in WIKI_EXECUTOR_MAP.items():
+            self._executors[name] = executor
+
+        # ── ADR 架构决策记录 (方法论第8章) ──
+        from core.adr_engine import ADR_EXECUTOR_MAP, ADR_TOOL_DEFS
+        self._definitions.extend(ADR_TOOL_DEFS)
+        for name, executor in ADR_EXECUTOR_MAP.items():
+            self._executors[name] = executor
+
+        # ── TDD 工作流 (方法论第10章) ──
+        from core.tdd_workflow import TDD_EXECUTOR_MAP, TDD_TOOL_DEFS
+        self._definitions.extend(TDD_TOOL_DEFS)
+        for name, executor in TDD_EXECUTOR_MAP.items():
+            self._executors[name] = executor
+
+        # ── Retro 复盘 (方法论第9章) ──
+        from core.retro_engine import RETRO_EXECUTOR_MAP, RETRO_TOOL_DEFS
+        self._definitions.extend(RETRO_TOOL_DEFS)
+        for name, executor in RETRO_EXECUTOR_MAP.items():
+            self._executors[name] = executor
             self._tool_modules[name] = "core.plan_mode"
 
         # ── Agent Swarm 工具（常驻加载）──

@@ -1,0 +1,12 @@
+{
+  "id": "ADR-0001",
+  "number": 1,
+  "title": "CRUX方法论补齐",
+  "status": "proposed",
+  "context": "总纲方法论要求补充",
+  "decision": "新增6模块27工具",
+  "consequences": "能力大幅提升",
+  "related": [],
+  "created_at": "2026-07-03T21:33:16.046704+00:00",
+  "updated_at": "2026-07-03T21:33:16.046704+00:00"
+}
