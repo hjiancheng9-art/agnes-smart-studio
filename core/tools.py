@@ -1116,6 +1116,24 @@ class ToolRegistry:
         self._definitions.extend(CODE_REVIEW_TOOL_DEFS)
         for name, executor in CODE_REVIEW_EXECUTOR_MAP.items():
             self._executors[name] = executor
+        # ── CI/CD Pipeline (方法论第10章) ──
+        from core.ci_pipeline import PIPELINE_EXECUTOR_MAP, PIPELINE_TOOL_DEFS
+        self._definitions.extend(PIPELINE_TOOL_DEFS)
+        for name, executor in PIPELINE_EXECUTOR_MAP.items():
+            self._executors[name] = executor
+
+        # ── Artifact Pipeline (方法论第13章) ──
+        from core.artifact_pipeline import ARTIFACT_EXECUTOR_MAP, ARTIFACT_TOOL_DEFS
+        self._definitions.extend(ARTIFACT_TOOL_DEFS)
+        for name, executor in ARTIFACT_EXECUTOR_MAP.items():
+            self._executors[name] = executor
+
+        # ── Rollback/Gray-release (方法论第14章) ──
+        from core.rollback_engine import RELEASE_EXECUTOR_MAP, RELEASE_TOOL_DEFS
+        self._definitions.extend(RELEASE_TOOL_DEFS)
+        for name, executor in RELEASE_EXECUTOR_MAP.items():
+            self._executors[name] = executor
+
             self._tool_modules[name] = "core.code_review"
 
         # ── 会话任务追踪工具（常驻加载）──
