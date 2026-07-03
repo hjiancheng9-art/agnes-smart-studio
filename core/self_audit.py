@@ -218,7 +218,12 @@ class AuditEngine:
     def print_report(self, report=None):
         if report is None:
             report = self._build_report()
-        from ui.theme import COLORS, console
+        from rich.console import Console as _RC
+        console = _RC()
+        COLORS = {
+            "success": "green", "error": "red", "warning": "yellow",
+            "primary": "blue", "muted": "dim white", "info": "cyan",
+        }
 
         SEVERITY_COLORS = {
             "critical": COLORS["error"],

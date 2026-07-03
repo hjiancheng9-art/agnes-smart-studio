@@ -5,46 +5,40 @@
       "base_url": "https://apihub.agnes-ai.com/v1",
       "api_key": "",
       "models": {
-        "light": "agnes-1.5-flash",
+        "light": "agnes-2.0-flash",
         "pro": "agnes-2.0-flash",
+        "heavy": "agnes-2.0-flash",
         "image": "agnes-image-2.1-flash",
+        "image_edit": "agnes-image-2.0-flash",
         "video": "agnes-video-v2.0"
       }
     },
     "deepseek": {
-      "name": "DeepSeek V4 Pro (1M)",
+      "name": "DeepSeek V4 (1M)",
       "base_url": "https://api.deepseek.com/v1",
       "api_key": "",
       "models": {
         "pro": "deepseek-v4-pro",
         "light": "deepseek-v4-flash",
-        "chat": "deepseek-chat",
-        "reasoner": "deepseek-reasoner"
+        "heavy": "deepseek-v4-pro",
+        "reasoner": "deepseek-v4-pro"
       },
       "model_aliases": {
-        "ds3": "deepseek-chat"
+        "ds3": "deepseek-v4-flash",
+        "ds-chat": "deepseek-v4-flash",
+        "ds-reasoner": "deepseek-v4-pro"
       }
     },
     "zhipu": {
       "name": "Zhipu GLM (Free)",
       "base_url": "https://open.bigmodel.cn/api/paas/v4",
-      "api_key": "18b598c9a5d946b99cfd5a35868d2485.8VL1aqf76QkzKvWt",
+      "api_key": "",
       "cost_tier": "free",
-      "models": {
-        "pro": "glm-4.7-flash",
-        "light": "glm-4-flash-250414",
-        "reasoner": "GLM-Z1-Flash",
-        "image": "CogView-3-Flash",
-        "video": "CogVideoX-Flash"
-      },
-      "model_aliases": {
-        "z1": "GLM-Z1-Flash",
-        "cogview": "CogView-3-Flash",
-        "cogvideo": "CogVideoX-Flash"
-      },
+      "models": {},
+      "model_aliases": {},
       "vision_models": {
         "light": "GLM-4V-Flash",
-        "pro": "glm-4.1v-thinking-flash"
+        "pro": "GLM-4V-Flash"
       }
     }
   },
@@ -53,7 +47,7 @@
     "enabled": true,
     "priority": [
       "deepseek",
-      "zhipu"
+      "crux"
     ]
   },
   "codebuddy_extra": {

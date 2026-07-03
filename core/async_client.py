@@ -113,8 +113,9 @@ class AsyncCruxClient:
                     response=e.response,
                 ) from e
         # 所有重试耗尽
-        assert last_exc is not None  # guaranteed by loop logic
-        raise last_exc
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("Retry loop exhausted with no exception captured")
 
     # ── 文本 ──────────────────────────────────────────────
 
@@ -157,7 +158,7 @@ class AsyncCruxClient:
         self,
         text: str,
         image_url: str,
-        model: str = "agnes-1.5-flash",
+        model: str = "agnes-2.0-flash",
         **kwargs,
     ) -> dict:
         """异步调用多模态接口（文本+图像理解）"""

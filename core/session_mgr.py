@@ -12,7 +12,7 @@ import os
 import time
 from pathlib import Path
 
-from core.event_bus import bus, SESSION_CREATED, SESSION_RESUMED, SESSION_CLOSED
+from core.event_bus import SESSION_CLOSED, SESSION_CREATED, SESSION_RESUMED, bus
 
 __all__ = [
     "ROOT",

@@ -1232,4 +1232,22 @@ COMFYUI_EXECUTOR_MAP = {
         network_alpha=kw.get("network_alpha", 16),
     ),
     "lora_check_training_status": lambda **kw: execute_lora_check_status(dataset_name=kw.get("dataset_name", "")),
+    # tools.json 兼容别名 (避免 comfyui_lora_* vs lora_* 命名冲突)
+    "comfyui_lora_prepare": lambda **kw: execute_lora_prepare_dataset(
+        dataset_name=kw.get("dataset_name", "untitled"),
+        concept_count=kw.get("concept_count", 1),
+        concept_names=kw.get("concept_names", ""),
+        base_resolution=kw.get("base_resolution", 512),
+    ),
+    "comfyui_lora_generate_config": lambda **kw: execute_lora_generate_config(
+        dataset_name=kw.get("dataset_name", ""),
+        base_model=kw.get("base_model", "sd_xl_base_1.0.safetensors"),
+        resolution=kw.get("resolution", "1024,1024"),
+        learning_rate=kw.get("learning_rate", "0.0001"),
+        batch_size=kw.get("batch_size", 1),
+        max_train_steps=kw.get("max_train_steps", 1000),
+        network_dim=kw.get("network_dim", 32),
+        network_alpha=kw.get("network_alpha", 16),
+    ),
+    "comfyui_lora_check_status": lambda **kw: execute_lora_check_status(dataset_name=kw.get("dataset_name", "")),
 }

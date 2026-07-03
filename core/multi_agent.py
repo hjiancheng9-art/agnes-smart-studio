@@ -147,7 +147,6 @@ class MultiAgentCoordinator:
         Returns:
             Agent 实例（含 agent_id 用于后续 resume）
         """
-        import uuid
 
         agent_id = f"bg_{uuid.uuid4().hex[:8]}"
         agent = Agent(
@@ -189,7 +188,6 @@ class MultiAgentCoordinator:
 
     def _execute_background(self, agent: Agent, goal: str) -> None:
         """后台执行目标（用于 spawn_background）。"""
-        import contextlib
 
         try:
             tasks = self.decompose(goal)
@@ -886,7 +884,6 @@ class AgentSwarm:
         Returns:
             dict: {item: result_str}
         """
-        import uuid
 
         concurrency = min(max_concurrency or self.max_workers, len(items))
         sem = threading.Semaphore(concurrency)

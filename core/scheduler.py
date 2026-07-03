@@ -379,7 +379,7 @@ class Scheduler:
                         except (ValueError, TypeError):
                             pass
                     due.append(task)
-        
+
         # Handle stale tasks: disable them
         with self._lock:
             for tid in stale:

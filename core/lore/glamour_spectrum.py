@@ -3,7 +3,7 @@
 v2 升级: 图腾 v5·特效 v2·音效系统·Web 仪表盘·启动闪屏·favicon 全家桶
 
 化妆 = 终端视觉/动画/SVG/Web/音效 的全部美学表达层。
-SSOT 原则：`terminal_logo.render_pixel_grid()` 是唯一像素真源，
+SSOT 原则：`core/skin.py` 内联像素格阵是唯一像素真源，
 四层皮囊（Terminal/SVG/Web/API）皆从此格阵派生，永不漂移。
 
   素颜   · Pixel Logo         — 8-bit 复古像素字 CRUX，NES 标题画面风

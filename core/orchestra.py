@@ -167,13 +167,7 @@ class Orchestra:
         triggered = []
         for rule in self._rules:
             cond, action = rule["condition"], rule["action"]
-            if cond.startswith("tool_failed_twice:") and event == "tool_error" and tool_name == cond.split(":",1)[1] and error_count >= 2:
-                triggered.append(action)
-            elif cond == "tool_failed_twice" and event == "tool_error" and error_count >= 2:
-                triggered.append(action)
-            elif cond.startswith("provider_down:") and event == "provider_down" and provider == cond.split(":",1)[1]:
-                triggered.append(action)
-            elif cond.startswith("error_count:>=") and error_count >= int(cond.split(">=",1)[1]):
+            if cond.startswith("tool_failed_twice:") and event == "tool_error" and tool_name == cond.split(":",1)[1] and error_count >= 2 or cond == "tool_failed_twice" and event == "tool_error" and error_count >= 2 or cond.startswith("provider_down:") and event == "provider_down" and provider == cond.split(":",1)[1] or cond.startswith("error_count:>=") and error_count >= int(cond.split(">=",1)[1]):
                 triggered.append(action)
         return triggered
 

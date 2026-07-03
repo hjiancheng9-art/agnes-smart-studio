@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Seven Beasts One-Click Launcher --- start and interconnect all AI tools.
+"""CRUX One-Click Launcher --- start and interconnect all AI tools.
 
 Usage:
     python launcher.py              # health check + TRM catalog + dashboard
@@ -18,16 +18,20 @@ Architecture:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 import signal
 import subprocess
 import sys
 import time
-import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+
+# UTF-8 encoding setup (critical on Windows/GDK)
+import core.encoding as _enc
+_enc.setup()
+
 from core.mcp_servers._mcp_utils import run_subprocess
 
 ROOT = Path(__file__).parent
@@ -35,15 +39,30 @@ PID_FILE = ROOT / ".beasts_pids.json"
 
 # ── Rich import (optional, falls back to plain text) ──────────
 try:
-    from rich.console import Console
-    from rich.table import Table
-    from rich.panel import Panel
-    from rich.text import Text
-    from rich.layout import Layout
     from rich.align import Align
+    from rich.box import ROUNDED
+    from rich.console import Console
+    from rich.layout import Layout
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.text import Text
     HAS_RICH = True
 except ImportError:
     HAS_RICH = False
+
+# ── CRUX theme (fallback after UI removal) ────────────────────
+try:
+    from core.theme import BEAST_ORDER, BEAST_PALETTE, COLORS
+    HAS_THEME = True
+except ImportError:
+    HAS_THEME = False
+    BEAST_ORDER = []
+    BEAST_PALETTE = {}
+    COLORS = {
+        "success": "green", "error": "red", "warning": "yellow",
+        "primary": "blue", "muted": "dim white", "info": "cyan",
+    }
+    BEAST_ORDER = ["BAIHU", "QINGLONG", "ZHUQUE", "XUANWU", "QILIN", "TENGSHE", "YINGLONG"]
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -286,7 +305,7 @@ def _spawn_and_initialize(cfg: BeastConfig) -> HealthResult:
         if "capabilities" in result:
             tools_section = result.get("capabilities", {}).get("tools", {})
             if tools_section:
-                version += f" [tools cap]"
+                version += " [tools cap]"
 
         return HealthResult(
             name=cfg.name, icon=cfg.icon, status="online",
@@ -422,28 +441,39 @@ class ProcessManager:
 # ═══════════════════════════════════════════════════════════════
 
 STATUS_GLYPHS = {
-    "online":   "✅",   # checkmark
-    "degraded": "⚠️",  # warning
-    "offline":  "❌",   # X
+    "online":   "●",
+    "degraded": "◈",
+    "offline":  "○",
 }
 
+STATUS_COLORS = {
+    "online":   "#7a9a6b" if HAS_THEME else "green",
+    "degraded": "#c4944a" if HAS_THEME else "yellow",
+    "offline":  "#c4554a" if HAS_THEME else "red",
+}
 
 STATUS_LABELS_ZH = {
-    "online":   "在线",
-    "degraded": "降级",
-    "offline":  "离线",
+    "online":   "● 在线",
+    "degraded": "◈ 降级",
+    "offline":  "○ 离线",
+}
+
+BEAST_ICONS = {
+    "BAIHU":    "🐅", "QINGLONG": "🐉", "ZHUQUE": "🕊",
+    "XUANWU":   "🐢", "QILIN":    "🦄", "TENGSHE": "🐍",
+    "YINGLONG": "🪽",
 }
 
 def print_ascii_dashboard(results: list[HealthResult], elapsed: float) -> None:
     """Fallback ASCII dashboard when Rich is not available."""
     print()
     print("=" * 70)
-    print("  七兽互联 — 连通性面板")
+    print("  ⚒  核心互联 — 连通性面板")
     print("=" * 70)
     online = sum(1 for r in results if r.status == "online")
     degraded = sum(1 for r in results if r.status == "degraded")
     offline = sum(1 for r in results if r.status == "offline")
-    print(f"  在线: {online}  |  降级: {degraded}  |  离线: {offline}")
+    print(f"  ● 在线: {online}  |  ◆ 降级: {degraded}  |  ✗ 离线: {offline}")
     print(f"  健康检查完成，耗时 {elapsed:.1f}s")
     print("-" * 70)
     for r in results:
@@ -469,73 +499,107 @@ def print_rich_dashboard(results: list[HealthResult], elapsed: float) -> None:
         print_ascii_dashboard(results, elapsed)
 
 
+def _beast_color(index: int) -> str:
+    """Return the hex color for a beast by index."""
+    if HAS_THEME and index < len(BEAST_ORDER):
+        return BEAST_PALETTE.get(BEAST_ORDER[index], "#d4a853")
+    return "#d4a853"
+
+
 def _render_rich_dashboard(results: list[HealthResult], elapsed: float) -> None:
-    """Actual Rich rendering — wrapped for graceful fallback."""
+    """Atelier 暗夜工坊风格的 Rich 仪表盘。"""
     console = Console()
 
-    # Build table
-    table = Table(title=None, show_header=True, header_style="bold", expand=True)
+    # 面板色 — 从主题取，失败回落
+    border_c = COLORS["border_active"] if HAS_THEME else "#6b5d3e"
+    accent_c = COLORS["accent"] if HAS_THEME else "#d4a853"
+    primary_c = COLORS["primary"] if HAS_THEME else "#e8e4dd"
+    muted_c = COLORS["muted"] if HAS_THEME else "#6b6560"
+
+    # ── 七兽巡礼标题行 ──
+    beast_line_parts = []
+    for i, name in enumerate(BEAST_ORDER):
+        c = _beast_color(i)
+        icon = BEAST_ICONS.get(name, "?")
+        beast_line_parts.append(f"[{c}]{icon} {name}[/{c}]")
+    beast_line = " ◈ ".join(beast_line_parts)
+
+    # ── 构建表格 ──
+    table = Table(
+        title=None, show_header=True, header_style=f"bold {primary_c}",
+        expand=True, box=ROUNDED, border_style=border_c,
+        row_styles=[f"on {COLORS['surface']}" if HAS_THEME else "", ""],
+    )
     table.add_column("", width=2, no_wrap=True)
-    table.add_column("名称", style="bold", width=18)
-    table.add_column("定位", width=40)
+    table.add_column("名称", style=f"bold {primary_c}", width=18)
+    table.add_column("定位", style=muted_c, width=40)
     table.add_column("状态", width=12)
     table.add_column("版本 / 信息", width=30)
     table.add_column("延迟", width=10, justify="right")
 
     online = degraded = offline = 0
 
-    for r in results:
+    for idx, r in enumerate(results):
         glyph = STATUS_GLYPHS.get(r.status, "?")
+        glyph_c = STATUS_COLORS.get(r.status, muted_c)
         if r.status == "online":
             online += 1
-            status_style = "green"
             status_text = "在线"
+            status_s = STATUS_COLORS["online"]
         elif r.status == "degraded":
             degraded += 1
-            status_style = "yellow"
             status_text = "降级"
+            status_s = STATUS_COLORS["degraded"]
         else:
             offline += 1
-            status_style = "red"
             status_text = "离线"
+            status_s = STATUS_COLORS["offline"]
 
         info = r.version if r.version else ("-" if not r.error else "")
         if r.error and not r.version:
-            info = f"[dim red]{r.error[:50]}[/]"
+            info = f"[{STATUS_COLORS['offline']}]{r.error[:50]}[/]"
 
         latency = f"{r.latency_ms:.0f}ms" if r.latency_ms > 0 else "-"
 
         table.add_row(
-            glyph,
+            f"[{glyph_c}]{glyph}[/]",
             f"{r.icon} {r.name}",
             r.role,
-            f"[{status_style}]{status_text}[/]",
+            f"[{status_s}]{status_text}[/]",
             info,
             latency,
         )
 
-    # Build summary panel
+    # ── 汇总条 ──
     summary = Text()
-    summary.append(f"  在线: ", style="green bold")
-    summary.append(f"{online}  ", style="green")
-    summary.append(f"降级: ", style="yellow bold")
-    summary.append(f"{degraded}  ", style="yellow")
-    summary.append(f"离线: ", style="red bold")
-    summary.append(f"{offline}  ", style="red")
-    summary.append(f"|  耗时 {elapsed:.1f}s", style="dim")
+    summary.append("  ● ", style=STATUS_COLORS["online"])
+    summary.append("● ", style=f"{STATUS_COLORS['online']} bold")
+    summary.append(f"在线 {online}  ", style=f"{STATUS_COLORS['online']} bold")
+    summary.append("◈ ", style=STATUS_COLORS["degraded"])
+    summary.append(f"降级 {degraded}  ", style=STATUS_COLORS["degraded"])
+    summary.append("○ ", style=STATUS_COLORS["offline"])
+    summary.append(f"离线 {offline}  ", style=STATUS_COLORS["offline"])
+    summary.append(f"│  耗时 {elapsed:.1f}s", style=muted_c)
 
-    # Total mesh status
+    # ── 网格状态 ──
     if offline == 0 and degraded == 0:
-        mesh_status = "[bold green]全部在线 — 网格就绪[/]"
+        mesh_status = f"[{STATUS_COLORS['online']}]● 七兽共鸣 — 网格就绪[/]"
     elif offline == 0:
-        mesh_status = f"[bold yellow]网格降级 — {degraded} 兽性能受限[/]"
+        mesh_status = f"[{STATUS_COLORS['degraded']}]◈ 网格降级 — {degraded} 兽性能受限[/]"
     else:
-        mesh_status = f"[bold red]网格不完整 — {offline} 兽不可达[/]"
+        mesh_status = f"[{STATUS_COLORS['offline']}]○ 网格不完整 — {offline} 兽不可达[/]"
 
+    # ── 渲染 ──
     console.print()
     console.print(Panel(
-        Align.center("[bold]七兽互联 — 连通性面板[/]\n" + mesh_status),
-        border_style="bright_blue",
+        Align.center(
+            f"[bold {accent_c}]╔══ █ CRUX · 连通性面板 █ ══╗[/]\n"
+            f"[{muted_c}]{beast_line}[/]\n\n"
+            f"{mesh_status}"
+        ),
+        border_style=border_c,
+        box=ROUNDED,
+        padding=(1, 3),
     ))
     console.print(table)
     console.print(summary)
@@ -602,13 +666,13 @@ class MeshLauncher:
         self.proc_mgr.save_pids()
         running = self.proc_mgr.running
         if running:
-            print(f"\n  运行中的服务: {', '.join(running)}")
+            print(f"\n  ● 运行中的服务: {', '.join(running)}")
             print(f"  PID 已保存至: {PID_FILE}")
-            print(f"  执行 'python launcher.py --stop' 可一键停止。")
+            print("  执行 'python launcher.py --stop' 可一键停止。")
         print()
 
     def launch_main_window(self) -> None:
-        """Open CRUX Studio interactive main window in a new terminal."""
+        """Open CRUX Studio main window in a new terminal."""
         crux_script = ROOT / "crux_studio.py"
         exe_path = PYTHON
 
@@ -619,10 +683,10 @@ class MeshLauncher:
                 creationflags=subprocess.CREATE_NEW_CONSOLE
                 if sys.platform == "win32" else 0,
             )
-            print(f"  ✅ 主战窗口已拉起 (CRUX)")
+            print("  ● 主战窗口已拉起 — 进入暗夜工坊")
         except Exception as e:
             logging.warning("Failed to launch CRUX Studio: %s", str(e)[:120])
-            print("  ⚠️ 拉起 CRUX 失败，请手动启动。")
+            print("  ✗ 拉起 CRUX 失败，请手动启动。")
 
     def stop_all(self) -> None:
         killed = self.proc_mgr.load_and_kill()
@@ -633,94 +697,20 @@ class MeshLauncher:
 
 
 TITLE_ART = r"""
-   ╔══════════════════════════════════════════════╗
-   ║           七 兽 互 联 启 动 器              ║
-   ║          CRUX · Claude · 全 MCP 网格         ║
-   ║         一键启动 · 七兽协同 · 万象共生        ║
-   ╚══════════════════════════════════════════════╝
+   ╔══════════════════════════════════════════════════╗
+   ║     ⚒  CRUX  STUDIO   ·   七 兽 互 联 启 动 器  ║
+   ║     白虎为骨 · 青龙为脉 · 朱雀为眼               ║
+   ║     玄武为甲 · 麒麟为手 · 螣蛇为忆               ║
+   ║     应龙为令 · MCP 网格 · 万象共生               ║
+   ╚══════════════════════════════════════════════════╝
 """
-
-
-def _interactive_menu() -> None:
-    """Interactive menu mode — the default when double-clicked."""
-    launcher = MeshLauncher()
-
-    while True:
-        print()
-        print("  [1] 健康检查 (验证全部连通性)")
-        print("  [2] 完整启动 (检查 + 拉起持久服务)")
-        print("  [3] 一键停止 (关闭所有持久服务)")
-        print("  [4] 快速启动 (跳过检查，直接拉起)")
-        print("  [5] 启动并退出 (拉起服务后关闭面板)")
-        print("  [0] 退出")
-        print()
-        try:
-            choice = input("  请选择 [0-5]: ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print("\n  已退出...")
-            break
-
-        if choice == "1":
-            print("\n  正在健康检查...\n")
-            t0 = time.monotonic()
-            launcher.health_check_all()
-            elapsed = time.monotonic() - t0
-            launcher.show_dashboard(elapsed)
-            # Also show TRM
-            try:
-                trm_text = launcher.discover_trm()
-                print(f"  {trm_text}")
-            except Exception as e:
-                logging.debug("TRM discovery in menu failed: %s", str(e)[:120])
-
-        elif choice == "2":
-            print("\n  正在健康检查...\n")
-            t0 = time.monotonic()
-            launcher.health_check_all()
-            elapsed = time.monotonic() - t0
-            launcher.show_dashboard(elapsed)
-            try:
-                trm_text = launcher.discover_trm()
-                print(f"  {trm_text}")
-            except Exception as e:
-                logging.debug("TRM discovery failed: %s", str(e)[:120])
-            launcher.start_persistent()
-
-        elif choice == "3":
-            launcher.stop_all()
-
-        elif choice == "4":
-            launcher.start_persistent()
-
-        elif choice == "5":
-            print("\n  正在健康检查...\n")
-            t0 = time.monotonic()
-            launcher.health_check_all()
-            elapsed = time.monotonic() - t0
-            launcher.show_dashboard(elapsed)
-            try:
-                trm_text = launcher.discover_trm()
-                print(f"  {trm_text}")
-            except Exception as e:
-                logging.debug("TRM discovery failed: %s", str(e)[:120])
-            launcher.start_persistent()
-            print("  正在拉起主战窗口 (Codex)...")
-            launcher.launch_main_window()
-            print("  服务已后台运行，主战窗口已打开。")
-            break
-
-        elif choice == "0":
-            print("  再见。")
-            break
-        else:
-            print("  无效选择，请输入 0-4。")
 
 
 def main() -> None:
     import argparse
 
     p = argparse.ArgumentParser(
-        description="Seven Beasts MESH Launcher — one-click startup for all AI tools"
+        description="CRUX MESH Launcher — one-click startup for all AI tools"
     )
     p.add_argument("--start", action="store_true",
                    help="Start persistent services (CRUX + Claude MCP serve)")
@@ -734,11 +724,50 @@ def main() -> None:
                    help="One-click launch: health-check + start services + main window")
     args = p.parse_args()
 
-    # If no flags → interactive menu mode (for double-click users)
+    # If no flags → dashboard + interactive menu (for double-click users)
     has_flags = args.start or args.stop or args.status or args.no_check or args.launch
     if not has_flags:
+        # 先做健康检查并显示仪表盘
         print(TITLE_ART)
-        _interactive_menu()
+        launcher = MeshLauncher()
+        print("\n  正在健康检查...\n")
+        t0 = time.monotonic()
+        launcher.health_check_all()
+        elapsed = time.monotonic() - t0
+        launcher.show_dashboard(elapsed)
+        launcher.discover_trm()
+        if launcher.trm_summary:
+            print(f"  {launcher.trm_summary}")
+
+        # 简短菜单
+        print()
+        print("  [1] 进入聊天（全屏 TUI）")
+        print("  [2] 启动后台服务")
+        print("  [3] 查看状态")
+        print("  [q] 退出")
+        print()
+
+        while True:
+            try:
+                ch = input("  选择 [1/2/3/q]: ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                ch = "q"
+            if ch == "q":
+                break
+            elif ch == "1":
+                print("  正在启动 CRUX TUI...")
+                subprocess.run(
+                    [PYTHON, str(ROOT / "crux_studio.py"), "-c"],
+                    cwd=str(ROOT),
+                )
+                break
+            elif ch == "2":
+                launcher.start_persistent()
+                break
+            elif ch == "3":
+                launcher.show_dashboard(elapsed)
+            else:
+                print("  无效选择")
         return
 
     print(TITLE_ART)

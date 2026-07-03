@@ -4,6 +4,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+
 from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = [
@@ -202,3 +203,7 @@ def desktop_screenshot(output: str = "") -> str:
             return str(out_path)
     except (subprocess.SubprocessError, OSError) as e:
         return f"[错误] 截图失败: {e}"
+
+
+
+

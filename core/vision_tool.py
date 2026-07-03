@@ -7,9 +7,6 @@ Usage:
 
 from __future__ import annotations
 
-import base64
-from pathlib import Path
-
 
 def analyze_image(image_path: str, question: str = "描述这张图片") -> str:
     """Analyze an image and return a text description.
@@ -71,8 +68,8 @@ def analyze_image(image_path: str, question: str = "描述这张图片") -> str:
 
 def _get_zhipu_client():
     """Get Zhipu vision client (GLM-4V-Flash)."""
-    from core.provider import get_provider_manager
     from core.client import CruxClient
+    from core.provider import get_provider_manager
 
     mgr = get_provider_manager()
     zhipu_p = mgr.providers.get("zhipu", {})
@@ -104,4 +101,4 @@ def _get_agnes_client():
         crux_key = os.getenv("CRUX_API_KEY", "") or os.getenv("AGNES_API_KEY", "")
     if not crux_key:
         raise RuntimeError("CRUX API key not configured")
-    return CruxClient(api_key=crux_key, base_url=CRUX_VISION_BASE_URL), "agnes-1.5-flash"
+    return CruxClient(api_key=crux_key, base_url=CRUX_VISION_BASE_URL), "agnes-2.0-flash"

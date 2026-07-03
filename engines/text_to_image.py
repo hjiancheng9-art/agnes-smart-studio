@@ -16,16 +16,29 @@ class TextToImageEngine:
     def __init__(self, client: CruxClient):
         self.client = client
 
+    def _get_model(self, model: str = "") -> str:
+        """获取图像生成模型，优先用活跃供应商的模型。"""
+        if model:
+            return model
+        try:
+            from core.provider import get_provider_manager
+            mgr = get_provider_manager()
+            active = mgr.get_active_models()
+            return active.get("image", "agnes-image-2.1-flash")
+        except Exception:
+            return "agnes-image-2.1-flash"
+
     def generate(
         self,
         prompt: str,
-        model: str = "agnes-image-2.1-flash",
+        model: str = "",
         size: str = "1024x768",
         seed: int | None = None,
         negative_prompt: str | None = None,
         return_url: bool = False,
     ) -> dict:
         """生成图片（自动绕过内容过滤）"""
+        model = self._get_model(model)
         size = validate_image_size(size)
         validate_model(model, "image")
         seed = validate_seed(seed)
@@ -81,7 +94,7 @@ class TextToImageEngine:
         }
 
     def generate_batch(
-        self, prompts: list[str], model: str = "agnes-image-2.1-flash", size: str = "1024x768", seed: int | None = None
+        self, prompts: list[str], model: str = "", size: str = "1024x768", seed: int | None = None
     ) -> list[dict]:
         """批量生成。每张用独立 seed（否则同 prompt+seed 只出一张重复图）。
 
@@ -104,16 +117,27 @@ class AsyncTextToImageEngine:
     def __init__(self, client: AsyncCruxClient):
         self.client = client
 
+    def _get_model(self, model: str = "") -> str:
+        if model:
+            return model
+        try:
+            from core.provider import get_provider_manager
+            mgr = get_provider_manager()
+            return mgr.get_active_models().get("image", "agnes-image-2.1-flash")
+        except Exception:
+            return "agnes-image-2.1-flash"
+
     async def generate(
         self,
         prompt: str,
-        model: str = "agnes-image-2.1-flash",
+        model: str = "",
         size: str = "1024x768",
         seed: int | None = None,
         negative_prompt: str | None = None,
         return_url: bool = False,
     ) -> dict:
         """异步生成图片（自动绕过内容过滤）"""
+        model = self._get_model(model)
         size = validate_image_size(size)
         validate_model(model, "image")
         seed = validate_seed(seed)
@@ -169,7 +193,7 @@ class AsyncTextToImageEngine:
         }
 
     async def generate_batch(
-        self, prompts: list[str], model: str = "agnes-image-2.1-flash", size: str = "1024x768", seed: int | None = None
+        self, prompts: list[str], model: str = "", size: str = "1024x768", seed: int | None = None
     ) -> list[dict]:
         """异步批量生成 — 🎯 并行化核心。
 

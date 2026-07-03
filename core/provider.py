@@ -4,7 +4,7 @@ This module is the **single source of truth** for:
   - core/chat.py: MODEL_ALIASES, MODEL_INFO, TOOL_CALLING_MODELS, MODEL_PROVIDER_MAP
   - core/config.py: MODELS
   - models.json: runtime config
-  - ui/cli.py: _load_models_config / _chat_switch_model
+  - crux_studio.py: _chat_repl() model switching
 
 Adding a new provider/model now requires changes in ONE place (MODEL_REGISTRY + models.json).
 
@@ -19,8 +19,7 @@ import time
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
-
-import httpx
+from typing import Any
 
 logger = logging.getLogger("crux.provider")
 
@@ -33,10 +32,14 @@ __all__ = [
     "ProviderManager",
     "ProviderState",
     "ROOT",
+    "get_capability_info",
+    "get_context_window",
+    "get_max_tokens_for_model",
     "get_model_description",
     "get_model_info",
     "get_provider_manager",
     "get_provider_name",
+    "get_thinking_params_for_model",
     "get_tool_calling_models",
     "get_vision_models",
     "model_supports_tools",
@@ -53,7 +56,7 @@ __all__ = [
 
 @dataclass
 class ModelInfo:
-    """模型元信息。"""
+    """模型元信息 — 模型路由唯一真源。"""
 
     id: str  # 模型 ID（发送给 API 的值）
     name: str  # 人类可读名称
@@ -63,9 +66,18 @@ class ModelInfo:
     supports_tools: bool = False  # 是否支持 OpenAI tool calling
     supports_thinking: bool = False  # 是否支持深度思考
     supports_vision: bool = False  # 是否支持多模态图片理解
-    tier: str = "pro"  # light / pro（用于 models.json 的 models 字段）
+    tier: str = "pro"  # light / pro / heavy（用于 models.json 的 models 字段）
     aliases: tuple[str, ...] = ()  # 用户可用的快捷别名（如 "light", "pro"）
     model_type: str = "text"  # "text" | "image" | "video" — 用于 validate_model 类型校验
+    context_window: int = 128000  # 总上下文窗口（tokens）
+    max_output_tokens: int = 8192  # API 最大输出 tokens
+    cost_level: int = 1  # 0=free, 1=cheap, 2=normal, 3=expensive
+    best_for: tuple[str, ...] = ()  # 最适合的任务类型
+
+    @property
+    def model_id(self) -> str:
+        """向后兼容别名 — 等效于 id。"""
+        return self.id
 
 
 # 全局模型注册表 — 新增模型只需在这里加一条
@@ -87,94 +99,68 @@ def _register_defaults():
             supports_vision=True,
             tier="light",
             aliases=("glm-4v", "glm-v", "zhipu-vision"),
+            context_window=32768,
+            max_output_tokens=1024,
+            cost_level=0,
         ),
-        ModelInfo(
-            id="glm-4.1v-thinking-flash",
-            name="GLM-4.1V-Thinking-Flash (智谱)",
-            provider_id="zhipu",
-            provider_name="Zhipu GLM",
-            description="智谱视觉+深度推理，支持thinking参数，复杂图表/代码/计数（免费）",
-            supports_vision=True,
-            supports_thinking=True,
-            tier="pro",
-            aliases=("glm-vt", "zhipu-think-v"),
-        ),
-        # ── 智谱免费对话模型 ──
-        ModelInfo(
-            id="glm-4.7-flash",
-            name="GLM-4.7-Flash (智谱免费)",
-            provider_id="zhipu",
-            provider_name="Zhipu GLM",
-            description="智谱旗舰免费对话，128K，tool calling，免费",
-            supports_tools=True,
-            tier="pro",
-            aliases=("glm", "zhipu-chat", "glm4"),
-        ),
-        ModelInfo(
-            id="glm-4-flash-250414",
-            name="GLM-4-Flash (智谱稳定)",
-            provider_id="zhipu",
-            provider_name="Zhipu GLM",
-            description="智谱稳定版，128K，日常任务，免费",
-            supports_tools=True,
-            tier="light",
-            aliases=("glm-stable", "zhipu-light"),
-        ),
-        ModelInfo(
-            id="GLM-Z1-Flash",
-            name="GLM-Z1-Flash (智谱推理)",
-            provider_id="zhipu",
-            provider_name="Zhipu GLM",
-            description="智谱免费推理模型，数学/代码/逻辑深度思考",
-            supports_tools=True,
-            supports_thinking=True,
-            tier="heavy",
-            aliases=("z1", "glm-z1", "zhipu-reasoner"),
-        ),
-        # ── 智谱免费生图/生视频 ──
-        ModelInfo(
-            id="CogView-3-Flash",
-            name="CogView-3-Flash (智谱生图)",
-            provider_id="zhipu",
-            provider_name="Zhipu GLM",
-            description="智谱免费文生图，支持多尺寸",
-            tier="light",
-            model_type="image",
-            aliases=("cogview", "zhipu-img"),
-        ),
-        ModelInfo(
-            id="CogVideoX-Flash",
-            name="CogVideoX-Flash (智谱生视频)",
-            provider_id="zhipu",
-            provider_name="Zhipu GLM",
-            description="智谱免费文生视频/图生视频，5秒+",
-            tier="light",
-            model_type="video",
-            aliases=("cogvideo", "zhipu-vid"),
-        ),
-        # ── CRUX AI models (vision fallback + media generation only, not for coding) ──
-        ModelInfo(
-            id="agnes-1.5-flash",
-            name="CRUX 1.5 Flash",
-            provider_id="crux",
-            provider_name="CRUX AI",
-            description="视觉理解 fallback（智谱超载时启用），不参与编码",
-            supports_vision=True,
-            tier="light",
-            aliases=("light",),
-        ),
+        # ── CRUX AI models ──
         ModelInfo(
             id="agnes-2.0-flash",
             name="CRUX 2.0 Flash",
             provider_id="crux",
             provider_name="CRUX AI",
-            description="视觉 + 多模态生图/视频，不参与编码",
+            description="视觉理解 + tool calling + 深度推理",
             supports_tools=True,
             supports_thinking=True,
             supports_vision=True,
             tier="pro",
-            aliases=("pro",),
+            aliases=("agnes", "agnes-pro"),
+            context_window=128000,
+            max_output_tokens=16384,
+            cost_level=1,
         ),
+        # ── CRUX 图片生成 ──
+        ModelInfo(
+            id="agnes-image-2.1-flash",
+            name="CRUX Image 2.1 Flash",
+            provider_id="crux",
+            provider_name="CRUX AI",
+            description="高精度文生图/图生图，支持多图参考",
+            tier="pro",
+            model_type="image",
+            aliases=("img-hd", "img-edit", "agnes-image"),
+            context_window=0,
+            max_output_tokens=0,
+            cost_level=2,
+        ),
+        ModelInfo(
+            id="agnes-image-2.0-flash",
+            name="CRUX Image 2.0 Flash",
+            provider_id="crux",
+            provider_name="CRUX AI",
+            description="图片编辑/变体，支持多图+标签控制",
+            tier="pro",
+            model_type="image",
+            aliases=("img-edit-v2",),
+            context_window=0,
+            max_output_tokens=0,
+            cost_level=2,
+        ),
+        # ── CRUX 视频生成 ──
+        ModelInfo(
+            id="agnes-video-v2.0",
+            name="CRUX Video V2.0",
+            provider_id="crux",
+            provider_name="CRUX AI",
+            description="文生视频/图生视频/关键帧动画",
+            tier="pro",
+            model_type="video",
+            aliases=("video", "vid"),
+            context_window=0,
+            max_output_tokens=0,
+            cost_level=3,
+        ),
+        # ── DeepSeek — 主要编码模型 ──
         ModelInfo(
             id="deepseek-v4-pro",
             name="DeepSeek V4 Pro",
@@ -183,8 +169,11 @@ def _register_defaults():
             description="百万上下文，代码/推理，视觉走独立通道",
             supports_tools=True,
             supports_thinking=True,
-            tier="pro",
-            aliases=("deepseek", "ds", "dsv4pro"),
+            tier="heavy",
+            aliases=("deepseek", "ds", "dsv4pro", "pro", "reasoner"),
+            context_window=1000000,
+            max_output_tokens=384000,
+            cost_level=2,
         ),
         ModelInfo(
             id="deepseek-v4-flash",
@@ -194,59 +183,10 @@ def _register_defaults():
             description="轻量快档，日常对话/简单任务，1M 上下文，免费",
             supports_tools=True,
             tier="light",
-            aliases=("flash", "dsflash", "dsv4flash"),
-        ),
-        ModelInfo(
-            id="deepseek-chat",
-            name="DeepSeek Chat (V3)",
-            provider_id="deepseek",
-            provider_name="DeepSeek Chat",
-            description="DeepSeek V3 对话模型，免费",
-            supports_tools=True,
-            tier="light",
-            aliases=("ds-chat",),
-        ),
-        ModelInfo(
-            id="deepseek-reasoner",
-            name="DeepSeek Reasoner (R1)",
-            provider_id="deepseek",
-            provider_name="DeepSeek Reasoner",
-            description="DeepSeek R1 深度推理，复杂分析/架构/数学",
-            supports_tools=True,
-            supports_thinking=True,
-            tier="pro",
-            aliases=("reasoner", "ds-reasoner", "dsr1"),
-        ),
-        # ── 图片/视频引擎模型（调用 create_image / create_video 端点）──
-        ModelInfo(
-            id="agnes-image-2.1-flash",
-            name="CRUX Image 2.1 Flash",
-            provider_id="crux",
-            provider_name="CRUX AI",
-            description="高清图片生成，支持图生图，高密度输出",
-            tier="pro",
-            model_type="image",
-            aliases=("img-hd",),
-        ),
-        ModelInfo(
-            id="agnes-image-2.1-flash",
-            name="CRUX Image 2.1 Flash",
-            provider_id="crux",
-            provider_name="CRUX AI",
-            description="多模态图片生成 + 编辑，图生图/文生图，支持多图参考和标签控制",
-            tier="pro",
-            model_type="image",
-            aliases=("img-edit", "agnes-image"),
-        ),
-        ModelInfo(
-            id="agnes-video-v2.0",
-            name="CRUX Video V2.0",
-            provider_id="crux",
-            provider_name="CRUX AI",
-            description="视频生成，支持文生视频和图生视频双模式",
-            tier="pro",
-            model_type="video",
-            aliases=("video", "vid"),
+            aliases=("flash", "dsflash", "dsv4flash", "light"),
+            context_window=1000000,
+            max_output_tokens=384000,
+            cost_level=1,
         ),
     ]
     for m in models:
@@ -329,13 +269,9 @@ def model_supports_tools(model_id: str) -> bool:
 
 
 def get_vision_models() -> list[str]:
-    """返回所有支持多模态视觉理解的模型 ID 列表（按注册顺序，保持稳定）。
+    """返回所有支持多模态视觉理解的模型 ID 列表。
 
-    视觉通道 fallback 链的单一真相源：智谱主视觉 → Agnes 兜底。
-    调用方应按任务复杂度选择首选项：
-    - 轻量（OCR/描述）→ GLM-4V-Flash（tier=light，免费）
-    - 复杂（计数/图表推理）→ glm-4.1v-thinking-flash（tier=pro，免费）
-    - 智谱超载时 → agnes-1.5-flash / agnes-2.0-flash 兜底
+    视觉通道 fallback 链：CRUX 主力（最优）→ 智谱兜底（免费）。
     """
     return [m.id for m in MODEL_REGISTRY.values() if m.supports_vision]
 
@@ -343,6 +279,48 @@ def get_vision_models() -> list[str]:
 def model_supports_vision(model_id: str) -> bool:
     """判断指定模型是否支持多模态图片理解。"""
     return model_id in get_vision_models()
+
+
+def get_capability_info(model_id: str) -> ModelInfo | None:
+    """根据 model_id 或别名查询 ModelInfo，找不到返回 None。"""
+    resolved = resolve_model_alias(model_id)
+    if resolved:
+        return MODEL_REGISTRY.get(resolved)
+    return MODEL_REGISTRY.get(model_id)
+
+
+def get_context_window(model_id: str) -> int:
+    """返回模型的总上下文窗口（tokens），未知模型返回 128000。"""
+    info = get_capability_info(model_id)
+    return info.context_window if info else 128000
+
+
+def get_max_tokens_for_model(model_id: str, is_tool_call: bool = False) -> int:
+    """返回模型的最大输出 tokens，tool call 场景自动封顶 8192。
+
+    未知模型：返回 16384（默认）或 8192（tool call）。
+    """
+    info = get_capability_info(model_id)
+    if info is None:
+        return max(256, 8192 if is_tool_call else 16384)
+    max_tok = info.max_output_tokens
+    if is_tool_call:
+        max_tok = min(max_tok, 8192)
+    return max(256, max_tok)
+
+
+def get_thinking_params_for_model(model_id: str) -> dict[str, Any]:
+    """返回模型的思考参数 dict，不支持思考则返回 {}。
+
+    需要 ProviderAdapter.build_thinking_params() 处理供应商差异。
+    """
+    info = get_capability_info(model_id)
+    if info is None or not info.supports_thinking:
+        return {}
+    # 委托 ProviderAdapter 处理供应商特定参数格式
+    from core.provider_adapter import get_adapter as _get_adapter
+    adapter = _get_adapter(info.provider_id)
+    return adapter.build_thinking_params()
 
 
 # ═══════════════════════════════════════════════════════════════════

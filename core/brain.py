@@ -49,7 +49,7 @@ class SmartBrain:
         """调用文本模型（自动使用当前激活的供应商）。
 
         若当前供应商调用失败（HTTP 错误等），自动降级到 CRUX light
-        模型（agnes-1.5-flash），保证 prompt 增强不阻断主流程。
+        模型（agnes-2.0-flash），保证 prompt 增强不阻断主流程。
         """
         model = self._get_model()
         messages = [
@@ -57,11 +57,12 @@ class SmartBrain:
             {"role": "user", "content": user_input},
         ]
         try:
+            from core.provider_adapter import get_max_tokens as _gmt
             result = self.client.chat(
                 model=model,
                 messages=messages,
                 temperature=temperature,
-                max_tokens=2048,
+                max_tokens=_gmt(model),
             )
         except (httpx.HTTPError, OSError) as primary_err:
             # 当前供应商失败（网络/HTTP 错误）→ 降级到 CRUX light 模型。
@@ -90,7 +91,7 @@ class SmartBrain:
                     raise RuntimeError("CRUX fallback api_key missing") from primary_err
                 fallback = CruxClient(api_key=crux_key, base_url=CRUX_VISION_BASE_URL)
                 result = fallback.chat(
-                    model="agnes-1.5-flash",
+                    model="agnes-2.0-flash",
                     messages=messages,
                     temperature=temperature,
                     max_tokens=2048,
@@ -1512,13 +1513,16 @@ class SmartBrain:
         return ", ".join(sorted(all_terms))
 
     def understand_image(self, question: str, image_url: str) -> str:
-        """利用 1.5-flash 多模态能力理解图片"""
+        """利用视觉模型理解图片（供应商感知）。"""
+        from core.config import get_crux_vision_model
+        from core.provider_adapter import get_max_tokens as _gmt
+        model = get_crux_vision_model()
         result = self.client.chat_multimodal(
             text=question,
             image_url=image_url,
-            model="agnes-1.5-flash",
+            model=model,
             temperature=0.3,
-            max_tokens=1024,
+            max_tokens=_gmt(model),
         )
         try:
             return result["choices"][0]["message"]["content"]
@@ -2186,7 +2190,7 @@ class AsyncSmartBrain:
         result = await self.client.chat_multimodal(
             text=question,
             image_url=image_url,
-            model="agnes-1.5-flash",
+            model="agnes-2.0-flash",
             temperature=0.3,
             max_tokens=1024,
         )

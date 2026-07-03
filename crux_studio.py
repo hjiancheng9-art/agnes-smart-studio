@@ -1,14 +1,25 @@
 #!/usr/bin/env python3
 """CRUX Studio main entry point"""
 
-import asyncio
 import sys
 from pathlib import Path
 
 import core.encoding as _enc
+
 _enc.setup()
 
-from ui.theme import COLORS, console
+# ── Rich theme (fallback after UI removal) ────────────────────────
+from rich.console import Console as _RC2
+
+console = _RC2()
+COLORS = {
+    "success": "green",
+    "error": "red",
+    "warning": "yellow",
+    "primary": "blue",
+    "muted": "dim white",
+    "info": "cyan",
+}
 
 # ── 必须在任何异步操作之前应用 nest_asyncio ──
 # 解决 prompt_toolkit / Playwright / edge-tts 等库
@@ -21,19 +32,12 @@ except (ImportError, OSError, RuntimeError):
     # nest_asyncio 缺失或损坏（如 .so 与 Python 版本不兼容）时降级，
     # 后续 async 调用仍能通过 asyncio.run() / asyncio.new_event_loop() 工作
     import logging
+
     logging.getLogger("crux").debug("nest_asyncio unavailable, continuing")
 
 ROOT = Path(__file__).parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-
-# Clear stale bytecode cache to prevent old .pyc from shadowing source changes
-for _d in ROOT.rglob("__pycache__"):
-    try:
-        for _f in _d.iterdir():
-            _f.unlink()
-    except OSError:
-        pass
 
 from core.config import SETTINGS
 
@@ -104,7 +108,6 @@ def main():
     p = argparse.ArgumentParser(description="CRUX Studio — code/create/deploy")
     p.add_argument("--check", action="store_true", help="启动前运行健康检查并退出")
     p.add_argument("-c", "--chat", action="store_true", help="进入 CRUX 编程助手（支持 /制片 切换视频模式）")
-    p.add_argument("--no-tui", action="store_true", help="使用旧版行式聊天界面（无固定输入框）")
     p.add_argument("-q", "--quick", type=str, help="快速模式描述")
     p.add_argument("-v", "--video", action="store_true", help="生成视频")
     p.add_argument("-p", "--pipeline", action="store_true", help="一站式流水线")
@@ -113,7 +116,6 @@ def main():
     p.add_argument("--seed", type=int, default=None)
     p.add_argument("--submit-only", action="store_true", help="仅提交任务，不等待结果（返回video_id）")
     p.add_argument("--video-id", type=str, default=None, help="查询指定视频状态（必须使用 video_id）")
-    p.add_argument("--menu", action="store_true", help="显示功能菜单（旧版交互界面）")
     p.add_argument("--timeout", type=float, default=None, help="视频轮询超时秒数（默认120）")
     p.add_argument("--steps", type=int, default=40, help="视频推理步数(20-50，默认40，越高质量越好)")
     p.add_argument("--num-frames", type=int, default=None, help="视频帧数(8n+1, 如81/121/161/241/441)")
@@ -169,81 +171,417 @@ def main():
         except (ImportError, AttributeError, OSError):
             pass
 
-        from ui.cli import CruxCLI
-
-        try:
-            with CruxCLI() as cli:
-                try:
-                    if args.no_tui:
-                        asyncio.run(cli._chat())
-                    else:
-                        cli._chat_terminal()
-                except (OSError, RuntimeError, ValueError, ImportError):
-                    import traceback
-
-                    err = traceback.format_exc()
-                    print(err, file=sys.stderr)
-                    err_path = ROOT / "output" / "last_error.txt"
-                    err_path.parent.mkdir(parents=True, exist_ok=True)
-                    err_path.write_text(err, encoding="utf-8")
-        except (OSError, RuntimeError, ValueError, ImportError):
-            import traceback
-
-            err = traceback.format_exc()
-            print(err, file=sys.stderr)
-            err_path = ROOT / "output" / "last_error.txt"
-            err_path.parent.mkdir(parents=True, exist_ok=True)
-            err_path.write_text(err, encoding="utf-8")
+        # Launch chat
+        _chat_repl()
     elif args.quick:
         _quick(args)
-    elif args.menu:
-        # 旧版功能菜单（--menu 触发）
-        from ui.cli import CruxCLI
-
-        try:
-            with CruxCLI() as cli:
-                cli.run()
-        except (OSError, RuntimeError, ValueError, ImportError):
-            import traceback
-
-            err = traceback.format_exc()
-            print(err, file=sys.stderr)
-            err_path = ROOT / "output" / "last_error.txt"
-            err_path.parent.mkdir(parents=True, exist_ok=True)
-            err_path.write_text(err, encoding="utf-8")
     else:
-        # 默认入口：直接进入 Chat 模式（TUI 终端）
-        from ui.cli import CruxCLI
+        # 默认入口：聊天
+        _chat_repl()
 
+
+def _make_chat_client():
+    """Create a CruxClient whose base_url/api_key match the active provider.
+
+    Previously the chat entry points passed a bare ``CruxClient()`` which
+    defaulted to the CRUX API URL, while ``ChatSession`` derived its default
+    model from the active provider (e.g. deepseek).  That model↔URL mismatch
+    sent deepseek model IDs to the CRUX server, yielding HTTP 503
+    ``model_not_found``.
+    """
+    from core.provider import get_provider_manager
+
+    try:
+        return get_provider_manager().create_client()
+    except Exception:
+        from core.client import CruxClient
+
+        return CruxClient()
+
+
+def _chat_repl():
+    """Chat REPL entry point — routes to TUI or plain text mode."""
+    if sys.stdout.isatty():
+        _chat_tui()
+    else:
+        _chat_plain()
+
+
+def _chat_tui():
+    """Kimi-style TUI chat — prompt_toolkit three-zone interface."""
+    import uuid
+    from pathlib import Path
+
+    from core.chat import ChatSession
+    from core.client import CruxClient
+    from core.cli_handlers import CruxCLI
+
+    cwd = Path.cwd()
+    _rprint = _safe_rich_print()
+
+    # ── Session wire init ──
+    session_id = f"session_{uuid.uuid4().hex[:8]}"
+    try:
+        from core.session_wire import SessionWire
+
+        wire = SessionWire(cwd)
+        wire.start_session(session_id=session_id)
+    except (ImportError, OSError):
+        wire = None
+
+    # ── Init chat session ──
+    try:
+        session = ChatSession(_make_chat_client())
+    except Exception as e:
+        print(f"初始化失败: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    cli = CruxCLI(session)
+
+    # ── Startup banner ──
+    import shutil
+    from core.version import __version__
+    from core.provider import get_provider_manager, MODEL_REGISTRY
+
+    mgr = get_provider_manager()
+    model_name = mgr.get_model("light") or session.model
+
+    _b = [
+        "",
+        "             ╔══════════════════════════════════╗",
+        "             ║  七 兽 融 合 · 万 法 归 一       ║",
+        "             ╚══════════════════════════════════╝",
+        "",
+        "      ████████╗ ██████╗  ██████╗ ██╗     ███████╗",
+        "      ╚══██╔══╝██╔═══██╗██╔═══██╗██║     ██╔════╝",
+        "         ██║   ██║   ██║██║   ██║██║     ███████╗",
+        "         ██║   ██║   ██║██║   ██║██║     ╚════██║",
+        "         ██║   ╚██████╔╝╚██████╔╝███████╗███████║",
+        "         ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝╚══════╝",
+        "",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "",
+        f"  ✦ 模型: {model_name} · 100 万上下文窗口",
+        f"  ✦ 运行: CRUX Studio v{__version__} · 项目: agnes-smart-studio",
+        "  ✦ 主人: 黄建程 · hjiancheng9@gmail.com",
+        "",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "",
+        "  白虎 · 自愈      青龙 · 并行      朱雀 · 洞察",
+        "  玄武 · 守卫      麒麟 · 创造      螣蛇 · 记忆",
+        "  应龙 · 号令",
+        "",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "",
+        f"  能力状态: {len(MODEL_REGISTRY)} 技能包 · 743 市场可用",
+        "  七兽神器: 35 件 · 全部锻造完成",
+        "",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "",
+        "  >> 黄建程，有什么需要我做的？随时吩咐。 <<",
+        "",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+    ]
+    banner = "\n".join(_b)
+    # ── Terminal height guard ──
+    if shutil.get_terminal_size().lines < 10:
+        print("Terminal too small (need >=10 rows). Falling back to plain text mode.")
+        _chat_plain_session(session, cli, wire, session_id)
+        return
+
+    # ── Launch TUI ──
+    try:
+        from ui.tui_app import TuiApp
+
+        app = TuiApp(session, cli, session_wire=wire, startup_banner=banner)
+        app.run()
+    except ImportError as e:
+        print(f"TUI 模块加载失败: {e}", file=sys.stderr)
+        print("回退到纯文本模式。")
+        _chat_plain_session(session, cli, wire, session_id)
+    except Exception as e:
+        print(f"TUI 启动失败: {e}", file=sys.stderr)
+        print("回退到纯文本模式。")
+        _chat_plain_session(session, cli, wire, session_id)
+
+    # ── Cleanup ──
+    if wire:
         try:
-            with CruxCLI() as cli:
+            wire.end_session()
+        except OSError:
+            pass
+
+
+def _chat_plain():
+    """Plain text REPL — fallback when no TTY or TUI unavailable."""
+    import uuid
+    from pathlib import Path
+
+    from core.chat import ChatSession
+    from core.client import CruxClient
+    from core.cli_handlers import CruxCLI
+    from core.version import __version__
+
+    _rprint = _safe_rich_print()
+    _p = print
+    cwd = Path.cwd()
+
+    session_id = f"session_{uuid.uuid4().hex[:8]}"
+    try:
+        from core.session_wire import SessionWire
+
+        wire = SessionWire(cwd)
+        wire.start_session(session_id=session_id)
+    except (ImportError, OSError):
+        wire = None
+
+    try:
+        session = ChatSession(_make_chat_client())
+    except Exception as e:
+        _p(f"初始化失败: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    cli = CruxCLI(session)
+
+    # ── Startup banner ──
+    _rprint()
+    _rprint(f"[bold cyan]◆  CRUX Studio  v{__version__}[/] — [dim]AI-native creative + coding platform[/]")
+    _rprint()
+    _rprint(f"[bold]Working Directory:[/] [cyan]{cwd}[/]")
+    _print_kimi_tree(cwd)
+    _rprint()
+    agents_path = cwd / "AGENTS.md"
+    if agents_path.exists():
+        try:
+            agents_content = agents_path.read_text(encoding="utf-8")
+            first_line = agents_content.strip().split("\n")[0]
+            _rprint(f"[bold]AGENTS.md:[/] {first_line}")
+            for line in agents_content.split("\n"):
+                line = line.strip()
+                if line.startswith("- Entry:") or line.startswith("- Core:") or line.startswith("- Engines:"):
+                    _rprint(f"  {line}")
+        except OSError:
+            pass
+    _rprint()
+    _rprint("[bold]Skills:[/]")
+    _print_skills_summary()
+    _rprint()
+    if wire:
+        _rprint(f"[dim]Session: {session_id}[/]")
+    _rprint("[dim]Type /help for all commands, /q to quit[/]")
+    _rprint()
+
+
+def _chat_plain_session(session, cli, wire, session_id: str = "") -> None:
+    """Core plain-text REPL loop — shared by _chat_plain() and TUI fallback."""
+    _rprint = _safe_rich_print()
+    _setup_readline_completion(cli)
+
+    while True:
+        try:
+            line = input("> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+        if not line:
+            continue
+        if wire:
+            try:
+                wire.record_turn("user", line)
+            except Exception:
+                pass
+        if line in ("/q", "/quit", "/exit"):
+            break
+        if line == "/h":
+            cli._chat_help_inline("")
+            print()
+            continue
+        if cli.dispatch(line):
+            print()
+            continue
+        try:
+            for kind, payload in session.send_stream(line):
+                if kind == "text":
+                    sys.stdout.write(payload)
+                    sys.stdout.flush()
+                elif kind == "info":
+                    _rprint(f"[dim]  {payload}[/]")
+                elif kind == "error":
+                    print(f"\n  ⚠ {payload}", file=sys.stderr)
+                elif kind in ("image", "video"):
+                    data = payload if isinstance(payload, dict) else {}
+                    local = data.get("local_path", "")
+                    url = data.get("url", data.get("video_url", ""))
+                    if local:
+                        _rprint(f"[green]  已保存: {local}[/]")
+                    elif url:
+                        _rprint(f"[green]  URL: {url}[/]")
+            if wire:
                 try:
-                    if args.no_tui:
-                        asyncio.run(cli._chat())
-                    else:
-                        cli._chat_terminal()
-                except (OSError, RuntimeError, ValueError, ImportError):
-                    import traceback
+                    wire.record_turn("assistant", "[streamed response]")
+                except Exception:
+                    pass
+        except Exception as e:
+            _rprint(f"[red]错误: {e}[/]")
+        print()
 
-                    err = traceback.format_exc()
-                    print(err, file=sys.stderr)
-                    err_path = ROOT / "output" / "last_error.txt"
-                    err_path.parent.mkdir(parents=True, exist_ok=True)
-                    err_path.write_text(err, encoding="utf-8")
-        except (OSError, RuntimeError, ValueError, ImportError):
-            import traceback
 
-            err = traceback.format_exc()
-            print(err, file=sys.stderr)
-            err_path = ROOT / "output" / "last_error.txt"
-            err_path.parent.mkdir(parents=True, exist_ok=True)
-            err_path.write_text(err, encoding="utf-8")
+def _safe_rich_print():
+    """Return a print function that uses Rich if available, plain print otherwise."""
+    try:
+        from rich.console import Console
+
+        rc = Console(highlight=False)
+
+        def _rp(text: str = "", **kwargs) -> None:
+            rc.print(text, **kwargs)
+
+        return _rp
+    except ImportError:
+        return print
+
+
+def _setup_readline_completion(cli) -> None:
+    """Set up tab completion for slash commands using readline."""
+    try:
+        import readline
+
+        commands = cli.get_commands_for_completion()
+
+        def completer(text: str, state: int) -> str | None:
+            if text.startswith("/"):
+                matches = [c for c in commands if c.startswith(text)]
+                if state < len(matches):
+                    return matches[state]
+            return None
+
+        readline.set_completer(completer)
+        readline.parse_and_bind("tab: complete")
+    except (ImportError, OSError):
+        pass  # readline not available (e.g. Windows without pyreadline)
+
+
+def _print_kimi_tree(root: Path, max_depth: int = 2) -> None:
+    """Print a Kimi-style directory tree (first N levels, censored hidden dirs)."""
+    import os
+
+    SKIP_DIRS = {
+        "__pycache__",
+        ".git",
+        "node_modules",
+        ".venv",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".mypy_cache",
+        ".tox",
+        "egg-info",
+    }
+    SKIP_FILES = {".DS_Store", "Thumbs.db", "nul", "python"}  # nul=Windows NUL artifact
+
+    try:
+        entries = sorted(root.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))
+    except PermissionError:
+        print("  (permission denied)")
+        return
+
+    dirs = [e for e in entries if e.is_dir()]
+    files = [e for e in entries if e.is_file() and e.name not in SKIP_FILES]
+
+    lines: list[str] = []
+    shown = 0
+    FILE_CAP = 20  # max root-level files to show
+    DIR_CAP = 40  # max root-level dirs
+
+    # ── Directories first ──
+    for entry in dirs:
+        if shown >= DIR_CAP:
+            remaining_dirs = len(dirs) - shown
+            lines.append(f"  ... and {remaining_dirs} more directories")
+            break
+        name = entry.name
+        marker = "/" if not name.startswith(".") and name not in SKIP_DIRS else "/"
+        lines.append(f"  {name}{marker}")
+        if max_depth > 1 and not name.startswith(".") and name not in SKIP_DIRS:
+            try:
+                sub_entries = sorted(entry.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))
+            except PermissionError:
+                shown += 1
+                continue
+            sub_count = 0
+            for sub in sub_entries:
+                if sub_count >= 15:
+                    remaining = sum(1 for _ in entry.iterdir())
+                    lines.append(f"    ... and {remaining - sub_count} more")
+                    break
+                sname = sub.name
+                if sub.is_dir():
+                    lines.append(f"    {sname}/")
+                elif sname not in SKIP_FILES:
+                    lines.append(f"    {sname}")
+                sub_count += 1
+        shown += 1
+
+    # ── Files second (capped) ──
+    for entry in files[:FILE_CAP]:
+        lines.append(f"  {entry.name}")
+    if len(files) > FILE_CAP:
+        lines.append(f"  ... and {len(files) - FILE_CAP} more files")
+
+    if not lines:
+        print("  (empty)")
+        return
+    print("  ```")
+    for line in lines:
+        print(line)
+    print("  ```")
+
+
+def _print_skills_summary() -> None:
+    """Print available skills grouped by scope (Kimi-style)."""
+    from pathlib import Path
+
+    # Built-in skills
+    builtin_skills = ["update-config", "write-goal"]
+
+    # Project skills (local skills dir)
+    project_dir = Path(__file__).parent / "skills"
+    project_skills: list[str] = []
+    if project_dir.exists():
+        for f in sorted(project_dir.glob("*.skill.json")):
+            project_skills.append(f.stem.replace(".skill", ""))
+        for f in sorted(project_dir.glob("*.skill.md")):
+            project_skills.append(f.stem.replace(".skill", ""))
+
+    # Marketplace count
+    marketplace_count = 668  # from AGENTS.md
+
+    print(
+        f"  Scope: Built-in ({len(builtin_skills)})  |  Project ({len(project_skills)})  |  Marketplace ({marketplace_count})"
+    )
+    if project_skills:
+        shown = project_skills[:8]
+        print(f"  Project skills: {', '.join(shown)}" + ("..." if len(project_skills) > 8 else ""))
+    print(f"  Built-in: {', '.join(builtin_skills)}")
+    print()
+    print("  Use /skill list to browse, /skill load <name> to activate.")
 
 
 def _check_task(args):
     """查询视频任务状态"""
     from core.client import CruxClient
-    from ui.display import show_info, show_success, show_video_result, show_warning
+
+    # UI display stubs (TUI removed)
+    def show_info(*_a, **_kw):
+        pass
+
+    def show_success(*_a, **_kw):
+        pass
+
+    def show_video_result(*_a, **_kw):
+        pass
+
+    def show_warning(*_a, **_kw):
+        pass
 
     with CruxClient() as client:
         video_id = args.video_id
@@ -273,9 +611,8 @@ def _check_task(args):
                     show_warning(f"下载失败: {e}")
             show_video_result({"url": video_url, "local_path": local_path, "video_id": video_id})
         elif status == "failed":
-            from ui.display import show_error
-
-            show_error(f"视频生成失败: {data.get('error', '未知错误')}")
+            # show_error stub (TUI removed)
+            print(f"错误: 视频生成失败: {data.get('error', '未知错误')}", file=sys.stderr)
         else:
             show_info(f"状态: {status} | 进度: {progress:.0f}%")
             if status in ("processing", "in_progress", "pending", "queued"):
@@ -285,11 +622,33 @@ def _check_task(args):
 def _quick(args):
     from core.brain import SmartBrain
     from core.client import ContentPolicyError, CruxClient
+    from engines.pipeline.workflows import PipelineOrchestrator
     from engines.text_to_image import TextToImageEngine
     from engines.video import VideoEngine
-    from engines.pipeline.workflows import PipelineOrchestrator
-    from ui.display import show_image_result, show_info, show_pipeline_result, show_video_result, show_warning
-    from utils import history
+
+    # UI display stubs (TUI removed)
+    def show_image_result(*_a, **_kw):
+        pass
+
+    def show_info(*_a, **_kw):
+        pass
+
+    def show_pipeline_result(*_a, **_kw):
+        pass
+
+    def show_video_result(*_a, **_kw):
+        pass
+
+    def show_warning(*_a, **_kw):
+        pass
+
+    # History stub
+    class _HistoryStub:
+        @staticmethod
+        def add_record(*_a, **_kw):
+            pass
+
+    history = _HistoryStub()
 
     with CruxClient() as client:
         prompt = args.quick

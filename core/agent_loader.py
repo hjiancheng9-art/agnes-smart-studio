@@ -8,14 +8,14 @@ Now they're the single source of truth for sub-agent behavior.
 
 from __future__ import annotations
 
-import re
-import yaml
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import yaml
+
 if TYPE_CHECKING:
-    from core.agent import SubAgent
+    pass
 
 AGENTS_DIR = Path(__file__).resolve().parent.parent / "agents"
 

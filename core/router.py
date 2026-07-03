@@ -71,8 +71,8 @@ class CostTier(Enum):
     BEST = "best"
 
 _COST_TIER_FILTER: dict[CostTier, set[str]] = {
-    CostTier.SAVE: {"glm-4.7-flash", "glm-4-flash-250414", "deepseek-chat", "deepseek-v4-flash"},
-    CostTier.BALANCED: {"glm-4.7-flash", "glm-4-flash-250414", "deepseek-chat", "deepseek-v4-flash", "deepseek-v4-pro", "deepseek-reasoner"},
+    CostTier.SAVE: {"deepseek-v4-flash"},
+    CostTier.BALANCED: {"deepseek-v4-flash", "deepseek-v4-pro"},
     CostTier.BEST: set(),
 }
 
@@ -85,7 +85,7 @@ def set_cost_tier(tier: CostTier | str) -> None:
 def get_cost_tier() -> CostTier:
     return _user_cost_tier
 
-_LIGHT_BUT_FREE: set[str] = {"deepseek-chat", "deepseek-v4-flash"}
+_LIGHT_BUT_FREE: set[str] = {"deepseek-v4-flash"}
 
 def _model_cost_tier(model_id: str) -> str:
     try:
@@ -121,7 +121,7 @@ def _build_profile_models() -> dict[TaskProfile, list[str]]:
     3. 仅含 text 类型模型
     """
     try:
-        from core.provider import get_provider_manager, MODEL_REGISTRY  # noqa: F811
+        from core.provider import MODEL_REGISTRY, get_provider_manager  # noqa: F811
 
         mgr = get_provider_manager()
         mgr.load()
@@ -172,7 +172,7 @@ def _pick_best_model(candidates: list[str], session=None) -> str:
         candidates = [m for m in candidates if m in allowed]
         if not candidates: return ""
     try:
-        from core.provider import get_provider_manager, MODEL_REGISTRY
+        from core.provider import MODEL_REGISTRY, get_provider_manager
         mgr = get_provider_manager()
         if not mgr.providers: mgr.load()
         state = mgr.state

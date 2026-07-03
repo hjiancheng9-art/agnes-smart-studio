@@ -12,6 +12,7 @@ Extends basic git commands with full workflow:
 
 import json
 import subprocess
+
 from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = [
@@ -570,7 +571,6 @@ GIT_WORKFLOW_EXECUTOR_MAP = {
 
 def git_status() -> str:
     """git status --short 的安全包装。"""
-    import subprocess
 
     r = run_subprocess(["git", "status", "--short"], timeout=10)
     return r.stdout.strip() or r.stderr.strip() or "not a git repo"
@@ -578,7 +578,6 @@ def git_status() -> str:
 
 def git_diff() -> str:
     """git diff --stat 的安全包装。"""
-    import subprocess
 
     r = run_subprocess(["git", "diff", "--stat"], timeout=10)
     return r.stdout.strip() or r.stderr.strip() or "no changes"
@@ -586,7 +585,6 @@ def git_diff() -> str:
 
 def git_log() -> str:
     """git log --oneline -10 的安全包装。"""
-    import subprocess
 
     r = run_subprocess(["git", "log", "--oneline", "-10"], timeout=10)
     return r.stdout.strip() or r.stderr.strip() or "not a git repo"
@@ -594,7 +592,6 @@ def git_log() -> str:
 
 def git_add_commit(message: str) -> str:
     """git add -A && git commit -m 的安全包装。用列表传参防注入。"""
-    import subprocess
 
     # Step 1: git add -A
     r1 = run_subprocess(["git", "add", "-A"], timeout=30)

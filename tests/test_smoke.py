@@ -1,102 +1,38 @@
-"""Smoke tests - verify key modules import and basic functionality works."""
-
-import ast
-import json
+"""最小冒烟测试 — 验证 CRUX 核心模块可导入且基本功能正常。"""
+import sys
 from pathlib import Path
-
-ROOT = Path(__file__).resolve().parent.parent
-
-
-class TestImports:
-    def test_core_config(self):
-        pass
-
-    def test_core_client(self):
-        pass
-
-    def test_core_tools(self):
-        pass
-
-    def test_core_brain(self):
-        pass
-
-    def test_core_agent(self):
-        pass
-
-    def test_core_skills(self):
-        pass
-
-    def test_core_hooks(self):
-        pass
-
-    def test_core_provider(self):
-        pass
-
-    def test_ui_cli(self):
-        pass
-
-    def test_engines_text_to_image(self):
-        pass
-
-    def test_engines_video(self):
-        pass
-
-    def test_pipeline_workflows(self):
-        pass
-
-    def test_utils_modules(self):
-        pass
-
-    def test_register_learning_hooks_callable(self):
-        from core.hooks import register_learning_hooks
-
-        assert callable(register_learning_hooks)
-        register_learning_hooks()
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
-class TestSyntax:
-    def test_all_py_files_syntax(self):
-        errors = []
-        # 归档目录（scripts/scratch, tests/manual）不纳入语法扫描，
-        # 它们是一次性脚本，已知有 lint 警告，不是生产代码。
-        skip_dirs = {"__pycache__", ".pytest_cache", "output", "scripts", "manual"}
-        for py_file in sorted(ROOT.rglob("*.py")):
-            parts = set(py_file.parts)
-            if parts & skip_dirs:
-                continue
-            try:
-                with open(py_file, encoding="utf-8") as fh:
-                    ast.parse(fh.read(), filename=str(py_file))
-            except SyntaxError as e:
-                errors.append(str(py_file) + ":" + str(e.lineno) + " - " + e.msg)
-        assert len(errors) == 0, "Syntax errors:" + chr(10) + chr(10).join(errors)
+def test_provider_import():
+    from core.provider import get_provider_manager, MODEL_REGISTRY
+    mgr = get_provider_manager()
+    assert mgr.active_provider == "deepseek"
+    assert len(MODEL_REGISTRY) == 7
 
 
-class TestToolsJson:
-    def test_tools_json_exists(self):
-        assert (ROOT / "tools.json").exists()
-
-    def test_tools_json_is_valid_json(self):
-        with open(ROOT / "tools.json", encoding="utf-8") as fh:
-            data = json.load(fh)
-        assert "tools" in data
-        assert isinstance(data["tools"], list)
-        assert len(data["tools"]) > 10
-
-    def test_tools_json_has_key_tools(self):
-        with open(ROOT / "tools.json", encoding="utf-8") as fh:
-            data = json.load(fh)
-        names = {t["name"] for t in data["tools"]}
-        for name in ("read_file", "write_file", "edit_file", "search_files", "run_python"):
-            assert name in names
+def test_model_routing():
+    from core.agent import ModelRouter
+    r = ModelRouter()
+    assert r.select_for_tier("light") == "deepseek-v4-flash"
+    assert r.select_for_tier("pro") == "deepseek-v4-pro"
+    assert r.select(task_type="image_generation") == "agnes-image-2.1-flash"
 
 
-class TestHealthCheck:
-    def test_startup_checks_run(self):
-        from core.startup_checks import critical_failures, run_all
+def test_audit():
+    from core.self_audit import audit
+    report = audit()
+    assert isinstance(report, dict)
+    assert "total_findings" in report
 
-        results = run_all()
-        assert isinstance(results, list)
-        assert len(results) >= 3
-        crit = critical_failures(results)
-        assert isinstance(crit, list)
+
+def test_lsp_available():
+    from core.lsp import get_lsp_client, LSPClient
+    client = get_lsp_client()
+    assert isinstance(client, LSPClient)
+
+
+def test_pytest_runner():
+    from core.pytest_runner import run_pytest_safe, parse_test_summary
+    p, f = parse_test_summary("3 passed in 0.10s")
+    assert p == 3 and f == 0

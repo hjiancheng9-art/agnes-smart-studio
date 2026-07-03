@@ -50,7 +50,7 @@ class DownloadTask:
     label: str = ""
 
     @classmethod
-    def from_aria2(cls, data: dict) -> "DownloadTask":
+    def from_aria2(cls, data: dict) -> DownloadTask:
         completed = int(data.get("completedLength", 0))
         total = int(data.get("totalLength", 0))
         progress = (completed / total * 100) if total > 0 else 0.0
@@ -75,12 +75,12 @@ class DownloadTask:
 
 
 class Aria2Bridge:
-    _instance: "Aria2Bridge | None" = None
+    _instance: Aria2Bridge | None = None
 
     def __init__(self):
         self._process: subprocess.Popen | None = None
         self._rpc_port = 6801
-        self._rpc_secret = "crux-aria2-secret"
+        self._rpc_secret = os.environ.get("CRUX_ARIA2_SECRET", "crux-aria2-secret")
         self._running = False
         self._lock = threading.Lock()
         self._download_dir = str(DEFAULT_DIR)

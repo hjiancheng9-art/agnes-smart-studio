@@ -12,9 +12,12 @@
 from __future__ import annotations
 
 import enum
+import logging
 import threading
 from collections.abc import Callable
 from typing import Any
+
+logger = logging.getLogger("crux.permission")
 
 
 class PermissionMode(enum.Enum):
@@ -113,7 +116,7 @@ class PermissionManager:
         if self._confirm_hook:
             return self._confirm_hook(tool_name, args)
         # 无钩子时打印警告并拒绝
-        print(f"[PermissionManager] 工具 '{tool_name}' 需要确认，但无确认钩子注入。已拒绝。")
+        logger.warning("工具 '%s' 需要确认，但无确认钩子注入。已拒绝。", tool_name)
         return False
 
     # ── 记忆化 ──

@@ -9,11 +9,11 @@ get_watchdog().start()
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import shutil
 import threading
 import time
-import contextlib
 from dataclasses import dataclass, field
 from pathlib import Path
 

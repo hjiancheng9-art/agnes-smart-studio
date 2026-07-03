@@ -16,16 +16,27 @@ class ImageToImageEngine:
     def __init__(self, client: CruxClient):
         self.client = client
 
+    def _get_model(self, model: str = "") -> str:
+        if model:
+            return model
+        try:
+            from core.provider import get_provider_manager
+            mgr = get_provider_manager()
+            return mgr.get_active_models().get("image", "agnes-image-2.1-flash")
+        except Exception:
+            return "agnes-image-2.1-flash"
+
     def edit(
         self,
         prompt: str,
         image_urls: str | list[str],
         size: str = "1024x768",
         seed: int | None = None,
-        model: str = "agnes-image-2.1-flash",
+        model: str = "",
     ) -> dict:
         """图生图/编辑 - 单图或多图编辑"""
         size = validate_image_size(size)
+        model = self._get_model(model)
         validate_model(model, "image")
         seed = validate_seed(seed)
         urls = validate_image_urls(image_urls)
@@ -56,18 +67,18 @@ class ImageToImageEngine:
 
     def compose(self, prompt: str, image_urls: list[str], size: str = "1024x768", seed: int | None = None) -> dict:
         """多图合成 - 融合多张图元素"""
-        return self.edit(prompt=prompt, image_urls=image_urls, size=size, seed=seed, model="agnes-image-2.1-flash")
+        return self.edit(prompt=prompt, image_urls=image_urls, size=size, seed=seed, model=self._get_model())
 
     def style_transfer(self, prompt: str, image_url: str, size: str = "1024x768", seed: int | None = None) -> dict:
         """风格迁移 - 保持构图改风格"""
-        return self.edit(prompt=prompt, image_urls=[image_url], size=size, seed=seed, model="agnes-image-2.1-flash")
+        return self.edit(prompt=prompt, image_urls=[image_url], size=size, seed=seed, model=self._get_model())
 
     def edit_with_21(self, prompt: str, image_urls: str | list[str], size: str = "1024x768") -> dict:
         """使用 2.1-flash 图生图（高密度优化）"""
         urls = validate_image_urls(image_urls)
         result = self.client.create_image(
             prompt=prompt,
-            model="agnes-image-2.1-flash",
+            model=self._get_model(),
             size=size,
             extra_body={"image": urls},
         )
@@ -98,16 +109,26 @@ class AsyncImageToImageEngine:
     def __init__(self, client: AsyncCruxClient):
         self.client = client
 
+    def _get_model(self, model: str = "") -> str:
+        if model: return model
+        try:
+            from core.provider import get_provider_manager
+            mgr = get_provider_manager()
+            return mgr.get_active_models().get("image", "agnes-image-2.1-flash")
+        except Exception:
+            return "agnes-image-2.1-flash"
+
     async def edit(
         self,
         prompt: str,
         image_urls: str | list[str],
         size: str = "1024x768",
         seed: int | None = None,
-        model: str = "agnes-image-2.1-flash",
+        model: str = "",
     ) -> dict:
         """异步图生图/编辑 - 单图或多图编辑"""
         size = validate_image_size(size)
+        model = self._get_model(model)
         validate_model(model, "image")
         seed = validate_seed(seed)
         urls = validate_image_urls(image_urls)
@@ -145,7 +166,7 @@ class AsyncImageToImageEngine:
             image_urls=image_urls,
             size=size,
             seed=seed,
-            model="agnes-image-2.1-flash",
+            model=self._get_model(),
         )
 
     async def style_transfer(
@@ -157,7 +178,7 @@ class AsyncImageToImageEngine:
             image_urls=[image_url],
             size=size,
             seed=seed,
-            model="agnes-image-2.1-flash",
+            model=self._get_model(),
         )
 
     async def edit_with_21(self, prompt: str, image_urls: str | list[str], size: str = "1024x768") -> dict:
@@ -165,7 +186,7 @@ class AsyncImageToImageEngine:
         urls = validate_image_urls(image_urls)
         result = await self.client.create_image(
             prompt=prompt,
-            model="agnes-image-2.1-flash",
+            model=self._get_model(),
             size=size,
             extra_body={"image": urls},
         )

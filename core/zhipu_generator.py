@@ -16,7 +16,6 @@ import json
 import logging
 import os
 import time
-from io import BytesIO
 from pathlib import Path
 
 import requests
@@ -42,7 +41,7 @@ def get_zhipu_api_key() -> str | None:
     """从 models.json 读取智谱 API key。"""
     try:
         cfg_path = ROOT / "models.json"
-        with open(cfg_path, "r", encoding="utf-8") as f:
+        with open(cfg_path, encoding="utf-8") as f:
             cfg = json.load(f)
         return cfg.get("providers", {}).get("zhipu", {}).get("api_key")
     except (OSError, json.JSONDecodeError, KeyError):

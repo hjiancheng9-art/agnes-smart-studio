@@ -141,7 +141,6 @@ class RecoveryEngine:
 
     def _history_corrupt(self, session_id: str = "", **ctx) -> dict:
         """Handle corrupted chat history — truncate and rebuild."""
-        import os
         history_path = self.root / "output" / "history.json"
         backup_path = self.root / "output" / "history.json.bak"
 
@@ -151,7 +150,7 @@ class RecoveryEngine:
             # Attempt to load and sanitize
             try:
                 import json as _json
-                with open(history_path, "r", encoding="utf-8") as f:
+                with open(history_path, encoding="utf-8") as f:
                     data = _json.load(f)
                 # Trim to last valid session
                 if isinstance(data, list) and len(data) > 0:

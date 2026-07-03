@@ -15,7 +15,7 @@
 3. **异常路径统一**：`PermissionError`（用户拒绝高风险工具）与 `KeyboardInterrupt`
    （中断流式）的收尾语义集中在此，保证 renderer.stop()/commit() 的落盘不变式不被破坏。
 
-渲染契约（与 ui/render.py 完全一致，不再此处重复定义）：
+渲染契约（crux_studio.py:_chat_repl 同样遵循此协议）：
 - transient 预览 + 单一落盘点（commit），每个字符只落盘一次。
 - 副作用是落盘边界：handler 执行前 renderer 已 commit 当前累积文本。
 
@@ -28,7 +28,34 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Callable, Iterator
 from typing import Any
 
-from ui.render import StreamingRenderer
+# ── StreamingRenderer stub (UI layer removed) ────────────────────
+class StreamingRenderer:
+    """Minimal stub: UI layer was removed, streaming is now headless."""
+
+    def __init__(self, side_effect_handlers=None, **_kw):
+        self._buf: list[str] = []
+        self._handlers = side_effect_handlers or {}
+
+    @property
+    def buffer(self) -> str:
+        return "".join(self._buf)
+
+    def append_text(self, text: str) -> None:
+        self._buf.append(text)
+
+    def _new_live(self, _style: str = ""):  # noqa: ARG002
+        return self  # self-live: no-op
+
+    def run_side_effect(self, kind: str, payload: object) -> None:
+        handler = self._handlers.get(kind)
+        if handler:
+            handler(kind, payload)
+
+    def commit(self) -> None:  # noqa: B027
+        pass
+
+    def stop(self) -> None:  # noqa: B027
+        pass
 
 __all__ = [
     "SideEffectHandler",
@@ -56,15 +83,21 @@ def default_side_effect_handlers() -> HandlerMap:
     - ``video``  → 展示视频结果 / 超时警告 + 记录历史
     - ``confirm``→ 高风险工具 y/n 确认；拒绝则抛 PermissionError
     """
-    # 延迟导入：本模块可能被非 UI 上下文（如 headless 测试）引用，
-    # 此时 ui.display / utils.history 应可被替换，故放函数体内。
-    from ui.display import (
-        show_image_result,
-        show_info,
-        show_video_result,
-        show_warning,
-    )
-    from utils import history
+    # UI layer removed — use no-op stubs
+    def _noop(*_a, **_kw):
+        pass
+
+    show_info = _noop
+    show_image_result = _noop
+    show_video_result = _noop
+    show_warning = _noop
+
+    # History stub
+    class _HistoryStub:
+        @staticmethod
+        def add_record(*_a, **_kw):
+            pass
+    history = _HistoryStub()
 
     def _on_info(kind: str, payload: object) -> None:
         assert isinstance(payload, (str, dict)), f"expected str/dict, got {type(payload)}"

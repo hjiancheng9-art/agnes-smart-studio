@@ -162,6 +162,21 @@ PIPELINE_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "decompose_to_storyboard",
+            "description": "将文案文本保存为项目清单的脚本字段，为后续拆资产/分镜准备数据。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project_name": {"type": "string", "description": "项目名称"},
+                    "script_text": {"type": "string", "description": "完整文案文本"},
+                },
+                "required": ["project_name", "script_text"],
+            },
+        },
+    },
 ]
 
 # ============================================================

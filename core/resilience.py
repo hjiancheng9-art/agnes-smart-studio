@@ -17,7 +17,6 @@ from collections.abc import Callable
 from enum import Enum
 from typing import Any, TypeVar
 
-
 # ── 敏感数据脱敏模式 ─────────────────────────────────────
 REDACT_PATTERNS: dict[str, re.Pattern] = {
     "api_key": re.compile(r'(?:api[_-]?key|token|secret|password|apikey)[=:]\s*["\']?\S{8,}', re.IGNORECASE),
@@ -193,8 +192,9 @@ class RetryPolicy:
                 else:
                     raise
 
-        assert last_error is not None  # guaranteed by loop logic
-        raise last_error
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("Retry loop exhausted with no exception captured")
 
 
 # ======================================================================
@@ -413,9 +413,7 @@ class CircuitBreaker:
         with self._lock:
             self.failure_count += 1
             self.last_failure_time = time.time()
-            if self.state == CircuitState.CLOSED and self.failure_count >= self.threshold:
-                self._transition(CircuitState.OPEN)
-            elif self.state == CircuitState.HALF_OPEN:
+            if self.state == CircuitState.CLOSED and self.failure_count >= self.threshold or self.state == CircuitState.HALF_OPEN:
                 self._transition(CircuitState.OPEN)
 
     def allow_request(self) -> bool:

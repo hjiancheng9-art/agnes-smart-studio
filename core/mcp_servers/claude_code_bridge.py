@@ -11,9 +11,10 @@ Usage (TRM auto-discovery):
     }
 """
 
-import sys, os, json, subprocess
-from pathlib import Path
-from typing import Optional
+import json
+import os
+import subprocess
+import sys
 
 # ── Constants ───────────────────────────────────────────────────
 CLAUDE_CODE_PATH = os.path.expanduser(r"~\.local\bin\claude.exe")
@@ -24,7 +25,7 @@ class ClaudeCodeMCPBridge:
     """MCP server bridging Claude Code CLI tools."""
 
     def __init__(self):
-        self._tools_cache: Optional[list[dict]] = None
+        self._tools_cache: list[dict] | None = None
 
     @property
     def tools(self) -> list[dict]:

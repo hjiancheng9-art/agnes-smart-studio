@@ -107,7 +107,7 @@
     {
       "name": "think_deep",
       "type": "python",
-      "description": "已弃用。llama.cpp 不再维护，think_deep 不再可用。请直接在当前对话中进行深度推理。",
+      "description": "Deep reasoning via local LLM (llama.cpp). Use for offline analysis. For online deep reasoning, prefer direct conversation or /beast heavy.",
       "function": "core.file_tools.think_deep",
       "parameters": {
         "prompt": {
@@ -1285,6 +1285,212 @@
         "old_lines": {"type": "string", "description": "Exact text to replace (multi-line OK)", "required": true},
         "new_lines": {"type": "string", "description": "Replacement text", "required": true}
       }
+    },
+    {
+      "name": "lsp_goto_definition",
+      "type": "python",
+      "description": "Jump to the definition of a symbol at a given position in a file using the Language Server Protocol. Returns the file URI and range of the definition. Use this to navigate code.",
+      "function": "core.lsp.execute_lsp_goto_definition",
+      "parameters": {
+        "file_path": {"type": "string", "description": "Absolute path to the source file", "required": true},
+        "line": {"type": "integer", "description": "0-based line number (first line is 0)", "required": true},
+        "character": {"type": "integer", "description": "0-based character offset in the line (first character is 0)", "required": true}
+      }
+    },
+    {
+      "name": "lsp_hover",
+      "type": "python",
+      "description": "Get hover information (type signature, documentation) for a symbol at a given position in a file using LSP. Returns markdown or plaintext content with type info and docs.",
+      "function": "core.lsp.execute_lsp_hover",
+      "parameters": {
+        "file_path": {"type": "string", "description": "Absolute path to the source file", "required": true},
+        "line": {"type": "integer", "description": "0-based line number", "required": true},
+        "character": {"type": "integer", "description": "0-based character offset", "required": true}
+      }
+    },
+    {
+      "name": "lsp_diagnostics",
+      "type": "python",
+      "description": "Get diagnostics (errors, warnings, hints) for a file using LSP. The file is opened in the language server and any issues are returned. Use this to check for compilation or lint errors.",
+      "function": "core.lsp.execute_lsp_diagnostics",
+      "parameters": {
+        "file_path": {"type": "string", "description": "Absolute path to the source file", "required": true}
+      }
+    },
+    {
+      "name": "lsp_find_references",
+      "type": "python",
+      "description": "Find all references to the symbol at a given position in a file using LSP. Returns a list of locations where the symbol is used. Use this to understand impact before refactoring.",
+      "function": "core.lsp.execute_lsp_find_references",
+      "parameters": {
+        "file_path": {"type": "string", "description": "Absolute path to the source file", "required": true},
+        "line": {"type": "integer", "description": "0-based line number", "required": true},
+        "character": {"type": "integer", "description": "0-based character offset", "required": true}
+      }
+    },
+    {
+      "name": "lsp_completion",
+      "type": "python",
+      "description": "Get autocomplete suggestions at a given position in a file using LSP. Returns a list of completion items with labels, detail, and documentation. Use this to get code suggestions.",
+      "function": "core.lsp.execute_lsp_completion",
+      "parameters": {
+        "file_path": {"type": "string", "description": "Absolute path to the source file", "required": true},
+        "line": {"type": "integer", "description": "0-based line number", "required": true},
+        "character": {"type": "integer", "description": "0-based character offset", "required": true}
+      }
+    },
+    {
+      "name": "lsp_rename",
+      "type": "python",
+      "description": "Rename a symbol across the entire project using LSP. Returns a list of workspace edits showing all files and positions that will be changed. Use this for safe, project-wide refactoring.",
+      "function": "core.lsp.execute_lsp_rename",
+      "parameters": {
+        "file_path": {"type": "string", "description": "Absolute path to the source file containing the symbol", "required": true},
+        "line": {"type": "integer", "description": "0-based line number of the symbol", "required": true},
+        "character": {"type": "integer", "description": "0-based character offset of the symbol", "required": true},
+        "new_name": {"type": "string", "description": "The new name for the symbol", "required": true}
+      }
+    },
+    {
+      "name": "code_review",
+      "type": "python",
+      "description": "Review code quality: check changed files for style/logic/performance/maintainability issues. Modeled after Copilot CLI /review command.",
+      "function": "core.code_review._exec_code_review",
+      "parameters": {
+        "files": {"type": "array", "items": {"type": "string"}, "description": "List of file paths to review (empty = auto-detect git diff .py files)", "required": false},
+        "mode": {"type": "string", "enum": ["code", "security"], "description": "Review mode: code=code quality, security=security review (default code)", "required": false}
+      }
+    },
+    {
+      "name": "security_review",
+      "type": "python",
+      "description": "Review security vulnerabilities: check for hardcoded credentials/SQL injection/XSS/path traversal/insecure deserialization etc. Modeled after Copilot CLI /security-review command.",
+      "function": "core.code_review._exec_security_review",
+      "parameters": {
+        "files": {"type": "array", "items": {"type": "string"}, "description": "List of file paths to review (empty = auto-detect git diff .py files)", "required": false}
+      }
+    },
+    {
+      "name": "run_format",
+      "type": "python",
+      "description": "Auto-format code files. Detects language and applies the correct formatter: ruff format + isort for Python, prettier for JS/TS/HTML/CSS. Use --check for dry-run without modifying files.",
+      "function": "core.format_tools.execute_run_format",
+      "parameters": {
+        "paths": {"type": "string", "description": "Space-separated file/directory paths to format. Default: all tracked files in project.", "required": false},
+        "check": {"type": "boolean", "description": "If true, only check formatting without modifying files (dry-run).", "required": false}
+      }
+    },
+    {
+      "name": "run_lint",
+      "type": "python",
+      "description": "Run static analysis / linting. Detects language and uses ruff check (Python) or eslint (JS/TS). Use --fix to auto-fix issues.",
+      "function": "core.format_tools.execute_run_lint",
+      "parameters": {
+        "paths": {"type": "string", "description": "Space-separated file/directory paths to lint. Default: all tracked files.", "required": false},
+        "fix": {"type": "boolean", "description": "If true, auto-fix lint issues where possible.", "required": false}
+      }
+    },
+    {
+      "name": "debug_inspect",
+      "type": "python",
+      "description": "Run a test or script and capture full traceback with per-frame local variable values on failure. Use this to debug test failures or script errors — see exactly what variables were at each stack frame when the error occurred.",
+      "function": "core.pytest_runner.debug_inspect",
+      "parameters": {
+        "target": {"type": "string", "description": "Test target or script path. e.g. 'tests/' or 'tests/test_foo.py::test_bar' or 'core/agent.py'", "required": true},
+        "extra_args": {"type": "string", "description": "Extra pytest flags (e.g. '-x -k test_name') or script arguments", "required": false}
+      }
+    },
+    {
+      "name": "http_request",
+      "type": "python",
+      "description": "Make an HTTP request. Supports GET/POST/PUT/DELETE with custom headers and body. Use for testing REST APIs, fetching data from endpoints, or debugging HTTP services. Returns status, headers, and body (truncated to 10KB).",
+      "function": "core.client.http_request",
+      "parameters": {
+        "url": {"type": "string", "description": "Full URL to request", "required": true},
+        "method": {"type": "string", "description": "HTTP method: GET, POST, PUT, DELETE, PATCH (default GET)", "required": false},
+        "headers": {"type": "object", "description": "Request headers as {key: value} dict", "required": false},
+        "body": {"type": "string", "description": "Request body (for POST/PUT/PATCH)", "required": false},
+        "timeout": {"type": "integer", "description": "Timeout in seconds (default 30)", "required": false}
+      }
+    },
+    {
+      "name": "db_query",
+      "type": "python",
+      "description": "Execute a SQL query on a SQLite database file. Supports SELECT queries (read-only by default) and INSERT/UPDATE/DELETE with automatic read-write fallback. Returns rows as JSON array. Use for inspecting databases, running analytics queries, or data migrations.",
+      "function": "core.client.db_query",
+      "parameters": {
+        "db_path": {"type": "string", "description": "Path to the SQLite database file", "required": true},
+        "query": {"type": "string", "description": "SQL query to execute", "required": true},
+        "params": {"type": "array", "items": {"type": "string"}, "description": "Query parameters for parameterized queries", "required": false},
+        "limit": {"type": "integer", "description": "Max rows to return (default 100)", "required": false}
+      }
+    },
+    {
+      "name": "notebook_open",
+      "type": "python",
+      "description": "Open a Jupyter notebook (.ipynb) and return cell summaries with index, type, and source preview.",
+      "function": "core.notebook._exec_notebook_open",
+      "parameters": {
+        "path": {"type": "string", "description": "Path to the .ipynb notebook file", "required": true}
+      }
+    },
+    {
+      "name": "notebook_edit_cell",
+      "type": "python",
+      "description": "Edit a cell's source in a Jupyter notebook. Provide the notebook path, cell index (0-based), and new source.",
+      "function": "core.notebook._exec_notebook_edit_cell",
+      "parameters": {
+        "path": {"type": "string", "description": "Path to the .ipynb file", "required": true},
+        "cell_index": {"type": "integer", "description": "0-based cell index to edit", "required": true},
+        "source": {"type": "string", "description": "New source code for the cell", "required": true}
+      }
+    },
+    {
+      "name": "notebook_add_cell",
+      "type": "python",
+      "description": "Add a new cell to a Jupyter notebook. Specify cell_type as 'code' or 'markdown', and insertion position.",
+      "function": "core.notebook._exec_notebook_add_cell",
+      "parameters": {
+        "path": {"type": "string", "description": "Path to the .ipynb file", "required": true},
+        "source": {"type": "string", "description": "Cell source content", "required": true},
+        "cell_type": {"type": "string", "description": "'code' or 'markdown' (default code)", "required": false},
+        "index": {"type": "integer", "description": "Insertion index (append to end if omitted)", "required": false}
+      }
+    },
+    {
+      "name": "notebook_run_cell",
+      "type": "python",
+      "description": "Execute a cell in a Jupyter notebook and return the output (stdout, stderr, display data). Requires a running kernel.",
+      "function": "core.notebook._exec_notebook_run_cell",
+      "parameters": {
+        "path": {"type": "string", "description": "Path to the .ipynb file", "required": true},
+        "cell_index": {"type": "integer", "description": "0-based cell index to execute", "required": true}
+      }
+    },
+    {
+      "name": "notebook_save",
+      "type": "python",
+      "description": "Save a Jupyter notebook to disk. Call after making edits to persist changes.",
+      "function": "core.notebook._exec_notebook_save",
+      "parameters": {
+        "path": {"type": "string", "description": "Path to the .ipynb file", "required": true}
+      }
+    },
+    {
+      "name": "estimate_tokens",
+      "type": "python",
+      "description": "Estimate the token count for a given text using a simple heuristic (1 token ~ 4 chars English, ~1.5 chars Chinese). Use to check if content fits within model context limits before sending.",
+      "function": "core.context_tools.estimate_tokens",
+      "parameters": {
+        "text": {"type": "string", "description": "Text to estimate token count for", "required": true}
+      }
+    },
+    {
+      "name": "inspect_last_error",
+      "type": "python",
+      "description": "Recover the last captured error traceback from a previous failed tool or script execution. Use when a previous operation failed and you need to see exactly what went wrong without re-running.",
+      "function": "core.runtime_inspect.inspect_last_error",
+      "parameters": {}
     }
   ]
 }

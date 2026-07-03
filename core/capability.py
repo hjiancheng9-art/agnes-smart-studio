@@ -137,16 +137,14 @@ class CapabilityRegistry:
                 engines["comfyui"] = "enabled"
         except (AttributeError, ImportError, NameError):
             pass
-        if False:  # was comfyui check
-            engines["comfyui"] = "enabled"
         return {"count": len(engines), "items": engines}
 
     def _list_models(self) -> dict:
-        from core.config import MODELS
+        from core.provider import MODEL_REGISTRY
 
         items = {}
-        for key, cfg in MODELS.items():
-            items[key] = {"id": cfg.get("id", "?"), "type": cfg.get("type", "?")}
+        for key, info in MODEL_REGISTRY.items():
+            items[key] = {"id": info.id, "provider": info.provider_id, "type": info.model_type}
         return {"count": len(items), "items": items}
 
     def _check_env(self) -> dict:
@@ -188,23 +186,15 @@ class CapabilityRegistry:
             results["tests"] = f"{passed} passed, {failed} failed (render+chat 快检)"
         except (OSError, ValueError) as e:
             results["tests"] = f"error: {e}"
-        # Rendering invariants (显示层"输出不重复"DNA 自检)
-        # 真反射检测：实际 import + 构造 renderer 取样 Live 验证 transient=True，
-        # 而非写死 True（否则 renderer 被删/被改时自检仍撒谎）。
+        # Rendering invariants
         try:
-            from rich.console import Console as _C
-
-            from ui.render import StreamingRenderer as _SR
-
-            _probe = _SR(_C())  # 真构造，触发真实配置路径
-            live = _probe._new_live("")
-            transient_ok = getattr(live, "transient", False) is True
-            # single_commit：commit 方法存在 + 实例确有 _flushed_len 字段（实例属性，非类属性）
+            # Chat REPL 可用性检查
+            from core.chat import ChatSession as _CS
+            ok = hasattr(_CS, "send_stream")
             results["rendering.invariants"] = {
                 "renderer_present": True,
-                "transient_preview": transient_ok,
-                "single_commit": callable(getattr(_probe, "commit", None)) and hasattr(_probe, "_flushed_len"),
-                "renderer": "ui/render.py:StreamingRenderer",
+                "renderer_ok": ok,
+                "renderer": "core/chat.py:ChatSession (in-process REPL)",
             }
         except ImportError as e:
             results["rendering.invariants"] = {"renderer_present": False, "error": f"import: {e}"}

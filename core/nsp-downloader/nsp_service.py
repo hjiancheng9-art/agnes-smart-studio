@@ -1,10 +1,8 @@
 """NSP 简易下载服务 - 接收 URL 直接用 ffmpeg 下载"""
 import http.server
 import json
-import subprocess
 import os
-import sys
-import urllib.parse
+import subprocess
 
 FFMPEG = r"C:\ffmpeg\bin\ffmpeg.exe"
 DOWNLOAD_DIR = os.path.expanduser(r"~\Downloads\nsp")

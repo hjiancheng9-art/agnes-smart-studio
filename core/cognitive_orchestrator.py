@@ -9,7 +9,6 @@ from __future__ import annotations
 import concurrent.futures
 import logging
 import re
-from typing import Any
 
 logger = logging.getLogger("crux.cognitive")
 
@@ -56,13 +55,13 @@ class CognitiveOrchestrator:
 
         Args:
             prompt: the user's question
-            models: list of model IDs to consult. Default: [deepseek-v4-pro, glm-4.7-flash]
+            models: list of model IDs to consult. Default: [deepseek-v4-pro, deepseek-v4-flash]
 
         Returns:
             {"answer": str, "confidence": str, "dissenting": str, "models_used": int}
         """
         if models is None:
-            models = ["deepseek-v4-pro", "glm-4.7-flash"]
+            models = ["deepseek-v4-pro", "deepseek-v4-flash"]
 
         self.vote_count += 1
 

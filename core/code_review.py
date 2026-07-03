@@ -10,6 +10,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+
 from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = [
@@ -55,7 +56,7 @@ class ReviewReport:
 
     def summary(self) -> str:
         s = self.stats
-        lines = [f"## Code Review Report", f"Files: {s.get('files', 0)} | Lines: {s.get('lines', 0)}"]
+        lines = ["## Code Review Report", f"Files: {s.get('files', 0)} | Lines: {s.get('lines', 0)}"]
         lines.append(f"Issues: {s.get('total_issues', 0)} ({s.get('errors', 0)} errors, {s.get('warnings', 0)} warnings, {s.get('info', 0)} info)")
         if self.issues:
             lines.append("")
@@ -290,7 +291,6 @@ class CodeReviewer:
             return self.review_files(diff_files)
 
         # 自动获取 git diff 中的文件
-        import subprocess
         try:
             r = run_subprocess(["git", "diff", "--name-only", "HEAD"], cwd=os.getcwd(), timeout=10)
             files = [f.strip() for f in r.stdout.splitlines() if f.strip().endswith(".py")]
@@ -349,15 +349,12 @@ def run_security_review(files: list[str] | None = None) -> dict:
 
 # ── ToolRegistry 兼容定义 ──
 
-def _exec_code_review(args: dict) -> str:
-    files = args.get("files", None)
-    mode = args.get("mode", "code")
+def _exec_code_review(files: list[str] | None = None, mode: str = "code") -> str:
     result = run_review(files=files, mode=mode)
     return json.dumps(result, ensure_ascii=False, indent=2)
 
 
-def _exec_security_review(args: dict) -> str:
-    files = args.get("files", None)
+def _exec_security_review(files: list[str] | None = None) -> str:
     result = run_security_review(files=files)
     return json.dumps(result, ensure_ascii=False, indent=2)
 

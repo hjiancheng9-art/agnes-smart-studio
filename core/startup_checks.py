@@ -24,8 +24,13 @@ __all__ = [
     "wait_for_provider",
 ]
 
-# ── Rich theme (single source of truth) ──────────────────────────
-from ui.theme import COLORS, console
+# ── Rich theme (fallback after UI removal) ───────────────────────
+from rich.console import Console as _RC
+console = _RC()
+COLORS = {
+    "success": "green", "error": "red", "warning": "yellow",
+    "primary": "blue", "muted": "dim white", "info": "cyan",
+}
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -218,7 +223,7 @@ def _check_models_config():
     for pid, p in providers.items():
         if not p.get("base_url", "").startswith("http"):
             issues.append(f"{pid}: invalid base_url")
-        if not p.get("models"):
+        if not p.get("models") and not p.get("vision_models"):
             issues.append(f"{pid}: no models defined")
 
     if active and active not in providers:

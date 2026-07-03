@@ -1,7 +1,7 @@
 """音频工具 — TTS 语音合成 + 背景音乐 + 音效 + 混音
 
-⚠ EXPERIMENTAL — 未接通 runtime：仅被 tests/manual 引用，
-tools.json 未注册、ChatSession 未 import。接入前接口可能调整。
+已接入 runtime：通过 ChatSession.toggle_audio() 和 /extend audio 命令激活。
+ToolRegistry.load(audio=True) 自动注册所有 4 个音频工具。
 
 提供 4 个工具：
 - tts_narration: edge-tts 文本转语音（微软免费中文语音引擎）

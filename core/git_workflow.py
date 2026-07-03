@@ -4,9 +4,9 @@ Provides structured git operations usable by the agent in autonomous mode.
 All operations are safe (no force push, no destructive resets unless explicit).
 """
 
-import subprocess
 import time
 from pathlib import Path
+
 from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = [

@@ -1,4 +1,4 @@
-"""Beast Wiring — 五兽神经焊盘。真接线，每条信道通肌肉。
+"""Beast Wiring — 七兽神经焊盘。真接线，每条信道通肌肉。
 所有事件处理器现在调用真实模块，不再只是 logger.debug。
 wire_all() 在 ChatSession.__init__ 中调用一次。
 新增文件：event_bus / plugin_system / capability_registry
@@ -118,8 +118,8 @@ def wire_all() -> bool:
     def tengshe_session_end(**kwargs):
         """Session end: archive memory snapshot."""
         try:
-            from pathlib import Path
             from datetime import datetime
+            from pathlib import Path
 
             awareness_dir = Path(__file__).resolve().parent.parent / "awareness"
             mem_dir = awareness_dir / "memory"

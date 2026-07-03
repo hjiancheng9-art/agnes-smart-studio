@@ -1,0 +1,70 @@
+140:     logo_text = Text.from_markup("\n" + "\n".join(logo_lines) + "\n")
+141: 
+142:     # ── 边框 ──
+143:     bdr = _P["border"]
+144:     bdr_d = _P["border_dim"]
+145: 
+146:     border_top = Text(
+147:         f"  ╔{'═' * (LOGO_W - 2)}╗",
+148:         style=Style(color=bdr),
+149:     )
+150: 
+151:     # 框内上边
+152:     border_inner_top = Text(
+153:         f"  ║{' ' * (LOGO_W - 2)}║",
+154:         style=Style(color=bdr_d),
+155:     )
+156: 
+157:     border_bot = Text(
+158:         f"  ╚{'═' * (LOGO_W - 2)}╝",
+159:         style=Style(color=bdr),
+160:     )
+161: 
+162:     scanline = Text(
+163:         f"  ║{'─' * (LOGO_W - 2)}║",
+164:         style=Style(color=bdr_d),
+165:     )
+166: 
+167:     # ── 版本 / 标语 ──
+168:     from core.version import __version__
+169:     version_tag = f"  v{__version__}  "
+170:     tag_line = Text.assemble(
+171:         ("  ═══  ", Style(color=bdr_d)),
+172:         (f" {version_tag} ", Style(color=_P["accent"], bold=True)),
+173:         ("  ═══  ", Style(color=bdr_d)),
+174:         ("\n", Style()),
+175:         ("      ⚡ AI · Code · Create  ⚡", Style(color=_P["dim"], italic=True)),
+176:     )
+177: 
+178:     # ── 状态行 ──
+179:     status_items = []
+180: 
+181:     if extra_lines:
+182:         for kind, label, color_key, detail in extra_lines:
+183:             icon_map = {
+184:                 "tool": "⚙", "mode": "◈", "provider": "▣",
+185:                 "model": "◇", "splash": "◆",
+186:             }
+187:             icon = icon_map.get(kind, "◆")
+188:             c = _P.get(color_key, _P["text"])
+189:             status_items.append(
+190:                 Text.assemble(
+191:                     (f" {icon} ", Style(color=c)),
+192:                     (f"{detail or label}", Style(color=_P["text"], italic=True)),
+193:                 )
+194:             )
+195: 
+196:     # ── 拼装 ──
+197:     body_lines = [border_top, border_inner_top, logo_text, scanline, tag_line, scanline]
+198:     if status_items:
+199:         body_lines.append(Text("\n", Style()))
+200:         # 2 列布局，终端感
+201:         cols = Columns(status_items, padding=(0, 2), equal=True, expand=False)
+202:         body_lines.append(cols)
+203:     # 底框
+204:     body_lines.append(Text("\n"))
+205:     body_lines.append(border_bot)
+206: 
+207:     splash = Text("\n").join(body_lines)
+208:     console.print(splash)
+209:     console.print("", highlight=False)

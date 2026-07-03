@@ -16,7 +16,6 @@
 
 import importlib
 import json
-import subprocess
 import threading
 from collections.abc import Callable
 from contextlib import contextmanager
@@ -32,34 +31,19 @@ def _noop_cm():
     yield None
 
 
-# ── 管道工具标志：由 ChatSession 在加载 showrunner 技能后设置为 True ──
-_pipeline_tools_enabled = False
-
-
 __all__ = [
     "AGENT_SYSTEM_PROMPT",
     "BUILTIN_TOOLS",
     "COMFYUI_TOOL_DEFS",
     "PIPELINE_TOOL_DEFS",
+    "AGNES_TOOL_DEFS",
+    "COMFYUI_PIPELINE_TOOL_DEFS",
+    "SHOWRUNNER_TOOL_DEFS",
     "TOOLS_CONFIG",
     "ToolRegistry",
-    "disable_pipeline_tools",
-    "enable_pipeline_tools",
     "get_registry",
     "reload_registry",
 ]
-
-
-def enable_pipeline_tools():
-    """启用一键流视频管道工具（showrunner 技能加载时调用）"""
-    global _pipeline_tools_enabled
-    _pipeline_tools_enabled = True
-
-
-def disable_pipeline_tools():
-    """禁用管道工具"""
-    global _pipeline_tools_enabled
-    _pipeline_tools_enabled = False
 
 
 # ── 内置工具定义（生图/生视频，从 chat.py 移出）──
@@ -69,12 +53,13 @@ BUILTIN_TOOLS = [
         "type": "function",
         "function": {
             "name": "generate_image",
-            "description": "Generate an image from a text description. Supports text-to-image and image-to-image (pass image_url). Choose size to match the desired aspect ratio and composition.",
+            "description": "Generate an image from a text description. Supports text-to-image, single image-to-image (pass image_url), and multi-image reference (pass image_urls array). Choose size to match the desired aspect ratio and composition.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "prompt": {"type": "string", "description": "Image description including style, lighting, composition, and negative constraints"},
-                    "image_url": {"type": "string", "description": "Optional reference image URL/path for image-to-image editing"},
+                    "image_url": {"type": "string", "description": "Optional single reference image URL/path for image-to-image editing"},
+                    "image_urls": {"type": "array", "items": {"type": "string"}, "description": "Optional multiple reference image URLs for multi-image guided generation"},
                     "size": {
                         "type": "string",
                         "enum": ["1024x768", "1024x1024", "768x1024", "576x1024", "1024x576", "448x1024", "1024x448", "684x1024", "1024x684"],
@@ -92,12 +77,14 @@ BUILTIN_TOOLS = [
         "type": "function",
         "function": {
             "name": "generate_video",
-            "description": "Generate a video from a text description or keyframe image. Supports text-to-video and image-to-video (pass image_url).",
+            "description": "Generate a video from text, image(s), or keyframes. Supports: text-to-video, image-to-video (pass image_url), multi-image video (pass image_urls array), keyframe animation (pass image_urls + mode='keyframes').",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "prompt": {"type": "string", "description": "Video content / motion description"},
-                    "image_url": {"type": "string", "description": "Optional keyframe image URL/path for image-to-video mode"},
+                    "prompt": {"type": "string", "description": "Video content / motion / transition description"},
+                    "image_url": {"type": "string", "description": "Optional single image URL for image-to-video mode"},
+                    "image_urls": {"type": "array", "items": {"type": "string"}, "description": "Optional array of image URLs for multi-image video or keyframe animation"},
+                    "mode": {"type": "string", "enum": ["ti2vid", "keyframes"], "description": "Generation mode: ti2vid (text/image-to-video, default), keyframes (smooth transition between images)"},
                     "size": {
                         "type": "string",
                         "enum": ["1152x768", "1280x720", "720x1280", "1024x1024", "1024x768", "768x1024"],
@@ -105,10 +92,11 @@ BUILTIN_TOOLS = [
                     },
                     "num_frames": {
                         "type": "integer",
-                        "enum": [81, 121, 161, 201, 241, 281, 321, 361, 401],
-                        "description": "Video length in frames (8n+1): 81=3.4s, 121=5.0s, 161=6.7s, 201, 241=10s, 281, 321, 361, 401=18.4s. Default 121."
+                        "enum": [81, 121, 161, 201, 241, 281, 321, 361, 401, 441],
+                        "description": "Video length in frames (8n+1): 81=3.4s, 121=5.0s, 161=6.7s, 201, 241=10s, 281, 321, 361, 401, 441=18.4s. Default 121."
                     },
-                    "seed": {"type": "integer", "description": "Optional random seed for reproducibility"},
+                    "frame_rate": {"type": "integer", "description": "Frame rate 1-60. Default 24, use 30 for smoother motion."},
+                    "seed": {"type": "integer", "description": "Optional random seed for reproducible results"},
                     "system": {"type": "string", "description": "Optional style preset: cinematic, anime, watercolor, cyberpunk, fantasy"},
                     "negative_prompt": {"type": "string", "description": "What to avoid in the generated video"},
                 },
@@ -194,7 +182,7 @@ BUILTIN_TOOLS = [
         "type": "function",
         "function": {
             "name": "trm_catalog",
-            "description": "查看 TRM 工具目录：列出九兽网格中所有可用工具及其分类、来源、路由规则。不执行任何操作，仅返回目录信息。",
+            "description": "查看 TRM 工具目录：列出七兽网格中所有可用工具及其分类、来源、路由规则。不执行任何操作，仅返回目录信息。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -470,7 +458,7 @@ COMFYUI_TOOL_DEFS = [
 
 # ── 通用代理系统提示 ──
 
-AGENT_SYSTEM_PROMPT = """你是 CRUX 智能体主脑。你可以调用多种工具来完成任务：
+AGENT_SYSTEM_PROMPT = """你是 {provider_name} 智能体，当前运行在 {model_name} 模型上。你可以调用多种工具来完成任务：
 
 - **内置工具**: generate_image / generate_video
 - **外部工具**: 由 tools.json 配置文件定义（shell脚本、HTTP API、Python函数）
@@ -494,7 +482,7 @@ TOOL_CATEGORIES: list[tuple[str, tuple[str, ...], frozenset[str]]] = [
     ("🌐 联网", ("",), frozenset({"web_fetch", "web_search"})),
     ("🔧 Git", ("core.git_tools", "core.git_workflow"), frozenset()),
     ("🐙 GitHub", ("core.github_tools",), frozenset()),
-    ("🔍 代码智能", ("core.code_intel", "core.rag"), frozenset()),
+    ("🔍 代码智能", ("core.code_intel", "core.rag", "core.lsp"), frozenset()),
     ("📝 文档", ("core.codex_tools",), frozenset()),
     ("🤖 自动化", ("core.codex_engines",), frozenset()),
     ("🎬 流水线", ("core.pipeline_tools",), frozenset()),
@@ -679,6 +667,9 @@ class ToolRegistry:
         notebook: bool = False,
         audio: bool = False,
         mcp: bool = False,
+        agnes: bool = False,
+        comfyui_pipeline: bool = False,
+        showrunner: bool = False,
     ) -> int:
         """从 tools.json 加载工具，返回已加载数量
 
@@ -687,6 +678,9 @@ class ToolRegistry:
             comfyui: 是否加载 ComfyUI 桥接工具（ComfyUI Bridge 模式）
             browser: 是否加载 Browser Companion 网页生成工具
             notebook: 是否加载 Notebook (.ipynb) 工具
+            agnes: 是否加载 Agnes 多模态生成工具
+            comfyui_pipeline: 是否加载 ComfyUI 高级工作流工具
+            showrunner: 是否加载 Showrunner 专业流水线工具
             audio: 是否加载音频工具（TTS/BGM/SFX/混音）
             mcp: 是否加载 MCP Client 桥接工具（四象融合：调 claude/codex/codebuddy）
             多个可同时为 True（协作模式）
@@ -716,6 +710,39 @@ class ToolRegistry:
                 self._executors[name] = executor
                 self._tool_modules[name] = "core.comfyui_tools"
 
+        # ── Agnes 多模态生成（文生图/图生图/文生视频/图生视频）──
+        if agnes:
+            from core.agnes_multimodal import AGNES_EXECUTOR_MAP, AGNES_TOOL_DEFS
+
+            self._definitions.extend(AGNES_TOOL_DEFS)
+            for name, executor in AGNES_EXECUTOR_MAP.items():
+                self._executors[name] = executor
+                self._tool_modules[name] = "core.agnes_multimodal"
+
+        # ── ComfyUI 高级工作流（AI建工作流/调参/练LoRA）──
+        if comfyui_pipeline:
+            from core.comfyui_pipeline import (
+                COMFYUI_PIPELINE_EXECUTOR_MAP,
+                COMFYUI_PIPELINE_TOOL_DEFS,
+            )
+
+            self._definitions.extend(COMFYUI_PIPELINE_TOOL_DEFS)
+            for name, executor in COMFYUI_PIPELINE_EXECUTOR_MAP.items():
+                self._executors[name] = executor
+                self._tool_modules[name] = "core.comfyui_pipeline"
+
+        # ── Showrunner 专业流水线（文案→图片→视频→影片）──
+        if showrunner:
+            from core.showrunner_pipeline import (
+                SHOWRUNNER_EXECUTOR_MAP,
+                SHOWRUNNER_TOOL_DEFS,
+            )
+
+            self._definitions.extend(SHOWRUNNER_TOOL_DEFS)
+            for name, executor in SHOWRUNNER_EXECUTOR_MAP.items():
+                self._executors[name] = executor
+                self._tool_modules[name] = "core.showrunner_pipeline"
+
         # ── Browser Companion 网页生成工具 ──
         if browser:
             from core.browser_tools import BROWSER_EXECUTOR_MAP, BROWSER_TOOL_DEFS
@@ -742,6 +769,15 @@ class ToolRegistry:
             for name, executor in AUDIO_EXECUTOR_MAP.items():
                 self._executors[name] = executor
                 self._tool_modules[name] = "core.audio_tools"
+
+        # ── LSP 代码智能工具（常驻加载）──
+        # goto_definition / hover / diagnostics / find_references / completion / rename
+        from core.lsp import LSP_EXECUTOR_MAP, LSP_TOOL_DEFS
+
+        self._definitions.extend(LSP_TOOL_DEFS)
+        for name, executor in LSP_EXECUTOR_MAP.items():
+            self._executors[name] = executor
+            self._tool_modules[name] = "core.lsp"
 
         # ── Git 工作流工具 (P-2: 常驻加载, 不需要 toggle) ──
         # branch / push / pull / pr / stash / tag / worktree / conflict_check
@@ -807,6 +843,50 @@ class ToolRegistry:
         for name, executor in SESSION_TRACKER_EXECUTOR_MAP.items():
             self._executors[name] = executor
             self._tool_modules[name] = "core.session_tracker"
+
+        # ── 代码格式化 & 静态检查工具（常驻加载）──
+        # run_format: ruff format + isort (Python) / prettier (JS/TS)
+        # run_lint: ruff check (Python) / eslint (JS/TS)
+        from core.format_tools import FORMAT_EXECUTOR_MAP, FORMAT_TOOL_DEFS
+
+        self._definitions.extend(FORMAT_TOOL_DEFS)
+        for name, executor in FORMAT_EXECUTOR_MAP.items():
+            self._executors[name] = executor
+            self._tool_modules[name] = "core.format_tools"
+
+        # ── 运行时检查工具（常驻加载）──
+        # debug_inspect: run test/script, capture traceback + frame locals on failure
+        from core.runtime_inspect import INSPECT_EXECUTOR_MAP, INSPECT_TOOL_DEFS
+
+        self._definitions.extend(INSPECT_TOOL_DEFS)
+        for name, executor in INSPECT_EXECUTOR_MAP.items():
+            self._executors[name] = executor
+            self._tool_modules[name] = "core.runtime_inspect"
+
+        # ── 自愈工具（常驻加载）──
+        # self_heal: audit + auto-fix the entire codebase
+        from core.self_heal import SelfHealer
+
+        self._definitions.append({
+            "type": "function",
+            "function": {
+                "name": "self_heal",
+                "description": "Audit and auto-fix the CRUX codebase. Scans for: silent exceptions, syntax errors, config drift, import failures, test failures. Use --fix to auto-patch fixable issues.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "fix": {"type": "boolean", "description": "Auto-fix what can be safely fixed (default: audit only)"},
+                        "quick": {"type": "boolean", "description": "Skip slow scans (imports, tests) for fast feedback"},
+                    },
+                    "required": [],
+                },
+            },
+        })
+        self._executors["self_heal"] = lambda **kw: _exec_self_heal(
+            fix=bool(kw.get("fix", False)),
+            quick=bool(kw.get("quick", False)),
+        )
+        self._tool_modules["self_heal"] = "core.self_heal"
 
         # ── MCP Client 桥接工具（四象融合）──
         # 注入 mcp_list_servers / mcp_list_tools / mcp_call_tool / mcp_read_resource，
@@ -1060,7 +1140,7 @@ class ToolRegistry:
 
     def schema(self, name: str) -> dict | None:
         """Return the JSON Schema for a registered tool."""
-        for d in self.definitions():
+        for d in self.definitions:
             if d.get("name") == name:
                 params = d.get("parameters")
                 return {"parameters": params} if params else None
@@ -1208,6 +1288,20 @@ class ToolRegistry:
 # ── 全局单例（线程安全双重检查锁） ──
 _registry: ToolRegistry | None = None
 _registry_lock = threading.Lock()
+
+
+def _exec_self_heal(fix: bool = False, quick: bool = False) -> str:
+    """Execute self_heal tool — audit + optionally fix the codebase."""
+    from core.self_heal import SelfHealer
+    healer = SelfHealer()
+    if quick:
+        healer.scan_syntax()
+        healer.scan_config_drift()
+    else:
+        healer.run_all_scans()
+    if fix:
+        healer.fix_silent_exceptions()
+    return healer.report()
 
 
 def get_registry(config_path: Path | None = None) -> ToolRegistry:

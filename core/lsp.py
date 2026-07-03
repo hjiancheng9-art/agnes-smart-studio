@@ -869,6 +869,41 @@ def execute_lsp_find_references(file_path: str = "", line: int = 0, character: i
         return json.dumps({"error": f"LSP request failed: {e}"}, ensure_ascii=False)
 
 
+def execute_lsp_completion(file_path: str = "", line: int = 0, character: int = 0) -> str:
+    """Tool executor: get autocomplete suggestions via LSP."""
+    if not file_path:
+        return json.dumps({"error": "file_path required"}, ensure_ascii=False)
+    client = get_lsp_client()
+    try:
+        result = client.get_completion(file_path, line, character)
+        return json.dumps(
+            {"file": file_path, "line": line, "character": character, "completions": result},
+            ensure_ascii=False, indent=2,
+        )
+    except ValueError as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False)
+    except (json.JSONDecodeError, TypeError, KeyError) as e:
+        return json.dumps({"error": f"LSP request failed: {e}"}, ensure_ascii=False)
+
+
+def execute_lsp_rename(file_path: str = "", line: int = 0, character: int = 0, new_name: str = "") -> str:
+    """Tool executor: rename symbol across project via LSP."""
+    if not file_path or not new_name:
+        return json.dumps({"error": "file_path and new_name required"}, ensure_ascii=False)
+    client = get_lsp_client()
+    try:
+        result = client.rename(file_path, line, character, new_name)
+        return json.dumps(
+            {"file": file_path, "line": line, "character": character,
+             "new_name": new_name, "changes": result},
+            ensure_ascii=False, indent=2,
+        )
+    except ValueError as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False)
+    except (json.JSONDecodeError, TypeError, KeyError) as e:
+        return json.dumps({"error": f"LSP request failed: {e}"}, ensure_ascii=False)
+
+
 # Tool definitions for ToolRegistry.
 LSP_TOOL_DEFS = [
     {
@@ -963,6 +998,60 @@ LSP_TOOL_DEFS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "lsp_completion",
+            "description": "Get autocomplete suggestions at a given position in a file using LSP. Returns a list of completion items with labels, detail, and documentation. Use this to get code suggestions.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Absolute path to the source file",
+                    },
+                    "line": {
+                        "type": "integer",
+                        "description": "0-based line number",
+                    },
+                    "character": {
+                        "type": "integer",
+                        "description": "0-based character offset",
+                    },
+                },
+                "required": ["file_path", "line", "character"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "lsp_rename",
+            "description": "Rename a symbol across the entire project using LSP. Returns a list of workspace edits showing all files and positions that will be changed. Use this for safe, project-wide refactoring.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Absolute path to the source file containing the symbol",
+                    },
+                    "line": {
+                        "type": "integer",
+                        "description": "0-based line number of the symbol",
+                    },
+                    "character": {
+                        "type": "integer",
+                        "description": "0-based character offset of the symbol",
+                    },
+                    "new_name": {
+                        "type": "string",
+                        "description": "The new name for the symbol",
+                    },
+                },
+                "required": ["file_path", "line", "character", "new_name"],
+            },
+        },
+    },
 ]
 
 # Executor map: tool name -> callable returning JSON string.
@@ -984,5 +1073,16 @@ LSP_EXECUTOR_MAP = {
         file_path=kw.get("file_path", ""),
         line=kw.get("line", 0),
         character=kw.get("character", 0),
+    ),
+    "lsp_completion": lambda **kw: execute_lsp_completion(
+        file_path=kw.get("file_path", ""),
+        line=kw.get("line", 0),
+        character=kw.get("character", 0),
+    ),
+    "lsp_rename": lambda **kw: execute_lsp_rename(
+        file_path=kw.get("file_path", ""),
+        line=kw.get("line", 0),
+        character=kw.get("character", 0),
+        new_name=kw.get("new_name", ""),
     ),
 }

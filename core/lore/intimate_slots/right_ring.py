@@ -58,7 +58,7 @@ class SelfHealer:
             free_gb = usage.free / (1024**3)
             if free_gb < 1:
                 score -= 15
-        except (ImportError, OSError, RuntimeError) as e:
+        except (ImportError, OSError, RuntimeError):
             logger.debug("[RightRing] disk check failed")
         # Check circuit breaker status
         try:
@@ -67,7 +67,7 @@ class SelfHealer:
             if circuit.status.get("tripped"):
                 score -= 25
                 logger.warning("[右戒] circuit breaker tripped")
-        except (ImportError, OSError, RuntimeError) as e:
+        except (ImportError, OSError, RuntimeError):
             logger.debug("[RightRing] circuit check failed")
         self._health_score = max(0, score)
         self._save()

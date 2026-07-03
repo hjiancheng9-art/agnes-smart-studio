@@ -98,7 +98,6 @@ __all__ = [
     "CRUX_VISION_BASE_URL",
     "CRUX_VISION_MODEL",
     "AGNES_VISION_BASE_URL",
-    "AGNES_VISION_MODEL",
     "CRUX_HOME",
     "AGNES_HOME",
     "AUTH_FILE",
@@ -117,19 +116,11 @@ __all__ = [
 # ── 常量 ──────────────────────────────────────────────────
 
 MODELS = {
-    "text_light": {
-        "id": "agnes-1.5-flash",
-        "name": "CRUX 1.5 Flash",
-        "type": "text",
-        "multimodal": True,
-        "thinking": False,
-        "tools": False,
-    },
     "text_pro": {
         "id": "agnes-2.0-flash",
         "name": "CRUX 2.0 Flash",
         "type": "text",
-        "multimodal": False,
+        "multimodal": True,
         "thinking": True,
         "tools": True,
     },
@@ -162,25 +153,22 @@ CRUX_VISION_BASE_URL = "https://apihub.agnes-ai.com/v1"
 
 
 def get_crux_vision_model() -> str:
-    """Get the best available vision model — prefers Zhipu GLM-4V-Flash (free, capable).
-
-    Checks active provider first, then falls back across all providers for vision models.
-    Returns GLM-4V-Flash as ultimate fallback (Zhipu free vision).
-    """
+    """Get the best available vision model — prefers CRUX (most accurate), Zhipu as fallback."""
     try:
+        import os
         from core.provider import get_provider_manager
         mgr = get_provider_manager()
         mgr.load()
-        # Prefer Zhipu vision models — thinking version first (glm-4.1v-thinking-flash)
+        # Prefer CRUX vision models (best counting/OCR/detail)
+        crux = mgr.providers.get("crux", {})
+        crux_key = crux.get("api_key") or os.getenv("CRUX_API_KEY") or os.getenv("AGNES_API_KEY")
+        if crux_key:
+            return crux.get("models", {}).get("pro") or "agnes-2.0-flash"
+        # Fallback to Zhipu vision models (free)
         zhipu = mgr.providers.get("zhipu", {})
         zhipu_v = zhipu.get("vision_models", {})
         if zhipu_v:
             return zhipu_v.get("pro") or zhipu_v.get("light") or next(iter(zhipu_v.values()))
-        # Check active provider
-        provider = mgr.providers.get(mgr.state.active, {})
-        vmodels = provider.get("vision_models", {})
-        if vmodels:
-            return vmodels.get("light") or vmodels.get("pro")
         # Search all providers for vision models
         for pid, p in mgr.providers.items():
             vm = p.get("vision_models", {})
@@ -191,8 +179,6 @@ def get_crux_vision_model() -> str:
         return "GLM-4V-Flash"
 
 
-# 遗留别名 — 无人实际 import，保留仅防 break
-AGNES_VISION_MODEL = "deepseek-chat"  # 不再使用，保留占位
 AGNES_VISION_BASE_URL = CRUX_VISION_BASE_URL
 
 # 视频分辨率预设 (比例名 -> (width, height))
@@ -218,7 +204,7 @@ IMAGE_SIZES = {
 }
 
 # 合法的 num_frames 值 (8n+1 且 <=441)
-VALID_NUM_FRAMES = [81, 121, 161, 201, 241, 281, 321, 361, 401]
+VALID_NUM_FRAMES = [81, 121, 161, 201, 241, 281, 321, 361, 401, 441]
 
 # 视频时长参考 (num_frames / fps)
 VIDEO_DURATION_MAP = {

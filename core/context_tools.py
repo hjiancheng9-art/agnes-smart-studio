@@ -35,7 +35,20 @@ __all__ = [
 ]
 
 # 与 ContextManager._MAX_MSG_CHARS 保持一致（agent.py:179）
-DEFAULT_MAX_CHARS = 24000  # token-aware: ~6K tokens (was 8000)
+# 从 24000 提高到 100000 — 现代模型都有 >128K 上下文，6K 太保守
+DEFAULT_MAX_CHARS = 100000  # ~25K tokens for CJK text
+
+def get_model_max_chars(model_id: str = "") -> int:
+    """读取模型的上下文窗口，计算合理的截断上限。"""
+    try:
+        from core.provider_adapter import get_capability
+        cap = get_capability(model_id)
+        if cap and cap.context_window > 0:
+            # 用上下文窗口的 25% 作为消息截断上限
+            return max(DEFAULT_MAX_CHARS, cap.context_window // 4)
+    except ImportError:
+        pass
+    return DEFAULT_MAX_CHARS
 
 # 截断标记（与 ContextManager._truncate_messages 的格式逐字一致，保证行为兼容）
 _TRUNCATED_MARKER = "\n\n...[truncated {n} chars]...\n\n"
@@ -246,21 +259,17 @@ _ABSTRACT_COMPRESS_PROMPT = (
 def abstractive_compress(
     text: str,
     client: Any,
-    model: str = "deepseek-v4-pro",
+    model: str = "",  # empty = use active provider
 ) -> str:
-    """LLM 抽象压缩：用辅助模型将长文本压缩为精炼摘要。
+    """LLM 抽象压缩：用辅助模型将长文本压缩为精炼摘要。"""
+    if not model:
+        try:
+            from core.provider import get_provider_manager
+            mgr = get_provider_manager()
+            model = mgr.get_model("pro")
+        except Exception:
+            model = "deepseek-v4-pro"  # fallback
 
-    复用 agent.py:159-163 的 client.chat(model, messages, max_tokens) 调用形态。
-    失败时回退 extractive_compress。
-
-    Args:
-        text: 原始工具结果文本
-        client: CruxClient 实例
-        model: 用于压缩的模型名称（默认 deepseek-v4-pro）
-
-    Returns:
-        压缩后的文本；LLM 调用失败时回退 extractive_compress。
-    """
     try:
         # 限制输入长度，避免超出模型上下文
         input_text = text[:16000] if len(text) > 16000 else text

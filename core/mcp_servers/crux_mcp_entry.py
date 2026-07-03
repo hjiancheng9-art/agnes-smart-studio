@@ -7,8 +7,8 @@ ZCode spawns this as an MCP stdio server (JSON-RPC over stdin/stdout).
 CRUX tools are exposed to ZCode via this server.
 """
 
-import sys
 import os
+import sys
 
 # Ensure the project root is on sys.path
 _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

@@ -17,6 +17,7 @@ dependencies = [
     "nest_asyncio>=1.5",
     "playwright>=1.40",
     "edge-tts>=6.1",
+    "requests>=2.28",
 ]
 authors = [{name = "CRUX Studio"}]
 readme = "README.md"

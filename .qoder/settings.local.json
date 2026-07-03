@@ -7,5 +7,20 @@
         "mcp-serve"
       ]
     }
+  },
+  "permissions": {
+    "allow": [
+      "Bash(pip show prompt_toolkit 2>/dev/null | grep -i version)",
+      "Bash(python:*)",
+      "Bash(cd /c/Users/huangjiancheng/agnes-smart-studio && python -c \"from ui.input_bar import InputBar; ib = InputBar\\(\\); print\\('OK, buffer type:', type\\(ib.buffer\\).__name__\\)\")",
+      "Bash(python -c \"from prompt_toolkit.widgets import TextArea; help\\(TextArea.__init__\\)\" 2>&1 | head -60)",
+      "Bash(python -c \"from prompt_toolkit.key_binding.bindings import open_in_editor; print\\('ok'\\)\" 2>&1; python -c \"import prompt_toolkit; import pkgutil; [print\\(m.name\\) for m in pkgutil.iter_modules\\(prompt_toolkit.__path__\\)]\" 2>&1 | tr ',' '\\\\n' | grep -i proc)",
+      "Bash(cd /c/Users/huangjiancheng/agnes-smart-studio && python -c \"from ui.app import CruxApp; print\\('CruxApp imported OK'\\)\")",
+      "Bash(cd /c/Users/huangjiancheng/agnes-smart-studio && python -c \"from ui.layout import create_layout; print\\('layout import OK'\\)\")",
+      "Bash(cd /c/Users/huangjiancheng/agnes-smart-studio && python -c \"\nfrom ui.app import CruxApp\napp = CruxApp\\(session=None\\)\nprint\\('CruxApp constructed OK'\\)\nprint\\('Layout type:', type\\(app._layout\\).__name__\\)\n\" 2>&1)",
+      "Bash(cd /c/Users/huangjiancheng/agnes-smart-studio && python -c \"from ui.message_pane import MessagePane; mp = MessagePane\\(\\); print\\('MessagePane OK'\\)\" 2>&1)",
+      "Bash(cd /c/Users/huangjiancheng/agnes-smart-studio && python -c \"\nfrom ui.header import Header\nfrom ui.message_pane import MessagePane\nfrom ui.input_bar import InputBar\nfrom ui.status_bar import StatusBar\nfrom ui.layout import create_layout\nfrom prompt_toolkit.application import Application\n\nh = Header\\(\\)\nmp = MessagePane\\(\\)\nib = InputBar\\(\\)\nsb = StatusBar\\(\\)\nlayout = create_layout\\(h, mp, ib, sb\\)\napp = Application\\(layout=layout, full_screen=True\\)\nprint\\('Application created OK'\\)\n\" 2>&1)",
+      "Bash(cd /c/Users/huangjiancheng/agnes-smart-studio && python -c \"\nfrom ui.header import Header\nfrom ui.message_pane import MessagePane\nfrom ui.input_bar import InputBar\nfrom ui.status_bar import StatusBar\nfrom ui.layout import create_layout\n\nh = Header\\(\\)\nmp = MessagePane\\(\\)\nib = InputBar\\(\\)\nsb = StatusBar\\(\\)\nlayout = create_layout\\(h, mp, ib, sb\\)\n\n# This is what Application.reset\\(\\) does — the exact call that was failing\nwindows = list\\(layout.find_all_windows\\(\\)\\)\nprint\\(f'Layout walk OK — found {len\\(windows\\)} windows'\\)\n\" 2>&1)"
+    ]
   }
 }

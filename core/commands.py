@@ -12,7 +12,7 @@ Commands are defined as CommandDef dataclass instances. Each has:
 
 To add a new command:
   1. Add a CommandDef to COMMANDS below (or call register()).
-  2. Add the handler method _chat_xxx to ui/cli.py.
+  2. Add command handler to crux_studio.py _chat_repl().
   3. Done. The dispatcher, /help, and /all auto-update.
 
 History:

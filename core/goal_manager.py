@@ -12,8 +12,7 @@ import json
 import os
 import sys
 import threading
-import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 # fcntl is Unix-only; on Windows it's not available
@@ -137,7 +136,7 @@ class GoalManager:
             eval_result = None
             if status == "completed" and auto_evaluate:
                 try:
-                    from core.goal_evaluator import get_evaluator, GoalVerdict
+                    from core.goal_evaluator import GoalVerdict, get_evaluator
 
                     evaluator = get_evaluator()
                     eval_result = evaluator.evaluate(goal, use_llm=True)

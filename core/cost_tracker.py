@@ -44,11 +44,9 @@ COST_STATE = OUTPUT_DIR / "cost_state.json"  # 累加缓存 + 预算设置
 # 注意：条目既含 "kind"（str）又含费率（float），故值为 dict[str, str | float]
 PRICING: dict[str, dict[str, str | float]] = {
     # ── 文本/对话模型（每千 token 美元）──
-    "agnes-1.5-flash": {"kind": "text", "input_per_1k": 0.0015, "output_per_1k": 0.006},
     "agnes-2.0-flash": {"kind": "text", "input_per_1k": 0.003, "output_per_1k": 0.012},
     "agnes-2.1-flash": {"kind": "text", "input_per_1k": 0.003, "output_per_1k": 0.012},
     "deepseek-v4-pro": {"kind": "text", "input_per_1k": 0.002, "output_per_1k": 0.008},
-    # DeepSeek V4 Flash: 约 Pro 的 50%（~1元/3元 每百万 token → 美元换算）
     "deepseek-v4-flash": {"kind": "text", "input_per_1k": 0.001, "output_per_1k": 0.004},
     # ── 图像模型（每次调用固定）──
     "agnes-image-2.0-flash": {"kind": "image", "per_call": 0.02},

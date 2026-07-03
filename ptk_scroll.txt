@@ -1,0 +1,104 @@
+    def _scroll_without_linewrapping(
+        self, ui_content: UIContent, width: int, height: int
+    ) -> None:
+        """
+        Scroll to make sure the cursor position is visible and that we maintain
+        the requested scroll offset.
+
+        Set `self.horizontal_scroll/vertical_scroll`.
+        """
+        cursor_position = ui_content.cursor_position or Point(x=0, y=0)
+
+        # Without line wrapping, we will never have to scroll vertically inside
+        # a single line.
+        self.vertical_scroll_2 = 0
+
+        if ui_content.line_count == 0:
+            self.vertical_scroll = 0
+            self.horizontal_scroll = 0
+            return
+        else:
+            current_line_text = fragment_list_to_text(
+                ui_content.get_line(cursor_position.y)
+            )
+
+        def do_scroll(
+            current_scroll: int,
+            scroll_offset_start: int,
+            scroll_offset_end: int,
+            cursor_pos: int,
+            window_size: int,
+            content_size: int,
+        ) -> int:
+            "Scrolling algorithm. Used for both horizontal and vertical scrolling."
+            # Calculate the scroll offset to apply.
+            # This can obviously never be more than have the screen size. Also, when the
+            # cursor appears at the top or bottom, we don't apply the offset.
+            scroll_offset_start = int(
+                min(scroll_offset_start, window_size / 2, cursor_pos)
+            )
+            scroll_offset_end = int(
+                min(scroll_offset_end, window_size / 2, content_size - 1 - cursor_pos)
+            )
+
+            # Prevent negative scroll offsets.
+            if current_scroll < 0:
+                current_scroll = 0
+
+            # Scroll back if we scrolled to much and there's still space to show more of the document.
+            if (
+                not self.allow_scroll_beyond_bottom()
+                and current_scroll > content_size - window_size
+            ):
+                current_scroll = max(0, content_size - window_size)
+
+            # Scroll up if cursor is before visible part.
+            if current_scroll > cursor_pos - scroll_offset_start:
+                current_scroll = max(0, cursor_pos - scroll_offset_start)
+
+            # Scroll down if cursor is after visible part.
+            if current_scroll < (cursor_pos + 1) - window_size + scroll_offset_end:
+                current_scroll = (cursor_pos + 1) - window_size + scroll_offset_end
+
+            return current_scroll
+
+        # When a preferred scroll is given, take that first into account.
+        if self.get_vertical_scroll:
+            self.vertical_scroll = self.get_vertical_scroll(self)
+            assert isinstance(self.vertical_scroll, int)
+        if self.get_horizontal_scroll:
+            self.horizontal_scroll = self.get_horizontal_scroll(self)
+            assert isinstance(self.horizontal_scroll, int)
+
+        # Update horizontal/vertical scroll to make sure that the cursor
+        # remains visible.
+        offsets = self.scroll_offsets
+
+        self.vertical_scroll = do_scroll(
+            current_scroll=self.vertical_scroll,
+            scroll_offset_start=offsets.top,
+            scroll_offset_end=offsets.bottom,
+            cursor_pos=ui_content.cursor_position.y,
+            window_size=height,
+            content_size=ui_content.line_count,
+        )
+
+        if self.get_line_prefix:
+            current_line_prefix_width = fragment_list_width(
+                to_formatted_text(self.get_line_prefix(ui_content.cursor_position.y, 0))
+            )
+        else:
+            current_line_prefix_width = 0
+
+        self.horizontal_scroll = do_scroll(
+            current_scroll=self.horizontal_scroll,
+            scroll_offset_start=offsets.left,
+            scroll_offset_end=offsets.right,
+            cursor_pos=get_cwidth(current_line_text[: ui_content.cursor_position.x]),
+            window_size=width - current_line_prefix_width,
+            # We can only analyze the current line. Calculating the width off
+            # all the lines is too expensive.
+            content_size=max(
+                get_cwidth(current_line_text), self.horizontal_scroll + width
+            ),
+        )

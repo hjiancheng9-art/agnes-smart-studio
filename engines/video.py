@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import logging
 import threading
 from datetime import datetime
 
@@ -19,6 +20,8 @@ from core.validator import (
 )
 
 __all__ = ["VideoEngine", "VideoFuture", "AsyncVideoEngine", "AsyncVideoFuture"]
+
+logger = logging.getLogger("crux.engines.video")
 
 
 class VideoFuture:
@@ -117,6 +120,14 @@ class VideoEngine:
     def __init__(self, client: CruxClient):
         self.client = client
 
+    def _get_model(self) -> str:
+        try:
+            from core.provider import get_provider_manager
+            mgr = get_provider_manager()
+            return mgr.get_active_models().get("video", "agnes-video-v2.0")
+        except Exception:
+            return "agnes-video-v2.0"
+
     def submit_only(
         self,
         prompt,
@@ -154,7 +165,7 @@ class VideoEngine:
             "task_id": task_id,
             "video_id": video_id,
             "status": "submitted",
-            "model": "agnes-video-v2.0",
+            "model": self._get_model(),
             "prompt": prompt,
             "num_frames": num_frames,
         }
@@ -253,7 +264,7 @@ class VideoEngine:
                     "local_path": local_path,
                     "task_id": task_id,
                     "video_id": video_id,
-                    "model": "agnes-video-v2.0",
+                    "model": self._get_model(),
                     "prompt": prompt,
                     "num_frames": num_frames,
                 }
@@ -265,7 +276,7 @@ class VideoEngine:
                     future._result = ret
                     future._status = "timeout" if timed_out else "complete"
             except (httpx.HTTPError, OSError, KeyError) as e:
-                print(f"[warn] Background video poll failed for {video_id}: {e}", file=sys.stderr)
+                logger.warning("Background video poll failed for %s: %s", video_id, e)
                 traceback.print_exc(file=sys.stderr)
                 with future._lock:
                     future._error = e
@@ -359,7 +370,7 @@ class VideoEngine:
             "local_path": local_path,
             "task_id": task_id,
             "video_id": video_id,
-            "model": "agnes-video-v2.0",
+            "model": self._get_model(),
             "prompt": prompt,
             "num_frames": num_frames,
         }
@@ -557,6 +568,14 @@ class AsyncVideoEngine:
     - 多个视频任务可并行轮询（各自独立的 asyncio.Task）
     """
 
+    def _get_model(self) -> str:
+        try:
+            from core.provider import get_provider_manager
+            mgr = get_provider_manager()
+            return mgr.get_active_models().get("video", "agnes-video-v2.0")
+        except Exception:
+            return "agnes-video-v2.0"
+
     def __init__(self, client: AsyncCruxClient):
         self.client = client
 
@@ -597,7 +616,7 @@ class AsyncVideoEngine:
             "task_id": task_id,
             "video_id": video_id,
             "status": "submitted",
-            "model": "agnes-video-v2.0",
+            "model": self._get_model(),
             "prompt": prompt,
             "num_frames": num_frames,
         }
@@ -687,7 +706,7 @@ class AsyncVideoEngine:
                     "local_path": local_path,
                     "task_id": task_id,
                     "video_id": video_id,
-                    "model": "agnes-video-v2.0",
+                    "model": self._get_model(),
                     "prompt": prompt,
                     "num_frames": num_frames,
                 }
@@ -788,7 +807,7 @@ class AsyncVideoEngine:
             "local_path": local_path,
             "task_id": task_id,
             "video_id": video_id,
-            "model": "agnes-video-v2.0",
+            "model": self._get_model(),
             "prompt": prompt,
             "num_frames": num_frames,
         }

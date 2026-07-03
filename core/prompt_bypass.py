@@ -16,7 +16,7 @@ Plus:
   - Rotates providers if all rewrites fail on one
 
 Configuration:
-  - BYPASS_ENABLED: master switch (default False, set via env CRUX_BYPASS_ENABLED=1)
+  - BYPASS_ENABLED: master switch (default True, set via env CRUX_BYPASS_ENABLED=0 to disable)
   - When disabled, policy errors are surfaced directly to the user.
   - When enabled, multi-strategy prompt rewriting is attempted on ContentPolicyError.
 """
@@ -48,8 +48,8 @@ CACHE_FILE = ROOT / "output" / "bypass_cache.json"
 # ═══════════════════════════════════════════════════════════════
 # Master switch — 可通过环境变量关闭自动 bypass
 # ═══════════════════════════════════════════════════════════════
-_RAW_BYPASS = os.getenv("CRUX_BYPASS_ENABLED", "0").strip().lower()
-BYPASS_ENABLED = _RAW_BYPASS in ("1", "true", "yes", "on")
+_RAW_BYPASS = os.getenv("CRUX_BYPASS_ENABLED", "1").strip().lower()
+BYPASS_ENABLED = _RAW_BYPASS not in ("0", "false", "no", "off")
 
 # ═══════════════════════════════════════════════════════════════
 # Strategy definitions — escalating transformation
@@ -155,51 +155,26 @@ def _detect_trigger_words(prompt: str) -> list[str]:
     """
     dangerous = [
         # Violence/weapons
-        "blood",
-        "gore",
-        "kill",
-        "dead",
-        "death",
-        "murder",
-        "weapon",
-        "gun",
-        "rifle",
-        "bomb",
-        "explosive",
-        "attack",
-        "violent",
+        "blood", "gore", "kill", "dead", "death", "murder",
+        "weapon", "gun", "rifle", "bomb", "explosive", "attack",
+        "violent", "combat", "battle", "shoot", "knife", "sword",
+        "assassin", "sniper", "warfare", "tactical",
         # Security topics (legitimate learning)
-        "hack",
-        "crack",
-        "exploit",
-        "penetrate",
-        "backdoor",
-        "malware",
-        "virus",
-        "payload",
-        "injection",
+        "hack", "crack", "exploit", "penetrat", "backdoor",
+        "malware", "virus", "payload", "injection", "phishing",
+        "ransomware", "rootkit", "keylogger", "spyware",
         # Body/figure — natural, not obscene
-        "nude",
-        "naked",
-        "figure study",
-        "anatomy",
-        "life drawing",
-        "boudoir",
-        "lingerie",
-        "swimsuit",
-        "bikini",
-        "underwear",
-        "topless",
-        "bare",
-        "skin",
-        "body",
-        "physique",
-        "muscular",
-        # Political (academic/historical)
-        "protest",
-        "revolution",
-        "military",
-        "war",
+        "nude", "naked", "figure study", "anatomy", "life drawing",
+        "boudoir", "lingerie", "swimsuit", "bikini", "underwear",
+        "topless", "bare skin", "body paint", "physique",
+        "muscular", "erotic", "sensual", "pinup", "glamour",
+        # Political/social (academic/historical)
+        "protest", "revolution", "military", "war", "riot",
+        "regime", "dictator", "propaganda", "surveillance",
+        # Religious/cultural
+        "religious", "prophet", "deity", "sacred", "blasphemy",
+        # Competitive/corporate
+        "competitor", "proprietary", "trade secret",
     ]
     found = []
     lower = prompt.lower()

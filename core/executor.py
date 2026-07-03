@@ -710,7 +710,7 @@ class Goal:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict) -> "Goal":
+    def from_dict(cls, data: dict) -> Goal:
         return cls(**data)
 
 

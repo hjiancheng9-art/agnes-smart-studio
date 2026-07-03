@@ -12,7 +12,77 @@ from .config import SETTINGS
 
 logger = logging.getLogger("crux.client")
 
-__all__ = ["CruxClient", "ContentPolicyError"]
+__all__ = ["CruxClient", "ContentPolicyError", "http_request", "db_query"]
+
+
+def http_request(
+    url: str,
+    method: str = "GET",
+    headers: dict | None = None,
+    json_data: dict | None = None,
+    timeout: float = 30.0,
+) -> dict:
+    """Simple HTTP request helper for tools that need ad-hoc API calls.
+
+    Returns a dict with keys: status_code, headers, body (parsed JSON or raw text).
+    """
+    import json as _json
+
+    import httpx as _httpx
+
+    try:
+        with _httpx.Client(timeout=_httpx.Timeout(timeout)) as client:
+            if method.upper() == "GET":
+                resp = client.get(url, headers=headers)
+            elif method.upper() == "POST":
+                resp = client.post(url, headers=headers, json=json_data)
+            elif method.upper() == "PUT":
+                resp = client.put(url, headers=headers, json=json_data)
+            elif method.upper() == "DELETE":
+                resp = client.delete(url, headers=headers)
+            else:
+                resp = client.request(method, url, headers=headers, json=json_data)
+
+            body: str | dict
+            try:
+                body = resp.json()
+            except (_json.JSONDecodeError, ValueError):
+                body = resp.text
+
+            return {
+                "status_code": resp.status_code,
+                "headers": dict(resp.headers),
+                "body": body,
+            }
+    except _httpx.HTTPError as e:
+        return {"status_code": 0, "headers": {}, "body": str(e), "error": True}
+
+
+def db_query(
+    sql: str,
+    params: tuple | None = None,
+    db_path: str = ":memory:",
+) -> list[dict]:
+    """Simple SQLite query helper for tools that need persistent state.
+
+    Returns a list of dicts, one per row, with column names as keys.
+    For write queries (INSERT/UPDATE/DELETE/CREATE), returns [{"rowcount": N}].
+    """
+    import sqlite3 as _sqlite
+
+    conn = _sqlite.connect(db_path)
+    conn.row_factory = _sqlite.Row
+    try:
+        cursor = conn.execute(sql, params or ())
+        sql_upper = sql.strip().upper()
+        if sql_upper.startswith(("SELECT", "PRAGMA", "WITH")):
+            rows = [dict(row) for row in cursor.fetchall()]
+            return rows
+        else:
+            conn.commit()
+            return [{"rowcount": cursor.rowcount}]
+    finally:
+        conn.close()
 
 
 class ContentPolicyError(Exception):
@@ -100,7 +170,10 @@ class CruxClient:
                 except (json.JSONDecodeError, ValueError, KeyError):
                     detail = raw[:500]
                 # 内容安全过滤 → 提供重新措辞建议
-                if isinstance(detail, dict) and detail.get("code") == "content_policy_violation":
+                code = ""
+                if isinstance(detail, dict):
+                    code = detail.get("code", "") or detail.get("error", {}).get("code", "")
+                if code == "content_policy_violation":
                     msg = (
                         "提示词触发了内容安全过滤，请尝试：\n"
                         "1. 用更温和的词汇替换攻击性描述（如'对抗'代替'打架'）\n"
@@ -120,8 +193,9 @@ class CruxClient:
                     response=e.response,
                 ) from e
         # 所有重试耗尽
-        assert last_exc is not None  # guaranteed by loop logic
-        raise last_exc
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("Retry loop exhausted with no exception captured")
 
     # ── 文本 ──────────────────────────────────────────────
     def chat(
@@ -152,8 +226,7 @@ class CruxClient:
             body["tools"] = tools
             body["tool_choice"] = tool_choice
             body["parallel_tool_calls"] = True
-        if enable_thinking:
-            body["chat_template_kwargs"] = {"enable_thinking": True}
+        # thinking params now flow from provider adapter via chat.py kwargs
         body.update(kwargs)
 
         resp = self._request_with_retry("POST", "/chat/completions", json=body)
@@ -166,13 +239,93 @@ class CruxClient:
         model: str = "",
         **kwargs,
     ) -> dict:
-        """调用 1.5-flash 多模态接口（文本+图像理解）"""
+        """多模态接口（文本+图像理解）。
+
+        image_url 支持三种格式：
+        - http(s)://  URL — 直接透传
+        - data:image/...;base64,... — 直接透传
+        - /path/to/file — 自动压缩 + base64 data URL
+
+        超大图片自动压缩：长边 > 2048px 等比缩至 2048，短边 > 1536px 缩至 1536，
+        JPEG 质量 85%，最终 base64 控制在 ~2MB 以内。
+        """
+        import base64
+        import io
+
+        MAX_LONG = 2048
+        MAX_SHORT = 1536
+        JPEG_QUALITY = 85
+        MAX_BYTES = 2 * 1024 * 1024  # 2 MB
+
+        url = image_url
+
+        if not image_url.startswith(("http://", "https://", "data:")):
+            import mimetypes
+            from pathlib import Path
+
+            fp = Path(image_url)
+            if not fp.is_file():
+                return {"choices": [{"message": {"content": f"(图片不存在: {image_url})"}}]}
+
+            mime, _ = mimetypes.guess_type(str(fp))
+            if not mime or not mime.startswith("image/"):
+                mime = "image/png"
+
+            raw = fp.read_bytes()
+
+            # ── 压缩：PIL 可用时等比缩小 + JPEG 编码 ──
+            try:
+                from PIL import Image
+
+                img = Image.open(io.BytesIO(raw))
+                img = img.convert("RGB")  # 统一 RGB（去掉 alpha 通道避免 PNG 膨胀）
+                w, h = img.size
+                longest = max(w, h)
+                shortest = min(w, h)
+
+                if longest > MAX_LONG or shortest > MAX_SHORT:
+                    scale = min(MAX_LONG / longest, MAX_SHORT / shortest)
+                    new_w, new_h = int(w * scale), int(h * scale)
+                    img = img.resize((new_w, new_h), getattr(Image, "LANCZOS", getattr(Image, "ANTIALIAS", Image.BICUBIC)))
+
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG", quality=JPEG_QUALITY, optimize=True)
+                data = buf.getvalue()
+                mime = "image/jpeg"  # 统一用 JPEG（体积小）
+            except ImportError:
+                data = raw
+
+            # ── 如果体积仍超限，降 quality 重压 ──
+            if len(data) > MAX_BYTES:
+                try:
+                    from PIL import Image
+                    for q in (65, 45, 30):
+                        img = Image.open(io.BytesIO(raw)).convert("RGB")
+                        w, h = img.size
+                        longest = max(w, h)
+                        if longest > MAX_LONG:
+                            scale = MAX_LONG / longest
+                            img = img.resize((int(w * scale), int(h * scale)), getattr(Image, "LANCZOS", getattr(Image, "ANTIALIAS", Image.BICUBIC)))
+                        buf = io.BytesIO()
+                        img.save(buf, format="JPEG", quality=q, optimize=True)
+                        data = buf.getvalue()
+                        if len(data) <= MAX_BYTES:
+                            break
+                except ImportError:
+                    pass
+
+            url = f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
+            logger.debug(
+                "vision image: %s → %dKB (base64: %dKB)",
+                fp.name, len(raw) // 1024, len(url) // 1024,
+            )
+
         messages = [
             {
                 "role": "user",
                 "content": [
                     {"type": "text", "text": text},
-                    {"type": "image_url", "image_url": {"url": image_url}},
+                    {"type": "image_url", "image_url": {"url": url}},
                 ],
             }
         ]
@@ -254,11 +407,16 @@ class CruxClient:
                         }
                         return
                     # 连接成功，开始消费流
+                    # SSE 前缀从 ProviderAdapter 读取（当前所有供应商统一为 "data: "）
+                    from core.provider_adapter import PROVIDER_ADAPTERS
+                    adapter = PROVIDER_ADAPTERS.get("deepseek", PROVIDER_ADAPTERS.get("generic"))
+                    prefix = adapter.sse_data_prefix
+                    done = adapter.sse_done_marker
                     for line in resp.iter_lines():
-                        if not line or not line.startswith("data:"):
+                        if not line or not line.startswith(prefix):
                             continue
-                        data = line[5:].strip()
-                        if data == "[DONE]":
+                        data = line[len(prefix):].strip()
+                        if data == done:
                             break
                         try:
                             chunk = _sanitize_json(json.loads(data))

@@ -2,13 +2,17 @@
 chcp 65001 >nul
 set PYTHONUTF8=1
 set PYTHONIOENCODING=utf-8
-title CRUX STUDIO v5.0 — 七兽同体 · MCP 互联
+title CRUX STUDIO v5.0 — 暗夜工坊 · 七兽互联
 
-:: ── 配色 ──────────────────────────────────────────────
-set "GREEN=[92m"
-set "CYAN=[96m"
-set "YELLOW=[93m"
-set "RED=[91m"
+:: ── Atelier 暗夜配色 ──────────────────────────────────
+:: 熔金 = 33 (yellow), 翠绿 = 32 (green), 朱砂 = 31 (red)
+:: 青玉 = 36 (cyan), 暗哑 = 90 (bright black), 暖白 = 37 (white)
+set "GOLD=[33m"
+set "JADE=[32m"
+set "CINN=[31m"
+set "AZURE=[36m"
+set "DIM=[90m"
+set "WARM=[37m"
 set "BOLD=[1m"
 set "RESET=[0m"
 
@@ -29,39 +33,39 @@ set "CRUX=%ROOT%\crux_studio.py"
 
 :: ── 依赖检查 ──────────────────────────────────────────
 if not defined PY (
-    echo %RED%[✗] Python not found. Please install Python 3.11+%RESET%
+    echo %CINN%✗ Python not found. Please install Python 3.11+%RESET%
     echo     Download: https://www.python.org/downloads/
     pause
     exit /b 1
 )
 
 if not exist "%LAUNCHER%" (
-    echo %RED%[✗] launcher.py not found at %LAUNCHER%%RESET%
+    echo %CINN%✗ launcher.py not found at %LAUNCHER%%RESET%
     pause
     exit /b 1
 )
 
-:: ── Banner ─────────────────────────────────────────────
+:: ── Atelier 工坊 Banner ────────────────────────────────
 cls
 echo.
-echo   %CYAN%╔══════════════════════════════════════════╗%RESET%
-echo   %CYAN%║%RESET%  %BOLD%CRUX STUDIO v5.0%RESET%  —  七兽同体      %CYAN%║%RESET%
-echo   %CYAN%║%RESET%  白虎为骨 · 青龙为脉 · 朱雀为眼        %CYAN%║%RESET%
-echo   %CYAN%║%RESET%  玄武为甲 · 麒麟为手 · 螣蛇为忆        %CYAN%║%RESET%
-echo   %CYAN%║%RESET%  应龙为令 · MCP 互联 · 万象共生        %CYAN%║%RESET%
-echo   %CYAN%╚══════════════════════════════════════════╝%RESET%
+echo   %GOLD%╔══════════════════════════════════════════════════╗%RESET%
+echo   %GOLD%║%RESET%  %BOLD%%GOLD%⚒  CRUX  STUDIO%RESET%%DIM%  ·  暗夜工坊 · 七兽互联  %GOLD%║%RESET%
+echo   %GOLD%║%RESET%  %WARM%白虎为骨%RESET%%DIM% · %RESET%%AZURE%青龙为脉%RESET%%DIM% · %RESET%%CINN%朱雀为眼%RESET%              %GOLD%║%RESET%
+echo   %GOLD%║%RESET%  %DIM%玄武为甲 · %WARM%麒麟为手 · %GOLD%螣蛇为忆%RESET%              %GOLD%║%RESET%
+echo   %GOLD%║%RESET%  %GOLD%应龙为令%RESET%%DIM% · MCP 网格 · 万象共生%RESET%                %GOLD%║%RESET%
+echo   %GOLD%╚══════════════════════════════════════════════════╝%RESET%
 echo.
 
 :: ── Python 版本检查 ───────────────────────────────────
 "%PY%" -c "import sys; sys.exit(0 if sys.version_info >= (3,9) else 1)" >nul 2>&1
 if errorlevel 1 (
-    echo %YELLOW%[!] Python 3.9+ required. Current:%RESET%
+    echo %GOLD%◆ Python 3.9+ required. Current:%RESET%
     "%PY%" --version
     pause
     exit /b 1
 )
-for /f "tokens=*" %%v in ('"%PY%" --version') do echo   %GREEN%[✓] %%v%RESET%
-echo   %GREEN%[✓] Launcher: launcher.py%RESET%
+for /f "tokens=*" %%v in ('"%PY%" --version') do echo   %JADE%● %%v%RESET%
+echo   %JADE%● Launcher: launcher.py%RESET%
 echo.
 
 :: ── 切换工作目录 ─────────────────────────────────────
@@ -84,28 +88,28 @@ if not "%~1"=="" (
 
 :: ── 无参数：一键启动（默认模式）─────────────────────────
 :cmd_launch
-echo   %CYAN%[1/3]%RESET% 健康检查 + 服务启动...
+echo   %GOLD%[1/3]%RESET% 健康检查 + 服务启动...
 "%PY%" "%LAUNCHER%" --launch
 if errorlevel 1 (
     echo.
-    echo   %RED%[✗] 启动失败，请检查上方错误信息%RESET%
+    echo   %CINN%✗ 启动失败，请检查上方错误信息%RESET%
     pause
     exit /b 1
 )
 echo.
-echo   %GREEN%[✓] 启动完成。服务已后台运行。%RESET%
+echo   %JADE%● 启动完成。暗夜工坊已就绪。%RESET%
 echo.
 exit /b 0
 
 :: ── 子命令：停止 ─────────────────────────────────────
 :cmd_stop
-echo   %YELLOW%[!] 正在停止所有后台服务...%RESET%
+echo   %GOLD%◆ 正在停止所有后台服务...%RESET%
 "%PY%" "%LAUNCHER%" --stop
 if errorlevel 1 (
-    echo   %RED%[✗] 停止失败%RESET%
+    echo   %CINN%✗ 停止失败%RESET%
     pause
 ) else (
-    echo   %GREEN%[✓] 服务已全部停止%RESET%
+    echo   %JADE%● 服务已全部停止%RESET%
 )
 exit /b 0
 
@@ -122,7 +126,7 @@ exit /b 0
 :: ── 帮助 ──────────────────────────────────────────────
 :cmd_help
 echo.
-echo   %BOLD%用法:%RESET%
+echo   %BOLD%%GOLD%用法:%RESET%
 echo     start_launcher.bat          一键启动（推荐）
 echo     start_launcher.bat --start  仅启动后台服务
 echo     start_launcher.bat --stop   停止所有服务
@@ -130,7 +134,7 @@ echo     start_launcher.bat --status 查看服务状态
 echo     start_launcher.bat --tools  查看 TRM 工具目录
 echo     start_launcher.bat --help   显示此帮助
 echo.
-echo   %BOLD%高级用法:%RESET%
+echo   %BOLD%%GOLD%高级用法:%RESET%
 echo     其余参数会透传给 launcher.py:
 echo     start_launcher.bat --no-check --launch  跳过健康检查直接启动
 echo.

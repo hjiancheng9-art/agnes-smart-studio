@@ -28,6 +28,7 @@ Skill 文件格式 (JSON):
 import json
 import threading
 from pathlib import Path
+
 from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = ["SKILLS_DIR", "Skill", "SkillManager", "get_manager"]
@@ -470,21 +471,23 @@ def reset_skill_manager() -> None:
 
 def resolve_skill_executor(tool_name: str, tool_def: dict | None = None):
     """Return a real executor callable for a skill tool, or a deprecation stub."""
-    import logging, os, subprocess, tempfile
+    import logging
+    import os
+    import tempfile
     _log = logging.getLogger("crux.skills.exec")
 
     if tool_name in ("generate_image", "imagegen", "text_to_image", "t2i"):
         def _exec(**kw):
-            from engines.text_to_image import TextToImageEngine
             from core.client import CruxClient
+            from engines.text_to_image import TextToImageEngine
             with CruxClient() as c:
                 return TextToImageEngine(c).generate(prompt=kw.get("prompt",""), size=kw.get("size","1024x768"), seed=kw.get("seed"), negative_prompt=kw.get("negative_prompt"))
         return _exec
 
     if tool_name in ("image_to_image", "i2i", "img2img"):
         def _exec(**kw):
-            from engines.image_to_image import ImageToImageEngine
             from core.client import CruxClient
+            from engines.image_to_image import ImageToImageEngine
             with CruxClient() as c:
                 url = kw.get("image_url", "")
                 return ImageToImageEngine(c).edit(prompt=kw.get("prompt",""), image_urls=[url] if url else [], size=kw.get("size","1024x768"))
@@ -492,8 +495,8 @@ def resolve_skill_executor(tool_name: str, tool_def: dict | None = None):
 
     if tool_name in ("generate_video", "videogen", "text_to_video", "t2v"):
         def _exec(**kw):
-            from engines.video import VideoEngine
             from core.client import CruxClient
+            from engines.video import VideoEngine
             with CruxClient() as c:
                 return VideoEngine(c).text_to_video(prompt=kw.get("prompt",""), negative_prompt=kw.get("negative_prompt"), seed=kw.get("seed"))
         return _exec

@@ -4,10 +4,10 @@ yt-dlp 增强下载器 — 断点续传 / 多线程 / 字幕 / 格式选择
 用法: python yt_downloader.py <URL> [选项]
 """
 
-import yt_dlp
 import argparse
 import sys
-import os
+
+import yt_dlp
 
 
 def build_opts(args):

@@ -30,7 +30,7 @@ class KeyVault:
             raw = VAULT_FILE.read_text(encoding="utf-8")
             decoded = base64.b64decode(raw).decode("utf-8")
             self._cache = json.loads(decoded)
-        except (ImportError, OSError, RuntimeError) as e:
+        except (ImportError, OSError, RuntimeError):
             logger.debug("[InnerArmor] load failed, using empty cache")
 
     def _save(self):

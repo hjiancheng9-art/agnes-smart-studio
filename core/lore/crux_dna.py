@@ -118,7 +118,7 @@ Entity Grafting — Creative Leap Engine (CRUX DNA — unique creative capabilit
 PIXEL_IDENTITY = """
 Pixel Identity SSOT (CRUX DNA — mathematically guaranteed):
 
-  ui/terminal_logo.py → render_pixel_grid() → {terminal Rich + SVG export}
+  ui/terminal_splash.py → CRUX_PIXEL → {terminal Rich + SVG export}
 
   Edit GLYPHS once → both surfaces update. No drift possible.
   Guard tests verify pixel-for-pixel equality between grid and SVG.

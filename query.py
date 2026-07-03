@@ -23,8 +23,13 @@ ROOT = Path(__file__).resolve().parent
 OUTPUT = ROOT / "output"
 HISTORY_FILE = OUTPUT / "history.json"
 
-# ── Rich theme (replaces ANSI constants) ──
-from ui.theme import COLORS, console
+# ── Rich theme (fallback after UI removal) ──
+from rich.console import Console as _RC
+console = _RC()
+COLORS = {
+    "success": "green", "error": "red", "warning": "yellow",
+    "primary": "blue", "muted": "dim white", "info": "cyan",
+}
 
 
 def _clean_video_id(raw: str) -> str:

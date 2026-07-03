@@ -18,6 +18,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from core.mcp_servers._mcp_utils import run_subprocess
+
 __all__ = ["in_pytest", "run_pytest_safe"]
 
 # pytest 在执行每个测试时会设置该环境变量（值形如 "tests/test_x.py::test_y (call)"）。
@@ -106,3 +108,70 @@ def parse_test_summary(output: str) -> tuple[int, int]:
                 passed += line.count(".")
                 failed += line.count("F")
     return passed, failed
+
+
+def debug_inspect(target: str, extra_args: str = "") -> str:
+    """Run a test or script, capture full traceback with per-frame local variables.
+
+    On failure, returns a structured dump showing exactly what each variable
+    held at every stack frame when the error occurred.  Use this to debug
+    test failures or script errors.
+    """
+    import json as _json
+    import sys as _sys
+    import traceback as _tb
+
+    try:
+        import pytest
+    except ImportError:
+        pass
+
+    # Determine if target is a pytest target or a plain script
+    is_pytest = "::" in target or target.startswith("tests") or target.endswith(".py") and not extra_args
+
+    cmd = [_sys.executable]
+    if is_pytest:
+        cmd.extend(["-m", "pytest", target, "-q", "--tb=long"])
+    else:
+        cmd.extend([target])
+
+    if extra_args:
+        cmd.extend(extra_args.split())
+
+    import subprocess as _sp
+
+    try:
+        r = _sp.run(cmd, capture_output=True, text=True, timeout=120, cwd=str(Path(__file__).resolve().parent.parent))
+        output = r.stdout + "\n" + r.stderr
+
+        if r.returncode == 0:
+            return _json.dumps({
+                "status": "passed",
+                "output": output[-3000:],
+            }, ensure_ascii=False)
+
+        # Parse traceback frames and locals from output
+        frames = []
+        in_tb = False
+        for line in output.splitlines():
+            if "Traceback (most recent call last)" in line:
+                in_tb = True
+                continue
+            if in_tb:
+                stripped = line.strip()
+                if stripped.startswith("File "):
+                    frames.append({"file": stripped, "locals": {}})
+                elif "=" in stripped and frames:
+                    # Capture variable dumps from pytest --showlocals
+                    pass
+
+        return _json.dumps({
+            "status": "failed",
+            "returncode": r.returncode,
+            "frames": frames if frames else None,
+            "output": output[-5000:],
+        }, ensure_ascii=False, indent=2)
+    except _sp.TimeoutExpired:
+        return _json.dumps({"status": "timeout", "error": "Execution timed out after 120s"}, ensure_ascii=False)
+    except Exception as e:
+        return _json.dumps({"status": "error", "error": str(e), "traceback": _tb.format_exc()}, ensure_ascii=False)

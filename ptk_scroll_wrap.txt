@@ -1,0 +1,120 @@
+    def _scroll_when_linewrapping(
+        self, ui_content: UIContent, width: int, height: int
+    ) -> None:
+        """
+        Scroll to make sure the cursor position is visible and that we maintain
+        the requested scroll offset.
+
+        Set `self.horizontal_scroll/vertical_scroll`.
+        """
+        scroll_offsets_bottom = self.scroll_offsets.bottom
+        scroll_offsets_top = self.scroll_offsets.top
+
+        # We don't have horizontal scrolling.
+        self.horizontal_scroll = 0
+
+        def get_line_height(lineno: int) -> int:
+            return ui_content.get_height_for_line(lineno, width, self.get_line_prefix)
+
+        # When there is no space, reset `vertical_scroll_2` to zero and abort.
+        # This can happen if the margin is bigger than the window width.
+        # Otherwise the text height will become "infinite" (a big number) and
+        # the copy_line will spend a huge amount of iterations trying to render
+        # nothing.
+        if width <= 0:
+            self.vertical_scroll = ui_content.cursor_position.y
+            self.vertical_scroll_2 = 0
+            return
+
+        # If the current line consumes more than the whole window height,
+        # then we have to scroll vertically inside this line. (We don't take
+        # the scroll offsets into account for this.)
+        # Also, ignore the scroll offsets in this case. Just set the vertical
+        # scroll to this line.
+        line_height = get_line_height(ui_content.cursor_position.y)
+        if line_height > height - scroll_offsets_top:
+            # Calculate the height of the text before the cursor (including
+            # line prefixes).
+            text_before_height = ui_content.get_height_for_line(
+                ui_content.cursor_position.y,
+                width,
+                self.get_line_prefix,
+                slice_stop=ui_content.cursor_position.x,
+            )
+
+            # Adjust scroll offset.
+            self.vertical_scroll = ui_content.cursor_position.y
+            self.vertical_scroll_2 = min(
+                text_before_height - 1,  # Keep the cursor visible.
+                line_height
+                - height,  # Avoid blank lines at the bottom when scrolling up again.
+                self.vertical_scroll_2,
+            )
+            self.vertical_scroll_2 = max(
+                0, text_before_height - height, self.vertical_scroll_2
+            )
+            return
+        else:
+            self.vertical_scroll_2 = 0
+
+        # Current line doesn't consume the whole height. Take scroll offsets into account.
+        def get_min_vertical_scroll() -> int:
+            # Make sure that the cursor line is not below the bottom.
+            # (Calculate how many lines can be shown between the cursor and the .)
+            used_height = 0
+            prev_lineno = ui_content.cursor_position.y
+
+            for lineno in range(ui_content.cursor_position.y, -1, -1):
+                used_height += get_line_height(lineno)
+
+                if used_height > height - scroll_offsets_bottom:
+                    return prev_lineno
+                else:
+                    prev_lineno = lineno
+            return 0
+
+        def get_max_vertical_scroll() -> int:
+            # Make sure that the cursor line is not above the top.
+            prev_lineno = ui_content.cursor_position.y
+            used_height = 0
+
+            for lineno in range(ui_content.cursor_position.y - 1, -1, -1):
+                used_height += get_line_height(lineno)
+
+                if used_height > scroll_offsets_top:
+                    return prev_lineno
+                else:
+                    prev_lineno = lineno
+            return prev_lineno
+
+        def get_topmost_visible() -> int:
+            """
+            Calculate the upper most line that can be visible, while the bottom
+            is still visible. We should not allow scroll more than this if
+            `allow_scroll_beyond_bottom` is false.
+            """
+            prev_lineno = ui_content.line_count - 1
+            used_height = 0
+            for lineno in range(ui_content.line_count - 1, -1, -1):
+                used_height += get_line_height(lineno)
+                if used_height > height:
+                    return prev_lineno
+                else:
+                    prev_lineno = lineno
+            return prev_lineno
+
+        # Scroll vertically. (Make sure that the whole line which contains the
+        # cursor is visible.
+        topmost_visible = get_topmost_visible()
+
+        # Note: the `min(topmost_visible, ...)` is to make sure that we
+        # don't require scrolling up because of the bottom scroll offset,
+        # when we are at the end of the document.
+        self.vertical_scroll = max(
+            self.vertical_scroll, min(topmost_visible, get_min_vertical_scroll())
+        )
+        self.vertical_scroll = min(self.vertical_scroll, get_max_vertical_scroll())
+
+        # Disallow scrolling beyond bottom?
+        if not self.allow_scroll_beyond_bottom():
+            self.vertical_scroll = min(self.vertical_scroll, topmost_visible)

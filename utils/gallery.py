@@ -16,7 +16,6 @@
 """
 
 import base64
-import os
 import webbrowser
 from datetime import datetime
 from pathlib import Path

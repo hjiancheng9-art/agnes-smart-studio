@@ -1,6 +1,6 @@
 """Event Bus — CRUX 中枢神经（已吸收 ZCode Session 生命周期 v1）。
 
-五兽互相感知的工具。模块间零耦合，挂载即生效。
+七兽互相感知的工具。模块间零耦合，挂载即生效。
 
 事件层级（ZCode Protocol v1 origin）:
   Session 层级:

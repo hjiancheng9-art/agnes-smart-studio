@@ -1,0 +1,80 @@
+    def _make_app(self) -> Application:
+        # Activity pane — shows all tool calls, thinking steps, and status
+        def _activity_content():
+            if not self._activity_log:
+                return FormattedText([])
+            pieces = []
+            for icon, style_class, msg in self._activity_log:
+                pieces.append((style_class, f" {icon} {msg}"))
+                pieces.append(("", "\n"))
+            if pieces:
+                pieces.pop()  # remove trailing newline
+            return FormattedText(pieces)
+
+        activity_window = Window(
+            content=FormattedTextControl(_activity_content),
+            height=lambda: min(8, len(self._activity_log)) if self._activity_log else 0,
+            style="class:message-area",
+            always_hide_cursor=True,
+            dont_extend_height=True,
+        )
+
+        def _prompt():
+            return f"{_V} {'*' if self._thinking else '>'} "
+
+        input_ctrl = BufferControl(
+            buffer=self.input_buffer,
+            input_processors=[BeforeInput(_prompt)],
+            focusable=True,
+        )
+
+        root = HSplit([
+            # Message zone (top, fills)
+            self.message_pane.pane,
+            # Separator (always visible when there's activity)
+            Window(
+                content=FormattedTextControl(lambda: FormattedText(
+                    [("class:input-border", _H * _tw())]
+                ) if self._activity_log else FormattedText([])),
+                height=lambda: 1 if self._activity_log else 0,
+                style="class:input-border",
+                always_hide_cursor=True,
+            ),
+            # Activity zone (tool calls, thinking steps, status)
+            activity_window,
+            # Input
+            Window(content=input_ctrl, height=1, style="class:input-field"),
+            # Status bar
+            Window(
+                content=FormattedTextControl(lambda: self.status_bar.render()),
+                height=1,
+                style="class:status-bar",
+                always_hide_cursor=True,
+            ),
+        ])
+
+        return Application(
+            layout=Layout(root),
+            key_bindings=self.kb,
+            style=build_style(),
+            full_screen=True,
+            mouse_support=True,
+        )
+
+    # ── Input ───────────────────────────────────────────────
+
+    def _on_accept(self, buf: Buffer) -> bool:
+        text = buf.text.strip()
+        buf.reset()
+        if not text:
+            return True
+        # ── Drag-drop detection: pasted file paths → treat as images ──
+        drag_images = detect_drag_images(text)
+        if drag_images and len(drag_images) == 1:
+            self._send_image(drag_images[0])
+            return True
+        if drag_images:
+            for img in drag_images:
+                self._send_image(img)
+            return True
+        # ── Single image path? ──

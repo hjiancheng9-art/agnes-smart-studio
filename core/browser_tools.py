@@ -1,11 +1,11 @@
-"""Browser Companion — 全自动网页生图生视频
+"""Browser Companion — automated web image/video generation.
 
-⚠ EXPERIMENTAL — 未接通 runtime：本模块仅被 tests/manual 引用，
-ChatSession/tools.json 尚未注册。Playwright 自动化逻辑完整但需接入后才生效。
+Connected to runtime via ChatSession.toggle_browser() and /extend browser.
+ToolRegistry.load(browser=True) registers all 6 browser tools.
 
-CRUX 大脑：选择 provider、生成 prompt、决定策略
-Playwright：打开网页、填入提示词、点击生成、轮询结果、下载文件
-API Provider：有官方API的直接调用（更快更稳定）
+CRUX: select provider, generate prompt, decide strategy
+Playwright: open page, fill prompts, click generate, poll results, download files
+API Provider: direct API when available (faster, more stable)
 
 架构：
   Provider 层 → 8 个适配器（API 优先，Playwright 后备）
@@ -17,7 +17,6 @@ API Provider：有官方API的直接调用（更快更稳定）
   DALL-E       |  Gemini       |  Opal    |  Veo/Flow
 """
 
-from core.mcp_servers._mcp_utils import run_subprocess
 import contextlib
 import json
 import os
@@ -25,6 +24,8 @@ import subprocess
 import time
 import uuid
 from pathlib import Path
+
+from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = [
     "BROWSER_EXECUTOR_MAP",

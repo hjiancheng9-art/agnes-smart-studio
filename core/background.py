@@ -20,8 +20,7 @@ import sys
 import threading
 import time
 import uuid
-from dataclasses import asdict, dataclass, field
-from pathlib import Path
+from dataclasses import asdict, dataclass
 
 from core.config import OUTPUT_DIR
 from core.mcp_servers._mcp_utils import run_subprocess
@@ -173,7 +172,7 @@ class BackgroundManager:
         output_truncated = False
         try:
             if os.path.exists(task.output_path):
-                with open(task.output_path, "r", encoding="utf-8", errors="replace") as f:
+                with open(task.output_path, encoding="utf-8", errors="replace") as f:
                     raw = f.read()
                 # Return last 4000 chars as preview
                 if len(raw) > 4000:
