@@ -25,6 +25,7 @@ HISTORY_FILE = OUTPUT / "history.json"
 
 # ── Rich theme (fallback after UI removal) ──
 from rich.console import Console as _RC
+
 console = _RC()
 COLORS = {
     "success": "green", "error": "red", "warning": "yellow",

@@ -98,11 +98,9 @@ class TuiApp:
             """Toggle full-screen / windowed mode."""
             renderer = event.app.renderer
             renderer.full_screen = not renderer.full_screen
-            if not renderer.full_screen:
-                # Exit alternate screen
-                if renderer._in_alternate_screen:
-                    renderer.output.quit_alternate_screen()
-                    renderer._in_alternate_screen = False
+            if not renderer.full_screen and renderer._in_alternate_screen:
+                renderer.output.quit_alternate_screen()
+                renderer._in_alternate_screen = False
             # Force full redraw
             event.app.renderer.reset(
                 leave_alternate_screen=not renderer.full_screen

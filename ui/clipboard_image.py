@@ -6,6 +6,7 @@ macOS/Linux: uses subprocess to check for clipboard images (pngpaste/xclip).
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import subprocess
@@ -25,7 +26,6 @@ def is_image_path(text: str) -> str:
     Returns the clean path string if it's an image file, empty string otherwise.
     Handles Windows paths with quotes from drag-drop.
     """
-    from pathlib import Path
 
     # Strip quotes (Windows drag-drop may wrap in quotes)
     clean = text.strip().strip('"').strip("'")
@@ -101,17 +101,16 @@ def _get_clipboard_image_win32() -> str | None:
                 continue
         return None
     finally:
-        try:
+        with contextlib.suppress(Exception):
             win32clipboard.CloseClipboard()
-        except Exception:
-            pass
 
 
 def _save_clipboard_dib(data: bytes) -> str | None:
     """Save Windows DIB clipboard data to a temp PNG file."""
     try:
-        from PIL import Image
         import io
+
+        from PIL import Image
 
         # DIB = BITMAPINFOHEADER + pixel data
         # Use PIL to parse via BMP (DIB is essentially a BMP without the file header)
@@ -137,10 +136,8 @@ def _save_clipboard_dib(data: bytes) -> str | None:
         import atexit
         @atexit.register
         def _clean():
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp_path)
-            except OSError:
-                pass
         logger.debug("clipboard image saved: %s (%dKB)", tmp_path, os.path.getsize(tmp_path) // 1024)
         return tmp_path
     except ImportError:

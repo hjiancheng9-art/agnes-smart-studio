@@ -99,7 +99,7 @@ def build_logo_lines() -> list[str]:
 def build_border_line(char: str = "═", top: bool = True) -> str:
     """Build a full-width box-drawing border line."""
     bdr = _P["border"]
-    bdr_d = _P["border_dim"]
+    _P["border_dim"]
     if top:
         inner = f"╔{'═' * (LOGO_W - 2)}╗"
         return f"  [{bdr}]{inner}[/]"
@@ -124,15 +124,15 @@ def _make_status_lamp(label: str, on: bool) -> str:
     return f"  [{c}]{dot}[/] [{_P['dim']}]{label}[/]"
 
 
-def _build_info_panel(console, extra_lines: list[tuple] | None = None) -> Text:
+def _build_info_panel(console, extra_lines: list[tuple] | None = None):
     """Build right-side info dashboard: model, git, stats, tips."""
     from rich.style import Style
     from rich.text import Text
 
-    bdr_d = _P["border_dim"]
+    _P["border_dim"]
     dim = _P["dim"]
     accent = _P["accent"]
-    text_c = _P["text"]
+    _P["text"]
     green = _P["status_on"]
     cyan = _P["blue"]
 
@@ -142,7 +142,7 @@ def _build_info_panel(console, extra_lines: list[tuple] | None = None) -> Text:
     lines.append(("  ▣ model", Style(color=accent, bold=True)))
     found_provider = found_model = False
     if extra_lines:
-        for kind, label, color_key, detail in extra_lines:
+        for kind, label, _color_key, detail in extra_lines:
             if kind == "provider":
                 lines.append((f"  {label}  {detail}", Style(color=green)))
                 found_provider = True
@@ -169,7 +169,7 @@ def _build_info_panel(console, extra_lines: list[tuple] | None = None) -> Text:
                 ["git", "status", "--porcelain"],
                 capture_output=True, text=True, timeout=2
             ).stdout
-            n_changed = len([l for l in status_out.splitlines() if l.strip()])
+            n_changed = len([line for line in status_out.splitlines() if line.strip()])
             changed_str = f"  {branch}"
             if n_changed:
                 changed_str += f"  [{n_changed} changed]"
@@ -197,7 +197,7 @@ def _build_info_panel(console, extra_lines: list[tuple] | None = None) -> Text:
 
     # ── 会话统计 ──
     lines.append(("  ⚡ session", Style(color=accent, bold=True)))
-    import sys, os
+    import sys
     py_ver = f"{sys.version_info.major}.{sys.version_info.minor}"
     lines.append((f"  Python {py_ver}  |  {console.width}×{console.height}", Style(color=dim, italic=True)))
     # count files
@@ -236,12 +236,12 @@ def _build_info_panel(console, extra_lines: list[tuple] | None = None) -> Text:
 
 def print_splash(extra_lines: list[tuple] | None = None) -> None:
     """Print full splash screen: logo + info panel side by side."""
-    from rich.console import Console
-    from rich.style import Style
-    from rich.text import Text
     from rich.columns import Columns
+    from rich.console import Console
     from rich.layout import Layout
     from rich.panel import Panel
+    from rich.style import Style
+    from rich.text import Text
 
     console = Console(color_system="truecolor")
     tw = console.width or shutil.get_terminal_size().columns

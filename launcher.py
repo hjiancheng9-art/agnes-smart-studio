@@ -30,6 +30,7 @@ from pathlib import Path
 
 # UTF-8 encoding setup (critical on Windows/GDK)
 import core.encoding as _enc
+
 _enc.setup()
 
 from core.mcp_servers._mcp_utils import run_subprocess
@@ -42,7 +43,6 @@ try:
     from rich.align import Align
     from rich.box import ROUNDED
     from rich.console import Console
-    from rich.layout import Layout
     from rich.panel import Panel
     from rich.table import Table
     from rich.text import Text
@@ -426,7 +426,7 @@ class ProcessManager:
         except (json.JSONDecodeError, OSError):
             return 0
         killed = 0
-        for name, pid in pids.items():
+        for _name, pid in pids.items():
             try:
                 os.kill(pid, signal.SIGTERM)
                 killed += 1
@@ -539,7 +539,7 @@ def _render_rich_dashboard(results: list[HealthResult], elapsed: float) -> None:
 
     online = degraded = offline = 0
 
-    for idx, r in enumerate(results):
+    for _idx, r in enumerate(results):
         glyph = STATUS_GLYPHS.get(r.status, "?")
         glyph_c = STATUS_COLORS.get(r.status, muted_c)
         if r.status == "online":
@@ -623,7 +623,7 @@ class MeshLauncher:
         try:
             from core.tool_registry_mesh import get_trm
             trm = get_trm()
-            count = trm.discover_all(timeout=5.0)
+            trm.discover_all(timeout=5.0)
             self.trm_summary = trm.as_text()
             return self.trm_summary
         except Exception as e:

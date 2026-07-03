@@ -39,6 +39,8 @@ ROOT = Path(__file__).parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import contextlib
+
 from core.config import SETTINGS
 
 # Clean up stale error file from previous crashed sessions
@@ -213,7 +215,6 @@ def _chat_tui():
     from pathlib import Path
 
     from core.chat import ChatSession
-    from core.client import CruxClient
     from core.cli_handlers import CruxCLI
 
     cwd = Path.cwd()
@@ -240,8 +241,9 @@ def _chat_tui():
 
     # ── Startup banner ──
     import shutil
+
+    from core.provider import get_provider_manager
     from core.version import __version__
-    from core.provider import get_provider_manager, MODEL_REGISTRY
 
     mgr = get_provider_manager()
     model_name = mgr.get_model("light") or session.model
@@ -288,10 +290,8 @@ def _chat_tui():
 
     # ── Cleanup ──
     if wire:
-        try:
+        with contextlib.suppress(OSError):
             wire.end_session()
-        except OSError:
-            pass
 
 
 def _chat_plain():
@@ -300,7 +300,6 @@ def _chat_plain():
     from pathlib import Path
 
     from core.chat import ChatSession
-    from core.client import CruxClient
     from core.cli_handlers import CruxCLI
     from core.version import __version__
 
@@ -323,7 +322,7 @@ def _chat_plain():
         _p(f"初始化失败: {e}", file=sys.stderr)
         sys.exit(1)
 
-    cli = CruxCLI(session)
+    CruxCLI(session)
 
     # ── Startup banner ──
     _rprint()
@@ -368,10 +367,8 @@ def _chat_plain_session(session, cli, wire, session_id: str = "") -> None:
         if not line:
             continue
         if wire:
-            try:
+            with contextlib.suppress(Exception):
                 wire.record_turn("user", line)
-            except Exception:
-                pass
         if line in ("/q", "/quit", "/exit"):
             break
         if line == "/h":
@@ -399,10 +396,8 @@ def _chat_plain_session(session, cli, wire, session_id: str = "") -> None:
                     elif url:
                         _rprint(f"[green]  URL: {url}[/]")
             if wire:
-                try:
+                with contextlib.suppress(Exception):
                     wire.record_turn("assistant", "[streamed response]")
-                except Exception:
-                    pass
         except Exception as e:
             _rprint(f"[red]错误: {e}[/]")
         print()
@@ -445,7 +440,6 @@ def _setup_readline_completion(cli) -> None:
 
 def _print_kimi_tree(root: Path, max_depth: int = 2) -> None:
     """Print a Kimi-style directory tree (first N levels, censored hidden dirs)."""
-    import os
 
     SKIP_DIRS = {
         "__pycache__",
