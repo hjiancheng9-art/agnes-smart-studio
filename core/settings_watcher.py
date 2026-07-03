@@ -6,7 +6,7 @@ Uses polling (no filesystem watcher dependency on Windows).
 
 from __future__ import annotations
 
-import json
+import contextlib
 import logging
 import os
 import threading
@@ -25,10 +25,8 @@ def _get_mtimes() -> dict[str, float]:
     """Get current mtimes for all watched files."""
     result = {}
     for path in _WATCHED:
-        try:
+        with contextlib.suppress(OSError):
             result[path] = os.path.getmtime(path)
-        except OSError:
-            pass
     return result
 
 

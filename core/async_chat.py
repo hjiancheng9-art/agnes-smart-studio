@@ -130,7 +130,9 @@ class AsyncCruxClient:
             if sem is not None:
                 sem.release()
 
-        raise last_exc  # type: ignore[misc]
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("Retry loop exhausted with no captured exception")
 
     # ── 文本 ──────────────────────────────────────────────
     async def chat(
@@ -149,12 +151,12 @@ class AsyncCruxClient:
     ) -> dict:
         """多轮对话（异步）。"""
         messages = messages or []
-        body: dict[str, Any] = dict(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
         if tools:
             body["tools"] = tools
             body["tool_choice"] = tool_choice
@@ -208,13 +210,13 @@ class AsyncCruxClient:
     ):
         """流式对话（异步生成器）。"""
         messages = messages or []
-        body: dict[str, Any] = dict(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            stream=True,
-        )
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": True,
+        }
         if tools:
             body["tools"] = tools
             body["tool_choice"] = tool_choice

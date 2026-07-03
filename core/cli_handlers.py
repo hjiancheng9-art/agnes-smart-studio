@@ -17,8 +17,7 @@ from __future__ import annotations
 import sys
 from typing import TYPE_CHECKING
 
-from core.commands import SKILL_ENTRIES, CommandDef, build_dispatch_table, get_all, get_by_category
-from core.config import get_crux_vision_model
+from core.commands import SKILL_ENTRIES, build_dispatch_table, get_all, get_by_category
 
 if TYPE_CHECKING:
     from core.chat import ChatSession
@@ -99,7 +98,7 @@ class CruxCLI:
                 arg_str = f" {args_hint}" if args_hint else ""
                 print(f"    {name}{arg_str}  —  {desc}")
         if SKILL_ENTRIES:
-            print(f"\n  [技能包]")
+            print("\n  [技能包]")
             for name, desc in SKILL_ENTRIES:
                 print(f"    {name}  —  {desc}")
         print()
@@ -118,7 +117,7 @@ class CruxCLI:
                 detail = long_desc or desc
                 print(f"      {detail}")
         if SKILL_ENTRIES:
-            print(f"\n  [技能包]")
+            print("\n  [技能包]")
             for name, desc in SKILL_ENTRIES:
                 print(f"    {name}")
                 print(f"      {desc}")
@@ -262,7 +261,7 @@ class CruxCLI:
         """ComfyUI workflow management."""
         parts = args.strip().split(maxsplit=1)
         sub = parts[0].lower() if parts else ""
-        sub_args = parts[1] if len(parts) > 1 else ""
+        parts[1] if len(parts) > 1 else ""
 
         if sub == "list":
             print("  正在查询 ComfyUI 工作流...")
@@ -444,7 +443,7 @@ class CruxCLI:
         """Project management."""
         parts = args.strip().split(maxsplit=1)
         sub = parts[0].lower() if parts else ""
-        sub_args = parts[1] if len(parts) > 1 else ""
+        parts[1] if len(parts) > 1 else ""
         print(f"  项目管理 '{sub}' — 通过 AI chat 使用 session_mgr 工具。")
 
     def _chat_deploy(self, args: str) -> None:
@@ -628,7 +627,7 @@ class CruxCLI:
             total = summary.get("total_cost", 0.0)
             calls = summary.get("total_calls", 0)
             budget = (summary.get("budget") or {}).get("daily")
-            print(f"\n  💰 花费统计")
+            print("\n  💰 花费统计")
             print(f"  总花费: ${total:.4f}")
             print(f"  总调用: {calls}")
             if budget:
@@ -640,13 +639,13 @@ class CruxCLI:
             # By model breakdown
             bm = summary.get("by_model", {})
             if bm:
-                print(f"\n  按模型:")
+                print("\n  按模型:")
                 for model, info in sorted(bm.items(), key=lambda x: -x[1].get("cost", 0)):
                     print(f"    {model}: ${info.get('cost', 0):.4f} ({info.get('calls', 0)} 次)")
             # Recent daily
             days = get_daily_breakdown(3)
             if days:
-                print(f"\n  最近三日:")
+                print("\n  最近三日:")
                 for d in days:
                     print(f"    {d['day']}: ${d['cost']:.4f} ({d['calls']} 次)")
             print()
@@ -688,7 +687,7 @@ class CruxCLI:
             state = self.session.toggle_browser()
             print(f"  浏览器工具: {'开启' if state else '关闭'}")
         elif arg == "list":
-            print(f"  扩展工具状态:")
+            print("  扩展工具状态:")
             print(f"    Notebook: {'✓' if self.session.notebook_enabled else '✗'}")
             print(f"    Audio:    {'✓' if self.session.audio_enabled else '✗'}")
             print(f"    Browser:  {'✓' if self.session.browser_enabled else '✗'}")
@@ -836,12 +835,12 @@ class CruxCLI:
                 print(f"  总调用: {total}")
                 by_intent = stats.get("by_intent", {})
                 if by_intent:
-                    print(f"  意图分布:")
+                    print("  意图分布:")
                     for intent, count in sorted(by_intent.items(), key=lambda x: -x[1]):
                         print(f"    {intent}: {count}")
                 top_tools = stats.get("top_tools", [])
                 if top_tools:
-                    print(f"  最佳工具 (成功率):")
+                    print("  最佳工具 (成功率):")
                     for t in top_tools[:5]:
                         name = t.get("name", t) if isinstance(t, dict) else str(t)
                         rate = t.get("success_rate", 0) if isinstance(t, dict) else 0
@@ -913,7 +912,7 @@ class CruxCLI:
             from core.provider import PROVIDERS, get_provider_name
             current = get_provider_name()
             print(f"\n  当前供应商: {current}")
-            print(f"  可用供应商:")
+            print("  可用供应商:")
             for name in PROVIDERS:
                 marker = " ←" if name == current else ""
                 print(f"    {name}{marker}")

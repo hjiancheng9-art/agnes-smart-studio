@@ -130,10 +130,19 @@ def _save_clipboard_dib(data: bytes) -> str | None:
         img = Image.open(io.BytesIO(bmp_data))
         # Save as compressed JPEG to temp
         tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False, prefix="crux_clip_")
+        tmp_path = tmp.name
         img.convert("RGB").save(tmp, format="JPEG", quality=85, optimize=True)
         tmp.close()
-        logger.debug("clipboard image saved: %s (%dKB)", tmp.name, os.path.getsize(tmp.name) // 1024)
-        return tmp.name
+        # 注册 atexit 清理（临时文件非关键，失败不报错）
+        import atexit
+        @atexit.register
+        def _clean():
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+        logger.debug("clipboard image saved: %s (%dKB)", tmp_path, os.path.getsize(tmp_path) // 1024)
+        return tmp_path
     except ImportError:
         logger.debug("PIL not installed — can't process clipboard image")
         return None

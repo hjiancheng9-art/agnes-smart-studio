@@ -18,7 +18,6 @@ yield 协议（send_stream）：
 import contextlib
 import json
 import logging
-import os
 import re
 from collections.abc import Callable
 from pathlib import Path
@@ -45,6 +44,7 @@ from core.provider import (
 )
 from core.skills import SkillManager, get_manager
 from core.tools import AGENT_SYSTEM_PROMPT, ToolRegistry, get_registry
+from engines.image_to_image import ImageToImageEngine
 from engines.text_to_image import TextToImageEngine
 from engines.video import VideoEngine
 
@@ -269,51 +269,64 @@ class ChatSession:
             register_defense_hooks()
         except (ImportError, OSError):
             pass
-        # 注入会话上下文（git 分支/状态/最近提交）
-        try:
-            ctx = self._build_session_context()
-            if ctx:
-                self.messages[0]["content"] += ctx
-        except Exception:
-            pass
+        # 注入会话上下文（git 分支/状态/最近提交）— 仅在代码/Agent 模式下
+        if self.code_mode or self.agent_mode:
+            try:
+                ctx = self._build_session_context()
+                if ctx:
+                    self.messages[0]["content"] += ctx
+            except (OSError, RuntimeError):
+                logger.debug("session context injection failed", exc_info=True)
 
     def _build_session_context(self) -> str:
-        """Build session context string — git branch + status + recent commits."""
-        import subprocess
-        ctx_parts = []
-        try:
-            r = subprocess.run(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                capture_output=True, text=True, timeout=3,
-                cwd=str(Path(__file__).resolve().parent.parent),
-            )
-            branch = r.stdout.strip()
-            if branch:
-                ctx_parts.append(f"branch: {branch}")
-        except Exception:
-            pass
-        try:
-            r = subprocess.run(
-                ["git", "status", "--short"],
-                capture_output=True, text=True, timeout=3,
-                cwd=str(Path(__file__).resolve().parent.parent),
-            )
-            changed = [l.strip() for l in r.stdout.splitlines()[:20] if l.strip()]
-            if changed:
-                ctx_parts.append(f"changes ({len(changed)}): " + ", ".join(changed[:10]))
-        except Exception:
-            pass
-        try:
-            r = subprocess.run(
-                ["git", "log", "--oneline", "-5"],
-                capture_output=True, text=True, timeout=3,
-                cwd=str(Path(__file__).resolve().parent.parent),
-            )
-            commits = [l.strip() for l in r.stdout.splitlines() if l.strip()]
-            if commits:
-                ctx_parts.append("recent: " + "; ".join(commits[:5]))
-        except Exception:
-            pass
+        """Build session context string — git branch + status + recent commits.
+
+        异步收集（后台线程），避免阻塞 ChatSession 构造。非关键信息，
+        缺失不报错。
+        """
+        ctx_parts: list[str] = []
+
+        def _collect_git():
+            import subprocess
+            cwd = str(Path(__file__).resolve().parent.parent)
+            try:
+                r = subprocess.run(
+                    ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                    capture_output=True, text=True, timeout=3, cwd=cwd,
+                )
+                branch = r.stdout.strip()
+                if branch:
+                    ctx_parts.append(f"branch: {branch}")
+            except (OSError, subprocess.TimeoutExpired, subprocess.SubprocessError) as e:
+                logger.debug("git rev-parse failed: %s", e)
+
+            try:
+                r = subprocess.run(
+                    ["git", "status", "--short"],
+                    capture_output=True, text=True, timeout=3, cwd=cwd,
+                )
+                changed = [l.strip() for l in r.stdout.splitlines()[:20] if l.strip()]
+                if changed:
+                    ctx_parts.append(f"changes ({len(changed)}): " + ", ".join(changed[:10]))
+            except (OSError, subprocess.TimeoutExpired, subprocess.SubprocessError) as e:
+                logger.debug("git status failed: %s", e)
+
+            try:
+                r = subprocess.run(
+                    ["git", "log", "--oneline", "-5"],
+                    capture_output=True, text=True, timeout=3, cwd=cwd,
+                )
+                commits = [l.strip() for l in r.stdout.splitlines() if l.strip()]
+                if commits:
+                    ctx_parts.append("recent: " + "; ".join(commits[:5]))
+            except (OSError, subprocess.TimeoutExpired, subprocess.SubprocessError) as e:
+                logger.debug("git log failed: %s", e)
+
+        import threading
+        t = threading.Thread(target=_collect_git, daemon=True)
+        t.start()
+        t.join(timeout=2.0)  # 最多等 2s，超时就放弃
+
         if ctx_parts:
             return "\n\n[Session Context]\n" + "\n".join(ctx_parts)
         return ""
@@ -654,6 +667,7 @@ class ChatSession:
             audio_enabled=self.audio_enabled,
             active_skill_rules_hash=rules_hash,
             skills_auto_prompt_manager=self.skills.auto_skills_prompt,
+            chat_light=not self.code_mode,  # 日常聊天跳过大段编程方法论
         )
 
         # 同步回旧缓存（向后兼容 async_chat.py 的 _cached_prompt 引用）
@@ -904,8 +918,8 @@ class ChatSession:
         """
         # 触发 CHAT_TURN_START 钩子
         try:
-            from core.hooks import fire as _fire_hook
             from core.hooks import HookType
+            from core.hooks import fire as _fire_hook
             _fire_hook(HookType.CHAT_TURN_START, prompt=user_text)
         except (ImportError, OSError):
             pass
@@ -919,6 +933,8 @@ class ChatSession:
                 yield ("info", warning)
         except (ImportError, OSError) as e:
             logger.debug("cost_tracker.check_budget failed: %s: %s", type(e).__name__, e)
+        except Exception as e:
+            logger.debug("cost_tracker.check_budget unexpected error: %s: %s", type(e).__name__, e)
 
         # ── 多模态分支：有图片 → 走独立视觉客户端 ──
         if image_url:
@@ -965,7 +981,7 @@ class ChatSession:
         if self.ctx_mgr.needs_compression(self.messages):
             self.messages = self.ctx_mgr.compress(self.messages, self.client, self.model)
 
-        tools = self.tools.definitions if self.supports_tools else None
+        tools = self.tools.get_filtered_definitions(user_text) if self.supports_tools else None
 
         # ── 模型级 fallback 链（对标 Claude fallbackModel）──
         # 主对话流式调用失败时自动降级到下一个供应商/模型。
@@ -980,6 +996,7 @@ class ChatSession:
         _executed_signatures: set[tuple[str, str]] = set()
         _executed_cache: dict[tuple[str, str], str] = {}
         _stream_error_break = False
+        _tools_expanded = False  # 工具调用后自动展开全量工具
 
         while fallback_tried < len(fallback_chain):
             _use_model, _use_client = fallback_chain[fallback_tried]
@@ -1017,6 +1034,10 @@ class ChatSession:
                         yield ("error", f"工具执行中断: {type(e).__name__}: {e}")
                         _stream_error_break = True
                         break
+                    # 一旦模型开始调用工具，后续轮次展开全量工具定义
+                    if not _tools_expanded:
+                        tools = self.tools.definitions if self.supports_tools else None
+                        _tools_expanded = True
                     continue  # 进入下一轮 tool loop
 
                 # 无 tool_calls：检查是否流错误（需 fallback）还是正常收尾
@@ -1426,6 +1447,10 @@ ChatSession._merge_tool_calls = staticmethod(merge_tool_calls)
 # ═══════════════════════════════════════════════════════════════
 
 
+# ── sanitize_tool_call_history 增量缓存 ──
+_sanitize_cache: tuple[int, int, list[dict]] = (0, 0, [])  # (id, len, result)
+
+
 def sanitize_tool_call_history(messages: list[dict]) -> list[dict]:
     """清洗消息历史中的孤儿 tool_calls，保证发给 API 的消息始终合法。
 
@@ -1433,16 +1458,17 @@ def sanitize_tool_call_history(messages: list[dict]) -> list[dict]:
     数量的 role=tool 消息（每个 tool_call_id 匹配一条）。
     若缺失配对 → API 返回 400 invalid_request_error。
 
-    本函数扫描消息列表，对每个含 tool_calls 的 assistant 消息:
-    1. 计算后续有多少条 role=tool 消息的 tool_call_id 在其 tool_calls 列表中
-    2. 若不足（或为零）→ 剥离该 assistant 消息的 tool_calls 字段（保留 content）
-    3. 同时剥离多余的 role=tool 消息（无对应 assistant 的 orphan tool 消息）
-
-    是纯函数（不修改输入），返回清洗后的副本。
-    同步/异步版 ChatSession 在发 API 前调用。
+    使用模块级缓存：消息 ID 和长度不变 → 直接返回上次结果，跳过深拷贝。
     """
+    global _sanitize_cache
     if not messages:
         return messages
+
+    current_id = id(messages)
+    current_len = len(messages)
+    cache_id, cache_len, cache_result = _sanitize_cache
+    if current_id == cache_id and current_len == cache_len:
+        return cache_result
 
     result = [dict(m) for m in messages]
 
@@ -1496,6 +1522,8 @@ def sanitize_tool_call_history(messages: list[dict]) -> list[dict]:
 
     # 移除 unmatched tool 消息
     cleaned = [msg for i, msg in enumerate(result) if i not in indices_to_remove]
+    # 保存到模块缓存（避免每次 API 调用深拷贝全部消息）
+    _sanitize_cache = (id(messages), len(messages), cleaned)
     return cleaned
 
 
@@ -1575,11 +1603,9 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                 fp = f"[{system}] {fp}"
 
             if image_urls:
-                from engines.image_to_image import ImageToImageEngine
                 i2i = ImageToImageEngine(gen_client)
                 data = i2i.edit(prompt=fp, image_urls=image_urls, size=size)
             elif image_url:
-                from engines.image_to_image import ImageToImageEngine
                 from utils import image_input
                 url = image_input.load_image_as_url_or_data(image_url)
                 i2i = ImageToImageEngine(gen_client)

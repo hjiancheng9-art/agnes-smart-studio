@@ -6,7 +6,6 @@ syntax validation, and test smoke before allowing commit.
 
 from __future__ import annotations
 
-import re
 import subprocess
 import sys
 from pathlib import Path

@@ -21,10 +21,9 @@ Three-way coordination utility:
 
 import json
 import os
-import subprocess
-import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
+
 from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = ["ThreeWayCoordinator", "SystemStatus", "get_coordinator"]

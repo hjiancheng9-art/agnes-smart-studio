@@ -19,15 +19,15 @@ Usage:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import random
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import Callable
 
 from core.config import OUTPUT_DIR
 
@@ -265,7 +265,7 @@ class CronScheduler:
     ) -> str:
         """Create a new cron job. Returns the job id (8-hex)."""
         job_id = uuid.uuid4().hex[:8]
-        now = datetime.now()
+        datetime.now()
 
         # Compute next fire with jitter
         next_fire = _next_cron_fire(cron)
@@ -316,10 +316,8 @@ class CronScheduler:
     def _poll_loop(self) -> None:
         """Poll for due jobs every wake_interval seconds."""
         while self._running:
-            try:
+            with contextlib.suppress(Exception):
                 self._check_and_fire()
-            except Exception:
-                pass
             time.sleep(self._wake_interval)
 
     def _check_and_fire(self) -> None:

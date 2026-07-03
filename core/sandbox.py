@@ -212,9 +212,8 @@ class Sandbox:
         win_paths = re.findall(r"(?:[A-Za-z]:[\\/][^\s]+|\\\\[^\s]+)", command)
         for p in unix_paths + win_paths:
             p_obj = Path(p)
-            if p_obj.is_absolute():
-                if not _path_is_allowed(p_obj, roots):
-                    return False, f"path outside allowed roots: {p}"
+            if p_obj.is_absolute() and not _path_is_allowed(p_obj, roots):
+                return False, f"path outside allowed roots: {p}"
 
         return True, "ok"
 

@@ -12,9 +12,12 @@ ModelRouter now unifies two routing paths:
 """
 
 import json
+import logging
 import re
 import unicodedata
 from enum import Enum
+
+logger = logging.getLogger("crux.agent")
 
 __all__ = [
     "COMPRESS_PROMPT",
@@ -288,7 +291,8 @@ class PlanExecutor:
             try:
                 from core.provider import get_provider_manager
                 model = get_provider_manager().get_model(tier if tier != "auto" else "pro")
-            except Exception:
+            except (KeyError, ValueError, RuntimeError, OSError) as e:
+                logger.warning("Agent model resolution failed (%s: %s), falling back to deepseek-v4-pro", type(e).__name__, e)
                 model = "deepseek-v4-pro"
         # tier 路由
         if tier in ("light", "pro", "heavy"):
@@ -929,6 +933,7 @@ class ModelRouter:
         """优先用 CRUX 视觉模型（计数/OCR/细节识别最优），其次智谱兜底。"""
         try:
             import os
+
             from core.provider import get_provider_manager
 
             mgr = get_provider_manager()
@@ -1035,10 +1040,7 @@ def parse_plan(text: str) -> list[PlanStep]:
     import json as _json
     json_text = ""
     match = re.search(r"```(?:json)?\s*\n(.+?)```", text, re.DOTALL)
-    if match:
-        json_text = match.group(1)
-    else:
-        json_text = text.strip()
+    json_text = match.group(1) if match else text.strip()
     try:
         data = _json.loads(json_text)
         step_list = data.get("steps", []) if isinstance(data, dict) else data

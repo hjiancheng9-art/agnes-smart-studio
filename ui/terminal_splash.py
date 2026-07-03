@@ -124,8 +124,8 @@ def _make_status_lamp(label: str, on: bool) -> str:
     return f"  [{c}]{dot}[/] [{_P['dim']}]{label}[/]"
 
 
-def _build_info_panel(console) -> Text:
-    """Build right-side info panel: git status, quick tips, session stats."""
+def _build_info_panel(console, extra_lines: list[tuple] | None = None) -> Text:
+    """Build right-side info dashboard: model, git, stats, tips."""
     from rich.style import Style
     from rich.text import Text
 
@@ -133,10 +133,29 @@ def _build_info_panel(console) -> Text:
     dim = _P["dim"]
     accent = _P["accent"]
     text_c = _P["text"]
+    green = _P["status_on"]
+    cyan = _P["blue"]
 
     lines = []
 
-    # ── Git 分支 ──
+    # ── 模型状态 ──
+    lines.append(("  ▣ model", Style(color=accent, bold=True)))
+    found_provider = found_model = False
+    if extra_lines:
+        for kind, label, color_key, detail in extra_lines:
+            if kind == "provider":
+                lines.append((f"  {label}  {detail}", Style(color=green)))
+                found_provider = True
+            elif kind == "model":
+                lines.append((f"  ◇ {detail or label}", Style(color=cyan)))
+                found_model = True
+    if not found_provider:
+        lines.append(("  provider —", Style(color=dim)))
+    if not found_model:
+        lines.append(("  model —", Style(color=dim)))
+    lines.append(("", Style()))
+
+    # ── Git 状态 ──
     try:
         import subprocess
         branch = subprocess.run(
@@ -145,12 +164,20 @@ def _build_info_panel(console) -> Text:
         ).stdout.strip()
         if branch:
             lines.append(("  ◈ branch", Style(color=accent, bold=True)))
-            lines.append((f"  {branch}", Style(color=_P["green"])))
+            # count uncommitted
+            status_out = subprocess.run(
+                ["git", "status", "--porcelain"],
+                capture_output=True, text=True, timeout=2
+            ).stdout
+            n_changed = len([l for l in status_out.splitlines() if l.strip()])
+            changed_str = f"  {branch}"
+            if n_changed:
+                changed_str += f"  [{n_changed} changed]"
+            lines.append((changed_str, Style(color=green)))
         else:
             lines.append(("  ◈ (detached)", Style(color=dim)))
     except Exception:
-        pass
-
+        lines.append(("  ◈ git: n/a", Style(color=dim)))
     lines.append(("", Style()))
 
     # ── 最近提交 ──
@@ -166,7 +193,22 @@ def _build_info_panel(console) -> Text:
             lines.append((f"  {msg}", Style(color=dim, italic=True)))
     except Exception:
         pass
+    lines.append(("", Style()))
 
+    # ── 会话统计 ──
+    lines.append(("  ⚡ session", Style(color=accent, bold=True)))
+    import sys, os
+    py_ver = f"{sys.version_info.major}.{sys.version_info.minor}"
+    lines.append((f"  Python {py_ver}  |  {console.width}×{console.height}", Style(color=dim, italic=True)))
+    # count files
+    try:
+        n_py = len(subprocess.run(
+            ["git", "ls-files", "*.py"],
+            capture_output=True, text=True, timeout=2
+        ).stdout.splitlines())
+        lines.append((f"  {n_py} modules  |  skills 50+743", Style(color=dim, italic=True)))
+    except Exception:
+        pass
     lines.append(("", Style()))
 
     # ── 快速指南 ──
@@ -181,17 +223,12 @@ def _build_info_panel(console) -> Text:
     for cmd, desc in tips:
         lines.append((
             f"  {cmd}",
-            Style(color=_P["cyan"]),
+            Style(color=cyan),
         ))
         lines.append((
             f"{desc}",
             Style(color=dim, italic=True),
         ))
-
-    lines.append(("", Style()))
-
-    # ── 边栏分隔线 ──
-    lines.append(("  ───────", Style(color=bdr_d)))
 
     info = Text.assemble(*lines)
     return info
@@ -280,7 +317,7 @@ def print_splash(extra_lines: list[tuple] | None = None) -> None:
     left_content = RenderGroup(*left_body)
 
     # ── 右面板: 系统信息 ──
-    right_content = _build_info_panel(console)
+    right_content = _build_info_panel(console, extra_lines)
     right_panel = Panel(
         right_content,
         border_style=Style(color=_P["border_dim"]),
@@ -294,7 +331,7 @@ def print_splash(extra_lines: list[tuple] | None = None) -> None:
         layout = Layout()
         layout.split_row(
             Layout(left_content, ratio=2),
-            Layout(right_panel, ratio=3),
+            Layout(right_panel, ratio=2),
         )
         console.print(layout)
     else:

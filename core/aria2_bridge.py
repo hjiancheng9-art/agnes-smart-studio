@@ -16,9 +16,11 @@ RPC: JSON-RPC over HTTP, port 6801 (避免和 nsp-downloader 的 6800 冲突)
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
+import secrets
 import subprocess
 import threading
 import time
@@ -80,7 +82,10 @@ class Aria2Bridge:
     def __init__(self):
         self._process: subprocess.Popen | None = None
         self._rpc_port = 6801
-        self._rpc_secret = os.environ.get("CRUX_ARIA2_SECRET", "crux-aria2-secret")
+        _default_secret = secrets.token_hex(16)
+        self._rpc_secret = os.environ.get("CRUX_ARIA2_SECRET") or _default_secret
+        if not os.environ.get("CRUX_ARIA2_SECRET"):
+            logger.warning("CRUX_ARIA2_SECRET not set, using random fallback (restart will generate new secret)")
         self._running = False
         self._lock = threading.Lock()
         self._download_dir = str(DEFAULT_DIR)
@@ -135,7 +140,6 @@ class Aria2Bridge:
                 f"--save-session={self._session_file}",
                 f"--input-file={self._session_file}",
                 "--save-session-interval=10",
-                "--check-certificate=false",
                 "--console-log-level=warn",
                 "--quiet",
             ]
@@ -169,10 +173,8 @@ class Aria2Bridge:
         with self._lock:
             if not self._running:
                 return
-            try:
+            with contextlib.suppress(requests.RequestException, OSError, RuntimeError):
                 self._rpc("aria2.shutdown")
-            except (requests.RequestException, OSError, RuntimeError):
-                pass
             if self._process:
                 try:
                     self._process.wait(timeout=5)

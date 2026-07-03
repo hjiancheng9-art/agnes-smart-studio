@@ -15,7 +15,10 @@ Falls back gracefully if Playwright is not available.
 
 import contextlib
 import json
+import logging
 import threading
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "BROWSER_GENERAL_EXECUTOR_MAP",

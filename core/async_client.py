@@ -53,7 +53,9 @@ class AsyncCruxClient:
         self._http = httpx.AsyncClient(
             base_url=self.base_url,
             headers={"Authorization": f"Bearer {self.api_key}"},
-            timeout=httpx.Timeout(timeout, connect=30.0),
+            timeout=httpx.Timeout(timeout, connect=10.0),
+            http2=True,
+            limits=httpx.Limits(max_keepalive_connections=20, max_connections=100, keepalive_expiry=30.0),
         )
 
     async def _request_with_retry(self, method: str, url: str, **kwargs) -> httpx.Response:
@@ -214,14 +216,13 @@ class AsyncCruxClient:
 
         # 流式连接重试（与同步版一致：最多 2 次额外尝试）
         stream_retries = 2
-        last_stream_error = None
         for stream_attempt in range(stream_retries + 1):
             try:
                 async with self._http.stream(
                     "POST",
                     "/chat/completions",
                     json=body,
-                    timeout=httpx.Timeout(timeout, connect=30.0),
+                    timeout=httpx.Timeout(timeout, connect=10.0),
                 ) as resp:
                     resp.raise_for_status()
                     async for line in resp.aiter_lines():
@@ -256,7 +257,6 @@ class AsyncCruxClient:
                 httpx.PoolTimeout,
                 httpx.TimeoutException,
             ) as e:
-                last_stream_error = e
                 if stream_attempt < stream_retries:
                     await asyncio.sleep(1.0 * (stream_attempt + 1))
                     continue

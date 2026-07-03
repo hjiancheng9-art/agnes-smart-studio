@@ -11,6 +11,7 @@ Design:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import subprocess
 import sys
@@ -56,7 +57,7 @@ def _format_exception(exc_type, exc_value, exc_tb) -> str:
     tb_list = traceback.extract_tb(exc_tb, limit=_MAX_FRAMES)
     tb_obj = exc_tb
 
-    for i, frame_summary in enumerate(tb_list):
+    for _i, frame_summary in enumerate(tb_list):
         frame_info = {
             "file": frame_summary.filename,
             "line": frame_summary.lineno,
@@ -160,10 +161,8 @@ def _run_with_inspect(cmd: list[str], cwd: str) -> str:
     except subprocess.TimeoutExpired:
         return json.dumps({"ok": False, "error": "timeout after 120s"}, ensure_ascii=False)
     finally:
-        try:
+        with contextlib.suppress(OSError):
             wrapper_path.unlink()
-        except OSError:
-            pass
 
     output = (r.stdout or "") + "\n" + (r.stderr or "")
     ok = r.returncode == 0

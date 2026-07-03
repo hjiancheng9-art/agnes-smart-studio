@@ -184,3 +184,42 @@ CRUX 同时作为 MCP **Server**（被外部调用）和 MCP **Client**（调用
 <!-- Snapshot generated on 2026-06-22. Do not use as current date. -->
 
 IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.
+
+
+## Codex Interop (2026-07-04)
+
+Codex is the primary coding agent, colocated on this machine.
+
+### Handoff Protocol
+- Shared directory: C:\\Users\\huangjiancheng\\.codex\\handoff\\
+- CRUX -> Codex: write tasks to handoff dir with file naming claude-to-codex-<task_id>.md
+- Codex -> CRUX: write tasks to handoff dir with file naming codex-to-crux-<task_id>.md
+- Format: frontmatter (from, to, task_id, status, priority) + task + context + constraints
+
+### Division of Labor
+**CRUX does:**
+- Creative pipelines (showrunner: plan -> decompose -> storyboard -> generate -> QC)
+- Image/video generation (ComfyUI, CRUX Image/Video API)
+- Multi-provider model routing with failover
+- MCP server bridging (exposes tools to external agents)
+- Marketplace skill discovery and installation
+
+**Codex does:**
+- Direct file editing and TDD execution
+- Running tests, builds, typecheck across projects
+- Git operations, PR creation, CI/CD
+- Quick fixes and feature implementation
+- Task orchestration and inter-agent coordination
+
+### When to Hand Off to Codex
+- Complex multi-file code changes needed across projects
+- Tests need to be written/run with TDD discipline
+- Git workflow operations (branch, commit, PR)
+- Build/CI issues that need systematic debugging
+- Any task where Codex would be faster at file-level operations
+
+### Coordination Rules
+- Only one agent writes to a file at a time
+- Handoff must include: goal, context, constraints, verification criteria
+- Receiving agent reports back via handoff file with: status, findings, changes, tests, risks
+- Do not trust DONE report - verify evidence independently

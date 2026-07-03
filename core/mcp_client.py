@@ -422,7 +422,8 @@ class MCPClient:
                 }
 
             # Check if response ID matches request ID
-            if response.get("id") != request_id:
+            # Some MCP servers (e.g. Codex) return id: null — accept as valid
+            if response.get("id") is not None and response.get("id") != request_id:
                 return {
                     "error": {
                         "code": -32600,

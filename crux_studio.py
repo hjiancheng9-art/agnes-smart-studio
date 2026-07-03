@@ -246,43 +246,25 @@ def _chat_tui():
     mgr = get_provider_manager()
     model_name = mgr.get_model("light") or session.model
 
-    _b = [
-        "",
-        "             ╔══════════════════════════════════╗",
-        "             ║  七 兽 融 合 · 万 法 归 一       ║",
-        "             ╚══════════════════════════════════╝",
-        "",
-        "      ████████╗ ██████╗  ██████╗ ██╗     ███████╗",
-        "      ╚══██╔══╝██╔═══██╗██╔═══██╗██║     ██╔════╝",
-        "         ██║   ██║   ██║██║   ██║██║     ███████╗",
-        "         ██║   ██║   ██║██║   ██║██║     ╚════██║",
-        "         ██║   ╚██████╔╝╚██████╔╝███████╗███████║",
-        "         ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝╚══════╝",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        "",
-        f"  ✦ 模型: {model_name} · 100 万上下文窗口",
-        f"  ✦ 运行: CRUX Studio v{__version__} · 项目: agnes-smart-studio",
-        "  ✦ 主人: 黄建程 · hjiancheng9@gmail.com",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        "",
-        "  白虎 · 自愈      青龙 · 并行      朱雀 · 洞察",
-        "  玄武 · 守卫      麒麟 · 创造      螣蛇 · 记忆",
-        "  应龙 · 号令",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        "",
-        f"  能力状态: {len(MODEL_REGISTRY)} 技能包 · 743 市场可用",
-        "  七兽神器: 35 件 · 全部锻造完成",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        "",
-        "  >> 黄建程，有什么需要我做的？随时吩咐。 <<",
-        "",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-    ]
-    banner = "\n".join(_b)
+    # Rich splash screen (printed before TUI takes over terminal)
+    try:
+        from ui.terminal_splash import print_splash
+        _provider = mgr.active_provider or "unknown"
+        _model = model_name or "unknown"
+        print_splash([
+            ("provider", _provider, "accent", ""),
+            ("model", _model, "cyan", ""),
+        ])
+    except Exception:
+        # fallback: minimal banner
+        print(f"\n  ◆ CRUX Studio v{__version__}  —  {model_name}\n")
+
+    # Short welcome for TUI message pane
+    banner = (
+        f"  ◈ CRUX Studio v{__version__}\n"
+        f"  ◈ model: {model_name}\n"
+        f"  ◈ 主人: 黄建程\n"
+    )
     # ── Terminal height guard ──
     if shutil.get_terminal_size().lines < 10:
         print("Terminal too small (need >=10 rows). Falling back to plain text mode.")

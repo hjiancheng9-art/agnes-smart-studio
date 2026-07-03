@@ -8,7 +8,6 @@ ChatSession._build_system_prompt() 调用 build_system_prompt()。
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 logger = logging.getLogger("crux.chat_prompt")
 
@@ -114,15 +113,19 @@ def set_cached_prompt(key: str, prompt: str) -> None:
 
 # ── 谱系注入注册表（每项: (模块路径, 函数名, 描述)）───
 # CHAT mode: 7 useful layers (trimmed from 17 decorative spectrum layers)
+# 仅当 chat_light=False 时使用（当前无调用方走此路径）
 _SPECTRUM_INJECTIONS: list[tuple[str, str, str]] = [
-    ("core.lore.claude_dna", "get_claude_dna_prompt", "Claude DNA"),
-    ("core.rules", "get_rules", "规则注入"),
     ("core.marketplace", "get_marketplace", "技能市场"),
-    ("core.beast_wiring", "get_wiring_summary", "七兽躯体"),
+]
+
+# 轻量聊天注入：仅 marketplace（~186 chars），跳过 Claude DNA+R Blue（~5000 chars 编程方法论）
+# 日常聊天不需要编码纪律，省 ~1200 tokens/请求
+_CHAT_LIGHT_INJECTIONS: list[tuple[str, str, str]] = [
+    ("core.marketplace", "get_marketplace", "技能市场"),
 ]
 
 _CODE_SPECTRUM_INJECTIONS: list[tuple[str, str, str]] = [
-    ("core.lore.claude_dna", "get_claude_dna_prompt", "Claude DNA"),
+    # Claude DNA 已从 code mode 移除 — 方法论已在 CLAUDE.md 中，无需重复注入 ~576 tokens
     ("core.rules", "get_rules", "rules injection"),
     ("core.marketplace", "get_marketplace", "marketplace"),
 ]
@@ -141,7 +144,7 @@ def _get_injections_fingerprint() -> str:
 
     mtimes: list[str] = []
     seen = set()
-    for mod_path, _, _ in _SPECTRUM_INJECTIONS + _CODE_SPECTRUM_INJECTIONS:
+    for mod_path, _, _ in _SPECTRUM_INJECTIONS + _CODE_SPECTRUM_INJECTIONS + _CHAT_LIGHT_INJECTIONS:
         if mod_path in seen:
             continue
         seen.add(mod_path)
@@ -176,25 +179,27 @@ def build_system_prompt(
     audio_enabled: bool = False,
     active_skill_rules_hash: str = "",
     skills_auto_prompt_manager=None,
+    chat_light: bool = True,
 ) -> str:
     """构建完整 system prompt — ChatSession 的独立调用入口。
 
     Args:
         model: 当前模型 ID
         provider_name: 供应商人类可读名
-        code_mode: 是否为代码模式
+        code_mode: 是否为代码模式（自动跳过 chat_light）
         browser_enabled: Browser Companion 已启用
         notebook_enabled: Notebook 工具已启用
         audio_enabled: 音频工具已启用
         active_skill_rules_hash: 当前活跃规则的 hash（纳入缓存 key）
         skills_auto_prompt_manager: SkillManager 实例（用于 auto_skills_prompt）
+        chat_light: 轻量聊天模式，跳过 Claude DNA + Rules 编码方法论（省 ~1200 tokens）
 
     Returns:
         完整的系统提示词字符串。
     """
     template = CODE_SYSTEM_PROMPT if code_mode else CHAT_SYSTEM_PROMPT
     cache_key = (
-        f"{provider_name}|{model}|{code_mode}"
+        f"{provider_name}|{model}|{code_mode}|L{chat_light}"
         f"|b{browser_enabled}|n{notebook_enabled}|a{audio_enabled}"
         f"|{active_skill_rules_hash}"
         f"|{_get_injections_fingerprint()}"
@@ -222,8 +227,13 @@ def build_system_prompt(
         "- 避免无意义的寒暄和套话"
     )
 
-    # 谱系注入：CODE 模式只注 3 层，CHAT 模式注全部
-    injections = _CODE_SPECTRUM_INJECTIONS if code_mode else _SPECTRUM_INJECTIONS
+    # 谱系注入：CODE 模式注全部方法论，CHAT 普通模式注全部，CHAT_LIGHT 只注 marketplace
+    if code_mode:
+        injections = _CODE_SPECTRUM_INJECTIONS
+    elif chat_light:
+        injections = _CHAT_LIGHT_INJECTIONS
+    else:
+        injections = _SPECTRUM_INJECTIONS
     for mod_path, func_name, label in injections:
         try:
             import importlib
@@ -235,9 +245,7 @@ def build_system_prompt(
             # 根据函数签名智能调用
             if func_name == "get_rules":
                 base += fn().inject_prompt()
-            elif func_name == "get_marketplace":
-                base += "\n\n" + fn().summary()
-            elif func_name == "get_orchestra":
+            elif func_name == "get_marketplace" or func_name == "get_orchestra":
                 base += "\n\n" + fn().summary()
             elif func_name == "get_prompt_lab":
                 base += fn().get_active_instructions()

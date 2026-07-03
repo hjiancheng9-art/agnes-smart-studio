@@ -125,7 +125,7 @@ class SessionMetadata:
     metadata: dict[str, str] = field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, data: dict) -> "SessionMetadata":
+    def from_dict(cls, data: dict) -> SessionMetadata:
         """从 session_mgr 的会话字典恢复元数据。"""
         return cls(
             id=data.get("id", ""),
@@ -245,7 +245,7 @@ class EventBus:
         自动追踪 session/turn/tool 指标。
         """
         # 指标自动追踪
-        if event == SESSION_CREATED or event == SESSION_RESUMED:
+        if event in (SESSION_CREATED, SESSION_RESUMED):
             self._metrics["total_sessions"] = int(self._metrics["total_sessions"]) + 1
         elif event == TURN_STARTED:
             self._metrics["total_turns"] = int(self._metrics["total_turns"]) + 1

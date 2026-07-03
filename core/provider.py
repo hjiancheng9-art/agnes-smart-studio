@@ -15,6 +15,7 @@ chronically slow providers and surface warnings (no auto-switch).
 import json
 import logging
 import os
+import threading
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -592,13 +593,16 @@ class NoProviderAvailable(Exception):
 
 # Singleton
 _mgr: ProviderManager | None = None
+_mgr_lock = threading.Lock()
 
 
 def get_provider_manager() -> ProviderManager:
     global _mgr
     if _mgr is None:
-        _mgr = ProviderManager()
-        _mgr.load()
+        with _mgr_lock:
+            if _mgr is None:
+                _mgr = ProviderManager()
+                _mgr.load()
     return _mgr
 
 

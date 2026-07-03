@@ -16,6 +16,7 @@
 """
 
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -25,8 +26,7 @@ __all__ = [
     "COMPARE_EXECUTOR_MAP",
     "COMPARE_TOOL_DEFS",
     "IMAGE_OUT",
-    "JUDGE_VISION_MODEL",
-    "OUTPUT_ROOT",
+        "OUTPUT_ROOT",
     "compare_images_dispatch",
     "execute_compare_ai_judge",
     "execute_compare_diff",
@@ -328,9 +328,10 @@ def get_judge_vision_model() -> str:
     try:
         from core.provider import get_provider_manager
         mgr = get_provider_manager()
-        mgr.load()
         return mgr.get_model("light") or "deepseek-v4-flash"
-    except Exception:
+    except (KeyError, ValueError, RuntimeError, OSError) as e:
+        logger = logging.getLogger("crux.image_compare")
+        logger.debug("Judge vision model resolution failed (%s: %s), fallback to deepseek-v4-flash", type(e).__name__, e)
         return "deepseek-v4-flash"
 
 

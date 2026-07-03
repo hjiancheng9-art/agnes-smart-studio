@@ -10,6 +10,7 @@
 - session_tracker.py → 追踪任务粒度状态（SQL）
 """
 
+import contextlib
 import json
 import sqlite3
 import threading
@@ -133,6 +134,13 @@ class SessionTracker:
             conn.execute("PRAGMA foreign_keys=ON")
             self._local.conn = conn
         return self._local.conn
+
+    def close(self) -> None:
+        """关闭线程本地的数据库连接。"""
+        if hasattr(self._local, "conn") and self._local.conn is not None:
+            with contextlib.suppress(Exception):
+                self._local.conn.close()
+            self._local.conn = None
 
     # ── Todos CRUD ──
 

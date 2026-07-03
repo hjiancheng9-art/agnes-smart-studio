@@ -294,7 +294,7 @@ class Scheduler:
 
     def _calculate_next_run(self, task: ScheduledTask) -> str:
         """Calculate the next run time as an ISO-format string.
-        
+
         Applies anti-herd jitter: random offset up to min(period*0.1, 900)s
         to prevent multiple timers from firing simultaneously.
         """
@@ -349,7 +349,7 @@ class Scheduler:
 
     def _check_and_run(self) -> None:
         """Check all enabled tasks and execute those that are due.
-        
+
         Stale detection: tasks that are overdue by more than 2× the expected
         interval are skipped (system was likely down). Their coalesced_count
         reflects how many cycles were missed.

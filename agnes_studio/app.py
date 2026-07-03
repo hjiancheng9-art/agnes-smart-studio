@@ -25,7 +25,7 @@ app = Flask(
     template_folder=str(BASE_DIR / "templates"),
     static_folder=str(BASE_DIR / "static"),
 )
-CORS(app)
+CORS(app, origins=[r"http://127\.0\.0\.1:\d+", r"http://localhost:\d+"])
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")

@@ -28,6 +28,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Callable, Iterator
 from typing import Any
 
+
 # ── StreamingRenderer stub (UI layer removed) ────────────────────
 class StreamingRenderer:
     """Minimal stub: UI layer was removed, streaming is now headless."""

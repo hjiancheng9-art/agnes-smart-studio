@@ -51,6 +51,18 @@ CACHE_FILE = ROOT / "output" / "bypass_cache.json"
 _RAW_BYPASS = os.getenv("CRUX_BYPASS_ENABLED", "1").strip().lower()
 BYPASS_ENABLED = _RAW_BYPASS not in ("0", "false", "no", "off")
 
+
+def _resolve_bypass_model() -> str:
+    """返回 bypass rewrite 使用的模型。Prompt 改写是轻量任务，用 light 模型。"""
+    try:
+        from core.provider import get_provider_manager
+
+        mgr = get_provider_manager()
+        return mgr.get_model("light") or "deepseek-v4-flash"
+    except (OSError, ValueError, RuntimeError):
+        return "deepseek-v4-flash"
+
+
 # ═══════════════════════════════════════════════════════════════
 # Strategy definitions — escalating transformation
 # ═══════════════════════════════════════════════════════════════
@@ -239,7 +251,7 @@ FIGURE_TRIGGERS = [
 def rewrite_prompt(
     client,
     original_prompt: str,
-    model: str = "deepseek-v4-pro",
+    model: str = "",
     strategy_index: int = 0,
     cache: dict | None = None,
     triggers: list[str] | None = None,
@@ -248,6 +260,8 @@ def rewrite_prompt(
 
     Automatically routes figure/body prompts to specialized strategies.
     """
+    if not model:
+        model = _resolve_bypass_model()
     triggers = triggers or _detect_trigger_words(original_prompt)
 
     # Route figure/body prompts to specialized strategies
@@ -403,7 +417,7 @@ def get_bypass_stats() -> dict:
 async def async_rewrite_prompt(
     client,
     original_prompt: str,
-    model: str = "deepseek-v4-pro",
+    model: str = "",
     strategy_index: int = 0,
     cache: dict | None = None,
     triggers: list[str] | None = None,
@@ -413,6 +427,8 @@ async def async_rewrite_prompt(
     client 必须是 AsyncCruxClient（或任何具备 async chat() 方法的客户端）。
     策略选择、缓存读写逻辑与同步版完全一致。
     """
+    if not model:
+        model = _resolve_bypass_model()
     triggers = triggers or _detect_trigger_words(original_prompt)
 
     is_figure = any(t in FIGURE_TRIGGERS for t in triggers)

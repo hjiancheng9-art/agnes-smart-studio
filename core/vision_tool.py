@@ -30,13 +30,13 @@ def analyze_image(image_path: str, question: str = "描述这张图片") -> str:
     except (ValueError, OSError) as e:
         return f"(无法加载图片: {e})"
 
-    # Try Zhipu first
-    for attempt in ("zhipu", "agnes"):
+    # Try Agnes first (free + stronger), Zhipu as fallback
+    for attempt in ("agnes", "zhipu"):
         try:
-            if attempt == "zhipu":
-                client, model = _get_zhipu_client()
-            else:
+            if attempt == "agnes":
                 client, model = _get_agnes_client()
+            else:
+                client, model = _get_zhipu_client()
 
             result = client.chat_multimodal(
                 text=question,

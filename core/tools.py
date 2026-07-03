@@ -34,13 +34,13 @@ def _noop_cm():
 __all__ = [
     "AGENT_SYSTEM_PROMPT",
     "BUILTIN_TOOLS",
+    "CORE_TOOL_NAMES",
     "COMFYUI_TOOL_DEFS",
     "PIPELINE_TOOL_DEFS",
-    "AGNES_TOOL_DEFS",
-    "COMFYUI_PIPELINE_TOOL_DEFS",
-    "SHOWRUNNER_TOOL_DEFS",
-    "TOOLS_CONFIG",
+                "TOOLS_CONFIG",
+    "TOOL_EXPANSION_CATEGORIES",
     "ToolRegistry",
+    "_resolve_tool_names",
     "get_registry",
     "reload_registry",
 ]
@@ -53,7 +53,7 @@ BUILTIN_TOOLS = [
         "type": "function",
         "function": {
             "name": "generate_image",
-            "description": "Generate an image from a text description. Supports text-to-image, single image-to-image (pass image_url), and multi-image reference (pass image_urls array). Choose size to match the desired aspect ratio and composition.",
+            "description": "Create an image from text. Supports text-to-image, image-to-image (image_url), and multi-image reference (image_urls array).",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -63,7 +63,7 @@ BUILTIN_TOOLS = [
                     "size": {
                         "type": "string",
                         "enum": ["1024x768", "1024x1024", "768x1024", "576x1024", "1024x576", "448x1024", "1024x448", "684x1024", "1024x684"],
-                        "description": "Image resolution: 1024x768=4:3, 1024x1024=1:1, 768x1024=3:4, 576x1024=9:16, 1024x576=16:9, 448x1024=9:21, 1024x448=21:9, 684x1024=2:3, 1024x684=3:2. Default 1024x768."
+                        "description": "Image size (WxH). Default 1024x768."
                     },
                     "seed": {"type": "integer", "description": "Optional random seed for reproducibility"},
                     "system": {"type": "string", "description": "Optional style preset: cinematic, anime, watercolor, cyberpunk, fantasy, product, portrait, landscape"},
@@ -77,7 +77,7 @@ BUILTIN_TOOLS = [
         "type": "function",
         "function": {
             "name": "generate_video",
-            "description": "Generate a video from text, image(s), or keyframes. Supports: text-to-video, image-to-video (pass image_url), multi-image video (pass image_urls array), keyframe animation (pass image_urls + mode='keyframes').",
+            "description": "Create a video from text or images. Modes: text-to-video, image-to-video, keyframe animation.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -88,12 +88,12 @@ BUILTIN_TOOLS = [
                     "size": {
                         "type": "string",
                         "enum": ["1152x768", "1280x720", "720x1280", "1024x1024", "1024x768", "768x1024"],
-                        "description": "Video resolution: 1152x768=3:2(default), 1280x720=16:9, 720x1280=9:16, 1024x1024=1:1, 1024x768=4:3, 768x1024=3:4"
+                        "description": "Video size (WxH). Default 1152x768."
                     },
                     "num_frames": {
                         "type": "integer",
                         "enum": [81, 121, 161, 201, 241, 281, 321, 361, 401, 441],
-                        "description": "Video length in frames (8n+1): 81=3.4s, 121=5.0s, 161=6.7s, 201, 241=10s, 281, 321, 361, 401, 441=18.4s. Default 121."
+                        "description": "Video frames (8n+1). Default 121 (5.0s at 24fps). Max 441 (18.4s)."
                     },
                     "frame_rate": {"type": "integer", "description": "Frame rate 1-60. Default 24, use 30 for smoother motion."},
                     "seed": {"type": "integer", "description": "Optional random seed for reproducible results"},
@@ -647,6 +647,123 @@ def _suggest_similar_tool(name: str, definitions: list[dict], top_n: int = 2) ->
 
 # ── 工具注册表 ──
 
+# ── 动态工具过滤：默认只发核心工具（~25个），按需扩展 ──
+# 每次请求的工具定义约 14K tokens → 核心模式 ~2.5K tokens，大幅降低 TTFT。
+
+CORE_TOOL_NAMES: set[str] = {
+    # Web
+    "web_search", "web_fetch", "http_request",
+    # File I/O
+    "read_file", "write_file", "search_files", "glob_files", "list_files",
+    # Code basics
+    "code_analyze", "code_review", "run_python", "run_bash", "run_format", "run_lint",
+    # System introspection
+    "env_check", "think_deep", "estimate_tokens", "tool_search",
+    # Task management
+    "task_launch", "task_list",
+    # Core media
+    "generate_image", "generate_video",
+    # Document
+    "create_markdown", "create_html", "download_file", "view_image",
+    # Debug
+    "debug_inspect", "inspect_last_error",
+}
+
+# 扩展分类 → 工具名集合（注意：与上面的 TOOL_CATEGORIES 展示分类不同，这里是动态展开用）
+TOOL_EXPANSION_CATEGORIES: dict[str, set[str]] = {
+    "git": {
+        "git_status", "git_diff", "git_log", "git_branch", "git_push", "git_pull",
+        "git_stash", "git_tag", "git_worktree", "git_add_commit", "git_conflict_check",
+        "git_pr_create", "git_pr_merge",
+        "github_search", "github_repo_view", "github_repo_list", "github_browse",
+        "github_readme", "github_release", "github_issue", "github_pr",
+        "github_api", "github_write_file",
+    },
+    "comfyui": {
+        "comfyui_status", "comfyui_list_models", "comfyui_submit_workflow",
+        "comfyui_get_result", "comfyui_preview_workflow", "comfyui_clear_queue",
+        "comfyui_get_node_info", "comfyui_build_custom_workflow",
+        "comfyui_create_custom_node", "comfyui_lora_prepare",
+        "comfyui_lora_generate_config", "comfyui_lora_check_status",
+    },
+    "lsp": {
+        "lsp_goto_definition", "lsp_hover", "lsp_diagnostics",
+        "lsp_find_references", "lsp_completion", "lsp_rename",
+    },
+    "notebook": {
+        "notebook_open", "notebook_edit_cell", "notebook_add_cell",
+        "notebook_run_cell", "notebook_save",
+    },
+    "code_extended": {
+        "edit_file", "patch_file", "patch_undo", "safe_rewrite_file",
+        "run_test", "pip_install", "self_heal", "security_review",
+    },
+    "browser": {"browser_screenshot", "pw_navigate", "pw_screenshot"},
+    "task_extended": {
+        "todo_add", "todo_list", "todo_update", "todo_delete",
+        "todo_dep", "todo_blocked", "todo_stats",
+        "create_goal", "get_goal", "set_goal_budget", "update_goal",
+        "goal_evaluate", "execute_plan", "enter_plan_mode", "exit_plan_mode",
+        "plan_status", "update_plan",
+    },
+    "trm": {"trm_route", "trm_growth", "trm_tune", "trm_catalog"},
+    "knowledge_graph": {
+        "find_symbol", "search_symbols", "find_references",
+        "graph_neighbors", "graph_ancestors", "graph_descendants",
+    },
+    "media_extended": {"imagegen", "text_to_speech", "transcribe_audio", "desktop_screenshot"},
+    "mcp": {
+        "mcp_connect", "mcp_call", "mcp_list_servers", "mcp_list_tools",
+        "mcp_call_tool", "mcp_read_resource",
+    },
+    "agent": {"agent_swarm", "multi_agent", "skill_search"},
+    "deploy": {"deploy_vercel"},
+    "misc": {
+        "db_query", "js_eval",
+        "create_pdf", "request_user_input", "count_lines", "tree_dir",
+    },
+}
+
+# 关键词 → 分类映射（用户输入匹配后自动展开对应分类）
+CATEGORY_HINTS: dict[str, str] = {}
+for _cat, _kws in {
+    "git": ["git", "commit", "push", "pull", "branch", "merge", "pr", "pull request",
+            "github", "repo", "仓库", "提交", "推送"],
+    "comfyui": ["comfyui", "stable diffusion", "lora", "workflow", "node"],
+    "lsp": ["lsp", "goto definition", "hover", "diagnostic", "代码跳转", "重命名"],
+    "notebook": ["notebook", "jupyter", "ipynb", "cell", "单元格"],
+    "code_extended": ["edit", "patch", "rewrite", "refactor", "改代码", "修改", "测试",
+                      "test", "install", "安装"],
+    "browser": ["browser", "screenshot", "截图", "navigate", "网页"],
+    "task_extended": ["goal", "todo", "plan mode", "目标", "计划", "任务"],
+    "deploy": ["deploy", "vercel", "部署"],
+    "media_extended": ["speech", "语音", "transcribe", "转写", "tts", "音频"],
+    "mcp": ["mcp"],
+    "agent": ["agent", "swarm", "多智能体", "并行"],
+}.items():
+    for _kw in _kws:
+        CATEGORY_HINTS[_kw] = _cat
+
+
+def _resolve_tool_names(user_input: str, *, full: bool = False) -> set[str]:
+    """根据用户输入决定发送哪些工具名。
+
+    - full=True：返回全部工具
+    - 否则：核心工具 + 关键词匹配到的扩展分类
+    """
+    if full:
+        return set()  # 空集 = 发全部（由调用方处理）
+
+    names = set(CORE_TOOL_NAMES)
+    if user_input:
+        text_lower = user_input.lower()
+        for keyword, category in CATEGORY_HINTS.items():
+            if keyword in text_lower:
+                names.update(TOOL_EXPANSION_CATEGORIES.get(category, set()))
+    return names
+
+
+
 
 class ToolRegistry:
     """工具注册表：加载配置、管理定义、执行调度"""
@@ -865,7 +982,6 @@ class ToolRegistry:
 
         # ── 自愈工具（常驻加载）──
         # self_heal: audit + auto-fix the entire codebase
-        from core.self_heal import SelfHealer
 
         self._definitions.append({
             "type": "function",
@@ -1095,6 +1211,18 @@ class ToolRegistry:
     def definitions(self) -> list[dict]:
         return self._definitions
 
+    def get_filtered_definitions(self, user_input: str = "", *, full: bool = False) -> list[dict]:
+        """按需返回工具定义，降低每次请求的 token 开销。
+
+        默认只返回核心工具（~25 个，约 2.5K tokens vs 全量 14K tokens）。
+        - full=True 或 user_input 匹配扩展关键词时，额外展开对应分类。
+        - 传空 user_input 且 full=False → 仅核心工具。
+        """
+        names = _resolve_tool_names(user_input, full=full)
+        if not names:  # 空集 = 发全部
+            return self._definitions
+        return [d for d in self._definitions if d["function"]["name"] in names]
+
     @property
     def tool_names(self) -> list[str]:
         return [d["function"]["name"] for d in self._definitions]
@@ -1273,10 +1401,9 @@ class ToolRegistry:
 
         # 4. 编辑/写入操作返回空（正常：write_file/edit_file 成功时不返回值）
         if tool_name in ("write_file", "edit_file", "safe_rewrite_file", "patch_file",
-                         "git_add_commit", "github_write_file"):
-            if not result.strip():
-                # 这些工具成功时通常无输出，这是预期的
-                return result  # 不加标记
+                         "git_add_commit", "github_write_file") and not result.strip():
+            # 这些工具成功时通常无输出，这是预期的
+            return result  # 不加标记
 
         if annotations:
             sep = "\n\n" if "\n" in result else " | "

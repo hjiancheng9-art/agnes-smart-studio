@@ -20,7 +20,6 @@ import codecs
 import logging
 import random
 import re
-import unicodedata
 
 logger = logging.getLogger("crux.adversarial")
 

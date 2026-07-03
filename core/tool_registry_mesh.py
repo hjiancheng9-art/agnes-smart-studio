@@ -23,9 +23,10 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 ROOT = Path(__file__).parent.parent
 PYTHON = os.path.expanduser(
@@ -150,6 +151,7 @@ class ToolRegistryMesh:
         self._by_category: dict[str, list[ToolEntry]] = {}
         self._by_source: dict[str, list[ToolEntry]] = {}
         self._cache: dict[str, tuple[float, Any]] = {}  # key → (timestamp, result)
+        self._cache_maxsize: int = 500
         self._cache_ttl: float = 30.0  # seconds
         self._callbacks: dict[str, Callable] = {}  # tool_name → async callable
         self._discovered = False
@@ -239,7 +241,7 @@ class ToolRegistryMesh:
             data = json.loads(tools_raw.strip())
             return data.get("result", {}).get("tools", [])
 
-        except Exception as e:
+        except Exception:
             if 'proc' in locals():
                 proc.kill()
             return []
@@ -549,6 +551,10 @@ class ToolRegistryMesh:
         return n
 
     def cache_set(self, key: str, value: Any) -> None:
+        if len(self._cache) >= self._cache_maxsize:
+            # 淘汰最旧条目（LRU 近似：删除最小的 timestamp）
+            oldest_key = min(self._cache, key=lambda k: self._cache[k][0])
+            del self._cache[oldest_key]
         self._cache[key] = (time.monotonic(), value)
 
     def cache_get(self, key: str) -> Any | None:

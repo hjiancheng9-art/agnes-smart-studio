@@ -18,7 +18,6 @@ Usage:
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -126,9 +125,7 @@ def _minimal_toml_parse(path: Path) -> dict[str, Any]:
                 key = key.strip()
                 value = value.strip()
                 # String value
-                if value.startswith('"') and value.endswith('"'):
-                    current_section[key] = value[1:-1]
-                elif value.startswith("'") and value.endswith("'"):
+                if value.startswith('"') and value.endswith('"') or value.startswith("'") and value.endswith("'"):
                     current_section[key] = value[1:-1]
                 elif value.lower() == "true":
                     current_section[key] = True
@@ -289,10 +286,7 @@ def save_config(data: dict[str, Any] | None = None, *, project_level: bool = Tru
         for k, v in data.items():
             cfg.set(k, v)
 
-    if project_level:
-        path = Path.cwd() / "config.toml"
-    else:
-        path = CRUX_HOME / "config.toml"
+    path = Path.cwd() / "config.toml" if project_level else CRUX_HOME / "config.toml"
 
     _write_toml(cfg.to_dict(), path)
     return path

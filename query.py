@@ -260,42 +260,40 @@ def main():
         console.print(f"  [{COLORS['error']}]CRUX_API_KEY not set[/]\n")
         sys.exit(1)
 
-    client = httpx.Client(headers={"Authorization": f"Bearer {api_key}"})
+    with httpx.Client(headers={"Authorization": f"Bearer {api_key}"}) as client:
+        args = sys.argv[1:]
+        video_id = None
+        watch = False
+        interval = 5
+        list_only = False
 
-    args = sys.argv[1:]
-    video_id = None
-    watch = False
-    interval = 5
-    list_only = False
+        i = 0
+        while i < len(args):
+            a = args[i]
+            if a == "--watch":
+                watch = True
+                if i + 1 < len(args) and args[i + 1].isdigit():
+                    i += 1
+                    interval = int(args[i])
+            elif a == "--list":
+                list_only = True
+            elif a.startswith("video_") or not a.startswith("-"):
+                video_id = _clean_video_id(a)
+            i += 1
 
-    i = 0
-    while i < len(args):
-        a = args[i]
-        if a == "--watch":
-            watch = True
-            if i + 1 < len(args) and args[i + 1].isdigit():
-                i += 1
-                interval = int(args[i])
-        elif a == "--list":
-            list_only = True
-        elif a.startswith("video_") or not a.startswith("-"):
-            video_id = _clean_video_id(a)
-        i += 1
+        if list_only:
+            videos = _find_recent_videos(20)
+            console.print(f"  [bold]History ({len(videos)}):[/]\n")
+            for v in videos:
+                console.print(f"  [{COLORS['primary']}]{v['video_id'][:50]}...[/]")
+                console.print(f"  [{COLORS['muted']}]{v['prompt'][:60]}[/]")
+                console.print(f"  [{COLORS['muted']}]{v['ts'][:19]}[/]\n")
+            return
 
-    if list_only:
-        videos = _find_recent_videos(20)
-        console.print(f"  [bold]History ({len(videos)}):[/]\n")
-        for v in videos:
-            console.print(f"  [{COLORS['primary']}]{v['video_id'][:50]}...[/]")
-            console.print(f"  [{COLORS['muted']}]{v['prompt'][:60]}[/]")
-            console.print(f"  [{COLORS['muted']}]{v['ts'][:19]}[/]\n")
-        client.close()
-        return
-
-    if video_id:
-        _query_and_display(client, video_id, watch=watch, interval=interval)
-    else:
-        _interactive(client)
+        if video_id:
+            _query_and_display(client, video_id, watch=watch, interval=interval)
+        else:
+            _interactive(client)
 
     client.close()
 

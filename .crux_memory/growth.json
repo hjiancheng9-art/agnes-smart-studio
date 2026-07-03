@@ -1,6 +1,6 @@
 {
   "total_calls_ever": 2,
-  "saved_at": "2026-07-03T23:02:23",
+  "saved_at": "2026-07-04T04:00:58",
   "intents": {
     "search": {
       "intent": "search",
@@ -15,7 +15,7 @@
           "consecutive_failures": 0,
           "demoted": false,
           "probation_successes": 0,
-          "last_call_ts": 168486.718
+          "last_call_ts": 186399.796
         },
         "my_tool": {
           "tool": "my_tool",
@@ -27,7 +27,7 @@
           "consecutive_failures": 0,
           "demoted": false,
           "probation_successes": 0,
-          "last_call_ts": 168609.109
+          "last_call_ts": 186522.781
         }
       },
       "total_calls": 2,

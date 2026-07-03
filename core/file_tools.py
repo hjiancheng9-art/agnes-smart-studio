@@ -40,6 +40,14 @@ __all__ = [
 ROOT = Path(__file__).resolve().parent.parent
 
 
+# 敏感路径阻止列表 — read_file 拒绝读取这些（防止 LLM 窃取密钥/凭证）
+_READ_BLOCKLIST = [
+    ".env", "**/.env.*", "**/.git/config", "**/.ssh/*", "**/id_rsa*",
+    "**/credentials*", "**/.aws/config", "**/.aws/credentials",
+    "**/.claude/.env", "**/.npmrc", "**/settings.local.json",
+]
+
+
 def _safe_path(path: str, *, read_only: bool = False) -> Path:
     """Resolve path and enforce it stays within project root.
 
@@ -55,7 +63,12 @@ def _safe_path(path: str, *, read_only: bool = False) -> Path:
     """
     p = Path(path).expanduser().resolve()
     if read_only:
-        # 读取操作允许任意路径，仅做 resolve + expanduser
+        # 敏感文件阻止 — read_file 不应泄露密钥
+        from fnmatch import fnmatch
+        p_str = str(p)
+        for blocked in _READ_BLOCKLIST:
+            if fnmatch(p_str, blocked):
+                raise ValueError(f"Access denied to sensitive path: {path}")
         return p
     root_real = ROOT.resolve()
     # resolve() already eliminates symlinks; compare real paths

@@ -297,10 +297,7 @@ class AsyncTaskExecutor:
     async def _call_tool(self, tool: str, args: dict) -> str:
         """调用 tool executor，自动区分同步/异步。120s 超时防死锁。"""
         try:
-            if self._is_async:
-                coro = self.execute_tool(tool, args)
-            else:
-                coro = asyncio.to_thread(self.execute_tool(tool, args))
+            coro = self.execute_tool(tool, args) if self._is_async else asyncio.to_thread(self.execute_tool(tool, args))
             return await asyncio.wait_for(coro, timeout=self._DEFAULT_TOOL_TIMEOUT)
         except asyncio.TimeoutError:
             return f"[错误] 工具 {tool} 执行超时 ({self._DEFAULT_TOOL_TIMEOUT}s)"

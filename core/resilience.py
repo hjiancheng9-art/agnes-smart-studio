@@ -512,7 +512,7 @@ class GracefulDegradation:
 
     async def aexecute(self, *args, **kwargs):
         """Async version of execute."""
-        for func, label, catch in self._fallbacks:
+        for func, _label, catch in self._fallbacks:
             try:
                 if asyncio.iscoroutinefunction(func):
                     return await func(*args, **kwargs)

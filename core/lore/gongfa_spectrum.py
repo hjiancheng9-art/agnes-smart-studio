@@ -21,6 +21,8 @@ Usage:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 GONGFA_PROMPT = """
 [功法谱 — 五层功法·五兽归位]
 
@@ -98,17 +100,15 @@ def get_gongfa_summary() -> str:
         cmd_count = 33
 
     try:
-        from pathlib import Path
-
         skills_dir = Path(__file__).resolve().parent.parent / "skills"
         skill_count = len(list(skills_dir.glob("*.skill.json")))
-    except (ImportError, NameError, OSError):
+    except OSError:
         skill_count = 45
 
     try:
-        rules_dir = Path(__file__).resolve().parent.parent / "rules"  # type: ignore[possibly-unbound]
-        rule_count = len(list(rules_dir.glob("*.rules.md")))  # type: ignore[possibly-unbound]
-    except (ImportError, NameError, OSError):
+        rules_dir = Path(__file__).resolve().parent.parent / "rules"
+        rule_count = len(list(rules_dir.glob("*.rules.md")))
+    except OSError:
         rule_count = 6
 
     return f"[功法谱] {rule_count}心法 · {skill_count}武技 · {cmd_count}招式 · 5修炼场 · 5秘籍库 — 五兽归位"

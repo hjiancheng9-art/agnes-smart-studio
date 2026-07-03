@@ -111,7 +111,7 @@ def run_subprocess(
                 try:
                     return future.result(timeout=timeout + 30)
                 except concurrent.futures.TimeoutError:
-                    raise subprocess.TimeoutExpired(cmd, timeout)
+                    raise subprocess.TimeoutExpired(cmd, timeout) from None
     except RuntimeError:
         pass
 
@@ -162,7 +162,7 @@ async def run_subprocess_async(
         )
     except asyncio.TimeoutError:
         proc.kill()
-        raise subprocess.TimeoutExpired(cmd, timeout)
+        raise subprocess.TimeoutExpired(cmd, timeout) from None
 
     stdout = stdout_bytes.decode("utf-8", errors="replace") if stdout_bytes else ""
     stderr = stderr_bytes.decode("utf-8", errors="replace") if stderr_bytes else ""

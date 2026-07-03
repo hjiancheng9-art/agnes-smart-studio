@@ -1,6 +1,7 @@
 """配置管理 - 模型列表、分辨率预设、Prompt模板库、用户偏好持久化"""
 
 import json
+import logging
 import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -96,8 +97,7 @@ _load_global_auth()
 
 __all__ = [
     "CRUX_VISION_BASE_URL",
-    "CRUX_VISION_MODEL",
-    "AGNES_VISION_BASE_URL",
+        "AGNES_VISION_BASE_URL",
     "CRUX_HOME",
     "AGNES_HOME",
     "AUTH_FILE",
@@ -156,9 +156,9 @@ def get_crux_vision_model() -> str:
     """Get the best available vision model — prefers CRUX (most accurate), Zhipu as fallback."""
     try:
         import os
+
         from core.provider import get_provider_manager
         mgr = get_provider_manager()
-        mgr.load()
         # Prefer CRUX vision models (best counting/OCR/detail)
         crux = mgr.providers.get("crux", {})
         crux_key = crux.get("api_key") or os.getenv("CRUX_API_KEY") or os.getenv("AGNES_API_KEY")
@@ -170,12 +170,14 @@ def get_crux_vision_model() -> str:
         if zhipu_v:
             return zhipu_v.get("pro") or zhipu_v.get("light") or next(iter(zhipu_v.values()))
         # Search all providers for vision models
-        for pid, p in mgr.providers.items():
+        for _pid, p in mgr.providers.items():
             vm = p.get("vision_models", {})
             if vm:
                 return vm.get("light") or vm.get("pro") or next(iter(vm.values()))
         return "GLM-4V-Flash"
-    except Exception:
+    except (KeyError, json.JSONDecodeError, OSError, ValueError) as e:
+        logger = logging.getLogger("crux.config")
+        logger.debug("Vision model resolution failed (%s: %s), falling back to GLM-4V-Flash", type(e).__name__, e)
         return "GLM-4V-Flash"
 
 

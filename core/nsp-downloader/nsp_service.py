@@ -39,6 +39,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         try:
             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            # 保存到 server 实例的属性字典，供进程清理（防止 Windows 僵尸进程）
+            _procs = getattr(self.server, '_download_procs', None)
+            if _procs is None:
+                _procs = {}
+                self.server._download_procs = _procs
+            _procs[proc.pid] = proc
             # 非阻塞，让 ffmpeg 后台跑
             self.send_response(200)
             self.send_header('Access-Control-Allow-Origin', '*')

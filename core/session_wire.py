@@ -21,10 +21,9 @@ This module provides Kimi-protocol wire.jsonl incremental logging.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
-import os
-import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -36,8 +35,7 @@ __all__ = [
     "SessionWire",
     "compute_wd_hash",
     "load_index",
-    "save_index",
-]
+    ]
 
 SESSIONS_ROOT = OUTPUT_DIR / "sessions"
 
@@ -68,10 +66,8 @@ def load_index() -> list[dict]:
         for line in ipath.read_text(encoding="utf-8").strip().split("\n"):
             line = line.strip()
             if line:
-                try:
+                with contextlib.suppress(json.JSONDecodeError):
                     entries.append(json.loads(line))
-                except json.JSONDecodeError:
-                    pass
     except OSError:
         pass
     return entries

@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -300,12 +301,10 @@ class BackgroundManager:
                         t.status = "timed_out"
                         t.terminal_reason = "timed_out"
                         t.finished_at = time.time()
-                        try:
+                        with contextlib.suppress(OSError, ValueError):
                             output_f.write(
                                 f"\n\n[任务超时 ({timeout}s)，已被强制终止]\n"
                             )
-                        except (OSError, ValueError):
-                            pass
                 return
 
             with self._lock:
@@ -321,10 +320,8 @@ class BackgroundManager:
                     t.status = "failed"
                     t.finished_at = time.time()
                     t.stop_reason = str(e)[:200]
-            try:
+            with contextlib.suppress(OSError, ValueError):
                 output_f.write(f"\n\n[任务执行异常: {e}]\n")
-            except (OSError, ValueError):
-                pass
         finally:
             if output_f:
                 try:

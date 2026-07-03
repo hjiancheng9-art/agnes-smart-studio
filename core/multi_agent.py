@@ -438,7 +438,7 @@ class AsyncMultiAgentCoordinator:
         # 拓扑分层：每层是可并行的任务集合
         waves = _topological_waves(self.tasks)
         for wave_idx, wave in enumerate(waves):
-            async def _run_task_safe(task: AgentTask) -> None:
+            async def _run_task_safe(task: AgentTask, _wave_idx=wave_idx) -> None:
                 """Wrap _execute_task with per-task timeout for deadlock prevention."""
                 try:
                     await asyncio.wait_for(
@@ -448,7 +448,7 @@ class AsyncMultiAgentCoordinator:
                 except asyncio.TimeoutError:
                     task.status = "failed"
                     task.result = f"[deadlock] task timed out after {self._AUTO_TASK_TIMEOUT}s"
-                    await self._log_append({"event": "task_timeout", "task": task.id, "wave": wave_idx})
+                    await self._log_append({"event": "task_timeout", "task": task.id, "wave": _wave_idx})
 
             try:
                 await asyncio.wait_for(
@@ -656,7 +656,7 @@ class SmartDecomposer:
             raw = resp.get("choices", [{}])[0].get("message", {}).get("content", "") if isinstance(resp, dict) else str(resp)
         except ImportError:
             # Last resort: try via run_bash calling a simple script
-            raise RuntimeError("No LLM client available for SmartDecomposer")
+            raise RuntimeError("No LLM client available for SmartDecomposer") from None
 
         # Parse JSON from response
         tasks_json = _extract_json(raw)
@@ -897,7 +897,7 @@ class AgentSwarm:
                 return
             try:
                 goal = template.replace("{{item}}", item)
-                agent_id = f"swarm_{uuid.uuid4().hex[:8]}"
+                f"swarm_{uuid.uuid4().hex[:8]}"
                 coordinator = MultiAgentCoordinator(
                     tool_executor=self.execute_tool,
                     max_workers=1,

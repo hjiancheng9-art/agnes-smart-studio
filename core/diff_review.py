@@ -8,6 +8,7 @@ pipeline (core/hooks.py).
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -42,10 +43,8 @@ class DiffReviewer:
         """Save pre-edit content for later diff."""
         p = Path(file_path)
         if p.exists():
-            try:
+            with contextlib.suppress(Exception):
                 self._snapshots[file_path] = p.read_text(encoding="utf-8")
-            except Exception:
-                pass
 
     def capture(self, tool_name: str, file_path: str, result_ok: bool = True) -> str | None:
         """Capture a post-edit diff. Returns diff string or None."""

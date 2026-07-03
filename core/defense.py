@@ -10,14 +10,12 @@ This gives CRUX the same resilience guarantees as Claude Code's harness.
 from __future__ import annotations
 
 import ast
+import contextlib
 import hashlib
 import logging
-import os
 import threading
 import time
-from collections import defaultdict
 from pathlib import Path
-from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 logger = logging.getLogger("crux.defense")
@@ -150,10 +148,8 @@ def snapshot_file(file_path: str) -> None:
     """Save pre-edit content for potential rollback."""
     p = Path(file_path)
     if p.exists():
-        try:
+        with contextlib.suppress(Exception):
             _file_snapshots[file_path] = p.read_text(encoding="utf-8")
-        except Exception:
-            pass
 
 
 def validate_syntax(file_path: str) -> str | None:

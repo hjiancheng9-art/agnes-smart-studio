@@ -117,13 +117,14 @@ class SmartBrain:
         return content
 
     def _get_model(self) -> str:
-        """获取当前激活供应商的模型 ID"""
+        """获取当前激活供应商的模型 ID。
+        Prompt 增强是文本改写任务，用 light 模型即可，不需要 Pro。
+        """
         try:
             from core.provider import get_provider_manager
 
             mgr = get_provider_manager()
-            mgr.load()
-            return mgr.get_model("pro")
+            return mgr.get_model("light") or mgr.get_model("pro")
         except (OSError, ValueError, RuntimeError):
             return "agnes-2.0-flash"  # fallback
 

@@ -104,29 +104,27 @@ class PythonASTChecker(BaseRuleChecker):
         issues = []
 
         # 1. 过长的函数体 (> 200 行)
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            if node.body:
-                end_line = node.body[-1].end_lineno or node.lineno
-                length = end_line - node.lineno
-                if length > 200:
-                    issues.append(ReviewIssue(
-                        file=filepath, line=node.lineno, severity="warning",
-                        category="maintainability",
-                        message=f"Function '{node.name}' is {length} lines long (threshold: 200)",
-                        suggestion="Consider splitting into smaller functions",
-                        rule="function-length",
-                    ))
-
-        # 2. 裸 except (可能吞掉重要异常)
-        if isinstance(node, ast.ExceptHandler):
-            if node.type is None:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.body:
+            end_line = node.body[-1].end_lineno or node.lineno
+            length = end_line - node.lineno
+            if length > 200:
                 issues.append(ReviewIssue(
                     file=filepath, line=node.lineno, severity="warning",
                     category="maintainability",
-                    message="Bare except clause — may hide unexpected errors",
-                    suggestion="Catch specific exception types, or at minimum `except Exception`",
-                    rule="bare-except",
+                    message=f"Function '{node.name}' is {length} lines long (threshold: 200)",
+                    suggestion="Consider splitting into smaller functions",
+                    rule="function-length",
                 ))
+
+        # 2. 裸 except (可能吞掉重要异常)
+        if isinstance(node, ast.ExceptHandler) and node.type is None:
+            issues.append(ReviewIssue(
+                file=filepath, line=node.lineno, severity="warning",
+                category="maintainability",
+                message="Bare except clause — may hide unexpected errors",
+                suggestion="Catch specific exception types, or at minimum `except Exception`",
+                rule="bare-except",
+            ))
 
         # 3. 循环中调用 .append()（可用列表推导式）
         # (简化检测：for 循环体中直接有 .append)
@@ -322,15 +320,9 @@ def run_review(files: list[str] | None = None, mode: str = "code") -> dict:
         mode: "code" 或 "security"
     """
     try:
-        if mode == "security":
-            reviewer = SecurityReviewer()
-        else:
-            reviewer = CodeReviewer()
+        reviewer = SecurityReviewer() if mode == "security" else CodeReviewer()
 
-        if files:
-            report = reviewer.review_files(files)
-        else:
-            report = reviewer.review_changes()
+        report = reviewer.review_files(files) if files else reviewer.review_changes()
 
         return {
             "success": True,

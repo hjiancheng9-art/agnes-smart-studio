@@ -352,7 +352,7 @@ def _run_git(args: list[str], cwd: str = "") -> dict:
 
 def _safe_command(command: str) -> tuple[bool, str]:
     """Validate a command against dangerous patterns. Returns (safe, reason)."""
-    lowered = command.lower()
+    _ = command.lower()
 
     dangerous = [
         (r"rm\s+(-rf?|--recursive)\s+/", "recursive delete of root"),
@@ -638,10 +638,9 @@ def _handle_edit_file(params: dict) -> dict:
 
     # Backup before writing
     backup = fp.with_suffix(fp.suffix + ".bak")
-    try:
+    import contextlib
+    with contextlib.suppress(OSError):
         backup.write_text(content, encoding="utf-8")
-    except OSError:
-        pass
 
     try:
         fp.write_text(new_content, encoding="utf-8")

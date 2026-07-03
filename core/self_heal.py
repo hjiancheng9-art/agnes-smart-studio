@@ -63,7 +63,8 @@ class SelfHealer:
                 continue
             try:
                 lines = py_file.read_text(encoding="utf-8").splitlines()
-            except Exception:
+            except (OSError, ValueError) as e:
+                logger.debug("self_heal: skipped %s (%s: %s)", py_file, type(e).__name__, e)
                 continue
             for i, line in enumerate(lines, 1):
                 stripped = line.strip()
@@ -169,8 +170,8 @@ class SelfHealer:
         """Check for registered hooks that are never fired."""
         # Already fixed in this session — verify they're still active
         try:
-            from core.hooks import get_registered_hooks, HookType
-            hooks = get_registered_hooks()
+            from core.hooks import HookType, get_registered_hooks
+            get_registered_hooks()
             fired_types = set()
             # Scan chat.py for _fire_hook calls
             chat_src = (ROOT / "core" / "chat.py").read_text(encoding="utf-8")
@@ -185,7 +186,7 @@ class SelfHealer:
                         f"HookType.{ht.name} is registered but never fired",
                         fixable=False,
                     ))
-        except Exception as e:
+        except Exception:
             pass  # hooks module has its own issues, don't compound
 
     # ── Fixers ────────────────────────────────────────

@@ -127,8 +127,9 @@ class CruxClient:
         self._http = httpx.Client(
             base_url=self.base_url,
             headers={"Authorization": f"Bearer {self.api_key}"},
-            timeout=httpx.Timeout(timeout, connect=30.0),
-            proxy=None,  # 显式绕过系统代理（如 Astar/Clash），避免间歇性 503
+            timeout=httpx.Timeout(timeout, connect=10.0),
+            http2=True,
+            limits=httpx.Limits(max_keepalive_connections=20, max_connections=100, keepalive_expiry=30.0),
         )
 
     def _request_with_retry(self, method: str, url: str, **kwargs) -> httpx.Response:
@@ -149,15 +150,14 @@ class CruxClient:
             ) as e:
                 last_exc = e
                 if attempt < retries - 1:
-                    time.sleep(0.5 * (attempt + 1))
+                    time.sleep(min(2**attempt, 30))  # 指数退避：1s, 2s, 4s, 8s... max 30s
                 continue
             except httpx.HTTPStatusError as e:
                 # 401/403/402 不重试（鉴权失败），429 和 5xx 可重试
                 if e.response.status_code in (401, 403, 402):
                     raise
                 if attempt < retries - 1 and (e.response.status_code == 429 or e.response.status_code >= 500):
-                    # 429 指数退避：1s, 2s, 4s...；5xx 线性退避
-                    wait = (2**attempt) if e.response.status_code == 429 else (0.5 * (attempt + 1))
+                    wait = min(2**attempt, 30)  # 统一指数退避
                     time.sleep(wait)
                     last_exc = e
                     continue
@@ -378,7 +378,7 @@ class CruxClient:
                     "POST",
                     "/chat/completions",
                     json=body,
-                    timeout=httpx.Timeout(timeout, connect=30.0),
+                    timeout=httpx.Timeout(timeout, connect=10.0),
                 ) as resp:
                     # 错误状态码：连接仍活着，在此消费错误体后再决定重试/返回。
                     # 不能用 raise_for_status() + except 读 e.response.text —— 流式
@@ -419,7 +419,9 @@ class CruxClient:
                         if data == done:
                             break
                         try:
-                            chunk = _sanitize_json(json.loads(data))
+                            parsed = json.loads(data)
+                            # 快速检查：仅在原始字符串含 surrogate 字符时才递归清洗
+                            chunk = _sanitize_json(parsed) if any(55296 <= ord(c) <= 57343 for c in data) else parsed
                         except json.JSONDecodeError:
                             logger.debug("chat_stream JSON decode error, skipping line: %s", data[:200])
                             continue
@@ -670,35 +672,35 @@ class CruxClient:
 
         安全策略：仅在 URL 与当前 base_url 同源时才附加认证头，
         防止 Bearer token 被重定向泄露到第三方 CDN。
+
+        复用 self._http 连接池（HTTP/2 多路复用），避免每次下载创建新连接。
         """
         from pathlib import Path as _Path
         from urllib.parse import urlparse
 
         same_origin = urlparse(url).netloc == urlparse(self.base_url).netloc
+        headers = {} if not same_origin else {"Authorization": f"Bearer {self.api_key}"}
 
-        # 策略1：无认证头直接下载（CDN 公开链接）
+        # 策略1：无/有认证头下载
         try:
-            with httpx.Client(follow_redirects=True, timeout=120.0) as client:
-                resp = client.get(url)
+            resp = self._http.get(url, follow_redirects=True, headers=headers)
+            if resp.status_code == 200:
+                _Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+                with open(save_path, "wb") as f:
+                    f.write(resp.content)
+                return save_path
+        except (httpx.HTTPError, httpx.TimeoutException):
+            _Path(save_path).unlink(missing_ok=True)
+
+        # 策略2（仅同源）：认证头已在上方尝试，若失败则无认证重试
+        if same_origin:
+            try:
+                resp = self._http.get(url, follow_redirects=True)
                 if resp.status_code == 200:
                     _Path(save_path).parent.mkdir(parents=True, exist_ok=True)
                     with open(save_path, "wb") as f:
                         f.write(resp.content)
                     return save_path
-        except (httpx.HTTPError, httpx.TimeoutException):
-            # 清理可能的部分下载
-            _Path(save_path).unlink(missing_ok=True)
-
-        # 策略2：仅同源 URL 使用认证头（私有存储）
-        if same_origin:
-            try:
-                with httpx.Client(follow_redirects=True, timeout=120.0) as client:
-                    resp = client.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
-                    if resp.status_code == 200:
-                        _Path(save_path).parent.mkdir(parents=True, exist_ok=True)
-                        with open(save_path, "wb") as f:
-                            f.write(resp.content)
-                        return save_path
             except (httpx.HTTPError, httpx.TimeoutException):
                 _Path(save_path).unlink(missing_ok=True)
 
@@ -708,34 +710,35 @@ class CruxClient:
         """下载图片文件。CDN URL 为公开链接，无需 Authorization 头（带了反而 401）。
 
         安全策略：仅在 URL 与当前 base_url 同源时才附加认证头。
+
+        复用 self._http 连接池（HTTP/2 多路复用），避免每次下载创建新连接。
         """
         from pathlib import Path as _Path
         from urllib.parse import urlparse
 
         same_origin = urlparse(url).netloc == urlparse(self.base_url).netloc
+        headers = {} if not same_origin else {"Authorization": f"Bearer {self.api_key}"}
 
-        # 策略1：无认证头直接下载（CDN 公开链接）
+        # 策略1：无/有认证头下载
         try:
-            with httpx.Client(follow_redirects=True, timeout=60.0) as client:
-                resp = client.get(url)
+            resp = self._http.get(url, follow_redirects=True, headers=headers)
+            if resp.status_code == 200:
+                _Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+                with open(save_path, "wb") as f:
+                    f.write(resp.content)
+                return save_path
+        except (httpx.HTTPError, httpx.TimeoutException):
+            _Path(save_path).unlink(missing_ok=True)
+
+        # 策略2（仅同源）：认证头已在上方尝试，若失败则无认证重试
+        if same_origin:
+            try:
+                resp = self._http.get(url, follow_redirects=True)
                 if resp.status_code == 200:
                     _Path(save_path).parent.mkdir(parents=True, exist_ok=True)
                     with open(save_path, "wb") as f:
                         f.write(resp.content)
                     return save_path
-        except (httpx.HTTPError, httpx.TimeoutException):
-            _Path(save_path).unlink(missing_ok=True)
-
-        # 策略2：仅同源 URL 使用认证头（私有存储）
-        if same_origin:
-            try:
-                with httpx.Client(follow_redirects=True, timeout=60.0) as client:
-                    resp = client.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
-                    if resp.status_code == 200:
-                        _Path(save_path).parent.mkdir(parents=True, exist_ok=True)
-                        with open(save_path, "wb") as f:
-                            f.write(resp.content)
-                        return save_path
             except (httpx.HTTPError, httpx.TimeoutException):
                 _Path(save_path).unlink(missing_ok=True)
 
