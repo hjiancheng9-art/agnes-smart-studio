@@ -78,7 +78,7 @@ def quest_create(
     if depends_on:
         for dep_id in depends_on:
             dep = quest_load(dep_id)
-            if dep and dep.get("status") != STATUS_DONE:
+            if dep is None or dep.get("status") != STATUS_DONE:
                 quest["status"] = STATUS_BLOCKED
                 break
 
