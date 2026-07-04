@@ -168,7 +168,7 @@ CRUX 同时作为 MCP **Server**（被外部调用）和 MCP **Client**（调用
 - 53 commands, 113 tools, 63 local skills, 668 marketplace skills
 - Core modules: 148 .py files in core/ (含 v5.0 新增编排/智能体/可观测子系统)
 - 大文件已拆分: tools_defs.py (tools: 1691→865行), chat_toggle_mixin.py (chat: 1875→1780行)
-- brain.py: 临时回退为单体版(2201行), Mixin复用待修正AsyncSmartBrain嵌套
+- brain.py: 476行 Mixin架构 (SmartBrain继承4 Mixin, AsyncSmartBrain顶层独立)
 - pyright: basic模式全量代码 0 errors, CI 接入 coverage (门禁 55%)
 - CI: lint → test(coverage) → scorecard 三阶段
 - Toggle-based: code_mode / agent_mode / skill / extend (notebook/audio/browser)
