@@ -99,7 +99,7 @@ pkill -f pytest                                           # Linux/Mac
 - 可观测/质量: core/observability.py (tracing/spans/metrics), core/cost_tracker.py (Token/预算追踪), core/audit_runner.py (统一诊断), core/eval_harness.py (智能体质量基准), core/self_audit.py (自审计)
 - 持久化/调度: core/task_manager.py (持久任务), core/scheduler.py (内置定时), core/pipeline_state.py (流水线状态/质量门)
 - 外部集成: core/browser_tools.py (网页生图生视频), core/git_tools.py + core/git_workflow.py (Git 自动化), core/mcp_client.py (MCP Client 桥接) + core/mcp_server.py (MCP Server stdio JSON-RPC), core/web_api.py (FastAPI REST 接口), core/codex_engines.py + core/codex_tools.py (Codex 引擎与工具集)
-- 安全/约束: core/constraints.py (高风险工具确认 + 危险参数匹配 + 写入/长运行工具白名单，单一真源)
+- 安全/约束: core/constraints.py (高风险工具确认 + 危险参数匹配 + 写入/长运行工具白名单，单一真源) + core/methodology.py (禁区拦截/任务分级/方法论守卫)
 - 事件/插件: core/event_bus.py (发布/订阅事件总线), core/plugin_system.py (外部插件加载), core/capability_registry.py (工具能力守卫/白名单)
 - 守护/后台: core/watchdog.py (供应商健康探针), core/daemon.py (后台守护进程), core/pipeline_dag.py (DAG 并行编排), core/beast_wiring.py (七兽躯体初始化/接线)
 - prompt 注入: core/golden_finger.py (能力谱 prompt 注入), core/seven_beasts_fusion.py (七兽融合 prompt)
@@ -165,7 +165,7 @@ CRUX 同时作为 MCP **Server**（被外部调用）和 MCP **Client**（调用
 ## Current State Snapshot
 
 > ⚠ 本节为快照，不作为执行真源。当前准确状态以 `/tools`、`/help`、`crux_manifest.json`、`pytest --co` 输出为准。
-- 53 commands, 113 tools, 63 local skills, 668 marketplace skills
+- 54 commands, 113 tools, 63 local skills, 668 marketplace skills
 - Core modules: 148 .py files in core/ (含 v5.0 新增编排/智能体/可观测子系统)
 - 大文件已拆分: tools_defs.py (tools: 1691→865行), chat_toggle_mixin.py (chat: 1875→1780行)
 - brain.py: 476行 Mixin架构 (SmartBrain继承4 Mixin, AsyncSmartBrain顶层独立)
