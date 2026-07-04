@@ -5,12 +5,10 @@ Tests must FAIL before GREEN implementation.
 
 from __future__ import annotations
 
-import io
 import sys
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 
 # ── Helpers ────────────────────────────────────────────────────────
 
@@ -49,9 +47,8 @@ def _make_app(**kwargs):
 
     # Must patch ui.tui_app.Application (the imported reference) AND
     # prompt_toolkit.key_binding.key_bindings._parse_key
-    with patch("ui.tui_app.Application"):
-        with patch.object(kb_mod, "_parse_key", side_effect=_patched_parse_key):
-            app = TuiApp(session, cli)
+    with patch("ui.tui_app.Application"), patch.object(kb_mod, "_parse_key", side_effect=_patched_parse_key):
+        app = TuiApp(session, cli)
     # After construction, replace _app with a MagicMock
     app._app = MagicMock()
     return app
@@ -269,13 +266,13 @@ class TestEscapeReset:
 
     def test_escape_resets_buffer(self):
         app = _make_app()
-        # Find escape handler
+        # Find standalone escape handler (keys == ("escape",), not a key sequence)
         handler = None
         for binding in app.kb.bindings:
-            if "escape" in binding.keys:
+            if binding.keys == ("escape",):
                 handler = binding.handler
                 break
-        assert handler is not None, "escape binding not found"
+        assert handler is not None, "standalone escape binding not found"
 
         app.input_buffer.text = "some text"
         app.input_buffer.reset = MagicMock()

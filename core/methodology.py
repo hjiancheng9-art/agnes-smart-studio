@@ -33,7 +33,6 @@ from enum import Enum
 from pathlib import Path
 from typing import ClassVar
 
-
 # ═══════════════════════════════════════════════════════════════════
 # L1 — 禁区（硬件拦截）
 # ═══════════════════════════════════════════════════════════════════
@@ -61,13 +60,30 @@ PROTECTED_SYMBOLS: dict[str, frozenset[str]] = {
 PROTECTED_DEP_FILES: frozenset[str] = frozenset({"requirements.txt", "pyproject.toml"})
 
 
+_HOMOGLYPH_MAP = {
+    0x0131: "i", 0x0430: "a", 0x0435: "e", 0x043E: "o",
+    0x0440: "p", 0x0441: "c", 0x0443: "y", 0x0445: "x",
+    0x0456: "i", 0x04BB: "h",
+}
+
+
+def _sanitize_path(path: str) -> str:
+    """Strip zero-width chars, null bytes, and homoglyph confusables."""
+    import re
+    path = path.replace("\x00", "")
+    path = re.sub(r"[\u200b-\u200f\u2028-\u202e\ufeff]", "", path)
+    return path.translate(_HOMOGLYPH_MAP)
+
+
 def is_protected_file(path: str) -> bool:
-    """判断文件路径是否在禁区列表中。"""
-    normalized = path.replace("\\", "/")
-    for p in PROTECTED_FILES:
-        if normalized.endswith(p.replace("\\", "/")):
-            return True
-    return False
+    """Path protection with Unicode + case normalization."""
+    import os
+    s = _sanitize_path(path)
+    n = os.path.normpath(s).replace("\\", "/").lower()
+    return any(
+        n.endswith(os.path.normpath(_sanitize_path(p)).replace("\\", "/").lower())
+        for p in PROTECTED_FILES
+    )
 
 
 def is_protected_dep_file(path: str) -> bool:
@@ -288,9 +304,8 @@ def escalate_task(level: TaskLevel, reason: str) -> TaskLevel:
             return TaskLevel.C
 
     # → B 级触发器
-    if level == TaskLevel.A:
-        if "files>1" in reason_lower or ">1" in reason_lower:
-            return TaskLevel.B
+    if level == TaskLevel.A and ("files>1" in reason_lower or ">1" in reason_lower):
+        return TaskLevel.B
 
     return level  # 无需升级
 
@@ -330,9 +345,9 @@ def methodology_pre_check(tool_name: str, args: dict, state: MethodologyState | 
     """
     # ── L1 禁区 — 硬拦截（无关任务等级）──
     file_path = args.get("path") or args.get("file_path") or args.get("target") or ""
-    if file_path and is_protected_file(file_path):
-        if tool_name in ("write_file", "edit_file", "patch_file", "safe_rewrite_file", "delete_files"):
-            return False, f"禁区文件不可修改: {file_path}"
+    if (file_path and is_protected_file(file_path)
+            and tool_name in ("write_file", "edit_file", "patch_file", "safe_rewrite_file", "delete_files")):
+        return False, f"禁区文件不可修改: {file_path}"
 
     # 依赖文件添加受保护
     if (tool_name == "pip_install" and args.get("package")) or (
@@ -347,9 +362,10 @@ def methodology_pre_check(tool_name: str, args: dict, state: MethodologyState | 
     level = state.task_level
 
     # D 级额外约束
-    if level == TaskLevel.D:
-        if tool_name in ("git_add_commit", "git_push", "git_pr_create", "git_pr_merge") and not state.plan_exists:
-            return False, "D 级任务: 需先确认 Plan 再提交/推送"
+    if (level == TaskLevel.D
+            and tool_name in ("git_add_commit", "git_push", "git_pr_create", "git_pr_merge")
+            and not state.plan_exists):
+        return False, "D 级任务: 需先确认 Plan 再提交/推送"
 
     return True, ""
 

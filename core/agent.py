@@ -817,7 +817,10 @@ class ModelRouter:
                 mgr = get_provider_manager()
                 crux = mgr.providers.get("crux", {})
                 return crux.get("models", {}).get("image") or "agnes-image-2.1-flash"
-            except Exception:
+            except Exception as e:
+
+                logger.debug("unexpected error: %s", e, exc_info=True)
+
                 return "agnes-image-2.1-flash"
         if task_type == "video_generation":
             try:
@@ -825,7 +828,10 @@ class ModelRouter:
                 mgr = get_provider_manager()
                 crux = mgr.providers.get("crux", {})
                 return crux.get("models", {}).get("video") or "agnes-video-v2.0"
-            except Exception:
+            except Exception as e:
+
+                logger.debug("unexpected error: %s", e, exc_info=True)
+
                 return "agnes-video-v2.0"
 
         # Vision requirement — 独立通道
@@ -966,8 +972,10 @@ class ModelRouter:
             def _sort_key(pid):
                 p = mgr.providers.get(pid, {})
                 is_free = 0 if p.get("cost_tier") == "free" else 1
-                try: idx = mgr.fallback_priority.index(pid)
-                except ValueError: idx = 99
+                try:
+                    idx = mgr.fallback_priority.index(pid)
+                except ValueError:
+                    idx = 99
                 return (is_free, idx)
             sorted_pids = sorted(mgr.fallback_priority, key=_sort_key)
             for pid in sorted_pids:
@@ -976,11 +984,16 @@ class ModelRouter:
                 for tier_key in ("pro", "light"):
                     mid = models.get(tier_key, "")
                     if mid and isinstance(mid, str) and mid not in seen:
-                        chain.append(mid); seen.add(mid)
+                        chain.append(mid)
+                        seen.add(mid)
                 for mid_val in models.values():
                     if isinstance(mid_val, str) and mid_val not in seen:
-                        chain.append(mid_val); seen.add(mid_val)
-        except (ImportError, OSError, RuntimeError):
+                        chain.append(mid_val)
+                        seen.add(mid_val)
+        except (ImportError, OSError, RuntimeError) as e:
+
+            logger.debug("fallback skipped: %s", e)
+
             pass
         return chain or ["deepseek-v4-pro", "deepseek-v4-flash"]
 
@@ -1044,12 +1057,17 @@ def parse_plan(text: str) -> list[PlanStep]:
     try:
         data = _json.loads(json_text)
         step_list = data.get("steps", []) if isinstance(data, dict) else data
-        if not isinstance(step_list, list): return []
-    except (_json.JSONDecodeError, TypeError, ValueError):
+        if not isinstance(step_list, list):
+            return []
+    except (_json.JSONDecodeError, TypeError, ValueError) as e:
+
+        logger.debug("parse error: %s", e)
+
         return []
     steps = []
     for i, s in enumerate(step_list):
-        if not isinstance(s, dict): continue
+        if not isinstance(s, dict):
+            continue
         steps.append(PlanStep(
             name=s.get("name", f"step_{i+1}"), purpose=s.get("purpose", ""),
             tool=s.get("tool", ""), args=s.get("args", {}),

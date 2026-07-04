@@ -1,0 +1,10 @@
+        app.run()
+    except ImportError as e:
+        print(f"TUI 模块加载失败: {e}", file=sys.stderr)
+        print("回退到纯文本模式。")
+        _chat_plain_session(session, cli, wire, session_id)
+    except Exception as e:
+        print(f"TUI 启动失败: {e}", file=sys.stderr)
+        print("回退到纯文本模式。")
+        _chat_plain_session(session, cli, wire, session_id)
+

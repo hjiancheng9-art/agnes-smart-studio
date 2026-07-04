@@ -1,3 +1,6 @@
+---
+default-active: false
+---
 # Intent Routing — 智能路由
 
 ## 核心原则

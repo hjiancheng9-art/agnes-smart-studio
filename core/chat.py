@@ -17,15 +17,12 @@ yield 协议（send_stream）：
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
-
-import httpx
 
 if TYPE_CHECKING:
     from core.cognitive_orchestrator import CognitiveOrchestrator
@@ -40,8 +37,13 @@ from core.chat_prompt import (
     CHAT_SYSTEM_PROMPT,
     CODE_SYSTEM_PROMPT,
     build_system_prompt,
-    get_cached_prompt,
 )
+from core.chat_toggle_mixin import ChatToggleMixin
+from core.chat_tool_dispatch import _dispatch_tool_impl
+from core.chat_tool_helpers import merge_tool_calls, sanitize_tool_call_history
+from core.chat_tool_helpers import normalize_tool_args as _normalize_tool_args
+from core.chat_vision import _vision_fallback
+from core.vision_context import VisionContext
 from core.client import CruxClient
 from core.config import get_crux_vision_model
 from core.observability import TraceContext, metrics
@@ -51,9 +53,7 @@ from core.provider import (
     get_vision_models,
 )
 from core.skills import SkillManager, get_manager
-from core.chat_toggle_mixin import ChatToggleMixin
 from core.tools import AGENT_SYSTEM_PROMPT, ToolRegistry, get_registry
-from engines.image_to_image import ImageToImageEngine
 from engines.text_to_image import TextToImageEngine
 from engines.video import VideoEngine
 
@@ -69,50 +69,8 @@ __all__ = [
     "TOOL_CALLING_MODELS",
 ]
 
-# ── System prompt 模块级缓存（委托 chat_prompt.py 管理）──
-_cached_prompt: list[str] = ["", ""]  # 向后兼容旧引用
-
-
-CHAT_SYSTEM_PROMPT = """你是 {provider_name} 智能助手，当前运行在 {model_name} 模型上。你擅长：
-- 日常问答、创意写作、知识解释、方案讨论
-- 当用户明确想生成图片时，调用 generate_image 工具
-- 当用户明确想生成视频/动画时，调用 generate_video 工具
-- 普通对话不要调用任何工具
-
-重要约束：
-- generate_image / generate_video 每轮对话最多调用 1 次，生成后必须立即总结结果给用户
-- 不要在生成后调用对比/评估工具，更不要因评分不理想而重新生成
-- 工具执行成功后，直接用文字回复用户，不要再调用任何工具
-
-风格：简洁、中文优先、回答到位。如果用户询问你使用的模型，直接告知当前运行的是 {model_name}。"""
-
-CODE_SYSTEM_PROMPT = """你是 {provider_name} 编程助手，当前运行在 {model_name} 模型上。
-你是一位资深全栈工程师，擅长：
-- Python、JavaScript/TypeScript、Go、Rust、Java、C/C++ 等主流语言
-- Web 开发（React、Vue、Node.js、FastAPI、Django）
-- 数据库设计、API 设计、系统架构
-- 调试、性能优化、代码审查
-- 所有回答附带完整可运行代码，标注语言
-
-## 工作纪律（探索-计划-执行三段式）
-回答编码任务时遵循以下顺序，简单任务可压缩，但探索段永不可省：
-1. **探索**：先读相关文件理解现状，不凭记忆猜 API 签名和库行为
-2. **计划**：复杂任务用 ≤5 步概述方案，每步可独立验证
-3. **执行**：按计划实施，每步完成后说明"已完成 + 验证方式"
-
-## 核心约束
-- **事实优先**：不确定的 API/配置/默认值，先读代码或文档验证，绝不编造
-- **最小改动**：只改必须改的行，不顺手重构无关代码，不为未来需求过度抽象
-- **完整闭环**：一个任务必须含实现+测试+验证才算完成；修复 error 后必须验证
-- **删除前搜索**：删除函数/变量/文件前，先 grep 全项目确认无引用
-- **失败如实报**：测试失败就报失败，跳过的步骤明说跳过了
-
-## 输出规范
-- 代码块必须标注语言（```python、```javascript 等）
-- 复杂问题分步骤讲解：分析 → 方案 → 代码 → 说明
-- 优先给出最简实现，不过度设计
-- 如需调用图片/视频工具，明确告知用户用 /img 或 /video 命令
-- 如果用户询问你使用的模型，直接告知当前运行的是 {model_name}，由 {provider_name} 提供"""
+# CHAT/CODE prompts from chat_prompt.py (single source of truth)
+# _cached_prompt replaced by chat_prompt.PromptCache
 
 # ── 模型别名 / 信息从 MODEL_REGISTRY 动态派生 ──
 #   resolve_model_alias(name)      → 别名/名 → 模型ID
@@ -136,7 +94,10 @@ def _build_model_aliases() -> dict[str, str]:
         mgr.load()
         pmap = mgr.get_active_models()
         return {k: v for k, v in pmap.items() if k in ("light", "pro")}
-    except Exception:
+    except Exception as e:
+
+        logger.debug("unexpected error: %s", e, exc_info=True)
+
         return {}
 
 
@@ -146,7 +107,10 @@ def _build_model_info() -> dict[str, str]:
         from core.provider import MODEL_REGISTRY
 
         return {mid: info.description for mid, info in MODEL_REGISTRY.items() if info.description}
-    except Exception:
+    except Exception as e:
+
+        logger.debug("unexpected error: %s", e, exc_info=True)
+
         return {}
 
 
@@ -179,25 +143,6 @@ MAX_TOOL_LOOPS = 100
 RATE_LIMIT_FALLBACK_THRESHOLD = 2
 # 429/503 重试最大等待秒数上限（超过立即降级，不阻塞）
 MAX_RATE_LIMIT_WAIT_SECONDS = 10
-
-
-def _normalize_tool_args(args_json: str) -> str:
-    """归一化工具 arguments JSON 字符串，用于语义去重签名。
-
-    解析 JSON → 按 key 排序 → 紧凑序列化，使 {"a":1,"b":2} 与 {"b":2,"a":1}
-    产生相同签名。解析失败时退化为去空白原串（仍能去重明显重复）。
-    """
-    s = (args_json or "").strip()
-    if not s:
-        return ""
-    try:
-        parsed = json.loads(s)
-        if isinstance(parsed, dict):
-            return json.dumps(parsed, sort_keys=True, separators=(",", ":"))
-        return json.dumps(parsed, sort_keys=True, separators=(",", ":"))
-    except (json.JSONDecodeError, TypeError):
-        # 不完整的 JSON 分片（流式中途）：去空白作签名，仍能合并明显重复
-        return "".join(s.split())
 
 
 class ChatSession(ChatToggleMixin):
@@ -258,25 +203,37 @@ class ChatSession(ChatToggleMixin):
         try:
             from core.hooks import register_learning_hooks
             register_learning_hooks()
-        except (ImportError, OSError):
+        except (ImportError, OSError) as e:
+
+            logger.debug("optional module skipped: %s", e)
+
             pass
         # 激活工具拦截器（PreToolUse 安全守卫）
         try:
             from core.tool_interceptor import register_tool_interceptor
             register_tool_interceptor()
-        except (ImportError, OSError):
+        except (ImportError, OSError) as e:
+
+            logger.debug("optional module skipped: %s", e)
+
             pass
         # 启动配置热重载（models.json + tools.json 变更自动生效）
         try:
             from core.settings_watcher import start_watcher
             start_watcher()
-        except (ImportError, OSError):
+        except (ImportError, OSError) as e:
+
+            logger.debug("optional module skipped: %s", e)
+
             pass
         # 激活三层防御（PreCheck + CircuitBreaker + PostValidate + AutoRollback）
         try:
             from core.defense import register_defense_hooks
             register_defense_hooks()
-        except (ImportError, OSError):
+        except (ImportError, OSError) as e:
+
+            logger.debug("optional module skipped: %s", e)
+
             pass
         # 注入会话上下文（git 分支/状态/最近提交）— 仅在代码/Agent 模式下
         if self.code_mode or self.agent_mode:
@@ -286,6 +243,8 @@ class ChatSession(ChatToggleMixin):
                     self.messages[0]["content"] += ctx
             except (OSError, RuntimeError):
                 logger.debug("session context injection failed", exc_info=True)
+        # 视觉上下文管理器（图片持久化 + 按需重查）
+        self.vision_ctx = VisionContext()
 
     def _build_session_context(self) -> str:
         """Build session context string — git branch + status + recent commits.
@@ -314,7 +273,7 @@ class ChatSession(ChatToggleMixin):
                     ["git", "status", "--short"],
                     capture_output=True, text=True, timeout=3, cwd=cwd,
                 )
-                changed = [l.strip() for l in r.stdout.splitlines()[:20] if l.strip()]
+                changed = [line.strip() for line in r.stdout.splitlines()[:20] if line.strip()]
                 if changed:
                     ctx_parts.append(f"changes ({len(changed)}): " + ", ".join(changed[:10]))
             except (OSError, subprocess.TimeoutExpired, subprocess.SubprocessError) as e:
@@ -325,7 +284,7 @@ class ChatSession(ChatToggleMixin):
                     ["git", "log", "--oneline", "-5"],
                     capture_output=True, text=True, timeout=3, cwd=cwd,
                 )
-                commits = [l.strip() for l in r.stdout.splitlines() if l.strip()]
+                commits = [line.strip() for line in r.stdout.splitlines() if line.strip()]
                 if commits:
                     ctx_parts.append("recent: " + "; ".join(commits[:5]))
             except (OSError, subprocess.TimeoutExpired, subprocess.SubprocessError) as e:
@@ -372,7 +331,10 @@ class ChatSession(ChatToggleMixin):
 
             mgr = get_provider_manager()
             return mgr.get_model("light") or "deepseek-v4-flash"
-        except Exception:
+        except Exception as e:
+
+            logger.debug("unexpected error: %s", e, exc_info=True)
+
             return "deepseek-v4-flash"
 
     @property
@@ -428,7 +390,10 @@ class ChatSession(ChatToggleMixin):
                             if new_client.base_url.rstrip("/") == expected_url.rstrip("/"):
                                 self.client = new_client
                         break
-        except Exception:
+        except Exception as e:
+
+            logger.debug("unexpected error: %s", e, exc_info=True)
+
             return tier  # routing failed silently, keep current model
 
         # Switch if different
@@ -557,7 +522,10 @@ class ChatSession(ChatToggleMixin):
         try:
             from core.rules import get_rules
             rules_hash = str(hash(str([r.name for r in get_rules().active_rules])))
-        except (ImportError, OSError):
+        except (ImportError, OSError) as e:
+
+            logger.debug("optional module skipped: %s", e)
+
             pass
 
         prompt = build_system_prompt(
@@ -572,9 +540,7 @@ class ChatSession(ChatToggleMixin):
             chat_light=not self.code_mode,  # 日常聊天跳过大段编程方法论
         )
 
-        # 同步回旧缓存（向后兼容 async_chat.py 的 _cached_prompt 引用）
-        cache = get_cached_prompt()
-        _cached_prompt[:] = [cache.key, cache.prompt]
+        # Prompt cache managed by chat_prompt.PromptCache (single source of truth)
         return prompt
 
     def reset(self):
@@ -660,7 +626,7 @@ class ChatSession(ChatToggleMixin):
             return ("complex", 4096)
         return ("light", 2048)
 
-    def _text_fallback_chain(self) -> list[tuple[str, "CruxClient"]]:
+    def _text_fallback_chain(self) -> list[tuple[str, CruxClient]]:
         """构建主对话 fallback 链（模型 + client 对）。
 
         顺序：当前 (model, client) → fallback provider 的 (model, client)。
@@ -679,7 +645,10 @@ class ChatSession(ChatToggleMixin):
                     try:
                         fallback_client = mgr.create_client(pid)
                         chain.append((mid, fallback_client))
-                    except (OSError, RuntimeError):
+                    except (OSError, RuntimeError) as e:
+
+                        logger.debug("op failed: %s", e)
+
                         pass
             # 同供应商轻量档兜底（如 deepseek-v4-pro → deepseek-v4-flash）
             try:
@@ -692,9 +661,15 @@ class ChatSession(ChatToggleMixin):
                     light_mid = mgr.providers[current_pid].get("models", {}).get("light")
                     if light_mid and light_mid != self.model:
                         chain.append((light_mid, self.client))  # 同 client，不另建
-            except (OSError, RuntimeError):
+            except (OSError, RuntimeError) as e:
+
+                logger.debug("op failed: %s", e)
+
                 pass
-        except (ImportError, OSError, RuntimeError):
+        except (ImportError, OSError, RuntimeError) as e:
+
+            logger.debug("fallback skipped: %s", e)
+
             pass
         return chain
 
@@ -708,112 +683,6 @@ class ChatSession(ChatToggleMixin):
             return False
         return buffer.startswith("[流中断") or buffer.startswith("[HTTP ")
 
-    def _vision_fallback(self, text: str, image_url: str) -> str:
-        """视觉理解调用 + fallback 链（供应商质量优先，CRUX > 智谱）。
-
-        依次尝试 _vision_model_chain(complexity) 中的模型，首个成功即返回；
-        全部失败时返回包含尝试列表的人类可读错误（不抛异常，保证流式不中断）。
-
-        失败原因分类：
-        - KeyError/IndexError: 返回 JSON 结构异常（供应商换了 schema）
-        - OSError/TimeoutError: 网络/超时（最常见，触发下一档 fallback）
-        - RuntimeError: 供应商上游错误
-        """
-        # Vision 复杂度分级：light → 2048 tokens + light tier 首选；
-        #                  complex → 4096 tokens + pro tier 首选 + 推理引导
-        complexity, max_tok = self._classify_vision_complexity(text)
-        chain = self._vision_model_chain(complexity)
-        tried: list[str] = []
-        last_reason = ""
-        vision_text = text
-        if complexity == "complex":
-            # 注入逐步推理引导（不修改用户原始文本，只影响 API 调用）
-            vision_text = f"请仔细观察图片，逐步推理分析：\n{text}"
-        for model_id in chain:
-            tried.append(model_id)
-            # 503 瞬时故障：同模型最多重试 2 次 (backoff 1s/4s)
-            retry_503 = 0
-            while True:
-                try:
-                    # Use provider-aware client: route to correct API endpoint
-                    vc = self.vision_client
-                    model_lower = model_id.lower()
-                    if model_lower.startswith("glm-") or model_lower.startswith("cog"):
-                        try:
-                            from core.provider import get_provider_manager
-                            mgr = get_provider_manager()
-                            vc = mgr.create_client("zhipu")
-                        except (ImportError, RuntimeError, OSError) as e:
-                            last_reason = f"智谱客户端创建失败: {e}"
-                            logger.warning("zhipu client creation failed for model %s: %s", model_id, e)
-                            break  # skip this model, try next in chain
-                    elif model_lower.startswith("agnes-"):
-                        # CRUX/Agnes vision models must route to CRUX API, not main client
-                        try:
-                            from core.provider import get_provider_manager
-                            mgr = get_provider_manager()
-                            vc = mgr.create_client("crux")
-                        except (ImportError, RuntimeError, OSError) as e:
-                            last_reason = f"CRUX客户端创建失败: {e}"
-                            logger.warning("crux client creation failed for model %s: %s", model_id, e)
-                            break
-                    r = vc.chat_multimodal(
-                        text=vision_text,
-                        image_url=image_url,
-                        model=model_id,
-                        max_tokens=max_tok,
-                    )
-                    content = r["choices"][0]["message"]["content"] or ""
-                    # #6 成本追踪：视觉调用按 token 计费（text kind），usage 来自 API 返回
-                    try:
-                        from core.cost_tracker import record_usage
-
-                        record_usage(model=model_id, kind="text", usage=r.get("usage"), label="vision")
-                    except (ImportError, OSError, KeyError, TypeError) as e:
-                        logger.debug("cost_tracker.record_usage(vision) failed: %s: %s", type(e).__name__, e)
-                    return content
-                except httpx.HTTPStatusError as e:
-                    last_reason = f"HTTP {e.response.status_code}: {e}"
-                    logger.warning("vision model %s returned HTTP %s", model_id, e.response.status_code)
-                    metrics.increment("fallback.vision_model")
-                    # 503: 瞬时故障 → 重试同模型（最多 2 次，backoff 1s/4s）
-                    if e.response.status_code == 503 and retry_503 < 2:
-                        retry_503 += 1
-                        import time as _time
-                        _time.sleep(retry_503 * retry_503)
-                        continue  # retry same model
-                    break  # 非 503 或重试耗尽 → 下一个模型
-                except (KeyError, IndexError) as e:
-                    last_reason = f"返回格式异常: {e}"
-                    _r_usage = None
-                    with contextlib.suppress(NameError):
-                        _r_usage = r.get("usage")
-                    if _r_usage:
-                        try:
-                            from core.cost_tracker import record_usage
-                            record_usage(model=model_id, kind="text", usage=_r_usage, label="vision_fail")
-                        except (ImportError, OSError, KeyError, TypeError) as e:
-                            logger.debug("cost_tracker.record_usage(vision_fail) failed: %s: %s", type(e).__name__, e)
-                    break
-                except (OSError, TimeoutError) as e:
-                    last_reason = f"网络/超时: {e}"
-                    metrics.increment("fallback.vision_model")
-                    break
-                except RuntimeError as e:
-                    last_reason = f"上游错误: {e}"
-                    break
-                except Exception as e:
-                    last_reason = f"未知错误({type(e).__name__}): {e}"
-                    logger.exception("vision fallback unexpected error for model %s", model_id)
-                    break
-
-        # 全部失败：返回可读错误，列出已尝试模型与最后原因
-        return (
-            f"(视觉理解失败 · 已尝试 {len(tried)} 个模型: {', '.join(tried)})\n"
-            f"最后错误: {last_reason}\n"
-            "建议：检查网络/供应商 Key，或用 /provider 切换视觉供应商后重试。"
-        )
-
     def send_stream(self, user_text: str, image_url: str | None = None):
         """发送用户消息，流式 yield (kind, payload) 元组。
 
@@ -826,7 +695,10 @@ class ChatSession(ChatToggleMixin):
             from core.hooks import HookType
             from core.hooks import fire as _fire_hook
             _fire_hook(HookType.CHAT_TURN_START, prompt=user_text)
-        except (ImportError, OSError):
+        except (ImportError, OSError) as e:
+
+            logger.debug("optional module skipped: %s", e)
+
             pass
 
         # #6 预算守卫：会话开始时检查今日花费，超限/接近上限仅提示不阻断
@@ -850,34 +722,44 @@ class ChatSession(ChatToggleMixin):
             state.record_step()
             if state.task_level.value in ("complex", "critical"):
                 yield ("info", f"[方法] 任务等级 {state.task_level.name} — {state.summary()}")
-        except (ImportError, OSError):
+        except (ImportError, OSError) as e:
+
+            logger.debug("optional module skipped: %s", e)
+
             pass
 
-        # ── 多模态分支：有图片 → 走独立视觉客户端 ──
+        # ── 多模态分支：有图片 → vision 模型理解 + LLM 推理 ──
         if image_url:
-            self.messages.append(
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": user_text},
-                        {"type": "image_url", "image_url": {"url": image_url}},
-                    ],
-                }
-            )
             try:
-                content = self._vision_fallback(user_text, image_url)
+                vision_raw = self._vision_fallback(user_text, image_url)
             except Exception as e:
                 logger.exception("Vision fallback crashed unexpectedly")
-                content = f"(视觉理解异常: {type(e).__name__}: {e})"
-            self.messages.append({"role": "assistant", "content": content})
-            yield ("text", content)
-            return
+                vision_raw = f"(视觉理解异常: {type(e).__name__}: {e})"
+            # 注册到视觉上下文（持久化图片 + 原始描述，供后续追问重查）
+            self.vision_ctx.register(image_url, vision_raw)
+            # 将 vision 输出作为"系统视觉情报"注入用户消息，替换原始图片 URL
+            user_text = f"[图片分析] {vision_raw}\n\n用户提问: {user_text}"
+            # 不 return，继续走正常 LLM 流式推理
 
         # ── 纯文本分支：加 user message ──
         self.messages.append({"role": "user", "content": user_text})
 
         # Inject relevant past memories as context
         self._inject_memory(user_text)
+
+        # 视觉上下文：后续追问时按需重查 vision 模型
+        if not image_url and self.vision_ctx.active and self.vision_ctx.needs_lookup(user_text):
+            fresh = self.vision_ctx.reask(
+                user_text,
+                lambda t, u: self._vision_fallback(t, u),
+            )
+            if fresh:
+                # 用重查结果覆盖最后一条用户消息
+                augmented = f"[图片局部查询] {fresh}\n\n用户提问: {user_text}"
+                if self.messages and self.messages[-1]["role"] == "user":
+                    self.messages[-1]["content"] = augmented
+                else:
+                    self.messages.append({"role": "user", "content": augmented})
 
         # Multi-model deliberation for complex questions
         from core.cognitive_orchestrator import is_complex
@@ -986,7 +868,10 @@ class ChatSession(ChatToggleMixin):
                         for w in flags:
                             yield ("info", w)
                         get_methodology_state().advance_workflow("verified")
-                except (ImportError, OSError):
+                except (ImportError, OSError) as e:
+
+                    logger.debug("optional module skipped: %s", e)
+
                     pass
                 if (yield from self._try_adversarial_bypass(buffer, user_text, _use_client, _use_model, tools)):
                     return  # bypass 成功，已在内部 yield 结果
@@ -1017,7 +902,7 @@ class ChatSession(ChatToggleMixin):
 
     _WRITE_TOOLS = WRITE_TOOLS
 
-    def _consume_stream_delta(self, client: "CruxClient", model: str, tools):
+    def _consume_stream_delta(self, client: CruxClient, model: str, tools):
         """吃一轮流式 delta，yield text chunks，return (buffer, tool_calls, stream_error, last_usage)。
 
         本方法是纯消费者：把 chat_stream 的增量帧累积成 buffer + tool_calls，
@@ -1144,7 +1029,10 @@ class ChatSession(ChatToggleMixin):
                         get_prompt_lab().record_tool_call()
                         if "[错误]" in str(tool_result) or "error" in str(tool_result).lower():
                             get_prompt_lab().record_tool_error()
-                    except (ImportError, OSError):
+                    except (ImportError, OSError) as e:
+
+                        logger.debug("optional module skipped: %s", e)
+
                         pass
                 # ── 高风险工具确认：同意即执行，拒绝则占位跳过 ──
                 is_confirm = any(k == "confirm" for k, _ in side_effects)
@@ -1210,7 +1098,10 @@ class ChatSession(ChatToggleMixin):
         try:
             from core.methodology import get_methodology_state
             get_methodology_state().advance_workflow("verified")
-        except (ImportError, OSError):
+        except (ImportError, OSError) as e:
+
+            logger.debug("optional module skipped: %s", e)
+
             pass
 
     def _trigger_reflection(self) -> None:
@@ -1262,7 +1153,10 @@ class ChatSession(ChatToggleMixin):
         for level in (3, 6, 9):
             try:
                 modified = apply_technique(user_text, level=level)
-            except Exception:
+            except Exception as e:
+
+                logger.debug("unexpected error: %s", e, exc_info=True)
+
                 continue
 
             if isinstance(modified, list):
@@ -1343,141 +1237,12 @@ class ChatSession(ChatToggleMixin):
             logger.debug('spectrum module not available')
 
 
-def merge_tool_calls(fragments: list[dict]) -> list[dict]:
-    """合并流式 tool_calls 分片（按 index 聚合 name + arguments 字符串）。
-
-    OpenAI 流式把一个 tool_call 拆成多个 delta：
-    [{"index":0,"id":"x","function":{"name":"generate_image","arguments":""}},
-     {"index":0,"function":{"arguments":"{\\"pr"}}, ...]
-    合并成完整 dict。
-
-    契约扩展（输出不重复 DNA · 工具副作用层）：
-    推理模型（DeepSeek V4 Pro 等）会跨"思考/回答"阶段对**同一逻辑工具**
-    发出不同 `index` 的分片，导致下游 dispatch loop 对同一工具多次执行。
-    故在 index 聚合后追加**语义去重**：相同 (name, normalized_arguments)
-    只保留首个完整条目（含 id），其余丢弃。
-
-    模块级函数：同步版 AsyncChatSession 共用此纯计算逻辑。
-    """
-    merged: dict[int, dict] = {}
-    for frag in fragments:
-        idx = frag.get("index", 0)
-        slot = merged.setdefault(
-            idx, {"id": frag.get("id", ""), "type": "function", "function": {"name": "", "arguments": ""}}
-        )
-        if frag.get("id"):
-            slot["id"] = frag["id"]
-        fn = frag.get("function", {}) or {}
-        if fn.get("name"):
-            slot["function"]["name"] += fn["name"]
-        if fn.get("arguments"):
-            slot["function"]["arguments"] += fn["arguments"]
-
-    ordered = [merged[k] for k in sorted(merged.keys())]
-
-    # ── 语义去重：相同 (name, args-signature) 只保留首个 ──
-    # signature 用归一化后的 arguments（去空白 + 排序 key），避免
-    # {"a":1,"b":2} vs {"b":2,"a":1} 被误判为不同调用。
-    seen: set[tuple[str, str]] = set()
-    deduped: list[dict] = []
-    for entry in ordered:
-        name = (entry.get("function", {}).get("name") or "").strip()
-        args_raw = entry.get("function", {}).get("arguments", "") or ""
-        sig = (name, _normalize_tool_args(args_raw))
-        if not name or sig in seen:
-            continue  # 重复逻辑调用，丢弃
-        seen.add(sig)
-        deduped.append(entry)
-    return deduped
-
-
-# 向后兼容：注入 _merge_tool_calls 到已定义的 ChatSession 类上
-ChatSession._merge_tool_calls = staticmethod(merge_tool_calls)
-
-
 # ═══════════════════════════════════════════════════════════════
 # 消息历史安全网 — 清洗孤儿 tool_calls
 # ═══════════════════════════════════════════════════════════════
 
 
 # ── sanitize_tool_call_history 增量缓存 ──
-_sanitize_cache: tuple[int, int, list[dict]] = (0, 0, [])  # (id, len, result)
-
-
-def sanitize_tool_call_history(messages: list[dict]) -> list[dict]:
-    """清洗消息历史中的孤儿 tool_calls，保证发给 API 的消息始终合法。
-
-    OpenAI 兼容 API 要求:含 tool_calls 的 assistant 消息后面必须有对应
-    数量的 role=tool 消息（每个 tool_call_id 匹配一条）。
-    若缺失配对 → API 返回 400 invalid_request_error。
-
-    使用模块级缓存：消息 ID 和长度不变 → 直接返回上次结果，跳过深拷贝。
-    """
-    global _sanitize_cache
-    if not messages:
-        return messages
-
-    current_id = id(messages)
-    current_len = len(messages)
-    cache_id, cache_len, cache_result = _sanitize_cache
-    if current_id == cache_id and current_len == cache_len:
-        return cache_result
-
-    result = [dict(m) for m in messages]
-
-    # 收集所有 assistant 消息中 tool_calls 的 id 集合
-    # 同时找出 assistant→tool 的配对关系
-    assistant_indices: list[int] = []
-    for i, msg in enumerate(result):
-        if msg.get("role") == "assistant" and msg.get("tool_calls"):
-            assistant_indices.append(i)
-
-    # 对每个含 tool_calls 的 assistant，向后数配对的 tool 消息
-    tool_ids_from_assistant: dict[int, set[str]] = {}
-    for ai in assistant_indices:
-        tc_ids = {tc.get("id", "") for tc in result[ai].get("tool_calls", []) if tc.get("id")}
-        tool_ids_from_assistant[ai] = tc_ids
-
-    # 扫描所有 tool 消息，记录它们配对到哪个 assistant
-    tool_msg_indices: list[int] = []
-    tool_msg_matched_to: dict[int, int] = {}  # tool index → assistant index
-    unmatched_tool_indices: set[int] = set()
-
-    for i, msg in enumerate(result):
-        if msg.get("role") == "tool":
-            tool_msg_indices.append(i)
-            tcid = msg.get("tool_call_id", "")
-            # 找最近的、包含此 id 的 assistant
-            matched = False
-            for ai in assistant_indices:
-                if ai >= i:
-                    break  # assistant 在 tool 之后，不可能配对
-                if tcid in tool_ids_from_assistant.get(ai, set()):
-                    tool_msg_matched_to[i] = ai
-                    matched = True
-                    break
-            if not matched:
-                unmatched_tool_indices.add(i)
-
-    # 检测孤儿:含 tool_calls 的 assistant 消息配对不足
-    orphan_assistants: set[int] = set()
-    for ai in assistant_indices:
-        tc_ids = tool_ids_from_assistant[ai]
-        matched_tool_count = sum(1 for _, a in tool_msg_matched_to.items() if a == ai)
-        if matched_tool_count < len(tc_ids):
-            orphan_assistants.add(ai)
-
-    # 构建 result:剥离孤儿 assistant 的 tool_calls,移除 unmatched tool 消息
-    indices_to_remove = set(unmatched_tool_indices)
-    for ai in orphan_assistants:
-        # 剥离 tool_calls，保留 content
-        result[ai] = {k: v for k, v in result[ai].items() if k != "tool_calls"}
-
-    # 移除 unmatched tool 消息
-    cleaned = [msg for i, msg in enumerate(result) if i not in indices_to_remove]
-    # 保存到模块缓存（避免每次 API 调用深拷贝全部消息）
-    _sanitize_cache = (id(messages), len(messages), cleaned)
-    return cleaned
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1489,340 +1254,7 @@ def sanitize_tool_call_history(messages: list[dict]) -> list[dict]:
 # ═══════════════════════════════════════════════════════════════
 
 
-def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = False) -> tuple[str, list[tuple]]:
-    """执行工具，返回 (给模型的文本, 给用户的副作用列表)。
-
-    副作用列表元素: ("info", str) / ("image", dict) / ("video", dict) / ("confirm", dict)
-
-    与命令式路径对齐：均经过 SmartBrain Prompt 增强后再调引擎。
-    支持生命周期 hook（PRE_TOOL_USE / POST_TOOL_USE）和高风险工具确认。
-
-    Args:
-        confirmed: 若 True，跳过高风险工具确认检查（用户已在 UI 层确认）。
-            由 _run_tool_calls 在 confirm 通过后二次调用时传入。
-    """
-    try:
-        args = json.loads(args_json or "{}")
-    except json.JSONDecodeError:
-        args = {}
-
-    # ── 权限分级确认机制（核心：core/permission.py + core/constraints.py）──
-    # PermissionManager 根据当前模式（YOLO/AUTO/MANUAL）决定是否需要确认。
-    # confirmed=True 表示 UI 层已确认，直接执行，不再拦截。
-    if not confirmed:
-        from core.permission import get_permission_manager
-
-        pm = get_permission_manager()
-        if pm.needs_confirmation(name, args):
-            confirm_data = {"tool": name, "args": args, "mode": pm.get_mode_name()}
-            return "", [("confirm", confirm_data)]
-
-    # ── PRE_TOOL_USE hook ──
-    try:
-        from core.hooks import HookType, hook_manager
-
-        pre_evt = hook_manager.fire(HookType.PRE_TOOL_USE, data={"tool_name": name, "args": args})
-        if pre_evt.stop_processing:
-            return "工具调用被拦截（PRE_TOOL_USE hook）", []
-    except (ImportError, OSError):
-        pass  # hooks 模块不可用时静默降级
-
-    prompt = args.get("prompt", "")
-    image_url = args.get("image_url", "") or args.get("image", "")
-    image_urls = args.get("image_urls", []) or []
-    mode = args.get("mode", "")
-
-    # ── Media generation: CRUX client ──
-    gen_client = self.media_client
-
-    if name == "generate_image":
-        # Parse optional params from tool call args
-        size = args.get("size", "1024x768")
-        seed = args.get("seed")
-        system = args.get("system")
-        neg_from_args = args.get("negative_prompt")
-
-        side: list[tuple[str, str | dict]] = [("info", f"正在生成图片: {prompt}")]
-        try:
-            try:
-                r = self.brain.enhance_image_prompt(prompt)
-                fp = r.get("optimized_prompt", prompt)
-                neg = neg_from_args or r.get("negative_prompt", "") or None
-            except (OSError, RuntimeError, TypeError, ValueError, KeyError) as e:
-                logger.debug("brain.enhance_image_prompt failed: %s: %s", type(e).__name__, e)
-                fp, neg = prompt, neg_from_args
-
-            if system:
-                fp = f"[{system}] {fp}"
-
-            if image_urls:
-                i2i = ImageToImageEngine(gen_client)
-                data = i2i.edit(prompt=fp, image_urls=image_urls, size=size)
-            elif image_url:
-                from utils import image_input
-                url = image_input.load_image_as_url_or_data(image_url)
-                i2i = ImageToImageEngine(gen_client)
-                data = i2i.edit(prompt=fp, image_urls=url, size=size)
-            else:
-                t2i = TextToImageEngine(gen_client)
-                data = t2i.generate(prompt=fp, size=size, seed=seed, negative_prompt=neg)
-            side.append(("image", data))
-            try:
-                from core.cost_tracker import record_usage
-                record_usage(model="agnes-image-2.1-flash", kind="image", label="generate_image", call_count=1)
-            except (ImportError, OSError) as e:
-                logger.debug("cost_tracker.record_usage(image) failed: %s: %s", type(e).__name__, e)
-            return f"图片已生成并保存: {data.get('local_path', '')}", side
-        except (OSError, RuntimeError, TypeError, ValueError, KeyError) as e:
-            return f"图片生成失败: {e}", side
-
-    if name == "generate_video":
-        # Parse optional params from tool call args
-        size_str = args.get("size", "1152x768")
-        num_frames = args.get("num_frames", 121)
-        seed = args.get("seed")
-        system = args.get("system")
-        neg_from_args = args.get("negative_prompt")
-        # Parse WxH from size string
-        try:
-            w_str, h_str = size_str.split("x")
-            w, h = int(w_str), int(h_str)
-        except (ValueError, AttributeError):
-            w, h = 1152, 768
-
-        side: list[tuple[str, str | dict]] = [("info", f"正在生成视频（可能需几分钟）: {prompt}")]
-        try:
-            try:
-                r = self.brain.enhance_video_prompt(prompt)
-                fp = r.get("optimized_prompt", prompt)
-                neg = neg_from_args or r.get("negative_prompt", "") or None
-            except (OSError, RuntimeError, TypeError, ValueError, KeyError) as e:
-                logger.debug("brain.enhance_video_prompt failed: %s: %s", type(e).__name__, e)
-                fp, neg = prompt, neg_from_args
-
-            if system:
-                fp = f"[{system}] {fp}"
-
-            frame_rate = args.get("frame_rate", 24)
-            if mode == "keyframes" and image_urls:
-                data = self.vid.keyframe_animation(
-                    prompt=fp, image_urls=image_urls, width=w, height=h,
-                    num_frames=num_frames, frame_rate=frame_rate,
-                    negative_prompt=neg, timeout=120.0,
-                )
-            elif image_urls:
-                data = self.vid.multi_image_video(
-                    prompt=fp, image_urls=image_urls, width=w, height=h,
-                    num_frames=num_frames, frame_rate=frame_rate,
-                    negative_prompt=neg, timeout=120.0,
-                )
-            elif image_url:
-                from utils import image_input
-                url = image_input.load_image_as_url_or_data(image_url)
-                data = self.vid.image_to_video(
-                    prompt=fp, image_url=url, width=w, height=h,
-                    num_frames=num_frames, frame_rate=frame_rate,
-                    negative_prompt=neg, timeout=120.0,
-                )
-            else:
-                data = self.vid.text_to_video(
-                    prompt=fp, width=w, height=h, num_frames=num_frames,
-                    frame_rate=frame_rate, negative_prompt=neg, timeout=120.0,
-                )
-
-            side.append(("video", data))
-            try:
-                from core.cost_tracker import record_usage
-                record_usage(model="agnes-video-v2.0", kind="video", label="generate_video", call_count=1)
-            except (ImportError, OSError) as e:
-                logger.debug("cost_tracker.record_usage(video) failed: %s: %s", type(e).__name__, e)
-            if data.get("status") == "timeout":
-                vid = data.get("video_id", "")
-                pct = data.get("progress", 0)
-                return (f"视频生成超时（进度 {pct:.0f}%），请稍后用 video_id={vid} 查询状态"), side
-            return f"视频已生成: {data.get('local_path', '')}", side
-        except (OSError, RuntimeError, TypeError, ValueError, KeyError) as e:
-            return f"视频生成失败: {e}", side
-
-    if name == "multi_agent":
-        goal = args.get("goal", "")
-        side: list[tuple[str, str | dict]] = [("info", f"正在启动多智能体协调: {goal}")]
-        try:
-            from core.multi_agent import coordinate
-
-            def _tool_exec(tool, tool_args):
-                if self.tools.has(tool):
-                    return self.tools.execute(tool, tool_args)
-                return f"[multi_agent] 工具 {tool} 不可用"
-
-            result = coordinate(goal, _tool_exec)
-            summary = (
-                f"多智能体协调完成: {result['tasks_done']}/{result['tasks_total']} 任务成功, 耗时 {result['elapsed']}s"
-            )
-            if result["tasks_failed"]:
-                summary += f", {result['tasks_failed']} 失败"
-            return summary, side
-        except (RuntimeError, OSError, ValueError) as e:
-            return f"多智能体协调失败: {e}", side
-
-    # ── TRM 工具路由 (Tool Registry Mesh) ──
-    if name == "trm_tune":
-        try:
-            from core.growth_engine import get_growth_engine
-            ge = get_growth_engine()
-            do_apply = args.get("apply", False)
-            result = ge.auto_tune(apply=do_apply)
-            bottlenecks = ge.detect_bottlenecks()
-            suggestions = ge.suggest_improvements()
-
-            lines = ["CRUX Self-Optimization Results", "=" * 40]
-            lines.append(f"Total calls analyzed: {ge._total_calls_ever}")
-
-            if result.get("applied"):
-                lines.append(f"\nApplied changes ({len(result['applied'])}):")
-                for change in result["applied"]:
-                    lines.append(f"  + {change['action']}: {change.get('intent','')}/{change.get('tool','')}")
-                    if "new_order" in change:
-                        lines.append(f"    -> {' > '.join(change['new_order'])}")
-
-            if not do_apply:
-                lines.append("\n[Dry run — use apply=true to commit changes]")
-
-            if bottlenecks:
-                lines.append(f"\nBottlenecks ({len(bottlenecks)}):")
-                for b in bottlenecks[:3]:
-                    lines.append(f"  ! [{b['severity']}] {b['intent']}/{b['tool']}: {', '.join(b['reasons'])}")
-
-            if suggestions:
-                lines.append("\nSuggestions:")
-                for s in suggestions:
-                    lines.append(f"  ? {s}")
-
-            return "\n".join(lines), []
-        except Exception as e:
-            return f"Auto-tune error: {e}", []
-
-    if name == "trm_growth":
-        try:
-            from core.growth_engine import get_growth_engine
-            ge = get_growth_engine()
-            if args.get("reset"):
-                ge.reset()
-                return "Growth data reset.", []
-            intent_filter = args.get("intent", "")
-            if intent_filter and intent_filter in ge.intents:
-                is_ = ge.intents[intent_filter]
-                lines = [f"Growth — [{intent_filter}] ({is_.total_calls} calls)"]
-                for ts in is_.ordered_tools:
-                    status = "D" if ts.demoted else "✓"
-                    lines.append(
-                        f"  {status} {ts.tool}: {ts.success_rate:.0%} success, "
-                        f"{ts.avg_latency_ms:.0f}ms avg, {ts.calls} calls"
-                        + (f" (CF:{ts.consecutive_failures})" if ts.consecutive_failures else "")
-                    )
-                return "\n".join(lines), []
-            return ge.get_summary(), []
-        except Exception as e:
-            return f"Growth engine error: {e}", []
-
-    if name == "trm_catalog":
-        try:
-            from core.tool_registry_mesh import CATEGORY_META, get_trm
-            trm = get_trm()
-            trm.discover_all(timeout=5.0)
-            cat_filter = args.get("category", "")
-            src_filter = args.get("source", "")
-            tools_found = trm.find(category=cat_filter, source=src_filter)
-            lines = [
-                f"TRM Catalog — {len(tools_found)} tools",
-                f"Sources: {trm.sources}",
-                f"Categories: {trm.categories}",
-            ]
-            for intent, meta in sorted(CATEGORY_META.items()):
-                available = [t for t in meta["order"] if t in trm._tools or "*" in t]
-                lines.append(f"\n  [{intent}] {meta['desc']}")
-                lines.append(f"    路由: {' → '.join(available) if available else '(none)'}")
-            lines.append("\n--- Tools ---")
-            for t in sorted(tools_found, key=lambda x: (x.category, x.name)):
-                desc = t.description[:80].replace("\n", " ")
-                lines.append(f"  [{t.category}] {t.name} ({t.source}) — {desc}")
-            return "\n".join(lines), []
-        except Exception as e:
-            return f"TRM catalog error: {e}", []
-
-    if name == "trm_route":
-        intent = args.get("intent", "")
-        if not intent:
-            return "trm_route requires 'intent' parameter (search/review/execute/think/generate/status)", []
-        try:
-            from core.tool_registry_mesh import get_trm
-            trm = get_trm()
-            trm.discover_all(timeout=5.0)
-            # Build kwargs by picking the most relevant field
-            route_kwargs = {}
-            if args.get("query"):
-                route_kwargs["query"] = args["query"]
-            if args.get("prompt"):
-                route_kwargs["prompt"] = args["prompt"]
-            if args.get("target"):
-                route_kwargs["target"] = args["target"]
-            if args.get("plan"):
-                route_kwargs["prompt"] = args["plan"]
-            if args.get("work_dir"):
-                route_kwargs["work_dir"] = args["work_dir"]
-            if args.get("timeout"):
-                route_kwargs["timeout"] = args["timeout"]
-            # Default: use prompt/query as fallback
-            if not route_kwargs:
-                route_kwargs["prompt"] = args.get("query") or args.get("prompt") or intent
-
-            result = trm.route(intent, **route_kwargs)
-            summary = (
-                f"TRM Route [{intent}] → {result.tool} ({result.source}) "
-                f"[{'fallback' if result.fallback_used else 'primary'}] "
-                f"({result.latency_ms:.0f}ms)\n"
-            )
-            if result.error:
-                summary += f"Error: {result.error}\n"
-            if result.result:
-                summary += f"Result: {json.dumps(result.result, ensure_ascii=False, default=str)[:2000]}"
-            return summary, [("info", f"Routed to {result.tool}")]
-        except Exception as e:
-            return f"TRM route error: {e}", []
-
-    # 外部工具（tools.json 中定义）→ 通过 ToolRegistry 执行
-    if self.tools.has(name):
-        # 中间状态可见：耗时工具先提示
-        from core.constraints import LONG_RUNNING_TOOLS
-
-        _LONG_RUNNING = LONG_RUNNING_TOOLS
-        side: list[tuple[str, str | dict]] = []
-        if name in _LONG_RUNNING:
-            side.append(("info", f"正在执行 {name}..."))
-        result = self.tools.execute(name, args)
-
-        # POST_TOOL_USE hook：验证 / 回滚 / 学习
-        try:
-            from core.hooks import HookType, hook_manager
-
-            # NEW (#4): 标记 error key，供反思引擎优先分析失败序列
-            is_error = isinstance(result, str) and result.startswith("[错误]")
-            post_evt = hook_manager.fire(
-                HookType.POST_TOOL_USE,
-                data={"tool_name": name, "args": args, "result": result, "error": is_error},
-            )
-            # hook 可能改写 result（如追加语法错误提示）
-            if isinstance(post_evt.result, str) and post_evt.result:
-                result = post_evt.result
-        except (ImportError, OSError):
-            logger.debug('spectrum module not available')
-
-        side.append(("info", f"工具 {name} 执行完成"))
-        return result, side
-
-    return f"未知工具: {name}", []
-
-
-# 注入到 ChatSession（两个名字：_dispatch_tool 是内部调用名，_dispatch_tool_impl 供 MCP server 使用）
 ChatSession._dispatch_tool = _dispatch_tool_impl
 ChatSession._dispatch_tool_impl = _dispatch_tool_impl
+
+ChatSession._vision_fallback = _vision_fallback

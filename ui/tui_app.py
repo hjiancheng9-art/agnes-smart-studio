@@ -21,7 +21,6 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout import HSplit, Layout, Window
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
-from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.processors import BeforeInput
 
 from ui.clipboard_image import detect_drag_images, get_clipboard_image, is_image_path
@@ -61,11 +60,11 @@ class TuiApp:
         self._last_invalidate = 0.0  # throttle rendering during streaming
 
         self.message_pane = MessagePane()
-        self.status_bar = StatusBar(model=session.model, cwd=Path.cwd())
+        self.status_bar = StatusBar(model_fn=lambda: self.session.model, cwd=Path.cwd())
 
         self._history = InMemoryHistory()
         self.input_buffer = Buffer(
-            multiline=True,
+            multiline=False,
             accept_handler=self._on_accept,
             history=self._history,
         )
@@ -76,20 +75,27 @@ class TuiApp:
         def _(event):
             event.app.exit()
 
-        @self.kb.add("c-j")  # Ctrl+J: submit multiline input
+        @self.kb.add("escape", "c-m")  # Alt+Enter: insert newline
+        @self.kb.add("c-j")  # Ctrl+J: insert newline (alternative)
         def _(event):
             buf = self.input_buffer
-            if buf.text.strip():
-                buf.validate_and_handle()
+            buf.insert_text("\n")
 
         @self.kb.add("c-v")
         def _(event):
-            # Try clipboard image first (WeChat screenshot, etc.)
             img_path = get_clipboard_image()
             if img_path:
                 self._send_image(img_path)
             else:
                 self.input_buffer.paste_from_clipboard(event.app.clipboard.get_data())
+
+        @self.kb.add("c-y")  # Ctrl+Y: copy last response to clipboard
+        def _(event):
+            texts = [t for style, t in self.message_pane._lines if '[CRUX]' in t]
+            if texts:
+                last = texts[-1].replace('[CRUX] ', '')
+                event.app.clipboard.set_data(last)
+                self.message_pane.append_info("已复制到剪贴板")
 
         @self.kb.add("escape")
         def _(event):
@@ -211,7 +217,7 @@ class TuiApp:
             # Activity zone (tool calls, thinking steps, status)
             activity_window,
             # Input
-            Window(content=input_ctrl, height=1, style="class:input-field"),
+            Window(content=input_ctrl, height=lambda: min(10, max(1, 1 + self.input_buffer.text.count('\n'))), style="class:input-field"),
             # Status bar
             Window(
                 content=FormattedTextControl(lambda: self.status_bar.render()),
@@ -427,7 +433,7 @@ class TuiApp:
             else:
                 fn()
         except Exception:
-            _log.debug("TUI _ui callback failed", exc_info=True)
+            _log.warning("TUI _ui callback failed", exc_info=True)
         try:
             if self._app and self._app.is_running:
                 now = time.monotonic()
@@ -436,7 +442,7 @@ class TuiApp:
                     self._last_invalidate = now
                     self._app.invalidate()
         except Exception:
-            _log.debug("TUI _ui invalidate failed", exc_info=True)
+            _log.warning("TUI _ui invalidate failed", exc_info=True)
 
     def _refresh_status(self):
         self.status_bar.set_model(self.session.model)
@@ -445,7 +451,7 @@ class TuiApp:
             chars = sum(len(str(m.get("content", ""))) for m in self.session.messages)
             self.status_bar.set_context(int(chars * 0.4), 128000)
         except Exception:
-            pass
+            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
         self.status_bar.refresh()
 
     def run(self):

@@ -88,6 +88,7 @@ COMMANDS: list[CommandDef] = [
     CommandDef(
         "help", "/help", "", "显示本帮助（/help /all 完整列表）", "对话", aliases=("all",), handler="_chat_help_inline"
     ),
+    CommandDef("status", "/status", "", "系统健康状态", "对话", handler="_chat_status"),
     CommandDef(
         "vote", "/vote", "on|off", "多模型表决开关（复杂问题自动并行咨询多个AI）", "对话", handler="_chat_vote_toggle"
     ),
@@ -143,6 +144,11 @@ COMMANDS: list[CommandDef] = [
     CommandDef(
         "know", "/know", "<cmd>", "浏览内置知识库 (methods/templates/domain)", "诊断配置", handler="_chat_knowledge"
     ),
+    CommandDef("health", "/health", "", "工具质量评分 + 系统健康面板", "诊断配置", handler="_chat_health"),
+    CommandDef("rollback", "/rollback", "", "回滚最近一次代码修改", "诊断配置", handler="_chat_rollback"),
+    CommandDef("copy", "/copy", "[N]", "复制最近N条对话到剪贴板 (Ctrl+Y)", "对话", handler="_chat_copy"),
+    CommandDef("trends", "/trends", "[cost|tools|quality]", "历史趋势分析（消费/工具健康/质量）", "诊断配置", handler="_chat_trends"),
+    CommandDef("docs", "/docs", "[help|agents|manifest|all]", "从代码自动生成文档", "诊断配置", handler="_chat_docs"),
     CommandDef(
         "prompt_stats",
         "/prompt-stats",

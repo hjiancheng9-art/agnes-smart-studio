@@ -1,0 +1,10 @@
+    if shutil.get_terminal_size().lines < 10:
+        print("Terminal too small (need >=10 rows). Falling back to plain text mode.")
+        _chat_plain_session(session, cli, wire, session_id)
+        return
+
+    # ── Launch TUI (v2: Seven Beasts Command Center) ──
+    try:
+        from ui.tui_v2 import TuiAppV2
+
+        app = TuiAppV2(session, cli, session_wire=wire, startup_banner=banner)

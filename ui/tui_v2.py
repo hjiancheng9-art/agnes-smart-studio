@@ -1,0 +1,757 @@
+"""CRUX TUI v2 — Seven Beasts Command Center.
+
+Terminal-aesthetic AI chat interface featuring:
+- Seven Beasts themed color system (虎/龙/雀/武/麟/蛇/翼)
+- Pixel-art welcome screen integrated into message area
+- Animated braille spinner activity bar
+- Collapsible thinking panel for model reasoning
+- Box-drawing message bubbles
+- Multi-line input with command completion
+
+Architecture:
+  Reuses MessagePane (ui/message_pane.py) and StatusBar (ui/status_bar.py)
+  unchanged, composing them into a richer visual layout.
+"""
+
+from __future__ import annotations
+
+import concurrent.futures
+import contextlib
+import io
+import logging
+import os
+import shutil
+import sys
+import threading
+import time
+import traceback
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from prompt_toolkit import Application
+from prompt_toolkit.buffer import Buffer
+from prompt_toolkit.formatted_text import FormattedText
+from prompt_toolkit.history import InMemoryHistory
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.keys import Keys
+from prompt_toolkit.layout import HSplit, Layout, Window
+from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
+from prompt_toolkit.layout.processors import BeforeInput
+
+# ── Static imports (avoid per-frame re-import) ──
+from core.version import __version__ as _CRUX_VERSION
+from ui.clipboard_image import detect_drag_images, get_clipboard_image, is_image_path
+from ui.message_pane import MessagePane
+from ui.status_bar import StatusBar
+from ui.theme_v2 import build_style_v2
+from ui.widgets_v2 import Spinner, ThinkingPanel, build_welcome_formatted, context_bar
+
+try:
+    from core.methodology import get_methodology_state as _get_methodology_state
+except ImportError:
+    _get_methodology_state = None  # type: ignore[assignment]
+
+if TYPE_CHECKING:
+    from core.chat import ChatSession
+    from core.cli_handlers import CruxCLI
+
+logger = logging.getLogger("crux.tui_v2")
+
+
+def _tw() -> int:
+    try:
+        return max(shutil.get_terminal_size().columns, 40)
+    except Exception:
+        return 80
+
+
+class TuiAppV2:
+    """Seven Beasts Command Center — redesigned terminal TUI.
+
+    Layout (top → bottom):
+      ╔ Header Bar ╗  — CRUX branding, model, latency
+      ║ Messages  ║  — chat bubbles + welcome screen (empty state)
+      ║ Thinking  ║  — collapsible model reasoning panel
+      ║ Activity  ║  — animated tool execution status bar
+      ║ Input     ║  — framed input box with command hints
+      ╚ Status    ╝  — model, git, methodology level, context bar
+    """
+
+    def __init__(
+        self,
+        session: ChatSession,
+        cli: CruxCLI,
+        *,
+        session_wire=None,
+        startup_banner: str = "",
+    ) -> None:
+        self.session = session
+        self.cli = cli
+        self.wire = session_wire
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+        self._thinking = False
+        self._streaming = False
+        self._last_invalidate = 0.0
+        self._latency: float | None = None
+        self._state_lock = threading.Lock()
+
+        # ── Cached values (updated in _refresh_status, read by render) ──
+        self._cached_git = ""
+        self._cached_ctx_pct = 0.0
+
+        # ── Core components ──
+        self.message_pane = MessagePane()
+        self.status_bar = StatusBar(model=session.model, cwd=Path.cwd())
+        self.thinking_panel = ThinkingPanel()
+
+        # ── Activity log: [(icon, style_class, message), ...] ──
+        self._activity_log: list[tuple[str, str, str]] = []
+
+        # ── Spinner ──
+        self._spinner = Spinner(on_tick=self._on_spinner_tick)
+
+        # ── Welcome screen ──
+        self._setup_welcome()
+
+        # ── Input ──
+        self._history = InMemoryHistory()
+        self.input_buffer = Buffer(
+            multiline=True,
+            accept_handler=self._on_accept,
+            history=self._history,
+        )
+
+        # ── Key bindings ──
+        self.kb = self._setup_keybindings()
+
+        # ── Build app ──
+        self._app = self._make_app()
+
+        # Welcome screen replaces banner — see _setup_welcome()
+
+    # ══════════════════════════════════════════════════════════════
+    #  Welcome screen setup
+    # ══════════════════════════════════════════════════════════════
+
+    def _setup_welcome(self) -> None:
+        """Configure the welcome screen as the message pane's empty state."""
+        model_name = self.session.model
+        cwd = str(Path.cwd())
+        branch = ""
+        try:
+            import subprocess
+            r = subprocess.run(
+                ["git", "branch", "--show-current"],
+                capture_output=True, text=True, timeout=2,
+            )
+            branch = r.stdout.strip()
+        except Exception:
+            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+
+        def _welcome_renderer() -> FormattedText:
+            return build_welcome_formatted(
+                model_name=model_name,
+                cwd=cwd,
+                branch=branch,
+            )
+
+        self.message_pane.set_empty_renderer(_welcome_renderer)
+
+    # ══════════════════════════════════════════════════════════════
+    #  Key bindings
+    # ══════════════════════════════════════════════════════════════
+
+    def _setup_keybindings(self) -> KeyBindings:
+        kb = KeyBindings()
+
+        @kb.add("c-c")
+        def _(event):
+            event.app.exit()
+
+        @kb.add("escape", "c-m")  # Alt+Enter: insert newline
+        @kb.add("c-j")            # Ctrl+J: insert newline (alternative)
+        def _(event):
+            self.input_buffer.insert_text("\n")
+
+        @kb.add("enter")
+        def _(event):
+            """Enter: submit message. Alt+Enter / Ctrl+J to insert newline."""
+            event.current_buffer.validate_and_handle()
+
+        @kb.add("c-v")
+        def _(event):
+            img_path = get_clipboard_image()
+            if img_path:
+                self._send_image(img_path)
+            else:
+                self.input_buffer.paste_from_clipboard(event.app.clipboard.get_data())
+
+        @kb.add("escape", "escape")  # Double-Escape: clear input (avoids Alt+Enter conflict)
+        def _(event):
+            self.input_buffer.reset()
+            event.app.invalidate()
+
+        @kb.add("c-l")
+        def _(event):
+            self.message_pane.clear()
+            self._activity_log.clear()
+            self.thinking_panel.clear()
+            event.app.invalidate()
+
+        @kb.add("c-t")
+        def _(event):
+            """Toggle thinking panel pin state."""
+            self.thinking_panel.toggle_pin()
+            event.app.invalidate()
+
+        @kb.add("c-k")
+        def _(event):
+            """Clear current input."""
+            self.input_buffer.reset()
+            event.app.invalidate()
+
+        @kb.add("f11")
+        def _(event):
+            renderer = event.app.renderer
+            renderer.full_screen = not renderer.full_screen
+            if not renderer.full_screen and renderer._in_alternate_screen:
+                renderer.output.quit_alternate_screen()
+                renderer._in_alternate_screen = False
+            event.app.renderer.reset(
+                leave_alternate_screen=not renderer.full_screen
+            )
+            event.app.invalidate()
+
+        @kb.add("pageup")
+        def _(event):
+            self.message_pane.scroll_page_up()
+            event.app.invalidate()
+
+        @kb.add("pagedown")
+        def _(event):
+            self.message_pane.scroll_page_down()
+            event.app.invalidate()
+
+        # Note: plain Home/End are consumed by the multiline Buffer for cursor
+        # movement. Use Ctrl+Home / Ctrl+End to jump to top/bottom instead.
+
+        @kb.add("c-home")
+        def _(event):
+            self.message_pane.scroll_to_top()
+            event.app.invalidate()
+
+        @kb.add("c-end")
+        def _(event):
+            self.message_pane.scroll_to_bottom()
+            event.app.invalidate()
+
+        @kb.add(Keys.ScrollUp)
+        def _(event):
+            self.message_pane.scroll_up(5)
+            event.app.invalidate()
+
+        @kb.add(Keys.ScrollDown)
+        def _(event):
+            self.message_pane.scroll_down(5)
+            event.app.invalidate()
+
+        return kb
+
+    # ══════════════════════════════════════════════════════════════
+    #  Layout
+    # ══════════════════════════════════════════════════════════════
+
+    def _make_app(self) -> Application:
+        # ── Header Bar ──
+        def _header_content():
+            tw = _tw()
+            left = f" ◈ CRUX Studio v{_CRUX_VERSION}"
+            model = self.session.model or "CRUX"
+            right = f"{model}  ⚡ ttft:{self._latency:.1f}s " if self._latency is not None else f"{model}  ⚡ ready "
+            # Pad between left logo and right model+latency
+            pad = max(1, tw - len(left) - len(right))
+            pieces: list[tuple[str, str]] = [
+                ("class:header-logo", left),
+                ("class:header-sep", "─" * pad),
+                ("class:header-latency", right),
+            ]
+            return FormattedText(pieces)
+
+        header_window = Window(
+            content=FormattedTextControl(_header_content),
+            height=1,
+            style="class:header-bar",
+            always_hide_cursor=True,
+        )
+
+        # ── Header separator ──
+        def _header_sep():
+            return FormattedText([("class:header-sep", "╠" + "═" * (_tw() - 2) + "╣")])
+
+        header_sep_window = Window(
+            content=FormattedTextControl(_header_sep),
+            height=1,
+            style="class:header-bar",
+            always_hide_cursor=True,
+        )
+
+        # ── Thinking Panel (between messages and activity) ──
+        def _thinking_content():
+            return self.thinking_panel.render(_tw())
+
+        thinking_window = Window(
+            content=FormattedTextControl(_thinking_content),
+            height=lambda: self.thinking_panel.height(_tw()),
+            style="class:message-area",
+            always_hide_cursor=True,
+            dont_extend_height=True,
+        )
+
+        # ── Activity Bar ──
+        def _activity_content():
+            if not self._activity_log:
+                return FormattedText([])
+            with self._state_lock:
+                log_snapshot = list(self._activity_log)
+            tw = _tw()
+            spinner_char = self._spinner.current if self._spinner.running else " "
+            pieces: list[tuple[str, str]] = []
+            # Build single-line activity status
+            has_running = False
+            line = ""
+            for icon, _style_class, msg in log_snapshot:
+                if "●" in icon:
+                    has_running = True
+                    tag = f"{spinner_char} {msg}"
+                else:
+                    tag = f"{icon} {msg}"
+                line += f" {tag} ·"
+            line = line.rstrip(" ·")
+            if len(line) > tw:
+                line = line[: tw - 3] + "…"
+            # Color based on content
+            has_running = any("●" in icon for icon, _, _ in log_snapshot)
+            has_error = any("✗" in icon for icon, _, _ in log_snapshot)
+            if has_running:
+                pieces.append(("class:activity-spinner", line))
+            elif has_error:
+                pieces.append(("class:activity-fail", line))
+            else:
+                pieces.append(("class:activity-done", line))
+            return FormattedText(pieces)
+
+        activity_window = Window(
+            content=FormattedTextControl(_activity_content),
+            height=lambda: 1 if self._activity_log else 0,
+            style="class:message-area",
+            always_hide_cursor=True,
+        )
+
+        # ── Activity separator ──
+        def _activity_sep():
+            if not self._activity_log:
+                return FormattedText([])
+            return FormattedText([("class:input-border", "─" * _tw())])
+
+        activity_sep_window = Window(
+            content=FormattedTextControl(_activity_sep),
+            height=lambda: 1 if self._activity_log else 0,
+            style="class:input-border",
+            always_hide_cursor=True,
+        )
+
+        # ── Input Box ──
+        def _input_prompt():
+            return f"║ {'*' if self._thinking else '>'} "
+
+        input_ctrl = BufferControl(
+            buffer=self.input_buffer,
+            input_processors=[BeforeInput(_input_prompt)],
+            focusable=True,
+        )
+
+        # We need dynamic height for multiline input; count newlines + 1
+        def _input_height():
+            text = self.input_buffer.text
+            n_lines = text.count("\n") + 1
+            return min(max(1, n_lines), 8)  # cap at 8 lines
+
+        input_window = Window(
+            content=input_ctrl,
+            height=_input_height,
+            style="class:input-field",
+        )
+
+        # ── Input border (bottom of input frame) ──
+        def _input_bottom():
+            tw = _tw()
+            hint = " Enter 发送 │ Alt+Enter 换行 │ 鼠标/PgUp 滚屏 "
+            hint_vis = 46
+            bars_count = max(0, tw - hint_vis - 2)
+            bars = "─" * bars_count
+            return FormattedText([
+                ("class:input-border", f"╚{bars}"),
+                ("class:welcome-desc", hint),
+                ("class:input-border", "╝"),
+            ])
+
+        input_bottom_window = Window(
+            content=FormattedTextControl(_input_bottom),
+            height=1,
+            style="class:input-border",
+            always_hide_cursor=True,
+        )
+
+        # ── Status Bar ──
+        def _status_content():
+            return self._build_status()
+
+        status_window = Window(
+            content=FormattedTextControl(_status_content),
+            height=1,
+            style="class:status-bar",
+            always_hide_cursor=True,
+        )
+
+        # ── Assemble layout ──
+        root = HSplit([
+            header_window,
+            header_sep_window,
+            self.message_pane.pane,       # Messages + Welcome (weight=1)
+            thinking_window,              # Thinking (0-N, conditional)
+            activity_sep_window,          # Separator above activity
+            activity_window,              # Activity (0-1, conditional)
+            input_window,                 # Input (1-8)
+            input_bottom_window,          # Input frame bottom
+            status_window,                # Status (1)
+        ])
+
+        return Application(
+            layout=Layout(root),
+            key_bindings=self.kb,
+            style=build_style_v2(),
+            full_screen=True,
+            mouse_support=True,
+        )
+
+    # ══════════════════════════════════════════════════════════════
+    #  Status bar (enhanced with context bar)
+    # ══════════════════════════════════════════════════════════════
+
+    def _build_status(self) -> FormattedText:
+        tw = _tw()
+
+        # Left: model
+        model_str = self.session.model or "CRUX"
+        model_display = f" {model_str}"
+
+        # Middle-left: CWD
+        cwd_str = str(Path.cwd())
+        home = os.path.expanduser("~")
+        if cwd_str.startswith(home):
+            cwd_str = "~" + cwd_str[len(home):]
+
+        # Middle: git branch + diff (cached; refreshed on status update)
+        git_str = self._cached_git
+
+        # Right: methodology level + context bar
+        right_parts: list[tuple[str, str]] = []
+        if _get_methodology_state is not None:
+            try:
+                ms = _get_methodology_state()
+                level_map = {"micro": "A", "normal": "B", "complex": "C", "critical": "D"}
+                level = level_map.get(ms.task_level.value, "")
+                if level:
+                    style_map = {"A": "class:status-bar-level-a", "B": "class:status-bar-level-b",
+                                 "C": "class:status-bar-level-c", "D": "class:status-bar-level-d"}
+                    right_parts.append((style_map.get(level, "class:status-bar"), f"[{level}]"))
+            except Exception:
+                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+
+        # Context bar (cached)
+        bar = context_bar(self._cached_ctx_pct, width=10)
+        right_parts.append(("class:status-bar-context", f" ctx:{bar} {self._cached_ctx_pct:.0f}%"))
+
+        # Latency
+        if self._latency is not None:
+            right_parts.append(("class:status-bar-context", f" ttft:{self._latency:.1f}s"))
+
+        # Assemble
+        pieces: list[tuple[str, str]] = [
+            ("class:status-bar-model", model_display),
+            ("class:status-bar-path", f"  {cwd_str}"),
+        ]
+        if git_str:
+            pieces.append(("class:status-bar-git", git_str))
+
+        # Calculate padding
+        visible_len = len(model_display) + 2 + len(cwd_str) + len(git_str)
+        right_text = " ".join(t for _, t in right_parts)
+        visible_len += len(right_text) + 2
+        pad = max(1, tw - visible_len)
+        pieces.append(("class:status-bar", " " * pad))
+
+        for style, text in right_parts:
+            pieces.append((style, f" {text}"))
+
+        return FormattedText(pieces)
+
+    # ══════════════════════════════════════════════════════════════
+    #  Input handling
+    # ══════════════════════════════════════════════════════════════
+
+    def _on_accept(self, buf: Buffer) -> bool:
+        text = buf.text.strip()
+        buf.reset()
+        if not text:
+            return True
+
+        # ── Drag-drop image detection ──
+        drag_images = detect_drag_images(text)
+        if drag_images and len(drag_images) == 1:
+            self._send_image(drag_images[0])
+            return True
+        if drag_images:
+            for img in drag_images:
+                self._send_image(img)
+            return True
+
+        # ── Single image path ──
+        single_path = is_image_path(text)
+        if single_path:
+            self._send_image(single_path)
+            return True
+
+        # ── Quit ──
+        if text in ("/q", "/quit", "/exit"):
+            self._app.exit()
+            return True
+
+        # ── Slash commands ──
+        if text.startswith("/"):
+            _buf = io.StringIO()
+            _old = sys.stdout
+            sys.stdout = _buf
+            try:
+                handled = self.cli.dispatch(text)
+            finally:
+                sys.stdout = _old
+            out = _buf.getvalue().rstrip()
+            if out:
+                self.message_pane.append_info(out)
+            if not handled and not out:
+                self.message_pane.append_info(f"Unknown command: {text}  — /help for commands")
+            return True
+
+        # ── Thinking guard ──
+        if self._thinking:
+            self.message_pane.append_info("Please wait — still processing previous request")
+            return True
+
+        # ── Submit for streaming ──
+        with self._state_lock:
+            self._activity_log.clear()
+            self._thinking_buf = ""
+            self._thinking = True
+        self.thinking_panel.clear()
+        self._streaming = True
+        self.message_pane.append_message("user", text)
+        self.message_pane.scroll_to_bottom()
+        self._spinner.start()
+        self._ui(self._refresh_status, _force=True)
+        self._executor.submit(self._stream_response, text)
+        return True
+
+    def _send_image(self, image_path: str) -> None:
+        if self._thinking:
+            self.message_pane.append_info("Please wait — still processing previous request")
+            return
+        with self._state_lock:
+            self._activity_log.clear()
+            self._thinking = True
+        self.thinking_panel.clear()
+        fname = os.path.basename(image_path)
+        self.message_pane.append_message("user", f"[图片: {fname}]")
+        self.message_pane.scroll_to_bottom()
+        self._streaming = True
+        self._spinner.start()
+        self._refresh_status()
+        self._executor.submit(self._stream_image_response, image_path)
+
+    # ══════════════════════════════════════════════════════════════
+    #  Streaming
+    # ══════════════════════════════════════════════════════════════
+
+    def _stream_image_response(self, image_path: str) -> None:
+        try:
+            prompt = "请详细描述这张图片的内容。如果是截图，请描述界面、文字和关键信息。"
+            self._ui(self.message_pane.stream_start, "crux")
+            self._activity_log.append(("●", "class:message-tool", f"视觉分析: {os.path.basename(image_path)}"))
+            for kind, payload in self.session.send_stream(prompt, image_url=image_path):
+                if kind == "text":
+                    self._ui(self.message_pane.stream_append, str(payload))
+                elif kind == "thinking":
+                    self.thinking_panel.append(str(payload))
+                elif kind == "info":
+                    self._ui(self.message_pane.append_info, str(payload))
+                elif kind == "error":
+                    self._ui(self.message_pane.append_error, str(payload))
+            if self._activity_log:
+                last_icon, _, last_msg = self._activity_log[-1]
+                if "●" in last_icon:
+                    self._activity_log[-1] = ("✓", "class:activity-done", last_msg.replace("视觉分析: ", "视觉分析完成: "))
+            self._ui(self.message_pane.stream_end, _force=True)
+            self._ui(self.message_pane.scroll_to_bottom, _force=True)
+        except Exception as e:
+            self._ui(self.message_pane.append_error, f"图片分析失败: {e}", _force=True)
+            self._activity_log.append(("✗", "class:activity-fail", f"视觉分析失败: {e}"))
+            self._ui(self.message_pane.stream_end, _force=True)
+        finally:
+            with self._state_lock:
+                self._streaming = False
+                self._thinking = False
+            self.thinking_panel.done()
+            self._spinner.stop()
+            self._ui(self._refresh_status, _force=True)
+
+    def _stream_response(self, user_text: str) -> None:
+        try:
+            self._ui(self.message_pane.stream_start, "crux")
+            pending_tool = None
+            _t0 = time.monotonic()
+            _first_token = False
+            for kind, payload in self.session.send_stream(user_text):
+                if not _first_token and kind in ("text", "thinking"):
+                    _first_token = True
+                    self._latency = time.monotonic() - _t0
+                if kind == "text":
+                    self._ui(self.message_pane.stream_append, str(payload))
+                elif kind == "thinking":
+                    self.thinking_panel.append(str(payload))
+                    self._ui(lambda: None)
+                elif kind == "info":
+                    msg = str(payload).strip()
+                    if not msg:
+                        continue
+                    if msg.startswith("正在执行 "):
+                        tool_name = msg[5:].rstrip(".")
+                        pending_tool = tool_name
+                        self._activity_log.append(("●", "class:activity-running", f"执行 {tool_name}"))
+                    elif msg.startswith("正在生成"):
+                        action = msg[2:].rstrip(".")
+                        pending_tool = action
+                        self._activity_log.append(("●", "class:activity-running", f"生成 {action}"))
+                    elif "执行完成" in msg:
+                        if pending_tool and self._activity_log:
+                            last_icon, _, last_msg = self._activity_log[-1]
+                            if "●" in last_icon:
+                                self._activity_log[-1] = (
+                                    "✓", "class:activity-done",
+                                    last_msg.replace("执行 ", "").replace("生成 ", ""),
+                                )
+                        pending_tool = None
+                    elif "fallback" in msg.lower() or "连接中断" in msg:
+                        self._activity_log.append(("⚠", "class:activity-warn", msg[:100]))
+                    elif "预算" in msg:
+                        self._activity_log.append(("💰", "class:activity-info", msg[:100]))
+                    else:
+                        self._activity_log.append(("·", "class:activity-info", msg[:120]))
+                    self._ui(lambda: None)
+                elif kind == "tool_result":
+                    if pending_tool and self._activity_log:
+                        last_icon, _, last_msg = self._activity_log[-1]
+                        if "●" in last_icon:
+                            self._activity_log[-1] = (
+                                "✓", "class:activity-done",
+                                last_msg.replace("执行 ", "").replace("生成 ", ""),
+                            )
+                    pending_tool = None
+                    self._ui(lambda: None)
+                elif kind == "error":
+                    self._ui(self.message_pane.append_error, str(payload))
+                    self._activity_log.append(("✗", "class:activity-fail", str(payload)[:120]))
+                elif kind in ("image", "video"):
+                    d = payload if isinstance(payload, dict) else {}
+                    loc = d.get("local_path", "") or d.get("url", "") or d.get("video_url", "")
+                    if loc:
+                        self._ui(self.message_pane.append_info, f"Saved: {loc}")
+                        self._activity_log.append(("✓", "class:activity-done", f"已保存: {loc}"))
+            # Mark any remaining pending tool as done
+            if pending_tool and self._activity_log:
+                last_icon, _, last_msg = self._activity_log[-1]
+                if "●" in last_icon:
+                    self._activity_log[-1] = ("✓", "class:activity-done", last_msg.replace("执行 ", "").replace("生成 ", ""))
+            self._ui(self.message_pane.stream_end, _force=True)
+            self._ui(self.message_pane.scroll_to_bottom, _force=True)
+        except Exception as e:
+            self._ui(self.message_pane.append_error, str(e), _force=True)
+            self._activity_log.append(("✗", "class:activity-fail", f"异常: {e}"))
+            self._ui(self.message_pane.stream_end, _force=True)
+        finally:
+            with self._state_lock:
+                self._streaming = False
+                self._thinking = False
+            self.thinking_panel.done()
+            self._spinner.stop()
+            self._ui(self._refresh_status, _force=True)
+        if self.wire:
+            try:
+                self.wire.record_turn("assistant", "[streamed]")
+            except Exception:
+                logger.debug("wire.record_turn failed", exc_info=True)
+
+    # ══════════════════════════════════════════════════════════════
+    #  UI helpers
+    # ══════════════════════════════════════════════════════════════
+
+    def _ui(self, fn, *a, _force: bool = False):
+        try:
+            if a:
+                fn(*a)
+            else:
+                fn()
+        except Exception:
+            logger.warning("TUI _ui callback failed", exc_info=True)
+        try:
+            if self._app and self._app.is_running:
+                now = time.monotonic()
+                if _force or not self._thinking or now - self._last_invalidate > 0.030:
+                    self._last_invalidate = now
+                    self._app.invalidate()
+        except Exception:
+            logger.warning("TUI _ui invalidate failed", exc_info=True)
+
+    def _on_spinner_tick(self) -> None:
+        """Called by Spinner thread every ~80ms. Triggers activity bar repaint."""
+        if self._activity_log and self._app and self._app.is_running:
+            with contextlib.suppress(Exception):
+                self._app.invalidate()
+
+    def _refresh_status(self):
+        self.status_bar.set_model(self.session.model)
+        self.status_bar.set_thinking(self._thinking)
+        # Cache context percentage
+        try:
+            chars = sum(len(str(m.get("content", ""))) for m in self.session.messages)
+            self._cached_ctx_pct = min(100.0, chars * 0.4 / 128000 * 100)
+            self.status_bar.set_context(int(chars * 0.4), 128000)
+        except Exception:
+            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+        # Cache git info (call once, not per frame)
+        self.status_bar.refresh()
+        try:
+            b = self.status_bar._branch
+            d = self.status_bar._diff_stats
+            self._cached_git = f" {b}" + (f" [{d}]" if d else "") if b else ""
+        except Exception:
+            self._cached_git = ""
+
+    def run(self):
+        try:
+            self._app.run()
+        except Exception as e:
+            print(f"TUI error: {e}", file=sys.stderr)
+            traceback.print_exc()
+        finally:
+            self._spinner.stop()
+            self._executor.shutdown(wait=False)

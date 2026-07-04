@@ -77,7 +77,7 @@ class ThreeWayCoordinator:
                 r2 = run_subprocess([kimi, "-p", "ok", "--output-format", "text"], timeout=20)
                 logged_in = r2.returncode == 0 and "error" not in r2.stderr.lower()
             except Exception:
-                pass
+                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
 
             return SystemStatus(
                 name="kimi",
@@ -108,7 +108,7 @@ class ThreeWayCoordinator:
                 r2 = run_subprocess(["gh", "auth", "status"], timeout=10)
                 logged_in = r2.returncode == 0
             except Exception:
-                pass
+                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
 
             return SystemStatus(
                 name="copilot",

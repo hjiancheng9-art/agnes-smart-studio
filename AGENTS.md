@@ -116,7 +116,7 @@ CRUX 同时作为 MCP **Server**（被外部调用）和 MCP **Client**（调用
 
 > ⚠ 以下数量为快照，可能过期。当前准确数量以 `/tools`、`/help`、`pytest --co` 输出为准。
 
-- 53 Commands: auto-registered in core/commands.py (COMMANDS list), /help auto-generated
+- 50 Commands: auto-registered in core/commands.py (COMMANDS list), /help auto-generated
 - Toggle-based feature switching (非 mode 架构):
   - code_mode / agent_mode: ChatSession.toggle_code_mode() / toggle_agent_mode()
   - Skill loading: ChatSession.load_skill() / unload_skill() (showrunner / comfyui-bridge)
@@ -125,15 +125,15 @@ CRUX 同时作为 MCP **Server**（被外部调用）和 MCP **Client**（调用
   - 质量基准: /eval [json] 跑 EvalEngine 基准集（表格/JSON 输出）
   - 每次切换通过 _build_system_prompt() 重建 system prompt
 - Showrunner: /showrun <goal> full creative pipeline (plan->decompose->storyboard->generate->QC)
-- Marketplace: 731 skills (63 local + 668 marketplace), search/install/auto-discover
+- Marketplace: 696 skills (28 local + 668 marketplace), search/install/auto-discover
 - Providers: CRUX AI / DeepSeek V4 Pro / SiliconFlow Kimi / Qwen3-Coder 30B (local CUDA)
-- 113 Tools: code editing, git (13), code intelligence (7), GitHub (10), ComfyUI (10), LoRA (3), browser, file ops, MCP bridge (4 tools), patch, execute_plan, codex, notebook, audio — 动态统计见 /tools
+- 97 Tools: code editing, git (13), code intelligence (7), GitHub (10), ComfyUI (10), LoRA (3), browser, file ops, MCP bridge (4 tools), patch, execute_plan, codex, notebook, audio — 动态统计见 /tools
 
 ## Rendering Contract
-- ui/renderer.py:StreamingRenderer 是流式渲染的唯一合法网关（prompt_toolkit 全屏 TUI）
-- 协议: ChatSession.send_stream() yield (kind, payload) 元组 → StreamingRenderer.render_stream() 分发到 message_pane
-- 流式更新: add_message(streaming=True) → update_streaming(content) → finalize_streaming()
-- 关键不变式: prompt_toolkit FormattedText 渲染，Box 边框装饰消息气泡
+- ui/tui_app.py:TuiApp._stream_response 是流式渲染网关（prompt_toolkit 全屏 TUI）
+- 协议: ChatSession.send_stream() yield (kind, payload) 元组 → _stream_response 分发到 message_pane
+- 流式更新: message_pane.stream_start() → stream_append() → stream_end()
+- 关键不变式: prompt_toolkit FormattedText 渲染，_ScrollingWindow 自定义滚动
 
 ## Rules System (规范注入)
 - core/rules.py: RulesManager + Rule + get_rules()，扫描 rules/*.rules.md
@@ -147,26 +147,25 @@ CRUX 同时作为 MCP **Server**（被外部调用）和 MCP **Client**（调用
 - core/skills.py: SkillManager, get_manager()
 - core/skill_loader.py: SKILL_DIRS, 旧技能注入系统
 - core/marketplace.py: MarketplaceClient, CodeBuddyAdapter
-- ui/tui_app.py: TuiApp 主应用（prompt_toolkit Application，输入路由，流式协调）
-- ui/renderer.py: StreamingRenderer — 桥接 ChatSession 流式协议到 message_pane
-- ui/message_pane.py: MessagePane — 可滚动消息缓冲区，box-drawing 装饰
-- ui/input_bar.py: InputBar — 多行输入 + /command 自动补全
+- ui/tui_app.py: TuiApp 主应用（prompt_toolkit Application，输入路由，流式协调，渲染网关）
+- ui/message_pane.py: MessagePane — 可滚动消息缓冲区 + _ScrollingWindow 自定义滚动
 - ui/theme.py: COLORS 调色板 + BEAST 七兽系统 + PTK_STYLE
+- ui/status_bar.py: StatusBar — 状态栏（模型/cwd/git/上下文）
 - crux_manifest.json: system evolution state snapshot
-- assets/crux_logo*.svg: terminal flat pixel logo
+- assets/crux_logo.svg, assets/crux_logo_icon.svg: terminal flat pixel logo
 
 ## How to Extend CRUX
 - Add /command: 1 entry in core/commands.py COMMANDS + 1 handler 方法在 core/cli_handlers.py
 - Register dynamically: core.commands.register('key', '/name', '<args>', '<desc>')
 - Auto-category: leave category='' for auto-detection
 - Install skills: from core.marketplace import get_marketplace; mkt.install('skill-name')
-- 流式渲染: 通过 ui/renderer.py:StreamingRenderer，不直接操作 prompt_toolkit 渲染
+- 流式渲染: 通过 ui/tui_app.py:_stream_response + ui/message_pane.py，不直接操作 prompt_toolkit 渲染
 
 ## Current State Snapshot
 
 > ⚠ 本节为快照，不作为执行真源。当前准确状态以 `/tools`、`/help`、`crux_manifest.json`、`pytest --co` 输出为准。
-- 45 commands, 113 tools, 63 local skills, 668 marketplace skills
-- Core modules: 148 .py files in core/ (含 v5.0 新增编排/智能体/可观测子系统)
+- 50 commands, 97 tools, 28 local skills, 668 marketplace skills
+- Core modules: 155 .py files in core/ (含 v5.0 新增编排/智能体/可观测子系统)
 - 大文件已拆分: tools_defs.py (tools: 1691→865行), chat_toggle_mixin.py (chat: 1875→1780行)
 - brain.py: 476行 Mixin架构 (SmartBrain继承4 Mixin, AsyncSmartBrain顶层独立)
 - pyright: basic模式全量代码 0 errors, CI 接入 coverage (门禁 55%)

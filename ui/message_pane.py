@@ -66,9 +66,10 @@ class _ScrollingWindow(Window):
             else:
                 # Content exceeds window height — find the right content
                 # line and intra-line offset to show the bottom 'height'
-                # visual rows.
+                # visual rows. Iterate forward from top: skip accumulates
+                # until we find the first visible line.
                 skip = total_wrapped - height
-                for lineno in range(ui_content.line_count - 1, -1, -1):
+                for lineno in range(ui_content.line_count):
                     line_h = ui_content.get_height_for_line(
                         lineno, width, self.get_line_prefix
                     )
@@ -99,15 +100,22 @@ class MessagePane:
         self._stream_label = ""
         self._stream_buffer = ""
         self._pinned = True
+        self._empty_renderer = None  # type: ignore[assignment]
 
         def _render():
-            if not self._lines and not self._stream_buffer:
-                return FormattedText([("class:message-info", "Type a message or /help for commands")])
+            # Snapshot state atomically, render without lock
+            with self._lock:
+                if not self._lines and not self._stream_buffer:
+                    if self._empty_renderer is not None:
+                        return self._empty_renderer()
+                    return FormattedText([("class:message-info", "Type a message or /help for commands")])
+                lines_snapshot = list(self._lines)
+                stream_snapshot = self._stream_buffer
             pieces = []
-            for style_class, text in self._lines:
+            for style_class, text in lines_snapshot:
                 pieces.append((style_class, text + "\n"))
-            if self._stream_buffer:
-                pieces.append(("class:message-crux", self._stream_buffer))
+            if stream_snapshot:
+                pieces.append(("class:message-crux", stream_snapshot))
             return FormattedText(pieces)
 
         self._control = FormattedTextControl(_render)
@@ -156,8 +164,6 @@ class MessagePane:
         vs = self._window.vertical_scroll
         if vs >= _SCROLL_BOTTOM:
             return max(0, self._wrapped_content_height() - self._wrapped_window_height())
-        # For wrapped content, vs is a content line index, not visual row.
-        # Sum wrapped heights of lines before vs + vertical_scroll_2.
         ri = self._window.render_info
         if ri is not None and ri.ui_content is not None:
             uc = ri.ui_content
@@ -167,15 +173,17 @@ class MessagePane:
                     i, ri.window_width, self._window.get_line_prefix
                 )
             return row + self._window.vertical_scroll_2
-        return vs  # fallback for unwrapped
+        # Fallback: clamp vs to valid range
+        return min(vs, max(0, self.line_count - self._window_height()))
 
     def _set_scroll_to_visual_row(self, target_row: int, *, clamp: bool = True) -> None:
         """Set vertical_scroll and vertical_scroll_2 to show a given visual row
         as the topmost visible row. When clamp=True, constrain to valid range."""
         ri = self._window.render_info
         if ri is None or ri.ui_content is None:
-            # No render info yet — fall back to simple content-line scroll
-            self._window.vertical_scroll = target_row
+            # Fallback: clamp to valid content range
+            max_line = max(0, self.line_count - self._window_height())
+            self._window.vertical_scroll = max(0, min(target_row, max_line))
             self._window.vertical_scroll_2 = 0
             return
 
@@ -265,6 +273,8 @@ class MessagePane:
     # ── Message management ───────────────────────────────────
 
     def append_message(self, role: str, text: str) -> None:
+        if not isinstance(text, str):
+            text = str(text) if text is not None else ""
         with self._lock:
             self._end_stream()
             fmt = _ROLE_FORMATS.get(role)
@@ -307,6 +317,14 @@ class MessagePane:
 
     def append_error(self, text: str) -> None:
         self.append_message("error", text)
+
+    def set_empty_renderer(self, renderer) -> None:
+        """Set a custom renderer for the empty state (no messages, no stream).
+
+        When set, this callable (returning FormattedText) is used instead of
+        the default placeholder text. Pass None to restore default.
+        """
+        self._empty_renderer = renderer
 
     def clear(self) -> None:
         with self._lock:

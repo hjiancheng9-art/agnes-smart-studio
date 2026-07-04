@@ -32,6 +32,7 @@ def build_style() -> Style:
         "message-error": f"fg:{C['error']}",
         "message-thinking": f"fg:{C['info']} italic",
         "message-tool": f"fg:{C['accent2']} italic",
+        "success": f"fg:{C['success']}",
         "input-border": f"fg:{C['border']}",
         "input-field": f"fg:{C['primary']} bg:{C['input_bg']}",
         "status-bar": f"fg:{C['muted']} bg:{C['surface']}",

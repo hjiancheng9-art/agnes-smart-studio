@@ -1,3 +1,6 @@
+---
+default-active: false
+---
 # Error Translation — 错误信息翻译
 
 ## 规则

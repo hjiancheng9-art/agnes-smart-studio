@@ -99,7 +99,6 @@ def build_logo_lines() -> list[str]:
 def build_border_line(char: str = "═", top: bool = True) -> str:
     """Build a full-width box-drawing border line."""
     bdr = _P["border"]
-    _P["border_dim"]
     if top:
         inner = f"╔{'═' * (LOGO_W - 2)}╗"
         return f"  [{bdr}]{inner}[/]"
@@ -129,10 +128,8 @@ def _build_info_panel(console, extra_lines: list[tuple] | None = None):
     from rich.style import Style
     from rich.text import Text
 
-    _P["border_dim"]
     dim = _P["dim"]
     accent = _P["accent"]
-    _P["text"]
     green = _P["status_on"]
     cyan = _P["blue"]
 
@@ -192,7 +189,7 @@ def _build_info_panel(console, extra_lines: list[tuple] | None = None):
             msg = last_commit[:45] + "…" if len(last_commit) > 45 else last_commit
             lines.append((f"  {msg}", Style(color=dim, italic=True)))
     except Exception:
-        pass
+        import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
     lines.append(("", Style()))
 
     # ── 会话统计 ──
@@ -208,7 +205,7 @@ def _build_info_panel(console, extra_lines: list[tuple] | None = None):
         ).stdout.splitlines())
         lines.append((f"  {n_py} modules  |  skills 50+743", Style(color=dim, italic=True)))
     except Exception:
-        pass
+        import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
     lines.append(("", Style()))
 
     # ── 快速指南 ──

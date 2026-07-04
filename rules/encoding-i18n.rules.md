@@ -1,3 +1,6 @@
+---
+default-active: false
+---
 # 编码与国际化规范
 
 1. 源码只写 ASCII/英文，中文放语言包

@@ -1,0 +1,60 @@
+81:        self,
+82:        session: ChatSession,
+83:        cli: CruxCLI,
+84:        *,
+85:        session_wire=None,
+86:        startup_banner: str = "",
+87:    ) -> None:
+88:        self.session = session
+89:        self.cli = cli
+90:        self.wire = session_wire
+91:        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+92:        self._thinking = False
+93:        self._streaming = False
+94:        self._last_invalidate = 0.0
+95:        self._latency: float | None = None
+96:        self._state_lock = threading.Lock()
+97:
+98:        # ── Cached values (updated in _refresh_status, read by render) ──
+99:        self._cached_git = ""
+100:        self._cached_ctx_pct = 0.0
+101:
+102:        # ── Core components ──
+103:        self.message_pane = MessagePane()
+104:        self.status_bar = StatusBar(model=session.model, cwd=Path.cwd())
+105:        self.thinking_panel = ThinkingPanel()
+106:
+107:        # ── Activity log: [(icon, style_class, message), ...] ──
+108:        self._activity_log: list[tuple[str, str, str]] = []
+109:
+110:        # ── Spinner ──
+111:        self._spinner = Spinner(on_tick=self._on_spinner_tick)
+112:
+113:        # ── Welcome screen ──
+114:        self._setup_welcome()
+115:
+116:        # ── Input ──
+117:        self._history = InMemoryHistory()
+118:        self.input_buffer = Buffer(
+119:            multiline=True,
+120:            accept_handler=self._on_accept,
+121:            history=self._history,
+122:        )
+123:
+124:        # ── Key bindings ──
+125:        self.kb = self._setup_keybindings()
+126:
+127:        # ── Build app ──
+128:        self._app = self._make_app()
+129:
+130:        # Welcome screen replaces banner — see _setup_welcome()
+131:
+132:    # ══════════════════════════════════════════════════════════════
+133:    #  Welcome screen setup
+134:    # ══════════════════════════════════════════════════════════════
+135:
+136:    def _setup_welcome(self) -> None:
+137:        """Configure the welcome screen as the message pane's empty state."""
+138:        model_name = self.session.model
+139:        cwd = str(Path.cwd())
+140:        branch = ""

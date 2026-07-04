@@ -173,6 +173,14 @@ else:
     _TIMEOUT_WRAPPER = "timeout 120"
 
 
+def _is_external_path(path_str: str, roots: list[Path]) -> bool:
+    """Check if path is outside allowed roots (handles POSIX paths on Windows)."""
+    if path_str.startswith("/") and sys.platform == "win32":
+        return True
+    p = Path(path_str)
+    return p.is_absolute() and not _path_is_allowed(p, roots)
+
+
 class Sandbox:
     """Validates shell commands before execution."""
 
@@ -197,10 +205,12 @@ class Sandbox:
         # Path-aware patterns — only block if targeting external paths
         for pattern in PATH_AWARE_DANGEROUS:
             if re.search(pattern, cmd_lower):
-                all_paths = re.findall(r"(/[^\s]+)", command) + re.findall(r"(?:[A-Za-z]:[\\/][^\s]+|\\\\[^\s]+)", command)
+                all_paths = re.findall(r"(?<!\S)/(?!\s)[^\s]+", command) + re.findall(r"(?:[A-Za-z]:[\\/][^\s]+|\\\\[^\s]+)", command)
+                # Filter flags (/F /S etc.) and relative fragments (/node_modules from ./node_modules)
+                all_paths = [p for p in all_paths if len(p) > 2 and not p.startswith("/?")]
                 if all_paths:
                     for p in all_paths:
-                        if Path(p).is_absolute() and not _path_is_allowed(Path(p), roots):
+                        if _is_external_path(p, roots):
                             return False, f"blocked destructive operation to external path: {p}"
                 break  # relative paths → allowed within project
 

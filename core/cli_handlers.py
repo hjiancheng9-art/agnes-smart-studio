@@ -185,6 +185,14 @@ class CruxCLI:
             print("  当前无注册工具。使用 /agent 加载智能体工具，/skill load 加载技能包。")
         print()
 
+    def _chat_status(self, args: str) -> None:
+        """Show real-time system health."""
+        s = self.session
+        print("\n  ◆ CRUX Studio v5.0  状态面板")
+        print(f"  模型:{s.model}  代码:{'✓' if s.code_mode else '✗'}  智能体:{'✓' if s.agent_mode else '✗'}")
+        print(f"  技能:{s.active_skill or '无'}  工具:{len(s.tools.tool_names) if hasattr(s.tools,'tool_names') else '?'}")
+        print()
+
     def _inline_clear(self, args: str) -> None:
         """Clear conversation history."""
         self.session.messages = [{"role": "system", "content": self.session._build_system_prompt()}]
@@ -898,6 +906,137 @@ class CruxCLI:
         except ImportError:
             print("  后台任务管理模块未就绪。")
 
+    def _chat_rollback(self, args: str) -> None:
+        """Undo last operation: /rollback."""
+        from core.rollback_orchestrator import rollback_last_op, list_snapshots
+        result = rollback_last_op()
+        snaps = list_snapshots()
+        status = "✓" if result["success"] else "✗"
+        print(f"\n  {status} 回滚: {result['detail']}")
+        if snaps:
+            print(f"  可用快照: {', '.join(snaps[:5])}")
+        print()
+
+    def _chat_copy(self, args: str) -> None:
+        """Copy recent messages: /copy [N]. Default: last CRUX response."""
+        n = int(args.strip()) if args.strip().isdigit() else 1
+        crux_msgs = []
+        for style, text in self.session.messages:
+            if isinstance(text, str) and text.strip():
+                crux_msgs.append(text)
+        if crux_msgs:
+            to_copy = '\n\n'.join(crux_msgs[-n:])
+            print(f"\n  ── 最近 {min(n, len(crux_msgs))} 条消息 ──")
+            print(to_copy[:2000])
+            print(f"  ── 共 {len(to_copy)} 字符 (Ctrl+Y 复制最后一条) ──\n")
+        else:
+            print("  暂无消息。")
+
+    def _chat_trends(self, args: str) -> None:
+        """Historical trends: /trends [cost|tools|quality]."""
+        sub = args.strip().lower()
+        from core.trends import cost_trends, quality_trends, tool_health_trends
+
+        if sub in ("cost", "costs", ""):
+            data = cost_trends()
+            print("\n  ◆ 消费趋势")
+            print(f"  总计: ${data.get('total_cost', 0):.2f} / {data.get('total_calls', 0)} 调用")
+            for model, info in data.get("top_models", []):
+                if isinstance(info, dict):
+                    print(f"  {model}: ${info.get('cost', 0):.2f} ({info.get('calls', 0)} calls)")
+
+        elif sub in ("tools", "tool"):
+            data = tool_health_trends()
+            print(f"\n  ◆ 工具健康 ({len(data)} tools)")
+            for name, stats in list(data.items())[:10]:
+                print(f"  {name:<30} {stats['calls']:>4} calls  {stats['success_rate']:>4}  {stats['avg_ms']}ms avg")
+
+        elif sub in ("quality", "score"):
+            data = quality_trends()
+            print("\n  ◆ 工具质量")
+            print(f"  平均分: {data.get('average_score', 0):.0f}/100")
+            print(f"  分级: {data.get('grade_distribution', {})}")
+        print()
+
+    def _chat_docs(self, args: str) -> None:
+        """Auto-generate docs: /docs [help|agents|manifest|all]."""
+        from core.docs_engine import generate_all, generate_help_md, sync_agents_md, sync_manifest
+        sub = args.strip().lower()
+        if sub == "help":
+            r = generate_help_md()
+        elif sub == "agents":
+            r = sync_agents_md()
+        elif sub == "manifest":
+            r = sync_manifest()
+        else:
+            r = generate_all()
+        print(f"\n  文档生成: {r}")
+        print()
+
+    def _chat_health(self, args: str) -> None:
+        """Tool quality scorecard + system health: /health."""
+        print("\n  ◆ CRUX Studio 健康面板")
+        print("  ─────────────────────────")
+
+        # 1. Tool scorecard
+        try:
+            from core.tool_scorecard import score_all
+            from core.tools import get_registry
+            reg = get_registry()
+            report = score_all(reg)
+            grades = report.get("grade_distribution", {})
+            print(f"  工具质量: {report.get('total_tools', 0)} 工具  分级: {grades}")
+            avg = report.get("average_score", 0)
+            print(f"  平均分: {avg:.0f}/100")
+        except Exception as e:
+            print(f"  工具质量: 评分失败 ({e})")
+
+        # 2. Release status
+        try:
+            import json
+
+            from core.rollback_engine import RELEASES_DIR
+            releases = list(RELEASES_DIR.glob("*.json"))
+            if releases:
+                latest = json.loads(releases[-1].read_text(encoding="utf-8"))
+                print(f"  最新发布: {latest.get('id', '?')} [{latest.get('status', '?')}]")
+        except Exception:
+            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+
+        # 3. Watchdog (白虎自愈) status
+        try:
+            from core.watchdog import get_watchdog
+            wd = get_watchdog()
+            state = wd.status()
+            print(f"  自愈看门狗: {'✓ 运行中' if wd.alive() else '✗ 已停止'}")
+            if state.last_provider_check:
+                print(f"    供应商探活: {state.last_provider_check}")
+            if state.disk_free_gb:
+                print(f"    磁盘剩余: {state.disk_free_gb:.1f} GB")
+        except Exception:
+            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+
+        # 4. Observability metrics
+        try:
+            from core.observability import metrics
+            summary = metrics.summary() if hasattr(metrics, 'summary') else {}
+            if summary:
+                for key, val in list(summary.items())[:5]:
+                    print(f"  {key}: {val}")
+        except Exception:
+            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+
+        # 4. Cost tracker
+        try:
+            from core.cost_tracker import get_summary
+            cost = get_summary()
+            if cost:
+                print(f"  今日花费: ${cost.get('today_cost', 0):.4f} / ${cost.get('daily_budget', 0):.2f}")
+        except Exception:
+            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+
+        print()
+
     def _chat_permission(self, args: str) -> None:
         """Switch permission mode: /permission <yolo|auto|manual>."""
         arg = args.strip().lower()
@@ -932,17 +1071,17 @@ class CruxCLI:
         # ── C/D 级详情 ──
         level = state.task_level
         if level.value in ("complex", "critical"):
-            print(f"  C/D 级要求:")
+            print("  C/D 级要求:")
             print(f"    Plan     : {'✓' if state.plan_exists else '✗ 未创建'}")
             print(f"    测试基线 : {'✓' if state.test_baseline_recorded else '✗'}")
             print(f"    Worktree : {'✓' if state.worktree_created else ('✗' if level.value == 'critical' else '跳过')}")
             print(f"    TDD 阶段 : {state.tdd_phase or '-'}")
-        print(f"  /method reset — 重置状态")
+        print("  /method reset — 重置状态")
 
     def _chat_done(self, args: str) -> None:
         """完成前验证清单 (AGENTS.md)。"""
         quick = args.strip().lower() == "quick"
-        from core.methodology import run_verification, get_methodology_state
+        from core.methodology import get_methodology_state, run_verification
 
         print("  ── 完成前验证 ──")
         results = run_verification()
@@ -965,11 +1104,11 @@ class CruxCLI:
         """Switch model provider: /provider <list|switch>."""
         arg = args.strip().lower()
         if arg == "list":
-            from core.provider import get_provider_manager, MODEL_REGISTRY
+            from core.provider import MODEL_REGISTRY, get_provider_manager
             mgr = get_provider_manager()
             print(f"\n  当前供应商: {mgr.active_provider}")
             print("  可用模型:")
-            for mid, info in sorted(MODEL_REGISTRY.items()):
+            for mid, _info in sorted(MODEL_REGISTRY.items()):
                 marker = " ←" if mid == mgr.active_provider else ""
                 print(f"    {mid}{marker}")
             print()

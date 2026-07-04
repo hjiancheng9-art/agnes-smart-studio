@@ -512,8 +512,8 @@ def resolve_skill_executor(tool_name: str, tool_def: dict | None = None):
     if tool_name in ("run_python", "python"):
         def _exec(**kw):
             code = kw.get("code", "")
-            f = tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8")
-            f.write(code); f.close()
+            with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8") as f:
+                f.write(code)
             r = run_subprocess(["python", f.name], timeout=30)
             return r.stdout or r.stderr or "[no output]"
         return _exec

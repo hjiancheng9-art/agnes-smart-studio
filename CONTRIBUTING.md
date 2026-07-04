@@ -72,7 +72,7 @@ python -m pytest tests/ -q
 
 ### 3.1 core/ 模块
 
-`core/` 当前有 ~79 个模块，新模块加入前请确认：
+`core/` 当前有 149 个模块，新模块加入前请确认：
 - 没有现成模块能承担该职责（优先扩展而非新建）
 - 模块名清晰反映职责（避免 `utils2.py`、`helpers.py` 这种无意义名）
 - 在 `AGENTS.md` 的架构章节登记
@@ -87,9 +87,7 @@ python -m pytest tests/ -q
 
 ### 3.3 渲染契约
 
-**禁止**在 `ui/render.py` 之外 `import rich.live.Live`。`tests/test_render.py` 的守卫会拦截。
-
-所有流式渲染必须走 `StreamingRenderer`，`_flushed_len` 是唯一落盘点。
+所有流式渲染走 `ui/tui_app.py:_stream_response` + `ui/message_pane.py`。
 
 ---
 

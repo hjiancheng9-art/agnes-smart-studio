@@ -87,7 +87,7 @@ class HookManager:
         """Register a new hook. Returns False if name already exists."""
         with self._lock:
             if name in self._hooks:
-                logger.warning("Hook '%s' already registered, skipping", name)
+                logger.debug("Hook '%s' already registered, skipping", name)
                 return False
             self._hooks[name] = Hook(
                 name=name,

@@ -1,6 +1,7 @@
 """Brain aesthetics module — extracted from brain.py."""
 
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from core.brain_data import (
     BEAUTY_NEGATIVE_REPAIR_MAP,

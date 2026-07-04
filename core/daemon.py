@@ -158,7 +158,7 @@ class Daemon:
                 except (RuntimeError, TimeoutError, OSError) as e:
                     logger.debug("Socket accept: %s", e)
                     continue
-                except (RuntimeError, OSError, ValueError):
+                except ValueError:
                     break
             s.close()
         except (RuntimeError, OSError, ValueError) as e:

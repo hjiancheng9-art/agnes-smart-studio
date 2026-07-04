@@ -113,4 +113,4 @@ pip install -r requirements.txt
 ```
 
 ### ❓ 如何创建桌面快捷方式？
-双击项目目录下的 `创建桌面快捷方式.bat`。
+运行 `python launcher.py` 进入交互菜单，或直接 `python crux_studio.py -c` 启动聊天。

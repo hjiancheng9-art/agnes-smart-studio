@@ -1,0 +1,10 @@
+
+    # ── Startup banner ──
+    import shutil
+
+    from core.provider import get_provider_manager
+    from core.version import __version__
+
+    mgr = get_provider_manager()
+    model_name = mgr.get_model("light") or session.model
+

@@ -62,7 +62,7 @@ def _watch_loop(interval: float = 2.0):
                     _WATCHED[path] = new_mtime
                     _on_change(path)
         except Exception:
-            pass
+            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
         time.sleep(interval)
 
 

@@ -1,3 +1,6 @@
+---
+default-active: false
+---
 # Onboarding — 新用户引导
 
 ## 触发

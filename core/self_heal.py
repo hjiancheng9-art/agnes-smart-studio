@@ -29,7 +29,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 # ── Color helpers ──────────────────────────────────────
-G = "\033[32m"; R = "\033[31m"; Y = "\033[33m"; B = "\033[34m"; N = "\033[0m"
+G = "\033[32m"
+R = "\033[31m"
+Y = "\033[33m"
+B = "\033[34m"
+N = "\033[0m"
 
 class Finding:
     def __init__(self, severity: str, category: str, file: str, line: int, msg: str, fixable: bool = False):
@@ -237,6 +241,25 @@ class SelfHealer:
                 self.findings.append(Finding(
                     "low", "scanner", scanner.__name__, 0, f"Scanner failed: {e}", fixable=False,
                 ))
+        return self.findings
+
+    def quick_fix(self) -> dict:
+        """Auto-fix common issues. Returns {ruff_fixed: int, patches: int}."""
+        import subprocess
+        result = {"ruff_fixed": 0, "patches": 0}
+        try:
+            r = subprocess.run(
+                ["python", "-m", "ruff", "check", "core/", "ui/", "engines/", "--fix"],
+                capture_output=True, text=True, timeout=30, cwd=str(ROOT),
+            )
+            import re
+            for line in r.stdout.split("\n"):
+                m = re.search(r"(\d+)\s+fixed", line)
+                if m:
+                    result["ruff_fixed"] = int(m.group(1))
+        except Exception:
+            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+        return result
 
     def report(self) -> str:
         by_severity = {"critical": [], "high": [], "medium": [], "low": []}

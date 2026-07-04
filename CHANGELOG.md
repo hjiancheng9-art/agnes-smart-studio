@@ -71,7 +71,7 @@ All notable changes to this project will be documented in this file.
 - [重构] brain.py 拆分为5模块(2201→643行/-96KB→30KB)
 - refactor: terminal_app 彻底重设计 — vertical_scroll自动滚底 + 输入框独立于ScrollablePane
 - refactor: 清除全部 33 处技术债 + ruff format 全仓统一
-- refactor: migrate all runtime hints and docs to              ██             ██ ██            █     █           █  ██ ██  █          ███ █ █ ██ █          ██ █ █ █ █ █          ███ █ █ ██ █           █  ██ ██  █            █     █             ██ ██              ██
+- refactor: migrate all runtime hints and docs to AGENTS.md
 
 ### Performance
 

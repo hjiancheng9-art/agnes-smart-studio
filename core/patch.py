@@ -300,10 +300,7 @@ class PatchEngine:
                     )
             else:
                 # No context: anchor on line number only
-                if line_num > 0:
-                    match_idx = line_num - 1
-                else:
-                    match_idx = 0  # top of file
+                match_idx = line_num - 1 if line_num > 0 else 0  # top of file
 
             # ── Apply hunk changes ──
             insert_lines = []

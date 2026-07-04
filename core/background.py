@@ -12,9 +12,7 @@
 
 from __future__ import annotations
 
-import contextlib
 import json
-import logging
 import os
 import subprocess
 import sys
@@ -256,7 +254,7 @@ class BackgroundManager:
                     self.stop(tid, "Shutdown")
         # Wait for threads
         with self._lock:
-            for tid, thread in list(self._threads.items()):
+            for _tid, thread in list(self._threads.items()):
                 if thread.is_alive():
                     thread.join(timeout=10)
 
@@ -271,48 +269,43 @@ class BackgroundManager:
         cwd: str | None,
     ) -> None:
         """Execute the command in a subprocess, capture output."""
-        output_f = None
         proc = None
         try:
-            output_f = open(output_path, "w", encoding="utf-8", errors="replace")
-            proc = subprocess.Popen(
-                command,
-                shell=True,
-                stdout=output_f,
-                stderr=subprocess.STDOUT,
-                cwd=cwd or os.getcwd(),
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
-            )
+            with open(output_path, "w", encoding="utf-8", errors="replace") as output_f:
+                proc = subprocess.Popen(
+                    command,
+                    shell=True,
+                    stdout=output_f,
+                    stderr=subprocess.STDOUT,
+                    cwd=cwd or os.getcwd(),
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
+                )
 
-            with self._lock:
-                t = self._tasks.get(task_id)
-                if t:
-                    t.pid = proc.pid or 0
-                self._processes[task_id] = proc
-
-            try:
-                exit_code = proc.wait(timeout=timeout)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait(timeout=10)
                 with self._lock:
                     t = self._tasks.get(task_id)
                     if t:
-                        t.status = "timed_out"
-                        t.terminal_reason = "timed_out"
-                        t.finished_at = time.time()
-                        with contextlib.suppress(OSError, ValueError):
-                            output_f.write(
-                                f"\n\n[任务超时 ({timeout}s)，已被强制终止]\n"
-                            )
-                return
+                        t.pid = proc.pid or 0
+                    self._processes[task_id] = proc
 
-            with self._lock:
-                t = self._tasks.get(task_id)
-                if t:
-                    t.exit_code = exit_code
-                    t.status = "done" if exit_code == 0 else "failed"
-                    t.finished_at = time.time()
+                try:
+                    exit_code = proc.wait(timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=10)
+                    with self._lock:
+                        t = self._tasks.get(task_id)
+                        if t:
+                            t.status = "timed_out"
+                            t.terminal_reason = "timed_out"
+                            t.finished_at = time.time()
+                    return
+
+                with self._lock:
+                    t = self._tasks.get(task_id)
+                    if t:
+                        t.exit_code = exit_code
+                        t.status = "done" if exit_code == 0 else "failed"
+                        t.finished_at = time.time()
         except (OSError, RuntimeError, ValueError) as e:
             with self._lock:
                 t = self._tasks.get(task_id)
@@ -320,14 +313,6 @@ class BackgroundManager:
                     t.status = "failed"
                     t.finished_at = time.time()
                     t.stop_reason = str(e)[:200]
-            with contextlib.suppress(OSError, ValueError):
-                output_f.write(f"\n\n[任务执行异常: {e}]\n")  # pyright: ignore[reportOptionalMemberAccess]
-        finally:
-            if output_f:
-                try:
-                    output_f.close()
-                except OSError:
-                    logging.debug("Failed to close temp file: %s", getattr(output_f, 'name', '?'))
 
 
 # ── Module-level singleton ──

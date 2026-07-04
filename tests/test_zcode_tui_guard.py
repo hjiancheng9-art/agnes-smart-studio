@@ -46,20 +46,20 @@ def test_tui_has_height_guard():
             if "lines" in code_snippet and "<" in code_snippet:
                 found_guard = True
 
-        # Check for TuiApp import or creation
+        # Check for TuiApp / TuiAppV2 import or creation
         if isinstance(node, ast.ImportFrom):
-            if node.module == "ui.tui_app":
+            if node.module in ("ui.tui_app", "ui.tui_v2"):
                 found_tui_import_or_create = True
                 if found_guard:
                     guard_before_tui = True
         if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name) and node.func.id == "TuiApp":
+            if isinstance(node.func, ast.Name) and node.func.id in ("TuiApp", "TuiAppV2"):
                 found_tui_import_or_create = True
                 if found_guard:
                     guard_before_tui = True
 
     assert found_guard, "crux_studio.py missing height guard (lines < N check)"
-    assert found_tui_import_or_create, "crux_studio.py missing TuiApp reference"
+    assert found_tui_import_or_create, "crux_studio.py missing TuiApp/TuiAppV2 reference"
     assert guard_before_tui, (
         "Height guard must appear BEFORE TuiApp import/creation in source"
     )

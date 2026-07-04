@@ -15,10 +15,18 @@ def _term_width() -> int:
         return 80
 
 
+from collections.abc import Callable
+
+
 class StatusBar:
 
-    def __init__(self, model: str = "", cwd: Path | None = None) -> None:
-        self.model = model
+    def __init__(self, model_fn: Callable[[], str] | str | None = None, cwd: Path | None = None, model: str = "") -> None:
+        if callable(model_fn):
+            self._model_fn = model_fn
+            self._model_fallback = model or ""
+        else:
+            self._model_fn = None
+            self._model_fallback = model_fn or model or ""
         self.cwd = cwd or Path.cwd()
         self._branch = ""
         self._diff_stats = ""
@@ -75,7 +83,7 @@ class StatusBar:
                 if ahead and ahead != "0":
                     self._diff_stats += f" ^ {ahead}"
             except Exception:
-                pass
+                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
 
     def set_context(self, token_count: int, max_tokens: int) -> None:
         self._context_tokens = token_count
@@ -83,7 +91,11 @@ class StatusBar:
         self._context_pct = (token_count / max_tokens * 100) if max_tokens > 0 else 0.0
 
     def set_model(self, model: str) -> None:
-        self.model = model
+        self._model_fallback = model
+
+    @property
+    def model(self) -> str:
+        return (self._model_fn() if self._model_fn else self._model_fallback) or "CRUX"
 
     def set_hint(self, hint: str) -> None:
         self._hint = hint
@@ -98,7 +110,7 @@ class StatusBar:
         self._refresh_git()
 
     def render(self) -> FormattedText:
-        model_str = self.model or "CRUX"
+        model_str = (self._model_fn() if self._model_fn else self._model_fallback) or "CRUX"
         cwd_str = str(self.cwd)
         home = os.path.expanduser("~")
         if cwd_str.startswith(home):

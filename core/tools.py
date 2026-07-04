@@ -49,6 +49,8 @@ __all__ = [
 
 # ── 工具定义数据从 tools_defs.py 导入（facade re-export）──
 from core.tools_defs import (  # noqa: F401
+    _BUILTIN_MODULE,
+    _PY_TYPE_MAP,
     AGENT_SYSTEM_PROMPT,
     BUILTIN_TOOLS,
     COMFYUI_TOOL_DEFS,
@@ -56,13 +58,12 @@ from core.tools_defs import (  # noqa: F401
     PIPELINE_TOOL_DEFS,
     TOOL_CATEGORIES,
     TOOL_EXPANSION_CATEGORIES,
-    _BUILTIN_MODULE,
     _levenshtein,
-    _PY_TYPE_MAP,
     _resolve_tool_names,
     _suggest_similar_tool,
     _validate_args,
 )
+
 
 class ToolRegistry:
     """工具注册表：加载配置、管理定义、执行调度"""
@@ -291,7 +292,8 @@ class ToolRegistry:
         for name, executor in CODE_REVIEW_EXECUTOR_MAP.items():
             self._executors[name] = executor
         # ── CI/CD Pipeline (方法论第10章) ──
-        from core.ci_pipeline import PIPELINE_EXECUTOR_MAP, PIPELINE_TOOL_DEFS as CI_PIPELINE_TOOL_DEFS
+        from core.ci_pipeline import PIPELINE_EXECUTOR_MAP
+        from core.ci_pipeline import PIPELINE_TOOL_DEFS as CI_PIPELINE_TOOL_DEFS
         self._definitions.extend(CI_PIPELINE_TOOL_DEFS)
         for name, executor in PIPELINE_EXECUTOR_MAP.items():
             self._executors[name] = executor
@@ -439,7 +441,7 @@ class ToolRegistry:
             for _n, _e in SCANNER_EXECUTOR_MAP.items():
                 self._executors[_n] = _e
         except Exception:
-            pass
+            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
 
         # ── MCP Health Check ──
         try:
@@ -457,7 +459,7 @@ class ToolRegistry:
                 return json.dumps(mc.health_check_all())
             self._executors["mcp_health_check"] = _hchk
         except Exception:
-            pass
+            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
 
         # 去重
         seen = set()
@@ -585,8 +587,8 @@ class ToolRegistry:
         else:
             return shell_executor
 
-        
-	# ── 注册/注销 ──
+
+    # ── 注册/注销 ──
     def register(
         self, name: str, description: str, parameters: dict, executor: Callable[..., str], override: bool = False
     ):

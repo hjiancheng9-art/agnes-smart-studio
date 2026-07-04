@@ -24,14 +24,17 @@ import asyncio
 import datetime
 import inspect
 import json
+import logging
 import os
 import threading
 import time
+
+logger = logging.getLogger("crux.executor")
 from collections.abc import Callable
 from pathlib import Path
 
 # 数据类提取到 executor_models.py（facade re-export）
-from core.executor_models import ROOT, Step, Task, Goal, AdjustResult  # noqa: F401
+from core.executor_models import ROOT, AdjustResult, Goal, Step, Task  # noqa: F401
 
 __all__ = [
     "ROOT",
@@ -948,7 +951,8 @@ class SmartPlanner:
                 errors_allowed=1,
                 reflection_enabled=True,
             )
-        except Exception:
+        except Exception as e:
+            logger.debug("LLM plan failed, using quick plan: %s", e)
             return quick_plan(goal)
 
     def _call_llm(self, goal: str, context: str, tool_names: list[str] | None) -> str:

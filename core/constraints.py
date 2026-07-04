@@ -182,9 +182,3 @@ CONFIRMABLE_TOOLS = frozenset(
 # METHODOLOGY — 方法论禁区（来自 core/methodology.py）
 # ═══════════════════════════════════════════════════════════════════
 
-from core.methodology import (  # noqa: E402
-    PROTECTED_FILES,
-    PROTECTED_DEP_FILES,
-    is_protected_file,
-    is_protected_dep_file,
-)

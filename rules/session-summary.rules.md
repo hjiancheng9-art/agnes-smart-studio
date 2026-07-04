@@ -1,3 +1,6 @@
+---
+default-active: false
+---
 # Session Summary — 主动归档
 
 ## 规则

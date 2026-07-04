@@ -110,7 +110,8 @@ class AsyncImageToImageEngine:
         self.client = client
 
     def _get_model(self, model: str = "") -> str:
-        if model: return model
+        if model:
+            return model
         try:
             from core.provider import get_provider_manager
             mgr = get_provider_manager()

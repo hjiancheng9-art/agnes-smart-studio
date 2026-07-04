@@ -1,3 +1,6 @@
+---
+default-active: false
+---
 # 密钥安全规范
 
 1. 绝对不提交 API Key/密码到代码

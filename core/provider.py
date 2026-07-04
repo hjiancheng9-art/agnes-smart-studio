@@ -205,11 +205,13 @@ def get_model_info(model_id: str) -> ModelInfo | None:
     return MODEL_REGISTRY.get(model_id)
 
 
-def resolve_model_alias(name: str) -> str | None:
+def resolve_model_alias(name: str | None) -> str | None:
     """将用户输入的别名（light/pro/deepseek/zhipu 等）解析为模型 ID。
 
     优先查 MODEL_REGISTRY 的别名，再直接查 ID 匹配，最后查 models.json。
     """
+    if not name or not isinstance(name, str):
+        return None
     # 1. 别名匹配（无歧义：同一别名只注册一次）
     name_lower = name.lower().strip()
     for m in MODEL_REGISTRY.values():
@@ -434,8 +436,12 @@ class ProviderManager:
         if not self.config_path.exists():
             return
 
-        with open(self.config_path, encoding="utf-8") as f:
-            cfg = json.load(f)
+        try:
+            with open(self.config_path, encoding="utf-8") as f:
+                cfg = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning("models.json corrupted (%s), using defaults", e)
+            return
 
         self.providers = cfg.get("providers", {})
         fallback_cfg = cfg.get("fallback", {})

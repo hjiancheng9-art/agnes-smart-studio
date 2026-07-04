@@ -40,13 +40,13 @@ class TestAllCommandsHaveHandlers:
         assert not missing, f"Missing handlers: {missing}"
 
     def test_command_count(self):
-        """COMMANDS has 45 entries (incl. /method, /done)."""
-        assert len(COMMANDS) == 45, f"Expected 45 commands, got {len(COMMANDS)}"
+        """COMMANDS has 51 entries."""
+        assert len(COMMANDS) == 51, f"Expected 51 commands, got {len(COMMANDS)}"
 
     def test_dispatch_table_size(self):
-        """build_dispatch_table() has expected keys: 45 commands + 3 aliases."""
+        """build_dispatch_table() has expected keys: 51 commands + 3 aliases."""
         table = build_dispatch_table()
-        expected = 45 + 3  # = 48
+        expected = 51 + 3  # = 54
         assert len(table) == expected, (
             f"Expected {expected} dispatch entries, got {len(table)}"
         )

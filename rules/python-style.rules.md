@@ -1,3 +1,6 @@
+---
+default-active: false
+---
 # Python 代码风格
 
 1. 使用类型注解 (typing)

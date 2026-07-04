@@ -15,6 +15,7 @@ __all__ = [
     "CHAT_SYSTEM_PROMPT",
     "CODE_SYSTEM_PROMPT",
     "PromptCache",
+    "_BASE_INJECTIONS",
     "build_system_prompt",
     "get_cached_prompt",
     "set_cached_prompt",
@@ -22,7 +23,7 @@ __all__ = [
 
 # ── 模板（从 chat.py 移出，单一真源）──────────────────────
 
-CHAT_SYSTEM_PROMPT = """你是 {provider_name} 智能助手，当前运行在 {model_name} 模型上。你擅长：
+CHAT_SYSTEM_PROMPT = """你是 CRUX Studio v5.0，AI-native 创意+编程双栖平台。当前由 {provider_name} 驱动 ({model_name})。你擅长：
 - 日常问答、创意写作、知识解释、方案讨论
 - 当用户明确想生成图片时，调用 generate_image 工具
 - 当用户明确想生成视频/动画时，调用 generate_video 工具
@@ -35,7 +36,7 @@ CHAT_SYSTEM_PROMPT = """你是 {provider_name} 智能助手，当前运行在 {m
 
 风格：简洁、中文优先、回答到位。如果用户询问你使用的模型，直接告知当前运行的是 {model_name}。"""
 
-CODE_SYSTEM_PROMPT = """你是 {provider_name} 编程助手，当前运行在 {model_name} 模型上。
+CODE_SYSTEM_PROMPT = """你是 CRUX Studio v5.0 的编程引擎，当前由 {provider_name} 驱动 ({model_name})。
 你是一位资深全栈工程师，擅长：
 - Python、JavaScript/TypeScript、Go、Rust、Java、C/C++ 等主流语言
 - Web 开发（React、Vue、Node.js、FastAPI、Django）
@@ -130,6 +131,12 @@ _CODE_SPECTRUM_INJECTIONS: list[tuple[str, str, str]] = [
     ("core.marketplace", "get_marketplace", "marketplace"),
 ]
 
+# 基底注入：七兽身份 + 金手指外挂 — 所有模式共享（我是谁，不随模式切换）
+_BASE_INJECTIONS: list[tuple[str, str, str]] = [
+    ("core.seven_beasts_fusion", "get_fusion_prompt", "七兽融合"),
+    ("core.golden_finger", "get_golden_finger_prompt", "金手指谱"),
+]
+
 
 # ── 注入模块文件指纹（改任意谱系文件自动破缓存）─────────
 
@@ -144,7 +151,7 @@ def _get_injections_fingerprint() -> str:
 
     mtimes: list[str] = []
     seen = set()
-    for mod_path, _, _ in _SPECTRUM_INJECTIONS + _CODE_SPECTRUM_INJECTIONS + _CHAT_LIGHT_INJECTIONS:
+    for mod_path, _, _ in _BASE_INJECTIONS + _SPECTRUM_INJECTIONS + _CODE_SPECTRUM_INJECTIONS + _CHAT_LIGHT_INJECTIONS:
         if mod_path in seen:
             continue
         seen.add(mod_path)
@@ -156,7 +163,7 @@ def _get_injections_fingerprint() -> str:
             if f:
                 mtimes.append(str(int(os.path.getmtime(f))))
         except Exception:
-            pass
+            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
     # 兜底：lore 目录下所有 .py（含新增/重命名文件）
     lore_dir = os.path.join(os.path.dirname(__file__), "lore")
     if os.path.isdir(lore_dir):
@@ -227,7 +234,20 @@ def build_system_prompt(
         "- 避免无意义的寒暄和套话"
     )
 
-    # 谱系注入：CODE 模式注全部方法论，CHAT 普通模式注全部，CHAT_LIGHT 只注 marketplace
+    # ── 基底注入：七兽身份 + 金手指 — 所有模式共享 ──
+    for mod_path, func_name, label in _BASE_INJECTIONS:
+        try:
+            import importlib
+            mod = importlib.import_module(mod_path)
+            fn = getattr(mod, func_name, None)
+            if fn and callable(fn):
+                result = fn()
+                if isinstance(result, str) and result:
+                    base += "\n\n" + result
+        except Exception:
+            pass
+
+    # 谱系注入：CODE 模式注全部方法论，CHAT_LIGHT 只注 marketplace
     if code_mode:
         injections = _CODE_SPECTRUM_INJECTIONS
     elif chat_light:

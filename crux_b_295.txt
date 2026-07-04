@@ -1,0 +1,10 @@
+        f"\n"
+        f"  ◈ {model_name}  主人: 黄建程\n"
+        f"\n"
+    f"  试试这些:\n"
+    f"    /status  查看状态    /health  系统健康\n"
+    f"    /help    命令列表    /trends  消费趋势\n"
+    f"    Ctrl+V 粘贴   Ctrl+Y 复制   Enter 发送\n"
+    f"    直接打字开始对话\n"
+    )
+    # ── Terminal height guard ──

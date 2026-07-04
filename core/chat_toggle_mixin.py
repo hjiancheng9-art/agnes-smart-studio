@@ -5,7 +5,8 @@ Methods in this Mixin access ChatSession attributes via type stubs (see class bo
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from core.provider import get_provider_name
 from core.tools import AGENT_SYSTEM_PROMPT, get_registry

@@ -91,15 +91,19 @@ def _model_cost_tier(model_id: str) -> str:
     try:
         from core.provider import MODEL_REGISTRY, get_provider_manager
         info = MODEL_REGISTRY.get(model_id)
-        if info is None: return "unknown"
+        if info is None:
+            return "unknown"
         if info.model_type in ("image", "video"):
             return "free" if info.provider_id == "zhipu" else "premium"
-        if info.provider_id == "local": return "free"
+        if info.provider_id == "local":
+            return "free"
         mgr = get_provider_manager()
-        if not mgr.providers: mgr.load()
+        if not mgr.providers:
+            mgr.load()
         pdata = mgr.providers.get(info.provider_id, {})
         provider_tier = pdata.get("cost_tier", "")
-        if provider_tier == "free": return "free"
+        if provider_tier == "free":
+            return "free"
         if info.tier == "light":
             return "free" if model_id in _LIGHT_BUT_FREE else "budget"
         return provider_tier or "unknown"
@@ -170,21 +174,26 @@ def _pick_best_model(candidates: list[str], session=None) -> str:
     allowed = _COST_TIER_FILTER.get(_user_cost_tier, set())
     if allowed:
         candidates = [m for m in candidates if m in allowed]
-        if not candidates: return ""
+        if not candidates:
+            return ""
     try:
         from core.provider import MODEL_REGISTRY, get_provider_manager
         mgr = get_provider_manager()
-        if not mgr.providers: mgr.load()
+        if not mgr.providers:
+            mgr.load()
         state = mgr.state
         for mid in candidates:
             info = MODEL_REGISTRY.get(mid)
-            if info is None: continue
+            if info is None:
+                continue
             pid = info.provider_id
-            if state.is_down(pid): continue
+            if state.is_down(pid):
+                continue
             pdata = mgr.providers.get(pid, {})
             key = pdata.get("api_key", "") or os.getenv(f"{pid.upper()}_API_KEY", "")
             auth_required = pdata.get("auth_required", True)
-            if key or not auth_required: return mid
+            if key or not auth_required:
+                return mid
         return ""
     except (ImportError, RuntimeError):
         return candidates[0] if candidates else ""

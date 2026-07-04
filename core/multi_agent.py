@@ -22,6 +22,9 @@ AsyncChatSession 可直接 await ``execute``）。同步版仍标记 EXPERIMENTA
 
 from __future__ import annotations
 
+import logging
+
+logger = logging.getLogger("crux.multi_agent")
 import asyncio
 import inspect
 import json
@@ -30,7 +33,6 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
-from pathlib import Path
 
 from core.multi_agent_models import ROOT, Agent, AgentTask  # noqa: F401
 
@@ -182,7 +184,7 @@ class MultiAgentCoordinator:
                         try:
                             from core.methodology import classify_failure, get_methodology_state
                             ftype, suggestion = classify_failure(error_str)
-                            m_state = get_methodology_state()
+                            get_methodology_state()
                             self._log.append({
                                 "event": "task_failed",
                                 "task": task.id,
@@ -959,8 +961,7 @@ def _get_coordinator(tool_executor: Callable) -> MultiAgentCoordinator:
     return _coordinator
 
 
-def coordinate(goal: str, tool_executor: Callable) -> dict:
-    return _get_coordinator(tool_executor).execute(goal)
+# coordinate() removed (duplicate of line 351)
 
 
 # ── Agent Swarm tool definition ──

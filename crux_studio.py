@@ -182,6 +182,31 @@ def main():
         _chat_repl()
 
 
+def _run_startup_health() -> None:
+    """每次进入 REPL 前自动执行轻量健康检查。
+
+    安静模式：只日志，不打印到屏幕，避免打断启动流程。
+    """
+    import logging
+
+    logger = logging.getLogger("crux.bootstrap")
+    try:
+        # 1. 确保 MCP 配置文件存在（首次启动时写入默认 4 桥接）
+        from core.mcp_client import ensure_mcp_servers, _mcp_client
+
+        ensure_mcp_servers()
+
+        # 2. 如果 MCP 单例还在但配置已更新（如 >5 条幽灵），自动重载
+        if _mcp_client is not None and len(_mcp_client._servers) > 5:
+            old = len(_mcp_client._servers)
+            n = _mcp_client.reload_config()
+            logger.info("bootstrap: MCP config reloaded (%d → %d)", old, n)
+
+        logger.debug("bootstrap health check complete")
+    except Exception:
+        logger.debug("bootstrap health check skipped", exc_info=True)
+
+
 def _make_chat_client():
     """Create a CruxClient whose base_url/api_key match the active provider.
 
@@ -262,10 +287,22 @@ def _chat_tui():
         print(f"\n  ◆ CRUX Studio v{__version__}  —  {model_name}\n")
 
     # Short welcome for TUI message pane
+    TARGET_BOX_W = 44  # display width of box borders
+    n_eq = (TARGET_BOX_W - 6) // 2
     banner = (
-        f"  ◈ CRUX Studio v{__version__}\n"
-        f"  ◈ model: {model_name}\n"
-        f"  ◈ 主人: 黄建程\n"
+        f"  ╔══ CRUX Studio v{__version__} · 七兽同体 ══╗\n"
+        f"  ║  白虎·自愈  青龙·并行  朱雀·洞察  ║\n"
+        f"  ║  玄武·守卫  麒麟·创造  螣蛇·传承  ║\n"
+        f"  ║  应龙·号令  ◆  七兽同体·万象共生  ║\n"
+        f"  ╚{'═'*n_eq}╝\n"
+        f"\n"
+        f"  ◈ {model_name} · 主人: 黄建程\n"
+        f"  ◈ 根因优先 → 最小复现 → 一次修对\n"
+        f"\n"
+        f"  试试这些:\n"
+        f"    /status  查看状态    /health  系统健康\n"
+        f"    /help    命令列表    /skill   技能市场\n"
+        f"    Ctrl+V 粘贴   Enter 发送\n"
     )
     # ── Terminal height guard ──
     if shutil.get_terminal_size().lines < 10:
@@ -273,11 +310,11 @@ def _chat_tui():
         _chat_plain_session(session, cli, wire, session_id)
         return
 
-    # ── Launch TUI ──
+    # ── Launch TUI (v2: Seven Beasts Command Center) ──
     try:
-        from ui.tui_app import TuiApp
+        from ui.tui_v2 import TuiAppV2
 
-        app = TuiApp(session, cli, session_wire=wire, startup_banner=banner)
+        app = TuiAppV2(session, cli, session_wire=wire, startup_banner=banner)
         app.run()
     except ImportError as e:
         print(f"TUI 模块加载失败: {e}", file=sys.stderr)
@@ -357,6 +394,9 @@ def _chat_plain_session(session, cli, wire, session_id: str = "") -> None:
     """Core plain-text REPL loop — shared by _chat_plain() and TUI fallback."""
     _rprint = _safe_rich_print()
     _setup_readline_completion(cli)
+
+    # ── 启动自愈 + 自优化 ──────────────────────────────────
+    _run_startup_health()
 
     while True:
         try:
@@ -483,18 +523,16 @@ def _print_kimi_tree(root: Path, max_depth: int = 2) -> None:
             except PermissionError:
                 shown += 1
                 continue
-            sub_count = 0
-            for sub in sub_entries:
-                if sub_count >= 15:
+            for sub_idx, sub in enumerate(sub_entries):
+                if sub_idx >= 15:
                     remaining = sum(1 for _ in entry.iterdir())
-                    lines.append(f"    ... and {remaining - sub_count} more")
+                    lines.append(f"    ... and {remaining - sub_idx} more")
                     break
                 sname = sub.name
                 if sub.is_dir():
                     lines.append(f"    {sname}/")
                 elif sname not in SKIP_FILES:
                     lines.append(f"    {sname}")
-                sub_count += 1
         shown += 1
 
     # ── Files second (capped) ──

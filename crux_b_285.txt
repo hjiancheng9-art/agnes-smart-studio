@@ -1,0 +1,10 @@
+        # fallback: minimal banner
+        print(f"\n  ◆ CRUX Studio v{__version__}  —  {model_name}\n")
+
+    # Short welcome for TUI message pane
+    banner = (
+        f"  ╔══ CRUX Studio v{__version__} ══╗\n"
+        f"  ║  白虎为骨 · 青龙为脉 · 朱雀为眼    ║\n"
+        f"  ║  玄武为甲 · 麒麟为手 · 螣蛇为忆    ║\n"
+        f"  ║  应龙为令 · 七兽同体 · 万象共生    ║\n"
+        f"  ╚══════════════════════════════════╝\n"

@@ -63,37 +63,32 @@ python crux_studio.py -q "你的问题"  # 快速模式
 ## 核心架构
 
 ```
-crux/                    # 入口
-├── core/                # 核心引擎
-│   ├── agent.py         # 智能体/规划器
-│   ├── event_bus.py     # 事件中枢（ZCode 协议）
-│   ├── plugin_system.py # 插件体系
-│   ├── session_mgr.py   # 会话管理
-│   ├── skill_loader.py  # 技能系统
-│   ├── model_routing.py # 模型路由（多供应商自动故障切换）
-│   ├── resilience.py    # 熔断/自愈/审计日志
-│   ├── sandbox.py       # 安全沙箱
-│   ├── permission.py    # 三级权限管理
-│   ├── lore/            # 核心 DNA
+.
+├── crux_studio.py       # 主入口
+├── launcher.py          # 七兽启动器
+├── core/                # 核心引擎 (149 .py)
+│   ├── chat.py          # 聊天会话 + 流式协议
+│   ├── commands.py      # 命令注册表 (45 commands)
+│   ├── tools.py         # 工具注册表 (97 tools)
+│   ├── provider.py      # 多供应商 failover
+│   ├── methodology.py   # 方法论引擎
+│   └── lore/            # 七兽 DNA
+├── ui/                  # 终端 TUI
+├── engines/             # 生图/生视频引擎
+├── skills/              # 本地技能 (28)
+└── tests/               # 43 测试文件
 │   │   ├── crux_dna.py  # 白虎·容灾
 │   │   ├── codex_dna.py # 青龙·并行
 │   │   ├── claude_dna.py# 朱雀·洞察
 │   │   ├── zcode_dna.py # 玄武·守卫（ZCode 吸收）
 │   │   ├── codebuddy_dna.py # 麒麟·生成
 │   │   ├── tengshe_dna.py   # 螣蛇·记忆
-│   │   ├── yinglong_dna.py  # 应龙·号令
-│   │   └── five_beasts.py   # 五兽总览
-│   ├── ... (30+ 模块)
+|   |   ├── five_beasts.py   # 五兽总览
+│   ├── ... (149 模块)
 ├── ui/                  # 终端 UI
-├── skills_md/           # 技能目录（渐进披露）
+├── skills/              # 本地技能 (28)
 ├── output/              # 输出 / 日志
-│   └── plugins/         # 插件目录
-│       ├── superpowers/            # 快捷键 + 超级模式
-│       ├── skill-creator/          # 运行时创建技能
-│       └── restore-legacy-sessions/ # 旧会话迁移
-└── tests/               # 151 测试文件
-    ├── test_e2e.py      # 端到端冒烟测试
-    └── ... (30+ 测试文件)
+└── tests/               # 43 测试文件
 ```
 
 ---
@@ -110,7 +105,7 @@ crux/                    # 入口
 | 🛡️ 安全 | 三级权限 · 沙箱 · 日志脱敏 · 熔断器 | 5 层自愈 |
 | 📊 Git | 全工作流 · GitHub API · PR 管理 | 一站式 |
 | 🧠 记忆 | 跨会话用户画像 · 技能匹配 | 渐进披露 |
-| 🌐 工具 | 113 工具 · MCP 协议 · 代码知识图谱 | 可扩展 |
+| 🌐 工具 | 97 工具 · MCP 协议 · 代码知识图谱 | 可扩展 |
 
 ---
 
@@ -121,7 +116,7 @@ crux/                    # 入口
 - **MCP 协议桥**：连接外部 MCP 服务器扩展能力
 - **5 层自愈**：熔断器 → 指数退避 → 自动回滚 → 供应商切换 → 检查点恢复
 - **ZCode 全吸收**：模型路由 + 插件体系 + 事件生命周期 + 技能系统
-- **技能市场**：63 已安装 + 668 可用技能
+- **技能市场**：28 已安装 + 668 可用技能
 
 ---
 
@@ -129,7 +124,6 @@ crux/                    # 入口
 
 ```bash
 python -m pytest tests/ --tb=short -q    # 运行测试
-python -m pytest tests/test_e2e.py -v    # 端到端冒烟
 ```
 
 评分（自检）：**8.5/10**

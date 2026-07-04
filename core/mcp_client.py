@@ -23,7 +23,10 @@ Communication:
 
 import contextlib
 import json
+import logging
 import os
+
+logger = logging.getLogger("crux.mcp_client")
 import subprocess
 import sys
 import threading
@@ -118,6 +121,24 @@ class MCPClient:
             self._save_config()
             return {"status": "ok", "server": asdict(cfg)}
 
+    def reload_config(self) -> int:
+        """重新加载配置：断开所有连接，清空缓存，从文件重读。
+
+        用于测试隔离和热加载。调用后 get_mcp_client() 会返回更新后的实例。
+        """
+        # 断开所有现有连接
+        for name in list(self._processes.keys()):
+            with contextlib.suppress(subprocess.SubprocessError, OSError):
+                self._terminate_process(name, self._processes[name])
+        self._processes.clear()
+        # 清空注册表
+        self._servers.clear()
+        # 从文件重读
+        self._load_config()
+        new_count = len(self._servers)
+        logger.info("mcp_client reloaded: %d servers", new_count)
+        return new_count
+
     def list_servers(self) -> list[dict]:
         """Return all registered server configurations with connection status.
 
@@ -158,16 +179,16 @@ class MCPClient:
         if proc is None:
             result = self.connect(name)
             return {"name": name, "status": result.get("status", "reconnected"), "action": "connected"}
-        
+
         poll = proc.poll()
         if poll is not None:
             # Process died, reconnect
             self._processes.pop(name, None)
             result = self.connect(name)
             return {"name": name, "status": result.get("status", "reconnected"), "action": "reconnected"}
-        
+
         return {"name": name, "status": "alive", "action": "none"}
-    
+
     def health_check_all(self) -> list[dict]:
         """Health check all registered servers."""
         results = []
@@ -519,8 +540,7 @@ class MCPClient:
 
     def _load_config(self) -> None:
         """Load server configs from JSON file."""
-        if not self.CONFIG_PATH.exists():
-            return
+        ensure_mcp_servers()  # 首次启动时确保有默认配置
         try:
             with open(self.CONFIG_PATH, encoding="utf-8") as f:
                 data = json.load(f)
@@ -564,6 +584,44 @@ def reset_mcp_client() -> None:
         with contextlib.suppress(Exception):
             _mcp_client._cleanup_all()
         _mcp_client = None
+
+
+def ensure_mcp_servers() -> None:
+    """确保 output/mcp_servers.json 存在且有 MCP 服务器配置。
+
+    如果文件缺失或为空，写入默认的 4 个 MCP 桥接服务器配置。
+    如果已存在，不做任何修改（保留用户自定义配置）。
+    """
+    default_servers = [
+        {"name": "claude-code", "command": "python",
+         "args": ["core/mcp_servers/claude_code_bridge.py"],
+         "enabled": True, "connected": False,
+         "description": "Claude Code Bridge — MCP 桥接"},
+        {"name": "kimi", "command": "python",
+         "args": ["core/mcp_servers/kimi_bridge.py"],
+         "enabled": True, "connected": False,
+         "description": "Kimi ACP → MCP Bridge"},
+        {"name": "qoder", "command": "python",
+         "args": ["core/mcp_servers/qoder_bridge.py"],
+         "enabled": True, "connected": False,
+         "description": "Qoder CLI → MCP Bridge"},
+        {"name": "zcode", "command": "python",
+         "args": ["core/mcp_servers/crux_mcp_entry.py"],
+         "enabled": True, "connected": False,
+         "description": "CRUX MCP Server — 向 ZCode 暴露工具"},
+    ]
+    config_path = OUTPUT_DIR / "mcp_servers.json"
+    if config_path.exists():
+        with open(config_path, encoding="utf-8") as f:
+            try:
+                existing = json.load(f)
+                if existing.get("servers"):
+                    return  # 已有配置，不覆盖
+            except (json.JSONDecodeError, ValueError):
+                pass
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(config_path, "w", encoding="utf-8") as f:
+        json.dump({"servers": default_servers}, f, indent=2, ensure_ascii=False)
 
 
 # ── Tool Definitions for ToolRegistry ─────────────────────
@@ -653,6 +711,9 @@ MCP_TOOL_DEFS = [
 def _exec_mcp_list_servers(**kwargs) -> str:
     """Executor: list all configured MCP servers."""
     client = get_mcp_client()
+    # 自动清理幽灵条目：如果服务器数量异常多（>10），触发重新加载
+    if len(client._servers) > 10:
+        client.reload_config()
     return json.dumps(client.list_servers(), ensure_ascii=False)
 
 

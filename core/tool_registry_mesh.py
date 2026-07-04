@@ -436,7 +436,7 @@ class ToolRegistryMesh:
                     seen = set(persisted)
                     return persisted + [t for t in static_order if t not in seen]
         except Exception:
-            pass
+            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
 
         # 2. Try GrowthEngine live stats
         try:
@@ -447,7 +447,7 @@ class ToolRegistryMesh:
                 seen = set(learned)
                 return learned + [t for t in static_order if t not in seen]
         except Exception:
-            pass
+            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
 
         # 3. Static fallback
         return list(static_order)
@@ -518,7 +518,7 @@ class ToolRegistryMesh:
                     if line:
                         response_lines.append(line.strip())
                 except Exception:
-                    pass
+                    import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
 
             proc.kill()
 

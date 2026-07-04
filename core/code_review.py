@@ -6,8 +6,11 @@
 
 import ast
 import json
+import logging
 import os
 import re
+
+logger = logging.getLogger("crux.code_review")
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -266,7 +269,8 @@ class CodeReviewer:
             for rule in self.rules:
                 try:
                     all_issues.extend(rule.check_file(fp, content))
-                except Exception:
+                except Exception as e:
+                    logger.debug("file review skipped: %s", e)
                     continue
 
         stats = {

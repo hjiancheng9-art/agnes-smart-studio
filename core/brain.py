@@ -6,33 +6,11 @@ import httpx
 
 from .async_client import AsyncCruxClient
 from .brain_data import (
-    ANTI_PATTERN_MAP,
-    BEAUTY_NEGATIVE_REPAIR_MAP,
     BEAUTY_PORTRAIT_MAP,
-    BEAUTY_PRODUCTION_RULES,
-    BEAUTY_SWEET_SPOT_TEMPLATES,
-    COMBAT_MOVE_INDEX,
-    COMBAT_MOVE_TEMPLATES,
-    COMBAT_NEGATIVE_REPAIR_MAP,
-    COMBAT_SWEET_SPOT_TEMPLATES,
-    COMBAT_VFX_PALETTES,
-    CREATIVE_DOMAIN_MAP,
-    CREATIVE_LEAP_PROMPT,
     ENHANCE_IMAGE_PROMPT,
     ENHANCE_VIDEO_PROMPT,
-    ENTITY_NEGATIVE_REPAIR_MAP,
-    ENTITY_SWEET_SPOT_TEMPLATES,
     ENTITY_TYPE_MAP,
-    GRAFT_TARGETS,
-    IMAGE_EDIT_PROMPT,
     INTENT_PROMPT,
-    NEGATIVE_REPAIR_MAP,
-    NONHUMAN_COMBAT_MOTIF,
-    NONHUMAN_VIDEO_RULES,
-    STORYBOARD_PROMPT,
-    SWEET_SPOT_TEMPLATES,
-    SWEET_SPOT_VIDEO_TEMPLATES,
-    THINKING_METHOD_MAP,
 )
 from .client import CruxClient
 
@@ -45,6 +23,7 @@ from core.brain_aesthetics import SmartBrainMixin as AestheticsMixin
 from core.brain_combat import SmartBrainMixin as CombatMixin
 from core.brain_creative import SmartBrainMixin as CreativeMixin
 from core.brain_vision import SmartBrainMixin as VisionMixin
+
 
 class SmartBrain(CombatMixin, CreativeMixin, AestheticsMixin, VisionMixin):
     """智能大脑：意图识别 + Prompt增强 + 分镜生成"""

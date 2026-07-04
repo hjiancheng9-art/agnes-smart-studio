@@ -301,7 +301,7 @@ class CronScheduler:
         """List all cron jobs."""
         return sorted(self._jobs.values(), key=lambda j: j.created_at)
 
-    def get(self, job_id: str) -> CronJob | None:
+    def get_job(self, job_id: str) -> CronJob | None:
         return self._jobs.get(job_id)
 
     # ── Background thread ──────────────────────────────────

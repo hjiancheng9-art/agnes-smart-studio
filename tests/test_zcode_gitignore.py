@@ -25,9 +25,10 @@ def test_history_in_gitignore():
     content = _read_gitignore()
     lines = [line.strip() for line in content.splitlines()]
     assert (
-        "output/history.json" in lines
+        "output/history.jsonl" in lines
+        or "output/history.json" in lines
         or "output/*.json" in lines
-    ), ".gitignore must contain output/history.json or output/*.json"
+    ), ".gitignore must contain output/history.jsonl or output/*.json"
 
 
 def test_runtime_artifacts_in_gitignore():

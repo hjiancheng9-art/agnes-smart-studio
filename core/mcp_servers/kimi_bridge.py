@@ -23,7 +23,7 @@ def _kimi_acp(method: str, params: dict = None, timeout: int = 180) -> dict:  # 
         "params": params,
         "id": 1
     }) + "\n"
-    
+
     proc = subprocess.Popen(
         [KIMI_EXE, "acp"],
         stdin=subprocess.PIPE,
@@ -32,7 +32,7 @@ def _kimi_acp(method: str, params: dict = None, timeout: int = 180) -> dict:  # 
         text=True, encoding="utf-8", errors="replace"
     )
     out, err = proc.communicate(input=req, timeout=timeout)
-    
+
     if out.strip():
         try:
             return json.loads(out)
@@ -48,11 +48,11 @@ def _send_message(prompt: str, timeout: int = 180) -> dict:
     resp = _kimi_acp("sendMessage", {
         "message": {"role": "user", "content": prompt}
     }, timeout=timeout)
-    
+
     # Handle different response formats
     if "error" in resp:
         return {"status": "error", "error": resp["error"].get("message", str(resp["error"]))}
-    
+
     result = resp.get("result", {})
     content = result.get("message", {}).get("content", "") if isinstance(result, dict) else str(result)
     return {"status": "ok", "content": content[:2000]}
@@ -75,18 +75,18 @@ def main():
         req = _read_request()
         if req is None:
             break
-        
+
         method = req.get("method", "")
         req_id = req.get("id")
 
         if method == "initialize":
             # Initialize ACP with protocol version 1 (integer)
-            acp_resp = _kimi_acp("initialize", {
+            _kimi_acp("initialize", {
                 "protocolVersion": 1,
                 "capabilities": {},
                 "clientInfo": {"name": "crux", "version": "1.0"}
             })
-            
+
             _send_response({
                 "jsonrpc": "2.0", "id": req_id,
                 "result": {
@@ -159,14 +159,14 @@ def main():
                         "protocolVersion": 1, "capabilities": {},
                         "clientInfo": {"name": "crux", "version": "1.0"}
                     })
-                    
+
                     # Resume/create session with cwd
                     cwd = str(Path.cwd())
                     session_resp = _kimi_acp("session/resume", {
                         "cwd": cwd,
                         "sessionId": f"kimi-bridge-{int(time.time())}"
                     })
-                    
+
                     result_text = json.dumps({
                         "status": "ok",
                         "note": "Kimi ACP session created. Kimi is best used as an MCP client (already connected to CRUX).",
@@ -174,7 +174,7 @@ def main():
                         "acp_init": bool(init_resp.get("result")),
                         "acp_session": bool(session_resp.get("result")) if isinstance(session_resp, dict) else False
                     }, ensure_ascii=False)
-                    
+
                     _send_response({
                         "jsonrpc": "2.0", "id": req_id,
                         "result": {"content": [{"type": "text", "text": result_text}]}

@@ -249,10 +249,11 @@ class AwarenessGraph:
             if line.strip().startswith("## Session:"):
                 in_content = True
                 continue
-            if in_content and line.strip() and not line.strip().startswith("#"):
-                if not line.strip().startswith("<!--") and not line.strip().startswith("-"):
-                    summary = line.strip()
-                    break
+            if (in_content and line.strip() and not line.strip().startswith("#")
+                    and not line.strip().startswith("<!--")
+                    and not line.strip().startswith("-")):
+                summary = line.strip()
+                break
 
         # Extract fact-like lines
         fact_pattern = re.compile(r"^-\s+(.+?)[：:]\s*(.+)$")

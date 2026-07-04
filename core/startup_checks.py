@@ -42,6 +42,26 @@ def _add(category: str, ok: bool, msg: str):
     _results.append((category, ok, msg))
 
 
+def _check_dna_identity():
+    """Verify CRUX DNA identity is intact in prompt templates."""
+    try:
+        from core.chat_prompt import CHAT_SYSTEM_PROMPT, CODE_SYSTEM_PROMPT, _BASE_INJECTIONS
+        if "CRUX Studio" not in CHAT_SYSTEM_PROMPT:
+            _add("dna", False, "CHAT_SYSTEM_PROMPT lost CRUX identity")
+            return
+        if "CRUX Studio" not in CODE_SYSTEM_PROMPT:
+            _add("dna", False, "CODE_SYSTEM_PROMPT lost CRUX identity")
+            return
+        labels = [label for _, _, label in _BASE_INJECTIONS]
+        missing = [l for l in ("七兽融合", "金手指谱") if l not in labels]
+        if missing:
+            _add("dna", False, f"DNA injections missing: {missing}")
+            return
+        _add("dna", True, "DNA identity intact (七兽+金手指)")
+    except Exception as e:
+        _add("dna", False, f"DNA check failed: {e}")
+
+
 def run_all() -> list[tuple[str, bool, str]]:
     """Run all startup checks. Returns list of (category, ok, message)."""
     _results.clear()
@@ -50,6 +70,7 @@ def run_all() -> list[tuple[str, bool, str]]:
     _check_output_dirs()
     _check_models_config()
     _check_tools_config()
+    _check_dna_identity()
     _check_api_connectivity()
     _check_provider_liveness()
     return list(_results)
