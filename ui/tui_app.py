@@ -211,7 +211,7 @@ class TuiApp:
             # Activity zone (tool calls, thinking steps, status)
             activity_window,
             # Input
-            Window(content=input_ctrl, height=Dimension(min=1, max=8), style="class:input-field"),
+            Window(content=input_ctrl, height=1, style="class:input-field"),
             # Status bar
             Window(
                 content=FormattedTextControl(lambda: self.status_bar.render()),
