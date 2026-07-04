@@ -28,8 +28,10 @@ import os
 import threading
 import time
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, field
 from pathlib import Path
+
+# 数据类提取到 executor_models.py（facade re-export）
+from core.executor_models import ROOT, Step, Task, Goal, AdjustResult  # noqa: F401
 
 __all__ = [
     "ROOT",
@@ -48,32 +50,6 @@ __all__ = [
     "set_goal_budget_tool",
     "update_goal_tool",
 ]
-
-ROOT = Path(__file__).resolve().parent.parent
-
-
-@dataclass
-class Step:
-    id: str
-    description: str
-    tool: str
-    args: dict = field(default_factory=dict)
-    depends_on: list[str] = field(default_factory=list)
-    verify: str | None = None  # "syntax" | "test" | None
-    status: str = "pending"  # pending | running | done | failed | skipped
-    result: str = ""
-    error: str = ""
-
-
-@dataclass
-class Task:
-    id: str
-    goal: str
-    steps: list[Step] = field(default_factory=list)
-    status: str = "pending"
-    errors_allowed: int = 0
-    reflection_enabled: bool = False  # enable self-reflection on step failure
-    max_retries_per_step: int = 2  # max reflection/retry attempts per step
 
 
 class TaskExecutor:
@@ -682,35 +658,6 @@ async def async_execute_plan_tool(goal: str, steps: str, root: str | None = None
 _GOALS_FILE = ROOT / "output" / "goals.json"
 
 
-@dataclass
-class Goal:
-    """A goal-mode task with clear finish line, boundaries, and budget."""
-
-    id: str
-    intent: str
-    finish_line: str = ""
-    boundaries: str = ""
-    status: str = "active"  # active | paused | completed | cancelled
-    max_steps: int = 20
-    max_tool_calls: int = 100
-    max_duration_seconds: int = 0  # 0 = unlimited
-    steps_executed: int = 0
-    tool_calls_made: int = 0
-    created_at: str = ""
-    updated_at: str = ""
-    evidence: str = ""
-
-    def is_budget_exhausted(self) -> bool:
-        return self.steps_executed >= self.max_steps or self.tool_calls_made >= self.max_tool_calls
-
-    def to_dict(self) -> dict:
-        return asdict(self)
-
-    @classmethod
-    def from_dict(cls, data: dict) -> Goal:
-        return cls(**data)
-
-
 class GoalManager:
     """Persistent goal manager backed by a JSON file.
 
@@ -975,16 +922,6 @@ _REFLECTION_PROMPT = """步骤执行失败，请分析原因并调整计划。
 
 返回纯 JSON：{{"action": "retry"|"replan"|"skip", "tool": "新工具名", "args": {{}}, "reason": "原因"}}
 只返回 JSON，不要其他文字。"""
-
-
-@dataclass
-class AdjustResult:
-    """Self-reflection 的输出：决定下一步行动。"""
-
-    action: str  # "retry" | "replan" | "skip"
-    tool: str = ""
-    args: dict = field(default_factory=dict)
-    reason: str = ""
 
 
 class SmartPlanner:

@@ -30,8 +30,9 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass, field
 from pathlib import Path
+
+from core.multi_agent_models import ROOT, Agent, AgentTask  # noqa: F401
 
 __all__ = [
     "Agent",
@@ -46,37 +47,6 @@ __all__ = [
     "AGENT_SWARM_TOOL_DEF",
     "_exec_agent_swarm",
 ]
-
-ROOT = Path(__file__).resolve().parent.parent
-
-
-@dataclass
-class AgentTask:
-    id: str
-    description: str
-    tool_sequence: list[dict] = field(default_factory=list)
-    depends_on: list[str] = field(default_factory=list)
-    assigned_to: str = ""
-    status: str = "pending"  # pending | running | done | failed | stolen
-    result: str = ""
-    started_at: float = 0
-    finished_at: float = 0
-    # ── 三级 tier 路由（对标 Claude Haiku/Sonnet/Opus）──
-    # "auto": 由 ModelRouter 按 description/task_type 自动选模型
-    # "light" / "pro" / "heavy": 显式指定 tier
-    tier: str = "auto"
-    task_type: str = ""  # 传给 ModelRouter.select() 的任务类型（tier=auto 时生效）
-
-
-@dataclass
-class Agent:
-    id: str
-    role: str  # "reviewer" | "debugger" | "implementer" | "tester"
-    status: str = "idle"
-    current_task: str = ""
-    context_history: list[dict] = field(default_factory=list)  # 持久化上下文历史
-    created_at: float = 0.0
-    total_tasks_completed: int = 0
 
 
 # ── 同步版（threading + Lock，保留兼容）─────────────────────
