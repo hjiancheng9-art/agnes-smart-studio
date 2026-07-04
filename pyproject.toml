@@ -45,11 +45,22 @@ py-modules = ["crux_studio"]
 [project.urls]
 Homepage = "https://github.com/user/crux-smart-studio"
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "pytest-asyncio>=0.23",
+    "coverage>=7.0",
+    "ruff>=0.4",
+    "pyright>=1.1.400",
+]
+
 [tool.pytest.ini_options]
 # 只收集 tests/ 顶层单元测试（mock，不打真实 API）。
 # tests/manual/ 是手动集成脚本（打真实 API、有自己的入口），不纳入 CI 收集。
 testpaths = ["tests"]
 norecursedirs = ["tests/manual", "scripts", "output", ".codebuddy"]
+pythonpath = ["."]
 python_files = ["test_*.py"]
 addopts = "-q"
 
@@ -98,7 +109,8 @@ omit = ["*/__pycache__/*", "*/tests/*"]
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
-# 门禁策略：设为略低于当前实际总覆盖率（约 57%），留 ~2% 防抖余量，
-# 防止边缘测试波动导致 CI 误报，同时守住"不得大幅倒退"的底线。
-fail_under = 96
+# 门禁策略：基线 55%（当前实际约 57%），留 ~2% 防抖余量。
+# 周爬坡：每 merge 一个 worktree 把门禁上调 2-3 个百分点。
+# 上游原来是 96%（与实际值脱节），CI 也没跑 --cov，等于形同虚设。
+fail_under = 55
 
