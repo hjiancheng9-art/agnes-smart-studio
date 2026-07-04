@@ -977,6 +977,17 @@ class ChatSession(ChatToggleMixin):
                 # 正常收尾 — 检测是否为模型拒绝，若是则触发对抗 bypass
                 self._finalize_outcome(_use_model, _last_usage)
                 self.messages.append({"role": "assistant", "content": buffer})
+                # ── 红旗警示: 检测输出中的危险短语 ──
+                try:
+                    from core.methodology import detect_red_flags, get_methodology_state
+
+                    flags = detect_red_flags(buffer)
+                    if flags:
+                        for w in flags:
+                            yield ("info", w)
+                        get_methodology_state().advance_workflow("verified")
+                except (ImportError, OSError):
+                    pass
                 if (yield from self._try_adversarial_bypass(buffer, user_text, _use_client, _use_model, tools)):
                     return  # bypass 成功，已在内部 yield 结果
                 self._trigger_reflection()

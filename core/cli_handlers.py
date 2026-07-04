@@ -939,6 +939,28 @@ class CruxCLI:
             print(f"    TDD 阶段 : {state.tdd_phase or '-'}")
         print(f"  /method reset — 重置状态")
 
+    def _chat_done(self, args: str) -> None:
+        """完成前验证清单 (AGENTS.md)。"""
+        quick = args.strip().lower() == "quick"
+        from core.methodology import run_verification, get_methodology_state
+
+        print("  ── 完成前验证 ──")
+        results = run_verification()
+        if quick:
+            results.pop("pytest", None)
+            print("  (quick=跳过pytest)")
+        all_ok = True
+        for name, (ok, summary) in results.items():
+            mark = "✓" if ok else "✗"
+            print(f"  {mark} {name}: {summary[:100]}")
+            if not ok:
+                all_ok = False
+        if all_ok:
+            print("  全部通过 ✅")
+            get_methodology_state().advance_workflow("cleaned")
+        else:
+            print("  存在未通过项，修复后重新 /done")
+
     def _chat_provider(self, args: str) -> None:
         """Switch model provider: /provider <list|switch>."""
         arg = args.strip().lower()

@@ -173,10 +173,28 @@ class MultiAgentCoordinator:
                         r = self.execute_tool(step["tool"], step["args"])
                         results.append(r[:200])
                     except Exception as e:
+                        error_str = f"{type(e).__name__}: {e}"
                         with self._lock:
                             task.status = "failed"
-                            task.result = f"Failed at step {step['tool']}: {type(e).__name__}: {e}"
+                            task.result = f"Failed at step {step['tool']}: {error_str}"
                             task.finished_at = time.time()
+                        # ── 方法论: 子Agent失败分类与路由建议 ──
+                        try:
+                            from core.methodology import classify_failure, get_methodology_state
+                            ftype, suggestion = classify_failure(error_str)
+                            m_state = get_methodology_state()
+                            self._log.append({
+                                "event": "task_failed",
+                                "task": task.id,
+                                "error": error_str,
+                                "failure_type": ftype,
+                                "suggestion": suggestion,
+                                "consecutive_failures": sum(
+                                    1 for t in self.tasks if t.status == "failed"
+                                ),
+                            })
+                        except ImportError:
+                            pass
                         break
                 else:
                     with self._lock:
@@ -304,10 +322,21 @@ class MultiAgentCoordinator:
                 r = self.execute_tool(step["tool"], step_args)
                 results.append(r[:200])
             except Exception as e:
+                error_str = str(e)
                 with self._lock:
                     task.status = "failed"
-                    task.result = str(e)
-                    self._log.append({"event": "task_failed", "task": task.id, "error": str(e)})
+                    task.result = error_str
+                    # ── 方法论: 失败分类
+                    try:
+                        from core.methodology import classify_failure
+                        ftype, suggestion = classify_failure(error_str)
+                        self._log.append({
+                            "event": "task_failed", "task": task.id,
+                            "error": error_str,
+                            "failure_type": ftype, "suggestion": suggestion,
+                        })
+                    except ImportError:
+                        self._log.append({"event": "task_failed", "task": task.id, "error": error_str})
                 return
         with self._lock:
             task.status = "done"

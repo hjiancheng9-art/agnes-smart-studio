@@ -127,6 +127,11 @@ COMMANDS: list[CommandDef] = [
     CommandDef("provider", "/provider", "<cmd>", "切换模型供应商 (list/switch)", "诊断配置"),
     CommandDef("evolve", "/evolve", "", "查看 Prompt 进化状态", "诊断配置"),
     CommandDef(
+        "done", "/done", "[quick]", "完成前验证 (pytest+ruff+pyright+git diff)", "诊断配置",
+        long_desc="跑完整验证清单确认任务完成。quick=跳过 pytest 只做 lint+diff。",
+        handler="_chat_done",
+    ),
+    CommandDef(
         "method",
         "/method",
         "[reset]",
