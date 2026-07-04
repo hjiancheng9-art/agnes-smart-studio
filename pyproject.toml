@@ -21,6 +21,7 @@ dependencies = [
 ]
 authors = [{name = "CRUX Studio"}]
 readme = "README.md"
+license = {text = "MIT"}
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
