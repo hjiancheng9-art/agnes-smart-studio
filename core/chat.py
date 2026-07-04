@@ -841,6 +841,18 @@ class ChatSession(ChatToggleMixin):
         except Exception as e:
             logger.debug("cost_tracker.check_budget unexpected error: %s: %s", type(e).__name__, e)
 
+        # ── 方法论分级：根据意图自动判定 A/B/C/D 任务等级 ──
+        try:
+            from core.methodology import get_methodology_state
+
+            state = get_methodology_state()
+            state.classify(user_text, [])
+            state.record_step()
+            if state.task_level.value in ("complex", "critical"):
+                yield ("info", f"[方法] 任务等级 {state.task_level.name} — {state.summary()}")
+        except (ImportError, OSError):
+            pass
+
         # ── 多模态分支：有图片 → 走独立视觉客户端 ──
         if image_url:
             self.messages.append(

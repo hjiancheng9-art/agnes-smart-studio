@@ -127,6 +127,15 @@ COMMANDS: list[CommandDef] = [
     CommandDef("provider", "/provider", "<cmd>", "切换模型供应商 (list/switch)", "诊断配置"),
     CommandDef("evolve", "/evolve", "", "查看 Prompt 进化状态", "诊断配置"),
     CommandDef(
+        "method",
+        "/method",
+        "[reset]",
+        "查看当前任务的方法论遵守状态 (A/B/C/D 分级 + Plan/基线/Worktree/TDD)",
+        "诊断配置",
+        long_desc="显示当前任务的 A/B/C/D 等级、Plan 状态、测试基线、Worktree 隔离、TDD 阶段。reset=重置状态。",
+        handler="_chat_method",
+    ),
+    CommandDef(
         "know", "/know", "<cmd>", "浏览内置知识库 (methods/templates/domain)", "诊断配置", handler="_chat_knowledge"
     ),
     CommandDef(

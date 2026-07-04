@@ -78,9 +78,22 @@ def register_tool_interceptor():
         from core.hooks import HookType, register_hook
 
         def _hook(tool_name: str, args: dict, **kw):
+            # 1. 安全拦截（危险命令/受保护文件）
             allowed, reason = intercept_tool(tool_name, args)
             if not allowed:
-                return reason  # Non-empty string blocks the tool
+                return reason
+
+            # 2. 方法论合规检查
+            try:
+                from core.methodology import get_methodology_state, methodology_pre_check
+
+                state = get_methodology_state()
+                allowed, reason = methodology_pre_check(tool_name, args, state)
+                if not allowed:
+                    return reason
+            except ImportError:
+                pass
+
             return None  # None means proceed
 
         register_hook(HookType.PRE_TOOL_USE, _hook, priority=100)

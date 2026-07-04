@@ -906,6 +906,28 @@ class CruxCLI:
         else:
             print("  用法: /permission <yolo|auto|manual>")
 
+    def _chat_method(self, args: str) -> None:
+        """Show methodology compliance state."""
+        arg = args.strip().lower()
+        if arg == "reset":
+            from core.methodology import reset_methodology_state
+            reset_methodology_state()
+            print("  方法论状态已重置")
+            return
+
+        from core.methodology import get_methodology_state
+        state = get_methodology_state()
+        print(f"  {state.summary()}")
+        print()
+        level = state.task_level
+        if level.value in ("complex", "critical"):
+            print(f"  C/D 级要求:")
+            print(f"    Plan     : {'✓' if state.plan_exists else '✗ 未创建'}")
+            print(f"    测试基线 : {'✓' if state.test_baseline_recorded else '✗'}")
+            print(f"    Worktree : {'✓' if state.worktree_created else ('✗' if level.value == 'critical' else '跳过')}")
+            print(f"    TDD 阶段 : {state.tdd_phase or '-'}")
+        print(f"  /method reset — 重置状态")
+
     def _chat_provider(self, args: str) -> None:
         """Switch model provider: /provider <list|switch>."""
         arg = args.strip().lower()
