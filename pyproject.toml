@@ -103,7 +103,7 @@ ignore = [
 # 全量业务代码类型检查（不含 tests，tests 有独立基线）
 include = ["core", "ui", "engines", "pipeline", "utils"]
 # 与 ruff extend-exclude 保持一致：临时脚本/生成产物不纳入静态分析
-exclude = ["scripts/scratch", "tests/manual", "output", ".codebuddy", "**/__pycache__"]
+exclude = ["scripts/scratch", "tests/manual", "output", ".codebuddy", "**/__pycache__", "**/node_modules/**"]
 # basic 模式：消化存量错误，逐步向 strict 推进
 typeCheckingMode = "basic"
 # 忽略第三方库的 stub 缺失（playwright/prompt_toolkit 等）

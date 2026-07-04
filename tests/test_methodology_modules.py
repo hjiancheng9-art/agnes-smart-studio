@@ -366,31 +366,32 @@ def test_brain_mixin_methods():
 
 
 def test_brain_combat_mixin():
-    from core.brain_combat import SmartBrainMixin
+    from core.brain import SmartBrain
     
-    methods = [m for m in dir(SmartBrainMixin) if not m.startswith("__")]
+    # Methods originally from combat mixin are now in monolithic SmartBrain
+    methods = [m for m in dir(SmartBrain) if not m.startswith("__")]
     assert "_match_combat_moves" in methods
     assert "_detect_combat_scene" in methods
 
 
 def test_brain_creative_mixin():
-    from core.brain_creative import SmartBrainMixin
+    from core.brain import SmartBrain
     
-    methods = [m for m in dir(SmartBrainMixin) if not m.startswith("__")]
+    methods = [m for m in dir(SmartBrain) if not m.startswith("__")]
     assert "creative_leap" in methods
 
 
 def test_brain_aesthetics_mixin():
-    from core.brain_aesthetics import SmartBrainMixin
+    from core.brain import SmartBrain
     
-    methods = [m for m in dir(SmartBrainMixin) if not m.startswith("__")]
+    methods = [m for m in dir(SmartBrain) if not m.startswith("__")]
     assert "_match_sweet_spot" in methods
 
 
 def test_brain_vision_mixin():
-    from core.brain_vision import SmartBrainMixin
+    from core.brain import SmartBrain
     
-    methods = [m for m in dir(SmartBrainMixin) if not m.startswith("__")]
+    methods = [m for m in dir(SmartBrain) if not m.startswith("__")]
     assert "entity_graft" in methods
 
 
