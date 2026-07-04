@@ -387,6 +387,7 @@ RED_FLAGS: dict[str, str] = {
     "我先改一下": "红旗: '我先改一下' → 先收集上下文再改",
     "顺便重构": "红旗: '顺便重构' → 不扩大范围",
     "子代理说完成了": "红旗: '子代理说完成了' → 报告不是证据，自己验证",
+    "-n auto": "红旗: 'pytest -n auto' → 全量测试必须限并发(-n 4)，禁止 -n auto",
     "looks good": "Red flag: 'looks good' → verify with evidence",
     "should be fine": "Red flag: 'should be fine' → run tests",
     "theoretically": "Red flag: 'theoretically' → theory ≠ evidence",
@@ -443,6 +444,14 @@ VERIFICATION_CHECKS: dict[str, str] = {
     "ruff": "python -m ruff check core/ ui/ engines/ --config=pyproject.toml",
     "pyright": "python -m pyright",
     "git_diff": "git diff --stat HEAD",
+    "residue": (
+        'python -c "import subprocess,sys; '
+        'cmd=[\"tasklist\",\"/FI\",\"IMAGENAME eq python.exe\"] if sys.platform==\"win32\" '
+        'else [\"pgrep\",\"-a\",\"python\"]; '
+        'r=subprocess.run(cmd,capture_output=True,text=True,timeout=5,shell=sys.platform==\"win32\"); '
+        'lines=[l for l in r.stdout.split(chr(10)) if l.strip() and \"grep\" not in l]; '
+        'print(f\"{len(lines)} python processes\") if lines else print(\"clean\")\"'
+    ),
 }
 
 DONE_TRIGGERS: frozenset[str] = frozenset({
@@ -505,6 +514,7 @@ RED_FLAGS: dict[str, str] = {
     "我先改一下": "红旗: '我先改一下' → 先收集上下文再改",
     "顺便重构": "红旗: '顺便重构' → 不扩大范围",
     "子代理说完成了": "红旗: '子代理说完成了' → 报告不是证据，自己验证",
+    "-n auto": "红旗: 'pytest -n auto' → 全量测试必须限并发(-n 4)，禁止 -n auto",
     "looks good": "Red flag: 'looks good' → verify with evidence",
     "should be fine": "Red flag: 'should be fine' → run tests",
     "theoretically": "Red flag: 'theoretically' → theory ≠ evidence",
@@ -561,6 +571,14 @@ VERIFICATION_CHECKS: dict[str, str] = {
     "ruff": "python -m ruff check core/ ui/ engines/ --config=pyproject.toml",
     "pyright": "python -m pyright",
     "git_diff": "git diff --stat HEAD",
+    "residue": (
+        'python -c "import subprocess,sys; '
+        'cmd=[\"tasklist\",\"/FI\",\"IMAGENAME eq python.exe\"] if sys.platform==\"win32\" '
+        'else [\"pgrep\",\"-a\",\"python\"]; '
+        'r=subprocess.run(cmd,capture_output=True,text=True,timeout=5,shell=sys.platform==\"win32\"); '
+        'lines=[l for l in r.stdout.split(chr(10)) if l.strip() and \"grep\" not in l]; '
+        'print(f\"{len(lines)} python processes\") if lines else print(\"clean\")\"'
+    ),
 }
 
 DONE_TRIGGERS: frozenset[str] = frozenset({
