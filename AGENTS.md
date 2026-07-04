@@ -166,11 +166,16 @@ CRUX 同时作为 MCP **Server**（被外部调用）和 MCP **Client**（调用
 
 > ⚠ 本节为快照，不作为执行真源。当前准确状态以 `/tools`、`/help`、`crux_manifest.json`、`pytest --co` 输出为准。
 - 53 commands, 113 tools, 63 local skills, 668 marketplace skills
-- Core modules: 113 .py files in core/ (含 v5.0 新增编排/智能体/可观测子系统，见上方 Extended Architecture)
-- Toggle-based: code_mode / agent_mode / skill (showrunner / comfyui-bridge) / extend (notebook/audio/browser)
-- MCP 四象融合: MCP Client bridge (mcp_client.py) + MCP Server (mcp_server.py) 双向可达
-- UI: prompt_toolkit 全屏 TUI (ui/tui_app.py → TuiApp)，暗夜工坊暗色主题
-- Test baseline: 151 test files (动态统计见 `pytest tests/ --co -q`)
+- Core modules: 148 .py files in core/ (含 v5.0 新增编排/智能体/可观测子系统)
+- 大文件已拆分: tools_defs.py (tools: 1691→865行), chat_toggle_mixin.py (chat: 1875→1780行)
+- brain.py: 临时回退为单体版(2201行), Mixin复用待修正AsyncSmartBrain嵌套
+- pyright: basic模式全量代码 0 errors, CI 接入 coverage (门禁 55%)
+- CI: lint → test(coverage) → scorecard 三阶段
+- Toggle-based: code_mode / agent_mode / skill / extend (notebook/audio/browser)
+- MCP 四象融合: MCP Client bridge + MCP Server 双向可达
+- UI: prompt_toolkit 全屏 TUI，暗夜工坊暗色主题
+- Test baseline: 1036 tests (pytest 1036 passed, 0 failed)
+- LICENSE: MIT; CHANGELOG: git历史自动生成
 
 ## Subsystem Docs (core/*.md)
 - core/executor.md — 自主任务执行器 (Plan→Execute→Verify→Report)
@@ -181,7 +186,7 @@ CRUX 同时作为 MCP **Server**（被外部调用）和 MCP **Client**（调用
 - core/provider_resilience.md — 供应商+韧性 (Failover/CircuitBreaker/Recovery)
 </INSTRUCTIONS>
 
-<!-- Snapshot generated on 2026-06-22. Do not use as current date. -->
+<!-- Snapshot generated on 2026-07-04. Updated after engineering debt fix (W1-W6). -->
 
 IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.
 
