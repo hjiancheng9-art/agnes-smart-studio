@@ -51,6 +51,7 @@ from core.provider import (
     get_vision_models,
 )
 from core.skills import SkillManager, get_manager
+from core.chat_toggle_mixin import ChatToggleMixin
 from core.tools import AGENT_SYSTEM_PROMPT, ToolRegistry, get_registry
 from engines.image_to_image import ImageToImageEngine
 from engines.text_to_image import TextToImageEngine
@@ -199,7 +200,7 @@ def _normalize_tool_args(args_json: str) -> str:
         return "".join(s.split())
 
 
-class ChatSession:
+class ChatSession(ChatToggleMixin):
     """多轮聊天会话，维护历史 + 混合调度
 
     vision_client: 独立视觉客户端（始终指向 CRUX API），与主对话供应商解耦。
@@ -444,113 +445,6 @@ class ChatSession:
         from core.provider import model_supports_tools
 
         return model_supports_tools(self.model)
-
-    def toggle_code_mode(self) -> bool:
-        """切换代码助手模式，返回切换后的状态
-
-        不再强制绑定 agnes-2.0-flash，保留当前供应商模型。
-        视觉能力由 self.vision_client 独立处理，不受主模型影响。
-        """
-        self.code_mode = not self.code_mode
-        self.enable_thinking = self.code_mode  # 代码模式自动开启 thinking（供应商支持时生效）
-        prompt = self._build_system_prompt()
-        self.messages[0] = {"role": "system", "content": prompt}
-        for msg in self.messages[1:]:
-            c = msg.get("content", "")
-            if isinstance(c, str) and len(c) > 2000 and msg.get("role") == "tool":
-                msg["content"] = c[:2000] + "\n...[trimmed]"
-        return self.code_mode
-
-    def toggle_agent_mode(self) -> bool:
-        """切换智能体模式，加载 tools.json 中定义的外部工具
-
-        不再强制绑定 agnes-2.0-flash，保留当前供应商模型——只要模型
-        支持 tool calling（见 supports_tools / provider.model_supports_tools）
-        即可参与智能体调度；若当前模型不支持，由 ui 层给出切换提示。
-        视觉能力由 self.vision_client 独立处理，不受主模型影响。
-        """
-        self.agent_mode = not self.agent_mode
-        # 不强制切模型：保留 self.model（若用户已选 deepseek 等支持 tools 的模型）
-        self.enable_thinking = True
-        # agent 模式自动翻倍工具轮次：复杂跨项目任务（探索+修复）需要更多回合
-        self.unlimited_tools = self.agent_mode
-        if self.agent_mode:
-            self.tools = get_registry()  # 重新加载工具配置
-            self.tools.load(
-                browser=self.browser_enabled,
-                notebook=self.notebook_enabled,
-                audio=self.audio_enabled,
-                mcp=True,
-            )
-            # 激活代码守卫 hook（语法验证 + smoke 测试）
-            try:
-                from core.hooks import register_code_hooks
-
-                register_code_hooks()
-            except (ImportError, OSError):
-                pass
-            # #2 激活反思 hook（定期 critique，辅助模型分析工具调用序列）
-            try:
-                from core.config import SETTINGS
-                from core.hooks import register_reflection_hook
-
-                register_reflection_hook(
-                    client=self.client,
-                    interval=SETTINGS.reflection_interval,
-                    enabled=SETTINGS.reflection_enabled,
-                )
-            except (ImportError, OSError):
-                pass
-            # 注入 ModelRouter 到 ToolRegistry，供 agent_swarm / 子智能体分派使用
-            self.tools.model_router = self.model_router  # pyright: ignore[reportAttributeAccessIssue] — monkey-patch for agent mode
-            provider_name = get_provider_name(self.model)
-            prompt = AGENT_SYSTEM_PROMPT.format(provider_name=provider_name, model_name=self.model)
-            prompt += self._render_tool_categories()
-        else:
-            prompt = self._build_system_prompt()
-        prompt = self.skills.get_system_prompt(prompt)
-        self.messages[0] = {"role": "system", "content": prompt}
-        for msg in self.messages[1:]:
-            c = msg.get("content", "")
-            if isinstance(c, str) and len(c) > 2000 and msg.get("role") == "tool":
-                msg["content"] = c[:2000] + "\n...[trimmed]"
-        return self.agent_mode
-
-    def toggle_browser(self) -> bool:
-        """切换 Browser Companion 网页生成工具（8 个 provider：可灵/即梦/Runway/Luma/DALL-E/Gemini/Opal/Veo）。"""
-        self.browser_enabled = not self.browser_enabled
-        self._reload_tools()
-        prompt = self._build_system_prompt()
-        self.messages[0] = {"role": "system", "content": prompt}
-        for msg in self.messages[1:]:
-            c = msg.get("content", "")
-            if isinstance(c, str) and len(c) > 2000 and msg.get("role") == "tool":
-                msg["content"] = c[:2000] + "\n...[trimmed]"
-        return self.browser_enabled
-
-    def toggle_notebook(self) -> bool:
-        """切换 Notebook (.ipynb) 工具（数据科学场景：打开/编辑/执行/保存 Jupyter notebook）。"""
-        self.notebook_enabled = not self.notebook_enabled
-        self._reload_tools()
-        prompt = self._build_system_prompt()
-        self.messages[0] = {"role": "system", "content": prompt}
-        for msg in self.messages[1:]:
-            c = msg.get("content", "")
-            if isinstance(c, str) and len(c) > 2000 and msg.get("role") == "tool":
-                msg["content"] = c[:2000] + "\n...[trimmed]"
-        return self.notebook_enabled
-
-    def toggle_audio(self) -> bool:
-        """切换音频工具（edge-tts 旁白/BGM/SFX/混音，补齐 Showrunner 音轨缺口）。"""
-        self.audio_enabled = not self.audio_enabled
-        self._reload_tools()
-        prompt = self._build_system_prompt()
-        self.messages[0] = {"role": "system", "content": prompt}
-        for msg in self.messages[1:]:
-            c = msg.get("content", "")
-            if isinstance(c, str) and len(c) > 2000 and msg.get("role") == "tool":
-                msg["content"] = c[:2000] + "\n...[trimmed]"
-        return self.audio_enabled
 
     def _reload_tools(self):
         """重新加载工具注册表，传入当前所有 toggle 状态。
