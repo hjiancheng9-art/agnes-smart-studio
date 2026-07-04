@@ -321,7 +321,7 @@ class BackgroundManager:
                     t.finished_at = time.time()
                     t.stop_reason = str(e)[:200]
             with contextlib.suppress(OSError, ValueError):
-                output_f.write(f"\n\n[任务执行异常: {e}]\n")
+                output_f.write(f"\n\n[任务执行异常: {e}]\n")  # pyright: ignore[reportOptionalMemberAccess]
         finally:
             if output_f:
                 try:

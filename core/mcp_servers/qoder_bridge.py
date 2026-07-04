@@ -39,7 +39,7 @@ def _find_qoder() -> str | None:
     return None
 
 
-def _run_qoder(args: list[str], timeout: int = 300, work_dir: str = None) -> dict:
+def _run_qoder(args: list[str], timeout: int = 300, work_dir: str = None) -> dict:  # pyright: ignore[reportArgumentType]
     """Run qodercli with given args and return structured result."""
     binary = _find_qoder()
     if not binary:

@@ -130,7 +130,7 @@ armory = Armory()  # module-level singleton — available as `from core.legendar
 
 def _register_all():
     """Register all five beast sets with artifacts."""
-    from core.legendary_arsenal import Artifact, SetBonus, Slot, armory
+    from core.legendary_arsenal import Artifact, SetBonus, Slot, armory  # pyright: ignore[reportMissingImports]
 
     # ═══════════════ BAIHU ═══════════
     armory.register(

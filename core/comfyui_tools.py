@@ -1242,7 +1242,7 @@ COMFYUI_EXECUTOR_MAP = {
     "comfyui_lora_generate_config": lambda **kw: execute_lora_generate_config(
         dataset_name=kw.get("dataset_name", ""),
         base_model=kw.get("base_model", "sd_xl_base_1.0.safetensors"),
-        resolution=kw.get("resolution", "1024,1024"),
+        resolution=kw.get("resolution", "1024,1024"),  # pyright: ignore[reportCallIssue]
         learning_rate=kw.get("learning_rate", "0.0001"),
         batch_size=kw.get("batch_size", 1),
         max_train_steps=kw.get("max_train_steps", 1000),

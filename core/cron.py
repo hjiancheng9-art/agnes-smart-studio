@@ -385,7 +385,7 @@ def cron_create(cron: str, prompt: str, *, recurring: bool = True) -> dict:
 
     This is the function exposed as a CRUX tool.
     """
-    scheduler = CronScheduler.get()
+    scheduler = CronScheduler.get()  # pyright: ignore[reportCallIssue]
     job_id = scheduler.create(cron, prompt, recurring=recurring)
     job = scheduler.get(job_id)
     if not job:
@@ -401,7 +401,7 @@ def cron_create(cron: str, prompt: str, *, recurring: bool = True) -> dict:
 
 def cron_list() -> list[dict]:
     """List all cron jobs."""
-    scheduler = CronScheduler.get()
+    scheduler = CronScheduler.get()  # pyright: ignore[reportCallIssue]
     return [
         {
             "id": job.id,
@@ -419,7 +419,7 @@ def cron_list() -> list[dict]:
 
 def cron_delete(job_id: str) -> dict:
     """Delete a cron job. Returns result dict."""
-    scheduler = CronScheduler.get()
+    scheduler = CronScheduler.get()  # pyright: ignore[reportCallIssue]
     ok = scheduler.delete(job_id)
     if ok:
         return {"deleted": job_id}

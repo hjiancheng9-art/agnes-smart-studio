@@ -208,7 +208,7 @@ class PlanModeManager:
             recommended = PlanOption(
                 label="推荐方案",
                 description=f"自动拆解为 {steps_count} 个步骤",
-                steps=steps_serialized,
+                steps=steps_serialized,  # pyright: ignore[reportArgumentType]
                 is_recommended=True,
             )
 

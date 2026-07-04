@@ -1,5 +1,19 @@
 """Brain creative module — extracted from brain.py."""
 
+from typing import TYPE_CHECKING, Any, Callable
+
+from core.brain_data import (
+    ANTI_PATTERN_MAP,
+    CREATIVE_DOMAIN_MAP,
+    CREATIVE_LEAP_PROMPT,
+    ENTITY_TYPE_MAP,
+    NONHUMAN_COMBAT_MOTIF,
+    NONHUMAN_VIDEO_RULES,
+    THINKING_METHOD_MAP,
+)
+
+if TYPE_CHECKING:
+    pass
 
 
 class SmartBrainMixin:
@@ -8,6 +22,24 @@ class SmartBrainMixin:
     Intended to be mixed into core.brain.SmartBrain.
     Uses self._ask_brain(), self.client, etc. from the parent class.
     """
+
+    # 类型桩：实际实现由 SmartBrain 主类或其它 Mixin 提供（组合后可见）
+    _ask_brain: Callable[..., Any]
+    _detect_combat_scene: Callable[[str], Any]
+    _infer_entity_type: Callable[[str], tuple[Any, Any]]
+    _match_combat_moves: Callable[[str], list]
+    _match_sweet_spot: Callable[..., Any]
+    _merge_negative: Callable[..., Any]
+    _parse_json: Callable[[str], dict]
+
+    # 类型桩：实际实现由 SmartBrain 主类或其它 Mixin 提供（组合后可见）
+    _ask_brain: Callable[..., Any]
+    _detect_combat_scene: Callable[[str], dict]
+    _infer_entity_type: Callable[[str], tuple[Any, Any]]
+    _match_combat_moves: Callable[[str], Any]
+    _match_sweet_spot: Callable[..., Any]
+    _merge_negative: Callable[..., Any]
+    _parse_json: Callable[[str], dict]
 
     def _resolve_creative_knowledge(self, prompt: str, mode: str = "image") -> dict:
         """创意知识路由器 — 一次性解析所有V2创意知识常量为结构化上下文
@@ -364,7 +396,7 @@ class SmartBrainMixin:
             context += "[创意规则：非人实体的表面材质/能量逻辑不可被创意方法随意破坏]\n\n"
 
         # 注入战斗知识（通过路由器一次性解析所有战斗常量）
-        combat_ctx = self._detect_combat_scene(user_prompt, "image")
+        combat_ctx = self._detect_combat_scene(user_prompt, "image")  # pyright: ignore[reportCallIssue]
         if combat_ctx:
             context += combat_ctx["creative_prompt_hints"] + "\n"
 

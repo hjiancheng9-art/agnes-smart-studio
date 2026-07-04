@@ -142,11 +142,11 @@ class ClaudeCodeMCPBridge:
     def _make_jsonrpc_response(self, req_id: int | str | None, result: dict | None = None, error: dict | None = None) -> dict:
         resp = {"jsonrpc": "2.0"}
         if req_id is not None:
-            resp["id"] = req_id
+            resp["id"] = req_id  # pyright: ignore[reportArgumentType]
         if error:
-            resp["error"] = error
+            resp["error"] = error  # pyright: ignore[reportArgumentType]
         else:
-            resp["result"] = result or {}
+            resp["result"] = result or {}  # pyright: ignore[reportArgumentType]
         return resp
 
     def _make_jsonrpc_error(self, req_id: int | str | None, code: int, message: str) -> dict:

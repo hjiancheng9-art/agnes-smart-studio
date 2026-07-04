@@ -1,5 +1,16 @@
 """Brain vision module — extracted from brain.py."""
 
+from typing import TYPE_CHECKING, Any, Callable
+
+from core.brain_data import (
+    BEAUTY_PORTRAIT_MAP,
+    BEAUTY_PRODUCTION_RULES,
+    ENTITY_TYPE_MAP,
+    GRAFT_TARGETS,
+)
+
+if TYPE_CHECKING:
+    pass
 
 
 class SmartBrainMixin:
@@ -8,6 +19,24 @@ class SmartBrainMixin:
     Intended to be mixed into core.brain.SmartBrain.
     Uses self._ask_brain(), self.client, etc. from the parent class.
     """
+
+    # 类型桩：实际实现由 SmartBrain 主类或其它 Mixin 提供（组合后可见）
+    _ask_brain: Callable[..., Any]
+    _match_beauty_sweet_spot: Callable[..., Any]
+    _match_sweet_spot: Callable[..., Any]
+    _merge_negative: Callable[..., Any]
+    _parse_json: Callable[[str], dict]
+    _predict_beauty_risks: Callable[..., Any]
+    _predict_risks: Callable[..., Any]
+
+    # 类型桩：实际实现由 SmartBrain 主类或其它 Mixin 提供（组合后可见）
+    _ask_brain: Callable[..., Any]
+    _match_beauty_sweet_spot: Callable[[str], Any]
+    _match_sweet_spot: Callable[..., Any]
+    _merge_negative: Callable[..., Any]
+    _parse_json: Callable[[str], dict]
+    _predict_beauty_risks: Callable[..., Any]
+    _predict_risks: Callable[..., Any]
 
     def _postprocess_image_enhance(
         self,
@@ -62,7 +91,7 @@ class SmartBrainMixin:
 
         # 帅哥美女甜点区叠加（实体未匹配时）
         if beauty_type and not entity_type:
-            beauty_tpl = self._match_beauty_sweet_spot(beauty_type, "image")
+            beauty_tpl = self._match_beauty_sweet_spot(beauty_type, "image")  # pyright: ignore[reportCallIssue]
             if beauty_tpl:
                 base_neg = result.get("negative_prompt", "")
                 result["negative_prompt"] = self._merge_negative(base_neg, beauty_tpl["negative"])
@@ -181,7 +210,7 @@ class SmartBrainMixin:
 
         # 帅哥美女视频甜点区叠加（实体未匹配时）
         if beauty_type and not entity_type:
-            beauty_tpl = self._match_beauty_sweet_spot(beauty_type, "video")
+            beauty_tpl = self._match_beauty_sweet_spot(beauty_type, "video")  # pyright: ignore[reportCallIssue]
             if beauty_tpl:
                 base_neg = result.get("negative_prompt", "")
                 result["negative_prompt"] = self._merge_negative(base_neg, beauty_tpl["negative"])

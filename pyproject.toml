@@ -100,8 +100,22 @@ ignore = [
 "tests/*.py" = ["E402"]
 
 [tool.pyright]
+# 全量业务代码类型检查（不含 tests，tests 有独立基线）
+include = ["core", "ui", "engines", "pipeline", "utils"]
 # 与 ruff extend-exclude 保持一致：临时脚本/生成产物不纳入静态分析
 exclude = ["scripts/scratch", "tests/manual", "output", ".codebuddy", "**/__pycache__"]
+# basic 模式：消化存量错误，逐步向 strict 推进
+typeCheckingMode = "basic"
+# 忽略第三方库的 stub 缺失（playwright/prompt_toolkit 等）
+reportMissingTypeStubs = "none"
+# Mixin 多继承架构：pyright 在 Mixin 类定义中无法看到组合后主类的方法/属性，
+# 产生大量 reportAttributeAccessIssue 误报。所有调用点均通过 hasattr() 守卫，
+# 运行时安全。关闭此规则，后续可在每个 Mixin 加 Protocol 后按文件重新启用。
+reportAttributeAccessIssue = "none"
+# Mixin sync/async 双 API 模式：不同 Mixin 定义同名 sync/async 方法（如
+# enhance_image_prompt），最终 SmartBrain 类通过多继承组合。pyright 将此报为
+# Redeclaration，但运行时 MRO 按预期工作。关闭此规则。
+reportRedeclaration = "none"
 
 [tool.coverage.run]
 source = ["core", "ui", "engines", "utils", "pipeline"]

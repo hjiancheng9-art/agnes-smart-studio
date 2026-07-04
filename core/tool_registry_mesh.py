@@ -169,7 +169,7 @@ class ToolRegistryMesh:
                 description=t.get("description", ""),
                 source=t.get("source", "crux"),
                 category=t.get("category", "unknown"),
-                input_schema=t.get("input_schema", {}),
+                input_schema=t.get("input_schema", {}),  # pyright: ignore[reportArgumentType]
             )
             self._register(entry)
 
@@ -199,6 +199,7 @@ class ToolRegistryMesh:
                 cwd=str(ROOT),
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
             )
+            assert proc.stdin is not None and proc.stdout is not None  # guaranteed by PIPE
 
             # Initialize handshake
             init_msg = json.dumps({
@@ -249,11 +250,12 @@ class ToolRegistryMesh:
     @staticmethod
     def _read_line(proc: subprocess.Popen, timeout: float) -> str | None:
         """Read one line from a subprocess with timeout. Returns None on timeout/error."""
+        assert proc.stdout is not None  # guaranteed by PIPE
         result: list[str] = []
 
         def _reader():
             try:
-                line = proc.stdout.readline()
+                line = proc.stdout.readline()  # pyright: ignore[reportOptionalMemberAccess]
                 if line:
                     result.append(line)
             except Exception as e:
@@ -489,6 +491,7 @@ class ToolRegistryMesh:
                 cwd=str(ROOT),
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
             )
+            assert proc.stdin is not None and proc.stdout is not None  # guaranteed by PIPE
 
             # Initialize first
             init_msg = json.dumps({

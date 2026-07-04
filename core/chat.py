@@ -15,14 +15,22 @@ yield 协议（send_stream）：
     ("confirm", dict)        高风险工具确认（需 UI 层处理）
 """
 
+from __future__ import annotations
+
 import contextlib
 import json
 import logging
 import re
 from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import httpx
+
+if TYPE_CHECKING:
+    from core.cognitive_orchestrator import CognitiveOrchestrator
+    from core.memory_bridge import MemoryBridge
+    from core.reflection_loop import ReflectionLoop
 
 logger = logging.getLogger("crux.chat")
 
@@ -213,7 +221,7 @@ class ChatSession:
         self.client = client
         self.vision_client = vision_client or client  # 未指定时退化为主客户端（向后兼容）
         self.vision_model = vision_model or get_crux_vision_model()
-        self.brain = SmartBrain(client)
+        self.brain = SmartBrain(client)  # pyright: ignore[reportArgumentType]
         self.t2i = TextToImageEngine(client)
         self.vid = VideoEngine(client)
         self.media_client = client  # unified media client for tool-calling generation
@@ -233,9 +241,9 @@ class ChatSession:
         self.tools: ToolRegistry = get_registry()
         self.skills: SkillManager = get_manager()
         self.active_skill: str = ""
-        self._reflection: object = None  # ReflectionLoop, lazy init
-        self._memory: object = None  # MemoryBridge, lazy init
-        self._cog: object = None  # CognitiveOrchestrator, lazy init
+        self._reflection: ReflectionLoop | None = None  # ReflectionLoop, lazy init
+        self._memory: MemoryBridge | None = None  # MemoryBridge, lazy init
+        self._cog: CognitiveOrchestrator | None = None  # CognitiveOrchestrator, lazy init
         self._vote_enabled: bool = False  # /vote toggle (off by default to save tokens)
         self.messages: list[dict] = [{"role": "system", "content": self._build_system_prompt()}]
         # 七兽躯体激活
@@ -494,7 +502,7 @@ class ChatSession:
             except (ImportError, OSError):
                 pass
             # 注入 ModelRouter 到 ToolRegistry，供 agent_swarm / 子智能体分派使用
-            self.tools.model_router = self.model_router
+            self.tools.model_router = self.model_router  # pyright: ignore[reportAttributeAccessIssue] — monkey-patch for agent mode
             provider_name = get_provider_name(self.model)
             prompt = AGENT_SYSTEM_PROMPT.format(provider_name=provider_name, model_name=self.model)
             prompt += self._render_tool_categories()
@@ -695,7 +703,10 @@ class ChatSession:
             return [self.vision_model] if self.vision_model else []
 
         def _info_of(mid: str):
-            return get_model_info(mid)
+            info = get_model_info(mid)
+            if info is None:
+                raise KeyError(f"model {mid} not found in registry")
+            return info
 
         # 按供应商分组：CRUX 在前，智谱在后（质量优先）
         crux_models = [m for m in vision_models if _info_of(m).provider_id == "crux"]

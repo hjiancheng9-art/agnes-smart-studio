@@ -154,7 +154,7 @@ class SessionTracker:
                 "INSERT INTO todos (session_id, title, description, status, priority, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
                 (session_id, title, description, TodoStatus.PENDING, priority, now, now),
             )
-            return cur.lastrowid
+            return cur.lastrowid  # pyright: ignore[reportReturnType]
 
     def get_todos(self, session_id: str = "", status: str = "") -> list[TodoItem]:
         with self._get_conn() as conn:
