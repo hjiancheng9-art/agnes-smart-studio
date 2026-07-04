@@ -907,7 +907,7 @@ class CruxCLI:
             print("  用法: /permission <yolo|auto|manual>")
 
     def _chat_method(self, args: str) -> None:
-        """Show methodology compliance state."""
+        """Show methodology compliance state. Sources: METHODOLOGY.md/AGENTS.md/CLAUDE.md"""
         arg = args.strip().lower()
         if arg == "reset":
             from core.methodology import reset_methodology_state
@@ -917,8 +917,19 @@ class CruxCLI:
 
         from core.methodology import get_methodology_state
         state = get_methodology_state()
+        # ── 摘要行 ──
         print(f"  {state.summary()}")
         print()
+        # ── 测试要求 ──
+        print(f"  测试要求: {state.test_requirement}")
+        # ── 7 步工作流 ──
+        print(f"  工作流步骤: {state.workflow_step}/7 ({state.workflow_steps.get(state.workflow_step, '?')})")
+        # ── 升级历史 ──
+        if state.escalation_history:
+            print("  升级历史:")
+            for prev, reason in state.escalation_history:
+                print(f"    ↑ {prev} → {reason}")
+        # ── C/D 级详情 ──
         level = state.task_level
         if level.value in ("complex", "critical"):
             print(f"  C/D 级要求:")

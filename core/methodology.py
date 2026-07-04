@@ -1,19 +1,27 @@
-"""方法论引擎 — 将 AGENTS.md / METHODOLOGY.md 硬约束嵌入 CRUX 运行时。
+"""方法论引擎 — 将 METHODOLOGY.md / AGENTS.md / CLAUDE.md 硬约束嵌入 CRUX 运行时。
+
+真源文件：
+    METHODOLOGY.md  — 任务分级 A/B/C/D + 升级规则 + 7 步工作流 + 子 Agent 路由
+    AGENTS.md       — 七大铁律 + 资源纪律 + 系统架构 + MCP 规范
+    CLAUDE.md       — 模型路由 + 环境配置 + Agent 分派规则
 
 当前注入方式（rules 文本 → system prompt）是"软建议"，LLM 可以不遵守。
-本模块将方法论落地为引擎骨骼——禁区拦截、任务分级、状态追踪、合规检查。
+本模块将方法论落地为引擎骨骼——禁区拦截、任务分级、升级规则、状态追踪、合规检查。
 
 分层：
-    L1 禁区（PROTECTED_FILES/PATHS）          — 写操作硬拦截，无关 LLM
-    L2 分级（TaskLevel + classify_task）       — 自动判定 A/B/C/D 级
-    L3 守卫（methodology_pre_check）           — 工具调用前合规检查
-    L4 追踪（MethodologyState + /method 命令） — 可见性与可问责性
+    L1 禁区（PROTECTED_FILES）        — 写操作硬拦截，无关 LLM
+    L2 分级（TaskLevel + classify_task） — 自动判定 A/B/C/D，支持动态升级
+    L3 守卫（methodology_pre_check）    — 工具调用前合规检查 + 子 Agent 路由约束
+    L4 追踪（MethodologyState + /method）— 7 步工作流状态 + 可见性面板
+    L5 升级（escalate_task）            — 按 METHODOLOGY.md §1.5 自动升级
 
 用法：
-    from core.methodology import MethodologyState, classify_task, methodology_pre_check
+    from core.methodology import MethodologyState, classify_task, escalate_task
 
     state = MethodologyState()
     state.classify(user_input, [])
+    state.advance_workflow("plan_created")  # 7 步工作流推进
+    new_level = escalate_task(state, reason="files>3")  # 升级规则
     if not methodology_pre_check("write_file", {"path": "core/config.py"}, state):
         raise BlockedError("core/config.py 在保护区")
 """
@@ -145,7 +153,11 @@ def classify_task(intent: str, files_touched: list[str] | None = None) -> TaskLe
 
 @dataclass
 class MethodologyState:
-    """当前任务的方法论遵守状态。追踪从任务开始到结束的合规性。"""
+    """当前任务的方法论遵守状态。追踪从任务开始到结束的合规性。
+
+    7 步工作流 (METHODOLOGY.md §3):
+        1.明确目标 → 2.收集上下文 → 3.判断级别 → 4.写Plan → 5.补测试 → 6.验证diff → 7.清理资源
+    """
 
     task_level: TaskLevel = TaskLevel.A
     plan_exists: bool = False
@@ -156,7 +168,23 @@ class MethodologyState:
     step_count: int = 0
     tool_call_count: int = 0
 
-    # C/D 级要求
+    # 7 步工作流状态 (METHODOLOGY.md §3)
+    workflow_step: int = 1  # 1-7, 0=未开始
+    workflow_steps: ClassVar[dict[int, str]] = {
+        1: "明确目标",
+        2: "收集上下文",
+        3: "判断任务级别",
+        4: "写 Plan",
+        5: "补测试",
+        6: "验证 + diff 审查",
+        7: "清理资源",
+    }
+
+    # 任务升级历史 (METHODOLOGY.md §1.5)
+    escalation_history: list[tuple[str, str]] = field(default_factory=list)  # [(from_level, reason)]
+
+    # ── 任务等级要求 (METHODOLOGY.md §3) ──
+
     @property
     def requires_plan(self) -> bool:
         return self.task_level in (TaskLevel.C, TaskLevel.D)
@@ -169,8 +197,22 @@ class MethodologyState:
     def requires_worktree(self) -> bool:
         return self.task_level == TaskLevel.D
 
+    @property
+    def test_requirement(self) -> str:
+        """返回当前等级的最低测试要求 (METHODOLOGY.md §3 表格)。"""
+        reqs = {
+            TaskLevel.A: "跑相关 smoke / typecheck 即可",
+            TaskLevel.B: "行为变更补测试证据；Bug 修复补回归测试",
+            TaskLevel.C: "完整 TDD: 失败测试 → 最小实现 → 重构",
+            TaskLevel.D: "TDD + 安全审查 + 人工 Review",
+        }
+        return reqs.get(self.task_level, "未知")
+
+    # ── 方法 ──
+
     def classify(self, intent: str, files: list[str]) -> None:
         self.task_level = classify_task(intent, files)
+        self.workflow_step = 3  # 进入"判断级别"
 
     def record_tool(self, tool_name: str) -> None:
         self.tool_call_count += 1
@@ -178,22 +220,106 @@ class MethodologyState:
     def record_step(self) -> None:
         self.step_count += 1
 
+    def advance_workflow(self, event: str) -> None:
+        """推进 7 步工作流 (METHODOLOGY.md §3)。
+
+        event: 'plan_created' | 'context_collected' | 'test_written' | 'verified' | 'cleaned'
+        """
+        transitions = {
+            "plan_created": 4,
+            "test_written": 5,
+            "verified": 6,
+            "cleaned": 7,
+        }
+        self.workflow_step = transitions.get(event, self.workflow_step)
+
+    def escalate(self, reason: str) -> TaskLevel:
+        """按 METHODOLOGY.md §1.5 升级任务等级。返回新等级。"""
+        new_level = escalate_task(self.task_level, reason)
+        if new_level != self.task_level:
+            self.escalation_history.append((self.task_level.name, reason))
+            self.task_level = new_level
+        return new_level
+
     def summary(self) -> str:
         """生成 /method 展示的摘要。"""
         level_label = {TaskLevel.A: "A 微任务", TaskLevel.B: "B 普通", TaskLevel.C: "C 复杂", TaskLevel.D: "D 高风险"}
-        checks = []
+        parts = [f"任务等级: {level_label.get(self.task_level, '?')}"]
+        # 7 步工作流
+        step_name = self.workflow_steps.get(self.workflow_step, "?")
+        parts.append(f"步骤 {self.workflow_step}/7 {step_name}")
         if self.requires_plan:
-            checks.append("Plan" if self.plan_exists else "Plan ✗")
+            parts.append("Plan ✓" if self.plan_exists else "Plan ✗")
         if self.requires_test_baseline:
-            checks.append("基线" if self.test_baseline_recorded else "基线 ✗")
+            parts.append("基线 ✓" if self.test_baseline_recorded else "基线 ✗")
         if self.requires_worktree:
-            checks.append("Worktree" if self.worktree_created else "Worktree ✗")
-        checks.append(f"TDD:{self.tdd_phase or '-'}")
-        return (
-            f"任务等级: {level_label.get(self.task_level, '?')}  "
-            + " | ".join(checks)
-            + f"  | 步骤:{self.step_count} 工具:{self.tool_call_count}"
-        )
+            parts.append("Worktree ✓" if self.worktree_created else "Worktree ✗")
+        parts.append(f"TDD:{self.tdd_phase or '-'}")
+        parts.append(f"工具:{self.tool_call_count}")
+        # 升级历史
+        if self.escalation_history:
+            last = self.escalation_history[-1]
+            parts.append(f"↑{last[0]}→{self.task_level.name}({last[1]})")
+        return " | ".join(parts)
+
+
+def escalate_task(level: TaskLevel, reason: str) -> TaskLevel:
+    """按 METHODOLOGY.md §1.5 升级规则返回新任务等级。
+
+    规则（优先级递减）：
+        → D: auth/payment/db/deploy/凭证/密码/token 关键词
+        → D: 原 C 级 + 影响其他模块
+        → C: 文件超3个 / 公共API修改 / 新增依赖 / 测试连续失败 / 子Agent失败
+        → B: A 级 + 文件超1个
+    """
+    reason_lower = reason.lower()
+
+    # → D 级触发器
+    d_immediate = {"auth", "payment", "db", "deploy", "database", "凭证", "密码", "token", "secret"}
+    if any(t in reason_lower for t in d_immediate):
+        return TaskLevel.D
+    if level == TaskLevel.C and "影响" in reason:
+        return TaskLevel.D
+
+    # → C 级触发器
+    if level in (TaskLevel.A, TaskLevel.B):
+        c_triggers = {"files>3", ">3", "超过3", "public_api", "api变动", "新增依赖", "依赖", "test_failure", "失败", "子agent"}
+        if any(t in reason_lower for t in c_triggers):
+            return TaskLevel.C
+
+    # → B 级触发器
+    if level == TaskLevel.A:
+        if "files>1" in reason_lower or ">1" in reason_lower:
+            return TaskLevel.B
+
+    return level  # 无需升级
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 子 Agent 路由约束 (METHODOLOGY.md §2 + CLAUDE.md)
+# ═══════════════════════════════════════════════════════════════════
+
+SUB_AGENT_CONSTRAINTS: dict[str, str] = {
+    "architecture": "主对话(pro) — 不派 flash 做架构决策",
+    "grep": "Explore Agent(flash) — 不派 pro 做 grep",
+    "multi_file_refactor": "主对话(pro) — 架构设计、多文件重构走 pro",
+    "simple_edit": "general-purpose(flash) — 简单修改不派 Pro",
+    "complex_debug": "主对话(pro) — 复杂调试根因分析",
+    "no_retry_same": "子 Agent 失败不重试同一类型，换通路",
+    "parallel_independent": "独立子任务一次并行发出，不串行等",
+}
+
+
+def check_agent_route(task_type: str, agent_model: str) -> tuple[bool, str]:
+    """检查子 Agent 路由是否违反方法论约束。"""
+    if task_type in ("architecture", "multi_file_refactor", "complex_debug") and "flash" in agent_model:
+        return False, f"禁止: {SUB_AGENT_CONSTRAINTS.get(task_type, 'flash 不应用于此任务')}"
+    return True, ""
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 工具调用前合规检查
+# ═══════════════════════════════════════════════════════════════════
 
 
 def methodology_pre_check(tool_name: str, args: dict, state: MethodologyState | None = None) -> tuple[bool, str]:
@@ -205,7 +331,6 @@ def methodology_pre_check(tool_name: str, args: dict, state: MethodologyState | 
     # ── L1 禁区 — 硬拦截（无关任务等级）──
     file_path = args.get("path") or args.get("file_path") or args.get("target") or ""
     if file_path and is_protected_file(file_path):
-        # 仅拦截写入/删除操作，读取通过
         if tool_name in ("write_file", "edit_file", "patch_file", "safe_rewrite_file", "delete_files"):
             return False, f"禁区文件不可修改: {file_path}"
 
@@ -227,6 +352,25 @@ def methodology_pre_check(tool_name: str, args: dict, state: MethodologyState | 
             return False, "D 级任务: 需先确认 Plan 再提交/推送"
 
     return True, ""
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 全局单例
+# ═══════════════════════════════════════════════════════════════════
+
+_current_state: MethodologyState | None = None
+
+
+def get_methodology_state() -> MethodologyState:
+    global _current_state
+    if _current_state is None:
+        _current_state = MethodologyState()
+    return _current_state
+
+
+def reset_methodology_state() -> None:
+    global _current_state
+    _current_state = MethodologyState()
 
 
 # ═══════════════════════════════════════════════════════════════════
