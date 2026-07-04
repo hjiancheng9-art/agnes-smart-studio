@@ -127,6 +127,6 @@ RETRO_TOOL_DEFS = [
 
 RETRO_EXECUTOR_MAP = {
     "retro_create": lambda **kw: json.dumps(retro_create(**kw), ensure_ascii=False),
-    "retro_list": lambda **kw: json.dumps(retro_list(**kw.get("project")), ensure_ascii=False),  # pyright: ignore[reportCallIssue]
-    "retro_summarize": lambda **kw: json.dumps(retro_summarize(**kw.get("project", "")), ensure_ascii=False),
+    "retro_list": lambda **kw: json.dumps(retro_list(project=kw.get("project")), ensure_ascii=False),
+    "retro_summarize": lambda **kw: json.dumps(retro_summarize(project=kw.get("project", "")), ensure_ascii=False),
 }

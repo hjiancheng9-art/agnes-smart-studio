@@ -1,29 +1,18 @@
+# See https://pre-commit.com for more information
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.0
+    rev: v0.11.0
     hooks:
       - id: ruff
-        args: [--fix, --exit-zero]
-        exclude: ^(output/|scratch/|models/|tests/manual/|.codebuddy/)
+        args: [--fix, --config=pyproject.toml]
       - id: ruff-format
-        args: [--exit-zero]
-        exclude: ^(output/|scratch/|models/|tests/manual/|.codebuddy/)
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+        args: [--config=pyproject.toml]
+
+  - repo: local
     hooks:
-      - id: trailing-whitespace
-        exclude: \.md$
-      - id: end-of-file-fixer
-      - id: check-yaml
-      - id: check-toml
-      - id: check-json
-        exclude: ^(output/|scratch/)
-      - id: check-added-large-files
-        args: [--maxkb=500]
-      - id: check-merge-conflict
-      - id: check-case-conflict
-      - id: detect-private-key
-      - id: no-commit-to-branch
-        args: [--branch, main]
-      - id: name-tests-test
-        args: [--name-tests-test]
+      - id: pyright
+        name: pyright
+        entry: python -m pyright
+        language: system
+        types: [python]
+        pass_filenames: false

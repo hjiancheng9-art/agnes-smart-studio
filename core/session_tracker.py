@@ -445,11 +445,11 @@ SESSION_TRACKER_TOOL_DEFS = [
 ]
 
 SESSION_TRACKER_EXECUTOR_MAP = {
-    "todo_add": _exec_todo_add,
-    "todo_list": _exec_todo_list,
-    "todo_update": _exec_todo_update,
-    "todo_delete": _exec_todo_delete,
-    "todo_dep": _exec_todo_dep,
-    "todo_blocked": _exec_todo_blocked,
-    "todo_stats": _exec_todo_stats,
+    "todo_add": lambda **kw: _exec_todo_add(kw),
+    "todo_list": lambda **kw: _exec_todo_list(kw),
+    "todo_update": lambda **kw: _exec_todo_update(kw),
+    "todo_delete": lambda **kw: _exec_todo_delete(kw),
+    "todo_dep": lambda **kw: _exec_todo_dep(kw),
+    "todo_blocked": lambda **kw: _exec_todo_blocked(kw),
+    "todo_stats": lambda **kw: _exec_todo_stats(kw),
 }

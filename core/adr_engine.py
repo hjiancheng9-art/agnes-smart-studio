@@ -188,7 +188,7 @@ ADR_TOOL_DEFS = [
 
 ADR_EXECUTOR_MAP = {
     "adr_create": lambda **kw: json.dumps(adr_create(**kw), ensure_ascii=False),
-    "adr_list": lambda **kw: json.dumps(adr_list(**kw.get("status")), ensure_ascii=False),  # pyright: ignore[reportCallIssue]
+    "adr_list": lambda **kw: json.dumps(adr_list(status=kw.get("status")), ensure_ascii=False),
     "adr_update": lambda **kw: json.dumps(adr_update(**kw), ensure_ascii=False),
     "adr_mermaid": lambda **kw: json.dumps(adr_mermaid(), ensure_ascii=False),
 }

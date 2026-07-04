@@ -578,8 +578,15 @@ class ToolRegistry:
             mod = importlib.import_module(mod_path)
             return getattr(mod, func_name)(**kwargs)
 
+        if t == "http":
+            return http_executor
+        elif t == "python":
+            return python_executor
+        else:
+            return shell_executor
+
         
-# ── 注册/注销 ──
+	# ── 注册/注销 ──
     def register(
         self, name: str, description: str, parameters: dict, executor: Callable[..., str], override: bool = False
     ):

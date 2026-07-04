@@ -326,6 +326,6 @@ QUEST_EXECUTOR_MAP = {
     "quest_create": lambda **kw: json.dumps(quest_create(**kw), ensure_ascii=False),
     "quest_start": lambda **kw: json.dumps(quest_start(**kw), ensure_ascii=False),
     "quest_complete": lambda **kw: json.dumps(quest_complete(**kw), ensure_ascii=False),
-    "quest_list": lambda **kw: json.dumps(quest_list(**kw.get("status"), **kw.get("tag")), ensure_ascii=False),  # pyright: ignore[reportCallIssue]
+    "quest_list": lambda **kw: json.dumps(quest_list(status=kw.get("status"), tag=kw.get("tag")), ensure_ascii=False),
     "quest_step_complete": lambda **kw: json.dumps(quest_step_complete(**kw), ensure_ascii=False),
 }

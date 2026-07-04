@@ -57,3 +57,21 @@ def mock_cli(mock_session):
     cli = MagicMock()
     cli.session = mock_session
     return cli
+
+
+# ── models.json 污染保护 ──
+@pytest.fixture(scope="session")
+def _snapshot_models_json():
+    """Session 级别：测试开始前保存 models.json，全部结束后恢复。
+
+    部分测试模块（如 test_methodology_modules）的 import 链会触发 provider
+    重加载，导致 models.json 的 active 字段被覆写为 deepseek。此 fixture 在
+    整个测试 session 结束后恢复原始 models.json，避免污染工作区。
+    """
+    import json
+
+    path = PROJECT_ROOT / "models.json"
+    original = path.read_text(encoding="utf-8") if path.exists() else None
+    yield
+    if original is not None:
+        path.write_text(original, encoding="utf-8")

@@ -166,5 +166,5 @@ TDD_EXECUTOR_MAP = {
         tdd_run_tests(kw.get("test_path", "tests/"), kw.get("verbose", False)), ensure_ascii=False
     ),
     "tdd_cycle": lambda **kw: json.dumps(tdd_cycle(**kw), ensure_ascii=False),
-    "tdd_status": lambda **kw: json.dumps(tdd_status(**kw.get("session_id")), ensure_ascii=False),  # pyright: ignore[reportCallIssue]
+    "tdd_status": lambda **kw: json.dumps(tdd_status(session_id=kw.get("session_id")), ensure_ascii=False),
 }
