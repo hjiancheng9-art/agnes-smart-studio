@@ -1,13 +1,33 @@
 """Brain combat module — extracted from brain.py."""
 
+from typing import TYPE_CHECKING, Any, Callable
+
+from core.brain_data import (
+    COMBAT_MOVE_INDEX,
+    COMBAT_MOVE_TEMPLATES,
+    COMBAT_NEGATIVE_REPAIR_MAP,
+    COMBAT_SWEET_SPOT_TEMPLATES,
+    COMBAT_VFX_PALETTES,
+    IMAGE_EDIT_PROMPT,
+    NONHUMAN_COMBAT_MOTIF,
+    STORYBOARD_PROMPT,
+)
+
+if TYPE_CHECKING:
+    pass
 
 
 class SmartBrainMixin:
     """Mixin for SmartBrain methods.
-    
+
     Intended to be mixed into core.brain.SmartBrain.
     Uses self._ask_brain(), self.client, etc. from the parent class.
     """
+
+    # 类型桩：实际实现由 SmartBrain 主类或其它 Mixin 提供（组合后可见）
+    _ask_brain: Callable[..., Any]
+    _infer_entity_type: Callable[[str], tuple[Any, Any]]
+    _parse_json: Callable[[str], dict]
 
     def generate_storyboard(self, creative_brief: str) -> dict:
         """生成分镜脚本"""

@@ -51,6 +51,7 @@ class CruxCLI:
         # ── Dispatch table lookup (keys are without / prefix) ──
         if cmd_key in self._dispatch:
             handler_name, _ = self._dispatch[cmd_key]
+            assert handler_name is not None  # dispatch table ensures non-None keys
             handler = getattr(self, handler_name, None)
             if handler:
                 handler(args)
@@ -251,7 +252,7 @@ class CruxCLI:
             f"使用 Showrunner 全自动视频流水线完成任务: {args.strip()}"
         ):
             if kind == "text":
-                sys.stdout.write(payload)
+                sys.stdout.write(str(payload))
                 sys.stdout.flush()
             elif kind == "info":
                 print(f"\n  {payload}", file=sys.stderr)
@@ -266,7 +267,7 @@ class CruxCLI:
         if sub == "list":
             print("  正在查询 ComfyUI 工作流...")
             try:
-                from core.comfyui_client import ComfyUIClient
+                from core.comfyui_client import ComfyUIClient  # pyright: ignore[reportMissingImports]
                 client = ComfyUIClient()
                 workflows = client.list_workflows()
                 if workflows:
@@ -281,7 +282,7 @@ class CruxCLI:
                 print(f"  ComfyUI 错误: {e}")
         elif sub == "status":
             try:
-                from core.comfyui_client import ComfyUIClient
+                from core.comfyui_client import ComfyUIClient  # pyright: ignore[reportMissingImports]
                 client = ComfyUIClient()
                 status = client.get_status()
                 print(f"  ComfyUI 状态: {status}")
@@ -311,7 +312,7 @@ class CruxCLI:
             f"生成{'图片' if 'i' in mode and 'v' not in mode else '视频'}: {prompt}"
         ):
             if kind == "text":
-                sys.stdout.write(payload)
+                sys.stdout.write(str(payload))
                 sys.stdout.flush()
             elif kind == "info":
                 print(f"\n  {payload}", file=sys.stderr)
@@ -325,7 +326,7 @@ class CruxCLI:
         print(f"  生成视频: {args.strip()}")
         for kind, payload in self.session.send_stream(f"生成一段视频: {args.strip()}"):
             if kind == "text":
-                sys.stdout.write(payload)
+                sys.stdout.write(str(payload))
                 sys.stdout.flush()
             elif kind == "info":
                 print(f"\n  {payload}", file=sys.stderr)
@@ -347,7 +348,7 @@ class CruxCLI:
         print(f"  生成图片: {args.strip()}")
         for kind, payload in self.session.send_stream(f"生成一张图片: {args.strip()}"):
             if kind == "text":
-                sys.stdout.write(payload)
+                sys.stdout.write(str(payload))
                 sys.stdout.flush()
             elif kind == "info":
                 print(f"\n  {payload}", file=sys.stderr)
@@ -375,7 +376,7 @@ class CruxCLI:
             f"[图片: {image_path}] {question}", image_url=image_path
         ):
             if kind == "text":
-                sys.stdout.write(payload)
+                sys.stdout.write(str(payload))
                 sys.stdout.flush()
             elif kind == "info":
                 print(f"\n  {payload}", file=sys.stderr)
@@ -396,7 +397,7 @@ class CruxCLI:
             f"请为以下任务制定详细的执行计划，列出步骤、依赖关系和预估工作量: {args.strip()}"
         ):
             if kind == "text":
-                sys.stdout.write(payload)
+                sys.stdout.write(str(payload))
                 sys.stdout.flush()
         print()
 
@@ -408,8 +409,8 @@ class CruxCLI:
         print(f"  🤖 启动子智能体: {args.strip()}")
         try:
             from core.agent import SubAgent
-            agent = SubAgent(task=args.strip())
-            result = agent.run()
+            agent = SubAgent(task=args.strip())  # pyright: ignore[reportCallIssue] — CLI convenience wrapper
+            result = agent.run()  # pyright: ignore[reportCallIssue]
             print(f"\n  子智能体完成: {str(result)[:500]}")
         except ImportError:
             print("  子智能体模块未就绪。请通过 AI chat 使用 Agent 工具。")
@@ -422,7 +423,7 @@ class CruxCLI:
         try:
             from core.agent import ContextManager
             ctx = ContextManager()
-            summary = ctx.compress(self.session.messages)
+            summary = ctx.compress(self.session.messages)  # pyright: ignore[reportCallIssue] — ContextManager API
             if summary:
                 self.session.messages = [
                     {"role": "system", "content": self.session._build_system_prompt()},
@@ -491,7 +492,7 @@ class CruxCLI:
                     f"根据以下 git diff 生成简洁的 commit 消息 (50字符以内, 中文):\n{diff.stdout[:3000]}"
                 ):
                     if kind == "text":
-                        sys.stdout.write(payload)
+                        sys.stdout.write(payload)  # pyright: ignore[reportArgumentType]
                         sys.stdout.flush()
                 print()
             else:
@@ -512,7 +513,7 @@ class CruxCLI:
                     f"根据以下 git log 生成 CHANGELOG.md (按版本分组, 中文):\n{log.stdout[:3000]}"
                 ):
                     if kind == "text":
-                        sys.stdout.write(payload)
+                        sys.stdout.write(payload)  # pyright: ignore[reportArgumentType]
                         sys.stdout.flush()
                 print()
             else:
@@ -909,13 +910,13 @@ class CruxCLI:
         """Switch model provider: /provider <list|switch>."""
         arg = args.strip().lower()
         if arg == "list":
-            from core.provider import PROVIDERS, get_provider_name
-            current = get_provider_name()
-            print(f"\n  当前供应商: {current}")
-            print("  可用供应商:")
-            for name in PROVIDERS:
-                marker = " ←" if name == current else ""
-                print(f"    {name}{marker}")
+            from core.provider import get_provider_manager, MODEL_REGISTRY
+            mgr = get_provider_manager()
+            print(f"\n  当前供应商: {mgr.active_provider}")
+            print("  可用模型:")
+            for mid, info in sorted(MODEL_REGISTRY.items()):
+                marker = " ←" if mid == mgr.active_provider else ""
+                print(f"    {mid}{marker}")
             print()
         elif arg:
             print(f"  切换供应商 '{arg}' — 通过 /model 切换模型。")

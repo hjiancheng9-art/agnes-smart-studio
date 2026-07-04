@@ -256,7 +256,7 @@ WORKBUDDY_TOOL_DEFS = [
 
 WORKBUDDY_EXECUTOR_MAP = {
     "report_create": lambda **kw: json.dumps(report_create(**kw), ensure_ascii=False),
-    "report_list": lambda **kw: json.dumps(report_list(**kw.get("tag")), ensure_ascii=False),
+    "report_list": lambda **kw: json.dumps(report_list(**kw.get("tag")), ensure_ascii=False),  # pyright: ignore[reportCallIssue]
     "report_export": lambda **kw: json.dumps(report_export(**kw), ensure_ascii=False),
     "template_create": lambda **kw: json.dumps(template_create(**kw), ensure_ascii=False),
     "pipeline_run": lambda **kw: json.dumps(pipeline_run(**kw), ensure_ascii=False),

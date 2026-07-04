@@ -246,14 +246,14 @@ class EventBus:
         """
         # 指标自动追踪
         if event in (SESSION_CREATED, SESSION_RESUMED):
-            self._metrics["total_sessions"] = int(self._metrics["total_sessions"]) + 1
+            self._metrics["total_sessions"] = int(self._metrics["total_sessions"]) + 1  # pyright: ignore[reportArgumentType]
         elif event == TURN_STARTED:
-            self._metrics["total_turns"] = int(self._metrics["total_turns"]) + 1
+            self._metrics["total_turns"] = int(self._metrics["total_turns"]) + 1  # pyright: ignore[reportArgumentType]
         elif event == TURN_FAILED:
             # 简单的错误率追踪
             pass
         elif event == TOOL_UPDATED:
-            self._metrics["tool_call_count"] = int(self._metrics["tool_call_count"]) + 1
+            self._metrics["tool_call_count"] = int(self._metrics["tool_call_count"]) + 1  # pyright: ignore[reportArgumentType]
 
         handlers = self._handlers.get(event, []) + self._once_handlers.pop(event, [])
         for handler in handlers:

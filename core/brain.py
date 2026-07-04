@@ -88,7 +88,7 @@ class SmartBrain(CombatMixin, CreativeMixin, AestheticsMixin, VisionMixin):
                 # __cause__，因果链语义错乱（"自己是自己的原因"）。
                 raise primary_err from fallback_err
         try:
-            msg = result["choices"][0]["message"]
+            msg = result["choices"][0]["message"]  # pyright: ignore[reportIndexIssue]
             content = msg.get("content") or msg.get("reasoning_content")
         except (KeyError, IndexError):
             raise RuntimeError(f"Brain API返回格式异常: {str(result)[:200]}") from None
@@ -131,7 +131,7 @@ class SmartBrain(CombatMixin, CreativeMixin, AestheticsMixin, VisionMixin):
     def recognize_intent(self, user_input: str) -> dict:
         """识别用户意图"""
         text = self._ask_brain(INTENT_PROMPT, user_input, temperature=0.3)
-        result = self._parse_json(text)
+        result = self._parse_json(text)  # pyright: ignore[reportArgumentType] — Mixin typing: sync _ask_brain returns str
         # 确保必要字段存在
         result.setdefault("intent", "text_to_image")
         result.setdefault("confidence", 0.5)
@@ -196,7 +196,7 @@ class SmartBrain(CombatMixin, CreativeMixin, AestheticsMixin, VisionMixin):
             pass
 
         text = self._ask_brain(ENHANCE_IMAGE_PROMPT, input_text)
-        return self._postprocess_image_enhance(user_prompt, text, entity_type, surface_policy, beauty_type, combat_ctx)
+        return self._postprocess_image_enhance(user_prompt, text, entity_type, surface_policy, beauty_type, combat_ctx)  # pyright: ignore[reportArgumentType] — Mixin typing
 
     def enhance_video_prompt(self, user_prompt: str) -> dict:
         """增强视频生成Prompt，自动匹配甜点区模板 + 实体感知 + 帅哥美女通道 + 战斗知识 + 风险预判"""
@@ -260,7 +260,7 @@ class SmartBrain(CombatMixin, CreativeMixin, AestheticsMixin, VisionMixin):
             pass
 
         text = self._ask_brain(ENHANCE_VIDEO_PROMPT, input_text)
-        return self._postprocess_video_enhance(user_prompt, text, entity_type, surface_policy, beauty_type, combat_ctx)
+        return self._postprocess_video_enhance(user_prompt, text, entity_type, surface_policy, beauty_type, combat_ctx)  # pyright: ignore[reportArgumentType] — Mixin typing
 
     def understand_image(self, question: str, image_url: str) -> str:
         """利用视觉模型理解图片（供应商感知）。"""
@@ -275,7 +275,7 @@ class SmartBrain(CombatMixin, CreativeMixin, AestheticsMixin, VisionMixin):
             max_tokens=_gmt(model),
         )
         try:
-            return result["choices"][0]["message"]["content"]
+            return result["choices"][0]["message"]["content"]  # pyright: ignore[reportIndexIssue] — sync client returns dict, not Coroutine
         except (KeyError, IndexError):
             raise RuntimeError(f"多模态API返回格式异常: {str(result)[:200]}") from None
 
@@ -302,7 +302,7 @@ class SmartBrain(CombatMixin, CreativeMixin, AestheticsMixin, VisionMixin):
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_input},
         ]
-        result = await self.client.chat(
+        result = await self.client.chat(  # pyright: ignore[reportGeneralTypeIssues] — Mixin client typing
             model=model,
             messages=messages,
             temperature=temperature,
@@ -437,7 +437,7 @@ class SmartBrain(CombatMixin, CreativeMixin, AestheticsMixin, VisionMixin):
 
     async def understand_image(self, question: str, image_url: str) -> str:
         """异步利用多模态能力理解图片"""
-        result = await self.client.chat_multimodal(
+        result = await self.client.chat_multimodal(  # pyright: ignore[reportGeneralTypeIssues] — Mixin client typing
             text=question,
             image_url=image_url,
             model="agnes-2.0-flash",
@@ -474,7 +474,7 @@ class AsyncSmartBrain:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_input},
         ]
-        result = await self.client.chat(
+        result = await self.client.chat(  # pyright: ignore[reportGeneralTypeIssues] — Mixin client typing
             model=model,
             messages=messages,
             temperature=temperature,
@@ -609,7 +609,7 @@ class AsyncSmartBrain:
 
     async def understand_image(self, question: str, image_url: str) -> str:
         """异步利用多模态能力理解图片"""
-        result = await self.client.chat_multimodal(
+        result = await self.client.chat_multimodal(  # pyright: ignore[reportGeneralTypeIssues] — Mixin client typing
             text=question,
             image_url=image_url,
             model="agnes-2.0-flash",

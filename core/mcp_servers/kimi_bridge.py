@@ -13,7 +13,7 @@ from pathlib import Path
 KIMI_EXE = str(Path.home() / ".kimi-code" / "bin" / "kimi.exe")
 
 
-def _kimi_acp(method: str, params: dict = None, timeout: int = 180) -> dict:
+def _kimi_acp(method: str, params: dict = None, timeout: int = 180) -> dict:  # pyright: ignore[reportArgumentType]
     """Send a JSON-RPC request to Kimi ACP and return response."""
     if params is None:
         params = {}

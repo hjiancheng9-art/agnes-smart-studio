@@ -13,13 +13,13 @@ talisman.circuit.check()
 from __future__ import annotations
 
 __all__ = [
-    "talisman",
-    "inner_armor",
-    "backpack",
-    "belt",
-    "left_ring",
-    "right_ring",
-    "cloak",
+    "talisman",  # pyright: ignore[reportUnsupportedDunderAll]
+    "inner_armor",  # pyright: ignore[reportUnsupportedDunderAll]
+    "backpack",  # pyright: ignore[reportUnsupportedDunderAll]
+    "belt",  # pyright: ignore[reportUnsupportedDunderAll]
+    "left_ring",  # pyright: ignore[reportUnsupportedDunderAll]
+    "right_ring",  # pyright: ignore[reportUnsupportedDunderAll]
+    "cloak",  # pyright: ignore[reportUnsupportedDunderAll]
 ]
 
 

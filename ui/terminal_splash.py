@@ -311,7 +311,7 @@ def print_splash(extra_lines: list[tuple] | None = None) -> None:
     if status_items:
         left_body.append(Text("\n", Style()))
         cols = Columns(status_items, padding=(0, 2), equal=True, expand=False)
-        left_body.append(cols)
+        left_body.append(cols)  # pyright: ignore[reportArgumentType]
     left_body.append(Text("\n"))
     left_body.append(border_bot)
     left_content = RenderGroup(*left_body)

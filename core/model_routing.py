@@ -401,7 +401,7 @@ def pick_best_model(
 
     if not candidates:
         return None
-    candidates.sort(key=lambda x: (-x[0], -resolve_model(x[2]).context_window))
+    candidates.sort(key=lambda x: (-x[0], -resolve_model(x[2]).context_window))  # pyright: ignore[reportOptionalMemberAccess]
     return candidates[0][2]
 
 

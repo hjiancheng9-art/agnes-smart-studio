@@ -1,5 +1,16 @@
 """Brain aesthetics module — extracted from brain.py."""
 
+from core.brain_data import (
+    BEAUTY_NEGATIVE_REPAIR_MAP,
+    BEAUTY_PORTRAIT_MAP,
+    BEAUTY_SWEET_SPOT_TEMPLATES,
+    ENTITY_NEGATIVE_REPAIR_MAP,
+    ENTITY_SWEET_SPOT_TEMPLATES,
+    ENTITY_TYPE_MAP,
+    NEGATIVE_REPAIR_MAP,
+    SWEET_SPOT_TEMPLATES,
+    SWEET_SPOT_VIDEO_TEMPLATES,
+)
 
 
 class SmartBrainMixin:

@@ -30,7 +30,7 @@ jobs:
       - run: ruff check core/ ui/ utils/ engines/ pipeline/ --config=pyproject.toml
       - run: ruff format --check core/ ui/ utils/ engines/ pipeline/
       - run: pyright --version
-      - run: pyright core/config.py core/version.py core/commands.py
+      - run: pyright  # 全量业务代码 (include: core/ui/engines/pipeline/utils 在 pyproject.toml 配置)
 
   test:
     name: Test (pytest) ${{ matrix.python-version }}

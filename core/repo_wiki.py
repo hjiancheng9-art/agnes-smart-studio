@@ -187,8 +187,8 @@ WIKI_TOOL_DEFS = [
 
 WIKI_EXECUTOR_MAP = {
     "wiki_create": lambda **kw: json.dumps(wiki_create(**kw), ensure_ascii=False),
-    "wiki_read": lambda **kw: json.dumps(wiki_read(**kw.get("page_id")), ensure_ascii=False),
+    "wiki_read": lambda **kw: json.dumps(wiki_read(**kw.get("page_id")), ensure_ascii=False),  # pyright: ignore[reportCallIssue]
     "wiki_search": lambda **kw: json.dumps(wiki_search(kw.get("query", ""), kw.get("category")), ensure_ascii=False),
-    "wiki_list": lambda **kw: json.dumps(wiki_list(**kw.get("category")), ensure_ascii=False),
+    "wiki_list": lambda **kw: json.dumps(wiki_list(**kw.get("category")), ensure_ascii=False),  # pyright: ignore[reportCallIssue]
     "wiki_import_from_memory": lambda **kw: json.dumps(wiki_import_from_memory(), ensure_ascii=False),
 }

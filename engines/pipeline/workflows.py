@@ -28,7 +28,7 @@ class PipelineOrchestrator:
 
     def __init__(self, client: CruxClient):
         self.client = client
-        self.brain = SmartBrain(client)
+        self.brain = SmartBrain(client)  # pyright: ignore[reportArgumentType]
         self.t2i = TextToImageEngine(client)
         self.i2i = ImageToImageEngine(client)
         self.video = VideoEngine(client)

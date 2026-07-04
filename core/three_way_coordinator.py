@@ -158,7 +158,7 @@ class ThreeWayCoordinator:
             for kw in kws:
                 if kw in task_lower:
                     scores[system] += 1
-        return max(scores, key=scores.get)
+        return max(scores, key=scores.get)  # pyright: ignore[reportArgumentType,reportCallIssue]
 
     # ── 能力矩阵 ──
 

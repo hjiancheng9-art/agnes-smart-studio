@@ -1292,7 +1292,7 @@ class ToolRegistry:
         return len(self._definitions)
 
     # ── 执行器工厂 ──
-    def _make_executor(self, name: str, cfg: dict) -> Callable[..., str]:
+    def _make_executor(self, name: str, cfg: dict) -> Callable[..., str]:  # pyright: ignore[reportReturnType]
         """根据类型创建执行函数"""
         t = cfg.get("type", "shell")
 

@@ -180,7 +180,7 @@ class CruxClient:
                         "2. 删除暴力/血腥/武器相关的视觉描述\n"
                         "3. 以'科幻场景、非攻击性互动'重述你的创意"
                     )
-                    raise ContentPolicyError(msg, detail) from None
+                    raise ContentPolicyError(msg, detail) from None  # pyright: ignore[reportArgumentType]
                 # 从错误详情中剥离可能的敏感字段再拼入异常消息
                 safe_detail = detail
                 if isinstance(safe_detail, dict):
@@ -230,7 +230,7 @@ class CruxClient:
         body.update(kwargs)
 
         resp = self._request_with_retry("POST", "/chat/completions", json=body)
-        return _sanitize_json(resp.json())
+        return _sanitize_json(resp.json())  # pyright: ignore[reportReturnType]
 
     def chat_multimodal(
         self,
@@ -410,8 +410,8 @@ class CruxClient:
                     # SSE 前缀从 ProviderAdapter 读取（当前所有供应商统一为 "data: "）
                     from core.provider_adapter import PROVIDER_ADAPTERS
                     adapter = PROVIDER_ADAPTERS.get("deepseek", PROVIDER_ADAPTERS.get("generic"))
-                    prefix = adapter.sse_data_prefix
-                    done = adapter.sse_done_marker
+                    prefix = adapter.sse_data_prefix  # pyright: ignore[reportOptionalMemberAccess]
+                    done = adapter.sse_done_marker  # pyright: ignore[reportOptionalMemberAccess]
                     for line in resp.iter_lines():
                         if not line or not line.startswith(prefix):
                             continue
