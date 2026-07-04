@@ -9,7 +9,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ADR_DIR = Path("docs/adr")
-ADR_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _ensure_adr_dir() -> None:
+    """创建 ADR 目录（延迟到首次使用时，避免 import 时产生文件系统副作用）。"""
+    ADR_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def adr_create(
@@ -24,6 +28,7 @@ def adr_create(
 
     Status: proposed | accepted | deprecated | superseded
     """
+    _ensure_adr_dir()
     # Find next number
     existing = list(ADR_DIR.glob("*.json"))
     num = len(existing) + 1
