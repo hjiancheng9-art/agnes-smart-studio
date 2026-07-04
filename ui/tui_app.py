@@ -21,6 +21,7 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout import HSplit, Layout, Window
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
+from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.processors import BeforeInput
 
 from ui.clipboard_image import detect_drag_images, get_clipboard_image, is_image_path
@@ -64,7 +65,7 @@ class TuiApp:
 
         self._history = InMemoryHistory()
         self.input_buffer = Buffer(
-            multiline=False,
+            multiline=True,
             accept_handler=self._on_accept,
             history=self._history,
         )
@@ -74,6 +75,12 @@ class TuiApp:
         @self.kb.add("c-c")
         def _(event):
             event.app.exit()
+
+        @self.kb.add("c-j")  # Ctrl+J: submit multiline input
+        def _(event):
+            buf = self.input_buffer
+            if buf.text.strip():
+                buf.validate_and_handle()
 
         @self.kb.add("c-v")
         def _(event):
@@ -204,7 +211,7 @@ class TuiApp:
             # Activity zone (tool calls, thinking steps, status)
             activity_window,
             # Input
-            Window(content=input_ctrl, height=1, style="class:input-field"),
+            Window(content=input_ctrl, height=Dimension(min=1, max=8), style="class:input-field"),
             # Status bar
             Window(
                 content=FormattedTextControl(lambda: self.status_bar.render()),
