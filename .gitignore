@@ -17,6 +17,7 @@ build/
 # Output / generated
 output/
 .crux_wiki/
+.crux_memory/
 docs/adr/
 agnes_output/
 *.bak
