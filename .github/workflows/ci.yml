@@ -48,14 +48,20 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - run: pip install -r requirements.txt
-      - run: pip install pytest pytest-asyncio
-      - run: python -m pytest tests/ -q --tb=short --ignore=tests/manual --junitxml=test-results.xml
+      - run: pip install pytest pytest-asyncio pytest-cov coverage
+      - name: Run tests with coverage
+        run: |
+          coverage run -m pytest tests/ -q --tb=short --ignore=tests/manual --junitxml=test-results.xml
+          coverage xml -o coverage.xml
+          coverage report --fail-under=55
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results-${{ matrix.python-version }}
-          path: test-results.xml
+          path: |
+            test-results.xml
+            coverage.xml
 
   scorecard:
     name: Tool Scorecard
