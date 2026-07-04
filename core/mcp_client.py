@@ -118,6 +118,24 @@ class MCPClient:
             self._save_config()
             return {"status": "ok", "server": asdict(cfg)}
 
+    def list_servers(self) -> list[dict]:
+        """Return all registered server configurations with connection status.
+
+        Returns:
+            List of server info dicts with name, command, enabled, and connected status.
+        """
+        with self._lock:
+            return [
+                {
+                    "name": cfg.name,
+                    "command": cfg.command,
+                    "args": cfg.args,
+                    "enabled": cfg.enabled,
+                    "connected": cfg.name in self._processes,
+                }
+                for cfg in self._servers.values()
+            ]
+
     def remove_server(self, name: str) -> bool:
         """Remove a server configuration. Disconnects if running.
 

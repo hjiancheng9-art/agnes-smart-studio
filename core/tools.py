@@ -1117,8 +1117,8 @@ class ToolRegistry:
         for name, executor in CODE_REVIEW_EXECUTOR_MAP.items():
             self._executors[name] = executor
         # ── CI/CD Pipeline (方法论第10章) ──
-        from core.ci_pipeline import PIPELINE_EXECUTOR_MAP, PIPELINE_TOOL_DEFS
-        self._definitions.extend(PIPELINE_TOOL_DEFS)
+        from core.ci_pipeline import PIPELINE_EXECUTOR_MAP, PIPELINE_TOOL_DEFS as CI_PIPELINE_TOOL_DEFS
+        self._definitions.extend(CI_PIPELINE_TOOL_DEFS)
         for name, executor in PIPELINE_EXECUTOR_MAP.items():
             self._executors[name] = executor
 
