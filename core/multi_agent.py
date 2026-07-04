@@ -615,6 +615,22 @@ class SmartDecomposer:
             else:
                 model = self._model_router.select(task_type="tool_calling")  # pro tier
 
+        # ── 方法论检查: Agent 路由约束 ──
+        try:
+            from core.methodology import check_agent_route
+
+            resolved = model or "deepseek-v4-pro"
+            if "planning" in (goal_tier if model else ""):
+                allowed, msg = check_agent_route("architecture", resolved)
+            elif goal_tier == "light" and "pro" in resolved:
+                allowed, msg = check_agent_route("grep", resolved)
+            else:
+                allowed, msg = True, ""
+            if not allowed:
+                raise RuntimeError(f"Agent routing violation: {msg}")
+        except (ImportError, RuntimeError):
+            pass
+
         # Try via CruxClient if available, otherwise via raw chat
         raw = ""
         try:

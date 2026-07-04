@@ -91,6 +91,15 @@ def register_tool_interceptor():
                 allowed, reason = methodology_pre_check(tool_name, args, state)
                 if not allowed:
                     return reason
+
+                # D 级加固：所有写操作 + git 操作均需确认
+                from core.methodology import TaskLevel
+                from core.constraints import WRITE_TOOLS
+
+                if state.task_level == TaskLevel.D:
+                    if tool_name in WRITE_TOOLS or tool_name.startswith("git_"):
+                        if not state.plan_exists:
+                            return f"D 级任务: 未确认 Plan，{tool_name} 被拦截"
             except ImportError:
                 pass
 

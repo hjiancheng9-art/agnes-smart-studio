@@ -1100,6 +1100,25 @@ class ChatSession(ChatToggleMixin):
                         tool_result = f"[错误] 工具 {fname} 执行失败: {type(e).__name__}: {e}"
                         side_effects = [("info", tool_result)]
                         metrics.increment("tool_errors")
+                    # ── 方法论追踪: 自动记录文件操作 + 触发升级 ──
+                    try:
+                        from core.methodology import get_methodology_state
+
+                        m_state = get_methodology_state()
+                        m_state.record_tool(fname)
+                        # 追踪写入文件
+                        if fname in self._WRITE_TOOLS:
+                            path = json.loads(fargs).get("path") or json.loads(fargs).get("file_path", "")
+                            if path:
+                                m_state.files_touched.append(path)
+                                # 文件数超阈值 → 自动升级
+                                n = len(set(m_state.files_touched))
+                                if n > 3 and m_state.task_level.value in ("micro", "normal"):
+                                    m_state.escalate(f"files>{n}")
+                                elif n > 1 and m_state.task_level.value == "micro":
+                                    m_state.escalate("files>1")
+                    except (ImportError, json.JSONDecodeError, OSError):
+                        pass
                     # Fold oversized tool results for cleaner display
                     if isinstance(tool_result, str) and len(tool_result) > 800:
                         preview = "\n".join(tool_result.split("\n")[:5])
@@ -1168,7 +1187,7 @@ class ChatSession(ChatToggleMixin):
         return False
 
     def _finalize_outcome(self, model: str, last_usage) -> None:
-        """正常收尾：成本追踪 + Prompt Lab outcome 记录。"""
+        """正常收尾：成本追踪 + Prompt Lab outcome + 方法论工作流推进。"""
         try:
             from core.cost_tracker import record_usage
 
@@ -1176,6 +1195,12 @@ class ChatSession(ChatToggleMixin):
         except (ImportError, OSError) as e:
             logger.debug("cost_tracker.record_usage(text_stream) failed: %s: %s", type(e).__name__, e)
         self._record_outcome_promptlab()
+        # ── 方法论: 自动推进至"验证+diff审查"步骤 ──
+        try:
+            from core.methodology import get_methodology_state
+            get_methodology_state().advance_workflow("verified")
+        except (ImportError, OSError):
+            pass
 
     def _trigger_reflection(self) -> None:
         """Post-turn reflection: light model reviews output quality."""

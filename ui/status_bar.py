@@ -114,6 +114,17 @@ class StatusBar:
         right = ""
         if self._latency is not None:
             right = f"ttft: {self._latency:.1f}s"
+        # ── 方法论等级 ──
+        try:
+            from core.methodology import get_methodology_state
+            ms = get_methodology_state()
+            level_short = {0: "A", 1: "B", 2: "C", 3: "D"}.get(
+                {"micro": 0, "normal": 1, "complex": 2, "critical": 3}.get(ms.task_level.value, -1), ""
+            )
+            if level_short:
+                right = f"[{level_short}] " + (right if right else "")
+        except (ImportError, OSError):
+            pass
         if self._context_max > 0:
             if right:
                 right += "  "
