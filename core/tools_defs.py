@@ -39,10 +39,7 @@ __all__ = [
     "PIPELINE_TOOL_DEFS",
     "TOOLS_CONFIG",
     "TOOL_EXPANSION_CATEGORIES",
-    "ToolRegistry",
     "_resolve_tool_names",
-    "get_registry",
-    "reload_registry",
 ]
 
 

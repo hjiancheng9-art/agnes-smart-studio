@@ -342,11 +342,12 @@ def test_mcp_health():
 def test_brain_mixin_import():
     from core.brain import SmartBrain
     
-    # Verify SmartBrain is importable and has expected methods
+    # Verify SmartBrain is importable with Mixin architecture
     mro = [c.__name__ for c in SmartBrain.__mro__]
     assert "SmartBrain" == mro[0]
-    # Mixin-based or monolithic: core methods must exist
-    assert hasattr(SmartBrain, "_match_combat_moves") or hasattr(SmartBrain, "_ask_brain")
+    # Mixin classes should be in the MRO
+    mixin_names = [c.__name__ for c in SmartBrain.__mro__ if 'Mixin' in c.__name__]
+    assert len(mixin_names) >= 1, f"Expected at least 1 Mixin in MRO, got: {mro}"
 
 
 def test_brain_mixin_methods():
