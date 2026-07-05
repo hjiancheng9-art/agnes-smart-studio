@@ -47,6 +47,13 @@ def score_provider(pid: str, request: dict, circuit_states: dict[str, str]) -> f
     if budget < 30 and pid in ("deepseek", "crux"):
         score -= 15  # 高成本 provider 在预算不足时降权
 
+    # 历史表现调整
+    try:
+        from core.provider_history import adapt_score
+        score = adapt_score(pid, score)
+    except ImportError:
+        pass
+
     return score
 
 

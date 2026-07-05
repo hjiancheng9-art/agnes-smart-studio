@@ -598,6 +598,11 @@ class ProviderManager:
             fallback = self._first_available(exclude={pid})
             if fallback:
                 import logging
+                try:
+                    from core.provider_history import record_call
+                    record_call(pid, "", False, 0, "fallback to " + fallback)
+                except ImportError:
+                    pass
                 logging.getLogger("crux").info(
                     "provider fallback: %s -> %s (depth=%d, trace=%s)",
                     pid, fallback, _depth + 1, root_trace_id
