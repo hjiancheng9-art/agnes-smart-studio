@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING
 from prompt_toolkit import Application
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.filters import Condition
+from prompt_toolkit.application.current import get_app
 from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.key_binding import KeyBindings
@@ -51,6 +52,11 @@ from ui.message_pane import MessagePane
 from ui.status_bar import StatusBar
 from ui.theme_v2 import build_style_v2
 from ui.widgets_v2 import Spinner, ThinkingPanel, build_welcome_formatted, context_bar
+# ── Panels ──
+from ui.panels.run_summary_panel import render_run_summary
+from ui.panels.provider_route_panel import render_provider_route
+from ui.panels.incident_panel import load_incidents, render_incidents
+
 
 try:
     from core.methodology import get_methodology_state as _get_methodology_state
@@ -363,6 +369,8 @@ class TuiAppV2:
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
         self._thinking = False
         self._streaming = False
+        self._cancel_requested = False
+        self._closing = False
         self._last_invalidate = 0.0
         self._latency: float | None = None
         self._state_lock = threading.Lock()
@@ -389,6 +397,12 @@ class TuiAppV2:
         # ── Activity log: [(icon, style_class, message), ...] ──
         self._activity_log: list[tuple[str, str, str]] = []
         self._activity_lock = threading.RLock()
+        self._activity_log_limit = 500
+        self._activity_render_limit = 100
+        self._activity_expanded = False
+        self._activity_collapsed_height = 3
+        self._activity_expanded_height = 10
+        self._queued_text: str | None = None
 
         # ── Spinner ──
         self._spinner = Spinner(on_tick=self._on_spinner_tick)
@@ -416,6 +430,11 @@ class TuiAppV2:
 
         # ── Build app ──
         self._app = self._make_app()
+
+        # ── Download manager ──
+        from core.download.manager import get_manager
+        self._dl_manager = get_manager()
+        self._dl_manager.on_update(self._on_download_update)
 
         # Welcome screen replaces banner — see _setup_welcome()
 
@@ -456,9 +475,22 @@ class TuiAppV2:
 
         @kb.add("c-c")
         def _(event):
+            with self._state_lock:
+                streaming = self._streaming or self._thinking
+            if streaming:
+                self._cancel_current_response()
+                self._log_append(("\u25a0", "class:activity-warn", "已请求中断当前响应"))
+                event.app.invalidate()
+                return
+            self._log_append(("\u2022", "class:activity-info", "按 Ctrl+Q 退出 CRUX"))
+            event.app.invalidate()
+
+        @kb.add("c-q")
+        def _(event):
+            self._request_exit()
             event.app.exit()
 
-        @kb.add("escape", "c-m")  # Alt+Enter: insert newline
+        @kb.add("escape", "enter")  # Alt+Enter: insert newline
         @kb.add("c-j")            # Ctrl+J: insert newline (alternative)
         def _(event):
             self.input_buffer.insert_text("\n")
@@ -545,6 +577,31 @@ class TuiAppV2:
             self.message_pane.scroll_down(5)
             event.app.invalidate()
 
+
+        # ── Streaming guards ──
+        # When streaming, up/down only move cursor, don't trigger history
+
+        _is_streaming = Condition(lambda: self._streaming)
+
+        @kb.add("up", filter=_is_streaming)
+        def _(event):
+            try:
+                event.current_buffer.cursor_up()
+            except Exception:
+                pass
+
+        @kb.add("down", filter=_is_streaming)
+        def _(event):
+            try:
+                event.current_buffer.cursor_down()
+            except Exception:
+                pass
+
+        @kb.add("f8")
+        def _(event):
+            self._activity_expanded = not self._activity_expanded
+            event.app.invalidate()
+
         return kb
 
     # ══════════════════════════════════════════════════════════════
@@ -619,10 +676,10 @@ class TuiAppV2:
 
         # ── Activity Bar ──
         def _activity_content():
-            if not self._activity_log:
+            if self._log_count() == 0:
                 return FormattedText([])
             with self._state_lock:
-                log_snapshot = list(self._activity_log)
+                log_snapshot = self._log_snapshot()
             tw = _tw()
             spinner_char = self._spinner.current if self._spinner.running else " "
             pieces: list[tuple[str, str]] = []
@@ -652,20 +709,24 @@ class TuiAppV2:
 
         activity_window = Window(
             content=FormattedTextControl(_activity_content),
-            height=lambda: 1 if self._activity_log else 0,
+            height=lambda: (
+                self._activity_expanded_height
+                if self._activity_expanded
+                else self._activity_collapsed_height
+            ) if self._log_count() else 0,
             style="class:message-area",
             always_hide_cursor=True,
         )
 
         # ── Activity separator ──
         def _activity_sep():
-            if not self._activity_log:
+            if self._log_count() == 0:
                 return FormattedText([])
             return FormattedText([("class:input-border", "─" * _tw())])
 
         activity_sep_window = Window(
             content=FormattedTextControl(_activity_sep),
-            height=lambda: 1 if self._activity_log else 0,
+            height=lambda: 1 if self._log_count() else 0,
             style="class:input-border",
             always_hide_cursor=True,
         )
@@ -696,7 +757,7 @@ class TuiAppV2:
         # ── Input border (bottom of input frame) ──
         def _input_bottom():
             tw = _tw()
-            hint = " Enter 发送 │ Alt+Enter 换行 │ 鼠标/PgUp 滚屏 "
+            hint = self._build_hint_text()
             hint_vis = 46
             bars_count = max(0, tw - hint_vis - 2)
             bars = "─" * bars_count
@@ -899,6 +960,8 @@ class TuiAppV2:
     def _log_append(self, item: tuple[str, str, str]) -> None:
         with self._activity_lock:
             self._activity_log.append(item)
+            if len(self._activity_log) > self._activity_log_limit:
+                del self._activity_log[:-self._activity_log_limit]
 
     def _log_update_last(self, item: tuple[str, str, str]) -> None:
         with self._activity_lock:
@@ -909,16 +972,59 @@ class TuiAppV2:
         with self._activity_lock:
             self._activity_log.clear()
 
-    def _log_snapshot(self) -> list[tuple[str, str, str]]:
+    def _log_snapshot(self, limit: int | None = None) -> list[tuple[str, str, str]]:
         with self._activity_lock:
-            return list(self._activity_log)
+            if limit is None:
+                return list(self._activity_log)
+            return list(self._activity_log[-limit:])
+
+    def _log_last(self) -> tuple[str, str, str] | None:
+        with self._activity_lock:
+            if self._activity_log:
+                return self._activity_log[-1]
+            return None
+
+    def _log_count(self) -> int:
+        with self._activity_lock:
+            return len(self._activity_log)
 
     def _on_accept(self, buf: Buffer) -> bool:
-        text = buf.text.strip()
-        buf.reset()
-        if not text:
+        try:
+            text = buf.text.strip()
+            buf.reset()
+            if not text:
+                return True
+
+            # ── Command routing ──
+            if self._handle_command(text):
+                return True
+
+            # ── Thinking guard — queue input if streaming ──
+            if self._thinking or self._streaming:
+                self._queue_input_while_streaming(text)
+                return True
+
+            # ── Submit for streaming ──
+            self._submit_user_message(text)
             return True
 
+        except Exception as e:
+            self._log_append(("✗", "class:activity-fail",
+                f"Input failed: {type(e).__name__}: {self._shorten(e, 80)}"))
+            try:
+                self.message_pane.append_error(
+                    f"Input processing failed: {type(e).__name__}: {e}"
+                )
+            except Exception:
+                pass
+            return False
+
+    # ══════════════════════════════════════════════════════════════
+    #  Command handlers
+    # ══════════════════════════════════════════════════════════════
+
+    def _handle_command(self, text: str) -> bool:
+        """Route all command-like inputs. Returns True if handled."""
         # ── Drag-drop image detection ──
         drag_images = detect_drag_images(text)
         if drag_images and len(drag_images) == 1:
@@ -961,7 +1067,7 @@ class TuiAppV2:
                     self.screen_stack.push(screen, self)
             else:
                 screen.back() if hasattr(screen, 'back') else None
-                self._toggle_screen("remediate")
+            self._toggle_screen("remediate")
             self._app.invalidate()
             return True
         if text == "/replay" or text.startswith("/replay "):
@@ -976,6 +1082,8 @@ class TuiAppV2:
                 self._toggle_screen("replay")
             self._app.invalidate()
             return True
+
+        # ── Recent actions ──
         if text == "/recent-actions":
             try:
                 from core.remediation_executor import get_recent_actions
@@ -987,7 +1095,160 @@ class TuiAppV2:
                 self.message_pane.append_error(f"Error: {e}")
             return True
 
-        # ── Slash commands ──
+
+
+        # ── Panel commands ──
+        if text == "/runs" or text.startswith("/runs "):
+            try:
+                from core.remediation_executor import get_recent_actions
+                limit = 10
+                parts = text.split(" ", 1)
+                if len(parts) > 1 and parts[1].isdigit():
+                    limit = min(50, max(1, int(parts[1])))
+                actions = get_recent_actions(limit)
+                pieces = render_run_summary(actions, _tw())
+                for style, line in pieces:
+                    self.message_pane.append_message("info", line)
+            except Exception as e:
+                self.message_pane.append_error(f"Runs error: {e}")
+            return True
+
+        if text == "/route" or text.startswith("/route "):
+            try:
+                from core.chat import get_provider_name
+                parts = text.split(" ", 1)
+                target = parts[1] if len(parts) > 1 else "last"
+                route = {"attempts": [
+                    {"provider": get_provider_name(), "model": "...",
+                     "status": "success", "latency_ms": 0}
+                ]} if not hasattr(self, '_last_route') or not self._last_route else self._last_route
+                pieces = render_provider_route(route, _tw())
+                for style, line in pieces:
+                    self.message_pane.append_message("info", line)
+            except Exception as e:
+                self.message_pane.append_info(f"Provider route: {e}")
+            return True
+
+        if text == "/incidents" or text.startswith("/incidents "):
+            try:
+                parts = text.split(" ", 1)
+                status_filter = parts[1].strip() if len(parts) > 1 else None
+                if status_filter and status_filter not in {"open", "acknowledged", "closed"}:
+                    self.message_pane.append_error("Usage: /incidents [open|acknowledged|closed]")
+                    return True
+                incidents = load_incidents(status_filter)
+                pieces = render_incidents(incidents, _tw(), status_filter)
+                for style, line in pieces:
+                    self.message_pane.append_message("info", line)
+            except Exception as e:
+                self.message_pane.append_error(f"Incidents error: {e}")
+            return True
+
+
+        
+
+        # ── Download commands ──
+        if text == "/download" or text.startswith("/download ") or text == "/downloads":
+            from tools.download_tool import handle_download_command
+            return handle_download_command(
+                text, _tw(),
+                self.message_pane.append_message,
+                self.message_pane.append_error,
+                self._log_append,
+            )
+# ── Dashboard ──
+        if text == "/dashboard":
+            try:
+                from ui.panels.run_summary_panel import render_run_summary
+                from ui.panels.incident_panel import load_incidents, render_incidents
+                from core.remediation_executor import get_recent_actions
+                self._log_clear()
+                self.message_pane.append_message("info", " CRUX DASHBOARD\n")
+                self.message_pane.append_message("info", " R refresh \u2502 Q/Esc back\n\n")
+
+                actions = get_recent_actions(5)
+                for style, line in render_run_summary(actions, _tw()):
+                    self.message_pane.append_message("info", line)
+                self.message_pane.append_message("info", "")
+
+                incidents = load_incidents("open")[:5]
+                for style, line in render_incidents(incidents, _tw(), "open"):
+                    self.message_pane.append_message("info", line)
+            except Exception as e:
+                self.message_pane.append_error(f"Dashboard error: {e}")
+            return True
+
+        # ── Run detail ──
+        if text == "/run" or text.startswith("/run "):
+            try:
+                from ui.panels.run_detail_panel import render_run_detail
+                from core.remediation_executor import get_recent_actions
+                parts = text.split(" ", 1)
+                target = parts[1].strip() if len(parts) > 1 else "last"
+                actions = get_recent_actions(20)
+                run = actions[0] if actions and target == "last" else None
+                if not run:
+                    for a in actions:
+                        if target in (a.get("run_id",""), a.get("incident_id","")):
+                            run = a; break
+                self._log_clear()
+                if run:
+                    for s, l in render_run_detail(run, _tw()):
+                        self.message_pane.append_message("info", l)
+                else:
+                    self.message_pane.append_info(f"No run found: {target}")
+            except Exception as e:
+                self.message_pane.append_error(f"Run error: {e}")
+            return True
+
+        # ── Incident detail ──
+        if text == "/incident" or text.startswith("/incident "):
+            try:
+                from ui.panels.incident_detail_panel import render_incident_detail
+                from ui.panels.incident_panel import load_incidents
+                parts = text.split(" ", 1)
+                target = parts[1].strip() if len(parts) > 1 else "last"
+                incidents = load_incidents()
+                inc = incidents[0] if incidents and target == "last" else None
+                if not inc:
+                    for i in incidents:
+                        if i.get("id") == target:
+                            inc = i; break
+                self._log_clear()
+                if inc:
+                    for s, l in render_incident_detail(inc, _tw()):
+                        self.message_pane.append_message("info", l)
+                else:
+                    self.message_pane.append_info(f"No incident found: {target}")
+            except Exception as e:
+                self.message_pane.append_error(f"Incident error: {e}")
+            return True
+
+        # ── Provider health ──
+        if text == "/providers":
+            try:
+                from ui.panels.system_status_panel import render_system_status
+                from core.remediation_executor import get_recent_actions
+                providers = []
+                seen = set()
+                for a in get_recent_actions(15):
+                    chain = a.get("provider_chain", []) or []
+                    for prov in chain:
+                        if prov not in seen:
+                            seen.add(prov)
+                            providers.append({"provider": prov, "health_score": 1.0,
+                                              "circuit_state": "CLOSED", "latency_ema_ms": 0, "status": "ok"})
+                if not providers:
+                    providers = [{"provider": "deepseek-v4-flash", "health_score": 1.0,
+                                  "circuit_state": "CLOSED", "latency_ema_ms": 0, "status": "ok"}]
+                self._log_clear()
+                for s, l in render_system_status(providers, _tw()):
+                    self.message_pane.append_message("info", l)
+            except Exception as e:
+                self.message_pane.append_error(f"Providers error: {e}")
+            return True
+
+# ── Slash commands ──
         if text.startswith("/"):
             _buf = io.StringIO()
             _old = sys.stdout
@@ -1003,36 +1264,74 @@ class TuiAppV2:
                 self.message_pane.append_info(f"Unknown command: {text}  — /help for commands")
             return True
 
-        # ── Thinking guard ──
-        if self._thinking:
-            self.message_pane.append_info("Please wait — still processing previous request")
-            return True
+        return False
 
-        # ── Submit for streaming ──
+
+
+
+
+    def _submit_user_message(self, text: str) -> None:
+        """Submit user input, append to pane, and launch streaming worker."""
+        text = (text or "").strip()
+        if not text:
+            return
+
+        self.message_pane.append_message('user', text)
+
         with self._state_lock:
-            self._log_clear()
-            self._thinking_buf = ""
             self._thinking = True
-        self.thinking_panel.clear()
-        self._streaming = True
-        self.message_pane.append_message("user", text)
-        self.message_pane.scroll_to_bottom()
-        self._spinner.start()
-        self._ui(self._refresh_status, _force=True)
-        self._executor.submit(self._stream_response, text)
-        return True
+            self._streaming = True
+
+        self._log_append(("→", "class:activity-info", f"Submit: {self._shorten(text, 60)}"))
+
+        self._worker_thread = threading.Thread(
+            target=self._stream_response, args=(text,), daemon=True, name="stream-response"
+        )
+        self._worker_thread.start()
+
+    def _cancel_current_response(self) -> None:
+        """Cancel the currently streaming response."""
+        with self._state_lock:
+            self._cancel_requested = True
+        try:
+            self._spinner.stop()
+        except Exception:
+            pass
+        self._ui(self.message_pane.stream_end, _force=True)
+
+    def _queue_input_while_streaming(self, text: str) -> None:
+        """Queue user input during streaming. Auto-submits when response ends."""
+        text = text.strip()
+        if not text:
+            return
+        with self._state_lock:
+            self._queued_text = text
+        self._log_append(("⏳", "class:activity-warn",
+            f"已暂存输入，响应结束后自动发送: {self._shorten(text, 48)}"))
+        self._ui(self.message_pane.append_info,
+            f"已暂存输入，当前响应结束后自动发送：{self._shorten(text, 80)}")
+
+    def _build_hint_text(self) -> str:
+        with self._state_lock:
+            streaming = self._streaming or self._thinking
+
+        if streaming:
+            return " 正在响应：Enter 暂存输入 │ PgUp/PgDn 滚屏 │ Ctrl+End 回到底部 │ F8 展开日志 │ Ctrl+C 中断 "
+
+        if getattr(self, '_activity_expanded', False):
+            return " Enter 发送 │ Alt+Enter 换行 │ F8 收起日志 │ PgUp/PgDn 滚屏 │ Ctrl+Home/End 顶/底 │ Ctrl+L 清屏 "
+
+        return " Enter 发送 │ Alt+Enter 换行 │ PgUp/PgDn 滚屏 │ Ctrl+Home/End 顶/底 │ F8 日志 │ Ctrl+L 清屏 "
 
     def _send_image(self, image_path: str) -> None:
         if self._thinking:
             self.message_pane.append_info("Please wait — still processing previous request")
             return
         with self._state_lock:
-            self._log_clear()
             self._thinking = True
         self.thinking_panel.clear()
         fname = os.path.basename(image_path)
         self.message_pane.append_message("user", f"[图片: {fname}]")
-        self.message_pane.scroll_to_bottom()
         self._streaming = True
         self._spinner.start()
         self._refresh_status()
@@ -1056,15 +1355,15 @@ class TuiAppV2:
                     self._ui(self.message_pane.append_info, str(payload))
                 elif kind == "error":
                     self._ui(self.message_pane.append_error, str(payload))
-            if self._activity_log:
-                last_icon, _, last_msg = self._activity_log[-1]
+            _last_entry = self._log_last()
+            if _last_entry:
+                last_icon, _, last_msg = _last_entry
                 if "●" in last_icon:
                     self._log_update_last(("✓", "class:activity-done", last_msg.replace("视觉分析: ", "视觉分析完成: ")))
             self._ui(self.message_pane.stream_end, _force=True)
-            self._ui(self.message_pane.scroll_to_bottom, _force=True)
         except Exception as e:
             self._ui(self.message_pane.append_error, f"图片分析失败: {e}", _force=True)
-            self._log_append(("✗", "class:activity-fail", f"视觉分析失败: {e}"))
+            self._log_append(("✗", "class:activity-fail", f"视觉分析失败: {self._error_summary(e)}"))
             self._ui(self.message_pane.stream_end, _force=True)
         finally:
             with self._state_lock:
@@ -1102,13 +1401,15 @@ class TuiAppV2:
                         pending_tool = action
                         self._log_append(("●", "class:activity-running", f"生成 {action}"))
                     elif "执行完成" in msg:
-                        if pending_tool and self._activity_log:
-                            last_icon, _, last_msg = self._activity_log[-1]
-                            if "●" in last_icon:
-                                self._log_update_last((
-                                    "✓", "class:activity-done",
-                                    last_msg.replace("执行 ", "").replace("生成 ", ""),
-                                ))
+                        if pending_tool:
+                            _last_entry = self._log_last()
+                            if _last_entry:
+                                last_icon, _, last_msg = _last_entry
+                                if "●" in last_icon:
+                                    self._log_update_last((
+                                        "✓", "class:activity-done",
+                                        last_msg.replace("执行 ", "").replace("生成 ", ""),
+                                    ))
                         pending_tool = None
                     elif "fallback" in msg.lower() or "连接中断" in msg:
                         self._log_append(("⚠", "class:activity-warn", msg[:100]))
@@ -1118,11 +1419,13 @@ class TuiAppV2:
                         self._log_append(("·", "class:activity-info", msg[:120]))
                     self._ui(lambda: None)
                 elif kind == "tool_result":
-                    if pending_tool and self._activity_log:
-                        last_icon, _, last_msg = self._activity_log[-1]
-                        if "●" in last_icon:
-                            self._log_update_last((
-                                "✓", "class:activity-done",
+                    if pending_tool:
+                        _last_entry = self._log_last()
+                        if _last_entry:
+                            last_icon, _, last_msg = _last_entry
+                            if "●" in last_icon:
+                                self._log_update_last((
+                                    "✓", "class:activity-done",
                                 last_msg.replace("执行 ", "").replace("生成 ", ""),
                             ))
                     pending_tool = None
@@ -1137,15 +1440,16 @@ class TuiAppV2:
                         self._ui(self.message_pane.append_info, f"Saved: {loc}")
                         self._log_append(("✓", "class:activity-done", f"已保存: {loc}"))
             # Mark any remaining pending tool as done
-            if pending_tool and self._activity_log:
-                last_icon, _, last_msg = self._activity_log[-1]
-                if "●" in last_icon:
-                    self._log_update_last(("✓", "class:activity-done", last_msg.replace("执行 ", "").replace("生成 ", "")))
+            if pending_tool:
+                _last_entry = self._log_last()
+                if _last_entry:
+                    last_icon, _, last_msg = _last_entry
+                    if "●" in last_icon:
+                        self._log_update_last(("✓", "class:activity-done", last_msg.replace("执行 ", "").replace("生成 ", "")))
             self._ui(self.message_pane.stream_end, _force=True)
-            self._ui(self.message_pane.scroll_to_bottom, _force=True)
         except Exception as e:
             self._ui(self.message_pane.append_error, str(e), _force=True)
-            self._log_append(("✗", "class:activity-fail", f"异常: {e}"))
+            self._log_append(("✗", "class:activity-fail", f"响应失败: {self._error_summary(e)}"))
             self._ui(self.message_pane.stream_end, _force=True)
         finally:
             with self._state_lock:
@@ -1154,6 +1458,16 @@ class TuiAppV2:
             self.thinking_panel.done()
             self._spinner.stop()
             self._ui(self._refresh_status, _force=True)
+            # Auto-submit queued input
+            _qt = None
+            with self._state_lock:
+                _qt = self._queued_text
+                self._queued_text = None
+            if _qt:
+                self._log_append(("↪", "class:activity-info",
+                    f"自动发送暂存输入: {self._shorten(_qt, 48)}"))
+                self._submit_user_message(_qt)
+
         if self.wire:
             try:
                 self.wire.record_turn("assistant", "[streamed]")
@@ -1193,9 +1507,32 @@ class TuiAppV2:
         self._app.invalidate()
     def _on_spinner_tick(self) -> None:
         """Called by Spinner thread every ~80ms. Triggers activity bar repaint."""
-        if self._activity_log and self._app and self._app.is_running:
+        if self._log_count() and self._app and self._app.is_running:
             with contextlib.suppress(Exception):
                 self._app.invalidate()
+
+    def _on_download_update(self, job) -> None:
+        """Called by DownloadManager when a download job changes state."""
+        self._log_append(("↓", "class:activity-info", job.summary()[:80]))
+        try:
+            self._app.invalidate()
+        except Exception:
+            pass
+
+
+    # ── Text utilities ──
+
+    @staticmethod
+    def _shorten(text: object, limit: int = 60) -> str:
+        value = str(text).replace("\n", " ").replace("\r", " ")
+        if len(value) <= limit:
+            return value
+        return value[: max(0, limit - 1)] + "…"
+
+    def _error_summary(self, error: Exception, limit: int = 80) -> str:
+        name = type(error).__name__
+        message = self._shorten(str(error), limit)
+        return f"{name}: {message}" if message else name
 
     def _refresh_status(self):
         self.status_bar.set_model(self.session.model)
@@ -1216,6 +1553,74 @@ class TuiAppV2:
         except Exception:
             self._cached_git = ""
 
+    def _request_exit(self) -> None:
+        """Graceful shutdown request: stop streaming, spinner, thinking."""
+        with self._state_lock:
+            self._closing = True
+            self._cancel_requested = True
+            self._streaming = False
+            self._thinking = False
+
+        try:
+            self._spinner.stop()
+        except Exception:
+            pass
+
+        try:
+            self.thinking_panel.done()
+        except Exception:
+            pass
+
+        try:
+            self._log_append(("•", "class:activity-info", "Exiting CRUX..."))
+        except Exception:
+            pass
+
+    def _shutdown_resources(self) -> None:
+        """Release external resources (spinner, executor, browser bridges)."""
+        with self._state_lock:
+            self._closing = True
+            self._cancel_requested = True
+            self._streaming = False
+            self._thinking = False
+
+        try:
+            self._spinner.stop()
+        except Exception:
+            pass
+
+        try:
+            self.thinking_panel.done()
+        except Exception:
+            pass
+
+        # Shut down browser / playwright bridges gracefully
+        for attr in (
+            "_browser_bridge", "browser_bridge",
+            "_playwright_bridge", "playwright_bridge",
+            "_browser", "browser",
+            "_playwright", "playwright",
+        ):
+            obj = getattr(self, attr, None)
+            if obj is None:
+                continue
+            try:
+                if hasattr(obj, "close"):
+                    obj.close()
+                elif hasattr(obj, "stop"):
+                    obj.stop()
+                elif hasattr(obj, "shutdown"):
+                    obj.shutdown()
+            except (BrokenPipeError, EOFError, OSError):
+                pass
+            except Exception:
+                pass
+
+        try:
+            self._executor.shutdown(wait=False)
+        except Exception:
+            pass
+
     def run(self):
         # Populate initial git/latency/context data before first render
         self._refresh_status()
@@ -1232,10 +1637,12 @@ class TuiAppV2:
 
         try:
             self._app.run()
+        except KeyboardInterrupt:
+            self._request_exit()
         except Exception as e:
             print(f"TUI error: {e}", file=sys.stderr)
             traceback.print_exc()
         finally:
             self._anim_running = False
-            self._spinner.stop()
-            self._executor.shutdown(wait=False)
+            self._shutdown_resources()
+

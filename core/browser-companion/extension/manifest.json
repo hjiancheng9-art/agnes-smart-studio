@@ -1,0 +1,79 @@
+﻿{
+  "manifest_version": 3,
+  "name": "V2 Browser Companion",
+  "version": "0.1.0",
+  "description": "Manual browser companion for V2 web-brain provider tasks.",
+  "permissions": [
+    "activeTab",
+    "alarms",
+    "scripting",
+    "storage",
+    "tabs",
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:4366/*",
+    "http://127.0.0.1:4377/*",
+    "http://localhost:4366/*",
+    "http://localhost:4377/*",
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://gemini.google.com/*",
+    "https://opal.withgoogle.com/*",
+    "https://labs.google/*",
+    "https://flow.google/*",
+    "https://klingai.com/*",
+    "https://*.klingai.com/*",
+    "https://jimeng.jianying.com/*",
+    "https://jimeng-ai.com/*",
+    "https://app.runwayml.com/*",
+    "https://runwayml.com/*",
+    "https://lumalabs.ai/*",
+    "https://*.lumalabs.ai/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "V2 Browser Companion"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://gemini.google.com/*",
+        "https://opal.withgoogle.com/*",
+        "https://labs.google/*",
+        "https://flow.google/*",
+        "https://klingai.com/*",
+        "https://*.klingai.com/*",
+        "https://jimeng.jianying.com/*",
+        "https://jimeng-ai.com/*",
+        "https://app.runwayml.com/*",
+        "https://runwayml.com/*",
+        "https://lumalabs.ai/*",
+        "https://*.lumalabs.ai/*"
+      ],
+      "js": [
+        "detectors/media-detector.js",
+        "providers/adapter-base.js",
+        "providers/registry.js",
+        "providers/chatgpt.js",
+        "providers/gemini.js",
+        "providers/opal.js",
+        "providers/flow.js",
+        "providers/kling.js",
+        "providers/jimeng.js",
+        "providers/runway.js",
+        "providers/luma.js",
+        "content-script.js"
+      ],
+      "css": [
+        "styles.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

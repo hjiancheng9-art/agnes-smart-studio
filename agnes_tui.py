@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+DEPRECATED — Use ui/tui_v2.py instead.
+
+This file is kept only for fallback/reference and must not receive new features.
+"""
+"""
 DeepSeek V4 Flash · TUI Dashboard
 ==================================
 Terminal identity interface — engine specs, tools, methodology, activity.

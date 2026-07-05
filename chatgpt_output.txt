@@ -1,0 +1,34 @@
+=== STDOUT ===
+
+=== STDERR ===
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\agnes-smart-studio\read_chatgpt.py", line 61, in <module>
+    asyncio.run(main())
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py", line 190, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "C:\Users\huangjiancheng\agnes-smart-studio\read_chatgpt.py", line 10, in main
+    browser = await p.chromium.connect_over_cdp("http://localhost:9222")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\async_api\_generated.py", line 16962, in connect_over_cdp
+    await self._impl_obj.connect_over_cdp(
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\_impl\_browser_type.py", line 205, in connect_over_cdp
+    response = await self._channel.send_return_as_dict(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\_impl\_connection.py", line 83, in send_return_as_dict
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\_impl\_connection.py", line 563, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.Error: BrowserType.connect_over_cdp: connect ECONNREFUSED ::1:9222
+Call log:
+  - <ws preparing> retrieving websocket url from http://localhost:9222
+
+
+=== Return code: 1 ===

@@ -1,0 +1,9 @@
+{
+  "name": "com.crux.bridge",
+  "description": "CRUX Studio Native Bridge — communicates with browser-companion extension",
+  "path": "C:\\\\Users\\\\huangjiancheng\\\\agnes-smart-studio\\\\core\\\\browser-companion\\\\native\\\\native_host.bat",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://*/"
+  ]
+}

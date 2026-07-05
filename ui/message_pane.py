@@ -12,6 +12,7 @@ from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.layout import Window
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.layout.dimension import Dimension
+from prompt_toolkit.mouse_events import MouseEventType
 
 _ROLE_FORMATS = {
     "user": ("class:message-user", "You"),
@@ -83,6 +84,26 @@ class _ScrollingWindow(Window):
             self.vertical_scroll = saved
 
 
+class _MessagePaneControl(FormattedTextControl):
+    """FormattedTextControl subclass with mouse scroll handler."""
+
+    def __init__(self, pane, *args, **kwargs):
+        self._mp_pane = pane
+        super().__init__(*args, **kwargs)
+
+    def mouse_handler(self, mouse_event):
+        from prompt_toolkit.application.current import get_app
+        if mouse_event.event_type == MouseEventType.SCROLL_UP:
+            self._mp_pane.scroll_up(lines=_SCROLL_LINE)
+            get_app().invalidate()
+            return None
+        if mouse_event.event_type == MouseEventType.SCROLL_DOWN:
+            self._mp_pane.scroll_down(lines=_SCROLL_LINE)
+            get_app().invalidate()
+            return None
+        return super().mouse_handler(mouse_event)
+
+
 class MessagePane:
     """Scrollable chat message display with auto-scroll and manual override.
 
@@ -101,13 +122,20 @@ class MessagePane:
         self._stream_buffer = ""
         self._pinned = True
         self._empty_renderer = None  # type: ignore[assignment]
+        self._empty_render_cache = None
+        self._empty_render_cache_key = None
 
         def _render():
             # Snapshot state atomically, render without lock
             with self._lock:
                 if not self._lines and not self._stream_buffer:
                     if self._empty_renderer is not None:
-                        return self._empty_renderer()
+                        _empty_width = self._window.render_info.window_width if self._window.render_info else None
+                        _empty_key = _empty_width
+                        if self._empty_render_cache_key != _empty_key:
+                            self._empty_render_cache = self._empty_renderer()
+                            self._empty_render_cache_key = _empty_key
+                        return self._empty_render_cache
                     return FormattedText([("class:message-info", "Type a message or /help for commands")])
                 lines_snapshot = list(self._lines)
                 stream_snapshot = self._stream_buffer
@@ -118,7 +146,7 @@ class MessagePane:
                 pieces.append(("class:message-crux", stream_snapshot))
             return FormattedText(pieces)
 
-        self._control = FormattedTextControl(_render)
+        self._control = _MessagePaneControl(self, _render)
         self._window = _ScrollingWindow(
             content=self._control,
             style="class:message-area",
@@ -284,9 +312,10 @@ class MessagePane:
             self._lines.append(("", ""))
             self._auto_scroll()
 
-    def stream_start(self, role: str) -> None:
+    def stream_start(self, role: str, *, force_pin: bool = True) -> None:
         with self._lock:
-            self._pinned = True
+            if force_pin:
+                self._pinned = True
             self._end_stream()
             fmt = _ROLE_FORMATS.get(role)
             sc, label = fmt if fmt else ("", role)
@@ -328,6 +357,13 @@ class MessagePane:
         the default placeholder text. Pass None to restore default.
         """
         self._empty_renderer = renderer
+        self._empty_render_cache = None
+        self._empty_render_cache_key = None
+        self._empty_render_cache_key = None
+
+    def invalidate_empty_cache(self) -> None:
+        self._empty_render_cache = None
+        self._empty_render_cache_key = None
 
     def clear(self) -> None:
         with self._lock:
@@ -335,3 +371,6 @@ class MessagePane:
             self._lines.clear()
             self._window.vertical_scroll = 0
             self._pinned = True
+        self._empty_render_cache = None
+        self._empty_render_cache_key = None
+        self._empty_render_cache_key = None
