@@ -48,6 +48,7 @@ from ui.clipboard_image import detect_drag_images, get_clipboard_image, is_image
 from ui.message_pane import MessagePane
 from ui.status_bar import StatusBar
 from ui.theme_v2 import build_style_v2
+from ui.dashboard import render_dashboard
 from ui.widgets_v2 import Spinner, ThinkingPanel, build_welcome_formatted, context_bar
 
 try:
@@ -102,6 +103,7 @@ class TuiAppV2:
         # ── Cached values (updated in _refresh_status, read by render) ──
         self._cached_git = ""
         self._cached_ctx_pct = 0.0
+        self._show_dashboard = False
 
         # ── Core components ──
         self.message_pane = MessagePane()
@@ -116,6 +118,10 @@ class TuiAppV2:
 
         # ── Animation timer (independent of spinner, always running) ──
         self._anim_running = False
+
+        # ── Dashboard mode ──
+        self._dashboard_mode = False
+        self._normal_container = None   # set in _make_app after building root
 
         # ── Welcome screen ──
         self._setup_welcome()
@@ -445,6 +451,7 @@ class TuiAppV2:
         root = HSplit([
             header_window,
             header_sep_window,
+            dashboard_window,
             self.message_pane.pane,       # Messages + Welcome (weight=1)
             thinking_window,              # Thinking (0-N, conditional)
             activity_sep_window,          # Separator above activity
@@ -572,6 +579,20 @@ class TuiAppV2:
     # ══════════════════════════════════════════════════════════════
     #  Input handling
     # ══════════════════════════════════════════════════════════════
+
+
+    def _render_dashboard(self):
+        """Render dashboard if active."""
+        if not self._show_dashboard:
+            from prompt_toolkit.formatted_text import FormattedText
+            return FormattedText([])
+        try:
+            from ui.dashboard import render_dashboard
+            return render_dashboard()
+        except Exception as e:
+            from prompt_toolkit.formatted_text import FormattedText
+            return FormattedText([("class:header-error", f"Dashboard error: {e}")])
+
 
     def _on_accept(self, buf: Buffer) -> bool:
         text = buf.text.strip()

@@ -58,6 +58,8 @@ def build_style_v2() -> Style:
             "header-bar": f"fg:{C['primary']} bg:{C['surface']}",
     "header-error": "bg:#1e1e2e fg:#f38ba8 bold",
 
+    "dashboard": "bg:#1e1e2e fg:#cdd6f4",
+
             "header-logo": f"fg:{C['yellow']} bold bg:{C['surface']}",
             "header-model": f"fg:{C['blue']} italic bg:{C['surface']}",
             "header-latency": f"fg:{C['purple']} bg:{C['surface']}",
