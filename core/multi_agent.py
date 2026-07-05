@@ -928,6 +928,7 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
     }
     try:
         from core.run_summary import save_run
+        from core.run_replay import save_run_replay
         from core.quality_gate import assess_quality
         from core.policy_gate import auto_recover
         from core.retry_budget import auto_retry_decision, record_retry_attempt
@@ -940,6 +941,11 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
         if retry.get("should_retry"):
             record_retry_attempt(root_id, "scheduled", "pending")
         save_run(result)
+        try:
+            tasks_dict = [{"id": t.id, "status": t.status, "trace_id": t.trace_id, "result": t.result, "started_at": t.started_at, "finished_at": t.finished_at} for t in tasks]
+            save_run_replay(root_id, result, log, tasks_dict)
+        except Exception:
+            pass
     except Exception:
         pass
     return result

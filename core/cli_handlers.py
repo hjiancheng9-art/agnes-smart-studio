@@ -1285,6 +1285,53 @@ class CruxCLI:
         except ImportError as e:
             return "Module error: " + str(e)
 
+    def _cmd_replays(self, args):
+        """List saved run replays."""
+        try:
+            from core.run_replay import list_replays
+            replays = list_replays(10)
+            if not replays:
+                return "No replays found."
+            lines = ["Recent replays:"]
+            for r in replays:
+                rid = r.get("root_trace_id", "")[:12]
+                status = r.get("status", "?")
+                failed = r.get("failed", 0)
+                total = r.get("total", 0)
+                policy = r.get("policy", "")
+                lines.append(f"  {rid} status={status} tasks={total} failed={failed} policy={policy}")
+            return chr(10).join(lines)
+        except ImportError as e:
+            return "Module error: " + str(e)
+
+    def _cmd_replay(self, args):
+        """View run replay timeline. Usage: /replay <trace_id>"""
+        rid = args.strip()
+        if not rid:
+            return "Usage: /replay <root_trace_id>"
+        try:
+            from core.run_replay import get_failure_timeline, format_timeline, load_replay
+            timeline = get_failure_timeline(rid)
+            replay = load_replay(rid)
+            lines = []
+            if replay:
+                summary = replay.get("summary", {})
+                lines.append(f"Run: {rid}")
+                lines.append(f"Status: {summary.get('quality_status', '?')} score={summary.get('quality_score', 0)}")
+                lines.append(f"Tasks: {summary.get('tasks_done', 0)} done / {summary.get('tasks_failed', 0)} failed / {summary.get('tasks_skipped', 0)} skipped")
+                lines.append(f"Policy: {summary.get('policy_action', '')} ({summary.get('policy_reason', '')})")
+                lines.append(f"Timeline events: {len(timeline)}")
+                lines.append("")
+            if timeline:
+                lines.append(format_timeline(timeline))
+            else:
+                lines.append("No timeline events found.")
+            return chr(10).join(lines)
+        except ImportError as e:
+            return "Module error: " + str(e)
+
+
+
 
 
 
