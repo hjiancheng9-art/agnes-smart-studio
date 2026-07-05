@@ -36,6 +36,45 @@ from collections.abc import Callable
 
 from core.multi_agent_models import ROOT, Agent, AgentTask  # noqa: F401
 
+
+# ── DAG 拓扑排序（并行批次执行）────────────────────────────
+def _build_dag_layers(tasks: list[AgentTask]) -> list[list[AgentTask]]:
+    """将任务按依赖关系分组为并行层级。
+
+    返回: layers, 每层内的任务可并行执行。
+    第 0 层 = 无依赖的任务, 第 1 层 = 只依赖第 0 层的, 依此类推。
+    自动检测环。
+    """
+    task_map = {t.id: t for t in tasks}
+    dep_map = {t.id: list(t.depends_on) for t in tasks}
+    depth: dict[str, int] = {}
+
+    queue = [tid for tid, deps in dep_map.items() if not deps]
+    processed = 0
+    while queue:
+        tid = queue.pop(0)
+        processed += 1
+        for t in tasks:
+            if tid in dep_map.get(t.id, []):
+                dep_map[t.id].remove(tid)
+                if not dep_map[t.id]:
+                    depth[t.id] = max(depth.get(t.id, 0), depth.get(tid, 0) + 1)
+                    queue.append(t.id)
+
+    if processed != len(tasks):
+        cycles = [tid for tid, deps in dep_map.items() if deps]
+        raise ValueError(f"DAG cycle detected in tasks: {cycles}")
+
+    max_depth = max(depth.values()) if depth else 0
+    layers: list[list[AgentTask]] = [[] for _ in range(max_depth + 1)]
+    for tid, d in depth.items():
+        layers[d].append(task_map[tid])
+    for tid in [t.id for t in tasks if t.id not in depth]:
+        layers[0].append(task_map[tid])
+
+    return layers
+
+
 __all__ = [
     "Agent",
     "AgentTask",
