@@ -173,7 +173,9 @@ class MultiAgentCoordinator:
                 results = []
                 for step in task.tool_sequence:
                     try:
-                        r = self.execute_tool(step["tool"], step["args"])
+                        step_args = dict(step["args"])
+                        step_args["_trace_id"] = task.trace_id
+                        r = self.execute_tool(step["tool"], step_args)
                         results.append(r[:200])
                     except Exception as e:
                         error_str = f"{type(e).__name__}: {e}"
@@ -322,6 +324,7 @@ class MultiAgentCoordinator:
                 step_args = dict(step["args"])
                 if resolved_model and "model" not in step_args:
                     step_args["model"] = resolved_model
+                step_args["_trace_id"] = task.trace_id
                 # execute_tool 是外部 I/O，不持锁（避免长任务阻塞主线程的锁内读）
                 r = self.execute_tool(step["tool"], step_args)
                 results.append(r[:200])
@@ -501,12 +504,15 @@ class AsyncMultiAgentCoordinator:
             return self.model_router.select(task_type=task.task_type)
         return None
 
-    async def _call_tool(self, tool: str, args: dict) -> str:
+    async def _call_tool(self, tool: str, args: dict, trace_id: str = "") -> str:
         """调用 executor，自动适配同步/async 签名。"""
+        call_args = dict(args)
+        if trace_id:
+            call_args["_trace_id"] = trace_id
         if inspect.iscoroutinefunction(self.execute_tool):
-            return await self.execute_tool(tool, args)
+            return await self.execute_tool(tool, call_args)
         # 同步 executor → to_thread，避免阻塞事件循环
-        return await asyncio.to_thread(self.execute_tool, tool, args)
+        return await asyncio.to_thread(self.execute_tool, tool, call_args)
 
     async def _execute_task(self, task: AgentTask) -> None:
         """执行单个任务：拿 semaphore → 跑 tool_sequence → 记结果。
@@ -544,6 +550,7 @@ class AsyncMultiAgentCoordinator:
                     step_args = dict(step["args"])
                     if resolved_model and "model" not in step_args:
                         step_args["model"] = resolved_model
+                    step_args["_trace_id"] = task.trace_id
                     r = await self._call_tool(step["tool"], step_args)
                     results.append(str(r)[:200])
                 except Exception as e:
