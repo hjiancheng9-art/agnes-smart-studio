@@ -1307,6 +1307,24 @@ class CruxCLI:
             return "Module error: " + str(e)
 
 
+
+    def _cmd_playbook(self, args):
+        """View remediation playbook. Usage: /playbook <category>"""
+        cat = args.strip()
+        try:
+            from core.incident_playbook import format_playbook, PLAYBOOKS
+            if not cat:
+                lines = ["Available playbooks:"]
+                for key, pb in PLAYBOOKS.items():
+                    if key != "unknown":
+                        lines.append(f"  {key}: {pb['title']} ({pb['severity']})")
+                lines.append("Usage: /playbook <category>")
+                return chr(10).join(lines)
+            return format_playbook(cat)
+        except ImportError as e:
+            return "Module error: " + str(e)
+
+
     def _cmd_replays(self, args):
         """List saved run replays."""
         try:
@@ -1346,6 +1364,15 @@ class CruxCLI:
                 if incident:
                     lines.append(f"Failure: {incident.get('primary_category', '?')} ({incident.get('total_incidents', 0)} incidents)")
                     lines.append(f"Recommendation: {incident.get('recommendation', '')}")
+                    primary = incident.get("primary_category", "")
+                    if primary:
+                        try:
+                            from core.incident_playbook import format_playbook
+                            lines.append("")
+                            lines.append("Remediation playbook:")
+                            lines.append(format_playbook(primary, rid))
+                        except ImportError:
+                            pass
                 lines.append(f"Timeline events: {len(timeline)}")
                 lines.append("")
             if timeline:

@@ -946,6 +946,13 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
             from core.incident_store import save_incident, should_alert
             incident = classify_run(result, log)
             result.update({"incident": incident})
+            try:
+                from core.incident_playbook import auto_remediation
+                cmds = auto_remediation(incident, root_id)
+                if cmds:
+                    result.update({"remediation_commands": cmds})
+            except Exception:
+                pass
             if incident.get("total_incidents", 0) > 0:
                 try:
                     save_incident(incident)

@@ -234,6 +234,7 @@ SKILL_ENTRIES = [
     ("/replays", "List saved run replays"),
     ("/replay", "View run replay timeline"),
     ("/incidents", "View incident trends (24h)"),
+    ("/playbook", "View remediation playbook"),
 ]
 
 
