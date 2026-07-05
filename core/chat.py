@@ -846,7 +846,14 @@ class ChatSession(ChatToggleMixin):
                         try:
                             from core.provider import get_provider_manager
                             mgr = get_provider_manager()
-                            mgr.state.mark_down(mgr.state.active)
+                            # 先尝试自动 failover（handle_failure 会选一个可用 provider）
+                            new_client, new_pid = mgr.handle_failure(mgr.state.active, 500)
+                            if new_client:
+                                self.client = new_client
+                                logger.info("failover: -> %s (auto)", new_pid)
+                            else:
+                                # 无可用 provider，仅标记下线
+                                mgr.state.mark_down(mgr.state.active)
                         except Exception as e:
                             logging.debug("Failed to mark provider down: %s", str(e)[:120])
                         yield ("info", f"模型 {_use_model} 连接中断，尝试 fallback...")

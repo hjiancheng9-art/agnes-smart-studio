@@ -35,6 +35,7 @@ class Span:
     parent_id: str
     name: str
     start_time: float
+    root_trace_id: str = ""
     end_time: float = 0.0
     status: str = "ok"
     attributes: dict[str, Any] = field(default_factory=dict)
@@ -84,13 +85,14 @@ class Tracer:
 
     # -- trace / span creation -------------------------------------------------
 
-    def start_trace(self, name: str) -> Span:
+    def start_trace(self, name: str, root_trace_id: str = "") -> Span:
         """Create a root span that starts a new trace."""
         trace_id = uuid.uuid4().hex[:16]
         self._current_trace_id = trace_id
         return Span(
             span_id=uuid.uuid4().hex[:12],
             trace_id=trace_id,
+            root_trace_id=root_trace_id or trace_id,
             parent_id="",
             name=name,
             start_time=time.time(),
@@ -108,6 +110,7 @@ class Tracer:
         return Span(
             span_id=uuid.uuid4().hex[:12],
             trace_id=trace_id,
+            root_trace_id=getattr(parent, "root_trace_id", "") if parent else "",
             parent_id=parent_id,
             name=name,
             start_time=time.time(),
@@ -246,7 +249,7 @@ def reset_observability() -> None:
 
 
 @contextmanager
-def TraceContext(name: str, **attributes: Any):
+def TraceContext(name: str, root_trace_id: str = "", **attributes: Any):
     """Convenience context manager for instrumenting a block of code.
 
     Usage::
@@ -256,7 +259,7 @@ def TraceContext(name: str, **attributes: Any):
             span.set_attribute("result_length", len(result))
     """
     parent = _current_span.get()
-    span = tracer.start_span(name, parent=parent) if parent is not None else tracer.start_trace(name)
+    span = tracer.start_span(name, parent=parent) if parent is not None else tracer.start_trace(name, root_trace_id=root_trace_id)
     for key, value in attributes.items():
         span.set_attribute(key, value)
 
