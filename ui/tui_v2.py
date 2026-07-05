@@ -70,6 +70,222 @@ def _tw() -> int:
         return 80
 
 
+
+# ── Screen system ────────────────────────────────────────────────
+
+
+class Screen:
+    """Base class for a TUI screen (one view mode at a time)."""
+    name: str = "screen"
+
+    def render(self, tw: int): return []
+    def on_enter(self, app): pass
+    def on_exit(self, app): pass
+    def handle_key(self, key: str) -> bool: return False
+
+
+class ScreenStack:
+    """Manages navigation between screens."""
+    def __init__(self):
+        self._stack = []
+    def current(self): return self._stack[-1] if self._stack else None
+    def active(self): return len(self._stack) > 0
+    def push(self, screen, app):
+        self._stack.append(screen)
+        if app is not None:
+            screen.on_enter(app)
+    def pop(self, app):
+        if not self._stack: return None
+        s = self._stack.pop()
+        if app is not None: s.on_exit(app)
+        return s
+    def pop_all(self, app):
+        while self._stack: self.pop(app)
+
+
+class DashboardScreen(Screen):
+    name = "dashboard"
+    def __init__(self):
+        self._cached_data = {}
+        self._last_refresh = 0
+    def on_enter(self, app):
+        self._refresh_data()
+        if app: app._app.invalidate()
+    def _refresh_data(self):
+        import time
+        if time.monotonic() - self._last_refresh < 2:
+            return
+        self._last_refresh = time.monotonic()
+        try:
+            from core.incident_store import get_incident_trends, load_incidents
+            self._cached_data["trends"] = get_incident_trends()
+            self._cached_data["incidents"] = load_incidents(limit=10)
+        except: pass
+        try:
+            from core.run_replay import list_replays
+            self._cached_data["runs"] = list_replays(limit=5)
+        except: pass
+    def render(self, tw):
+        self._refresh_data()
+        d = self._cached_data
+        ft = []
+        ft.append(("bold", f"{{'═'*tw}}\\n"))
+        ft.append(("bold class:header", "  DASHBOARD\\n\\n"))
+        trends = d.get("trends", {})
+        ft.append(("", f"  Incidents 24h: {trends.get('total', 0)}\\n"))
+        incs = d.get("incidents", [])
+        for inc in incs[:5]:
+            cat = inc.get("category", "?")
+            sev = inc.get("severity", "?")
+            ft.append(("", f"    [{sev}] {cat}\\n"))
+        ft.append(("class:dim", "\\n  /dashboard  /incidents  /remediate  /replay\\n"))
+        return ft
+
+
+class IncidentLogScreen(Screen):
+    name = "incidents"
+    def __init__(self):
+        self._incidents = []
+    def on_enter(self, app):
+        try:
+            from core.incident_store import load_incidents
+            self._incidents = load_incidents(limit=50)
+        except: self._incidents = []
+    def render(self, tw):
+        ft = []
+        ft.append(("bold", f"{{'═'*tw}}\\n"))
+        ft.append(("bold class:header", "  INCIDENT LOG\\n"))
+        ft.append(("class:dim", "                      类别         严重度    时间\\n"))
+        for i in self._incidents[:20]:
+            iid = i.get("incident_id", "?")[:14]
+            cat = i.get("category", "?")[:16]
+            sev = i.get("severity", "?")
+            ts = str(i.get("timestamp", "?"))[:16]
+            ft.append(("", f"  {iid}  {cat}  {sev}  {ts}\\n"))
+        ft.append(("class:dim", "\\n  Esc: back\\n"))
+        return ft
+
+
+class RemediationScreen(Screen):
+    name = "remediate"
+    def __init__(self):
+        self._cats = []
+        self._pb = None
+        self._results = []
+    def on_enter(self, app):
+        try:
+            from core.incident_playbook import PLAYBOOKS
+            self._cats = list(PLAYBOOKS.keys())
+        except: self._cats = []
+        self._results = []
+    def select(self, cat):
+        try:
+            from core.incident_playbook import get_playbook
+            self._pb = get_playbook(cat)
+        except: self._pb = None
+    def run(self, iid):
+        try:
+            from core.incident_store import load_incidents
+            incs = load_incidents(limit=100)
+            inc = next((x for x in incs if x.get("incident_id", x.get("_id", "")) == iid), None)
+            if inc:
+                from core.remediation_executor import remediate_incident
+                self._results = remediate_incident(inc)
+            else:
+                self._results = [{"status": "failed", "command": iid, "risk": "?", "message": "not found"}]
+        except Exception as e:
+            self._results = [{"status": "failed", "command": iid, "risk": "?", "error": str(e)}]
+    def back(self):
+        self._pb = None
+        self._results = []
+    def render(self, tw):
+        ft = []
+        ft.append(("bold", f"{{'═'*tw}}\\n"))
+        if self._results:
+            ft.append(("bold class:header", "  REMEDIATION RESULTS\\n"))
+            for r in self._results:
+                ic = "\u2713" if r["status"] == "success" else "\u2299" if r["status"] == "pending_approval" else "\u2717"
+                ft.append(("", f"    {ic} {r.get('command','?')}: {r['status']}\\n"))
+            return ft
+        if self._pb:
+            ft.append(("bold class:header", f"  {self._pb.get('title', '?')}\\n"))
+            ft.append(("class:dim", f"  severity: {self._pb.get('severity', '?')}\\n\\n"))
+            for i, s in enumerate(self._pb.get("steps", []), 1):
+                ft.append(("", f"    {i}. {s}\\n"))
+            auto = self._pb.get("auto_commands", [])
+            if auto:
+                ft.append(("bold", "\\n  Auto-fix:\\n"))
+                for c in auto:
+                    ft.append(("", f"    $ {c}\\n"))
+        else:
+            ft.append(("bold class:header", "  PLAYBOOKS\\n"))
+            for c in self._cats:
+                ft.append(("", f"    {c}\\n"))
+        ft.append(("class:dim", "\\n  /remediate <cat>  /remediate run <id>\\n"))
+        return ft
+
+
+class RunReplayScreen(Screen):
+    name = "replay"
+    def __init__(self):
+        self._records = []
+        self._selected = None
+    def on_enter(self, app):
+        try:
+            from core.run_replay import list_replays
+            self._records = list_replays(limit=20)
+        except: self._records = []
+    def select(self, rid):
+        try:
+            from core.run_replay import load_replay
+            self._selected = load_replay(rid)
+        except: self._selected = None
+    def back(self):
+        self._selected = None
+    def render(self, tw):
+        ft = []
+        ft.append(("bold", f"{{'═'*tw}}\\n"))
+        ft.append(("bold class:header", "  RUN REPLAYS\\n"))
+        ft.append(("class:dim", "  root_trace_id          model          status\\n"))
+        for r in self._records[:20]:
+            rid = r.get("root_trace_id", "?")[:20]
+            st = r.get("status", "?") if hasattr(r, 'get') else "?"
+            ft.append(("", f"  {rid}  {st}\\n"))
+        ft.append(("class:dim", "\\n  Esc: back\\n"))
+        return ft
+
+
+class ApprovalScreen(Screen):
+    name = "approval"
+    def __init__(self):
+        self._pending = []
+    def on_enter(self, app):
+        try:
+            from ui.tui_v2 import _APPROVAL_PENDING
+            self._pending = list(_APPROVAL_PENDING)
+        except: pass
+    def render(self, tw):
+        ft = []
+        ft.append(("bold", f"{{'═'*tw}}\\n"))
+        ft.append(("bold class:header", "  PENDING APPROVALS\\n"))
+        if not self._pending:
+            ft.append(("class:dim", "  (none)\\n"))
+        else:
+            for item in self._pending:
+                if item.get("status") == "pending":
+                    ft.append(("class:status-warn", f"  [{item.get('risk','?')}] {item.get('command','?')}\\n"))
+        return ft
+
+
+_APPROVAL_PENDING = []
+
+
+def request_approval(action, desc, risk="high"):
+    _APPROVAL_PENDING.append({"action": action, "description": desc, "risk": risk, "status": "pending"})
+    return False
+
+
+# ── TUI App ─────────────────────────────────────────────────────
 class TuiAppV2:
     """Seven Beasts Command Center — redesigned terminal TUI.
 
@@ -108,6 +324,15 @@ class TuiAppV2:
         # ── Core components ──
         self.message_pane = MessagePane()
         self.status_bar = StatusBar(model=session.model, cwd=Path.cwd())
+        # ── Screen system ──
+        self.screen_stack = ScreenStack()
+        self._available_screens = {
+            "dashboard": DashboardScreen(),
+            "incidents": IncidentLogScreen(),
+            "remediate": RemediationScreen(),
+            "replay": RunReplayScreen(),
+            "approval": ApprovalScreen(),
+        }
         self.thinking_panel = ThinkingPanel()
 
         # ── Activity log: [(icon, style_class, message), ...] ──
