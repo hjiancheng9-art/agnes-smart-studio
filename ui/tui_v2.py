@@ -388,6 +388,7 @@ class TuiAppV2:
 
         # ── Activity log: [(icon, style_class, message), ...] ──
         self._activity_log: list[tuple[str, str, str]] = []
+        self._activity_lock = threading.RLock()
 
         # ── Spinner ──
         self._spinner = Spinner(on_tick=self._on_spinner_tick)
@@ -483,7 +484,7 @@ class TuiAppV2:
         @kb.add("c-l")
         def _(event):
             self.message_pane.clear()
-            self._activity_log.clear()
+            self._log_clear()
             self.thinking_panel.clear()
             event.app.invalidate()
 
@@ -895,6 +896,23 @@ class TuiAppV2:
             return FormattedText([("class:header-error", f"Dashboard error: {e}")])
 
 
+    def _log_append(self, item: tuple[str, str, str]) -> None:
+        with self._activity_lock:
+            self._activity_log.append(item)
+
+    def _log_update_last(self, item: tuple[str, str, str]) -> None:
+        with self._activity_lock:
+            if self._activity_log:
+                self._activity_log[-1] = item
+
+    def _log_clear(self) -> None:
+        with self._activity_lock:
+            self._activity_log.clear()
+
+    def _log_snapshot(self) -> list[tuple[str, str, str]]:
+        with self._activity_lock:
+            return list(self._activity_log)
+
     def _on_accept(self, buf: Buffer) -> bool:
         text = buf.text.strip()
         buf.reset()
@@ -992,7 +1010,7 @@ class TuiAppV2:
 
         # ── Submit for streaming ──
         with self._state_lock:
-            self._activity_log.clear()
+            self._log_clear()
             self._thinking_buf = ""
             self._thinking = True
         self.thinking_panel.clear()
@@ -1009,7 +1027,7 @@ class TuiAppV2:
             self.message_pane.append_info("Please wait — still processing previous request")
             return
         with self._state_lock:
-            self._activity_log.clear()
+            self._log_clear()
             self._thinking = True
         self.thinking_panel.clear()
         fname = os.path.basename(image_path)
@@ -1028,7 +1046,7 @@ class TuiAppV2:
         try:
             prompt = "请详细描述这张图片的内容。如果是截图，请描述界面、文字和关键信息。"
             self._ui(self.message_pane.stream_start, "crux")
-            self._activity_log.append(("●", "class:message-tool", f"视觉分析: {os.path.basename(image_path)}"))
+            self._log_append(("●", "class:message-tool", f"视觉分析: {os.path.basename(image_path)}"))
             for kind, payload in self.session.send_stream(prompt, image_url=image_path):
                 if kind == "text":
                     self._ui(self.message_pane.stream_append, str(payload))
@@ -1041,12 +1059,12 @@ class TuiAppV2:
             if self._activity_log:
                 last_icon, _, last_msg = self._activity_log[-1]
                 if "●" in last_icon:
-                    self._activity_log[-1] = ("✓", "class:activity-done", last_msg.replace("视觉分析: ", "视觉分析完成: "))
+                    self._log_update_last(("✓", "class:activity-done", last_msg.replace("视觉分析: ", "视觉分析完成: ")))
             self._ui(self.message_pane.stream_end, _force=True)
             self._ui(self.message_pane.scroll_to_bottom, _force=True)
         except Exception as e:
             self._ui(self.message_pane.append_error, f"图片分析失败: {e}", _force=True)
-            self._activity_log.append(("✗", "class:activity-fail", f"视觉分析失败: {e}"))
+            self._log_append(("✗", "class:activity-fail", f"视觉分析失败: {e}"))
             self._ui(self.message_pane.stream_end, _force=True)
         finally:
             with self._state_lock:
@@ -1078,56 +1096,56 @@ class TuiAppV2:
                     if msg.startswith("正在执行 "):
                         tool_name = msg[5:].rstrip(".")
                         pending_tool = tool_name
-                        self._activity_log.append(("●", "class:activity-running", f"执行 {tool_name}"))
+                        self._log_append(("●", "class:activity-running", f"执行 {tool_name}"))
                     elif msg.startswith("正在生成"):
                         action = msg[2:].rstrip(".")
                         pending_tool = action
-                        self._activity_log.append(("●", "class:activity-running", f"生成 {action}"))
+                        self._log_append(("●", "class:activity-running", f"生成 {action}"))
                     elif "执行完成" in msg:
                         if pending_tool and self._activity_log:
                             last_icon, _, last_msg = self._activity_log[-1]
                             if "●" in last_icon:
-                                self._activity_log[-1] = (
+                                self._log_update_last((
                                     "✓", "class:activity-done",
                                     last_msg.replace("执行 ", "").replace("生成 ", ""),
-                                )
+                                ))
                         pending_tool = None
                     elif "fallback" in msg.lower() or "连接中断" in msg:
-                        self._activity_log.append(("⚠", "class:activity-warn", msg[:100]))
+                        self._log_append(("⚠", "class:activity-warn", msg[:100]))
                     elif "预算" in msg:
-                        self._activity_log.append(("💰", "class:activity-info", msg[:100]))
+                        self._log_append(("💰", "class:activity-info", msg[:100]))
                     else:
-                        self._activity_log.append(("·", "class:activity-info", msg[:120]))
+                        self._log_append(("·", "class:activity-info", msg[:120]))
                     self._ui(lambda: None)
                 elif kind == "tool_result":
                     if pending_tool and self._activity_log:
                         last_icon, _, last_msg = self._activity_log[-1]
                         if "●" in last_icon:
-                            self._activity_log[-1] = (
+                            self._log_update_last((
                                 "✓", "class:activity-done",
                                 last_msg.replace("执行 ", "").replace("生成 ", ""),
-                            )
+                            ))
                     pending_tool = None
                     self._ui(lambda: None)
                 elif kind == "error":
                     self._ui(self.message_pane.append_error, str(payload))
-                    self._activity_log.append(("✗", "class:activity-fail", str(payload)[:120]))
+                    self._log_append(("✗", "class:activity-fail", str(payload)[:120]))
                 elif kind in ("image", "video"):
                     d = payload if isinstance(payload, dict) else {}
                     loc = d.get("local_path", "") or d.get("url", "") or d.get("video_url", "")
                     if loc:
                         self._ui(self.message_pane.append_info, f"Saved: {loc}")
-                        self._activity_log.append(("✓", "class:activity-done", f"已保存: {loc}"))
+                        self._log_append(("✓", "class:activity-done", f"已保存: {loc}"))
             # Mark any remaining pending tool as done
             if pending_tool and self._activity_log:
                 last_icon, _, last_msg = self._activity_log[-1]
                 if "●" in last_icon:
-                    self._activity_log[-1] = ("✓", "class:activity-done", last_msg.replace("执行 ", "").replace("生成 ", ""))
+                    self._log_update_last(("✓", "class:activity-done", last_msg.replace("执行 ", "").replace("生成 ", "")))
             self._ui(self.message_pane.stream_end, _force=True)
             self._ui(self.message_pane.scroll_to_bottom, _force=True)
         except Exception as e:
             self._ui(self.message_pane.append_error, str(e), _force=True)
-            self._activity_log.append(("✗", "class:activity-fail", f"异常: {e}"))
+            self._log_append(("✗", "class:activity-fail", f"异常: {e}"))
             self._ui(self.message_pane.stream_end, _force=True)
         finally:
             with self._state_lock:
