@@ -8,6 +8,14 @@ from typing import Any
 
 from core.config import OUTPUT_DIR
 
+# EMA 衰减因子：越靠近 1，历史权重越高
+EMA_ALPHA = 0.3
+# 最小样本数：低于此值时 adaptive_delta 限幅
+MIN_SAMPLES_FOR_FULL_ADAPT = 5
+# 冷启动 prior：无数据时默认 success_rate = 0.95
+COLD_START_SUCCESS_RATE = 0.95
+
+
 HISTORY_FILE = os.path.join(OUTPUT_DIR, "provider_history.jsonl")
 
 
@@ -36,26 +44,42 @@ def record_call(provider: str, model: str, success: bool, latency_ms: float, err
     })
 
 
+def _ema(values: list[float], alpha: float = EMA_ALPHA) -> float:
+    """指数移动平均。"""
+    if not values:
+        return 0.0
+    ema = values[0]
+    for v in values[1:]:
+        ema = alpha * v + (1 - alpha) * ema
+    return ema
+
+
 def get_provider_stats(provider: str, window_minutes: int = 60) -> dict[str, Any]:
-    """获取 provider 在时间窗口内的统计。"""
+    """获取 provider 在时间窗口内的统计（EMA 平滑）。"""
     now = time.time()
     cutoff = now - window_minutes * 60
     records = [r for r in _load_history() if r.get("provider") == provider and r.get("timestamp", 0) > cutoff]
+    # 时间衰减权重：越近的记录权重越高
+    for r in records:
+        age = now - r.get("timestamp", now)
+        r["_decay"] = max(0.1, 1.0 - age / (window_minutes * 60))
     total = len(records)
     if total == 0:
-        return {"provider": provider, "calls": 0, "success_rate": 1.0, "avg_latency_ms": 0, "recent_error": ""}
+        return {"provider": provider, "calls": 0, "success_rate": COLD_START_SUCCESS_RATE, "avg_latency_ms": 0, "recent_error": "", "consecutive_failures": 0, "samples": 0}
 
-    successes = sum(1 for r in records if r.get("success"))
-    latencies = [r.get("latency_ms", 0) for r in records if r.get("latency_ms", 0) > 0]
+    successes = [r for r in records if r.get("success")]
+    success_rate = _ema([1.0] * len(successes) + [0.0] * (total - len(successes))) if total > 0 else COLD_START_SUCCESS_RATE
+    latencies = [r.get("latency_ms", 0) * r.get("_decay", 1.0) for r in records if r.get("latency_ms", 0) > 0]
     recent_errors = [r.get("error", "") for r in records[-5:] if not r.get("success") and r.get("error")]
 
     return {
         "provider": provider,
         "calls": total,
-        "success_rate": successes / total if total > 0 else 1.0,
-        "avg_latency_ms": sum(latencies) / len(latencies) if latencies else 0,
+        "success_rate": round(success_rate, 3),
+        "avg_latency_ms": round(_ema([r.get("latency_ms", 0) for r in records if r.get("latency_ms", 0) > 0]), 1) if any(r.get("latency_ms", 0) > 0 for r in records) else 0,
         "recent_error": recent_errors[-1] if recent_errors else "",
         "consecutive_failures": _count_consecutive_failures(records),
+        "samples": total,
     }
 
 

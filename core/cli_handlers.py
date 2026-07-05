@@ -1236,3 +1236,32 @@ class CruxCLI:
             return "\n".join(lines)
         except ImportError:
             return "run_summary 模块未加载。"
+
+    def _cmd_providers(self, args):
+        '''View provider health status.'''
+        try:
+            from core.provider_history import get_all_stats
+            from core.provider_policy import score_provider, format_route
+            from core.provider import get_provider_manager
+            mgr = get_provider_manager()
+            all_pids = list(mgr.providers.keys())
+            circuit_states = {p: mgr.state.circuit_state(p) for p in all_pids}
+            lines = ['Provider health (EMA 60min):']
+            stats = get_all_stats()
+            req = {'task_type': 'text', 'require_code': False, 'budget_remaining': 100}
+            for pid in all_pids:
+                s = stats.get(pid, {})
+                calls = s.get('calls', 0)
+                rate = s.get('success_rate', 1.0)
+                lat = s.get('avg_latency_ms', 0)
+                err = s.get('recent_error', '')
+                circuit = circuit_states.get(pid, 'CLOSED')
+                sc = score_provider(pid, req, circuit_states)
+                lines.append(f'  {pid:12s} circuit={circuit:10s} score={sc:5.1f} calls={calls:3d} success={rate:.0%} latency={lat:.0f}ms')
+            route = format_route([p for p in all_pids if circuit_states.get(p) != 'OPEN'])
+            lines.append('Route: ' + route)
+            return chr(10).join(lines)
+        except ImportError as e:
+            return 'Module error: ' + str(e)
+
+

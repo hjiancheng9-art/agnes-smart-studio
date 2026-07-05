@@ -218,18 +218,9 @@ COMMANDS: list[CommandDef] = [
 # Special skill-load entries for /help display
 SKILL_ENTRIES = [
     
-    (
-        "/runs",
-        "查看执行历史",
-        long_desc="显示最近 N 次 multi-agent 执行摘要",
-        handler="_cmd_runs",
-    ),
-    (
-        "/summary",
-        "查看指定执行摘要",
-        long_desc="按 root_trace_id 查询执行摘要",
-        handler="_cmd_summary",
-    ),
+    ("/runs", "查看执行历史"),
+    ("/summary", "查看指定执行摘要"),
+    ("/providers", "查看 provider 健康状态"),
 ("/skill load video-pipeline", "输入理解→资产拆解→独立生成→分镜融合→质检→导出"),
     ("/skill load showrunner", "选模型-提取帧-制片"),
     ("/skill load storyboard-director", "简报→镜头列表→图像提示→运动→音频"),
