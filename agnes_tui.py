@@ -168,7 +168,7 @@ def render_header():
     table.add_column(style=f"bold {C['text']}")
     table.add_column(style=S_DIM, justify="right")
     table.add_row(
-        "◇  CRUX Studio · 七兽引擎",
+        "◇  CRUX Studio · 平时如刀，出事成阵",
         "1M 上下文  ·  ZCode Protocol  ·  Fullstack Engine",
         "⚡ 就绪  ●",
     )

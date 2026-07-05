@@ -535,7 +535,7 @@ def big_banner() -> str:
 def small_banner() -> str:
     """小号 banner"""
     return f"""\
-{C.CRUX_P}{C.BOLD}  ⚡ CRUX Studio — 七兽引擎 v5.0 {C.RESET}"""
+{C.CRUX_P}{C.BOLD}  ⚡ CRUX Studio — 平时如刀，出事成阵 {C.RESET}"""
 
 
 def beast_art() -> str:
@@ -630,7 +630,7 @@ def demo_breathing_border() -> None:
     """演示呼吸边框"""
     print(f"  {C.DIM}呼吸边框:{C.RESET}")
     box = breathing_box(
-        ["  七兽引擎 · 终端美学升级  ", "  动态 · Badge · 艺术感      "],
+        ["  平时如刀 · 出事成阵       ", "  动态 · Badge · 艺术感      "],
         title=" CRUX ",
         color=C.CRUX_C,
         style="rounded",
@@ -679,7 +679,7 @@ def demo() -> None:
     demo_progress()
     print()
 
-    divider("═", C.DIM, "七兽图腾 BEAST ART")
+    divider("═", C.DIM, "七兽治理 BEAST ART")
     print()
     print(f"  {beast_art()}")
     print()
@@ -688,7 +688,7 @@ def demo() -> None:
 
     # 结尾 — 渐变签名
     print()
-    print(" " * 4 + gradient_text("✦  CRUX Studio · 七兽引擎 · 终端美学  ✦",
+    print(" " * 4 + gradient_text("✦  CRUX Studio · 平时如刀，出事成阵 ✦",
                                    colors=[(200,100,255), (0,170,255), (0,255,170)],
                                    bold=True))
     print(f"  {C.DIM}  {particle_line(50, density=0.2, colors=[C.CRUX_C, C.CRUX_P, C.CRUX_G])}")

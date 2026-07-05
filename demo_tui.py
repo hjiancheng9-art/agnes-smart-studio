@@ -61,7 +61,7 @@ def scene_badges():
 
     # 逐个展示 Badge 风格
     for label, color, icon, desc in [
-        ("七兽引擎", C.CRUX_C, "⚡", "minimal 极简"),
+        ("平时如刀", C.CRUX_C, "⚡", "hot path 热路径"),
         ("白虎炼骨", C.CRUX_R, "🐯", "bordered 精致"),
         ("青龙通脉", C.CRUX_G, "🐉", "glow 发光"),
         ("朱雀开眼", C.CRUX_B, "🦅", "tagged 标签"),
@@ -161,7 +161,7 @@ def scene_hero():
         echo(ch, font="banner3-D", color=colors[i % len(colors)])
         time.sleep(0.15)
 
-    print(f"\n\n  {C.BOLD}{C.CRUX_P}七兽同体 · 万夫莫当{C.RESET}\n")
+    print(f"\n\n  {C.BOLD}{C.CRUX_P}平时如刀 · 出事成阵{C.RESET}\n")
     time.sleep(1.0)
 
 # ─── 主入口 ──────────────────────────────────────────

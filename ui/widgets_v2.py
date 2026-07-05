@@ -539,7 +539,7 @@ class BreathingLabel:
     """呼吸文本 — 文本亮度周期性变化。
 
     Usage:
-        label = BreathingLabel("七兽引擎运行中")
+        label = BreathingLabel("CRUX Studio 就绪")
         print(label.next())  # 每次调用亮度变化
     """
 

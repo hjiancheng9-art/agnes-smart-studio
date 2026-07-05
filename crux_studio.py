@@ -278,10 +278,10 @@ def _chat_tui():
     TARGET_BOX_W = 44
     n_eq = (TARGET_BOX_W - 6) // 2
     banner = (
-        f"  ╔══ CRUX Studio v{__version__} · 七兽同体 ══╗\n"
-        f"  ║  白虎·自愈  青龙·并行  朱雀·洞察  ║\n"
-        f"  ║  玄武·守卫  麒麟·创造  螣蛇·传承  ║\n"
-        f"  ║  应龙·号令  ◆  七兽同体·万象共生  ║\n"
+        f"  ╔══ CRUX Studio v{__version__} · 平时如刀，出事成阵 ══╗\n"
+        f"  ║  极简内核 · 97+ 工具 · 按需治理        ║\n"
+        f"  ║  热路径 <1K · 冷路径按需展开           ║\n"
+        f"  ║  七兽不坐副驾驶 · 出事才上场           ║\n"
         f"  ╚{'═' * n_eq}╝\n"
         f"\n"
         f"  ◈ {model_name} · 主人: 黄建程\n"
