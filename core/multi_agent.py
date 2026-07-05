@@ -419,6 +419,7 @@ class AsyncMultiAgentCoordinator:
         # 运行时状态（_sem / _log_lock 绑定 event loop，必须惰性创建）
         self._sem: asyncio.Semaphore | None = None
         self._log_lock: asyncio.Lock | None = None
+        self._running_tasks: set[str] = set()  # task.id set for cleanup
 
     def spawn_team(self, roles: list[str] | None = None) -> None:
         """Create agent team（与同步版语义一致）。"""
@@ -566,54 +567,59 @@ class AsyncMultiAgentCoordinator:
         if self._sem is None:
             self._ensure_runtime()
         async with self._sem:  # type: ignore[union-attr]
-            # 分配 agent（round-robin 选 idle，回退第一个；与同步版一致）
-            agent = next((a for a in self.agents if a.status == "idle"), None)
-            if agent is None:
-                agent = self.agents[0] if self.agents else Agent(id="agent_0", role="solo")
-            task.assigned_to = agent.id
-            agent.status = "busy"
-            agent.current_task = task.id
+            self._running_tasks.add(task.id)
+            try:
+                # 分配 agent（round-robin 选 idle，回退第一个；与同步版一致）
+                agent = next((a for a in self.agents if a.status == "idle"), None)
+                if agent is None:
+                    agent = self.agents[0] if self.agents else Agent(id="agent_0", role="solo")
+                task.assigned_to = agent.id
+                agent.status = "busy"
+                agent.current_task = task.id
 
-            task.status = "running"
-            task.started_at = time.time()
-            await self._log_append({"event": "task_start", "task": task.id, "agent": task.assigned_to, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id})
-            # tier 路由：若解析出模型，注入到 step.args
-            resolved_model = self._resolve_model_for_task(task)
-            if resolved_model:
-                await self._log_append(
-                    {"event": "tier_routed", "task": task.id, "tier": task.tier, "model": resolved_model}
-                )
+                task.status = "running"
+                task.started_at = time.time()
+                await self._log_append({"event": "task_start", "task": task.id, "agent": task.assigned_to, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id})
+                # tier 路由：若解析出模型，注入到 step.args
+                resolved_model = self._resolve_model_for_task(task)
+                if resolved_model:
+                    await self._log_append(
+                        {"event": "tier_routed", "task": task.id, "tier": task.tier, "model": resolved_model}
+                    )
 
-            results: list[str] = []
-            # 设置 trace 上下文
-            _current_root_trace_id.set(task.root_trace_id)
-            _current_trace_id.set(task.trace_id)
-            for step in task.tool_sequence:
-                try:
-                    step_args = dict(step["args"])
-                    if resolved_model and "model" not in step_args:
-                        step_args["model"] = resolved_model
-                    # contextvar 已自动传播，_call_tool 不再需显式传递
-                    r = await self._call_tool(step["tool"], step_args,
-                                              trace_id=task.trace_id,
-                                              root_trace_id=task.root_trace_id)
-                    results.append(str(r)[:200])
-                except Exception as e:
-                    task.status = "failed"
-                    task.result = str(e)
-                    await self._log_append({"event": "task_failed", "task": task.id, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id, "error": str(e)})
-                    agent.status = "idle"
-                    agent.current_task = ""
-                    return
+                results: list[str] = []
+                # 设置 trace 上下文
+                _current_root_trace_id.set(task.root_trace_id)
+                _current_trace_id.set(task.trace_id)
+                for step in task.tool_sequence:
+                    try:
+                        step_args = dict(step["args"])
+                        if resolved_model and "model" not in step_args:
+                            step_args["model"] = resolved_model
+                        # contextvar 已自动传播，_call_tool 不再需显式传递
+                        r = await self._call_tool(step["tool"], step_args,
+                                                  trace_id=task.trace_id,
+                                                  root_trace_id=task.root_trace_id)
+                        results.append(str(r)[:200])
+                    except Exception as e:
+                        task.status = "failed"
+                        task.result = str(e)
+                        await self._log_append({"event": "task_failed", "task": task.id, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id, "error": str(e)})
+                        agent.current_task = ""
+                        return
 
-            task.status = "done"
-            task.result = "; ".join(results)
-            task.finished_at = time.time()
-            self._results[task.id] = task.result
-            await self._log_append({"event": "task_done", "task": task.id, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id, "result_preview": task.result[:100]})
+                task.status = "done"
+                task.result = "; ".join(results)
+                task.finished_at = time.time()
+                self._results[task.id] = task.result
+                await self._log_append({"event": "task_done", "task": task.id, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id, "result_preview": task.result[:100]})
 
-            agent.status = "idle"
-            agent.current_task = ""
+                agent.status = "idle"
+                agent.current_task = ""
+            finally:
+                self._running_tasks.discard(task.id)
+                agent.status = "idle"
+                agent.current_task = ""
 
 
 async def async_coordinate(goal: str, tool_executor: Callable) -> dict:
