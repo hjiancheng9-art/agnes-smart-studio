@@ -1268,4 +1268,23 @@ class CruxCLI:
         except ImportError as e:
             return 'Module error: ' + str(e)
 
+    def _cmd_regression(self, args):
+        """Run policy regression tests."""
+        try:
+            from core.policy_regression import run_regression_suite
+            results = run_regression_suite()
+            lines = ["Policy regression results:"]
+            all_pass = True
+            for r in results:
+                status = "PASS" if r["passed"] else "FAIL"
+                if not r["passed"]:
+                    all_pass = False
+                lines.append(f"  [{status}] {r['test']}: {r['message']}")
+            lines.append(f"Overall: {'ALL PASS' if all_pass else 'SOME FAILED'}")
+            return chr(10).join(lines)
+        except ImportError as e:
+            return "Module error: " + str(e)
+
+
+
 

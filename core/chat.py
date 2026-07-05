@@ -381,6 +381,11 @@ class ChatSession(ChatToggleMixin):
                     circuit_states = {p: mgr.state.circuit_state(p) for p in all_pids}
                     request = {"task_type": "text", "require_code": True, "budget_remaining": 100}
                     ordered_pids = select_candidates(request, all_pids, circuit_states)
+                    try:
+                        from core.policy_regression import record_route_decision
+                        record_route_decision(request, ordered_pids, circuit_states)
+                    except ImportError:
+                        pass
                 except ImportError:
                     ordered_pids = mgr.state.available_by_latency(all_pids)
                 for pid in ordered_pids:

@@ -227,6 +227,10 @@ SKILL_ENTRIES = [
     ("/skill load core-showrunner", "受控生产循环·诚实阻断·失败转修复"),
     ("/skill list", "查看所有可用技能 (63+)"),
     ("/skill load <名称>", "加载指定技能包"),
+    ("/runs", "View execution history"),
+    ("/summary", "View execution summary"),
+    ("/providers", "View provider health"),
+    ("/regression", "Run routing regression tests"),
 ]
 
 
