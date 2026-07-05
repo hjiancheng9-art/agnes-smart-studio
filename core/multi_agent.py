@@ -841,7 +841,13 @@ def _topological_waves(tasks: list[AgentTask]) -> list[list[AgentTask]]:
     - 同一波内的任务互不依赖，可 ``asyncio.gather`` 并行。
 
     检测到依赖环时抛 ``ValueError``（防止死锁）。
+    检测到重复 ID 时抛 ``ValueError``（防止误报为环）。
     """
+    # 重复 ID 检测：SmartDecomposer 的 LLM 输出可能产生重复 ID
+    if len({t.id for t in tasks}) != len(tasks):
+        from collections import Counter
+        dupes = [tid for tid, cnt in Counter(t.id for t in tasks).items() if cnt > 1]
+        raise ValueError(f"Duplicate task IDs detected: {dupes}")
     by_id = {t.id: t for t in tasks}
     placed: set[str] = set()
     waves: list[list[AgentTask]] = []
