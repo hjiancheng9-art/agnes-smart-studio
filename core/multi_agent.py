@@ -37,44 +37,6 @@ from collections.abc import Callable
 from core.multi_agent_models import ROOT, Agent, AgentTask  # noqa: F401
 
 
-# ── DAG 拓扑排序（并行批次执行）────────────────────────────
-def _build_dag_layers(tasks: list[AgentTask]) -> list[list[AgentTask]]:
-    """将任务按依赖关系分组为并行层级。
-
-    返回: layers, 每层内的任务可并行执行。
-    第 0 层 = 无依赖的任务, 第 1 层 = 只依赖第 0 层的, 依此类推。
-    自动检测环。
-    """
-    task_map = {t.id: t for t in tasks}
-    dep_map = {t.id: list(t.depends_on) for t in tasks}
-    depth: dict[str, int] = {}
-
-    queue = [tid for tid, deps in dep_map.items() if not deps]
-    processed = 0
-    while queue:
-        tid = queue.pop(0)
-        processed += 1
-        for t in tasks:
-            if tid in dep_map.get(t.id, []):
-                dep_map[t.id].remove(tid)
-                if not dep_map[t.id]:
-                    depth[t.id] = max(depth.get(t.id, 0), depth.get(tid, 0) + 1)
-                    queue.append(t.id)
-
-    if processed != len(tasks):
-        cycles = [tid for tid, deps in dep_map.items() if deps]
-        raise ValueError(f"DAG cycle detected in tasks: {cycles}")
-
-    max_depth = max(depth.values()) if depth else 0
-    layers: list[list[AgentTask]] = [[] for _ in range(max_depth + 1)]
-    for tid, d in depth.items():
-        layers[d].append(task_map[tid])
-    for tid in [t.id for t in tasks if t.id not in depth]:
-        layers[0].append(task_map[tid])
-
-    return layers
-
-
 __all__ = [
     "Agent",
     "AgentTask",
@@ -227,6 +189,7 @@ class MultiAgentCoordinator:
                             self._log.append({
                                 "event": "task_failed",
                                 "task": task.id,
+                                "trace_id": task.trace_id,
                                 "error": error_str,
                                 "failure_type": ftype,
                                 "suggestion": suggestion,
@@ -347,7 +310,7 @@ class MultiAgentCoordinator:
         with self._lock:
             task.status = "running"
             task.started_at = time.time()
-            self._log.append({"event": "task_start", "task": task.id, "agent": task.assigned_to})
+            self._log.append({"event": "task_start", "task": task.id, "agent": task.assigned_to, "trace_id": task.trace_id})
             # tier 路由：若提供 model_router，按 task.tier/task_type 解析模型并注入 step
             resolved_model = self._resolve_model_for_task(task)
             if resolved_model:
@@ -384,7 +347,7 @@ class MultiAgentCoordinator:
             task.result = "; ".join(results)
             task.finished_at = time.time()
             self._results[task.id] = task.result
-            self._log.append({"event": "task_done", "task": task.id, "result_preview": task.result[:100]})
+            self._log.append({"event": "task_done", "task": task.id, "trace_id": task.trace_id, "result_preview": task.result[:100]})
 
 
 def coordinate(goal: str, tool_executor: Callable) -> dict:
@@ -488,7 +451,7 @@ class AsyncMultiAgentCoordinator:
                 except asyncio.TimeoutError:
                     task.status = "failed"
                     task.result = f"[deadlock] task timed out after {self._AUTO_TASK_TIMEOUT}s"
-                    await self._log_append({"event": "task_timeout", "task": task.id, "wave": _wave_idx})
+                    await self._log_append({"event": "task_timeout", "task": task.id, "trace_id": task.trace_id, "wave": _wave_idx})
 
             try:
                 await asyncio.wait_for(
@@ -567,7 +530,7 @@ class AsyncMultiAgentCoordinator:
 
             task.status = "running"
             task.started_at = time.time()
-            await self._log_append({"event": "task_start", "task": task.id, "agent": task.assigned_to})
+            await self._log_append({"event": "task_start", "task": task.id, "agent": task.assigned_to, "trace_id": task.trace_id})
             # tier 路由：若解析出模型，注入到 step.args
             resolved_model = self._resolve_model_for_task(task)
             if resolved_model:
@@ -586,7 +549,7 @@ class AsyncMultiAgentCoordinator:
                 except Exception as e:
                     task.status = "failed"
                     task.result = str(e)
-                    await self._log_append({"event": "task_failed", "task": task.id, "error": str(e)})
+                    await self._log_append({"event": "task_failed", "task": task.id, "trace_id": task.trace_id, "error": str(e)})
                     agent.status = "idle"
                     agent.current_task = ""
                     return
@@ -595,7 +558,7 @@ class AsyncMultiAgentCoordinator:
             task.result = "; ".join(results)
             task.finished_at = time.time()
             self._results[task.id] = task.result
-            await self._log_append({"event": "task_done", "task": task.id, "result_preview": task.result[:100]})
+            await self._log_append({"event": "task_done", "task": task.id, "trace_id": task.trace_id, "result_preview": task.result[:100]})
 
             agent.status = "idle"
             agent.current_task = ""
