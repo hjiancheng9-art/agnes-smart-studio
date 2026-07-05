@@ -175,6 +175,7 @@ class MultiAgentCoordinator:
                     try:
                         step_args = dict(step["args"])
                         step_args["_trace_id"] = task.trace_id
+                        step_args["_root_trace_id"] = task.root_trace_id
                         r = self.execute_tool(step["tool"], step_args)
                         results.append(r[:200])
                     except Exception as e:
@@ -192,6 +193,7 @@ class MultiAgentCoordinator:
                                 "event": "task_failed",
                                 "task": task.id,
                                 "trace_id": task.trace_id,
+                                "root_trace_id": task.root_trace_id,
                                 "error": error_str,
                                 "failure_type": ftype,
                                 "suggestion": suggestion,
@@ -242,7 +244,11 @@ class MultiAgentCoordinator:
         if not self.agents:
             self.spawn_team()
         self.tasks = self.decompose(goal)
-        self._log.append({"event": "decomposed", "tasks": len(self.tasks)})
+        # 统一 root_trace_id：一次 execute 的所有 task 共享同一 root
+        root_id = uuid.uuid4().hex[:16]
+        for t in self.tasks:
+            t.root_trace_id = root_id
+        self._log.append({"event": "decomposed", "tasks": len(self.tasks), "root_trace_id": root_id})
 
         # Simple round-robin dispatch (parallel via threading)
         threads = []
@@ -312,7 +318,7 @@ class MultiAgentCoordinator:
         with self._lock:
             task.status = "running"
             task.started_at = time.time()
-            self._log.append({"event": "task_start", "task": task.id, "agent": task.assigned_to, "trace_id": task.trace_id})
+            self._log.append({"event": "task_start", "task": task.id, "agent": task.assigned_to, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id})
             # tier 路由：若提供 model_router，按 task.tier/task_type 解析模型并注入 step
             resolved_model = self._resolve_model_for_task(task)
             if resolved_model:
@@ -325,6 +331,7 @@ class MultiAgentCoordinator:
                 if resolved_model and "model" not in step_args:
                     step_args["model"] = resolved_model
                 step_args["_trace_id"] = task.trace_id
+                step_args["_root_trace_id"] = task.root_trace_id
                 # execute_tool 是外部 I/O，不持锁（避免长任务阻塞主线程的锁内读）
                 r = self.execute_tool(step["tool"], step_args)
                 results.append(r[:200])
@@ -350,7 +357,7 @@ class MultiAgentCoordinator:
             task.result = "; ".join(results)
             task.finished_at = time.time()
             self._results[task.id] = task.result
-            self._log.append({"event": "task_done", "task": task.id, "trace_id": task.trace_id, "result_preview": task.result[:100]})
+            self._log.append({"event": "task_done", "task": task.id, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id, "result_preview": task.result[:100]})
 
 
 def coordinate(goal: str, tool_executor: Callable) -> dict:
@@ -439,7 +446,11 @@ class AsyncMultiAgentCoordinator:
         if not self.agents:
             self.spawn_team()
         self.tasks = self.decompose(goal)
-        await self._log_append({"event": "decomposed", "tasks": len(self.tasks)})
+        # 统一 root_trace_id：一次 execute 的所有 task 共享同一 root
+        root_id = uuid.uuid4().hex[:16]
+        for t in self.tasks:
+            t.root_trace_id = root_id
+        await self._log_append({"event": "decomposed", "tasks": len(self.tasks), "root_trace_id": root_id})
 
         # 拓扑分层：每层是可并行的任务集合
         waves = _topological_waves(self.tasks)
@@ -454,7 +465,7 @@ class AsyncMultiAgentCoordinator:
                 except asyncio.TimeoutError:
                     task.status = "failed"
                     task.result = f"[deadlock] task timed out after {self._AUTO_TASK_TIMEOUT}s"
-                    await self._log_append({"event": "task_timeout", "task": task.id, "trace_id": task.trace_id, "wave": _wave_idx})
+                    await self._log_append({"event": "task_timeout", "task": task.id, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id, "wave": _wave_idx})
 
             try:
                 await asyncio.wait_for(
@@ -504,11 +515,13 @@ class AsyncMultiAgentCoordinator:
             return self.model_router.select(task_type=task.task_type)
         return None
 
-    async def _call_tool(self, tool: str, args: dict, trace_id: str = "") -> str:
+    async def _call_tool(self, tool: str, args: dict, trace_id: str = "", root_trace_id: str = "") -> str:
         """调用 executor，自动适配同步/async 签名。"""
         call_args = dict(args)
         if trace_id:
             call_args["_trace_id"] = trace_id
+        if root_trace_id:
+            call_args["_root_trace_id"] = root_trace_id
         if inspect.iscoroutinefunction(self.execute_tool):
             return await self.execute_tool(tool, call_args)
         # 同步 executor → to_thread，避免阻塞事件循环
@@ -536,7 +549,7 @@ class AsyncMultiAgentCoordinator:
 
             task.status = "running"
             task.started_at = time.time()
-            await self._log_append({"event": "task_start", "task": task.id, "agent": task.assigned_to, "trace_id": task.trace_id})
+            await self._log_append({"event": "task_start", "task": task.id, "agent": task.assigned_to, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id})
             # tier 路由：若解析出模型，注入到 step.args
             resolved_model = self._resolve_model_for_task(task)
             if resolved_model:
@@ -551,12 +564,15 @@ class AsyncMultiAgentCoordinator:
                     if resolved_model and "model" not in step_args:
                         step_args["model"] = resolved_model
                     step_args["_trace_id"] = task.trace_id
-                    r = await self._call_tool(step["tool"], step_args)
+                    step_args["_root_trace_id"] = task.root_trace_id
+                    r = await self._call_tool(step["tool"], step_args,
+                                              trace_id=task.trace_id,
+                                              root_trace_id=task.root_trace_id)
                     results.append(str(r)[:200])
                 except Exception as e:
                     task.status = "failed"
                     task.result = str(e)
-                    await self._log_append({"event": "task_failed", "task": task.id, "trace_id": task.trace_id, "error": str(e)})
+                    await self._log_append({"event": "task_failed", "task": task.id, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id, "error": str(e)})
                     agent.status = "idle"
                     agent.current_task = ""
                     return
@@ -565,7 +581,7 @@ class AsyncMultiAgentCoordinator:
             task.result = "; ".join(results)
             task.finished_at = time.time()
             self._results[task.id] = task.result
-            await self._log_append({"event": "task_done", "task": task.id, "trace_id": task.trace_id, "result_preview": task.result[:100]})
+            await self._log_append({"event": "task_done", "task": task.id, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id, "result_preview": task.result[:100]})
 
             agent.status = "idle"
             agent.current_task = ""

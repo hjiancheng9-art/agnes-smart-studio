@@ -22,12 +22,15 @@ class AgentTask:
     started_at: float = 0
     finished_at: float = 0
     trace_id: str = ""
+    root_trace_id: str = ""
     tier: str = "auto"
     task_type: str = ""
 
     def __post_init__(self) -> None:
         if not self.trace_id:
             self.trace_id = uuid.uuid4().hex[:16]
+        if not self.root_trace_id:
+            self.root_trace_id = self.trace_id  # 默认与 trace_id 一致
 
 
 @dataclass
