@@ -903,7 +903,7 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
     
     root_id = tasks[0].root_trace_id if tasks else ""
     
-    return {
+    result = {
         "goal": goal,
         "root_trace_id": root_id,
         "elapsed_ms": int((time.time() - started) * 1000),
@@ -918,6 +918,12 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
         "longest_task": longest_info,
         "failure_reasons": failure_reasons,
     }
+    try:
+        from core.run_summary import save_run
+        save_run(result)
+    except Exception:
+        pass
+    return result
 
 def _check_dag_deadlock(tasks: list[AgentTask], wave_idx: int = 0, root_trace_id: str = "") -> str | None:
     """检查 DAG 死锁条件。返回描述字符串或 None（无死锁）。

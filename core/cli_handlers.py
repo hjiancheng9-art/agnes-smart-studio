@@ -1162,3 +1162,57 @@ class CruxCLI:
     def _chat_interrupt(self, args: str) -> None:
         """Interrupt (Ctrl+C) — no-op, captured for dispatch completeness."""
         pass
+
+
+    def _cmd_runs(self, args: str = "") -> str:
+        """显示最近执行历史。用法: /runs [N]"""
+        try:
+            from core.run_summary import list_recent_runs, list_failed_runs
+            n = int(args.strip()) if args.strip().isdigit() else 10
+            if args.strip().startswith("--failed"):
+                n = int(args.strip().split()[-1]) if args.strip().split()[-1].isdigit() else 10
+                runs = list_failed_runs(n)
+            else:
+                runs = list_recent_runs(n)
+            if not runs:
+                return "暂无执行记录。"
+            lines = [f"最近 {len(runs)} 次执行："]
+            for r in runs:
+                rid = r.get("root_trace_id", "")[:12]
+                goal = r.get("goal", "")[:40]
+                status = r.get("status", "?")
+                total = r.get("total", 0)
+                failed = r.get("failed", 0)
+                ms = r.get("duration_ms", 0)
+                lines.append(f"  [{status}] {rid} {goal} ({total}tasks, {failed}fail, {ms}ms)")
+            return "\n".join(lines)
+        except ImportError:
+            return "run_summary 模块未加载。"
+
+    def _cmd_summary(self, args: str = "") -> str:
+        """查看指定执行摘要。用法: /summary <root_trace_id>"""
+        rid = args.strip()
+        if not rid:
+            return "用法: /summary <root_trace_id>"
+        try:
+            from core.run_summary import get_run
+            data = get_run(rid)
+            if not data:
+                return f"未找到执行记录: {rid}"
+            lines = [
+                f"执行摘要: {data.get('root_trace_id', '')}",
+                f"目标: {data.get('goal', '')}",
+                f"状态: {data.get('status', '?')}",
+                f"耗时: {data.get('duration_ms', 0)}ms",
+                f"任务: {data.get('total_tasks', 0)}总 / {data.get('completed', 0)}完成 / {data.get('failed', 0)}失败 / {data.get('skipped', 0)}跳过 / {data.get('timeout', 0)}超时",
+                f"事件: {data.get('event_counts', {})}",
+            ]
+            failure = data.get('failure_reasons', {})
+            if failure:
+                lines.append(f"失败原因: {failure}")
+            longest = data.get('longest_task')
+            if longest:
+                lines.append(f"最长任务: {longest.get('id', '?')} ({longest.get('duration_ms', 0)}ms)")
+            return "\n".join(lines)
+        except ImportError:
+            return "run_summary 模块未加载。"
