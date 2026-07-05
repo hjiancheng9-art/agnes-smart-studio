@@ -39,11 +39,17 @@ from core.multi_agent_models import ROOT, Agent, AgentTask  # noqa: F401
 # 跨模块 trace 上下文：供 cost_tracker 等下游模块读取当前 root_trace_id
 import contextvars as _crux_ctx
 _current_root_trace_id = _crux_ctx.ContextVar("crux_root_trace_id", default="")
+_current_trace_id = _crux_ctx.ContextVar("crux_trace_id", default="")
 
 
 def get_current_root_trace_id() -> str:
     """获取当前执行的 root_trace_id，供下游模块（cost_tracker/observability）使用。"""
     return _current_root_trace_id.get()
+
+
+def get_current_trace_id() -> str:
+    """获取当前 AgentTask 的 trace_id，供下游模块使用。"""
+    return _current_trace_id.get()
 
 
 __all__ = [
@@ -183,8 +189,7 @@ class MultiAgentCoordinator:
                 for step in task.tool_sequence:
                     try:
                         step_args = dict(step["args"])
-                        step_args["_trace_id"] = task.trace_id
-                        step_args["_root_trace_id"] = task.root_trace_id
+                        # contextvar (_current_root_trace_id / _current_trace_id) 已自动传播
                         r = self.execute_tool(step["tool"], step_args)
                         results.append(r[:200])
                     except Exception as e:
@@ -334,6 +339,9 @@ class MultiAgentCoordinator:
             resolved_model = self._resolve_model_for_task(task)
             if resolved_model:
                 self._log.append({"event": "tier_routed", "task": task.id, "tier": task.tier, "model": resolved_model})
+        # 设置 trace 上下文
+        _current_root_trace_id.set(task.root_trace_id)
+        _current_trace_id.set(task.trace_id)
         results = []
         for step in task.tool_sequence:
             try:
@@ -341,9 +349,6 @@ class MultiAgentCoordinator:
                 step_args = dict(step["args"])
                 if resolved_model and "model" not in step_args:
                     step_args["model"] = resolved_model
-                step_args["_trace_id"] = task.trace_id
-                step_args["_root_trace_id"] = task.root_trace_id
-                # execute_tool 是外部 I/O，不持锁（避免长任务阻塞主线程的锁内读）
                 r = self.execute_tool(step["tool"], step_args)
                 results.append(r[:200])
             except Exception as e:
@@ -526,13 +531,9 @@ class AsyncMultiAgentCoordinator:
             return self.model_router.select(task_type=task.task_type)
         return None
 
-    async def _call_tool(self, tool: str, args: dict, trace_id: str = "", root_trace_id: str = "") -> str:
-        """调用 executor，自动适配同步/async 签名。"""
+    async def _call_tool(self, tool: str, args: dict) -> str:
+        """调用 executor，自动适配同步/async 签名。通过 contextvar 传递 trace 上下文。"""
         call_args = dict(args)
-        if trace_id:
-            call_args["_trace_id"] = trace_id
-        if root_trace_id:
-            call_args["_root_trace_id"] = root_trace_id
         if inspect.iscoroutinefunction(self.execute_tool):
             return await self.execute_tool(tool, call_args)
         # 同步 executor → to_thread，避免阻塞事件循环
@@ -569,13 +570,15 @@ class AsyncMultiAgentCoordinator:
                 )
 
             results: list[str] = []
+            # 设置 trace 上下文
+            _current_root_trace_id.set(task.root_trace_id)
+            _current_trace_id.set(task.trace_id)
             for step in task.tool_sequence:
                 try:
                     step_args = dict(step["args"])
                     if resolved_model and "model" not in step_args:
                         step_args["model"] = resolved_model
-                    step_args["_trace_id"] = task.trace_id
-                    step_args["_root_trace_id"] = task.root_trace_id
+                    # contextvar 已自动传播，_call_tool 不再需显式传递
                     r = await self._call_tool(step["tool"], step_args,
                                               trace_id=task.trace_id,
                                               root_trace_id=task.root_trace_id)
