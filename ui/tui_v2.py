@@ -820,7 +820,6 @@ class TuiAppV2:
 
 
     def _on_accept(self, buf: Buffer) -> bool:
-        text = buf.text.strip()
         buf.reset()
         if not text:
             return True
@@ -844,6 +843,53 @@ class TuiAppV2:
         # ── Quit ──
         if text in ("/q", "/quit", "/exit"):
             self._app.exit()
+            return True
+
+        # ── Screen commands ──
+        if text == "/dashboard" or text.startswith("/dashboard "):
+            self._toggle_screen("dashboard")
+            return True
+        if text == "/incidents" or text.startswith("/incidents "):
+            self._toggle_screen("incidents")
+            return True
+        if text == "/remediate" or text.startswith("/remediate "):
+            screen = self._available_screens.get("remediate")
+            if text.startswith("/remediate run "):
+                iid = text[16:].strip()
+                screen.run(iid) if hasattr(screen, 'run') else None
+                if not self.screen_stack.active:
+                    self.screen_stack.push(screen, self)
+            elif " " in text:
+                cat = text.split(" ", 1)[1]
+                screen.select(cat) if hasattr(screen, 'select') else None
+                if not self.screen_stack.active:
+                    self.screen_stack.push(screen, self)
+            else:
+                screen.back() if hasattr(screen, 'back') else None
+                self._toggle_screen("remediate")
+            self._app.invalidate()
+            return True
+        if text == "/replay" or text.startswith("/replay "):
+            screen = self._available_screens.get("replay")
+            if " " in text:
+                rid = text.split(" ", 1)[1]
+                screen.select(rid) if hasattr(screen, 'select') else None
+                if not self.screen_stack.active:
+                    self.screen_stack.push(screen, self)
+            else:
+                screen.back() if hasattr(screen, 'back') else None
+                self._toggle_screen("replay")
+            self._app.invalidate()
+            return True
+        if text == "/recent-actions":
+            try:
+                from core.remediation_executor import get_recent_actions
+                acts = get_recent_actions(15)
+                lines = ["Recent Actions:"]
+                lines.extend(f"  [{a.get('risk','?')}] {a.get('command','?'):40s} {a.get('status','?')}" for a in acts)
+                self.message_pane.append_info("\\n".join(lines))
+            except Exception as e:
+                self.message_pane.append_error(f"Error: {e}")
             return True
 
         # ── Slash commands ──
@@ -1040,6 +1086,16 @@ class TuiAppV2:
         except Exception:
             logger.warning("TUI _ui invalidate failed", exc_info=True)
 
+
+    def _toggle_screen(self, name):
+        screen = self._available_screens.get(name)
+        if not screen:
+            return
+        if self.screen_stack.active and self.screen_stack.current.name == name:
+            self.screen_stack.pop(self)
+        else:
+            self.screen_stack.push(screen, self)
+        self._app.invalidate()
     def _on_spinner_tick(self) -> None:
         """Called by Spinner thread every ~80ms. Triggers activity bar repaint."""
         if self._activity_log and self._app and self._app.is_running:
