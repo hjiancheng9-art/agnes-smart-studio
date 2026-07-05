@@ -308,16 +308,7 @@ class MultiAgentCoordinator:
             done = sum(1 for t in self.tasks if t.status == "done")
             failed = sum(1 for t in self.tasks if t.status == "failed")
 
-        return {
-            "goal": goal,
-            "agents": len(self.agents),
-            "tasks_total": len(self.tasks),
-            "tasks_done": done,
-            "tasks_failed": failed,
-            "elapsed": round(elapsed, 2),
-            "results": self._results,
-            "log": self._log[-10:],
-        }
+        return _build_run_summary(goal, self.tasks, self._log, self.agents, started)
 
     def _resolve_model_for_task(self, task: AgentTask) -> str | None:
         """按 task.tier/task_type 解析模型（若提供 model_router）。
@@ -514,16 +505,7 @@ class AsyncMultiAgentCoordinator:
         done = sum(1 for t in self.tasks if t.status == "done")
         failed = sum(1 for t in self.tasks if t.status == "failed")
 
-        return {
-            "goal": goal,
-            "agents": len(self.agents),
-            "tasks_total": len(self.tasks),
-            "tasks_done": done,
-            "tasks_failed": failed,
-            "elapsed": round(elapsed, 2),
-            "results": self._results,
-            "log": self._log[-10:],
-        }
+        return _build_run_summary(goal, self.tasks, self._log, self.agents, started)
 
     async def _log_append(self, entry: dict) -> None:
         """线程安全地追加日志（_log 在并行任务间共享）。"""
@@ -894,6 +876,49 @@ def _extract_json(raw: str) -> list[dict]:
 
 
 # ── DAG Runtime Deadlock Guard ──────────────────────────
+
+
+def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started: float) -> dict:
+    """生成执行摘要：统计各状态任务数 + 事件计数。"""
+    done = sum(1 for t in tasks if t.status == "done")
+    failed = sum(1 for t in tasks if t.status == "failed")
+    skipped = sum(1 for t in tasks if t.status == "skipped")
+    timed_out = sum(1 for t in tasks if "[timeout]" in t.result or "[deadlock]" in t.result)
+    cancelled = sum(1 for t in tasks if t.status == "pending")
+    
+    deadlock_count = sum(1 for e in log if e.get("event") == "dag_deadlock")
+    fallback_count = sum(1 for e in log if e.get("event") in ("wave_timeout", "task_timeout"))
+    timeout_count = sum(1 for e in log if e.get("event") == "task_timeout")
+    
+    longest = max(tasks, key=lambda t: t.finished_at - t.started_at) if tasks else None
+    longest_info = {}
+    if longest and longest.finished_at > 0:
+        longest_info = {"id": longest.id, "duration_ms": int((longest.finished_at - longest.started_at) * 1000), "status": longest.status}
+    
+    failure_reasons: dict[str, int] = {}
+    for t in tasks:
+        if t.status == "failed" and t.result:
+            reason = t.result[:60]
+            failure_reasons[reason] = failure_reasons.get(reason, 0) + 1
+    
+    root_id = tasks[0].root_trace_id if tasks else ""
+    
+    return {
+        "goal": goal,
+        "root_trace_id": root_id,
+        "elapsed_ms": int((time.time() - started) * 1000),
+        "agents": len(agents),
+        "tasks_total": len(tasks),
+        "tasks_done": done,
+        "tasks_failed": failed,
+        "tasks_skipped": skipped,
+        "tasks_timeout": timed_out,
+        "tasks_cancelled": cancelled,
+        "events": {"deadlocks": deadlock_count, "fallbacks": fallback_count, "timeouts": timeout_count},
+        "longest_task": longest_info,
+        "failure_reasons": failure_reasons,
+    }
+
 def _check_dag_deadlock(tasks: list[AgentTask], wave_idx: int = 0, root_trace_id: str = "") -> str | None:
     """检查 DAG 死锁条件。返回描述字符串或 None（无死锁）。
 
