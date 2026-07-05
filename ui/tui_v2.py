@@ -90,7 +90,9 @@ class ScreenStack:
     """Manages navigation between screens."""
     def __init__(self):
         self._stack = []
+    @property
     def current(self): return self._stack[-1] if self._stack else None
+    @property
     def active(self): return len(self._stack) > 0
     def push(self, screen, app):
         self._stack.append(screen)
