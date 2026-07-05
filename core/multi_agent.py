@@ -943,8 +943,16 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
         save_run(result)
         try:
             from core.incident_classifier import classify_run
+            from core.incident_store import save_incident, should_alert
             incident = classify_run(result, log)
             result.update({"incident": incident})
+            if incident.get("total_incidents", 0) > 0:
+                try:
+                    save_incident(incident)
+                    alert = should_alert(incident)
+                    result.update({"alert": alert})
+                except Exception:
+                    pass
         except Exception:
             pass
         try:

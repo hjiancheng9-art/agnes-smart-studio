@@ -1285,6 +1285,28 @@ class CruxCLI:
         except ImportError as e:
             return "Module error: " + str(e)
 
+
+    def _cmd_incidents(self, args):
+        """View incident trends."""
+        try:
+            from core.incident_store import get_incident_trends
+            trends = get_incident_trends(24)
+            if trends["total"] == 0:
+                return "No incidents in last 24h."
+            lines = [f"Incidents (24h): {trends['total']} total"]
+            if trends["by_category"]:
+                lines.append("By category:")
+                for cat, cnt in trends["by_category"].items():
+                    lines.append(f"  {cat}: {cnt}")
+            if trends["by_severity"]:
+                lines.append("By severity:")
+                for sev, cnt in trends["by_severity"].items():
+                    lines.append(f"  {sev}: {cnt}")
+            return chr(10).join(lines)
+        except ImportError as e:
+            return "Module error: " + str(e)
+
+
     def _cmd_replays(self, args):
         """List saved run replays."""
         try:

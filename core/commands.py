@@ -233,6 +233,7 @@ SKILL_ENTRIES = [
     ("/regression", "Run routing regression tests"),
     ("/replays", "List saved run replays"),
     ("/replay", "View run replay timeline"),
+    ("/incidents", "View incident trends (24h)"),
 ]
 
 
