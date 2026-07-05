@@ -332,7 +332,17 @@ def get_thinking_params_for_model(model_id: str) -> dict[str, Any]:
 
 
 class ProviderState:
-    """Tracks which provider is active and which have failed."""
+    """Tracks which provider is active and which have failed.
+    
+    Implements circuit breaker pattern:
+    - CLOSED: normal operation
+    - OPEN: >=3 consecutive failures, skip for cooldown_sec
+    - HALF_OPEN: after cooldown, allow 1 probe request
+    """
+
+    CIRCUIT_CLOSED = "CLOSED"
+    CIRCUIT_OPEN = "OPEN"
+    CIRCUIT_HALF_OPEN = "HALF_OPEN"
 
     def __init__(self, active: str, cooldown_sec: float = 30.0) -> None:
         self.active = active
@@ -342,6 +352,59 @@ class ProviderState:
         # ── 健康追踪：最近 N 次响应延迟（秒）──
         self._latencies: dict[str, deque] = {}  # provider_id -> deque of float
         self._max_latency_samples = 10
+        # ── 熔断保护：连续失败计数 + 状态 ──
+        self._circuit: dict[str, dict] = {}  # provider_id -> {state, failures, opened_at, probe_count}
+
+    # ── 熔断保护方法 ────────────────────────────────────
+
+    def _get_circuit(self, pid: str) -> dict:
+        if pid not in self._circuit:
+            self._circuit[pid] = {
+                "state": self.CIRCUIT_CLOSED,
+                "consecutive_failures": 0,
+                "last_failure_at": 0.0,
+                "opened_at": 0.0,
+                "probe_count": 0,
+            }
+        return self._circuit[pid]
+
+    def record_failure(self, pid: str) -> None:
+        """记录一次失败，达到阈值时打开熔断器。"""
+        c = self._get_circuit(pid)
+        c["consecutive_failures"] += 1
+        c["last_failure_at"] = time.time()
+        if c["consecutive_failures"] >= 3:
+            c["state"] = self.CIRCUIT_OPEN
+            c["opened_at"] = time.time()
+            c["probe_count"] = 0
+
+    def record_success(self, pid: str) -> None:
+        """记录一次成功，关闭熔断器。"""
+        c = self._get_circuit(pid)
+        c["state"] = self.CIRCUIT_CLOSED
+        c["consecutive_failures"] = 0
+        c["probe_count"] = 0
+
+    def circuit_can_try(self, pid: str) -> bool:
+        """熔断感知：此 provider 当前是否允许调用。"""
+        c = self._get_circuit(pid)
+        if c["state"] == self.CIRCUIT_CLOSED:
+            return True
+        if c["state"] == self.CIRCUIT_OPEN:
+            elapsed = time.time() - c["opened_at"]
+            if elapsed >= self.cooldown_sec:
+                c["state"] = self.CIRCUIT_HALF_OPEN
+                # probe_count=1 表示"此次探测名额已分配"，避免多放一次
+                c["probe_count"] = 1
+                return True
+            return False
+        # HALF_OPEN: 只允许一次探测
+        if c["probe_count"] >= 1:
+            return False
+        c["probe_count"] += 1
+        return True
+
+    # ── 原健康追踪方法 ──────────────────────────────────
 
     def record_latency(self, provider_id: str, elapsed_sec: float):
         """Record a response latency sample for the given provider."""
@@ -350,15 +413,10 @@ class ProviderState:
         self._latencies[provider_id].append(elapsed_sec)
 
     def health_hint(self) -> str | None:
-        """Check active provider health, return warning string or None.
-
-        Warns if the active provider's average latency is > 15s over
-        recent samples (indicating chronic slowness, not a one-off spike).
-        """
+        """Check active provider health, return warning string or None."""
         samples = self._latencies.get(self.active)
         if not samples or len(samples) < 3:
-            return None  # not enough data
-
+            return None
         avg = sum(samples) / len(samples)
         if avg > 15.0:
             return (
@@ -380,31 +438,24 @@ class ProviderState:
     def available(self, provider_ids: list[str]) -> list[str]:
         """Return providers that are not in cooldown, active first."""
         ordered = [self.active] + [p for p in provider_ids if p != self.active]
-        return [p for p in ordered if not self.is_down(p)]
+        return [p for p in ordered if not self.is_down(p) and self.circuit_can_try(p)]
 
     def available_by_latency(self, provider_ids: list[str]) -> list[str]:
-        """Return available providers sorted by average latency (fastest first).
-
-        When choosing between equally-capable providers for the same model tier,
-        prefer the one with lower historical latency. Active provider gets a
-        slight boost (treated as 20% faster than measured) to avoid unnecessary
-        flapping.
-        """
-        available = self.available(provider_ids)
-        if len(available) <= 1:
-            return available
+        """Return available providers sorted by average latency (fastest first)."""
+        available_list = self.available(provider_ids)
+        if len(available_list) <= 1:
+            return available_list
 
         def avg_latency(pid: str) -> float:
             samples = self._latencies.get(pid, deque())
             if not samples:
                 return 999.0
             avg = sum(samples) / len(samples)
-            # Active provider gets 20% speed boost to avoid flapping
             if pid == self.active:
                 avg *= 0.8
             return avg
 
-        return sorted(available, key=avg_latency)
+        return sorted(available_list, key=avg_latency)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -556,11 +607,18 @@ class ProviderManager:
 
         return CruxClient(api_key=api_key, base_url=provider["base_url"])
 
-    def handle_failure(self, failed_provider: str, status_code: int) -> tuple[object | None, str | None]:
+    def handle_failure(self, failed_provider: str, status_code: int, _depth: int = 0) -> tuple[object | None, str | None]:
         """Called when a provider request fails. Returns (new_client, new_provider_id)
         if failover succeeded, or (None, None) if all providers exhausted.
+
+        Implements failover depth protection: max 3 cascading failovers.
         """
-        self.state.mark_down(failed_provider)
+        if _depth >= 3:
+            logger.warning("failover chain exceeded max depth (3), giving up")
+            return None, None
+
+        # 熔断保护：记录失败，检查是否还有 provider 可用
+        self.state.record_failure(failed_provider)
 
         available = self.state.available(list(self.providers.keys()))
         for pid in available:

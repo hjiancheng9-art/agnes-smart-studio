@@ -850,6 +850,7 @@ class ChatSession(ChatToggleMixin):
                             new_client, new_pid = mgr.handle_failure(mgr.state.active, 500)
                             if new_client:
                                 self.client = new_client
+                                mgr.state.record_success(new_pid)
                                 logger.info("failover: -> %s (auto)", new_pid)
                             else:
                                 # 无可用 provider，仅标记下线
