@@ -407,6 +407,7 @@ class TuiAppV2:
             content=input_ctrl,
             height=_input_height,
             style="class:input-field",
+            dont_extend_height=True,
         )
 
         # ── Input border (bottom of input frame) ──

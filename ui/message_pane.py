@@ -123,7 +123,7 @@ class MessagePane:
             content=self._control,
             style="class:message-area",
             wrap_lines=True,
-            height=Dimension(weight=1),
+            height=Dimension(weight=3),
             always_hide_cursor=True,
             allow_scroll_beyond_bottom=False,
             right_margins=[],
