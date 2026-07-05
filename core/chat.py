@@ -374,9 +374,15 @@ class ChatSession(ChatToggleMixin):
             # If current provider doesn't have this tier, search other providers
             # by latency (fastest first) to minimize response time
             if target_model not in provider_models.values() or target_model == "unknown":
-                # Sort providers by latency: faster providers preferred for same tier
+                # Sort providers by policy routing: task_type, budget, circuit-state
                 all_pids = list(mgr.providers.keys())
-                ordered_pids = mgr.state.available_by_latency(all_pids)
+                try:
+                    from core.provider_policy import select_candidates
+                    circuit_states = {p: mgr.state.circuit_state(p) for p in all_pids}
+                    request = {"task_type": "text", "require_code": True, "budget_remaining": 100}
+                    ordered_pids = select_candidates(request, all_pids, circuit_states)
+                except ImportError:
+                    ordered_pids = mgr.state.available_by_latency(all_pids)
                 for pid in ordered_pids:
                     pd = mgr.providers.get(pid, {})
                     pm = pd.get("models", {})

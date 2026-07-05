@@ -1223,6 +1223,9 @@ class CruxCLI:
                     lines.append(f"问题标记: {', '.join(flags)}")
                 if rec:
                     lines.append(f"建议: {rec}")
+            provider_route = data.get("provider_route", "")
+            if provider_route:
+                lines.append(f"Provider路由: {provider_route}")
             rt_budget = data.get("retry_budget", {})
             if rt_budget:
                 lines.append(f"重试预算: {rt_budget.get('used', 0)}/{rt_budget.get('max', '?')}")

@@ -42,6 +42,7 @@ class RunSummary:
     policy_reason: str = ""
     retry_used: int = 0
     retry_max: int = 3
+    provider_route: str = ""
     created_at: float = 0.0
 
     @classmethod
@@ -69,6 +70,7 @@ class RunSummary:
             policy_reason=d.get("policy_reason", ""),
             retry_used=d.get("retry_budget", {}).get("used", 0) if isinstance(d.get("retry_budget"), dict) else 0,
             retry_max=d.get("retry_budget", {}).get("max", 3) if isinstance(d.get("retry_budget"), dict) else 3,
+            provider_route=d.get("provider_route", ""),
         )
 
     def to_dict(self) -> dict:

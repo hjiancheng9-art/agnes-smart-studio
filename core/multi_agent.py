@@ -890,6 +890,13 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
     fallback_count = sum(1 for e in log if e.get("event") in ("wave_timeout", "task_timeout"))
     timeout_count = sum(1 for e in log if e.get("event") == "task_timeout")
     
+    # 提取 provider route 信息
+    provider_route = ""
+    for entry in log:
+        if entry.get("event") == "tier_routed":
+            provider_route = entry.get("model", "")
+        if "provider" in entry:
+            provider_route = entry.get("provider", provider_route)
     longest = max(tasks, key=lambda t: t.finished_at - t.started_at) if tasks else None
     longest_info = {}
     if longest and longest.finished_at > 0:
@@ -917,6 +924,7 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
         "events": {"deadlocks": deadlock_count, "fallbacks": fallback_count, "timeouts": timeout_count},
         "longest_task": longest_info,
         "failure_reasons": failure_reasons,
+        "provider_route": provider_route,
     }
     try:
         from core.run_summary import save_run
