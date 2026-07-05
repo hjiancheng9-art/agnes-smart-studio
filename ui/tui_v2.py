@@ -133,16 +133,31 @@ class DashboardScreen(Screen):
         self._refresh_data()
         d = self._cached_data
         ft = []
-        ft.append(("bold", f"{{'═'*tw}}\\n"))
-        ft.append(("bold class:header", "  DASHBOARD\\n\\n"))
+        ft.append(("bold", f'{"=" * tw}\n'))
+        ft.append(("bold class:header", "  DASHBOARD\n"))
+        ft.append(("class:dim", f"  {tw * '-'}\n"))
+        # Trends
         trends = d.get("trends", {})
-        ft.append(("", f"  Incidents 24h: {trends.get('total', 0)}\\n"))
+        ft.append(("", f"  Incidents (24h): {trends.get('total', 0)}\n"))
         incs = d.get("incidents", [])
-        for inc in incs[:5]:
-            cat = inc.get("category", "?")
-            sev = inc.get("severity", "?")
-            ft.append(("", f"    [{sev}] {cat}\\n"))
-        ft.append(("class:dim", "\\n  /dashboard  /incidents  /remediate  /replay\\n"))
+        if incs:
+            ft.append(("bold", "  Recent:\n"))
+            for inc in incs[:8]:
+                cat = inc.get("category", "?")
+                sev = inc.get("severity", "?")
+                ts = str(inc.get("timestamp", "?"))[:12]
+                ft.append(("", f"    [{sev[:1].upper()}] {cat:<20} {ts}\n"))
+        # Runs
+        runs = d.get("runs", [])
+        if runs:
+            ft.append(("bold", "\n  Recent runs:\n"))
+            for r in runs[:5]:
+                rid = str(r.get("root_trace_id", "?"))[:16]
+                st = r.get("status", "?")
+                ft.append(("", f"    {rid:<20} {st}\n"))
+        # Hint
+        ft.append(("class:dim", f"\n  {'=' * tw}\n"))
+        ft.append(("class:dim", "  Esc: exit /incidents /remediate /replay\n"))
         return ft
 
 
@@ -157,16 +172,20 @@ class IncidentLogScreen(Screen):
         except: self._incidents = []
     def render(self, tw):
         ft = []
-        ft.append(("bold", f"{{'═'*tw}}\\n"))
-        ft.append(("bold class:header", "  INCIDENT LOG\\n"))
-        ft.append(("class:dim", "                      类别         严重度    时间\\n"))
-        for i in self._incidents[:20]:
-            iid = i.get("incident_id", "?")[:14]
-            cat = i.get("category", "?")[:16]
-            sev = i.get("severity", "?")
-            ts = str(i.get("timestamp", "?"))[:16]
-            ft.append(("", f"  {iid}  {cat}  {sev}  {ts}\\n"))
-        ft.append(("class:dim", "\\n  Esc: back\\n"))
+        ft.append(("bold", f'{"=" * tw}\n'))
+        ft.append(("bold class:header", "  INCIDENT LOG\n"))
+        ft.append(("class:dim", f"  {tw * '-'}\n"))
+        if not self._incidents:
+            ft.append(("class:dim", "  (no incidents recorded)\n"))
+        else:
+            ft.append(("class:dim", f"  {'ID':<16} {'Category':<18} {'Sev':<6} {'Time'}\n"))
+            for inc in self._incidents[:25]:
+                iid = str(inc.get("incident_id", "?"))[:16]
+                cat = str(inc.get("category", "?"))[:18]
+                sev = str(inc.get("severity", "?"))[:6]
+                ts = str(inc.get("timestamp", "?"))[:16]
+                ft.append(("", f"  {iid:<16} {cat:<18} {sev:<6} {ts}\n"))
+        ft.append(("class:dim", f"\n  Esc: exit\n"))
         return ft
 
 
@@ -204,28 +223,35 @@ class RemediationScreen(Screen):
         self._results = []
     def render(self, tw):
         ft = []
-        ft.append(("bold", f"{{'═'*tw}}\\n"))
+        ft.append(("bold", f'{"=" * tw}\n'))
         if self._results:
-            ft.append(("bold class:header", "  REMEDIATION RESULTS\\n"))
+            ft.append(("bold class:header", "  REMEDIATION RESULTS\n"))
             for r in self._results:
-                ic = "\u2713" if r["status"] == "success" else "\u2299" if r["status"] == "pending_approval" else "\u2717"
-                ft.append(("", f"    {ic} {r.get('command','?')}: {r['status']}\\n"))
+                ic = chr(10003) if r["status"] == "success" else chr(8857) if r["status"] == "pending_approval" else chr(10007)
+                ft.append(("", f"    {ic} {r.get('command','?'):35s} {r['status']}\n"))
+            if self._results[-1].get("message"):
+                ft.append(("class:status-warn", f"    >> {self._results[-1]['message']}\n"))
+            ft.append(("class:dim", f"\n  Esc: back\n"))
             return ft
         if self._pb:
-            ft.append(("bold class:header", f"  {self._pb.get('title', '?')}\\n"))
-            ft.append(("class:dim", f"  severity: {self._pb.get('severity', '?')}\\n\\n"))
+            ft.append(("bold class:header", f"  {self._pb.get('title', '?')}\n"))
+            sev = self._pb.get("severity", "?")
+            sev_cls = "class:status-err" if sev == "critical" else "class:status-warn"
+            ft.append((sev_cls, f"  severity: {sev}\n\n"))
             for i, s in enumerate(self._pb.get("steps", []), 1):
-                ft.append(("", f"    {i}. {s}\\n"))
+                ft.append(("", f"    {i}. {s}\n"))
             auto = self._pb.get("auto_commands", [])
             if auto:
-                ft.append(("bold", "\\n  Auto-fix:\\n"))
+                ft.append(("bold", "\n  Auto-fix commands:\n"))
                 for c in auto:
-                    ft.append(("", f"    $ {c}\\n"))
+                    ft.append(("class:dim", f"    $ {c}\n"))
+            ft.append(("class:dim", f"\n  /remediate run <id>  |  Esc: list\n"))
         else:
-            ft.append(("bold class:header", "  PLAYBOOKS\\n"))
-            for c in self._cats:
-                ft.append(("", f"    {c}\\n"))
-        ft.append(("class:dim", "\\n  /remediate <cat>  /remediate run <id>\\n"))
+            ft.append(("bold class:header", "  PLAYBOOKS\n"))
+            ft.append(("class:dim", f"  {tw * '-'}\n"))
+            for c in self._cats[:20]:
+                ft.append(("", f"    {c}\n"))
+            ft.append(("class:dim", f"\n  /remediate <cat> | /remediate run <id>\n"))
         return ft
 
 
@@ -248,14 +274,19 @@ class RunReplayScreen(Screen):
         self._selected = None
     def render(self, tw):
         ft = []
-        ft.append(("bold", f"{{'═'*tw}}\\n"))
-        ft.append(("bold class:header", "  RUN REPLAYS\\n"))
-        ft.append(("class:dim", "  root_trace_id          model          status\\n"))
-        for r in self._records[:20]:
-            rid = r.get("root_trace_id", "?")[:20]
-            st = r.get("status", "?") if hasattr(r, 'get') else "?"
-            ft.append(("", f"  {rid}  {st}\\n"))
-        ft.append(("class:dim", "\\n  Esc: back\\n"))
+        ft.append(("bold", f'{"=" * tw}\n'))
+        ft.append(("bold class:header", "  RUN REPLAYS\n"))
+        ft.append(("class:dim", f"  {tw * '-'}\n"))
+        if not self._records:
+            ft.append(("class:dim", "  (no replay records)\n"))
+        else:
+            ft.append(("class:dim", f"  {'Root ID':<24} {'Status':<12} {'Time'}\n"))
+            for r in self._records[:20]:
+                rid = str(r.get("root_trace_id", "?"))[:24]
+                st = str(r.get("status", "?"))[:12]
+                ts = str(r.get("saved_at", "?"))[:12]
+                ft.append(("", f"  {rid:<24} {st:<12} {ts}\n"))
+        ft.append(("class:dim", f"\n  Esc: exit\n"))
         return ft
 
 
@@ -270,14 +301,19 @@ class ApprovalScreen(Screen):
         except: pass
     def render(self, tw):
         ft = []
-        ft.append(("bold", f"{{'═'*tw}}\\n"))
-        ft.append(("bold class:header", "  PENDING APPROVALS\\n"))
+        ft.append(("bold", f'{"=" * tw}\n'))
+        ft.append(("bold class:header", "  PENDING APPROVALS\n"))
+        ft.append(("class:dim", f"  {tw * '-'}\n"))
         if not self._pending:
-            ft.append(("class:dim", "  (none)\\n"))
+            ft.append(("class:dim", "  (no pending approvals)\n"))
         else:
             for item in self._pending:
                 if item.get("status") == "pending":
-                    ft.append(("class:status-warn", f"  [{item.get('risk','?')}] {item.get('command','?')}\\n"))
+                    risk = item.get("risk", "?")
+                    cls = "class:status-err" if risk == "critical" else "class:status-warn"
+                    ft.append((cls, f"  [{risk.upper()}] {item.get('command','?')}\n"))
+                    ft.append(("", f"    {item.get('description', '')}\n"))
+        ft.append(("class:dim", f"\n  Esc: exit\n"))
         return ft
 
 
@@ -682,9 +718,11 @@ class TuiAppV2:
             always_hide_cursor=True,
         )
 
-        # ── Assemble layout ──
-        root = HSplit([
-            ConditionalContainer(self._screen_window, filter=Condition(lambda: self.screen_stack.active)),
+        # ── Assemble layout (full-screen replacement) ──
+        screen_mode = Condition(lambda: self.screen_stack.active)
+        normal_mode = Condition(lambda: not self.screen_stack.active)
+
+        normal_body = HSplit([
             header_window,
             header_sep_window,
             self.message_pane.pane,       # Messages + Welcome (weight=1)
@@ -694,6 +732,11 @@ class TuiAppV2:
             input_window,                 # Input (1-8)
             input_bottom_window,          # Input frame bottom
             status_window,                # Status (1)
+        ])
+
+        root = HSplit([
+            ConditionalContainer(self._screen_window, filter=screen_mode),
+            ConditionalContainer(normal_body, filter=normal_mode),
         ])
 
         # On Windows with a Unix-like terminal (Git Bash, etc.), create_output()
@@ -842,6 +885,7 @@ class TuiAppV2:
 
 
     def _on_accept(self, buf: Buffer) -> bool:
+        text = buf.text.strip()
         buf.reset()
         if not text:
             return True
