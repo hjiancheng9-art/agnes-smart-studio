@@ -1221,8 +1221,11 @@ class CruxCLI:
                 lines.append(f"质量评级: {quality} (score={score})")
                 if flags:
                     lines.append(f"问题标记: {', '.join(flags)}")
-                            if rec:
+                if rec:
                     lines.append(f"建议: {rec}")
+            rt_budget = data.get("retry_budget", {})
+            if rt_budget:
+                lines.append(f"重试预算: {rt_budget.get('used', 0)}/{rt_budget.get('max', '?')}")
             policy = data.get("policy_action", "")
             if policy:
                 p_reason = data.get("policy_reason", "")

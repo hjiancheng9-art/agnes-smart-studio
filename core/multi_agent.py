@@ -922,10 +922,15 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
         from core.run_summary import save_run
         from core.quality_gate import assess_quality
         from core.policy_gate import auto_recover
+        from core.retry_budget import auto_retry_decision, record_retry_attempt
         quality = assess_quality(result)
         result.update(quality)
         policy = auto_recover(result)
         result.update({"policy_action": policy["action"], "policy_reason": policy["reason"]})
+        retry = auto_retry_decision(result)
+        result.update({"retry_budget": retry.get("budget", {}), "retry_decision": retry.get("should_retry", False), "retry_reason": retry.get("reason", "")})
+        if retry.get("should_retry"):
+            record_retry_attempt(root_id, "scheduled", "pending")
         save_run(result)
     except Exception:
         pass

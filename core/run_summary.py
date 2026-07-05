@@ -40,6 +40,8 @@ class RunSummary:
     recommendation: str = ""
     policy_action: str = ""
     policy_reason: str = ""
+    retry_used: int = 0
+    retry_max: int = 3
     created_at: float = 0.0
 
     @classmethod
@@ -65,6 +67,8 @@ class RunSummary:
             recommendation=d.get("recommendation", ""),
             policy_action=d.get("policy_action", ""),
             policy_reason=d.get("policy_reason", ""),
+            retry_used=d.get("retry_budget", {}).get("used", 0) if isinstance(d.get("retry_budget"), dict) else 0,
+            retry_max=d.get("retry_budget", {}).get("max", 3) if isinstance(d.get("retry_budget"), dict) else 3,
         )
 
     def to_dict(self) -> dict:
