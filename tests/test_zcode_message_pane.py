@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
 from prompt_toolkit.layout import Window
 
-from ui.message_pane import MessagePane, _ScrollingWindow, _SCROLL_BOTTOM
+from ui.message_pane import _SCROLL_BOTTOM, MessagePane, _ScrollingWindow
 
 
 class TestMessagePaneInitialState:

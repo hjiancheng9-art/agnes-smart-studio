@@ -1,5 +1,4 @@
 """Placeholder — original disabled to prevent ZCode infinite pytest spawn."""
-import pytest
 
 
 def test_noop():

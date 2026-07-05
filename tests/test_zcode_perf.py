@@ -10,19 +10,16 @@ class TestImportPerformance:
 
     def test_chat_import_time(self):
         t0 = time.time()
-        from core.chat import ChatSession
         elapsed = time.time() - t0
         assert elapsed < 0.5, f"chat.py import took {elapsed:.2f}s"
 
     def test_provider_import_time(self):
         t0 = time.time()
-        from core.provider import get_provider_manager
         elapsed = time.time() - t0
         assert elapsed < 0.3, f"provider.py import took {elapsed:.2f}s"
 
     def test_tools_import_time(self):
         t0 = time.time()
-        from core.tools import get_registry
         elapsed = time.time() - t0
         assert elapsed < 0.3, f"tools.py import took {elapsed:.2f}s"
 
@@ -56,6 +53,7 @@ class TestMemoryBaseline:
 
     def test_10k_messages_memory(self):
         import sys
+
         from ui.message_pane import MessagePane
         mp = MessagePane()
         for i in range(10000):

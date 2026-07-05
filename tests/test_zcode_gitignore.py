@@ -1,7 +1,6 @@
 """Test .gitignore covers output/ runtime artifacts (Issue 5)."""
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parent.parent
 GITIGNORE = ROOT / ".gitignore"
 

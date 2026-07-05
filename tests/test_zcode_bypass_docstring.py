@@ -7,8 +7,6 @@ env var is explicitly set to 0/false/no/off.
 
 import ast
 import pathlib
-import sys
-
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BYPASS_FILE = ROOT / "core" / "prompt_bypass.py"

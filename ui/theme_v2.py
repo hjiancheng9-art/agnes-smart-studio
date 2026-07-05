@@ -6,36 +6,45 @@ richer visual hierarchy for the redesigned TUI layout.
 
 from prompt_toolkit.styles import Style
 
-# ── Base palette (from core/theme.py) ──────────────────────────
+# ── Catppuccin Mocha palette ───────────────────────────────────
 C = {
-    "bg": "#1a1a2e",
-    "surface": "#16213e",
-    "surface_alt": "#1f2b47",
-    "input_bg": "#0f1629",
-    "border": "#3a3a5c",
-    "border_active": "#6b5d3e",
-    "border_focus": "#d4a853",
-    "primary": "#e8e4dd",
-    "secondary": "#b8b4ad",
-    "muted": "#6b6560",
-    "dim": "#4a4640",
-    "accent": "#d4a853",       # gold / qilin
-    "accent2": "#7a9a6b",      # sage green / xuanwu
-    "accent3": "#5b8a9a",      # teal / info
-    "error": "#c4554a",
-    "warning": "#c4944a",
-    "success": "#7a9a6b",
-    "info": "#5b8a9a",
-    "user": "#8fb8d4",         # soft blue
-    "crux": "#d4a853",         # gold
-    # ── Seven Beasts ──
-    "baihu": "#e0e0e0",       # 白虎 — white/silver (recovery)
-    "qinglong": "#5ba3d4",    # 青龙 — azure blue (flow)
-    "zhuque": "#d45b5b",      # 朱雀 — vermilion red (watch)
-    "xuanwu": "#5b8a6b",      # 玄武 — dark green (defense)
-    "qilin": "#d4a853",       # 麒麟 — gold (memory)
-    "tengshe": "#9a6bd4",     # 螣蛇 — purple (knowledge)
-    "yinglong": "#d49a5b",    # 应龙 — amber (orchestration)
+    "bg": "#1E1E2E",
+    "surface": "#181825",
+    "surface_alt": "#1f1f2f",
+    "input_bg": "#11111B",
+    "border": "#313244",
+    "border_dim": "#45475A",
+    "border_active": "#89B4FA",
+    "border_focus": "#CBA6F7",
+    "primary": "#CDD6F4",
+    "secondary": "#BAC2DE",
+    "muted": "#7F849C",
+    "dim": "#585B70",
+    # ── Semantic accents ──
+    "accent": "#89B4FA",        # blue — commands
+    "accent2": "#A6E3A1",       # green — success
+    "accent3": "#94E2D5",       # teal — creative
+    "error": "#F38BA8",         # red — quit/error
+    "warning": "#FAB387",       # peach — warning
+    "success": "#A6E3A1",       # green
+    "info": "#89B4FA",          # blue
+    "user": "#89B4FA",          # blue
+    "crux": "#CBA6F7",          # lavender
+    # ── Four-primary system ──
+    "blue": "#89B4FA",
+    "purple": "#CBA6F7",
+    "green": "#A6E3A1",
+    "red": "#F38BA8",
+    "yellow": "#F9E2AF",
+    "teal": "#94E2D5",
+    # ── Legacy beast aliases (mapped to new palette) ──
+    "baihu": "#CDD6F4",
+    "qinglong": "#89B4FA",
+    "zhuque": "#F38BA8",
+    "xuanwu": "#A6E3A1",
+    "qilin": "#F9E2AF",
+    "tengshe": "#CBA6F7",
+    "yinglong": "#FAB387",
 }
 
 
@@ -47,10 +56,10 @@ def build_style_v2() -> Style:
             "": f"fg:{C['primary']} bg:{C['bg']}",
             # ── Header bar ──
             "header-bar": f"fg:{C['primary']} bg:{C['surface']}",
-            "header-logo": f"fg:{C['qilin']} bold bg:{C['surface']}",
-            "header-model": f"fg:{C['qinglong']} italic bg:{C['surface']}",
-            "header-latency": f"fg:{C['tengshe']} bg:{C['surface']}",
-            "header-sep": f"fg:{C['border_active']} bg:{C['surface']}",
+            "header-logo": f"fg:{C['yellow']} bold bg:{C['surface']}",
+            "header-model": f"fg:{C['blue']} italic bg:{C['surface']}",
+            "header-latency": f"fg:{C['purple']} bg:{C['surface']}",
+            "header-sep": f"fg:{C['border_dim']} bg:{C['surface']}",
             # ── Welcome screen ──
             "welcome-border": f"fg:{C['border']}",
             "welcome-title": f"fg:{C['qilin']} bold",
@@ -84,7 +93,7 @@ def build_style_v2() -> Style:
             "activity-info": f"fg:{C['muted']}",
             "activity-warn": f"fg:{C['warning']}",
             # ── Input area ──
-            "input-border": f"fg:{C['border']}",
+            "input-border": f"fg:{C['border']} bg:{C['bg']}",
             "input-border-active": f"fg:{C['border_focus']}",
             "input-field": f"fg:{C['primary']} bg:{C['input_bg']}",
             "input-prompt": f"fg:{C['qilin']} bold bg:{C['input_bg']}",
@@ -96,15 +105,26 @@ def build_style_v2() -> Style:
             "status-bar-path": f"fg:{C['muted']} bg:{C['surface']}",
             "status-bar-git": f"fg:{C['info']} bg:{C['surface']}",
             "status-bar-context": f"fg:{C['dim']} bg:{C['surface']}",
+
+        # ── Seven beast status bar badges ──
+            "status-bar-beast-baihu":    f"fg:{C['baihu']} bold bg:{C['surface']}",
+            "status-bar-beast-qinglong": f"fg:{C['qinglong']} bold bg:{C['surface']}",
+            "status-bar-beast-zhuque":   f"fg:{C['zhuque']} bold bg:{C['surface']}",
+            "status-bar-beast-xuanwu":   f"fg:{C['xuanwu']} bold bg:{C['surface']}",
+            "status-bar-beast-qilin":    f"fg:{C['qilin']} bold bg:{C['surface']}",
+            "status-bar-beast-tengshe":  f"fg:{C['tengshe']} bold bg:{C['surface']}",
+            "status-bar-beast-yinglong": f"fg:{C['yinglong']} bold bg:{C['surface']}",
             "status-bar-level-a": f"fg:{C['xuanwu']} bold bg:{C['surface']}",
             "status-bar-level-b": f"fg:{C['qinglong']} bold bg:{C['surface']}",
             "status-bar-level-c": f"fg:{C['yinglong']} bold bg:{C['surface']}",
             "status-bar-level-d": f"fg:{C['zhuque']} bold bg:{C['surface']}",
             "status-bar-bar-full": f"fg:{C['xuanwu']} bg:{C['surface']}",
             "status-bar-bar-empty": f"fg:{C['dim']} bg:{C['surface']}",
-            # ── Scrollbar ──
-            "scrollbar": f"fg:{C['border']} bg:{C['bg']}",
-            "scrollbar.arrow": f"fg:{C['muted']} bg:{C['bg']}",
+            # ── Scrollbar — hidden ──
+            "scrollbar": "",
+            "scrollbar.background": "",
+            "scrollbar.button": "",
+            "scrollbar.arrow": "",
             # ── Completions ──
             "completion-menu": f"bg:{C['surface']} fg:{C['primary']}",
             "completion-menu.completion": f"bg:{C['surface_alt']} fg:{C['secondary']}",

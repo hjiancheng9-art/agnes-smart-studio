@@ -1,8 +1,8 @@
 """RED: pyproject.toml must include requests in project.dependencies."""
 
 import pathlib
-import tomllib  # Python 3.11+
 
+import tomllib  # Python 3.11+
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
 PYPROJECT = PROJECT_ROOT / "pyproject.toml"

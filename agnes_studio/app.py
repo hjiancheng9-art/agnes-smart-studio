@@ -3,18 +3,19 @@ Agnes 多模态工作室 — Flask 后端
 提供图片生成 / 视频生成 / 视频查询 API
 """
 
-import os
-import json
 import logging
+import os
 from pathlib import Path
 
-from flask import Flask, render_template, request, jsonify, send_from_directory
-from flask_cors import CORS
-
 from agnes_client import (
-    AgnesClient, AgnesConfig, VideoModel,
-    IMAGE_SIZE_PRESETS, VIDEO_RESOLUTION_PRESETS, VIDEO_DURATION_PRESETS,
+    IMAGE_SIZE_PRESETS,
+    VIDEO_DURATION_PRESETS,
+    VIDEO_RESOLUTION_PRESETS,
+    AgnesClient,
+    AgnesConfig,
 )
+from flask import Flask, jsonify, render_template, request, send_from_directory
+from flask_cors import CORS
 
 BASE_DIR = Path(__file__).parent
 OUTPUT_DIR = BASE_DIR / "output"
@@ -174,7 +175,7 @@ def _format_response(result: dict, kind: str) -> dict:
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5100))
-    print(f"\n  🔥 Agnes 多模态工作室 v2.0")
+    print("\n  🔥 Agnes 多模态工作室 v2.0")
     print(f"  📍 http://127.0.0.1:{port}")
     print(f"  🔑 API Key: {'已配置' if os.environ.get('AGNES_API_KEY') else '未配置'}")
     print()

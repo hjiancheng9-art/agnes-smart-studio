@@ -3,13 +3,7 @@
 Tests: ToolStats, IntentStats, GrowthEngine, singleton, TRM hook.
 """
 
-import json
-import time
-from pathlib import Path
 from unittest import mock
-
-import pytest
-
 
 # ---------------------------------------------------------------------------
 # ToolStats dataclass
@@ -193,7 +187,7 @@ class TestGrowthEngine:
         assert ts.consecutive_failures == 3
 
     def test_auto_demotion_after_consecutive_failures(self):
-        from core.growth_engine import GrowthEngine, CONSECUTIVE_FAIL_THRESHOLD
+        from core.growth_engine import CONSECUTIVE_FAIL_THRESHOLD, GrowthEngine
         ge = GrowthEngine()
         ge.reset()
         tool = "failing_tool"
@@ -275,7 +269,7 @@ class TestGrowthEngine:
         assert len(suggestions) > 0
 
     def test_save_and_load_roundtrip(self, tmp_path):
-        from core.growth_engine import GrowthEngine, STATS_FILE
+        from core.growth_engine import GrowthEngine
         ge = GrowthEngine()
         ge.reset()
         # Override STATS_FILE to use tmp
@@ -303,7 +297,7 @@ class TestGrowthEngineSingleton:
         assert g1 is g2
 
     def test_returns_growth_engine_instance(self):
-        from core.growth_engine import get_growth_engine, GrowthEngine
+        from core.growth_engine import GrowthEngine, get_growth_engine
         ge = get_growth_engine()
         assert isinstance(ge, GrowthEngine)
 
@@ -316,7 +310,7 @@ class TestTRMHook:
         assert callable(hook_trm_route)
 
     def test_delegates_to_record(self):
-        from core.growth_engine import hook_trm_route, get_growth_engine
+        from core.growth_engine import get_growth_engine, hook_trm_route
         ge = get_growth_engine()
         ts = hook_trm_route("search", "tool_x", success=True, latency_ms=30)
         assert ts.tool == "tool_x"

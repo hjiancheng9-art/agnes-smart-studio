@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
-from ui.display import _view_image, _tool_search, _update_plan
+from ui.display import _tool_search, _update_plan, _view_image
 
 
 class TestViewImage:

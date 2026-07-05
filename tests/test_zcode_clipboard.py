@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
-from ui.clipboard_image import is_image_path, detect_drag_images
+from ui.clipboard_image import detect_drag_images, is_image_path
 
 
 class TestIsImagePath:

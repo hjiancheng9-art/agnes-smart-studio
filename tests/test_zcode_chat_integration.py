@@ -8,9 +8,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-
 # ── Helpers ──────────────────────────────────────────────────
 
 def _make_mock_client(stream_chunks=None, model="deepseek-v4-flash"):
@@ -207,7 +204,8 @@ class TestSendStreamFallbackIntegration:
     """Integration test: fallback chain actually switches clients on failure."""
 
     def test_fallback_triggers_on_stream_error(self):
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import MagicMock
+
         from core.chat import ChatSession
 
         client1 = MagicMock()
@@ -239,7 +237,8 @@ class TestSendStreamFallbackIntegration:
         assert "Hello from fallback" in "".join(texts)
 
     def test_all_clients_fail_yields_error(self):
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import MagicMock
+
         from core.chat import ChatSession
 
         client1 = MagicMock()
@@ -267,7 +266,7 @@ class TestSendStreamPipeline:
     """End-to-end: tool call → execution → response."""
 
     def test_tool_merge_dedup_pipeline(self):
-        from core.chat_tool_helpers import merge_tool_calls, sanitize_tool_call_history
+        from core.chat_tool_helpers import merge_tool_calls
         # Simulate: model emits 2 tool calls, one is duplicate
         fragments = [
             {"index": 0, "id": "call_1", "function": {"name": "search", "arguments": '{"q":"test"}'}},

@@ -5,18 +5,17 @@ from pathlib import Path
 from launcher import (
     BEAST_ICONS,
     BEASTS,
-    BeastConfig,
-    HealthResult,
-    MeshLauncher,
     PID_FILE,
-    ProcessManager,
     PYTHON,
     ROOT,
     STATUS_COLORS,
     STATUS_GLYPHS,
+    BeastConfig,
+    HealthResult,
+    MeshLauncher,
+    ProcessManager,
     print_ascii_dashboard,
 )
-
 
 # ── BeastConfig ──────────────────────────────────────────────────────────────
 

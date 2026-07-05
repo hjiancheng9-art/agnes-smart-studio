@@ -3,12 +3,7 @@
 TRM: Tool Registry Mesh — categories, discovery, routing, caching, singletons.
 """
 
-import json
-import time
 from unittest import mock
-
-import pytest
-
 
 # ---------------------------------------------------------------------------
 # Module-level constants
@@ -122,7 +117,7 @@ class TestToolRegistryMeshInit:
         assert trm._discovered is False
 
     def test_register_crux_builtins_on_discover(self):
-        from core.tool_registry_mesh import ToolRegistryMesh, CRUX_BUILTIN_TOOLS
+        from core.tool_registry_mesh import CRUX_BUILTIN_TOOLS, ToolRegistryMesh
 
         trm = ToolRegistryMesh()
         # Don't actually spawn bridges in test
@@ -131,8 +126,8 @@ class TestToolRegistryMeshInit:
             assert count >= len(CRUX_BUILTIN_TOOLS)
 
     def test_discover_all_sets_flag(self):
-        from core.tool_registry_mesh import ToolRegistryMesh
         from core.tool_registry_mesh import CRUX_BUILTIN_TOOLS as BUILTINS
+        from core.tool_registry_mesh import ToolRegistryMesh
 
         trm = ToolRegistryMesh()
         with mock.patch.object(trm, "_discover_bridge", return_value=[]):
@@ -141,7 +136,7 @@ class TestToolRegistryMeshInit:
             assert trm.tool_count >= len(BUILTINS)
 
     def test_register_prevents_duplicates(self):
-        from core.tool_registry_mesh import ToolRegistryMesh, ToolEntry
+        from core.tool_registry_mesh import ToolEntry, ToolRegistryMesh
 
         trm = ToolRegistryMesh()
         entry1 = ToolEntry(name="dup_tool", description="first", source="crux", category="search")
@@ -151,7 +146,7 @@ class TestToolRegistryMeshInit:
         assert trm._tools["dup_tool"].description == "first"
 
     def test_find_all(self):
-        from core.tool_registry_mesh import ToolRegistryMesh, ToolEntry
+        from core.tool_registry_mesh import ToolEntry, ToolRegistryMesh
 
         trm = ToolRegistryMesh()
         trm._register(ToolEntry(name="t1", description="", source="crux", category="search"))
@@ -160,7 +155,7 @@ class TestToolRegistryMeshInit:
         assert len(trm.find()) == 2
 
     def test_find_by_category(self):
-        from core.tool_registry_mesh import ToolRegistryMesh, ToolEntry
+        from core.tool_registry_mesh import ToolEntry, ToolRegistryMesh
 
         trm = ToolRegistryMesh()
         trm._register(ToolEntry(name="search_tool", description="", source="crux", category="search"))
@@ -171,7 +166,7 @@ class TestToolRegistryMeshInit:
         assert results[0].name == "search_tool"
 
     def test_find_by_source(self):
-        from core.tool_registry_mesh import ToolRegistryMesh, ToolEntry
+        from core.tool_registry_mesh import ToolEntry, ToolRegistryMesh
 
         trm = ToolRegistryMesh()
         trm._register(ToolEntry(name="t1", description="", source="crux", category="search"))
@@ -182,7 +177,7 @@ class TestToolRegistryMeshInit:
         assert results[0].name == "t2"
 
     def test_get_existing(self):
-        from core.tool_registry_mesh import ToolRegistryMesh, ToolEntry
+        from core.tool_registry_mesh import ToolEntry, ToolRegistryMesh
 
         trm = ToolRegistryMesh()
         trm._register(ToolEntry(name="known", description="", source="crux", category="search"))
@@ -190,7 +185,7 @@ class TestToolRegistryMeshInit:
         assert trm.get("unknown") is None
 
     def test_categories_property(self):
-        from core.tool_registry_mesh import ToolRegistryMesh, ToolEntry
+        from core.tool_registry_mesh import ToolEntry, ToolRegistryMesh
 
         trm = ToolRegistryMesh()
         trm._register(ToolEntry(name="t1", description="", source="crux", category="search"))
@@ -202,7 +197,7 @@ class TestToolRegistryMeshInit:
         assert cats["execute"] == 1
 
     def test_sources_property(self):
-        from core.tool_registry_mesh import ToolRegistryMesh, ToolEntry
+        from core.tool_registry_mesh import ToolEntry, ToolRegistryMesh
 
         trm = ToolRegistryMesh()
         trm._register(ToolEntry(name="t1", description="", source="crux", category="search"))
@@ -419,7 +414,7 @@ class TestTRMSingleton:
         assert trm1 is trm2
 
     def test_get_trm_returns_ToolRegistryMesh(self):
-        from core.tool_registry_mesh import get_trm, ToolRegistryMesh
+        from core.tool_registry_mesh import ToolRegistryMesh, get_trm
 
         trm = get_trm()
         assert isinstance(trm, ToolRegistryMesh)
@@ -434,10 +429,10 @@ class TestReadLine:
     """Subprocess line reading."""
 
     def test_read_line_timeout(self):
-        from core.tool_registry_mesh import ToolRegistryMesh
         import subprocess
         import sys
-        import time
+
+        from core.tool_registry_mesh import ToolRegistryMesh
 
         # Launch a Python that sleeps then prints
         proc = subprocess.Popen(

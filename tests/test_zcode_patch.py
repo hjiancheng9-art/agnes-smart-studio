@@ -3,12 +3,9 @@
 Tests: PatchEngine, apply, rollback_last, PatchError.
 """
 
-import os
-from pathlib import Path
 from unittest import mock
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # PatchEngine construction
@@ -19,7 +16,7 @@ class TestPatchEngineConstruction:
     """PatchEngine initialization."""
 
     def test_default_root(self):
-        from core.patch import PatchEngine, ROOT
+        from core.patch import ROOT, PatchEngine
         pe = PatchEngine()
         assert pe.root == ROOT
 
@@ -301,9 +298,9 @@ class TestRollbackLast:
         assert callable(rollback_last)
 
     def test_nothing_to_undo_when_empty(self):
-        from core.patch import rollback_last
         # Simulate empty state
         import core.patch as p
+        from core.patch import rollback_last
         with mock.patch.object(p, "_LAST_BACKUPS", {}), mock.patch.object(p, "_LAST_ADDED", set()):
             result = rollback_last()
             assert result["success"] is False

@@ -22,9 +22,11 @@ import logging
 import os
 import shutil
 import sys
+import sys as _sys
 import threading
 import time
 import traceback
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -37,6 +39,8 @@ from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout import HSplit, Layout, Window
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.processors import BeforeInput
+from prompt_toolkit.output import create_output
+from prompt_toolkit.output.vt100 import Vt100_Output
 
 # ── Static imports (avoid per-frame re-import) ──
 from core.version import __version__ as _CRUX_VERSION
@@ -109,6 +113,9 @@ class TuiAppV2:
 
         # ── Spinner ──
         self._spinner = Spinner(on_tick=self._on_spinner_tick)
+
+        # ── Animation timer (independent of spinner, always running) ──
+        self._anim_running = False
 
         # ── Welcome screen ──
         self._setup_welcome()
@@ -263,17 +270,37 @@ class TuiAppV2:
 
     def _make_app(self) -> Application:
         # ── Header Bar ──
+        # Design: beast mascot (2s rotation) + brand | separator | model + heartbeat + clock
+        _BEASTS = [
+            ("class:status-bar-beast-baihu",    "🐅"),
+            ("class:status-bar-beast-qinglong", "🐉"),
+            ("class:status-bar-beast-zhuque",   "🦅"),
+            ("class:status-bar-beast-xuanwu",   "🐢"),
+            ("class:status-bar-beast-qilin",    "🦄"),
+            ("class:status-bar-beast-tengshe",  "🐍"),
+            ("class:status-bar-beast-yinglong", "🐲"),
+        ]
+        _PULSE_DOTS = ["◎", "◉", "○", "◉"]
+
         def _header_content():
             tw = _tw()
-            left = f" ◈ CRUX Studio v{_CRUX_VERSION}"
+            bstyle, bicon = _BEASTS[int(time.time() / 2.0) % 7]
+            pulse = _PULSE_DOTS[int(time.time() * 2.5) % 4]
             model = self.session.model or "CRUX"
-            right = f"{model}  ⚡ ttft:{self._latency:.1f}s " if self._latency is not None else f"{model}  ⚡ ready "
-            # Pad between left logo and right model+latency
-            pad = max(1, tw - len(left) - len(right))
+            now = datetime.now().strftime("%H:%M")
+
+            # Emoji is 2 cells wide, pulse dot is 2 cells wide
+            left_vis = 2 + 2 + len(f"CRUX Studio v{_CRUX_VERSION}")   # emoji(2) + spaces(2) + brand
+            right_vis = 1 + len(model) + 1 + 2 + 1 + 5                 # space + model + space + pulse(2) + space + HH:MM
+            pad = max(1, tw - left_vis - right_vis)
+
             pieces: list[tuple[str, str]] = [
-                ("class:header-logo", left),
+                (bstyle, f" {bicon} "),
+                ("class:header-logo", f"CRUX Studio v{_CRUX_VERSION}"),
                 ("class:header-sep", "─" * pad),
-                ("class:header-latency", right),
+                ("class:header-model", f" {model} "),
+                ("class:header-latency", pulse),
+                ("class:status-bar-context", f" {now}"),
             ]
             return FormattedText(pieces)
 
@@ -426,12 +453,20 @@ class TuiAppV2:
             status_window,                # Status (1)
         ])
 
+        # On Windows with a Unix-like terminal (Git Bash, etc.), create_output()
+        # defaults to Win32Output which fails. Force Vt100_Output instead.
+        if _sys.platform == 'win32' and 'TERM' in os.environ:
+            output = Vt100_Output.from_pty(_sys.stdout, term=os.environ.get('TERM'))
+        else:
+            output = create_output()
+
         return Application(
             layout=Layout(root),
             key_bindings=self.kb,
             style=build_style_v2(),
             full_screen=True,
             mouse_support=True,
+            output=output,
         )
 
     # ══════════════════════════════════════════════════════════════
@@ -441,20 +476,21 @@ class TuiAppV2:
     def _build_status(self) -> FormattedText:
         tw = _tw()
 
-        # Left: model
-        model_str = self.session.model or "CRUX"
-        model_display = f" {model_str}"
+        # ── Status: dot + model + cwd + git | context bar + latency ──
+        # Status dot color: green=idle, yellow=thinking
+        if self._thinking:
+            status_dot = ("class:status-bar-beast-qilin", "◉")
+        else:
+            status_dot = ("class:status-bar-beast-xuanwu", "●")
 
-        # Middle-left: CWD
+        model_str = self.session.model or "CRUX"
         cwd_str = str(Path.cwd())
         home = os.path.expanduser("~")
         if cwd_str.startswith(home):
             cwd_str = "~" + cwd_str[len(home):]
-
-        # Middle: git branch + diff (cached; refreshed on status update)
         git_str = self._cached_git
 
-        # Right: methodology level + context bar
+        # Right section: methodology + context + latency
         right_parts: list[tuple[str, str]] = []
         if _get_methodology_state is not None:
             try:
@@ -466,33 +502,32 @@ class TuiAppV2:
                                  "C": "class:status-bar-level-c", "D": "class:status-bar-level-d"}
                     right_parts.append((style_map.get(level, "class:status-bar"), f"[{level}]"))
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                pass
 
-        # Context bar (cached)
-        bar = context_bar(self._cached_ctx_pct, width=10)
-        right_parts.append(("class:status-bar-context", f" ctx:{bar} {self._cached_ctx_pct:.0f}%"))
+        bar = context_bar(self._cached_ctx_pct, width=8)
+        right_parts.append(("class:status-bar-context", f" {bar} {self._cached_ctx_pct:.0f}%"))
 
-        # Latency
         if self._latency is not None:
-            right_parts.append(("class:status-bar-context", f" ttft:{self._latency:.1f}s"))
+            right_parts.append(("class:status-bar-context", f" ⚡{self._latency:.1f}s"))
 
         # Assemble
+        sd_style, sd_char = status_dot
         pieces: list[tuple[str, str]] = [
-            ("class:status-bar-model", model_display),
+            (sd_style, f" {sd_char} "),
+            ("class:status-bar-model", model_str),
             ("class:status-bar-path", f"  {cwd_str}"),
         ]
         if git_str:
             pieces.append(("class:status-bar-git", git_str))
 
-        # Calculate padding
-        visible_len = len(model_display) + 2 + len(cwd_str) + len(git_str)
+        # Padding
+        left_visible = 3 + len(model_str) + 2 + len(cwd_str) + len(git_str)
         right_text = " ".join(t for _, t in right_parts)
-        visible_len += len(right_text) + 2
-        pad = max(1, tw - visible_len)
+        pad = max(2, tw - left_visible - len(right_text) - 2)
         pieces.append(("class:status-bar", " " * pad))
 
         for style, text in right_parts:
-            pieces.append((style, f" {text}"))
+            pieces.append((style, text))
 
         return FormattedText(pieces)
 
@@ -747,11 +782,25 @@ class TuiAppV2:
             self._cached_git = ""
 
     def run(self):
+        # Populate initial git/latency/context data before first render
+        self._refresh_status()
+        # Start a lightweight animation timer (~10 fps) for beast icon rotation
+        # and live model-name updates. Independent of the activity spinner.
+        self._anim_running = True
+        def _anim_loop():
+            while self._anim_running:
+                time.sleep(0.1)
+                if self._app and self._app.is_running:
+                    with contextlib.suppress(Exception):
+                        self._app.invalidate()
+        threading.Thread(target=_anim_loop, daemon=True).start()
+
         try:
             self._app.run()
         except Exception as e:
             print(f"TUI error: {e}", file=sys.stderr)
             traceback.print_exc()
         finally:
+            self._anim_running = False
             self._spinner.stop()
             self._executor.shutdown(wait=False)

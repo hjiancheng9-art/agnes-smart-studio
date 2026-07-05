@@ -4,8 +4,6 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
-
 # Ensure project root is on sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -35,7 +33,7 @@ class TestModelsConfig:
         """models.json providers.zhipu.api_key should be empty string."""
         models_path = PROJECT_ROOT / "models.json"
         assert models_path.exists(), "models.json should exist"
-        with open(models_path, "r", encoding="utf-8") as f:
+        with open(models_path, encoding="utf-8") as f:
             data = json.load(f)
         providers = data.get("providers", {})
         assert "zhipu" in providers, "zhipu provider should exist in models.json"

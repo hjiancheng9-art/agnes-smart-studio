@@ -192,7 +192,7 @@ def _run_startup_health() -> None:
     logger = logging.getLogger("crux.bootstrap")
     try:
         # 1. 确保 MCP 配置文件存在（首次启动时写入默认 4 桥接）
-        from core.mcp_client import ensure_mcp_servers, _mcp_client
+        from core.mcp_client import _mcp_client, ensure_mcp_servers
 
         ensure_mcp_servers()
 
@@ -264,7 +264,7 @@ def _chat_tui():
 
     cli = CruxCLI(session)
 
-    # ── Startup banner ──
+    # ── Startup banner (minimal, TUI handles the welcome screen) ──
     import shutil
 
     from core.provider import get_provider_manager
@@ -273,28 +273,16 @@ def _chat_tui():
     mgr = get_provider_manager()
     model_name = mgr.get_model("light") or session.model
 
-    # Rich splash screen (printed before TUI takes over terminal)
-    try:
-        from ui.terminal_splash import print_splash
-        _provider = mgr.active_provider or "unknown"
-        _model = model_name or "unknown"
-        print_splash([
-            ("provider", _provider, "accent", ""),
-            ("model", _model, "cyan", ""),
-        ])
-    except Exception:
-        # fallback: minimal banner
-        print(f"\n  ◆ CRUX Studio v{__version__}  —  {model_name}\n")
-
-    # Short welcome for TUI message pane
-    TARGET_BOX_W = 44  # display width of box borders
+    # Banner text for TUI message pane (not printed to terminal —
+    # the TUI welcome screen in build_welcome_formatted handles UI)
+    TARGET_BOX_W = 44
     n_eq = (TARGET_BOX_W - 6) // 2
     banner = (
         f"  ╔══ CRUX Studio v{__version__} · 七兽同体 ══╗\n"
         f"  ║  白虎·自愈  青龙·并行  朱雀·洞察  ║\n"
         f"  ║  玄武·守卫  麒麟·创造  螣蛇·传承  ║\n"
         f"  ║  应龙·号令  ◆  七兽同体·万象共生  ║\n"
-        f"  ╚{'═'*n_eq}╝\n"
+        f"  ╚{'═' * n_eq}╝\n"
         f"\n"
         f"  ◈ {model_name} · 主人: 黄建程\n"
         f"  ◈ 根因优先 → 最小复现 → 一次修对\n"
@@ -310,6 +298,55 @@ def _chat_tui():
         _chat_plain_session(session, cli, wire, session_id)
         return
 
+    # ── Hide Windows console scrollbar (native, not ptk) ──
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            kernel32 = ctypes.windll.kernel32
+            handle = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
+
+            class _COORD(ctypes.Structure):
+                _fields_ = [("X", ctypes.c_short), ("Y", ctypes.c_short)]
+
+            class _SMALL_RECT(ctypes.Structure):
+                _fields_ = [
+                    ("Left", ctypes.c_short),
+                    ("Top", ctypes.c_short),
+                    ("Right", ctypes.c_short),
+                    ("Bottom", ctypes.c_short),
+                ]
+
+            class _CSBI(ctypes.Structure):
+                _fields_ = [
+                    ("dwSize", _COORD),
+                    ("dwCursorPosition", _COORD),
+                    ("wAttributes", ctypes.c_ushort),
+                    ("srWindow", _SMALL_RECT),
+                    ("dwMaximumWindowSize", _COORD),
+                ]
+
+            csbi = _CSBI()
+            if kernel32.GetConsoleScreenBufferInfo(handle, ctypes.byref(csbi)):
+                cols = csbi.srWindow.Right - csbi.srWindow.Left + 1
+                rows = csbi.srWindow.Bottom - csbi.srWindow.Top + 1
+                if cols < csbi.dwSize.X or rows < csbi.dwSize.Y:
+                    kernel32.SetConsoleScreenBufferSize(handle, _COORD(cols, rows))
+        except Exception:
+            pass
+
+    # ── Clear terminal background before TUI takes over ──
+    # Ensures no default terminal bg bleeds through on the right edge.
+    if sys.stdout.isatty():
+        try:
+            sys.stdout.write("\033[48;2;30;30;46m")  # bg = #1E1E2E
+            sys.stdout.write("\033[2J")  # clear entire screen
+            sys.stdout.flush()
+        except Exception:
+            import logging
+
+            logging.getLogger("crux").debug("terminal bg color set failed (non-critical)", exc_info=True)
+
     # ── Launch TUI (v2: Seven Beasts Command Center) ──
     try:
         from ui.tui_v2 import TuiAppV2
@@ -321,8 +358,15 @@ def _chat_tui():
         print("回退到纯文本模式。")
         _chat_plain_session(session, cli, wire, session_id)
     except Exception as e:
-        print(f"TUI 启动失败: {e}", file=sys.stderr)
-        print("回退到纯文本模式。")
+        msg = str(e)
+        if any(kw in msg for kw in ("NoConsoleScreenBufferError", "winpty", "xterm", "expecting a Windows console")):
+            print("此终端不支持全屏 TUI。请使用 Windows Terminal 或 cmd.exe 启动。")
+        else:
+            import traceback
+
+            traceback.print_exc()
+            print(f"\nTUI 启动失败: {e}", file=sys.stderr)
+        print("回退到纯文本模式...")
         _chat_plain_session(session, cli, wire, session_id)
 
     # ── Cleanup ──
@@ -872,4 +916,22 @@ def main_query():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as _e:
+        import datetime
+        import traceback
+
+        crash_log = Path(__file__).parent / "output" / "crash.log"
+        crash_log.parent.mkdir(parents=True, exist_ok=True)
+        with open(crash_log, "a", encoding="utf-8") as _f:
+            _f.write(f"\n{'=' * 60}\n")
+            _f.write(f"CRASH: {datetime.datetime.now()}\n")
+            _f.write(f"Error: {type(_e).__name__}: {_e}\n")
+            traceback.print_exc(file=_f)
+        print(f"\nFATAL: {_e}", file=sys.stderr)
+        print(f"Crash log saved to: {crash_log}", file=sys.stderr)
+        import time
+
+        time.sleep(3)
+        sys.exit(1)

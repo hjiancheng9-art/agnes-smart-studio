@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
 def test_provider_import():
-    from core.provider import get_provider_manager, MODEL_REGISTRY, reset_provider_manager
+    from core.provider import MODEL_REGISTRY, get_provider_manager, reset_provider_manager
     reset_provider_manager()  # 隔离：清除前面测试可能的污染
     mgr = get_provider_manager()
     assert mgr.active_provider in ("deepseek", "crux"), f"unexpected active provider: {mgr.active_provider}"
@@ -36,12 +36,12 @@ def test_audit():
 
 
 def test_lsp_available():
-    from core.lsp import get_lsp_client, LSPClient
+    from core.lsp import LSPClient, get_lsp_client
     client = get_lsp_client()
     assert isinstance(client, LSPClient)
 
 
 def test_pytest_runner():
-    from core.pytest_runner import run_pytest_safe, parse_test_summary
+    from core.pytest_runner import parse_test_summary
     p, f = parse_test_summary("3 passed in 0.10s")
     assert p == 3 and f == 0

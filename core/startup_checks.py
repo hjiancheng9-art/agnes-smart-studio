@@ -45,7 +45,7 @@ def _add(category: str, ok: bool, msg: str):
 def _check_dna_identity():
     """Verify CRUX DNA identity is intact in prompt templates."""
     try:
-        from core.chat_prompt import CHAT_SYSTEM_PROMPT, CODE_SYSTEM_PROMPT, _BASE_INJECTIONS
+        from core.chat_prompt import _BASE_INJECTIONS, CHAT_SYSTEM_PROMPT, CODE_SYSTEM_PROMPT
         if "CRUX Studio" not in CHAT_SYSTEM_PROMPT:
             _add("dna", False, "CHAT_SYSTEM_PROMPT lost CRUX identity")
             return

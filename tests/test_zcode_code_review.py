@@ -6,8 +6,6 @@ Tests CodeReviewer, SecurityReviewer, ReviewIssue, ReviewReport, and main entry 
 import sys
 from pathlib import Path
 
-import pytest
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -169,6 +167,7 @@ class TestExecFunctionsImportable:
 
     def test_exec_code_review_returns_json_string(self):
         import json
+
         from core.code_review import _exec_code_review
         result = _exec_code_review(files=["nonexistent.py"])
         assert isinstance(result, str)
@@ -177,6 +176,7 @@ class TestExecFunctionsImportable:
 
     def test_exec_security_review_returns_json_string(self):
         import json
+
         from core.code_review import _exec_security_review
         result = _exec_security_review(files=["nonexistent.py"])
         assert isinstance(result, str)

@@ -460,8 +460,8 @@ class TestLevenshtein:
 
 class TestToolsAllExports:
     def test_all_exports_importable(self):
-        from core.tools import __all__ as exports
         import core.tools as mod
+        from core.tools import __all__ as exports
         missing = []
         for name in exports:
             if not hasattr(mod, name):

@@ -5,10 +5,6 @@ cached_explore, singleton.
 """
 
 import time
-from unittest import mock
-
-import pytest
-
 
 # ---------------------------------------------------------------------------
 # AgentCache construction
@@ -63,7 +59,7 @@ class TestDecompositionCache:
         assert ac.get_decomposition("goal", "implement") == ["b"]
 
     def test_decomposition_ttl_expiry(self, monkeypatch):
-        from core.agent_cache import AgentCache, DECOMP_TTL
+        from core.agent_cache import DECOMP_TTL, AgentCache
         ac = AgentCache()
         ac.set_decomposition("goal", "explore", ["val"])
 
@@ -73,7 +69,7 @@ class TestDecompositionCache:
         assert ac.get_decomposition("goal", "explore") is None
 
     def test_lru_eviction(self):
-        from core.agent_cache import AgentCache, MAX_DECOMPOSITIONS
+        from core.agent_cache import MAX_DECOMPOSITIONS, AgentCache
         ac = AgentCache()
         # Fill beyond max
         for i in range(MAX_DECOMPOSITIONS + 5):
@@ -114,7 +110,7 @@ class TestExplorationCache:
         assert ac.get_exploration("**/*.py", "tests") == ["test_a.py"]
 
     def test_exploration_ttl_expiry(self, monkeypatch):
-        from core.agent_cache import AgentCache, EXPLORE_TTL
+        from core.agent_cache import EXPLORE_TTL, AgentCache
         ac = AgentCache()
         ac.set_exploration("query", "dir", ["result"])
         future = time.time() + EXPLORE_TTL + 5
@@ -122,7 +118,7 @@ class TestExplorationCache:
         assert ac.get_exploration("query", "dir") is None
 
     def test_lru_eviction(self):
-        from core.agent_cache import AgentCache, MAX_EXPLORATIONS
+        from core.agent_cache import MAX_EXPLORATIONS, AgentCache
         ac = AgentCache()
         for i in range(MAX_EXPLORATIONS + 5):
             ac.set_exploration(f"query_{i}", "dir", [i])
@@ -187,7 +183,7 @@ class TestAgentCacheSingleton:
         assert c1 is c2
 
     def test_returns_agent_cache_instance(self):
-        from core.agent_cache import get_cache, AgentCache
+        from core.agent_cache import AgentCache, get_cache
         c = get_cache()
         assert isinstance(c, AgentCache)
 

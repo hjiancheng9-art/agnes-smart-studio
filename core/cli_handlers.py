@@ -176,7 +176,7 @@ class CruxCLI:
     def _inline_tools(self, args: str) -> None:
         """Display registered tools."""
         registry = self.session.tools
-        tool_names = registry.list_names() if hasattr(registry, 'list_names') else []
+        tool_names = registry.list_names() if hasattr(registry, "list_names") else []
         if tool_names:
             print(f"\n  已注册工具 ({len(tool_names)} 个):")
             for name in sorted(tool_names):
@@ -190,7 +190,9 @@ class CruxCLI:
         s = self.session
         print("\n  ◆ CRUX Studio v5.0  状态面板")
         print(f"  模型:{s.model}  代码:{'✓' if s.code_mode else '✗'}  智能体:{'✓' if s.agent_mode else '✗'}")
-        print(f"  技能:{s.active_skill or '无'}  工具:{len(s.tools.tool_names) if hasattr(s.tools,'tool_names') else '?'}")
+        print(
+            f"  技能:{s.active_skill or '无'}  工具:{len(s.tools.tool_names) if hasattr(s.tools, 'tool_names') else '?'}"
+        )
         print()
 
     def _inline_clear(self, args: str) -> None:
@@ -211,14 +213,14 @@ class CruxCLI:
         sub_args = parts[1] if len(parts) > 1 else ""
 
         if sub == "list":
-            skills = self.session.skills.list_available() if hasattr(self.session.skills, 'list_available') else []
+            skills = self.session.skills.list_available() if hasattr(self.session.skills, "list_available") else []
             if skills:
                 print(f"\n  可用技能包 ({len(skills)} 个):")
                 for s in skills:
                     print(f"    - {s}")
             else:
                 self.session.skills.discover()
-                skills = self.session.skills.list_available() if hasattr(self.session.skills, 'list_available') else []
+                skills = self.session.skills.list_available() if hasattr(self.session.skills, "list_available") else []
                 if skills:
                     print(f"\n  可用技能包 ({len(skills)} 个):")
                     for s in skills:
@@ -256,9 +258,7 @@ class CruxCLI:
         print(f"  🎬 Showrunner 启动: {args.strip()}")
         print("  (通过 AI chat 执行全自动视频流水线)")
         # Forward to session as a natural language instruction
-        for kind, payload in self.session.send_stream(
-            f"使用 Showrunner 全自动视频流水线完成任务: {args.strip()}"
-        ):
+        for kind, payload in self.session.send_stream(f"使用 Showrunner 全自动视频流水线完成任务: {args.strip()}"):
             if kind == "text":
                 sys.stdout.write(str(payload))
                 sys.stdout.flush()
@@ -276,6 +276,7 @@ class CruxCLI:
             print("  正在查询 ComfyUI 工作流...")
             try:
                 from core.comfyui_client import ComfyUIClient  # pyright: ignore[reportMissingImports]
+
                 client = ComfyUIClient()
                 workflows = client.list_workflows()
                 if workflows:
@@ -291,6 +292,7 @@ class CruxCLI:
         elif sub == "status":
             try:
                 from core.comfyui_client import ComfyUIClient  # pyright: ignore[reportMissingImports]
+
                 client = ComfyUIClient()
                 status = client.get_status()
                 print(f"  ComfyUI 状态: {status}")
@@ -380,9 +382,7 @@ class CruxCLI:
         image_path = parts[0]
         question = parts[1] if len(parts) > 1 else "描述这张图片"
         print(f"  视觉理解: {image_path}")
-        for kind, payload in self.session.send_stream(
-            f"[图片: {image_path}] {question}", image_url=image_path
-        ):
+        for kind, payload in self.session.send_stream(f"[图片: {image_path}] {question}", image_url=image_path):
             if kind == "text":
                 sys.stdout.write(str(payload))
                 sys.stdout.flush()
@@ -417,6 +417,7 @@ class CruxCLI:
         print(f"  🤖 启动子智能体: {args.strip()}")
         try:
             from core.agent import SubAgent
+
             agent = SubAgent(task=args.strip())  # pyright: ignore[reportCallIssue] — CLI convenience wrapper
             result = agent.run()  # pyright: ignore[reportCallIssue]
             print(f"\n  子智能体完成: {str(result)[:500]}")
@@ -430,6 +431,7 @@ class CruxCLI:
         print("  正在压缩对话历史...")
         try:
             from core.agent import ContextManager
+
             ctx = ContextManager()
             summary = ctx.compress(self.session.messages)  # pyright: ignore[reportCallIssue] — ContextManager API
             if summary:
@@ -462,13 +464,17 @@ class CruxCLI:
     def _chat_todo(self, args: str) -> None:
         """Scan project for TODO/FIXME/HACK."""
         import os
+
         target = args.strip() or "."
         print(f"  扫描 {target} 中的 TODO/FIXME/HACK...")
         try:
             import subprocess
+
             result = subprocess.run(
                 ["grep", "-rn", "-E", r"(TODO|FIXME|HACK|XXX)", target],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True,
+                text=True,
+                timeout=10,
                 cwd=os.getcwd(),
             )
             if result.stdout:
@@ -488,13 +494,10 @@ class CruxCLI:
         print("  从 git diff 生成 commit 消息 — 通过 AI chat 执行。")
         try:
             import subprocess
-            diff = subprocess.run(
-                ["git", "diff", "--staged"], capture_output=True, text=True, timeout=10
-            )
+
+            diff = subprocess.run(["git", "diff", "--staged"], capture_output=True, text=True, timeout=10)
             if not diff.stdout.strip():
-                diff = subprocess.run(
-                    ["git", "diff"], capture_output=True, text=True, timeout=10
-                )
+                diff = subprocess.run(["git", "diff"], capture_output=True, text=True, timeout=10)
             if diff.stdout.strip():
                 for kind, payload in self.session.send_stream(
                     f"根据以下 git diff 生成简洁的 commit 消息 (50字符以内, 中文):\n{diff.stdout[:3000]}"
@@ -513,9 +516,8 @@ class CruxCLI:
         print("  从 git log 生成 CHANGELOG.md — 通过 AI chat 执行。")
         try:
             import subprocess
-            log = subprocess.run(
-                ["git", "log", "--oneline", "-50"], capture_output=True, text=True, timeout=10
-            )
+
+            log = subprocess.run(["git", "log", "--oneline", "-50"], capture_output=True, text=True, timeout=10)
             if log.stdout.strip():
                 for kind, payload in self.session.send_stream(
                     f"根据以下 git log 生成 CHANGELOG.md (按版本分组, 中文):\n{log.stdout[:3000]}"
@@ -551,6 +553,7 @@ class CruxCLI:
         if sub == "check":
             try:
                 from core.startup_checks import print_report, run_all
+
                 results = run_all()
                 print_report(results, show_ok=True)
             except ImportError:
@@ -558,6 +561,7 @@ class CruxCLI:
                 print("  Python ✓, 工作目录 ✓")
         elif sub == "files":
             import os
+
             root = os.getcwd()
             py_count = 0
             for dirpath, _, filenames in os.walk(root):
@@ -569,6 +573,7 @@ class CruxCLI:
             print("  正在运行自修复...")
             try:
                 from core.self_heal import run_heal
+
                 run_heal(fix=True, quick=True)
             except ImportError:
                 print("  自修复模块未就绪。")
@@ -576,14 +581,17 @@ class CruxCLI:
             print("  运行代码审计...")
             try:
                 from core.self_audit import audit
+
                 report = audit()
                 if isinstance(report, dict):
-                    sev = report.get('by_severity', {})
-                    print(f"  审计完成：{report.get('total_findings', 0)} 项问题 "
-                          f"(严重:{sev.get('critical',0)} 高:{sev.get('high',0)} "
-                          f"中:{sev.get('medium',0)} 低:{sev.get('low',0)} "
-                          f"可自动修复:{report.get('auto_fixable',0)})")
-                elif hasattr(report, 'summary'):
+                    sev = report.get("by_severity", {})
+                    print(
+                        f"  审计完成：{report.get('total_findings', 0)} 项问题 "
+                        f"(严重:{sev.get('critical', 0)} 高:{sev.get('high', 0)} "
+                        f"中:{sev.get('medium', 0)} 低:{sev.get('low', 0)} "
+                        f"可自动修复:{report.get('auto_fixable', 0)})"
+                    )
+                elif hasattr(report, "summary"):
                     print(f"  {report.summary()}")
                 else:
                     print(f"  审计完成：{report}")
@@ -622,16 +630,19 @@ class CruxCLI:
             try:
                 amount = float(sub_args.strip())
                 from core.cost_tracker import set_budget
+
                 set_budget(amount)
                 print(f"  每日预算: ${amount:.2f}")
             except ValueError:
                 print("  用法: /cost budget <美元金额>")
         elif sub == "reset":
             from core.cost_tracker import reset_cost
+
             result = reset_cost()
             print(f"  花费已清零 (归档 ${result.get('cleared_total', 0):.4f})")
         else:
             from core.cost_tracker import get_daily_breakdown, get_summary
+
             summary = get_summary()
             total = summary.get("total_cost", 0.0)
             calls = summary.get("total_calls", 0)
@@ -640,9 +651,11 @@ class CruxCLI:
             print(f"  总花费: ${total:.4f}")
             print(f"  总调用: {calls}")
             if budget:
-                today_cost = summary.get("by_day", {}).get(
-                    __import__('datetime').datetime.now().strftime("%Y-%m-%d"), {}
-                ).get("cost", 0.0)
+                today_cost = (
+                    summary.get("by_day", {})
+                    .get(__import__("datetime").datetime.now().strftime("%Y-%m-%d"), {})
+                    .get("cost", 0.0)
+                )
                 pct = (today_cost / budget * 100) if budget > 0 else 0
                 print(f"  今日: ${today_cost:.4f} / ${budget:.2f} ({pct:.0f}%)")
             # By model breakdown
@@ -666,17 +679,19 @@ class CruxCLI:
         print(f"  运行智能体质量基准{' (JSON)' if json_out else ''}...")
         try:
             from core.eval_harness import EvalEngine
+
             engine = EvalEngine()
             if json_out:
                 result = engine.run(as_json=True)
                 import json
+
                 print(json.dumps(result, ensure_ascii=False, indent=2))
             else:
                 result = engine.run()
                 if isinstance(result, dict):
                     print(f"\n  总分: {result.get('total', 'N/A')}")
                     for k, v in result.items():
-                        if k != 'total':
+                        if k != "total":
                             print(f"    {k}: {v}")
         except ImportError:
             print("  基准模块未就绪。")
@@ -712,8 +727,9 @@ class CruxCLI:
         if sub == "list":
             try:
                 from core.mcp_client import get_mcp_client
+
                 client = get_mcp_client()
-                servers = client.list_servers() if hasattr(client, 'list_servers') else []
+                servers = client.list_servers() if hasattr(client, "list_servers") else []
                 if servers:
                     print(f"\n  MCP 服务器 ({len(servers)} 个):")
                     for s in servers:
@@ -744,13 +760,16 @@ class CruxCLI:
         print(f"  正在审计 {arg} 依赖安全...")
         try:
             from core.self_audit import audit
+
             report = audit()
             if isinstance(report, dict):
                 sev = report.get("by_severity", {})
                 total = report.get("total_findings", 0)
-                print(f"  审计完成: {total} 项问题 "
-                      f"(严重:{sev.get('critical',0)} 高:{sev.get('high',0)} "
-                      f"中:{sev.get('medium',0)} 低:{sev.get('low',0)})")
+                print(
+                    f"  审计完成: {total} 项问题 "
+                    f"(严重:{sev.get('critical', 0)} 高:{sev.get('high', 0)} "
+                    f"中:{sev.get('medium', 0)} 低:{sev.get('low', 0)})"
+                )
                 if report.get("auto_fixable"):
                     print(f"  可自动修复: {report['auto_fixable']} 项，使用 /self fix 修复。")
             else:
@@ -769,8 +788,9 @@ class CruxCLI:
         if sub == "list":
             try:
                 from core.rules import get_rules
+
                 mgr = get_rules()
-                rules = mgr.list_all() if hasattr(mgr, 'list_all') else []
+                rules = mgr.list_all() if hasattr(mgr, "list_all") else []
                 if rules:
                     print(f"\n  编码规范 ({len(rules)} 条):")
                     for r in rules:
@@ -803,8 +823,9 @@ class CruxCLI:
         if sub == "list":
             try:
                 from core.scheduler import get_scheduler
+
                 sched = get_scheduler()
-                tasks = sched.list_tasks() if hasattr(sched, 'list_tasks') else []
+                tasks = sched.list_tasks() if hasattr(sched, "list_tasks") else []
                 if tasks:
                     print(f"\n  定时任务 ({len(tasks)} 个):")
                     for t in tasks:
@@ -837,8 +858,9 @@ class CruxCLI:
         print("  ───────────────")
         try:
             from core.growth_engine import get_growth_engine
+
             engine = get_growth_engine()
-            stats = engine.get_stats() if hasattr(engine, 'get_stats') else {}
+            stats = engine.get_stats() if hasattr(engine, "get_stats") else {}
             if stats:
                 total = stats.get("total_calls", 0)
                 print(f"  总调用: {total}")
@@ -872,7 +894,8 @@ class CruxCLI:
         if query:
             # Simple substring match
             matches = [
-                cmd for cmd in all_cmds
+                cmd
+                for cmd in all_cmds
                 if query in cmd.key.lower() or query in cmd.name.lower() or query in cmd.desc.lower()
             ]
         else:
@@ -891,6 +914,7 @@ class CruxCLI:
         """Display background task status."""
         try:
             from core.background import get_background_manager
+
             mgr = get_background_manager()
             tasks = mgr.list_tasks()
             if tasks:
@@ -908,7 +932,8 @@ class CruxCLI:
 
     def _chat_rollback(self, args: str) -> None:
         """Undo last operation: /rollback."""
-        from core.rollback_orchestrator import rollback_last_op, list_snapshots
+        from core.rollback_orchestrator import list_snapshots, rollback_last_op
+
         result = rollback_last_op()
         snaps = list_snapshots()
         status = "✓" if result["success"] else "✗"
@@ -921,11 +946,11 @@ class CruxCLI:
         """Copy recent messages: /copy [N]. Default: last CRUX response."""
         n = int(args.strip()) if args.strip().isdigit() else 1
         crux_msgs = []
-        for style, text in self.session.messages:
+        for _style, text in self.session.messages:
             if isinstance(text, str) and text.strip():
                 crux_msgs.append(text)
         if crux_msgs:
-            to_copy = '\n\n'.join(crux_msgs[-n:])
+            to_copy = "\n\n".join(crux_msgs[-n:])
             print(f"\n  ── 最近 {min(n, len(crux_msgs))} 条消息 ──")
             print(to_copy[:2000])
             print(f"  ── 共 {len(to_copy)} 字符 (Ctrl+Y 复制最后一条) ──\n")
@@ -961,6 +986,7 @@ class CruxCLI:
     def _chat_docs(self, args: str) -> None:
         """Auto-generate docs: /docs [help|agents|manifest|all]."""
         from core.docs_engine import generate_all, generate_help_md, sync_agents_md, sync_manifest
+
         sub = args.strip().lower()
         if sub == "help":
             r = generate_help_md()
@@ -982,6 +1008,7 @@ class CruxCLI:
         try:
             from core.tool_scorecard import score_all
             from core.tools import get_registry
+
             reg = get_registry()
             report = score_all(reg)
             grades = report.get("grade_distribution", {})
@@ -996,16 +1023,20 @@ class CruxCLI:
             import json
 
             from core.rollback_engine import RELEASES_DIR
+
             releases = list(RELEASES_DIR.glob("*.json"))
             if releases:
                 latest = json.loads(releases[-1].read_text(encoding="utf-8"))
                 print(f"  最新发布: {latest.get('id', '?')} [{latest.get('status', '?')}]")
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            import logging
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
 
         # 3. Watchdog (白虎自愈) status
         try:
             from core.watchdog import get_watchdog
+
             wd = get_watchdog()
             state = wd.status()
             print(f"  自愈看门狗: {'✓ 运行中' if wd.alive() else '✗ 已停止'}")
@@ -1014,26 +1045,34 @@ class CruxCLI:
             if state.disk_free_gb:
                 print(f"    磁盘剩余: {state.disk_free_gb:.1f} GB")
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            import logging
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
 
         # 4. Observability metrics
         try:
             from core.observability import metrics
-            summary = metrics.summary() if hasattr(metrics, 'summary') else {}
+
+            summary = metrics.summary() if hasattr(metrics, "summary") else {}
             if summary:
                 for key, val in list(summary.items())[:5]:
                     print(f"  {key}: {val}")
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            import logging
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
 
         # 4. Cost tracker
         try:
             from core.cost_tracker import get_summary
+
             cost = get_summary()
             if cost:
                 print(f"  今日花费: ${cost.get('today_cost', 0):.4f} / ${cost.get('daily_budget', 0):.2f}")
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            import logging
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
 
         print()
 
@@ -1050,11 +1089,13 @@ class CruxCLI:
         arg = args.strip().lower()
         if arg == "reset":
             from core.methodology import reset_methodology_state
+
             reset_methodology_state()
             print("  方法论状态已重置")
             return
 
         from core.methodology import get_methodology_state
+
         state = get_methodology_state()
         # ── 摘要行 ──
         print(f"  {state.summary()}")
@@ -1105,6 +1146,7 @@ class CruxCLI:
         arg = args.strip().lower()
         if arg == "list":
             from core.provider import MODEL_REGISTRY, get_provider_manager
+
             mgr = get_provider_manager()
             print(f"\n  当前供应商: {mgr.active_provider}")
             print("  可用模型:")

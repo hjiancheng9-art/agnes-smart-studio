@@ -7,7 +7,6 @@ import ast
 import re
 from pathlib import Path
 
-
 ROOT = Path(__file__).parent.parent
 CRUX_STUDIO = ROOT / "crux_studio.py"
 SELF_HEAL = ROOT / "core" / "self_heal.py"

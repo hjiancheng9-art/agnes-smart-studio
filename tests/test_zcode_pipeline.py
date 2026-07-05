@@ -9,9 +9,7 @@ import json
 import os
 import sys
 import tempfile
-import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -400,7 +398,7 @@ class TestDAGSummary:
 # Module 2: core.pipeline_state
 # ═══════════════════════════════════════════════════════════════════════
 
-from core.pipeline_state import PIPELINES, PipelineEngine, PipelineState, PIPELINE_RUNS_DIR, ROOT
+from core.pipeline_state import PIPELINES, PipelineEngine, PipelineState
 
 
 class TestPipelineState:

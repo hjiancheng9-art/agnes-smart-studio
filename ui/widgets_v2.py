@@ -156,76 +156,120 @@ def build_welcome_formatted(
     cwd: str = "",
     branch: str = "",
 ) -> FormattedText:
-    """Build the welcome screen as FormattedText for prompt_toolkit.
+    """Build welcome — responsive layout: TW-driven 3-column grid."""
+    import os as _os
+    import shutil
+    _model = model_name or "deepseek-v4-flash"
+    _branch = branch or "main"
+    _home = _os.path.expanduser("~")
+    _cwd = cwd
+    if _cwd.startswith(_home): _cwd = "~" + _cwd[len(_home):]
+    if len(_cwd) > 28: _cwd = "..." + _cwd[-25:]
 
-    When there are no messages, this is shown in the message area.
-    Once the first message arrives, the welcome disappears.
-    """
-    pieces: list[tuple[str, str]] = []
+    TW = shutil.get_terminal_size().columns
+    TW = max(60, min(120, TW))
+    CW = TW - 4  # content width (2px margin each side)
 
-    # ── Top border ──
-    pieces.append(("class:welcome-border", "  ┌──── Welcome ──────────────────────────────────────┐\n"))
+    B="bold fg:#89B4FA"; P="bold fg:#CBA6F7"; G="bold fg:#A6E3A1"
+    R="bold fg:#F38BA8"; Y="bold fg:#F9E2AF"; T="bold fg:#94E2D5"
+    M="fg:#7F849C"; W="fg:#CDD6F4"; S="fg:#45475A"; A="bold fg:#FAB387"
 
-    # ── Pixel logo ──
-    for row in CRUX_PIXEL:
-        line = "  │ "
-        for ch in row:
-            if ch in ("█", "▓") or ch in ("▒", "░"):
-                line += ch
-            else:
-                line += " "
-        line += " │\n"
-        pieces.append(("class:pixel-bright" if "█" in row or "▓" in row else "class:pixel-dim", line))
+    lines: list[StyleAndTextTuples] = []
+    L = lines.append
+    sp = lambda n: " "*max(0,n)
 
-    # ── Tagline ──
-    pieces.append(("class:welcome-border", "  │                                                 │\n"))
-    pieces.append(("class:welcome-tagline", "  │     ⚡ AI · Code · Create                       │\n"))
-    pieces.append(("class:welcome-border", "  │                                                 │\n"))
+    # ── Title ──
+    L([(Y,"  CRUX Studio"),(M,"  v5.0"),(M,"  ·  "),(W,"AI-native creative + coding platform"),(M,"  ·  "),(G,"● ready")])
+    L([("","\n")])
+    L([(M, f"  model  {_model}    branch  {_branch}    path  {_cwd}")])
+    L([("","\n")]); L([(S,"  "+"─"*(CW-2))]); L([("","\n\n")])
 
-    # ── Quick Start ──
-    pieces.append(("class:welcome-title",     "  │  Quick Start                                    │\n"))
-    tips = [
-        ("/help",   "show all commands"),
-        ("@model",  "switch AI model"),
-        ("/image",  "generate image"),
-        ("/video",  "generate video"),
-        ("Ctrl+V",  "paste image for vision analysis"),
+    # ═══════ 3-column grid ═══════
+    col_w = (CW - 4) // 3  # 3 cols, 2 gaps of 2
+    c3_w = CW - col_w * 2 - 4  # right col gets remainder
+    c1_x = 2
+    c2_x = c1_x + col_w + 2
+    c3_x = c2_x + col_w + 2
+
+    def btop(title, w): return f"╭─ {title} {'─'*max(0,w-len(title)-7)}╮"
+    def bbot(w): return f"╰{'─'*max(0,w-2)}╯"
+    def row_at(x, sty, txt, w):
+        t = str(txt)[:w-4]
+        return (sty, f"{' '*max(0,x)}{'│'} {t}{' '*max(0,w-4-len(t))} │")
+
+    # Box tops
+    r:StyleAndTextTuples = []
+    r.extend([(S, btop("Commands", col_w)), ("","  "), (S, btop("Workspace", col_w)), ("","  "), (S, btop("System", c3_w))])
+    L([(("","  "))] + [(S, btop("Commands",col_w)),("","  "),(S, btop("Workspace",col_w)),("","  "),(S, btop("System",c3_w))])
+    L([("","\n")])
+
+    _cmd = [("/help    commands",B),("/skill   marketplace",P),("/status  overview",B),("/health  diagnostics",B),("/image   generate",T)]
+    _wsp = [("/method  methodology",P),("/config  settings",B),("/model   switch model",P),("/chat    new chat",T),("/video   generate",T)]
+    _sys = [("● ready",G),(_model[:c3_w-4],W),(_branch,Y),("Python 3.11",M),("skills 50+743",P)]
+
+    for i in range(5):
+        cl,cs=_cmd[i]; wl,ws=_wsp[i]; sl,ss=_sys[i]
+        L([("","  "),(S,"│ "),(cs,cl[:col_w-4]),("",sp(col_w-3-len(cl[:col_w-4]))),(S,"│"),
+           ("","  "),(S,"│ "),(ws,wl[:col_w-4]),("",sp(col_w-3-len(wl[:col_w-4]))),(S,"│"),
+           ("","  "),(S,"│ "),(ss,sl[:c3_w-4]),("",sp(c3_w-3-len(sl[:c3_w-4]))),(S,"│")])
+        L([("","\n")])
+
+    L([("","  "),(S,bbot(col_w)),("","  "),(S,bbot(col_w)),("","  "),(S,bbot(c3_w))])
+    L([("","\n\n")])
+
+    # ═══════ Welcome (2 cols) + Quick Start (1 col) ═══════
+    wl_w = col_w * 2 + 2
+    qs_w = c3_w
+
+    _wel = [
+        (S, btop("Welcome", wl_w)),
+        (S, "│"+" "*(wl_w-2)+"│"),
+        (Y, "│"+" "*((wl_w-22)//2)+"CRUX SYSTEM ONLINE"+" "*max(0,wl_w-3-22-(wl_w-22)//2)+"│"),
+        (S, "│"+" "*(wl_w-2)+"│"),
+        (W, "│"+" "*((wl_w-26)//2)+"Plan clear. Code steady."+" "*max(0,wl_w-3-26-(wl_w-26)//2)+"│"),
+        (W, "│"+" "*((wl_w-27)//2)+"Agents ready. Route locked."+" "*max(0,wl_w-3-27-(wl_w-27)//2)+"│"),
+        (S, "│"+" "*(wl_w-2)+"│"),
+        (S, bbot(wl_w)),
     ]
-    for cmd, desc in tips:
-        pieces.append(("class:welcome-key",  f"  │    {cmd:<16}"))
-        pieces.append(("class:welcome-desc", f"{desc:<32}│\n"))
+    _qs = [
+        (S, btop("Quick Start", qs_w)),
+        (M, "│ 1. /method load workflow"+" "*max(0,qs_w-4-25)+" │"),
+        (M, "│ 2. /model  choose model "+" "*max(0,qs_w-4-25)+" │"),
+        (M, "│ 3. /chat   start session"+" "*max(0,qs_w-4-25)+" │"),
+        (M, "│ 4. /image  generate img"+" "*max(0,qs_w-4-27)+" │"),
+        (M, "│ 5. /video  generate vid"+" "*max(0,qs_w-4-27)+" │"),
+        (S, "│"+" "*(qs_w-2)+"│"),
+        (S, bbot(qs_w)),
+    ]
 
-    pieces.append(("class:welcome-border", "  │                                                 │\n"))
+    for i in range(8):
+        ws,wt=_wel[i]; qs,qt=_qs[i]
+        L([("","  "),(ws,wt),("","  "+sp(wl_w-len(wt))),(qs,qt)])
+        L([("","\n")])
 
-    # ── Session info ──
-    pieces.append(("class:welcome-title", "  │  Session                                        │\n"))
-    if model_name:
-        pieces.append(("class:welcome-session", f"  │    ◈ Model: {model_name:<40}│\n"))
-    if cwd:
-        from pathlib import Path
-        home = str(Path.home())
-        cwd_display = cwd.replace(home, "~") if cwd.startswith(home) else cwd
-        pieces.append(("class:welcome-session", f"  │    ◈ CWD: {cwd_display:<42}│\n"))
-    if branch:
-        pieces.append(("class:welcome-session", f"  │    ◈ Branch: {branch:<40}│\n"))
+    L([("","\n")])
 
-    pieces.append(("class:welcome-border", "  │                                                 │\n"))
+    # ═══════ Shortcuts (full width) ═══════
+    L([("","  "),(S,btop("Shortcuts",CW))]); L([("","\n")])
+    for group in [
+        [("Ctrl+V","paste image"),("Enter","send"),("PgUp/Dn","scroll"),("Ctrl+C","new session")],
+        [("Tab","autocomplete"),("Mouse","select"),("Alt+Enter","newline"),("Ctrl+L","clear")],
+    ]:
+        r:StyleAndTextTuples = [("","  "),(S,"│ ")]
+        for k,d in group: r.extend([(A,f"{k} "),(M,f"{d}  ")])
+        r.append(("",sp(CW-4-sum(len(k)+len(d)+4 for k,d in group))))
+        r.append((S,"│"))
+        L(r); L([("","\n")])
+    L([("","  "),(S,bbot(CW))]); L([("","\n\n")])
 
-    # ── Beast system status ──
-    pieces.append(("class:welcome-title", "  │  Seven Beasts                                   │\n"))
-    beasts_line = "  │    虎 龙 雀 武 麟 蛇 翼                          │\n"
-    pieces.append(("class:welcome-text", beasts_line))
+    # ── Footer ──
+    L([(R,"  /q quit"),("","    "),(P,"/method methodology"),("","    "),
+      (M,"session"),(G," ready"),("","    "),(M,"Python 3.11"),("","    "),
+      (M,"skills"),(P," 50+743")])
 
-    pieces.append(("class:welcome-border", "  └─────────────────────────────────────────────────┘\n"))
-
-    return FormattedText(pieces)
-
-
-# ══════════════════════════════════════════════════════════════════
-#  Thinking Panel — collapsible chain-of-thought display
-# ══════════════════════════════════════════════════════════════════
-
-
+    flat: list[tuple[str, str]] = []
+    for line in lines: flat.extend(line)
+    return FormattedText(flat)
 class ThinkingPanel:
     """A collapsible panel that shows model reasoning / thinking steps.
 
@@ -365,3 +409,313 @@ def context_bar(percentage: float, width: int = 10) -> str:
     filled = max(0, min(width, int(percentage / 100 * width)))
     empty = width - filled
     return "█" * filled + "░" * empty
+
+
+# ══════════════════════════════════════════════════════════════════
+#  AnimatedBadge — 动态徽章
+# ══════════════════════════════════════════════════════════════════
+
+
+class AnimatedBadge:
+    """动态 Badge — 带帧动画的徽章组件。
+
+    支持与 tui_art.AnimatedFrames 联动，自动渲染动画帧到徽章中。
+
+    Usage:
+        badge = AnimatedBadge("白虎", color=C.CRUX_R, icon="⚡")
+        badge.render()  # 获取当前帧
+        badge.next()    # 前进一帧并返回
+    """
+
+    _FRAMES = {
+        "pulse":   ["◉", "◎", "◉", "◎", "◉"],
+        "glow":    ["◆", "◇", "◆", "◇", "◆"],
+        "breathe": ["⬤", "◍", "○", "◍", "⬤"],
+        "scan":    ["◐", "◓", "◑", "◒"],
+        "blink":   ["●", "○", "●", "○"],
+    }
+
+    def __init__(
+        self,
+        label: str,
+        color: str = "",
+        icon: str = "",
+        anim: str = "pulse",
+        width: int | None = None,
+    ):
+        self.label = label
+        self.color = color
+        self.icon = icon
+        self.anim = anim
+        self.width = width
+        self._frames = self._FRAMES.get(anim, self._FRAMES["pulse"])
+        self._idx = 0
+
+    def next(self) -> str:
+        """前进一帧并返回渲染后的 badge"""
+        self._idx = (self._idx + 1) % len(self._frames)
+        return self.render()
+
+    def render(self, frame: str | None = None) -> str:
+        """渲染当前帧为 ANSI 字符串"""
+        from tui_art import C as _C
+        c = self.color or _C.CRUX_C
+        dot = frame if frame is not None else self._frames[self._idx]
+        icon_str = f"{self.icon} " if self.icon else ""
+        label = self.label
+        if self.width and len(label) < self.width:
+            label = label.ljust(self.width)
+        return f"{_C.DIM}[{c}{dot}{_C.DIM}]{_C.RESET} {c}{_C.BOLD}{icon_str}{label}{_C.RESET}"
+
+    def reset(self):
+        self._idx = 0
+
+
+# ══════════════════════════════════════════════════════════════════
+#  PulseDot — 脉冲状态点
+# ══════════════════════════════════════════════════════════════════
+
+
+class PulseDot:
+    """脉冲状态指示器 — 动态小圆点。
+
+    Usage:
+        dot = PulseDot("idle")
+        print(dot.render())  # ● 或 ◉ 或 ○
+    """
+
+    _STATES = {
+        "idle":  {"frames": ["○"],             "color": ""},
+        "busy":  {"frames": ["◉", "◎", "◉"],     "color": ""},
+        "think": {"frames": ["◌", "○", "◌", "○"], "color": ""},
+        "ok":    {"frames": ["●"],              "color": ""},
+        "error": {"frames": ["●", "⬤", "●", "⬤"], "color": ""},
+        "warn":  {"frames": ["◉", "⬤", "◉"],     "color": ""},
+    }
+
+    def __init__(self, state: str = "idle"):
+        self.state = state
+        self._idx = 0
+
+    @property
+    def state(self) -> str:
+        return self._state
+
+    @state.setter
+    def state(self, value: str):
+        self._state = value
+        self._idx = 0
+
+    def next(self) -> str:
+        """前进一帧并返回"""
+        return self.render()
+
+    def render(self) -> str:
+        """渲染当前帧"""
+        from tui_art import C as _C
+        info = self._STATES.get(self._state, self._STATES["idle"])
+        frames = info["frames"]
+        dot = frames[self._idx % len(frames)]
+        self._idx = (self._idx + 1) % len(frames)
+
+        color_map = {
+            "idle":  _C.GRAY,
+            "busy":  _C.CRUX_C,
+            "think": _C.CRUX_B,
+            "ok":    _C.CRUX_G,
+            "error": _C.CRUX_R,
+            "warn":  _C.CRUX_Y,
+        }
+        c = color_map.get(self._state, _C.GRAY)
+        return f"{c}{dot}{_C.RESET}"
+
+
+# ══════════════════════════════════════════════════════════════════
+#  BreathingLabel — 呼吸文本
+# ══════════════════════════════════════════════════════════════════
+
+
+class BreathingLabel:
+    """呼吸文本 — 文本亮度周期性变化。
+
+    Usage:
+        label = BreathingLabel("七兽引擎运行中")
+        print(label.next())  # 每次调用亮度变化
+    """
+
+    def __init__(self, text: str, color: str = "", steps: int = 12):
+        self.text = text
+        self.color = color
+        self.steps = steps
+        self._idx = 0
+
+    def next(self) -> str:
+        """前进并返回呼吸帧"""
+        from tui_art import C as _C
+        c = self.color or _C.CRUX_C
+        t = (self._idx % self.steps) / self.steps
+        breathe = 0.3 + 0.7 * (1 - abs(2 * t - 1))
+        self._idx += 1
+
+        if breathe > 0.7:
+            return f"{c}{_C.BOLD}{self.text}{_C.RESET}"
+        elif breathe > 0.4:
+            return f"{c}{self.text}{_C.RESET}"
+        else:
+            return f"{_C.DIM_C}{c}{self.text}{_C.RESET}"
+
+    def render(self) -> str:
+        """渲染当前帧（不前进）"""
+        return self.next()
+
+    def reset(self):
+        self._idx = 0
+
+
+# ══════════════════════════════════════════════════════════════════
+#  EnhancedSpinner — 增强版 Spinner，更多动画模式
+# ══════════════════════════════════════════════════════════════════
+
+
+class EnhancedSpinner:
+    """增强版 Spinner — 支持 8 种动画模式。
+
+    Usage:
+        spin = EnhancedSpinner(mode="wave")
+        spin.start()
+        # ... do work ...
+        spin.stop()
+        print(spin.current(), end="")
+    """
+
+    _MODE_FRAMES = {
+        "braille":  ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
+        "blocks":   ["▁", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▁"],
+        "wave":     ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▂", "▁"],
+        "arrows":   ["←", "↖", "↑", "↗", "→", "↘", "↓", "↙"],
+        "dots":     ["⡀", "⡄", "⡆", "⡇", "⣇", "⣧", "⣷", "⣿", "⣷", "⣧", "⣇", "⡇", "⡆", "⡄", "⡀"],
+        "moon":     ["○", "◔", "◐", "◕", "●", "◕", "◐", "◔"],
+        "pulse":    ["◌", "○", "◉", "●", "◉", "○", "◌"],
+        "cross":    ["┼", "┽", "╀", "╁", "╂", "╁", "╀", "┽"],
+    }
+
+    def __init__(self, mode: str = "braille", interval: float = 0.1):
+        self._mode = mode
+        self._interval = interval
+        self._frames = self._MODE_FRAMES.get(mode, self._MODE_FRAMES["braille"])
+        self._idx = 0
+        self._running = False
+        self._task_id: str | None = None
+        self._lock = threading.Lock()
+
+    @property
+    def mode(self) -> str:
+        return self._mode
+
+    @mode.setter
+    def mode(self, value: str):
+        self._mode = value
+        self._frames = self._MODE_FRAMES.get(value, self._MODE_FRAMES["braille"])
+        self._idx = 0
+
+    def current(self) -> str:
+        """获取当前帧字符"""
+        return self._frames[self._idx]
+
+    def next(self) -> str:
+        """前进一帧并返回"""
+        self._idx = (self._idx + 1) % len(self._frames)
+        return self._frames[self._idx]
+
+    def start(self):
+        """启动后台动画线程"""
+        with self._lock:
+            if self._running:
+                return
+            self._running = True
+            self._idx = 0
+
+        def _spin_loop():
+            while self._running:
+                self._idx = (self._idx + 1) % len(self._frames)
+                time.sleep(self._interval)
+
+        import threading
+        self._thread = threading.Thread(target=_spin_loop, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        """停止动画"""
+        with self._lock:
+            self._running = False
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, *args):
+        self.stop()
+
+
+# ══════════════════════════════════════════════════════════════════
+#  EnhancedProgressBar — 带标签的进度组件
+# ══════════════════════════════════════════════════════════════════
+
+
+class EnhancedProgressBar:
+    """增强进度条 — 带 label 和自动颜色。
+
+    Usage:
+        bar = EnhancedProgressBar("加载", width=20)
+        print(bar.render(42))
+    """
+
+    def __init__(self, label: str = "", width: int = 20):
+        self.label = label
+        self.width = width
+
+    def render(self, percent: int) -> str:
+        from tui_art import C as _C
+        from tui_art import gradient_progress_bar
+
+        label_str = f"{_C.DIM}{self.label}{_C.RESET} " if self.label else ""
+        bar_str = gradient_progress_bar(percent, self.width)
+        return f"{label_str}{bar_str}"
+
+    def render_line(self, percent: int) -> str:
+        """打印一整行"""
+        return "  " + self.render(percent)
+
+
+# ══════════════════════════════════════════════════════════════════
+#  render_status_line — 组合式状态行
+# ══════════════════════════════════════════════════════════════════
+
+
+def render_status_line(
+    beast: str = "虎",
+    state: str = "idle",
+    model: str = "deepseek-v4-flash",
+    context_pct: float = 42,
+    extra: str = "",
+) -> str:
+    """一键渲染状态行 — 包含脉冲点 + Badge + 模型 + 进度
+
+    Returns:
+        带 ANSI 的状态行字符串
+    """
+    from tui_art import C as _C
+    dot = PulseDot(state)
+    badge_color = _C.beast(beast)
+    badge = AnimatedBadge(f"七{beast}", color=badge_color, anim="pulse")
+    bar = context_bar(context_pct)
+
+    parts = [
+        f"{dot.render()}",
+        f"{badge.render()}",
+        f"{_C.DIM}model:{_C.RESET}{_C.WHITE}{model}{_C.RESET}",
+        f"{_C.DIM}[{_C.RESET}{_C.GRAY}{bar}{_C.DIM}]{_C.RESET}",
+    ]
+    if extra:
+        parts.append(f"{_C.DIM}{extra}{_C.RESET}")
+    return "  ".join(parts)

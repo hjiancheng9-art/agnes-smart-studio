@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from core.cli_handlers import CruxCLI
 from core.commands import COMMANDS, build_dispatch_table
 

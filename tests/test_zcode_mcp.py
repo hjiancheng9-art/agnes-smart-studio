@@ -6,9 +6,7 @@ RED-GREEN: Run with `pytest tests/test_zcode_mcp.py -v`
 import json
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
-
-import pytest
+from unittest.mock import Mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -36,11 +34,11 @@ class TestMCPServerConstruction:
 
     def test_error_codes_defined(self):
         from core.mcp_server import (
-            ERR_PARSE_ERROR,
+            ERR_INTERNAL,
+            ERR_INVALID_PARAMS,
             ERR_INVALID_REQUEST,
             ERR_METHOD_NOT_FOUND,
-            ERR_INVALID_PARAMS,
-            ERR_INTERNAL,
+            ERR_PARSE_ERROR,
         )
         assert ERR_PARSE_ERROR == -32700
         assert ERR_INVALID_REQUEST == -32600
@@ -261,8 +259,9 @@ class TestMCPClientConstruction:
         assert cfg.enabled is True
 
     def test_add_server(self):
-        from core.mcp_client import MCPClient
         import uuid
+
+        from core.mcp_client import MCPClient
         client = MCPClient()
         name = f"test-srv-{uuid.uuid4().hex[:8]}"
         result = client.add_server(
@@ -272,8 +271,9 @@ class TestMCPClientConstruction:
         assert result["server"]["name"] == name
 
     def test_add_duplicate_server(self):
-        from core.mcp_client import MCPClient
         import uuid
+
+        from core.mcp_client import MCPClient
         client = MCPClient()
         name = f"dup-srv-{uuid.uuid4().hex[:8]}"
         client.add_server(name, "echo")
@@ -281,8 +281,9 @@ class TestMCPClientConstruction:
         assert "error" in result
 
     def test_list_servers(self):
-        from core.mcp_client import MCPClient
         import uuid
+
+        from core.mcp_client import MCPClient
         client = MCPClient()
         name1 = f"srv1-{uuid.uuid4().hex[:8]}"
         name2 = f"srv2-{uuid.uuid4().hex[:8]}"
@@ -292,8 +293,9 @@ class TestMCPClientConstruction:
         assert len(servers) >= 2
 
     def test_remove_server(self):
-        from core.mcp_client import MCPClient
         import uuid
+
+        from core.mcp_client import MCPClient
         client = MCPClient()
         name = f"to-remove-{uuid.uuid4().hex[:8]}"
         client.add_server(name, "cmd")
@@ -359,7 +361,7 @@ class TestMCPToolDefinitions:
             assert params["type"] == "object"
 
     def test_executor_map_covers_all_defs(self):
-        from core.mcp_client import MCP_TOOL_DEFS, MCP_EXECUTOR_MAP
+        from core.mcp_client import MCP_EXECUTOR_MAP, MCP_TOOL_DEFS
         def_names = [t["function"]["name"] for t in MCP_TOOL_DEFS]
         for name in def_names:
             assert name in MCP_EXECUTOR_MAP, f"Missing executor for {name}"
@@ -397,8 +399,8 @@ class TestMCPClientJSONRPC:
 
     def test_send_request_format(self):
         """Verify _send_request builds valid JSON-RPC 2.0 messages."""
+
         from core.mcp_client import MCPClient
-        import subprocess
 
         client = MCPClient()
         # We cannot actually send without a real process, but we verify the format
@@ -406,11 +408,11 @@ class TestMCPClientJSONRPC:
         assert client.REQUEST_TIMEOUT == 30
 
     def test_config_path_exists(self):
-        from core.mcp_client import MCPClient
         from core.config import OUTPUT_DIR
+        from core.mcp_client import MCPClient
         client = MCPClient()
         expected = OUTPUT_DIR / "mcp_servers.json"
-        assert client.CONFIG_PATH == expected
+        assert expected == client.CONFIG_PATH
 
     def test__all__exports(self):
         import core.mcp_client as mod

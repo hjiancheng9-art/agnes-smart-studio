@@ -4,9 +4,8 @@ ZCode TDD: CRUX tools.json registry validation tests.
 RED phase — write tests first, confirm they fail, then fix.
 """
 
-import json
 import importlib
-import os
+import json
 import sys
 from pathlib import Path
 

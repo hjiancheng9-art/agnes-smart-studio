@@ -4,13 +4,7 @@ Tests: AuditRunner construction, audit_syntax, audit_deps, health_checks,
 health_summary, collect_source_snippets, project_tree_data.
 """
 
-import os
-import sys
 from pathlib import Path
-from unittest import mock
-
-import pytest
-
 
 # ---------------------------------------------------------------------------
 # audit_syntax

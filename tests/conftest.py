@@ -68,7 +68,6 @@ def _snapshot_models_json():
     重加载，导致 models.json 的 active 字段被覆写为 deepseek。此 fixture 在
     整个测试 session 结束后恢复原始 models.json，避免污染工作区。
     """
-    import json
 
     path = PROJECT_ROOT / "models.json"
     original = path.read_text(encoding="utf-8") if path.exists() else None

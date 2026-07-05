@@ -126,6 +126,7 @@ class MessagePane:
             height=Dimension(weight=1),
             always_hide_cursor=True,
             allow_scroll_beyond_bottom=False,
+            right_margins=[],
         )
 
     # ── Public properties ────────────────────────────────────

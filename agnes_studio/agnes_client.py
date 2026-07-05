@@ -3,14 +3,13 @@ Agnes API 客户端 v2.0 — 多模态图片 & 视频生成
 支持: 文生图 / 图生图 / 文生视频 / 图生视频 / 视频查询(video_id)
 """
 
+import json
 import os
 import time
-import json
-import requests
-from typing import Optional
 from dataclasses import dataclass
 from enum import Enum
 
+import requests
 
 # ============================================================
 # 配置
@@ -83,7 +82,7 @@ class AgnesConfig:
 class AgnesClient:
     """Agnes 多模态客户端"""
 
-    def __init__(self, config: Optional[AgnesConfig] = None):
+    def __init__(self, config: AgnesConfig | None = None):
         self.config = config or AgnesConfig(
             api_key=os.environ.get("AGNES_API_KEY", ""),
         )
@@ -97,7 +96,7 @@ class AgnesClient:
         num_images: int = 1,
         quality: str = "standard",
         style: str = "vivid",
-        seed: Optional[int] = None,
+        seed: int | None = None,
     ) -> dict:
         """文生图"""
         payload = {
@@ -119,7 +118,7 @@ class AgnesClient:
         strength: float = 0.7,
         steps: int = 30,
         cfg_scale: float = 7.5,
-        seed: Optional[int] = None,
+        seed: int | None = None,
     ) -> dict:
         """图生图"""
         payload = {
@@ -144,7 +143,7 @@ class AgnesClient:
         height: int = 720,
         duration: int = 5,
         fps: int = 24,
-        seed: Optional[int] = None,
+        seed: int | None = None,
         negative_prompt: str = "",
     ) -> dict:
         """文生视频 — v2.0"""
@@ -175,7 +174,7 @@ class AgnesClient:
         height: int = 720,
         duration: int = 5,
         fps: int = 24,
-        seed: Optional[int] = None,
+        seed: int | None = None,
     ) -> dict:
         """图生视频 — v2.0"""
         payload = {
@@ -205,8 +204,8 @@ class AgnesClient:
     def wait_for_video(
         self,
         video_id: str,
-        poll_interval: Optional[float] = None,
-        max_wait: Optional[float] = None,
+        poll_interval: float | None = None,
+        max_wait: float | None = None,
     ) -> dict:
         """轮询等待视频完成"""
         interval = poll_interval or self.config.poll_interval
@@ -216,10 +215,7 @@ class AgnesClient:
         while elapsed < max_time:
             result = self.query_video(video_id)
             status = result.get("status", "").lower()
-            if status == "completed":
-                result["_poll_elapsed"] = elapsed
-                return result
-            elif status == "failed":
+            if status == "completed" or status == "failed":
                 result["_poll_elapsed"] = elapsed
                 return result
             time.sleep(interval)
@@ -259,7 +255,7 @@ class AgnesClient:
         return data
 
 
-def create_client(api_key: Optional[str] = None) -> AgnesClient:
+def create_client(api_key: str | None = None) -> AgnesClient:
     """创建 Agnes 客户端"""
     key = api_key or os.environ.get("AGNES_API_KEY", "")
     return AgnesClient(AgnesConfig(api_key=key))

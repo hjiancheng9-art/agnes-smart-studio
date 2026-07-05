@@ -3,12 +3,7 @@
 Tests: GitWorkflow class, key methods, convenience functions.
 """
 
-import time
-from pathlib import Path
 from unittest import mock
-
-import pytest
-
 
 # ---------------------------------------------------------------------------
 # GitWorkflow construction
@@ -19,7 +14,7 @@ class TestGitWorkflowConstruction:
     """GitWorkflow initialization."""
 
     def test_default_root(self):
-        from core.git_workflow import GitWorkflow, ROOT
+        from core.git_workflow import ROOT, GitWorkflow
         gw = GitWorkflow()
         assert gw.root == ROOT
 

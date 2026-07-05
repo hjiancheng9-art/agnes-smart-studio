@@ -10,9 +10,6 @@ Tests actual behavior, not just imports. Covers:
 
 from __future__ import annotations
 
-import pytest
-
-
 # ═══════════════════════════════════════════════════════════════
 # is_protected_file — path protection
 # ═══════════════════════════════════════════════════════════════
@@ -148,27 +145,27 @@ class TestEscalateTask:
     """Task escalation must follow METHODOLOGY.md rules."""
 
     def test_a_to_b_files_gt_1(self):
-        from core.methodology import escalate_task, TaskLevel
+        from core.methodology import TaskLevel, escalate_task
         result = escalate_task(TaskLevel.A, "files>1 modified")
         assert result == TaskLevel.B
 
     def test_a_stays_a_trivial(self):
-        from core.methodology import escalate_task, TaskLevel
+        from core.methodology import TaskLevel, escalate_task
         result = escalate_task(TaskLevel.A, "simple typo fix")
         assert result == TaskLevel.A
 
     def test_b_to_c_files_gt_3(self):
-        from core.methodology import escalate_task, TaskLevel
+        from core.methodology import TaskLevel, escalate_task
         result = escalate_task(TaskLevel.B, "files>3 modified across modules")
         assert result == TaskLevel.C
 
     def test_c_stays_c(self):
-        from core.methodology import escalate_task, TaskLevel
+        from core.methodology import TaskLevel, escalate_task
         result = escalate_task(TaskLevel.C, "anything")
         assert result == TaskLevel.C
 
     def test_d_stays_d(self):
-        from core.methodology import escalate_task, TaskLevel
+        from core.methodology import TaskLevel, escalate_task
         result = escalate_task(TaskLevel.D, "critical security fix")
         assert result == TaskLevel.D
 
@@ -290,24 +287,24 @@ class TestClassifyTask:
     """Intent-based task classification (A/B/C/D)."""
 
     def test_empty_is_micro(self):
-        from core.methodology import classify_task, TaskLevel
+        from core.methodology import TaskLevel, classify_task
         assert classify_task("") == TaskLevel.A
 
     def test_simple_question_is_micro(self):
-        from core.methodology import classify_task, TaskLevel
+        from core.methodology import TaskLevel, classify_task
         assert classify_task("what is python") == TaskLevel.A
 
     def test_fix_triggers_normal(self):
-        from core.methodology import classify_task, TaskLevel
+        from core.methodology import TaskLevel, classify_task
         assert classify_task("fix a typo") == TaskLevel.B
 
     def test_multi_file_triggers_complex(self):
-        from core.methodology import classify_task, TaskLevel
+        from core.methodology import TaskLevel, classify_task
         result = classify_task("refactor the authentication system across 5 files")
         assert result == TaskLevel.C
 
     def test_return_type_is_tasklevel(self):
-        from core.methodology import classify_task, TaskLevel
+        from core.methodology import TaskLevel, classify_task
         assert isinstance(classify_task("test"), TaskLevel)
 
 

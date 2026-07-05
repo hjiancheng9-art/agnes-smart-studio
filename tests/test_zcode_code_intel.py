@@ -5,12 +5,9 @@ RAG: TF-IDF tokenization, indexing, semantic search, caching.
 """
 
 import json
-import math
 import os
 import tempfile
 from pathlib import Path
-
-import pytest
 
 # ---------------------------------------------------------------------------
 # code_intel.py tests
@@ -236,7 +233,7 @@ class TestRegexBasedAnalysis:
     """Multi-language regex analysis."""
 
     def test_analyze_javascript(self):
-        from core.code_intel import analyze_regex_based, _LANG_PATTERNS
+        from core.code_intel import _LANG_PATTERNS, analyze_regex_based
 
         src = """
 function greet(name) {
@@ -265,7 +262,7 @@ class Animal {
             os.unlink(path)
 
     def test_analyze_typescript(self):
-        from core.code_intel import analyze_regex_based, _LANG_PATTERNS
+        from core.code_intel import _LANG_PATTERNS, analyze_regex_based
 
         src = """
 async function fetchData<T>(url: string): Promise<T> {
@@ -291,7 +288,7 @@ interface User {
             os.unlink(path)
 
     def test_analyze_go(self):
-        from core.code_intel import analyze_regex_based, _LANG_PATTERNS
+        from core.code_intel import _LANG_PATTERNS, analyze_regex_based
 
         src = """
 package main
@@ -325,7 +322,7 @@ type Reader interface {
             os.unlink(path)
 
     def test_analyze_rust(self):
-        from core.code_intel import analyze_regex_based, _LANG_PATTERNS
+        from core.code_intel import _LANG_PATTERNS, analyze_regex_based
 
         src = """
 pub fn calculate(x: i32, y: i32) -> i32 {
@@ -362,7 +359,7 @@ pub trait Drawable {
             os.unlink(path)
 
     def test_file_not_found_returns_error(self):
-        from core.code_intel import analyze_regex_based, _LANG_PATTERNS
+        from core.code_intel import _LANG_PATTERNS, analyze_regex_based
 
         result = analyze_regex_based("/nonexistent/path.js", _LANG_PATTERNS[".js"])
         assert "error" in result
@@ -680,7 +677,7 @@ class TestToolExecutors:
             assert "properties" in fn["parameters"]
 
     def test_executor_map_covers_tool_names(self):
-        from core.code_intel import CODE_INTELLIGENCE_TOOL_DEFS, CODE_INTELLIGENCE_EXECUTOR_MAP
+        from core.code_intel import CODE_INTELLIGENCE_EXECUTOR_MAP, CODE_INTELLIGENCE_TOOL_DEFS
 
         tool_names = {td["function"]["name"] for td in CODE_INTELLIGENCE_TOOL_DEFS}
         assert tool_names.issubset(set(CODE_INTELLIGENCE_EXECUTOR_MAP.keys()))
@@ -826,7 +823,7 @@ class TestRAGEngine:
         index_codebase()
 
     def test_try_load_cache_returns_false_for_missing(self):
-        from core.rag import RAGEngine, INDEX_FILE
+        from core.rag import INDEX_FILE, RAGEngine
 
         # Temporarily move cache
         bak = None

@@ -5,15 +5,15 @@ RED-GREEN: Run with `pytest tests/test_zcode_engines.py -v`
 
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.client import CruxClient
 from core.async_client import AsyncCruxClient
-from core.validator import validate_image_size, validate_seed, validate_video_resolution, validate_num_frames
+from core.client import CruxClient
+from core.validator import validate_image_size, validate_num_frames, validate_seed, validate_video_resolution
 
 # ── Fixtures ──────────────────────────────────────────────────────────
 

@@ -19,8 +19,9 @@ class TestRouterTaskProfile:
         assert TaskProfile.SKIP.value == "skip"
 
     def test_task_profile_is_enum(self):
-        from core.router import TaskProfile
         import enum
+
+        from core.router import TaskProfile
         assert issubclass(TaskProfile, enum.Enum)
 
 
@@ -119,52 +120,52 @@ class TestRouterClassify:
     """classify() function tests."""
 
     def test_classify_hello_returns_skip(self):
-        from core.router import classify, TaskProfile
+        from core.router import TaskProfile, classify
         result = classify("hello")
         assert result == TaskProfile.SKIP
 
     def test_classify_deep_keywords(self):
-        from core.router import classify, TaskProfile
+        from core.router import TaskProfile, classify
         result = classify("重构整个系统架构")
         assert result == TaskProfile.DEEP
 
     def test_classify_quick_fix_keywords(self):
-        from core.router import classify, TaskProfile
+        from core.router import TaskProfile, classify
         result = classify("fix the bug in login")
         assert result == TaskProfile.QUICK_FIX
 
     def test_classify_creative_keywords(self):
-        from core.router import classify, TaskProfile
+        from core.router import TaskProfile, classify
         result = classify("生成一张图片")
         assert result == TaskProfile.CREATIVE
 
     def test_classify_code_keywords(self):
-        from core.router import classify, TaskProfile
+        from core.router import TaskProfile, classify
         result = classify("实现一个登录函数")
         assert result == TaskProfile.CODING
 
     def test_classify_empty_string(self):
-        from core.router import classify, TaskProfile
+        from core.router import TaskProfile, classify
         result = classify("")
         assert result == TaskProfile.SKIP
 
     def test_classify_whitespace_only(self):
-        from core.router import classify, TaskProfile
+        from core.router import TaskProfile, classify
         result = classify("   ")
         assert result == TaskProfile.SKIP
 
     def test_classify_deep_architecture(self):
-        from core.router import classify, TaskProfile
+        from core.router import TaskProfile, classify
         result = classify("全面分析系统架构")
         assert result == TaskProfile.DEEP
 
     def test_classify_creative_video(self):
-        from core.router import classify, TaskProfile
+        from core.router import TaskProfile, classify
         result = classify("生成一个视频")
         assert result == TaskProfile.CREATIVE
 
     def test_classify_code_function(self):
-        from core.router import classify, TaskProfile
+        from core.router import TaskProfile, classify
         result = classify("写一个函数处理数据")
         assert result == TaskProfile.CODING
 
@@ -173,31 +174,31 @@ class TestRouterRouteCommand:
     """route_command() function tests."""
 
     def test_route_command_plan(self):
-        from core.router import route_command, TaskProfile
+        from core.router import TaskProfile, route_command
         decision = route_command("plan", "", None)
         assert decision.profile == TaskProfile.DEEP
         assert decision.model_id == "deepseek-v4-pro"
 
     def test_route_command_help(self):
-        from core.router import route_command, TaskProfile
+        from core.router import TaskProfile, route_command
         decision = route_command("help", "", None)
         assert decision.profile == TaskProfile.SKIP
         assert decision.model_id is None
 
     def test_route_command_unknown(self):
-        from core.router import route_command, TaskProfile
+        from core.router import TaskProfile, route_command
         decision = route_command("unknown_cmd", "", None)
         assert decision.profile == TaskProfile.SKIP
         assert decision.model_id is None
 
     def test_route_command_refactor(self):
-        from core.router import route_command, TaskProfile
+        from core.router import TaskProfile, route_command
         decision = route_command("refactor", "", None)
         assert decision.profile == TaskProfile.DEEP
         assert decision.model_id == "deepseek-v4-pro"
 
     def test_route_command_clear(self):
-        from core.router import route_command, TaskProfile
+        from core.router import TaskProfile, route_command
         decision = route_command("clear", "", None)
         assert decision.profile == TaskProfile.SKIP
 
@@ -206,7 +207,7 @@ class TestRouterRoute:
     """route() function tests."""
 
     def test_route_slash_plan(self):
-        from core.router import route, TaskProfile
+        from core.router import TaskProfile, route
         decision = route("/plan", None)
         assert decision.profile == TaskProfile.DEEP
         assert decision.model_id == "deepseek-v4-pro"
@@ -218,7 +219,7 @@ class TestRouterRoute:
         assert result is not None
 
     def test_route_slash_unknown(self):
-        from core.router import route, TaskProfile
+        from core.router import TaskProfile, route
         decision = route("/nonexistent_slash_command", None)
         assert decision.profile == TaskProfile.SKIP
 
@@ -233,17 +234,17 @@ class TestRouterCostTier:
         assert CostTier.BEST.value == "best"
 
     def test_set_and_get_cost_tier(self):
-        from core.router import set_cost_tier, get_cost_tier, CostTier
+        from core.router import CostTier, get_cost_tier, set_cost_tier
         set_cost_tier(CostTier.SAVE)
         assert get_cost_tier() == CostTier.SAVE
 
     def test_set_cost_tier_string(self):
-        from core.router import set_cost_tier, get_cost_tier, CostTier
+        from core.router import CostTier, get_cost_tier, set_cost_tier
         set_cost_tier("best")
         assert get_cost_tier() == CostTier.BEST
 
     def test_cost_tier_returns_valid_enum(self):
-        from core.router import get_cost_tier, CostTier
+        from core.router import CostTier, get_cost_tier
         tier = get_cost_tier()
         assert isinstance(tier, CostTier)
         assert tier in (CostTier.SAVE, CostTier.BALANCED, CostTier.BEST)
@@ -259,7 +260,7 @@ class TestRouterResolve:
         assert decision is not None
 
     def test_resolve_skip_profile(self):
-        from core.router import resolve, TaskProfile
+        from core.router import TaskProfile, resolve
         decision = resolve(TaskProfile.SKIP, None)
         assert decision.profile == TaskProfile.SKIP
         assert decision.model_id is None
@@ -305,8 +306,9 @@ class TestModelRoutingDataClasses:
         assert dataclasses.is_dataclass(m)
 
     def test_providerspec_is_frozen(self):
-        from core.model_routing import ProviderSpec, ModelSpec
         import dataclasses
+
+        from core.model_routing import ProviderSpec
         assert dataclasses.is_dataclass(ProviderSpec)
         assert dataclasses.fields(ProviderSpec)
         field_names = {f.name for f in dataclasses.fields(ProviderSpec)}
@@ -487,9 +489,8 @@ class TestModelRoutingGetProtocolPath:
         assert result is None
 
     def test_get_protocol_path_wrong_kind(self):
-        from core.model_routing import get_protocol_path
         # bigmodel only has "anthropic", not "openai-compatible"
-        from core.model_routing import resolve_provider
+        from core.model_routing import get_protocol_path, resolve_provider
         p = resolve_provider("bigmodel")
         result = get_protocol_path("bigmodel", "glm-5.1", "openai-compatible")
         assert result is None
@@ -685,7 +686,7 @@ class TestProviderRegisterModel:
     """register_model() tests."""
 
     def test_register_model(self):
-        from core.provider import register_model, ModelInfo, get_model_info
+        from core.provider import ModelInfo, get_model_info, register_model
         new = ModelInfo(
             id="test-custom-model",
             name="Test Model",
@@ -712,6 +713,7 @@ class TestProviderState:
 
     def test_mark_down_and_is_down(self):
         import time
+
         from core.provider import ProviderState
         state = ProviderState(active="deepseek", cooldown_sec=0.1)
         state.mark_down("zhipu")
@@ -905,6 +907,7 @@ class TestProviderStateDownSince:
 
     def test_mark_down_sets_timestamp(self):
         import time
+
         from core.provider import ProviderState
         state = ProviderState(active="deepseek", cooldown_sec=60)
         before = time.time()
@@ -1031,7 +1034,7 @@ class TestProviderManagerCreateClient:
     """create_client with invalid provider raises NoProviderAvailable."""
 
     def test_create_client_nonexistent_raises(self):
-        from core.provider import ProviderManager, NoProviderAvailable
+        from core.provider import NoProviderAvailable, ProviderManager
         mgr = ProviderManager()
         mgr.load()
         try:

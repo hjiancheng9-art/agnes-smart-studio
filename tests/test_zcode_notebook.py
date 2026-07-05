@@ -409,7 +409,7 @@ class TestNotebookToolDefs:
         assert len(tool_names) == len(NOTEBOOK_TOOL_DEFS)
 
     def test_executor_map_covers_all_tools(self):
-        from core.notebook import NOTEBOOK_TOOL_DEFS, NOTEBOOK_EXECUTOR_MAP
+        from core.notebook import NOTEBOOK_EXECUTOR_MAP, NOTEBOOK_TOOL_DEFS
 
         tool_names = {td["function"]["name"] for td in NOTEBOOK_TOOL_DEFS}
         assert tool_names == set(NOTEBOOK_EXECUTOR_MAP.keys())

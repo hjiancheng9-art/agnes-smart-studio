@@ -4,11 +4,9 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 from prompt_toolkit.output import DummyOutput
 
 from ui.tui_app import TuiApp
-
 
 # ── Fixtures ──────────────────────────────────────────────────
 

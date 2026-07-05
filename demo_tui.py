@@ -5,18 +5,15 @@ CRUX 终端美学 — 交互演示
 运行: python demo_tui.py
 """
 
-import time
-import sys
 import os
+import sys
+import time
 
 # 确保脚本所在目录在 sys.path 中
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from tui_art import (
-    C, Badge, echo, render, welcome_screen, panel,
-    divider, status_bar, toolchain_display, progress_bar,
-    term_width, term_height
-)
+from tui_art import Badge, C, divider, echo, panel, progress_bar, status_bar, toolchain_display, welcome_screen
+
 
 # ─── 清屏 ─────────────────────────────────────────────
 def clear():
@@ -56,25 +53,37 @@ def scene_boot():
 
 # ─── 场景2: 徽章橱窗 ─────────────────────────────────
 def scene_badges():
-    divider("═", C.CRUX_P, "七兽徽章 · 全展示")
-    time.sleep(0.3)
+    """Badge橱窗 — 展示6种Badge风格 + 动画Badge"""
+    clear()
+    from tui_art import BadgeStyle, C, render_badge
 
-    categories = [
-        ("🟢 状态类", ["info", "ok", "warn", "error", "done"]),
-        ("🔴 力量类", ["fire", "bolt", "skull"]),
-        ("🟡 荣耀类", ["star", "crown", "heart"]),
-        ("🔵 神秘类", ["moon", "cross", "crux"]),
-    ]
+    print(f"\n{C.WHITE}{C.BOLD}  ✦ BADGE 系 统 橱 窗 ✦{C.RESET}\n")
 
-    for cat_name, styles in categories:
-        print(f"\n  {C.BOLD}{C.GRAY}▸ {cat_name}{C.RESET}")
-        for s in styles:
-            label = s.upper().ljust(8)
-            print(f"    {Badge.make(label, s)}  "
-                  f"{C.DIM}(style={s}){C.RESET}")
+    # 逐个展示 Badge 风格
+    for label, color, icon, desc in [
+        ("七兽引擎", C.CRUX_C, "⚡", "minimal 极简"),
+        ("白虎炼骨", C.CRUX_R, "🐯", "bordered 精致"),
+        ("青龙通脉", C.CRUX_G, "🐉", "glow 发光"),
+        ("朱雀开眼", C.CRUX_B, "🦅", "tagged 标签"),
+        ("麒麟锻造", C.CRUX_O, "⚒", "icon 图标"),
+    ]:
+        print(f"  {C.DIM}{desc}{C.RESET}")
+        badge = render_badge(label, style=BadgeStyle.MINIMAL, color=color, icon=icon)
+        for line in badge.split("\n"):
+            if line.strip():
+                print(f"    {line}")
+        time.sleep(0.4)
+
+    # 动画 Badge 演示
+    print(f"\n  {C.DIM}动画 Badge 演示 (pulse){C.RESET}\n")
+    from ui.widgets_v2 import AnimatedBadge
+    badge = AnimatedBadge("应龙号令", color=C.CRUX_C, icon="🐲", anim="pulse")
+    for _ in range(6):
+        print(f"\r    {badge.next()}", end="", flush=True)
         time.sleep(0.3)
-    time.sleep(1.0)
+    print("\n")
 
+    input(f"{C.DIM}按 Enter 继续...{C.RESET}")
 # ─── 场景3: 彩虹字体 ─────────────────────────────────
 def scene_fonts():
     divider("═", C.CRUX_C, "七兽字体 · 全字体巡礼")

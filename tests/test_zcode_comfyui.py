@@ -6,11 +6,7 @@ Note: comfyui_client.py does not exist; all ComfyUI logic is in comfyui_tools.py
 
 import json
 import os
-import tempfile
 from pathlib import Path
-from unittest import mock
-
-import pytest
 
 # ---------------------------------------------------------------------------
 # Module-level constants and config
@@ -28,7 +24,6 @@ class TestComfyUIConfig:
 
     def test_ssrf_guard_blocks_remote(self):
         """SSRF guard resets non-localhost URLs."""
-        import importlib
         import core.comfyui_tools as ct
 
         assert ct.COMFYUI_BASE_URL.rstrip("/") in ("http://127.0.0.1:8188", "http://localhost:8188")

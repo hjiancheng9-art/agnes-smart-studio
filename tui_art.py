@@ -1,322 +1,699 @@
 """
 ╔══════════════════════════════════════════════════════╗
-║       CRUX TUI ART — 终端美学升级引擎               ║
-║  字体 · Badge · 欢迎屏 · 装饰 · 终端艺术一体化     ║
+║       CRUX TUI ART v3 — 终端美学·动态艺术引擎       ║
+║  动画帧 · 渐变文本 · Badge 系统 · 粒子特效         ║
+║  呼吸边框 · 打字机 · 欢迎屏 · 七兽图腾             ║
 ╚══════════════════════════════════════════════════════╝
+
+七兽美学注入终端 — 白虎(骨)·青龙(脉)·朱雀(眼)·玄武(甲)·麒麟(手)·螣蛇(忆)·应龙(令)
 """
 
+from __future__ import annotations
+
 import shutil
-import sys
 import time
-from datetime import datetime
-from typing import Optional
+from collections.abc import Generator, Sequence
+from dataclasses import dataclass
+from enum import Enum
 
-import pyfiglet
+# ══════════════════════════════════════════════════════════════
+#  色彩系统 — 七兽调色板
+# ══════════════════════════════════════════════════════════════
 
-# ─── ANSI 颜色 ───────────────────────────────────────────
-# 兼容 Windows 经典终端 + 现代终端
 class C:
-    """CRUX 调色板 — 深色系赛博美学"""
-    RESET    = "\033[0m"
-    BOLD     = "\033[1m"
-    DIM      = "\033[2m"
-    ITALIC   = "\033[3m"
-    UNDERLINE = "\033[4m"
-    BLINK    = "\033[5m"
-    REVERSE  = "\033[7m"
+    """七兽色彩常量 — 24-bit ANSI 真彩色"""
+    # 七兽主色
+    CRUX_R = "\033[38;2;255;85;85m"     # 白虎 · 赤
+    CRUX_G = "\033[38;2;0;255;170m"      # 青龙 · 翠
+    CRUX_B = "\033[38;2;0;170;255m"      # 朱雀 · 青
+    CRUX_Y = "\033[38;2;255;213;0m"      # 玄武 · 金
+    CRUX_O = "\033[38;2;255;128;0m"      # 麒麟 · 橙
+    CRUX_P = "\033[38;2;200;100;255m"    # 螣蛇 · 紫
+    CRUX_C = "\033[38;2;0;255;200m"      # 应龙 · 青绿
 
-    # 前景
-    RED      = "\033[38;2;255;80;80m"
-    GREEN    = "\033[38;2;80;255;180m"
-    YELLOW   = "\033[38;2;255;220;80m"
-    BLUE     = "\033[38;2;80;180;255m"
-    MAGENTA  = "\033[38;2;200;120;255m"
-    CYAN     = "\033[38;2;80;255;240m"
-    WHITE    = "\033[38;2;220;220;220m"
-    ORANGE   = "\033[38;2;255;160;60m"
-    PINK     = "\033[38;2;255;100;180m"
-    GRAY     = "\033[38;2;120;120;120m"
-    LIME     = "\033[38;2;160;255;80m"
+    # 灰阶 & 修饰
+    GRAY   = "\033[38;2;140;140;160m"
+    DIM    = "\033[38;2;90;90;110m"
+    WHITE  = "\033[38;2;220;220;240m"
+    BOLD   = "\033[1m"
+    DIM_C  = "\033[2m"
+    ITALIC = "\033[3m"
+    RESET  = "\033[0m"
 
-    # 背景
-    BG_RED   = "\033[48;2;180;30;30m"
-    BG_GREEN = "\033[48;2;30;120;60m"
-    BG_BLUE  = "\033[48;2;20;60;120m"
-    BG_DARK  = "\033[48;2;20;20;30m"
-    BG_GRAY  = "\033[48;2;40;40;50m"
+    # 背景色
+    BG_DARK   = "\033[48;2;15;15;25m"
+    BG_MID    = "\033[48;2;25;25;40m"
+    BG_R      = "\033[48;2;40;10;10m"
+    BG_G      = "\033[48;2;10;35;20m"
+    BG_B      = "\033[48;2;10;20;40m"
+    BG_Y      = "\033[48;2;35;30;10m"
 
-    # 特殊
-    CRUX_R   = "\033[38;2;255;80;80m"   # 朱雀红
-    CRUX_G   = "\033[38;2;80;255;180m"  # 青龙绿
-    CRUX_B   = "\033[38;2;80;180;255m"  # 白虎蓝
-    CRUX_P   = "\033[38;2;200;120;255m" # 麒麟紫
-    CRUX_Y   = "\033[38;2;255;220;80m"  # 螣蛇金
-    CRUX_C   = "\033[38;2;80;255;240m"  # 玄武青
-    CRUX_O   = "\033[38;2;255;160;60m"  # 应龙橙
-
-
-# ─── 终端尺寸 ────────────────────────────────────────────
-def term_width() -> int:
-    return shutil.get_terminal_size().columns
-
-def term_height() -> int:
-    return shutil.get_terminal_size().lines
-
-
-# ─── 七兽字体表 ──────────────────────────────────────────
-# 不同场景使用不同字体
-FONT_BEASTS = {
-    "hero":    "big",            # 大标题
-    "sub":     "slant",          # 副标题
-    "badge":   "digital",        # 徽章紧凑
-    "cyber":   "cyberlarge",     # 赛博风
-    "chunk":   "banner3-D",      # 3D 块
-    "future":  "doom",           # DOOM 启示录
-    "minimal": "ascii_new_roman", # 极简罗马
-}
-
-# ─── 文本渲染引擎 ────────────────────────────────────────
-def render(text: str, font: str = "big", color: str = C.CRUX_R) -> str:
-    """用 pyfiglet 渲染 + 着色"""
-    try:
-        art = pyfiglet.figlet_format(text, font=font)
-    except Exception:
-        art = text
-    lines = art.split("\n")
-    colored = "\n".join(f"{color}{l}{C.RESET}" for l in lines)
-    return colored
-
-
-def echo(text: str, font: str = "big", color: str = C.CRUX_R):
-    """直接打印渲染文本"""
-    print(render(text, font, color))
-
-
-# ─── Badge 徽章系统 ──────────────────────────────────────
-class Badge:
-    """艺术风格徽章生成器"""
-
-    STYLES = {
-        "info":    (C.CRUX_B, " ◆ "),
-        "ok":      (C.CRUX_G, " ✓ "),
-        "warn":    (C.CRUX_Y, " ⚡"),
-        "error":   (C.CRUX_R, " ✗ "),
-        "done":    (C.CRUX_G, " ✔ "),
-        "fire":    (C.CRUX_R, " 🔥"),
-        "star":    (C.CRUX_Y, " ★ "),
-        "heart":   (C.CRUX_P, " ♥ "),
-        "bolt":    (C.CRUX_O, " ⚡"),
-        "skull":   (C.RED,    " ☠ "),
-        "crown":   (C.CRUX_Y, " ♛ "),
-        "moon":    (C.CRUX_C, " ☽ "),
-        "cross":   (C.CRUX_R, " † "),
-        "crux":    (C.MAGENTA," ⚶ "),
+    # 快捷映射
+    BEAST_COLORS = {
+        "虎": CRUX_R, "龙": CRUX_G, "雀": CRUX_B,
+        "武": CRUX_Y, "麟": CRUX_O, "蛇": CRUX_P, "翼": CRUX_C,
     }
 
     @classmethod
-    def make(cls, label: str, style: str = "info",
-             bracket: str = "[]", pad: bool = True) -> str:
-        """生成 Badge: [● INFO]"""
-        clr, icon = cls.STYLES.get(style, (C.WHITE, " · "))
-        lb = bracket[0]
-        rb = bracket[1]
-        spacing = " " if pad else ""
-        return (f"{C.BOLD}{clr}{lb}{C.RESET}"
-                f"{clr}{icon}{C.RESET}"
-                f"{C.BOLD}{clr}{label}{C.RESET}"
-                f"{C.BOLD}{clr}{rb}{C.RESET}")
+    def beast(cls, name: str) -> str:
+        return cls.BEAST_COLORS.get(name, cls.WHITE)
 
     @classmethod
-    def line(cls, label: str, style: str = "info") -> str:
-        """生成一行完整 Badge 标签行"""
-        return f" {cls.make(label, style)}"
+    def hex(cls, color: str) -> str:
+        """从 #RRGGBB 生成 ANSI 前景色"""
+        r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+        return f"\033[38;2;{r};{g};{b}m"
+
+
+# ══════════════════════════════════════════════════════════════
+#  动画帧系统 — 帧序列生成器
+# ══════════════════════════════════════════════════════════════
+
+class AnimationSet(Enum):
+    """预定义动画帧集合"""
+    BRAILLE    = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+    BLOCK_PULSE = "▁▃▄▅▆▇██▇▆▅▄▃▁"
+    ARROW_CYCLE = "←↖↑↗→↘↓↙"
+    DOT_PULSE   = "⡀⡄⡆⡇⣇⣧⣷⣿⣷⣧⣇⡇⡆⡄⡀"
+    BRACKET     = "┤┴├┬"
+    STAR        = "✧★✧★"
+    MOON        = "○◔◐◕●◕◐◔"
+    HEART       = "♡♡♡❤❤❤♡♡♡"
+    PULSE_RING  = "○◌◯◌"
+    WAVE        = "▁▂▃▄▅▆▇█▇▆▅▄▃▂▁"
+    FADE_BLOCK  = "▓▒░ "
+    TRIANGLE    = "◢◣◤◥"
+    CROSSHAIR   = "┼┽╀╁╂╁╀┽"
+    ZIGZAG      = "╱─╲─"
+    BEAST_EYE   = "◉◎◉◎◉"
+
+
+@dataclass
+class AnimatedFrames:
+    """动画帧迭代器 — 支持循环和单次播放"""
+    frames: Sequence[str]
+    interval: float = 0.12
+    repeat: int = -1  # -1 = infinite
+
+    def __post_init__(self):
+        self._idx = 0
+        self._count = 0
+
+    def next(self) -> str:
+        """获取下一帧"""
+        f = self.frames[self._idx]
+        self._idx += 1
+        if self._idx >= len(self.frames):
+            self._idx = 0
+            self._count += 1
+        return f
+
+    def reset(self):
+        self._idx = 0
+        self._count = 0
+
+    @property
+    def done(self) -> bool:
+        return 0 <= self.repeat <= self._count
 
     @classmethod
-    def inline(cls, label: str, style: str = "info") -> str:
-        """紧凑行内 Badge"""
-        clr, icon = cls.STYLES.get(style, (C.WHITE, " · "))
-        return f"{C.DIM}[{C.RESET}{clr}{icon}{label}{C.RESET}{C.DIM}]{C.RESET}"
+    def from_set(cls, anim: AnimationSet, interval: float = 0.12) -> AnimatedFrames:
+        return cls(frames=list(anim.value), interval=interval)
+
+    # ── 常用预设 ──
+    @classmethod
+    def spinner(cls) -> AnimatedFrames:
+        return cls.from_set(AnimationSet.BRAILLE, 0.10)
+
+    @classmethod
+    def block_pulse(cls) -> AnimatedFrames:
+        return cls.from_set(AnimationSet.BLOCK_PULSE, 0.08)
+
+    @classmethod
+    def dot_pulse(cls) -> AnimatedFrames:
+        return cls.from_set(AnimationSet.DOT_PULSE, 0.12)
+
+    @classmethod
+    def wave(cls) -> AnimatedFrames:
+        return cls.from_set(AnimationSet.WAVE, 0.10)
+
+    @classmethod
+    def heart(cls) -> AnimatedFrames:
+        return cls.from_set(AnimationSet.HEART, 0.20)
+
+    @classmethod
+    def beast_eye(cls) -> AnimatedFrames:
+        return cls.from_set(AnimationSet.BEAST_EYE, 0.30)
 
 
-# ─── 欢迎屏 ──────────────────────────────────────────────
-def welcome_screen(version: str = "v5.0",
-                   model: str = "DeepSeek V4 Flash",
-                   project: str = "agnes-smart-studio"):
-    """全屏欢迎界面"""
+# ══════════════════════════════════════════════════════════════
+#  渐变文本 — 24-bit 真彩色渐变
+# ══════════════════════════════════════════════════════════════
 
-    tw = term_width()
+def gradient_text(
+    text: str,
+    colors: list[tuple[int, int, int]] = None,
+    bold: bool = False,
+) -> str:
+    """将文本渲染为从左到右的渐变。
 
-    # 顶部间隔
-    print("\n" * 1)
+    Args:
+        text: 要渲染的文本
+        colors: RGB 元组列表，定义渐变节点（默认: 青→紫→粉）
+        bold: 是否加粗
 
-    # ── 大 Banner ──
-    art = pyfiglet.figlet_format("CRUX", font="big")
-    art2 = pyfiglet.figlet_format("STUDIO", font="ascii_new_roman")
+    Returns:
+        带 ANSI 转义码的渐变文本
+    """
+    if not text:
+        return ""
 
-    # 渐变色：从左到右 红→橙→黄→绿→青→蓝→紫
-    colors_cycle = [C.CRUX_R, C.CRUX_O, C.CRUX_Y, C.CRUX_G, C.CRUX_C, C.CRUX_B, C.CRUX_P]
-    lines = art.split("\n")
-    for i, line in enumerate(lines):
-        c = colors_cycle[i % len(colors_cycle)]
-        print(f"{c}{line}{C.RESET}")
+    if colors is None:
+        colors = [(0, 170, 255), (200, 100, 255), (255, 85, 170)]
 
-    lines2 = art2.split("\n")
-    for i, line in enumerate(lines2):
-        c = colors_cycle[(i + 3) % len(colors_cycle)]
-        print(f"  {c}{line}{C.RESET}")
+    n = len(text)
+    if n == 0:
+        return ""
 
-    # ── 装饰彩虹线 ──
-    rainbow = "━" * min(60, tw - 4)
-    print(f"\n  {C.CRUX_R}╭{C.RESET}{rainbow}{C.CRUX_P}╮{C.RESET}")
+    result = []
+    bold_seq = C.BOLD if bold else ""
 
-    # ── 状态信息面板 ──
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    info_items = [
-        f"{C.CRUX_B}●{C.RESET} {C.BOLD}版本{C.RESET}  {C.CRUX_G}{version}{C.RESET}",
-        f"{C.CRUX_P}●{C.RESET} {C.BOLD}引擎{C.RESET}  {C.CRUX_C}{model}{C.RESET}",
-        f"{C.CRUX_Y}●{C.RESET} {C.BOLD}项目{C.RESET}  {C.CRUX_O}{project}{C.RESET}",
-        f"{C.CRUX_R}●{C.RESET} {C.BOLD}时间{C.RESET}  {C.GRAY}{now}{C.RESET}",
+    for i, ch in enumerate(text):
+        # 计算在颜色渐变中的位置
+        pos = i / max(n - 1, 1) * (len(colors) - 1)
+        idx = int(pos)
+        t = pos - idx
+
+        if idx >= len(colors) - 1:
+            r, g, b = colors[-1]
+        else:
+            c1, c2 = colors[idx], colors[idx + 1]
+            r = int(c1[0] + (c2[0] - c1[0]) * t)
+            g = int(c1[1] + (c2[1] - c1[1]) * t)
+            b = int(c1[2] + (c2[2] - c1[2]) * t)
+
+        result.append(f"\033[38;2;{r};{g};{b}m{bold_seq}{ch}{C.RESET}")
+
+    return "".join(result)
+
+
+def gradient_block(
+    width: int,
+    colors: list[tuple[int, int, int]] = None,
+    char: str = "█",
+) -> str:
+    """渐变色块 — 用字符填充的渐变条"""
+    if colors is None:
+        colors = [(255, 85, 85), (255, 213, 0), (0, 255, 170)]
+    return gradient_text(char * width, colors=colors)
+
+
+# ══════════════════════════════════════════════════════════════
+#  Badge 系统 — 5 种风格
+# ══════════════════════════════════════════════════════════════
+
+class BadgeStyle(Enum):
+    GLOW     = "glow"      # 发光边框
+    PULSE    = "pulse"     # 脉冲动画 (需配合 AnimatedBadge)
+    BORDERED = "bordered"  # 精致边框
+    ICON     = "icon"      # 图标 + 标签
+    MINIMAL  = "minimal"   # 纯色简洁
+    TAGGED   = "tagged"    # 标签式 #[]
+
+
+def render_badge(
+    label: str,
+    style: BadgeStyle | str = BadgeStyle.MINIMAL,
+    color: str = C.CRUX_B,
+    icon: str = "",
+    width: int | None = None,
+) -> str:
+    """渲染一个终端 Badge。
+
+    Args:
+        label: Badge 文本
+        style: Badge 风格
+        color: ANSI 颜色码
+        icon: 可选图标字符
+        width: 最小宽度（用空格填充）
+
+    Returns:
+        带 ANSI 样式格式化的 Badge 字符串
+    """
+    if isinstance(style, str):
+        try:
+            style = BadgeStyle(style)
+        except ValueError:
+            style = BadgeStyle.MINIMAL
+
+    display = f"{icon} {label}" if icon else label
+    if width and len(display) < width:
+        display = display.ljust(width)
+
+    reset = C.RESET
+    dim = C.DIM
+
+    if style == BadgeStyle.MINIMAL:
+        return f"{color}{C.BOLD}[{display}]{reset}"
+
+    elif style == BadgeStyle.GLOW:
+        # 模拟发光：加粗 + 颜色 + 周围 dim 边框
+        padding = " " * 2
+        inner = f"{color}{C.BOLD}{display}{reset}"
+        dim_edge = f"{dim}"
+
+        # 上边框
+        top = f"{dim}┌{'─' * (len(display) + 4)}┐{reset}"
+        mid = f"{dim}│{reset}  {inner}  {dim}│{reset}"
+        bot = f"{dim}└{'─' * (len(display) + 4)}┘{reset}"
+        return f"\n{top}\n{mid}\n{bot}\n"
+
+    elif style == BadgeStyle.BORDERED:
+        pad = 1
+        inner_w = len(display) + pad * 2
+        top = f"{color}┌{'─' * inner_w}┐{reset}"
+        mid = f"{color}│{' ' * pad}{C.BOLD}{display}{reset}{color}{' ' * pad}│{reset}"
+        bot = f"{color}└{'─' * inner_w}┘{reset}"
+        return f"\n{top}\n{mid}\n{bot}\n"
+
+    elif style == BadgeStyle.TAGGED:
+        bg = "\033[48;2;30;30;50m"
+        return f"{dim}#[{bg}{color}{C.BOLD}{display}{reset}{dim}]{reset}"
+
+    elif style == BadgeStyle.ICON:
+        icon_str = f"{icon} " if icon else ""
+        return f"{dim}[{reset}{color}{C.BOLD}{icon_str}{label}{reset}{dim}]{reset}"
+
+    # fallback
+    return f"{color}{C.BOLD}[{display}]{reset}"
+
+
+# ══════════════════════════════════════════════════════════════
+#  粒子特效
+# ══════════════════════════════════════════════════════════════
+
+def particle_line(
+    width: int = 40,
+    density: float = 0.3,
+    colors: list[str] | None = None,
+    seed: int | None = None,
+) -> str:
+    """生成一条粒子线 — 随机分布的点阵带颜色。
+
+    适合用作装饰分隔线。
+    """
+    import random as _random
+    if seed is not None:
+        _random.seed(seed)
+
+    if colors is None:
+        colors = [C.CRUX_R, C.CRUX_G, C.CRUX_B, C.CRUX_Y, C.CRUX_P]
+
+    chars = [" "] * width
+    for i in range(width):
+        if _random.random() < density:
+            c = _random.choice(colors)
+            ch = _random.choice(["·", "∙", "•", "∗", "✧", "✦", "⋆"])
+            chars[i] = f"{c}{ch}{C.RESET}"
+
+    return "".join(chars)
+
+
+def sparkle_line(width: int = 40) -> str:
+    """闪烁星线 — 高密度粒子装饰线"""
+    colors = [C.CRUX_Y, C.CRUX_C, C.WHITE, C.CRUX_P]
+    chars = []
+    for i in range(width):
+        ch = " ✧★⋆· "[i % 5]
+        c = colors[i % len(colors)]
+        chars.append(f"{c}{C.BOLD}{ch}{C.RESET}")
+    return "".join(chars)
+
+
+def dot_separator(char: str = "·", color: str = C.DIM, count: int = 3) -> str:
+    """点状分隔符，如 ···"""
+    return f" {color}{char * count}{C.RESET} "
+
+
+# ══════════════════════════════════════════════════════════════
+#  呼吸边框 — 动态箱体边框
+# ══════════════════════════════════════════════════════════════
+
+@dataclass
+class BreathingBorder:
+    """呼吸边框 — 可动画化的箱体边框
+
+    用法:
+        border = BreathingBorder("七兽觉醒")
+        for frame in border.animate(steps=6):
+            print(frame)
+            time.sleep(0.15)
+    """
+    title: str = ""
+    width: int = 60
+    color: str = C.CRUX_C
+    style: str = "rounded"  # rounded | sharp | double | heavy
+
+    _BOX_STYLES = {
+        "rounded":  ("╭", "╮", "╰", "╯", "─", "│"),
+        "sharp":    ("┌", "┐", "└", "┘", "─", "│"),
+        "double":   ("╔", "╗", "╚", "╝", "═", "║"),
+        "heavy":    ("┏", "┓", "┗", "┛", "━", "┃"),
+    }
+
+    def _box(self) -> tuple:
+        return self._BOX_STYLES.get(self.style, self._BOX_STYLES["rounded"])
+
+    def render(self, breathe: float = 1.0) -> str:
+        """渲染边框，breathe=0.0~1.0 控制呼吸强度
+
+        breathe 影响边框颜色亮度（模拟呼吸）
+        """
+        tl, tr, bl, br, h, v = self._box()
+        c = self.color
+        dim = max(0.3, breathe)
+        # 调暗颜色 — 通过 ANSI 亮度模拟
+        bright = C.BOLD if breathe > 0.7 else C.DIM_C if breathe < 0.4 else ""
+
+        title_str = ""
+        if self.title:
+            title_str = f" {self.title} "
+
+        # 上边框
+        left_gap = 2
+        top = f"{c}{bright}{tl}{h * left_gap}{title_str}{h * (self.width - left_gap - len(title_str) - 2)}{tr}{C.RESET}"
+        # 下边框
+        bot = f"{c}{bright}{bl}{h * self.width}{br}{C.RESET}"
+        return f"{top}\n{bot}"
+
+    def animate(self, steps: int = 8, interval: float = 0.1) -> Generator[str, None, None]:
+        """生成呼吸动画帧序列"""
+        for i in range(steps):
+            breathe = 0.3 + 0.7 * abs((i % steps) / (steps / 2) - 1)
+            yield self.render(breathe=breathe)
+
+
+def breathing_box(
+    lines: list[str],
+    title: str = "",
+    color: str = C.CRUX_C,
+    style: str = "rounded",
+    padding: int = 1,
+) -> str:
+    """静态呼吸风格箱体 — 一次性渲染带内容的盒子"""
+    border = BreathingBorder(title=title, color=color, style=style)
+    tl, tr, bl, br, h, v = border._box()
+    c = color
+    r = C.RESET
+    max_w = max((len(l) for l in lines), default=0) if lines else 20
+    inner_w = max_w + padding * 2
+
+    title_str = f" {title} " if title else ""
+    top = f"{c}{tl}{h * 2}{title_str}{h * (inner_w - len(title_str) - 1)}{tr}{r}"
+    mid = "\n".join(
+        f"{c}{v}{r} {' ' * padding}{l}{' ' * (inner_w - len(l) - padding)}{c}{v}{r}"
+        for l in lines
+    )
+    bot = f"{c}{bl}{h * inner_w}{br}{r}"
+    return f"{top}\n{mid}\n{bot}"
+
+
+# ══════════════════════════════════════════════════════════════
+#  打字机效果
+# ══════════════════════════════════════════════════════════════
+
+def typewriter(
+    text: str,
+    color: str = C.WHITE,
+    char_interval: float = 0.03,
+    line_interval: float = 0.1,
+    end_with_newline: bool = True,
+) -> Generator[str, None, None]:
+    """打字机效果生成器 — 逐字/逐行输出
+
+    Yields:
+        每步输出带 ANSI 的字符串
+    """
+    for i, ch in enumerate(text):
+        if ch == "\n":
+            if end_with_newline:
+                yield "\n"
+            if line_interval:
+                time.sleep(line_interval)
+        else:
+            yield f"{color}{ch}{C.RESET}"
+            if char_interval:
+                time.sleep(char_interval)
+
+
+# ══════════════════════════════════════════════════════════════
+#  状态指示器
+# ══════════════════════════════════════════════════════════════
+
+def status_dot(status: str = "idle") -> str:
+    """状态指示器小圆点
+
+    Args:
+        status: idle | busy | ok | error | warn
+
+    Returns:
+        带颜色的圆点 + 状态文字
+    """
+    dots = {
+        "idle":  (C.GRAY,   "○"),
+        "busy":  (C.CRUX_C, "◉"),
+        "ok":    (C.CRUX_G, "●"),
+        "error": (C.CRUX_R, "●"),
+        "warn":  (C.CRUX_Y, "◉"),
+        "off":   (C.DIM,    "○"),
+    }
+    color, dot = dots.get(status, dots["idle"])
+    return f"{color}{dot}{C.RESET}"
+
+
+# ══════════════════════════════════════════════════════════════
+#  保留的原有功能（向下兼容）
+# ══════════════════════════════════════════════════════════════
+
+def divider(char: str = "═", color: str = C.DIM, title: str = "") -> None:
+    """水平分隔线"""
+    width = shutil.get_terminal_size().columns
+    if title:
+        title_str = f" {title} "
+        mid = f"{color}{C.DIM}{char * 2}{C.RESET}{title_str}{color}{C.DIM}{char * (width - len(title_str) - 4)}{C.RESET}"
+        print(mid)
+    else:
+        print(f"{color}{C.DIM}{char * width}{C.RESET}")
+
+
+def progress_bar(percent: int, width: int = 30, color: str = "") -> str:
+    """进度条
+
+    Args:
+        percent: 0-100
+        width: 条宽度（字符数）
+        color: ANSI 颜色码
+
+    Returns:
+        渲染好的进度条字符串
+    """
+    if not color:
+        if percent < 33:
+            color = C.CRUX_R
+        elif percent < 66:
+            color = C.CRUX_Y
+        else:
+            color = C.CRUX_G
+
+    filled = int(percent / 100 * width)
+    bar = f"{color}{'█' * filled}{C.DIM}{'▒' * (width - filled)}{C.RESET}"
+    return f"{bar} {color}{C.BOLD}{percent:>3}%{C.RESET}"
+
+
+def gradient_progress_bar(percent: int, width: int = 30) -> str:
+    """渐变进度条 — 用 gradient_text 渲染"""
+    filled = int(percent / 100 * width)
+    empty_w = width - filled
+    colors = [(255, 85, 85), (255, 213, 0), (0, 255, 170)]
+    filled_part = gradient_text("█" * filled, colors=colors) if filled > 0 else ""
+    empty_part = f"{C.DIM}{'▒' * empty_w}{C.RESET}" if empty_w > 0 else ""
+    return f"{filled_part}{empty_part} {gradient_text(f'{percent:>3}%', colors=colors)}"
+
+
+def big_banner() -> str:
+    """大字 banner — 像素风格 CRUX logo"""
+    return f"""\
+{C.CRUX_C}{C.BOLD}
+   ██████  ██████  ██    ██ ██   ██
+  ██       ██   ██  ██  ██   ██ ██
+  ██   ███ ██████    ████     ███
+  ██    ██ ██   ██    ██     ██ ██
+   ██████  ██   ██    ██    ██   ██
+{C.RESET}"""
+
+
+def small_banner() -> str:
+    """小号 banner"""
+    return f"""\
+{C.CRUX_P}{C.BOLD}  ⚡ CRUX Studio — 七兽引擎 v5.0 {C.RESET}"""
+
+
+def beast_art() -> str:
+    """七兽图腾 ASCII art"""
+    return f"""\
+{C.CRUX_R}   ╔══════════════════════════════╗
+{C.CRUX_R}   ║  {C.CRUX_C}⚡ 白虎 {C.CRUX_G}青龙 {C.CRUX_B}朱雀 {C.CRUX_Y}玄武{C.CRUX_R}   ║
+{C.CRUX_R}   ║  {C.CRUX_O}麒麟 {C.CRUX_P}螣蛇 {C.CRUX_C}应龙{C.CRUX_R}          ║
+{C.CRUX_R}   ╚══════════════════════════════╝{C.RESET}"""
+
+
+def toolchain_display() -> None:
+    """工具链展示"""
+    tools = [
+        ("py",  "Python",   C.CRUX_B),
+        ("js",  "Node.js",  C.CRUX_G),
+        ("sh",  "Shell",    C.CRUX_Y),
+        ("go",  "Golang",   C.CRUX_C),
+        ("rs",  "Rust",     C.CRUX_O),
+        ("db",  "SQL",      C.CRUX_P),
     ]
-    for item in info_items:
-        print(f"  {item}")
+    line = "  ".join(
+        f"{c}{C.BOLD}[{name}]{C.RESET}" for _, name, c in tools
+    )
+    print(f"  {line}")
 
-    # ── 七兽图腾 ──
-    beasts = [
-        ("白虎", C.CRUX_B, "骨"),
-        ("青龙", C.CRUX_G, "脉"),
-        ("朱雀", C.CRUX_R, "眼"),
-        ("玄武", C.CRUX_C, "甲"),
-        ("麒麟", C.CRUX_P, "手"),
-        ("螣蛇", C.CRUX_Y, "忆"),
-        ("应龙", C.CRUX_O, "令"),
+
+# ══════════════════════════════════════════════════════════════
+#  动画演示 — 展示所有新功能
+# ══════════════════════════════════════════════════════════════
+
+def demo_animate_frames(duration: float = 3.0) -> None:
+    """演示各种动画帧"""
+    anims = [
+        ("Braille",    AnimatedFrames.spinner()),
+        ("Block",      AnimatedFrames.block_pulse()),
+        ("DotPulse",   AnimatedFrames.dot_pulse()),
+        ("Wave",       AnimatedFrames.wave()),
+        ("BeastEye",   AnimatedFrames.beast_eye()),
     ]
-    print(f"\n  {C.BOLD}{C.GRAY}七兽觉醒 · 魂魄交融{C.RESET}")
-    beasts_line = "  "
-    for name, clr, role in beasts:
-        beasts_line += f"{clr}■{C.RESET}{C.BOLD}{clr}{name}{C.RESET}({C.DIM}{role}{C.RESET}) "
-    print(beasts_line)
-
-    # ── 底部 ──
-    print(f"\n  {C.CRUX_R}╰{C.RESET}{rainbow}{C.CRUX_P}╯{C.RESET}")
-    print(f"\n  {C.BOLD}{C.GRAY}>>> 就绪 · 随时号令 <<<{C.RESET}")
+    end = time.perf_counter() + duration
+    while time.perf_counter() < end:
+        parts = []
+        for name, af in anims:
+            parts.append(f"{C.DIM}{name}:{C.RESET}{af.next()}")
+        print(f"\r{'  '.join(parts)}", end="", flush=True)
+        time.sleep(0.08)
     print()
 
 
-# ─── Panel 装饰盒子 ──────────────────────────────────────
-def panel(title: str, content: str, color: str = C.CRUX_B,
-          width: Optional[int] = None):
-    """带标题的装饰面板"""
-    tw = width or min(72, term_width() - 4)
-    inner_w = tw - 4
-
-    print(f"\n  {color}╭{'─' * (tw - 2)}╮{C.RESET}")
-    print(f"  {color}│{C.RESET} {C.BOLD}{color}{title:^{inner_w}}{C.RESET} {color}│{C.RESET}")
-
-    for line in content.split("\n"):
-        display = line[:inner_w]
-        padding = inner_w - len(display)
-        print(f"  {color}│{C.RESET} {display}{' ' * padding} {color}│{C.RESET}")
-
-    print(f"  {color}╰{'─' * (tw - 2)}╯{C.RESET}\n")
+def demo_gradient() -> None:
+    """演示渐变文本"""
+    print()
+    print(gradient_text("  七兽觉醒 · SEVEN BEASTS AWAKEN  ",
+                        colors=[(255, 85, 85), (255, 213, 0), (0, 255, 170), (0, 170, 255), (200, 100, 255)],
+                        bold=True))
+    print(gradient_text("  白虎炼骨 · 青龙通脉 · 朱雀开眼 · 玄武披甲  ",
+                        colors=[(255, 85, 85), (0, 255, 170), (0, 170, 255), (255, 213, 0)],
+                        bold=False))
+    print()
 
 
-# ─── 分隔线 ──────────────────────────────────────────────
-def divider(char: str = "═", color: str = C.GRAY, label: str = ""):
-    """主题分隔线"""
-    tw = term_width()
-    if label:
-        side = (tw - len(label) - 4) // 2
-        print(f"\n  {color}{char * side}  {C.BOLD}{C.WHITE}{label}{C.RESET}  {color}{char * side}{C.RESET}\n")
-    else:
-        print(f"\n  {color}{char * tw}{C.RESET}\n")
-
-
-# ─── 状态行 ──────────────────────────────────────────────
-def status_bar(items: list, sep: str = " │ "):
-    """状态栏：一行多个状态项"""
-    parts = []
-    for label, value, style in items:
-        b = Badge.inline(label, style)
-        val = f"{C.BOLD}{value}{C.RESET}" if value else ""
-        parts.append(f"{b} {val}")
-    print("  " + sep.join(parts))
-
-
-# ─── 工具链一览 ──────────────────────────────────────────
-def toolchain_display():
-    """显示可用工具链"""
-    chains = [
-        ("画图",  "generate_image",    C.CRUX_P),
-        ("视频",  "generate_video",    C.CRUX_R),
-        ("代码",  "run_python/bash",   C.CRUX_G),
-        ("搜索",  "web_search/fetch",  C.CRUX_Y),
-        ("Git",   "git_*",             C.CRUX_B),
-        ("文件",  "read/write/edit",   C.CRUX_C),
-        ("浏览",  "pw_navigate",       C.CRUX_O),
+def demo_badges() -> None:
+    """演示各种 Badge 风格"""
+    print(f"  {C.DIM}// Badge 风格展示{RESET}")
+    styles = [
+        ("minimal",  "七兽",   C.CRUX_C),
+        ("glow",     "白虎",   C.CRUX_R),
+        ("tagged",   "青龙",   C.CRUX_G),
+        ("bordered", "朱雀",   C.CRUX_B),
+        ("icon",     "麒麟",   C.CRUX_O, "⚡"),
     ]
-    line = "  "
-    for name, tool, clr in chains:
-        line += f"{clr}◈{C.RESET}{C.BOLD}{clr}{name}{C.RESET}{C.DIM}/{tool}{C.RESET}  "
-    print(line)
+    for style_args in styles:
+        kwargs = {"label": style_args[1], "color": style_args[2]}
+        if len(style_args) > 3:
+            kwargs["icon"] = style_args[3]
+        badge = render_badge(style=style_args[0], **kwargs)
+        for line in badge.split("\n"):
+            if line.strip():
+                print(f"    {line}")
 
 
-# ─── 进度条 ──────────────────────────────────────────────
-def progress_bar(percent: float, width: int = 40,
-                 filled: str = "█", empty: str = "░",
-                 color: str = C.CRUX_G) -> str:
-    """艺术风格进度条"""
-    p = min(100, max(0, percent))
-    fw = int(p / 100 * width)
-    ew = width - fw
-    bar = f"{color}{filled * fw}{C.DIM}{empty * ew}{C.RESET}"
-    pct = f"{C.BOLD}{color}{p:5.1f}%{C.RESET}"
-    return f"{bar} {pct}"
+def demo_particles() -> None:
+    """演示粒子特效"""
+    print(f"  {C.DIM}粒子线:{C.RESET}")
+    print(f"    {particle_line(50, density=0.4)}")
+    print(f"  {C.DIM}闪烁星线:{C.RESET}")
+    print(f"    {sparkle_line(50)}")
 
 
-# ─── 快速演示 ────────────────────────────────────────────
-def demo():
-    """演示所有功能"""
-    welcome_screen()
-    time.sleep(0.5)
+def demo_breathing_border() -> None:
+    """演示呼吸边框"""
+    print(f"  {C.DIM}呼吸边框:{C.RESET}")
+    box = breathing_box(
+        ["  七兽引擎 · 终端美学升级  ", "  动态 · Badge · 艺术感      "],
+        title=" CRUX ",
+        color=C.CRUX_C,
+        style="rounded",
+    )
+    print(f"  {box}")
 
-    divider("═", C.CRUX_P, "徽章系统 BADGES")
 
-    for style in ["info", "ok", "warn", "error", "done",
-                   "fire", "star", "heart", "bolt", "crown"]:
-        print(Badge.line(style.upper(), style))
+def demo_progress() -> None:
+    """演示渐变进度条"""
+    print(f"  {C.DIM}渐变进度条:{C.RESET}")
+    for pct in [15, 33, 50, 72, 100]:
+        print(f"    {gradient_progress_bar(pct, 30)}")
 
-    divider("═", C.CRUX_B, "状态栏 STATUS")
 
-    status_bar([
-        ("STATUS", "ACTIVE", "ok"),
-        ("UPTIME", "12:34:56", "info"),
-        ("TASKS", "7", "star"),
-        ("TEMP", "42°C", "fire"),
-    ])
+def demo() -> None:
+    """全功能演示"""
+    reset = C.RESET
+    width = shutil.get_terminal_size().columns
 
-    divider("═", C.CRUX_G, "面板 PANEL")
+    print()
+    print(" " * 6 + gradient_text("✦  七 兽 艺 术 引 擎  v3  ✦",
+                                   colors=[(255,85,85), (255,213,0), (0,255,170), (0,170,255), (200,100,255)],
+                                   bold=True))
+    print()
 
-    panel("CRUX 系统状态",
-          " 白虎 · 骨骼架构     ✅ 自愈\n"
-          " 青龙 · 并行脉路     ✅ 开拓\n"
-          " 朱雀 · 洞察之眼     ✅ 验证\n"
-          " 玄武 · 守护甲盾     ✅ 校验\n"
-          " 麒麟 · 创造之手     ✅ 锻造\n"
-          " 螣蛇 · 传承记忆     ✅ 归档\n"
-          " 应龙 · 号令八方     ✅ 协同",
-          C.CRUX_C)
+    divider("═", C.DIM, "动画帧 ANIMATED FRAMES")
+    demo_animate_frames(2.0)
+    print()
 
-    divider("═", C.CRUX_Y, "进度 PROGRESS")
+    divider("═", C.DIM, "渐变文本 GRADIENT")
+    demo_gradient()
 
-    print(f"  {progress_bar(42, color=C.CRUX_R)}")
-    print(f"  {progress_bar(78, color=C.CRUX_G)}")
-    print(f"  {progress_bar(100, color=C.CRUX_B)}")
+    divider("═", C.DIM, "Badge 系统 BADGES")
+    demo_badges()
+    print()
 
-    divider("═", C.CRUX_O, "工具链 TOOLCHAIN")
-    toolchain_display()
+    divider("═", C.DIM, "粒子特效 PARTICLES")
+    demo_particles()
+    print()
 
-    divider()
-    print(f"\n  {C.BOLD}{C.CRUX_P}✦ 终端美学升级完成 · 七兽之力已注入 ✦{C.RESET}\n")
+    divider("═", C.DIM, "呼吸边框 BREATHING BORDER")
+    demo_breathing_border()
+    print()
+
+    divider("═", C.DIM, "进度条 PROGRESS")
+    demo_progress()
+    print()
+
+    divider("═", C.DIM, "七兽图腾 BEAST ART")
+    print()
+    print(f"  {beast_art()}")
+    print()
+
+    divider("═", C.DIM)
+
+    # 结尾 — 渐变签名
+    print()
+    print(" " * 4 + gradient_text("✦  CRUX Studio · 七兽引擎 · 终端美学  ✦",
+                                   colors=[(200,100,255), (0,170,255), (0,255,170)],
+                                   bold=True))
+    print(f"  {C.DIM}  {particle_line(50, density=0.2, colors=[C.CRUX_C, C.CRUX_P, C.CRUX_G])}")
+    print(f"  {C.DIM}  >> 就绪 · 随时号令 <<{C.RESET}")
+    print()
 
 
 if __name__ == "__main__":

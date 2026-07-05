@@ -114,3 +114,11 @@ test_summary.txt
 core/resources/*.exe
 core/nsp-downloader/resources/ffmpeg.exe
 downloads/
+
+# === Generated/auto-generated ===
+__pycache__/
+*.pyc
+output/videos/
+*.mp4
+*.exe
+.DS_Store

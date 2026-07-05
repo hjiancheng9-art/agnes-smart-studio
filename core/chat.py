@@ -43,7 +43,6 @@ from core.chat_tool_dispatch import _dispatch_tool_impl
 from core.chat_tool_helpers import merge_tool_calls, sanitize_tool_call_history
 from core.chat_tool_helpers import normalize_tool_args as _normalize_tool_args
 from core.chat_vision import _vision_fallback
-from core.vision_context import VisionContext
 from core.client import CruxClient
 from core.config import get_crux_vision_model
 from core.observability import TraceContext, metrics
@@ -54,6 +53,7 @@ from core.provider import (
 )
 from core.skills import SkillManager, get_manager
 from core.tools import AGENT_SYSTEM_PROMPT, ToolRegistry, get_registry
+from core.vision_context import VisionContext
 from engines.text_to_image import TextToImageEngine
 from engines.video import VideoEngine
 

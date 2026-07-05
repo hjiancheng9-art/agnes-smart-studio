@@ -83,7 +83,7 @@ class TestLSPClientConstruction:
         reset_lsp_client()
 
     def test_default_configs_loaded(self):
-        from core.lsp import LSPClient, Language
+        from core.lsp import Language, LSPClient
         client = LSPClient()
         for lang in Language:
             assert lang in client._configs, f"Missing config for {lang}"
@@ -180,15 +180,16 @@ class TestLSPExecutorsImportable:
     def test_executors_return_json_without_server(self):
         """All executors return JSON error when no LSP server is running."""
         import json
+
         from core.lsp import (
+            execute_lsp_completion,
             execute_lsp_diagnostics,
             execute_lsp_find_references,
             execute_lsp_goto_definition,
             execute_lsp_hover,
-            execute_lsp_completion,
             execute_lsp_rename,
+            reset_lsp_client,
         )
-        from core.lsp import reset_lsp_client
         reset_lsp_client()
 
         # goto_definition without file_path

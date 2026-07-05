@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 from prompt_toolkit import Application
 from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.layout import HSplit, Window
@@ -14,7 +13,6 @@ from prompt_toolkit.output import DummyOutput
 
 from ui.status_bar import StatusBar
 from ui.tui_app import TuiApp
-
 
 # ── Fixtures ──────────────────────────────────────────────────
 
