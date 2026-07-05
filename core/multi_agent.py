@@ -282,9 +282,10 @@ class MultiAgentCoordinator:
             threads.append(t)
             t.start()
 
-        # Wait for all
-        for t in threads:
-            t.join(timeout=120)
+        # Wait for all (use per-task timeout, default 120s)
+        for task, t in zip(self.tasks, threads):
+            to = task.timeout_seconds if task.timeout_seconds > 0 else 120
+            t.join(timeout=to)
 
         # 超时未完成的任务标记为 failed（不静默丢失）。
         # 读 task.status + 改写必须在锁内：工作线程 join 超时返回时可能仍在
@@ -293,9 +294,9 @@ class MultiAgentCoordinator:
             for task in self.tasks:
                 if task.status == "running":
                     task.status = "failed"
-                    task.result = f"Task timed out after 120s (agent: {task.assigned_to})"
+                    task.result = f"Task timed out (agent: {task.assigned_to})"
                     task.finished_at = time.time()
-                    self._log.append({"event": "task_timeout", "task": task.id, "agent": task.assigned_to})
+                    self._log.append({"event": "task_timeout", "task": task.id, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id, "agent": task.assigned_to, "timeout": to})
 
             # ── DAG runtime guard ────────────────────────────────────
             _propagate_failed_deps(self.tasks, root_trace_id=root_id)
@@ -480,14 +481,15 @@ class AsyncMultiAgentCoordinator:
             async def _run_task_safe(task: AgentTask, _wave_idx=wave_idx) -> None:
                 """Wrap _execute_task with per-task timeout for deadlock prevention."""
                 try:
+                    task_timeout = task.timeout_seconds if task.timeout_seconds > 0 else self._AUTO_TASK_TIMEOUT
                     await asyncio.wait_for(
                         self._execute_task(task),
-                        timeout=self._AUTO_TASK_TIMEOUT,
+                        timeout=task_timeout,
                     )
                 except asyncio.TimeoutError:
                     task.status = "failed"
-                    task.result = f"[deadlock] task timed out after {self._AUTO_TASK_TIMEOUT}s"
-                    await self._log_append({"event": "task_timeout", "task": task.id, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id, "wave": _wave_idx})
+                    task.result = f"[timeout] task exceeded {task_timeout}s"
+                    await self._log_append({"event": "task_timeout", "task": task.id, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id, "timeout": task_timeout, "wave": _wave_idx})
 
             try:
                 await asyncio.wait_for(
@@ -542,10 +544,12 @@ class AsyncMultiAgentCoordinator:
             return self.model_router.select(task_type=task.task_type)
         return None
 
-    async def _call_tool(self, tool: str, args: dict) -> str:
+    async def _call_tool(self, tool: str, args: dict, timeout: float = 0) -> str:
         """调用 executor，自动适配同步/async 签名。通过 contextvar 传递 trace 上下文。"""
         call_args = dict(args)
         if inspect.iscoroutinefunction(self.execute_tool):
+            if timeout > 0:
+                return await asyncio.wait_for(self.execute_tool(tool, call_args), timeout=timeout)
             return await self.execute_tool(tool, call_args)
         # 同步 executor → to_thread，避免阻塞事件循环
         return await asyncio.to_thread(self.execute_tool, tool, call_args)

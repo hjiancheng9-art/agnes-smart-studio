@@ -23,6 +23,7 @@ class AgentTask:
     finished_at: float = 0
     trace_id: str = ""
     root_trace_id: str = ""
+    timeout_seconds: float = 0.0  # 0 = use default
     tier: str = "auto"
     task_type: str = ""
 
