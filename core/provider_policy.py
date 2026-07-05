@@ -65,6 +65,77 @@ def select_candidates(request: dict, available: list[str], circuit_states: dict[
     return candidates
 
 
+
+def explain_routing(pid: str, request: dict, circuit_states: dict[str, str]) -> list[str]:
+    """解释某个 provider 的评分明细。"""
+    reasons = []
+    score = 50.0
+    reasons.append(f"base=50")
+
+    task_type = request.get("task_type", "text")
+    require_code = request.get("require_code", False)
+    prefer_local = request.get("prefer_local", False)
+    budget = request.get("budget_remaining", 100)
+
+    circuit = circuit_states.get(pid, "CLOSED")
+    if circuit == "OPEN":
+        return [f"{pid}: excluded (circuit=OPEN)"]
+    if circuit == "HALF_OPEN":
+        score -= 30
+        reasons.append(f"circuit=HALF_OPEN: -30")
+
+    if pid == "deepseek":
+        if require_code or task_type in ("code", "debug", "refactor"):
+            score += 30
+            reasons.append(f"strong_coding: +30")
+        score += 15
+        reasons.append(f"general_power: +15")
+    elif pid == "crux":
+        if task_type in ("image", "video"):
+            score += 40
+            reasons.append(f"media_expert: +40")
+        score += 10
+        reasons.append(f"general: +10")
+    elif pid == "zhipu":
+        if prefer_local:
+            score += 20
+            reasons.append(f"local_preferred: +20")
+        score += 5
+        reasons.append(f"general: +5")
+    elif pid == "local":
+        if prefer_local:
+            score += 30
+            reasons.append(f"local_preferred: +30")
+        if budget < 20:
+            score += 25
+            reasons.append(f"low_cost: +25")
+        score -= 10
+        reasons.append(f"limited_capability: -10")
+
+    if budget < 30 and pid in ("deepseek", "crux"):
+        score -= 15
+        reasons.append(f"budget_constraint: -15")
+
+    try:
+        from core.provider_history import adapt_score
+        adjusted = adapt_score(pid, score)
+        diff = round(adjusted - score, 1)
+        if diff != 0:
+            reasons.append(f"history_adjust: {diff:+g}")
+            score = adjusted
+    except ImportError:
+        pass
+
+    reasons.append(f"total={score:.1f}")
+    return reasons
+
+
+def format_explain(pid: str, request: dict, circuit_states: dict[str, str]) -> str:
+    """格式化为可读的评分解释。"""
+    reasons = explain_routing(pid, request, circuit_states)
+    return f"{pid}: {' | '.join(reasons)}"
+
+
 def format_route(selected: list[str]) -> str:
     """格式化路由结果为可读字符串。"""
     if not selected:

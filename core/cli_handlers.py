@@ -1238,14 +1238,15 @@ class CruxCLI:
             return "run_summary 模块未加载。"
 
     def _cmd_providers(self, args):
-        '''View provider health status.'''
+        '''View provider health status. Use --why for detailed score breakdown.'''
         try:
             from core.provider_history import get_all_stats
-            from core.provider_policy import score_provider, format_route
+            from core.provider_policy import score_provider, format_route, format_explain
             from core.provider import get_provider_manager
             mgr = get_provider_manager()
             all_pids = list(mgr.providers.keys())
             circuit_states = {p: mgr.state.circuit_state(p) for p in all_pids}
+            show_why = '--why' in args
             lines = ['Provider health (EMA 60min):']
             stats = get_all_stats()
             req = {'task_type': 'text', 'require_code': False, 'budget_remaining': 100}
@@ -1258,6 +1259,9 @@ class CruxCLI:
                 circuit = circuit_states.get(pid, 'CLOSED')
                 sc = score_provider(pid, req, circuit_states)
                 lines.append(f'  {pid:12s} circuit={circuit:10s} score={sc:5.1f} calls={calls:3d} success={rate:.0%} latency={lat:.0f}ms')
+                if show_why and circuit != 'OPEN':
+                    explanation = format_explain(pid, req, circuit_states)
+                    lines.append(f'           {explanation}')
             route = format_route([p for p in all_pids if circuit_states.get(p) != 'OPEN'])
             lines.append('Route: ' + route)
             return chr(10).join(lines)
