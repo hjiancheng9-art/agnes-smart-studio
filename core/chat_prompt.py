@@ -15,7 +15,8 @@ __all__ = [
     "CHAT_SYSTEM_PROMPT",
     "CODE_SYSTEM_PROMPT",
     "PromptCache",
-    "_BASE_INJECTIONS",
+    "_HOT_IDENTITY",
+    "load_cold_lore",
     "build_system_prompt",
     "get_cached_prompt",
     "set_cached_prompt",
@@ -132,11 +133,36 @@ _CODE_SPECTRUM_INJECTIONS: list[tuple[str, str, str]] = [
     ("core.marketplace", "get_marketplace", "marketplace"),
 ]
 
-# 基底注入：七兽身份 + 金手指外挂 — 所有模式共享（我是谁，不随模式切换）
-_BASE_INJECTIONS: list[tuple[str, str, str]] = [
-    ("core.seven_beasts_fusion", "get_fusion_prompt", "七兽融合"),
-    ("core.golden_finger", "get_golden_finger_prompt", "金手指谱"),
-]
+# 热路径身份注入 — 极简一行，不加载七兽/金手指世界观
+_HOT_IDENTITY = "CRUX Studio v5.0 — AI-native creative + coding platform"
+
+# 冷路径叙事 — 按需加载，不自动注入
+_COLD_LORE: dict[str, tuple[str, str, str]] = {
+    "seven_beasts": ("core.seven_beasts_fusion", "get_fusion_prompt", "七兽融合"),
+    "golden_finger": ("core.golden_finger", "get_golden_finger_prompt", "金手指谱"),
+}
+
+_COLD_LORE_LOADED: dict[str, str] = {}  # 缓存
+
+def load_cold_lore(name: str) -> str:
+    """按需加载冷路径叙事。仅当用户问起或系统诊断时调用。"""
+    if name in _COLD_LORE_LOADED:
+        return _COLD_LORE_LOADED[name]
+    if name not in _COLD_LORE:
+        return ""
+    mod_path, func_name, _ = _COLD_LORE[name]
+    try:
+        import importlib
+        mod = importlib.import_module(mod_path)
+        fn = getattr(mod, func_name, None)
+        if fn is not None:
+            result = fn()
+            if isinstance(result, str):
+                _COLD_LORE_LOADED[name] = result
+                return result
+    except Exception:
+        pass
+    return ""
 
 
 # ── 注入模块文件指纹（改任意谱系文件自动破缓存）─────────
@@ -153,7 +179,8 @@ def _get_injections_fingerprint() -> str:
 
     mtimes: list[str] = []
     seen = set()
-    for mod_path, _, _ in _BASE_INJECTIONS + _SPECTRUM_INJECTIONS + _CODE_SPECTRUM_INJECTIONS + _CHAT_LIGHT_INJECTIONS:
+    # 热路径注入文件
+    for mod_path, _, _ in _SPECTRUM_INJECTIONS + _CODE_SPECTRUM_INJECTIONS + _CHAT_LIGHT_INJECTIONS:
         if mod_path in seen:
             continue
         seen.add(mod_path)
@@ -168,6 +195,20 @@ def _get_injections_fingerprint() -> str:
             import logging
 
             logging.getLogger("crux").debug("silent except", exc_info=True)
+    # 冷路径叙事文件（也会影响缓存：内容变了就要重建）
+    for mod_path, _, _ in _COLD_LORE.values():
+        if mod_path in seen:
+            continue
+        seen.add(mod_path)
+        try:
+            import importlib
+
+            mod = importlib.import_module(mod_path)
+            f = getattr(mod, "__file__", None)
+            if f:
+                mtimes.append(str(int(os.path.getmtime(f))))
+        except Exception:
+            pass
     # 兜底：lore 目录下所有 .py（含新增/重命名文件）
     lore_dir = os.path.join(os.path.dirname(__file__), "lore")
     if os.path.isdir(lore_dir):
@@ -239,19 +280,8 @@ def build_system_prompt(
         "- 避免无意义的寒暄和套话"
     )
 
-    # ── 基底注入：七兽身份 + 金手指 — 所有模式共享 ──
-    for mod_path, func_name, _label in _BASE_INJECTIONS:
-        try:
-            import importlib
-
-            mod = importlib.import_module(mod_path)
-            fn = getattr(mod, func_name, None)
-            if fn and callable(fn):
-                result = fn()
-                if isinstance(result, str) and result:
-                    base += "\n\n" + result
-        except Exception:
-            pass
+    # ── 热路径身份：一行极简，不做世界观注入 ──
+    base += "\n\n" + _HOT_IDENTITY
 
     # 谱系注入：CODE 模式注全部方法论，CHAT_LIGHT 只注 marketplace
     if code_mode:
