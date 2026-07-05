@@ -297,6 +297,12 @@ class MultiAgentCoordinator:
                     task.finished_at = time.time()
                     self._log.append({"event": "task_timeout", "task": task.id, "agent": task.assigned_to})
 
+            # ── DAG runtime guard ────────────────────────────────────
+            _propagate_failed_deps(self.tasks, root_trace_id=root_id)
+            deadlock_msg = _check_dag_deadlock(self.tasks, root_trace_id=root_id)
+            if deadlock_msg:
+                self._log.append({"event": "dag_deadlock", "deadlock": deadlock_msg, "root_trace_id": root_id})
+
             elapsed = time.time() - started
             done = sum(1 for t in self.tasks if t.status == "done")
             failed = sum(1 for t in self.tasks if t.status == "failed")
@@ -495,6 +501,11 @@ class AsyncMultiAgentCoordinator:
                     if t.status not in ("done", "failed"):
                         t.status = "failed"
                         t.result = f"[deadlock] wave {wave_idx} global timeout after {self._WAVE_DEADLOCK_TIMEOUT}s"
+            # ── DAG runtime guard ────────────────────────────────────
+            _propagate_failed_deps(self.tasks, root_trace_id=root_id)
+            deadlock_msg = _check_dag_deadlock(self.tasks, wave_idx=wave_idx, root_trace_id=root_id)
+            if deadlock_msg:
+                await self._log_append({"event": "dag_deadlock", "deadlock": deadlock_msg, "root_trace_id": root_id})
 
         elapsed = time.time() - started
         done = sum(1 for t in self.tasks if t.status == "done")
@@ -868,6 +879,65 @@ def _extract_json(raw: str) -> list[dict]:
         except _json.JSONDecodeError:
             pass
     return []
+
+
+
+
+# ── DAG Runtime Deadlock Guard ──────────────────────────
+def _check_dag_deadlock(tasks: list[AgentTask], wave_idx: int = 0, root_trace_id: str = "") -> str | None:
+    """检查 DAG 死锁条件。返回描述字符串或 None（无死锁）。
+
+    死锁条件：
+    - 存在 pending 任务，但没有 running 任务 → 不可进展
+    - 所有 pending 任务的依赖都是 failed → 级联失败
+    """
+    pending = [t for t in tasks if t.status == "pending"]
+    running = [t for t in tasks if t.status == "running"]
+    failed_ids = {t.id for t in tasks if t.status == "failed"}
+
+    if pending and not running:
+        # 检查是否所有 pending 任务都依赖了已失败的 task
+        stuck = []
+        for t in pending:
+            deps = t.depends_on
+            if deps and all(d in failed_ids for d in deps):
+                stuck.append(t.id)
+        if stuck and len(stuck) == len(pending):
+            return (
+                f"DAG deadlock: {len(pending)} tasks stuck "
+                f"(all deps failed: {stuck[:5]}{'...' if len(stuck) > 5 else ''}) "
+                f"[wave={wave_idx}, trace={root_trace_id[:12]}...]"
+            )
+        if not running:
+            # 有 pending 但没有 running，且至少一个 pending 的依赖不可满足
+            for t in pending:
+                deps = t.depends_on
+                unknown = [d for d in deps if d not in {x.id for x in tasks}]
+                if unknown:
+                    return (
+                        f"DAG deadlock: task '{t.id}' depends on unknown tasks {unknown} "
+                        f"[wave={wave_idx}, trace={root_trace_id[:12]}...]"
+                    )
+    return None
+
+
+def _propagate_failed_deps(tasks: list[AgentTask], root_trace_id: str = "") -> int:
+    """将上游 failed 的 task 的下游标记为 skipped。
+
+    返回被 skip 的数量。
+    """
+    skipped = 0
+    failed_ids = {t.id for t in tasks if t.status in ("failed", "skipped")}
+    if not failed_ids:
+        return 0
+    for t in tasks:
+        if t.status != "pending":
+            continue
+        if t.depends_on and any(d in failed_ids for d in t.depends_on):
+            t.status = "skipped"
+            t.result = "[skipped] upstream task failed"
+            skipped += 1
+    return skipped
 
 
 def _topological_waves(tasks: list[AgentTask]) -> list[list[AgentTask]]:
