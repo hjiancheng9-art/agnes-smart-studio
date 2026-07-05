@@ -1,11 +1,9 @@
 """Codex CLI → MCP Bridge
 
 Wraps OpenAI Codex CLI (codex-cli) as an MCP stdio server.
-Maps MCP tools/call → Codex CLI via pywinpty pseudo-terminal → returns results.
+Maps MCP tools/call → Codex CLI via `codex exec` subprocess → returns results.
 
 Uses line-based JSON-RPC 2.0 over stdio.
-
-REQUIRES: pip install pywinpty (for pseudo-terminal on Windows)
 """
 
 from __future__ import annotations
@@ -79,83 +77,99 @@ def _get_version() -> str:
 
 # ── Codex execution via PTY ─────────────────────────────────────────
 
-def _read_pty(proc) -> str:
-    """Read all available data from PTY."""
-    data = ""
-    while True:
-        try:
-            chunk = proc.read()
-            if not chunk:
-                break
-            data += chunk
-        except EOFError:
-            break
-    return data
+PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
 
 
-def _run_codex(prompt: str, timeout: int = 300) -> dict:
-    """Run Codex CLI with a prompt via pywinpty pseudo-terminal.
+def _run_codex(prompt: str, timeout: int = 600) -> dict:
+    """Run Codex CLI with a prompt via subprocess (codex exec).
 
-    Codex requires a TTY. pywinpty creates one on Windows.
+    Uses `codex exec <prompt>` for non-interactive, approval-free execution.
+    --dangerously-bypass-approvals-and-sandbox prevents the MCP server from
+    hanging on interactive approval prompts (no TTY in stdio context).
+    --ephemeral prevents session file accumulation on disk.
+    -C ensures codex runs in the project root.
     """
     binary = _resolve_codex()
+    if not binary:
+        return {"success": False, "error": "Codex CLI not found"}
 
     try:
-        from winpty import PtyProcess
-    except ImportError:
-        return {"exit_code": -10, "output": "pywinpty not installed. Run: pip install pywinpty"}
+        proc = subprocess.run(
+            [binary, "exec", prompt,
+             "--dangerously-bypass-approvals-and-sandbox",
+             "--ephemeral",
+             "-C", PROJECT_ROOT],
+            capture_output=True, text=True, timeout=timeout,
+            encoding="utf-8", errors="replace",
+        )
+        output = proc.stdout or ""
+        stderr = proc.stderr or ""
 
-    proc = None
-    try:
-        proc = PtyProcess.spawn([binary], dimensions=(40, 200))
-        start = time.time()
+        if proc.returncode != 0 and not output.strip():
+            return {"success": False, "error": f"Codex CLI failed (exit={proc.returncode}): {stderr[:500]}"}
 
-        # Phase 1: Wait for Codex to initialize (model loading)
-        time.sleep(10)
-        _read_pty(proc)  # drain init data
+        output = _clean_ansi(output)
+        result = _extract_result(output, prompt)
 
-        # Phase 2: Send the prompt
-        proc.write(prompt + '\n')
+        return {
+            "success": True,
+            "output": output[:8000],
+            "summary": result["summary"][:500] if result.get("summary") else "",
+            "code": result.get("code", ""),
+            "stderr": stderr[:500] if stderr else "",
+        }
 
-        # Phase 3: Read response with patience
-        response = ""
-        while time.time() - start < timeout:
-            time.sleep(2)
-            data = _read_pty(proc)
-            if data:
-                clean = _clean_ansi(data)
-                response += clean
-
-                # If prompt reappeared and we have enough output, stop
-                if ('›' in data or '> ' in data) and len(response) > 100:
-                    time.sleep(1)
-                    try:
-                        extra = _read_pty(proc)
-                        if extra:
-                            response += _clean_ansi(extra)
-                    except Exception:
-                        pass
-                    break
-            else:
-                # No new data for 2 seconds - might be done
-                if len(response) > 20:
-                    # Wait one more cycle
-                    continue
-                break
-
-        return {"exit_code": 0, "output": response.strip() or "(no output)"}
-
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": f"Codex timed out after {timeout}s"}
     except Exception as e:
-        return {"exit_code": -3, "output": f"(error: {e})"}
+        return {"success": False, "error": str(e)}
 
-    finally:
-        if proc and proc.isalive():
-            try:
-                proc.terminate()
-                time.sleep(0.3)
-                proc.close()
-            except Exception:
-                pass
+
+
+
+def _extract_result(output: str, prompt: str) -> dict:
+    """Extract meaningful summary and code from Codex CLI output.
+
+    Codex CLI emits ANSI-styled output. After ANSI cleanup, we extract
+    the first substantive line as summary, and the first fenced code block
+    as the code segment. Falls back gracefully on empty output.
+    """
+    summary = ""
+    code = ""
+    lines = [l.strip() for l in output.split("\n")]
+    in_code = False
+    code_lines = []
+
+    for line in lines:
+        if line.startswith("```"):
+            if in_code and code_lines:
+                code = "\n".join(code_lines).strip()
+                in_code = False
+            else:
+                in_code = True
+                code_lines = []
+            continue
+
+        if in_code:
+            code_lines.append(line)
+            continue
+
+        # Skip noise lines before first substantive content
+        if not summary and line and not line.startswith("[") and len(line) > 8:
+            summary = line[:200]
+
+    if not summary:
+        if code:
+            lines_count = len(code.split("\n"))
+            summary = f"Generated {lines_count} lines of code"
+        elif output.strip():
+            summary = output.strip()[:200]
+        else:
+            summary = "(empty response)"
+
+    return {"summary": summary, "code": code}
+
+
 
 
 # ── MCP protocol (line-based JSON-RPC 2.0) ─────────────────────────
@@ -232,17 +246,16 @@ def _handle_tool_call(name: str, args: dict) -> dict:
         if name == "codex_status":
             binary = _resolve_codex()
             version = _get_version()
-            pty_ok = False
+            # Verify the binary works by checking help output
             try:
-                from winpty import PtyProcess
-                pty_ok = True
-            except ImportError:
-                pass
+                r = subprocess.run([binary, "--version"], capture_output=True, text=True, timeout=10)
+                live = r.returncode == 0
+            except Exception:
+                live = False
             info = {
-                "available": True,
+                "available": live,
                 "binary": binary,
                 "version": version,
-                "pywinpty_installed": pty_ok,
                 "exists_on_disk": os.path.isfile(binary) if os.path.isabs(binary) else bool(shutil.which(binary)),
             }
             return {"content": [{"type": "text", "text": json.dumps(info, indent=2, ensure_ascii=False)}]}
@@ -251,49 +264,49 @@ def _handle_tool_call(name: str, args: dict) -> dict:
             prompt = args.get("prompt", "")
             timeout = args.get("timeout", 300)
             result = _run_codex(prompt, timeout)
-            return {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": f"[exit: {result['exit_code']}]\n\n{result['output']}",
-                    }
-                ]
-            }
+            if result.get("success"):
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": result["output"],
+                        }
+                    ]
+                }
+            else:
+                return {
+                    "content": [{"type": "text", "text": f"Error: {result.get('error', 'unknown')}"}],
+                    "isError": True,
+                }
 
         if name == "codex_review":
             target = args.get("target", "")
-            focus = args.get("focus", "all")
-            timeout = args.get("timeout", 300)
-            focus_map = {
-                "all": "Full code review",
-                "bugs": "Find bugs in this code",
-                "security": "Security audit of this code",
-                "style": "Review code style",
-                "performance": "Review code for performance issues",
-            }
-            prompt = f"{focus_map.get(focus, 'Review')}:\n\n{target}"
-            result = _run_codex(prompt, timeout)
-            return {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": f"[exit: {result['exit_code']}]\n\n{result['output']}",
-                    }
-                ]
-            }
+            timeout = args.get("timeout", 600)
+            binary = _resolve_codex()
+            review_args = ["--dangerously-bypass-approvals-and-sandbox", "--ephemeral", "-C", PROJECT_ROOT]
+            try:
+                proc = subprocess.run(
+                    [binary, "exec", "review", target] + review_args,
+                    capture_output=True, text=True, timeout=timeout,
+                    encoding="utf-8", errors="replace",
+                )
+                output = _clean_ansi(proc.stdout or "")
+                if proc.returncode != 0 and not output.strip():
+                    return {"content": [{"type": "text", "text": f"Review failed (exit={proc.returncode}): {_clean_ansi(proc.stderr or '')[:500]}"}], "isError": True}
+                return {"content": [{"type": "text", "text": output[:8000]}]}
+            except subprocess.TimeoutExpired:
+                return {"content": [{"type": "text", "text": f"Codex review timed out after {timeout}s"}], "isError": True}
+            except Exception as e:
+                return {"content": [{"type": "text", "text": f"Codex review error: {e}"}], "isError": True}
 
         if name == "codex_think":
             prompt = args.get("prompt", "")
             timeout = args.get("timeout", 300)
             result = _run_codex(f"Think deeply and analyze: {prompt}", timeout)
-            return {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": f"[exit: {result['exit_code']}]\n\n{result['output']}",
-                    }
-                ]
-            }
+            if result.get("success"):
+                return {"content": [{"type": "text", "text": result["output"]}]}
+            else:
+                return {"content": [{"type": "text", "text": f"Error: {result.get('error', 'unknown')}"}], "isError": True}
 
         return {
             "content": [{"type": "text", "text": f"Unknown tool: {name}"}],

@@ -1,0 +1,63 @@
+def _run_codex(prompt: str, timeout: int = 300) -> dict:
+    """Run Codex CLI with a prompt via pywinpty pseudo-terminal.
+
+    Codex requires a TTY. pywinpty creates one on Windows.
+    """
+    binary = _resolve_codex()
+
+    try:
+        from winpty import PtyProcess
+    except ImportError:
+        return {"exit_code": -10, "output": "pywinpty not installed. Run: pip install pywinpty"}
+
+    proc = None
+    try:
+        proc = PtyProcess.spawn([binary], dimensions=(40, 200))
+        start = time.time()
+
+        # Phase 1: Wait for Codex to initialize (model loading)
+        time.sleep(10)
+        _read_pty(proc)  # drain init data
+
+        # Phase 2: Send the prompt
+        proc.write(prompt + '\n')
+
+        # Phase 3: Read response with patience
+        response = ""
+        while time.time() - start < timeout:
+            time.sleep(2)
+            data = _read_pty(proc)
+            if data:
+                clean = _clean_ansi(data)
+                response += clean
+
+                # If prompt reappeared and we have enough output, stop
+                if ('›' in data or '> ' in data) and len(response) > 100:
+                    time.sleep(1)
+                    try:
+                        extra = _read_pty(proc)
+                        if extra:
+                            response += _clean_ansi(extra)
+                    except Exception:
+                        pass
+                    break
+            else:
+                # No new data for 2 seconds - might be done
+                if len(response) > 20:
+                    # Wait one more cycle
+                    continue
+                break
+
+        return {"exit_code": 0, "output": response.strip() or "(no output)"}
+
+    except Exception as e:
+        return {"exit_code": -3, "output": f"(error: {e})"}
+
+    finally:
+        if proc and proc.isalive():
+            try:
+                proc.terminate()
+                time.sleep(0.3)
+                proc.close()
+            except Exception:
+                pass

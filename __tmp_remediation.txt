@@ -1,0 +1,67 @@
+class RemediationScreen(Screen):
+    name = "remediate"
+    def __init__(self):
+        self._cats = []
+        self._pb = None
+        self._results = []
+    def on_enter(self, app):
+        try:
+            from core.incident_playbook import PLAYBOOKS
+            self._cats = list(PLAYBOOKS.keys())
+        except Exception:
+            self._cats = []
+        self._results = []
+    def select(self, cat):
+        try:
+            from core.incident_playbook import get_playbook
+            self._pb = get_playbook(cat)
+        except Exception:
+            self._pb = None
+    def run(self, iid):
+        try:
+            from core.incident_store import load_incidents
+            incs = load_incidents(limit=100)
+            inc = next((x for x in incs if x.get("incident_id", x.get("_id", "")) == iid), None)
+            if inc:
+                from core.remediation_executor import remediate_incident
+                self._results = remediate_incident(inc)
+            else:
+                self._results = [{"status": "failed", "command": iid, "risk": "?", "message": "not found"}]
+        except Exception as e:
+            self._results = [{"status": "failed", "command": iid, "risk": "?", "error": str(e)}]
+        def back(self):
+        self._pb = None
+        self._results = []
+    def render(self, tw):
+        ft = []
+        ft.append(("bold", f'{"=" * tw}\n'))
+        if self._results:
+            ft.append(("bold class:header", "  REMEDIATION RESULTS\n"))
+            for r in self._results:
+                ic = chr(10003) if r["status"] == "success" else chr(8857) if r["status"] == "pending_approval" else chr(10007)
+                ft.append(("", f"    {ic} {r.get('command','?'):35s} {r['status']}\n"))
+            if self._results[-1].get("message"):
+                ft.append(("class:status-warn", f"    >> {self._results[-1]['message']}\n"))
+            ft.append(("class:dim", "\n  Esc: back\n"))
+            return ft
+        if self._pb:
+            ft.append(("bold class:header", f"  {self._pb.get('title', '?')}\n"))
+            sev = self._pb.get("severity", "?")
+            sev_cls = "class:status-err" if sev == "critical" else "class:status-warn"
+            ft.append((sev_cls, f"  severity: {sev}\n\n"))
+            for i, s in enumerate(self._pb.get("steps", []), 1):
+                ft.append(("", f"    {i}. {s}\n"))
+            auto = self._pb.get("auto_commands", [])
+            if auto:
+                ft.append(("bold", "\n  Auto-fix commands:\n"))
+                for c in auto:
+                    ft.append(("class:dim", f"    $ {c}\n"))
+            ft.append(("class:dim", "\n  /remediate run <id>  |  Esc: list\n"))
+        else:
+            ft.append(("bold class:header", "  PLAYBOOKS\n"))
+            ft.append(("class:dim", f"  {tw * '-'}\n"))
+            for c in self._cats[:20]:
+                ft.append(("", f"    {c}\n"))
+            ft.append(("class:dim", "\n  /remediate <cat> | /remediate run <id>\n"))
+        return ft
+

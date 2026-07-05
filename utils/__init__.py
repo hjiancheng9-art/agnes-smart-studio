@@ -6,3 +6,4 @@ from utils import history as history
 from utils import image_input as image_input
 from utils import memory as memory
 from utils import templates as templates
+from utils import unicode_safety as unicode_safety

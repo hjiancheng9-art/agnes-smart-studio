@@ -20,21 +20,9 @@ import httpx
 
 from .client import ContentPolicyError
 from .config import SETTINGS
+from utils.unicode_safety import sanitize_payload as _sanitize_json, has_surrogate
 
 __all__ = ["AsyncCruxClient"]
-
-
-def _sanitize_json(data: Any) -> Any:
-    """Recursively remove surrogate characters from JSON data."""
-    if isinstance(data, str):
-        if not any(0xD800 <= ord(c) <= 0xDFFF for c in data):
-            return data
-        return "".join(c for c in data if not (0xD800 <= ord(c) <= 0xDFFF))
-    if isinstance(data, dict):
-        return {k: _sanitize_json(v) for k, v in data.items()}
-    if isinstance(data, list):
-        return [_sanitize_json(v) for v in data]
-    return data
 
 
 class AsyncCruxClient:
@@ -60,6 +48,17 @@ class AsyncCruxClient:
 
     async def _request_with_retry(self, method: str, url: str, **kwargs) -> httpx.Response:
         """带重试的异步 HTTP 请求"""
+        # ── Unicode safety: pre-flight UTF-8 encoding check ──
+        json_body = kwargs.get("json")
+        if json_body is not None:
+            from utils.unicode_safety import ensure_utf8_encodable, InvalidUnicodePayloadError
+            if not ensure_utf8_encodable(json_body):
+                raise InvalidUnicodePayloadError(
+                    "Request payload contains lone surrogate characters that "
+                    "cannot be encoded as UTF-8. Sanitize with "
+                    "utils.unicode_safety.sanitize_payload() before sending."
+                )
+
         retries = kwargs.pop("retries", self.max_retries)
         last_exc = None
         for attempt in range(retries):
@@ -153,6 +152,14 @@ class AsyncCruxClient:
             body["chat_template_kwargs"] = {"enable_thinking": True}
         body.update(kwargs)
 
+        # ── Unicode safety: sanitize request payload before encoding ──
+        if has_surrogate(body):
+            import logging
+            logging.getLogger("crux.client").warning(
+                "async_client.payload.surrogate_detected — sanitizing before send"
+            )
+        body = _sanitize_json(body)
+
         resp = await self._request_with_retry("POST", "/chat/completions", json=body)
         return _sanitize_json(resp.json())
 
@@ -214,6 +221,14 @@ class AsyncCruxClient:
             body["tool_choice"] = tool_choice
         body.update(kwargs)
 
+        # ── Unicode safety: sanitize request payload before encoding ──
+        if has_surrogate(body):
+            import logging
+            logging.getLogger("crux.client").warning(
+                "async_client.payload.surrogate_detected — sanitizing before stream send"
+            )
+        body = _sanitize_json(body)
+
         # 流式连接重试（与同步版一致：最多 2 次额外尝试）
         stream_retries = 2
         for stream_attempt in range(stream_retries + 1):
@@ -233,6 +248,7 @@ class AsyncCruxClient:
                             break
                         try:
                             chunk = json.loads(data)
+                            chunk = _sanitize_json(chunk) if any(55296 <= ord(c) <= 57343 for c in data) else chunk
                         except json.JSONDecodeError:
                             continue
                         choices = chunk.get("choices") or []

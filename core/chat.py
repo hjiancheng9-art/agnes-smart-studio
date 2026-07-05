@@ -44,6 +44,7 @@ from core.chat_tool_helpers import merge_tool_calls, sanitize_tool_call_history
 from core.chat_tool_helpers import normalize_tool_args as _normalize_tool_args
 from core.chat_vision import _vision_fallback
 from core.client import CruxClient
+from utils.unicode_safety import InvalidUnicodePayloadError
 from core.config import get_crux_vision_model
 from core.observability import TraceContext, metrics
 from core.provider import (
@@ -824,6 +825,13 @@ class ChatSession(ChatToggleMixin):
                         _use_model,
                         tools,
                     )
+                except InvalidUnicodePayloadError:
+                    # 本地 payload 编码问题，不是 provider 故障 — 不触发 failover
+                    logger.exception(
+                        "_consume_stream_delta: payload encoding error — NOT a provider failure, skipping failover"
+                    )
+                    yield ("error", "请求数据含非法字符（Unicode surrogate），已跳过。请重试。")
+                    return  # 直接返回，不进入 failover 循环
                 except Exception as e:
                     logger.exception("_consume_stream_delta 异常")
                     yield ("error", f"流式接收中断: {type(e).__name__}: {e}")

@@ -1,6 +1,6 @@
 {
-  "version": "5.0.0",
-  "updated": "2026-07-04",
+  "version": "5.1.0",
+  "updated": "2026-07-05",
   "modes": {
     "chat": "对话-问答分析",
     "create": "创作-Showrunner流水线",
@@ -8,9 +8,9 @@
     "evolve": "进化-自我诊断修复扩展"
   },
   "stats": {
-    "commands": 50,
+    "commands": 51,
     "modes": 4,
-    "tools": 97,
+    "tools": 171,
     "skills_local": 28,
     "skills_marketplace": 668
   },

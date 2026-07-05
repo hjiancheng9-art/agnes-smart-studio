@@ -93,22 +93,7 @@ class ContentPolicyError(Exception):
         self.detail = detail or {}
 
 
-def _sanitize_json(data):
-    """Recursively remove surrogate characters from JSON data.
-
-    Some models return text with lone surrogates (U+D800-U+DFFF) which
-    are invalid in UTF-8. This cleans them before they reach the chat system.
-    """
-    if isinstance(data, str):
-        # Fast path: if clean, return as-is
-        if not any(0xD800 <= ord(c) <= 0xDFFF for c in data):
-            return data
-        return "".join(c for c in data if not (0xD800 <= ord(c) <= 0xDFFF))
-    if isinstance(data, dict):
-        return {k: _sanitize_json(v) for k, v in data.items()}
-    if isinstance(data, list):
-        return [_sanitize_json(v) for v in data]
-    return data
+from utils.unicode_safety import sanitize_payload as _sanitize_json, has_surrogate, InvalidUnicodePayloadError
 
 
 class CruxClient:
@@ -134,6 +119,21 @@ class CruxClient:
 
     def _request_with_retry(self, method: str, url: str, **kwargs) -> httpx.Response:
         """带重试的HTTP请求"""
+        # ── Unicode safety: pre-flight UTF-8 encoding check ──
+        # httpx calls json.dumps(body, ensure_ascii=False) internally.  If the
+        # body still contains lone surrogates (missed by upstream sanitization),
+        # this will raise UnicodeEncodeError — which must NOT trigger provider
+        # failover because it's a local payload problem, not a provider issue.
+        json_body = kwargs.get("json")
+        if json_body is not None:
+            from utils.unicode_safety import ensure_utf8_encodable, InvalidUnicodePayloadError
+            if not ensure_utf8_encodable(json_body):
+                raise InvalidUnicodePayloadError(
+                    "Request payload contains lone surrogate characters that "
+                    "cannot be encoded as UTF-8. Sanitize with "
+                    "utils.unicode_safety.sanitize_payload() before sending."
+                )
+
         retries = kwargs.pop("retries", self.max_retries)
         last_exc = None
         for attempt in range(retries):
@@ -228,6 +228,13 @@ class CruxClient:
             body["parallel_tool_calls"] = True
         # thinking params now flow from provider adapter via chat.py kwargs
         body.update(kwargs)
+
+        # ── Unicode safety: sanitize request payload before encoding ──
+        if has_surrogate(body):
+            logger.warning(
+                "client.payload.surrogate_detected — sanitizing before send"
+            )
+        body = _sanitize_json(body)
 
         resp = self._request_with_retry("POST", "/chat/completions", json=body)
         return _sanitize_json(resp.json())  # pyright: ignore[reportReturnType]
@@ -367,6 +374,13 @@ class CruxClient:
             body["tools"] = tools
             body["tool_choice"] = tool_choice
         body.update(kwargs)
+
+        # ── Unicode safety: sanitize request payload before encoding ──
+        if has_surrogate(body):
+            logger.warning(
+                "client.payload.surrogate_detected — sanitizing before stream send"
+            )
+        body = _sanitize_json(body)
 
         # 流式连接重试：在流数据消费之前检查状态码，
         # 此时服务器尚未处理请求体，重试安全且幂等。

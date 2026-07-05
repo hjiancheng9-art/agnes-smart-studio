@@ -295,6 +295,8 @@ class MessagePane:
             self._stream_buffer = f"[{label}] "
 
     def stream_append(self, text: str) -> None:
+        from utils.unicode_safety import sanitize_text
+        text = sanitize_text(text)
         with self._lock:
             if self._stream_label:
                 self._stream_buffer += text

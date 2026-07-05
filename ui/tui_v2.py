@@ -32,13 +32,13 @@ from typing import TYPE_CHECKING
 
 from prompt_toolkit import Application
 from prompt_toolkit.buffer import Buffer
+from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout import HSplit, Layout, Window
 from prompt_toolkit.layout.containers import ConditionalContainer
-from prompt_toolkit.filters import Condition
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.processors import BeforeInput
 from prompt_toolkit.output import create_output
@@ -50,7 +50,6 @@ from ui.clipboard_image import detect_drag_images, get_clipboard_image, is_image
 from ui.message_pane import MessagePane
 from ui.status_bar import StatusBar
 from ui.theme_v2 import build_style_v2
-from ui.dashboard import render_dashboard
 from ui.widgets_v2 import Spinner, ThinkingPanel, build_welcome_formatted, context_bar
 
 try:
@@ -99,12 +98,15 @@ class ScreenStack:
         if app is not None:
             screen.on_enter(app)
     def pop(self, app):
-        if not self._stack: return None
+        if not self._stack:
+            return None
         s = self._stack.pop()
-        if app is not None: s.on_exit(app)
+        if app is not None:
+            s.on_exit(app)
         return s
     def pop_all(self, app):
-        while self._stack: self.pop(app)
+        while self._stack:
+            self.pop(app)
 
 
 class DashboardScreen(Screen):
@@ -114,7 +116,8 @@ class DashboardScreen(Screen):
         self._last_refresh = 0
     def on_enter(self, app):
         self._refresh_data()
-        if app: app._app.invalidate()
+        if app:
+            app._app.invalidate()
     def _refresh_data(self):
         import time
         if time.monotonic() - self._last_refresh < 2:
@@ -124,11 +127,13 @@ class DashboardScreen(Screen):
             from core.incident_store import get_incident_trends, load_incidents
             self._cached_data["trends"] = get_incident_trends()
             self._cached_data["incidents"] = load_incidents(limit=10)
-        except: pass
+        except Exception:
+            pass
         try:
             from core.run_replay import list_replays
             self._cached_data["runs"] = list_replays(limit=5)
-        except: pass
+        except Exception:
+            self._pending = []
     def render(self, tw):
         self._refresh_data()
         d = self._cached_data
@@ -169,7 +174,8 @@ class IncidentLogScreen(Screen):
         try:
             from core.incident_store import load_incidents
             self._incidents = load_incidents(limit=50)
-        except: self._incidents = []
+        except Exception:
+            self._incidents = []
     def render(self, tw):
         ft = []
         ft.append(("bold", f'{"=" * tw}\n'))
@@ -185,7 +191,7 @@ class IncidentLogScreen(Screen):
                 sev = str(inc.get("severity", "?"))[:6]
                 ts = str(inc.get("timestamp", "?"))[:16]
                 ft.append(("", f"  {iid:<16} {cat:<18} {sev:<6} {ts}\n"))
-        ft.append(("class:dim", f"\n  Esc: exit\n"))
+        ft.append(("class:dim", "\n  Esc: exit\n"))
         return ft
 
 
@@ -199,13 +205,15 @@ class RemediationScreen(Screen):
         try:
             from core.incident_playbook import PLAYBOOKS
             self._cats = list(PLAYBOOKS.keys())
-        except: self._cats = []
+        except Exception:
+            self._cats = []
         self._results = []
     def select(self, cat):
         try:
             from core.incident_playbook import get_playbook
             self._pb = get_playbook(cat)
-        except: self._pb = None
+        except Exception:
+            self._pb = None
     def run(self, iid):
         try:
             from core.incident_store import load_incidents
@@ -231,7 +239,7 @@ class RemediationScreen(Screen):
                 ft.append(("", f"    {ic} {r.get('command','?'):35s} {r['status']}\n"))
             if self._results[-1].get("message"):
                 ft.append(("class:status-warn", f"    >> {self._results[-1]['message']}\n"))
-            ft.append(("class:dim", f"\n  Esc: back\n"))
+            ft.append(("class:dim", "\n  Esc: back\n"))
             return ft
         if self._pb:
             ft.append(("bold class:header", f"  {self._pb.get('title', '?')}\n"))
@@ -245,13 +253,13 @@ class RemediationScreen(Screen):
                 ft.append(("bold", "\n  Auto-fix commands:\n"))
                 for c in auto:
                     ft.append(("class:dim", f"    $ {c}\n"))
-            ft.append(("class:dim", f"\n  /remediate run <id>  |  Esc: list\n"))
+            ft.append(("class:dim", "\n  /remediate run <id>  |  Esc: list\n"))
         else:
             ft.append(("bold class:header", "  PLAYBOOKS\n"))
             ft.append(("class:dim", f"  {tw * '-'}\n"))
             for c in self._cats[:20]:
                 ft.append(("", f"    {c}\n"))
-            ft.append(("class:dim", f"\n  /remediate <cat> | /remediate run <id>\n"))
+            ft.append(("class:dim", "\n  /remediate <cat> | /remediate run <id>\n"))
         return ft
 
 
@@ -264,12 +272,14 @@ class RunReplayScreen(Screen):
         try:
             from core.run_replay import list_replays
             self._records = list_replays(limit=20)
-        except: self._records = []
+        except Exception:
+            self._records = []
     def select(self, rid):
         try:
             from core.run_replay import load_replay
             self._selected = load_replay(rid)
-        except: self._selected = None
+        except Exception:
+            self._selected = None
     def back(self):
         self._selected = None
     def render(self, tw):
@@ -286,7 +296,7 @@ class RunReplayScreen(Screen):
                 st = str(r.get("status", "?"))[:12]
                 ts = str(r.get("saved_at", "?"))[:12]
                 ft.append(("", f"  {rid:<24} {st:<12} {ts}\n"))
-        ft.append(("class:dim", f"\n  Esc: exit\n"))
+        ft.append(("class:dim", "\n  Esc: exit\n"))
         return ft
 
 
@@ -298,7 +308,8 @@ class ApprovalScreen(Screen):
         try:
             from ui.tui_v2 import _APPROVAL_PENDING
             self._pending = list(_APPROVAL_PENDING)
-        except: pass
+        except Exception:
+            self._pending = []
     def render(self, tw):
         ft = []
         ft.append(("bold", f'{"=" * tw}\n'))
@@ -313,7 +324,7 @@ class ApprovalScreen(Screen):
                     cls = "class:status-err" if risk == "critical" else "class:status-warn"
                     ft.append((cls, f"  [{risk.upper()}] {item.get('command','?')}\n"))
                     ft.append(("", f"    {item.get('description', '')}\n"))
-        ft.append(("class:dim", f"\n  Esc: exit\n"))
+        ft.append(("class:dim", "\n  Esc: exit\n"))
         return ft
 
 

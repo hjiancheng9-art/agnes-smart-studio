@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crux-smart-studio"
-version = "5.0.0"
+version = "5.1.0"
 description = "CRUX Studio — AI-native creative + coding platform · 75+ tools"
 requires-python = ">=3.10"
 dependencies = [
