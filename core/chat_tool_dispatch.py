@@ -30,6 +30,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool=Fals
         args = json.loads(args_json or '{}')
     except json.JSONDecodeError:
         args = {}
+    _rtid = args.get('_root_trace_id', '')  # from multi_agent step_args
     if not confirmed:
         from core.permission import get_permission_manager
         pm = get_permission_manager()
@@ -78,7 +79,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool=Fals
             side.append(('image', data))
             try:
                 from core.cost_tracker import record_usage
-                record_usage(model='agnes-image-2.1-flash', kind='image', label='generate_image', call_count=1)
+                record_usage(model='agnes-image-2.1-flash', kind='image', label='generate_image', call_count=1, root_trace_id=_rtid)
             except (ImportError, OSError) as e:
                 logger.debug('cost_tracker.record_usage(image) failed: %s: %s', type(e).__name__, e)
             return (f"图片已生成并保存: {data.get('local_path', '')}", side)
@@ -120,7 +121,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool=Fals
             side.append(('video', data))
             try:
                 from core.cost_tracker import record_usage
-                record_usage(model='agnes-video-v2.0', kind='video', label='generate_video', call_count=1)
+                record_usage(model='agnes-video-v2.0', kind='video', label='generate_video', call_count=1, root_trace_id=_rtid)
             except (ImportError, OSError) as e:
                 logger.debug('cost_tracker.record_usage(video) failed: %s: %s', type(e).__name__, e)
             if data.get('status') == 'timeout':

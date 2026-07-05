@@ -130,7 +130,8 @@ def _save_state(state: dict) -> None:
 
 
 def record_usage(
-    model: str, kind: str = "text", usage: dict | None = None, call_count: int = 1, label: str = ""
+    model: str, kind: str = "text", usage: dict | None = None,
+    call_count: int = 1, label: str = "", root_trace_id: str = ""
 ) -> dict:
     """记录一次 API 调用的花费。
 
@@ -140,10 +141,17 @@ def record_usage(
         usage: API 返回的 usage dict（text 模型含 prompt_tokens/completion_tokens）
         call_count: 图像/视频按次计费时的次数（默认1）
         label: 可选标签（如 "chat" / "generate_image" / "vision"）
+        root_trace_id: 整次 multi-agent 执行的 trace ID，空时自动从 context 读取
 
     Returns:
         本次记录条目 dict（含 cost）
     """
+    if not root_trace_id:
+        try:
+            from core.multi_agent import get_current_root_trace_id
+            root_trace_id = get_current_root_trace_id()
+        except ImportError:
+            pass
     cost = calc_cost(model, kind, usage, call_count)
 
     # 零花费（文本模型 usage 缺失）→ 不写入日志/不累加，避免噪音
@@ -154,6 +162,7 @@ def record_usage(
             "model": model,
             "kind": kind,
             "label": label,
+            "root_trace_id": root_trace_id,
             "usage": usage or {},
             "call_count": call_count,
             "cost": 0.0,

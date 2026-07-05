@@ -505,10 +505,16 @@ class ProviderManager:
                 continue
         return False
 
-    def create_client(self, provider_id: str | None = None, _depth: int = 0):
+    def create_client(self, provider_id: str | None = None, _depth: int = 0, root_trace_id: str = ""):
         """Create an CruxClient for the given or active provider."""
         if _depth >= 3:
             raise NoProviderAvailable("Provider fallback chain exceeded max depth")
+        if not root_trace_id:
+            try:
+                from core.multi_agent import get_current_root_trace_id
+                root_trace_id = get_current_root_trace_id()
+            except ImportError:
+                pass
         from core.client import CruxClient
 
         pid = provider_id or self.state.active
@@ -540,7 +546,12 @@ class ProviderManager:
         if not api_key and provider.get("auth_required", True):
             fallback = self._first_available(exclude={pid})
             if fallback:
-                return self.create_client(fallback, _depth=_depth + 1)
+                import logging
+                logging.getLogger("crux").info(
+                    "provider fallback: %s -> %s (depth=%d, trace=%s)",
+                    pid, fallback, _depth + 1, root_trace_id
+                )
+                return self.create_client(fallback, _depth=_depth + 1, root_trace_id=root_trace_id)
             raise NoProviderAvailable(f"No API key for provider '{pid}'")
 
         return CruxClient(api_key=api_key, base_url=provider["base_url"])

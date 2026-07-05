@@ -36,6 +36,15 @@ from collections.abc import Callable
 
 from core.multi_agent_models import ROOT, Agent, AgentTask  # noqa: F401
 
+# 跨模块 trace 上下文：供 cost_tracker 等下游模块读取当前 root_trace_id
+import contextvars as _crux_ctx
+_current_root_trace_id = _crux_ctx.ContextVar("crux_root_trace_id", default="")
+
+
+def get_current_root_trace_id() -> str:
+    """获取当前执行的 root_trace_id，供下游模块（cost_tracker/observability）使用。"""
+    return _current_root_trace_id.get()
+
 
 __all__ = [
     "Agent",
@@ -246,8 +255,10 @@ class MultiAgentCoordinator:
         self.tasks = self.decompose(goal)
         # 统一 root_trace_id：一次 execute 的所有 task 共享同一 root
         root_id = uuid.uuid4().hex[:16]
+        _current_root_trace_id.set(root_id)
         for t in self.tasks:
             t.root_trace_id = root_id
+        _current_root_trace_id.set(root_id)
         self._log.append({"event": "decomposed", "tasks": len(self.tasks), "root_trace_id": root_id})
 
         # Simple round-robin dispatch (parallel via threading)
