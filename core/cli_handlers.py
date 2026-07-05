@@ -1320,6 +1320,10 @@ class CruxCLI:
                 lines.append(f"Status: {summary.get('quality_status', '?')} score={summary.get('quality_score', 0)}")
                 lines.append(f"Tasks: {summary.get('tasks_done', 0)} done / {summary.get('tasks_failed', 0)} failed / {summary.get('tasks_skipped', 0)} skipped")
                 lines.append(f"Policy: {summary.get('policy_action', '')} ({summary.get('policy_reason', '')})")
+                incident = summary.get("incident", {})
+                if incident:
+                    lines.append(f"Failure: {incident.get('primary_category', '?')} ({incident.get('total_incidents', 0)} incidents)")
+                    lines.append(f"Recommendation: {incident.get('recommendation', '')}")
                 lines.append(f"Timeline events: {len(timeline)}")
                 lines.append("")
             if timeline:

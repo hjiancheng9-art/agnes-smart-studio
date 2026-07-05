@@ -942,6 +942,12 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
             record_retry_attempt(root_id, "scheduled", "pending")
         save_run(result)
         try:
+            from core.incident_classifier import classify_run
+            incident = classify_run(result, log)
+            result.update({"incident": incident})
+        except Exception:
+            pass
+        try:
             tasks_dict = [{"id": t.id, "status": t.status, "trace_id": t.trace_id, "result": t.result, "started_at": t.started_at, "finished_at": t.finished_at} for t in tasks]
             save_run_replay(root_id, result, log, tasks_dict)
         except Exception:
