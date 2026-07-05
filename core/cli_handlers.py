@@ -1212,7 +1212,17 @@ class CruxCLI:
                 lines.append(f"失败原因: {failure}")
             longest = data.get('longest_task')
             if longest:
-                lines.append(f"最长任务: {longest.get('id', '?')} ({longest.get('duration_ms', 0)}ms)")
+                            lines.append(f"最长任务: {longest.get('id', '?')} ({longest.get('duration_ms', 0)}ms)")
+            quality = data.get("quality_status", "")
+            if quality:
+                score = data.get("quality_score", 0)
+                flags = data.get("quality_flags", [])
+                rec = data.get("recommendation", "")
+                lines.append(f"质量评级: {quality} (score={score})")
+                if flags:
+                    lines.append(f"问题标记: {', '.join(flags)}")
+                if rec:
+                    lines.append(f"建议: {rec}")
             return "\n".join(lines)
         except ImportError:
             return "run_summary 模块未加载。"

@@ -34,6 +34,10 @@ class RunSummary:
     event_counts: dict[str, int] = field(default_factory=dict)
     longest_task: dict | None = None
     failure_reasons: dict[str, int] = field(default_factory=dict)
+    quality_status: str = "unknown"
+    quality_score: float = 0.0
+    quality_flags: list[str] = field(default_factory=list)
+    recommendation: str = ""
     created_at: float = 0.0
 
     @classmethod
@@ -53,6 +57,10 @@ class RunSummary:
             longest_task=d.get("longest_task"),
             failure_reasons=d.get("failure_reasons", {}),
             created_at=time.time(),
+            quality_status=d.get("quality_status", "unknown"),
+            quality_score=d.get("quality_score", 0.0),
+            quality_flags=d.get("quality_flags", []),
+            recommendation=d.get("recommendation", ""),
         )
 
     def to_dict(self) -> dict:

@@ -920,6 +920,9 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
     }
     try:
         from core.run_summary import save_run
+        from core.quality_gate import assess_quality
+        quality = assess_quality(result)
+        result.update(quality)
         save_run(result)
     except Exception:
         pass
