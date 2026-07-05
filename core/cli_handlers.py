@@ -1221,8 +1221,12 @@ class CruxCLI:
                 lines.append(f"质量评级: {quality} (score={score})")
                 if flags:
                     lines.append(f"问题标记: {', '.join(flags)}")
-                if rec:
+                            if rec:
                     lines.append(f"建议: {rec}")
+            policy = data.get("policy_action", "")
+            if policy:
+                p_reason = data.get("policy_reason", "")
+                lines.append(f"策略决策: {policy} ({p_reason})")
             return "\n".join(lines)
         except ImportError:
             return "run_summary 模块未加载。"

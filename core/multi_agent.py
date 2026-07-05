@@ -921,8 +921,11 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
     try:
         from core.run_summary import save_run
         from core.quality_gate import assess_quality
+        from core.policy_gate import auto_recover
         quality = assess_quality(result)
         result.update(quality)
+        policy = auto_recover(result)
+        result.update({"policy_action": policy["action"], "policy_reason": policy["reason"]})
         save_run(result)
     except Exception:
         pass

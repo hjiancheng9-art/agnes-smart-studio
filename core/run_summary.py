@@ -38,6 +38,8 @@ class RunSummary:
     quality_score: float = 0.0
     quality_flags: list[str] = field(default_factory=list)
     recommendation: str = ""
+    policy_action: str = ""
+    policy_reason: str = ""
     created_at: float = 0.0
 
     @classmethod
@@ -61,6 +63,8 @@ class RunSummary:
             quality_score=d.get("quality_score", 0.0),
             quality_flags=d.get("quality_flags", []),
             recommendation=d.get("recommendation", ""),
+            policy_action=d.get("policy_action", ""),
+            policy_reason=d.get("policy_reason", ""),
         )
 
     def to_dict(self) -> dict:
