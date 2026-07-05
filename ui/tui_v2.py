@@ -37,6 +37,8 @@ from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout import HSplit, Layout, Window
+from prompt_toolkit.layout.containers import ConditionalContainer
+from prompt_toolkit.filters import Condition
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.processors import BeforeInput
 from prompt_toolkit.output import create_output
@@ -672,11 +674,17 @@ class TuiAppV2:
             always_hide_cursor=True,
         )
 
+        # ── Screen overlay ──
+        self._screen_window = Window(
+            content=FormattedTextControl(self._render_active_screen),
+            always_hide_cursor=True,
+        )
+
         # ── Assemble layout ──
         root = HSplit([
+            ConditionalContainer(self._screen_window, filter=Condition(lambda: self.screen_stack.active)),
             header_window,
             header_sep_window,
-            dashboard_window,
             self.message_pane.pane,       # Messages + Welcome (weight=1)
             thinking_window,              # Thinking (0-N, conditional)
             activity_sep_window,          # Separator above activity
@@ -705,6 +713,18 @@ class TuiAppV2:
     # ══════════════════════════════════════════════════════════════
     #  Status bar (enhanced with context bar)
     # ══════════════════════════════════════════════════════════════
+
+
+    # ── Screen renderer ──
+
+    def _render_active_screen(self):
+        """Render currently active screen, or empty if none."""
+        screen = self.screen_stack.current
+        if screen is None:
+            from prompt_toolkit.formatted_text import FormattedText
+            return FormattedText([])
+        tw = _tw()
+        return screen.render(tw)
 
     def _build_status(self) -> FormattedText:
         tw = _tw()
