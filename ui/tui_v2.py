@@ -507,6 +507,43 @@ class TuiAppV2:
         bar = context_bar(self._cached_ctx_pct, width=8)
         right_parts.append(("class:status-bar-context", f" {bar} {self._cached_ctx_pct:.0f}%"))
 
+        # ── Provider status ──
+        try:
+            from core.provider import get_provider_manager
+            mgr = get_provider_manager()
+            active = mgr.state.active
+            circuit = mgr.state.circuit_state(active)
+            if circuit != "CLOSED":
+                right_parts.append(("class:status-bar-context", f" ⚡{active}⚠{circuit}"))
+        except Exception:
+            pass
+
+        # ── Last run summary ──
+        try:
+            from core.run_summary import list_recent_runs
+            runs = list_recent_runs(1)
+            if runs:
+                r = runs[0]
+                status = r.get("status", "?")
+                failed = r.get("failed", 0)
+                total = r.get("total", 0)
+                if failed > 0:
+                    right_parts.append(("class:status-bar-level-d", f" run:{status} ✗{failed}/{total}"))
+                else:
+                    right_parts.append(("class:status-bar-level-a", f" run:{status} ✓{total}"))
+        except Exception:
+            pass
+
+        # ── Provider latency ──
+        try:
+            from core.provider_history import get_all_stats
+            stats = get_all_stats(5)
+            latencies = [f"{pid}:{s.get('avg_latency_ms', 0):.0f}ms" for pid, s in list(stats.items())[:2] if s.get('avg_latency_ms')]
+            if latencies:
+                right_parts.append(("class:status-bar-context", " " + " ".join(latencies)))
+        except Exception:
+            pass
+
         if self._latency is not None:
             right_parts.append(("class:status-bar-context", f" ⚡{self._latency:.1f}s"))
 
