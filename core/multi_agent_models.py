@@ -5,6 +5,7 @@ Pure dataclasses shared by MultiAgentCoordinator, AgentSwarm, and SmartDecompose
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import uuid
 
 ROOT = __import__("pathlib").Path(__file__).resolve().parent.parent
 
@@ -20,8 +21,13 @@ class AgentTask:
     result: str = ""
     started_at: float = 0
     finished_at: float = 0
+    trace_id: str = ""
     tier: str = "auto"
     task_type: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.trace_id:
+            self.trace_id = uuid.uuid4().hex[:16]
 
 
 @dataclass
