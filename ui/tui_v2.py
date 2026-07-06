@@ -59,6 +59,8 @@ from ui.panels.provider_route_panel import render_provider_route
 from ui.panels.incident_panel import load_incidents, render_incidents
 # ── Control Plane ─────────────────────────────────────────
 from core.control_plane import get_control, control, ControlEventType
+from ui.copy_manager import CopyManager, MessageIndex, execute_copy
+from ui.message_detail import MessageDetailScreen
 
 
 
@@ -379,6 +381,8 @@ class TuiAppV2:
         self._pending_text: str = ""
         self._pending_timer: threading.Thread | None = None
         self._last_control_status: str = ""
+        self._copy_mgr = CopyManager()
+        self._detail_view: MessageDetailScreen | None = None
         self._cancel_requested: bool = False
         self._interrupted_by_priority: bool = False
         self._closing = False
@@ -646,7 +650,10 @@ class TuiAppV2:
 
         @kb.add("escape")
         def _esc(event):
-            """Esc: 暂停当前 run。"""
+            """Esc: 退出详情 / 暂停当前 run。"""
+            if hasattr(event.app, "detail_view") and event.app.detail_view and event.app.detail_view.active:
+                event.app.detail_view.close()
+                return
             if control().runs.is_running:
                 control().pause_run("用户按 Esc 暂停")
                 self._log_append(("→", "class:activity-warn", "执行已暂停（Esc）"))
@@ -660,6 +667,84 @@ class TuiAppV2:
     # ══════════════════════════════════════════════════════════════
     #  Layout
     # ══════════════════════════════════════════════════════════════
+
+        # ── Copy / Detail / Focus 快捷键 ──
+        @kb.add("c")
+        def _copy_focused(event):
+            """c: 复制聚焦消息全文。"""
+            if hasattr(event.app, "detail_view") and event.app.detail_view and event.app.detail_view.active:
+                # 详情模式下的 c 由 detail_view 处理
+                return
+            with event.app._state_lock:
+                msgs = getattr(event.app.message_pane, "_lines", [])
+            ok, msg = event.app._copy_mgr.copy_focused()
+            if not ok:
+                ok, msg = event.app._copy_mgr.copy_focused()
+                event.app._copy_mgr.focus.index = -1  # reset
+            event.app._log_append(("✓" if ok else "✗", "class:activity-done" if ok else "class:error", msg[:100]))
+
+        @kb.add("o")
+        def _open_detail(event):
+            """o: 打开消息详情视图。"""
+            with event.app._state_lock:
+                msgs = getattr(event.app.message_pane, "_lines", [])
+            if not msgs:
+                return
+            idx = event.app._copy_mgr.focus.index
+            if idx < 0 or idx >= len(msgs):
+                idx = len(msgs) - 1
+                event.app._copy_mgr.focus.index = idx
+            event.app._detail_view = MessageDetailScreen(event.app, msgs, idx)
+            event.app._detail_view.open()
+
+        @kb.add("up")
+        def _focus_up(event):
+            if hasattr(event.app, "detail_view") and event.app.detail_view and event.app.detail_view.active:
+                event.app.detail_view.handle_key("up")
+                return
+            """↑: 聚焦上一条消息。"""
+            with event.app._state_lock:
+                msgs = getattr(event.app.message_pane, "_lines", [])
+            event.app._copy_mgr.set_messages(msgs)
+            msg = event.app._copy_mgr.focus_up()
+            if msg:
+                event.app._log_append(("→", "class:activity-info",
+                    f"聚焦 [{msg.role}] {msg.snippet(80)}"))
+            event.app._ui(event.app._refresh_status)
+
+        @kb.add("down")
+        def _focus_down(event):
+            if hasattr(event.app, "detail_view") and event.app.detail_view and event.app.detail_view.active:
+                event.app.detail_view.handle_key("down")
+                return
+            """↓: 聚焦下一条消息。"""
+            with event.app._state_lock:
+                msgs = getattr(event.app.message_pane, "_lines", [])
+            event.app._copy_mgr.set_messages(msgs)
+            msg = event.app._copy_mgr.focus_down()
+            if msg:
+                event.app._log_append(("→", "class:activity-info",
+                    f"聚焦 [{msg.role}] {msg.snippet(80)}"))
+            event.app._ui(event.app._refresh_status)
+
+        @kb.add("tab")
+        def _focus_next_code(event):
+            """Tab: 在代码块之间跳转。"""
+            with event.app._state_lock:
+                msgs = getattr(event.app.message_pane, "_lines", [])
+            if not msgs:
+                return
+            idx = event.app._copy_mgr.focus.index
+            if idx < 0 or idx >= len(msgs):
+                idx = len(msgs) - 1
+            msg_ref = MessageIndex(msgs).get(idx)
+            if msg_ref:
+                from ui.copy_manager import extract_code_blocks
+                blocks = extract_code_blocks(msg_ref.text)
+                if blocks:
+                    event.app._log_append(("→", "class:activity-info",
+                        f"代码块: {len(blocks)} 个 — 按 c 复制当前, Tab 切换"))
+
 
     def _make_app(self) -> Application:
         # ── Header Bar ──
@@ -1259,6 +1344,16 @@ class TuiAppV2:
                 self.message_pane.append_error(f"Incident error: {e}")
             return True
 
+        # ── Copy command ──
+        if text.startswith("/copy"):
+            messages = getattr(self.message_pane, "_lines", [])
+            ok, msg = self._copy_mgr.handle_command(text, messages)
+            self._log_append((
+                ("✓", "class:activity-done") if ok else ("✗", "class:activity-fail"),
+                msg[:120],
+            ))
+            return True
+
         # ── Provider health ──
         if text == "/providers":
             try:
@@ -1312,6 +1407,7 @@ class TuiAppV2:
             return
 
         self.message_pane.append_message("user", text)
+        self._sync_copy_mgr()
 
         with self._state_lock:
             is_streaming = getattr(self, "_streaming", False)
@@ -1606,6 +1702,12 @@ class TuiAppV2:
                 self.wire.record_turn("assistant", "[streamed]")
             except Exception:
                 logger.debug("wire.record_turn failed", exc_info=True)
+
+    def _sync_copy_mgr(self) -> None:
+        """同步 CopyManager 的消息计数。"""
+        msgs = getattr(self.message_pane, "_lines", [])
+        self._copy_mgr.set_messages(msgs)
+        self._copy_mgr.update_message_count(len(msgs))
 
     # ══════════════════════════════════════════════════════════════
     #  UI helpers
