@@ -380,6 +380,7 @@ class TuiAppV2:
         self._pending_timer: threading.Thread | None = None
         self._last_control_status: str = ""
         self._cancel_requested: bool = False
+        self._interrupted_by_priority: bool = False
         self._closing = False
         self._last_invalidate = 0.0
         self._latency: float | None = None
@@ -1481,9 +1482,12 @@ class TuiAppV2:
             for kind, payload in self.session.send_stream(user_text):
                 if not _first_token and kind in ("text", "thinking"):
                     _first_token = True
-                    self._latency = time.monotonic() - _t0
-                if kind == "text":
-                    self._ui(self.message_pane.stream_append, str(payload))
+                    self._latency = time.monotonic() - _t0                # ── 检查优先插话标记（工具边界已设置） ──
+                _interrupted_flag = False
+                with self._state_lock:
+                    _interrupted_flag = getattr(self, "_interrupted_by_priority", False)
+                if _interrupted_flag:
+                    break
                 elif kind == "thinking":
                     self.thinking_panel.append(str(payload))
                     self._ui(lambda: None)
@@ -1529,6 +1533,18 @@ class TuiAppV2:
                             ))
                     pending_tool = None
                     self._ui(lambda: None)
+
+                    # ── 工具边界：检查优先插话 ──
+                    if control().queue.has_events():
+                        _ev = control().queue.peek()
+                        if _ev and _ev.type == ControlEventType.PRIORITY_MESSAGE:
+                            self._log_append(
+                                ("⚡", "class:activity-warn",
+                                 "检测到优先插话，将在当前工具完成后处理")
+                            )
+                            # 标记中断，在循环结束后处理
+                            with self._state_lock:
+                                self._interrupted_by_priority = True
                 elif kind == "error":
                     self._ui(self.message_pane.append_error, str(payload))
                     self._log_append(("✗", "class:activity-fail", str(payload)[:120]))
@@ -1557,16 +1573,34 @@ class TuiAppV2:
             self.thinking_panel.done()
             self._spinner.stop()
             self._ui(self._refresh_status, _force=True)
-            # Auto-submit queued input
+                        # Auto-submit queued input or process priority interrupt
             _qt = None
             with self._state_lock:
-                _qt = self._queued_text
-                self._queued_text = None
-            if _qt:
+                _interrupted = self._interrupted_by_priority
+                self._interrupted_by_priority = False
+                if not _interrupted:
+                    _qt = self._queued_text
+                    self._queued_text = None
+            
+            if _interrupted:
+                # 优先插话中断 — 立即处理用户的优先消息
+                _ev = control().queue.poll()
+                if _ev and _ev.type == ControlEventType.PRIORITY_MESSAGE:
+                    _interrupt_text = _ev.payload.get("text", "")
+                    if _interrupt_text:
+                        self._log_append(("⚡", "class:activity-warn",
+                            f"处理优先插话: {self._shorten(_interrupt_text, 60)}"))
+                        # 清除 _queued_text 避免重复提交
+                        with self._state_lock:
+                            self._queued_text = None
+                        from threading import Thread as _T
+                        _T(target=self._stream_response, args=(_interrupt_text,),
+                           daemon=True, name="priority-stream").start()
+                        _qt = None
+            elif _qt:
                 self._log_append(("↪", "class:activity-info",
                     f"自动发送暂存输入: {self._shorten(_qt, 48)}"))
                 self._submit_user_message(_qt)
-
         if self.wire:
             try:
                 self.wire.record_turn("assistant", "[streamed]")
