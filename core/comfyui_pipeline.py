@@ -9,6 +9,49 @@ import random
 # ── D-step: 错误恢复工具 ──
 from core.comfyui_recovery_tools import execute_recover_workflow, execute_error_kb_query
 
+# ── A-step: 工具契约层 ──
+from core.comfyui_contract import check_tool_contract, ContractCheckResult
+import logging as _contract_logging
+_contract_logger = _contract_logging.getLogger(__name__)
+
+def _with_contract(executor_fn, tool_name: str):
+    """为执行器包裹契约检查层。"""
+    def wrapped(**kwargs):
+        # 执行前检查契约
+        check = check_tool_contract(tool_name, **kwargs)
+        if not check.passed:
+            msg = f"契约检查未通过: {tool_name} | {check.message}"
+            _contract_logger.warning(msg)
+            return json.dumps({
+                "success": False,
+                "contract_violation": True,
+                "tool_name": tool_name,
+                "contract_result": check.message,
+                "pre_fail": check.pre_fail,
+                "warnings": check.warnings,
+                "message": f"⛔ {msg}",
+            }, ensure_ascii=False)
+        if check.warnings:
+            _contract_logger.info(f"契约警告: {tool_name} | {check.message}")
+
+        # 执行
+        result = executor_fn(**kwargs)
+
+        # 如果结果是 JSON 字符串，附加契约信息
+        try:
+            result_dict = json.loads(result) if isinstance(result, str) else {}
+            if isinstance(result_dict, dict):
+                result_dict["_contract"] = {
+                    "tool": tool_name,
+                    "status": check.message,
+                }
+                return json.dumps(result_dict, ensure_ascii=False)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        return result
+    return wrapped
+
 # ── 工具定义 ──
 COMFYUI_PIPELINE_TOOL_DEFS = [
     {
@@ -306,15 +349,15 @@ def execute_validate_workflow(
     }, ensure_ascii=False)
 
 
-# ── 执行器映射 ──
+# ── 执行器映射（带契约检查） ──
 COMFYUI_PIPELINE_EXECUTOR_MAP = {
-    "comfyui_build_workflow": lambda **kw: execute_build_workflow(**kw),
+    "comfyui_build_workflow": _with_contract(lambda **kw: execute_build_workflow(**kw), "comfyui_build_workflow"),
     "comfyui_tune_params": lambda **kw: execute_tune_params(**kw),
     "comfyui_train_lora": lambda **kw: execute_train_lora(**kw),
     "comfyui_create_custom_node": lambda **kw: execute_create_custom_node(**kw),
     "comfyui_compare_models": lambda **kw: execute_compare_models(**kw),
-    "comfyui_compile_and_validate": lambda **kw: execute_compile_and_validate(**kw),
-    "comfyui_validate_workflow": lambda **kw: execute_validate_workflow(**kw),
-    "comfyui_recover_workflow": lambda **kw: execute_recover_workflow(**kw),
-    "comfyui_error_kb_query": lambda **kw: execute_error_kb_query(**kw),
+    "comfyui_compile_and_validate": _with_contract(lambda **kw: execute_compile_and_validate(**kw), "comfyui_compile_and_validate"),
+    "comfyui_validate_workflow": _with_contract(lambda **kw: execute_validate_workflow(**kw), "comfyui_validate_workflow"),
+    "comfyui_recover_workflow": _with_contract(lambda **kw: execute_recover_workflow(**kw), "comfyui_recover_workflow"),
+    "comfyui_error_kb_query": _with_contract(lambda **kw: execute_error_kb_query(**kw), "comfyui_error_kb_query"),
 }
