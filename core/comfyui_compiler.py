@@ -347,8 +347,10 @@ class GraphCompiler:
     不"猜"，根据 Motif 库 + 节点本体 + 参数引擎 确定性地编译。
     """
 
-    def __init__(self, motifs: dict[str, MotifDefinition] | None = None):
+    def __init__(self, motifs: dict[str, MotifDefinition] | None = None,
+                 motif_registry=None):
         self._motifs = motifs or BUILTIN_MOTIFS
+        self._registry = motif_registry
         self._node_counter: int = 0
 
     def compile(self, ir: WorkflowIR, node_ontology: dict | None = None) -> CompiledWorkflow:
@@ -422,6 +424,22 @@ class GraphCompiler:
         """根据 motif 名解析。"""
         if component.motif and component.motif in self._motifs:
             return self._motifs[component.motif]
+        # 也从新 MotifRegistry 查
+        if self._registry:
+            from core.comfyui_motif import MotifDefinition as NewMotif
+            motif_obj = self._registry.get(component.motif or component.role)
+            if motif_obj:
+                # 将新格式 MotifDefinition 转换为旧格式
+                return MotifDefinition(
+                    motif_id=motif_obj.motif_id,
+                    name=motif_obj.name,
+                    description=motif_obj.description,
+                    category=motif_obj.category,
+                    class_type=motif_obj.nodes[0].class_type if motif_obj.nodes else "",
+                    inputs={},
+                    outputs={p.name: p.data_type for p in motif_obj.ports if p.direction == "output"},
+                    default_params=motif_obj.nodes[0].params if motif_obj.nodes else {},
+                )
         return None
 
     def _resolve_motif_by_role(self, component: IRComponent) -> MotifDefinition | None:
@@ -590,3 +608,13 @@ def compile_spec(spec: TaskSpec) -> CompiledWorkflow:
     ir = spec_to_workflow_ir(spec)
     compiler = GraphCompiler()
     return compiler.compile(ir)
+
+
+# 新 MotifRegistry 引用
+def get_motif_registry():
+    """获取新的 MotifRegistry (schema v1, core/comfyui_motif.py)."""
+    try:
+        from core.comfyui_motif import get_registry
+        return get_registry()
+    except ImportError:
+        return None
