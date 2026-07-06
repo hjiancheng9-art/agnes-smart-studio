@@ -1,162 +1,114 @@
-"""Message Detail View — 消息详情全屏覆层
+"""Message Detail View — 基于 MessageStore 的消息详情
 
-按 o 打开当前聚焦消息的详情视图：
-- 独立滚动，不受主聊天流影响
-- 显示消息元数据（角色、时间、行数、tokens）
-- c 复制全文 / m 复制 Markdown / j 复制 JSON / s 选择行范围
-- ↑↓ 滚动 / Esc 返回
+o 打开详情 → ↑↓滚动 → c复制/m复制MD/Esc返回
 """
 
-from prompt_toolkit.layout.containers import Window, HSplit, Float
-from prompt_toolkit.layout.controls import FormattedTextControl
-from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.formatted_text import FormattedText
-
-from ui.copy_manager import (
-    MessageIndex, copy_message, copy_message_markdown,
-    extract_code_blocks, copy_to_clipboard,
-)
-
-
-def build_detail_formatted(messages: list[tuple[str, str]], msg_index: int,
-                           scroll_offset: int = 0) -> FormattedText:
-    """构建消息详情视图的格式文本。"""
-    if msg_index < 0 or msg_index >= len(messages):
-        return FormattedText([("class:error", "消息不存在")])
-    
-    role, text = messages[msg_index]
-    lines = text.split("\n")
-    total_lines = len(lines)
-    
-    result = []
-    
-    # ── 头部 ──
-    result.append(("class:header-bar", f"┌─ Message Detail ─ {role.title()} ─ {total_lines} lines "))
-    result.append(("", "\n"))
-    
-    # ── 操作提示 ──
-    result.append(("class:info", " ↑↓ scroll  c复制全文  m复制MD  s选择  Esc返回  "))
-    result.append(("", "\n"))
-    result.append(("class:header-bar", "├" + "─" * 60))
-    result.append(("", "\n"))
-    
-    # ── 消息内容（含滚偏移） ──
-    screen_height = 20  # 大致可见行数
-    start_line = max(0, scroll_offset)
-    end_line = min(total_lines, start_line + screen_height)
-    
-    for i in range(start_line, end_line):
-        line = lines[i]
-        # 行号
-        line_num = f"{i+1:4d} "
-        result.append(("class:line-number", line_num))
-        result.append(("class:message-text", line + "\n"))
-    
-    # ── 滚动提示 ──
-    if end_line < total_lines:
-        result.append(("class:info", f"   ... 还有 {total_lines - end_line} 行 （↓继续滚动）"))
-        result.append(("", "\n"))
-    
-    result.append(("class:header-bar", "└" + "─" * 60))
-    
-    return FormattedText(result)
+from ui.message_store import Message, MessageStore
+from ui.copy_manager import extract_code_blocks
+from ui.input_router import get_clipboard
 
 
 class MessageDetailScreen:
-    """消息详情屏 —— 附属于 TuiAppV2，不独立运行。"""
-    
-    def __init__(self, app, messages: list[tuple[str, str]], msg_index: int):
-        self.app = app
-        self.messages = messages
+    """消息详情视图。"""
+
+    def __init__(self, message_store: MessageStore, msg_index: int):
+        self.store = message_store
         self.msg_index = msg_index
         self.scroll_offset = 0
         self._active = False
-        self._selection_mode = False
-        self._sel_start = 0
-        self._sel_end = 0
-        
-        role, text = messages[msg_index] if msg_index < len(messages) else ("", "")
-        self.total_lines = text.count("\n") + 1 if text else 0
-    
+        self._on_close: list = []
+
+        msg = self.store.get(msg_index)
+        self.total_lines = msg.line_count if msg else 0
+        self.msg = msg
+
     @property
     def active(self) -> bool:
         return self._active
-    
-    def open(self):
-        """打开详情视图。"""
+
+    def on_close(self, callback):
+        self._on_close.append(callback)
+
+    def open(self) -> None:
+        if not self.msg:
+            return
         self._active = True
         self.scroll_offset = 0
-        self.app._ui(self._render)
-    
-    def close(self):
-        """关闭详情视图。"""
+
+    def close(self) -> None:
         self._active = False
-        self.app._log_append(("→", "class:activity-info", "关闭消息详情"))
-        self.app._ui(self.app._refresh_status)
-    
-    def _render(self):
-        """渲染详情视图（覆层）。"""
-        if not self._active:
-            return
-        ft = build_detail_formatted(self.messages, self.msg_index, self.scroll_offset)
-        # 通过 TUI 的浮动层显示
-        try:
-            self.app.message_pane._empty_renderer = lambda: ft
-            self.app._ui(lambda: None)
-        except Exception:
-            pass
-    
+        for cb in self._on_close:
+            try:
+                cb()
+            except Exception:
+                pass
+
+    def build_formatted(self) -> list:
+        """构建详情视图的格式文本（供 prompt_toolkit 使用）。"""
+        if not self.msg:
+            return [("class:error", "消息不存在")]
+
+        lines = self.msg.text.split("\n")
+        result = []
+
+        result.append(("class:header-bar",
+            f"┌─ Message Detail ─ {self.msg.role.title()} ─ {self.total_lines} lines "))
+        result.append(("", "\n"))
+        result.append(("class:info",
+            " ↑↓scroll  c复制全文  m复制MD  Esc返回  "))
+        result.append(("", "\n"))
+        result.append(("class:header-bar", "├" + "─" * 60))
+        result.append(("", "\n"))
+
+        screen_height = 20
+        start = max(0, self.scroll_offset)
+        end = min(self.total_lines, start + screen_height)
+
+        for i in range(start, end):
+            line = lines[i] if i < len(lines) else ""
+            result.append(("class:line-number", f"{i+1:4d} "))
+            text = (line[:160] + ("…" if len(line) > 160 else "")) + "\n"
+            result.append(("", text))
+
+        if end < self.total_lines:
+            result.append(("class:info", f"   ... 还有 {self.total_lines - end} 行 (↓继续)"))
+            result.append(("", "\n"))
+
+        result.append(("class:header-bar", "└" + "─" * 60))
+        return result
+
     def handle_key(self, key: str) -> bool:
-        """处理按键。返回 True 表示已消费。"""
         if not self._active:
             return False
-        
+
         if key == "escape":
             self.close()
             return True
-        
+
         if key == "up":
             self.scroll_offset = max(0, self.scroll_offset - 1)
-            self._render()
             return True
-        
+
         if key == "down":
             self.scroll_offset = min(self.total_lines - 1, self.scroll_offset + 1)
-            self._render()
             return True
-        
+
         if key == "pageup":
             self.scroll_offset = max(0, self.scroll_offset - 20)
-            self._render()
             return True
-        
+
         if key == "pagedown":
             self.scroll_offset = min(self.total_lines - 20, self.scroll_offset + 20)
-            self._render()
             return True
-        
+
         if key == "c":
-            # 复制全文
-            role, text = self.messages[self.msg_index]
-            ok = copy_to_clipboard(text)
-            msg = "已复制全文" if ok else "复制失败"
-            self.app._log_append(("✓", "class:activity-done", msg))
+            clip = get_clipboard()
+            clip.copy(self.msg.text)
             return True
-        
+
         if key == "m":
-            # 复制 Markdown
-            role, text = self.messages[self.msg_index]
-            md = f"**{role}**:\n\n{text}"
-            ok = copy_to_clipboard(md)
-            msg = "已复制 Markdown" if ok else "复制失败"
-            self.app._log_append(("✓", "class:activity-done", msg))
+            clip = get_clipboard()
+            clip.copy(f"**{self.msg.role}**:\n\n{self.msg.text}")
             return True
-        
-        if key == "s":
-            # 选择模式
-            self._selection_mode = not self._selection_mode
-            self.app._log_append(("→", "class:activity-info",
-                f"选择模式: {'开启' if self._selection_mode else '关闭'}"))
-            return True
-        
+
         return False
