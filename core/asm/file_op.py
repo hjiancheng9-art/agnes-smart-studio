@@ -1,10 +1,9 @@
-"""ASM File — 文件操作方法论
+"""ASM File — 文件操作方法论（按 GPT 规格修正）
 
-原则：
-1. Patch 前 checksum — 任何写操作前记录文件状态
-2. 备份 — 高风险操作创建 .bak 文件
-3. Diff 可解释 — 每个修改附带 diff + 理由
-4. Rollback — 失败时自动回滚到备份
+GPT 规格关键修正：
+- .bak 保留到会话结束，不是永久保留
+- syntax-check 对所有 .py/.json/.yaml 必须执行
+- 每步记录 checksum + diff
 """
 
 from core.asm import (
@@ -16,26 +15,27 @@ from core.asm import (
 
 class FileMethodology(BaseMethodology):
     name = "ASM.file"
-    description = "文件操作：checksum 前、备份、diff 可解释、回滚"
+    description = "文件操作：checksum、会话级.bak、diff 可解释、语法检查、回滚"
     version = "1.0.0"
-    
     intent_filters = {TaskIntent.EXECUTE, TaskIntent.CREATE, TaskIntent.HEAL, TaskIntent.WRITE, TaskIntent.FIX}
     domain_filters = {TaskDomain.FILE, TaskDomain.CODE}
     
     def get_checks(self, task: TaskProfile) -> list[MethodologyCheck]:
         checks = [
+            # BEFORE
             MethodologyCheck(
                 phase=MethodologyPhase.BEFORE,
                 name="checksum-before-write",
-                description="写文件前记录原文件 hash",
+                description="写文件前记录原文件 hash（sha256 前16位）",
                 severity="block" if task.risk in (RiskLevel.HIGH, RiskLevel.CRITICAL) else "warn",
             ),
             MethodologyCheck(
                 phase=MethodologyPhase.BEFORE,
                 name="backup-risky-files",
-                description="高风险修改（.py/.json/.yaml 核心文件）创建 .bak",
+                description="高风险修改创建 .bak（保留到会话结束，不是永久）",
                 severity="block" if task.risk == RiskLevel.CRITICAL else "warn",
             ),
+            # AFTER
             MethodologyCheck(
                 phase=MethodologyPhase.AFTER,
                 name="diff-verifiable",
@@ -45,7 +45,7 @@ class FileMethodology(BaseMethodology):
             MethodologyCheck(
                 phase=MethodologyPhase.AFTER,
                 name="syntax-check",
-                description="修改 .py / .json / .yaml 后检查语法",
+                description="修改 .py / .json / .yaml / .toml 后必须检查语法",
                 severity="block",
             ),
             MethodologyCheck(
@@ -53,6 +53,13 @@ class FileMethodology(BaseMethodology):
                 name="rollback-on-fail",
                 description="如果后续步骤失败，自动回滚文件修改",
                 severity="block" if task.risk in (RiskLevel.HIGH, RiskLevel.CRITICAL) else "warn",
+            ),
+            # 会话结束时清理 .bak
+            MethodologyCheck(
+                phase=MethodologyPhase.WRAP,
+                name="cleanup-bak",
+                description="会话结束时清理 .bak 文件（保留不超过会话生命周期）",
+                severity="warn",
             ),
         ]
         
@@ -71,7 +78,7 @@ class FileMethodology(BaseMethodology):
             MethodologyPolicy(
                 name="checksum-before-patch",
                 condition="patch_file 执行前必须记录所有受影响文件 hash",
-                action="deny" if TaskDomain.CODE else "require_confirmation",
+                action="deny",
             ),
             MethodologyPolicy(
                 name="no-silent-write",
@@ -85,8 +92,13 @@ class FileMethodology(BaseMethodology):
             ),
             MethodologyPolicy(
                 name="backup-before-delete",
-                condition="删除文件前创建备份",
+                condition="删除文件前创建 .bak 备份",
                 action="deny",
+            ),
+            MethodologyPolicy(
+                name="bak-session-only",
+                condition=".bak 文件仅保留到会话结束，不永久驻留",
+                action="log_only",
             ),
         ]
 

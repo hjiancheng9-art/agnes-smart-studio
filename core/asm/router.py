@@ -26,6 +26,21 @@ from core.asm import (
     MethodologyPhase, get_registry,
 )
 
+# ── 域专有方法论的 fallback 配置 ────────────────────────
+# 当 Registry 中找到了 ASM.core 但缺少域专有方法论时，使用此映射
+DOMAIN_FALLBACK_CHECKS: dict[str, list[dict]] = {
+    "comfyui": [
+        {"name": "workflow-validate", "phase": "after", "severity": "block",
+         "description": "ComfyUI: 校验 workflow 结构（Validator）"},
+        {"name": "model-compatible", "phase": "before", "severity": "block",
+         "description": "ComfyUI: 确认模型/VAE/ControlNet 兼容"},
+        {"name": "lora-lifecycle", "phase": "before", "severity": "warn",
+         "description": "ComfyUI: LoRA 版本/参数/加载顺序检查"},
+        {"name": "node-graph-valid", "phase": "after", "severity": "block",
+         "description": "ComfyUI: 图结构连线有效性检查"},
+    ],
+}
+
 
 @dataclass
 class MethodologyRoute:
@@ -153,13 +168,31 @@ class MethodRouter:
         registry = get_registry()
         methodologies = registry.select_for(task)
         
-        route = MethodologyRoute(task=task, methodologies=methodologies)
-        
         # 如果没匹配到方法论，回退到 light
         if not methodologies:
             light = registry.get("ASM.light")
             if light:
-                route = MethodologyRoute(task=task, methodologies=[light])
+                methodologies = [light]
+        
+        route = MethodologyRoute(task=task, methodologies=methodologies)
+        
+        # ── 注入域专有 fallback checks ──
+        domain_str = str(task.domain.value) if hasattr(task.domain, 'value') else str(task.domain)
+        if domain_str in DOMAIN_FALLBACK_CHECKS:
+            for spec in DOMAIN_FALLBACK_CHECKS[domain_str]:
+                existing = any(c.name == spec["name"] for c in route.checks)
+                if not existing:
+                    check = MethodologyCheck(
+                        phase=MethodologyPhase(spec["phase"]),
+                        name=spec["name"],
+                        description=spec["description"],
+                        severity=spec["severity"],
+                    )
+                    route.checks.append(check)
+                    if check.severity == "block":
+                        route.blocking_checks.append(check)
+        
+        return route
         
         return route
     
