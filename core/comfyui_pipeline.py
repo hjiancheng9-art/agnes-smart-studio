@@ -6,6 +6,9 @@ AI 构建工作流、调数值、练 LoRA 全流程。
 import json
 import random
 
+# ── D-step: 错误恢复工具 ──
+from core.comfyui_recovery_tools import execute_recover_workflow, execute_error_kb_query
+
 # ── 工具定义 ──
 COMFYUI_PIPELINE_TOOL_DEFS = [
     {
@@ -312,4 +315,6 @@ COMFYUI_PIPELINE_EXECUTOR_MAP = {
     "comfyui_compare_models": lambda **kw: execute_compare_models(**kw),
     "comfyui_compile_and_validate": lambda **kw: execute_compile_and_validate(**kw),
     "comfyui_validate_workflow": lambda **kw: execute_validate_workflow(**kw),
+    "comfyui_recover_workflow": lambda **kw: execute_recover_workflow(**kw),
+    "comfyui_error_kb_query": lambda **kw: execute_error_kb_query(**kw),
 }
