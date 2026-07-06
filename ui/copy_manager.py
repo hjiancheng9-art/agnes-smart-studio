@@ -30,6 +30,7 @@ class CopyManager:
         self.store = message_store or MessageStore()
         self.clip = get_clipboard()
         self.focus = FocusState()
+        self.focus.total = len(self.store)
 
     def sync_store(self, store: MessageStore) -> None:
         self.store = store

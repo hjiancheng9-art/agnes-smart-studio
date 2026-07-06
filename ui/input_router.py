@@ -129,10 +129,19 @@ class InputRouter:
         self._handlers.setdefault(key, []).append((mode, handler))
 
     def dispatch(self, key: str) -> bool:
-        """根据当前模式分发按键。返回 True=已消费。"""
+        """根据当前模式分发按键。返回 True=已消费。
+        
+        优先级: 精确模式匹配 > NORMAL 兜底
+        """
         handlers = self._handlers.get(key, [])
+        # 先试精确模式匹配
         for mode, handler in handlers:
-            if mode == self._mode or mode == InputMode.NORMAL:
+            if mode == self._mode:
+                if handler():
+                    return True
+        # 再试 NORMAL 兜底
+        for mode, handler in handlers:
+            if mode == InputMode.NORMAL:
                 if handler():
                     return True
         return False

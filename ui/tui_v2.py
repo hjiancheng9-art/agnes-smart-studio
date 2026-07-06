@@ -732,63 +732,36 @@ class TuiAppV2:
                 event.app.detail_view.handle_key("up")
                 event.app._ui(event.app._refresh_status)
                 return
-            event.app._msg_store.messages
             msg = event.app._copy_mgr.store.get(event.app._copy_mgr.focus.prev())
-            if msg:
-                _log = getattr(event.app, "_log_append", None)
-                if _log:
-                    _log(("→", "class:activity-info", f"聚焦 [{msg.role}] {msg.snippet(80)}"))
-            event.app._ui(event.app._refresh_status)
-            """↑: 聚焦上一条消息。"""
-            with event.app._state_lock:
-                msgs = getattr(event.app.message_pane, "_lines", [])
-            event.app._copy_mgr.set_messages(msgs)
-            msg = event.app._copy_mgr.focus_up()
             if msg:
                 event.app._log_append(("→", "class:activity-info",
                     f"聚焦 [{msg.role}] {msg.snippet(80)}"))
             event.app._ui(event.app._refresh_status)
-
         @kb.add("down")
         def _focus_down(event):
             if hasattr(event.app, "detail_view") and event.app.detail_view and event.app.detail_view.active:
                 event.app.detail_view.handle_key("down")
                 event.app._ui(event.app._refresh_status)
                 return
-            event.app._msg_store.messages
             msg = event.app._copy_mgr.store.get(event.app._copy_mgr.focus.next())
-            if msg:
-                _log = getattr(event.app, "_log_append", None)
-                if _log:
-                    _log(("→", "class:activity-info", f"聚焦 [{msg.role}] {msg.snippet(80)}"))
-            event.app._ui(event.app._refresh_status)
-            """↓: 聚焦下一条消息。"""
-            with event.app._state_lock:
-                msgs = getattr(event.app.message_pane, "_lines", [])
-            event.app._copy_mgr.set_messages(msgs)
-            msg = event.app._copy_mgr.focus_down()
             if msg:
                 event.app._log_append(("→", "class:activity-info",
                     f"聚焦 [{msg.role}] {msg.snippet(80)}"))
             event.app._ui(event.app._refresh_status)
-
         @kb.add("tab")
         def _focus_next_code(event):
             """Tab: 在代码块之间跳转。"""
-            with event.app._state_lock:
-                msgs = getattr(event.app.message_pane, "_lines", [])
-            if not msgs:
+            store = event.app._msg_store
+            if not store or len(store) == 0:
                 return
             idx = event.app._copy_mgr.focus.index
-            if idx < 0 or idx >= len(msgs):
-                idx = len(msgs) - 1
-            msg_ref = MessageIndex(msgs).get(idx)
-            if msg_ref:
-                from ui.copy_manager import extract_code_blocks
-                blocks = extract_code_blocks(msg_ref.text)
-                if blocks:
-                    event.app._log_append(("→", "class:activity-info",
-                        f"代码块: {len(blocks)} 个 — 按 c 复制当前, Tab 切换"))
+            if idx < 0 or idx >= len(store):
+                idx = len(store) - 1
+            msg = store.get(idx)
+            if msg and msg.code_blocks:
+                event.app._log_append(("→", "class:activity-info",
+                    f"代码块: {len(msg.code_blocks)} 个 — 按 c 复制当前"))
+            event.app._ui(event.app._refresh_status)
 
 
     def _make_app(self) -> Application:
@@ -1391,7 +1364,6 @@ class TuiAppV2:
 
         # ── Copy command ──
         if text.startswith("/copy"):
-            messages = getattr(self.message_pane, "_lines", [])
             ok, msg = self._copy_mgr.handle_command(text)
             self._log_append((
                 ("✓", "class:activity-done") if ok else ("✗", "class:activity-fail"),
@@ -1749,11 +1721,8 @@ class TuiAppV2:
             except Exception:
                 logger.debug("wire.record_turn failed", exc_info=True)
 
-    def _sync_copy_mgr(self) -> None:
-        """同步 CopyManager 和 InputRouter 的状态。"""
-        self._copy_mgr.sync_store(self._msg_store)
-        self._copy_mgr.focus.total = len(self._msg_store)
-
+        def _sync_copy_mgr(self) -> None:
+            self._copy_mgr.sync_store(self._msg_store)
     # ══════════════════════════════════════════════════════════════
     #  UI helpers
     # ══════════════════════════════════════════════════════════════
