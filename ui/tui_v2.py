@@ -57,6 +57,10 @@ from ui.widgets_v2 import Spinner, ThinkingPanel, build_welcome_formatted, conte
 from ui.panels.run_summary_panel import render_run_summary
 from ui.panels.provider_route_panel import render_provider_route
 from ui.panels.incident_panel import load_incidents, render_incidents
+# ── Control Plane ─────────────────────────────────────────
+from core.control_plane import get_control, control, ControlEventType
+
+
 
 
 try:
@@ -370,7 +374,12 @@ class TuiAppV2:
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
         self._thinking = False
         self._streaming = False
-        self._cancel_requested = False
+                # ── Control Plane ──
+        self._pending_msg_id: str | None = None
+        self._pending_text: str = ""
+        self._pending_timer: threading.Thread | None = None
+        self._last_control_status: str = ""
+        self._cancel_requested: bool = False
         self._closing = False
         self._last_invalidate = 0.0
         self._latency: float | None = None
@@ -616,6 +625,37 @@ class TuiAppV2:
 
         return kb
 
+
+        # ── Control Plane 快捷键 ──
+        @kb.add("c-z")
+        def _ctrl_z(event):
+            """Ctrl+Z: 撤销 pending 消息。"""
+            self._undo_pending()
+
+        @kb.add("c-c")
+        def _ctrl_c(event):
+            """Ctrl+C: 取消当前 run。"""
+            with self._state_lock:
+                is_streaming = self._streaming
+            if is_streaming:
+                control().cancel_run("用户 Ctrl+C 取消")
+                self._cancel_current_response()
+            else:
+                raise KeyboardInterrupt()
+
+        @kb.add("escape")
+        def _esc(event):
+            """Esc: 暂停当前 run。"""
+            if control().runs.is_running:
+                control().pause_run("用户按 Esc 暂停")
+                self._log_append(("→", "class:activity-warn", "执行已暂停（Esc）"))
+
+        @kb.add("c-y")
+        def _ctrl_y(event):
+            """Ctrl+Y: 恢复暂停的 run。"""
+            if control().runs.is_paused:
+                control().runs.resume()
+                self._log_append(("→", "class:activity-info", "执行已恢复（Ctrl+Y）"))
     # ══════════════════════════════════════════════════════════════
     #  Layout
     # ══════════════════════════════════════════════════════════════
@@ -1265,26 +1305,77 @@ class TuiAppV2:
 
 
     def _submit_user_message(self, text: str) -> None:
-        """Submit user input, append to pane, and launch streaming worker."""
+        """Submit user input via Control Plane (pending window / Ctrl+Z undo)."""
         text = (text or "").strip()
         if not text:
             return
 
-        self.message_pane.append_message('user', text)
+        self.message_pane.append_message("user", text)
 
         with self._state_lock:
-            self._thinking = True
-            self._streaming = True
+            is_streaming = getattr(self, "_streaming", False)
 
-        self._log_append(("→", "class:activity-info", f"Submit: {self._shorten(text, 60)}"))
+        if is_streaming:
+            # 执行中 → 优先插话
+            event = control().priority_message(text)
+            self._log_append(("→", "class:activity-info", f"优先插话: {self._shorten(text, 60)}"))
+            self._queue_input_while_streaming(text)
+            return
 
-        self._worker_thread = threading.Thread(
-            target=self._stream_response, args=(text,), daemon=True, name="stream-response"
+        # 空闲 → pending 窗口
+        msg = control().send_message(text)
+        self._pending_msg_id = msg.id
+        self._pending_text = text
+        self._log_append(
+            ("→", "class:activity-info",
+             f"待发送 ({control().outbox.UNDO_WINDOW_MS // 1000}s 可 Ctrl+Z 撤销): {self._shorten(text, 60)}")
         )
-        self._worker_thread.start()
+        self._start_pending_commit_timer()
+
+    def _start_pending_commit_timer(self) -> None:
+        """Pending 窗口过期后自动提交。"""
+        def wait_and_commit():
+            time.sleep(control().outbox.UNDO_WINDOW_MS / 1000 + 0.1)
+            pending = control().outbox.get_pending()
+            if not pending:
+                return
+            msg = pending[0]
+            control().outbox.commit(msg.id)
+            self._log_append(("→", "class:activity-info", f"消息已发送: {self._shorten(msg.text, 60)}"))
+            with self._state_lock:
+                self._thinking = True
+                self._streaming = True
+            from threading import Thread as _Thread
+            self._worker_thread = _Thread(
+                target=self._stream_response,
+                args=(msg.text,),
+                daemon=True,
+                name="stream-response",
+            )
+            self._worker_thread.start()
+
+        self._pending_timer = threading.Thread(
+            target=wait_and_commit, daemon=True, name="pending-commit"
+        )
+        self._pending_timer.start()
+
+    def _undo_pending(self) -> bool:
+        """Ctrl+Z 撤销 pending 消息。"""
+        if not self._pending_msg_id:
+            return False
+        if control().retract(self._pending_msg_id):
+            self._log_append(("→", "class:activity-warn", "消息已撤销"))
+            if self.message_pane.messages:
+                self.message_pane.messages.pop()
+                self._ui(self.message_pane._render)
+            self._pending_msg_id = None
+            self._pending_text = ""
+            return True
+        return False
 
     def _cancel_current_response(self) -> None:
-        """Cancel the currently streaming response."""
+        """Cancel the currently streaming response (via Control Plane)."""
+        control().cancel_run("用户取消响应")
         with self._state_lock:
             self._cancel_requested = True
         try:
@@ -1292,19 +1383,34 @@ class TuiAppV2:
         except Exception:
             pass
         self._ui(self.message_pane.stream_end, _force=True)
-
+        self._log_append(("→", "class:activity-warn", "响应已取消"))
     def _queue_input_while_streaming(self, text: str) -> None:
-        """Queue user input during streaming. Auto-submits when response ends."""
+        """Queue user input during streaming — via priority message."""
         text = text.strip()
         if not text:
             return
+
+        # 发送优先插话控制事件
+        control().priority_message(text)
+        self._log_append(("→", "class:activity-info", f"执行中插话已入队: {self._shorten(text, 60)}"))
+
         with self._state_lock:
             self._queued_text = text
-        self._log_append(("⏳", "class:activity-warn",
-            f"已暂存输入，响应结束后自动发送: {self._shorten(text, 48)}"))
-        self._ui(self.message_pane.append_info,
-            f"已暂存输入，当前响应结束后自动发送：{self._shorten(text, 80)}")
 
+        self._log_append(("→", "class:activity-info", f"Queued: {self._shorten(text, 60)}"))
+
+    def _get_queued_input(self) -> str:
+        """Get queued input and clear."""
+        with self._state_lock:
+            t = self._queued_text
+            self._queued_text = ""
+            self._clear_queued_input = True
+        return t
+    def _clear_queued_input_flag(self) -> None:
+        """Clear queued input flag."""
+        with self._state_lock:
+            self._queued_text = ""
+            self._clear_queued_input = True
     def _build_hint_text(self) -> str:
         with self._state_lock:
             streaming = self._streaming or self._thinking
