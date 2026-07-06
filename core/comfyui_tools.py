@@ -3,6 +3,18 @@
 CRUX 负责：理解意图、自由组合节点、编写提示词、自创节点
 ComfyUI 负责：执行工作流、产出图像/视频
 
+决策准则：参考 COMFYUI_METHODOLOGY.md（ComfyUI Agent Methodology v1.0）
+- 原则1: 先理解任务再决定方案
+- 原则2: 优先复用成熟模板
+- 原则3: LLM → TaskSpec → WorkflowIR → Compiler → JSON
+- 原则4: 所有 workflow 必须经过 Validator
+- 原则5: 失败不是结束而是学习
+- 原则6: 参数是语义不是数字
+- 原则7: 所有推荐必须可解释
+- 原则8: LoRA 是项目不是文件
+- 原则9: Workflow 是图不是 JSON
+- 原则10: 用户面对任务不是节点
+
 工具设计原则：
 - 所有与 ComfyUI 的 HTTP 通信封装在此
 - 不包含任何 LLM 调用或推理逻辑

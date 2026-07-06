@@ -344,6 +344,15 @@ def build_system_prompt(
             "所有输出保存到 output/audio/。补齐 Showrunner 旁白+BGM 音轨。"
         )
 
+    # ComfyUI 方法论注入 — 始终加载，指导 ComfyUI 工具的使用决策
+    try:
+        from core.comfyui_methodology import format_methodology_prompt
+        _cm = format_methodology_prompt()
+        if _cm:
+            base += _cm
+    except Exception:
+        pass
+
     # Skill 三态：注入所有 trigger=auto 的技能 prompt
     if skills_auto_prompt_manager is not None:
         base = skills_auto_prompt_manager(base)
