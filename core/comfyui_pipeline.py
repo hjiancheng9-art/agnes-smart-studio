@@ -224,6 +224,85 @@ def execute_compare_models(
     }, ensure_ascii=False)
 
 
+def execute_compile_and_validate(
+    task_type: str = "txt2img",
+    prompt: str = "",
+    negative_prompt: str = "",
+    width: int = 1024,
+    height: int = 1024,
+    model: str | None = None,
+    loras: list[str] | None = None,
+    **kwargs,
+) -> str:
+    """CWIM C-step: TaskSpec → Compiler → Validator 集成路径。
+    
+    使用 ComfyUI 方法论 (COMFYUI_METHODOLOGY.md) 的原则 3+4：
+    LLM → TaskSpec → WorkflowIR → GraphCompiler → Validator。
+    """
+    from core.comfyui_api import quick_txt2img, validate_existing
+    import json
+    
+    try:
+        result = quick_txt2img(
+            prompt=prompt,
+            width=width,
+            height=height,
+            model=model,
+            loras=loras or [],
+        )
+        
+        if result.success and result.is_valid:
+            return json.dumps({
+                "success": True,
+                "node_count": len(result.workflow) if result.workflow else 0,
+                "validation": result.validation.is_valid if result.validation else False,
+                "warnings": len(result.validation.warnings) if result.validation else 0,
+                "summary": result.summary,
+                "message": f"✅ TaskSpec → Compile → Validate 通过 | {len(result.workflow) if result.workflow else 0} 节点",
+            }, ensure_ascii=False)
+        else:
+            return json.dumps({
+                "success": False,
+                "error": result.error or "未知错误",
+                "summary": result.summary,
+                "diagnostics": result.compiled.diagnostics if result.compiled else [],
+            }, ensure_ascii=False)
+    except Exception as e:
+        import traceback
+        return json.dumps({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()[:500],
+        }, ensure_ascii=False)
+
+
+def execute_validate_workflow(
+    workflow_json: str,
+    **kwargs,
+) -> str:
+    """CWIM C-step: 对已有 workflow 执行 5 层校验。
+    
+    独立 Validator 入口 — 不经过 Compiler。
+    """
+    from core.comfyui_api import validate_existing
+    import json
+    
+    try:
+        workflow = json.loads(workflow_json)
+    except json.JSONDecodeError:
+        return json.dumps({"success": False, "error": "Invalid JSON workflow"}, ensure_ascii=False)
+    
+    result = validate_existing(workflow)
+    return json.dumps({
+        "success": result.is_valid,
+        "error_count": len(result.errors),
+        "warning_count": len(result.warnings),
+        "info_count": len([i for i in result.issues if i.level == "info"]),
+        "errors": [{"layer": e.layer, "message": e.message, "fix": e.fix_hint} for e in result.errors],
+        "warnings": [{"layer": w.layer, "message": w.message} for w in result.warnings],
+    }, ensure_ascii=False)
+
+
 # ── 执行器映射 ──
 COMFYUI_PIPELINE_EXECUTOR_MAP = {
     "comfyui_build_workflow": lambda **kw: execute_build_workflow(**kw),
@@ -231,4 +310,6 @@ COMFYUI_PIPELINE_EXECUTOR_MAP = {
     "comfyui_train_lora": lambda **kw: execute_train_lora(**kw),
     "comfyui_create_custom_node": lambda **kw: execute_create_custom_node(**kw),
     "comfyui_compare_models": lambda **kw: execute_compare_models(**kw),
+    "comfyui_compile_and_validate": lambda **kw: execute_compile_and_validate(**kw),
+    "comfyui_validate_workflow": lambda **kw: execute_validate_workflow(**kw),
 }

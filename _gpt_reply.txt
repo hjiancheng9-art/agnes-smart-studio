@@ -1,0 +1,382 @@
+推荐顺序：C → D → A → B。
+
+核心判断：你现在不是缺“能力点”，而是缺一条真实闭环。先让 Compiler + Validator 被路由实际调用，再把失败接入 Executor 错误恢复，然后沉淀成 Tool Contract，最后再扩 Motif 库。否则 B 会变成堆模板，A 会变成抽象规范，D 也缺真实错误来源。
+
+1. 第一优先：C) API 集成 — Compiler + Validator 接入路由
+
+这是当前最该推的。
+
+你已经有：
+
+TaskSpec → WorkflowIR → GraphCompiler
+Validator L1-L5
+CWIM 方法论注入系统
+
+但如果它们还没进入主调用链，就还是“离线能力”。下一步要做的是把它们变成系统默认路径。
+
+建议做一个薄闭环，不要一开始做重：
+
+用户需求
+  ↓
+Agent / Router
+  ↓
+TaskSpec 生成
+  ↓
+Compiler 编译 WorkflowIR
+  ↓
+GraphCompiler 输出 ComfyUI graph
+  ↓
+Validator L1-L5 校验
+  ↓
+返回 graph + report + warnings
+
+推荐新增或改造这些入口：
+
+Python
+运行
+POST /api/comfyui/compile
+POST /api/comfyui/validate
+POST /api/comfyui/smart-build-v2
+
+返回结构建议统一：
+
+Python
+运行
+{
+  "ok": true,
+  "task_spec": {...},
+  "workflow_ir": {...},
+  "graph": {...},
+  "validation": {
+    "level": "L1-L5",
+    "passed": true,
+    "errors": [],
+    "warnings": []
+  },
+  "trace": {
+    "selected_motifs": [],
+    "compiler_steps": [],
+    "validator_steps": []
+  }
+}
+
+为什么 C 第一？
+
+因为它会暴露真实问题：
+
+TaskSpec 不够表达？
+IR 字段缺什么？
+Motif 选择是否稳定？
+Compiler 输出是否真的能导入 ComfyUI？
+Validator 的 L1-L5 是否过严或过松？
+
+这些问题必须通过真实路由跑起来才知道。
+
+C 阶段验收标准
+
+建议别追求大而全，只要做到：
+
+1. 文生图 TaskSpec 能走完整链路
+2. 图生图 TaskSpec 能走完整链路
+3. LoRA 场景能走完整链路
+4. 每次编译都有 trace
+5. 每次校验都有 report
+6. 前端或日志能看到 Compiler / Validator 的阶段结果
+
+做到这一步，系统就从“模块完成”进入“产品闭环”。
+
+2. 第二优先：D) 错误恢复集成 — 原则5落地到 Executor 层
+
+C 接进去之后，马上做 D。
+
+原因很简单：Validator 一旦进入真实链路，就一定会产生大量失败结果。如果没有错误恢复，用户体验会变成：
+
+编译失败
+校验失败
+节点缺失
+连接错误
+模型缺失
+参数非法
+
+这时候系统只是“会报错”，还不是“会解决问题”。
+
+D 的目标是把 Validator 从“检查器”升级成 Executor 的“自愈反馈源”。
+
+推荐结构：
+
+Executor 执行前
+  ↓
+Validator L1-L5
+  ↓
+如果失败
+  ↓
+RecoveryPlanner 根据错误类型生成修复计划
+  ↓
+AutoFixPatch 修改 graph / IR / 参数 / motif
+  ↓
+重新 Validator
+  ↓
+通过后执行，失败则返回可解释报告
+
+错误恢复不要一开始做成大模型自由发挥，建议做确定性映射：
+
+Python
+运行
+L1_SCHEMA_ERROR        → 修 JSON / 缺字段 / 类型转换
+L2_TOPOLOGY_ERROR      → 修连接 / 补节点 / 删除悬空边
+L3_NODE_CONTRACT_ERROR → 修输入输出槽 / 参数范围
+L4_RESOURCE_ERROR      → 替换模型 / 降级采样器 / 提示缺失资源
+L5_RUNTIME_RISK        → 阻止执行 / 要求人工确认 / 安全降级
+
+建议新增：
+
+Python
+运行
+core/comfyui_recovery.py
+
+核心类可以是：
+
+Python
+运行
+class RecoveryPlanner:
+    def plan(self, validation_report, workflow_ir, graph) -> RecoveryPlan:
+        ...
+
+class RecoveryExecutor:
+    def apply(self, plan, workflow_ir, graph) -> RecoveryResult:
+        ...
+
+class RecoveryResult:
+    fixed: bool
+    patches: list
+    before_errors: list
+    after_errors: list
+    retry_count: int
+D 阶段最重要的原则
+
+不要让恢复逻辑无限修。
+
+建议固定：
+
+最多 2 次自动修复
+每次修复必须记录 diff
+修复后必须重新跑 Validator
+无法修复时，返回“最小可解释失败报告”
+
+失败报告应该像这样：
+
+失败原因：KSampler 的 latent 输入缺失
+系统尝试：自动补充 EmptyLatentImage 节点并连接
+结果：仍失败，因为目标分辨率参数缺失
+建议：补充 width / height，或切换到基础文生图模板
+
+这样用户会觉得系统可靠，而不是黑盒乱改。
+
+3. 第三优先：A) Tool Contract — 方法论注入工具定义，工具执行前自动检查
+
+A 很重要，但我不建议放第一。
+
+原因是：Tool Contract 是“治理层”，它需要基于 C 和 D 暴露出来的真实调用路径、真实错误类型来设计。如果先做 A，容易变成漂亮但空泛的规范。
+
+但 A 不能太晚。推荐在 C、D 之后立刻做。
+
+Tool Contract 的目标不是把整份 CWIM 方法论塞进每个工具，而是给每个工具一个可执行契约。
+
+建议每个工具定义这些字段：
+
+Python
+运行
+{
+  "name": "compile_workflow",
+  "intent": "TaskSpec to WorkflowIR to ComfyUI graph",
+  "input_schema": TaskSpecSchema,
+  "output_schema": CompileResultSchema,
+  "preconditions": [
+    "task_spec.intent is not empty",
+    "target workflow type is supported",
+    "required model class exists or has fallback"
+  ],
+  "postconditions": [
+    "graph has nodes",
+    "graph has no dangling links",
+    "validator L1-L3 passed"
+  ],
+  "side_effects": [
+    "no filesystem write",
+    "no ComfyUI execution"
+  ],
+  "failure_policy": "return structured error, do not execute graph"
+}
+
+然后执行前统一走：
+
+Tool Call
+  ↓
+Contract Precheck
+  ↓
+Tool Execution
+  ↓
+Postcondition Check
+  ↓
+Validator / Recovery
+  ↓
+Result Envelope
+
+可以做成装饰器：
+
+Python
+运行
+@tool_contract(
+    input_schema=TaskSpec,
+    output_schema=CompileResult,
+    precheck=["valid_task_spec", "supported_intent"],
+    postcheck=["graph_not_empty", "validator_l3_passed"],
+)
+def compile_workflow(task_spec: TaskSpec) -> CompileResult:
+    ...
+A 的关键设计建议
+
+不要写成“提示词注入优先”，要写成“运行时契约优先”。
+
+也就是说：
+
+系统提示：告诉智能体应该怎么调用工具
+工具契约：确保智能体即使乱调用，也会被拦住
+Validator：确保生成结果真的安全
+Recovery：失败后尝试修复
+
+这四层职责不要混在一起。
+
+A 阶段做完后，你的系统会从：
+
+模型根据提示词尽量守规矩
+
+升级成：
+
+模型即使不守规矩，工具层也会拦截、修复、解释
+
+这才是工程上可靠的智能体。
+
+4. 第四优先：B) Motif 库扩容 — 从 1351 模板库提取更多连接模式
+
+B 最后做。
+
+不是因为它不重要，而是因为它最容易“看起来很有产出，实际上污染系统”。
+
+1351 模板里一定有大量：
+
+重复连接模式
+过时节点
+插件特定节点
+脏连接
+手工 hack
+只适用于单个工作流的局部结构
+不可泛化的组合
+
+如果现在直接扩 Motif，Compiler 可能会变得更不稳定。
+
+正确做法是等 C/D/A 完成后，再用真实闭环筛 Motif。
+
+Motif 提取建议分四步：
+
+1. 解析 1351 模板
+2. 归一化节点类型和连接边
+3. 抽取高频子图
+4. 通过 Validator + Compiler 回放测试
+
+Motif 不应该只按“出现次数”入库，而要按这几个指标：
+
+support：出现频率
+coverage：覆盖多少任务类型
+stability：是否能稳定通过 Validator
+generality：是否跨模板、跨模型、跨插件通用
+repair_cost：失败后是否容易修复
+
+建议 Motif 入库格式：
+
+Python
+运行
+{
+  "id": "motif_txt2img_basic_sampler_v1",
+  "name": "Basic txt2img sampler chain",
+  "intent": ["txt2img"],
+  "nodes": [...],
+  "edges": [...],
+  "required_capabilities": ["checkpoint_loader", "clip_text_encode", "ksampler"],
+  "optional_nodes": ["vae_decode", "save_image"],
+  "validator_expectations": ["L1", "L2", "L3"],
+  "fallbacks": [...],
+  "confidence": 0.92,
+  "source_templates": [...]
+}
+
+B 阶段不要一次性导入几百个 Motif。建议小批量：
+
+第一批：10 个高频基础 Motif
+第二批：20 个 LoRA / ControlNet / Upscale Motif
+第三批：复杂工作流 Motif
+第四批：风格化 / 视频 / AnimateDiff 等扩展 Motif
+总推荐路线
+
+最终顺序：
+
+C API集成
+  ↓
+D 错误恢复
+  ↓
+A Tool Contract
+  ↓
+B Motif库扩容
+
+更具体一点：
+
+第1阶段：接通主链路
+Compiler + Validator 接入 Router / API / Agent
+
+第2阶段：让失败可恢复
+Validator error → RecoveryPlanner → AutoFixPatch → Revalidate
+
+第3阶段：把规则固化到工具边界
+Tool Contract / precheck / postcheck / result envelope
+
+第4阶段：规模化扩容
+从1351模板提取 Motif，用闭环验证后分批入库
+我最推荐你下一步立刻做的具体文件
+
+优先改这些：
+
+routes/comfyui.py
+core/comfyui_agent.py
+core/comfyui_executor.py
+core/comfyui_recovery.py
+schemas/comfyui_api.py
+
+第一刀建议不是大改，而是新增一个稳定入口：
+
+Python
+运行
+def smart_build_v2(request: SmartBuildRequest) -> SmartBuildResponse:
+    task_spec = task_spec_from_request(request)
+    ir = compiler.to_ir(task_spec)
+    graph = compiler.compile(ir)
+    validation = validator.validate(graph, level="L5")
+
+    if not validation.passed:
+        recovery = recovery_planner.try_fix(ir, graph, validation)
+        if recovery.fixed:
+            graph = recovery.graph
+            validation = validator.validate(graph, level="L5")
+
+    return SmartBuildResponse(
+        ok=validation.passed,
+        task_spec=task_spec,
+        workflow_ir=ir,
+        graph=graph if validation.passed else None,
+        validation=validation,
+        recovery=recovery if not validation.passed else None,
+    )
+一句话结论
+
+先 C，把三层能力接入真实路由；再 D，让失败能自动恢复；再 A，把方法论固化成工具契约；最后 B，用稳定闭环去筛选和扩容 Motif。
+
+不要先扩 Motif。现在最值钱的是把“能编译、能校验、能解释、能修复”这条主链路跑通。
