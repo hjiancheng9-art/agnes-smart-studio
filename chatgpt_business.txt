@@ -1,0 +1,304 @@
+V2 业务层总评
+我给 V2 当前业务层健康评分：
+51 / 100
+理由：
+
+业务蓝图完整，但业务闭环不稳。
+24 阶段覆盖面很强，deliveryGoal 也有分流意识，但目前更像“制作管线清单”，还不像真正面向用户的“可迭代视频生产工作台”。
+
+核心问题不是阶段不够，而是：
+1. 24 阶段偏线性瀑布流2. 阶段粒度不均衡3. CRUX 创意输出与可交付资产之间有断层4. 缺少用户画像和业务用例验证5. 缺少迭代、回溯、模板、指标和时长预期6. deliveryGoal 的节点体系和 24 阶段体系存在命名/模型错位
+
+一、正方：业务层设计合理之处
+1. 24 阶段覆盖完整生产链
+正方可以说，V2 的 24 阶段是一个非常完整的视频制作链：
+scriptstoryboardkeyframesvisual-devcharacterenvironmentpropfxanimationlightingcinematicvoiceovermusicsoundeditcolorvfxtitlesubtitlepackagingreviewdeliveryarchiveretro
+这比普通 AI 视频工具强很多。普通工具通常只做：
+prompt → image/video → download
+而 V2 是：
+创意 → 分镜 → 资产 → 动画 → 声音 → 剪辑 → 交付 → 归档 → 复盘
+这更接近真正的制作工作台。
+正方结论：
+24 阶段方向正确，能覆盖完整视频生产生命周期。
+
+2. CRUX + local 的分工思路合理
+目前 6 个阶段交给 CRUX：
+1-script2-storyboard3-keyframes11-cinematic12-voiceover21-review
+18 个阶段本地执行。
+这个分工有道理：
+类型适合 CRUX适合 local创意生成是否多模型判断是否外部平台操作是否文件打包否是字幕导出否是归档记录否是交付包生成否是
+CRUX 适合处理不确定性强、需要 AI 判断的阶段。
+local 适合处理确定性强、需要文件系统和项目状态的阶段。
+正方结论：
+CRUX 做创意与审查，本地做资产管理和交付，这个方向是对的。
+
+3. deliveryGoal 机制有产品分层意识
+DELIVERY_GOALS 已经区分了：
+single_imageshort_videofull_video
+这是好设计。
+不是所有用户都要跑完整 24 阶段。
+有人只想要关键帧图，有人只想要短视频，有人要完整交付包。
+deliveryGoal 能隐藏不必要节点：
+single_image 隐藏 video_generation / audio_prompts / final_rendershort_video 隐藏 audio_prompts / remotion / post_production_reviewfull_video 全部打开
+正方结论：
+deliveryGoal 是从“固定流程”走向“按用户目标定制流程”的第一步。
+
+4. 三个阶段组逻辑清晰
+三个阶段组：
+1. Intake & Reconstruction2. Asset & Storyboard3. Video & Delivery
+符合用户心智：
+先理解素材/需求再构建资产与分镜最后生成视频并交付
+对 HUD 展示也友好。
+用户不需要一开始看到 24 个阶段，可以先看到 3 个大组。
+正方结论：
+3 组结构适合做高层导航，24 阶段适合做底层执行。
+
+二、反方：业务层隐藏问题
+
+1. 24 阶段是线性瀑布流，迭代成本高
+问题
+现在业务模型像这样：
+1 → 2 → 3 → 4 → ... → 24
+这适合“理想流程”，但真实创作不是这样。
+真实用户经常会：
+先做角色，再写剧本先做世界观，再补分镜先生成几张关键帧试风格跳过故事板，直接做视觉开发只想重跑第 3 阶段，不想动第 1 阶段对 keyframes 不满意，回到 storyboard 改一小段
+如果 V2 只能线性跑，后果是：
+用户被迫跑不需要的阶段小修改导致大量重跑中间阶段失败后后续全部卡住用户不知道哪些阶段可以跳过项目越大，返工成本越高
+更深层问题
+24 阶段应该不是链表，而应该是 DAG：
+script ──→ storyboard ──→ keyframes ──→ animation   │            │              │   │            └──→ review     └──→ visual-qc   └──→ character / environment / prop
+每个阶段应该声明：
+requiredInputsoptionalInputsoutputsdownstreamDependentscanSkipcanReruncanBranch
+业务裁判
+这是 P0 业务问题。
+因为如果无法低成本迭代，视频制作工具会变成“一键跑演示”，而不是“真实生产工具”。
+
+2. 阶段粒度不均衡，用户无法形成合理预期
+问题
+1-script 是一个阶段，9-animation 也是一个阶段。
+但业务重量完全不同。
+1-script      可能 5 分钟，也可能 2 小时3-keyframes   可能 10 张图，也可能 100 张图9-animation   可能 1 条视频，也可能几十个镜头，耗时 2 天21-review     可能 1 分钟，也可能多轮返工
+阶段粒度不均衡会导致：
+HUD 显示 9/24，不代表完成 37.5%用户以为快结束了，其实 animation 才刚开始进度条失真排期失真失败成本失真CRUX 阶段和 local 阶段价值感不一致
+业务裁判
+这属于 P1 严重问题。
+不是不能跑，但会严重影响用户信任。
+解决方式不是把 24 阶段改没，而是给阶段增加子任务和权重。
+例如：
+9-animation  9.1 shot animation prompt  9.2 platform dispatch  9.3 generation wait  9.4 result ingest  9.5 motion QC  9.6 retry / approve
+进度应该按 work units，而不是按阶段数。
+
+3. 缺少用户画像和用例验证
+问题
+现在 V2 的流程很完整，但还没回答：
+用户是谁？他为什么用 V2？他愿意等多久？他懂不懂分镜？他需要可控性还是一键生成？他是个人创作者、小团队，还是工作室？
+不同用户对 24 阶段感受完全不同。
+用户类型需要什么对 24 阶段的感受独立创作者快速出片、少配置24 阶段可能太重AI 视频玩家可调参数、风格实验需要自由跳阶段小团队项目协作、版本、资产复用需要模板和审批工作室标准流程、质量门禁、交付规范24 阶段有价值新手用户引导式流程需要隐藏复杂度
+如果没有用户画像，业务层会变成“面面俱到，但没人觉得刚好”。
+业务裁判
+这是 P1 严重问题。
+不一定立刻导致技术故障，但会导致产品体验发散。
+建议至少定义 3 个核心 persona：
+1. 快速出片型：只要短视频/关键帧2. 专业控制型：需要完整 24 阶段和版本3. 资产开发型：只做角色/场景/道具/风格包
+
+4. CRUX 6 个阶段的业务价值被低估，也存在断裂点
+问题
+CRUX 负责：
+scriptstoryboardkeyframescinematicvoiceoverreview
+这些是创意核心。
+但如果 CRUX 返回的是“文本建议”而不是“可进入下一阶段的结构化资产”，业务就断了。
+例如：
+2-storyboard 返回一段文字分镜建议3-keyframes 需要结构化镜头列表、画面描述、角色、场景、构图、提示词
+如果中间没有转换契约，用户就要手动把 ChatGPT 建议整理成资产。
+这会造成：
+CRUX 看起来很聪明但用户仍要做大量中间整理一键流不是真一键local 阶段拿不到标准输入artifact/evidence 无法严格记录
+业务裁判
+这是 P0 业务问题。
+CRUX 阶段必须从“建议输出”升级为“生产制品输出”。
+每个 CRUX 阶段都应该有业务产物契约：
+阶段不应该只是应该输出script一段故事文本script.v1.jsonstoryboard分镜建议storyboard.v1.jsonkeyframesprompt 文本keyframe-plan.v1.json + image artifactscinematic电影化建议cinematic-plan.v1.jsonvoiceover文案建议voiceover-script.v1.jsonreview审阅意见review-report.v1.json + pass/fail
+
+5. 无进度预期管理
+问题
+用户不知道：
+24 阶段跑完要多久？当前阶段预计多久？CRUX 阶段是否在等待外部平台？local 阶段是否卡住？哪个阶段最慢？剩余多少人工确认？
+AI 视频生成的等待感很强。
+如果没有预期管理，用户很容易认为系统坏了。
+业务裁判
+这是 P1。
+应该增加：
+stage estimatetask estimateremaining estimateuncertainty rangecurrent blockernext expected user action
+比如 HUD 显示：
+当前：9-animation / shot 03状态：等待 Kling 生成预计：3-8 分钟风险：平台排队中下一步：完成后进入 motion QC
+
+6. 无业务指标，无法优化产品
+问题
+现在缺少这些数据：
+每个项目平均跑多少阶段？哪些阶段最常失败？哪些阶段最常被用户重跑？CRUX 阶段成功率是多少？哪个 deliveryGoal 最常用？用户在哪个阶段退出？平均交付时间是多少？每个项目平均产生多少 artifact？creative-bible 触发了多少次 warning？review 阶段通过率是多少？
+没有指标，就无法判断：
+24 阶段是否太重CRUX 是否真正提升效率哪些 local 阶段没有业务价值哪个阶段最该优化哪些模板最有用
+业务裁判
+这是 P1。
+早期可以没有复杂 BI，但必须有本地事件日志。
+建议新增：
+business-events.log.jsonl
+记录：
+project.createdgoal.selectedstage.startedstage.completedstage.failedstage.rerunstage.skippedartifact.approvedartifact.rejectedcrux.task.completeddelivery.completed
+
+7. 迭代与回溯机制不足
+问题
+视频制作一定会返工。
+典型场景：
+用户不满意 3-keyframes回到 2-storyboard 修改镜头 5重新生成 shot 5 的 keyframe保留其他镜头不变更新 downstream animation
+如果 V2 是无状态瀑布流，会发生：
+只能全量重跑旧 artifact 被覆盖不知道哪些下游阶段受影响证据链断裂用户无法比较版本
+业务裁判
+这是 P0。
+必须支持：
+stage rerunpartial rerunbranchrollbackdiffapprove / rejectdownstream invalidation
+例如：
+storyboard shot 05 修改↓keyframes shot 05 invalidatedanimation shot 05 invalidatedsound cue shot 05 maybe invalidated其他 shot 保持 approved
+这才是真正的制作工具。
+
+8. 多项目/模板能力缺失
+问题
+一个用户做了 5 个项目后，最有价值的资产不是单个视频，而是：
+风格模板角色模板项目 pipeline 模板prompt 策略模板deliveryGoal 模板provider 选择模板review checklist 模板
+如果 V2 每个项目完全独立，就无法形成复用。
+后果：
+用户每次重新配置经验留在项目里，不能变成模板团队标准流程无法沉淀CRUX 也无法复用成功策略
+业务裁判
+这是 P2 到 P1 之间。
+对个人早期不是致命，但对长期业务非常关键。
+建议支持：
+Create template from projectCreate project from templateExtract style bibleExtract workflow profileExtract provider strategyExtract review checklist
+
+9. CRUX 6 个阶段是黑盒，用户不可控
+问题
+CRUX 阶段到底用了什么策略？
+script 是叙事型、广告型、解说型，还是短剧型？storyboard 是电影分镜还是社媒短视频分镜？keyframes 是写实、动漫、赛博，还是神性建筑？cinematic 是镜头语言建议，还是生成视频 prompt？voiceover 是旁白、角色对白，还是营销口播？review 是按什么 checklist 审？
+如果用户看不到，也不能改，就会觉得 CRUX 是黑盒。
+后果
+用户无法信任 CRUX无法复用成功策略无法解释失败原因无法做团队标准化CRUX 阶段输出不可预测
+业务裁判
+这是 P1。
+CRUX 阶段应该有可视化策略卡：
+Prompt strategyInput artifactsKnowledge packs usedRules appliedOutput schemaProvider/platformReview checklistUser editable fields
+
+三、额外关键问题：deliveryGoal 和 24 阶段命名体系错位
+这是你给出的信息里非常重要的隐藏问题。
+24 阶段里有：
+scriptstoryboardkeyframesvisual-devanimationdeliveryarchiveretro
+但 deliveryGoal 里有：
+reconstructionstoryboardstoryboard_imagesstoryboard_visual_qcvideo_generationfinal_qcexport_package
+这说明当前系统至少存在两套业务流程语言：
+24 阶段语言production-governance 节点语言
+如果没有映射表，会出现：
+deliveryGoal 认为 terminalNode 是 video_generationautoflow 认为阶段是 9-animationHUD 显示 animationarchive 记录 video_generationrule 层检查 final_qc用户不知道这些是不是同一个东西
+这是非常危险的业务建模问题。
+应该新增：
+business-stage-map.js
+例如：
+JavaScript{  "9-animation": {    governanceNode: "video_generation",    deliveryGoalNode: "video_generation",    group: "Video & Delivery",    userLabel: "动画生成",    outputKinds: ["video_clip", "motion_plan"]  },  "3-keyframes": {    governanceNode: "storyboard_images",    deliveryGoalNode: "storyboard_images",    group: "Asset & Storyboard",    userLabel: "关键帧图像",    outputKinds: ["keyframe_image", "keyframe_prompt"]  }}
+这个问题我会列为 P0，因为它会导致流程、规则、归档、HUD、指标全部对不齐。
+
+四、业务层 P0 / P1 / P2 问题列表
+P0：直接影响用户能否完成真实生产
+编号问题业务影响P0-124 阶段是线性瀑布流，缺少 DAG、跳过、局部重跑、分支用户无法低成本迭代，真实创作会卡死P0-2CRUX 输出多为建议，缺少结构化业务产物契约创意结果无法稳定进入下游 local 阶段P0-3缺少回溯与下游失效机制改 storyboard 后无法准确重跑 keyframes / animationP0-4deliveryGoal 节点体系与 24 阶段体系错位流程、HUD、规则、归档、指标命名不一致P0-5没有阶段产物验收标准阶段显示完成，但用户拿不到可用业务结果
+
+P1：严重影响体验、信任和增长
+编号问题业务影响P1-1阶段粒度不均衡，无阶段权重和子任务进度条失真，用户无法预期工作量P1-2无用户画像和核心用例定义产品可能过重或过轻，无法聚焦P1-3无进度预期管理用户误判卡死，等待体验差P1-4无业务指标无法判断流程瓶颈和 CRUX 价值P1-5CRUX 阶段黑盒用户无法信任、复用、调参P1-6deliveryGoal 只隐藏节点，不够表达业务策略single_image / short_video / full_video 仍缺专属流程体验P1-7local 阶段定义不清：是自动执行、人工编辑，还是占位生成？用户不知道每阶段到底做什么P1-8缺少 approve / reject / request changes用户无法正式验收阶段产物P1-9业务基线包与运行流程关系不清baseline-files 可能只是资料，未真正驱动流程
+
+P2：长期产品化与规模化问题
+编号问题业务影响P2-1缺少项目模板提取成功项目经验无法复用P2-2缺少项目类型 profile不同类型视频走同一套流程，体验笨重P2-3缺少团队协作模型后续多人制作、审批、分工困难P2-4缺少成本估算外部平台耗时、次数、额度不可控P2-5缺少 provider 选择策略可视化用户不知道为什么用 Kling / Runway / JimengP2-6缺少项目复盘到模板/知识的闭环retro 产物无法真正提升下一项目P2-7缺少业务层 A/B 策略无法比较不同 prompt / provider / pipeline 效果
+
+五、业务层改进路线图
+第一阶段：先修业务模型一致性
+目标：让 24 阶段、deliveryGoal、production-governance、HUD、artifact 说同一种语言。
+新增：
+business-stage-map.jsbusiness-output-contracts.jsbusiness-goal-profiles.js
+要做：
+1. 建立 24 阶段 ↔ governance node ↔ deliveryGoal node 映射表2. 每个阶段定义 output contract3. 每个 deliveryGoal 定义真实执行 profile4. HUD 只显示用户友好的 stage label5. artifact / evidence / metrics 使用统一 stageId
+这是第一优先级。
+
+第二阶段：把瀑布流改成 DAG + 可迭代流程
+新增：
+workflow-graph.jsstage-dependency-engine.jsstage-invalidation.jsstage-rerun.js
+能力：
+canSkipcanReruncanBranchcanPartialRerundownstreamInvalidationapprovalRequiredmanualOverride
+示例：
+用户修改 storyboard shot 05→ invalidate keyframes shot 05→ invalidate animation shot 05→ sound cue shot 05 marked needs-review→ delivery blocked until affected nodes approved
+
+第三阶段：CRUX 输出结构化业务产物
+每个 CRUX 阶段必须有 schema：
+script.v1.jsonstoryboard.v1.jsonkeyframe-plan.v1.jsoncinematic-plan.v1.jsonvoiceover-script.v1.jsonreview-report.v1.json
+CRUX 不再只返回“建议”，而是返回：
+可归档可验证可编辑可下游消费可版本化
+
+第四阶段：阶段验收与用户决策
+新增阶段状态：
+generatedneeds_reviewapprovedrejectedrequest_changesinvalidatedsuperseded
+HUD 每个阶段显示：
+输出是什么是否通过规则是否通过 creative-bible是否需要用户确认下游哪些阶段受影响
+
+第五阶段：进度预期与业务指标
+新增：
+business-telemetry.jsstage-estimator.jsproject-metrics.js
+记录：
+stage durationretry countreject countCRUX success rateartifact approval ratedelivery timemanual intervention count
+HUD 显示：
+预计剩余时间当前瓶颈最慢阶段需要人工确认的阶段
+
+第六阶段：项目模板和复用
+新增：
+template-extractor.jsproject-template-store.jsworkflow-profile-store.js
+支持：
+从项目创建模板从模板创建项目提取 visual style bible提取 CRUX prompt strategy提取 deliveryGoal profile提取 review checklist
+
+六、CRUX 总控如何在业务层发挥更大价值
+CRUX 不应该只是“跑 6 个阶段”。
+CRUX 在业务层应该升级为：
+业务导演 + 阶段策略师 + 返工判断器 + 模板提取器
+
+1. CRUX 做项目启动顾问
+用户创建项目时，CRUX 先判断：
+用户目标是什么？single_image / short_video / full_video？需要完整流程还是快速流程？是否已有素材？是否已有角色/场景？需要哪种项目 profile？
+输出：
+推荐 deliveryGoal推荐 workflow profile推荐需要跳过的阶段推荐 CRUX / local 分工预计耗时风险提醒
+
+2. CRUX 做阶段策略透明化
+每个 CRUX 阶段都展示策略卡：
+阶段：1-script策略：短视频叙事脚本使用知识：core-showrunner + domain-features输入：用户主题 + creative-bible输出：script.v1.json可调整项：叙事风格、长度、旁白密度、角色数量
+这样用户知道 CRUX 在做什么。
+
+3. CRUX 做回溯影响分析
+当用户改一个上游阶段时，CRUX 可以判断：
+这个修改会影响哪些下游阶段？哪些 artifact 可以保留？哪些必须重跑？哪些只需要 review？
+例如：
+修改角色服装→ character invalidated→ keyframes with character invalidated→ animation clips with character invalidated→ voiceover unaffected→ music unaffected
+这会大幅降低返工成本。
+
+4. CRUX 做业务质量审查
+CRUX 的 21-review 不应该只给主观建议。
+应该按业务目标输出：
+是否达到 deliveryGoal？是否满足用户画像？是否满足平台发布需求？是否存在阶段断裂？是否有缺失 artifact？是否有不一致镜头？是否需要重跑？
+输出结构化：
+JSON{  "status": "needs_changes",  "blockingIssues": [],  "nonBlockingIssues": [],  "recommendedReruns": [],  "deliveryReadiness": 0.72}
+
+5. CRUX 做模板提取
+项目完成后，CRUX 在 24-retro 阶段可以提取：
+成功 prompt 策略失败重试经验视觉风格模板镜头语言模板provider 选择经验deliveryGoal profile
+然后写入：
+project template candidateknowledge candidateworkflow profile candidate
+这样 V2 才会越用越强。
+
+七、最终业务层评分拆解
+业务蓝图完整度：75 / 100用户流程灵活度：35 / 100CRUX 业务价值利用：55 / 100交付目标清晰度：60 / 100迭代与回溯能力：25 / 100指标与增长能力：20 / 100模板复用能力：25 / 100综合：51 / 100
+
+最终一句话
+
+V2 的业务层已经有“完整制作流程”，但还没有“真实创作者工作流”。
+下一步最重要的不是继续加阶段，而是把 24 阶段改造成可跳过、可回溯、可局部重跑、可验收、可复用的业务图谱。
+
+最优先修这 4 件：
+1. 统一 24 阶段与 deliveryGoal / governance node 的业务映射2. 把线性瀑布流改成 DAG + 局部重跑3. 让 CRUX 输出结构化业务产物，而不是文本建议4. 给每个阶段增加验收、预期耗时、用户确认和指标记录

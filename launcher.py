@@ -447,9 +447,9 @@ STATUS_GLYPHS = {
 }
 
 STATUS_COLORS = {
-    "online":   "#7a9a6b" if HAS_THEME else "green",
-    "degraded": "#c4944a" if HAS_THEME else "yellow",
-    "offline":  "#c4554a" if HAS_THEME else "red",
+    "online":   "#A6E3A1" if HAS_THEME else "green",
+    "degraded": "#FAB387" if HAS_THEME else "yellow",
+    "offline":  "#F38BA8" if HAS_THEME else "red",
 }
 
 STATUS_LABELS_ZH = {
@@ -502,19 +502,19 @@ def print_rich_dashboard(results: list[HealthResult], elapsed: float) -> None:
 def _beast_color(index: int) -> str:
     """Return the hex color for a beast by index."""
     if HAS_THEME and index < len(BEAST_ORDER):
-        return BEAST_PALETTE.get(BEAST_ORDER[index], "#d4a853")
-    return "#d4a853"
+        return BEAST_PALETTE.get(BEAST_ORDER[index], "#F9E2AF")
+    return "#F9E2AF"
 
 
 def _render_rich_dashboard(results: list[HealthResult], elapsed: float) -> None:
-    """Atelier 暗夜工坊风格的 Rich 仪表盘。"""
+    """Catppuccin Mocha 风格的 Rich 仪表盘。"""
     console = Console()
 
     # 面板色 — 从主题取，失败回落
-    border_c = COLORS["border_active"] if HAS_THEME else "#6b5d3e"
-    accent_c = COLORS["accent"] if HAS_THEME else "#d4a853"
-    primary_c = COLORS["primary"] if HAS_THEME else "#e8e4dd"
-    muted_c = COLORS["muted"] if HAS_THEME else "#6b6560"
+    border_c = COLORS["border_active"] if HAS_THEME else "#89B4FA"
+    accent_c = COLORS["accent"] if HAS_THEME else "#89B4FA"
+    primary_c = COLORS["primary"] if HAS_THEME else "#CDD6F4"
+    muted_c = COLORS["muted"] if HAS_THEME else "#7F849C"
 
     # ── 七兽巡礼标题行 ──
     beast_line_parts = []

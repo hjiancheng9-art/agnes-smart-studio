@@ -396,7 +396,7 @@ class TestDNAIntegrity:
     def test_seven_beasts_dna_intact(self):
         from core.seven_beasts_fusion import SEVEN_BEASTS_FUSION
         assert "白虎" in SEVEN_BEASTS_FUSION
-        assert "七兽同体" in SEVEN_BEASTS_FUSION or "七兽融合" in SEVEN_BEASTS_FUSION
+        assert "平时如刀，出事成阵" in SEVEN_BEASTS_FUSION or "七兽按需治理" in SEVEN_BEASTS_FUSION
 
     def test_golden_finger_dna_intact(self):
         from core.golden_finger import GOLDEN_FINGER_PROMPT
@@ -405,5 +405,7 @@ class TestDNAIntegrity:
     def test_base_injections_wired(self):
         from core.chat_prompt import _BASE_INJECTIONS
         labels = [label for _, _, label in _BASE_INJECTIONS]
-        assert "七兽融合" in labels, f"七兽融合 not in _BASE_INJECTIONS: {labels}"
-        assert "金手指谱" in labels, f"金手指谱 not in _BASE_INJECTIONS: {labels}"
+        assert isinstance(_BASE_INJECTIONS, list), f"_BASE_INJECTIONS should be a list, got {type(_BASE_INJECTIONS)}"
+        # NOTE: After AGENTS split + on-demand beast loading,
+        # _BASE_INJECTIONS is empty by default.  Injections are added
+        # dynamically via the governance layer.

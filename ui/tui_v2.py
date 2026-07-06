@@ -37,6 +37,7 @@ from prompt_toolkit.application.current import get_app
 from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout import HSplit, Layout, Window
 from prompt_toolkit.layout.containers import ConditionalContainer
@@ -401,7 +402,7 @@ class TuiAppV2:
         self._activity_render_limit = 100
         self._activity_expanded = False
         self._activity_collapsed_height = 3
-        self._activity_expanded_height = 10
+        self._activity_expanded_height = 8
         self._queued_text: str | None = None
 
         # ── Spinner ──
@@ -577,6 +578,17 @@ class TuiAppV2:
             self.message_pane.scroll_down(5)
             event.app.invalidate()
 
+        # Alt+Up / Alt+Down: single-line scroll (plain Up/Down reserved for history)
+        @kb.add("escape", "up")
+        def _(event):
+            self.message_pane.scroll_up(1)
+            event.app.invalidate()
+
+        @kb.add("escape", "down")
+        def _(event):
+            self.message_pane.scroll_down(1)
+            event.app.invalidate()
+
 
         # ── Streaming guards ──
         # When streaming, up/down only move cursor, don't trigger history
@@ -676,44 +688,28 @@ class TuiAppV2:
 
         # ── Activity Bar ──
         def _activity_content():
-            if self._log_count() == 0:
+            count = self._log_count()
+            if count == 0:
                 return FormattedText([])
-            with self._state_lock:
-                log_snapshot = self._log_snapshot()
+            with self._activity_lock:
+                max_lines = self._activity_expanded_height if self._activity_expanded else self._activity_collapsed_height
+                log_snapshot = self._log_snapshot(limit=max_lines)
             tw = _tw()
-            spinner_char = self._spinner.current if self._spinner.running else " "
             pieces: list[tuple[str, str]] = []
-            # Build single-line activity status
-            has_running = False
-            line = ""
-            for icon, _style_class, msg in log_snapshot:
-                if "●" in icon:
-                    has_running = True
-                    tag = f"{spinner_char} {msg}"
-                else:
-                    tag = f"{icon} {msg}"
-                line += f" {tag} ·"
-            line = line.rstrip(" ·")
-            if len(line) > tw:
-                line = line[: tw - 3] + "…"
-            # Color based on content
-            has_running = any("●" in icon for icon, _, _ in log_snapshot)
-            has_error = any("✗" in icon for icon, _, _ in log_snapshot)
-            if has_running:
-                pieces.append(("class:activity-spinner", line))
-            elif has_error:
-                pieces.append(("class:activity-fail", line))
-            else:
-                pieces.append(("class:activity-done", line))
+            for icon, style_class, msg in log_snapshot:
+                # Force single-line, truncate to fit
+                text = f"{icon} {msg}".replace("\n", " ").replace("\r", " ")[: tw - 4]
+                pieces.append((style_class, text))
+                pieces.append(("", "\n"))
             return FormattedText(pieces)
 
         activity_window = Window(
             content=FormattedTextControl(_activity_content),
-            height=lambda: (
+            height=Dimension.exact(
                 self._activity_expanded_height
                 if self._activity_expanded
                 else self._activity_collapsed_height
-            ) if self._log_count() else 0,
+            ) if self._log_count() else Dimension.exact(3),
             style="class:message-area",
             always_hide_cursor=True,
         )
@@ -741,17 +737,12 @@ class TuiAppV2:
             focusable=True,
         )
 
-        # We need dynamic height for multiline input; count newlines + 1
-        def _input_height():
-            text = self.input_buffer.text
-            n_lines = text.count("\n") + 1
-            return min(max(1, n_lines), 8)  # cap at 8 lines
-
         input_window = Window(
             content=input_ctrl,
-            height=_input_height,
+            height=Dimension.exact(1),
             style="class:input-field",
             dont_extend_height=True,
+            wrap_lines=False,
         )
 
         # ── Input border (bottom of input frame) ──
@@ -876,7 +867,8 @@ class TuiAppV2:
                 pass
 
         bar = context_bar(self._cached_ctx_pct, width=8)
-        right_parts.append(("class:status-bar-context", f" {bar} {self._cached_ctx_pct:.0f}%"))
+        if self._cached_ctx_pct > 0:
+            right_parts.append(("class:status-bar-context", f" {bar} {self._cached_ctx_pct:.0f}%"))
 
         # ── Provider status ──
         try:
@@ -898,7 +890,9 @@ class TuiAppV2:
                 status = r.get("status", "?")
                 failed = r.get("failed", 0)
                 total = r.get("total", 0)
-                if failed > 0:
+                if status == "done":
+                    right_parts.append(("class:status-bar-level-a", f" ✓{total}"))
+                elif failed > 0:
                     right_parts.append(("class:status-bar-level-d", f" run:{status} ✗{failed}/{total}"))
                 else:
                     right_parts.append(("class:status-bar-level-a", f" run:{status} ✓{total}"))
@@ -1314,14 +1308,13 @@ class TuiAppV2:
     def _build_hint_text(self) -> str:
         with self._state_lock:
             streaming = self._streaming or self._thinking
-
         if streaming:
-            return " 正在响应：Enter 暂存输入 │ PgUp/PgDn 滚屏 │ Ctrl+End 回到底部 │ F8 展开日志 │ Ctrl+C 中断 "
+            return " 正在响应：Enter 暂存输入 │ Ctrl+C 中断 "
 
         if getattr(self, '_activity_expanded', False):
-            return " Enter 发送 │ Alt+Enter 换行 │ F8 收起日志 │ PgUp/PgDn 滚屏 │ Ctrl+Home/End 顶/底 │ Ctrl+L 清屏 "
+            return ""
 
-        return " Enter 发送 │ Alt+Enter 换行 │ PgUp/PgDn 滚屏 │ Ctrl+Home/End 顶/底 │ F8 日志 │ Ctrl+L 清屏 "
+        return ""
 
     def _send_image(self, image_path: str) -> None:
         if self._thinking:
@@ -1577,7 +1570,13 @@ class TuiAppV2:
             pass
 
     def _shutdown_resources(self) -> None:
-        """Release external resources (spinner, executor, browser bridges)."""
+        """Release external resources (spinner, executor, browser bridges).
+        Idempotent — double call is safe (signal + atexit + finally).
+        """
+        if getattr(self, "_shutdown_done", False):
+            return
+        self._shutdown_done = True
+
         with self._state_lock:
             self._closing = True
             self._cancel_requested = True
@@ -1622,6 +1621,25 @@ class TuiAppV2:
             pass
 
     def run(self):
+        # ── signal handlers for graceful Ctrl+C / kill ──
+        import signal as _signal
+        import atexit as _atexit
+
+        _shutdown_once = False
+
+        def _signal_handler(sig, frame):
+            nonlocal _shutdown_once
+            if not _shutdown_once:
+                _shutdown_once = True
+                self._request_exit()
+                self._shutdown_resources()
+            _sys.exit(0)
+
+        _signal.signal(_signal.SIGINT, _signal_handler)
+        if hasattr(_signal, "SIGTERM"):
+            _signal.signal(_signal.SIGTERM, _signal_handler)
+        _atexit.register(self._shutdown_resources)
+
         # Populate initial git/latency/context data before first render
         self._refresh_status()
         # Start a lightweight animation timer (~10 fps) for beast icon rotation
@@ -1645,4 +1663,7 @@ class TuiAppV2:
         finally:
             self._anim_running = False
             self._shutdown_resources()
+            # Unregister atexit to avoid double-call on clean exit
+            with contextlib.suppress(Exception):
+                _atexit.unregister(self._shutdown_resources)
 

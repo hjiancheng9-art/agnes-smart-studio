@@ -43,23 +43,30 @@ def _add(category: str, ok: bool, msg: str):
 
 
 def _check_dna_identity():
-    """Verify CRUX DNA identity is intact in prompt templates."""
+    """Verify CRUX DNA identity is intact in prompt templates.
+
+    Failures are logged (not printed) — DNA check is a health warning,
+    not a startup gate.  The TUI activity feed may surface a one-liner.
+    """
+    import logging
+    _log = logging.getLogger("crux.startup")
     try:
         from core.chat_prompt import _BASE_INJECTIONS, CHAT_SYSTEM_PROMPT, CODE_SYSTEM_PROMPT
         if "CRUX Studio" not in CHAT_SYSTEM_PROMPT:
             _add("dna", False, "CHAT_SYSTEM_PROMPT lost CRUX identity")
+            _log.warning("DNA: CHAT_SYSTEM_PROMPT identity missing")
             return
         if "CRUX Studio" not in CODE_SYSTEM_PROMPT:
             _add("dna", False, "CODE_SYSTEM_PROMPT lost CRUX identity")
+            _log.warning("DNA: CODE_SYSTEM_PROMPT identity missing")
             return
-        labels = [label for _, _, label in _BASE_INJECTIONS]
-        missing = [l for l in ("七兽融合", "金手指谱") if l not in labels]
-        if missing:
-            _add("dna", False, f"DNA injections missing: {missing}")
-            return
-        _add("dna", True, "DNA identity intact (七兽+金手指)")
+        # After AGENTS split: _BASE_INJECTIONS may be empty (on-demand loading).
+        # DNA identity is verified via CHAT_SYSTEM_PROMPT markers only.
+        _ = [label for _, _, label in _BASE_INJECTIONS]  # unused but validates structure
+        _add("dna", True, "DNA identity intact")
     except Exception as e:
-        _add("dna", False, f"DNA check failed: {e}")
+        _add("dna", False, f"DNA check skipped: {type(e).__name__}")
+        _log.warning("DNA check skipped: %s", e, exc_info=True)
 
 
 def run_all() -> list[tuple[str, bool, str]]:

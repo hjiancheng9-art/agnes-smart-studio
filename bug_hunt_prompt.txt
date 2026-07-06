@@ -1,0 +1,46 @@
+# V2 第三轮深度审计：从源码细节挖 Bug
+
+我已经完整读了你前两轮的反馈，现在补充更多源码级信息，请你做最后一轮深度挖掘。
+
+## 补充源码事实
+
+### 项目结构
+- `project-store.js` 2579 行 — 最大单文件，混装：CRUD + 工作流节点执行 + 文件操作 + Git集成 + 聊天记录
+- `artifact-archive.js` 515行/30KB — 第二大文件
+- 无 test/ 目录，package.json 无任何测试依赖
+- node_modules 仅 14 个包（极轻量）
+- 无 WebSocket/SSE，HUD 纯 HTTP 轮询
+- 无 .env 文件
+- 无 pm2/process manager
+- 无 TypeScript，全 JS
+
+### 新加的模块（你可批评这些）
+1. `crux-bridge.js` — CRUX 总控桥接，内存状态管理 pending/inFlight/completed
+2. `crux-router.js` — CRUX API 路由，挂载在原生 http 模块
+3. `creative-bible.js` — 创作圣经，解决各阶段一致性
+
+### 第三方依赖（node_modules）
+仅 14 个包，典型的极简 Node 项目
+
+### router.js (仅 1.4KB)
+极简路由匹配器，无中间件机制
+
+### locales 目录
+3 个语言文件
+
+## 请按以下维度逐一正反方辩论
+
+1. **project-store.js 2579 行单文件** — "多功能上帝对象"还是"必要的聚合"？
+2. **零测试基础设施** — 2579 行的 store 没有任何测试。后果有多严重？
+3. **无 .env / 无配置管理** — 硬编码路径和端口藏在代码里
+4. **crux-bridge 的内存状态** — Node 进程重启后所有 inFlight/pending 丢失，这是否可接受？
+5. **creative-bible 的一致性校验** — 目前只校验"角色遗漏"和"风格漂移"两种，够吗？还有什么校验是必要的？
+6. **HUD 纯轮询 vs WebSocket** — 24 阶段流程全靠 HTTP 轮询，有什么性能/体验问题？
+7. **全 JS 无类型** — 对于 90+ 文件的视频制作工具，TypeScript 缺失会导致什么问题？
+8. **plugin 系统** — plugins/ 目录有哪些文件？缺乏中间件机制对插件扩展有何限制？
+
+## 最终输出
+
+1. 按 P0/P1/P2 列出所有你发现的 Bug（包括前两轮提到的）
+2. 针对每个 P0 给出具体修复路径（在哪改、改什么）
+3. 给出项目的"健康评分"（满分100）

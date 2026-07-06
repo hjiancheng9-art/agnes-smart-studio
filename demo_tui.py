@@ -168,7 +168,7 @@ def scene_hero():
 def main():
     try:
         scenes = [
-            ("启动 · 七兽觉醒",  scene_boot),
+            ("启动 · 平时如刀，出事成阵",  scene_boot),
             ("徽章 · 全展示",    scene_badges),
             ("字体 · 巡礼",      scene_fonts),
             ("面板 · 状态监控",  scene_panels),

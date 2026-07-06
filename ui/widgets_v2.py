@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import threading
 import time
+import unicodedata
 from collections.abc import Callable
 
 from prompt_toolkit.formatted_text import FormattedText
@@ -96,6 +97,23 @@ _DL_TOP_T = "╦"
 _DL_CROSS = "╬"
 
 
+def _vw(s: str) -> int:
+    """Visual width — CJK chars = 2 cells."""
+    return sum(2 if unicodedata.east_asian_width(c) in ("W","F") else 1 for c in s)
+
+
+def _cjk_trunc(txt: str, mw: int) -> str:
+    """Truncate string to fit max visual width."""
+    if _vw(txt) <= mw:
+        return txt
+    acc = ""; aw = 0
+    for c in txt:
+        cw = 2 if unicodedata.east_asian_width(c) in ("W","F") else 1
+        if aw + cw > mw: break
+        acc += c; aw += cw
+    return acc
+
+
 def panel_top(title: str, width: int, double: bool = False) -> str:
     """Top border of a panel with title: ┌─ Title ──────────┐"""
     if double:
@@ -103,12 +121,12 @@ def panel_top(title: str, width: int, double: bool = False) -> str:
     else:
         h, tl, tr = _SL_H, _SL_TL, _SL_TR
     inner = width - 2
-    if inner >= len(title) + 4:
+    if inner >= _vw(title) + 4:
         left_pad = 2
-        right_pad = inner - len(title) - left_pad - 2
+        right_pad = inner - _vw(title) - left_pad - 2
         return f"{tl}{h * left_pad} {title} {h * right_pad}{tr}"
     elif inner >= 2:
-        return f"{tl}{title[:inner - 2]:^{inner}}{tr}"
+        return f"{tl}{_cjk_trunc(title, inner - 2):^{inner}}{tr}"
     return f"{tl}{tr}"
 
 
@@ -122,8 +140,8 @@ def panel_bottom(width: int, double: bool = False) -> str:
 def panel_line(text: str, width: int, double: bool = False) -> str:
     """A content line with side borders: │ text               │"""
     v = _DL_V if double else _SL_V
-    content = text[: width - 4] if len(text) > width - 4 else text
-    return f"{v} {content}{' ' * max(0, width - len(content) - 4)} {v}"
+    content = _cjk_trunc(text, width - 4)
+    return f"{v} {content}{' ' * max(0, width - _vw(content) - 4)} {v}"
 
 
 def h_line(width: int, double: bool = False) -> str:
@@ -157,6 +175,7 @@ def build_welcome_formatted(
     branch: str = "",
 ) -> FormattedText:
     """Build welcome — responsive layout: TW-driven 3-column grid."""
+    from core.version import __version__ as _ver
     import os as _os
     import shutil
     _model = model_name or "deepseek-v4-flash"
@@ -174,28 +193,60 @@ def build_welcome_formatted(
     R="bold fg:#F38BA8"; Y="bold fg:#F9E2AF"; T="bold fg:#94E2D5"
     M="fg:#7F849C"; W="fg:#CDD6F4"; S="fg:#45475A"; A="bold fg:#FAB387"
 
+    def clamp_box_width(width: int, terminal_width: int = TW, x: int = 0, margin: int = 2) -> int:
+        return max(10, min(width, terminal_width - x - margin))
+
     lines: list[StyleAndTextTuples] = []
     L = lines.append
     sp = lambda n: " "*max(0,n)
+    def _vw(s: str) -> int:
+        """Visual width — CJK = 2 cells."""
+        return sum(2 if unicodedata.east_asian_width(c) in ("W","F") else 1 for c in s)
 
     # ── Title ──
-    L([(Y,"  CRUX Studio"),(M,"  v5.0"),(M,"  ·  "),(W,"AI-native creative + coding platform"),(M,"  ·  "),(G,"● ready")])
+    L([(Y,"  CRUX Studio"),(M,f"  v{_ver}"),(M,"  ·  "),(W,"平时如刀，出事成阵"),(M,"  ·  "),(G,"● ready")])
     L([("","\n")])
     L([(M, f"  model  {_model}    branch  {_branch}    path  {_cwd}")])
     L([("","\n")]); L([(S,"  "+"─"*(CW-2))]); L([("","\n\n")])
 
     # ═══════ 3-column grid ═══════
-    col_w = (CW - 4) // 3  # 3 cols, 2 gaps of 2
-    c3_w = CW - col_w * 2 - 4  # right col gets remainder
+    col_w = clamp_box_width((CW - 4) // 3, CW)
+    c3_w = clamp_box_width(CW - col_w * 2 - 4, CW, x=col_w * 2 + 4)
+    # ── safe width clamping: final check ──
+    col_w = clamp_box_width(col_w, CW)
+    c3_w = clamp_box_width(c3_w, CW, x=col_w * 2 + 4)
     c1_x = 2
     c2_x = c1_x + col_w + 2
     c3_x = c2_x + col_w + 2
 
-    def btop(title, w): return f"╭─ {title} {'─'*max(0,w-len(title)-7)}╮"
-    def bbot(w): return f"╰{'─'*max(0,w-2)}╯"
+    def btop(title, w):
+        w = clamp_box_width(max(14, w), CW)
+        return f"╭─ {title} {'─'*max(0,w-_vw(title)-5)}╮"
+    def bbot(w):
+        w = clamp_box_width(max(4, w), CW)
+        return f"╰{'─'*max(0,w-2)}╯"
     def row_at(x, sty, txt, w):
-        t = str(txt)[:w-4]
-        return (sty, f"{' '*max(0,x)}{'│'} {t}{' '*max(0,w-4-len(t))} │")
+        w = clamp_box_width(max(8, w), CW, x=x)
+        t = str(txt)
+        # Truncate by visual width
+        if _vw(t) > w - 4:
+            acc = ""; aw = 0
+            for c in t:
+                cw = 2 if unicodedata.east_asian_width(c) in ("W","F") else 1
+                if aw + cw > w - 4: break
+                acc += c; aw += cw
+            t = acc
+        return (sty, f"{' '*max(0,x)}{'│'} {t}{' '*max(0,w-4-_vw(t))} │")
+
+    def _cjkt(txt, mw):
+        """Truncate string to fit max visual width (CJK=2 cells)."""
+        if _vw(txt) <= mw: return txt
+        a=""; aw=0
+        for c in txt:
+            cw = 2 if unicodedata.east_asian_width(c) in ("W","F") else 1
+            if aw + cw > mw: break
+            a += c; aw += cw
+        return a
 
     # Box tops
     r:StyleAndTextTuples = []
@@ -205,46 +256,60 @@ def build_welcome_formatted(
 
     _cmd = [("/help    commands",B),("/skill   marketplace",P),("/status  overview",B),("/health  diagnostics",B),("/image   generate",T)]
     _wsp = [("/method  methodology",P),("/config  settings",B),("/model   switch model",P),("/chat    new chat",T),("/video   generate",T)]
-    _sys = [("● ready",G),(_model[:c3_w-4],W),(_branch,Y),("Python 3.11",M),("skills 50+743",P)]
+    _sys = [("● ready",G),(f"Hot path <1K tok",W),("平时如刀，出事成阵",Y),("97+ tools on demand",M),("极简内核 · 按需治理",P)]
 
     for i in range(5):
         cl,cs=_cmd[i]; wl,ws=_wsp[i]; sl,ss=_sys[i]
-        L([("","  "),(S,"│ "),(cs,cl[:col_w-4]),("",sp(col_w-3-len(cl[:col_w-4]))),(S,"│"),
-           ("","  "),(S,"│ "),(ws,wl[:col_w-4]),("",sp(col_w-3-len(wl[:col_w-4]))),(S,"│"),
-           ("","  "),(S,"│ "),(ss,sl[:c3_w-4]),("",sp(c3_w-3-len(sl[:c3_w-4]))),(S,"│")])
+        cl_t = _cjkt(cl, col_w - 4)
+        wl_t = _cjkt(wl, col_w - 4)
+        sl_t = _cjkt(sl, c3_w - 4)
+        L([("","  "),(S,"│ "),(cs,cl_t),("",sp(col_w-3-_vw(cl_t))),(S,"│"),
+           ("","  "),(S,"│ "),(ws,wl_t),("",sp(col_w-3-_vw(wl_t))),(S,"│"),
+           ("","  "),(S,"│ "),(ss,sl_t),("",sp(c3_w-3-_vw(sl_t))),(S,"│")])
         L([("","\n")])
+
 
     L([("","  "),(S,bbot(col_w)),("","  "),(S,bbot(col_w)),("","  "),(S,bbot(c3_w))])
     L([("","\n\n")])
 
     # ═══════ Welcome (2 cols) + Quick Start (1 col) ═══════
-    wl_w = col_w * 2 + 2
-    qs_w = c3_w
+    wl_w = clamp_box_width(col_w * 2 + 2, CW)
+    qs_w = clamp_box_width(c3_w, CW, x=wl_w + 2)
+
+    # Helper: build a centered row │ pad + text + pad │ fitting visual width w
+    def _wbox_row(sty, txt, w):
+        tw = _vw(txt)
+        lp = (w - 2 - tw) // 2
+        rp = w - 2 - tw - lp
+        return (sty, "│" + " "*lp + txt + " "*rp + "│")
 
     _wel = [
         (S, btop("Welcome", wl_w)),
-        (S, "│"+" "*(wl_w-2)+"│"),
-        (Y, "│"+" "*((wl_w-22)//2)+"CRUX SYSTEM ONLINE"+" "*max(0,wl_w-3-22-(wl_w-22)//2)+"│"),
-        (S, "│"+" "*(wl_w-2)+"│"),
-        (W, "│"+" "*((wl_w-26)//2)+"Plan clear. Code steady."+" "*max(0,wl_w-3-26-(wl_w-26)//2)+"│"),
-        (W, "│"+" "*((wl_w-27)//2)+"Agents ready. Route locked."+" "*max(0,wl_w-3-27-(wl_w-27)//2)+"│"),
-        (S, "│"+" "*(wl_w-2)+"│"),
+        _wbox_row(S, "", wl_w),
+        _wbox_row(Y, "CRUX SYSTEM ONLINE", wl_w),
+        _wbox_row(S, "", wl_w),
+        _wbox_row(W, "平时如刀，出事成阵", wl_w),
+        _wbox_row(W, "Lean core · Tools ready · Beasts on call", wl_w),
+        _wbox_row(S, "", wl_w),
         (S, bbot(wl_w)),
     ]
-    _qs = [
-        (S, btop("Quick Start", qs_w)),
-        (M, "│ 1. /method load workflow"+" "*max(0,qs_w-4-25)+" │"),
-        (M, "│ 2. /model  choose model "+" "*max(0,qs_w-4-25)+" │"),
-        (M, "│ 3. /chat   start session"+" "*max(0,qs_w-4-25)+" │"),
-        (M, "│ 4. /image  generate img"+" "*max(0,qs_w-4-27)+" │"),
-        (M, "│ 5. /video  generate vid"+" "*max(0,qs_w-4-27)+" │"),
-        (S, "│"+" "*(qs_w-2)+"│"),
-        (S, bbot(qs_w)),
+    _qs_items = [
+        ("1.", "/method", "load workflow"),
+        ("2.", "/model", "choose model"),
+        ("3.", "/chat", "start session"),
+        ("4.", "/image", "generate img"),
+        ("5.", "/video", "generate vid"),
     ]
+    _qs = [(S, btop("Quick Start", qs_w))]
+    for idx, cmd, desc in _qs_items:
+        line = f"│ {idx:<3}{cmd:<8}{desc}"
+        _qs.append((M, line + " "*(qs_w - 2 - len(line)) + " │"))
+    _qs.append((S, "│"+" "*(qs_w-2)+"│"))
+    _qs.append((S, bbot(qs_w)))
 
     for i in range(8):
         ws,wt=_wel[i]; qs,qt=_qs[i]
-        L([("","  "),(ws,wt),("","  "+sp(wl_w-len(wt))),(qs,qt)])
+        L([("","  "),(ws,wt),("","  "+sp(wl_w-_vw(wt))),(qs,qt)])
         L([("","\n")])
 
     L([("","\n")])
@@ -708,13 +773,19 @@ def render_status_line(
     dot = PulseDot(state)
     badge_color = _C.beast(beast)
     badge = AnimatedBadge(f"七{beast}", color=badge_color, anim="pulse")
-    bar = context_bar(context_pct)
+
+    if state == "done":
+        progress = "done"
+    elif state == "idle":
+        progress = "ready"
+    else:
+        progress = context_bar(context_pct)
 
     parts = [
         f"{dot.render()}",
         f"{badge.render()}",
         f"{_C.DIM}model:{_C.RESET}{_C.WHITE}{model}{_C.RESET}",
-        f"{_C.DIM}[{_C.RESET}{_C.GRAY}{bar}{_C.DIM}]{_C.RESET}",
+        f"{_C.DIM}[{_C.RESET}{_C.GRAY}{progress}{_C.DIM}]{_C.RESET}",
     ]
     if extra:
         parts.append(f"{_C.DIM}{extra}{_C.RESET}")

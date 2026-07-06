@@ -36,16 +36,26 @@ class _ScrollingWindow(Window):
     """Window subclass that overrides _scroll() to prevent ptk 3.x from
     resetting vertical_scroll to 0 on every render frame.
 
-    ptk 3.0.x recalculates vertical_scroll in _scroll() based on cursor
-    position, which is always (0,0) for FormattedTextControl. This means
-    any manual scroll position is lost on the next frame unless we no-op
-    the internal scroll calculation.
-
-    Also correctly handles auto-scroll-to-bottom when wrap_lines=True:
-    computes both vertical_scroll (content line index) and vertical_scroll_2
-    (visual row offset within that line) so the bottom of wrapped content
-    is visible even when total wrapped height exceeds window height.
+    Also intercepts mouse scroll events to properly update _pinned flag
+    so manual scrolling doesn't get overridden by auto-scroll on new content.
     """
+
+    def __init__(self, pane, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._mp_pane = pane
+
+    def _mouse_handler(self, mouse_event):
+        """Intercept scroll events so they update _pinned via pane methods."""
+        from prompt_toolkit.application.current import get_app
+        if mouse_event.event_type == MouseEventType.SCROLL_UP:
+            self._mp_pane.scroll_up(lines=_SCROLL_LINE)
+            get_app().invalidate()
+            return None
+        if mouse_event.event_type == MouseEventType.SCROLL_DOWN:
+            self._mp_pane.scroll_down(lines=_SCROLL_LINE)
+            get_app().invalidate()
+            return None
+        return super()._mouse_handler(mouse_event)
 
     def _scroll(self, ui_content, width, height):
         # Let the parent calculate, but then restore our saved position
@@ -148,10 +158,11 @@ class MessagePane:
 
         self._control = _MessagePaneControl(self, _render)
         self._window = _ScrollingWindow(
+            self,
             content=self._control,
             style="class:message-area",
             wrap_lines=True,
-            height=Dimension(weight=3),
+            height=Dimension(weight=1),
             always_hide_cursor=True,
             allow_scroll_beyond_bottom=False,
             right_margins=[],

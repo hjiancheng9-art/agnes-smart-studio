@@ -1,0 +1,274 @@
+总判断
+你现在的系统已经具备：
+工作流资产库↓参数模板↓推荐匹配↓runner↓V2 / CRUX 接口
+但它本质上仍是：
+
+工作流检索器 + 参数填充器 + 模板执行器
+
+你想要的是：
+
+工作流生成器 + 工作流修复器 + 参数调优器 + 多工作流编排器
+
+这两者差别很大。
+真正的目标不是“选一个现成 workflow”，而是让系统理解：
+什么节点能接什么节点哪些节点组合代表一种能力哪些参数控制画质 / 速度 / 稳定性 / 动作幅度哪里出错应该怎么修多个 workflow 如何串成 pipeline
+所以它下一阶段应该从“推荐系统”升级为：
+
+ComfyUI Workflow Compiler / 工作流编译器
+
+
+1. 当前能力差距：模板匹配 vs 智能合成
+当前：模板匹配型
+现在的逻辑大概是：
+用户需求↓识别意图↓从 1351 个 workflow 中找相似模板↓填参数↓提交执行
+这种方式的优点是稳定、快、容易落地。
+但缺点明显：
+不能创造模板库里没有的结构不能理解节点图为什么这样连不能把两个 workflow 自动拼起来不能根据报错重构图不能知道参数调大调小会发生什么
+它会出现这种情况：
+用户：先把图高清放大，再做成 4 秒运镜视频系统：找不到一个完全匹配的模板，或者只能选一个最接近的
+但真正智能合成应该是：
+用户需求↓拆成子目标：1. 图像输入2. 高清放大3. 视频化4. 运镜控制5. 输出 mp4↓选择子工作流片段↓拼接中间产物↓生成新 pipeline↓验证↓执行↓根据结果调参
+
+目标：智能合成型
+智能合成不是让 LLM 硬写完整 JSON。
+而是：
+LLM 负责理解需求和规划工作流知识库负责提供节点规律编译器负责确定性生成 ComfyUI JSON验证器负责检查合法性执行器负责运行修复器负责根据错误改图调优器负责根据结果迭代参数
+最终链路应该是：
+用户需求↓TaskSpec 任务规格↓WorkflowPlan 工作流计划↓WorkflowIR 中间表示↓GraphCompiler 编译成 ComfyUI JSON↓Validator 校验↓Executor 执行↓Observer 观察结果↓Repair / Tune / Compose
+这才是真正的工作流生成器。
+
+2. 需要的新能力模块
+模块一：Workflow Graph Knowledge Base 工作流图谱知识库
+你现在有 1351 个 workflow，它们应该被解析成图谱，而不是只当文件。
+每个 workflow 都要抽成：
+节点集合边集合节点类型输入输出端口模型依赖自定义节点依赖参数分布输出类型所属任务成功记录失败记录
+建议建立这些核心表：
+NodeTypeTable- class_type- input_ports- output_ports- required_inputs- optional_inputs- common_defaults- semantic_roleEdgePatternTable- source_class_type- source_output- target_class_type- target_input- frequency- confidenceSubgraphMotifTable- motif_id- task_type- node_sequence- input_contract- output_contract- frequency- examplesParameterSemanticsTable- class_type- input_name- semantic_name- value_type- range- effect- safe_default
+这一步的目标是把 1351 个 workflow 变成：
+节点组合规律库
+而不是：
+模板列表
+
+模块二：Node Ontology 节点语义本体
+系统必须知道每类节点在工作流里的角色。
+例如：
+CheckpointLoaderSimple = 模型加载CLIPTextEncode = 文本编码EmptyLatentImage = latent 初始化KSampler = 采样生成VAEDecode = latent 转图片SaveImage = 图片输出LoadImage = 图片输入LoraLoader = LoRA 注入ControlNetApply = 控制条件注入VideoCombine = 视频输出
+每个节点要有一张语义卡：
+YAMLclass_type: KSamplerrole: samplerinputs:  model:    type: MODEL    required: true  positive:    type: CONDITIONING    required: true  negative:    type: CONDITIONING    required: true  latent_image:    type: LATENT    required: true  seed:    type: int    semantic: randomness  steps:    type: int    semantic: quality_speed_tradeoff  cfg:    type: float    semantic: prompt_strength  denoise:    type: float    semantic: image_preservationoutputs:  LATENT:    type: LATENT
+没有这个本体，系统就无法真正理解：
+哪些节点能接哪些参数能调错误在哪里怎么修
+
+模块三：WorkflowIR 工作流中间表示
+不要直接让 LLM 生成 ComfyUI JSON。
+应该让 LLM 生成更高级、更稳定的中间表示。
+例如用户说：
+做一个 4 秒 16:9 的赛博雨夜图生视频，先高清放大，再生成运镜视频
+LLM 不应该直接输出复杂 JSON，而应该输出：
+JSON{  "task_type": "pipeline",  "stages": [    {      "type": "image_upscale",      "input": "user_image",      "scale": 2    },    {      "type": "image_to_video",      "input": "stage_1.output_image",      "duration": 4,      "aspect_ratio": "16:9",      "motion": "slow_push_in",      "prompt": "cyberpunk rainy night, neon market, cinematic lighting"    }  ],  "constraints": {    "quality": "high",    "speed": "medium",    "vram_limit_gb": 16  }}
+然后由 GraphCompiler 把 IR 编译成 ComfyUI JSON 或多阶段 pipeline。
+这能大幅降低 LLM 幻觉。
+
+模块四：Motif Miner 节点片段挖掘器
+从 1351 个工作流里自动挖常见子图。
+比如：
+txt2img motif:CheckpointLoader → CLIPTextEncode → EmptyLatentImage → KSampler → VAEDecode → SaveImageLoRA motif:CheckpointLoader → LoraLoader → CLIPTextEncode → KSamplerControlNet motif:LoadImage → ControlNetPreprocessor → ControlNetApply → KSamplerimg2video motif:LoadImage → VideoModelLoader → MotionSampler → VideoCombineupscale motif:LoadImage → UpscaleModelLoader → ImageUpscaleWithModel → SaveImage
+这些 motif 才是“学习材料”的核心成果。
+你可以把 motif 当成“积木”：
+输入合同 input contract输出合同 output contract节点结构 node graph参数槽位 params依赖 requirements适用任务 tags
+然后新工作流就是 motif 的组合。
+
+模块五：Graph Composer 图组合器
+它负责把多个 motif 拼成一个工作流或多阶段 pipeline。
+例如：
+用户需求：先修脸，再放大，再做视频
+组合器应该生成：
+Stage 1: face_restoreinput: user_imageoutput: restored_imageStage 2: upscaleinput: restored_imageoutput: upscaled_imageStage 3: image_to_videoinput: upscaled_imageoutput: final_video
+有些可以合并成单个 ComfyUI 图。
+有些更适合拆成多次执行。
+所以组合器需要判断：
+能不能在一个 workflow 内直接连？是否需要中间文件？中间产物类型是否兼容？显存是否会爆？是否应该拆 stage？
+
+模块六：Repair Engine 自动修复器
+自动修复不是“重试”。
+真正的修复是：
+检测错误↓定位错误节点 / 连线 / 参数 / 模型↓生成修复 patch↓重新验证↓重新执行
+最小应支持 6 类：
+1. 缺失模型2. 缺失自定义节点3. 输入输出类型不匹配4. 必填参数缺失5. 参数范围非法6. 输出节点缺失
+修复动作应该是结构化 patch：
+JSON{  "action": "replace_model",  "node_id": "4",  "input": "ckpt_name",  "old_value": "missing_model.safetensors",  "new_value": "available_model.safetensors",  "reason": "原模型不存在，替换为同类型可用模型"}
+不要只让 LLM 输出自然语言建议。
+
+模块七：Parameter Semantics 参数语义理解
+你现在有参数模板，但还需要知道：
+这个参数调大调小会怎样哪些参数影响质量哪些参数影响速度哪些参数影响动作哪些参数容易导致失败哪些参数适合自动调
+例如：
+steps:- 影响：质量 / 速度- 越大：质量可能更高，但更慢- 安全范围：20~40- 低配推荐：16~24cfg:- 影响：提示词遵循度- 过高：画面可能过硬 / 过饱和 / 崩- 安全范围：4~8denoise:- img2img 中影响原图保留程度- 低：更像原图- 高：变化更大lora_strength:- 影响 LoRA 风格 / 人物特征强度- 过高：容易污染画面
+这需要建立参数知识库。
+
+模块八：Auto Tuner 自动调优器
+调参不能靠一次 LLM 猜。
+应该是：
+初始参数↓执行↓观察结果↓评分↓调整参数↓再次执行
+评分来源可以有三种：
+用户反馈规则评分视觉模型评分
+调优策略可以先简单：
+seed sweepsteps / cfg 小范围搜索denoise 搜索LoRA strength 搜索motion strength 搜索
+之后再做高级：
+Bayesian OptimizationMulti-Armed Bandit历史成功参数检索相似任务参数迁移
+
+3. 技术路线图：先做什么后做什么
+阶段 0：不要先训练模型，先做编译器
+你现在不应该先搞“表示学习模型训练”。
+原因是：
+数据量 1351 不算小，但还不足以直接训练一个稳定图生成模型ComfyUI 节点规则强，先用规则 + 图谱收益更高生成错一个连接就跑不起来，必须确定性校验
+所以第一阶段应该是：
+图解析节点本体motif 挖掘IR编译器验证器
+不是先训练神经网络。
+
+阶段 1：工作流图谱化
+目标：把 1351 个 workflow 全部解析成图数据。
+产物：
+workflow_graphs.jsonlnode_types.jsonedge_patterns.jsonparam_stats.jsonworkflow_capabilities.json
+需要做：
+1. 解析每个 workflow 的 nodes / links2. 标注节点 class_type3. 统计常见连接4. 统计参数默认值和取值范围5. 自动识别输入节点 / 输出节点6. 自动识别任务类型
+完成标准：
+能回答：- 哪些节点最常一起出现？- KSampler 的 model 输入通常来自哪里？- VideoCombine 前面常接哪些节点？- 哪些 workflow 是 image_to_video？- 哪些参数在同类 workflow 中最常暴露？
+
+阶段 2：节点本体 + 参数语义库
+目标：让系统知道节点和参数“是什么意思”。
+产物：
+node_ontology.yamlparameter_ontology.yamlport_type_registry.yaml
+完成标准：
+系统能判断：- LoadImage 输出 IMAGE- KSampler 需要 LATENT / MODEL / CONDITIONING- VAEDecode 把 LATENT 转 IMAGE- SaveImage 是终点输出- cfg 是 prompt adherence 参数- denoise 是保留原图程度参数
+
+阶段 3：Motif 挖掘和能力片段库
+目标：从 1351 个工作流里挖出常用节点组合。
+产物：
+motifs/├── txt2img_basic.yaml├── img2img_basic.yaml├── lora_injection.yaml├── controlnet_conditioning.yaml├── upscale_basic.yaml├── image_to_video_ltxv.yaml├── animatediff_basic.yaml└── video_output.yaml
+每个 motif 描述：
+YAMLmotif_id: txt2img_basictask_type: txt2imginput_contract:  prompt: string  width: int  height: intoutput_contract:  image: IMAGEnodes:  - role: model_loader  - role: prompt_encoder  - role: latent_init  - role: sampler  - role: decoder  - role: image_outputparams:  - prompt  - negative_prompt  - width  - height  - seed  - steps  - cfg
+完成标准：
+系统可以不用完整模板，只靠 motif 合成基础 txt2img / img2img / upscale / video workflow。
+
+阶段 4：WorkflowIR + GraphCompiler
+这是从“推荐器”变成“生成器”的关键。
+新增：
+workflow_ir.pygraph_compiler.pynode_factory.pyconnection_builder.pyworkflow_validator.py
+链路：
+TaskSpec↓WorkflowIR↓GraphCompiler↓ComfyUI JSON↓Validator
+WorkflowIR 示例：
+JSON{  "graph_type": "single_workflow",  "task": "txt2img",  "components": [    {      "motif": "txt2img_basic",      "model_family": "flux",      "params": {        "prompt": "${prompt}",        "width": 1024,        "height": 576      }    },    {      "motif": "lora_injection",      "params": {        "lora_name": "${lora_name}",        "strength": 0.75      }    }  ],  "outputs": ["image"]}
+完成标准：
+系统能从 IR 生成合法 ComfyUI JSON，并通过验证。
+
+阶段 5：LLM Planner 接入
+这时再让 LLM 参与生成。
+LLM 不直接输出 JSON，而是输出：
+TaskSpecWorkflowIRRepairPlanTunePlan
+例如：
+用户：做一个电影感 16:9 分镜图，然后放大，再做 4 秒运镜视频
+LLM 输出：
+JSON{  "intent": "multi_stage_generation",  "stages": [    {      "task": "txt2img",      "purpose": "生成分镜关键帧",      "preferred_model_family": "flux"    },    {      "task": "upscale",      "purpose": "提升关键帧清晰度",      "scale": 2    },    {      "task": "image_to_video",      "purpose": "生成 4 秒运镜视频",      "duration": 4,      "motion": "slow_push_in"    }  ]}
+然后由系统编译。
+
+阶段 6：Repair Engine
+建立错误闭环：
+执行失败↓错误解析↓错误归因↓生成 patch↓重新验证↓重新执行
+优先覆盖：
+缺模型缺节点断线类型不匹配参数非法输出缺失
+完成标准：
+10 类常见错误至少能自动修 6 类。
+
+阶段 7：Auto Tuner
+先做简单自动调参。
+第一版支持：
+seed sweepcfg sweepsteps sweepdenoise sweeplora strength sweepmotion strength sweep
+输入：
+目标：更像提示词 / 更保留原图 / 动作更大 / 更稳定 / 更快
+输出：
+参数调整计划
+例如：
+JSON{  "goal": "more_motion",  "adjustments": [    {      "param": "motion_strength",      "change": "+0.15"    },    {      "param": "denoise",      "change": "+0.05"    }  ]}
+
+4. 如果 LLM 已经能理解 ComfyUI JSON，怎么用 LLM 做工作流生成？
+重点：即使 LLM 能理解 JSON，也不要让它直接裸生成最终 JSON。
+应该让 LLM 做 5 件事。
+
+第一：需求解析
+LLM 把用户话转成结构化任务。
+用户：“把这张图做成 4 秒视频，镜头慢慢推进，最后要高清一点。”LLM 输出：{  "task_type": "image_to_video",  "input_assets": ["image"],  "duration": 4,  "camera_motion": "slow_push_in",  "quality": "high",  "postprocess": ["upscale"]}
+
+第二：工作流规划
+LLM 不写节点，而是规划阶段。
+JSON{  "pipeline": [    {      "stage": "image_preprocess",      "goal": "prepare input image"    },    {      "stage": "image_to_video",      "goal": "generate 4 second video with slow push-in"    },    {      "stage": "video_upscale_or_export",      "goal": "improve output quality"    }  ]}
+
+第三：IR 生成
+LLM 生成 WorkflowIR，而不是 ComfyUI JSON。
+JSON{  "components": [    {      "motif": "load_image"    },    {      "motif": "ltxv_image_to_video",      "params": {        "duration": 4,        "motion": "slow_push_in",        "prompt": "cinematic slow push-in"      }    },    {      "motif": "video_output",      "params": {        "fps": 24,        "format": "mp4"      }    }  ]}
+然后 GraphCompiler 编译成 JSON。
+
+第四：修复建议变成 patch
+LLM 可以看报错，但必须输出 patch，不要输出散文。
+错误：
+KSampler missing required input: latent_image
+LLM 输出：
+JSON{  "patches": [    {      "action": "insert_node",      "role": "latent_init",      "class_type": "EmptyLatentImage",      "params": {        "width": 1024,        "height": 576,        "batch_size": 1      }    },    {      "action": "connect",      "from_role": "latent_init",      "from_output": "LATENT",      "to_role": "sampler",      "to_input": "latent_image"    }  ]}
+系统再执行 patch。
+
+第五：参数调优计划
+LLM 根据用户反馈输出调参意图。
+用户说：
+动作太小，画面有点糊
+LLM 输出：
+JSON{  "diagnosis": [    "motion_strength_too_low",    "output_detail_insufficient"  ],  "tune_plan": [    {      "param": "motion_strength",      "direction": "increase",      "amount": "small"    },    {      "param": "steps",      "direction": "increase",      "amount": "small"    },    {      "param": "cfg",      "direction": "increase",      "amount": "small"    }  ]}
+调优器再映射到具体节点参数。
+
+推荐最终架构
+User / CRUX↓IntentParser↓TaskSpec↓WorkflowPlanner↓WorkflowIR↓MotifRetriever↓GraphComposer↓GraphCompiler↓ComfyUI JSON↓WorkflowValidator↓Executor↓ResultObserver↓RepairEngine / AutoTuner↓LearningMemory
+对应模块：
+workflow_intelligence/├── graph_corpus/│   ├── parser.py│   ├── graph_index.py│   ├── motif_miner.py│   └── statistics.py│├── ontology/│   ├── node_ontology.yaml│   ├── parameter_ontology.yaml│   └── port_types.yaml│├── ir/│   ├── task_spec.py│   ├── workflow_ir.py│   └── pipeline_ir.py│├── compiler/│   ├── graph_compiler.py│   ├── node_factory.py│   ├── connection_builder.py│   └── validator.py│├── planner/│   ├── llm_planner.py│   ├── motif_retriever.py│   └── composer.py│├── repair/│   ├── error_parser.py│   ├── repair_planner.py│   └── patch_applier.py│├── tuning/│   ├── parameter_semantics.py│   ├── tuner.py│   └── evaluator.py│└── memory/    ├── run_history.py    ├── success_patterns.py    └── failure_patterns.py
+
+最关键的实现原则
+原则一：LLM 不直接控制最终 JSON
+正确：
+LLM → TaskSpec / WorkflowIR / PatchPlan系统 → ComfyUI JSON
+错误：
+LLM → 直接输出完整 ComfyUI JSON → 直接执行
+
+原则二：1351 个 workflow 不是模板库，而是训练语料
+要从里面抽：
+节点组合连接规律参数范围任务标签成功模式失败模式
+
+原则三：先规则图谱，后机器学习
+不要一开始就训练复杂模型。
+优先级应该是：
+图解析↓节点本体↓motif 挖掘↓IR 编译器↓LLM Planner↓Repair / Tuning↓再考虑表示学习
+
+原则四：生成必须可验证
+每次生成 workflow 后必须经过：
+结构校验节点存在校验输入输出类型校验模型存在校验参数范围校验输出节点校验
+不通过就不能执行。
+
+最小可落地版本
+不要一口气做全智能体。
+先做一个 MVP：
+支持 4 类智能生成：1. txt2img2. img2img3. upscale4. image_to_video
+每类用 motif 合成，而不是模板匹配。
+MVP 能力：
+用户需求 → TaskSpecTaskSpec → WorkflowIRWorkflowIR → ComfyUI JSONJSON → ValidatorValidator → Executor失败 → RepairPlan
+先让系统从 0 合成这 4 类基础工作流。
+这一步完成后，它才真正从“推荐器”变成“生成器”。
+
+最终结论
+你现在的系统已经完成了第一阶段：
+工作流资产库产品化
+下一阶段要做的是：
+工作流知识化 + 编译器化
+真正的升级路线是：
+1351 个 workflow↓图解析↓节点本体↓motif 挖掘↓WorkflowIR↓GraphCompiler↓Validator↓Executor↓Repair / Tuning
+最优先做的不是“让 LLM 直接写更复杂的 JSON”，而是：
+1. 从 1351 个 workflow 里抽节点组合规律2. 建立 WorkflowIR3. 用 GraphCompiler 确定性生成 ComfyUI JSON4. 让 LLM 只负责规划、选择、修复和调参建议
+这样它才会从：
+模板匹配智能体
+升级为：
+真正的 ComfyUI 工作流生成器

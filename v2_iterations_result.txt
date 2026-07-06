@@ -1,0 +1,116 @@
+1. V2 当前产品成熟度阶段
+我会把 V2 当前定位为：
+可运行的集成型 Alpha → 接近 Beta 前夜健康分：约 76/100
+它已经不是概念原型了，因为你已经有：
+CRUX 总控V2 ↔ ComfyUI 智能体桥接creative-biblerule-enginequality-gatestage-contractcore-switchboardworld_knowledge v195+ APIComfyUI 智能体前端对接 23/23 API
+但它还不能算“真正可交付”，因为最关键的闭环还没跑通：
+用户输入→ V2 24阶段判断→ CRUX 推荐 ComfyUI 模板→ ComfyUI 智能体执行→ 真实出图/出结果→ artifact/evidence 登记→ quality-gate 审核→ 返回给用户
+所以现在不是“架构还没成”，而是：
+
+架构骨架已经成型，缺的是真实黄金路径和稳定回归保障。
+
+
+2. 到真正可交付还需要几轮迭代？
+我的判断：
+最低还需要 4 轮迭代到可交付 Beta需要 6 轮左右到比较稳的本地产品需要 8+ 轮到生产级工具
+
+第 21 轮：打通 V2 → CRUX → ComfyUI 黄金路径
+目标：先让一条链路真实跑通。
+必须完成：
+1. autoflow 某个阶段真正调用 CRUX 推荐 ComfyUI 模板2. CRUX 把 stageId / project brief / style / prompt 发给 ComfyUI 智能体3. ComfyUI 智能体选择模板并执行4. 返回真实 output5. V2 注册 artifact + evidence6. quality-gate 判断 pass/fail
+建议不要一开始跑 24 阶段，先跑最短路径：
+single_image:1-script / brief→ 3-keyframes→ ComfyUI 出图→ artifact-registry→ quality-gate→ delivery preview
+这一轮完成后，V2 才算真正从“接口定义”进入“生产闭环”。
+
+第 22 轮：让 world_knowledge 真正进入 24 阶段
+目标：知识库不再只是 registry，而是被实际调用。
+必须完成：
+1. 每个阶段通过 knowledge-runtime 选择知识包2. prompt-manager 把知识注入 prompt3. CRUX task 带 knowledgeSnapshotId4. 阶段输出记录 usedKnowledgePacks5. QA 能检查阶段是否用了必要知识
+优先接这 6 个阶段：
+1-script2-storyboard3-keyframes4-visual-dev9-animation21-review
+这一轮完成后，world_knowledge 才不是“资料库”，而是“生产脑”。
+
+第 23 轮：补 E2E 测试和回归测试
+目标：以后每次改 V2 不会把主链路改坏。
+最少补 3 条 E2E：
+1. V2 single_image mocked flow2. V2 → CRUX → ComfyUI mocked flow3. V2 → CRUX → ComfyUI real smoke flow
+最少补 6 类单元/集成测试：
+stage-contractrule-enginequality-gateartifact-registrycrux-comfyui bridgeknowledge-runtime
+这一轮完成后，V2 才有资格继续大改。
+
+第 24 轮：做 V2 管线驾驶舱 / HUD 升级
+目标：让用户和 CRUX 都能看懂当前系统卡在哪里。
+HUD 不一定要一次重做成现代前端，但至少要有：
+Pipeline Overview当前阶段当前 blockerCRUX 状态ComfyUI 状态artifact 列表evidence 列表QA 结果一键 retry / resume / manual fix
+这一轮完成后，V2 才像产品，而不是后台系统。
+
+第 25 轮：稳定性与本地交付硬化
+目标：从“能跑”变成“可交付”。
+补：
+本地 token 鉴权pm2 / 启动脚本优雅关闭结构化日志schemaVersion + migration统一错误码API 文档
+这一轮完成后，才适合交给别人试用。
+
+第 26 轮：模板化与复用
+目标：让 V2 + ComfyUI 产生复利。
+补：
+从成功项目提取模板ComfyUI 模板推荐评分项目类型 profileprompt strategy metrics失败原因统计world_knowledge 增量沉淀
+这一轮之后，V2 才会越用越强。
+
+3. 如果只做 3 件事让健康分到 85，是哪三件？
+如果目标是从 76 → 85，不要平均用力。只做这 3 件。
+
+第一件：打通真实黄金路径
+V2 autoflow→ CRUX→ ComfyUI 智能体→ 真实出图→ artifact→ evidence→ QA→ 返回 V2
+这是最大加分项。
+没有这个，V2 仍然像“强架构系统”；有了这个，V2 才是“能生产的系统”。
+预估加分：
++4 到 +5 分
+
+第二件：补 E2E 测试
+最低要求：
+V2 启动CRUX bridge 可用ComfyUI bridge 可用run-stage 返回 mock outputartifact 注册成功quality-gate 通过
+再加一条真实 smoke：
+真实调用 ComfyUI 智能体生成一张图
+预估加分：
++3 到 +4 分
+因为这会直接解决“每次改完不知道坏没坏”的问题。
+
+第三件：让 world_knowledge + prompt-manager 真正参与阶段执行
+也就是把：
+world_knowledgecreative-bibledirector-runtimeprompt-managerstage-contract
+真正串进 6 个关键阶段。
+优先：
+scriptstoryboardkeyframesvisual-devanimationreview
+预估加分：
++3 分
+因为这会让 V2 的“知识脑”真正进入生产，不再只是资料库。
+
+三件事做完后的健康分预估
+当前：76黄金路径：+5E2E：+4知识/Prompt入链：+3扣除集成不确定性：-2预计：86 左右
+所以答案是：
+
+只做 3 件事冲 85：黄金路径、E2E、知识/Prompt入链。
+
+HUD 现代化很重要，但如果只为了健康分到 85，它排第四。
+
+4. V2 + ComfyUI 智能体完整度是多少？
+我会拆开评估。
+子项完整度API 对接85%ComfyUI 智能体前端80%V2 到 ComfyUI 的桥接接口70%CRUX 调度设计75%autoflow 真实调用链35%模板推荐真实闭环40%artifact/evidence 回写55%E2E 测试20%用户可视化闭环45%
+综合：
+V2 + ComfyUI 智能体完整度：约 62% - 68%我会给 66/100
+原因：
+接口和架构已经比较完整但真实生产闭环还没完全跑通E2E 和证据回写不足V2 自身 HUD 还旧
+如果第 21 轮黄金路径跑通，完整度会立刻升到：
+75% 左右
+如果再补 E2E 和 HUD 管线看板，可以到：
+82% - 86%
+
+最终判断
+你现在不需要再继续大规模“审计层级”了。
+接下来应该进入：
+真实闭环验证阶段
+最合理的下一轮不是继续扩架构，而是：
+第21轮：V2 → CRUX → ComfyUI → 出图 → 回写 artifact/evidence/QA
+一句话结论：
+
+V2 还需要 4 轮到可交付 Beta；只想冲健康分 85，就集中做黄金路径、E2E、知识/Prompt入链。现在最大敌人不是架构不够，而是闭环还没被真实跑穿。

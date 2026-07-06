@@ -1,37 +1,39 @@
-# CRUX TUI -- Night Atelier palette (shared color dictionary).
+# CRUX TUI -- Catppuccin Mocha palette (shared color dictionary).
 # Compat shim for theme_v2.py (and any other modules that import NIGHT_ATELIER).
 
 NIGHT_ATELIER = {
-    # Base
-    "bg":             "#1a1a2e",
-    "surface":        "#16213e",
-    "surface_alt":    "#1e2a48",
-    "border":         "#3a3a5c",
-    "border_active":  "#5a5a8c",
-    "divider":        "#2a2a4a",
-
-    # Text
-    "primary":        "#e8e4dd",
-    "secondary":      "#b8b4ad",
-    "muted":          "#6b6560",
-    "dim":            "#4a4640",
-
-    # Semantic
-    "accent":         "#d4a853",
-    "accent2":        "#7a9a6b",
-    "error":          "#c4554a",
-    "warning":        "#c4944a",
-    "success":        "#7a9a6b",
-    "info":           "#5b8a9a",
-    "user":           "#8fb8d4",
-    "crux":           "#d4a853",
-
-    # Seven Beasts
-    "baihu":          "#c0c8d8",
-    "qinglong":       "#4a9eb5",
-    "zhuque":         "#d4634a",
-    "xuanwu":         "#5a5a7a",
-    "qilin":          "#c4a44a",
-    "tengshe":        "#4a9e8e",
-    "yinglong":       "#5ac8d4",
+    "bg": "#1E1E2E",
+    "surface": "#181825",
+    "surface_alt": "#1f1f2f",
+    "input_bg": "#11111B",
+    "border": "#313244",
+    "border_dim": "#45475A",
+    "border_active": "#89B4FA",
+    "border_focus": "#CBA6F7",
+    "primary": "#CDD6F4",
+    "secondary": "#BAC2DE",
+    "muted": "#7F849C",
+    "dim": "#585B70",
+    "accent": "#89B4FA",
+    "accent2": "#A6E3A1",
+    "accent3": "#94E2D5",
+    "error": "#F38BA8",
+    "warning": "#FAB387",
+    "success": "#A6E3A1",
+    "info": "#89B4FA",
+    "user": "#89B4FA",
+    "crux": "#CBA6F7",
+    "blue": "#89B4FA",
+    "purple": "#CBA6F7",
+    "green": "#A6E3A1",
+    "red": "#F38BA8",
+    "yellow": "#F9E2AF",
+    "teal": "#94E2D5",
+    "baihu": "#CDD6F4",
+    "qinglong": "#89B4FA",
+    "zhuque": "#F38BA8",
+    "xuanwu": "#A6E3A1",
+    "qilin": "#F9E2AF",
+    "tengshe": "#CBA6F7",
+    "yinglong": "#FAB387",
 }

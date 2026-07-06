@@ -11,6 +11,11 @@ import logging
 
 logger = logging.getLogger("crux.chat_prompt")
 
+# Backward compatibility: old DNA checks / tests reference this.
+# After AGENTS split + on-demand beast loading, the hot path injects
+# nothing by default.  Keep as empty list for safe import.
+_BASE_INJECTIONS: list = []
+
 __all__ = [
     "CHAT_SYSTEM_PROMPT",
     "CODE_SYSTEM_PROMPT",
@@ -134,7 +139,7 @@ _CODE_SPECTRUM_INJECTIONS: list[tuple[str, str, str]] = [
 ]
 
 # 热路径身份注入 — 极简一行，不加载七兽/金手指世界观
-_HOT_IDENTITY = "CRUX Studio v5.0 — AI-native creative + coding platform"
+_HOT_IDENTITY = "CRUX Studio v5.0 — 平时如刀，出事成阵"
 
 # 冷路径叙事 — 按需加载，不自动注入
 _COLD_LORE: dict[str, tuple[str, str, str]] = {

@@ -1,118 +1,139 @@
-"""V2 Browser Companion Bridge Server - 连接Edge浏览器中的插件"""
+"""
+V2 Bridge Server — 浏览器扩展后端 (port 4366)
+CRUX AI 通过此服务驱动浏览器扩展，操控 ChatGPT/Gemini 等页面。
+"""
 import json
+import time
 import uuid
-import os
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 
-# 任务存储（全局）
-TASKS = []
-TASKS.append({
-    "taskId": "task-chatgpt-read-" + uuid.uuid4().hex[:8],
-    "type": "read_chat",
-    "targetUrl": "https://chatgpt.com",
-    "prompt": "请读取当前ChatGPT页面上的对话内容，包括所有用户的提问和GPT的回复。",
-    "instruction": "从当前ChatGPT页面获取完整对话历史，返回格式为JSON数组，每项含role和content字段。",
-    "source": "crux-studio"
-})
+app = Flask(__name__)
+CORS(app)
 
-def save_result(tid, result):
-    result_path = r"C:\Users\huangjiancheng\agnes-smart-studio\output\v2_bridge_result.json"
-    with open(result_path, "w", encoding="utf-8") as f:
-        json.dump({"taskId": tid, "result": result}, f, ensure_ascii=False, indent=2)
-    print(f"[SAVE] 结果已保存到 {result_path}")
-    print(f"[RESULT] {json.dumps(result, ensure_ascii=False)[:500]}")
+# 任务存储 (内存)
+_tasks: dict[str, dict] = {}  # taskId -> task
+_task_queue: list[str] = []   # FIFO queue of taskIds
+_lock = threading.Lock()
 
-def remove_task(tid):
-    global TASKS
-    TASKS = [t for t in TASKS if t["taskId"] != tid]
+# ============================================================
+# CRUX → Bridge: 派发任务
+# ============================================================
 
-class V2BridgeHandler(BaseHTTPRequestHandler):
-    def _json_response(self, data, status=200):
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.end_headers()
-        self.wfile.write(json.dumps(data, ensure_ascii=False).encode())
-    
-    def do_OPTIONS(self):
-        self._json_response({})
-    
-    def do_GET(self):
-        if self.path == "/api/browser-companion/tasks/next":
-            task = TASKS[0] if TASKS else None
-            self._json_response({"task": task})
+@app.route("/api/browser-companion/tasks/push", methods=["POST"])
+def push_task():
+    """CRUX 推送一个新任务"""
+    data = request.get_json(force=True) or {}
+    task_id = data.get("taskId") or str(uuid.uuid4())[:8]
+    provider = data.get("provider", "chatgpt")
+    prompt = data.get("prompt", "")
+    url = data.get("url", "")
+
+    task = {
+        "taskId": task_id,
+        "provider": provider,
+        "prompt": prompt,
+        "url": url or _default_url(provider),
+        "status": "pending",
+        "result": None,
+        "createdAt": time.time(),
+    }
+
+    with _lock:
+        _tasks[task_id] = task
+        _task_queue.append(task_id)
+
+    print(f"[Bridge] Task pushed: {task_id} → {provider}: {prompt[:80]}...")
+    return jsonify({"ok": True, "task": task})
+
+
+def _default_url(provider: str) -> str:
+    return {
+        "chatgpt": "https://chatgpt.com/",
+        "gemini": "https://gemini.google.com/",
+        "kling": "https://klingai.com/",
+        "jimeng": "https://jimeng.jianying.com/",
+        "runway": "https://runwayml.com/",
+        "luma": "https://lumalabs.ai/",
+    }.get(provider, "https://chatgpt.com/")
+
+
+# ============================================================
+# Extension → Bridge: 拉取任务 / 提交结果
+# ============================================================
+
+@app.route("/api/browser-companion/tasks/next", methods=["GET"])
+def pull_next_task():
+    """扩展拉取下一个待处理任务"""
+    with _lock:
+        if _task_queue:
+            task_id = _task_queue.pop(0)
+            task = _tasks.get(task_id)
             if task:
-                print(f"[PULL] 插件拉取了任务: {task['taskId']}")
-        elif self.path == "/api/browser-companion/health":
-            self._json_response({"status": "ok", "tasks_queued": len(TASKS)})
-        elif self.path == "/api/browser-companion/tasks":
-            self._json_response({"tasks": TASKS})
-        else:
-            self._json_response({"error": "not_found"}, 404)
-    
-    def do_POST(self):
-        length = int(self.headers.get("Content-Length", 0))
-        body = json.loads(self.rfile.read(length)) if length else {}
-        
-        path = self.path
-        
-        if path == "/api/browser-companion/tasks/create":
-            task = {
-                "taskId": body.get("taskId", "task-" + uuid.uuid4().hex[:8]),
-                "type": body.get("type", "custom"),
-                "targetUrl": body.get("targetUrl", "https://chatgpt.com"),
-                "prompt": body.get("prompt", ""),
-                "instruction": body.get("instruction", ""),
-                "source": "crux-studio"
-            }
-            TASKS.append(task)
-            print(f"[CREATE] 新任务创建: {task['taskId']} -> {task.get('targetUrl')}")
-            self._json_response({"ok": True, "task": task})
-            return
-        
-        if "/status" in path:
-            parts = [p for p in path.split("/") if p]
-            tid = parts[-2] if len(parts) >= 5 else None
-            status = body.get("status", body)
-            print(f"[STATUS] Task {tid}: {status}")
-            self._json_response({"ok": True})
-        
-        elif "/result" in path:
-            parts = [p for p in path.split("/") if p]
-            tid = parts[-2] if len(parts) >= 5 else None
-            result = body.get("result", body)
-            print(f"\n{'='*60}")
-            print(f"[RESULT] Task {tid} 收到结果!")
-            print(f"{'='*60}")
-            save_result(tid, result)
-            remove_task(tid)
-            print(f"[DONE] 剩余任务: {len(TASKS)}")
-            self._json_response({"ok": True})
-        
-        elif "/error" in path:
-            parts = [p for p in path.split("/") if p]
-            tid = parts[-2] if len(parts) >= 5 else None
-            print(f"[ERROR] Task {tid}: {body}")
-            self._json_response({"ok": True})
-        
-        else:
-            self._json_response({"error": "not_found"}, 404)
-    
-    def log_message(self, format, *args):
-        pass
+                task["status"] = "dispatched"
+                print(f"[Bridge] Task dispatched: {task_id}")
+                return jsonify({"task": task})
+        return jsonify({"task": None})
 
-def main():
-    server = HTTPServer(("127.0.0.1", 4366), V2BridgeHandler)
-    print(f"{'='*50}")
-    print(f"  V2 Browser Companion Bridge Server")
-    print(f"  http://127.0.0.1:4366")
-    print(f"{'='*50}")
-    print(f"  已预置 1 个任务：读取ChatGPT对话")
-    print(f"  请在Edge插件中点击 [Pull task] 拉取")
-    print(f"{'='*50}")
-    server.serve_forever()
+
+@app.route("/api/browser-companion/tasks/<task_id>/status", methods=["POST"])
+def update_status(task_id):
+    """扩展报告任务状态"""
+    data = request.get_json(force=True) or {}
+    status = data.get("status") or data.get("payload", {}).get("status", "unknown")
+    with _lock:
+        if task_id in _tasks:
+            _tasks[task_id]["status"] = status
+            _tasks[task_id]["note"] = data.get("payload", {}).get("note", "")
+            print(f"[Bridge] Task {task_id} status: {status}")
+    return jsonify({"ok": True})
+
+
+@app.route("/api/browser-companion/tasks/<task_id>/result", methods=["POST"])
+def submit_result(task_id):
+    """扩展回传任务结果"""
+    data = request.get_json(force=True) or {}
+    with _lock:
+        if task_id in _tasks:
+            _tasks[task_id]["result"] = data
+            _tasks[task_id]["status"] = "completed"
+            _tasks[task_id]["completedAt"] = time.time()
+            print(f"[Bridge] Task {task_id} COMPLETED: {json.dumps(data, ensure_ascii=False)[:200]}")
+    return jsonify({"ok": True})
+
+
+# ============================================================
+# CRUX → Bridge: 查询状态
+# ============================================================
+
+@app.route("/api/browser-companion/tasks/<task_id>", methods=["GET"])
+def get_task(task_id):
+    with _lock:
+        task = _tasks.get(task_id)
+        if not task:
+            return jsonify({"error": "not found"}), 404
+        return jsonify({"task": task})
+
+
+@app.route("/api/browser-companion/tasks", methods=["GET"])
+def list_tasks():
+    with _lock:
+        return jsonify({"tasks": list(_tasks.values()), "queue": list(_task_queue)})
+
+
+@app.route("/api/browser-companion/status", methods=["GET"])
+def bridge_status():
+    with _lock:
+        return jsonify({
+            "total": len(_tasks),
+            "pending": sum(1 for t in _tasks.values() if t["status"] == "pending"),
+            "dispatched": sum(1 for t in _tasks.values() if t["status"] == "dispatched"),
+            "completed": sum(1 for t in _tasks.values() if t["status"] == "completed"),
+            "queue_len": len(_task_queue),
+        })
+
 
 if __name__ == "__main__":
-    main()
+    print("[Bridge] V2 Bridge Server starting on http://127.0.0.1:4366 ...")
+    app.run(host="127.0.0.1", port=4366, debug=False)

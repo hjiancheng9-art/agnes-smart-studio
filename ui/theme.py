@@ -3,22 +3,22 @@
 from prompt_toolkit.styles import Style
 
 C = {
-    "bg": "#1a1a2e",
-    "surface": "#16213e",
-    "input_bg": "#0f1629",
-    "border": "#3a3a5c",
-    "primary": "#e8e4dd",
-    "secondary": "#b8b4ad",
-    "muted": "#6b6560",
-    "dim": "#4a4640",
-    "accent": "#d4a853",
-    "accent2": "#7a9a6b",
-    "error": "#c4554a",
-    "warning": "#c4944a",
-    "success": "#7a9a6b",
-    "info": "#5b8a9a",
-    "user": "#8fb8d4",
-    "crux": "#d4a853",
+    "bg": "#1E1E2E",
+    "surface": "#181825",
+    "input_bg": "#11111B",
+    "border": "#313244",
+    "primary": "#CDD6F4",
+    "secondary": "#BAC2DE",
+    "muted": "#7F849C",
+    "dim": "#585B70",
+    "accent": "#89B4FA",
+    "accent2": "#A6E3A1",
+    "error": "#F38BA8",
+    "warning": "#FAB387",
+    "success": "#A6E3A1",
+    "info": "#89B4FA",
+    "user": "#89B4FA",
+    "crux": "#CBA6F7",
 }
 
 

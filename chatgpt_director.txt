@@ -1,0 +1,264 @@
+V2 导演层总评
+我给当前导演层健康评分：
+45 / 100
+核心判断：
+
+V2 已经有“导演角色体系”，但还没有真正的“导演决策系统”。
+现在有 12 个导演技能、professional-team、showrunner 决策、creative_direction、prompt routing、asset-director、knowledge manifest 策略，但它们更像分散的导演素材和职责描述，还没有形成统一的创作裁决链。
+
+最关键的问题是：
+谁提出创作方向？谁评估方向？谁最终拍板？谁把方向写入 creative-bible？谁把导演决策传给 autoflow？谁能推翻 CRUX 的建议？谁记录为什么这么做？
+目前这些问题没有统一答案。
+
+一、正方：导演层设计合理之处
+1. 12 个导演技能覆盖了完整制作链
+现有技能体系：
+01-intent-router02-project-brief03-prompt-director04-visual-director05-storyboard-director06-motion-director07-audio-director08-asset-manager09-model-router10-comfyui-workflow11-browser-companion12-qc-inspector13-delivery-handoff14-recovery-fallback
+这个拆分方向是对的。
+它不是一个泛泛的“AI 助手”，而是把视频生产拆成多个专业导演角色：
+技能导演职能intent-router判断用户真实目标project-brief项目简报prompt-director提示词总控visual-director视觉方向storyboard-director分镜方向motion-director动态/镜头运动audio-director声音方向asset-manager资产管理model-router模型/平台选择qc-inspector质量审查delivery-handoff交付recovery-fallback故障恢复
+正方结论：
+导演角色覆盖很完整，比单一 prompt agent 更专业。
+
+2. knowledge manifest 已经有导演策略意识
+knowledge/manifest.json 中有：
+promptDirectorStrategydirectorSystemStrategy
+并且提到：
+intent_extractionprompt_constructionacceptance_criteriafailure_repaircompact_knowledge_growth
+以及：
+directors: prompt, visual, motion, storyboard, asset, qc, delivery, productShellorchestrator: director-orchestration
+这说明 V2 已经意识到导演层需要：
+意图提取 → 提示词构造 → 验收标准 → 失败修复 → 知识增长
+这条链是合理的。
+
+3. professional-team.js 可以成为导演委员会
+professional-team.js 的 playbook 和协作模式，如果设计得好，可以承载：
+编剧视角视觉导演视角分镜导演视角摄影指导视角声音导演视角制片/交付视角QC 视角
+这比单 agent 决策更稳。
+尤其对于视频制作，多个专业角色互相制衡很重要。
+
+4. production-governance 的 Showrunner 决策方向正确
+buildShowrunnerDecision 和 buildControlledLoop 是非常关键的雏形。
+Showrunner 的职责本来就应该是：
+判断当前节点是否能继续判断是否缺输入判断是否要阻断判断下一步做什么判断是否需要回退/修复
+如果后续接入规则层、QA 层、业务 DAG，它可以成为真正的生产调度导演。
+
+二、反方：导演层隐藏问题
+
+1. 没有统一决策入口：谁拍板不清楚
+现在至少有这些“可能做导演决策”的地方：
+agent-kernel.js 的 creative_directionproduction-governance.js 的 buildShowrunnerDecisionprofessional-team.js 的 playbookknowledge/manifest.json 的 directorSystemStrategycreative-bible.js 的创作约束asset-director.js 的资源决策CRUX 外部 ChatGPT / Gemini 建议
+这些都能影响创作方向。
+问题是：
+如果它们冲突，谁说了算？
+例如：
+agent-kernel creative_direction：走写实风格showrunner decision：当前素材更适合漫画风格CRUX ChatGPT：建议改成赛博卡通风creative-bible：已锁定 IMAX 写实神性风格
+现在没有明确裁决链。
+反方结论：
+导演层最大 P0 是没有“单一创作裁决入口”。
+建议建立：
+director-orchestrator.js
+所有创作方向决策都必须经过它。
+
+2. 12 个技能是文档，不是可执行导演
+技能 .md 文件有价值，但它们目前更像：
+角色说明书操作指南prompt 策略文档
+而不是可执行代码。
+问题是：
+skill 文档如何被加载？如何选择对应 skill？如何把 skill 转成 prompt？如何让 CRUX 执行？如何解析输出？如何写回 project-store？如何进入 creative-bible？
+如果没有这条链，技能就是“说明书”，不是“导演系统”。
+反方结论：
+需要把 skill 从 markdown 升级成 runtime skill adapter。
+建议：
+director-skill-registry.jsdirector-skill-runner.jsdirector-skill-adapter.js
+每个 skill 要有 manifest：
+JavaScript{  "skillId": "visual-director",  "version": "1.0.0",  "capabilities": ["visual.direction.plan", "style.lock"],  "inputSchema": "directorContext.v1",  "outputSchema": "directorDecision.v1",  "execution": "crux" }
+
+3. asset-director 太单薄，资源决策权不清
+src/asset-director.js 只有 3.5KB，如果它要负责所有资源导演逻辑，明显不够。
+资源决策至少包括：
+角色资产是否需要生成？场景资产是否需要生成？道具资产是否需要生成？哪些资产是核心锁定资产？哪些资产可替换？哪些资产会影响下游镜头？哪些资产可以复用？资产风格是否符合 creative-bible？资产失败时重跑还是降级？
+这些不应该都压在一个小模块里。
+更大的问题是：
+资源决策到底归谁？
+asset-director？professional-team？agent-kernel？autoflow？CRUX？creative-bible？
+如果不明确，就会出现：
+asset-director 说角色资产缺失autoflow 继续跑 animationcreative-bible 说角色必须一致CRUX 返回了新角色建议project-store 记录了两个版本
+反方结论：
+asset-director 应该是“资产导演执行器”，不是最终决策者。最终决策应归 director-orchestrator。
+
+4. 导演层和 24 阶段关系不清
+autoflow 负责执行阶段，导演层负责创作决策。
+但现在“导演决策如何传到阶段执行”路径不清。
+可能路径有很多：
+director → creative-bible → autoflowdirector → project-store → autoflowdirector → knowledge-runtime → promptdirector → CRUX task payloaddirector → artifact metadata
+多路径会造成决策漂移。
+正确路径应该是单一主线：
+Director Decision      ↓Creative Bible / Project Direction Snapshot      ↓Stage Contract      ↓Task Payload      ↓CRUX / local executor      ↓Artifact + Evidence
+也就是说：
+
+导演层输出必须先变成结构化 director decision，然后写入 creative-bible 或 project direction snapshot，再进入执行层。
+
+不能让每个模块各自理解导演意图。
+
+5. 没有导演决策审计
+目前没有记录：
+谁做了创作决策？什么时候做的？基于哪些输入？提出了哪些备选方向？为什么选择 A 不选 B？是否被用户覆盖？是否被 CRUX 改写？下游哪些阶段使用了这个决策？
+这会导致一个很严重的问题：
+项目风格变了，但不知道从哪一步开始变的。
+例如用户问：
+为什么后面变成卡通了？我不是要写实吗？
+系统如果没有 director decision audit，就无法回答。
+反方结论：
+导演决策必须像 artifact evidence 一样被审计。
+
+6. CRUX 和导演层权责冲突
+CRUX 很强，能操控 ChatGPT 等外部 AI。
+但越强越容易越权。
+如果 CRUX 直接听 ChatGPT 的建议改风格，会出现：
+V2 creative-bible：写实风格CRUX ChatGPT：建议卡通风格更适合传播CRUX 执行卡通 promptartifact 变成卡通V2 不知道决策被改了
+这会破坏导演一致性。
+所以必须明确：
+CRUX 可以提出建议CRUX 可以执行导演决策CRUX 可以做备选方案CRUX 不应擅自推翻 V2 已锁定方向
+冲突时：
+V2 Director Decision > Creative Bible > Rule/QA Gate > CRUX Suggestion
+CRUX 不能直接覆盖 V2 总导演裁决。
+
+7. 风格锚定机制不明确
+creative-bible 维护创作上下文，但它本身不应该随便决定方向。
+当前问题是：
+是导演层定方向，creative-bible 记录？还是 creative-bible 累积历史，导演层提炼方向？
+正确答案应该是双向但分工明确：
+director-orchestrator 负责拍板creative-bible 负责记忆和约束QA/rule 层负责检查是否偏离CRUX 负责执行和提出建议
+也就是说：
+导演层决定“要成为什么”creative-bible 记录“已经锁定什么”QA 层检查“有没有偏离”CRUX 执行“怎么生成”
+
+三、导演层 P0 / P1 / P2 问题列表
+P0：会直接导致创作方向失控
+编号问题后果P0-1没有统一导演决策入口agent-kernel、showrunner、CRUX、creative-bible 互相冲突时无人拍板P0-2CRUX 可绕过 V2 导演层直接影响创作方向外部 AI 建议可能覆盖项目锁定风格P0-3导演决策没有结构化输出契约创作方向无法稳定传给 autoflow、CRUX、QAP0-4导演层和 24 阶段缺少明确映射阶段执行可能没有读取正确导演意图P0-5没有风格锚定和方向锁定机制项目中途风格漂移，无法追责也无法阻断
+
+P1：严重影响稳定性、透明度和复用
+编号问题后果P1-112 个导演技能是文档，不是 runtime skill有导演方法论，但无法稳定执行P1-2asset-director 职责过轻且边界不清资源决策分散，资产一致性难保障P1-3没有导演决策审计日志无法解释为什么选择某个创作方向P1-4professional-team 没有变成真实“导演委员会”多专业视角停留在 playbook 层P1-5prompt-director、visual-director、storyboard-director 之间缺少交接协议prompt、视觉、分镜可能各自优化，整体不一致P1-6用户无法查看或修改导演策略CRUX/导演层黑盒，用户信任不足P1-7没有导演决策版本化重跑旧阶段时可能使用新方向，结果不可复现P1-8director strategy 与 knowledge-runtime 的关系不清知识加载可能不服务于当前导演目标
+
+P2：长期产品化问题
+编号问题后果P2-1没有导演模板成功的导演策略无法复用P2-2没有风格包 / direction preset每个项目都从零定方向P2-3没有多方案比选用户无法比较 A/B 创意方向P2-4没有导演评分机制不知道哪个导演策略效果更好P2-5没有团队角色权限后续多人协作时，谁能改方向不清P2-6没有导演到知识层的沉淀好的创作判断无法变成长期知识
+
+四、导演层改进方案
+1. 新增 director-orchestrator.js
+这是导演层的核心。
+职责：
+统一接收创作决策请求汇总 project brief / creative-bible / knowledge / QA / business goal调用 CRUX 或本地 director skill生成结构化 director decision写入 project direction snapshot通知 autoflow / stage contract记录审计日志
+推荐位置：
+src/director/  director-orchestrator.js  director-decision-store.js  director-skill-registry.js  director-skill-runner.js  director-audit.js  director-snapshot.js  director-conflict-resolver.js  director-style-anchor.js
+
+2. 定义结构化 Director Decision
+导演决策不能只是自然语言建议。
+必须是可执行对象。
+JavaScript{  "decisionId": "dir_001",  "projectId": "project_001",  "runId": "run_001",  "stageId": "global",  "decisionType": "creative_direction",  "status": "approved",  "direction": {    "genre": "divine alien civilization",    "style": "IMAX cinematic realism",    "tone": ["sacred", "romantic", "lonely", "vast", "ethereal"],    "visualAnchors": [      "floating divine spires",      "deep cosmic void",      "photonic rivers",      "transparent crystalline architecture"    ],    "negativeConstraints": [      "no cheap neon look",      "no cartoon style",      "characters must not dominate scenery"    ]  },  "rationale": "User repeatedly requested divine floating architecture and void cosmic background.",  "source": {    "decidedBy": "v2-director",    "assistedBy": "crux",    "knowledgeSnapshotId": "ks_001",    "ruleSnapshotId": "rs_001"  },  "appliesToStages": [    "2-storyboard",    "3-keyframes",    "4-visual-dev",    "9-animation",    "16-color"  ],  "locked": true,  "createdAt": "2026-07-06T15:30:00+09:00"}
+这个对象才是导演层传给执行层的正式产物。
+
+3. 建立 Direction Snapshot
+每个 run 固定一个导演快照：
+JavaScript{  "directionSnapshotId": "ds_run_001",  "projectId": "project_001",  "runId": "run_001",  "directorDecisions": ["dir_001", "dir_002"],  "creativeBibleVersion": "cb_003",  "styleAnchorVersion": "sa_001",  "createdAt": "..."}
+这样旧项目可复现。
+如果用户改方向，创建新 snapshot，而不是覆盖旧方向。
+
+4. 建立风格锚定机制
+新增：
+director-style-anchor.js
+它负责把导演方向转成可检查的风格锚点：
+JavaScript{  "styleAnchorId": "style_001",  "lockedStyle": "IMAX cinematic divine alien realism",  "palette": ["platinum white", "soft gold", "cyan", "deep violet"],  "compositionRules": [    "scenery dominates frame",    "characters remain small scale",    "deep cosmic void visible"  ],  "materialRules": [    "crystalline translucent structures",    "light as architecture",    "non-mechanical organic geometry"  ],  "negativeRules": [    "avoid cheap sci-fi UI glow",    "avoid cartoon rendering",    "avoid human city architecture"  ]}
+creative-bible 记录它，QA 层检查它，CRUX 执行它。
+
+5. 让 12 个技能进入 runtime
+每个 .md skill 保留，但要增加 skill manifest 和 adapter。
+例如 visual-director：
+JavaScript{  "skillId": "visual-director",  "version": "1.0.0",  "capabilities": [    "direction.visual.plan",    "direction.style.anchor",    "direction.visual.repair"  ],  "inputSchema": "directorContext.v1",  "outputSchema": "visualDirectionDecision.v1",  "executor": "crux",  "preferredModels": ["ChatGPT", "Gemini"],  "requiresKnowledge": true,  "requiresCreativeBible": true}
+调用链：
+director-orchestrator  → director-skill-registry  → director-skill-runner  → CRUX task  → structured decision  → director-decision-store
+
+6. professional-team 升级为 Director Council
+professional-team.js 不应该只是 summary。
+它可以变成导演委员会。
+Showrunner：最终创作裁决Prompt Director：提示词策略Visual Director：视觉风格Storyboard Director：叙事和镜头Motion Director：动态与镜头运动Audio Director：声音方向Asset Director：资产一致性QC Director：质量风险Delivery Director：交付约束
+每次重大方向决策生成一份 council report：
+JavaScript{  "decisionId": "dir_001",  "votes": [    {      "role": "visual_director",      "recommendation": "keep cinematic realism",      "risk": "cartoon drift"    },    {      "role": "motion_director",      "recommendation": "slow dolly and orbit",      "risk": "fast cuts reduce sacred mood"    },    {      "role": "delivery_director",      "recommendation": "lock 9:16 output",      "risk": "platform crop"    }  ],  "finalDecision": "lock IMAX cinematic divine realism"}
+
+五、CRUX 和导演层的权责划分
+这是最关键的部分。
+推荐答案
+
+V2 做总导演，CRUX 做执行导演 / 外部 AI 副导演。
+
+也就是说：
+V2 Director Layer = 创作主权与最终裁决CRUX = 多模型参谋 + 外部平台执行 + 方案生成 + 质量审查
+不要让 CRUX 做唯一总导演。
+原因很简单：
+CRUX 很强，但它依赖外部平台输出外部平台建议不可完全复现ChatGPT/Gemini 的回答会变CRUX 可能根据即时模型建议改变方向V2 才拥有 project-store、creative-bible、规则、QA、artifact evidence
+所以最终创作主权必须在 V2。
+
+权责表
+决策类型V2 DirectorCRUX项目最终创作方向拍板建议风格锁定拍板并记录执行prompt 策略批准生成草案模型/平台选择设定约束推荐和执行分镜方向批准生成方案视觉修复方案批准提供建议质量审查设定门槛辅助检查方向变更需要 V2 决策记录不可擅自变更artifact 归档V2 执行回传结果evidenceV2 记录提供证据
+
+冲突处理原则
+当 V2 和 CRUX 冲突：
+V2 locked direction > project creative-bible > V2 rules > V2 QA gates > CRUX suggestion
+例如：
+V2：写实风格已锁定CRUX ChatGPT：卡通更适合传播
+结果：
+CRUX 只能提交“建议变更方向”不能直接生成卡通版本作为正式产物
+如果用户接受 CRUX 的建议，则流程应该是：
+CRUX 提出 direction change proposal      ↓V2 director-orchestrator 评估      ↓用户确认或规则放行      ↓生成新的 direction snapshot      ↓下游阶段 invalidation      ↓重新执行
+
+六、建议的“总导演”架构
+总体架构
+┌──────────────────────────────────────────────┐│                  User / HUD                   ││  选择目标、审阅方向、批准/拒绝重大变更          │└───────────────────▲──────────────────────────┘                    │┌───────────────────┴──────────────────────────┐│             V2 Director Orchestrator           ││                                               ││  最终创作裁决                                  ││  风格锚定                                      ││  导演决策审计                                  ││  direction snapshot                            ││  creative-bible 写入                           ││  stage strategy 输出                           │└───────▲───────────────┬──────────────────────┘        │               │        │               │ director task        │               ▼┌───────┴───────────────┐        ┌────────────────────────────┐│  V2 Knowledge/Rules/QA │        │            CRUX             ││                       │        │                            ││  knowledge snapshot   │        │  ChatGPT / Gemini / Kling   ││  rule snapshot        │        │  prompt / visual / review   ││  QA gates             │        │  external AI suggestions    ││  creative-bible       │        │  platform execution         │└───────▲───────────────┘        └──────────────▲─────────────┘        │                                      │        └──────────── result / proposal ───────┘                    │                    ▼┌──────────────────────────────────────────────┐│                Autoflow / DAG                 ││  24 阶段执行读取 direction snapshot             │└──────────────────────────────────────────────┘
+
+核心原则
+1. V2 owns direction.2. CRUX proposes and executes.3. Creative-bible records locks.4. QA detects drift.5. Rules block unauthorized direction changes.6. Artifact evidence records all decisions.
+中文说法：
+
+V2 定方向，CRUX 出方案；V2 拍板，CRUX 执行；V2 归档，CRUX 提供证据。
+
+
+七、导演层落地路线图
+第一阶段：建立统一导演入口
+新增：
+director-orchestrator.jsdirector-decision-store.jsdirector-audit.js
+所有 creative_direction、showrunner decision、CRUX direction proposal 都走这里。
+
+第二阶段：定义 Director Decision Schema
+每个导演决策必须结构化：
+decisionIddecisionTypedirectionrationaleappliesToStagessourcelockedcreatedAt
+并写入 project-store / artifact evidence。
+
+第三阶段：建立风格锚点
+新增：
+director-style-anchor.js
+把抽象风格转成：
+palettecompositionmaterialscameranegative constraintscharacter priorityworld rules
+
+第四阶段：CRUX 接入为副导演
+CRUX task 类型新增：
+director.propose_directiondirector.repair_directiondirector.compare_optionsdirector.review_driftdirector.generate_prompt_strategy
+但所有结果都必须回到 V2 director-orchestrator 审批。
+
+第五阶段：导演决策进入 autoflow
+每个阶段开始前：
+JavaScriptconst direction = directorOrchestrator.getStageDirection(projectId, stageId);
+task payload 必须包含：
+directionSnapshotIdstyleAnchorIdcreativeBibleVersiondirectorDecisionIds
+
+八、最终评分拆解
+导演角色覆盖度：75 / 100导演决策统一性：25 / 100CRUX 权责清晰度：35 / 100风格锚定能力：40 / 100决策审计能力：20 / 100与 autoflow 集成度：35 / 100综合：45 / 100
+
+最终一句话
+
+V2 的导演层现在有很多“导演角色”，但缺一个“总导演席位”。
+
+最终建议：
+V2 做总导演。CRUX 做副导演、参谋和外部平台执行导演。
+原因是：
+V2 拥有项目真相、creative-bible、规则、QA、知识快照、artifact evidence。CRUX 拥有外部 AI 能力和执行能力，但不应该拥有最终创作主权。
+最优先修：
+1. director-orchestrator.js：统一导演决策入口2. director-decision schema：结构化创作决策3. direction snapshot：锁定每次 run 的方向4. style anchor：把风格变成可执行约束5. CRUX proposal protocol：CRUX 只能提案，V2 审批后执行

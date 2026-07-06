@@ -1,0 +1,220 @@
+V2 多模态输入层总评
+我给当前多模态输入层健康评分：
+46 / 100
+核心判断：
+
+V2 已经有“输入分类”和“输入路由”，但还没有真正的多模态输入资产系统。
+现在能识别 video / asset / text / document，但输入类型、预处理、项目登记、CRUX 外部内容、creative-bible、quality-gate 之间还没有形成统一闭环。
+
+最危险的问题不是“不能上传文件”，而是：
+输入没有统一身份输入没有版本输入没有来源证据输入没有和输出建立对应关系CRUX 看到的外部内容没有正式进入 V2 项目资产creative-bible 仍然偏文本，不能锁定参考图/视频/音频
+
+一、正方：当前输入层合理之处
+1. 视频 / 图像 / 文本 / 文档分类是合理起点
+目前 input-route-pipeline.js 已经有：
+video_file / video_urlasset_image / asset_file / asset_urlcustomer_text / note / textdocument
+这说明 V2 已经不是单一文本 prompt 工具，而是在考虑多模态入口。
+这个方向是对的，因为 V2 的业务就是：
+用户文本参考图参考视频文档设定素材文件外部 URL
+混合进入，然后转成项目资产、创作圣经、分镜、关键帧、视频交付。
+
+2. input-route-pipeline 有路由意识
+buildInputRoutePipeline、getInputInfo、pipelineInputToPreview、resolveMixedInputVideo 这些函数说明系统已经在做：
+识别输入类型统计输入数量决定是否有视频输入生成预览处理混合输入
+这比直接把所有输入当文件保存更成熟。
+
+3. production-governance 有输入就绪判断
+hasRealInputs、hasVisualInputs、hasAssetInputs、hasPreprocessInputs 这些函数已经能回答：
+有没有真实输入？有没有视觉输入？有没有资产输入？有没有预处理输入？
+这和之前的规则层、QA 层目标是一致的：不能假装有素材，不能 fake success。
+
+二、反方：隐藏问题
+1. 没有统一输入类型注册表
+现在输入类型至少散落在：
+input-route-pipeline.jsproject-store.jsinput-preprocessor.jsproduction-governance.js
+这会导致一个典型 bug：
+input-route-pipeline 支持 asset_urlproject-store.addInput 不认识 asset_urlinput-preprocessor 没有对应处理器production-governance 也没把它算作 real input
+结果就是：
+用户上传了素材预览里看得到工作流却认为没有有效输入
+这类 bug 很隐蔽，因为每个模块单独看都没错，但整体不一致。
+裁判结论：
+必须新增统一的 input-type-registry.js。所有模块都从它读取输入类型，不再各自维护 const 列表。
+
+2. 音频输入缺失
+V2 的 24 阶段里有：
+12-voiceover13-music14-sound15-edit19-subtitle22-delivery
+但当前输入类型里没有明确的：
+audio_fileaudio_urlvoice_referencemusic_referencesound_effect_referencetranscript_filesubtitle_file
+这会造成业务断层：
+用户上传旁白音频，但 V2 不知道这是 voiceover 输入用户上传参考音乐，但 V2 只能当 asset_file用户上传 SRT 字幕，但系统不知道它可进入 subtitle 阶段用户上传环境声，sound 阶段无法引用
+裁判结论：
+音频不是可选项。对于视频制作系统，音频输入必须是一等输入类型。
+
+3. CRUX 外部输入没有接入 V2 输入层
+CRUX 从 ChatGPT / Gemini / Kling / Jimeng / Runway / Luma 看到或拿到的东西有很多类型：
+ChatGPT 生成的脚本文本Gemini 分析的视频描述Kling 生成的视频结果Jimeng 生成的图片Runway 页面上的预览图Luma 的视频链接外部网页中的参考素材
+现在如果这些没有通过 V2 输入层登记，就会出现：
+CRUX 看到了内容但 V2 项目不知道这个内容存在artifact 没有 evidencequality-gate 无法检查creative-bible 无法引用下游阶段无法复用重启后内容丢失
+关键判断：
+CRUX 外部内容不一定都叫“输入”。它应该分三类：
+CRUX 获取的内容应进入哪里用户提供的外部参考input外部平台生成结果artifact外部模型提炼的规则/经验knowledge candidate外部页面截图/证据evidence临时分析文本task event / scratch
+如果不分类，V2 会把“输入、产物、证据、知识”混在一起。
+
+4. creative-bible 不支持多模态引用
+现在 creative-bible 主要存：
+eralocationatmospheredescriptionvisual_tonecharacters appearance
+这些都是文本。
+但真实创作 bible 应该能引用：
+角色参考图场景参考图道具参考图风格参考图参考视频片段声音参考配色图镜头参考外部生成图
+否则用户说：
+“角色就按这张图”“场景参考这个视频”“声音像这个音频”“风格参考这组图”
+V2 只能把它转成文字描述，信息会损失。
+裁判结论：
+creative-bible 应该从“文本设定表”升级为“多模态创作锚点表”。
+
+5. quality-gate 不知道输入是什么
+现在 QA 主要检查输出：
+是否 placeholder是否完整CRUX 置信度风格一致性镜头数
+但真正的质量判断必须包含输入输出对应关系。
+例如：
+用户上传参考图 A，生成图是否遵守 A？用户上传视频 B，分镜是否重构了 B？用户上传音频 C，字幕是否对应 C？用户上传文档 D，剧本是否使用了 D 的设定？CRUX 从 Gemini 提取的视觉信息，是否进入 storyboard？
+如果 quality-gate 不知道输入引用，就只能检查“输出本身”，不能检查“输出是否忠于输入”。
+裁判结论：
+QA gate 必须支持 input-output alignment。
+
+6. 没有输入版本化 / 引用追踪
+输入一旦进入项目，就应该是不可变引用。
+否则会发生：
+用户上传 reference.png项目跑到第 10 阶段用户替换了 reference.png旧 keyframes 到底是按旧图还是新图生成的？
+如果没有 input version 和 checksum，项目不可复现。
+每个输入都应该有：
+inputIdinputVersionsourcechecksumcreatedAtoriginalPathnormalizedPathpreviewPathmetadatausedByStagesderivedArtifacts
+
+7. CRUX 浏览器看到的内容不能注册到 V2
+这是 CRUX 总控最关键的输入层问题。
+CRUX 可以在浏览器里看到：
+ChatGPT 回复Gemini 图片分析Kling 生成预览Jimeng 图片结果Runway 视频结果Luma 链接
+但如果 CRUX 没有一个标准 API 把这些内容注册回 V2，就会变成：
+CRUX 能看见V2 不能保存CRUX 能判断V2 不能追踪CRUX 能下载V2 不知道来源
+这会直接削弱 CRUX 总控价值。
+
+三、P0 / P1 / P2 问题列表
+P0：直接影响项目可复现和多模态闭环
+编号问题影响P0-1没有统一输入类型注册表各模块对输入类型理解不一致，素材可能丢路由P0-2输入没有版本化 / checksum / provenance旧项目不可复现，输入替换后无法追溯P0-3CRUX 外部内容无法正式注册为 input / artifact / evidenceCRUX 看到的内容无法进入 V2 项目真相源P0-4quality-gate 不检查输入输出对应关系输出可能偏离用户输入但仍通过P0-5creative-bible 不支持多模态引用风格、角色、场景锚点只能文字化，信息损失严重
+
+P1：严重影响视频生产能力
+编号问题影响P1-1音频输入类型缺失voiceover / music / sound / subtitle 阶段缺少正式输入P1-2输入预处理结果没有统一 schema视频帧、音频转写、图片元数据、文档摘要难被下游稳定使用P1-3输入和 artifact 边界不清用户素材、CRUX 产物、外部参考可能混乱P1-4混合输入没有统一解析策略文本 + 图 + 视频 + 文档场景下路由不稳定P1-5input readiness 只判断“有没有”，不判断“是否适合当前阶段”有输入但阶段仍不可执行P1-6没有输入级 QA损坏文件、低分辨率图片、无效 URL、乱码文档可能进入流程P1-7没有输入权限/安全检查外部 URL、文件路径、浏览器导入内容可能带来安全风险P1-8没有输入到 knowledge / creative-bible 的转换管线用户输入不能稳定沉淀为创作约束
+
+P2：长期产品化问题
+编号问题影响P2-1无输入资产库视图用户看不到项目用了哪些原始输入P2-2无输入复用模板成功项目的参考素材不能复用P2-3无输入差异比较替换参考图后无法比较影响P2-4无输入清理策略临时下载、预览图、缓存会堆积P2-5无多语言文档输入策略中文/英文/混合文档摘要可能不稳定P2-6无输入成本估计长视频、长文档、大图片处理耗时不可预期
+
+四、改进方案
+1. 新增统一 Input Registry
+新增：
+input/  input-type-registry.js  input-registry.js  input-store.js  input-preprocessor-registry.js  input-provenance.js  input-versioning.js  input-quality-check.js  input-output-linker.js  crux-input-adapter.js
+输入类型统一定义：
+JavaScript{  id: "audio_file",  modality: "audio",  kind: "source",  extensions: [".wav", ".mp3", ".m4a", ".flac"],  preprocessors: ["audio_metadata", "transcription", "waveform_preview"],  allowedStages: ["12-voiceover", "13-music", "14-sound", "15-edit", "19-subtitle"],  canBecomeCreativeBibleRef: true,  requiresChecksum: true}
+所有模块都从这里读取：
+input-route-pipelineinput-preprocessorproject-storeproduction-governancequality-gatecreative-bibleCRUX bridge
+
+2. 扩展输入类型
+建议支持：
+video_filevideo_urlvideo_frame_sampleimage_fileimage_urlreference_imagestyle_reference_imagecharacter_reference_imageenvironment_reference_imageprop_reference_imageaudio_fileaudio_urlvoice_referencemusic_referencesound_effect_referencetext_promptcustomer_textnotescript_textstory_outlinedocument_filedocument_urlpdf_documentmarkdown_documentsubtitle_filetranscript_fileexternal_capturebrowser_screenshotexternal_ai_responseexternal_ai_asset_url
+注意：external_ai_response 不一定直接是 input。它要根据来源和用途决定进入：
+input / artifact / evidence / knowledge_candidate
+
+3. 统一输入对象 schema
+每个输入都应该长这样：
+JavaScript{  "inputId": "input_001",  "projectId": "project_001",  "version": 1,  "type": "character_reference_image",  "modality": "image",  "role": "reference",  "status": "registered",  "source": {    "kind": "user_upload",    "originalName": "hero_ref.png",    "url": null,    "platform": null,    "capturedBy": null  },  "files": {    "originalPath": "projects/p1/inputs/input_001/original.png",    "normalizedPath": "projects/p1/inputs/input_001/normalized.png",    "previewPath": "projects/p1/inputs/input_001/preview.jpg"  },  "integrity": {    "checksum": "sha256...",    "sizeBytes": 1234567,    "mimeType": "image/png"  },  "metadata": {    "width": 1024,    "height": 1536,    "durationSec": null,    "language": null  },  "links": {    "creativeBibleRefs": ["character.hero.visualRef"],    "usedByStages": ["5-character", "3-keyframes"],    "derivedArtifacts": []  },  "createdAt": "2026-07-06T00:00:00+09:00"}
+
+4. 输入预处理结果标准化
+不同模态预处理后要输出统一结构。
+视频输入
+JavaScript{  "inputId": "input_video_001",  "preprocess": {    "kind": "video_analysis",    "durationSec": 42.3,    "fps": 24,    "resolution": "1920x1080",    "keyframes": [],    "sceneCuts": [],    "audioTrackPresent": true,    "transcriptArtifactId": null  }}
+图片输入
+JavaScript{  "kind": "image_analysis",  "width": 1024,  "height": 1536,  "dominantColors": [],  "detectedSubjects": [],  "visualDescription": "",  "styleTags": []}
+音频输入
+JavaScript{  "kind": "audio_analysis",  "durationSec": 18.5,  "channels": 2,  "sampleRate": 44100,  "transcript": "",  "musicMood": "",  "soundEvents": []}
+文档输入
+JavaScript{  "kind": "document_analysis",  "language": "zh-CN",  "summary": "",  "extractedBrief": {},  "potentialCreativeBibleUpdates": []}
+
+5. creative-bible 支持多模态引用
+creative-bible 里不只存文本，还应该存 input refs。
+例如角色：
+JavaScript{  "name": "主角",  "role": "light being",  "appearance": "半透明长袍，发光纹理",  "referenceInputs": [    {      "inputId": "input_hero_ref_001",      "type": "character_reference_image",      "weight": 0.9,      "lockLevel": "strong"    }  ]}
+风格锚点：
+JavaScript{  "styleAnchor": {    "text": "IMAX cinematic divine alien realism",    "referenceInputs": [      {        "inputId": "input_style_ref_001",        "type": "style_reference_image",        "weight": 0.8      },      {        "inputId": "input_motion_ref_001",        "type": "video_file",        "weight": 0.6      }    ]  }}
+这样 Prompt Manager、CRUX、QA 都可以引用真实素材，而不是只靠文本描述。
+
+6. quality-gate 加入输入输出对齐检查
+每个阶段的 QA 应该检查：
+输出是否引用了 required input输出是否偏离参考输入输出是否使用了过期输入版本输出 artifact 是否记录 source input ids
+例如：
+JavaScript{  "checkId": "input_output.character_ref_alignment",  "stageId": "3-keyframes",  "requiredInputs": ["character_reference_image"],  "outputArtifacts": ["keyframe_image"],  "severity": "error",  "blocking": true}
+CRUX 视觉模型可以辅助判断：
+生成图是否和角色参考图一致视频是否遵循参考镜头运动配音是否匹配参考音色字幕是否匹配音频转写
+
+五、CRUX 总控如何管理多模态输入
+1. CRUX 看到的外部内容必须先分类
+CRUX 从浏览器看到内容后，不能直接塞进项目。
+必须先判断它是什么：
+用户提供的外部参考 → input外部平台生成结果 → artifact页面截图/操作证据 → evidence外部模型建议 → director proposal / prompt proposal可沉淀经验 → knowledge candidate
+推荐 CRUX 调用：
+POST /api/inputs/import-externalPOST /api/artifacts/register-externalPOST /api/evidence/register-browser-capturePOST /api/knowledge/candidates
+
+2. CRUX 外部输入注册协议
+当 CRUX 看到一张外部图片并要作为参考输入时：
+JavaScript{  "projectId": "project_001",  "type": "style_reference_image",  "modality": "image",  "source": {    "kind": "crux_browser_capture",    "platform": "chatgpt",    "pageUrl": "redacted_or_local_ref",    "capturedBy": "crux",    "browserSessionId": "session_001",    "taskId": "task_001"  },  "content": {    "filePath": "crux-downloads/img_001.png",    "originalUrl": null  },  "intendedUse": {    "creativeBiblePath": "styleAnchor.referenceInputs",    "stageRoutes": ["3-keyframes", "4-visual-dev"]  },  "evidence": {    "screenshotPath": "captures/session_001.png",    "promptSnapshotId": "ps_001",    "responseHash": "sha256..."  }}
+V2 返回：
+JavaScript{  "inputId": "input_123",  "version": 1,  "status": "registered",  "previewUrl": "/api/inputs/input_123/preview"}
+
+3. CRUX 生成结果注册为 artifact，而不是 input
+如果 CRUX 在 Jimeng 或 Kling 得到生成图/视频，这不是输入，而是产物：
+CRUX generated image → artifactCRUX generated video → artifactCRUX page screenshot → evidence
+注册：
+JavaScript{  "artifactKind": "keyframe_image",  "stageId": "3-keyframes",  "source": {    "executor": "crux",    "platform": "jimeng",    "taskId": "task_003",    "promptSnapshotId": "ps_003"  },  "derivedFromInputs": [    "input_style_ref_001",    "input_character_ref_001"  ]}
+这样输入和输出关系就清楚了。
+
+4. CRUX 对输入做多模态理解，再回写预处理结果
+CRUX 可以调用 Gemini / ChatGPT Vision 做：
+图片描述角色一致性分析视频镜头拆分文档摘要音频转写建议网页素材解释
+但结果不应该直接覆盖输入，而应该作为 input analysis：
+JavaScript{  "inputId": "input_001",  "analysisId": "analysis_001",  "source": "crux_gemini",  "kind": "image_analysis",  "summary": "一名白金色长袍光人……",  "confidence": 0.86,  "usedBy": ["creative-bible", "prompt-manager"]}
+
+5. CRUX 输入操作必须进入 evidence
+每次 CRUX 从浏览器导入内容，要记录：
+看到了什么从哪个平台来用哪个 task 获取文件 hash 是什么是否用户确认是否作为 input / artifact / evidence / knowledge
+否则将来用户问：
+这张参考图是哪来的？为什么 keyframe prompt 引用了它？它是不是 ChatGPT 生成的？
+V2 无法回答。
+
+六、最终推荐输入层架构
+┌─────────────────────────────────────────────┐│              Multimodal Input Layer          ││                                             ││  input-type-registry                         ││  input-registry                              ││  input-store                                 ││  input-preprocessor-registry                 ││  input-versioning                            ││  input-provenance                            ││  input-quality-check                         ││  input-output-linker                         ││  crux-input-adapter                          │└───────────────▲─────────────────────────────┘                │                │ normalized input refs                ▼┌─────────────────────────────────────────────┐│        Creative Bible / Knowledge / Prompt   ││  referenceInputs / style anchors / context   │└───────────────▲─────────────────────────────┘                │                │ source input ids                ▼┌─────────────────────────────────────────────┐│        Workflow / CRUX / Artifact / QA        ││  task uses inputs → artifact derivedFrom      ││  quality-gate checks input-output alignment   │└─────────────────────────────────────────────┘
+
+七、落地顺序
+第一阶段：统一输入类型和输入对象
+1. 新增 input-type-registry.js2. 新增 input-registry.js3. 所有 addInput / preprocessInputs / hasRealInputs 改为读 registry4. 给每个输入生成 inputId / checksum / version
+
+第二阶段：补音频输入
+audio_fileaudio_urlvoice_referencemusic_referencesound_effect_referencesubtitle_filetranscript_file
+并连接：
+voiceovermusicsoundsubtitleeditdelivery
+
+第三阶段：CRUX 外部内容注册
+crux-input-adapter.js/api/inputs/import-external/api/artifacts/register-external/api/evidence/register-browser-capture
+让 CRUX 看到的内容正式进入 V2。
+
+第四阶段：creative-bible 多模态化
+characters.referenceInputsworld.referenceInputsstyleAnchor.referenceInputsmotionReferenceInputsaudioReferenceInputs
+
+第五阶段：QA 输入输出对齐
+quality-gate 增加 input-output alignmentartifact-registry 增加 derivedFromInputsprompt-manager 增加 sourceInputIds
+
+最终一句话
+
+V2 多模态输入层现在最大的问题不是“不认识输入”，而是“输入没有成为可版本化、可追踪、可引用、可验证的项目资产”。
+
+最重要的 5 个修复：
+1. 建立统一 input-type-registry2. 所有输入登记 inputId / version / checksum / provenance3. 补齐 audio / subtitle / transcript 输入类型4. 让 creative-bible 支持 referenceInputs5. 让 CRUX 看到的外部内容通过 V2 API 注册为 input / artifact / evidence / knowledge candidate
+最终权责建议：
+V2 管输入真相。CRUX 负责发现、捕获、分析、导入外部内容。所有 CRUX 外部内容必须回到 V2 input/artifact/evidence/knowledge 注册体系中。

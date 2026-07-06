@@ -202,6 +202,13 @@ def _run_startup_health() -> None:
             n = _mcp_client.reload_config()
             logger.info("bootstrap: MCP config reloaded (%d → %d)", old, n)
 
+        # 3. DNA identity check — warn via logger only, never a screen
+        try:
+            from core.startup_checks import _check_dna_identity
+            _check_dna_identity()
+        except Exception:
+            logger.debug("bootstrap: DNA check skipped", exc_info=True)
+
         logger.debug("bootstrap health check complete")
     except Exception:
         logger.debug("bootstrap health check skipped", exc_info=True)
@@ -275,17 +282,47 @@ def _chat_tui():
 
     # Banner text for TUI message pane (not printed to terminal —
     # the TUI welcome screen in build_welcome_formatted handles UI)
-    TARGET_BOX_W = 44
-    n_eq = (TARGET_BOX_W - 6) // 2
+    import unicodedata
+
+    def _vwidth(s: str) -> int:
+        """Visual width — CJK chars count as 2 cells."""
+        w = 0
+        for c in s:
+            w += 2 if unicodedata.east_asian_width(c) in ("W", "F") else 1
+        return w
+
+    TARGET_BOX_W = 50
+    INNER_W = TARGET_BOX_W - 4  # strip "  ╔…╗" frame (2 leading spaces + corners)
+
+    # ── top: ═══ text ═══ centred ──
+    tag = f" CRUX Studio v{__version__} · 平时如刀，出事成阵 "
+    tag_w = _vwidth(tag)
+    pad_total = max(0, INNER_W - tag_w)
+    left = pad_total // 2
+    right = pad_total - left
+    top_line = f"  ╔{'═' * left}{tag}{'═' * right}╗"
+
+    # ── content lines ──
+    content = [
+        "极简内核 · 97+ 工具 · 按需治理",
+        "热路径 <1K · 冷路径按需展开",
+        "七兽不坐副驾驶 · 出事才上场",
+    ]
+    content_lines = []
+    for line in content:
+        pad = INNER_W - _vwidth(f"  {line}")  # "  " prefix inside box
+        content_lines.append(f"  ║  {line}{' ' * max(0, pad)}║")
+
+    # ── bottom ──
+    bottom_line = f"  ╚{'═' * INNER_W}╝"
+
     banner = (
-        f"  ╔══ CRUX Studio v{__version__} · 平时如刀，出事成阵 ══╗\n"
-        f"  ║  极简内核 · 97+ 工具 · 按需治理        ║\n"
-        f"  ║  热路径 <1K · 冷路径按需展开           ║\n"
-        f"  ║  七兽不坐副驾驶 · 出事才上场           ║\n"
-        f"  ╚{'═' * n_eq}╝\n"
-        f"\n"
-        f"  ◈ {model_name} · 主人: 黄建程\n"
-        f"  ◈ 根因优先 → 最小复现 → 一次修对\n"
+        top_line + "\n"
+        + "\n".join(content_lines) + "\n"
+        + bottom_line + "\n"
+        + "\n"
+        + f"  ◈ {model_name} · 主人: 黄建程\n"
+        + f"  ◈ 根因优先 → 最小复现 → 一次修对\n"
         f"\n"
         f"  试试这些:\n"
         f"    /status  查看状态    /health  系统健康\n"
@@ -335,19 +372,8 @@ def _chat_tui():
         except Exception:
             pass
 
-    # ── Clear terminal background before TUI takes over ──
-    # Ensures no default terminal bg bleeds through on the right edge.
-    if sys.stdout.isatty():
-        try:
-            sys.stdout.write("\033[48;2;30;30;46m")  # bg = #1E1E2E
-            sys.stdout.write("\033[2J")  # clear entire screen
-            sys.stdout.flush()
-        except Exception:
-            import logging
-
-            logging.getLogger("crux").debug("terminal bg color set failed (non-critical)", exc_info=True)
-
-    # ── Launch TUI (v2: Seven Beasts Command Center) ──
+    # ── Launch TUI (v2) ──
+    # prompt_toolkit handles full terminal management — no pre-escapes needed.
     try:
         from ui.tui_v2 import TuiAppV2
 
@@ -407,7 +433,7 @@ def _chat_plain():
 
     # ── Startup banner ──
     _rprint()
-    _rprint(f"[bold cyan]◆  CRUX Studio  v{__version__}[/] — [dim]AI-native creative + coding platform[/]")
+    _rprint(f"[bold cyan]◆  CRUX Studio  v{__version__}[/] — [dim]平时如刀，出事成阵[/]")
     _rprint()
     _rprint(f"[bold]Working Directory:[/] [cyan]{cwd}[/]")
     _print_kimi_tree(cwd)

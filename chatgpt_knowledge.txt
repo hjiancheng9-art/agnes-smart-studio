@@ -1,0 +1,380 @@
+下面这轮我会直接把 V2 的知识层当成一个独立子系统来审。
+我的核心判断是：
+
+V2 现在有“知识文件”，但还没有真正的“知识层”。
+它有 knowledge/manifest.json、packs、domain-features、creative-bible、promptKnowledgeAudit、knowledgeGrowthPlan，但这些东西还没有形成一个可检索、可版本化、可参与 24 阶段流程、可被 CRUX 调度的统一知识系统。
+
+
+一、总体判断
+当前知识层像这样：
+knowledge/manifest.jsonknowledge/packs/*.mdknowledge/domain-features.jsonproject.bibleproject.promptKnowledgeAuditproject.knowledgeGrowthPlanartifact-archive 的 knowledge 文件归档brain-chat-service 的 knowledge feedbackCRUX 外部知识
+它们都有价值，但现在缺少一个中心：
+knowledge-registry / knowledge-runtime / knowledge-router
+也就是说，V2 现在有很多知识资产，但没有统一回答这几个问题：
+1. 这条知识是谁的？2. 它属于哪个阶段？3. 它是什么版本？4. 它什么时候该被加载？5. 它和 project creative-bible 冲突时谁优先？6. 它被哪个产物使用过？7. 它更新后旧项目如何复现？8. CRUX 外部知识能不能覆盖它？
+这就是知识层最大的隐患。
+
+二、逐项正反方思辨
+
+1. 知识孤岛：manifest.json 46KB 存了什么？和 project-store / creative-bible / artifact 是什么关系？
+正方
+knowledge/manifest.json 的设计方向是好的。
+从你给的片段看，它至少包含：
+versionnamepurposepolicypackspack idpack filedomainsstageRoutespurposesummaryloadModetriggerHintsbudgetHintdefaultLoad
+这说明它不是随便堆 prompt，而是已经有了知识治理意识：
+
+
+知识包有 ID；
+
+
+知识包有领域；
+
+
+知识包有阶段路由；
+
+
+知识包有加载模式；
+
+
+知识包有触发提示；
+
+
+知识包有 token 预算提示；
+
+
+明确拒绝乱码、重复、不可验证 provider claims；
+
+
+强调每个知识项要映射到 production stage 和 acceptance gate。
+
+
+这些政策非常对。
+尤其这条很重要：
+Every knowledge item must map to a production stage and acceptance gate.
+这说明 V2 的知识层不是“百科资料库”，而是“生产规则库”。
+反方
+问题是：manifest 有理念，但运行时没有形成统一知识真相源。
+现在至少有四套知识相关状态：
+位置作用knowledge/manifest.jsonV2 原生知识清单project-store.js项目状态、bible、promptKnowledgeAudit、knowledgeGrowthPlancreative-bible.js项目创作一致性约束artifact-archive.js归档 knowledge manifest / growth plan / audit 文件
+这些东西容易产生不一致。
+例如：
+knowledge/manifest.json 已更新到 v1.1project.nativeKnowledgeManifest.path 还指向旧 manifestartifact archive 里归档的是旧 knowledge snapshotcreative-bible 用的是运行时临时规则promptKnowledgeAudit 却显示 pass
+这时 HUD 显示知识层通过，但实际运行时用的知识可能已经不是当时审核过的版本。
+更严重的是，artifact-archive.js 里有这些引用：
+workBuddyKnowledgeManifestnativeKnowledgeManifestknowledgeGrowthPlanpromptKnowledgeAudit
+说明知识文件会被归档，但不等于它们被运行时统一调用。
+也就是说：
+
+知识被保存了，不代表知识被执行了。
+
+裁判结论
+manifest.json 是好起点，但现在有知识孤岛风险。
+应该新增：
+knowledge-registry.jsknowledge-runtime.jsknowledge-snapshot.jsknowledge-router.js
+让 V2 明确：
+知识定义在 knowledge/项目使用知识时生成 snapshot运行时只读取 snapshot + 当前项目 bibleartifact 归档的是 snapshot，不是随便复制 manifestCRUX 外部知识必须先进入 candidate，再进入 curated pack
+
+2. 知识不可检索：没有语义搜索，autoflow 需要找相似项目时怎么找？
+正方
+目前先用关键词匹配可以理解。
+因为 manifest.json 里已经有：
+domainsstageRoutestriggerHintssummarybudgetHintdefaultLoad
+这些字段本身就可以做轻量路由。
+比如用户要做赛博雨夜项目，关键词可以命中：
+cyberpunkneonrainhackermegacorporation
+对于 46KB manifest 和少量 packs 来说，关键词 + stageRoutes 早期能跑。
+反方
+问题是，V2 是视频制作系统，不是普通关键词问答。
+autoflow 需要找的不是“某个词”，而是“相似生产经验”。
+例如：
+用户做：原创赛博雨夜，垂直霓虹市集，活体光轮，琥珀记忆核心
+关键词检索可能找到 cyberpunk，但找不到这些更关键的相似关系：
+雨夜 + 霓虹 + 垂直城市 + 载具追逐 + 记忆核心
+也找不到过往项目里类似的失败经验：
+之前某个项目提示词过度复刻红白机车原片之前某个项目右侧画面空之前某个项目神性建筑丢失之前某个项目角色抢主体
+这类知识不是关键词能稳定命中的。
+没有语义检索会导致：
+
+
+autoflow 每次都像第一次做项目；
+
+
+creative-bible 积累的经验无法被相似项目复用；
+
+
+失败经验无法召回；
+
+
+domain-features 只能给通用套路，无法给项目级生产记忆；
+
+
+CRUX 有大量外部知识，但 V2 内部无法精确选择该加载什么。
+
+
+裁判结论
+语义检索不是锦上添花，而是 V2 知识层从“规则文件”变成“生产记忆”的关键。
+但不必一步到位上复杂向量库。可以分三层：
+第一层：关键词 / stageRoutes / triggerHints第二层：BM25 / TF-IDF 本地文本检索第三层：embedding 向量检索
+最小可行方案：
+knowledge-index.jsonknowledge-chunks.jsonlknowledge-search.js
+每个 chunk 存：
+JavaScript{  "chunkId": "core-showrunner:001",  "packId": "core-showrunner",  "version": "1.0.0",  "domains": ["story_creation", "agent_operations"],  "stageRoutes": ["intake", "autopilot", "qc"],  "gates": ["honest_blocker", "controlled_chain"],  "text": "...",  "summary": "...",  "keywords": ["blocked node", "stage brain loading"],  "sourceHash": "..."}
+
+3. 知识不更新：creative-bible 积累了新经验，knowledge/ 会自动更新吗？
+正方
+brain-chat-service.js 已经引用：
+appendKnowledgeFeedbackdetectKnowledgeFeedback
+说明系统已经有“从对话中识别知识反馈”的意识。
+这很好。它说明 V2 不是静态知识库，而是想做可成长系统。
+反方
+但从你给的信息看，现在可能只是“检测到反馈”或“追加反馈”，并没有形成完整的知识增长闭环。
+真正的知识更新应该有这些步骤：
+1. 捕获反馈2. 判断是否是长期知识3. 归类到 domain / stage / gate4. 生成 candidate knowledge5. 去重6. 校验是否和已有知识冲突7. 人工确认或自动低风险合并8. 更新 pack9. 更新 manifest10. 生成新版本11. 影响后续项目，但不破坏旧项目复现
+现在的问题可能是：
+creative-bible 有新经验brain-chat-service 检测到反馈但 knowledge/packs 没有被更新manifest 没有版本 bump旧项目没有 snapshotpromptKnowledgeAudit 不知道新知识是否纳入
+这样就会出现“知识增长假象”：
+
+系统说自己在学习，但下次 autoflow 并不会稳定用到这条经验。
+
+裁判结论
+需要新增一个正式的知识增长管线：
+knowledge-feedback-inbox.jsonlknowledge-candidate-store.jsknowledge-curation.jsknowledge-diff.jsknowledge-promoter.js
+流程：
+creative-bible / chat feedback        ↓knowledge feedback inbox        ↓candidate knowledge item        ↓dedupe + conflict check        ↓curation review        ↓promote to pack        ↓manifest version bump        ↓new knowledge snapshot for future runs
+关键是：
+creative-bible 是项目级经验，knowledge/ 是 V2 原生长期知识。两者不能自动无脑合并。
+
+4. 知识不参与流程：autoflow 24 阶段中哪个阶段会主动读取知识？
+正方
+agent-kernel.js 已经有知识相关状态：
+knowledge_basecreative_directionprompt_templatesprompt_knowledge_routing
+这说明知识层至少被 Agent 状态模型感知了。
+autoflow.js 里也有注释：
+getCorePrompt removedcallers should use selectPromptKnowledge from prompt-knowledge-orchestrator
+说明系统设计上曾经考虑过知识选择器。
+反方
+问题是：被状态模型感知，不等于被 24 阶段主动使用。
+从你给的源码引用看，autoflow.js 对知识引用极少。
+这意味着 24 阶段可能主要按固定流程跑，而不是每阶段先问知识层：
+当前阶段需要什么知识？当前项目属于什么类型？有没有相似项目经验？creative-bible 有哪些约束？哪些禁止项必须继承？当前阶段 acceptance gate 是什么？
+如果 24 阶段不读知识，会出现：
+script 阶段不读故事规则storyboard 阶段不读镜头规则keyframes 阶段不读视觉一致性animation 阶段不读平台 provider contractreview 阶段不读 acceptance gateretro 阶段不回写知识增长
+这样知识层就变成“摆设”。
+裁判结论
+24 阶段都应该接入知识，但接入深度不同。
+建议这样设计：
+阶段必须读取的知识1-scriptshowrunner、故事结构、项目类型、creative-bible2-storyboard分镜规则、镜头连续性、节奏规则3-keyframes视觉风格、构图规则、角色/场景一致性4-visual-dev风格 bible、domain features、负面约束5-character角色 bible、身份/服装/道具一致性6-environment场景 bible、世界观、空间连续性7-prop道具 continuity、关键物件约束8-fx特效规则、视觉统一性9-animation平台 provider contract、镜头运动规则10-lighting光影风格、色彩 palette11-cinematic镜头语言、景别、运动、节奏12-voiceover角色语气、旁白风格13-music情绪曲线、类型音乐规则14-sound声画同步、环境声规则15-edit剪辑节奏、连续性16-color色彩一致性、LUT / palette17-vfxVFX 风格与世界观18-title标题风格、发行定位19-subtitle字幕格式、语言规则20-packaging平台交付规范21-reviewacceptance gates、QC checklist22-deliverydelivery contract23-archivearchive policy、证据链规则24-retro知识增长、失败经验回收
+核心函数应该是：
+JavaScriptselectStageKnowledge(project, stageId, runContext)
+而不是只在少数地方手动读 manifest。
+
+5. CRUX 总控和知识的关系：V2 内部知识 vs CRUX 外部知识
+正方
+CRUX 能通过 ChatGPT、Gemini 等外部平台获得大量知识，这是巨大优势。
+CRUX 可以帮 V2：
+
+
+查缺补漏；
+
+
+扩写专业规则；
+
+
+生成平台提示词；
+
+
+判断平台输出质量；
+
+
+从外部模型中提炼 provider contract；
+
+
+将失败经验转成规则；
+
+
+做跨平台比较。
+
+
+这比 V2 只靠本地知识强很多。
+反方
+危险点也很明显：
+
+CRUX 外部知识丰富，但不一定可验证、可复现、可版本化。
+
+如果 CRUX 临时问 ChatGPT 得到一条规则，然后直接进入 V2 runtime prompt，会出现：
+
+
+这条知识没有来源记录；
+
+
+旧项目无法复现；
+
+
+下次 ChatGPT 回答变了；
+
+
+它可能和 V2 creative-bible 冲突；
+
+
+它可能是不可验证 provider claim；
+
+
+它可能把外部平台的临时建议当成 V2 永久规则。
+
+
+这和 manifest policy 里的要求冲突：
+Reject unverifiable provider claims.Every knowledge item must map to a production stage and acceptance gate.
+裁判结论
+CRUX 应该是“知识获取与执行总控”，但不应该绕过 V2 知识层。
+推荐关系：
+V2 Native Knowledge = 稳定、已策展、可复现、可版本化的内部知识Creative Bible = 当前项目的创作约束和锁定规则CRUX External Knowledge = 临时外部参考、候选知识、执行策略
+优先级建议：
+Stage Contract  > Project Creative Bible  > V2 Native Knowledge Snapshot  > Project Artifact History  > CRUX External Knowledge
+CRUX 外部知识只能这样进入 V2：
+CRUX external finding        ↓evidence record        ↓candidate knowledge        ↓curation / validation        ↓pack update        ↓manifest version bump
+不能直接变成长期知识。
+
+6. 版本化：manifest 有版本管理吗？改了知识内容后旧 project 怎么办？
+正方
+manifest.json 顶部有：
+JSON"version": "1.0.0"
+说明已经有版本意识。
+如果 V2 早期只是本地工具，先用一个全局版本也能跑。
+反方
+单个 manifest.version 不够。
+真正需要版本化的是：
+manifest schema versionpack versionknowledge item versionchunk hashproject knowledge snapshot versionprompt template versioncreative-bible versionprovider contract version
+否则会出现：
+旧项目是用 knowledge v1.0 生成的后来 manifest 改成 v1.1用户点击重新生成第 9 阶段系统用 v1.1 的规则生成结果风格和旧项目不一致但 archive 没记录差异
+这是可复现性问题。
+裁判结论
+每次 run 应该保存一个知识快照：
+JavaScript{  "knowledgeSnapshotId": "ks_20260706_001",  "manifestVersion": "1.0.0",  "manifestHash": "...",  "packs": [    {      "packId": "core-showrunner",      "version": "1.0.0",      "fileHash": "...",      "loadedChunks": ["core-showrunner:001", "core-showrunner:002"]    }  ],  "projectBibleVersion": "0.3.0",  "createdAt": "..."}
+旧 project rerun 时默认使用旧 snapshot。
+只有用户明确选择“升级知识版本”，才使用新 manifest。
+
+三、当前知识层健康评分
+我给 V2 知识层：
+43 / 100
+为什么不是更低？
+因为它已经有这些正确方向：
+manifest 有治理 policypack 有 domains / stageRoutes / triggerHints有 creative-bible有 domain-features有 promptKnowledgeAudit有 knowledgeGrowthPlan 概念有 brain-chat-service feedback 入口artifact-archive 会归档 knowledge 相关文件
+这些都说明知识层不是完全空白。
+为什么只有 43？
+因为关键运行能力缺失：
+无统一 knowledge runtime无可靠检索无版本快照无知识增长闭环autoflow 24 阶段参与度低CRUX 外部知识边界不清knowledge / project / artifact / creative-bible 容易不一致
+换句话说：
+
+知识层的文档治理意识有 70 分，但运行时集成只有 30 分。综合约 43 分。
+
+
+四、P0 / P1 / P2 问题列表
+P0 致命
+编号问题后果P0-1没有统一 Knowledge Runtime / Registrymanifest、creative-bible、project-store、artifact 各自为政，知识真相源混乱P0-2知识没有 run-level snapshot旧项目无法复现，知识更新后重跑结果漂移P0-3autoflow 24 阶段没有强制接入知识契约知识层不参与生产，promptKnowledgeAudit 可能是假通过P0-4CRUX 外部知识没有候选/策展/证据流程外部临时知识可能直接污染 V2 长期知识和项目输出
+
+P1 严重
+编号问题后果P1-1manifest.json 46KB 单文件，无分片索引难维护、难局部加载、难 diff、难检索P1-2无语义检索 / 无 BM25 / 无向量相似项目经验召回差，知识复用弱P1-3creative-bible 经验不会稳定回流到 knowledge packs系统“看似学习”，实际不成长P1-4知识分散在 knowledge/ 和 artifacts/当前知识、历史知识、归档知识边界不清P1-5缺少 knowledge acceptance gate知识是否真的被阶段使用、是否通过验收不可知P1-6domain-features 只是静态类型表容易变成套路词库，无法承载项目经验P1-7缺少 provider contract 知识Kling / Runway / Luma / Jimeng 的输入输出限制无法稳定进入流程P1-8prompt 模板版本不清生成差异无法追溯到模板变化P1-9knowledge feedback 缺少去重和冲突检测反馈越积越乱，互相打架
+
+P2 一般
+编号问题后果P2-1无知识图谱复杂关系无法表达，但早期不是必须P2-2locales 与知识层关系不清多语言 prompt / HUD 文案可能漂移P2-3无知识包加载预算执行器budgetHint 有字段，但可能没有真正控制 tokenP2-4triggerHints 可能只做关键词易误召回或漏召回P2-5无知识质量评分不知道哪些知识有效、过期、冲突P2-6无知识废弃机制旧规则会长期污染新项目
+
+五、改进建议：具体怎么做
+1. 新增 knowledge-registry.js
+职责：
+读取 manifest读取 packs校验 pack 文件存在计算 hash建立 pack index提供统一查询接口
+接口：
+JavaScriptknowledgeRegistry.load()knowledgeRegistry.getPack(packId)knowledgeRegistry.listPacksByStage(stageId)knowledgeRegistry.getManifestHash()knowledgeRegistry.validateManifest()
+
+2. 新增 knowledge-runtime.js
+职责：
+为当前 project / run / stage 选择知识合并 project creative-bible控制 token budget输出给 autoflow / CRUX
+核心接口：
+JavaScriptselectStageKnowledge({  project,  runId,  stageId,  taskType,  domainHints,  artifactInputs})
+返回：
+JavaScript{  "stageId": "3-keyframes",  "knowledgeSnapshotId": "ks_001",  "loadedPacks": ["core-showrunner", "visual-style"],  "loadedChunks": ["core-showrunner:001", "visual-style:004"],  "creativeBibleRules": ["character_lock", "palette_lock"],  "acceptanceGates": ["style_consistency", "character_presence"],  "negativeConstraints": ["avoid cheap look", "avoid style drift"]}
+
+3. 新增 knowledge-snapshot.js
+每次 run 创建 snapshot：
+JavaScript{  "snapshotId": "ks_run_001",  "projectId": "project_001",  "runId": "run_001",  "manifestVersion": "1.0.0",  "manifestHash": "...",  "packHashes": {    "core-showrunner": "...",    "framework-reuse-core-rules": "..."  },  "selectedChunksByStage": {    "1-script": ["core-showrunner:001"],    "3-keyframes": ["visual-style:004"]  },  "createdAt": "..."}
+归档到：
+artifacts/08_knowledge_highlights/
+同时 project-store 记录：
+JavaScriptproject.knowledgeSnapshotId = "ks_run_001"
+
+4. 把 manifest.json 拆成轻量 manifest + pack metadata
+现在 46KB manifest 可以拆：
+knowledge/  manifest.json  packs/    core-showrunner.md    framework-reuse-core-rules.md  indexes/    pack-index.json    stage-index.json    domain-index.json    trigger-index.json  schemas/    knowledge-manifest.schema.json    knowledge-pack.schema.json
+manifest.json 只保留：
+JavaScript{  "version": "1.0.0",  "schemaVersion": "1.0.0",  "name": "Jinlong V2 Native Knowledge Base",  "packs": [    "packs/core-showrunner.pack.json",    "packs/framework-reuse-core-rules.pack.json"  ]}
+每个 pack 自己有 metadata：
+JavaScript{  "id": "core-showrunner",  "version": "1.0.0",  "file": "core-showrunner.md",  "domains": [],  "stageRoutes": [],  "triggerHints": [],  "budgetHint": "short_core_rules",  "defaultLoad": true,  "hash": "..."}
+
+5. 建立轻量检索，不必一开始就上向量库
+第一步做本地索引：
+knowledge-chunker.jsknowledge-indexer.jsknowledge-search.js
+支持：
+stageRoute filterdomain filterkeyword searchtriggerHintsBM25 scorerecent project memory
+后续再加 embedding：
+embedding-cache.jsonlvector-index/
+检索结果结构：
+JavaScript{  "query": "cyberpunk rain night vertical neon market memory core",  "filters": {    "stageId": "4-visual-dev",    "domains": ["cyberpunk"]  },  "results": [    {      "chunkId": "domain-cyberpunk:003",      "score": 0.87,      "reason": "matched cyberpunk + neon rain + visual-dev"    }  ]}
+
+6. 建立 knowledge growth pipeline
+新增：
+knowledge-feedback-inbox.jsonlknowledge-candidates.jsonlknowledge-curation.jsknowledge-promoter.jsknowledge-conflict-checker.js
+流程：
+brain-chat-service / creative-bible / retro        ↓detectKnowledgeFeedback        ↓candidate item        ↓dedupe        ↓conflict check        ↓stageRoute + gate mapping        ↓manual approve / auto approve low-risk        ↓pack update        ↓manifest version bump
+候选知识格式：
+JavaScript{  "candidateId": "kc_001",  "source": "creative-bible",  "projectId": "project_001",  "stageRoutes": ["keyframes", "visual-dev"],  "claim": "神性建筑项目中，人物必须小比例，不抢美景。",  "gate": "composition_subject_priority",  "confidence": 0.82,  "status": "pending_review"}
+
+7. 让 24 阶段强制接入知识
+在 autoflow.js 每个阶段开始前插入：
+JavaScriptconst knowledgeContext = await knowledgeRuntime.selectStageKnowledge({  project,  runId,  stageId,  taskType,  artifactInputs});await projectStore.attachStageKnowledge(runId, stageId, knowledgeContext);
+阶段完成后做验收：
+JavaScriptawait knowledgeRuntime.validateStageOutput({  project,  stageId,  outputArtifact,  knowledgeContext});
+这样知识不再是“可选提示词”，而是生产流程的一部分。
+
+六、CRUX 总控应该如何接入 V2 知识层
+1. CRUX 不直接读散乱文件
+不要让 CRUX 自己去读：
+knowledge/manifest.jsonknowledge/packs/*.mdartifacts/knowledge/*project.bible/*
+这会造成 CRUX 和 V2 对知识理解不一致。
+CRUX 应该通过 V2 的知识 API 获取上下文：
+GET /api/knowledge/context?projectId=xxx&runId=xxx&stageId=3-keyframes
+返回：
+JavaScript{  "knowledgeSnapshotId": "ks_001",  "stageId": "3-keyframes",  "rules": [],  "templates": [],  "creativeBible": {},  "acceptanceGates": [],  "negativeConstraints": [],  "providerContracts": []}
+
+2. CRUX 执行任务时必须携带 knowledgeSnapshotId
+CRUX task 应该包含：
+JavaScript{  "taskId": "task_001",  "stageId": "9-animation",  "knowledgeSnapshotId": "ks_001",  "knowledgeContext": {    "loadedChunks": [],    "rules": [],    "providerContracts": []  }}
+CRUX 回传结果时也要带回：
+JavaScript{  "taskId": "task_001",  "knowledgeSnapshotId": "ks_001",  "usedKnowledgeChunks": [],  "externalKnowledgeUsed": []}
+这样 artifact-evidence 才能记录：
+这个视频片段是在哪个知识版本下生成的。
+
+3. CRUX 外部知识只能进入 candidate knowledge
+CRUX 从 ChatGPT / Gemini 得到的新知识，不要直接写进 packs。
+应该走：
+POST /api/knowledge/candidates
+格式：
+JavaScript{  "source": "crux_external",  "platform": "chatgpt",  "stageRoutes": ["provider_adapter", "animation"],  "claim": "Kling 更适合某类镜头运动……",  "evidence": {    "taskId": "task_001",    "platform": "chatgpt",    "promptHash": "...",    "responseHash": "..."  },  "status": "pending_review"}
+
+4. CRUX 调度前必须先问 V2：当前阶段该用什么知识？
+推荐调用顺序：
+V2 autoflow 创建 stage task        ↓V2 knowledge-runtime 选择知识        ↓V2 task-broker 把 knowledgeContext 放入 task        ↓CRUX 执行 task        ↓CRUX 使用 knowledgeContext 生成/操作外部平台        ↓CRUX 回传 result + usedKnowledge        ↓V2 archive + evidence
+不要让 CRUX 自己决定长期规则。
+
+5. CRUX 可以做知识审查官
+CRUX 非常适合做这几件事：
+1. 检查候选知识是否重复2. 检查候选知识是否和 creative-bible 冲突3. 把项目经验改写成 bounded rule4. 给每条知识绑定 stageRoute 和 acceptance gate5. 生成 provider contract 草案6. 从 retro 中提炼失败经验
+但最终写入 V2 native knowledge 之前，仍然应该经过 V2 的 knowledge-curation。
+
+七、最终推荐知识层架构
+┌────────────────────────────────────────────────────────────┐│                       V2 Knowledge Layer                    ││                                                            ││  knowledge/manifest.json                                   ││  knowledge/packs/*.md                                      ││  knowledge/indexes/*.json                                  ││                                                            ││  knowledge-registry.js        读取与校验知识包              ││  knowledge-indexer.js         分片与索引                    ││  knowledge-search.js          关键词 / BM25 / 向量检索       ││  knowledge-runtime.js         为阶段选择知识                 ││  knowledge-snapshot.js        run-level 知识快照             ││  knowledge-curation.js        知识增长与策展                 ││  knowledge-conflict-checker.js 冲突检测                     ││                                                            │└───────────────▲────────────────────────────────────────────┘                │                │ selectStageKnowledge                │┌───────────────┴────────────────────────────────────────────┐│                       Autoflow 24 Stages                    ││                                                            ││  stage starts                                               ││    → select knowledge                                       ││    → create task                                            ││    → CRUX / plugin execute                                  ││    → validate output against acceptance gate                 ││    → archive evidence                                       ││    → retro feedback                                         ││                                                            │└───────────────▲────────────────────────────────────────────┘                │                │ task with knowledgeSnapshotId                │┌───────────────┴────────────────────────────────────────────┐│                         CRUX 总控                           ││                                                            ││  读取 V2 提供的 knowledgeContext                            ││  调用 ChatGPT / Gemini / Kling / Jimeng / Runway / Luma       ││  回传 result + usedKnowledge + external findings             ││  外部知识只进入 candidate knowledge                          ││                                                            │└────────────────────────────────────────────────────────────┘
+
+八、最终优先修复顺序
+1. 新增 knowledge-registry.js，统一 manifest / packs / hash / validation2. 新增 knowledge-runtime.js，让 autoflow 每阶段都调用 selectStageKnowledge3. 新增 knowledge-snapshot.js，每个 run 固定知识版本4. 建立 knowledge candidate / curation 流程，承接 creative-bible 和 CRUX 外部知识5. 把 manifest 拆成轻量 manifest + pack metadata + indexes6. 加本地检索：stageRoute + keyword + BM257. 后续再加 embedding / 知识图谱8. CRUX 只能通过 V2 knowledge API 获取知识上下文，不直接读散乱文件
+最终一句话：
+
+V2 知识层现在最缺的不是更多知识，而是“知识运行时”。
+先让知识能被选择、被冻结、被验证、被归档、被 CRUX 使用，再谈向量化和知识图谱。

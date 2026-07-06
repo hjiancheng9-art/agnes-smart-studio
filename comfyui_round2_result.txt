@@ -1,0 +1,202 @@
+1. 当前健康评分
+当前健康评分：66 / 100
+第一轮改造后，系统已经从“入口混乱 + 服务端巨石 + 配置风险”进入了第二阶段：核心领域层重构期。
+你已经解决了这些高风险点：
+server.py 巨石问题：明显改善main.py 入口统一：改善config.py 环境变量覆盖：改善executor.py 重试机制：初步改善测试数量：从危险区进入最低可用区V2 桥接：已有接入基础
+但剩余三个大块还没拆：
+agent.py       2255 行 / 77 方法agent_flow.py  1899 行brain.py        376 行
+所以现在不是 50 分以下的“失控工程”，而是 66 分左右的可控但仍偏脆弱工程。
+
+2. P0 / P1 / P2 排序
+P0：必须优先处理
+P0-1：agent.py 上帝对象拆分
+agent.py 现在仍然是最大风险。
+原因不是行数本身，而是它同时承担：
+Facade工作流加载诊断修改验证模板匹配智能构建模型提取报告生成依赖访问V2桥接间接依赖
+它应该变成一个薄门面，而不是继续做业务主体。
+
+P0-2：解决循环导入
+你现在遇到的循环导入是典型症状：
+agent.py 导入 agent_opsagent_ops 又引用 agent.py 的类型
+根因是：
+类型定义、执行逻辑、门面类放在同一个文件或互相依赖。
+解决方向是：
+agent_ops 永远不能 import agent.pyagent.py 可以 import agent_ops共享类型必须下沉到独立 contracts/types 模块
+
+P0-3：brain.py 与 agent_flow.py 的 LLM 调用去重
+现在的问题大概率是：
+brain.py 会调 LLMagent_flow.py 也会调 LLM
+这会导致：
+Prompt 分散模型配置分散错误处理分散JSON解析分散重试策略分散日志追踪分散
+最终 CRUX 很难统一管控。
+
+P0-4：异常模型统一
+现在 executor 有 retry，但如果异常类型不统一，V2 和 CRUX 仍然无法判断：
+能不能重试？能不能自动修？该提示用户什么？是模型缺失、节点缺失、网络错误、LLM错误，还是workflow结构错误？
+建议立刻建立统一异常基类。
+
+P1：第二优先级
+P1-1：agent_flow.py 拆分
+agent_flow.py 1899 行说明 NL 编排逻辑也已经过胖。
+它应该拆成：
+nl_flow/├── intent.py          # 意图识别├── planner.py         # NL → workflow plan├── slot_filling.py    # 参数抽取├── orchestrator.py    # 编排├── repair.py          # 失败后的修复计划└── schemas.py         # 结构化输出类型
+
+P1-2：真实 HTTP 集成测试
+目前“只测试 import”不够。
+至少要补：
+server healthcheckV2 bridge requestworkflow diagnose endpointworkflow build endpointexecutor mock HTTPLLM mock HTTP错误响应格式timeout 响应
+
+P1-3：dataclass 从 agent.py 移出
+例如这些类型：
+WorkflowDiagnosticSmartBuildResultAutoFixResultFullPipelineResult
+不应该在 agent.py 里。
+建议移动到：
+comfy_agent/contracts/results.pycomfy_agent/contracts/diagnostics.pycomfy_agent/contracts/requests.py
+
+P2：长期优化
+P2-1：agent.py 最终瘦到 300～500 行以内
+最终 agent.py 只保留稳定公开 API。
+
+P2-2：前端 / JS / HTML 和后端 schema 稳定化
+前端不要依赖内部 Python 结构。
+应该只依赖 API schema。
+
+P2-3：全链路 trace
+后期加：
+task_idjob_idtrace_idllm_call_idworkflow_idexecutor_idduration_msretry_counterror_type
+
+3. agent.py 拆分具体方案：如何避免循环导入
+核心原则
+你现在不能这样：
+Python运行# agent.pyfrom agent_ops import diagnose_workflow# agent_ops.pyfrom agent import ComfyUIAgent
+这必然循环。
+正确依赖方向应该是：
+contracts/types  ←  services/ops  ←  agent facade
+也就是：
+agent_types.py      不依赖 agent.pyagent_runtime.py    不依赖 agent.pyagent_services.py   不依赖 agent.pyagent.py            依赖上面所有模块
+任何被 agent.py 导入的模块，都不允许再 import agent.py。
+
+推荐目录结构
+comfy_agent/├── agent.py                  # 薄 Facade├── agent_runtime.py           # 依赖容器├── contracts/│   ├── results.py             # SmartBuildResult / AutoFixResult 等│   ├── diagnostics.py         # WorkflowDiagnostic│   ├── requests.py            # BuildRequest / ModifyRequest│   └── errors.py              # 统一异常│├── services/│   ├── workflow_io.py         # load_workflow / diagnose_json 输入处理│   ├── diagnostic_service.py  # diagnose│   ├── edit_service.py        # modify_workflow│   ├── validation_service.py  # validate_workflow│   ├── template_service.py    # list/search/match/load templates│   ├── build_service.py       # smart_build│   ├── model_service.py       # required_models / inventory│   ├── report_service.py      # generate_report│   └── pipeline_service.py    # modify_and_validate / full pipeline│└── protocols/    └── runtime.py             # Protocol 类型，可选
+
+第一步：先移动 dataclass
+把 agent.py 里的这些：
+Python运行class WorkflowDiagnostic:class SmartBuildResult:class AutoFixResult:class FullPipelineResult:
+移动到：
+contracts/diagnostics.pycontracts/results.py
+例如：
+Python运行# contracts/results.pyfrom dataclasses import dataclass, fieldfrom typing import Any, Dict, List, Optional@dataclassclass SmartBuildResult:    success: bool    workflow: Optional[Dict[str, Any]] = None    diagnostics: List[Dict[str, Any]] = field(default_factory=list)    warnings: List[str] = field(default_factory=list)    errors: List[str] = field(default_factory=list)    def to_dict(self) -> Dict[str, Any]:        return {            "success": self.success,            "workflow": self.workflow,            "diagnostics": self.diagnostics,            "warnings": self.warnings,            "errors": self.errors,        }
+然后 agent.py 和 services 都从这里导入：
+Python运行from comfy_agent.contracts.results import SmartBuildResult
+这样就不需要 agent_ops 引用 agent.py 里的类型。
+
+第二步：建立 AgentRuntime，而不是把 self 传给 agent_ops
+不要让 service 接收 ComfyUIAgent：
+Python运行# 不推荐def diagnose(agent: ComfyUIAgent, workflow):    ...
+改成接收一个轻量依赖容器：
+Python运行# agent_runtime.pyfrom dataclasses import dataclassfrom .config import ComfyUIConfig@dataclassclass AgentRuntime:    config: ComfyUIConfig    schema_kb: object    extension_map: object    model_scanner: object    model_inventory: object    editor: object    validator: object    template_kb: object    searcher: object | None = None    downloader: object | None = None    installer: object | None = None
+然后 service 依赖 AgentRuntime，不依赖 ComfyUIAgent：
+Python运行# services/diagnostic_service.pyfrom comfy_agent.agent_runtime import AgentRuntimefrom comfy_agent.contracts.diagnostics import WorkflowDiagnosticclass DiagnosticService:    def __init__(self, runtime: AgentRuntime):        self.runtime = runtime    def diagnose(self, workflow) -> WorkflowDiagnostic:        validator = self.runtime.validator        model_inventory = self.runtime.model_inventory        schema_kb = self.runtime.schema_kb        # 诊断逻辑        ...
+这样依赖关系变成：
+agent.py → AgentRuntime → servicesservices → contractsservices 不再 import agent.py
+循环导入自然消失。
+
+第三步：agent.py 只做门面转发
+agent.py 最终应该类似这样：
+Python运行# agent.pyfrom .agent_runtime import AgentRuntimefrom .services.workflow_io import WorkflowIOServicefrom .services.diagnostic_service import DiagnosticServicefrom .services.validation_service import ValidationServicefrom .services.edit_service import EditServicefrom .services.template_service import TemplateServicefrom .services.build_service import BuildServicefrom .services.report_service import ReportServiceclass ComfyUIAgent:    def __init__(self, config=None):        self.config = config or load_config()        self._runtime = AgentRuntime(            config=self.config,            schema_kb=self._create_schema_kb(),            extension_map=self._create_extension_map(),            model_scanner=self._create_model_scanner(),            model_inventory=self._create_model_inventory(),            editor=self._create_editor(),            validator=self._create_validator(),            template_kb=self._create_template_kb(),            searcher=None,            downloader=None,            installer=None,        )        self.workflow_io = WorkflowIOService(self._runtime)        self.diagnostic_service = DiagnosticService(self._runtime)        self.validation_service = ValidationService(self._runtime)        self.edit_service = EditService(self._runtime)        self.template_service = TemplateService(self._runtime)        self.build_service = BuildService(self._runtime)        self.report_service = ReportService(self._runtime)    def load_workflow(self, source):        return self.workflow_io.load_workflow(source)    def diagnose(self, workflow):        return self.diagnostic_service.diagnose(workflow)    def validate_workflow(self, workflow):        return self.validation_service.validate(workflow)    def modify_workflow(self, workflow, instruction):        return self.edit_service.modify(workflow, instruction)    def smart_build(self, *args, **kwargs):        return self.build_service.smart_build(*args, **kwargs)    def generate_report(self, diag):        return self.report_service.generate_diagnostic_report(diag)
+重点是：
+旧 API 保留，但实现转发给服务。
+这样不会破坏现有调用方。
+
+第四步：方法迁移顺序
+不要一口气拆 77 个方法。建议按风险从低到高迁移。
+第一批：低风险迁移
+generate_reportgenerate_modification_reportlist_templatesget_template_categoriesmatch_templateload_templatesearch_templates
+这些基本是独立功能，最适合先移出。
+
+第二批：中风险迁移
+_extract_required_models_detect_workflow_architecturediagnosediagnose_jsonvalidate_workflow
+这些依赖 workflow、validator、model inventory，但仍然可控。
+
+第三批：高风险迁移
+modify_workflowmodify_workflow_parsedmodify_and_validatesmart_buildmatch_and_load_template
+这些通常牵涉模板、编辑器、验证器、LLM、模型扫描，最后拆。
+
+第五步：临时解决循环导入的补丁
+如果你现在必须快速止血，可以用：
+Python运行from __future__ import annotationsfrom typing import TYPE_CHECKINGif TYPE_CHECKING:    from .agent import ComfyUIAgent
+然后函数签名写：
+Python运行def diagnose(agent: "ComfyUIAgent", workflow):    ...
+但这只是短期补丁。
+长期不要让 agent_ops 依赖 ComfyUIAgent。
+更好的最终形态是：
+Python运行def diagnose(runtime: AgentRuntime, workflow):    ...
+或者：
+Python运行class DiagnosticService:    def __init__(self, runtime: AgentRuntime):        ...
+
+4. brain + agent_flow LLM 去重方案
+当前问题判断
+现在大概率是这样：
+brain.py:- 管 LLM provider- 发送请求- 处理 OpenAI-compatible API- 可能也拼 prompt / 解析结果agent_flow.py:- NL 输入- 判断意图- 生成 workflow- 也直接调用 LLM- 也处理 prompt / JSON / fallback
+这会造成 LLM 逻辑重复。
+
+正确分工
+应该改成：
+brain.py 只做 LLM 基础连接器agent_flow.py 只做业务编排中间新增 nl_planner / llm_service 负责结构化能力
+推荐分层：
+brain/├── client.py          # OpenAI-compatible transport，只负责请求├── schemas.py         # LLM 输出 schema├── prompts.py         # prompt 模板├── structured.py      # JSON schema 调用、解析、重试└── errors.py          # LLM 错误nl_flow/├── intent.py          # 意图识别├── planner.py         # NL → WorkflowPlan├── slot_filling.py    # 参数抽取├── repair.py          # 失败修复计划└── orchestrator.py    # 编排流程
+
+brain.py 的职责
+brain.py 或 brain/client.py 只负责：
+加载模型配置调用 OpenAI-compatible API统一超时统一重试统一日志统一错误返回原始或结构化结果
+它不应该知道：
+ComfyUI workflow 结构节点怎么连模板怎么选模型文件怎么扫描V2桥接怎么返回CRUX怎么调度
+示例：
+Python运行class BrainClient:    def complete(self, messages, *, temperature=0.2, timeout=60) -> str:        ...    def complete_json(self, messages, schema, *, temperature=0.1, timeout=60) -> dict:        ...
+
+agent_flow.py 的职责
+agent_flow.py 不应该直接碰 provider。
+它应该只做：
+接收自然语言调用 NLPlanner拿到结构化计划调用 TemplateService / BuildService / ValidationService返回结果
+示例：
+Python运行class AgentFlow:    def __init__(self, planner, build_service, validation_service, report_service):        self.planner = planner        self.build_service = build_service        self.validation_service = validation_service        self.report_service = report_service    def run(self, user_message: str):        plan = self.planner.plan(user_message)        build_result = self.build_service.build_from_plan(plan)        validation = self.validation_service.validate(build_result.workflow)        return self.report_service.generate_pipeline_report(build_result, validation)
+
+新增 NLPlanner：去重核心
+把所有“自然语言 → 结构化计划”的 LLM 调用集中到一个地方：
+Python运行class NLPlanner:    def __init__(self, brain_client):        self.brain = brain_client    def classify_intent(self, message: str) -> IntentResult:        ...    def extract_slots(self, message: str) -> SlotResult:        ...    def create_workflow_plan(self, message: str, context: dict) -> WorkflowPlan:        ...    def create_repair_plan(self, error_context: dict) -> RepairPlan:        ...
+这样：
+agent_flow.py 不再直接调用 LLMagent.py 不再直接调用 LLMsmart_build 不再直接调用 LLM所有 LLM 入口统一走 NLPlanner / BrainClient
+
+推荐 LLM 调用链
+最终应该是：
+agent_flow.py↓NLPlanner↓BrainClient.complete_json()↓LLM Provider
+业务执行链：
+NLPlanner 输出 WorkflowPlan↓BuildService 根据 WorkflowPlan 构建 workflow↓ValidationService 验证↓EditService / AutoFixService 修复↓Executor 执行
+
+LLM 输出必须结构化
+不要让 LLM 返回自然语言再用正则硬拆。
+建议所有关键 LLM 输出统一 schema。
+例如：
+Python运行@dataclassclass WorkflowPlan:    intent: str    template_name: str | None    positive_prompt: str    negative_prompt: str | None    aspect_ratio: str    required_models: list[str]    required_nodes: list[str]    steps: list[dict]    risk_level: str
+LLM 返回：
+JSON{  "intent": "text_to_image",  "template_name": "sdxl_basic_txt2img",  "positive_prompt": "warm photorealistic lunch scene...",  "negative_prompt": "low quality, blurry",  "aspect_ratio": "16:9",  "required_models": ["sdxl_base"],  "required_nodes": [],  "steps": [    {      "type": "load_template",      "name": "sdxl_basic_txt2img"    },    {      "type": "set_prompt",      "target": "positive",      "value": "warm photorealistic lunch scene..."    }  ],  "risk_level": "low"}
+
+推荐最终调用关系
+CRUX↓V2 Bridge↓ComfyUISubExecutorAdapter↓ComfyUIAgent Facade↓AgentFlow / BuildService / DiagnosticService↓NLPlanner↓BrainClient
+注意：
+BrainClient 在最底层，不能反过来 import agent_flow 或 agent.py。
+正确依赖方向：
+contracts↓brain↓nl_flow↓services↓agent facade↓v2 bridge
+不要出现：
+brain.py import agent_flow.pyagent_flow.py import agent.pyservices import agent.py
+
+建议下一轮改造任务单
+可以直接给模型或开发者下这个任务：
+第二阶段重构目标：只拆核心领域边界，不改变外部 API。1. 新增 contracts/diagnostics.py、contracts/results.py、contracts/errors.py。2. 将 agent.py 中的 WorkflowDiagnostic、SmartBuildResult、AutoFixResult、FullPipelineResult 移入 contracts。3. 新增 agent_runtime.py，封装 config、schema_kb、extension_map、model_scanner、model_inventory、editor、validator、template_kb 等依赖。4. 新增 services/report_service.py、services/template_service.py、services/diagnostic_service.py。5. agent.py 保留旧方法名，但内部转发到 service。6. 禁止 services import agent.py。7. agent_ops 如需类型，只能 import contracts 或 AgentRuntime。8. brain.py 改为纯 OpenAI-compatible LLM client。9. 新增 nl_flow/planner.py，集中 classify_intent / extract_slots / create_workflow_plan / create_repair_plan。10. agent_flow.py 删除直接 LLM 调用，只调用 NLPlanner。11. 新增统一异常基类 ComfyAgentError，并派生 WorkflowError、LLMError、ExecutorError、ConfigError。12. 补 10 个测试：    - agent.py facade 转发测试    - contracts import 测试    - services 不 import agent.py 测试    - brain client mock 测试    - NLPlanner mock JSON 测试    - agent_flow 不直接调用 LLM 测试    - 异常类型序列化测试    - V2 bridge 错误返回测试    - HTTP healthcheck 集成测试    - workflow diagnose endpoint 集成测试
+
+最终结论
+这轮之后，项目最大矛盾已经从“全局入口混乱”变成：
+核心领域层还没解耦LLM 能力边界不清agent.py 仍然掌握太多职责
+下一步不要先碰复杂执行逻辑，应该先做三件事：
+1. dataclass 下沉到 contracts2. agent.py 拆成 facade + services + runtime3. brain.py 变成唯一 LLM connector，agent_flow.py 禁止直接调 LLM
+做到这一步，健康评分大概可以从 66 / 100 提升到 76～80 / 100。

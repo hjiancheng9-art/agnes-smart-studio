@@ -1,0 +1,221 @@
+总评
+驾驶舱现在的问题不是“少几个按钮”，而是 没有承载 V2 的核心生产状态。
+后端 75 个 CRUX API 已经像一个生产中控系统，但前端只调用 9 个，相当于：
+后端是飞船控制系统前端还是旧式仪表盘
+我给当前驾驶舱匹配度：
+28 / 100
+够用目标不是接满 75 个 API，而是先接入 “能启动、能看懂、能接管、能交付” 的关键 API。
+
+1. 驾驶舱应该对接哪些关键 API 才算够用？
+最小够用驾驶舱需要覆盖 8 类 API。
+A. 项目总览 API，必须接
+用途：打开驾驶舱后知道当前项目是什么状态。
+应接入：
+GET project detailGET current run statusGET pipeline overviewGET stage list/statusGET health summary
+驾驶舱必须能显示：
+项目名deliveryGoal当前运行阶段整体进度当前 blockerCRUX 状态ComfyUI 状态QA 状态最终交付是否 ready
+这是首页核心。
+
+B. 管线执行 API，必须接
+用途：用户能启动、暂停、恢复、重跑。
+应接入：
+POST start runPOST run stagePOST rerun stagePOST pause runPOST resume runPOST cancel runGET run events / SSE
+最低按钮：
+开始一键流运行当前阶段重跑失败阶段暂停继续取消
+没有这类 API，驾驶舱只是监控面板，不是驾驶舱。
+
+C. 阶段详情 API，必须接
+用途：用户知道每个阶段为什么完成、为什么卡住。
+应接入：
+GET stage detailGET stage inputsGET stage outputsGET stage blockersGET stage logs/events
+每个阶段卡片要显示：
+状态输入输出质量结果规则阻断CRUX task制品数量证据数量可执行操作
+
+D. CRUX 任务 API，必须接
+用途：因为 CRUX 是总控，驾驶舱必须看得见 CRUX 在干什么。
+应接入：
+GET crux statusGET crux tasksGET crux task detailPOST retry crux taskPOST cancel crux taskPOST manual resolve task
+显示：
+CRUX 在线/离线当前执行平台当前任务任务耗时重试次数最近错误是否需要人工接管
+尤其要显示：
+ChatGPT / Gemini / ComfyUI / Kling / Runway / Luma 当前谁在执行
+
+E. ComfyUI 桥接 API，必须接
+既然 V2 ↔ ComfyUI 智能体已经桥接通，驾驶舱必须接。
+应接入：
+GET comfyui healthGET comfyui templatesPOST /api/crux/comfyui/run-stageGET comfyui run resultGET comfyui preflight blockers
+驾驶舱应展示：
+ComfyUI 是否在线当前模板推荐模板为什么被推荐缺模型/缺节点/缺路径执行进度输出图片/视频
+
+F. Artifact / Evidence API，必须接
+用途：V2 的核心是可交付、可追溯。
+应接入：
+GET artifacts by project/run/stageGET artifact detailGET evidence ledgerGET evidence by artifactPOST register external artifactPOST register evidence
+驾驶舱必须能看：
+这个阶段产出了什么？文件在哪？是不是 placeholder？有没有证据？来自哪个 prompt / task / platform？
+没有 artifact/evidence 面板，V2 的“真实产物”理念展示不出来。
+
+G. QA / Rule API，必须接
+用途：用户知道为什么不能继续。
+应接入：
+GET quality gate resultGET QA issuesGET rule blockersPOST resolve QA issuePOST approve with warningPOST request rerun repair
+驾驶舱显示：
+BlockersWarningsPass items推荐修复动作一键修复/重跑人工放行
+这比展示日志重要。
+
+H. Prompt / Knowledge / Director API，P1 接
+这类不是第一屏必须，但对 V2 很关键。
+应接入：
+GET prompt snapshotGET final prompt usedGET knowledge packs usedGET director decisionGET creative biblePOST update creative biblePOST approve director decision
+用于高级面板：
+本阶段用了什么提示词？用了哪些知识包？导演决策是什么？creative-bible 是否被修改？
+
+2. 75 个路由中哪些是管理类，哪些是用户类？
+没有完整 75 路由清单，我按 V2 的后端能力分类。原则是：
+用户要看见生产结果和阻塞原因。管理类只服务系统维护，不一定出现在主界面。
+
+用户类 API：必须接入驾驶舱
+这些 API 直接影响用户能否完成项目。
+1. 项目 / Run / 阶段
+project detailproject listcreate projectcurrent runstart runrun stagererun stagepause/resume/cancelstage statusstage detailpipeline overview
+必须接。
+
+2. 输入管理
+input listadd inputinput previewinput preprocess statusinput route plan
+必须接。
+因为用户第一步就是上传/确认素材。
+
+3. CRUX 任务
+crux healthcrux task listcrux task detailretry taskcancel taskmanual intervention
+必须接。
+因为 CRUX 是总控，不显示 CRUX 状态，用户会觉得系统卡死。
+
+4. ComfyUI 执行
+comfyui healthcomfyui preflighttemplate recommendationrun comfyui stagecomfyui result
+必须接。
+尤其你现在的关键缺口就是：
+autoflow 24阶段 → CRUX推荐ComfyUI模板 → 真实执行
+
+5. 制品 / 证据
+artifact listartifact detailartifact previewevidence ledgerevidence detaildownload artifactarchive status
+必须接。
+这是交付型产品必须展示的。
+
+6. QA / Rule / Blocker
+quality gate resultQA issuesrule blockersresolve issueapprove warningrequest repair
+必须接。
+用户最关心的是：
+为什么不能继续？怎么修？能不能一键重跑？
+
+7. Delivery
+delivery readinessexport packagedownload packagedelivery manifest
+必须接。
+没有交付面板，V2 就停留在生产过程，不是产品。
+
+管理类 API：不需要主界面，最多放设置页
+这些 API 可以不进驾驶舱主流程。
+1. Debug / Diagnostics
+debug routesraw health dumpinternal diagnosticsserver infocapability dump
+放开发者页即可。
+
+2. Registry 管理
+knowledge registry reloadrule registry reloadprompt template registryprovider registrycapability registry
+普通用户不用看。
+可以放：
+Settings / Advanced / Developer
+
+3. 内部迁移 / 修复
+schema migrationproject repairarchive rebuildevidence rebuildcache cleanup
+管理类。
+但如果修复失败，可以以“系统建议操作”形式暴露一个按钮。
+
+4. 日志原始接口
+raw logsserver log streamtask debug log
+普通用户不需要。
+驾驶舱只展示摘要：
+最近错误当前 blocker建议动作
+
+5. 低层 CRUD
+raw project-store updateraw artifact updateraw task mutationraw stage mutation
+不应暴露给普通驾驶舱。
+否则会破坏状态一致性。
+
+6. 测试 / Mock / Dev
+mock runtest bridgeseed projectfake providerdebug endpoint
+开发者专用。
+
+3. 建议优先级排序
+P0：驾驶舱“够用”必须接
+目标：让用户能跑通一条真实生产链。
+1. Pipeline Overview2. Start / Run / Rerun / Pause / Resume3. Stage Status / Stage Detail4. CRUX Status / Task Status5. ComfyUI Health / Run Stage / Result6. Artifact List / Preview7. Evidence Status8. QA Blockers / Rule Blockers9. Delivery Readiness
+P0 做完，驾驶舱就从 17% 覆盖率变成真正可用。
+
+P1：让驾驶舱像“生产控制台”
+1. Prompt Snapshot Viewer2. Creative Bible Viewer3. Director Decision Viewer4. Knowledge Packs Used5. Input Route Plan6. Lineage Graph7. Repair Suggestions8. One-click Retry / Repair9. SSE 实时事件流
+P1 做完，V2 的高级能力才会被用户感知。
+
+P2：开发者和高级管理能力
+1. API registry viewer2. provider registry settings3. rule registry settings4. knowledge reload5. schema migration panel6. raw logs7. mock/test panels8. advanced diagnostics
+P2 不影响普通用户完成项目。
+
+4. 驾驶舱最应该展示什么？
+我建议驾驶舱第一屏只展示 6 个核心区域。
+
+第一屏：Pipeline Cockpit
+这是最重要的。
+项目：翠翎风心目标：short_video / full_video当前阶段：3-keyframes整体进度：32%当前状态：Blocked by Quality Gate
+下面是 8 个状态灯：
+Input      readyDecision   committedPrompt     readyCRUX       runningComfyUI    onlineArtifact   partialEvidence   missingQA         blocked
+用户一眼知道系统卡在哪里。
+
+第二块：24阶段轨道
+用横向或纵向阶段条：
+1 Script        passed2 Storyboard    passed3 Keyframes     blocked4 Visual Dev    ready5 Character     pending...22 Delivery     locked
+每个阶段卡片显示：
+状态产物数量证据数量QA状态可操作按钮
+按钮：
+查看运行重跑修复跳过/人工放行
+
+第三块：当前 Blocker
+这是驾驶舱最有价值的部分。
+例如：
+当前阻断：stage: 3-keyframessource: quality-gateproblem: 关键帧缺少真实 ComfyUI 输出required action: 运行 ComfyUI 模板 cinematic-keyframe-v1
+提供按钮：
+一键运行 ComfyUI重新推荐模板标记人工上传查看详情
+
+第四块：CRUX / Executor 面板
+显示：
+CRUX 在线当前平台：ComfyUI当前任务：run-stage 3-keyframes耗时：02:31重试：0/2最近事件：template selected
+如果 CRUX 卡住，显示：
+CRUX task stale建议：重试 / 手动接管 / 切平台
+
+第五块：Artifacts & Evidence
+显示当前阶段和全项目产物：
+Script JSONStoryboard JSONKeyframe ImagesComfyUI Workflow JSONPrompt SnapshotEvidence LedgerQA Report
+每个产物标：
+真实 / placeholder有证据 / 缺证据通过 QA / 未检查
+
+第六块：Delivery Readiness
+即使还没到交付，也要显示缺口：
+最终视频：missing字幕：missing封面：missingmanifest：missingevidence ledger：partialQA blockers：2
+让用户知道距离交付还差什么。
+
+推荐驾驶舱信息架构
+Dashboard  ├─ Pipeline Overview  ├─ 24 Stage Timeline  ├─ Current Blocker  ├─ CRUX / Executor Status  ├─ Artifacts / Evidence  └─ Delivery ReadinessProject  ├─ Inputs  ├─ Creative Bible  ├─ Director Decisions  └─ Knowledge UsedStage Detail  ├─ Inputs  ├─ Prompt Snapshot  ├─ CRUX Task  ├─ Output Artifacts  ├─ Evidence  ├─ QA Result  └─ ActionsSettings / Developer  ├─ Providers  ├─ API Registry  ├─ Rules  ├─ Knowledge Packs  ├─ Logs  └─ Diagnostics
+
+最小 API 接入清单
+如果你现在要给前端开工，先让它接这 20 个能力就够了：
+1. GET project detail2. GET run overview3. GET pipeline overview4. GET stage list5. GET stage detail6. POST start run7. POST run stage8. POST rerun stage9. POST pause run10. POST resume run11. GET crux health12. GET crux tasks13. GET crux task detail14. POST retry crux task15. GET comfyui health16. GET comfyui templates/recommendation17. POST comfyui run-stage18. GET artifacts19. GET evidence ledger20. GET QA/blockers
+这 20 个能力比盲目接 75 个路由更重要。
+
+最终建议
+当前驾驶舱不要追求 75/75 API 全覆盖。
+应该追求：
+关键生产链 100% 可见关键阻断 100% 可解释关键操作 100% 可接管关键产物 100% 可预览关键证据 100% 可追踪
+一句话：
+
+驾驶舱最应该展示的不是“有多少功能”，而是“当前项目为什么能继续，为什么不能继续，以及 CRUX 下一步该做什么”。
+
+优先接入顺序：
+1. Pipeline Overview2. Stage Detail3. CRUX Task Status4. ComfyUI Execution5. Artifact / Evidence6. QA / Rule Blockers7. Delivery Readiness8. Prompt / Knowledge / Director 高级面板
+只要这 8 块接好，即使 75 个 API 只接 25 个，驾驶舱也已经“够用”。

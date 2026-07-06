@@ -1,0 +1,791 @@
+下面是第二轮模块级辩论。前提说明：我没有看到源码，只基于你提供的架构描述做架构审查，所以我会用“高概率风险”和“应检查点”的方式判断。
+1. autoflow.js 24 阶段 vs agent-kernel.js 6 层架构
+正方
+正方：
+6 层架构和 24 阶段不需要 1:1 对应。
+agent-kernel.js 负责系统能力状态，比如 Input、Core、Workspace、Storage、Output 是否可用；autoflow.js 负责业务制作流程，比如 script、storyboard、keyframes、animation、delivery。
+这其实是合理分层：
+
+
+6 层是“运行时能力模型”；
+
+
+24 阶段是“视频制作业务模型”；
+
+
+一个阶段可以依赖多个层；
+
+
+一个层也可以服务多个阶段。
+
+
+比如：
+Autoflow 阶段依赖 Agent 层scriptInput / Core / StoragestoryboardCore / Workspace / StoragekeyframesCore / Workspace / Output / StoragedeliveryStorage / OutputarchiveStorage
+所以它们独立定义，不一定是坏事。
+反方
+反方：
+独立定义可以，但现在的问题是：两个系统各自定义了状态语义，却没有强制契约。
+这会造成几个危险问题。
+第一，agent-kernel 的 ok/warn/error/blocked 不等于 autoflow 的阶段成功或失败。
+例如：
+JavaScriptagentKernel.Storage.status = "warn"autoflow.stage["archive"].status = "complete"
+这两个状态可能同时出现，但语义冲突。
+Storage 已经 warn，archive 却 complete，那归档到底可信吗？
+第二，24 阶段没有明确依赖矩阵时，流程会出现“阶段空跑”。
+比如：
+JavaScriptstage: "keyframes"requiredInputs: ["storyboard", "styleBible", "characterBible"]
+如果这些输入没有被声明和验证，keyframes 阶段可能只是生成了一个空壳结果，然后状态仍然标记为 complete。
+第三，恢复和重试会困难。
+如果流程跑到第 11 阶段 cinematic 崩了，系统需要知道：
+
+
+第 1 到第 10 阶段哪些制品可信？
+
+
+哪些阶段依赖了已经损坏的 Storage？
+
+
+哪些阶段可以跳过？
+
+
+哪些阶段必须重跑？
+
+
+Agent 的 6 层状态当时是什么？
+
+
+如果 autoflow 和 agent-kernel 没有共同的 run context，恢复会变成猜。
+第四，会出现“双重真相源”。
+agent-kernel.js 认为系统 blocked，autoflow.js 认为流程 running。
+hud-apiserver.js 到底显示哪个？
+这类 bug 最讨厌，因为不是直接报错，而是 UI 看起来正常，实际产物已经不可信。
+裁判结论
+正方的分层设计是对的。
+反方指出的核心缺陷也成立：分层不是问题，没有契约才是问题。
+应该新增一个中间层：
+JavaScriptstage-contract.js
+每个阶段声明：
+JavaScript{  id: "3-keyframes",  requiredKernelLayers: ["Core", "Workspace", "Storage", "Output"],  requiredInputs: ["storyboard"],  outputs: ["keyframePrompts", "keyframeAssets"],  blockingStatuses: ["Core:error", "Storage:error", "Output:blocked"],  canRetry: true,  canSkip: false}
+否则 6 层和 24 阶段会长期语义漂移。
+
+2. project-store.js 文件系统 JSON 读写
+正方
+正方：
+这是本地单用户工具，不是银行系统，也不是多节点 SaaS。
+用 JSON 文件持久化项目，早期非常合理：
+
+
+简单；
+
+
+可读；
+
+
+方便调试；
+
+
+方便备份；
+
+
+不需要数据库；
+
+
+用户可以直接打开项目文件检查；
+
+
+对 MVP 足够。
+
+
+而且 Node.js 是单进程事件循环，不是真的多线程同时写，所以未必马上出问题。
+反方
+反方：
+“单用户”不等于“无并发”。
+“Node 单线程”也不等于“无异步交错”。
+这个项目至少有这些并发场景。
+场景 1：HUD 轮询读取 + Autoflow 写入
+autoflow.js 正在写：
+JavaScriptstage 8 completestage 9 runningartifact added
+同时 hud-apiserver.js 正在读项目状态。
+如果写入不是原子操作，HUD 可能读到半截 JSON 或旧版本状态。
+场景 2：两个浏览器标签页同时操作同一项目
+用户打开两个 HUD 页面：
+
+
+A 页面点“一键流”；
+
+
+B 页面编辑项目标题或参数；
+
+
+两边都调用 project-store.save()。
+
+
+结果可能是：
+
+
+A 的阶段状态覆盖 B 的参数；
+
+
+B 的编辑覆盖 A 的最新进度；
+
+
+最后 JSON 文件语法完整，但内容逻辑丢失。
+
+
+这比 JSON 破损更难查。
+场景 3：artifact、evidence、project-store 分别写
+如果这三个模块分别写文件：
+
+
+artifact-archive.js 写入 artifact；
+
+
+artifact-evidence.js 写入 evidence；
+
+
+project-store.js 写入 project index；
+
+
+中间任何一步失败，都会产生孤儿数据。
+例如：
+artifact 文件存在evidence 没写成功project index 没登记
+结果就是文件在磁盘上，但 HUD 找不到，证据链也断了。
+场景 4：插件热加载期间写入
+某个插件正在执行阶段输出，热加载后 handler 或上下文变了。
+旧插件写出的数据结构可能和新插件期待的 schema 不一致。
+场景 5：进程崩溃或断电
+最危险的是写到一半进程挂了：
+JSON{  "projectId": "abc",  "stages": [
+下次启动整个项目无法解析。
+裁判结论
+正方对 MVP 的判断成立：JSON 文件可以继续用。
+但反方指出的是必须修的工程底线：不是要上分布式事务，而是至少要有本地事务保护。
+最低限度：
+项目级 mutex原子写：write tmp → fsync → renameversion 字段updatedAtschemaVersion写入前后校验 JSON
+更稳一点：
+events.log 追加日志snapshot 定期快照崩溃后从最后一个完整 snapshot 恢复
+
+3. 覆盖率检查阈值 60%
+正方
+正方：
+60% 覆盖率是一个启动门槛，目的不是保证完美，而是防止系统在完全没准备好的情况下开跑。
+这对早期系统有价值：
+
+
+避免空跑；
+
+
+避免关键模块未加载还启动；
+
+
+给 HUD 一个简单可视化指标；
+
+
+让用户知道当前 Agent 能力是否足够；
+
+
+便于快速判断系统健康度。
+
+
+60% 不高不低，像是 MVP 阶段的软门槛。
+反方
+反方：
+60% 最大的问题是：平均分掩盖致命缺陷。
+假设 6 层中 4 层 ok，覆盖率就是 66%。
+但如果坏掉的是 Storage，整个流程仍然不应该启动。
+比如：
+Input: okCore: okFacilitators: okWorkspace: okStorage: errorOutput: warncoverage = 66%
+看起来超过 60%，但实际上：
+
+
+项目状态不能可靠保存；
+
+
+制品不能归档；
+
+
+证据链不能落盘；
+
+
+delivery 结果不可信。
+
+
+这时候启动一键流是危险的。
+阈值过低的后果
+如果 60% 太低，会导致：
+
+
+缺少关键层也能启动；
+
+
+失败发生在中后段，浪费时间；
+
+
+产物不完整；
+
+
+证据链断裂；
+
+
+用户以为系统可用，实际只是“能跑但不可信”。
+
+
+阈值过高的后果
+如果改成 90% 或 100%，又可能导致：
+
+
+早期开发阶段很难启动；
+
+
+一些非必要能力缺失也阻塞；
+
+
+纯文案项目被 voice/music/fx 这类模块卡住；
+
+
+工具过度保守，体验变差。
+
+
+关键问题
+不是 60% 这个数字本身，而是它没有区分：
+
+
+关键层；
+
+
+非关键层；
+
+
+当前阶段必须层；
+
+
+当前项目类型可选层；
+
+
+warn 是否可继续；
+
+
+error 是否必须 blocked。
+
+
+裁判结论
+60% 可以保留为“参考分”，但不能作为唯一启动条件。
+建议改成：
+JavaScript{  globalMinimum: 0.6,  hardBlocks: [    "Core:error",    "Storage:error",    "Input:blocked"  ],  stageRules: {    "script": {      required: ["Input", "Core", "Storage"]    },    "keyframes": {      required: ["Core", "Workspace", "Output", "Storage"]    },    "delivery": {      required: ["Storage", "Output"]    }  }}
+一句话：
+coverage 是仪表盘，不是刹车系统。
+
+4. plugin-loader 热加载机制
+正方
+正方：
+插件动态 load/unload 是这个系统的扩展核心。
+视频制作工作台天然适合插件化：
+
+
+生图插件；
+
+
+生视频插件；
+
+
+配音插件；
+
+
+字幕插件；
+
+
+素材检索插件；
+
+
+导出插件；
+
+
+模型供应商插件；
+
+
+资源分析插件。
+
+
+热加载也方便开发，不用每次重启服务。
+对本地工具来说，动态插件能大幅提升迭代速度。
+反方
+反方：
+热加载如果没有生命周期协议，会产生一堆隐蔽 bug。
+问题 1：重启后状态是否丢失？
+如果插件状态只在内存中，比如：
+JavaScriptplugin.cacheplugin.currentJobsplugin.modelSessionplugin.tempArtifacts
+服务重启后必然丢失。
+除非插件把必要状态写入 project-store、artifact-archive 或自己的持久化目录。
+所以必须区分：
+插件代码状态：可丢插件运行状态：部分可丢项目业务状态：不可丢制品证据状态：不可丢
+如果这个边界不清楚，重启恢复会失败。
+问题 2：旧路由没有卸载干净
+动态加载插件时，如果只是重新 require() 或重新注册 handler，可能出现：
+
+
+旧路由还在；
+
+
+新路由也在；
+
+
+同一个 endpoint 被注册两次；
+
+
+请求命中顺序不可预测；
+
+
+fallback 静态路由吞掉插件路由。
+
+
+尤其原生 http 没有 Express 那种成熟中间件栈，路由表如果自己维护，更要小心。
+问题 3：旧插件的副作用没有清理
+插件可能注册了：
+
+
+timer；
+
+
+file watcher；
+
+
+event listener；
+
+
+cache；
+
+
+child process；
+
+
+model client；
+
+
+open file handle；
+
+
+temporary workspace；
+
+
+background queue。
+
+
+如果 unload 没有 teardown()，热加载十几次后会出现幽灵任务。
+问题 4：正在运行的 Autoflow 被污染
+最危险场景：
+Autoflow run 使用 plugin A v1 生成 storyboard中途热加载 plugin A v2后续 keyframes 使用 v2archive 记录里没有版本差异
+最终产物混用了两个插件版本。
+出现问题时无法复现。
+问题 5：插件之间依赖不清
+比如：
+keyframe-plugin 依赖 asset-directorvoiceover-plugin 依赖 script-plugin 输出delivery-plugin 依赖 subtitle-plugin 和 packaging-plugin
+如果插件之间没有声明依赖，就会出现：
+
+
+加载顺序错误；
+
+
+A 插件已经启用，但 B 插件缺失；
+
+
+API shape 不匹配；
+
+
+某个插件卸载后另一个插件还在调用它；
+
+
+版本不兼容。
+
+
+裁判结论
+插件化是优势，热加载是风险源。
+必须把 plugin 从“随便 load 一个 JS 文件”升级成“有生命周期的模块”。
+建议插件协议：
+JavaScript{  id: "voiceover",  version: "1.2.0",  dependsOn: ["script", "asset-director"],  provides: ["voiceover.generate"],  init(ctx) {},  registerRoutes(router) {},  healthcheck() {},  teardown() {}}
+热加载流程应该是：
+load new plugin into temp registryvalidate dependenciesrun healthcheckfreeze new registry snapshotswitch route table atomicallyteardown old pluginrecord plugin version in run context
+尤其要加：
+JavaScriptrun.pluginSnapshotVersion
+否则产物不可复现。
+
+5. artifact-archive.js 30KB 大文件
+正方
+正方：
+artifact-archive.js 是最大单文件模块，未必是坏事。
+归档系统天然是聚合点，它需要集中管理：
+
+
+制品路径；
+
+
+制品类型；
+
+
+版本；
+
+
+元数据；
+
+
+哈希；
+
+
+生成来源；
+
+
+创建时间；
+
+
+关联项目；
+
+
+清理策略；
+
+
+查询接口；
+
+
+与 evidence 的关系。
+
+
+如果拆得太碎，反而会让归档规则分散，破坏一致性。
+一个集中模块可以保证：
+
+
+所有 artifact 走同一套登记逻辑；
+
+
+所有路径生成规则一致；
+
+
+所有制品都有统一 metadata；
+
+
+所有 archive 行为可追踪。
+
+
+所以 30KB 本身不能证明它是坏设计。
+反方
+反方：
+30KB 最大文件在 90+ 源文件系统里，很可能已经变成“上帝对象”。
+特别是如果它同时做这些事，就危险了：
+路径计算文件复制JSON 读写制品索引证据链写入版本管理归档查询清理删除压缩导出错误处理状态更新HUD 响应格式
+这会带来几个问题。
+问题 1：职责过多，任何改动都可能破坏归档
+比如只是改一个文件命名规则，却影响：
+
+
+evidence；
+
+
+HUD 显示；
+
+
+delivery；
+
+
+project-store；
+
+
+retro。
+
+
+问题 2：很难测试
+如果一个函数同时：
+
+
+写文件；
+
+
+更新 JSON；
+
+
+生成 metadata；
+
+
+调用 evidence；
+
+
+返回 HUD 格式；
+
+
+那它很难单元测试，只能端到端跑。
+问题 3：归档和证据链边界混乱
+artifact-archive.js 和 artifact-evidence.js 应该分工明确：
+
+
+archive 负责“制品是什么，在哪里，版本如何”；
+
+
+evidence 负责“为什么生成，来源是什么，谁依赖它”。
+
+
+如果 archive 里也写 evidence，evidence 里也写 archive，就会互相耦合。
+问题 4：归档系统会成为所有模块的隐形依赖
+如果每个阶段都直接调用 archive 内部函数，后续重构会很痛苦。
+应该通过稳定接口调用：
+JavaScriptarchive.registerArtifact()archive.getArtifact()archive.listArtifacts()archive.linkArtifactToStage()
+而不是到处操作内部结构。
+裁判结论
+30KB 不是罪。
+但要检查它是不是已经承担了 5 个以上职责。
+建议拆成：
+artifact-archive.js          对外门面 facadeartifact-index.js            索引和查询artifact-writer.js           文件写入和原子落盘artifact-metadata.js         元数据生成和校验artifact-retention.js        清理、压缩、归档策略artifact-schema.js           schema 定义
+对外仍然保持一个入口：
+JavaScriptarchive.registerArtifact(...)
+这样既保留聚合优势，又避免上帝对象。
+
+6. 没有测试框架
+正方
+正方：
+早期工具没有测试框架可以理解。
+尤其是这种多模态视频工作台，早期主要风险可能是：
+
+
+产品方向是否成立；
+
+
+UI 是否能跑；
+
+
+pipeline 是否闭环；
+
+
+插件机制是否可扩展；
+
+
+prompt 和资产结构是否合理。
+
+
+这时候写大量测试可能拖慢探索速度。
+如果代码还在快速变化，测试可能每天都要重写。
+所以早期可以先手动测试，等架构稳定再补自动化测试。
+反方
+反方：
+对 90+ 源文件的视频制作系统来说，完全没有测试框架已经是严重风险。
+原因不是“代码多就必须测试”，而是这个系统有几个高危特征：
+高危特征 1：多阶段状态机
+24 阶段流程天然适合出错：
+
+
+跳阶段；
+
+
+重复执行；
+
+
+阶段失败后继续；
+
+
+retry 覆盖旧产物；
+
+
+skip 后依赖缺失；
+
+
+delivery 读取错误版本。
+
+
+没有测试，很难保证状态转移正确。
+高危特征 2：文件系统持久化
+project-store.js、artifact-archive.js、artifact-evidence.js 都涉及文件。
+文件系统 bug 很多是边界 bug：
+
+
+文件不存在；
+
+
+JSON 损坏；
+
+
+写入中断；
+
+
+路径非法；
+
+
+Windows 路径分隔符；
+
+
+中文文件名；
+
+
+并发写；
+
+
+权限错误；
+
+
+磁盘空间不足。
+
+
+这些靠手测很难覆盖。
+高危特征 3：插件热加载
+插件系统如果没有测试，重构一次就可能破坏：
+
+
+加载顺序；
+
+
+路由注册；
+
+
+unload；
+
+
+teardown；
+
+
+dependency validation；
+
+
+fallback 路由。
+
+
+高危特征 4：HUD API 和内部状态容易不一致
+没有测试时，HUD 看到的状态可能和真实项目状态不一致：
+server 返回 runningproject-store 里是 failedarchive 里有 artifactevidence 里没记录
+这种 bug 用户最容易感知，也最难定位。
+裁判结论
+早期没有完整测试可以理解。
+但现在如果已经有 90+ 源文件、24 阶段流程、插件系统、归档系统、HUD API，那么没有测试框架应该算 P1 级严重缺陷。
+不需要一上来追求 90% 覆盖率。
+先补 4 类测试就够：
+1. project-store 原子写 / 版本冲突 / JSON 损坏恢复测试2. autoflow 阶段状态转移测试3. plugin-loader 加载 / 卸载 / 依赖 / healthcheck 测试4. artifact archive + evidence 一致性测试
+
+总体裁判：正反方谁赢？
+正方赢的地方
+这个架构的方向是成立的：
+
+
+原生 Node 适合本地工具；
+
+
+插件化适合多模型、多媒体能力扩展；
+
+
+6 层 Agent 是好抽象；
+
+
+24 阶段流程接近专业制作管线；
+
+
+archive / evidence 说明项目有专业化意识；
+
+
+HUD 驾驶舱和视频制作工作台定位匹配。
+
+
+反方赢的地方
+反方在工程落地层面更强：
+
+
+状态语义有双重真相源；
+
+
+文件存储缺少事务边界；
+
+
+热加载缺少生命周期；
+
+
+60% 覆盖率容易制造假安全；
+
+
+artifact archive 可能成为上帝对象；
+
+
+没有测试会让后续重构越来越危险。
+
+
+一句话总结：
+
+正方证明它“方向可行”，反方证明它“现在不够可信”。
+
+
+Bug 优先级列表
+P0 致命：必须优先修
+P0-1：project-store.js 无原子写、无锁、无版本控制
+为什么是 P0：
+它会直接导致项目文件损坏、状态丢失、进度覆盖、制品索引错乱。
+这是数据完整性问题，不是体验问题。
+典型后果：
+一键流跑到第 18 阶段HUD 同时保存项目配置最终 project.json 被旧状态覆盖用户以为项目完成，实际 archive/evidence 对不上
+修复方向：
+项目级 mutextmp 写入 + rename 原子替换version 检查schemaVersion写入前后 JSON 校验崩溃恢复 snapshot
+
+P0-2：autoflow.js 与 agent-kernel.js 缺少统一 Stage Contract
+为什么是 P0：
+这是核心状态机问题。
+如果阶段和 Agent 层没有契约，系统会出现“看起来完成，实际上不可信”的假完成。
+典型后果：
+Storage warn / Output blocked但 keyframes、delivery、archive 仍显示 complete
+修复方向：
+stage-contract.jsrequiredInputsrequiredOutputsrequiredKernelLayersblockingRulesretryPolicyskipPolicyartifactPolicy
+
+P0-3：插件热加载缺少运行快照和生命周期隔离
+为什么是 P0：
+如果一键流运行中插件被替换，产物会不可复现。
+这会污染整个 archive/evidence 系统。
+典型后果：
+第 1-8 阶段用旧插件第 9-24 阶段用新插件证据链没有记录插件版本后续无法复盘为什么输出变了
+修复方向：
+plugin init / healthcheck / teardowndependency declarationatomic registry switchrun.pluginSnapshotVersion禁止运行中的 run 中途换插件版本
+
+P1 严重：尽快修
+P1-1：60% 覆盖率作为唯一启动门槛
+为什么是 P1：
+它不一定立刻损坏数据，但会让系统在关键能力缺失时错误启动。
+修复方向：
+coverage 作为参考分hardBlocks 作为真正阻断条件每个阶段单独 required layers项目类型 profile 化
+
+P1-2：没有测试框架
+为什么是 P1：
+90+ 文件、24 阶段、插件热加载、文件持久化，这些都属于高状态复杂度系统。
+没有测试，后续每次修 bug 都可能引入新 bug。
+优先补的测试：
+project-store 测试autoflow 状态机测试plugin-loader 生命周期测试archive/evidence 一致性测试HUD API 状态测试
+
+P1-3：artifact-archive.js 可能成为上帝对象
+为什么是 P1：
+如果它已经承担路径、写入、索引、证据链、清理、查询、状态同步等职责，后面会越来越难维护。
+修复方向：
+保留 archive facade拆 writer / index / metadata / retention / schemaarchive 与 evidence 明确边界
+
+P1-4：缺少实时事件流
+为什么是 P1：
+它不一定破坏数据，但会破坏 24 阶段工作台体验。
+HUD 如果只能轮询，用户无法判断系统是卡住、失败还是还在运行。
+修复方向：
+优先 SSE事件类型：stage:startstage:progressstage:completestage:errorartifact:createdagent:statusplugin:reloadproject:saved
+
+P2 一般：可以排期优化
+P2-1：24 阶段固定流程缺少项目 profile
+为什么是 P2：
+短期能跑，长期会不灵活。
+不同项目不一定需要完整 24 阶段。
+修复方向：
+pipeline profiles:short-videocinematic-trailermusic-videostoryboard-onlyasset-dev-only
+
+P2-2：原生 HTTP 路由可能变复杂
+为什么是 P2：
+不是必须换 Express。
+但随着插件路由增多，需要更清晰的 router registry、冲突检测和 fallback 顺序。
+修复方向：
+route registryroute conflict detectionplugin route namespacestatic fallback last
+
+P2-3：缺少 schema 校验
+为什么是 P2/P1 边界：
+如果项目数据和制品数据已经频繁变化，它会升为 P1。
+目前建议尽快加，但优先级低于文件原子写和状态契约。
+修复方向：
+project.schema.jsartifact.schema.jsstage.schema.jsplugin.schema.js
+
+最终排序
+我会这样排：
+优先级问题影响P0project-store.js 无锁无事务项目损坏、状态覆盖、数据丢失P0autoflow 与 agent-kernel 无统一契约阶段假完成、状态不可信P0插件热加载无生命周期和版本快照运行污染、产物不可复现P160% 覆盖率作为唯一门槛假安全、关键错误被平均分掩盖P1没有测试框架后续重构风险极高P1artifact-archive.js 上帝对象风险归档、证据链、状态耦合P1缺少 SSE / WebSocketHUD 体验和可观测性不足P224 阶段过固定不适配不同项目类型P2原生 HTTP 路由复杂化插件路由冲突、fallback 混乱P2缺少 schema 校验数据结构漂移
+最关键的一句话
+现在最先不要加新功能。
+先补三件事：
+1. Stage Contract2. Project Store Transaction Safety3. Plugin Lifecycle + Run Snapshot
+这三件补完，新烬龙V2 才会从“能跑的一键流”变成“可信的一键流”。

@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [5.1.0] — 2026-07-04
+
+### Hotfix: Metaphor-to-Runtime Leakage 架构修复
+- **死代码清理**: 删除 `core/lore/` 下 16 个纯叙事文件 (99,655 chars)
+- **AGENTS.md 拆热冷路径**: 10,900 → 2,305 chars (热)，方法论/架构移至 `AGENTS_REF.md`
+- **七兽/金手指冷加载**: 从默认注入移除，改为 `load_cold_lore()` 按需加载
+- **热路径指标**: CHAT 模式从 ~3,941 tok → ~802 tok (80% 缩减)
+- **品牌更新**: "七兽同体/七兽引擎" → "平时如刀，出事成阵"
+
 ## [5.0.0] - 2026-06-17 to 2026-07-04
 
 ### Features

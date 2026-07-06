@@ -1,0 +1,441 @@
+你的新判断是对的：CRUX 很适合成为“新烬龙V2”的外部 AI 平台总控层。但推荐方式不是把 V2 变成 CRUX 的附属程序，而是：
+
+CRUX 做智能调度大脑 + 外部平台执行器；V2 做状态主权、项目存储、流程契约、制品归档和 HUD 控制台。
+
+这样 CRUX 强，V2 也不会因为 CRUX 崩溃而完全瘫痪。
+
+一、正方：CRUX 作为总控为什么是最优解？
+正方 1：CRUX 已经掌握“真实生产渠道”
+V2 的目标是多模态 AI 视频制作工作台。真正的视频生产不是只调用一个 API，而是要调度：
+
+
+ChatGPT：脚本、分镜、提示词、审查；
+
+
+Gemini：多模态理解、图像/视频分析；
+
+
+Kling：生视频；
+
+
+Jimeng：图像/视频生成；
+
+
+Runway：视频生成、视频编辑；
+
+
+Luma：视频生成、镜头实验；
+
+
+其他网页 AI 工具。
+
+
+CRUX 已经能通过 Playwright CDP 操控这些平台，这一点很关键。
+正方观点：
+CRUX 不是普通插件，它是“跨平台 AI 操作系统”。让它当总控，比 V2 自己一个个接 API 更现实。
+
+正方 2：CRUX 能把“人类网页操作”自动化
+很多 AI 平台没有稳定 API，或者 API 能力弱于网页版。CRUX 通过浏览器 CDP 能做：
+
+
+自动打开平台；
+
+
+自动粘贴提示词；
+
+
+自动点击生成；
+
+
+自动等待结果；
+
+
+自动下载或复制结果；
+
+
+自动回传到 V2；
+
+
+自动处理部分 UI 变化。
+
+
+这让 V2 可以直接获得“可生产能力”，而不是卡在 API 接入阶段。
+正方观点：
+V2 负责管线，CRUX 负责把管线步骤变成真实网页平台动作。这是非常强的组合。
+
+正方 3：CRUX 的 skills 系统天然适合承载“专业操作流程”
+你现在有 29 个技能包，这很适合做成：
+
+
+脚本技能；
+
+
+分镜技能；
+
+
+提示词扩写技能；
+
+
+图像生成技能；
+
+
+视频生成技能；
+
+
+字幕技能；
+
+
+音效技能；
+
+
+审查技能；
+
+
+归档技能；
+
+
+复盘技能。
+
+
+V2 的 24 阶段是“制作阶段”，CRUX 的 skills 是“执行能力”。
+比如：
+V2 阶段CRUX 技能1-scriptscript-writing skill2-storyboardstoryboard-director skill3-keyframeskeyframe-prompt skill4-visual-devvisual-style skill9-animationvideo-generation skill12-voiceovervoiceover-prompt skill15-editedit-plan skill21-reviewQA/review skill23-archivearchive skill
+正方观点：
+V2 不需要把所有专业逻辑写死在 autoflow.js 里，而是把阶段任务交给 CRUX skill 执行。
+
+正方 4：CRUX 可以作为“多模型路由器”
+不同任务适合不同平台：
+
+
+长文本规划：ChatGPT；
+
+
+多模态理解：Gemini；
+
+
+中文图像/视频：Jimeng；
+
+
+高质量视频：Runway / Luma / Kling；
+
+
+镜头运动实验：Kling / Runway；
+
+
+提示词压缩和重写：ChatGPT；
+
+
+结果审查：ChatGPT + Gemini。
+
+
+CRUX 可以根据阶段选择平台。
+正方观点：
+CRUX 做总控后，V2 的 autoflow 不再只是固定 24 阶段，而是可以变成“动态选择最合适 AI 工具的生产线”。
+
+二、反方：这种设计有什么风险？
+反方 1：CRUX 如果成为唯一大脑，会造成单点故障
+如果架构变成：
+V2 所有阶段都必须经过 CRUX
+那么 CRUX 一崩，V2 就会：
+
+
+不能跑一键流；
+
+
+不能生成制品；
+
+
+不能恢复任务；
+
+
+HUD 只能显示错误；
+
+
+已经排队的阶段可能丢失；
+
+
+外部平台结果可能无法回传。
+
+
+反方观点：
+CRUX 可以是总控，但不能是唯一状态源。
+V2 必须保留项目状态、任务队列、制品归档、证据链和恢复能力。
+
+反方 2：Playwright CDP 操控网页很强，但也脆弱
+网页 AI 平台经常变化：
+
+
+按钮文案变了；
+
+
+DOM 结构变了；
+
+
+登录态过期；
+
+
+弹窗挡住页面；
+
+
+生成失败但页面没报错；
+
+
+下载按钮位置变了；
+
+
+平台限流；
+
+
+Cloudflare / 验证码；
+
+
+网络抖动；
+
+
+浏览器崩溃。
+
+
+反方观点：
+CRUX 的网页操控能力很强，但不能假设永远稳定。V2 要把 CRUX 的执行结果当成“不稳定外部执行器”，必须有超时、重试、人工接管和证据记录。
+
+反方 3：Python → Node 跨进程通信不是性能瓶颈，但会增加状态复杂度
+AI 平台生成一次可能几十秒到几分钟，所以 Python 与 Node 的通信开销不是主要问题。
+真正的问题是：
+
+
+请求超时；
+
+
+任务重复提交；
+
+
+CRUX 执行成功但回传失败；
+
+
+V2 以为失败，CRUX 实际还在跑；
+
+
+CRUX 重启后不知道刚才做到了哪一步；
+
+
+Node 重启后不知道 CRUX 有没有结果。
+
+
+反方观点：
+跨进程通信不可怕，同步阻塞才可怕。必须设计成异步任务协议，而不是 V2 调 CRUX 然后一直等 HTTP 返回。
+
+反方 4：CRUX skills 和 V2 plugins 容易职责重叠
+V2 已经有 plugin-loader，CRUX 又有 skills 系统。
+如果边界不清楚，会出现：
+V2 插件负责生成 keyframe promptCRUX skill 也负责生成 keyframe promptautoflow 不知道该调用谁archive 也不知道产物来源是谁
+最后系统会混乱。
+反方观点：
+V2 plugin 和 CRUX skill 必须分工：
+
+
+V2 plugin：系统能力、API、存储、HUD、内部工具；
+
+
+CRUX skill：外部平台操作、复杂 AI 执行策略、跨平台自动化。
+
+
+
+反方 5：24 阶段如果直接绑定 CRUX skills，会变得僵硬
+如果写死：
+第 1 阶段必须用 CRUX 的 script skill第 3 阶段必须用 CRUX 的 keyframe skill第 9 阶段必须用 CRUX 的 Kling skill
+那以后切换平台会很麻烦。
+反方观点：
+24 阶段不应该直接依赖具体 CRUX skill，而应该依赖“能力接口”。
+例如：
+stage 9-animation 需要 capability: video.generate
+至于由 Kling、Runway、Luma、Jimeng，还是本地插件执行，应由调度器决定。
+
+三、裁判结论：推荐的 CRUX 总控模型
+最推荐的架构是：
+
+V2 是状态主权中心，CRUX 是智能调度与外部执行中心。
+
+不要让 CRUX 直接接管所有 V2 内部状态。
+也不要让 V2 完全无脑等待 CRUX。
+正确关系应该是：
+V2 负责：项目、阶段、状态、任务、制品、证据、HUDCRUX 负责：计划、调度、外部平台执行、技能调用、结果回传
+
+四、推荐架构图
+┌─────────────────────────────────────────────────────────────────┐│                          HUD 驾驶舱                              ││  项目状态 / 阶段进度 / CRUX 状态 / 制品列表 / 错误 / 人工接管       │└───────────────▲─────────────────────────────────────────────────┘                │ SSE / HTTP                │┌───────────────┴─────────────────────────────────────────────────┐│                          V2 Node Core                            ││                                                                 ││  server.js                                                       ││  ├─ HUD API                                                      ││  ├─ plugin-loader                                                ││  ├─ autoflow.js                                                  ││  ├─ agent-kernel.js                                              ││  ├─ stage-contract.js                                            ││  ├─ crux-bridge-client.js                                        ││  ├─ task-broker.js                                               ││  ├─ project-store.js                                             ││  ├─ artifact-archive.js                                          ││  └─ artifact-evidence.js                                         ││                                                                 ││  V2 是状态主权中心：run / stage / task / artifact / evidence       │└───────────────▲───────────────────────────────┬─────────────────┘                │                               │                │ HTTP JSON / SSE / Webhook      │ Local fallback plugins                │                               │┌───────────────┴───────────────────────────────▼─────────────────┐│                         CRUX Orchestrator                         ││                                                                 ││  Python Bridge localhost:4366                                    ││  ├─ skill-registry                                                ││  ├─ platform-router                                               ││  ├─ playwright-cdp-controller                                     ││  ├─ browser-session-manager                                       ││  ├─ result-extractor                                              ││  ├─ retry / timeout / recovery                                    ││  └─ callback client to V2                                         ││                                                                 ││  CRUX 是外部 AI 平台执行与智能调度中心                             │└───────────────┬─────────────────────────────────────────────────┘                │ Playwright CDP                │┌───────────────▼─────────────────────────────────────────────────┐│                     外部 AI 平台                                  ││                                                                 ││ ChatGPT / Gemini / Kling / Jimeng / Runway / Luma / 其他平台       │└─────────────────────────────────────────────────────────────────┘
+核心原则：
+V2 不直接操控浏览器CRUX 不直接篡改 project-storeV2 派发任务CRUX 执行任务CRUX 回传结果V2 归档结果并推进阶段
+
+五、CRUX ↔ V2 通信协议设计
+1. 基本方向
+不要做同步阻塞协议：
+V2 调 CRUX → 一直等到平台生成完 → 返回
+这会导致超时、卡死、无法恢复。
+推荐做异步任务协议：
+V2 创建任务CRUX 领取任务CRUX 执行任务CRUX 持续回传事件V2 存储状态CRUX 完成后回传 artifactV2 归档并推进下一阶段
+
+2. 任务对象 Task
+JavaScript{  "taskId": "task_20260706_0001",  "runId": "run_xinjinlong_v2_001",  "projectId": "project_xjl_v2",  "stageId": "3-keyframes",  "attempt": 1,  "capability": "image.prompt.generate",  "preferredExecutor": "crux",  "preferredPlatform": "chatgpt",  "skillId": "keyframe_prompt_director",  "inputArtifactIds": [    "artifact_script_v1",    "artifact_storyboard_v1"  ],  "payload": {    "prompt": "根据分镜生成关键帧提示词……",    "outputSchema": "keyframePromptList.v1",    "language": "zh-CN"  },  "constraints": {    "timeoutMs": 600000,    "maxRetries": 2,    "requiresHumanReview": false  },  "idempotencyKey": "run_xjl_v2_001:3-keyframes:attempt-1"}
+关键字段：
+字段作用taskId单个任务唯一编号runId一次完整一键流运行stageId对应 24 阶段capability需要什么能力skillIdCRUX 具体技能preferredPlatform优先平台inputArtifactIds输入制品outputSchema输出结构idempotencyKey防止重复提交
+
+3. 事件协议 Event
+CRUX 不应该只在最后返回结果，而要持续回传事件：
+JavaScript{  "eventId": "evt_00042",  "taskId": "task_20260706_0001",  "runId": "run_xinjinlong_v2_001",  "stageId": "3-keyframes",  "type": "task.progress",  "timestamp": "2026-07-06T12:30:00+09:00",  "message": "已发送提示词，等待 ChatGPT 回复",  "progress": 0.45}
+建议事件类型：
+crux.heartbeattask.acceptedtask.startedtask.browser_readytask.prompt_submittedtask.waitingtask.result_partialtask.artifact_createdtask.completedtask.failedtask.timeouttask.requires_humantask.cancelled
+V2 收到事件后：
+
+
+写入 project-store；
+
+
+写入 artifact-evidence；
+
+
+推送给 HUD；
+
+
+决定是否推进下一阶段。
+
+
+
+4. 结果协议 Result
+JavaScript{  "taskId": "task_20260706_0001",  "runId": "run_xinjinlong_v2_001",  "stageId": "3-keyframes",  "status": "completed",  "outputs": [    {      "type": "text",      "artifactKind": "keyframe_prompt_list",      "content": [        {          "shot": 1,          "prompt": "IMAX cinematic divine alien spire..."        }      ],      "metadata": {        "platform": "chatgpt",        "skillId": "keyframe_prompt_director",        "modelOrTool": "browser-chatgpt",        "browserSessionId": "chrome_profile_01"      }    }  ],  "evidence": {    "platform": "chatgpt",    "skillVersion": "1.0.0",    "startedAt": "2026-07-06T12:20:00+09:00",    "completedAt": "2026-07-06T12:30:00+09:00",    "sourceTaskId": "task_20260706_0001"  }}
+V2 负责把这个结果登记成 artifact：
+artifact-archive.registerArtifact()artifact-evidence.linkTaskToArtifact()project-store.updateStageStatus()HUD SSE 推送
+
+六、CRUX 如何调度 autoflow 的 24 阶段
+不要让 autoflow.js 直接写死调用 CRUX。
+应该加一层：
+autoflow.js  → stage-contract.js  → task-broker.js  → executor-router.js  → CRUX / V2 plugin / manual
+推荐流程
+1. 用户在 HUD 点击“一键流”2. autoflow 创建 runId3. stage-contract 读取 24 阶段定义4. agent-kernel 检查当前系统状态5. executor-router 判断每个阶段由谁执行6. task-broker 创建阶段任务7. CRUX 领取或接收任务8. CRUX 调用 skill + 平台9. CRUX 回传结果10. V2 归档 artifact11. evidence 记录证据链12. autoflow 推进下一阶段13. HUD 实时显示状态
+
+24 阶段调度示例
+阶段capability推荐执行者1-scripttext.script.generateCRUX / ChatGPT2-storyboardstoryboard.generateCRUX / ChatGPT3-keyframesimage.prompt.generateCRUX / ChatGPT4-visual-devvisual.style.developCRUX / ChatGPT + Gemini5-characterasset.character.designCRUX / Jimeng / ChatGPT6-environmentasset.environment.designCRUX / Jimeng7-propasset.prop.designCRUX / Jimeng8-fxfx.prompt.generateCRUX / ChatGPT9-animationvideo.generateCRUX / Kling / Runway / Luma10-lightinglighting.plan.generateCRUX / ChatGPT11-cinematiccinematic.plan.generateCRUX / ChatGPT12-voiceovervoiceover.generateV2 plugin / CRUX13-musicmusic.prompt.generateCRUX / V2 plugin14-soundsound.plan.generateCRUX15-editedit.plan.generateCRUX16-colorcolor.grade.planCRUX17-vfxvfx.plan.generateCRUX18-titletitle.generateCRUX19-subtitlesubtitle.generateV2 plugin20-packagingdelivery.packageV2 plugin21-reviewquality.reviewCRUX + V222-deliverydelivery.exportV2 plugin23-archivearchive.persistV2 internal24-retroretro.generateCRUX / ChatGPT
+重点：
+不是每个阶段都必须 CRUX 执行。CRUX 负责最适合 AI 外部平台的阶段。V2 负责本地确定性阶段。
+
+七、CRUX skills 系统如何与 V2 plugin 系统共存
+推荐边界
+系统职责V2 plugin本地能力、API 路由、文件处理、导出、字幕、项目操作、HUD 功能CRUX skill跨平台 AI 操作、提示词生成、浏览器自动化、多模型调度、外部平台结果提取
+简单说：
+V2 plugin = 系统插件CRUX skill = AI 操作技能
+
+不推荐
+不要这样：
+V2 plugin 直接操作 ChatGPT 页面CRUX skill 直接写 project-store
+这会导致职责交叉。
+
+推荐做法：Capability Registry
+建立统一能力注册表：
+JavaScript{  "capability": "video.generate",  "executors": [    {      "type": "crux-skill",      "skillId": "kling_video_generate",      "platform": "kling",      "priority": 1    },    {      "type": "crux-skill",      "skillId": "runway_video_generate",      "platform": "runway",      "priority": 2    },    {      "type": "v2-plugin",      "pluginId": "local-video-plugin",      "priority": 3    }  ]}
+这样 autoflow 只问：
+我需要 video.generate
+不要问：
+我要用 Kling 网页按钮生成视频
+具体交给 executor-router 判断。
+
+skill manifest 示例
+CRUX 每个 skill 应该声明自己能干什么：
+JavaScript{  "skillId": "kling_video_generate",  "version": "1.0.0",  "capabilities": ["video.generate"],  "platforms": ["kling"],  "inputSchema": "videoPrompt.v1",  "outputSchema": "videoArtifact.v1",  "requiresBrowser": true,  "supportsRetry": true,  "averageDurationSec": 180,  "failureModes": [    "login_expired",    "generation_timeout",    "quota_exceeded",    "ui_changed"  ]}
+V2 plugin 也用类似 manifest：
+JavaScript{  "pluginId": "subtitle-plugin",  "version": "1.0.0",  "capabilities": ["subtitle.generate", "subtitle.export"],  "inputSchema": "transcript.v1",  "outputSchema": "subtitleFile.v1"}
+最终统一到一张能力表里。
+
+八、故障降级策略：CRUX 挂了 V2 能独立跑吗？
+答案应该是：
+
+能跑一部分，但不能完整跑外部 AI 平台阶段。
+
+这是最合理的设计。
+1. CRUX 正常时
+V2 autoflow 全流程CRUX 调度外部平台V2 归档结果HUD 实时显示
+2. CRUX 挂了时
+V2 应该进入降级模式：
+CRUX unavailable外部平台任务进入 pending本地插件阶段继续执行已完成 artifact 保留HUD 显示可恢复状态用户可选择人工执行或等待 CRUX 恢复
+3. 降级模式分类
+阶段类型CRUX 挂了后的处理本地确定性阶段继续执行文本规划阶段可使用 V2 内部插件或手动输入外部网页平台阶段pending / manual takeover归档阶段必须继续可用HUD 状态必须继续可用delivery 阶段如果素材齐全，可以继续
+
+4. 具体降级策略
+策略 A：CRUX heartbeat
+V2 定期检查：
+GET http://localhost:4366/health
+返回：
+JavaScript{  "status": "ok",  "version": "crux-1.0.0",  "activeBrowserSessions": 3,  "availableSkills": 29}
+如果连续失败：
+CRUX status = offline
+HUD 显示：
+CRUX 离线，外部 AI 平台任务已暂停。本地阶段仍可继续。
+
+策略 B：任务租约 lease
+不要让任务永久卡在 running。
+JavaScript{  "taskId": "task_001",  "leaseOwner": "crux",  "leaseUntil": "2026-07-06T12:40:00+09:00"}
+如果 CRUX 崩溃，超过 leaseUntil 没有 heartbeat：
+task running → stale
+然后 V2 可以：
+
+
+自动重试；
+
+
+等待 CRUX 恢复；
+
+
+交给其他 executor；
+
+
+标记为需要人工处理。
+
+
+
+策略 C：人工接管
+对于网页平台任务，V2 应该能导出：
+平台：Kling阶段：9-animation提示词：……输入图：……目标输出：……
+用户可以手动去平台生成，然后把结果拖回 V2。
+这能保证 CRUX 不在线时，项目不会死锁。
+
+策略 D：本地 fallback executor
+对部分阶段可以本地降级：
+script/storyboard/keyframes → 使用 V2 内部模型插件或手动输入subtitle/package/archive → V2 本地执行review/retro → 等 CRUX 恢复或手动跳过
+
+九、最终推荐模块改造
+建议新增这些模块：
+crux-bridge-client.js       V2 调用 CRUX bridgetask-broker.js              V2 内部任务队列executor-router.js          选择 CRUX / V2 plugin / manualstage-contract.js           24 阶段契约capability-registry.js      统一能力注册表crux-skill-adapter.js       把 CRUX skills 映射成 V2 capabilitiesrun-state-machine.js        run / stage / task 状态机event-bus.js                内部事件总线 + HUD SSE
+推荐分层：
+autoflow.js 不直接调用 CRUXautoflow.js 只创建 stage taskexecutor-router 决定谁执行task-broker 管理任务状态crux-bridge-client 负责通信artifact-archive 负责落盘artifact-evidence 负责证据链
+
+十、最终架构原则
+原则 1：V2 保存真相，CRUX 执行动作
+V2 = source of truthCRUX = executor / orchestrator / browser operator
+CRUX 可以决定“怎么做”，但 V2 必须记录“做到了哪里”。
+
+原则 2：阶段依赖 capability，不依赖具体平台
+stage 9-animation 需要 video.generate
+不要写死：
+stage 9-animation 必须用 Kling
+这样以后才能切换 Runway、Luma、Jimeng 或本地插件。
+
+原则 3：CRUX 任务必须可恢复、可重试、可审计
+每次 CRUX 执行都要记录：
+taskIdrunIdstageIdskillIdskillVersionplatformpromptinput artifactsoutput artifactsstart timeend timestatuserrorscreenshots/logs if available
+否则 evidence 系统就失去价值。
+
+原则 4：CRUX 掉线不能损坏 V2 项目
+CRUX 离线时，V2 应该变成：
+可查看可保存可归档可继续本地阶段可人工接管可等待恢复
+而不是：
+整个系统不可用
+
+最终结论
+CRUX 作为 V2 总控是很强的设计，但要避免一个致命误区：
+
+不要让 CRUX 成为唯一状态源。
+
+最推荐的最终形态是：
+CRUX = 调度大脑 + 外部 AI 平台执行器V2 = 状态主权中心 + 制作管线 + 制品系统 + HUD 控制台
+最终落地优先级：
+P0：Stage Contract + Task BrokerP0：CRUX ↔ V2 异步任务协议P0：V2 project-store 保留状态主权P1：Capability Registry，统一 CRUX skills 与 V2 pluginsP1：CRUX heartbeat / lease / retry / manual takeoverP1：HUD SSE 显示 CRUX 与阶段实时状态
+一句话总结：
+
+让 CRUX 控制生产，让 V2 控制真相。

@@ -1,0 +1,116 @@
+1. 当前业务成熟度评分
+当前业务成熟度：68 / 100
+你这一轮提升很大，因为最关键的“资产产品化”已经推进了：
+1351 个工作流已加载1336 个已有参数模板推荐引擎能按意图匹配V2 8 个阶段已有映射CRUX run-stage API 已存在12/12 模块通过
+这说明系统已经从：
+工作流文件仓库
+升级成了：
+可索引、可推荐、可填参的工作流能力库
+但还不能给 75 分以上，因为最核心的业务闭环还没打通：
+推荐到了 workflow↓参数也能填↓但 executor.submit() 还没真的连 ComfyUI↓执行状态和结果也没有闭环↓CRUX autoflow 也还没真正调用
+所以当前状态可以定义为：
+
+业务能力库基本成型，但真实执行闭环尚未完成。
+
+
+2. 最优先解决的 3 个问题
+第一优先：把 executor.submit() 真正接上 ComfyUI
+这是当前最大硬缺口。
+你现在已经有：
+workflow registrymanifest 参数模板recommendation engineworkflow_runnerV2 stage mappingCRUX API
+但如果 executor 还是 Stub，整个系统只能停留在“会选 workflow、会生成 workflow JSON”，还不能真正产出图片或视频。
+技术方案
+实现一个真实的 ComfyHTTPExecutor。
+核心能力：
+1. 提交 workflow 到 ComfyUI2. 获得 prompt_id3. 轮询执行状态4. 读取 history5. 收集输出文件6. 返回统一 RunResult
+最小接口：
+Python运行class ComfyHTTPExecutor:    def submit(self, workflow: dict, *, client_id: str | None = None) -> SubmitResult:        ...    def get_status(self, prompt_id: str) -> ExecutionStatus:        ...    def wait(self, prompt_id: str, timeout_seconds: int = 900) -> ExecutionStatus:        ...    def collect_outputs(self, prompt_id: str) -> list[WorkflowOutput]:        ...    def cancel(self, prompt_id: str) -> CancelResult:        ...
+提交逻辑：
+Python运行def submit(self, workflow: dict, *, client_id: str | None = None) -> SubmitResult:    payload = {        "prompt": workflow,        "client_id": client_id or self.client_id,    }    response = self.http.post(        f"{self.base_url}/prompt",        json=payload,        timeout=self.submit_timeout,    )    response.raise_for_status()    data = response.json()    return SubmitResult(        prompt_id=data["prompt_id"],        number=data.get("number"),        node_errors=data.get("node_errors", {}),    )
+结果读取逻辑：
+POST /prompt↓返回 prompt_id↓GET /history/{prompt_id}↓解析 outputs↓生成结果 URL↓返回给 CRUX / 前端
+输出结果结构建议统一成：
+JSON{  "job_id": "job_20260706_xxx",  "prompt_id": "comfy_prompt_xxx",  "status": "success",  "workflow_id": "ltxv_img2video_basic",  "outputs": [    {      "type": "image",      "filename": "ComfyUI_00001_.png",      "subfolder": "",      "comfy_type": "output",      "url": "/api/comfyui/view?filename=ComfyUI_00001_.png&type=output",      "local_path": null    }  ],  "error": null,  "duration_ms": 124000}
+这一件做完，系统才从“能力库”变成“能干活”。
+
+第二优先：建立执行状态与结果管理
+只接上 ComfyUI 还不够。
+业务系统必须知道：
+任务是否提交成功现在排队还是运行中运行到哪个节点有没有失败失败原因是什么出了哪些图片 / 视频结果如何回传给 CRUX结果如何在前端展示
+所以要新增一个 JobManager / ResultManager。
+技术方案
+建议新增：
+runtime/├── job_manager.py├── result_manager.py├── status_store.py└── artifact_store.py
+JobManager 负责状态
+状态枚举：
+Python运行class JobStatus(str, Enum):    CREATED = "created"    SUBMITTED = "submitted"    QUEUED = "queued"    RUNNING = "running"    SUCCEEDED = "succeeded"    FAILED = "failed"    CANCELED = "canceled"    TIMEOUT = "timeout"
+内部记录：
+JSON{  "job_id": "job_xxx",  "prompt_id": "comfy_prompt_xxx",  "workflow_id": "flux_txt2img_basic",  "stage": "keyframe_generation",  "status": "running",  "progress": {    "current_node": "KSampler",    "current_step": 14,    "total_steps": 28  },  "created_at": "...",  "updated_at": "...",  "outputs": [],  "error": null}
+ResultManager 负责产物
+ResultManager 要解决：
+ComfyUI 输出在哪里？图片 / 视频如何转成 URL？CRUX 怎么拿结果？前端怎么展示？失败任务有没有错误详情？
+建议统一输出：
+Python运行@dataclassclass WorkflowOutput:    type: Literal["image", "video", "json", "text"]    filename: str    subfolder: str | None    comfy_type: str    url: str    local_path: str | None = None    metadata: dict = field(default_factory=dict)
+API 最少要补这些
+POST /api/crux/comfyui/run-stageGET  /api/crux/comfyui/jobs/{job_id}GET  /api/crux/comfyui/jobs/{job_id}/outputsPOST /api/crux/comfyui/jobs/{job_id}/cancelGET  /api/comfyui/view
+这样 CRUX 和前端才能完整拿到状态和结果。
+
+第三优先：把 V2 死映射改成“阶段 + prompt + assets → 推荐引擎”
+现在 V2 写死 8 条规则，短期能跑，但会限制 1351 个工作流的价值。
+你现在已经有推荐引擎，所以 V2 不应该再这样：
+stage_1 → workflow_Astage_2 → workflow_Bstage_3 → workflow_C
+而应该改成：
+V2 stage + prompt + 输入资产 + 约束↓WorkflowRecommender↓Top candidates↓选择最佳 workflow↓参数填充↓runner 执行
+技术方案
+新增一个统一请求对象：
+Python运行@dataclassclass StageRunRequest:    stage: str    prompt: str    assets: list[AssetRef]    constraints: dict    user_params: dict = field(default_factory=dict)
+推荐请求：
+Python运行@dataclassclass WorkflowRecommendRequest:    stage: str    prompt: str    intent: str | None    assets: list[AssetRef]    constraints: dict
+推荐器返回：
+JSON{  "workflow_id": "ltxv_img2video_basic",  "confidence": 0.87,  "reason": "当前阶段需要图生视频，用户提供了关键帧图片，该工作流支持 image_to_video。",  "missing_params": ["input_image", "motion_prompt"],  "matched_tags": ["video", "image_to_video", "ltxv"]}
+最终调用链应该变成：
+CRUX autoflow↓comfyui-workflow-adapter.js↓POST /api/crux/comfyui/run-stage↓V2StageRouter↓WorkflowRecommender↓WorkflowRunner↓ComfyHTTPExecutor↓JobManager / ResultManager↓CRUX receives job_id + outputs
+死映射保留为 fallback
+不要直接删除 8 条死映射。
+把它降级为 fallback：
+优先：推荐引擎动态选择失败：使用 V2 默认 stage mapping再次失败：返回缺参 / 缺模型 / 无可用工作流
+伪代码：
+Python运行def resolve_workflow_for_stage(request: StageRunRequest) -> WorkflowChoice:    candidates = recommender.recommend(        stage=request.stage,        prompt=request.prompt,        assets=request.assets,        constraints=request.constraints,    )    if candidates:        return candidates[0]    fallback = static_stage_mapping.get(request.stage)    if fallback:        return WorkflowChoice(            workflow_id=fallback,            confidence=0.35,            reason="推荐引擎无高置信匹配，使用阶段默认工作流。",        )    raise NoWorkflowCandidateError(request.stage)
+
+3. 推荐的落地顺序
+不要先改前端，也不要先继续扩充工作流数量。
+当前正确顺序是：
+1. ComfyHTTPExecutor2. JobManager + ResultManager3. V2 动态推荐路由 + CRUX autoflow 接入
+原因很简单：
+没有 executor，推荐再准也跑不起来。没有状态和结果，跑起来也无法被业务系统使用。没有 CRUX 接入，V2 只能孤立测试，不能进入总流程。
+
+4. 每个问题的完成标准
+executor 完成标准
+必须通过这些测试：
+1. 能 POST /prompt2. 能拿到 prompt_id3. 能 GET /history/{prompt_id}4. 能解析 SaveImage 输出5. 能解析视频输出6. ComfyUI 未启动时返回 ComfyConnectionError7. workflow 错误时返回 ComfyWorkflowError8. 超时时返回 ComfyTimeoutError
+
+状态 / 结果管理完成标准
+必须支持：
+1. job_id 映射 prompt_id2. 查询 job 状态3. 查询输出结果4. 失败任务有 error_type / message5. 成功任务有 outputs6. 前端可直接用 URL 展示结果7. CRUX 可拿结构化结果继续下一阶段
+
+V2 动态路由完成标准
+必须支持：
+1. stage + prompt 动态推荐 workflow2. assets 影响推荐结果3. constraints 影响推荐结果4. 静态映射只作为 fallback5. 返回推荐原因6. 返回缺失参数7. run-stage 能直接执行推荐 workflow8. autoflow 真正调用 comfyui-workflow-adapter.js
+
+5. 当前最关键的系统差距
+你现在已经解决了：
+工作流数量参数模板推荐基础阶段映射模块测试
+还没解决的是：
+真实执行状态跟踪结果回传CRUX 自动调用
+所以当前瓶颈已经不是“有没有工作流”，而是：
+
+工作流资产能不能进入真实生产链路。
+
+
+最终判断
+当前业务成熟度已经从上一轮的 52 / 100 提升到 68 / 100。
+但下一步必须打通执行闭环：
+推荐 workflow↓填参数↓提交 ComfyUI↓跟踪状态↓拿结果↓回传 CRUX
+最优先的 3 件事是：
+1. executor.submit() 真正连接 ComfyUI2. JobManager + ResultManager 管理状态和结果3. V2 静态映射升级为动态推荐，并让 CRUX autoflow 真正调用
+这三件完成后，业务成熟度可以直接提升到 80～85 / 100。

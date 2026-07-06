@@ -1,0 +1,46 @@
+def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._lines: list[tuple[str, str]] = []
+        self._stream_role = ""
+        self._stream_label = ""
+        self._stream_buffer = ""
+        self._pinned = True
+        self._empty_renderer = None  # type: ignore[assignment]
+        self._empty_render_cache = None
+        self._empty_render_cache_key = None
+
+        def _render():
+            # Snapshot state atomically, render without lock
+            with self._lock:
+                if not self._lines and not self._stream_buffer:
+                    if self._empty_renderer is not None:
+                        _empty_width = self._window.render_info.window_width if self._window.render_info else None
+                        _empty_key = _empty_width
+                        if self._empty_render_cache_key != _empty_key:
+                            self._empty_render_cache = self._empty_renderer()
+                            self._empty_render_cache_key = _empty_key
+                        return self._empty_render_cache
+                    return FormattedText([("class:message-info", "Type a message or /help for commands")])
+                lines_snapshot = list(self._lines)
+                stream_snapshot = self._stream_buffer
+            pieces = []
+            for style_class, text in lines_snapshot:
+                pieces.append((style_class, text + "\n"))
+            if stream_snapshot:
+                pieces.append(("class:message-crux", stream_snapshot))
+            return FormattedText(pieces)
+
+        self._control = _MessagePaneControl(self, _render)
+        self._window = _ScrollingWindow(
+            content=self._control,
+            style="class:message-area",
+            wrap_lines=True,
+            height=Dimension(weight=1),
+            always_hide_cursor=True,
+            allow_scroll_beyond_bottom=False,
+            right_margins=[],
+        )
+
+    # ── Public properties ────────────────────────────────────
+
+    @property

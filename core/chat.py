@@ -756,6 +756,10 @@ class ChatSession(ChatToggleMixin):
         # ── 纯文本分支：加 user message ──
         self.messages.append({"role": "user", "content": user_text})
 
+        # Auto-route: classify prompt intent → dynamically switch model tier
+        # (e.g. complex code → pro, simple Q&A → light, deep reasoning → reasoner)
+        self._auto_route(user_text)
+
         # Inject relevant past memories as context
         self._inject_memory(user_text)
 

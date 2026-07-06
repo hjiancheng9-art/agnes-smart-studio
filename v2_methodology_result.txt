@@ -1,0 +1,899 @@
+下面是给 CRUX 总控直接使用的 新烬龙V2 专属方法论体系 v1.0，重点不是理论，而是可执行调度、决策、验收、平台选择和提示词模板。
+编辑新烬龙V2 专属方法论体系 v1.0适用对象：CRUX 总控 / V2 24阶段视频创作管线 / ComfyUI 智能体 / 外部 AI 平台调度方法论 1：V2 管线运行方法论代号：V2-PIPELINE-RUNBOOK1.1 总原则CRUX 调度 V2 时，不直接“从头跑到尾”，而是按 阶段依赖 + 质量门 + 可并行组 执行。核心执行公式：阶段可执行 = 上游产物存在 + 输入真实 + 决策已锁定 + Prompt已组装 + 执行器可用 + 规则未阻断禁止：1. 没有真实输入就进入重构。
+2. 没有剧本就生成分镜。
+3. 没有分镜就生成关键帧。
+4. 没有关键帧就生成动画。
+5. 没有证据就标记完成。
+6. 没有 QA 就进入交付。1.2 24阶段执行分组A组：创意结构阶段，必须串行1-script
+2-storyboard
+3-keyframes
+4-visual-dev原因：故事、镜头、关键帧、视觉风格互相依赖。B组：资产设计阶段，可部分并行5-character
+6-environment
+7-prop
+8-fx并行条件：storyboard.v1 已完成
+visual-dev.v1 已完成
+style-anchor 已锁定C组：动态生产阶段，先串后并9-animation
+10-lighting
+11-cinematic推荐顺序：11-cinematic 先出镜头运动方案
+10-lighting 同步给灯光规则
+9-animation 使用 keyframes + cinematic + lighting 执行D组：声音阶段，可与动画部分并行12-voiceover
+13-music
+14-sound并行条件：script.v1 完成
+storyboard.v1 完成
+shot duration 已确定E组：后期阶段，严格串行15-edit
+16-color
+17-vfx
+18-title
+19-subtitle
+20-packaging
+21-review
+22-delivery
+23-archive
+24-retro1.3 24阶段时间参考30秒短片阶段推荐时间可并行1-script10-20分钟否2-storyboard15-30分钟否3-keyframes30-90分钟部分4-visual-dev20-40分钟否5-character30-60分钟是6-environment30-60分钟是7-prop15-40分钟是8-fx15-40分钟是9-animation1-4小时按镜头并行10-lighting20-40分钟是11-cinematic20-40分钟是12-voiceover20-60分钟是13-music20-60分钟是14-sound30-90分钟是15-edit30-90分钟否16-color20-60分钟否17-vfx30-120分钟部分18-title10-30分钟是19-subtitle10-30分钟是20-packaging10-20分钟否21-review15-40分钟否22-delivery10-30分钟否23-archive5-20分钟否24-retro10-30分钟否3分钟短片最短：3-5天
+标准：7-14天
+高质量：14-30天1.4 阶段间数据传递协议1-script → 2-storyboard必须传：{
+  "scriptId": "script_v001",
+  "title": "",
+  "logline": "",
+  "theme": "",
+  "acts": [],
+  "scenes": [
+    {
+      "sceneId": "scene_001",
+      "location": "",
+      "characters": [],
+      "action": "",
+      "dialogue": [],
+      "mood": "",
+      "visualFocus": ""
+    }
+  ],
+  "characters": [],
+  "worldRules": [],
+  "durationTargetSec": 180
+}CRUX 检查：必须有 logline
+必须有 scenes
+必须有 characters
+必须有 durationTargetSec2-storyboard → 3-keyframes必须传：{
+  "storyboardId": "storyboard_v001",
+  "shots": [
+    {
+      "shotId": "shot_001",
+      "sceneId": "scene_001",
+      "durationSec": 4,
+      "shotSize": "wide",
+      "cameraMovement": "slow push-in",
+      "mainAction": "",
+      "characterRefs": [],
+      "environmentRef": "",
+      "propRefs": [],
+      "mood": "",
+      "transition": ""
+    }
+  ]
+}CRUX 检查：每个 shot 必须有 shotId
+每个 shot 必须有 durationSec
+每个 shot 必须有 mainAction
+关键镜头必须绑定 characterRefs / environmentRef3-keyframes → 9-animation必须传：{
+  "keyframePlanId": "keyframes_v001",
+  "keyframes": [
+    {
+      "shotId": "shot_001",
+      "imageArtifactId": "artifact_keyframe_001",
+      "promptSnapshotId": "prompt_001",
+      "styleAnchorId": "style_001",
+      "approved": true
+    }
+  ]
+}CRUX 检查：每个动画 shot 必须有 approved keyframe
+关键帧必须有真实路径
+不能使用 placeholder image9-animation → 15-edit必须传：{
+  "clips": [
+    {
+      "shotId": "shot_001",
+      "clipArtifactId": "clip_001",
+      "durationSec": 4,
+      "fps": 24,
+      "resolution": "1920x1080",
+      "qaStatus": "passed"
+    }
+  ]
+}CRUX 检查：clip 时长必须接近 storyboard duration
+clip 必须可播放
+clip 必须有 evidence15-edit → 22-delivery必须传：{
+  "editArtifactId": "rough_cut_001",
+  "timeline": [],
+  "durationSec": 178,
+  "audioTracks": [],
+  "subtitleTrack": "",
+  "reviewStatus": "approved"
+}CRUX 检查：必须有 final video
+必须有字幕或明确无需字幕
+必须 review passed1.5 CRUX 调度策略串行阶段命令模板{
+  "action": "run_stage",
+  "projectId": "{{projectId}}",
+  "runId": "{{runId}}",
+  "stageId": "1-script",
+  "mode": "strict",
+  "requires": ["projectBrief"],
+  "produces": ["script.v1"],
+  "onFail": "block"
+}并行阶段命令模板{
+  "action": "run_parallel_group",
+  "projectId": "{{projectId}}",
+  "runId": "{{runId}}",
+  "groupId": "asset_design",
+  "stages": ["5-character", "6-environment", "7-prop", "8-fx"],
+  "maxConcurrency": 3,
+  "requires": ["storyboard.v1", "style-anchor.v1"],
+  "onPartialFail": "continue_non_blocking_then_review"
+}卡住检测CRUX 每 30-60 秒检查：{
+  "runId": "{{runId}}",
+  "checks": [
+    "currentStageAge",
+    "taskHeartbeat",
+    "artifactCreated",
+    "evidenceCreated",
+    "qualityStatus",
+    "ruleBlockers"
+  ]
+}卡住判定：外部平台任务 > 10分钟无 heartbeat → stale
+本地阶段 > 3分钟无事件 → suspicious
+关键阶段失败 2次 → requires_human
+同一 QA 问题重复 3次 → direction/prompt 需要重审1.6 失败恢复策略失败类型分类类型例子CRUX动作input_missing没有视频/文本输入请求用户补输入或降级为纯文本创作prompt_failed返回格式不符合 schemaprompt-manager 修复后重试provider_timeoutChatGPT/ComfyUI 超时重试一次，失败后切平台quality_failed角色漂移/镜头不符局部重跑受影响阶段artifact_missing结果没保存重新下载或手动注册evidence_missing无证据链捕获页面截图/response hashrule_blocked违反规则不重试，必须修输入或策略stage_contract_failed上游缺字段回到上游阶段补产物重试参数{
+  "retryPolicy": {
+    "maxRetries": 2,
+    "delaySec": 10,
+    "backoff": "linear",
+    "retryOnlyFor": [
+      "provider_timeout",
+      "schema_parse_failed",
+      "network_error",
+      "artifact_download_failed"
+    ],
+    "doNotRetryFor": [
+      "rule_blocked",
+      "missing_required_input",
+      "user_rejected"
+    ]
+  }
+}降级策略原计划降级方案视频理解失败用户文本 brief + 手动镜头描述ComfyUI 出图失败CRUX 切到 Jimeng / ChatGPT image / Gemini imageKling 视频失败切 Runway / Luma / Seedance配音失败输出 voiceover script，不生成音频音乐失败使用音乐提示词包，等待人工制作自动剪辑失败输出剪辑决策表 EDL方法论 2：V2 导演决策方法论代号：V2-DIRECTOR-DECISION2.1 什么时候必须做导演决策以下节点必须触发 director decision：项目开始前：确定创作方向
+剧本完成后：确认故事方向
+分镜完成后：确认镜头语言
+关键帧前：确认视觉风格
+动画前：确认动态和镜头运动
+QA失败后：决定修复策略
+用户反馈后：决定是否改方向
+交付前：确认最终风格和版本2.2 导演决策类型{
+  "decisionTypes": [
+    "creative_direction",
+    "story_direction",
+    "visual_style",
+    "character_lock",
+    "camera_language",
+    "motion_strategy",
+    "audio_direction",
+    "repair_strategy",
+    "delivery_strategy"
+  ]
+}2.3 权责优先级冲突时按这个顺序裁决：1. 用户明确要求
+2. V2 core rules
+3. creative-bible 已锁定设定
+4. director decision snapshot
+5. QA / quality-gate
+6. CRUX 外部模型建议
+7. 平台默认建议示例：用户要求：写实奇幻
+creative-bible：神秘壮丽、光暗交织
+CRUX/ChatGPT建议：做成可爱卡通更适合动画
+
+裁决：保持写实奇幻。CRUX建议可作为备选 proposal，不能覆盖正式方向。2.4 导演决策对象模板{
+  "decisionId": "dir_001",
+  "projectId": "{{projectId}}",
+  "runId": "{{runId}}",
+  "stageId": "global",
+  "type": "visual_style",
+  "status": "committed",
+  "final": {
+    "style": "mystic epic fantasy animation",
+    "tone": ["mysterious", "grand", "bright-shadow contrast"],
+    "palette": ["emerald green", "gold", "deep blue", "shadow black"],
+    "cameraLanguage": ["wide establishing", "slow push-in", "low angle heroic"],
+    "negativeConstraints": [
+      "no cheap cartoon look",
+      "no modern city elements",
+      "no sci-fi neon"
+    ]
+  },
+  "conflicts": [
+    {
+      "source": "crux_chatgpt",
+      "suggestion": "cute cartoon tone",
+      "resolution": "rejected",
+      "reason": "conflicts with user fantasy epic direction"
+    }
+  ],
+  "appliesToStages": [
+    "2-storyboard",
+    "3-keyframes",
+    "4-visual-dev",
+    "9-animation",
+    "16-color"
+  ]
+}2.5 风格一致性维护Style Anchor 固定格式{
+  "styleAnchorId": "style_001",
+  "visualStyle": "远古魔法纪元，浮空岛奇幻动画，神秘壮丽，光明与暗影交织",
+  "palette": {
+    "primary": ["#1F8A70", "#D9B76E"],
+    "secondary": ["#19324D", "#0B0D18"],
+    "accent": ["#BDF7E4"]
+  },
+  "materials": [
+    "ancient white stone",
+    "emerald feather leaves",
+    "golden wind energy",
+    "shadow mist"
+  ],
+  "lighting": [
+    "soft volumetric morning light",
+    "gold rim light",
+    "deep shadow contrast"
+  ],
+  "compositionRules": [
+    "wide shots emphasize floating scale",
+    "characters small against vast sky",
+    "wind energy creates leading lines"
+  ],
+  "negative": [
+    "modern buildings",
+    "cyberpunk neon",
+    "plastic toy look",
+    "overly cute chibi style"
+  ]
+}每阶段注入规则阶段必须引用2-storyboardcameraLanguage, mood3-keyframespalette, materials, negative4-visual-dev全量 styleAnchor5-charactercharacter style + palette6-environmentmaterials + lighting9-animationmotion + cameraLanguage16-colorpalette + contrast21-reviewnegative + styleAnchor2.6 CRUX 导演仲裁流程1. 收集用户输入、creative-bible、QA问题、平台建议。
+2. 标记冲突来源。
+3. 查询优先级。
+4. 生成 1 个 final decision。
+5. 保存 decisionId。
+6. 写入 creative-bible / prompt-manager / QA gate。
+7. 下游阶段必须引用 decisionId。冲突仲裁输出模板{
+  "conflictId": "conflict_001",
+  "topic": "visual_style",
+  "options": [
+    {
+      "source": "user",
+      "value": "epic fantasy",
+      "priority": 1
+    },
+    {
+      "source": "crux_chatgpt",
+      "value": "cute animation",
+      "priority": 6
+    }
+  ],
+  "winner": "user",
+  "finalValue": "epic fantasy",
+  "action": "lock_style_anchor",
+  "affectedStages": ["3-keyframes", "9-animation", "16-color"]
+}方法论 3：V2 质量门方法论代号：V2-QUALITY-GATE3.1 阻断 / 警告 / 放行标准Block 阻断以下情况必须阻断：1. 必需输入缺失。
+2. 使用 placeholder 当真实产物。
+3. artifact 无真实路径。
+4. CRUX 外部结果无 evidence。
+5. 输出 schema 不合格。
+6. 阶段产物无法被下游消费。
+7. 用户明确要求被违反。
+8. creative-bible locked 项被破坏。
+9. 视频/音频文件不可打开。
+10. 交付包缺最终视频。Warn 警告以下情况允许继续，但必须记录：1. 风格轻微漂移。
+2. 某个非关键道具缺失。
+3. 单个镜头时长偏差小于 15%。
+4. 音乐情绪略不匹配。
+5. 字幕断句可优化。
+6. 画面细节不足但主体正确。
+7. 证据完整但置信度低。Pass 放行满足：1. 必需输入齐全。
+2. 输出符合 schema。
+3. artifact 已注册。
+4. evidence 已注册。
+5. QA 无 blocker。
+6. 下游可消费。3.2 每阶段验收标准1-script必须有：logline
+三幕结构
+场景列表
+角色列表
+核心冲突
+结尾Block：无核心冲突
+无主角目标
+无法拆分镜2-storyboard必须有：shotId
+sceneId
+durationSec
+shotSize
+cameraMovement
+mainAction
+transition
+assetRefsBlock：镜头无编号
+总时长缺失
+关键剧情未覆盖3-keyframes必须有：每个关键 shot 的 imageArtifactId
+promptSnapshotId
+styleAnchorId
+real image pathBlock：placeholder image
+角色明显漂移
+关键镜头缺图4-visual-dev必须有：styleAnchor
+palette
+material rules
+lighting rules
+negative constraintsBlock：无风格锚点
+与用户方向冲突5-character必须有：characterId
+外貌锁定
+服装
+标志物
+表情/pose
+referenceInputs 可选但推荐Block：主角无设计
+主角与剧本不一致6-environment必须有：environmentId
+空间描述
+光源
+材质
+行动路径
+scale referenceBlock：关键场景缺失
+环境与分镜不匹配7-prop必须有：propId
+用途
+材质
+尺寸
+绑定角色/场景Block：剧情关键道具缺失8-fx必须有：fxId
+触发条件
+颜色
+形态
+生命周期
+强度等级Block：关键魔法/能量效果无规则9-animation必须有：shotId
+基于 approved keyframe
+videoArtifactId
+durationSec
+real video path
+evidenceIdBlock：视频不可播放
+角色严重变形
+时长偏差超过 25%
+无 evidence10-lighting必须有：主光方向
+环境光
+轮廓光
+主体可读性Block：主体不可见
+光线与场景冲突11-cinematic必须有：景别
+镜头运动
+焦点
+转场逻辑
+节奏说明Block：镜头运动不可执行
+镜头语言与情绪冲突12-voiceover必须有：语言
+角色声线
+情绪
+语速
+targetDurationSec
+linkedShotIdsBlock：语言错误
+配音时长严重超镜头13-music必须有：mood
+BPM
+乐器
+高潮点
+授权/来源Block：音乐压过对白
+情绪完全不匹配14-sound必须有：环境声
+动作声
+特殊音效
+timecode
+空间定位Block：关键动作无音效
+音效严重不同步15-edit必须有：rough_cut
+timeline
+总时长
+镜头顺序
+音画同步Block：剧情顺序错误
+黑帧/空帧
+视频不可播放16-color必须有：色彩校正
+风格调色
+跨镜头一致
+高光/暗部检查Block：主体不可读
+严重过曝或死黑17-vfx必须有：VFX list
+shotId
+合成结果
+前后对比Block：合成明显穿帮
+VFX 遮挡主体18-title必须有：标题
+字体
+安全边距
+动效Block：标题错字
+移动端不可读19-subtitle必须有：SRT/VTT/ASS
+时间轴
+断句
+语言Block：字幕缺失
+字幕错字严重
+时间轴严重错位20-packaging必须有：manifest
+final video
+subtitle
+cover
+hash
+versionBlock：交付包缺关键文件21-review必须有：review report
+pass/fail
+issues
+severity
+recommendedFixesBlock：有 blocker 未解决22-delivery必须有：final mp4
+可播放
+分辨率正确
+音频正常
+字幕版本Block：最终视频不可播放
+规格不符23-archive必须有：inputs
+artifacts
+prompts
+evidence
+QA reports
+manifestBlock：无 archive manifest
+无 evidence ledger24-retro必须有：成功点
+失败点
+重跑次数
+知识候选
+prompt 改进建议Warn：无数据指标
+无知识沉淀3.3 修复流程质量失败处理模板{
+  "issueId": "qa_001",
+  "stageId": "3-keyframes",
+  "severity": "blocker",
+  "problem": "角色外貌与 character reference 不一致",
+  "affectedArtifacts": ["keyframe_003"],
+  "repairPlan": {
+    "action": "rerun_stage_partial",
+    "stageId": "3-keyframes",
+    "shots": ["shot_003"],
+    "promptFix": [
+      "add character reference",
+      "add face lock",
+      "add negative prompt: different face"
+    ],
+    "maxRetries": 2
+  }
+}修复优先级P0：影响交付或真实产物 → 必修
+P1：影响质量但可局部修 → 建议修
+P2：体验优化 → 可排期方法论 4：V2 多平台执行方法论代号：V2-MULTI-EXECUTOR4.1 平台分工阶段首选平台备用平台原因1-scriptChatGPTKimi / DeepSeek结构化剧本、创意推理2-storyboardChatGPTGemini / Kimi分镜结构和镜头语言3-keyframesComfyUIJimeng / ChatGPT Image可控出图、本地资产4-visual-devChatGPT + GeminiKimi风格分析、参考图理解5-characterComfyUIJimeng / ChatGPT Image角色图和设定图6-environmentComfyUIJimeng / Midjourney类环境概念图7-propComfyUIJimeng道具图8-fxChatGPT + ComfyUIAE人工FX规则+参考9-animationKling / Runway / LumaComfyUI video / Seedance视频生成10-lightingChatGPTGemini灯光方案11-cinematicChatGPTGemini镜头语言12-voiceoverTTS平台ChatGPT脚本音频生成/脚本13-musicSuno/Udio人工音乐音乐14-sound音效库/人工ChatGPT生成音效表SFX15-edit本地/剪映/Remotion人工剪辑时间线16-colorDaVinci/本地ChatGPT建议调色17-vfxAE/ComfyUI人工合成18-titleAE/FigmaChatGPT文字标题19-subtitle本地/WhisperChatGPT校对字幕20-packagingV2本地无打包21-reviewGemini + ChatGPTKimi / DeepSeek多模态QC22-deliveryV2本地无交付23-archiveV2本地无归档24-retroChatGPT/KimiDeepSeek复盘总结4.2 平台切换策略切换条件1. 平台超时。
+2. 返回格式连续两次不符合 schema。
+3. 质量门连续失败。
+4. 平台不可用。
+5. 成本过高。
+6. 用户指定不用某平台。切换顺序文本任务ChatGPT → Kimi → DeepSeek → local model视觉理解Gemini → ChatGPT Vision → local vision model图片生成ComfyUI → Jimeng → ChatGPT Image → manual upload视频生成Kling → Runway → Luma → Seedance → ComfyUI video → manualQCGemini visual QC + ChatGPT narrative QC → Kimi long report → DeepSeek risk check4.3 统一结果格式无论平台是什么，都必须转为 ExecutorResultEnvelope。{
+  "taskId": "task_001",
+  "stageId": "3-keyframes",
+  "executor": "comfyui",
+  "provider": "comfyui-agent",
+  "status": "completed",
+  "rawResult": {},
+  "normalizedResult": {
+    "artifactKind": "keyframe_image",
+    "files": [
+      {
+        "path": "/outputs/shot_001.png",
+        "mimeType": "image/png"
+      }
+    ],
+    "text": "",
+    "json": {}
+  },
+  "evidence": {
+    "promptSnapshotId": "ps_001",
+    "responseHash": "sha256...",
+    "browserCaptureId": null,
+    "providerRequestId": "req_001"
+  },
+  "metrics": {
+    "durationSec": 120,
+    "retryCount": 0,
+    "confidence": 0.86
+  }
+}4.4 ComfyUI 执行模板CRUX → V2 → ComfyUI 智能体：{
+  "projectId": "{{projectId}}",
+  "runId": "{{runId}}",
+  "stageId": "3-keyframes",
+  "taskType": "image_generation",
+  "payload": {
+    "shotId": "shot_001",
+    "prompt": "{{finalPrompt}}",
+    "negativePrompt": "{{negativePrompt}}",
+    "styleAnchor": "{{styleAnchor}}",
+    "referenceInputs": ["input_style_001", "input_character_001"],
+    "recommendedTemplate": {
+      "templateId": "cinematic-keyframe-v1",
+      "reason": "wide fantasy keyframe with character and environment"
+    },
+    "params": {
+      "width": 1024,
+      "height": 576,
+      "steps": 28,
+      "cfg": 6.5,
+      "sampler": "dpmpp_2m",
+      "seed": -1
+    }
+  }
+}返回：{
+  "status": "completed",
+  "artifacts": [
+    {
+      "shotId": "shot_001",
+      "kind": "keyframe_image",
+      "path": "/outputs/project/shot_001.png",
+      "seed": 123456789,
+      "workflowTemplateId": "cinematic-keyframe-v1"
+    }
+  ],
+  "evidence": {
+    "workflowJsonPath": "/outputs/project/workflow_001.json",
+    "logPath": "/outputs/project/run_001.log"
+  }
+}方法论 5：V2 提示词工程方法论代号：V2-PROMPT-OPS5.1 Prompt 分层结构每个 CRUX 发出的 prompt 必须包含：1. System Role
+2. Project Context
+3. Creative Bible
+4. Director Decision
+5. Stage Goal
+6. Input Data
+7. Output Schema
+8. Quality Criteria
+9. Safety / Negative Constraints
+10. Return Format5.2 剧本创作 Prompt：CRUX → ChatGPT你是新烬龙V2的剧本创作执行器。请严格基于以下项目上下文生成 script.v1，不要输出无关解释。
+
+【项目目标】
+项目ID: {{projectId}}
+目标时长: {{durationTargetSec}}秒
+类型: {{genre}}
+受众: {{audience}}
+画幅: {{aspectRatio}}
+语言: {{projectLanguage}}
+
+【世界观】
+时代: {{world.era}}
+地点: {{world.location}}
+氛围: {{world.atmosphere}}
+核心冲突: {{world.coreConflict}}
+规则限制: {{world.rules}}
+
+【角色】
+{{characters}}
+
+【导演决策】
+风格: {{director.style}}
+情绪曲线: {{director.emotionCurve}}
+禁止项: {{director.negativeConstraints}}
+
+【任务】
+生成完整短片剧本，必须包含:
+1. title
+2. logline
+3. theme
+4. threeActStructure
+5. scenes
+6. characters
+7. keySettings
+
+【质量要求】
+- 必须有清晰主角目标
+- 必须有冲突
+- 必须有转折
+- 每个场景必须可视化
+- 对白简洁
+- 结尾必须回应主题
+- 总时长必须接近 {{durationTargetSec}} 秒
+
+【输出格式】
+只返回 JSON:
+{
+  "title": "",
+  "logline": "",
+  "theme": "",
+  "durationTargetSec": {{durationTargetSec}},
+  "acts": [
+    {
+      "actId": "act_1",
+      "purpose": "",
+      "scenes": []
+    }
+  ],
+  "scenes": [
+    {
+      "sceneId": "scene_001",
+      "name": "",
+      "description": "",
+      "characters": [],
+      "dialogue": [],
+      "visualFocus": "",
+      "mood": "",
+      "estimatedDurationSec": 0
+    }
+  ],
+  "characters": [],
+  "keySettings": []
+}5.3 分镜 Prompt：CRUX → ChatGPT/Gemini你是新烬龙V2的分镜导演。请把 script.v1 转换为 storyboard.v1。
+
+【输入剧本】
+{{scriptJson}}
+
+【导演风格】
+{{styleAnchor}}
+
+【限制】
+目标总时长: {{durationTargetSec}}秒
+单镜头时长: 2-6秒
+画幅: {{aspectRatio}}
+镜头数量建议: {{shotCountRange}}
+
+【任务】
+为每个场景拆分镜头。每个镜头只允许一个主动作。
+
+【必须输出字段】
+shotId
+sceneId
+shotTitle
+shotSize
+sceneDescription
+mainAction
+cameraMovement
+durationSec
+mood
+keyDialogue
+soundCue
+transition
+assetRefs
+
+【质量要求】
+- 总时长误差不超过 10%
+- 必须覆盖所有关键剧情
+- 镜头语言必须有远中近变化
+- 每个关键角色首次出现必须有建立镜头
+- 动作镜头与情绪镜头交替
+- assetRefs 不可为空，除非该镜头无角色/道具
+
+只返回 JSON:
+{
+  "storyboardId": "storyboard_v001",
+  "totalDurationSec": 0,
+  "shots": []
+}5.4 关键帧 Prompt：CRUX → ComfyUI / 图像平台V2内部结构化模板{
+  "shotId": "{{shotId}}",
+  "promptLayers": {
+    "subject": "{{characterDescription}}",
+    "action": "{{mainAction}}",
+    "environment": "{{environmentDescription}}",
+    "composition": "{{shotSize}}, {{compositionRule}}",
+    "camera": "{{cameraAngle}}, {{lens}}",
+    "lighting": "{{lightingRule}}",
+    "color": "{{palette}}",
+    "mood": "{{mood}}",
+    "details": "{{symbolicDetails}}",
+    "render": "cinematic animation keyframe, high detail, clean composition"
+  },
+  "negativePrompt": [
+    "low quality",
+    "blurry",
+    "wrong character",
+    "extra limbs",
+    "cheap plastic look",
+    "modern objects",
+    "style drift"
+  ]
+}ComfyUI 英文生成模板{{subject}}, {{action}},
+in {{environment}},
+{{composition}},
+{{camera}},
+{{lighting}},
+color palette: {{palette}},
+mood: {{mood}},
+details: {{details}},
+cinematic animated fantasy keyframe, high detail, volumetric light, strong silhouette, coherent character design, professional concept art
+
+Negative:
+low quality, blurry, deformed anatomy, wrong face, inconsistent outfit, extra fingers, extra limbs, modern objects, cheap plastic texture, overexposed, oversaturated, watermark, text5.5 视觉开发 Prompt你是V2视觉开发美术指导。请基于剧本、分镜和导演决策生成 visual-dev.v1。
+
+【输入】
+script: {{script}}
+storyboard: {{storyboard}}
+directorDecision: {{directorDecision}}
+referenceInputs: {{referenceInputs}}
+
+【输出】
+1. styleKeywords: 8-12个
+2. palette: primary/secondary/accent HEX
+3. materialRules
+4. lightingRules
+5. compositionRules
+6. characterVisualRules
+7. environmentVisualRules
+8. negativeConstraints
+9. styleAnchorText
+
+【参数要求】
+- 主色不超过3个
+- 强调色不超过2个
+- 每条规则必须可用于 prompt
+- negativeConstraints 至少8条
+
+只返回 JSON。5.6 角色设计 Prompt你是V2角色设计师。请为以下角色生成可重复使用的角色设定和图像提示词。
+
+【角色】
+{{character}}
+
+【世界观】
+{{world}}
+
+【风格锚点】
+{{styleAnchor}}
+
+【输出】
+{
+  "characterId": "",
+  "name": "",
+  "visualLock": {
+    "face": "",
+    "hair": "",
+    "eyes": "",
+    "body": "",
+    "outfit": "",
+    "signatureMark": "",
+    "palette": []
+  },
+  "personality": [],
+  "poseSet": [
+    "neutral standing",
+    "determined pose",
+    "fear reaction",
+    "action pose"
+  ],
+  "expressionSet": [
+    "neutral",
+    "fear",
+    "hope",
+    "anger",
+    "determination"
+  ],
+  "imagePrompts": {
+    "turnaround": "",
+    "expressionSheet": "",
+    "actionPose": ""
+  },
+  "negativePrompt": ""
+}5.7 电影化 Prompt你是V2电影化导演。请为 storyboard.v1 生成 cinematic-plan.v1。
+
+【输入】
+storyboard: {{storyboard}}
+styleAnchor: {{styleAnchor}}
+durationTargetSec: {{durationTargetSec}}
+
+【输出字段】
+每个 shot:
+- shotId
+- shotSize
+- lensMm
+- cameraAngle
+- cameraMovement
+- movementSpeed
+- focusTarget
+- depthOfField
+- lightingNote
+- transition
+- editRhythm
+- videoPromptShort
+
+【参数】
+lensMm:
+- epic wide: 18-24mm
+- normal dialogue: 35-50mm
+- emotional closeup: 70-100mm
+
+movementSpeed:
+- slow
+- medium
+- fast
+
+depthOfField:
+- deep
+- medium
+- shallow
+
+只返回 JSON。5.8 配音 Prompt你是V2配音导演。请将 script/storyboard 转换为 voiceover-script.v1。
+
+【输入】
+script: {{script}}
+storyboard: {{storyboard}}
+projectLanguage: {{projectLanguage}}
+
+【规则】
+中文语速: 3-4字/秒
+英文语速: 2-3 words/sec
+每句最长: 8秒
+每条台词必须绑定 shotId
+
+【输出】
+{
+  "voiceProfiles": [
+    {
+      "characterId": "",
+      "tone": "",
+      "pace": "",
+      "emotionRange": []
+    }
+  ],
+  "lines": [
+    {
+      "lineId": "",
+      "shotIds": [],
+      "characterId": "",
+      "text": "",
+      "emotion": "",
+      "pace": "slow/normal/fast",
+      "targetDurationSec": 0,
+      "pauseAfterSec": 0.3
+    }
+  ]
+}5.9 每阶段 Prompt 质量检查清单每个 prompt 发送前，CRUX 必须检查：1. 是否包含 stageId？
+2. 是否包含 projectId/runId？
+3. 是否包含 creative-bible 或 styleAnchor？
+4. 是否包含 director decision？
+5. 是否明确输出格式？
+6. 是否有质量标准？
+7. 是否有禁止项？
+8. 是否隔离用户输入？
+9. 是否要求 JSON 时明确“只返回 JSON”？
+10. 是否带下游可消费字段？Prompt 阻断条件无输出 schema → block
+无 stageId → block
+关键阶段无 creative-bible → block
+图像/视频 prompt 无 negative prompt → warn/block
+用户输入未隔离 → block
+外部平台 prompt 缺证据要求 → warnCRUX 总控总执行公式CRUX 每跑一个阶段，都按下面固定流程：1. 查询 stage contract
+2. 查询 input/artifact readiness
+3. 查询 creative-bible
+4. 查询 director decision
+5. 查询 world_knowledge
+6. 组装 prompt package
+7. 选择 executor
+8. 执行任务
+9. 标准化结果
+10. 注册 artifact
+11. 注册 evidence
+12. 运行 quality-gate
+13. 更新 stage status
+14. 记录 pipeline event
+15. 判断下一阶段对应伪命令：{
+  "cruxStageRun": {
+    "projectId": "{{projectId}}",
+    "runId": "{{runId}}",
+    "stageId": "{{stageId}}",
+    "steps": [
+      "validate_stage_contract",
+      "check_readiness",
+      "load_creative_bible",
+      "resolve_director_decision",
+      "load_world_knowledge",
+      "compose_prompt",
+      "select_executor",
+      "execute",
+      "normalize_result",
+      "register_artifact",
+      "register_evidence",
+      "run_quality_gate",
+      "update_stage",
+      "publish_event"
+    ]
+  }
+}最终落地建议建议把这 5 套方法论拆成 V2 知识包：knowledge/packs/v2-pipeline-runbook.md
+knowledge/packs/v2-director-decision.md
+knowledge/packs/v2-quality-gate.md
+knowledge/packs/v2-multi-executor.md
+knowledge/packs/v2-prompt-ops.md对应 manifest：{
+  "packs": [
+    {
+      "packId": "v2-pipeline-runbook",
+      "stageRoutes": ["all"],
+      "triggerHints": ["run stage", "pipeline stuck", "parallel execution", "retry"]
+    },
+    {
+      "packId": "v2-director-decision",
+      "stageRoutes": ["1-script", "2-storyboard", "3-keyframes", "4-visual-dev", "21-review"]
+    },
+    {
+      "packId": "v2-quality-gate",
+      "stageRoutes": ["all"],
+      "triggerHints": ["qa", "block", "review", "quality failed"]
+    },
+    {
+      "packId": "v2-multi-executor",
+      "stageRoutes": ["3-keyframes", "5-character", "6-environment", "9-animation", "21-review"]
+    },
+    {
+      "packId": "v2-prompt-ops",
+      "stageRoutes": ["1-script", "2-storyboard", "3-keyframes", "11-cinematic", "12-voiceover"]
+    }
+  ]
+}
+这 5 套可以直接作为 V2 的 methodology pack v1.0。最优先接入顺序是：管线运行 → 多平台执行 → Prompt工程 → 质量门 → 导演决策。

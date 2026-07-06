@@ -1,11 +1,11 @@
 """
 ╔══════════════════════════════════════════════════════╗
-║       CRUX TUI ART v3 — 终端美学·动态艺术引擎       ║
+║       CRUX TUI ART v3 — 终端美学·动态渲染引擎       ║
 ║  动画帧 · 渐变文本 · Badge 系统 · 粒子特效         ║
-║  呼吸边框 · 打字机 · 欢迎屏 · 七兽图腾             ║
+║  呼吸边框 · 打字机 · 欢迎屏 · 治理图腾             ║
 ╚══════════════════════════════════════════════════════╝
 
-七兽美学注入终端 — 白虎(骨)·青龙(脉)·朱雀(眼)·玄武(甲)·麒麟(手)·螣蛇(忆)·应龙(令)
+CRUX Studio 终端美学 — 平时如刀，出事成阵 · 按需治理
 """
 
 from __future__ import annotations
@@ -344,7 +344,7 @@ class BreathingBorder:
     """呼吸边框 — 可动画化的箱体边框
 
     用法:
-        border = BreathingBorder("七兽觉醒")
+        border = BreathingBorder("✦ CRUX · 平时如刀，出事成阵 ✦")
         for frame in border.animate(steps=6):
             print(frame)
             time.sleep(0.15)
@@ -539,7 +539,7 @@ def small_banner() -> str:
 
 
 def beast_art() -> str:
-    """七兽图腾 ASCII art"""
+    """治理图腾 ASCII art — 平时如刀，出事成阵"""
     return f"""\
 {C.CRUX_R}   ╔══════════════════════════════╗
 {C.CRUX_R}   ║  {C.CRUX_C}⚡ 白虎 {C.CRUX_G}青龙 {C.CRUX_B}朱雀 {C.CRUX_Y}玄武{C.CRUX_R}   ║
@@ -589,7 +589,7 @@ def demo_animate_frames(duration: float = 3.0) -> None:
 def demo_gradient() -> None:
     """演示渐变文本"""
     print()
-    print(gradient_text("  七兽觉醒 · SEVEN BEASTS AWAKEN  ",
+    print(gradient_text("  ▶ CRUX · 平时如刀，出事成阵 ◀  ",
                         colors=[(255, 85, 85), (255, 213, 0), (0, 255, 170), (0, 170, 255), (200, 100, 255)],
                         bold=True))
     print(gradient_text("  白虎炼骨 · 青龙通脉 · 朱雀开眼 · 玄武披甲  ",
