@@ -1,0 +1,1448 @@
+{
+  "total": 28,
+  "motifs": [
+    {
+      "motif_id": "txt2img_basic",
+      "name": "Basic Text-to-Image",
+      "description": "标准文生图管线：Checkpoint → CLIP Encode → KSampler → VAE Decode → Save",
+      "category": "pipeline",
+      "task_types": [
+        "txt2img"
+      ],
+      "nodes": [
+        {
+          "role": "model_loader",
+          "class_type": "CheckpointLoaderSimple",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "text_encoder_pos",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "text_encoder_neg",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "latent_init",
+          "class_type": "EmptyLatentImage",
+          "param_ranges": {
+            "width": {
+              "type": "int",
+              "min": 64,
+              "max": 2048,
+              "default": 1024,
+              "step": 64
+            },
+            "height": {
+              "type": "int",
+              "min": 64,
+              "max": 2048,
+              "default": 1024,
+              "step": 64
+            }
+          },
+          "optional": false
+        },
+        {
+          "role": "sampler",
+          "class_type": "KSampler",
+          "param_ranges": {
+            "steps": {
+              "type": "int",
+              "min": 1,
+              "max": 80,
+              "default": 20
+            },
+            "cfg": {
+              "type": "float",
+              "min": 1.0,
+              "max": 30.0,
+              "default": 7.0
+            }
+          },
+          "optional": false
+        },
+        {
+          "role": "vae_decode",
+          "class_type": "VAEDecode",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "image_output",
+          "class_type": "SaveImage",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [
+        {
+          "from": "model_loader.model",
+          "to": "sampler.model"
+        },
+        {
+          "from": "model_loader.clip",
+          "to": "text_encoder_pos.clip"
+        },
+        {
+          "from": "model_loader.clip",
+          "to": "text_encoder_neg.clip"
+        },
+        {
+          "from": "model_loader.vae",
+          "to": "vae_decode.vae"
+        },
+        {
+          "from": "text_encoder_pos.conditioning",
+          "to": "sampler.positive"
+        },
+        {
+          "from": "text_encoder_neg.conditioning",
+          "to": "sampler.negative"
+        },
+        {
+          "from": "latent_init.latent",
+          "to": "sampler.latent_image"
+        },
+        {
+          "from": "sampler.latent",
+          "to": "vae_decode.samples"
+        },
+        {
+          "from": "vae_decode.image",
+          "to": "image_output.images"
+        }
+      ],
+      "canonical_hash": "183f8b4332b2966e",
+      "quality_score": 1.0,
+      "pass_rate": 1.0,
+      "source_templates": [],
+      "compatible_models": [],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "lora_enhanced",
+      "name": "LoRA Enhanced Text-to-Image",
+      "description": "文生图 + LoRA 加载：Checkpoint → LoRA → CLIP Encode → KSampler → VAE Decode",
+      "category": "pipeline",
+      "task_types": [
+        "txt2img",
+        "img2img"
+      ],
+      "nodes": [
+        {
+          "role": "model_loader",
+          "class_type": "CheckpointLoaderSimple",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "lora_loader",
+          "class_type": "LoraLoader",
+          "param_ranges": {
+            "strength_model": {
+              "type": "float",
+              "min": 0.0,
+              "max": 2.0,
+              "default": 1.0
+            },
+            "strength_clip": {
+              "type": "float",
+              "min": 0.0,
+              "max": 2.0,
+              "default": 1.0
+            }
+          },
+          "optional": false
+        },
+        {
+          "role": "text_encoder_pos",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "text_encoder_neg",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "latent_init",
+          "class_type": "EmptyLatentImage",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "sampler",
+          "class_type": "KSampler",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "vae_decode",
+          "class_type": "VAEDecode",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "image_output",
+          "class_type": "SaveImage",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [
+        {
+          "from": "model_loader.model",
+          "to": "lora_loader.model"
+        },
+        {
+          "from": "model_loader.clip",
+          "to": "lora_loader.clip"
+        },
+        {
+          "from": "lora_loader.model",
+          "to": "sampler.model"
+        },
+        {
+          "from": "lora_loader.clip",
+          "to": "text_encoder_pos.clip"
+        },
+        {
+          "from": "lora_loader.clip",
+          "to": "text_encoder_neg.clip"
+        },
+        {
+          "from": "model_loader.vae",
+          "to": "vae_decode.vae"
+        },
+        {
+          "from": "text_encoder_pos.conditioning",
+          "to": "sampler.positive"
+        },
+        {
+          "from": "text_encoder_neg.conditioning",
+          "to": "sampler.negative"
+        },
+        {
+          "from": "latent_init.latent",
+          "to": "sampler.latent_image"
+        },
+        {
+          "from": "sampler.latent",
+          "to": "vae_decode.samples"
+        },
+        {
+          "from": "vae_decode.image",
+          "to": "image_output.images"
+        }
+      ],
+      "canonical_hash": "cb2f795247573a81",
+      "quality_score": 0.95,
+      "pass_rate": 1.0,
+      "source_templates": [],
+      "compatible_models": [
+        "sd_xl_base_1.0.safetensors",
+        "sd_xl_refiner_1.0.safetensors"
+      ],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "img2img_basic",
+      "name": "Basic Image-to-Image",
+      "description": "图生图管线：加载图像 → VAE Encode → KSampler(img2img) → VAE Decode",
+      "category": "pipeline",
+      "task_types": [
+        "img2img"
+      ],
+      "nodes": [
+        {
+          "role": "model_loader",
+          "class_type": "CheckpointLoaderSimple",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "text_encoder_pos",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "text_encoder_neg",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "image_loader",
+          "class_type": "LoadImage",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "vae_encode",
+          "class_type": "VAEEncode",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "sampler",
+          "class_type": "KSampler",
+          "param_ranges": {
+            "denoise": {
+              "type": "float",
+              "min": 0.0,
+              "max": 1.0,
+              "default": 0.7
+            }
+          },
+          "optional": false
+        },
+        {
+          "role": "vae_decode",
+          "class_type": "VAEDecode",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "image_output",
+          "class_type": "SaveImage",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [
+        {
+          "from": "model_loader.model",
+          "to": "sampler.model"
+        },
+        {
+          "from": "model_loader.clip",
+          "to": "text_encoder_pos.clip"
+        },
+        {
+          "from": "model_loader.clip",
+          "to": "text_encoder_neg.clip"
+        },
+        {
+          "from": "image_loader.image",
+          "to": "vae_encode.pixels"
+        },
+        {
+          "from": "model_loader.vae",
+          "to": "vae_encode.vae"
+        },
+        {
+          "from": "model_loader.vae",
+          "to": "vae_decode.vae"
+        },
+        {
+          "from": "text_encoder_pos.conditioning",
+          "to": "sampler.positive"
+        },
+        {
+          "from": "text_encoder_neg.conditioning",
+          "to": "sampler.negative"
+        },
+        {
+          "from": "vae_encode.latent",
+          "to": "sampler.latent_image"
+        },
+        {
+          "from": "sampler.latent",
+          "to": "vae_decode.samples"
+        },
+        {
+          "from": "vae_decode.image",
+          "to": "image_output.images"
+        }
+      ],
+      "canonical_hash": "866c7ff710b5b9a9",
+      "quality_score": 0.9,
+      "pass_rate": 1.0,
+      "source_templates": [],
+      "compatible_models": [],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "checkpoint_loader",
+      "name": "Checkpoint Loader",
+      "description": "加载基础模型",
+      "category": "loader",
+      "task_types": [
+        "txt2img"
+      ],
+      "nodes": [
+        {
+          "role": "checkpoint_loader",
+          "class_type": "CheckpointLoaderSimple",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [],
+      "canonical_hash": "eb216f96462df8fa",
+      "quality_score": 0.9,
+      "pass_rate": 1.0,
+      "source_templates": [],
+      "compatible_models": [],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "clip_text_encode",
+      "name": "CLIP Text Encode",
+      "description": "文本编码",
+      "category": "encoder",
+      "task_types": [
+        "txt2img"
+      ],
+      "nodes": [
+        {
+          "role": "clip_text_encode",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [],
+      "canonical_hash": "8fa663fcab07e6a0",
+      "quality_score": 0.9,
+      "pass_rate": 1.0,
+      "source_templates": [],
+      "compatible_models": [],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "ksampler",
+      "name": "KSampler",
+      "description": "采样器",
+      "category": "sampler",
+      "task_types": [
+        "txt2img"
+      ],
+      "nodes": [
+        {
+          "role": "ksampler",
+          "class_type": "KSampler",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [],
+      "canonical_hash": "2701470a41efd6ae",
+      "quality_score": 0.9,
+      "pass_rate": 1.0,
+      "source_templates": [],
+      "compatible_models": [],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "empty_latent",
+      "name": "Empty Latent Image",
+      "description": "空潜空间",
+      "category": "sampler",
+      "task_types": [
+        "txt2img"
+      ],
+      "nodes": [
+        {
+          "role": "empty_latent",
+          "class_type": "EmptyLatentImage",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [],
+      "canonical_hash": "c30358d3cdfc1842",
+      "quality_score": 0.9,
+      "pass_rate": 1.0,
+      "source_templates": [],
+      "compatible_models": [],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "vae_decode",
+      "name": "VAE Decode",
+      "description": "VAE 解码",
+      "category": "decoder",
+      "task_types": [
+        "txt2img"
+      ],
+      "nodes": [
+        {
+          "role": "vae_decode",
+          "class_type": "VAEDecode",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [],
+      "canonical_hash": "2a055c2252038f91",
+      "quality_score": 0.9,
+      "pass_rate": 1.0,
+      "source_templates": [],
+      "compatible_models": [],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "save_image",
+      "name": "Save Image",
+      "description": "保存图像",
+      "category": "output",
+      "task_types": [
+        "txt2img"
+      ],
+      "nodes": [
+        {
+          "role": "save_image",
+          "class_type": "SaveImage",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [],
+      "canonical_hash": "1b9674aa057e1be0",
+      "quality_score": 0.9,
+      "pass_rate": 1.0,
+      "source_templates": [],
+      "compatible_models": [],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "lora_loader",
+      "name": "LoRA Loader",
+      "description": "加载 LoRA 权重",
+      "category": "loader",
+      "task_types": [
+        "txt2img"
+      ],
+      "nodes": [
+        {
+          "role": "lora_loader",
+          "class_type": "LoraLoader",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [],
+      "canonical_hash": "af4f9b770ab5fcb8",
+      "quality_score": 0.9,
+      "pass_rate": 1.0,
+      "source_templates": [],
+      "compatible_models": [],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "upscale",
+      "name": "Upscale Image",
+      "description": "图像放大",
+      "category": "decoder",
+      "task_types": [
+        "txt2img"
+      ],
+      "nodes": [
+        {
+          "role": "upscale",
+          "class_type": "UpscaleImage",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [],
+      "canonical_hash": "86ee34877b011a13",
+      "quality_score": 0.9,
+      "pass_rate": 1.0,
+      "source_templates": [],
+      "compatible_models": [],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "controlnet_loader",
+      "name": "ControlNet Loader",
+      "description": "加载 ControlNet",
+      "category": "loader",
+      "task_types": [
+        "txt2img"
+      ],
+      "nodes": [
+        {
+          "role": "controlnet_loader",
+          "class_type": "ControlNetLoader",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [],
+      "canonical_hash": "d989674d67751096",
+      "quality_score": 0.9,
+      "pass_rate": 1.0,
+      "source_templates": [],
+      "compatible_models": [],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "seed.sdxl_txt2img_base.v1",
+      "name": "SDXL Text to Image Base",
+      "description": "",
+      "category": "image/generation",
+      "task_types": [
+        "txt2img"
+      ],
+      "nodes": [
+        {
+          "role": "4",
+          "class_type": "CheckpointLoaderSimple",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "6",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "7",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "5",
+          "class_type": "EmptyLatentImage",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "3",
+          "class_type": "KSampler",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [
+        {
+          "from": "4.out",
+          "to": "3.in"
+        },
+        {
+          "from": "4.out",
+          "to": "6.in"
+        },
+        {
+          "from": "6.out",
+          "to": "3.in"
+        },
+        {
+          "from": "5.out",
+          "to": "3.in"
+        }
+      ],
+      "canonical_hash": "7f696d36f959c386",
+      "quality_score": 0.7,
+      "pass_rate": 1.0,
+      "source_templates": [
+        "seed.sdxl_txt2img_base.v1"
+      ],
+      "compatible_models": [
+        "sd_xl_base_1.0.safetensors",
+        "sdxl_vae.safetensors"
+      ],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "seed.sdxl_refiner_two_stage.v1",
+      "name": "SDXL Base + Refiner Two Stage",
+      "description": "",
+      "category": "image/generation",
+      "task_types": [
+        "txt2img_refine"
+      ],
+      "nodes": [
+        {
+          "role": "4",
+          "class_type": "CheckpointLoaderSimple",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "24",
+          "class_type": "CheckpointLoaderSimple",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "6",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "7",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "23",
+          "class_type": "KSamplerAdvanced",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [
+        {
+          "from": "4.out",
+          "to": "23.in"
+        },
+        {
+          "from": "4.out",
+          "to": "6.in"
+        },
+        {
+          "from": "6.out",
+          "to": "23.in"
+        }
+      ],
+      "canonical_hash": "a0c07cf0a4e35ac1",
+      "quality_score": 0.7,
+      "pass_rate": 1.0,
+      "source_templates": [
+        "seed.sdxl_refiner_two_stage.v1"
+      ],
+      "compatible_models": [
+        "sd_xl_base_1.0.safetensors",
+        "sd_xl_refiner_1.0.safetensors"
+      ],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "seed.sd15_img2img_basic.v1",
+      "name": "SD 1.5 Image to Image Basic",
+      "description": "",
+      "category": "image/transform",
+      "task_types": [
+        "img2img"
+      ],
+      "nodes": [
+        {
+          "role": "10",
+          "class_type": "LoadImage",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "4",
+          "class_type": "CheckpointLoaderSimple",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "6",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "3",
+          "class_type": "KSampler",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [
+        {
+          "from": "4.out",
+          "to": "3.in"
+        },
+        {
+          "from": "4.out",
+          "to": "6.in"
+        },
+        {
+          "from": "6.out",
+          "to": "3.in"
+        }
+      ],
+      "canonical_hash": "de9f54784cbd71bb",
+      "quality_score": 0.7,
+      "pass_rate": 1.0,
+      "source_templates": [
+        "seed.sd15_img2img_basic.v1"
+      ],
+      "compatible_models": [
+        "v1-5-pruned-emaonly.safetensors"
+      ],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "seed.inpaint_masked_area.v1",
+      "name": "Masked Inpainting",
+      "description": "",
+      "category": "image/editing",
+      "task_types": [
+        "inpaint"
+      ],
+      "nodes": [
+        {
+          "role": "10",
+          "class_type": "LoadImage",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "11",
+          "class_type": "LoadImageMask",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "6",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "3",
+          "class_type": "KSampler",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [
+        {
+          "from": "6.out",
+          "to": "3.in"
+        }
+      ],
+      "canonical_hash": "c188532671a8c65a",
+      "quality_score": 0.7,
+      "pass_rate": 1.0,
+      "source_templates": [
+        "seed.inpaint_masked_area.v1"
+      ],
+      "compatible_models": [
+        "sd15_inpainting.safetensors"
+      ],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "seed.controlnet_canny_txt2img.v1",
+      "name": "ControlNet Canny Text to Image",
+      "description": "",
+      "category": "image/controlnet",
+      "task_types": [
+        "controlnet_txt2img"
+      ],
+      "nodes": [
+        {
+          "role": "12",
+          "class_type": "LoadImage",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "15",
+          "class_type": "ControlNetLoader",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "13",
+          "class_type": "Canny",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "16",
+          "class_type": "ControlNetApply",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [],
+      "canonical_hash": "d376df67e44687d0",
+      "quality_score": 0.7,
+      "pass_rate": 1.0,
+      "source_templates": [
+        "seed.controlnet_canny_txt2img.v1"
+      ],
+      "compatible_models": [
+        "v1-5-pruned-emaonly.safetensors",
+        "control_v11p_sd15_canny.pth"
+      ],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "seed.controlnet_depth_scene.v1",
+      "name": "ControlNet Depth Scene Generation",
+      "description": "",
+      "category": "image/controlnet",
+      "task_types": [
+        "controlnet_txt2img"
+      ],
+      "nodes": [
+        {
+          "role": "12",
+          "class_type": "LoadImage",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "15",
+          "class_type": "ControlNetLoader",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "6",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "16",
+          "class_type": "ControlNetApply",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [],
+      "canonical_hash": "e0a3dcf8b03e4892",
+      "quality_score": 0.7,
+      "pass_rate": 1.0,
+      "source_templates": [
+        "seed.controlnet_depth_scene.v1"
+      ],
+      "compatible_models": [
+        "realisticVisionV60B1_v51VAE.safetensors",
+        "control_v11f1p_sd15_depth.pth"
+      ],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "seed.controlnet_openpose_character.v1",
+      "name": "ControlNet OpenPose Character",
+      "description": "",
+      "category": "image/controlnet",
+      "task_types": [
+        "pose_to_image"
+      ],
+      "nodes": [
+        {
+          "role": "12",
+          "class_type": "LoadImage",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "15",
+          "class_type": "ControlNetLoader",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "6",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "16",
+          "class_type": "ControlNetApply",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [],
+      "canonical_hash": "b3492fd491d93c6d",
+      "quality_score": 0.7,
+      "pass_rate": 1.0,
+      "source_templates": [
+        "seed.controlnet_openpose_character.v1"
+      ],
+      "compatible_models": [
+        "majicmixRealistic_v7.safetensors",
+        "control_v11p_sd15_openpose.pth"
+      ],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "seed.lora_character_portrait.v1",
+      "name": "LoRA Character Portrait",
+      "description": "",
+      "category": "image/character",
+      "task_types": [
+        "txt2img_lora"
+      ],
+      "nodes": [
+        {
+          "role": "4",
+          "class_type": "CheckpointLoaderSimple",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "18",
+          "class_type": "LoraLoader",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "6",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [
+        {
+          "from": "4.out",
+          "to": "6.in"
+        },
+        {
+          "from": "4.out",
+          "to": "18.in"
+        },
+        {
+          "from": "18.out",
+          "to": "6.in"
+        }
+      ],
+      "canonical_hash": "5a159168991e3f0a",
+      "quality_score": 0.7,
+      "pass_rate": 1.0,
+      "source_templates": [
+        "seed.lora_character_portrait.v1"
+      ],
+      "compatible_models": [
+        "majicmixRealistic_v7.safetensors",
+        "character_style_lora.safetensors"
+      ],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "seed.ipadapter_reference_style.v1",
+      "name": "IP-Adapter Reference Style Transfer",
+      "description": "",
+      "category": "image/ipadapter",
+      "task_types": [
+        "reference_style"
+      ],
+      "nodes": [
+        {
+          "role": "30",
+          "class_type": "LoadImage",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "31",
+          "class_type": "IPAdapterModelLoader",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "32",
+          "class_type": "CLIPVisionLoader",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "33",
+          "class_type": "IPAdapterApply",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "6",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [],
+      "canonical_hash": "8ea14e5753eea9a2",
+      "quality_score": 0.7,
+      "pass_rate": 1.0,
+      "source_templates": [
+        "seed.ipadapter_reference_style.v1"
+      ],
+      "compatible_models": [
+        "realisticVisionV60B1_v51VAE.safetensors",
+        "ip-adapter_sd15.safetensors",
+        "clip_vision_vit_h.safetensors"
+      ],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "seed.faceid_identity_preserve.v1",
+      "name": "FaceID Identity Preserve",
+      "description": "",
+      "category": "image/identity",
+      "task_types": [
+        "face_reference"
+      ],
+      "nodes": [
+        {
+          "role": "30",
+          "class_type": "LoadImage",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "34",
+          "class_type": "IPAdapterModelLoader",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "35",
+          "class_type": "IPAdapterApply",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "6",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [],
+      "canonical_hash": "aa1b25a35f3b116f",
+      "quality_score": 0.7,
+      "pass_rate": 1.0,
+      "source_templates": [
+        "seed.faceid_identity_preserve.v1"
+      ],
+      "compatible_models": [
+        "realisticVisionV60B1_v51VAE.safetensors",
+        "ip-adapter-faceid_sd15.bin"
+      ],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "seed.latent_upscale_hires_fix.v1",
+      "name": "Latent Upscale Hires Fix",
+      "description": "",
+      "category": "image/upscale",
+      "task_types": [
+        "hires_fix"
+      ],
+      "nodes": [
+        {
+          "role": "4",
+          "class_type": "CheckpointLoaderSimple",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "40",
+          "class_type": "LatentUpscaleBy",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "41",
+          "class_type": "KSampler",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [
+        {
+          "from": "4.out",
+          "to": "41.in"
+        }
+      ],
+      "canonical_hash": "450b0183dbbe7e04",
+      "quality_score": 0.7,
+      "pass_rate": 1.0,
+      "source_templates": [
+        "seed.latent_upscale_hires_fix.v1"
+      ],
+      "compatible_models": [
+        "sd_xl_base_1.0.safetensors"
+      ],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "seed.esrgan_image_upscale.v1",
+      "name": "ESRGAN Image Upscale",
+      "description": "",
+      "category": "image/upscale",
+      "task_types": [
+        "upscale"
+      ],
+      "nodes": [
+        {
+          "role": "10",
+          "class_type": "LoadImage",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "42",
+          "class_type": "UpscaleModelLoader",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [],
+      "canonical_hash": "73be0791ab4ef964",
+      "quality_score": 0.7,
+      "pass_rate": 1.0,
+      "source_templates": [
+        "seed.esrgan_image_upscale.v1"
+      ],
+      "compatible_models": [
+        "4x-UltraSharp.pth"
+      ],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "seed.animatediff_txt2video.v1",
+      "name": "AnimateDiff Text to Video",
+      "description": "",
+      "category": "video/animatediff",
+      "task_types": [
+        "txt2video"
+      ],
+      "nodes": [
+        {
+          "role": "4",
+          "class_type": "CheckpointLoaderSimple",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "50",
+          "class_type": "AnimateDiffLoader",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "6",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "5",
+          "class_type": "EmptyLatentImage",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "54",
+          "class_type": "VHS_VideoCombine",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [
+        {
+          "from": "4.out",
+          "to": "6.in"
+        }
+      ],
+      "canonical_hash": "fec5ddae4b2f2690",
+      "quality_score": 0.7,
+      "pass_rate": 1.0,
+      "source_templates": [
+        "seed.animatediff_txt2video.v1"
+      ],
+      "compatible_models": [
+        "v1-5-pruned-emaonly.safetensors",
+        "mm_sd_v15_v2.ckpt"
+      ],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "seed.animatediff_controlnet_openpose.v1",
+      "name": "AnimateDiff OpenPose Controlled Video",
+      "description": "",
+      "category": "video/animatediff",
+      "task_types": [
+        "pose_to_video"
+      ],
+      "nodes": [
+        {
+          "role": "60",
+          "class_type": "VHS_LoadVideo",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "50",
+          "class_type": "AnimateDiffLoader",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "15",
+          "class_type": "ControlNetLoader",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "16",
+          "class_type": "ControlNetApply",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "6",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [],
+      "canonical_hash": "17689a0ee9a8953b",
+      "quality_score": 0.7,
+      "pass_rate": 1.0,
+      "source_templates": [
+        "seed.animatediff_controlnet_openpose.v1"
+      ],
+      "compatible_models": [
+        "majicmixRealistic_v7.safetensors",
+        "mm_sd_v15_v2.ckpt",
+        "control_v11p_sd15_openpose.pth"
+      ],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "seed.svd_image_to_video.v1",
+      "name": "Stable Video Diffusion Image to Video",
+      "description": "",
+      "category": "video/svd",
+      "task_types": [
+        "img2video"
+      ],
+      "nodes": [
+        {
+          "role": "10",
+          "class_type": "LoadImage",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "70",
+          "class_type": "ImageOnlyCheckpointLoader",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "71",
+          "class_type": "SVD_img2vid_Conditioning",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [],
+      "canonical_hash": "2bacc3466b34af41",
+      "quality_score": 0.7,
+      "pass_rate": 1.0,
+      "source_templates": [
+        "seed.svd_image_to_video.v1"
+      ],
+      "compatible_models": [
+        "svd_xt.safetensors"
+      ],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    },
+    {
+      "motif_id": "seed.flux_txt2img_basic.v1",
+      "name": "FLUX Text to Image Basic",
+      "description": "",
+      "category": "image/generation",
+      "task_types": [
+        "txt2img"
+      ],
+      "nodes": [
+        {
+          "role": "80",
+          "class_type": "UNETLoader",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "81",
+          "class_type": "DualCLIPLoader",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "82",
+          "class_type": "VAELoader",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "83",
+          "class_type": "CLIPTextEncode",
+          "param_ranges": {},
+          "optional": false
+        },
+        {
+          "role": "84",
+          "class_type": "FluxGuidance",
+          "param_ranges": {},
+          "optional": false
+        }
+      ],
+      "edges": [],
+      "canonical_hash": "bdde474f442cee48",
+      "quality_score": 0.7,
+      "pass_rate": 1.0,
+      "source_templates": [
+        "seed.flux_txt2img_basic.v1"
+      ],
+      "compatible_models": [
+        "flux1-dev.safetensors",
+        "clip_l.safetensors",
+        "t5xxl_fp16.safetensors",
+        "ae.safetensors"
+      ],
+      "min_vram_gb": 8,
+      "version": "1.0.0"
+    }
+  ]
+}

@@ -1,0 +1,1075 @@
+[
+  {
+    "workflow_id": "seed.sdxl_txt2img_base.v1",
+    "name": "SDXL Text to Image Base",
+    "task_type": "txt2img",
+    "category": "image/generation",
+    "inputs": [
+      {
+        "name": "checkpoint",
+        "binding": {
+          "node_id": "4",
+          "class_type": "CheckpointLoaderSimple",
+          "input": "ckpt_name",
+          "default": "sd_xl_base_1.0.safetensors"
+        }
+      },
+      {
+        "name": "positive_prompt",
+        "binding": {
+          "node_id": "6",
+          "class_type": "CLIPTextEncode",
+          "input": "text",
+          "default": "cinematic photo, highly detailed, sharp focus"
+        }
+      },
+      {
+        "name": "negative_prompt",
+        "binding": {
+          "node_id": "7",
+          "class_type": "CLIPTextEncode",
+          "input": "text",
+          "default": "low quality, blurry, distorted, watermark, text"
+        }
+      },
+      {
+        "name": "width",
+        "binding": {
+          "node_id": "5",
+          "class_type": "EmptyLatentImage",
+          "input": "width",
+          "default": 1024
+        }
+      },
+      {
+        "name": "height",
+        "binding": {
+          "node_id": "5",
+          "class_type": "EmptyLatentImage",
+          "input": "height",
+          "default": 1024
+        }
+      },
+      {
+        "name": "steps",
+        "binding": {
+          "node_id": "3",
+          "class_type": "KSampler",
+          "input": "steps",
+          "default": 30
+        }
+      },
+      {
+        "name": "cfg",
+        "binding": {
+          "node_id": "3",
+          "class_type": "KSampler",
+          "input": "cfg",
+          "default": 7
+        }
+      },
+      {
+        "name": "seed",
+        "binding": {
+          "node_id": "3",
+          "class_type": "KSampler",
+          "input": "seed",
+          "default": 123456789
+        }
+      }
+    ],
+    "models": [
+      {
+        "type": "checkpoint",
+        "name": "sd_xl_base_1.0.safetensors"
+      },
+      {
+        "type": "vae",
+        "name": "sdxl_vae.safetensors"
+      }
+    ],
+    "tags": [
+      "sdxl",
+      "txt2img",
+      "base",
+      "photorealistic"
+    ]
+  },
+  {
+    "workflow_id": "seed.sdxl_refiner_two_stage.v1",
+    "name": "SDXL Base + Refiner Two Stage",
+    "task_type": "txt2img_refine",
+    "category": "image/generation",
+    "inputs": [
+      {
+        "name": "base_checkpoint",
+        "binding": {
+          "node_id": "4",
+          "class_type": "CheckpointLoaderSimple",
+          "input": "ckpt_name",
+          "default": "sd_xl_base_1.0.safetensors"
+        }
+      },
+      {
+        "name": "refiner_checkpoint",
+        "binding": {
+          "node_id": "24",
+          "class_type": "CheckpointLoaderSimple",
+          "input": "ckpt_name",
+          "default": "sd_xl_refiner_1.0.safetensors"
+        }
+      },
+      {
+        "name": "positive_prompt",
+        "binding": {
+          "node_id": "6",
+          "class_type": "CLIPTextEncode",
+          "input": "text",
+          "default": "ultra detailed cinematic image, natural lighting"
+        }
+      },
+      {
+        "name": "negative_prompt",
+        "binding": {
+          "node_id": "7",
+          "class_type": "CLIPTextEncode",
+          "input": "text",
+          "default": "bad anatomy, low quality, blur, artifacts"
+        }
+      },
+      {
+        "name": "denoise_refiner",
+        "binding": {
+          "node_id": "23",
+          "class_type": "KSamplerAdvanced",
+          "input": "denoise",
+          "default": 0.25
+        }
+      }
+    ],
+    "models": [
+      {
+        "type": "checkpoint",
+        "name": "sd_xl_base_1.0.safetensors"
+      },
+      {
+        "type": "checkpoint",
+        "name": "sd_xl_refiner_1.0.safetensors"
+      }
+    ],
+    "tags": [
+      "sdxl",
+      "refiner",
+      "two-stage",
+      "high-quality"
+    ]
+  },
+  {
+    "workflow_id": "seed.sd15_img2img_basic.v1",
+    "name": "SD 1.5 Image to Image Basic",
+    "task_type": "img2img",
+    "category": "image/transform",
+    "inputs": [
+      {
+        "name": "input_image",
+        "binding": {
+          "node_id": "10",
+          "class_type": "LoadImage",
+          "input": "image",
+          "default": "input.png"
+        }
+      },
+      {
+        "name": "checkpoint",
+        "binding": {
+          "node_id": "4",
+          "class_type": "CheckpointLoaderSimple",
+          "input": "ckpt_name",
+          "default": "v1-5-pruned-emaonly.safetensors"
+        }
+      },
+      {
+        "name": "positive_prompt",
+        "binding": {
+          "node_id": "6",
+          "class_type": "CLIPTextEncode",
+          "input": "text",
+          "default": "high quality, detailed, improved lighting"
+        }
+      },
+      {
+        "name": "denoise",
+        "binding": {
+          "node_id": "3",
+          "class_type": "KSampler",
+          "input": "denoise",
+          "default": 0.45
+        }
+      }
+    ],
+    "models": [
+      {
+        "type": "checkpoint",
+        "name": "v1-5-pruned-emaonly.safetensors"
+      }
+    ],
+    "tags": [
+      "sd15",
+      "img2img",
+      "variation",
+      "restyle"
+    ]
+  },
+  {
+    "workflow_id": "seed.inpaint_masked_area.v1",
+    "name": "Masked Inpainting",
+    "task_type": "inpaint",
+    "category": "image/editing",
+    "inputs": [
+      {
+        "name": "input_image",
+        "binding": {
+          "node_id": "10",
+          "class_type": "LoadImage",
+          "input": "image",
+          "default": "input.png"
+        }
+      },
+      {
+        "name": "mask",
+        "binding": {
+          "node_id": "11",
+          "class_type": "LoadImageMask",
+          "input": "image",
+          "default": "mask.png"
+        }
+      },
+      {
+        "name": "positive_prompt",
+        "binding": {
+          "node_id": "6",
+          "class_type": "CLIPTextEncode",
+          "input": "text",
+          "default": "seamless edit, matching lighting and perspective"
+        }
+      },
+      {
+        "name": "denoise",
+        "binding": {
+          "node_id": "3",
+          "class_type": "KSampler",
+          "input": "denoise",
+          "default": 0.75
+        }
+      }
+    ],
+    "models": [
+      {
+        "type": "checkpoint",
+        "name": "sd15_inpainting.safetensors"
+      }
+    ],
+    "tags": [
+      "inpaint",
+      "mask",
+      "editing",
+      "repair"
+    ]
+  },
+  {
+    "workflow_id": "seed.controlnet_canny_txt2img.v1",
+    "name": "ControlNet Canny Text to Image",
+    "task_type": "controlnet_txt2img",
+    "category": "image/controlnet",
+    "inputs": [
+      {
+        "name": "control_image",
+        "binding": {
+          "node_id": "12",
+          "class_type": "LoadImage",
+          "input": "image",
+          "default": "canny_source.png"
+        }
+      },
+      {
+        "name": "controlnet_model",
+        "binding": {
+          "node_id": "15",
+          "class_type": "ControlNetLoader",
+          "input": "control_net_name",
+          "default": "control_v11p_sd15_canny.pth"
+        }
+      },
+      {
+        "name": "canny_low_threshold",
+        "binding": {
+          "node_id": "13",
+          "class_type": "Canny",
+          "input": "low_threshold",
+          "default": 100
+        }
+      },
+      {
+        "name": "canny_high_threshold",
+        "binding": {
+          "node_id": "13",
+          "class_type": "Canny",
+          "input": "high_threshold",
+          "default": 200
+        }
+      },
+      {
+        "name": "strength",
+        "binding": {
+          "node_id": "16",
+          "class_type": "ControlNetApply",
+          "input": "strength",
+          "default": 0.8
+        }
+      }
+    ],
+    "models": [
+      {
+        "type": "checkpoint",
+        "name": "v1-5-pruned-emaonly.safetensors"
+      },
+      {
+        "type": "controlnet",
+        "name": "control_v11p_sd15_canny.pth"
+      }
+    ],
+    "tags": [
+      "controlnet",
+      "canny",
+      "structure",
+      "line-control"
+    ]
+  },
+  {
+    "workflow_id": "seed.controlnet_depth_scene.v1",
+    "name": "ControlNet Depth Scene Generation",
+    "task_type": "controlnet_txt2img",
+    "category": "image/controlnet",
+    "inputs": [
+      {
+        "name": "depth_source_image",
+        "binding": {
+          "node_id": "12",
+          "class_type": "LoadImage",
+          "input": "image",
+          "default": "depth_source.png"
+        }
+      },
+      {
+        "name": "controlnet_model",
+        "binding": {
+          "node_id": "15",
+          "class_type": "ControlNetLoader",
+          "input": "control_net_name",
+          "default": "control_v11f1p_sd15_depth.pth"
+        }
+      },
+      {
+        "name": "positive_prompt",
+        "binding": {
+          "node_id": "6",
+          "class_type": "CLIPTextEncode",
+          "input": "text",
+          "default": "cinematic environment, strong depth, atmospheric perspective"
+        }
+      },
+      {
+        "name": "strength",
+        "binding": {
+          "node_id": "16",
+          "class_type": "ControlNetApply",
+          "input": "strength",
+          "default": 0.75
+        }
+      }
+    ],
+    "models": [
+      {
+        "type": "checkpoint",
+        "name": "realisticVisionV60B1_v51VAE.safetensors"
+      },
+      {
+        "type": "controlnet",
+        "name": "control_v11f1p_sd15_depth.pth"
+      }
+    ],
+    "tags": [
+      "controlnet",
+      "depth",
+      "scene",
+      "composition"
+    ]
+  },
+  {
+    "workflow_id": "seed.controlnet_openpose_character.v1",
+    "name": "ControlNet OpenPose Character",
+    "task_type": "pose_to_image",
+    "category": "image/controlnet",
+    "inputs": [
+      {
+        "name": "pose_image",
+        "binding": {
+          "node_id": "12",
+          "class_type": "LoadImage",
+          "input": "image",
+          "default": "pose.png"
+        }
+      },
+      {
+        "name": "controlnet_model",
+        "binding": {
+          "node_id": "15",
+          "class_type": "ControlNetLoader",
+          "input": "control_net_name",
+          "default": "control_v11p_sd15_openpose.pth"
+        }
+      },
+      {
+        "name": "positive_prompt",
+        "binding": {
+          "node_id": "6",
+          "class_type": "CLIPTextEncode",
+          "input": "text",
+          "default": "full body character, accurate pose, cinematic lighting"
+        }
+      },
+      {
+        "name": "strength",
+        "binding": {
+          "node_id": "16",
+          "class_type": "ControlNetApply",
+          "input": "strength",
+          "default": 0.9
+        }
+      }
+    ],
+    "models": [
+      {
+        "type": "checkpoint",
+        "name": "majicmixRealistic_v7.safetensors"
+      },
+      {
+        "type": "controlnet",
+        "name": "control_v11p_sd15_openpose.pth"
+      }
+    ],
+    "tags": [
+      "controlnet",
+      "openpose",
+      "character",
+      "pose"
+    ]
+  },
+  {
+    "workflow_id": "seed.lora_character_portrait.v1",
+    "name": "LoRA Character Portrait",
+    "task_type": "txt2img_lora",
+    "category": "image/character",
+    "inputs": [
+      {
+        "name": "checkpoint",
+        "binding": {
+          "node_id": "4",
+          "class_type": "CheckpointLoaderSimple",
+          "input": "ckpt_name",
+          "default": "majicmixRealistic_v7.safetensors"
+        }
+      },
+      {
+        "name": "lora_name",
+        "binding": {
+          "node_id": "18",
+          "class_type": "LoraLoader",
+          "input": "lora_name",
+          "default": "character_style_lora.safetensors"
+        }
+      },
+      {
+        "name": "lora_strength_model",
+        "binding": {
+          "node_id": "18",
+          "class_type": "LoraLoader",
+          "input": "strength_model",
+          "default": 0.75
+        }
+      },
+      {
+        "name": "lora_strength_clip",
+        "binding": {
+          "node_id": "18",
+          "class_type": "LoraLoader",
+          "input": "strength_clip",
+          "default": 0.75
+        }
+      },
+      {
+        "name": "positive_prompt",
+        "binding": {
+          "node_id": "6",
+          "class_type": "CLIPTextEncode",
+          "input": "text",
+          "default": "portrait, detailed face, soft cinematic lighting"
+        }
+      }
+    ],
+    "models": [
+      {
+        "type": "checkpoint",
+        "name": "majicmixRealistic_v7.safetensors"
+      },
+      {
+        "type": "lora",
+        "name": "character_style_lora.safetensors"
+      }
+    ],
+    "tags": [
+      "lora",
+      "character",
+      "portrait",
+      "identity"
+    ]
+  },
+  {
+    "workflow_id": "seed.ipadapter_reference_style.v1",
+    "name": "IP-Adapter Reference Style Transfer",
+    "task_type": "reference_style",
+    "category": "image/ipadapter",
+    "inputs": [
+      {
+        "name": "reference_image",
+        "binding": {
+          "node_id": "30",
+          "class_type": "LoadImage",
+          "input": "image",
+          "default": "reference.png"
+        }
+      },
+      {
+        "name": "ipadapter_model",
+        "binding": {
+          "node_id": "31",
+          "class_type": "IPAdapterModelLoader",
+          "input": "ipadapter_file",
+          "default": "ip-adapter_sd15.safetensors"
+        }
+      },
+      {
+        "name": "clip_vision",
+        "binding": {
+          "node_id": "32",
+          "class_type": "CLIPVisionLoader",
+          "input": "clip_name",
+          "default": "clip_vision_vit_h.safetensors"
+        }
+      },
+      {
+        "name": "weight",
+        "binding": {
+          "node_id": "33",
+          "class_type": "IPAdapterApply",
+          "input": "weight",
+          "default": 0.65
+        }
+      },
+      {
+        "name": "positive_prompt",
+        "binding": {
+          "node_id": "6",
+          "class_type": "CLIPTextEncode",
+          "input": "text",
+          "default": "new scene in the same visual style, cinematic"
+        }
+      }
+    ],
+    "models": [
+      {
+        "type": "checkpoint",
+        "name": "realisticVisionV60B1_v51VAE.safetensors"
+      },
+      {
+        "type": "ipadapter",
+        "name": "ip-adapter_sd15.safetensors"
+      },
+      {
+        "type": "clip_vision",
+        "name": "clip_vision_vit_h.safetensors"
+      }
+    ],
+    "tags": [
+      "ipadapter",
+      "style-reference",
+      "style-transfer",
+      "consistency"
+    ]
+  },
+  {
+    "workflow_id": "seed.faceid_identity_preserve.v1",
+    "name": "FaceID Identity Preserve",
+    "task_type": "face_reference",
+    "category": "image/identity",
+    "inputs": [
+      {
+        "name": "face_reference",
+        "binding": {
+          "node_id": "30",
+          "class_type": "LoadImage",
+          "input": "image",
+          "default": "face_reference.png"
+        }
+      },
+      {
+        "name": "faceid_model",
+        "binding": {
+          "node_id": "34",
+          "class_type": "IPAdapterModelLoader",
+          "input": "ipadapter_file",
+          "default": "ip-adapter-faceid_sd15.bin"
+        }
+      },
+      {
+        "name": "identity_weight",
+        "binding": {
+          "node_id": "35",
+          "class_type": "IPAdapterApply",
+          "input": "weight",
+          "default": 0.8
+        }
+      },
+      {
+        "name": "positive_prompt",
+        "binding": {
+          "node_id": "6",
+          "class_type": "CLIPTextEncode",
+          "input": "text",
+          "default": "cinematic portrait, same identity, natural expression"
+        }
+      }
+    ],
+    "models": [
+      {
+        "type": "checkpoint",
+        "name": "realisticVisionV60B1_v51VAE.safetensors"
+      },
+      {
+        "type": "ipadapter",
+        "name": "ip-adapter-faceid_sd15.bin"
+      }
+    ],
+    "tags": [
+      "faceid",
+      "identity",
+      "portrait",
+      "reference"
+    ]
+  },
+  {
+    "workflow_id": "seed.latent_upscale_hires_fix.v1",
+    "name": "Latent Upscale Hires Fix",
+    "task_type": "hires_fix",
+    "category": "image/upscale",
+    "inputs": [
+      {
+        "name": "checkpoint",
+        "binding": {
+          "node_id": "4",
+          "class_type": "CheckpointLoaderSimple",
+          "input": "ckpt_name",
+          "default": "sd_xl_base_1.0.safetensors"
+        }
+      },
+      {
+        "name": "upscale_by",
+        "binding": {
+          "node_id": "40",
+          "class_type": "LatentUpscaleBy",
+          "input": "scale_by",
+          "default": 1.5
+        }
+      },
+      {
+        "name": "second_pass_denoise",
+        "binding": {
+          "node_id": "41",
+          "class_type": "KSampler",
+          "input": "denoise",
+          "default": 0.35
+        }
+      },
+      {
+        "name": "steps",
+        "binding": {
+          "node_id": "41",
+          "class_type": "KSampler",
+          "input": "steps",
+          "default": 20
+        }
+      }
+    ],
+    "models": [
+      {
+        "type": "checkpoint",
+        "name": "sd_xl_base_1.0.safetensors"
+      }
+    ],
+    "tags": [
+      "hires-fix",
+      "latent-upscale",
+      "detail",
+      "sdxl"
+    ]
+  },
+  {
+    "workflow_id": "seed.esrgan_image_upscale.v1",
+    "name": "ESRGAN Image Upscale",
+    "task_type": "upscale",
+    "category": "image/upscale",
+    "inputs": [
+      {
+        "name": "input_image",
+        "binding": {
+          "node_id": "10",
+          "class_type": "LoadImage",
+          "input": "image",
+          "default": "input.png"
+        }
+      },
+      {
+        "name": "upscale_model",
+        "binding": {
+          "node_id": "42",
+          "class_type": "UpscaleModelLoader",
+          "input": "model_name",
+          "default": "4x-UltraSharp.pth"
+        }
+      }
+    ],
+    "models": [
+      {
+        "type": "upscale_model",
+        "name": "4x-UltraSharp.pth"
+      }
+    ],
+    "tags": [
+      "upscale",
+      "esrgan",
+      "4x",
+      "postprocess"
+    ]
+  },
+  {
+    "workflow_id": "seed.animatediff_txt2video.v1",
+    "name": "AnimateDiff Text to Video",
+    "task_type": "txt2video",
+    "category": "video/animatediff",
+    "inputs": [
+      {
+        "name": "checkpoint",
+        "binding": {
+          "node_id": "4",
+          "class_type": "CheckpointLoaderSimple",
+          "input": "ckpt_name",
+          "default": "v1-5-pruned-emaonly.safetensors"
+        }
+      },
+      {
+        "name": "motion_module",
+        "binding": {
+          "node_id": "50",
+          "class_type": "AnimateDiffLoader",
+          "input": "model_name",
+          "default": "mm_sd_v15_v2.ckpt"
+        }
+      },
+      {
+        "name": "positive_prompt",
+        "binding": {
+          "node_id": "6",
+          "class_type": "CLIPTextEncode",
+          "input": "text",
+          "default": "cinematic video, smooth camera movement, coherent subject"
+        }
+      },
+      {
+        "name": "frame_count",
+        "binding": {
+          "node_id": "5",
+          "class_type": "EmptyLatentImage",
+          "input": "batch_size",
+          "default": 16
+        }
+      },
+      {
+        "name": "width",
+        "binding": {
+          "node_id": "5",
+          "class_type": "EmptyLatentImage",
+          "input": "width",
+          "default": 512
+        }
+      },
+      {
+        "name": "height",
+        "binding": {
+          "node_id": "5",
+          "class_type": "EmptyLatentImage",
+          "input": "height",
+          "default": 768
+        }
+      },
+      {
+        "name": "fps",
+        "binding": {
+          "node_id": "54",
+          "class_type": "VHS_VideoCombine",
+          "input": "frame_rate",
+          "default": 8
+        }
+      }
+    ],
+    "models": [
+      {
+        "type": "checkpoint",
+        "name": "v1-5-pruned-emaonly.safetensors"
+      },
+      {
+        "type": "motion_module",
+        "name": "mm_sd_v15_v2.ckpt"
+      }
+    ],
+    "tags": [
+      "animatediff",
+      "txt2video",
+      "video",
+      "motion"
+    ]
+  },
+  {
+    "workflow_id": "seed.animatediff_controlnet_openpose.v1",
+    "name": "AnimateDiff OpenPose Controlled Video",
+    "task_type": "pose_to_video",
+    "category": "video/animatediff",
+    "inputs": [
+      {
+        "name": "pose_sequence",
+        "binding": {
+          "node_id": "60",
+          "class_type": "VHS_LoadVideo",
+          "input": "video",
+          "default": "pose_sequence.mp4"
+        }
+      },
+      {
+        "name": "motion_module",
+        "binding": {
+          "node_id": "50",
+          "class_type": "AnimateDiffLoader",
+          "input": "model_name",
+          "default": "mm_sd_v15_v2.ckpt"
+        }
+      },
+      {
+        "name": "controlnet_model",
+        "binding": {
+          "node_id": "15",
+          "class_type": "ControlNetLoader",
+          "input": "control_net_name",
+          "default": "control_v11p_sd15_openpose.pth"
+        }
+      },
+      {
+        "name": "control_strength",
+        "binding": {
+          "node_id": "16",
+          "class_type": "ControlNetApply",
+          "input": "strength",
+          "default": 0.85
+        }
+      },
+      {
+        "name": "positive_prompt",
+        "binding": {
+          "node_id": "6",
+          "class_type": "CLIPTextEncode",
+          "input": "text",
+          "default": "consistent character, accurate motion, cinematic lighting"
+        }
+      }
+    ],
+    "models": [
+      {
+        "type": "checkpoint",
+        "name": "majicmixRealistic_v7.safetensors"
+      },
+      {
+        "type": "motion_module",
+        "name": "mm_sd_v15_v2.ckpt"
+      },
+      {
+        "type": "controlnet",
+        "name": "control_v11p_sd15_openpose.pth"
+      }
+    ],
+    "tags": [
+      "animatediff",
+      "openpose",
+      "video-control",
+      "character-motion"
+    ]
+  },
+  {
+    "workflow_id": "seed.svd_image_to_video.v1",
+    "name": "Stable Video Diffusion Image to Video",
+    "task_type": "img2video",
+    "category": "video/svd",
+    "inputs": [
+      {
+        "name": "input_image",
+        "binding": {
+          "node_id": "10",
+          "class_type": "LoadImage",
+          "input": "image",
+          "default": "input.png"
+        }
+      },
+      {
+        "name": "svd_checkpoint",
+        "binding": {
+          "node_id": "70",
+          "class_type": "ImageOnlyCheckpointLoader",
+          "input": "ckpt_name",
+          "default": "svd_xt.safetensors"
+        }
+      },
+      {
+        "name": "video_frames",
+        "binding": {
+          "node_id": "71",
+          "class_type": "SVD_img2vid_Conditioning",
+          "input": "video_frames",
+          "default": 25
+        }
+      },
+      {
+        "name": "motion_bucket_id",
+        "binding": {
+          "node_id": "71",
+          "class_type": "SVD_img2vid_Conditioning",
+          "input": "motion_bucket_id",
+          "default": 127
+        }
+      },
+      {
+        "name": "fps",
+        "binding": {
+          "node_id": "71",
+          "class_type": "SVD_img2vid_Conditioning",
+          "input": "fps",
+          "default": 6
+        }
+      }
+    ],
+    "models": [
+      {
+        "type": "checkpoint",
+        "name": "svd_xt.safetensors"
+      }
+    ],
+    "tags": [
+      "svd",
+      "img2video",
+      "motion",
+      "i2v"
+    ]
+  },
+  {
+    "workflow_id": "seed.flux_txt2img_basic.v1",
+    "name": "FLUX Text to Image Basic",
+    "task_type": "txt2img",
+    "category": "image/generation",
+    "inputs": [
+      {
+        "name": "unet",
+        "binding": {
+          "node_id": "80",
+          "class_type": "UNETLoader",
+          "input": "unet_name",
+          "default": "flux1-dev.safetensors"
+        }
+      },
+      {
+        "name": "clip_l",
+        "binding": {
+          "node_id": "81",
+          "class_type": "DualCLIPLoader",
+          "input": "clip_name1",
+          "default": "clip_l.safetensors"
+        }
+      },
+      {
+        "name": "t5xxl",
+        "binding": {
+          "node_id": "81",
+          "class_type": "DualCLIPLoader",
+          "input": "clip_name2",
+          "default": "t5xxl_fp16.safetensors"
+        }
+      },
+      {
+        "name": "vae",
+        "binding": {
+          "node_id": "82",
+          "class_type": "VAELoader",
+          "input": "vae_name",
+          "default": "ae.safetensors"
+        }
+      },
+      {
+        "name": "prompt",
+        "binding": {
+          "node_id": "83",
+          "class_type": "CLIPTextEncode",
+          "input": "text",
+          "default": "high quality cinematic image, detailed composition"
+        }
+      },
+      {
+        "name": "guidance",
+        "binding": {
+          "node_id": "84",
+          "class_type": "FluxGuidance",
+          "input": "guidance",
+          "default": 3.5
+        }
+      }
+    ],
+    "models": [
+      {
+        "type": "unet",
+        "name": "flux1-dev.safetensors"
+      },
+      {
+        "type": "clip",
+        "name": "clip_l.safetensors"
+      },
+      {
+        "type": "text_encoder",
+        "name": "t5xxl_fp16.safetensors"
+      },
+      {
+        "type": "vae",
+        "name": "ae.safetensors"
+      }
+    ],
+    "tags": [
+      "flux",
+      "txt2img",
+      "modern",
+      "high-quality"
+    ]
+  }
+]
