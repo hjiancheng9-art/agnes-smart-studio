@@ -205,6 +205,20 @@ class ContractChecker:
         if p == PrincipleID.P3_IR_NOT_JSON:
             return {"ok": True}
 
+        # P5: 失败学习 — 检查是否有 validation_report
+        if p == PrincipleID.P5_FAILURE_LEARN and "Validator 报告" in check:
+            has_report = bool(kwargs.get("validation_report"))
+            return {"ok": has_report, "reason": "缺少 validation_report"}
+
+        # 通用参数检查: 检查 check 中提到的参数名是否在 kwargs 中
+        # 格式如 "需要 xxx 参数" 或 "workflow_json"
+        for kw_key in ["workflow_json", "prompt", "validation_report"]:
+            if kw_key in check.lower() or f"需要 {kw_key}" in check:
+                has_value = bool(kwargs.get(kw_key))
+                if not has_value:
+                    return {"ok": False, "reason": f"缺少必需参数: {kw_key}"}
+                return {"ok": True}
+
         # 默认通过
         return {"ok": True}
 
@@ -312,6 +326,8 @@ def build_contracts() -> dict[str, ToolContract]:
         description="提交 workflow 到 ComfyUI 执行",
         principles=["P4", "P5"],
         pre_conditions=[
+            PreCondition(PrincipleID.P4_VALIDATOR_GATE, "需要 workflow_json 参数", required=True,
+                         error_message="必须提供 workflow_json"),
             PreCondition(PrincipleID.P4_VALIDATOR_GATE, "workflow 必须经过 Validator", required=False,
                          error_message="建议先执行 validate_workflow"),
             PreCondition(PrincipleID.P5_FAILURE_LEARN, "失败应进入恢复流程", required=True,

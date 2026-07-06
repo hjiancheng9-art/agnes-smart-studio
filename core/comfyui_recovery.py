@@ -358,28 +358,30 @@ class ExecutionRecovery:
             plan.add_patch("review", err.node_id, message=err.message)
 
     def execute(self, workflow: dict, plan: RecoveryPlan) -> RecoveryResult:
-        """执行恢复计划。"""
+        """执行恢复计划（直接修改 workflow 原字典）。"""
         patches_applied: list[RepairPatch] = []
         audit: list[str] = []
-
-        temp_workflow = {k: dict(v) for k, v in workflow.items()}
 
         for patch in plan.patches:
             try:
                 if patch.action == "delete_node":
-                    if patch.target in temp_workflow:
-                        # Remove connections to this node
-                        for node in temp_workflow.values():
+                    if patch.target in workflow:
+                        # 删除指向该节点的连接
+                        for node in workflow.values():
                             for input_name, input_value in list(node.get("inputs", {}).items()):
                                 if isinstance(input_value, list) and str(input_value[0]) == patch.target:
                                     del node["inputs"][input_name]
-                        del temp_workflow[patch.target]
+                        del workflow[patch.target]
                         patches_applied.append(patch)
                         audit.append(f"✓ 删除节点 {patch.target}")
+                    else:
+                        # 节点已被删除（幂等）
+                        patches_applied.append(patch)
+                        audit.append(f"✓ 节点 {patch.target} 已不存在（幂等）")
 
                 elif patch.action == "reduce_resources":
-                    if patch.target in temp_workflow:
-                        node = temp_workflow[patch.target]
+                    if patch.target in workflow:
+                        node = workflow[patch.target]
                         if "batch_size" in node.get("inputs", {}):
                             node["inputs"]["batch_size"] = patch.params.get("target_batch", 1)
                             patches_applied.append(patch)
@@ -397,9 +399,6 @@ class ExecutionRecovery:
             applied_patches=patches_applied,
             audit_log=audit,
         )
-
-
-# ═══════════════════════════════════════════════════════════════════
 # 便捷函数
 # ═══════════════════════════════════════════════════════════════════
 
