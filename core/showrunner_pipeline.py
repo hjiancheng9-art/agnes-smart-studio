@@ -18,8 +18,16 @@ SHOWRUNNER_TOOL_DEFS = [
                 "type": "object",
                 "properties": {
                     "topic": {"type": "string", "description": "文案主题"},
-                    "style": {"type": "string", "enum": ["ad", "script", "article", "social", "story"], "description": "文案风格"},
-                    "tone": {"type": "string", "enum": ["professional", "casual", "humorous", "emotional", "technical"], "description": "语气基调"},
+                    "style": {
+                        "type": "string",
+                        "enum": ["ad", "script", "article", "social", "story"],
+                        "description": "文案风格",
+                    },
+                    "tone": {
+                        "type": "string",
+                        "enum": ["professional", "casual", "humorous", "emotional", "technical"],
+                        "description": "语气基调",
+                    },
                     "length": {"type": "string", "enum": ["short", "medium", "long"], "description": "长度"},
                     "language": {"type": "string", "description": "语言（默认 zh）"},
                     "extra_instructions": {"type": "string", "description": "额外指令（可选）"},
@@ -128,16 +136,19 @@ def execute_generate_copy(
 ) -> str:
     """AI 文案生成"""
     pipeline_id = f"copy_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    return json.dumps({
-        "success": True,
-        "pipeline_id": pipeline_id,
-        "topic": topic,
-        "style": style,
-        "tone": tone,
-        "length": length,
-        "language": language,
-        "message": f"Showrunner 文案已生成 | {style}/{tone} | {length}",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "pipeline_id": pipeline_id,
+            "topic": topic,
+            "style": style,
+            "tone": tone,
+            "length": length,
+            "language": language,
+            "message": f"Showrunner 文案已生成 | {style}/{tone} | {length}",
+        },
+        ensure_ascii=False,
+    )
 
 
 def execute_generate_images(
@@ -149,14 +160,17 @@ def execute_generate_images(
 ) -> str:
     """批量生成图片"""
     pipeline_id = f"img_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    return json.dumps({
-        "success": True,
-        "pipeline_id": pipeline_id,
-        "count": count,
-        "style": style,
-        "resolution": resolution,
-        "message": f"Showrunner 图片已生成 | {count}张 | {style} | {resolution}",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "pipeline_id": pipeline_id,
+            "count": count,
+            "style": style,
+            "resolution": resolution,
+            "message": f"Showrunner 图片已生成 | {count}张 | {style} | {resolution}",
+        },
+        ensure_ascii=False,
+    )
 
 
 def execute_generate_video(
@@ -169,15 +183,18 @@ def execute_generate_video(
 ) -> str:
     """生成视频"""
     pipeline_id = f"vid_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    return json.dumps({
-        "success": True,
-        "pipeline_id": pipeline_id,
-        "duration": duration,
-        "style": style,
-        "voice": voice,
-        "music": music or "none",
-        "message": f"Showrunner 视频已生成 | {duration}s | {style}",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "pipeline_id": pipeline_id,
+            "duration": duration,
+            "style": style,
+            "voice": voice,
+            "music": music or "none",
+            "message": f"Showrunner 视频已生成 | {duration}s | {style}",
+        },
+        ensure_ascii=False,
+    )
 
 
 def execute_produce_film(
@@ -190,17 +207,20 @@ def execute_produce_film(
     """制作影片"""
     pipeline_id = f"film_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     steps = ["剧本生成", "分镜设计", "画面生成", "视频剪辑", "配乐合成", "最终输出"]
-    return json.dumps({
-        "success": True,
-        "pipeline_id": pipeline_id,
-        "concept": concept,
-        "duration": duration,
-        "style": style,
-        "budget": budget,
-        "pipeline_steps": steps,
-        "current_step": 0,
-        "message": f"Showrunner 影片制作已启动 | {duration}s | {budget}",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "pipeline_id": pipeline_id,
+            "concept": concept,
+            "duration": duration,
+            "style": style,
+            "budget": budget,
+            "pipeline_steps": steps,
+            "current_step": 0,
+            "message": f"Showrunner 影片制作已启动 | {duration}s | {budget}",
+        },
+        ensure_ascii=False,
+    )
 
 
 def execute_batch_produce(
@@ -211,15 +231,18 @@ def execute_batch_produce(
 ) -> str:
     """批量生产"""
     pipeline_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    return json.dumps({
-        "success": True,
-        "pipeline_id": pipeline_id,
-        "total_topics": len(topics),
-        "topics": topics,
-        "output_format": output_format,
-        "style": style,
-        "message": f"Showrunner 批量生产已启动 | {len(topics)} 个主题 | {output_format}",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "pipeline_id": pipeline_id,
+            "total_topics": len(topics),
+            "topics": topics,
+            "output_format": output_format,
+            "style": style,
+            "message": f"Showrunner 批量生产已启动 | {len(topics)} 个主题 | {output_format}",
+        },
+        ensure_ascii=False,
+    )
 
 
 def execute_pipeline_status(
@@ -228,19 +251,25 @@ def execute_pipeline_status(
 ) -> str:
     """查看状态"""
     if pipeline_id:
-        return json.dumps({
+        return json.dumps(
+            {
+                "success": True,
+                "pipeline_id": pipeline_id,
+                "status": "running",
+                "progress": "3/6 steps",
+                "message": f"流水线 {pipeline_id} 状态: running",
+            },
+            ensure_ascii=False,
+        )
+    return json.dumps(
+        {
             "success": True,
-            "pipeline_id": pipeline_id,
-            "status": "running",
-            "progress": "3/6 steps",
-            "message": f"流水线 {pipeline_id} 状态: running",
-        }, ensure_ascii=False)
-    return json.dumps({
-        "success": True,
-        "active_pipelines": 0,
-        "completed_today": 0,
-        "message": "Showrunner 状态正常 | 无活跃流水线",
-    }, ensure_ascii=False)
+            "active_pipelines": 0,
+            "completed_today": 0,
+            "message": "Showrunner 状态正常 | 无活跃流水线",
+        },
+        ensure_ascii=False,
+    )
 
 
 # ── 执行器映射 ──

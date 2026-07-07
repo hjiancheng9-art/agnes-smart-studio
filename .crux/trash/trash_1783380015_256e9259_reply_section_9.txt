@@ -1,0 +1,7 @@
+类型	示例	建议
+EventLog	.crux/event_log.sqlite	保留主库，定期压缩/归档
+Goal 记录	.crux/goals/*.json	completed 30-90 天后归档
+Run trace	.crux/runs/	近期保留，旧的压缩
+patch backup	.crux/backups/	7-30 天保留
+quarantine 记录	.crux/quarantine.sqlite/json	长期保留摘要
+Retro / error memory	.crux/retro/, .crux/error_memory/	保留摘要，清理原始大日志

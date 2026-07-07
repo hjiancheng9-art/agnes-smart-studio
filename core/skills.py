@@ -474,55 +474,80 @@ def resolve_skill_executor(tool_name: str, tool_def: dict | None = None):
     import logging
     import os
     import tempfile
+
     _log = logging.getLogger("crux.skills.exec")
 
     if tool_name in ("generate_image", "imagegen", "text_to_image", "t2i"):
+
         def _exec(**kw):
             from core.client import CruxClient
             from engines.text_to_image import TextToImageEngine
+
             with CruxClient() as c:
-                return TextToImageEngine(c).generate(prompt=kw.get("prompt",""), size=kw.get("size","1024x768"), seed=kw.get("seed"), negative_prompt=kw.get("negative_prompt"))
+                return TextToImageEngine(c).generate(
+                    prompt=kw.get("prompt", ""),
+                    size=kw.get("size", "1024x768"),
+                    seed=kw.get("seed"),
+                    negative_prompt=kw.get("negative_prompt"),
+                )
+
         return _exec
 
     if tool_name in ("image_to_image", "i2i", "img2img"):
+
         def _exec(**kw):
             from core.client import CruxClient
             from engines.image_to_image import ImageToImageEngine
+
             with CruxClient() as c:
                 url = kw.get("image_url", "")
-                return ImageToImageEngine(c).edit(prompt=kw.get("prompt",""), image_urls=[url] if url else [], size=kw.get("size","1024x768"))
+                return ImageToImageEngine(c).edit(
+                    prompt=kw.get("prompt", ""), image_urls=[url] if url else [], size=kw.get("size", "1024x768")
+                )
+
         return _exec
 
     if tool_name in ("generate_video", "videogen", "text_to_video", "t2v"):
+
         def _exec(**kw):
             from core.client import CruxClient
             from engines.video import VideoEngine
+
             with CruxClient() as c:
-                return VideoEngine(c).text_to_video(prompt=kw.get("prompt",""), negative_prompt=kw.get("negative_prompt"), seed=kw.get("seed"))
+                return VideoEngine(c).text_to_video(
+                    prompt=kw.get("prompt", ""), negative_prompt=kw.get("negative_prompt"), seed=kw.get("seed")
+                )
+
         return _exec
 
     if tool_name in ("text_to_speech", "tts", "tts_narration"):
+
         def _exec(**kw):
             text = kw.get("text", "")
             out = kw.get("output", "") or os.path.join(tempfile.gettempdir(), f"tts_{hash(text) % 10000}.mp3")
             r = run_subprocess(["edge-tts", "--text", text, "--write-media", out], timeout=30)
             return f"TTS generated: {out}" if r.returncode == 0 else f"TTS failed: {r.stderr}"
+
         return _exec
 
     if tool_name in ("run_python", "python"):
+
         def _exec(**kw):
             code = kw.get("code", "")
             with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8") as f:
                 f.write(code)
             r = run_subprocess(["python", f.name], timeout=30)
             return r.stdout or r.stderr or "[no output]"
+
         return _exec
 
     if tool_name in ("run_test", "run_pytest"):
+
         def _exec(**kw):
             path = kw.get("path", "tests/")
             r = run_subprocess(["python", "-m", "pytest", path, "-q", "--tb=short"], timeout=120)
             return r.stdout or r.stderr or "[pytest done]"
+
         return _exec
 
     _log.warning("Skill tool '%s' has no real executor — using deprecation stub", tool_name)

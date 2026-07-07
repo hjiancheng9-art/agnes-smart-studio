@@ -31,6 +31,7 @@ PolicyAction = Literal[
 @dataclass
 class PolicyDecision:
     """Seed policy 对自愈重试的裁决。"""
+
     action: PolicyAction
     max_retries: int = 0
     requires_new_evidence: bool = False
@@ -69,7 +70,6 @@ SEED_RULES: list[tuple[str, str | set, PolicyAction, int, str]] = [
         0,
         "磁盘空间不足需人工清理",
     ),
-
     # ── 环境缺失：需人工操作 ──
     (
         r"ModuleNotFoundError|ImportError|No module named",
@@ -92,7 +92,6 @@ SEED_RULES: list[tuple[str, str | set, PolicyAction, int, str]] = [
         1,
         "可执行文件缺失，可能需要安装或配置 PATH",
     ),
-
     # ── 模型/文件缺失：环境问题 ──
     (
         r"model.*(not found|missing|doesn.t exist)|checkpoint.*not found|safetensors.*not found",
@@ -115,7 +114,6 @@ SEED_RULES: list[tuple[str, str | set, PolicyAction, int, str]] = [
         0,
         "LoRA 权重文件缺失，需手动下载",
     ),
-
     # ── 网络/超时：重试有限 ──
     (
         r"timeout|timed out|ETIMEDOUT|Connection timed out|TimeoutError",
@@ -145,7 +143,6 @@ SEED_RULES: list[tuple[str, str | set, PolicyAction, int, str]] = [
         1,
         "DNS 解析失败多为配置问题",
     ),
-
     # ── 文件锁（Windows 特有） ──
     (
         r"WinError 32|being used by another process|file.*locked|PermissionError.*WinError",
@@ -154,7 +151,6 @@ SEED_RULES: list[tuple[str, str | set, PolicyAction, int, str]] = [
         3,
         "Windows 文件锁可能为瞬态，有限重试",
     ),
-
     # ── 语法/格式错误：可有限尝试修复 ──
     (
         r"SyntaxError|IndentationError|TabError",
@@ -170,7 +166,6 @@ SEED_RULES: list[tuple[str, str | set, PolicyAction, int, str]] = [
         2,
         "格式错误可尝试修复",
     ),
-
     # ── 权限/沙箱：不可自愈 ──
     (
         r"Sandbox rejected|sandbox.*deny|permission.*denied.*sandbox",
@@ -186,7 +181,6 @@ SEED_RULES: list[tuple[str, str | set, PolicyAction, int, str]] = [
         0,
         "操作被系统拒绝，需检查权限配置",
     ),
-
     # ── 自愈工具自身错误 ──
     (
         r"self_heal.*(failed|recursion|loop)|infinite.*loop|recursion.*detected",
@@ -202,7 +196,6 @@ SEED_RULES: list[tuple[str, str | set, PolicyAction, int, str]] = [
         0,
         "已检测到假修复，停止该方向的自愈",
     ),
-
     # ── API 限流/认证 ──
     (
         r"rate.?limit|429|Too Many Requests|quota.*exceeded",
@@ -313,9 +306,7 @@ class FakeFixSeedPolicy:
         key = self._make_key(tool, error_type)
         self._whitelist.discard(key)
 
-    def set_override(
-        self, tool: str, error_type: str, decision: PolicyDecision
-    ) -> None:
+    def set_override(self, tool: str, error_type: str, decision: PolicyDecision) -> None:
         """设置项目级策略覆盖。"""
         key = self._make_key(tool, error_type)
         self._overrides[key] = decision

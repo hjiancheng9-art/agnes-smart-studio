@@ -1,0 +1,67 @@
+"""Self-Heal Fake Fix Detection — 区分真修复 vs 假成功
+
+基于 GPT 架构审计 Q1 建议：
+- 仅对高风险工具做检测：patch_file, execute_plan, self_heal, pip_install
+- Pre/post state checksum 对比
+- 三态结果：fix-probable / fix-unknown / fix-spurious
+- Spurious fix 隔离：24h 内同类型最多重试 3 次
+
+与 EventLog 集成：每次 self-heal 前后状态写入 metadata，
+后续可从 event_log 查询假阳性率。
+"""
+
+import hashlib
+import json
+import os
+import time
+from dataclasses import dataclass, field
+from typing import Any
+
+# ── High-risk tools that need fake-fix detection ──────────
+HIGH_RISK_TOOLS = {"patch_file", "execute_plan", "self_heal", "pip_install"}
+
+# ── Quarantine tracking ───────────────────────────────────
+@dataclass
+class QuarantineEntry:
+    tool: str
+    error_signature: str  # hash of error_type + key context
+    first_seen: float
+    retry_count: int = 0
+    last_retry: float = 0.0
+
+_quarantine: dict[str, QuarantineEntry] = {}
+MAX_RETRIES_24H = 3
+QUARANTINE_WINDOW = 24 * 3600  # seconds
+
+
+def _make_error_signature(tool: str, error_type: str, context: dict) -> str:
+    """Create a stable signature for an error pattern."""
+    key_parts = [
+        tool,
+        error_type,
+        json.dumps(context, sort_keys=True, default=str),
+    ]
+    raw = "|".join(key_parts)
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def is_quarantined(tool: str, error_type: str, context: dict = None) -> bool:
+    """Check if this error pattern has been quarantined."""
+    if tool not in HIGH_RISK_TOOLS:
+        return False
+
+    sig = _make_error_signature(tool, error_type, context or {})
+    entry = _quarantine.get(sig)
+
+    if entry is None:
+        return False
+
+    # Check if quarantine window has passed
+    if time.time() - entry.first_seen > QUARANTINE_WINDOW:
+        del _quarantine[sig]
+        return False
+
+    # Check retry count
+    if entry.retry_count >= MAX_RETRIES_24H:
+        return True
+

@@ -15,19 +15,23 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from core.error_sink import catch
 
 
 # ── ANSI cleanup ──
 
-_ANSI_RE = re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
+
+
 def _clean_ansi(text: str) -> str:
-    return _ANSI_RE.sub('', text)
+    return _ANSI_RE.sub("", text)
 
 
 # ── Binary resolution ──
 
 _CODEBUDDY_BINARY: str | None = None
 _CODEBUDDY_VERSION: str = "unknown"
+
 
 def _find_codebuddy() -> str | None:
     candidates = [
@@ -41,11 +45,13 @@ def _find_codebuddy() -> str | None:
             return c
     return None
 
+
 def _resolve_codebuddy() -> str | None:
     global _CODEBUDDY_BINARY
     if _CODEBUDDY_BINARY is None:
         _CODEBUDDY_BINARY = _find_codebuddy()
     return _CODEBUDDY_BINARY
+
 
 def _get_version() -> str:
     global _CODEBUDDY_VERSION
@@ -55,16 +61,21 @@ def _get_version() -> str:
             try:
                 r = subprocess.run(
                     f'"{binary}" --version',
-                    shell=True, capture_output=True, text=True, timeout=10,
-                    encoding='utf-8', errors='replace'
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    encoding="utf-8",
+                    errors="replace",
                 )
                 _CODEBUDDY_VERSION = (r.stdout or r.stderr or "").strip()
-            except Exception:
-                pass
+            except Exception as _es:
+                catch(_es, "core/mcp_servers/codebuddy_bridge", "swallowed")
     return _CODEBUDDY_VERSION
 
 
 # ── Execution ──
+
 
 def _extract_result(output: str, prompt: str) -> dict:
     summary = ""
@@ -97,8 +108,12 @@ def _run_codebuddy(prompt: str, timeout: int = 300) -> dict:
         safe_prompt = prompt.replace('"', "'")
         proc = subprocess.run(
             f'"{binary}" -p "{safe_prompt}"',
-            shell=True, capture_output=True, text=True, timeout=timeout,
-            encoding='utf-8', errors='replace',
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            encoding="utf-8",
+            errors="replace",
         )
         output = proc.stdout or ""
         stderr = proc.stderr or ""
@@ -115,6 +130,7 @@ def _run_codebuddy(prompt: str, timeout: int = 300) -> dict:
 
 # ── MCP protocol ──
 
+
 def _read_request() -> dict | None:
     line = sys.stdin.readline()
     if not line:
@@ -122,16 +138,45 @@ def _read_request() -> dict | None:
     line = line.strip()
     return json.loads(line) if line else None
 
+
 def _send_response(response: dict) -> None:
     sys.stdout.write(json.dumps(response, ensure_ascii=False) + "\n")
     sys.stdout.flush()
 
 
 TOOLS = [
-    {"name": "codebuddy_status", "description": "Check CodeBuddy CLI availability and version.", "inputSchema": {"type": "object", "properties": {}}},
-    {"name": "codebuddy_exec", "description": "Execute a coding task using Tencent CodeBuddy CLI.", "inputSchema": {"type": "object", "properties": {"prompt": {"type": "string"}, "timeout": {"type": "integer"}}, "required": ["prompt"]}},
-    {"name": "codebuddy_review", "description": "Review code using Tencent CodeBuddy CLI.", "inputSchema": {"type": "object", "properties": {"target": {"type": "string"}, "timeout": {"type": "integer"}}, "required": ["target"]}},
-    {"name": "codebuddy_think", "description": "Deep analysis using Tencent CodeBuddy CLI.", "inputSchema": {"type": "object", "properties": {"prompt": {"type": "string"}, "timeout": {"type": "integer"}}, "required": ["prompt"]}},
+    {
+        "name": "codebuddy_status",
+        "description": "Check CodeBuddy CLI availability and version.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "codebuddy_exec",
+        "description": "Execute a coding task using Tencent CodeBuddy CLI.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"prompt": {"type": "string"}, "timeout": {"type": "integer"}},
+            "required": ["prompt"],
+        },
+    },
+    {
+        "name": "codebuddy_review",
+        "description": "Review code using Tencent CodeBuddy CLI.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"target": {"type": "string"}, "timeout": {"type": "integer"}},
+            "required": ["target"],
+        },
+    },
+    {
+        "name": "codebuddy_think",
+        "description": "Deep analysis using Tencent CodeBuddy CLI.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"prompt": {"type": "string"}, "timeout": {"type": "integer"}},
+            "required": ["prompt"],
+        },
+    },
 ]
 
 
@@ -140,7 +185,23 @@ def _handle_tool_call(name: str, args: dict) -> dict:
         if name == "codebuddy_status":
             binary = _resolve_codebuddy()
             version = _get_version()
-            return {"content": [{"type": "text", "text": json.dumps({"available": True, "binary": binary, "version": version, "exists_on_disk": binary and os.path.isfile(binary)}, indent=2, ensure_ascii=False)}]}
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps(
+                            {
+                                "available": True,
+                                "binary": binary,
+                                "version": version,
+                                "exists_on_disk": binary and os.path.isfile(binary),
+                            },
+                            indent=2,
+                            ensure_ascii=False,
+                        ),
+                    }
+                ]
+            }
 
         if name == "codebuddy_exec":
             prompt = args.get("prompt", "")
@@ -184,15 +245,37 @@ def main():
             method = request.get("method", "")
             params = request.get("params", {})
             if method == "initialize":
-                _send_response({"jsonrpc": "2.0", "id": req_id, "result": {"protocolVersion": "2024-11-05", "serverInfo": {"name": "codebuddy-bridge", "version": "1.0.0"}, "capabilities": {"tools": {}}}})
+                _send_response(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": req_id,
+                        "result": {
+                            "protocolVersion": "2024-11-05",
+                            "serverInfo": {"name": "codebuddy-bridge", "version": "1.0.0"},
+                            "capabilities": {"tools": {}},
+                        },
+                    }
+                )
             elif method == "tools/list":
                 _send_response({"jsonrpc": "2.0", "id": req_id, "result": {"tools": TOOLS}})
             elif method == "tools/call":
-                _send_response({"jsonrpc": "2.0", "id": req_id, "result": _handle_tool_call(params.get("name", ""), params.get("arguments", {}))})
+                _send_response(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": req_id,
+                        "result": _handle_tool_call(params.get("name", ""), params.get("arguments", {})),
+                    }
+                )
             elif method == "notifications/initialized":
                 pass
             else:
-                _send_response({"jsonrpc": "2.0", "id": req_id, "error": {"code": -32601, "message": f"Method not found: {method}"}})
+                _send_response(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": req_id,
+                        "error": {"code": -32601, "message": f"Method not found: {method}"},
+                    }
+                )
         except json.JSONDecodeError:
             pass
         except EOFError:

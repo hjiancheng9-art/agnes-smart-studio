@@ -20,20 +20,21 @@ from typing import Any
 
 class PlanStatus(enum.Enum):
     IDLE = "idle"
-    PLANNING = "planning"          # 正在生成计划
+    PLANNING = "planning"  # 正在生成计划
     WAITING_APPROVAL = "waiting_approval"  # 等待用户审批
-    APPROVED = "approved"          # 审批通过，进入执行
-    REJECTED = "rejected"          # 审批拒绝
-    EXECUTING = "executing"        # 正在执行
+    APPROVED = "approved"  # 审批通过，进入执行
+    REJECTED = "rejected"  # 审批拒绝
+    EXECUTING = "executing"  # 正在执行
 
 
 @dataclass
 class PlanOption:
     """单个方案选项。"""
-    label: str                    # 简短标签（1-8 词）
-    description: str = ""          # 方案描述与权衡
+
+    label: str  # 简短标签（1-8 词）
+    description: str = ""  # 方案描述与权衡
     steps: list[dict] = field(default_factory=list)  # 步骤列表
-    is_recommended: bool = False   # 是否推荐
+    is_recommended: bool = False  # 是否推荐
 
     def to_dict(self) -> dict:
         return {
@@ -177,6 +178,7 @@ class PlanModeManager:
             # 尝试智能规划
             try:
                 from core.tools import get_registry
+
                 registry = get_registry()
                 tool_names = list(registry._executors.keys())
                 steps = smart_plan(goal, context="", tool_names=tool_names)
@@ -184,25 +186,27 @@ class PlanModeManager:
                 steps = quick_plan(goal)
 
             # Handle both Task object and list
-            if hasattr(steps, 'steps'):
+            if hasattr(steps, "steps"):
                 step_list = steps.steps
                 steps_count = len(step_list)
-                steps_serialized = [asdict(s) if hasattr(s, '__dataclass_fields__') else s for s in step_list]
+                steps_serialized = [asdict(s) if hasattr(s, "__dataclass_fields__") else s for s in step_list]
             elif isinstance(steps, list):
                 step_list = steps
                 steps_count = len(step_list) if step_list else 1
-                steps_serialized = [asdict(s) if hasattr(s, '__dataclass_fields__') else s for s in step_list]
+                steps_serialized = [asdict(s) if hasattr(s, "__dataclass_fields__") else s for s in step_list]
             else:
                 steps_count = 1
                 steps_serialized = [{"tool": "execute_plan_tool", "args": {"goal": goal}}]
 
             if not steps_serialized:
-                return [PlanOption(
-                    label="单步执行",
-                    description="直接执行目标",
-                    steps=[{"tool": "execute_plan_tool", "args": {"goal": goal}}],
-                    is_recommended=True,
-                )]
+                return [
+                    PlanOption(
+                        label="单步执行",
+                        description="直接执行目标",
+                        steps=[{"tool": "execute_plan_tool", "args": {"goal": goal}}],
+                        is_recommended=True,
+                    )
+                ]
 
             # 构建推荐方案
             recommended = PlanOption(
@@ -215,12 +219,14 @@ class PlanModeManager:
             return [recommended]
 
         except (ImportError, RuntimeError, ValueError):
-            return [PlanOption(
-                label="直接执行",
-                description="无法生成规划方案，直接执行目标",
-                steps=[{"tool": "execute_plan_tool", "args": {"goal": goal}}],
-                is_recommended=True,
-            )]
+            return [
+                PlanOption(
+                    label="直接执行",
+                    description="无法生成规划方案，直接执行目标",
+                    steps=[{"tool": "execute_plan_tool", "args": {"goal": goal}}],
+                    is_recommended=True,
+                )
+            ]
 
     # ── 回调注入 ──
 
@@ -239,6 +245,7 @@ class PlanModeManager:
         if not self._in_plan_mode:
             return True
         from core.constraints import READONLY_TOOLS
+
         return tool_name in READONLY_TOOLS
 
     def get_status(self) -> dict:
@@ -298,8 +305,7 @@ PLAN_MODE_TOOL_DEFS = [
         "function": {
             "name": "exit_plan_mode",
             "description": (
-                "退出规划模式。approved=true 表示审批通过，将执行选中的方案；"
-                "approved=false 表示拒绝方案。"
+                "退出规划模式。approved=true 表示审批通过，将执行选中的方案；approved=false 表示拒绝方案。"
             ),
             "parameters": {
                 "type": "object",

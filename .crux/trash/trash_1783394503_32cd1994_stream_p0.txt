@@ -1,0 +1,2 @@
+L1475:    def _stream_response(self, user_text: str) -> None:
+L1476

@@ -42,9 +42,17 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # 敏感路径阻止列表 — read_file 拒绝读取这些（防止 LLM 窃取密钥/凭证）
 _READ_BLOCKLIST = [
-    ".env", "**/.env.*", "**/.git/config", "**/.ssh/*", "**/id_rsa*",
-    "**/credentials*", "**/.aws/config", "**/.aws/credentials",
-    "**/.claude/.env", "**/.npmrc", "**/settings.local.json",
+    ".env",
+    "**/.env.*",
+    "**/.git/config",
+    "**/.ssh/*",
+    "**/id_rsa*",
+    "**/credentials*",
+    "**/.aws/config",
+    "**/.aws/credentials",
+    "**/.claude/.env",
+    "**/.npmrc",
+    "**/settings.local.json",
 ]
 
 
@@ -65,6 +73,7 @@ def _safe_path(path: str, *, read_only: bool = False) -> Path:
     if read_only:
         # 敏感文件阻止 — read_file 不应泄露密钥
         from fnmatch import fnmatch
+
         p_str = str(p)
         for blocked in _READ_BLOCKLIST:
             if fnmatch(p_str, blocked):
@@ -125,6 +134,7 @@ def _snapshot_if_core(p: Path) -> None:
             snap_dir = core_root.parent / "output" / "snapshots"
             snap_dir.mkdir(parents=True, exist_ok=True)
             import time
+
             ts = time.strftime("%Y%m%d_%H%M%S")
             snap_path = snap_dir / f"{p.stem}_{ts}.py.bak"
             snap_path.write_text(p.read_text(encoding="utf-8"), encoding="utf-8")

@@ -65,10 +65,12 @@ class RouteDecision:
 
 # ── Cost Tier ──────────────────────────────────────────────
 
+
 class CostTier(Enum):
     SAVE = "save"
     BALANCED = "balanced"
     BEST = "best"
+
 
 _COST_TIER_FILTER: dict[CostTier, set[str]] = {
     CostTier.SAVE: {"deepseek-v4-flash"},
@@ -78,18 +80,23 @@ _COST_TIER_FILTER: dict[CostTier, set[str]] = {
 
 _user_cost_tier: CostTier = CostTier.BALANCED
 
+
 def set_cost_tier(tier: CostTier | str) -> None:
     global _user_cost_tier
     _user_cost_tier = CostTier(tier) if isinstance(tier, str) else tier
 
+
 def get_cost_tier() -> CostTier:
     return _user_cost_tier
 
+
 _LIGHT_BUT_FREE: set[str] = {"deepseek-v4-flash"}
+
 
 def _model_cost_tier(model_id: str) -> str:
     try:
         from core.provider import MODEL_REGISTRY, get_provider_manager
+
         info = MODEL_REGISTRY.get(model_id)
         if info is None:
             return "unknown"
@@ -115,6 +122,7 @@ def _model_cost_tier(model_id: str) -> str:
 
 _PROFILE_MODEL: dict[TaskProfile, list[str]] = {}
 _PROFILE_MODEL_built = False
+
 
 def _build_profile_models() -> dict[TaskProfile, list[str]]:
     """从 MODEL_REGISTRY + models.json fallback.priority 动态构建画像候选模型。
@@ -170,6 +178,7 @@ def _get_profile_candidates(profile: TaskProfile) -> list[str]:
 
 _PROFILE_MODEL: dict[TaskProfile, list[str]] = {}
 
+
 def _pick_best_model(candidates: list[str], session=None) -> str:
     allowed = _COST_TIER_FILTER.get(_user_cost_tier, set())
     if allowed:
@@ -178,6 +187,7 @@ def _pick_best_model(candidates: list[str], session=None) -> str:
             return ""
     try:
         from core.provider import MODEL_REGISTRY, get_provider_manager
+
         mgr = get_provider_manager()
         if not mgr.providers:
             mgr.load()

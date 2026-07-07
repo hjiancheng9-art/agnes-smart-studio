@@ -1,0 +1,398 @@
+Control Plane v1
+
+核心目标不是“输入框能打字”，而是让用户在 agent 运行中拥有：
+
+插话
+中断
+暂停
+撤销
+改写
+确认
+取消工具调用
+1. 痛点一：优先插话功能
+你需要区分三种“插话”
+
+用户说“打断插入新指令”，其实有三种语义：
+
+类型	示例	Agent 应该怎么做
+interrupt	“停一下” / “别继续了”	暂停当前 run
+correction	“不是改 A，是改 B”	修改当前 goal / plan
+priority message	“先回答这个问题”	当前 run 暂停，新消息优先处理
+
+不要把三者都实现成 KeyboardInterrupt。那样太粗。
+
+推荐事件模型
+
+新增一个高优先级控制队列：
+
+Python
+运行
+ControlEvent:
+    id: str
+    type: "interrupt" | "pause" | "cancel" | "correction" | "priority_message"
+    priority: int
+    target_run_id: str | None
+    payload: dict
+    created_at: datetime
+
+TUI 普通消息走：
+
+message_queue
+
+控制事件走：
+
+control_queue
+
+Agent 执行循环每一步都先检查：
+
+Python
+运行
+if control_queue.has_event():
+    handle_control_event()
+执行循环应该变成这样
+while goal.active:
+    check_control_events()
+
+    next_step = planner.next_step()
+
+    before_tool_call:
+        check_control_events()
+
+    result = tool.call(...)
+
+    after_tool_call:
+        check_control_events()
+
+    evaluator.update(result)
+
+关键点：
+
+优先插话不一定要打断正在执行的底层工具，但必须在每个 step / tool boundary 处可响应。
+
+长工具调用怎么办？
+
+比如：
+
+ComfyUI submit_workflow
+browser automation
+pip install
+long test run
+agent_swarm
+
+这些不是每 100ms 都能停。
+
+所以需要工具声明：
+
+JSON
+{
+  "tool": "pip_install",
+  "cancellable": true,
+  "interrupt_mode": "cooperative | kill_process | not_interruptible"
+}
+
+三类：
+
+interrupt_mode	含义
+cooperative	工具定期检查 cancel token
+kill_process	可杀子进程
+not_interruptible	不能中止，只能标记“完成后暂停”
+用户体验建议
+
+运行中输入框仍可输入。按 Enter 后出现选择：
+
+Agent 正在执行：
+[1] 插话优先处理
+[2] 修改当前任务
+[3] 中止当前任务后处理
+[4] 追加到任务后续
+
+快捷键可以设计成：
+
+Enter        普通发送 / 运行中默认作为 priority_message
+Ctrl+Enter   追加到当前任务上下文
+Esc          暂停当前 agent
+Ctrl+C       请求取消当前 run，不直接杀 TUI
+Ctrl+Z       撤销刚发送消息
+
+注意：Ctrl+C 不建议直接退出程序。应该先解释为：
+
+cancel current run
+
+连续两次 Ctrl+C 再退出 TUI。
+
+2. 痛点二：撤销发送功能
+
+撤销发送要分两个阶段处理。
+
+阶段 A：消息还没被 agent 消费
+
+这是最干净的撤销。
+
+流程：
+
+用户 Enter
+→ 消息进入 pending 状态
+→ TUI 显示 2 秒撤销窗口
+→ 2 秒后 commit 到 message_queue
+
+状态机：
+
+draft
+→ pending
+→ committed
+→ consumed
+
+只要还在 pending，就可以无副作用撤销。
+
+UI 可以显示：
+
+你：帮我删除整个项目
+状态：待发送 2.0s  [Ctrl+Z 撤销]
+
+如果用户按 Ctrl+Z：
+
+pending message removed
+不会进入 agent
+不会写入 goal
+不会触发 tool
+阶段 B：消息已经被 agent 消费
+
+这时不能叫“撤销发送”，应该叫：
+
+撤回并中止当前响应
+
+因为 agent 已经可能：
+
+读了消息
+开始规划
+调用工具
+修改文件
+
+这时撤销要做的是：
+
+1. 发送 cancel event
+2. 暂停当前 run
+3. 标记用户消息为 retracted
+4. 如果产生副作用，提示是否 rollback
+
+EventLog 里记录：
+
+JSON
+{
+  "event_type": "message.retracted",
+  "message_id": "...",
+  "run_id": "...",
+  "retract_mode": "before_consumed | after_consumed",
+  "rollback_available": true
+}
+3. 两个功能应该共用一个底层：Control Plane
+
+不要分别实现“插话”和“撤销”。应该统一成：
+
+TUI Control Plane
+
+核心对象：
+
+Python
+运行
+MessageState:
+    draft
+    pending
+    committed
+    consumed
+    retracted
+
+RunState:
+    idle
+    running
+    pausing
+    paused
+    cancelling
+    cancelled
+    completed
+
+ControlEvent:
+    interrupt
+    cancel
+    pause
+    priority_message
+    retract_message
+    modify_goal
+
+这样后面你还能自然扩展：
+
+暂停
+恢复
+换模型
+改预算
+改 goal boundary
+撤销工具调用
+rollback patch
+4. 最小可行实现方案
+MVP 1：撤销发送
+
+先做这个，收益最大，风险最小。
+
+实现：
+
+发送后进入 pending_outbox
+默认延迟 1.5 - 2 秒 commit
+Ctrl+Z 删除 pending message
+TUI 显示倒计时
+
+配置：
+
+Python
+运行
+UNDO_SEND_WINDOW_MS = 2000
+
+建议不要太长，2 秒够了。太长会让交互变慢。
+
+MVP 2：运行中插话
+
+实现：
+
+agent running 时，输入仍然可用
+新消息不进普通队列，进入 control_queue
+默认类型 priority_message
+当前 run 在下一个 step boundary 暂停
+先处理 priority_message
+
+如果当前工具不可中断，UI 显示：
+
+已收到插话，将在当前工具完成后优先处理。
+当前工具：pip_install，不支持即时中断。
+MVP 3：取消当前 run
+
+实现：
+
+Esc       pause
+Ctrl+C    cancel current run
+Ctrl+C x2 exit TUI
+
+如果已有 patch/checkpoint：
+
+是否回滚本次修改？[y/N]
+5. 这两个功能和 Goal Mode 的关系
+
+优先插话不应该只是 TUI 层功能，它要影响 Goal Mode。
+
+建议：
+
+priority_message
+→ 当前 goal 状态 active → paused
+→ 新消息创建 child goal 或 priority goal
+
+两种模式：
+
+插话作为临时问题
+current goal paused
+priority question answered
+current goal resumed
+插话作为任务修正
+current goal paused
+goal_contract updated
+plan invalidated
+resume with new plan
+
+所以用户插话后，CRUX 应询问或自动判断：
+
+这是：
+1. 临时问题
+2. 修改当前任务
+3. 取消当前任务
+4. 新任务
+
+低风险时自动判断，高风险时让用户选。
+
+6. TUI 展示建议
+
+运行中底部输入区可以变成：
+
+Agent 正在执行 patch_file → pytest
+输入内容将作为【优先插话】发送
+快捷键：Esc 暂停｜Ctrl+C 取消｜Ctrl+Z 撤销刚发送
+
+消息气泡状态：
+
+[Pending 1.8s] 用户消息……
+[Committed] 用户消息……
+[Consumed] 用户消息……
+[Retracted] 用户已撤回
+
+不要只靠颜色，终端里要有文字状态。
+
+7. 需要避免的坑
+坑 1：用 Ctrl+C 直接杀进程
+
+不建议。会破坏：
+
+EventLog
+checkpoint
+rollback
+tool cleanup
+subprocess cleanup
+
+应该先发 cancel_run。
+
+坑 2：插话直接写入当前 prompt
+
+如果 agent 正在执行多步任务，直接把插话塞进上下文会污染当前 plan。
+
+应该作为：
+
+ControlEvent
+
+由 run controller 决定：
+
+pause / update_goal / create_priority_goal
+坑 3：撤销只改 UI，不改后端状态
+
+撤销必须同步更新：
+
+message_store
+run_context
+EventLog
+Goal memory
+
+否则 UI 上撤销了，agent 记忆里还在。
+
+坑 4：不可中断工具假装可中断
+
+每个工具必须声明：
+
+cancellable
+interrupt_mode
+cleanup_handler
+rollback_handler
+
+否则用户按取消后以为停了，实际上后台还在跑。
+
+8. 我建议的落地顺序
+1. Message lifecycle
+   draft / pending / committed / consumed / retracted
+
+2. Undo send
+   pending window + Ctrl+Z
+
+3. ControlEvent / control_queue
+   priority_message / pause / cancel
+
+4. Agent loop checkpoint
+   每个 step/tool boundary 检查 control_queue
+
+5. Tool cancellability contract
+   cancellable / interrupt_mode / cleanup
+
+6. Goal Mode integration
+   pause/resume/cancel/child goal
+
+7. TUI status display
+   pending / running / paused / cancelling / rollback available
+
+最终一句话：
+
+这两个痛点不是 TUI 小功能，而是 CRUX 从“命令式聊天”升级到“可控自主 Agent”的关键入口。
+
+高级
+ChatGPT 也可能会犯错。请核查重要信息。

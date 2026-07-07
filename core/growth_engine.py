@@ -30,10 +30,10 @@ ROOT = Path(__file__).parent.parent
 STATS_FILE = ROOT / ".crux_memory" / "growth.json"
 
 # ── Demotion / probation rules ────────────────────────────
-CONSECUTIVE_FAIL_THRESHOLD = 3   # auto-demote after this many failures in a row
-PROBATION_PROBE_INTERVAL = 5     # try a demoted tool every N calls for that intent
-PROBATION_SUCCESS_TO_RESTORE = 3 # successful probes needed to restore
-RECALC_INTERVAL = 10             # recalculate weights every N total calls per intent
+CONSECUTIVE_FAIL_THRESHOLD = 3  # auto-demote after this many failures in a row
+PROBATION_PROBE_INTERVAL = 5  # try a demoted tool every N calls for that intent
+PROBATION_SUCCESS_TO_RESTORE = 3  # successful probes needed to restore
+RECALC_INTERVAL = 10  # recalculate weights every N total calls per intent
 
 
 @dataclass
@@ -83,11 +83,23 @@ class ToolStats:
 
     @classmethod
     def from_dict(cls, d: dict) -> ToolStats:
-        return cls(**{k: d.get(k, 0) for k in [
-            "tool", "source", "calls", "successes", "failures",
-            "total_latency_ms", "consecutive_failures", "demoted",
-            "probation_successes", "last_call_ts"
-        ]})
+        return cls(
+            **{
+                k: d.get(k, 0)
+                for k in [
+                    "tool",
+                    "source",
+                    "calls",
+                    "successes",
+                    "failures",
+                    "total_latency_ms",
+                    "consecutive_failures",
+                    "demoted",
+                    "probation_successes",
+                    "last_call_ts",
+                ]
+            }
+        )
 
 
 @dataclass
@@ -136,6 +148,7 @@ class IntentStats:
 # Growth Engine
 # ═══════════════════════════════════════════════════════════════
 
+
 class GrowthEngine:
     """Adaptive routing optimizer — learns from every tool call.
 
@@ -149,7 +162,7 @@ class GrowthEngine:
 
     def __init__(self) -> None:
         self.intents: dict[str, IntentStats] = {}
-        self._dirty = False        # true when there are unsaved changes
+        self._dirty = False  # true when there are unsaved changes
         self._last_save = 0.0
         self._save_interval = 30.0  # auto-save at most every 30 seconds
         self._total_calls_ever = 0
@@ -157,9 +170,7 @@ class GrowthEngine:
 
     # ── Recording ──────────────────────────────────────────
 
-    def record(self, intent: str, tool: str, *,
-               success: bool, latency_ms: float = 0,
-               source: str = "") -> ToolStats:
+    def record(self, intent: str, tool: str, *, success: bool, latency_ms: float = 0, source: str = "") -> ToolStats:
         """Record a tool call outcome. Returns updated ToolStats."""
         is_ = self._ensure_intent(intent)
         ts = is_.ensure_tool(tool, source)
@@ -239,10 +250,7 @@ class GrowthEngine:
             f"Intents tracked: {len(self.intents)}",
         ]
         for intent, is_ in sorted(self.intents.items()):
-            tools_str = ", ".join(
-                f"{t.tool}({t.score:.2f}{' D' if t.demoted else ''})"
-                for t in is_.ordered_tools
-            )
+            tools_str = ", ".join(f"{t.tool}({t.score:.2f}{' D' if t.demoted else ''})" for t in is_.ordered_tools)
             lines.append(f"  [{intent}] ({is_.total_calls} calls) -> {tools_str}")
         return "\n".join(lines)
 
@@ -270,20 +278,21 @@ class GrowthEngine:
                 continue
 
             ordered_names = is_.tool_names  # already scored+demoted
-            active_names = [n for n in ordered_names
-                           if n in is_.tools and not is_.tools[n].demoted]
+            active_names = [n for n in ordered_names if n in is_.tools and not is_.tools[n].demoted]
 
             # Remove dead tools (0% success over 10+ calls)
             cleaned = []
             for n in active_names:
                 ts = is_.tools[n]
                 if ts.calls >= 10 and ts.success_rate == 0.0:
-                    changes["applied"].append({
-                        "action": "remove_dead_tool",
-                        "intent": intent,
-                        "tool": n,
-                        "reason": f"0% success over {ts.calls} calls",
-                    })
+                    changes["applied"].append(
+                        {
+                            "action": "remove_dead_tool",
+                            "intent": intent,
+                            "tool": n,
+                            "reason": f"0% success over {ts.calls} calls",
+                        }
+                    )
                     continue
                 cleaned.append(n)
 
@@ -291,12 +300,14 @@ class GrowthEngine:
             if len(cleaned) >= 2:
                 sorted_by_score = sorted(cleaned, key=lambda n: is_.tools[n].score, reverse=True)
                 if sorted_by_score != cleaned:
-                    changes["applied"].append({
-                        "action": "reorder_routing",
-                        "intent": intent,
-                        "old_order": list(cleaned),
-                        "new_order": sorted_by_score,
-                    })
+                    changes["applied"].append(
+                        {
+                            "action": "reorder_routing",
+                            "intent": intent,
+                            "old_order": list(cleaned),
+                            "new_order": sorted_by_score,
+                        }
+                    )
                     cleaned = sorted_by_score
 
             # Store optimized route
@@ -310,9 +321,7 @@ class GrowthEngine:
                 avg_score = sum(t.score for t in active) / len(active)
                 if avg_score > 0.85:
                     # Mesh is healthy — be stricter about demotion
-                    changes["recommendations"].append(
-                        f"[{intent}] 网格健康 (均分 {avg_score:.2f})，可降低降级阈值"
-                    )
+                    changes["recommendations"].append(f"[{intent}] 网格健康 (均分 {avg_score:.2f})，可降低降级阈值")
 
         if apply:
             if changes["applied"]:
@@ -367,12 +376,19 @@ class GrowthEngine:
                     severity += 1
                     reasons.append("Demoted (auto)")
                 if severity >= 3:
-                    bottlenecks.append({
-                        "intent": intent, "tool": ts.tool, "severity": severity,
-                        "reasons": reasons,
-                        "stats": {"calls": ts.calls, "success_rate": ts.success_rate,
-                                  "avg_latency_ms": ts.avg_latency_ms},
-                    })
+                    bottlenecks.append(
+                        {
+                            "intent": intent,
+                            "tool": ts.tool,
+                            "severity": severity,
+                            "reasons": reasons,
+                            "stats": {
+                                "calls": ts.calls,
+                                "success_rate": ts.success_rate,
+                                "avg_latency_ms": ts.avg_latency_ms,
+                            },
+                        }
+                    )
         bottlenecks.sort(key=lambda b: b["severity"], reverse=True)
         return bottlenecks
 
@@ -383,8 +399,7 @@ class GrowthEngine:
         for b in bottlenecks[:5]:
             if b["severity"] >= 5:
                 suggestions.append(
-                    f"[严重] {b['intent']}/{b['tool']}: "
-                    f"成功率 {b['stats']['success_rate']:.0%}, 需立即检查"
+                    f"[严重] {b['intent']}/{b['tool']}: 成功率 {b['stats']['success_rate']:.0%}, 需立即检查"
                 )
         for intent, is_ in self.intents.items():
             if is_.total_calls >= 10:
@@ -393,7 +408,7 @@ class GrowthEngine:
                     top = is_.tools[names[0]] if names else None
                     if top and top.calls > 0 and top.calls / max(is_.total_calls, 1) > 0.9:
                         suggestions.append(
-                            f"[建议] {intent}: {top.tool} 占比 {top.calls/max(is_.total_calls,1):.0%}, "
+                            f"[建议] {intent}: {top.tool} 占比 {top.calls / max(is_.total_calls, 1):.0%}, "
                             "其他工具未充分验证"
                         )
         if not suggestions:
@@ -423,10 +438,7 @@ class GrowthEngine:
         try:
             data = json.loads(STATS_FILE.read_text(encoding="utf-8"))
             self._total_calls_ever = data.get("total_calls_ever", 0)
-            self.intents = {
-                k: IntentStats.from_dict(v)
-                for k, v in data.get("intents", {}).items()
-            }
+            self.intents = {k: IntentStats.from_dict(v) for k, v in data.get("intents", {}).items()}
         except (json.JSONDecodeError, OSError, KeyError):
             pass  # corrupted file → start fresh
 
@@ -460,10 +472,12 @@ def get_growth_engine() -> GrowthEngine:
     return _instance
 
 
-def hook_trm_route(intent: str, tool: str, success: bool, latency_ms: float,
-                   source: str = "") -> ToolStats:
+def hook_trm_route(intent: str, tool: str, success: bool, latency_ms: float, source: str = "") -> ToolStats:
     """Convenience: record a TRM route call to the growth engine."""
     return get_growth_engine().record(
-        intent=intent, tool=tool, success=success,
-        latency_ms=latency_ms, source=source,
+        intent=intent,
+        tool=tool,
+        success=success,
+        latency_ms=latency_ms,
+        source=source,
     )

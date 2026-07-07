@@ -1,0 +1,5 @@
+class CleanupManager:
+    def __init__(self, project_root: Path, policy: dict, event_log=None):
+        self.root = project_root.resolve()
+        self.policy = policy
+        self.event_log = event_log

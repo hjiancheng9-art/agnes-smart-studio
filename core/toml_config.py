@@ -60,6 +60,7 @@ DEFAULT_TUI_CONFIG: dict[str, Any] = {
 
 # ── TOML helpers ──────────────────────────────────────────────
 
+
 def _parse_toml(path: Path) -> dict[str, Any]:
     """Parse a TOML file without external dependencies.
 
@@ -67,6 +68,7 @@ def _parse_toml(path: Path) -> dict[str, Any]:
     """
     if sys.version_info >= (3, 11):
         import tomllib
+
         try:
             with open(path, "rb") as fh:
                 return tomllib.load(fh)
@@ -76,6 +78,7 @@ def _parse_toml(path: Path) -> dict[str, Any]:
         # Fallback: try tomli (common backport)
         try:
             import tomli
+
             with open(path, "rb") as fh:
                 return tomli.load(fh)
         except ImportError:

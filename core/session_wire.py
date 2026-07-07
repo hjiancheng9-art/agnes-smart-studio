@@ -35,7 +35,7 @@ __all__ = [
     "SessionWire",
     "compute_wd_hash",
     "load_index",
-    ]
+]
 
 SESSIONS_ROOT = OUTPUT_DIR / "sessions"
 
@@ -164,26 +164,28 @@ class SessionWire:
                 }
             },
         }
-        (self._session_dir / "state.json").write_text(
-            json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        (self._session_dir / "state.json").write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
         # wire.jsonl — metadata record
         self._wire_path = agents_dir / "wire.jsonl"
-        self._write_wire_record({
-            "type": "metadata",
-            "protocol_version": PROTOCOL_VERSION,
-            "created_at": self._started_at,
-        })
+        self._write_wire_record(
+            {
+                "type": "metadata",
+                "protocol_version": PROTOCOL_VERSION,
+                "created_at": self._started_at,
+            }
+        )
 
         # Index entry
-        save_index_entry({
-            "sessionId": self._session_id,
-            "sessionDir": str(self._session_dir),
-            "workDir": str(self.work_dir),
-            "createdAt": self._started_at,
-            "title": title or "New Session",
-        })
+        save_index_entry(
+            {
+                "sessionId": self._session_id,
+                "sessionDir": str(self._session_dir),
+                "workDir": str(self.work_dir),
+                "createdAt": self._started_at,
+                "title": title or "New Session",
+            }
+        )
 
         return self._session_id
 
@@ -206,30 +208,36 @@ class SessionWire:
 
     def record_config_update(self, key: str, value: object) -> None:
         """Record a config.update event (e.g., systemPrompt change)."""
-        self._write_wire_record({
-            "type": "config.update",
-            "key": key,
-            "value": value,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
+        self._write_wire_record(
+            {
+                "type": "config.update",
+                "key": key,
+                "value": value,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
 
     def record_tools_active(self, tool_names: list[str]) -> None:
         """Record the active tool set."""
-        self._write_wire_record({
-            "type": "tools.set_active_tools",
-            "tools": tool_names,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
+        self._write_wire_record(
+            {
+                "type": "tools.set_active_tools",
+                "tools": tool_names,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
 
     def record_turn(self, role: str, content: str) -> None:
         """Record a conversation turn (user / assistant / tool_result)."""
         if role not in ("user", "assistant", "tool_result"):
             return
-        self._write_wire_record({
-            "type": role,
-            "content": content,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
+        self._write_wire_record(
+            {
+                "type": role,
+                "content": content,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
 
     def _write_wire_record(self, record: dict) -> None:
         """Append a JSON line to wire.jsonl."""

@@ -46,7 +46,6 @@ __all__ = [
 ]
 
 
-
 # ── 工具定义数据从 tools_defs.py 导入（facade re-export）──
 from core.tools_defs import (  # noqa: F401
     _BUILTIN_MODULE,
@@ -294,18 +293,21 @@ class ToolRegistry:
         # ── CI/CD Pipeline (方法论第10章) ──
         from core.ci_pipeline import PIPELINE_EXECUTOR_MAP
         from core.ci_pipeline import PIPELINE_TOOL_DEFS as CI_PIPELINE_TOOL_DEFS
+
         self._definitions.extend(CI_PIPELINE_TOOL_DEFS)
         for name, executor in PIPELINE_EXECUTOR_MAP.items():
             self._executors[name] = executor
 
         # ── Artifact Pipeline (方法论第13章) ──
         from core.artifact_pipeline import ARTIFACT_EXECUTOR_MAP, ARTIFACT_TOOL_DEFS
+
         self._definitions.extend(ARTIFACT_TOOL_DEFS)
         for name, executor in ARTIFACT_EXECUTOR_MAP.items():
             self._executors[name] = executor
 
         # ── Rollback/Gray-release (方法论第14章) ──
         from core.rollback_engine import RELEASE_EXECUTOR_MAP, RELEASE_TOOL_DEFS
+
         self._definitions.extend(RELEASE_TOOL_DEFS)
         for name, executor in RELEASE_EXECUTOR_MAP.items():
             self._executors[name] = executor
@@ -437,33 +439,50 @@ class ToolRegistry:
         # ── Fast Scanner ──
         try:
             from core.fast_scanner import SCANNER_EXECUTOR_MAP, SCANNER_TOOL_DEFS
+
             self._definitions.extend(SCANNER_TOOL_DEFS)
             for _n, _e in SCANNER_EXECUTOR_MAP.items():
                 self._executors[_n] = _e
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            import logging
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
 
         # ── MCP Health Check ──
         try:
-            self._definitions.append({"type": "function", "function": {
-                "name": "mcp_health_check",
-                "description": "Check MCP connection health and reconnect if dead.",
-                "parameters": {"type": "object", "properties": {"server_name": {"type": "string"}}}
-            }})
+            self._definitions.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "mcp_health_check",
+                        "description": "Check MCP connection health and reconnect if dead.",
+                        "parameters": {"type": "object", "properties": {"server_name": {"type": "string"}}},
+                    },
+                }
+            )
             from core.mcp_client import get_mcp_client
+
             def _hchk(**kw):
                 import json
+
                 mc = get_mcp_client()
                 if kw.get("server_name"):
                     return json.dumps(mc.health_check(kw["server_name"]))
                 return json.dumps(mc.health_check_all())
+
             self._executors["mcp_health_check"] = _hchk
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            import logging
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
 
         # 去重
         seen = set()
-        self._definitions = [d for d in self._definitions if not (d.get("function", {}).get("name") in seen or seen.add(d.get("function", {}).get("name")))]
+        self._definitions = [
+            d
+            for d in self._definitions
+            if not (d.get("function", {}).get("name") in seen or seen.add(d.get("function", {}).get("name")))
+        ]
 
         return len(self._definitions)
 
@@ -586,7 +605,6 @@ class ToolRegistry:
             return python_executor
         else:
             return shell_executor
-
 
     # ── 注册/注销 ──
     def register(

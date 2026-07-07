@@ -1,0 +1,5 @@
+limits:
+  max_delete_per_run: 500
+  max_bytes_per_run: "5GB"
+  require_confirm_above: "1GB"
+清理命令设计

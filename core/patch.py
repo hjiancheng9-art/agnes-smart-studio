@@ -118,7 +118,7 @@ class PatchEngine:
         while i < len(raw_lines):
             stripped = raw_lines[i].strip()
             if stripped.startswith("*** Add File:"):
-                path = stripped[len("*** Add File:"):].strip()
+                path = stripped[len("*** Add File:") :].strip()
                 content_lines = []
                 i += 1
                 while i < len(raw_lines) and not raw_lines[i].strip().startswith("***"):
@@ -129,11 +129,11 @@ class PatchEngine:
                     i += 1
                 ops.append({"type": "add_file", "path": path, "content": chr(10).join(content_lines)})
             elif stripped.startswith("*** Delete File:"):
-                path = stripped[len("*** Delete File:"):].strip()
+                path = stripped[len("*** Delete File:") :].strip()
                 ops.append({"type": "delete_file", "path": path})
                 i += 1
             elif stripped.startswith("*** Update File:"):
-                path = stripped[len("*** Update File:"):].strip()
+                path = stripped[len("*** Update File:") :].strip()
                 i += 1
                 hunks = []
                 current_hunk = None
@@ -327,6 +327,8 @@ class PatchEngine:
             raise PatchError(f"Syntax error after update: {rel_path}", file=rel_path)
         self._modified.add(str(path))
         return {"op": "update", "file": rel_path, "hunks_applied": applied, "status": "ok"}
+
+
 def apply(patch_text: str, verify: bool = True) -> dict:
     """Apply a structured patch and return result."""
     return PatchEngine().apply(patch_text, verify=verify)

@@ -13,8 +13,7 @@ class FFmpegEngine:
         self.ffmpeg_path = ffmpeg_path
         self._proc: subprocess.Popen | None = None
 
-    def download(self, url: str, output: str,
-                 headers: dict[str, str] | None = None) -> subprocess.Popen:
+    def download(self, url: str, output: str, headers: dict[str, str] | None = None) -> subprocess.Popen:
         """Start ffmpeg download. Returns Popen for progress tracking."""
         args = [self.ffmpeg_path, "-y", "-i", url]
         if headers:
@@ -22,7 +21,10 @@ class FFmpegEngine:
                 args.extend(["-headers", f"{k}: {v}"])
         args.extend(["-c", "copy", output])
         self._proc = subprocess.Popen(
-            args, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
+            args,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
         )
         return self._proc
 

@@ -1,0 +1,200 @@
+L1475:    def _stream_response(self, user_text: str) -> None:
+L1476:        try:
+L1477:            self._ui(self.message_pane.stream_start, "crux")
+L1478:            pending_tool = None
+L1479:            _t0 = time.monotonic()
+L1480:            _first_token = False
+L1481:            for kind, payload in self.session.send_stream(user_text):
+L1482:                if not _first_token and kind in ("text", "thinking"):
+L1483:                    _first_token = True
+L1484:                    self._latency = time.monotonic() - _t0
+L1485:                if kind == "text":
+L1486:                    self._ui(self.message_pane.stream_append, str(payload))
+L1487:                elif kind == "thinking":
+L1488:                    self.thinking_panel.append(str(payload))
+L1489:                    self._ui(lambda: None)
+L1490:                elif kind == "info":
+L1491:                    msg = str(payload).strip()
+L1492:                    if not msg:
+L1493:                        continue
+L1494:                    if msg.startswith("正在执行 "):
+L1495:                        tool_name = msg[5:].rstrip(".")
+L1496:                        pending_tool = tool_name
+L1497:                        self._log_append(("●", "class:activity-running", f"执行 {tool_name}"))
+L1498:                    elif msg.startswith("正在生成"):
+L1499:                        action = msg[2:].rstrip(".")
+L1500:                        pending_tool = action
+L1501:                        self._log_append(("●", "class:activity-running", f"生成 {action}"))
+L1502:                    elif "执行完成" in msg:
+L1503:                        if pending_tool:
+L1504:                            _last_entry = self._log_last()
+L1505:                            if _last_entry:
+L1506:                                last_icon, _, last_msg = _last_entry
+L1507:                                if "●" in last_icon:
+L1508:                                    self._log_update_last((
+L1509:                                        "✓", "class:activity-done",
+L1510:                                        last_msg.replace("执行 ", "").replace("生成 ", ""),
+L1511:                                    ))
+L1512:                        pending_tool = None
+L1513:                    elif "fallback" in msg.lower() or "连接中断" in msg:
+L1514:                        self._log_append(("⚠", "class:activity-warn", msg[:100]))
+L1515:                    elif "预算" in msg:
+L1516:                        self._log_append(("💰", "class:activity-info", msg[:100]))
+L1517:                    else:
+L1518:                        self._log_append(("·", "class:activity-info", msg[:120]))
+L1519:                    self._ui(lambda: None)
+L1520:                elif kind == "tool_result":
+L1521:                    if pending_tool:
+L1522:                        _last_entry = self._log_last()
+L1523:                        if _last_entry:
+L1524:                            last_icon, _, last_msg = _last_entry
+L1525:                            if "●" in last_icon:
+L1526:                                self._log_update_last((
+L1527:                                    "✓", "class:activity-done",
+L1528:                                last_msg.replace("执行 ", "").replace("生成 ", ""),
+L1529:                            ))
+L1530:                    pending_tool = None
+L1531:                    self._ui(lambda: None)
+L1532:                elif kind == "error":
+L1533:                    self._ui(self.message_pane.append_error, str(payload))
+L1534:                    self._log_append(("✗", "class:activity-fail", str(payload)[:120]))
+L1535:                elif kind in ("image", "video"):
+L1536:                    d = payload if isinstance(payload, dict) else {}
+L1537:                    loc = d.get("local_path", "") or d.get("url", "") or d.get("video_url", "")
+L1538:                    if loc:
+L1539:                        self._ui(self.message_pane.append_info, f"Saved: {loc}")
+L1540:                        self._log_append(("✓", "class:activity-done", f"已保存: {loc}"))
+L1541:            # Mark any remaining pending tool as done
+L1542:            if pending_tool:
+L1543:                _last_entry = self._log_last()
+L1544:                if _last_entry:
+L1545:                    last_icon, _, last_msg = _last_entry
+L1546:                    if "●" in last_icon:
+L1547:                        self._log_update_last(("✓", "class:activity-done", last_msg.replace("执行 ", "").replace("生成 ", "")))
+L1548:            self._ui(self.message_pane.stream_end, _force=True)
+L1549:        except Exception as e:
+L1550:            self._ui(self.message_pane.append_error, str(e), _force=True)
+L1551:            self._log_append(("✗", "class:activity-fail", f"响应失败: {self._error_summary(e)}"))
+L1552:            self._ui(self.message_pane.stream_end, _force=True)
+L1553:        finally:
+L1554:            with self._state_lock:
+L1555:                self._streaming = False
+L1556:                self._thinking = False
+L1557:            self.thinking_panel.done()
+L1558:            self._spinner.stop()
+L1559:            self._ui(self._refresh_status, _force=True)
+L1560:            # Auto-submit queued input
+L1561:            _qt = None
+L1562:            with self._state_lock:
+L1563:                _qt = self._queued_text
+L1564:                self._queued_text = None
+L1565:            if _qt:
+L1566:                self._log_append(("↪", "class:activity-info",
+L1567:                    f"自动发送暂存输入: {self._shorten(_qt, 48)}"))
+L1568:                self._submit_user_message(_qt)
+L1569:
+L1570:        if self.wire:
+L1571:            try:
+L1572:                self.wire.record_turn("assistant", "[streamed]")
+L1573:            except Exception:
+L1574:                logger.debug("wire.record_turn failed", exc_info=True)
+L1575:
+L1576:    # ══════════════════════════════════════════════════════════════
+L1577:    #  UI helpers
+L1578:    # ══════════════════════════════════════════════════════════════
+L1579:
+L1580:    def _ui(self, fn, *a, _force: bool = False):
+L1581:        try:
+L1582:            if a:
+L1583:                fn(*a)
+L1584:            else:
+L1585:                fn()
+L1586:        except Exception:
+L1587:            logger.warning("TUI _ui callback failed", exc_info=True)
+L1588:        try:
+L1589:            if self._app and self._app.is_running:
+L1590:                now = time.monotonic()
+L1591:                if _force or not self._thinking or now - self._last_invalidate > 0.030:
+L1592:                    self._last_invalidate = now
+L1593:                    self._app.invalidate()
+L1594:        except Exception:
+L1595:            logger.warning("TUI _ui invalidate failed", exc_info=True)
+L1596:
+L1597:
+L1598:    def _toggle_screen(self, name):
+L1599:        screen = self._available_screens.get(name)
+L1600:        if not screen:
+L1601:            return
+L1602:        if self.screen_stack.active and self.screen_stack.current.name == name:
+L1603:            self.screen_stack.pop(self)
+L1604:        else:
+L1605:            self.screen_stack.push(screen, self)
+L1606:        self._app.invalidate()
+L1607:    def _on_spinner_tick(self) -> None:
+L1608:        """Called by Spinner thread every ~80ms. Triggers activity bar repaint."""
+L1609:        if self._log_count() and self._app and self._app.is_running:
+L1610:            with contextlib.suppress(Exception):
+L1611:                self._app.invalidate()
+L1612:
+L1613:    def _on_download_update(self, job) -> None:
+L1614:        """Called by DownloadManager when a download job changes state."""
+L1615:        self._log_append(("↓", "class:activity-info", job.summary()[:80]))
+L1616:        try:
+L1617:            self._app.invalidate()
+L1618:        except Exception:
+L1619:            pass
+L1620:
+L1621:
+L1622:    # ── Text utilities ──
+L1623:
+L1624:    @staticmethod
+L1625:    def _shorten(text: object, limit: int = 60) -> str:
+L1626:        value = str(text).replace("\n", " ").replace("\r", " ")
+L1627:        if len(value) <= limit:
+L1628:            return value
+L1629:        return value[: max(0, limit - 1)] + "…"
+L1630:
+L1631:    def _error_summary(self, error: Exception, limit: int = 80) -> str:
+L1632:        name = type(error).__name__
+L1633:        message = self._shorten(str(error), limit)
+L1634:        return f"{name}: {message}" if message else name
+L1635:
+L1636:    def _refresh_status(self):
+L1637:        self.status_bar.set_model(self.session.model)
+L1638:        self.status_bar.set_thinking(self._thinking)
+L1639:        # Cache context percentage
+L1640:        try:
+L1641:            chars = sum(len(str(m.get("content", ""))) for m in self.session.messages)
+L1642:            self._cached_ctx_pct = min(100.0, chars * 0.4 / 128000 * 100)
+L1643:            self.status_bar.set_context(int(chars * 0.4), 128000)
+L1644:        except Exception:
+L1645:            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+L1646:        # Cache git info (call once, not per frame)
+L1647:        self.status_bar.refresh()
+L1648:        try:
+L1649:            b = self.status_bar._branch
+L1650:            d = self.status_bar._diff_stats
+L1651:            self._cached_git = f" {b}" + (f" [{d}]" if d else "") if b else ""
+L1652:        except Exception:
+L1653:            self._cached_git = ""
+L1654:
+L1655:    def _request_exit(self) -> None:
+L1656:        """Graceful shutdown request: stop streaming, spinner, thinking."""
+L1657:        with self._state_lock:
+L1658:            self._closing = True
+L1659:            self._cancel_requested = True
+L1660:            self._streaming = False
+L1661:            self._thinking = False
+L1662:
+L1663:        try:
+L1664:            self._spinner.stop()
+L1665:        except Exception:
+L1666:            pass
+L1667:
+L1668:        try:
+L1669:            self.thinking_panel.done()
+L1670:        except Exception:
+L1671:            pass
+L1672:
+L1673:        try:
+L1674:            self._log_append(("•", "class:activity-info", "Exiting CRUX..."))

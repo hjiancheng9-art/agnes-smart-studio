@@ -12,6 +12,7 @@
 后续可从 event_log 查询假阳性率。
 """
 
+from core.error_sink import catch
 import hashlib
 import json
 import os
@@ -72,20 +73,20 @@ def _capture_context_snapshot(context: dict = None) -> dict:
     try:
         import sys
         snapshot["python_version"] = sys.version[:30]
-    except Exception:
-        pass
+    except Exception as _es:
+        catch(_es, "core.fake_fix_detector", "swallowed")
     try:
         import os
         import shutil
         _, _, free = shutil.disk_usage(os.getcwd())
         snapshot["free_disk_mb"] = free // (1024 * 1024)
-    except Exception:
-        pass
+    except Exception as _es:
+        catch(_es, "core.fake_fix_detector", "swallowed")
     try:
         import psutil
         snapshot["free_memory_mb"] = psutil.virtual_memory().available // (1024 * 1024)
-    except Exception:
-        pass
+    except Exception as _es:
+        catch(_es, "core.fake_fix_detector", "swallowed")
     try:
         import subprocess
         r = subprocess.run(
@@ -93,8 +94,8 @@ def _capture_context_snapshot(context: dict = None) -> dict:
         )
         lines = r.stdout.strip().split("\n")[2:]
         snapshot["pip_package_count"] = len(lines)
-    except Exception:
-        pass
+    except Exception as _es:
+        catch(_es, "core.fake_fix_detector", "swallowed")
     try:
         import torch
         snapshot["torch_version"] = torch.__version__
@@ -275,8 +276,8 @@ def capture_pre_state(project_dir: str = ".") -> StateSnapshot:
                         state.file_hashes[fpath] = hashlib.sha256(f.read()).hexdigest()[:16]
                 except (OSError, PermissionError):
                     state.file_hashes[fpath] = "ERROR:unreadable"
-    except Exception:
-        pass
+    except Exception as _es:
+        catch(_es, "core.fake_fix_detector", "swallowed")
 
     try:
         import subprocess
@@ -285,8 +286,8 @@ def capture_pre_state(project_dir: str = ".") -> StateSnapshot:
             capture_output=True, text=True, timeout=5, cwd=project_dir
         )
         state.git_diff_stat = r.stdout.strip()
-    except Exception:
-        pass
+    except Exception as _es:
+        catch(_es, "core.fake_fix_detector", "swallowed")
 
     return state
 
@@ -306,8 +307,8 @@ def capture_post_state(pre_state: StateSnapshot, project_dir: str = ".") -> Stat
                     post.file_hashes[fpath] = "DELETED"
             except (OSError, PermissionError):
                 post.file_hashes[fpath] = "ERROR:unreadable"
-    except Exception:
-        pass
+    except Exception as _es:
+        catch(_es, "core.fake_fix_detector", "swallowed")
 
     try:
         import subprocess
@@ -316,8 +317,8 @@ def capture_post_state(pre_state: StateSnapshot, project_dir: str = ".") -> Stat
             capture_output=True, text=True, timeout=5, cwd=project_dir
         )
         post.git_diff_stat = r.stdout.strip()
-    except Exception:
-        pass
+    except Exception as _es:
+        catch(_es, "core.fake_fix_detector", "swallowed")
 
     return post
 

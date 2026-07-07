@@ -50,6 +50,7 @@ QualityTarget = Literal["preview", "balanced", "production"]
 @dataclass
 class AssetRef:
     """任务输入/输出资产引用。"""
+
     asset_type: str  # image / video / mask / control_image
     uri: str | None = None  # 文件路径或 URL
     metadata: dict = field(default_factory=dict)  # 尺寸/格式等
@@ -58,6 +59,7 @@ class AssetRef:
 @dataclass
 class TaskConstraint:
     """硬件/时间约束。"""
+
     vram_gb: int | None = None
     timeout_seconds: int = 900
     allow_lora: bool = True
@@ -73,6 +75,7 @@ class TaskSpec:
 
     LLM 填入此结构，不涉及任何 ComfyUI 节点名。
     """
+
     task_id: str
     intent: str  # 用户原始意图描述
     task_type: TaskType
@@ -101,7 +104,9 @@ class TaskSpec:
             "task_type": self.task_type,
             "prompt": self.prompt,
             "negative_prompt": self.negative_prompt,
-            "input_assets": [{"asset_type": a.asset_type, "uri": a.uri, "metadata": a.metadata} for a in self.input_assets],
+            "input_assets": [
+                {"asset_type": a.asset_type, "uri": a.uri, "metadata": a.metadata} for a in self.input_assets
+            ],
             "output_types": self.output_types,
             "output_specs": self.output_specs,
             "style_tags": self.style_tags,
@@ -121,9 +126,11 @@ class TaskSpec:
 # WorkflowIR — 抽象工作流中间表示 (原则 3: 编译中间层)
 # ═══════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class IRComponent:
     """WorkflowIR 组件 — 用 role/motif 描述，不直接用 node_id。"""
+
     id: str
     role: str  # model_loader / text_encoder / sampler / vae_decode / image_output ...
     motif: str | None = None  # checkpoint_loader / clip_text_encode / ksampler ...
@@ -136,6 +143,7 @@ class IRComponent:
 @dataclass
 class IRConnection:
     """WorkflowIR 连接 — 抽象边。"""
+
     from_component: str
     from_port: str
     to_component: str
@@ -146,6 +154,7 @@ class IRConnection:
 @dataclass
 class IROutput:
     """WorkflowIR 输出定义。"""
+
     id: str
     type: str  # image / video / lora
     from_component: str
@@ -158,6 +167,7 @@ class WorkflowIR:
 
     仍不直接等于 ComfyUI JSON。使用 component/motif/role。
     """
+
     ir_id: str
     graph_type: str  # single_workflow / multi_stage_pipeline
     task_type: str
@@ -178,16 +188,22 @@ class WorkflowIR:
             "task_type": self.task_type,
             "components": [
                 {
-                    "id": c.id, "role": c.role, "motif": c.motif,
-                    "node_class": c.node_class, "model_family": c.model_family,
-                    "params": c.params, "metadata": c.metadata,
+                    "id": c.id,
+                    "role": c.role,
+                    "motif": c.motif,
+                    "node_class": c.node_class,
+                    "model_family": c.model_family,
+                    "params": c.params,
+                    "metadata": c.metadata,
                 }
                 for c in self.components
             ],
             "connections": [
                 {
-                    "from_component": c.from_component, "from_port": c.from_port,
-                    "to_component": c.to_component, "to_port": c.to_port,
+                    "from_component": c.from_component,
+                    "from_port": c.from_port,
+                    "to_component": c.to_component,
+                    "to_port": c.to_port,
                     "data_type": c.data_type,
                 }
                 for c in self.connections
@@ -206,9 +222,11 @@ class WorkflowIR:
 # Motif 库 — 可复用工作流子图模式
 # ═══════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class MotifDefinition:
     """可复用的工作流子图模式定义。"""
+
     motif_id: str
     name: str
     description: str
@@ -330,9 +348,11 @@ BUILTIN_MOTIFS: dict[str, MotifDefinition] = {
 # GraphCompiler — 确定性编译器
 # ═══════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class CompiledWorkflow:
     """编译产物。"""
+
     workflow: dict  # ComfyUI API 格式 JSON
     ir: WorkflowIR
     node_map: dict  # {component_id: node_id}
@@ -347,8 +367,7 @@ class GraphCompiler:
     不"猜"，根据 Motif 库 + 节点本体 + 参数引擎 确定性地编译。
     """
 
-    def __init__(self, motifs: dict[str, MotifDefinition] | None = None,
-                 motif_registry=None):
+    def __init__(self, motifs: dict[str, MotifDefinition] | None = None, motif_registry=None):
         self._motifs = motifs or BUILTIN_MOTIFS
         self._registry = motif_registry
         self._node_counter: int = 0
@@ -427,6 +446,7 @@ class GraphCompiler:
         # 也从新 MotifRegistry 查
         if self._registry:
             from core.comfyui_motif import MotifDefinition as NewMotif
+
             motif_obj = self._registry.get(component.motif or component.role)
             if motif_obj:
                 # 将新格式 MotifDefinition 转换为旧格式
@@ -466,12 +486,18 @@ class GraphCompiler:
 # TaskSpec 构建器 — LLM 输出 TaskSpec 的辅助工具
 # ═══════════════════════════════════════════════════════════════════
 
-def build_txt2img_spec(intent: str, prompt: str, negative_prompt: str = "",
-                       width: int = 1024, height: int = 1024,
-                       quality: QualityTarget = "balanced",
-                       style_tags: list[str] | None = None,
-                       lora_refs: list[str] | None = None,
-                       model_preference: str | None = None) -> TaskSpec:
+
+def build_txt2img_spec(
+    intent: str,
+    prompt: str,
+    negative_prompt: str = "",
+    width: int = 1024,
+    height: int = 1024,
+    quality: QualityTarget = "balanced",
+    style_tags: list[str] | None = None,
+    lora_refs: list[str] | None = None,
+    model_preference: str | None = None,
+) -> TaskSpec:
     """快速构建文生图 TaskSpec。"""
     return TaskSpec(
         task_id=f"txt2img_{abs(hash(prompt)) % 100000}",
@@ -506,77 +532,93 @@ def spec_to_workflow_ir(spec: TaskSpec, ir_id: str | None = None) -> WorkflowIR:
     )
 
     # 添加模型加载
-    ir.components.append(IRComponent(
-        id="checkpoint",
-        role="model_loader",
-        motif="checkpoint_loader",
-        params={"ckpt_name": spec.model_preference or ""},
-        model_family="sdxl",
-    ))
+    ir.components.append(
+        IRComponent(
+            id="checkpoint",
+            role="model_loader",
+            motif="checkpoint_loader",
+            params={"ckpt_name": spec.model_preference or ""},
+            model_family="sdxl",
+        )
+    )
 
     # 添加 LoRA
     for i, lora_name in enumerate(spec.lora_refs):
-        ir.components.append(IRComponent(
-            id=f"lora_{i}",
-            role="lora",
-            motif="lora_loader",
-            params={"lora_name": lora_name, "strength_model": 1.0, "strength_clip": 1.0},
-        ))
+        ir.components.append(
+            IRComponent(
+                id=f"lora_{i}",
+                role="lora",
+                motif="lora_loader",
+                params={"lora_name": lora_name, "strength_model": 1.0, "strength_clip": 1.0},
+            )
+        )
 
     # 添加文本编码
-    ir.components.append(IRComponent(
-        id="positive",
-        role="text_encoder_pos",
-        motif="clip_text_encode",
-        params={"text": spec.prompt or ""},
-    ))
-    ir.components.append(IRComponent(
-        id="negative",
-        role="text_encoder_neg",
-        motif="clip_text_encode",
-        params={"text": spec.negative_prompt or ""},
-    ))
+    ir.components.append(
+        IRComponent(
+            id="positive",
+            role="text_encoder_pos",
+            motif="clip_text_encode",
+            params={"text": spec.prompt or ""},
+        )
+    )
+    ir.components.append(
+        IRComponent(
+            id="negative",
+            role="text_encoder_neg",
+            motif="clip_text_encode",
+            params={"text": spec.negative_prompt or ""},
+        )
+    )
 
     # 添加潜空间
-    ir.components.append(IRComponent(
-        id="latent",
-        role="latent_init",
-        motif="empty_latent",
-        params={
-            "width": spec.output_specs.get("width", 1024),
-            "height": spec.output_specs.get("height", 1024),
-            "batch_size": 1,
-        },
-    ))
+    ir.components.append(
+        IRComponent(
+            id="latent",
+            role="latent_init",
+            motif="empty_latent",
+            params={
+                "width": spec.output_specs.get("width", 1024),
+                "height": spec.output_specs.get("height", 1024),
+                "batch_size": 1,
+            },
+        )
+    )
 
     # 添加采样器
-    ir.components.append(IRComponent(
-        id="sampler",
-        role="sampler",
-        motif="ksampler",
-        params={
-            "seed": -1,
-            "steps": 20,
-            "cfg": 7.0,
-            "sampler_name": "euler",
-            "scheduler": "normal",
-        },
-    ))
+    ir.components.append(
+        IRComponent(
+            id="sampler",
+            role="sampler",
+            motif="ksampler",
+            params={
+                "seed": -1,
+                "steps": 20,
+                "cfg": 7.0,
+                "sampler_name": "euler",
+                "scheduler": "normal",
+            },
+        )
+    )
 
     # 添加解码器
-    ir.components.append(IRComponent(
-        id="decode",
-        role="vae_decode",
-        motif="vae_decode",
-    ))
+    ir.components.append(
+        IRComponent(
+            id="decode",
+            role="vae_decode",
+            motif="vae_decode",
+        )
+    )
 
     # 添加输出
-    ir.components.append(IRComponent(
-        id="save",
-        role="image_output",
-        motif="save_image",
-        params={"filename_prefix": "ComfyUI"},
-    ))
+    ir.components.append(
+        IRComponent(
+            id="save",
+            role="image_output",
+            motif="save_image",
+            params={"filename_prefix": "ComfyUI"},
+        )
+    )
 
     # 建立默认连接
     default_connections = [
@@ -593,12 +635,14 @@ def spec_to_workflow_ir(spec: TaskSpec, ir_id: str | None = None) -> WorkflowIR:
     ir.connections = default_connections
 
     # 输出定义
-    ir.outputs.append(IROutput(
-        id="final_image",
-        type="image",
-        from_component="save",
-        from_port="images",
-    ))
+    ir.outputs.append(
+        IROutput(
+            id="final_image",
+            type="image",
+            from_component="save",
+            from_port="images",
+        )
+    )
 
     return ir
 
@@ -615,6 +659,7 @@ def get_motif_registry():
     """获取新的 MotifRegistry (schema v1, core/comfyui_motif.py)."""
     try:
         from core.comfyui_motif import get_registry
+
         return get_registry()
     except ImportError:
         return None

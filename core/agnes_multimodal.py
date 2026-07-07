@@ -245,13 +245,16 @@ def execute_batch_generate(
             r = execute_text_to_video(prompt=prompt, **(config or {}))
         results.append({f"item_{i}": json.loads(r)})
 
-    return json.dumps({
-        "success": True,
-        "mode": f"batch_{mode}",
-        "total": len(prompts),
-        "results": results,
-        "message": f"Agnes 批量生成完成 | {mode} x {len(prompts)}",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "mode": f"batch_{mode}",
+            "total": len(prompts),
+            "results": results,
+            "message": f"Agnes 批量生成完成 | {mode} x {len(prompts)}",
+        },
+        ensure_ascii=False,
+    )
 
 
 # ── 执行器映射 ──

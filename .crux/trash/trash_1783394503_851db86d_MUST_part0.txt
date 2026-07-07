@@ -1,0 +1,96 @@
+Must Fix — 必须补
+M1：引入 MessageStore，替代 _lines 作为主数据源
+问题
+
+MessagePane._lines: list[(role, text)] 是屏幕行模型，不是消息模型。
+
+这会导致：
+
+一条 assistant 流式消息被拆成多行
+复制时不知道完整消息边界
+详情页不知道该展示哪条消息
+代码块索引不稳定
+/copy last_assistant 可能复制不完整
+修改文件
+新增：ui/message_store.py
+修改：ui/message_pane.py
+修改：ui/copy_manager.py
+修改：ui/message_detail.py
+修改：ui/tui_v2.py
+新增结构
+Python
+运行
+# ui/message_store.py
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Literal
+import uuid
+import re
+
+Role = Literal["user", "assistant", "system", "tool"]
+
+@dataclass
+class CodeBlock:
+    index: int
+    language: str
+    content: str
+    start_line: int
+    end_line: int
+
+@dataclass
+class Message:
+    id: str
+    role: Role
+    raw_text: str = ""
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
+    streaming: bool = False
+    code_blocks: list[CodeBlock] = field(default_factory=list)
+
+    def update_code_blocks(self) -> None:
+        self.code_blocks = extract_code_blocks(self.raw_text)
+
+def extract_code_blocks(text: str) -> list[CodeBlock]:
+    blocks: list[CodeBlock] = []
+    pattern = re.compile(r"```(\w+)?\n(.*?)```", re.DOTALL)
+    lines = text.splitlines()
+
+    for i, match in enumerate(pattern.finditer(text), start=1):
+        before = text[:match.start()]
+        start_line = before.count("\n") + 1
+        content = match.group(2)
+        end_line = start_line + content.count("\n") + 1
+        blocks.append(CodeBlock(
+            index=i,
+            language=match.group(1) or "",
+            content=content,
+            start_line=start_line,
+            end_line=end_line,
+        ))
+    return blocks
+
+class MessageStore:
+    def __init__(self) -> None:
+        self._messages: list[Message] = []
+        self._by_id: dict[str, Message] = {}
+        self._active_stream_id: str | None = None
+        self._version = 0
+
+    @property
+    def version(self) -> int:
+        return self._version
+
+    def append(self, role: Role, text: str) -> Message:
+        msg = Message(id=str(uuid.uuid4()), role=role, raw_text=text)
+        msg.update_code_blocks()
+        self._messages.append(msg)
+        self._by_id[msg.id] = msg
+        self._version += 1
+        return msg
+
+    def stream_start(self, role: Role) -> Message:
+        msg = Message(id=str(uuid.uuid4()), role=role, streaming=True)
+        self._messages.append(msg)
+        self._by_id[msg.id] = msg
+        self._active_stream_id = msg.id
+        self._version

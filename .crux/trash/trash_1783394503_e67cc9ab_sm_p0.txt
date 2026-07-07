@@ -1,0 +1,61 @@
+"""Skill Manifest Schema — 技能包最小可行规范
+
+基于 GPT 架构审计 Q2 建议：
+- 必填：name, version, description, runtime, permissions, requires, entrypoint
+- 可选：integrity(sha256), min_crux_version, author
+- permission 基于 capability 模型，不是 crude filesystem r/w
+- runtime 决定加载方式：prompt | declarative | python_subprocess
+
+加载时机：只做 integrity 校验 + manifest 解析，不做运行时沙箱扫描。
+运行时隔离由 runtime 字段决定执行方式，不依赖 manifest 静态分析。
+"""
+
+import hashlib
+import json
+import os
+from dataclasses import dataclass, field
+from typing import Any, Literal
+
+# ── Capability-based permissions (not filesystem r/w) ─────
+# 参考: browser-control 技能 -> 声明 ["cdp", "clipboard:read"]
+# 而非 "filesystem:write", "network:outbound"
+KNOWN_PERMISSIONS = {
+    # Browser
+    "cdp": "Chrome DevTools Protocol access",
+    "browser:navigate": "Navigate browser to URLs",
+    "browser:screenshot": "Take browser screenshots",
+    "browser:input": "Inject input into browser pages",
+    # Filesystem (scoped)
+    "fs:read": "Read files from filesystem",
+    "fs:write": "Write files to filesystem",
+    "fs:project": "Access project directory only",
+    # Network
+    "network:outbound": "Make outbound HTTP requests",
+    "network:listen": "Listen on network ports",
+    # Execution
+    "exec:python": "Execute Python code (subprocess)",
+    "exec:shell": "Execute shell commands",
+    # Media
+    "media:image": "Generate/process images",
+    "media:video": "Generate/process videos",
+    "media:audio": "Generate/process audio",
+    # AI
+    "ai:prompt": "Send prompts to external AI APIs",
+    "ai:embedding": "Generate embeddings",
+    # System
+    "system:env": "Read environment variables",
+    "system:process": "Spawn/manage processes",
+}
+
+RuntimeType = Literal["prompt", "declarative", "python_subprocess", "python_inline", "docker"]
+
+
+@dataclass
+class SkillManifest:
+    """Minimum viable skill manifest."""
+
+    # Required
+    name: str
+    version: str  # semver
+    description: str
+    runtime: RuntimeType = "prompt"

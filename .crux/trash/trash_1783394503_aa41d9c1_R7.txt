@@ -1,0 +1,99 @@
+t_code_block()
+        self.message_pane.scroll_to_message_line(msg.id, block.start_line)
+        self._set_status(f"代码块 {block.index}/{len(msg.code_blocks)} · 按 c 复制")
+    except RuntimeError:
+        self._set_status("当前消息没有代码块")
+
+c 如果有 focused_code_block，则复制代码块；否则复制消息。
+
+M9：补 Native Select Mode，F9 暂停鼠标捕获
+问题
+
+现在没有原生选择模式。用户仍然无法用终端原生跨屏选择。
+
+修改文件
+ui/tui_v2.py
+ui/input_router.py
+实现思路
+
+prompt_toolkit 的鼠标支持通常在 Application(mouse_support=...) 或 layout 控件绑定。做一个动态 Condition：
+
+Python
+运行
+from prompt_toolkit.filters import Condition
+
+self.native_select = False
+
+def mouse_enabled():
+    return not self.native_select
+
+self.app = Application(
+    layout=layout,
+    key_bindings=kb,
+    mouse_support=Condition(mouse_enabled),
+    full_screen=True,
+)
+
+F9：
+
+Python
+运行
+@kb.add("f9")
+def _(event):
+    self.native_select = not self.native_select
+    if self.native_select:
+        self.input_router.set_mode(InputMode.NATIVE_SELECT)
+        self._set_status("原生选择模式：TUI 暂停鼠标捕获，按 F9 返回")
+    else:
+        self.input_router.set_mode(InputMode.NORMAL)
+        self._set_status("已恢复 TUI 鼠标控制")
+    event.app.invalidate()
+Should Fix — 应该补
+S1：PendingOutbox 要有 message_id 和状态事件
+问题
+
+撤销窗口如果只是 text pending，后续无法追踪：
+
+撤销了哪条消息
+是否已经 committed
+是否 consumed
+是否关联 run_id
+修改文件
+core/control_plane.py
+ui/tui_control.py
+ui/tui_v2.py
+实现
+Python
+运行
+@dataclass
+class PendingMessage:
+    id: str
+    text: str
+    created_at: float
+    commit_at: float
+    status: Literal["pending", "committed", "undone"]
+
+EventLog：
+
+message.pending
+message.committed
+message.undone
+message.consumed
+S2：RunStateManager 应该携带 run_id / reason / last_transition
+问题
+
+现在只有状态机：
+
+idle→running→pausing→paused→cancelling
+
+但没有足够解释信息。
+
+修改文件
+core/control_plane.py
+ui/tui_control.py
+实现
+Python
+运行
+@dataclass
+class RunStateSnapshot:
+    run_id: st

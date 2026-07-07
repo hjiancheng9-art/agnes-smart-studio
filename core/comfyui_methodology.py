@@ -42,7 +42,7 @@ def format_methodology_prompt() -> str:
     full = get_comfyui_methodology()
     if not full:
         return ""
-    
+
     # 提取核心原则和决策树
     return f"""
 # ComfyUI Agent Methodology (CWIM) — 方法论文档已加载
@@ -73,6 +73,6 @@ def inject_comfyui_methodology(system_prompt: str) -> str:
     methodology_part = format_methodology_prompt()
     if not methodology_part:
         return system_prompt
-    
+
     # 追加到系统提示末尾
     return system_prompt.rstrip() + "\n\n" + methodology_part

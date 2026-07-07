@@ -18,7 +18,9 @@ def save_incident(incident: dict) -> str:
     entry = {
         "timestamp": time.time(),
         "category": incident.get("primary_category", "unknown"),
-        "severity": max(incident.get("severities", {}), key=incident.get("severities", {}).get) if incident.get("severities") else "low",
+        "severity": max(incident.get("severities", {}), key=incident.get("severities", {}).get)
+        if incident.get("severities")
+        else "low",
         "count": incident.get("total_incidents", 0),
         "recommendation": incident.get("recommendation", ""),
         "summary": incident.get("summary", ""),

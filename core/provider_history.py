@@ -34,14 +34,16 @@ def _append_history(entry: dict) -> None:
 
 def record_call(provider: str, model: str, success: bool, latency_ms: float, error: str = "") -> None:
     """记录一次 provider 调用结果。"""
-    _append_history({
-        "provider": provider,
-        "model": model,
-        "success": success,
-        "latency_ms": latency_ms,
-        "error": error,
-        "timestamp": time.time(),
-    })
+    _append_history(
+        {
+            "provider": provider,
+            "model": model,
+            "success": success,
+            "latency_ms": latency_ms,
+            "error": error,
+            "timestamp": time.time(),
+        }
+    )
 
 
 def _ema(values: list[float], alpha: float = EMA_ALPHA) -> float:
@@ -65,10 +67,20 @@ def get_provider_stats(provider: str, window_minutes: int = 60) -> dict[str, Any
         r["_decay"] = max(0.1, 1.0 - age / (window_minutes * 60))
     total = len(records)
     if total == 0:
-        return {"provider": provider, "calls": 0, "success_rate": COLD_START_SUCCESS_RATE, "avg_latency_ms": 0, "recent_error": "", "consecutive_failures": 0, "samples": 0}
+        return {
+            "provider": provider,
+            "calls": 0,
+            "success_rate": COLD_START_SUCCESS_RATE,
+            "avg_latency_ms": 0,
+            "recent_error": "",
+            "consecutive_failures": 0,
+            "samples": 0,
+        }
 
     successes = [r for r in records if r.get("success")]
-    success_rate = _ema([1.0] * len(successes) + [0.0] * (total - len(successes))) if total > 0 else COLD_START_SUCCESS_RATE
+    success_rate = (
+        _ema([1.0] * len(successes) + [0.0] * (total - len(successes))) if total > 0 else COLD_START_SUCCESS_RATE
+    )
     latencies = [r.get("latency_ms", 0) * r.get("_decay", 1.0) for r in records if r.get("latency_ms", 0) > 0]
     recent_errors = [r.get("error", "") for r in records[-5:] if not r.get("success") and r.get("error")]
 
@@ -76,7 +88,9 @@ def get_provider_stats(provider: str, window_minutes: int = 60) -> dict[str, Any
         "provider": provider,
         "calls": total,
         "success_rate": round(success_rate, 3),
-        "avg_latency_ms": round(_ema([r.get("latency_ms", 0) for r in records if r.get("latency_ms", 0) > 0]), 1) if any(r.get("latency_ms", 0) > 0 for r in records) else 0,
+        "avg_latency_ms": round(_ema([r.get("latency_ms", 0) for r in records if r.get("latency_ms", 0) > 0]), 1)
+        if any(r.get("latency_ms", 0) > 0 for r in records)
+        else 0,
         "recent_error": recent_errors[-1] if recent_errors else "",
         "consecutive_failures": _count_consecutive_failures(records),
         "samples": total,

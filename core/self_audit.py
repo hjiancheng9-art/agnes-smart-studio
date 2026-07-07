@@ -184,7 +184,10 @@ class AuditEngine:
             if "__pycache__" in pyfile.parts:
                 continue
             try:
-                if "chcp 65001" in pyfile.read_text(encoding="utf-8", errors="replace") and pyfile.name != "self_audit.py":
+                if (
+                    "chcp 65001" in pyfile.read_text(encoding="utf-8", errors="replace")
+                    and pyfile.name != "self_audit.py"
+                ):
                     self._add(
                         category="encoding",
                         severity="low",
@@ -219,10 +222,15 @@ class AuditEngine:
         if report is None:
             report = self._build_report()
         from rich.console import Console as _RC
+
         console = _RC()
         COLORS = {
-            "success": "green", "error": "red", "warning": "yellow",
-            "primary": "blue", "muted": "dim white", "info": "cyan",
+            "success": "green",
+            "error": "red",
+            "warning": "yellow",
+            "primary": "blue",
+            "muted": "dim white",
+            "info": "cyan",
         }
 
         SEVERITY_COLORS = {

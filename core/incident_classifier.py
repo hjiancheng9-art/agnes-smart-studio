@@ -10,7 +10,6 @@ FAILURE_TAXONOMY = {
         "severity": "high",
         "suggestion": "检查 provider API key 和网络连接",
     },
-
     "timeout": {
         "keywords": ["timeout", "timed out", "TimeoutError"],
         "severity": "medium",

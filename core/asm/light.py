@@ -6,9 +6,14 @@
 """
 
 from core.asm import (
-    BaseMethodology, MethodologyCheck,
-    TaskProfile, TaskIntent, TaskDomain, RiskLevel,
-    MethodologyPhase, register,
+    BaseMethodology,
+    MethodologyCheck,
+    TaskProfile,
+    TaskIntent,
+    TaskDomain,
+    RiskLevel,
+    MethodologyPhase,
+    register,
 )
 
 
@@ -16,10 +21,10 @@ class LightMethodology(BaseMethodology):
     name = "ASM.light"
     description = "轻量方法论：低风险任务免检通道，仅保底参数和结果可用性"
     version = "1.0.0"
-    
+
     # 只覆盖低风险任务
     max_risk = RiskLevel.LOW
-    
+
     def get_checks(self, task: TaskProfile) -> list[MethodologyCheck]:
         return [
             MethodologyCheck(

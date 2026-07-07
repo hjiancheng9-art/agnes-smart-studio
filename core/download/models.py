@@ -10,9 +10,9 @@ from typing import Literal
 
 
 class DownloadKind(str, Enum):
-    DIRECT = "direct"   # MP4, ZIP, EXE — aria2
-    HLS = "hls"         # M3U8 — ffmpeg
-    DASH = "dash"       # DASH — yt-dlp
+    DIRECT = "direct"  # MP4, ZIP, EXE — aria2
+    HLS = "hls"  # M3U8 — ffmpeg
+    DASH = "dash"  # DASH — yt-dlp
     UNKNOWN = "unknown"
 
 
@@ -22,6 +22,7 @@ JobStatus = Literal["queued", "running", "completed", "failed", "cancelled"]
 @dataclass
 class DownloadRequest:
     """A request to download something."""
+
     url: str
     kind: DownloadKind = DownloadKind.UNKNOWN
     output_dir: str | None = None
@@ -35,6 +36,7 @@ class DownloadRequest:
 @dataclass
 class DownloadJob:
     """A tracked download job."""
+
     job_id: str
     url: str
     kind: DownloadKind

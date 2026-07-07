@@ -18,9 +18,9 @@ from typing import Any
 
 # ── Cache limits ──
 MAX_DECOMPOSITIONS = 50  # max cached decomposition results
-MAX_EXPLORATIONS = 100   # max cached exploration results
-DECOMP_TTL = 300         # 5 min — tasks change slowly
-EXPLORE_TTL = 60         # 1 min — files change faster
+MAX_EXPLORATIONS = 100  # max cached exploration results
+DECOMP_TTL = 300  # 5 min — tasks change slowly
+EXPLORE_TTL = 60  # 1 min — files change faster
 
 
 class AgentCache:

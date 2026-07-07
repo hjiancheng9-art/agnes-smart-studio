@@ -35,6 +35,7 @@ def _on_change(path: str):
     if "models.json" in path:
         try:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             mgr.load()
             logger.info("models.json reloaded (hot-reload)")
@@ -43,6 +44,7 @@ def _on_change(path: str):
     elif "tools.json" in path:
         try:
             from core.tools import get_registry
+
             reg = get_registry()
             reg.load(mcp=True)
             logger.info("tools.json reloaded (hot-reload)")
@@ -62,7 +64,9 @@ def _watch_loop(interval: float = 2.0):
                     _WATCHED[path] = new_mtime
                     _on_change(path)
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            import logging
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
         time.sleep(interval)
 
 

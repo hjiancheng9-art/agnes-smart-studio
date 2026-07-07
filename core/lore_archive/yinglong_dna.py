@@ -39,27 +39,20 @@ YINGLONG_PROMPT = """
 YINGLONG_ARTIFACTS = {
     "号令旗": {
         "slot": "weapon",
-        "effect": "Agent定义标准。YAML frontmatter + tools allowlist + model binding + handoff targets，每个子Agent职责单一权限明确"
+        "effect": "Agent定义标准。YAML frontmatter + tools allowlist + model binding + handoff targets，每个子Agent职责单一权限明确",
     },
-    "分兵冠": {
-        "slot": "head",
-        "effect": "并行分派器。Plan→Explore 子智能体派生，2-3路并行探索，独立上下文互不碰撞"
-    },
-    "令符铠": {
-        "slot": "chest",
-        "effect": "交接协议。Agent→Agent handoff，上下文传递不丢失，权限边界不跨越，自动路由"
-    },
+    "分兵冠": {"slot": "head", "effect": "并行分派器。Plan→Explore 子智能体派生，2-3路并行探索，独立上下文互不碰撞"},
+    "令符铠": {"slot": "chest", "effect": "交接协议。Agent→Agent handoff，上下文传递不丢失，权限边界不跨越，自动路由"},
     "行军腕": {
         "slot": "hands",
-        "effect": "计划模板引擎。Steps(依赖/并行标注) + Relevant files + Verification + Decisions，零歧义交付"
+        "effect": "计划模板引擎。Steps(依赖/并行标注) + Relevant files + Verification + Decisions，零歧义交付",
     },
-    "斥候靴": {
-        "slot": "feet",
-        "effect": "探索策略。宽→窄搜索 (glob→grep→LSP→read)，并行调用，搜够即停，不冗余不遗漏"
-    }
+    "斥候靴": {"slot": "feet", "effect": "探索策略。宽→窄搜索 (glob→grep→LSP→read)，并行调用，搜够即停，不冗余不遗漏"},
 }
 
-YINGLONG_SET_BONUS = "应龙布令: 说'研究X然后做Y'→自动派生Explore探索→生成结构化Plan→交接Agent实施，全链路Agent协同无人值守"
+YINGLONG_SET_BONUS = (
+    "应龙布令: 说'研究X然后做Y'→自动派生Explore探索→生成结构化Plan→交接Agent实施，全链路Agent协同无人值守"
+)
 
 
 def get_yinglong_prompt() -> str:

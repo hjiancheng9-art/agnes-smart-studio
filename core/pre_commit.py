@@ -61,8 +61,7 @@ def run_quality_gates(files: list[str] | None = None) -> tuple[bool, str]:
                 break
     if mojibake_hits:
         all_pass = False
-        results.insert(-len(results) if results else 0,
-                       f"[FAIL] Mojiabke detected in {mojibake_hits} files:")
+        results.insert(-len(results) if results else 0, f"[FAIL] Mojiabke detected in {mojibake_hits} files:")
 
     # Gate 3: Syntax check
     syntax_errors = 0
@@ -74,6 +73,7 @@ def run_quality_gates(files: list[str] | None = None) -> tuple[bool, str]:
             continue
         try:
             import ast
+
             ast.parse(p.read_text(encoding="utf-8"))
         except SyntaxError as e:
             syntax_errors += 1
@@ -95,7 +95,10 @@ def _staged_files() -> list[str]:
     try:
         r = subprocess.run(
             ["git", "diff", "--cached", "--name-only"],
-            capture_output=True, text=True, timeout=5, cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=str(ROOT),
         )
         return [f.strip() for f in r.stdout.splitlines() if f.strip()]
     except Exception:
@@ -106,6 +109,7 @@ def _staged_files() -> list[str]:
 
 if __name__ == "__main__":
     import argparse
+
     p = argparse.ArgumentParser(description="CRUX pre-commit quality gates")
     p.add_argument("files", nargs="*", help="Files to check (default: staged)")
     p.add_argument("--smoke", action="store_true", help="Also run quick smoke test")
@@ -122,7 +126,10 @@ if __name__ == "__main__":
         print("\nRunning smoke test...")
         r = subprocess.run(
             [sys.executable, "-m", "pytest", "tests/test_smoke.py", "--quick", "-q"],
-            capture_output=True, text=True, timeout=30, cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=str(ROOT),
         )
         print(r.stdout[-500:] if r.stdout else r.stderr[-500:])
         if r.returncode != 0:

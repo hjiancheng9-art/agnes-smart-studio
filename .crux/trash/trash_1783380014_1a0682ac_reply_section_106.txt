@@ -1,0 +1,10 @@
+@dataclass
+class CleanupCandidate:
+    path: Path
+    rule: str
+    risk: str
+    size: int
+    reason: str
+    action: str
+    protected: bool = False
+    referenced: bool = False

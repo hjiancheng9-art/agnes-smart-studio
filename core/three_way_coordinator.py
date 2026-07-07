@@ -60,6 +60,7 @@ class ThreeWayCoordinator:
     def check_kimi(self) -> SystemStatus:
         try:
             import shutil
+
             kimi = (
                 shutil.which("kimi")
                 or os.path.expanduser("~/.kimi-code/bin/kimi.EXE")
@@ -77,7 +78,9 @@ class ThreeWayCoordinator:
                 r2 = run_subprocess([kimi, "-p", "ok", "--output-format", "text"], timeout=20)
                 logged_in = r2.returncode == 0 and "error" not in r2.stderr.lower()
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                import logging
+
+                logging.getLogger("crux").debug("silent except", exc_info=True)
 
             return SystemStatus(
                 name="kimi",
@@ -92,10 +95,8 @@ class ThreeWayCoordinator:
     def check_copilot(self) -> SystemStatus:
         try:
             import shutil
-            copilot = (
-                shutil.which("copilot")
-                or os.path.expanduser("~/AppData/Roaming/npm/copilot.CMD")
-            )
+
+            copilot = shutil.which("copilot") or os.path.expanduser("~/AppData/Roaming/npm/copilot.CMD")
             if not copilot or not os.path.isfile(copilot):
                 return SystemStatus(name="copilot", available=False, error="Copilot CLI 未安装")
 
@@ -108,7 +109,9 @@ class ThreeWayCoordinator:
                 r2 = run_subprocess(["gh", "auth", "status"], timeout=10)
                 logged_in = r2.returncode == 0
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                import logging
+
+                logging.getLogger("crux").debug("silent except", exc_info=True)
 
             return SystemStatus(
                 name="copilot",
@@ -150,8 +153,31 @@ class ThreeWayCoordinator:
         task_lower = task.lower()
         keywords = {
             "kimi": ["中文", "chinese", "深度推理", "架构分析", "方案设计", "review design", "architecture"],
-            "copilot": ["pr", "pull request", "代码审查", "code review", "安全审查", "security", "/review", "快速", "quick"],
-            "crux": ["生成", "generate", "视频", "video", "图片", "image", "规划", "plan", "编排", "orchestrate", "协调", "coordinate"],
+            "copilot": [
+                "pr",
+                "pull request",
+                "代码审查",
+                "code review",
+                "安全审查",
+                "security",
+                "/review",
+                "快速",
+                "quick",
+            ],
+            "crux": [
+                "生成",
+                "generate",
+                "视频",
+                "video",
+                "图片",
+                "image",
+                "规划",
+                "plan",
+                "编排",
+                "orchestrate",
+                "协调",
+                "coordinate",
+            ],
         }
         scores = {"kimi": 0, "copilot": 0, "crux": 1}  # crux 默认
         for system, kws in keywords.items():
@@ -164,19 +190,36 @@ class ThreeWayCoordinator:
 
     CAPABILITY_MATRIX = {
         "kimi": {
-            "explore": True, "code": True, "review": True, "think": True,
-            "chinese_expert": True, "github_pr": False, "security_review": False,
+            "explore": True,
+            "code": True,
+            "review": True,
+            "think": True,
+            "chinese_expert": True,
+            "github_pr": False,
+            "security_review": False,
             "model": "deepseek-v4",
         },
         "copilot": {
-            "explore": True, "code": True, "review": True, "think": True,
-            "chinese_expert": False, "github_pr": True, "security_review": True,
+            "explore": True,
+            "code": True,
+            "review": True,
+            "think": True,
+            "chinese_expert": False,
+            "github_pr": True,
+            "security_review": True,
             "model": "gpt-5-mini",
         },
         "crux": {
-            "explore": True, "code": True, "review": True, "think": True,
-            "chinese_expert": True, "github_pr": True, "security_review": True,
-            "generate_image": True, "generate_video": True, "comfyui": True,
+            "explore": True,
+            "code": True,
+            "review": True,
+            "think": True,
+            "chinese_expert": True,
+            "github_pr": True,
+            "security_review": True,
+            "generate_image": True,
+            "generate_video": True,
+            "comfyui": True,
             "model": "deepseek-v4-pro",
         },
     }
@@ -186,10 +229,7 @@ class ThreeWayCoordinator:
 
     def best_for(self, capability: str) -> list[str]:
         """返回支持该能力的所有系统（按推荐度排序）。"""
-        return [
-            s for s in ["crux", "kimi", "copilot"]
-            if self.can_do(s, capability)
-        ]
+        return [s for s in ["crux", "kimi", "copilot"] if self.can_do(s, capability)]
 
     # ── 诊断报告 ──
 
@@ -210,7 +250,17 @@ class ThreeWayCoordinator:
         lines.append("## Capability Matrix")
         lines.append("| Capability | CRUX | Kimi | Copilot |")
         lines.append("|-----------|------|------|---------|")
-        for cap in ["explore", "code", "review", "think", "chinese_expert", "github_pr", "security_review", "generate_image", "generate_video"]:
+        for cap in [
+            "explore",
+            "code",
+            "review",
+            "think",
+            "chinese_expert",
+            "github_pr",
+            "security_review",
+            "generate_image",
+            "generate_video",
+        ]:
             c = "Y" if self.can_do("crux", cap) else "-"
             k = "Y" if self.can_do("kimi", cap) else "-"
             p = "Y" if self.can_do("copilot", cap) else "-"
@@ -241,6 +291,7 @@ def get_coordinator() -> ThreeWayCoordinator:
 
 if __name__ == "__main__":
     import sys
+
     coord = ThreeWayCoordinator()
 
     if len(sys.argv) > 1 and sys.argv[1] == "status":

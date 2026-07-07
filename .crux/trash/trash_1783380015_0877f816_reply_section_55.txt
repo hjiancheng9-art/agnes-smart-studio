@@ -1,0 +1,1 @@
+即使匹配了 cleanup rule，只要命中 protected，就跳过。

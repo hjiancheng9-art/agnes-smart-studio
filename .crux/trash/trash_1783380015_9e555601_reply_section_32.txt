@@ -1,0 +1,6 @@
+comfyui_temp_workflows:
+    patterns:
+      - ".crux/comfyui/tmp_workflows/**"
+    action: "trash"
+    min_age_days: 14
+    risk: "medium"

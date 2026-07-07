@@ -50,6 +50,7 @@ def score_provider(pid: str, request: dict, circuit_states: dict[str, str]) -> f
     # 历史表现调整
     try:
         from core.provider_history import adapt_score
+
         score = adapt_score(pid, score)
     except ImportError:
         pass
@@ -63,7 +64,6 @@ def select_candidates(request: dict, available: list[str], circuit_states: dict[
     scored.sort(key=lambda x: -x[1])  # 按分数降序
     candidates = [pid for pid, s in scored if s > -1]
     return candidates
-
 
 
 def explain_routing(pid: str, request: dict, circuit_states: dict[str, str]) -> list[str]:
@@ -118,6 +118,7 @@ def explain_routing(pid: str, request: dict, circuit_states: dict[str, str]) -> 
 
     try:
         from core.provider_history import adapt_score
+
         adjusted = adapt_score(pid, score)
         diff = round(adjusted - score, 1)
         if diff != 0:

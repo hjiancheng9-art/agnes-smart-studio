@@ -1,0 +1,3 @@
+只提示，不自动清理。
+除非路径位于明确的 intermediate checkpoint 目录，并且不是 best/final/last。
+安全闸 7：LoRA 训练保留策略

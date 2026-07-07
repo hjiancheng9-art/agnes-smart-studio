@@ -130,6 +130,7 @@ class SkillHeader:
     def to_dict(self) -> dict:
         """序列化（用于事件负载 / 插件注册）。"""
         import dataclasses
+
         return dataclasses.asdict(self)
 
 
@@ -414,6 +415,7 @@ def createSkillDiscovery(name: str, description: str, instructions: str) -> str:
     返回技能文件路径。
     """
     import time
+
     safe_name = name.replace(" ", "-").replace("/", "_").lower()[:60]
     path = ROOT / "skills_md" / f"{safe_name}.SKILL.md"
     path.parent.mkdir(parents=True, exist_ok=True)

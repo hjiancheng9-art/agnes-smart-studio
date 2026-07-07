@@ -241,7 +241,9 @@ def wire_all() -> bool:
         bus.on("error", lambda **kw: circuit.record_failure(kw.get("provider", "default")))
         bus.on(
             "tool:after",
-            lambda error=None, **kw: circuit.record_success(None) if error is None else circuit.record_failure(str(error)),  # pyright: ignore[reportArgumentType]
+            lambda error=None, **kw: (
+                circuit.record_success(None) if error is None else circuit.record_failure(str(error))
+            ),  # pyright: ignore[reportArgumentType]
         )
     except _INIT_SAFE as e:
         logger.exception("[Beast] talisman circuit init failed: %s", e)

@@ -381,6 +381,8 @@ def imagegen(prompt: str, size: str = "1024x1024", style: str = "") -> dict:
         if style:
             enhanced = f"{prompt}, {style} style"
         result = engine.generate(prompt=enhanced, size=size)
-        return json.dumps({"status": "ok", "local_path": result.get("local_path", ""), "prompt": enhanced}, ensure_ascii=False)  # pyright: ignore[reportReturnType]
+        return json.dumps(
+            {"status": "ok", "local_path": result.get("local_path", ""), "prompt": enhanced}, ensure_ascii=False
+        )  # pyright: ignore[reportReturnType]
     except (OSError, ValueError, RuntimeError) as e:
         return json.dumps({"status": "error", "message": str(e)}, ensure_ascii=False)  # pyright: ignore[reportReturnType]

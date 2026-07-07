@@ -190,6 +190,7 @@ class CapabilityRegistry:
         try:
             # Chat REPL 可用性检查
             from core.chat import ChatSession as _CS
+
             ok = hasattr(_CS, "send_stream")
             results["rendering.invariants"] = {
                 "renderer_present": True,
@@ -219,7 +220,13 @@ def get_banner_counts() -> dict:
 
     try:
         c = CapabilityRegistry().counts()
-    except (RuntimeError, OSError, ImportError, ValueError, TypeError) as e:  # banner 是启动门面，绝不能因为统计抛错而中断启动
+    except (
+        RuntimeError,
+        OSError,
+        ImportError,
+        ValueError,
+        TypeError,
+    ) as e:  # banner 是启动门面，绝不能因为统计抛错而中断启动
         logger.debug("banner counts failed: %s", e)
         c = {"skills": None, "tools": None, "providers": None}
     return {

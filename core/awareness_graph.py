@@ -249,9 +249,13 @@ class AwarenessGraph:
             if line.strip().startswith("## Session:"):
                 in_content = True
                 continue
-            if (in_content and line.strip() and not line.strip().startswith("#")
-                    and not line.strip().startswith("<!--")
-                    and not line.strip().startswith("-")):
+            if (
+                in_content
+                and line.strip()
+                and not line.strip().startswith("#")
+                and not line.strip().startswith("<!--")
+                and not line.strip().startswith("-")
+            ):
                 summary = line.strip()
                 break
 
@@ -388,40 +392,55 @@ class AwarenessGraph:
             text = f"{fact.key} {fact.raw_value} {fact.category} {' '.join(fact.tags)}".lower()
             score = _tfidf_score(query_tokens, text)
             if score > 0:
-                results.append((score, {
-                    "type": "fact",
-                    "key": fact.key,
-                    "value": fact.raw_value,
-                    "category": fact.category,
-                    "source": fact.source_file,
-                    "confidence": fact.confidence,
-                    "score": round(score, 3),
-                }))
+                results.append(
+                    (
+                        score,
+                        {
+                            "type": "fact",
+                            "key": fact.key,
+                            "value": fact.raw_value,
+                            "category": fact.category,
+                            "source": fact.source_file,
+                            "confidence": fact.confidence,
+                            "score": round(score, 3),
+                        },
+                    )
+                )
 
         # Match entities
         for name, entity in self._entities.items():
             if query_lower in name.lower():
-                results.append((0.9, {
-                    "type": "entity",
-                    "name": name,
-                    "fact_count": len(entity.facts),
-                    "entity_type": entity.entity_type,
-                    "score": 0.9,
-                }))
+                results.append(
+                    (
+                        0.9,
+                        {
+                            "type": "entity",
+                            "name": name,
+                            "fact_count": len(entity.facts),
+                            "entity_type": entity.entity_type,
+                            "score": 0.9,
+                        },
+                    )
+                )
 
         # Match sessions
         for session in self._sessions:
             text = f"{session.title} {session.summary}".lower()
             score = _tfidf_score(query_tokens, text)
             if score > 0:
-                results.append((score, {
-                    "type": "session",
-                    "session_id": session.session_id,
-                    "title": session.title,
-                    "summary": session.summary,
-                    "date": session.date,
-                    "score": round(score, 3),
-                }))
+                results.append(
+                    (
+                        score,
+                        {
+                            "type": "session",
+                            "session_id": session.session_id,
+                            "title": session.title,
+                            "summary": session.summary,
+                            "date": session.date,
+                            "score": round(score, 3),
+                        },
+                    )
+                )
 
         results.sort(key=lambda x: x[0], reverse=True)
         return [r[1] for r in results[:top_k]]

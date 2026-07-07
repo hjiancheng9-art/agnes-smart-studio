@@ -19,11 +19,17 @@ import logging
 import json
 
 from core.comfyui_compiler import (
-    TaskSpec, WorkflowIR, GraphCompiler, CompiledWorkflow,
-    build_txt2img_spec, compile_spec,
+    TaskSpec,
+    WorkflowIR,
+    GraphCompiler,
+    CompiledWorkflow,
+    build_txt2img_spec,
+    compile_spec,
 )
 from core.comfyui_validator import (
-    ComfyUIValidator, ValidationResult, validate_workflow,
+    ComfyUIValidator,
+    ValidationResult,
+    validate_workflow,
 )
 
 logger = logging.getLogger(__name__)
@@ -33,9 +39,11 @@ logger = logging.getLogger(__name__)
 # 统一构建结果
 # ═══════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class BuildResult:
     """编译 + 校验的完整结果。"""
+
     success: bool
     workflow: dict | None = None
     compiled: CompiledWorkflow | None = None
@@ -75,8 +83,10 @@ class BuildResult:
 # 主要 API 函数
 # ═══════════════════════════════════════════════════════════════════
 
-def build_and_validate(spec: TaskSpec, node_ontology: dict | None = None,
-                       model_inventory: dict | None = None) -> BuildResult:
+
+def build_and_validate(
+    spec: TaskSpec, node_ontology: dict | None = None, model_inventory: dict | None = None
+) -> BuildResult:
     """TaskSpec → Compile → Validate 一条龙。
 
     即：原则 3 (Compiler) + 原则 4 (Validator) 的 API 集成。
@@ -124,14 +134,14 @@ def build_and_validate(spec: TaskSpec, node_ontology: dict | None = None,
         return BuildResult(success=False, error=str(e), summary=f"异常: {e}")
 
 
-def validate_existing(workflow: dict, node_ontology: dict | None = None,
-                      model_inventory: dict | None = None) -> ValidationResult:
+def validate_existing(
+    workflow: dict, node_ontology: dict | None = None, model_inventory: dict | None = None
+) -> ValidationResult:
     """对已有 workflow 执行校验（不经过 Compiler）。"""
     return validate_workflow(workflow, node_ontology, model_inventory)
 
 
-def safe_submit(workflow: dict, node_ontology: dict | None = None,
-                model_inventory: dict | None = None) -> dict:
+def safe_submit(workflow: dict, node_ontology: dict | None = None, model_inventory: dict | None = None) -> dict:
     """校验 + 提交：先 Validate，通过后再提交到 ComfyUI。
 
     Returns:
@@ -154,6 +164,7 @@ def safe_submit(workflow: dict, node_ontology: dict | None = None,
     # Try to submit
     try:
         from core.comfyui_tools import submit_comfyui_workflow
+
         result = submit_comfyui_workflow(workflow)
         return {
             "submitted": True,
@@ -169,8 +180,9 @@ def safe_submit(workflow: dict, node_ontology: dict | None = None,
         }
 
 
-def quick_txt2img(prompt: str, width: int = 1024, height: int = 1024,
-                  model: str | None = None, loras: list[str] | None = None) -> BuildResult:
+def quick_txt2img(
+    prompt: str, width: int = 1024, height: int = 1024, model: str | None = None, loras: list[str] | None = None
+) -> BuildResult:
     """快速文生图：从 prompt 直达可执行的 validated workflow。
 
     这是最常用的入口。

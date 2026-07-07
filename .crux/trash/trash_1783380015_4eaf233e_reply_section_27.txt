@@ -1,0 +1,18 @@
+protected:
+  paths:
+    - "core/**"
+    - "ui/**"
+    - "agents/**"
+    - "tools/**"
+    - "skills/**"
+    - "tests/**"
+    - "docs/**"
+    - "methodologies/**"
+    - "templates/**"
+    - "workflow_templates/**"
+    - "pyproject.toml"
+    - "requirements*.txt"
+    - "uv.lock"
+    - "poetry.lock"
+    - ".env"
+    - ".env.example"

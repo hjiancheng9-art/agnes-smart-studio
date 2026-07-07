@@ -26,6 +26,7 @@ def analyze_image(image_path: str, question: str = "描述这张图片") -> str:
     # Resolve image source
     try:
         from utils.image_input import load_image_as_url_or_data
+
         url = load_image_as_url_or_data(image_path)
     except (ValueError, OSError) as e:
         return f"(无法加载图片: {e})"
@@ -49,10 +50,7 @@ def analyze_image(image_path: str, question: str = "描述这张图片") -> str:
 
             # Detect Zhipu content rejection
             if attempt == "zhipu":
-                rejected = any(
-                    phrase in raw
-                    for phrase in ("超出", "能力范围", "建议您尝试其他", "无法", "不支持")
-                )
+                rejected = any(phrase in raw for phrase in ("超出", "能力范围", "建议您尝试其他", "无法", "不支持"))
                 if rejected:
                     continue
 
@@ -77,6 +75,7 @@ def _get_zhipu_client():
     base_url = zhipu_p.get("base_url", "https://open.bigmodel.cn/api/paas/v4")
     if not api_key:
         import os
+
         api_key = os.getenv("ZHIPU_API_KEY", "")
     if not api_key:
         raise RuntimeError("Zhipu API key not configured")
@@ -91,6 +90,7 @@ def _get_agnes_client():
     crux_key = ""
     try:
         from core.provider import get_provider_manager
+
         mgr = get_provider_manager()
         crux_p = mgr.providers.get("crux", {})
         crux_key = crux_p.get("api_key") or ""
@@ -98,6 +98,7 @@ def _get_agnes_client():
         pass
     if not crux_key:
         import os
+
         crux_key = os.getenv("CRUX_API_KEY", "") or os.getenv("AGNES_API_KEY", "")
     if not crux_key:
         raise RuntimeError("CRUX API key not configured")

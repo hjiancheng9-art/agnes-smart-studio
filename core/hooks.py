@@ -246,6 +246,7 @@ def reset_hook_manager() -> None:
     """
     hook_manager.clear()
 
+
 # ── Helper Registration Functions ───────────────────────────────────────────
 
 

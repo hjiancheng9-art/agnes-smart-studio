@@ -239,8 +239,14 @@ class StepStatus(Enum):
 class PlanStep:
     """A single step in an execution plan."""
 
-    def __init__(self, name: str, purpose: str = "", tool: str = "",
-                 args: dict | None = None, depends_on: list[int] | None = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        purpose: str = "",
+        tool: str = "",
+        args: dict | None = None,
+        depends_on: list[int] | None = None,
+    ) -> None:
         self.name = name
         self.purpose = purpose
         self.tool = tool
@@ -273,9 +279,7 @@ class PlanExecutor:
         results = executor.execute(plan)
     """
 
-    def __init__(
-        self, client, tools=None, model: str = "", tier: str = "auto", task_type: str = ""
-    ) -> None:
+    def __init__(self, client, tools=None, model: str = "", tier: str = "auto", task_type: str = "") -> None:
         """Init plan executor.
 
         Args:
@@ -290,9 +294,12 @@ class PlanExecutor:
         if not model:
             try:
                 from core.provider import get_provider_manager
+
                 model = get_provider_manager().get_model(tier if tier != "auto" else "pro")
             except (KeyError, ValueError, RuntimeError, OSError) as e:
-                logger.warning("Agent model resolution failed (%s: %s), falling back to deepseek-v4-pro", type(e).__name__, e)
+                logger.warning(
+                    "Agent model resolution failed (%s: %s), falling back to deepseek-v4-pro", type(e).__name__, e
+                )
                 model = "deepseek-v4-pro"
         # tier 路由
         if tier in ("light", "pro", "heavy"):
@@ -455,6 +462,7 @@ class SubAgent:
         if not model:
             try:
                 from core.provider import get_provider_manager
+
                 model = get_provider_manager().get_model(tier if tier != "auto" else "pro")
             except Exception:
                 model = "deepseek-v4-pro"  # 最终 fallback
@@ -689,9 +697,7 @@ class ModelRouter:
 
     # Model metadata now in core.provider.MODEL_REGISTRY (single source of truth)
 
-    def __init__(
-        self, primary: str | None = None, light: str = "", pro: str = "", vision_model: str = ""
-    ) -> None:
+    def __init__(self, primary: str | None = None, light: str = "", pro: str = "", vision_model: str = "") -> None:
         if primary is None:
             primary = self._default_primary()
         if not light:
@@ -814,22 +820,22 @@ class ModelRouter:
         if task_type == "image_generation":
             try:
                 from core.provider import get_provider_manager
+
                 mgr = get_provider_manager()
                 crux = mgr.providers.get("crux", {})
                 return crux.get("models", {}).get("image") or "agnes-image-2.1-flash"
             except Exception as e:
-
                 logger.debug("unexpected error: %s", e, exc_info=True)
 
                 return "agnes-image-2.1-flash"
         if task_type == "video_generation":
             try:
                 from core.provider import get_provider_manager
+
                 mgr = get_provider_manager()
                 crux = mgr.providers.get("crux", {})
                 return crux.get("models", {}).get("video") or "agnes-video-v2.0"
             except Exception as e:
-
                 logger.debug("unexpected error: %s", e, exc_info=True)
 
                 return "agnes-video-v2.0"
@@ -966,8 +972,10 @@ class ModelRouter:
         chain: list[str] = []
         try:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             seen: set[str] = set()
+
             # Sort: free providers first, then by fallback priority
             def _sort_key(pid):
                 p = mgr.providers.get(pid, {})
@@ -977,6 +985,7 @@ class ModelRouter:
                 except ValueError:
                     idx = 99
                 return (is_free, idx)
+
             sorted_pids = sorted(mgr.fallback_priority, key=_sort_key)
             for pid in sorted_pids:
                 provider = mgr.providers.get(pid, {})
@@ -991,7 +1000,6 @@ class ModelRouter:
                         chain.append(mid_val)
                         seen.add(mid_val)
         except (ImportError, OSError, RuntimeError) as e:
-
             logger.debug("fallback skipped: %s", e)
 
             pass
@@ -1051,6 +1059,7 @@ Rules: steps in execution order, max 10, depends_on is 0-based indices. args mus
 def parse_plan(text: str) -> list[PlanStep]:
     """Parse execution plan from LLM JSON output. Tries ```json``` block first, then raw JSON."""
     import json as _json
+
     json_text = ""
     match = re.search(r"```(?:json)?\s*\n(.+?)```", text, re.DOTALL)
     json_text = match.group(1) if match else text.strip()
@@ -1060,7 +1069,6 @@ def parse_plan(text: str) -> list[PlanStep]:
         if not isinstance(step_list, list):
             return []
     except (_json.JSONDecodeError, TypeError, ValueError) as e:
-
         logger.debug("parse error: %s", e)
 
         return []
@@ -1068,11 +1076,15 @@ def parse_plan(text: str) -> list[PlanStep]:
     for i, s in enumerate(step_list):
         if not isinstance(s, dict):
             continue
-        steps.append(PlanStep(
-            name=s.get("name", f"step_{i+1}"), purpose=s.get("purpose", ""),
-            tool=s.get("tool", ""), args=s.get("args", {}),
-            depends_on=s.get("depends_on", []),
-        ))
+        steps.append(
+            PlanStep(
+                name=s.get("name", f"step_{i + 1}"),
+                purpose=s.get("purpose", ""),
+                tool=s.get("tool", ""),
+                args=s.get("args", {}),
+                depends_on=s.get("depends_on", []),
+            )
+        )
     return steps
 
 

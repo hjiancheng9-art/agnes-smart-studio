@@ -1,0 +1,10 @@
+temp_files:
+    patterns:
+      - "**/*.tmp"
+      - "**/*.bak"
+      - "**/*.old"
+      - "**/*.orig"
+      - ".crux/tmp/**"
+    action: "trash"
+    min_age_days: 1
+    risk: "low"

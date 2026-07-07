@@ -11,9 +11,15 @@ ASM.core 始终加载，是方法论基底。
 """
 
 from core.asm import (
-    BaseMethodology, MethodologyCheck, MethodologyPolicy,
-    TaskProfile, TaskIntent, TaskDomain, RiskLevel,
-    MethodologyPhase, register,
+    BaseMethodology,
+    MethodologyCheck,
+    MethodologyPolicy,
+    TaskProfile,
+    TaskIntent,
+    TaskDomain,
+    RiskLevel,
+    MethodologyPhase,
+    register,
 )
 
 
@@ -22,53 +28,63 @@ class CoreMethodology(BaseMethodology):
     description = "通用原则：参数语义化、可解释、先理解后执行、产物可验证、证据优先"
     version = "1.0.0"
     max_risk = RiskLevel.CRITICAL
-    
+
     def get_checks(self, task: TaskProfile) -> list[MethodologyCheck]:
         checks = []
-        
+
         # ── BEFORE ──
         if task.risk in (RiskLevel.HIGH, RiskLevel.CRITICAL):
-            checks.append(MethodologyCheck(
-                phase=MethodologyPhase.BEFORE,
-                name="understand-goal",
-                description="高/临界风险：执行前确认目标理解正确，finish_line 是否明确",
-                severity="block",
-            ))
-        
+            checks.append(
+                MethodologyCheck(
+                    phase=MethodologyPhase.BEFORE,
+                    name="understand-goal",
+                    description="高/临界风险：执行前确认目标理解正确，finish_line 是否明确",
+                    severity="block",
+                )
+            )
+
         if task.has_side_effects and not task.is_reversible:
-            checks.append(MethodologyCheck(
-                phase=MethodologyPhase.BEFORE,
-                name="confirm-side-effects",
-                description="不可逆操作：检查是否有备份或回滚方案",
-                severity="block",
-            ))
-        
+            checks.append(
+                MethodologyCheck(
+                    phase=MethodologyPhase.BEFORE,
+                    name="confirm-side-effects",
+                    description="不可逆操作：检查是否有备份或回滚方案",
+                    severity="block",
+                )
+            )
+
         # ── AFTER ──
-        checks.append(MethodologyCheck(
-            phase=MethodologyPhase.AFTER,
-            name="verify-result",
-            description="验证 finish_line 是否达成（不是'看起来好了'，是客观证据）",
-            severity="block" if task.risk in (RiskLevel.HIGH, RiskLevel.CRITICAL) else "warn",
-        ))
-        
-        checks.append(MethodologyCheck(
-            phase=MethodologyPhase.AFTER,
-            name="check-regression",
-            description="检查是否有副作用/回归问题",
-            severity="warn",
-        ))
-        
+        checks.append(
+            MethodologyCheck(
+                phase=MethodologyPhase.AFTER,
+                name="verify-result",
+                description="验证 finish_line 是否达成（不是'看起来好了'，是客观证据）",
+                severity="block" if task.risk in (RiskLevel.HIGH, RiskLevel.CRITICAL) else "warn",
+            )
+        )
+
+        checks.append(
+            MethodologyCheck(
+                phase=MethodologyPhase.AFTER,
+                name="check-regression",
+                description="检查是否有副作用/回归问题",
+                severity="warn",
+            )
+        )
+
         # GPT 规格新增：副作用确认
         if task.risk in (RiskLevel.HIGH, RiskLevel.CRITICAL):
-            checks.append(MethodologyCheck(
-                phase=MethodologyPhase.WRAP,
-                name="confirm-no-side-effects",
-                description="确认没有未预期的副作用（文件修改/依赖变化/目录创建）",
-                severity="block",
-            ))
-        
+            checks.append(
+                MethodologyCheck(
+                    phase=MethodologyPhase.WRAP,
+                    name="confirm-no-side-effects",
+                    description="确认没有未预期的副作用（文件修改/依赖变化/目录创建）",
+                    severity="block",
+                )
+            )
+
         return checks
-    
+
     def get_policies(self) -> list[MethodologyPolicy]:
         return [
             MethodologyPolicy(

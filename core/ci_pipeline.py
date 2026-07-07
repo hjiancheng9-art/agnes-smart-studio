@@ -26,9 +26,7 @@ def pipeline_create(name: str, stages: list[str] | None = None, config: dict | N
         "runs": [],
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    (PIPELINE_DIR / f"{pl['id']}.json").write_text(
-        json.dumps(pl, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    (PIPELINE_DIR / f"{pl['id']}.json").write_text(json.dumps(pl, indent=2, ensure_ascii=False), encoding="utf-8")
     return pl
 
 
@@ -82,26 +80,42 @@ def pipeline_list(status: str | None = None) -> list[dict]:
 
 
 PIPELINE_TOOL_DEFS = [
-    {"type": "function", "function": {
-        "name": "pipeline_create", "description": "Create a CI/CD pipeline with stages.",
-        "parameters": {"type": "object", "properties": {
-            "name": {"type": "string"},
-            "stages": {"type": "array", "items": {"type": "string"}},
-            "config": {"type": "object"}
-        }, "required": ["name"]}
-    }},
-    {"type": "function", "function": {
-        "name": "pipeline_run", "description": "Run a pipeline through all stages.",
-        "parameters": {"type": "object", "properties": {
-            "pipeline_id": {"type": "string"}
-        }, "required": ["pipeline_id"]}
-    }},
-    {"type": "function", "function": {
-        "name": "pipeline_list", "description": "List pipelines.",
-        "parameters": {"type": "object", "properties": {
-            "status": {"type": "string"}
-        }}
-    }},
+    {
+        "type": "function",
+        "function": {
+            "name": "pipeline_create",
+            "description": "Create a CI/CD pipeline with stages.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "stages": {"type": "array", "items": {"type": "string"}},
+                    "config": {"type": "object"},
+                },
+                "required": ["name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "pipeline_run",
+            "description": "Run a pipeline through all stages.",
+            "parameters": {
+                "type": "object",
+                "properties": {"pipeline_id": {"type": "string"}},
+                "required": ["pipeline_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "pipeline_list",
+            "description": "List pipelines.",
+            "parameters": {"type": "object", "properties": {"status": {"type": "string"}}},
+        },
+    },
 ]
 
 PIPELINE_EXECUTOR_MAP = {

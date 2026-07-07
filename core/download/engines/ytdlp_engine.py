@@ -13,9 +13,9 @@ class YtdlpEngine:
         self.ytdlp_path = ytdlp_path
         self._proc: subprocess.Popen | None = None
 
-    def download(self, url: str, output_dir: str = ".",
-                 filename: str | None = None,
-                 headers: dict[str, str] | None = None) -> subprocess.Popen:
+    def download(
+        self, url: str, output_dir: str = ".", filename: str | None = None, headers: dict[str, str] | None = None
+    ) -> subprocess.Popen:
         """Start yt-dlp download."""
         args = [self.ytdlp_path, url, "-o", f"{output_dir}/%(title)s.%(ext)s"]
         if filename:
@@ -25,7 +25,10 @@ class YtdlpEngine:
                 args.extend(["--add-header", f"{k}:{v}"])
         args.extend(["--progress-template", "json"])
         self._proc = subprocess.Popen(
-            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
         )
         return self._proc
 

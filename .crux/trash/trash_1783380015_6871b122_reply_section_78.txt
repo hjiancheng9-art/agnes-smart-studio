@@ -1,0 +1,4 @@
+best/final 至少存在一个
+训练 summary 存在
+清理报告确认
+安全闸 8：ComfyUI workflow 保留策略

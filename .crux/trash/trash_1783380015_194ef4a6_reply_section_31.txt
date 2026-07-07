@@ -1,0 +1,6 @@
+browser_screenshots:
+    patterns:
+      - ".crux/cache/browser/screenshots/**"
+    action: "trash"
+    min_age_days: 7
+    risk: "low"

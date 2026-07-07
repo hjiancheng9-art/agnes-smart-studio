@@ -8,9 +8,20 @@ import os
 
 # 默认排除目录（gitignore 等价）
 EXCLUDE_DIRS = {
-    "node_modules", "__pycache__", ".venv", ".git", ".eggs",
-    ".mypy_cache", ".pytest_cache", ".ruff_cache", ".hypothesis",
-    "build", "dist", ".tox", "venv", "env",
+    "node_modules",
+    "__pycache__",
+    ".venv",
+    ".git",
+    ".eggs",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".hypothesis",
+    "build",
+    "dist",
+    ".tox",
+    "venv",
+    "env",
 }
 
 EXCLUDE_EXT = {".pyc", ".pyo", ".so", ".egg-info"}
@@ -29,12 +40,12 @@ def fast_glob(pattern: str = "*.py", root: str = ".", exclude_dirs: set | None =
 
     for dirpath, dirnames, filenames in os.walk(root):
         # 原址修改 dirnames 以跳过排除目录
-        dirnames[:] = [d for d in dirnames if d not in exclude_dirs and not d.startswith('.')]
+        dirnames[:] = [d for d in dirnames if d not in exclude_dirs and not d.startswith(".")]
 
         for f in filenames:
             if ext is None:
                 # Pattern like "*.txt" or exact match
-                if f.endswith(pattern[1:]) if pattern.startswith('*') else f == pattern:
+                if f.endswith(pattern[1:]) if pattern.startswith("*") else f == pattern:
                     results.append(os.path.join(dirpath, f))
             elif f.endswith(ext):
                 results.append(os.path.join(dirpath, f))
@@ -53,7 +64,7 @@ def fast_walk(root: str = ".", exclude_dirs: set | None = None):
         exclude_dirs = EXCLUDE_DIRS
 
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in exclude_dirs and not d.startswith('.')]
+        dirnames[:] = [d for d in dirnames if d not in exclude_dirs and not d.startswith(".")]
         yield dirpath, dirnames, filenames
 
 
@@ -85,15 +96,15 @@ SCANNER_TOOL_DEFS = [
                 "type": "object",
                 "properties": {
                     "pattern": {"type": "string", "description": "文件模式，如 *.py"},
-                    "root": {"type": "string", "description": "搜索根目录"}
-                }
-            }
-        }
+                    "root": {"type": "string", "description": "搜索根目录"},
+                },
+            },
+        },
     }
 ]
 
 SCANNER_EXECUTOR_MAP = {
-    "fast_glob": lambda **kw: __import__('json').dumps(fast_glob(**kw)),
+    "fast_glob": lambda **kw: __import__("json").dumps(fast_glob(**kw)),
 }
 
 
@@ -107,10 +118,11 @@ if __name__ == "__main__":
         t1 = time.perf_counter() - t0
 
         import glob
-        gpattern = f"**/{pattern}" if not pattern.startswith('**') else pattern
+
+        gpattern = f"**/{pattern}" if not pattern.startswith("**") else pattern
         t0 = time.perf_counter()
         slow = glob.glob(gpattern, recursive=True)
         t2 = time.perf_counter() - t0
 
         speedup = t2 / t1 if t1 > 0 else 999
-        print(f"{pattern}: fast={len(fast)} ({t1*1000:.0f}ms)  glob={len(slow)} ({t2*1000:.0f}ms)  {speedup:.0f}x")
+        print(f"{pattern}: fast={len(fast)} ({t1 * 1000:.0f}ms)  glob={len(slow)} ({t2 * 1000:.0f}ms)  {speedup:.0f}x")

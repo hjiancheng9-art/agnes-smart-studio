@@ -22,6 +22,7 @@ logger = logging.getLogger("crux.defense")
 
 # ── Layer 1: PRE-CHECK ──────────────────────────────────
 
+
 def pre_check_file_write(file_path: str, content: str = "") -> str | None:
     """Validate a file write before execution. Returns error string or None.
 
@@ -73,6 +74,7 @@ def pre_check_bash(command: str) -> str | None:
 
 
 # ── Layer 2: MID-GUARD ──────────────────────────────────
+
 
 class CircuitBreaker:
     """Prevent cascade failures by tracking consecutive errors."""
@@ -205,6 +207,7 @@ def is_duplicate_write(file_path: str, content: str) -> bool:
 
 # ── Hook Integration ────────────────────────────────────
 
+
 def register_defense_hooks():
     """Register all defense hooks into the hook system."""
     try:
@@ -244,7 +247,9 @@ def register_defense_hooks():
 
             # Circuit breaker: track failures
             cb = get_circuit(tool_name)
-            is_error = result and ("error" in result.lower()[:200] or "失败" in result[:200] or "failed" in result.lower()[:200])
+            is_error = result and (
+                "error" in result.lower()[:200] or "失败" in result[:200] or "failed" in result.lower()[:200]
+            )
             if is_error:
                 cb.record_failure()
             else:

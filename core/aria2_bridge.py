@@ -89,9 +89,7 @@ class Aria2Bridge:
         self._running = False
         self._lock = threading.Lock()
         self._download_dir = str(DEFAULT_DIR)
-        self._session_file = str(
-            ROOT / "output" / "aria2_session.json"
-        )
+        self._session_file = str(ROOT / "output" / "aria2_session.json")
 
     # ── public API ────────────────────────────────────────
 
@@ -297,18 +295,21 @@ class Aria2Bridge:
     def _rpc(self, method: str, params: list | None = None) -> Any:
         """JSON-RPC 调用，最多重试1次。"""
         url = f"http://127.0.0.1:{self._rpc_port}/jsonrpc"
-        body = json.dumps({
-            "jsonrpc": "2.0",
-            "id": str(int(time.time() * 1000)),
-            "method": method,
-            "params": [f"token:{self._rpc_secret}", *(params or [])],
-        })
+        body = json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "id": str(int(time.time() * 1000)),
+                "method": method,
+                "params": [f"token:{self._rpc_secret}", *(params or [])],
+            }
+        )
 
         last_error = None
         for attempt in range(2):
             try:
                 resp = requests.post(
-                    url, data=body,
+                    url,
+                    data=body,
                     headers={"Content-Type": "application/json"},
                     timeout=30,
                 )

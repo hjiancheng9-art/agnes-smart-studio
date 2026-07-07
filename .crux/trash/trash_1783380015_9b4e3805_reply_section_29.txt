@@ -1,0 +1,11 @@
+cleanup_rules:
+  python_cache:
+    patterns:
+      - "**/__pycache__/**"
+      - "**/*.pyc"
+      - ".pytest_cache/**"
+      - ".mypy_cache/**"
+      - ".ruff_cache/**"
+    action: "trash"
+    min_age_days: 0
+    risk: "low"

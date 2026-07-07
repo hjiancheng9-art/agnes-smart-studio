@@ -1,0 +1,5 @@
+__pycache__
+pytest/mypy/ruff cache
+.crux/tmp
+browser screenshots older than 3 days
+failed temp workflows

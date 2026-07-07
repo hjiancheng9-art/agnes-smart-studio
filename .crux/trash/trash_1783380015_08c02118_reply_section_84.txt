@@ -1,0 +1,5 @@
+skill manifest requires/entrypoint
+workflow template references
+ADR/docs references
+recent EventLog references
+Goal/run artifacts

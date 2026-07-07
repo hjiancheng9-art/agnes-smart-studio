@@ -1,0 +1,2 @@
+:        try:
+L1477:            self._ui(self.message_pane.stream_s

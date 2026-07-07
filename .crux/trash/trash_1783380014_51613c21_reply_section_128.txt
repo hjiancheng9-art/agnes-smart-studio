@@ -1,0 +1,11 @@
+best/final 不删
+如果没有 best/final，不删任何 checkpoint
+中间 epoch checkpoint 30 天后可提示清理
+latent/cache 可清理
+浏览器控制
+.crux/browser/
+  screenshots/       # 7-14 天
+  recordings/        # 30 天
+  html_snapshots/    # 14 天
+  cookies/           # 永不自动删，敏感
+  profiles/          # 永不自动删

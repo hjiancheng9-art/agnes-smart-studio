@@ -12,25 +12,31 @@ from core.comfyui_recovery_tools import execute_recover_workflow, execute_error_
 # ── A-step: 工具契约层 ──
 from core.comfyui_contract import check_tool_contract, ContractCheckResult
 import logging as _contract_logging
+
 _contract_logger = _contract_logging.getLogger(__name__)
+
 
 def _with_contract(executor_fn, tool_name: str):
     """为执行器包裹契约检查层。"""
+
     def wrapped(**kwargs):
         # 执行前检查契约
         check = check_tool_contract(tool_name, **kwargs)
         if not check.passed:
             msg = f"契约检查未通过: {tool_name} | {check.message}"
             _contract_logger.warning(msg)
-            return json.dumps({
-                "success": False,
-                "contract_violation": True,
-                "tool_name": tool_name,
-                "contract_result": check.message,
-                "pre_fail": check.pre_fail,
-                "warnings": check.warnings,
-                "message": f"⛔ {msg}",
-            }, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "success": False,
+                    "contract_violation": True,
+                    "tool_name": tool_name,
+                    "contract_result": check.message,
+                    "pre_fail": check.pre_fail,
+                    "warnings": check.warnings,
+                    "message": f"⛔ {msg}",
+                },
+                ensure_ascii=False,
+            )
         if check.warnings:
             _contract_logger.info(f"契约警告: {tool_name} | {check.message}")
 
@@ -50,7 +56,9 @@ def _with_contract(executor_fn, tool_name: str):
             pass
 
         return result
+
     return wrapped
+
 
 # ── 工具定义 ──
 COMFYUI_PIPELINE_TOOL_DEFS = [
@@ -62,7 +70,11 @@ COMFYUI_PIPELINE_TOOL_DEFS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "mode": {"type": "string", "enum": ["text_to_image", "image_to_image", "text_to_video"], "description": "工作流模式"},
+                    "mode": {
+                        "type": "string",
+                        "enum": ["text_to_image", "image_to_image", "text_to_video"],
+                        "description": "工作流模式",
+                    },
                     "prompt": {"type": "string", "description": "正向提示词"},
                     "negative_prompt": {"type": "string", "description": "负向提示词（可选）"},
                     "model": {"type": "string", "description": "模型文件名（如 flux1-dev.safetensors）"},
@@ -88,7 +100,10 @@ COMFYUI_PIPELINE_TOOL_DEFS = [
                 "properties": {
                     "workflow_json": {"type": "string", "description": "基础工作流 JSON"},
                     "target": {"type": "string", "description": "优化目标（如 quality/speed/creative）"},
-                    "param_ranges": {"type": "object", "description": "参数范围 {'steps': [10,50], 'cfg_scale': [3,12]}（可选）"},
+                    "param_ranges": {
+                        "type": "object",
+                        "description": "参数范围 {'steps': [10,50], 'cfg_scale': [3,12]}（可选）",
+                    },
                     "max_trials": {"type": "integer", "description": "最大尝试次数（默认5）"},
                 },
                 "required": ["workflow_json", "target"],
@@ -140,13 +155,18 @@ COMFYUI_PIPELINE_TOOL_DEFS = [
                 "properties": {
                     "prompt": {"type": "string", "description": "统一提示词"},
                     "models": {"type": "array", "items": {"type": "string"}, "description": "模型文件名列表"},
-                    "configs": {"type": "array", "items": {"type": "object"}, "description": "各模型独立配置列表（可选，与models一一对应）"},
+                    "configs": {
+                        "type": "array",
+                        "items": {"type": "object"},
+                        "description": "各模型独立配置列表（可选，与models一一对应）",
+                    },
                 },
                 "required": ["prompt", "models"],
             },
         },
     },
 ]
+
 
 # ── 执行函数 ──
 def execute_build_workflow(
@@ -174,11 +194,14 @@ def execute_build_workflow(
         "seed": seed,
         "lora": lora_name if lora_name else "none",
     }
-    return json.dumps({
-        "success": True,
-        "workflow_preview": workflow_preview,
-        "message": f"ComfyUI 工作流已构建 | {mode} | {model} | {width}x{height}",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "workflow_preview": workflow_preview,
+            "message": f"ComfyUI 工作流已构建 | {mode} | {model} | {width}x{height}",
+        },
+        ensure_ascii=False,
+    )
 
 
 def execute_tune_params(
@@ -190,6 +213,7 @@ def execute_tune_params(
 ) -> str:
     """调优参数"""
     import random
+
     # 模拟网格搜索
     if not param_ranges:
         param_ranges = {"steps": [10, 50], "cfg_scale": [3, 12]}
@@ -197,13 +221,16 @@ def execute_tune_params(
         "steps": random.randint(*param_ranges.get("steps", [10, 50])),
         "cfg_scale": round(random.uniform(*param_ranges.get("cfg_scale", [3, 12])), 1),
     }
-    return json.dumps({
-        "success": True,
-        "target": target,
-        "best_params": best_params,
-        "trials": max_trials,
-        "message": f"ComfyUI 参数调优完成 | target={target} | trials={max_trials}",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "target": target,
+            "best_params": best_params,
+            "trials": max_trials,
+            "message": f"ComfyUI 参数调优完成 | target={target} | trials={max_trials}",
+        },
+        ensure_ascii=False,
+    )
 
 
 def execute_train_lora(
@@ -215,15 +242,18 @@ def execute_train_lora(
     **kwargs,
 ) -> str:
     """训练 LoRA"""
-    return json.dumps({
-        "success": True,
-        "dataset": dataset_name,
-        "base_model": base_model,
-        "training_steps": training_steps,
-        "learning_rate": learning_rate,
-        "status": "prepared",
-        "message": f"LoRA 训练已准备 | {dataset_name} → {base_model} | steps={training_steps}",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "dataset": dataset_name,
+            "base_model": base_model,
+            "training_steps": training_steps,
+            "learning_rate": learning_rate,
+            "status": "prepared",
+            "message": f"LoRA 训练已准备 | {dataset_name} → {base_model} | steps={training_steps}",
+        },
+        ensure_ascii=False,
+    )
 
 
 def execute_create_custom_node(
@@ -236,14 +266,17 @@ def execute_create_custom_node(
     """创建自定义节点"""
     inputs = inputs or ["image", "strength"]
     outputs = outputs or ["IMAGE"]
-    return json.dumps({
-        "success": True,
-        "node_name": node_name,
-        "description": description,
-        "inputs": inputs,
-        "outputs": outputs,
-        "message": f"ComfyUI 自定义节点已创建 | {node_name}",
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": True,
+            "node_name": node_name,
+            "description": description,
+            "inputs": inputs,
+            "outputs": outputs,
+            "message": f"ComfyUI 自定义节点已创建 | {node_name}",
+        },
+        ensure_ascii=False,
+    )
 
 
 def execute_compare_models(
@@ -256,18 +289,23 @@ def execute_compare_models(
     results = []
     for i, model in enumerate(models):
         cfg = configs[i] if configs and i < len(configs) else {}
-        results.append({
-            "model": model,
-            "seed": random.randint(0, 2**32 - 1),
-            "config": cfg,
-        })
-    return json.dumps({
-        "success": True,
-        "prompt": prompt,
-        "compared_models": len(models),
-        "results": results,
-        "message": f"ComfyUI 模型对比完成 | {len(models)} 个模型",
-    }, ensure_ascii=False)
+        results.append(
+            {
+                "model": model,
+                "seed": random.randint(0, 2**32 - 1),
+                "config": cfg,
+            }
+        )
+    return json.dumps(
+        {
+            "success": True,
+            "prompt": prompt,
+            "compared_models": len(models),
+            "results": results,
+            "message": f"ComfyUI 模型对比完成 | {len(models)} 个模型",
+        },
+        ensure_ascii=False,
+    )
 
 
 def execute_compile_and_validate(
@@ -281,13 +319,13 @@ def execute_compile_and_validate(
     **kwargs,
 ) -> str:
     """CWIM C-step: TaskSpec → Compiler → Validator 集成路径。
-    
+
     使用 ComfyUI 方法论 (COMFYUI_METHODOLOGY.md) 的原则 3+4：
     LLM → TaskSpec → WorkflowIR → GraphCompiler → Validator。
     """
     from core.comfyui_api import quick_txt2img, validate_existing
     import json
-    
+
     try:
         result = quick_txt2img(
             prompt=prompt,
@@ -296,30 +334,40 @@ def execute_compile_and_validate(
             model=model,
             loras=loras or [],
         )
-        
+
         if result.success and result.is_valid:
-            return json.dumps({
-                "success": True,
-                "node_count": len(result.workflow) if result.workflow else 0,
-                "validation": result.validation.is_valid if result.validation else False,
-                "warnings": len(result.validation.warnings) if result.validation else 0,
-                "summary": result.summary,
-                "message": f"✅ TaskSpec → Compile → Validate 通过 | {len(result.workflow) if result.workflow else 0} 节点",
-            }, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "success": True,
+                    "node_count": len(result.workflow) if result.workflow else 0,
+                    "validation": result.validation.is_valid if result.validation else False,
+                    "warnings": len(result.validation.warnings) if result.validation else 0,
+                    "summary": result.summary,
+                    "message": f"✅ TaskSpec → Compile → Validate 通过 | {len(result.workflow) if result.workflow else 0} 节点",
+                },
+                ensure_ascii=False,
+            )
         else:
-            return json.dumps({
-                "success": False,
-                "error": result.error or "未知错误",
-                "summary": result.summary,
-                "diagnostics": result.compiled.diagnostics if result.compiled else [],
-            }, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": result.error or "未知错误",
+                    "summary": result.summary,
+                    "diagnostics": result.compiled.diagnostics if result.compiled else [],
+                },
+                ensure_ascii=False,
+            )
     except Exception as e:
         import traceback
-        return json.dumps({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()[:500],
-        }, ensure_ascii=False)
+
+        return json.dumps(
+            {
+                "success": False,
+                "error": str(e),
+                "traceback": traceback.format_exc()[:500],
+            },
+            ensure_ascii=False,
+        )
 
 
 def execute_validate_workflow(
@@ -327,26 +375,29 @@ def execute_validate_workflow(
     **kwargs,
 ) -> str:
     """CWIM C-step: 对已有 workflow 执行 5 层校验。
-    
+
     独立 Validator 入口 — 不经过 Compiler。
     """
     from core.comfyui_api import validate_existing
     import json
-    
+
     try:
         workflow = json.loads(workflow_json)
     except json.JSONDecodeError:
         return json.dumps({"success": False, "error": "Invalid JSON workflow"}, ensure_ascii=False)
-    
+
     result = validate_existing(workflow)
-    return json.dumps({
-        "success": result.is_valid,
-        "error_count": len(result.errors),
-        "warning_count": len(result.warnings),
-        "info_count": len([i for i in result.issues if i.level == "info"]),
-        "errors": [{"layer": e.layer, "message": e.message, "fix": e.fix_hint} for e in result.errors],
-        "warnings": [{"layer": w.layer, "message": w.message} for w in result.warnings],
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "success": result.is_valid,
+            "error_count": len(result.errors),
+            "warning_count": len(result.warnings),
+            "info_count": len([i for i in result.issues if i.level == "info"]),
+            "errors": [{"layer": e.layer, "message": e.message, "fix": e.fix_hint} for e in result.errors],
+            "warnings": [{"layer": w.layer, "message": w.message} for w in result.warnings],
+        },
+        ensure_ascii=False,
+    )
 
 
 # ── 执行器映射（带契约检查） ──
@@ -356,8 +407,12 @@ COMFYUI_PIPELINE_EXECUTOR_MAP = {
     "comfyui_train_lora": lambda **kw: execute_train_lora(**kw),
     "comfyui_create_custom_node": lambda **kw: execute_create_custom_node(**kw),
     "comfyui_compare_models": lambda **kw: execute_compare_models(**kw),
-    "comfyui_compile_and_validate": _with_contract(lambda **kw: execute_compile_and_validate(**kw), "comfyui_compile_and_validate"),
-    "comfyui_validate_workflow": _with_contract(lambda **kw: execute_validate_workflow(**kw), "comfyui_validate_workflow"),
+    "comfyui_compile_and_validate": _with_contract(
+        lambda **kw: execute_compile_and_validate(**kw), "comfyui_compile_and_validate"
+    ),
+    "comfyui_validate_workflow": _with_contract(
+        lambda **kw: execute_validate_workflow(**kw), "comfyui_validate_workflow"
+    ),
     "comfyui_recover_workflow": _with_contract(lambda **kw: execute_recover_workflow(**kw), "comfyui_recover_workflow"),
     "comfyui_error_kb_query": _with_contract(lambda **kw: execute_error_kb_query(**kw), "comfyui_error_kb_query"),
 }

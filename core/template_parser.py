@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import yaml
+
     HAS_YAML = True
 except ImportError:
     HAS_YAML = False
@@ -23,6 +24,7 @@ except ImportError:
 # ═══════════════════════════════════════════════════════════════════
 # 数据结构
 # ═══════════════════════════════════════════════════════════════════
+
 
 @dataclass
 class TemplateNode:
@@ -49,6 +51,7 @@ class ParsedTemplate:
 # 解析器
 # ═══════════════════════════════════════════════════════════════════
 
+
 def parse_template_json(text: str) -> ParsedTemplate | None:
     """从 JSON 格式解析模板。"""
     try:
@@ -68,16 +71,16 @@ def parse_template_json(text: str) -> ParsedTemplate | None:
         ct = binding.get("class_type", "")
         iname = binding.get("input", "")
         default = inp.get("default")
-        
+
         if not nid or not ct:
             continue
-        
+
         if nid not in nodes:
             nodes[nid] = TemplateNode(name=nid, class_type=ct)
-        
+
         if default is not None:
             nodes[nid].params[iname] = default
-        
+
         # Param ranges
         if "min" in inp and "max" in inp:
             nodes[nid].param_ranges[iname] = {
@@ -110,17 +113,17 @@ def parse_template_yaml(text: str) -> ParsedTemplate | None:
     """从 YAML 格式解析模板。"""
     if not HAS_YAML:
         return None
-    
+
     text = _preprocess_yaml(text)
-    
+
     try:
         data = yaml.safe_load(text)
     except yaml.YAMLError:
         return None
-    
+
     if not isinstance(data, dict) or not data.get("workflow_id"):
         return None
-    
+
     return _from_yaml_dict(data)
 
 
@@ -128,16 +131,25 @@ def _preprocess_yaml(text: str) -> str:
     """预处理压缩的 YAML，插入缺失的换行。"""
     # Keys that should start on a new line
     root_keys = [
-        r'workflow_id:', r'name:', r'version:', r'category:', r'task_type:',
-        r'description:', r'crux:', r'requirements:', r'inputs:', r'outputs:',
-        r'recommendation:', r'runtime:',
+        r"workflow_id:",
+        r"name:",
+        r"version:",
+        r"category:",
+        r"task_type:",
+        r"description:",
+        r"crux:",
+        r"requirements:",
+        r"inputs:",
+        r"outputs:",
+        r"recommendation:",
+        r"runtime:",
     ]
-    pattern = r'(\S)(' + '|'.join(root_keys) + r')'
-    text = re.sub(pattern, r'\1\n\2', text)
-    
+    pattern = r"(\S)(" + "|".join(root_keys) + r")"
+    text = re.sub(pattern, r"\1\n\2", text)
+
     # Handle nested: indent before sub-keys
-    text = re.sub(r'(\S)(\n\s+(?:stages|comfyui|custom_nodes|models|min_version|type|name):)', r'\1\2', text)
-    
+    text = re.sub(r"(\S)(\n\s+(?:stages|comfyui|custom_nodes|models|min_version|type|name):)", r"\1\2", text)
+
     return text
 
 
@@ -146,7 +158,7 @@ def _from_yaml_dict(data: dict) -> ParsedTemplate | None:
     wf_id = data.get("workflow_id")
     if not wf_id:
         return None
-    
+
     # Extract from inputs
     nodes: dict[str, TemplateNode] = {}
     for inp in data.get("inputs", []):
@@ -157,7 +169,7 @@ def _from_yaml_dict(data: dict) -> ParsedTemplate | None:
         ct = str(binding.get("class_type", "")) if binding else ""
         iname = str(binding.get("input", "")) if binding else ""
         default = inp.get("default")
-        
+
         if not nid or not ct:
             continue
         if nid not in nodes:
@@ -170,7 +182,7 @@ def _from_yaml_dict(data: dict) -> ParsedTemplate | None:
                 "max": inp["max"],
                 "default": default,
             }
-    
+
     # Models
     models = []
     for m in data.get("models", []):
@@ -178,11 +190,11 @@ def _from_yaml_dict(data: dict) -> ParsedTemplate | None:
             models.append(m["name"])
         elif isinstance(m, str):
             models.append(m)
-    
+
     # Tags
     rec = data.get("recommendation", {})
     tags = rec.get("tags", []) if isinstance(rec, dict) else []
-    
+
     return ParsedTemplate(
         workflow_id=str(wf_id),
         name=str(data.get("name", wf_id)),
@@ -200,12 +212,13 @@ def _from_yaml_dict(data: dict) -> ParsedTemplate | None:
 # 转换为 Motif
 # ═══════════════════════════════════════════════════════════════════
 
+
 def parsed_to_motif(template: ParsedTemplate, registry=None) -> bool:
     """将解析后的模板注册为 Motif。"""
     from core.comfyui_motif import MotifDefinition, MotifNode, MotifEdge, get_registry
-    
+
     reg = registry or get_registry()
-    
+
     motif_nodes = [
         MotifNode(
             role=n.name,
@@ -215,10 +228,10 @@ def parsed_to_motif(template: ParsedTemplate, registry=None) -> bool:
         )
         for n in template.nodes
     ]
-    
+
     # Infer edges from class types
     edges = _infer_edges(template.nodes)
-    
+
     motif = MotifDefinition(
         motif_id=template.workflow_id,
         name=template.name,
@@ -233,7 +246,7 @@ def parsed_to_motif(template: ParsedTemplate, registry=None) -> bool:
         min_vram_gb=template.estimated_vram_gb,
         version="1.0.0",
     )
-    
+
     return reg.register(motif, source="template_parser")
 
 
@@ -242,18 +255,18 @@ def _infer_edges(nodes: list[TemplateNode]) -> list[tuple[str, str]]:
     edges = []
     class_map = {n.name: n.class_type for n in nodes}
     names = [n.name for n in nodes]
-    
+
     # Checkpoint → sampler / clip / vae
-    ckpt = next((n for n in names if 'Checkpoint' in (class_map.get(n, ''))), None)
-    clip = next((n for n in names if 'CLIPTextEncode' in (class_map.get(n, ''))), None)
-    sampler = next((n for n in names if 'KSampler' in (class_map.get(n, ''))), None)
-    latent = next((n for n in names if 'EmptyLatentImage' in (class_map.get(n, ''))), None)
-    vae_decode = next((n for n in names if 'VAEDecode' in (class_map.get(n, ''))), None)
-    save = next((n for n in names if 'SaveImage' in (class_map.get(n, ''))), None)
-    load_img = next((n for n in names if 'LoadImage' in (class_map.get(n, ''))), None)
-    vae_encode = next((n for n in names if 'VAEEncode' in (class_map.get(n, ''))), None)
-    lora = next((n for n in names if 'LoraLoader' in (class_map.get(n, ''))), None)
-    
+    ckpt = next((n for n in names if "Checkpoint" in (class_map.get(n, ""))), None)
+    clip = next((n for n in names if "CLIPTextEncode" in (class_map.get(n, ""))), None)
+    sampler = next((n for n in names if "KSampler" in (class_map.get(n, ""))), None)
+    latent = next((n for n in names if "EmptyLatentImage" in (class_map.get(n, ""))), None)
+    vae_decode = next((n for n in names if "VAEDecode" in (class_map.get(n, ""))), None)
+    save = next((n for n in names if "SaveImage" in (class_map.get(n, ""))), None)
+    load_img = next((n for n in names if "LoadImage" in (class_map.get(n, ""))), None)
+    vae_encode = next((n for n in names if "VAEEncode" in (class_map.get(n, ""))), None)
+    lora = next((n for n in names if "LoraLoader" in (class_map.get(n, ""))), None)
+
     if ckpt and sampler:
         edges.append((ckpt, sampler))
     if ckpt and clip:
@@ -280,7 +293,7 @@ def _infer_edges(nodes: list[TemplateNode]) -> list[tuple[str, str]]:
         edges.append((load_img, vae_encode))
     if vae_encode and sampler:
         edges.append((vae_encode, sampler))
-    
+
     return edges
 
 
@@ -288,42 +301,44 @@ def _infer_edges(nodes: list[TemplateNode]) -> list[tuple[str, str]]:
 # 批量处理
 # ═══════════════════════════════════════════════════════════════════
 
+
 def parse_many(text: str, format: str = "auto") -> tuple[int, int, list[str]]:
     """从文本中批量解析模板并注册。
-    
+
     Returns:
         (成功数, 识别数, 错误列表)
     """
     from core.comfyui_motif import get_registry
-    
+
     reg = get_registry()
     errors = []
-    
+
     if format == "json":
-        blocks = re.split(r'\n\s*\n', text)
+        blocks = re.split(r"\n\s*\n", text)
         blocks = [b.strip() for b in blocks if b.strip()]
     else:
         # Split by workflow_id
-        blocks = re.split(r'(?=workflow_id:)', text)
-        blocks = [b.strip() for b in blocks if b.strip() and 'workflow_id' in b[:50]]
-    
+        blocks = re.split(r"(?=workflow_id:)", text)
+        blocks = [b.strip() for b in blocks if b.strip() and "workflow_id" in b[:50]]
+
     success = 0
     for block in blocks:
         parsed = None
-        if format == "json" or (format == "auto" and block.startswith('{')):
+        if format == "json" or (format == "auto" and block.startswith("{")):
             parsed = parse_template_json(block)
         if not parsed:
             parsed = parse_template_yaml(block)
         if parsed:
             if parsed_to_motif(parsed, reg):
                 success += 1
-    
+
     return success, len(blocks), errors
 
 
 def save_snapshot(reg=None, path: str = "motif_snapshot.json"):
     """保存 Motif 快照。"""
     from core.comfyui_motif import get_registry
+
     r = reg or get_registry()
     snapshot = {
         "total": len(r.list_all()),

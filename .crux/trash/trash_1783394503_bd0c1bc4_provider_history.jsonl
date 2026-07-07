@@ -1,0 +1,11 @@
+{"provider": "deepseek", "model": "deepseek-v4", "success": true, "latency_ms": 1500, "error": "", "timestamp": 1783242316.7593322}
+{"provider": "deepseek", "model": "deepseek-v4", "success": true, "latency_ms": 2000, "error": "", "timestamp": 1783242316.7593322}
+{"provider": "deepseek", "model": "deepseek-v4", "success": false, "latency_ms": 5000, "error": "timeout", "timestamp": 1783242316.7593322}
+{"provider": "crux", "model": "agnes-2.0", "success": true, "latency_ms": 500, "error": "", "timestamp": 1783242316.7593322}
+{"provider": "crux", "model": "agnes-2.0", "success": true, "latency_ms": 600, "error": "", "timestamp": 1783242316.7608507}
+{"provider": "deepseek", "model": "deepseek-v4", "success": true, "latency_ms": 1000, "error": "", "timestamp": 1783242479.7306957}
+{"provider": "deepseek", "model": "deepseek-v4", "success": true, "latency_ms": 1500, "error": "", "timestamp": 1783242479.7306957}
+{"provider": "crux", "model": "agnes-2.0", "success": true, "latency_ms": 500, "error": "", "timestamp": 1783242479.7306957}
+{"provider": "deepseek", "model": "d4", "success": true, "latency_ms": 500, "error": "", "timestamp": 1783246862.8994305}
+{"provider": "deepseek", "model": "d4", "success": true, "latency_ms": 600, "error": "", "timestamp": 1783246862.8994305}
+{"provider": "crux", "model": "c2", "success": true, "latency_ms": 300, "error": "", "timestamp": 1783246862.8994305}

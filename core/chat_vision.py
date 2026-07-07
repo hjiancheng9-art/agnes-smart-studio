@@ -11,6 +11,7 @@ from core.observability import metrics
 
 logger = logging.getLogger("crux.vision")
 
+
 def _vision_fallback(self, text: str, image_url: str) -> str:
     """视觉理解调用 + fallback 链（供应商质量优先，CRUX > 智谱）。
 
@@ -44,6 +45,7 @@ def _vision_fallback(self, text: str, image_url: str) -> str:
                 if model_lower.startswith("glm-") or model_lower.startswith("cog"):
                     try:
                         from core.provider import get_provider_manager
+
                         mgr = get_provider_manager()
                         vc = mgr.create_client("zhipu")
                     except (ImportError, RuntimeError, OSError) as e:
@@ -54,6 +56,7 @@ def _vision_fallback(self, text: str, image_url: str) -> str:
                     # CRUX/Agnes vision models must route to CRUX API, not main client
                     try:
                         from core.provider import get_provider_manager
+
                         mgr = get_provider_manager()
                         vc = mgr.create_client("crux")
                     except (ImportError, RuntimeError, OSError) as e:
@@ -83,6 +86,7 @@ def _vision_fallback(self, text: str, image_url: str) -> str:
                 if e.response.status_code == 503 and retry_503 < 2:
                     retry_503 += 1
                     import time as _time
+
                     _time.sleep(retry_503 * retry_503)
                     continue  # retry same model
                 break  # 非 503 或重试耗尽 → 下一个模型
@@ -94,6 +98,7 @@ def _vision_fallback(self, text: str, image_url: str) -> str:
                 if _r_usage:
                     try:
                         from core.cost_tracker import record_usage
+
                         record_usage(model=model_id, kind="text", usage=_r_usage, label="vision_fail")
                     except (ImportError, OSError, KeyError, TypeError) as e:
                         logger.debug("cost_tracker.record_usage(vision_fail) failed: %s: %s", type(e).__name__, e)
@@ -116,5 +121,3 @@ def _vision_fallback(self, text: str, image_url: str) -> str:
         f"最后错误: {last_reason}\n"
         "建议：检查网络/供应商 Key，或用 /provider 切换视觉供应商后重试。"
     )
-
-

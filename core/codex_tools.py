@@ -203,7 +203,3 @@ def desktop_screenshot(output: str = "") -> str:
             return str(out_path)
     except (subprocess.SubprocessError, OSError) as e:
         return f"[错误] 截图失败: {e}"
-
-
-
-

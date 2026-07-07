@@ -1,0 +1,9 @@
+类型	示例	处理方式
+ComfyUI 输出图	outputs/images/, ComfyUI/output/	按标记清理
+生成视频	outputs/videos/	默认不删，只提示大文件
+LoRA checkpoints	lora_runs/*/checkpoints/	保留 best/final，清理中间
+LoRA samples	lora_runs/*/samples/	可按 TTL 清理
+训练日志	lora_runs/*/logs/	压缩保留
+数据集副本	datasets/processed/	可再生则清理，原始数据永不删
+浏览器录屏	.crux/browser/recordings/	7-30 天
+代码生成草稿	.crux/generated/	30 天

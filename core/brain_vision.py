@@ -364,4 +364,3 @@ class SmartBrainMixin:
             result["negative_prompt"] = self._merge_negative(result.get("negative_prompt", ""), template["negative"])
 
         return result
-

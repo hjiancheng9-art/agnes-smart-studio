@@ -38,24 +38,15 @@ TENGSHE_PROMPT = """
 TENGSHE_ARTIFACTS = {
     "忆简": {
         "slot": "weapon",
-        "effect": "三册分离。AGENTS.md(约定)/MEMORY.md(事实)/USER.md(偏好)，各不相混，自动校验完整性"
+        "effect": "三册分离。AGENTS.md(约定)/MEMORY.md(事实)/USER.md(偏好)，各不相混，自动校验完整性",
     },
-    "归档冠": {
-        "slot": "head",
-        "effect": "日期归档器。按日归档对话记忆到 awareness/memory/，自动生成摘要和交叉索引"
-    },
-    "觉知镜": {
-        "slot": "chest",
-        "effect": "自我觉知引擎。启动时加载 AGENTS+MEMORY+USER，注入系统提示词，知道自己是谁"
-    },
+    "归档冠": {"slot": "head", "effect": "日期归档器。按日归档对话记忆到 awareness/memory/，自动生成摘要和交叉索引"},
+    "觉知镜": {"slot": "chest", "effect": "自我觉知引擎。启动时加载 AGENTS+MEMORY+USER，注入系统提示词，知道自己是谁"},
     "传承腕": {
         "slot": "hands",
-        "effect": "技能校验器。校验 SKILL.md 格式（frontmatter/渐进披露/≤500行/反模式），不合格自动修复"
+        "effect": "技能校验器。校验 SKILL.md 格式（frontmatter/渐进披露/≤500行/反模式），不合格自动修复",
     },
-    "插件靴": {
-        "slot": "feet",
-        "effect": "插件注册表。平台感知外部命令分发，SHA256 校验 + 自动下载，异构平台一致"
-    }
+    "插件靴": {"slot": "feet", "effect": "插件注册表。平台感知外部命令分发，SHA256 校验 + 自动下载，异构平台一致"},
 }
 
 TENGSHE_SET_BONUS = "螣蛇游雾: 对话开始自动加载三册+归档记忆, 结束自动保存, 技能自动校验, 全链路无人值守"

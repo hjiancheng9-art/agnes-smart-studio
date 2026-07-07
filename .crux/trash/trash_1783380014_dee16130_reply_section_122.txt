@@ -1,0 +1,10 @@
+comfyui/
+  workflows/
+    templates/        # 永不自动删
+    saved/            # 永不自动删
+    tmp/              # 可清理
+    failed/           # 14 天
+  outputs/
+    curated/          # 永不自动删
+    previews/         # 30 天
+    temp/             # 7 天

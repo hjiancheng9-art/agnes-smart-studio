@@ -20,15 +20,15 @@ from pathlib import Path
 
 # ── ANSI cleanup ───────────────────────────────────────────────────
 
-_ANSI_RE = re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
-_OSC_RE = re.compile(r'\x1b\][0-9;]*[^\x1b]*\x1b\\')
-_CTRL_RE = re.compile(r'[\x00-\x08\x0e-\x1f]')
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
+_OSC_RE = re.compile(r"\x1b\][0-9;]*[^\x1b]*\x1b\\")
+_CTRL_RE = re.compile(r"[\x00-\x08\x0e-\x1f]")
 
 
 def _clean_ansi(text: str) -> str:
-    text = _ANSI_RE.sub('', text)
-    text = _OSC_RE.sub('', text)
-    text = _CTRL_RE.sub('', text)
+    text = _ANSI_RE.sub("", text)
+    text = _OSC_RE.sub("", text)
+    text = _CTRL_RE.sub("", text)
     return text
 
 
@@ -95,12 +95,12 @@ def _run_codex(prompt: str, timeout: int = 600) -> dict:
 
     try:
         proc = subprocess.run(
-            [binary, "exec", prompt,
-             "--dangerously-bypass-approvals-and-sandbox",
-             "--ephemeral",
-             "-C", PROJECT_ROOT],
-            capture_output=True, text=True, timeout=timeout,
-            encoding="utf-8", errors="replace",
+            [binary, "exec", prompt, "--dangerously-bypass-approvals-and-sandbox", "--ephemeral", "-C", PROJECT_ROOT],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            encoding="utf-8",
+            errors="replace",
         )
         output = proc.stdout or ""
         stderr = proc.stderr or ""
@@ -123,8 +123,6 @@ def _run_codex(prompt: str, timeout: int = 600) -> dict:
         return {"success": False, "error": f"Codex timed out after {timeout}s"}
     except Exception as e:
         return {"success": False, "error": str(e)}
-
-
 
 
 def _extract_result(output: str, prompt: str) -> dict:
@@ -170,9 +168,8 @@ def _extract_result(output: str, prompt: str) -> dict:
     return {"summary": summary, "code": code}
 
 
-
-
 # ── MCP protocol (line-based JSON-RPC 2.0) ─────────────────────────
+
 
 def _read_request() -> dict | None:
     line = sys.stdin.readline()
@@ -287,15 +284,29 @@ def _handle_tool_call(name: str, args: dict) -> dict:
             try:
                 proc = subprocess.run(
                     [binary, "exec", "review", target] + review_args,
-                    capture_output=True, text=True, timeout=timeout,
-                    encoding="utf-8", errors="replace",
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                    encoding="utf-8",
+                    errors="replace",
                 )
                 output = _clean_ansi(proc.stdout or "")
                 if proc.returncode != 0 and not output.strip():
-                    return {"content": [{"type": "text", "text": f"Review failed (exit={proc.returncode}): {_clean_ansi(proc.stderr or '')[:500]}"}], "isError": True}
+                    return {
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": f"Review failed (exit={proc.returncode}): {_clean_ansi(proc.stderr or '')[:500]}",
+                            }
+                        ],
+                        "isError": True,
+                    }
                 return {"content": [{"type": "text", "text": output[:8000]}]}
             except subprocess.TimeoutExpired:
-                return {"content": [{"type": "text", "text": f"Codex review timed out after {timeout}s"}], "isError": True}
+                return {
+                    "content": [{"type": "text", "text": f"Codex review timed out after {timeout}s"}],
+                    "isError": True,
+                }
             except Exception as e:
                 return {"content": [{"type": "text", "text": f"Codex review error: {e}"}], "isError": True}
 
@@ -306,7 +317,10 @@ def _handle_tool_call(name: str, args: dict) -> dict:
             if result.get("success"):
                 return {"content": [{"type": "text", "text": result["output"]}]}
             else:
-                return {"content": [{"type": "text", "text": f"Error: {result.get('error', 'unknown')}"}], "isError": True}
+                return {
+                    "content": [{"type": "text", "text": f"Error: {result.get('error', 'unknown')}"}],
+                    "isError": True,
+                }
 
         return {
             "content": [{"type": "text", "text": f"Unknown tool: {name}"}],
@@ -321,6 +335,7 @@ def _handle_tool_call(name: str, args: dict) -> dict:
 
 
 # ── Main loop ──────────────────────────────────────────────────────
+
 
 def main():
     binary = _resolve_codex()
@@ -341,49 +356,59 @@ def main():
         params = req.get("params", {})
 
         if method == "initialize":
-            _send_response({
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "result": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "codex-bridge", "version": "0.1.0"},
-                },
-            })
+            _send_response(
+                {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {"tools": {}},
+                        "serverInfo": {"name": "codex-bridge", "version": "0.1.0"},
+                    },
+                }
+            )
 
         elif method == "notifications/initialized":
             pass
 
         elif method == "tools/list":
-            _send_response({
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "result": {"tools": TOOLS},
-            })
+            _send_response(
+                {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {"tools": TOOLS},
+                }
+            )
 
         elif method == "tools/call":
             tool_name = params.get("name", "")
             arguments = params.get("arguments", {})
             result = _handle_tool_call(tool_name, arguments)
-            _send_response({
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "result": result,
-            })
+            _send_response(
+                {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": result,
+                }
+            )
 
         elif method == "ping":
-            _send_response({
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "result": {},
-            })
+            _send_response(
+                {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {},
+                }
+            )
 
         else:
-            _send_response({
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "error": {"code": -32601, "message": f"Method not found: {method}"},
-            })
+            _send_response(
+                {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "error": {"code": -32601, "message": f"Method not found: {method}"},
+                }
+            )
 
     print(f"[codex_bridge] shutting down", file=sys.stderr, flush=True)
 

@@ -1,0 +1,97 @@
+def _handle_command(self, text: str) -> bool:
+        """Route all command-like inputs. Returns True if handled."""
+        # ── Drag-drop image detection ──
+        drag_images = detect_drag_images(text)
+        if drag_images and len(drag_images) == 1:
+            self._send_image(drag_images[0])
+            return True
+        if drag_images:
+            for img in drag_images:
+                self._send_image(img)
+            return True
+
+        # ── Single image path ──
+        single_path = is_image_path(text)
+        if single_path:
+            self._send_image(single_path)
+            return True
+
+        # ── Quit ──
+        if text in ("/q", "/quit", "/exit"):
+            self._app.exit()
+            return True
+
+        # ── Screen commands ──
+        if text == "/dashboard" or text.startswith("/dashboard "):
+            self._toggle_screen("dashboard")
+            return True
+        if text == "/incidents" or text.startswith("/incidents "):
+            self._toggle_screen("incidents")
+            return True
+        if text == "/remediate" or text.startswith("/remediate "):
+            screen = self._available_screens.get("remediate")
+            if text.startswith("/remediate run "):
+                iid = text[16:].strip()
+                screen.run(iid) if hasattr(screen, 'run') else None
+                if not self.screen_stack.active:
+                    self.screen_stack.push(screen, self)
+            elif " " in text:
+                cat = text.split(" ", 1)[1]
+                screen.select(cat) if hasattr(screen, 'select') else None
+                if not self.screen_stack.active:
+                    self.screen_stack.push(screen, self)
+            else:
+                screen.back() if hasattr(screen, 'back') else None
+            self._toggle_screen("remediate")
+            self._app.invalidate()
+            return True
+        if text == "/replay" or text.startswith("/replay "):
+            screen = self._available_screens.get("replay")
+            if " " in text:
+                rid = text.split(" ", 1)[1]
+                screen.select(rid) if hasattr(screen, 'select') else None
+                if not self.screen_stack.active:
+                    self.screen_stack.push(screen, self)
+            else:
+                screen.back() if hasattr(screen, 'back') else None
+                self._toggle_screen("replay")
+            self._app.invalidate()
+            return True
+
+        # ── Recent actions ──
+        if text == "/recent-actions":
+            try:
+                from core.remediation_executor import get_recent_actions
+                acts = get_recent_actions(15)
+                lines = ["Recent Actions:"]
+                lines.extend(f"  [{a.get('risk','?')}] {a.get('command','?'):40s} {a.get('status','?')}" for a in acts)
+                self.message_pane.append_info("\\n".join(lines))
+            except Exception as e:
+                self.message_pane.append_error(f"Error: {e}")
+            return True
+
+
+
+        # ── Panel commands ──
+        if text == "/runs" or text.startswith("/runs "):
+            try:
+                from core.remediation_executor import get_recent_actions
+                limit = 10
+                parts = text.split(" ", 1)
+                if len(parts) > 1 and parts[1].isdigit():
+                    limit = min(50, max(1, int(parts[1])))
+                actions = get_recent_actions(limit)
+                pieces = render_run_summary(actions, _tw())
+                for style, line in pieces:
+                    self.message_pane.append_message("info", line)
+            except Exception as e:
+                self.message_pane.append_error(f"Runs error: {e}")
+            return True
+
+        if text == "/route" or text.startswith("/route "):
+            try:
+                from core.chat import get_provider_name
+                parts = text.split(" ", 1)
+                target = parts[1] if len(parts) > 1 else "last"
+                route = {"attempts": [
+            

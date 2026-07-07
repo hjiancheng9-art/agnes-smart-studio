@@ -1,0 +1,87 @@
+
+已思考 1m 3s
+
+结论先说：你现在的 TUI 已经不是“缺功能”，而是进入了 状态模型不够统一 的阶段。
+
+核心问题有两个：
+
+1. 消息仍然是屏幕行模型，而不是消息对象模型
+2. 键盘/鼠标/复制/详情/运行控制没有统一 InputMode 路由
+
+所以很多 bug 表面上是复制、详情页、Tab、↑↓冲突，本质上都来自这两点。
+
+下面给你完整补完清单。
+
+总体架构诊断
+
+你当前结构：
+
+core/control_plane.py
+ui/message_pane.py
+ui/tui_v2.py
+ui/tui_control.py
+ui/copy_manager.py
+ui/message_detail.py
+
+整体方向是对的，但现在有 6 个架构缝隙：
+
+问题	影响
+MessagePane 用 _lines: list[(role, text)] 存消息	无法可靠区分一条消息、流式分块、代码块、复制目标
+CopyManager 依赖外部手动 _sync_copy_mgr	容易漏同步，stream_end 后复制索引陈旧
+详情页是改 _empty_renderer 的 hack	会污染主面板渲染状态，难处理 overlay/focus
+keybinding 直接散落在 TuiAppV2	detail/copy/focus/normal/streaming 模式冲突
+代码块只是正则提取，没有 block focus	Tab 只能提示数量，不能跳转
+ControlPlane 与 UI 状态没有统一事件化	cancel/pause/priority/undo 的视觉状态和后端状态可能分叉
+Must Fix — 必须补
+M1：引入 MessageStore，替代 _lines 作为主数据源
+问题
+
+MessagePane._lines: list[(role, text)] 是屏幕行模型，不是消息模型。
+
+这会导致：
+
+一条 assistant 流式消息被拆成多行
+复制时不知道完整消息边界
+详情页不知道该展示哪条消息
+代码块索引不稳定
+/copy last_assistant 可能复制不完整
+修改文件
+新增：ui/message_store.py
+修改：ui/message_pane.py
+修改：ui/copy_manager.py
+修改：ui/message_detail.py
+修改：ui/tui_v2.py
+新增结构
+Python
+运行
+# ui/message_store.py
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Literal
+import uuid
+import re
+
+Role = Literal["user", "assistant", "system", "tool"]
+
+@dataclass
+class CodeBlock:
+    index: int
+    language: str
+    content: str
+    start_line: int
+    end_line: int
+
+@dataclass
+class Message:
+    id: str
+    role: Role
+    raw_text: str = ""
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
+    streaming: bool = False
+    code_blocks: list[CodeBlock] = field(default_factory=list)
+
+    def update_code_blocks(self) -> None:
+        self.code_blocks = extract_code_blocks(self.raw_text)
+
+def extract_code_blocks(text

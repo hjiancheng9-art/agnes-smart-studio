@@ -6,6 +6,7 @@ V2 Browser Companion Bridge Server
 
 Port: 4366
 """
+
 import json
 import uuid
 import time
@@ -66,7 +67,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
             PENDING_MEDIA.appendleft(item)
             print(f"[MEDIA] {len(candidates)} candidates from {item['page_url'][:60]}")
             for i, c in enumerate(candidates):
-                print(f"  [{i}] {c.get('kind','?')} {c.get('url','?')[:80]}")
+                print(f"  [{i}] {c.get('kind', '?')} {c.get('url', '?')[:80]}")
             self._json({"ok": True, "id": item["id"], "count": len(PENDING_MEDIA)})
             return
 

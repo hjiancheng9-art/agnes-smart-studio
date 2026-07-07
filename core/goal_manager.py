@@ -21,6 +21,7 @@ _fcntl_module = None
 if sys.platform != "win32":
     try:
         import fcntl as _fcntl_module  # type: ignore[import-unused]
+
         HAS_FCNTL = True
     except ImportError:
         pass
@@ -120,7 +121,9 @@ class GoalManager:
             self._save()
             return goal
 
-    def update(self, goal_id: str = "", status: str = "", evidence: str = "", auto_evaluate: bool = True) -> Goal | None:
+    def update(
+        self, goal_id: str = "", status: str = "", evidence: str = "", auto_evaluate: bool = True
+    ) -> Goal | None:
         with self._lock:
             gid = goal_id or self._active_goal_id
             goal = self._goals.get(gid)

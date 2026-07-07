@@ -7,9 +7,15 @@ GPT 规格关键修正：
 """
 
 from core.asm import (
-    BaseMethodology, MethodologyCheck, MethodologyPolicy,
-    TaskProfile, TaskIntent, TaskDomain, RiskLevel,
-    MethodologyPhase, register,
+    BaseMethodology,
+    MethodologyCheck,
+    MethodologyPolicy,
+    TaskProfile,
+    TaskIntent,
+    TaskDomain,
+    RiskLevel,
+    MethodologyPhase,
+    register,
 )
 
 
@@ -19,7 +25,7 @@ class FileMethodology(BaseMethodology):
     version = "1.0.0"
     intent_filters = {TaskIntent.EXECUTE, TaskIntent.CREATE, TaskIntent.HEAL, TaskIntent.WRITE, TaskIntent.FIX}
     domain_filters = {TaskDomain.FILE, TaskDomain.CODE}
-    
+
     def get_checks(self, task: TaskProfile) -> list[MethodologyCheck]:
         checks = [
             # BEFORE
@@ -62,17 +68,19 @@ class FileMethodology(BaseMethodology):
                 severity="warn",
             ),
         ]
-        
+
         if task.risk == RiskLevel.CRITICAL:
-            checks.append(MethodologyCheck(
-                phase=MethodologyPhase.BEFORE,
-                name="confirm-critical-change",
-                description="临界风险文件修改需用户确认",
-                severity="block",
-            ))
-        
+            checks.append(
+                MethodologyCheck(
+                    phase=MethodologyPhase.BEFORE,
+                    name="confirm-critical-change",
+                    description="临界风险文件修改需用户确认",
+                    severity="block",
+                )
+            )
+
         return checks
-    
+
     def get_policies(self) -> list[MethodologyPolicy]:
         return [
             MethodologyPolicy(

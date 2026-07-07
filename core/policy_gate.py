@@ -73,9 +73,13 @@ def auto_recover(summary: dict) -> dict:
     if action == "pass":
         results["reason"] = "执行正常，无需处理。"
     elif action == "retry":
-        results["reason"] = f"部分任务失败 ({summary.get('tasks_failed', 0)}/{summary.get('tasks_total', 0)})，自动重试。"
+        results["reason"] = (
+            f"部分任务失败 ({summary.get('tasks_failed', 0)}/{summary.get('tasks_total', 0)})，自动重试。"
+        )
     elif action == "escalate":
-        results["reason"] = f"严重失败 (fail_rate={summary.get('tasks_failed', 0)/max(summary.get('tasks_total', 1), 1):.0%})，需要人工介入。"
+        results["reason"] = (
+            f"严重失败 (fail_rate={summary.get('tasks_failed', 0) / max(summary.get('tasks_total', 1), 1):.0%})，需要人工介入。"
+        )
     elif action == "circuit_break":
         results["reason"] = "fallback 次数过多，触发熔断。"
     elif action == "skip":

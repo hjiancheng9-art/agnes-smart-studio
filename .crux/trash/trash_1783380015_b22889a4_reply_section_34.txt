@@ -1,0 +1,7 @@
+old_logs:
+    patterns:
+      - "logs/**/*.log"
+      - ".crux/runs/**/*.log"
+    action: "compress"
+    min_age_days: 14
+    risk: "low"

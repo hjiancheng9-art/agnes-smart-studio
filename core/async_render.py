@@ -58,6 +58,7 @@ class StreamingRenderer:
     def stop(self) -> None:  # noqa: B027
         pass
 
+
 __all__ = [
     "SideEffectHandler",
     "HandlerMap",
@@ -84,6 +85,7 @@ def default_side_effect_handlers() -> HandlerMap:
     - ``video``  → 展示视频结果 / 超时警告 + 记录历史
     - ``confirm``→ 高风险工具 y/n 确认；拒绝则抛 PermissionError
     """
+
     # UI layer removed — use no-op stubs
     def _noop(*_a, **_kw):
         pass
@@ -98,6 +100,7 @@ def default_side_effect_handlers() -> HandlerMap:
         @staticmethod
         def add_record(*_a, **_kw):
             pass
+
     history = _HistoryStub()
 
     def _on_info(kind: str, payload: object) -> None:

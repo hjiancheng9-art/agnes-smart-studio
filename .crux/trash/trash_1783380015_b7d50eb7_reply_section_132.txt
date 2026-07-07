@@ -1,0 +1,4 @@
+已应用 patch 的 backup 保留 7-30 天
+rejected drafts 14 天
+orphan patch 可清理
+6. 自动清理调度策略

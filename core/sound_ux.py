@@ -46,7 +46,11 @@ class SoundUX:
                 # 优先 edge-tts
                 mp3_path = SOUND_DIR / f"sfx_{hash(text) % 10000}.mp3"
                 if not mp3_path.exists():
-                    r = run_subprocess(["edge-tts", "--text", text, "--voice", "zh-CN-XiaoxiaoNeural", "--write-media", str(mp3_path)], timeout=8, cwd=str(ROOT))
+                    r = run_subprocess(
+                        ["edge-tts", "--text", text, "--voice", "zh-CN-XiaoxiaoNeural", "--write-media", str(mp3_path)],
+                        timeout=8,
+                        cwd=str(ROOT),
+                    )
                     if r.returncode != 0:
                         cls._beep_fallback()
                         return
@@ -95,7 +99,7 @@ class SoundUX:
                 sys.stdout.write("\a")
                 sys.stdout.flush()
         except (ImportError, OSError, RuntimeError) as e:
-            logger.debug('SFX fallback: %s', e)
+            logger.debug("SFX fallback: %s", e)
 
     @classmethod
     def error(cls):
@@ -111,7 +115,7 @@ class SoundUX:
                 sys.stdout.write("\a\a")
                 sys.stdout.flush()
         except (ImportError, OSError, RuntimeError) as e:
-            logger.debug('SFX fallback: %s', e)
+            logger.debug("SFX fallback: %s", e)
 
     @classmethod
     def alert(cls):
@@ -129,7 +133,7 @@ class SoundUX:
                     sys.stdout.flush()
                     time.sleep(0.1)
         except (ImportError, OSError, RuntimeError) as e:
-            logger.debug('SFX fallback: %s', e)
+            logger.debug("SFX fallback: %s", e)
 
     @classmethod
     def alchemy(cls):
@@ -149,7 +153,7 @@ class SoundUX:
                     sys.stdout.flush()
                     time.sleep(0.15)
         except (ImportError, OSError, RuntimeError) as e:
-            logger.debug('SFX fallback: %s', e)
+            logger.debug("SFX fallback: %s", e)
 
     @classmethod
     def toggle(cls, enabled: bool | None = None) -> bool:

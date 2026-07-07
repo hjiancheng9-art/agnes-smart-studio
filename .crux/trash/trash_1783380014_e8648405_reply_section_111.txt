@@ -1,0 +1,3 @@
+def apply(self, plan: CleanupPlan, confirmed: bool = False):
+        if plan.high_risk_count > 0 and not confirmed:
+            raise RuntimeError("High-risk cleanup requires confirmation")

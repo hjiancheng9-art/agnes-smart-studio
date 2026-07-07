@@ -81,8 +81,17 @@ COMMANDS: list[CommandDef] = [
         "文生图/图生图/文生视频/图生视频/一键流水线，可选尺寸和时长",
         handler="_chat_agnes",
     ),
-    CommandDef("video", "/video", "<描述>", "快速生成视频（支持图生视频，可 --size --duration）", "创意生产", handler="_chat_video_inline"),
-    CommandDef("img", "/img", "<描述>", "快速生成图片（支持图生图，可 --size）", "创意生产", handler="_chat_img_inline"),
+    CommandDef(
+        "video",
+        "/video",
+        "<描述>",
+        "快速生成视频（支持图生视频，可 --size --duration）",
+        "创意生产",
+        handler="_chat_video_inline",
+    ),
+    CommandDef(
+        "img", "/img", "<描述>", "快速生成图片（支持图生图，可 --size）", "创意生产", handler="_chat_img_inline"
+    ),
     CommandDef("vision", "/vision", "<图> <问>", "图片理解（智谱 GLM-4V-Flash 主视觉）", "创意生产"),
     # ── 对话 ──
     CommandDef(
@@ -108,7 +117,9 @@ COMMANDS: list[CommandDef] = [
     CommandDef("clear", "/clear", "", "清空对话历史", "对话", handler="_inline_clear"),
     CommandDef("exit", "/exit", "", "退出聊天", "对话", aliases=("quit", "q")),
     # ── 任务工程 ──
-    CommandDef("plan", "/plan", "<任务>", "先规划再执行（自动拆解步骤 + 用户审批）", "任务工程", handler="_chat_plan_mode"),
+    CommandDef(
+        "plan", "/plan", "<任务>", "先规划再执行（自动拆解步骤 + 用户审批）", "任务工程", handler="_chat_plan_mode"
+    ),
     CommandDef("sub", "/sub", "<任务>", "启动子智能体处理子任务", "任务工程", handler="_chat_subagent"),
     CommandDef("compress", "/compress", "", "压缩长对话历史为摘要", "任务工程"),
     CommandDef("team", "/team", "<类型>", "智能体团队 (review/debug/feature)", "任务工程"),
@@ -128,7 +139,11 @@ COMMANDS: list[CommandDef] = [
     CommandDef("provider", "/provider", "<cmd>", "切换模型供应商 (list/switch)", "诊断配置"),
     CommandDef("evolve", "/evolve", "", "查看 Prompt 进化状态", "诊断配置"),
     CommandDef(
-        "done", "/done", "[quick]", "完成前验证 (pytest+ruff+pyright+git diff)", "诊断配置",
+        "done",
+        "/done",
+        "[quick]",
+        "完成前验证 (pytest+ruff+pyright+git diff)",
+        "诊断配置",
         long_desc="跑完整验证清单确认任务完成。quick=跳过 pytest 只做 lint+diff。",
         handler="_chat_done",
     ),
@@ -147,7 +162,14 @@ COMMANDS: list[CommandDef] = [
     CommandDef("health", "/health", "", "工具质量评分 + 系统健康面板", "诊断配置", handler="_chat_health"),
     CommandDef("rollback", "/rollback", "", "回滚最近一次代码修改", "诊断配置", handler="_chat_rollback"),
     CommandDef("copy", "/copy", "[N]", "复制最近N条对话到剪贴板 (Ctrl+Y)", "对话", handler="_chat_copy"),
-    CommandDef("trends", "/trends", "[cost|tools|quality]", "历史趋势分析（消费/工具健康/质量）", "诊断配置", handler="_chat_trends"),
+    CommandDef(
+        "trends",
+        "/trends",
+        "[cost|tools|quality]",
+        "历史趋势分析（消费/工具健康/质量）",
+        "诊断配置",
+        handler="_chat_trends",
+    ),
     CommandDef("docs", "/docs", "[help|agents|manifest|all]", "从代码自动生成文档", "诊断配置", handler="_chat_docs"),
     CommandDef(
         "prompt_stats",
@@ -217,11 +239,10 @@ COMMANDS: list[CommandDef] = [
 
 # Special skill-load entries for /help display
 SKILL_ENTRIES = [
-    
     ("/runs", "查看执行历史"),
     ("/summary", "查看指定执行摘要"),
     ("/providers", "查看 provider 健康状态"),
-("/skill load video-pipeline", "输入理解→资产拆解→独立生成→分镜融合→质检→导出"),
+    ("/skill load video-pipeline", "输入理解→资产拆解→独立生成→分镜融合→质检→导出"),
     ("/skill load showrunner", "选模型-提取帧-制片"),
     ("/skill load storyboard-director", "简报→镜头列表→图像提示→运动→音频"),
     ("/skill load core-showrunner", "受控生产循环·诚实阻断·失败转修复"),
@@ -364,7 +385,10 @@ def register(
     COMMANDS.append(new_cmd)
 
 
-register("palette", "/palette", "[filter]", "Command palette — fuzzy search all commands", "对话", handler="_chat_palette")
+register(
+    "palette", "/palette", "[filter]", "Command palette — fuzzy search all commands", "对话", handler="_chat_palette"
+)
+
 
 def get_all() -> list[CommandDef]:
     return list(COMMANDS)

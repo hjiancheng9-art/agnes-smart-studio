@@ -73,6 +73,7 @@ class TaskExecutor:
             # ── Goal 预算门（仅在活跃 goal 存在且未耗尽时生效）──
             try:
                 from core.goal_manager import get_goal_manager as _gm
+
                 _gm_instance = _gm()
                 _active = _gm_instance.get()
                 # No active goal → unlimited execution
@@ -107,6 +108,7 @@ class TaskExecutor:
                 # ── Goal 工具调用计数 ──
                 try:
                     from core.goal_manager import get_goal_manager as _gm2
+
                     _active = _gm2().get()
                     if _active is not None:
                         _gm2().record_tool_call()
@@ -136,8 +138,7 @@ class TaskExecutor:
 
                     # 限制范围: 只检查 core/ 和相关目录, 不扫描全项目
                     _scan_dirs = [
-                        d for d in (self.root / "core", self.root / "engines", self.root / "pipeline")
-                        if d.exists()
+                        d for d in (self.root / "core", self.root / "engines", self.root / "pipeline") if d.exists()
                     ]
                     if not _scan_dirs:
                         _scan_dirs = [self.root / "core"]
@@ -201,7 +202,13 @@ class TaskExecutor:
         reflector = SelfReflection()
         result = reflector.analyze_and_adjust(task.goal, step, step.error)
         self._log.append(
-            {"ts": time.time(), "step": step.id, "event": "reflection", "action": result.action, "reason": result.reason}
+            {
+                "ts": time.time(),
+                "step": step.id,
+                "event": "reflection",
+                "action": result.action,
+                "reason": result.reason,
+            }
         )
 
         if result.action == "skip":
@@ -232,7 +239,9 @@ class TaskExecutor:
             step.error = ""
             step.tool = result.tool
             step.args = result.args
-            self._log.append({"ts": time.time(), "step": step.id, "event": "reflection_replan", "new_tool": result.tool})
+            self._log.append(
+                {"ts": time.time(), "step": step.id, "event": "reflection_replan", "new_tool": result.tool}
+            )
             try:
                 result_exec = self.execute_tool(step.tool, step.args)
                 step.result = result_exec[:500]
@@ -342,8 +351,7 @@ class AsyncTaskExecutor:
                 import ast
 
                 _scan_dirs = [
-                    d for d in (self.root / "core", self.root / "engines", self.root / "pipeline")
-                    if d.exists()
+                    d for d in (self.root / "core", self.root / "engines", self.root / "pipeline") if d.exists()
                 ]
                 if not _scan_dirs:
                     _scan_dirs = [self.root / "core"]
@@ -405,7 +413,13 @@ class AsyncTaskExecutor:
         result = reflector.analyze_and_adjust(task.goal, step, step.error)
         async with self._lock:
             self._log.append(
-                {"ts": time.time(), "step": step.id, "event": "reflection", "action": result.action, "reason": result.reason}
+                {
+                    "ts": time.time(),
+                    "step": step.id,
+                    "event": "reflection",
+                    "action": result.action,
+                    "reason": result.reason,
+                }
             )
 
         if result.action == "skip":
@@ -431,7 +445,9 @@ class AsyncTaskExecutor:
                 step.status = "failed"
                 step._reflection_retries = retries + 1  # type: ignore[attr-defined]
                 async with self._lock:
-                    self._log.append({"ts": time.time(), "step": step.id, "event": "failed_after_reflection", "error": step.error})
+                    self._log.append(
+                        {"ts": time.time(), "step": step.id, "event": "failed_after_reflection", "error": step.error}
+                    )
                 return False
 
         if result.action == "replan":
@@ -441,7 +457,9 @@ class AsyncTaskExecutor:
             step.tool = result.tool
             step.args = result.args
             async with self._lock:
-                self._log.append({"ts": time.time(), "step": step.id, "event": "reflection_replan", "new_tool": result.tool})
+                self._log.append(
+                    {"ts": time.time(), "step": step.id, "event": "reflection_replan", "new_tool": result.tool}
+                )
             try:
                 result_exec = await self._call_tool(step.tool, step.args)
                 step.result = result_exec[:500]
@@ -453,7 +471,9 @@ class AsyncTaskExecutor:
                 step.error = f"{type(e2).__name__}: {e2}"
                 step.status = "failed"
                 async with self._lock:
-                    self._log.append({"ts": time.time(), "step": step.id, "event": "failed_after_reflection", "error": step.error})
+                    self._log.append(
+                        {"ts": time.time(), "step": step.id, "event": "failed_after_reflection", "error": step.error}
+                    )
                 return False
 
         return False
@@ -1010,7 +1030,7 @@ class SmartPlanner:
         start = raw.find("[")
         end = raw.rfind("]")
         if start >= 0 and end > start:
-            return raw[start: end + 1]
+            return raw[start : end + 1]
         return ""
 
 
@@ -1040,9 +1060,7 @@ class SemanticVerifier:
     def _verify_goal(self, goal: str, task: Task, step: Step) -> tuple[bool, str]:
         """用 LLM 判断目标是否达成。"""
         steps_info = "\n".join(
-            f"- {s.id}: {s.description} → {s.result[:200]}"
-            for s in task.steps
-            if s.status == "done"
+            f"- {s.id}: {s.description} → {s.result[:200]}" for s in task.steps if s.status == "done"
         )
 
         # 收集相关文件内容（限制大小）
@@ -1162,9 +1180,7 @@ class SelfReflection:
         # 其他错误 → 调用 LLM 反思
         return self._llm_reflect(goal, step, error, error_type, error_hint)
 
-    def _llm_reflect(
-        self, goal: str, step: Step, error: str, error_type: str, error_hint: str
-    ) -> AdjustResult:
+    def _llm_reflect(self, goal: str, step: Step, error: str, error_type: str, error_hint: str) -> AdjustResult:
         """用 LLM 分析失败并决定下一步。"""
         prompt = _REFLECTION_PROMPT.format(
             goal=goal,
@@ -1236,9 +1252,11 @@ class SelfReflection:
 
 # ── 更新 __all__ ──
 
-__all__.extend([
-    "SmartPlanner",
-    "SemanticVerifier",
-    "SelfReflection",
-    "AdjustResult",
-])
+__all__.extend(
+    [
+        "SmartPlanner",
+        "SemanticVerifier",
+        "SelfReflection",
+        "AdjustResult",
+    ]
+)

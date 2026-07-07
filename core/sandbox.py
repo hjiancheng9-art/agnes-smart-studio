@@ -36,17 +36,24 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # Always blocked — no path context can make these safe
 ALWAYS_DANGEROUS = [
-    r">\s*/dev/", r"mkfs\.", r"dd\s+if=",
-    r"curl.*\|\s*(ba)?sh", r"wget.*\|\s*(ba)?sh",
+    r">\s*/dev/",
+    r"mkfs\.",
+    r"dd\s+if=",
+    r"curl.*\|\s*(ba)?sh",
+    r"wget.*\|\s*(ba)?sh",
     r":\(\)\s*\{\s*:\|:&\s*\}\s*;:",  # fork bomb
-    r"\bformat\s+[A-Za-z]:", r"\bdiskpart", r"\bcipher\s*/w",
+    r"\bformat\s+[A-Za-z]:",
+    r"\bdiskpart",
+    r"\bcipher\s*/w",
     r"\bpowershell.*-enc\s+[A-Za-z0-9]",
     r"reg\s+delete.*/f",
 ]
 # Path-aware — blocked only when targeting external paths
 PATH_AWARE_DANGEROUS = [
-    r"\brm\s+(-rf?|--recursive)", r"\brmdir\s+[/\-]?s",
-    r"\bdel\s+[/\\]?[sfq]", r"\berase\s+[/\\]?[sfq]",
+    r"\brm\s+(-rf?|--recursive)",
+    r"\brmdir\s+[/\-]?s",
+    r"\bdel\s+[/\\]?[sfq]",
+    r"\berase\s+[/\\]?[sfq]",
     r"chmod\s+777",
 ]
 DANGEROUS_PATTERNS = ALWAYS_DANGEROUS + PATH_AWARE_DANGEROUS  # backward compat
@@ -113,9 +120,11 @@ def _current_allowed_roots() -> list[Path]:
 
 # ── Command tokenizer ───────────────────────────────────────
 
+
 def tokenize_command(command: str) -> dict:
     """Tokenize a shell command into structural components using shlex."""
     import shlex
+
     try:
         parts = shlex.split(command, posix=True)
     except (ValueError, TypeError):
@@ -129,11 +138,14 @@ def tokenize_command(command: str) -> dict:
 
 _AUDIT_TRAIL: list[dict] = []
 
+
 class FileAudit:
     """Lightweight file operation audit with hash verification."""
+
     @staticmethod
     def record(op: str, path: str, before_hash: str = "", after_hash: str = "") -> None:
         _AUDIT_TRAIL.append({"op": op, "path": path, "before": before_hash, "after": after_hash})
+
 
 def get_audit_trail() -> list[dict]:
     return list(_AUDIT_TRAIL)
@@ -157,9 +169,7 @@ def _path_is_allowed(p: Path, roots: list[Path]) -> bool:
                 return True
         except (TypeError, ValueError):
             # is_relative_to 在老版本 Python 或跨盘符场景可能行为异常，降级
-            if str(norm).lower() == str(root).lower() or str(norm).lower().startswith(
-                str(root).lower() + os.sep
-            ):
+            if str(norm).lower() == str(root).lower() or str(norm).lower().startswith(str(root).lower() + os.sep):
                 return True
     return False
 
@@ -205,7 +215,9 @@ class Sandbox:
         # Path-aware patterns — only block if targeting external paths
         for pattern in PATH_AWARE_DANGEROUS:
             if re.search(pattern, cmd_lower):
-                all_paths = re.findall(r"(?<!\S)/(?!\s)[^\s]+", command) + re.findall(r"(?:[A-Za-z]:[\\/][^\s]+|\\\\[^\s]+)", command)
+                all_paths = re.findall(r"(?<!\S)/(?!\s)[^\s]+", command) + re.findall(
+                    r"(?:[A-Za-z]:[\\/][^\s]+|\\\\[^\s]+)", command
+                )
                 # Filter flags (/F /S etc.) and relative fragments (/node_modules from ./node_modules)
                 all_paths = [p for p in all_paths if len(p) > 2 and not p.startswith("/?")]
                 if all_paths:

@@ -158,6 +158,7 @@ class RulesManager:
             lines.append(r.content[:500])
             lines.append("")
         return "\n".join(lines)
+
     def create_rule(self, name: str, content: str, description: str = "", category: str = "general") -> Path:
         """创建新规则文件"""
         self._dir.mkdir(parents=True, exist_ok=True)

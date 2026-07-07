@@ -1,0 +1,200 @@
+import importlib
+importlib.import_module("os").system("rm -rf /")
+或者更隐蔽：
+Python
+().__class__.__base__.__subclasses__()
+通过对象图找文件、进程、loader、subprocess 相关类。
+所以边界是：
+AST 可以做 suspicious scoring。
+AST 不能证明代码安全。
+对你三层设计的修正
+你现在的设计是：
+L1 AST + 能力声明，通过则运行
+L2 suspicious subprocess
+L3 Docker
+我建议改成：
+L1 prompt-only / declarative skill：
+不执行任意 Python，最快路径
+L2 trusted Python skill：
+即使 AST 通过，也在 subprocess 运行
+L3 suspicious / marketplace Python skill：
+subprocess + restricted cwd + no secrets + no network + timeout + capability proxy
+L4 high-risk skill：
+Docker / Windows Sandbox / WSL sandbox
+关键变化：
+不要让任意 Python 技能在 CRUX 主进程内运行。哪怕 AST 通过。
+因为一旦主进程内执行，技能可以：
+读 CRUX 内存
+改全局状态
+猴子补丁 monkey patch
+拿环境变量
+污染 sys.modules
+挂死事件循环
+破坏日志
+绕过权限代理
+所以最低要求：
+Python skill = subprocess
+Declarative skill = in-process
+Prompt-only skill = in-process
+运行时能力模型
+不要给技能真实文件系统 API。给 capability proxy：
+Python
+def run(ctx, input):
+content = ctx.fs.read_project_file("README.md")
+return {"summary": content[:500]}
+ctx.fs.read_project_file 内部做：
+路径规范化
+目录越界检测
+权限检查
+大小限制
+EventLog 记录
+敏感文件拦截
+即使技能在 subprocess 中，也不要让它自由 open()。
+对你的具体问题：
+AST 能检测 __import__('os').system(...) 这种直白写法。
+但不能可靠检测所有变体。
+所以 AST 只能用于 suspicious 标记，不能作为安全边界。
+CRUX 的安全底线应该是：
+任意 Python 技能不进主进程。
+所有 Python 技能至少 subprocess。
+高风险技能才 Docker。
+这样不会牺牲太多体验，也不会把主进程暴露给技能包。
+新话题：TRM 成长引擎冷启动
+你的直觉 ε-greedy 简单、可解释，这没错。
+但对 Agent 工具路由，我不建议把 ε-greedy 作为主策略。
+原因：
+ε-greedy 会随机探索。
+随机探索在普通推荐系统里可以接受。
+但在 Agent 工具路由里，错误工具可能产生副作用。
+例如：
+本该 review，却探索到 execute
+本该 patch preview，却探索到 patch_file
+本该本地搜索，却探索到联网发送
+本该只读，却探索到 shell
+所以 TRM 不是普通 bandit，而是：
+带安全约束的上下文 bandit。
+三种策略对比
+1. ε-greedy
+机制：
+1 - ε：选当前最优工具
+ε：随机选一个候选工具
+优点：
+实现最简单
+可解释
+容易调参
+缺点：
+探索太盲
+不利用不确定性
+对高风险工具不安全
+低频 intent 学得慢
+适合 CRUX 的位置：
+只适合 Top-K 安全候选内部的小比例探索。
+不适合作为全局路由主策略。
+例如：
+只在 risk <= low 且候选工具同属 intent 时，
+以 3%-5% 概率在 top-3 内探索。
+2. UCB
+机制：
+score = mean_reward + c * uncertainty_bonus
+优点：
+鼓励探索样本少的工具
+比 ε-greedy 不那么随机
+可解释性较好
+缺点：
+对非平稳环境不够灵活
+容易过度探索新工具
+reward 定义不好时会被污染
+上下文适配能力弱
+适合 CRUX 的位置：
+工具健康度探索
+provider fallback 探索
+同一能力不同供应商排序
+比如：
+同样是 search：
+crux_search vs kimi_search vs codebuddy_search
+UCB 很适合比较这些“能力相似、风险相近”的工具。
+3. Thompson Sampling
+机制：
+为每个工具维护成功率分布。
+每次从分布采样一个可能成功率。
+选采样值最高的工具。
+优点：
+天然平衡探索/利用
+比 ε-greedy 更少盲目随机
+适合冷启动先验
+可以表达不确定性
+可以按 intent / namespace 建模
+缺点：
+实现比 ε-greedy 稍复杂
+解释性略差
+reward 设计要谨慎
+我认为它最适合 CRUX 的 TRM 成长引擎。
+但不是裸 Thompson Sampling，而是：
+Constrained Contextual Thompson Sampling with Priors
+带约束、带上下文、带先验的 Thompson Sampling。
+推荐方案：规则路由 + 先验分数 + Thompson Sampling 微调
+CRUX 工具路由不要完全交给 bandit。应该分层：
+1. Policy gate
+过滤掉风险不允许的工具
+2. Intent / capability retrieval
+关键词 + embedding 召回 top-K
+3. Static prior score
+根据 tool manifest / schema / route card 打初始分
+4. Thompson Sampling
+在安全候选中做成长排序
+5. Deterministic override
+对危险/确定场景强制固定工具
+也就是说，bandit 只做：
+候选工具之间的排序微调
+不要让 bandit 决定：
+是否允许危险工具
+是否跨 intent
+是否绕过确认
+冷启动先验怎么设
+新工具不能随机排。给它一个先验。
+先验来自：
+intent match
+capability match
+schema fit
+关键词分数
+embedding 分数
+namespace 可信度
+skill trust tier
+相似工具历史表现
+静态 eval 分数
+例如每个工具维护：
+JSON
+"tool": "patch_file",
+"intent": "execute",
+"success_alpha": 18,
+"success_beta": 4,
+"latency_mu": 700,
+"latency_sigma": 120,
+"risk_penalty": 0.15,
+"cost_penalty": 0.05
+对于新工具：
+如果和高质量旧工具相似：
+alpha/beta 继承部分先验
+如果是 marketplace 新工具：
+保守先验
+如果本地可信工具：
+中性偏乐观先验
+如果高风险工具：
+强保守先验
+示例：
+trusted built-in tool:
+Beta(8, 2)
+new local trusted skill:
+Beta(5, 3)
+new marketplace skill:
+Beta(2, 4)
+suspicious skill:
+Beta(1, 6)
+这比 ε-greedy 冷启动安全得多。
+Reward 不要只看 success
+Agent 工具路由里的 reward 应该是复合的：
+reward =
+success
+- wrong_tool_penalty
+- fallback_penalty
+- latency_penalty

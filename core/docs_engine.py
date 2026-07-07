@@ -98,7 +98,9 @@ def generate_help_md() -> str:
         tools_data = json.load(f)
     tool_count = len(tools_data.get("tools", tools_data if isinstance(tools_data, list) else []))
     lines.append("---")
-    lines.append(f"*{tool_count} tools, {_count_skills()} skills, {_count_core_modules()} core modules, {_count_tests()} test files*")
+    lines.append(
+        f"*{tool_count} tools, {_count_skills()} skills, {_count_core_modules()} core modules, {_count_tests()} test files*"
+    )
 
     result = "\n".join(lines)
     (ROOT / "HELP.md").write_text(result, encoding="utf-8")

@@ -17,7 +17,6 @@ from .client import CruxClient
 __all__ = ["SmartBrain", "AsyncSmartBrain"]
 
 
-
 # ── Mixin imports ──
 from core.brain_aesthetics import SmartBrainMixin as AestheticsMixin
 from core.brain_combat import SmartBrainMixin as CombatMixin
@@ -44,6 +43,7 @@ class SmartBrain(CombatMixin, CreativeMixin, AestheticsMixin, VisionMixin):
         ]
         try:
             from core.provider_adapter import get_max_tokens as _gmt
+
             result = self.client.chat(
                 model=model,
                 messages=messages,
@@ -199,7 +199,6 @@ class SmartBrain(CombatMixin, CreativeMixin, AestheticsMixin, VisionMixin):
         text = self._ask_brain(ENHANCE_IMAGE_PROMPT, input_text)
         return self._postprocess_image_enhance(user_prompt, text, entity_type, surface_policy, beauty_type, combat_ctx)
 
-
     def enhance_video_prompt(self, user_prompt: str) -> dict:
         """增强视频生成Prompt，自动匹配甜点区模板 + 实体感知 + 帅哥美女通道 + 战斗知识 + 风险预判"""
         # 推断实体类型
@@ -264,11 +263,11 @@ class SmartBrain(CombatMixin, CreativeMixin, AestheticsMixin, VisionMixin):
         text = self._ask_brain(ENHANCE_VIDEO_PROMPT, input_text)
         return self._postprocess_video_enhance(user_prompt, text, entity_type, surface_policy, beauty_type, combat_ctx)
 
-
     def understand_image(self, question: str, image_url: str) -> str:
         """利用视觉模型理解图片（供应商感知）。"""
         from core.config import get_crux_vision_model
         from core.provider_adapter import get_max_tokens as _gmt
+
         model = get_crux_vision_model()
         result = self.client.chat_multimodal(
             text=question,

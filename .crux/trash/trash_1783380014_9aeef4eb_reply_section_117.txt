@@ -1,0 +1,6 @@
+def _inside_root(self, path: Path) -> bool:
+        try:
+            path.resolve().relative_to(self.root)
+            return True
+        except ValueError:
+            return False

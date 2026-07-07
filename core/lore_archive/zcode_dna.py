@@ -206,6 +206,8 @@ def get_zcode_dna_prompt() -> str:
 
 
 __all__ = [
-    "SCHEMA_VERSION", "ZCODE_VALIDATION_PATTERNS",
-    "validate_boundary", "get_zcode_dna_prompt",
+    "SCHEMA_VERSION",
+    "ZCODE_VALIDATION_PATTERNS",
+    "validate_boundary",
+    "get_zcode_dna_prompt",
 ]

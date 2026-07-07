@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 from datetime import datetime
 from typing import Callable
 
+from core.error_sink import catch
+
 from core.download.models import (
-    DownloadKind, DownloadRequest, DownloadJob, new_job_id,
+    DownloadKind,
+    DownloadRequest,
+    DownloadJob,
+    new_job_id,
 )
 from core.download.engines.aria2_engine import Aria2Engine, Aria2Config
 from core.download.engines.ffmpeg_engine import FFmpegEngine
@@ -26,13 +32,15 @@ class DownloadManager:
         self.download_dir = download_dir or self._cfg.default_dir
         self._jobs: dict[str, DownloadJob] = {}
         self._lock = threading.Lock()
-        self._aria2 = Aria2Engine(Aria2Config(
-            rpc_url=self._cfg.aria2.rpc_url,
-            rpc_secret=self._cfg.aria2.rpc_secret,
-            aria2c_path=self._cfg.aria2.path,
-            split=self._cfg.aria2.split,
-            max_connection_per_server=self._cfg.aria2.max_connection_per_server,
-        ))
+        self._aria2 = Aria2Engine(
+            Aria2Config(
+                rpc_url=self._cfg.aria2.rpc_url,
+                rpc_secret=self._cfg.aria2.rpc_secret,
+                aria2c_path=self._cfg.aria2.path,
+                split=self._cfg.aria2.split,
+                max_connection_per_server=self._cfg.aria2.max_connection_per_server,
+            )
+        )
         self._ffmpeg = FFmpegEngine()
         self._ytdlp = YtdlpEngine()
         self._on_update: Callable | None = None
@@ -59,7 +67,8 @@ class DownloadManager:
         with self._lock:
             all_jobs = sorted(
                 self._jobs.values(),
-                key=lambda j: j.created_at, reverse=True,
+                key=lambda j: j.created_at,
+                reverse=True,
             )
             return all_jobs[:limit]
 
@@ -99,7 +108,10 @@ class DownloadManager:
         filename = req.filename
         out = filename or os.path.basename(req.url.split("?")[0]) or None
         gid = self._aria2.add_uri(
-            req.url, out=out, dir=job.output_dir, headers=req.headers,
+            req.url,
+            out=out,
+            dir=job.output_dir,
+            headers=req.headers,
         )
         with self._lock:
             job.status = "running"
@@ -136,9 +148,8 @@ class DownloadManager:
                         return
                     job.updated_at = datetime.now()
                 self._trigger_update(job)
-            except Exception:
-                pass
-            import time
+            except Exception as _es:
+                catch(_es, "core/download/manager", "swallowed")
             time.sleep(1)
 
     def _execute_ffmpeg(self, job: DownloadJob, req: DownloadRequest) -> None:
@@ -176,8 +187,10 @@ class DownloadManager:
 
     def _execute_ytdlp(self, job: DownloadJob, req: DownloadRequest) -> None:
         proc = self._ytdlp.download(
-            req.url, output_dir=job.output_dir,
-            filename=req.filename, headers=req.headers,
+            req.url,
+            output_dir=job.output_dir,
+            filename=req.filename,
+            headers=req.headers,
         )
         with self._lock:
             job.status = "running"
@@ -216,8 +229,7 @@ class DownloadManager:
             return DownloadKind.HLS
         if ".mpd" in lower or "dash" in lower:
             return DownloadKind.DASH
-        if any(ext in lower for ext in [".mp4", ".zip", ".exe", ".tar.gz",
-                                          ".7z", ".rar", ".mov", ".webm"]):
+        if any(ext in lower for ext in [".mp4", ".zip", ".exe", ".tar.gz", ".7z", ".rar", ".mov", ".webm"]):
             return DownloadKind.DIRECT
         if "youtube" in lower or "youtu.be" in lower or "bilibili" in lower:
             return DownloadKind.DASH
@@ -227,8 +239,8 @@ class DownloadManager:
         if self._on_update:
             try:
                 self._on_update(job)
-            except Exception:
-                pass
+            except Exception as _es:
+                catch(_es, "core/download/manager", "swallowed")
 
 
 # Global singleton

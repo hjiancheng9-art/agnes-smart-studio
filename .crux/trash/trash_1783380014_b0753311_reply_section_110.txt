@@ -1,0 +1,2 @@
+candidates = self._apply_safety_checks(candidates)
+        return self._build_plan(candidates)

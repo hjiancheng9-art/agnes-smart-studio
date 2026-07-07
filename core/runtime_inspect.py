@@ -22,8 +22,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 
 _MAX_VAR_REPR_LEN = 200  # truncate long reprs
-_MAX_FRAMES = 30         # max traceback frames
-_MAX_VARS_PER_FRAME = 20 # max locals per frame
+_MAX_FRAMES = 30  # max traceback frames
+_MAX_VARS_PER_FRAME = 20  # max locals per frame
 
 
 def _safe_repr(obj: Any) -> str:
@@ -155,8 +155,12 @@ def _run_with_inspect(cmd: list[str], cwd: str) -> str:
 
     try:
         r = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=120,
-            cwd=cwd, env={**__import__("os").environ, "PYTHONUNBUFFERED": "1"},
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd=cwd,
+            env={**__import__("os").environ, "PYTHONUNBUFFERED": "1"},
         )
     except subprocess.TimeoutExpired:
         return json.dumps({"ok": False, "error": "timeout after 120s"}, ensure_ascii=False)
@@ -180,19 +184,23 @@ def _run_with_inspect(cmd: list[str], cwd: str) -> str:
         if end == -1:
             break
         try:
-            data = json.loads(output[start + len(marker_start):end])
+            data = json.loads(output[start + len(marker_start) : end])
             failures.append(data)
         except json.JSONDecodeError:
             pass
         pos = end + len(marker_end)
 
-    return json.dumps({
-        "ok": ok,
-        "returncode": r.returncode,
-        "failures": failures,
-        "failure_count": len(failures),
-        "summary": output.replace(marker_start, "").replace(marker_end, "")[:3000],
-    }, ensure_ascii=False, indent=2)
+    return json.dumps(
+        {
+            "ok": ok,
+            "returncode": r.returncode,
+            "failures": failures,
+            "failure_count": len(failures),
+            "summary": output.replace(marker_start, "").replace(marker_end, "")[:3000],
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
 
 
 # For direct use: run and capture synchronously
@@ -209,12 +217,16 @@ def inspect_last_error() -> str:
         for line in lines:
             if "Traceback" in line or "  File " in line or line.strip().startswith("    "):
                 tb_lines.append(line)
-        return json.dumps({
-            "ok": False,
-            "source": str(err_path),
-            "traceback": "\n".join(tb_lines)[:4000],
-            "raw": raw[:3000],
-        }, ensure_ascii=False, indent=2)
+        return json.dumps(
+            {
+                "ok": False,
+                "source": str(err_path),
+                "traceback": "\n".join(tb_lines)[:4000],
+                "raw": raw[:3000],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
     except Exception:
         return json.dumps({"ok": False, "raw": raw[:3000]}, ensure_ascii=False)
 

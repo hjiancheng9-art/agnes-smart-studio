@@ -1,0 +1,20 @@
+def _submit_user_message(self, text: str) -> None:
+        """Submit user input, append to pane, and launch streaming worker."""
+        text = (text or "").strip()
+        if not text:
+            return
+
+        self.message_pane.append_message('user', text)
+
+        with self._state_lock:
+            self._thinking = True
+            self._streaming = True
+
+        self._log_append(("→", "class:activity-info", f"Submit: {self._shorten(text, 60)}"))
+
+        self._worker_thread = threading.Thread(
+            target=self._stream_response, args=(text,), daemon=True, name="stream-response"
+        )
+        self._worker_thread.start()
+
+    

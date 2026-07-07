@@ -260,9 +260,7 @@ class CronScheduler:
 
     # ── Job management ─────────────────────────────────────
 
-    def create(
-        self, cron: str, prompt: str, *, recurring: bool = True, callback: Callable | None = None
-    ) -> str:
+    def create(self, cron: str, prompt: str, *, recurring: bool = True, callback: Callable | None = None) -> str:
         """Create a new cron job. Returns the job id (8-hex)."""
         job_id = uuid.uuid4().hex[:8]
         datetime.now()

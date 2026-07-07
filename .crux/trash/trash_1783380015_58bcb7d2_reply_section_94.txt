@@ -1,0 +1,9 @@
+JSON
+{
+  "event_type": "cleanup.plan_created",
+  "cleanup_id": "...",
+  "candidate_count": 420,
+  "total_bytes": 3920000000,
+  "high_risk_count": 7,
+  "dry_run": true
+}

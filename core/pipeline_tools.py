@@ -39,6 +39,7 @@ OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 def _run(cmd: list, **kwargs) -> subprocess.CompletedProcess:
     """subprocess.run 的安全封装，委托给 run_subprocess"""
     from core.mcp_servers._mcp_utils import run_subprocess as _rs
+
     kwargs.setdefault("timeout", 120)
     return _rs(cmd, **kwargs)
 

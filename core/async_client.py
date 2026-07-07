@@ -52,6 +52,7 @@ class AsyncCruxClient:
         json_body = kwargs.get("json")
         if json_body is not None:
             from utils.unicode_safety import ensure_utf8_encodable, InvalidUnicodePayloadError
+
             if not ensure_utf8_encodable(json_body):
                 raise InvalidUnicodePayloadError(
                     "Request payload contains lone surrogate characters that "
@@ -155,9 +156,8 @@ class AsyncCruxClient:
         # ── Unicode safety: sanitize request payload before encoding ──
         if has_surrogate(body):
             import logging
-            logging.getLogger("crux.client").warning(
-                "async_client.payload.surrogate_detected — sanitizing before send"
-            )
+
+            logging.getLogger("crux.client").warning("async_client.payload.surrogate_detected — sanitizing before send")
         body = _sanitize_json(body)
 
         resp = await self._request_with_retry("POST", "/chat/completions", json=body)
@@ -224,6 +224,7 @@ class AsyncCruxClient:
         # ── Unicode safety: sanitize request payload before encoding ──
         if has_surrogate(body):
             import logging
+
             logging.getLogger("crux.client").warning(
                 "async_client.payload.surrogate_detected — sanitizing before stream send"
             )
@@ -545,7 +546,7 @@ class AsyncCruxClient:
     # ── 生命周期 ──────────────────────────────────────────────
 
     async def close(self):
-        if getattr(self, '_closed', False):
+        if getattr(self, "_closed", False):
             return
         self._closed = True
         await self._http.aclose()

@@ -9,4 +9,3 @@
 - qoder_bridge       - Qoder CLI (qoder_exec, qoder_review, qoder_status, qoder_plan, qoder_search)
 - codebuddy_bridge   - CodeBuddy CLI (codebuddy_exec, codebuddy_review, codebuddy_search, codebuddy_status)
 """
-

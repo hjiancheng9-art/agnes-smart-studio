@@ -1,0 +1,15 @@
+                                self._log_update_last((
+                                    "✓", "class:activity-done",
+                                last_msg.replace("执行 ", "").replace("生成 ", ""),
+                            ))
+                    pending_tool = None
+                    self._ui(lambda: None)
+                elif kind == "error":
+                    self._ui(self.message_pane.append_error, str(payload))
+                    self._log_append(("✗", "class:activity-fail", str(payload)[:120]))
+                elif kind in ("image", "video"):
+                    d = payload if isinstance(payload, dict) else {}
+                    loc = d.get("local_path", "") or d.get("url", "") or d.get("video_url", "")
+                    if loc:
+                        self._ui(self.message_pane.append_info, f"Saved: {loc}")
+                        self._log_append(("✓", "class:activity-done", f"已保存: {loc}"))

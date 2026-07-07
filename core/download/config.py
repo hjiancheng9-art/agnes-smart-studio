@@ -125,6 +125,7 @@ def migrate_from_electron_store(source_path: str | None = None) -> bool:
 
     try:
         import json
+
         with open(source_path, encoding="utf-8") as f:
             old = json.load(f)
     except Exception:

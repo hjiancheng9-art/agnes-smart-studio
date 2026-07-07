@@ -47,13 +47,21 @@ COLORS = {
 BEAST_ORDER = ["BAIHU", "QINGLONG", "ZHUQUE", "XUANWU", "QILIN", "TENGSHE", "YINGLONG"]
 
 BEAST_ICONS = {
-    "BAIHU": "虎", "QINGLONG": "龙", "ZHUQUE": "雀",
-    "XUANWU": "武", "QILIN": "麟", "TENGSHE": "蛇", "YINGLONG": "翼",
+    "BAIHU": "虎",
+    "QINGLONG": "龙",
+    "ZHUQUE": "雀",
+    "XUANWU": "武",
+    "QILIN": "麟",
+    "TENGSHE": "蛇",
+    "YINGLONG": "翼",
 }
 
 BEAST_PALETTE = {
-    "BAIHU": COLORS["baihu"], "QINGLONG": COLORS["qinglong"],
-    "ZHUQUE": COLORS["zhuque"], "XUANWU": COLORS["xuanwu"],
-    "QILIN": COLORS["qilin"], "TENGSHE": COLORS["tengshe"],
+    "BAIHU": COLORS["baihu"],
+    "QINGLONG": COLORS["qinglong"],
+    "ZHUQUE": COLORS["zhuque"],
+    "XUANWU": COLORS["xuanwu"],
+    "QILIN": COLORS["qilin"],
+    "TENGSHE": COLORS["tengshe"],
     "YINGLONG": COLORS["yinglong"],
 }

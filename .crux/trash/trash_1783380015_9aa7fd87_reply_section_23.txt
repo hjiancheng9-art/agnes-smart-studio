@@ -1,0 +1,10 @@
+核心流程
+scan
+→ classify
+→ protect check
+→ dependency/reference check
+→ risk score
+→ dry-run report
+→ move to .crux/trash
+→ delayed delete
+→ EventLog record

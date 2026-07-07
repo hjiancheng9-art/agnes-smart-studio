@@ -127,6 +127,7 @@ class CruxClient:
         json_body = kwargs.get("json")
         if json_body is not None:
             from utils.unicode_safety import ensure_utf8_encodable, InvalidUnicodePayloadError
+
             if not ensure_utf8_encodable(json_body):
                 raise InvalidUnicodePayloadError(
                     "Request payload contains lone surrogate characters that "
@@ -231,9 +232,7 @@ class CruxClient:
 
         # ── Unicode safety: sanitize request payload before encoding ──
         if has_surrogate(body):
-            logger.warning(
-                "client.payload.surrogate_detected — sanitizing before send"
-            )
+            logger.warning("client.payload.surrogate_detected — sanitizing before send")
         body = _sanitize_json(body)
 
         resp = self._request_with_retry("POST", "/chat/completions", json=body)
@@ -293,7 +292,9 @@ class CruxClient:
                 if longest > MAX_LONG or shortest > MAX_SHORT:
                     scale = min(MAX_LONG / longest, MAX_SHORT / shortest)
                     new_w, new_h = int(w * scale), int(h * scale)
-                    img = img.resize((new_w, new_h), getattr(Image, "LANCZOS", getattr(Image, "ANTIALIAS", Image.BICUBIC)))
+                    img = img.resize(
+                        (new_w, new_h), getattr(Image, "LANCZOS", getattr(Image, "ANTIALIAS", Image.BICUBIC))
+                    )
 
                 buf = io.BytesIO()
                 img.save(buf, format="JPEG", quality=JPEG_QUALITY, optimize=True)
@@ -306,13 +307,17 @@ class CruxClient:
             if len(data) > MAX_BYTES:
                 try:
                     from PIL import Image
+
                     for q in (65, 45, 30):
                         img = Image.open(io.BytesIO(raw)).convert("RGB")
                         w, h = img.size
                         longest = max(w, h)
                         if longest > MAX_LONG:
                             scale = MAX_LONG / longest
-                            img = img.resize((int(w * scale), int(h * scale)), getattr(Image, "LANCZOS", getattr(Image, "ANTIALIAS", Image.BICUBIC)))
+                            img = img.resize(
+                                (int(w * scale), int(h * scale)),
+                                getattr(Image, "LANCZOS", getattr(Image, "ANTIALIAS", Image.BICUBIC)),
+                            )
                         buf = io.BytesIO()
                         img.save(buf, format="JPEG", quality=q, optimize=True)
                         data = buf.getvalue()
@@ -324,7 +329,9 @@ class CruxClient:
             url = f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
             logger.debug(
                 "vision image: %s → %dKB (base64: %dKB)",
-                fp.name, len(raw) // 1024, len(url) // 1024,
+                fp.name,
+                len(raw) // 1024,
+                len(url) // 1024,
             )
 
         messages = [
@@ -377,9 +384,7 @@ class CruxClient:
 
         # ── Unicode safety: sanitize request payload before encoding ──
         if has_surrogate(body):
-            logger.warning(
-                "client.payload.surrogate_detected — sanitizing before stream send"
-            )
+            logger.warning("client.payload.surrogate_detected — sanitizing before stream send")
         body = _sanitize_json(body)
 
         # 流式连接重试：在流数据消费之前检查状态码，
@@ -423,13 +428,14 @@ class CruxClient:
                     # 连接成功，开始消费流
                     # SSE 前缀从 ProviderAdapter 读取（当前所有供应商统一为 "data: "）
                     from core.provider_adapter import PROVIDER_ADAPTERS
+
                     adapter = PROVIDER_ADAPTERS.get("deepseek", PROVIDER_ADAPTERS.get("generic"))
                     prefix = adapter.sse_data_prefix  # pyright: ignore[reportOptionalMemberAccess]
                     done = adapter.sse_done_marker  # pyright: ignore[reportOptionalMemberAccess]
                     for line in resp.iter_lines():
                         if not line or not line.startswith(prefix):
                             continue
-                        data = line[len(prefix):].strip()
+                        data = line[len(prefix) :].strip()
                         if data == done:
                             break
                         try:

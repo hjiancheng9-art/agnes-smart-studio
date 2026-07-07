@@ -97,7 +97,7 @@ _load_global_auth()
 
 __all__ = [
     "CRUX_VISION_BASE_URL",
-        "AGNES_VISION_BASE_URL",
+    "AGNES_VISION_BASE_URL",
     "CRUX_HOME",
     "AGNES_HOME",
     "AUTH_FILE",
@@ -158,6 +158,7 @@ def get_crux_vision_model() -> str:
         import os
 
         from core.provider import get_provider_manager
+
         mgr = get_provider_manager()
         # Prefer CRUX vision models (best counting/OCR/detail)
         crux = mgr.providers.get("crux", {})

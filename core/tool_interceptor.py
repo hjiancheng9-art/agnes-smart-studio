@@ -34,9 +34,14 @@ _WARNED_PATTERNS: list[tuple[str, str]] = [
 
 # Files that should NEVER be written to
 _PROTECTED_FILES: set[str] = {
-    ".env", ".env.local", ".env.production",
-    "credentials.json", "service-account.json",
-    "id_rsa", "id_ed25519", "*.pem",
+    ".env",
+    ".env.local",
+    ".env.production",
+    "credentials.json",
+    "service-account.json",
+    "id_rsa",
+    "id_ed25519",
+    "*.pem",
 }
 
 
@@ -72,6 +77,7 @@ def intercept_tool(tool_name: str, args: dict) -> tuple[bool, str]:
 
 # ── Hook integration ───────────────────────────────────
 
+
 def register_tool_interceptor():
     """Register the interceptor as a PRE_TOOL_USE hook."""
     try:
@@ -96,9 +102,11 @@ def register_tool_interceptor():
                 from core.constraints import WRITE_TOOLS
                 from core.methodology import TaskLevel
 
-                if (state.task_level == TaskLevel.D
-                        and (tool_name in WRITE_TOOLS or tool_name.startswith("git_"))
-                        and not state.plan_exists):
+                if (
+                    state.task_level == TaskLevel.D
+                    and (tool_name in WRITE_TOOLS or tool_name.startswith("git_"))
+                    and not state.plan_exists
+                ):
                     return f"D 级任务: 未确认 Plan，{tool_name} 被拦截"
             except ImportError:
                 pass

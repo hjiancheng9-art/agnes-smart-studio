@@ -20,9 +20,11 @@ logger = logging.getLogger(__name__)
 # 模板解析
 # ═══════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class ParsedBinding:
     """从模板中解析出的节点绑定信息。"""
+
     node_id: str
     class_type: str
     input_name: str
@@ -34,6 +36,7 @@ class ParsedBinding:
 @dataclass
 class ParsedWorkflowTemplate:
     """解析后的工作流模板。"""
+
     workflow_id: str
     name: str
     task_type: str
@@ -51,17 +54,19 @@ class ParsedWorkflowTemplate:
 
     def get_param_for_node(self, node_id: str) -> dict:
         """获取节点的参数配置。"""
-        return {b.input_name: b.param_value for b in self.bindings if b.node_id == node_id and b.param_value is not None}
+        return {
+            b.input_name: b.param_value for b in self.bindings if b.node_id == node_id and b.param_value is not None
+        }
 
 
 def _normalize_yaml(text: str) -> str:
     """在压缩的 YAML 键之间插入换行。"""
     # Known YAML keys that start on the same line as previous values
-    keys = r'(name:|version:|category:|task_type:|description:|crux:|requirements:|inputs:|outputs:|recommendation:|runtime:|workflow_id:)'
+    keys = r"(name:|version:|category:|task_type:|description:|crux:|requirements:|inputs:|outputs:|recommendation:|runtime:|workflow_id:)"
     # Insert newline before these keys if not already there
-    text = re.sub(r'(\S)(' + keys + r')', r'\1\n\2', text)
+    text = re.sub(r"(\S)(" + keys + r")", r"\1\n\2", text)
     # Also handle nested keys
-    text = re.sub(r'(\S)(\n\s+min:)', r'\1\2', text)
+    text = re.sub(r"(\S)(\n\s+min:)", r"\1\2", text)
     return text
 
 
@@ -111,17 +116,17 @@ def _extract_field(text: str, key: str, pattern: str) -> str | None:
     # Build a regex that matches key + value on the same line
     # The key should be at the start of a line
     escaped_key = re.escape(key)
-    m = re.search(r'^' + escaped_key + r'\s*(.*?)$', text, re.MULTILINE)
+    m = re.search(r"^" + escaped_key + r"\s*(.*?)$", text, re.MULTILINE)
     if m:
         line = m.group(1).strip()
         if line:
-            return line.strip('"\'')
+            return line.strip("\"'")
     return None
 
 
 def _extract_int(text: str, key: str, default: int = 0) -> int:
     val = _extract_field(text, key, r"")
-    if val and val.lstrip('-').isdigit():
+    if val and val.lstrip("-").isdigit():
         return int(val)
     return default
 
@@ -133,8 +138,8 @@ def _extract_section(text: str, start_key: str, end_key: str) -> str:
         return ""
     end = text.find(end_key, start + len(start_key))
     if end < 0:
-        return text[start + len(start_key):].strip()
-    return text[start + len(start_key):end].strip()
+        return text[start + len(start_key) :].strip()
+    return text[start + len(start_key) : end].strip()
 
 
 def _extract_list_items(text: str, list_key: str, item_pattern: str) -> list[str]:
@@ -145,29 +150,29 @@ def _extract_list_items(text: str, list_key: str, item_pattern: str) -> list[str
         idx = text.find(list_key)
         if idx < 0:
             return []
-        after = text[idx + len(list_key):].strip()
+        after = text[idx + len(list_key) :].strip()
         lines_after = []
-        for l in after.split('\n'):
-            if l.strip().startswith('- '):
+        for l in after.split("\n"):
+            if l.strip().startswith("- "):
                 lines_after.append(l)
             else:
                 break
-        section = '\n'.join(lines_after)
+        section = "\n".join(lines_after)
 
     items = []
-    for line in section.split('\n'):
+    for line in section.split("\n"):
         line = line.strip()
-        if line.startswith('- '):
-            val = line[2:].strip('"\'')
+        if line.startswith("- "):
+            val = line[2:].strip("\"'")
             # Try to match the item pattern for sub-field extraction
             if item_pattern:
                 m = re.search(item_pattern, line)
                 if m:
                     try:
-                        val = m.group(1).strip('"\'')
+                        val = m.group(1).strip("\"'")
                     except (IndexError, AttributeError):
                         pass
-            if val and val != 'null':
+            if val and val != "null":
                 items.append(val)
     return items
 
@@ -179,7 +184,7 @@ def _parse_bindings(inputs_section: str) -> list[ParsedBinding]:
         return bindings
 
     # Split by "- id:" blocks
-    blocks = re.split(r'\n\s*- id:', inputs_section)
+    blocks = re.split(r"\n\s*- id:", inputs_section)
     for block in blocks:
         if not block.strip():
             continue
@@ -200,25 +205,28 @@ def _parse_bindings(inputs_section: str) -> list[ParsedBinding]:
         pstep = _extract_field(block, "step:", r"(-?\d+)")
         if pmin and pmax:
             param_range = {
-                "min": int(pmin), "max": int(pmax),
-                "default": int(default_val) if default_val and default_val.lstrip('-').isdigit() else None,
+                "min": int(pmin),
+                "max": int(pmax),
+                "default": int(default_val) if default_val and default_val.lstrip("-").isdigit() else None,
                 "step": int(pstep) if pstep else 1,
             }
 
         # Get type
         ptype = _extract_field(block, "type:", r"(\S+)")
         if not ptype and default_val:
-            ptype = "number" if default_val.replace('.','',1).lstrip('-').isdigit() else "string"
+            ptype = "number" if default_val.replace(".", "", 1).lstrip("-").isdigit() else "string"
 
         if binding_node and binding_class:
-            bindings.append(ParsedBinding(
-                node_id=binding_node,
-                class_type=binding_class,
-                input_name=binding_input or param_id or "",
-                param_value=int(default_val) if default_val and default_val.lstrip('-').isdigit() else default_val,
-                param_type=ptype or "string",
-                param_range=param_range,
-            ))
+            bindings.append(
+                ParsedBinding(
+                    node_id=binding_node,
+                    class_type=binding_class,
+                    input_name=binding_input or param_id or "",
+                    param_value=int(default_val) if default_val and default_val.lstrip("-").isdigit() else default_val,
+                    param_type=ptype or "string",
+                    param_range=param_range,
+                )
+            )
 
     return bindings
 
@@ -226,6 +234,7 @@ def _parse_bindings(inputs_section: str) -> list[ParsedBinding]:
 # ═══════════════════════════════════════════════════════════════════
 # 模板归一化 → Motif 提取
 # ═══════════════════════════════════════════════════════════════════
+
 
 def template_to_motif(template: ParsedWorkflowTemplate) -> tuple | None:
     """将解析后的模板转换为 MotifDefinition 并注册到 Registry。
@@ -257,12 +266,14 @@ def template_to_motif(template: ParsedWorkflowTemplate) -> tuple | None:
             if binding.param_range:
                 param_ranges[binding.input_name] = binding.param_range
 
-            motif_nodes.append(MotifNode(
-                role=role_id,
-                class_type=binding.class_type,
-                params=params,
-                param_ranges=param_ranges,
-            ))
+            motif_nodes.append(
+                MotifNode(
+                    role=role_id,
+                    class_type=binding.class_type,
+                    params=params,
+                    param_ranges=param_ranges,
+                )
+            )
         else:
             # Update params for existing node
             role_id = node_ids[nid]
@@ -288,7 +299,7 @@ def template_to_motif(template: ParsedWorkflowTemplate) -> tuple | None:
         edges=[MotifEdge(s, "out", t, "in") for s, t in inferred_edges],
         source_templates=[template.workflow_id],
         quality_score=0.7,  # default, will be updated after validation
-        compatible_models=list(set(m.split('/')[-1] for m in template.models)),
+        compatible_models=list(set(m.split("/")[-1] for m in template.models)),
         min_vram_gb=template.estimated_vram_gb,
         version="1.0.0",
     )
@@ -352,6 +363,7 @@ def _infer_edges(node_ids: dict[str, str], bindings: list[ParsedBinding]) -> lis
 # 批量解析 — 从文本批量提取模板并注册为 Motif
 # ═══════════════════════════════════════════════════════════════════
 
+
 def parse_and_register(text: str, registry=None, source: str = "text") -> tuple[int, int, list[str]]:
     """从文本中批量解析 YAML 模板并注册到 MotifRegistry。
 
@@ -364,7 +376,7 @@ def parse_and_register(text: str, registry=None, source: str = "text") -> tuple[
     errors: list[str] = []
 
     # Split by "workflow_id:" markers
-    blocks = re.split(r'(?=workflow_id:)', text)
+    blocks = re.split(r"(?=workflow_id:)", text)
     blocks = [b.strip() for b in blocks if b.strip()]
 
     success = 0
@@ -388,6 +400,7 @@ def parse_and_register(text: str, registry=None, source: str = "text") -> tuple[
 def save_registry_snapshot(registry=None, path: str = "motif_registry_snapshot.json"):
     """保存 MotifRegistry 快照到 JSON 文件。"""
     from core.comfyui_motif import get_registry
+
     reg = registry or get_registry()
     snapshot = {
         "total": len(reg.list_all()),

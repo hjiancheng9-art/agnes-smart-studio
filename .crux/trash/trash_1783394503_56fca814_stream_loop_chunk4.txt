@@ -1,0 +1,15 @@
+            # Mark any remaining pending tool as done
+            if pending_tool:
+                _last_entry = self._log_last()
+                if _last_entry:
+                    last_icon, _, last_msg = _last_entry
+                    if "●" in last_icon:
+                        self._log_update_last(("✓", "class:activity-done", last_msg.replace("执行 ", "").replace("生成 ", "")))
+            self._ui(self.message_pane.stream_end, _force=True)
+        except Exception as e:
+            self._ui(self.message_pane.append_error, str(e), _force=True)
+            self._log_append(("✗", "class:activity-fail", f"响应失败: {self._error_summary(e)}"))
+            self._ui(self.message_pane.stream_end, _force=True)
+        finally:
+            with self._state_lock:
+                self._streaming = False

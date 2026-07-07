@@ -21,6 +21,7 @@ def auto_snapshot(label: str = "") -> str:
     snap_label = label or f"auto-{ts}"
     try:
         from core.git_workflow import git_snapshot
+
         git_snapshot(snap_label)
         _undo_log.append({"label": snap_label, "ts": time.time(), "method": "git_stash"})
         logger.debug("snapshot created: %s", snap_label)
@@ -37,6 +38,7 @@ def rollback_last_op() -> dict:
     # 1. Try patch.rollback_last (most recent file edits)
     try:
         from core.patch import rollback_last
+
         result = rollback_last()
         if result.get("success"):
             return {"success": True, "method": "patch_undo", "detail": "rolled back last patch"}
@@ -46,6 +48,7 @@ def rollback_last_op() -> dict:
     # 2. Try git stash pop (most recent git snapshot)
     try:
         from core.git_workflow import GitWorkflow
+
         gw = GitWorkflow()
         stashes = gw._list_stashes()
         if stashes:
@@ -61,6 +64,7 @@ def rollback_to_snapshot(label: str) -> dict:
     """Rollback to a specific named snapshot."""
     try:
         from core.git_workflow import GitWorkflow
+
         gw = GitWorkflow()
         gw.restore_snapshot(label)
         return {"success": True, "method": "git_stash_pop", "detail": f"restored snapshot: {label}"}
@@ -72,6 +76,7 @@ def list_snapshots() -> list[str]:
     """List available rollback snapshots."""
     try:
         from core.git_workflow import GitWorkflow
+
         gw = GitWorkflow()
         return gw._list_stashes()
     except Exception:

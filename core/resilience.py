@@ -20,10 +20,10 @@ from typing import Any, TypeVar
 # ── 敏感数据脱敏模式 ─────────────────────────────────────
 REDACT_PATTERNS: dict[str, re.Pattern] = {
     "api_key": re.compile(r'(?:api[_-]?key|token|secret|password|apikey)[=:]\s*["\']?\S{8,}', re.IGNORECASE),
-    "sk_key": re.compile(r'sk-[a-zA-Z0-9]{20,}', re.IGNORECASE),
-    "bearer_token": re.compile(r'Authorization:\s*Bearer\s+\S{8,}', re.IGNORECASE),
+    "sk_key": re.compile(r"sk-[a-zA-Z0-9]{20,}", re.IGNORECASE),
+    "bearer_token": re.compile(r"Authorization:\s*Bearer\s+\S{8,}", re.IGNORECASE),
     "auth_header": re.compile(r'(Authorization|X-Api-Key|X-Auth-Token)[=:]\s*["\']?\S{8,}', re.IGNORECASE),
-    "jwt_token": re.compile(r'eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'),
+    "jwt_token": re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),
     "password_in_json": re.compile(r'"[Pp]assword"\s*:\s*"[^"]{4,}"'),
 }
 
@@ -37,6 +37,7 @@ def redact_sensitive(text: str) -> str:
     for pattern in REDACT_PATTERNS.values():
         text = pattern.sub(REDACT_REPLACEMENT, text)
     return text
+
 
 T = TypeVar("T")
 
@@ -350,10 +351,7 @@ class CircuitOpenError(RuntimeError):
     """Raised when a circuit is open and rejecting requests."""
 
     def __init__(self, circuit_name: str, failure_count: int) -> None:
-        super().__init__(
-            f"熔断器 [{circuit_name}] 已断开（连续失败 {failure_count} 次）。"
-            f"请等待恢复超时后重试。"
-        )
+        super().__init__(f"熔断器 [{circuit_name}] 已断开（连续失败 {failure_count} 次）。请等待恢复超时后重试。")
         self.circuit_name = circuit_name
         self.failure_count = failure_count
 
@@ -413,7 +411,11 @@ class CircuitBreaker:
         with self._lock:
             self.failure_count += 1
             self.last_failure_time = time.time()
-            if self.state == CircuitState.CLOSED and self.failure_count >= self.threshold or self.state == CircuitState.HALF_OPEN:
+            if (
+                self.state == CircuitState.CLOSED
+                and self.failure_count >= self.threshold
+                or self.state == CircuitState.HALF_OPEN
+            ):
                 self._transition(CircuitState.OPEN)
 
     def allow_request(self) -> bool:

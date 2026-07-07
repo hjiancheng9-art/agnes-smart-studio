@@ -130,8 +130,12 @@ def _save_state(state: dict) -> None:
 
 
 def record_usage(
-    model: str, kind: str = "text", usage: dict | None = None,
-    call_count: int = 1, label: str = "", root_trace_id: str = ""
+    model: str,
+    kind: str = "text",
+    usage: dict | None = None,
+    call_count: int = 1,
+    label: str = "",
+    root_trace_id: str = "",
 ) -> dict:
     """记录一次 API 调用的花费。
 
@@ -149,6 +153,7 @@ def record_usage(
     if not root_trace_id:
         try:
             from core.multi_agent import get_current_root_trace_id
+
             root_trace_id = get_current_root_trace_id()
         except ImportError:
             pass

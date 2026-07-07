@@ -1,0 +1,56 @@
+: str) -> list[CodeBlock]:
+    blocks: list[CodeBlock] = []
+    pattern = re.compile(r"```(\w+)?\n(.*?)```", re.DOTALL)
+    lines = text.splitlines()
+
+    for i, match in enumerate(pattern.finditer(text), start=1):
+        before = text[:match.start()]
+        start_line = before.count("\n") + 1
+        content = match.group(2)
+        end_line = start_line + content.count("\n") + 1
+        blocks.append(CodeBlock(
+            index=i,
+            language=match.group(1) or "",
+            content=content,
+            start_line=start_line,
+            end_line=end_line,
+        ))
+    return blocks
+
+class MessageStore:
+    def __init__(self) -> None:
+        self._messages: list[Message] = []
+        self._by_id: dict[str, Message] = {}
+        self._active_stream_id: str | None = None
+        self._version = 0
+
+    @property
+    def version(self) -> int:
+        return self._version
+
+    def append(self, role: Role, text: str) -> Message:
+        msg = Message(id=str(uuid.uuid4()), role=role, raw_text=text)
+        msg.update_code_blocks()
+        self._messages.append(msg)
+        self._by_id[msg.id] = msg
+        self._version += 1
+        return msg
+
+    def stream_start(self, role: Role) -> Message:
+        msg = Message(id=str(uuid.uuid4()), role=role, streaming=True)
+        self._messages.append(msg)
+        self._by_id[msg.id] = msg
+        self._active_stream_id = msg.id
+        self._version += 1
+        return msg
+
+    def stream_chunk(self, text: str) -> Message | None:
+        if not self._active_stream_id:
+            return None
+        msg = self._by_id[self._active_stream_id]
+        msg.raw_text += text
+        msg.updated_at = datetime.now()
+        self._version += 1
+        return msg
+
+    def stream_end(self) -> Message | Non

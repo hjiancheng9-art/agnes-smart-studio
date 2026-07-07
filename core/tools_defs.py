@@ -883,6 +883,5 @@ def _resolve_tool_names(user_input: str, *, full: bool = False) -> set[str]:
     return names
 
 
-
 # ═══════════════════════════════════════════════════════════════════
 # Extracted from core/tools.py. Core ToolRegistry class stays in tools.py.

@@ -1,0 +1,7 @@
+@dataclass
+class CleanupPlan:
+    cleanup_id: str
+    candidates: list[CleanupCandidate]
+    total_bytes: int
+    high_risk_count: int
+    dry_run: bool = True

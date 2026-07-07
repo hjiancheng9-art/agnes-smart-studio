@@ -1,0 +1,11 @@
+lora_runs/
+  project_name/
+    config.yaml              # 保留
+    dataset_manifest.json    # 保留
+    checkpoints/
+      best.safetensors       # 保留
+      final.safetensors      # 保留
+      epoch_*.safetensors    # 可清理
+    samples/                 # 可清理部分
+    logs/                    # 压缩
+    cache/                   # 可清理

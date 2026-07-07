@@ -33,6 +33,7 @@ DEFAULT_DB = DB_DIR / "session_tracker.db"
 
 # ── 状态枚举 ──
 
+
 class TodoStatus:
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
@@ -145,8 +146,11 @@ class SessionTracker:
     # ── Todos CRUD ──
 
     def add_todo(
-        self, session_id: str, title: str,
-        description: str = "", priority: int = 0,
+        self,
+        session_id: str,
+        title: str,
+        description: str = "",
+        priority: int = 0,
     ) -> int:
         now = time.time()
         with self._get_conn() as conn:
@@ -214,14 +218,17 @@ class SessionTracker:
     def get_blocked_todos(self, session_id: str) -> list[int]:
         """返回被未完成依赖阻塞的 todo ID。"""
         with self._get_conn() as conn:
-            rows = conn.execute("""
+            rows = conn.execute(
+                """
                 SELECT DISTINCT t.id FROM todos t
                 JOIN todo_deps d ON t.id = d.todo_id
                 JOIN todos dep ON d.depends_on_id = dep.id
                 WHERE t.session_id = ?
                   AND t.status = 'pending'
                   AND dep.status NOT IN ('completed', 'cancelled')
-            """, (session_id,)).fetchall()
+            """,
+                (session_id,),
+            ).fetchall()
             return [r[0] for r in rows]
 
     # ── 收件箱 ──
@@ -264,8 +271,7 @@ class SessionTracker:
             else:
                 total = conn.execute("SELECT COUNT(*) FROM todos").fetchone()[0]
                 by_status = {
-                    r[0]: r[1]
-                    for r in conn.execute("SELECT status, COUNT(*) FROM todos GROUP BY status").fetchall()
+                    r[0]: r[1] for r in conn.execute("SELECT status, COUNT(*) FROM todos GROUP BY status").fetchall()
                 }
             return {
                 "total": total,
@@ -276,11 +282,13 @@ class SessionTracker:
 
 # ── 全局实例 ──
 
+
 def get_tracker() -> SessionTracker:
     return SessionTracker.get_instance()
 
 
 # ── ToolRegistry 兼容定义 ──
+
 
 def _exec_todo_add(args: dict) -> str:
     t = get_tracker()
@@ -365,7 +373,10 @@ SESSION_TRACKER_TOOL_DEFS = [
                 "type": "object",
                 "properties": {
                     "session_id": {"type": "string", "description": "会话ID过滤（空=所有）"},
-                    "status": {"type": "string", "description": "状态过滤：pending|in_progress|completed|failed|cancelled"},
+                    "status": {
+                        "type": "string",
+                        "description": "状态过滤：pending|in_progress|completed|failed|cancelled",
+                    },
                 },
             },
         },

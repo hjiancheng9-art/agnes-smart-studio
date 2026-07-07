@@ -14,6 +14,7 @@ from typing import Any
 # Provider adapter — per-provider API differences
 # ═══════════════════════════════════════════════════════════════
 
+
 @dataclass
 class ProviderAdapter:
     """Encapsulates all provider-specific API behaviors."""
@@ -92,12 +93,14 @@ def get_adapter(provider_id: str) -> ProviderAdapter:
 # Model metadata queries — delegated to core.provider
 # ═══════════════════════════════════════════════════════════════
 
+
 def get_capability(model_id: str):
     """Look up model capability by ID or alias. Returns ModelInfo or None.
 
     Delegated to core.provider.MODEL_REGISTRY (single source of truth).
     """
     from core.provider import get_capability_info
+
     return get_capability_info(model_id)
 
 
@@ -107,6 +110,7 @@ def get_max_tokens(model_id: str, is_tool_call: bool = False) -> int:
     Delegated to core.provider.get_max_tokens_for_model.
     """
     from core.provider import get_max_tokens_for_model
+
     return get_max_tokens_for_model(model_id, is_tool_call)
 
 
@@ -116,6 +120,7 @@ def get_thinking_params(model_id: str) -> dict[str, Any]:
     Delegated to core.provider.get_thinking_params_for_model.
     """
     from core.provider import get_thinking_params_for_model
+
     return get_thinking_params_for_model(model_id)
 
 

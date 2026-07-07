@@ -13,25 +13,25 @@
 Methodology Router 根据 task intent/domain/risk 自动选择加载。
 """
 
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Literal
+from dataclasses import dataclass
+from typing import Literal
 
 
 # ── 任务分类 ──────────────────────────────────────────────
 
+
 class TaskIntent(Enum):
-    THINK = "think"          # 问答/分析/推理
-    GENERATE = "generate"    # 生成（代码/媒体/文案）
-    EXECUTE = "execute"      # 执行（文件/浏览器/工具）
-    REVIEW = "review"        # 审查（代码/安全/质量）
-    SEARCH = "search"        # 搜索（代码/网络/文件）
-    HEAL = "heal"            # 自愈
-    CREATE = "create"        # 创造（写入/生成/发布）
-    FIX = "fix"              # 修复（代码/配置）
-    BROWSE = "browse"        # 浏览（浏览器只读）
-    WRITE = "write"          # 写入（文件/配置）
-    READ = "read"            # 读取（文件/数据）
+    THINK = "think"  # 问答/分析/推理
+    GENERATE = "generate"  # 生成（代码/媒体/文案）
+    EXECUTE = "execute"  # 执行（文件/浏览器/工具）
+    REVIEW = "review"  # 审查（代码/安全/质量）
+    SEARCH = "search"  # 搜索（代码/网络/文件）
+    HEAL = "heal"  # 自愈
+    CREATE = "create"  # 创造（写入/生成/发布）
+    FIX = "fix"  # 修复（代码/配置）
+    BROWSE = "browse"  # 浏览（浏览器只读）
+    WRITE = "write"  # 写入（文件/配置）
+    READ = "read"  # 读取（文件/数据）
 
 
 class TaskDomain(Enum):
@@ -46,15 +46,16 @@ class TaskDomain(Enum):
 
 
 class RiskLevel(Enum):
-    LOW = 0          # 只读 / 无副作用
-    MEDIUM = 1       # 有副作用但可回滚
-    HIGH = 2         # 不可逆 / 修改系统状态
-    CRITICAL = 3     # 生产环境 / 对外发布
+    LOW = 0  # 只读 / 无副作用
+    MEDIUM = 1  # 有副作用但可回滚
+    HIGH = 2  # 不可逆 / 修改系统状态
+    CRITICAL = 3  # 生产环境 / 对外发布
 
 
 @dataclass
 class TaskProfile:
     """任务画像 — 方法论选择的依据。"""
+
     intent: TaskIntent | str
     domain: TaskDomain | str
     risk: RiskLevel | str = RiskLevel.LOW
@@ -65,15 +66,17 @@ class TaskProfile:
 
 # ── 方法论基础类 ──────────────────────────────────────────
 
+
 class MethodologyPhase(Enum):
-    BEFORE = "before"   # 执行前检查
-    AFTER = "after"     # 执行后验证
-    WRAP = "wrap"       # 收尾/回滚
+    BEFORE = "before"  # 执行前检查
+    AFTER = "after"  # 执行后验证
+    WRAP = "wrap"  # 收尾/回滚
 
 
 @dataclass
 class MethodologyCheck:
     """一条方法论检查项。"""
+
     phase: MethodologyPhase
     name: str
     description: str
@@ -83,6 +86,7 @@ class MethodologyCheck:
 @dataclass
 class MethodologyPolicy:
     """方法论策略 — 决定允许/禁止某类动作。"""
+
     name: str
     condition: str  # 策略描述
     action: Literal["allow", "deny", "require_confirmation", "log_only"]
@@ -90,23 +94,24 @@ class MethodologyPolicy:
 
 class BaseMethodology:
     """方法论基类。"""
+
     name: str = ""
     description: str = ""
     version: str = "1.0.0"
-    
+
     # 覆盖的任务画像范围
     intent_filters: set[TaskIntent] = set()
     domain_filters: set[TaskDomain] = set()
     max_risk: RiskLevel = RiskLevel.CRITICAL
-    
+
     def get_checks(self, task: TaskProfile) -> list[MethodologyCheck]:
         """获取适用于该任务的所有检查项。"""
         return []
-    
+
     def get_policies(self) -> list[MethodologyPolicy]:
         """获取策略列表。"""
         return []
-    
+
     def applies_to(self, task: TaskProfile) -> bool:
         """判断此方法论是否适用于该任务。"""
         intent_match = not self.intent_filters or task.intent in self.intent_filters
@@ -117,22 +122,23 @@ class BaseMethodology:
 
 # ── 方法论注册表 ──────────────────────────────────────────
 
+
 class MethodologyRegistry:
     """方法论注册表 — 全局唯一。"""
-    
+
     def __init__(self):
         self._methodologies: dict[str, BaseMethodology] = {}
-    
+
     def register(self, methodology: BaseMethodology) -> None:
         if methodology.name:
             self._methodologies[methodology.name] = methodology
-    
+
     def get(self, name: str) -> BaseMethodology | None:
         return self._methodologies.get(name)
-    
+
     def all(self) -> list[BaseMethodology]:
         return list(self._methodologies.values())
-    
+
     def select_for(self, task: TaskProfile) -> list[BaseMethodology]:
         """根据任务画像选择适用的方法论（按优先级排序）。"""
         matched = []

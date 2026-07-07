@@ -1,0 +1,15 @@
+for kind, payload in self.session.send_stream(user_text):
+                if not _first_token and kind in ("text", "thinking"):
+                    _first_token = True
+                    self._latency = time.monotonic() - _t0
+                if kind == "text":
+                    self._ui(self.message_pane.stream_append, str(payload))
+                elif kind == "thinking":
+                    self.thinking_panel.append(str(payload))
+                    self._ui(lambda: None)
+                elif kind == "info":
+                    msg = str(payload).strip()
+                    if not msg:
+                        continue
+                    if msg.startswith("正在执行 "):
+                        tool_name = msg[5:].rstrip(".")

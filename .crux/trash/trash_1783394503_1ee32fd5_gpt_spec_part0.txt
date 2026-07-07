@@ -1,0 +1,526 @@
+下面直接给三份可落地规格文档，按你当前 CRUX v5.0 / ASM / CWIM 结构写。
+
+编辑
+规格 1：ASM 各层完整 Checklist 表格
+1. ASM 总体分层
+层级	名称	作用	触发场景	输出
+L0	ASM.light	轻量问答/低风险任务	普通问答、解释、总结、建议	简洁回答、无复杂执行
+L1	ASM.core	通用 Agent 方法论核心	所有非纯闲聊任务	目标契约、风险判断、执行边界
+L2	ASM.tool	工具治理层	任意工具调用	工具选择理由、权限检查、fallback
+L3	ASM.file	文件与补丁层	文件读写、patch、批量修改	checksum、diff、rollback
+L4	ASM.code	编程与自愈层	调试、修复、重构、测试	复现、patch、测试证据
+L5	ASM.browser	浏览器控制层	CDP、网页操作、截图、表单	DOM证据、用户确认、动作日志
+L6	ASM.skill	技能包治理层	加载/执行技能	manifest、权限、trust、隔离
+L7	ASM.agent	多 Agent 协作层	swarm、multi_agent、任务分解	Task/Message/Artifact
+L8	ASM.media	图像/视频/ComfyUI/创意生成	generate_image/video、ComfyUI	风格锁、素材一致性、生成证据
+L9	ASM.evaluator	评估裁决层	goal_evaluate、self_heal、完成判断	pass/fail/needs_fix
+2. ASM.light Checklist
+检查项	必须	说明
+判断是否为低风险问答	是	无文件写入、无工具副作用、无账户/浏览器动作
+不启动 execute_plan	是	避免简单问题复杂化
+不加载领域重方法论	是	不自动加载 CWIM / code / browser
+回答直接、短路径	是	除非用户要求深度分析
+不生成 EventLog 详细链路	否	可只记录 session-level summary
+3. ASM.core Checklist
+阶段	Checklist	失败处理
+Intent	是否识别 intent：search/review/execute/think/generate/status	低置信度时转 clarify 或 light answer
+Goal	是否需要 Goal Contract	需要多步或副作用时必须生成
+Boundary	是否有边界：文件范围、权限、预算、禁止动作	边界不清时降级到 plan/draft
+Risk	是否评估 risk：readonly/low/medium/high/destructive	高风险必须确认或沙箱
+Evidence	是否定义完成证据	无证据不得宣称 completed
+Budget	是否设置 max_steps/max_tool_calls/max_duration	超预算 paused/failed
+Explain	是否能解释决策	不能解释则不自动执行
+4. ASM.tool Checklist
+检查项	必须	说明
+工具是否在 TRM 注册	是	未注册工具不得自动调用
+是否匹配 intent/capability	是	避免跨意图误调用
+是否通过 permission gate	是	特别是 filesystem/network/browser/shell
+是否有 route_reason	是	记录为何选择该工具
+是否有 fallback_graph	建议	失败时语义降级，而不是盲重试
+是否记录 EventLog	是	TOOL_CALL_START/COMPLETE/FAILED/TIMEOUT
+retry 是否有新证据	是	无新日志/状态/上下文，不允许重试
+是否进入成长引擎更新	是	成功率、延迟、fallback、reward
+5. ASM.file Checklist
+阶段	Checklist	必须
+Pre	记录目标文件列表	是
+Pre	记录 pre_hash	是
+Pre	检查路径越界	是
+Pre	检查是否触碰禁止路径	是
+Execute	使用 patch_file 而非任意写入	建议
+Execute	自动备份	是
+Execute	批量修改需事务化	是
+Post	记录 post_hash	是
+Post	记录 git diff --stat	是
+Post	语法检查	视类型
+Post	可回滚验证	是
+Fake-fix	无变更但宣称修复 → fix-spurious	是
+Fake-fix	改测试/快照/跳过断言需高风险标记	是
+6. ASM.code Checklist
+阶段	Checklist	完成标准
+Observe	读取错误、日志、诊断、测试输出	有明确 failure evidence
+Reproduce	尝试复现原始失败	reproduced_original_failure=true
+Diagnose	形成 root cause hypothesis	有文件/函数/调用链依据
+Patch	最小修改	不做无关重构
+Validate	运行相关测试	target failure resolved
+Regression	运行回归测试/语法检查	no new failure
+False-fix Scan	检测吞异常、删测试、弱化断言	false_fix_score 低于阈值
+Complete	goal_evaluate pass	工具成功不等于目标成功
+7. ASM.browser Checklist
+操作类型	策略	说明
+页面读取	自动允许	截图/DOM/URL 记录
+导航	低风险可自动	记录 URL 和来源
+输入文本	中风险	表单内容需可回放
+点击按钮	按语义分类	普通 UI 可自动，提交/支付/删除需确认
+表单提交	必须确认	除非用户明确授权
+文件上传	必须确认	涉及本地文件泄露风险
+下载	需路径控制	不允许覆盖敏感文件
+登录/支付/发布	禁止自动	必须人工确认
+8. ASM.skill Checklist
+检查项	规则
+是否存在 manifest	新技能必须有，legacy 允许自动生成
+legacy 是否 confirmed	false 时降权，不进自动高优先级路由
+runtime 是否安全	python 默认 python_subprocess，不默认 inline
+permissions 是否人工确认	inferred_permissions 不等于真实 permissions
+integrity 是否校验	加载时校验
+min_crux_version 是否满足	不满足禁用
+trust level 是否匹配权限	local_legacy 不得自动获得高风险权限
+entrypoint 是否存在	不存在禁用
+requires 是否满足	缺依赖则 disabled/requires_user_action
+执行是否记录 EventLog	必须
+9. ASM.agent Checklist
+检查项	必须
+是否生成 AgentTask	是
+是否有 TaskState：submitted/working/input_required/completed/failed/cancelled	是
+是否有 Message/Artifact 结构	是
+是否有 parent_task_id	建议
+是否限制 max_parallel_tasks	是
+是否防止重复派发	是
+是否有 merge/evaluator	是
+是否能解释每个子 Agent 的职责	是
+是否能取消/暂停	是
+是否记录 agent-level EventLog	是
+10. ASM.media / ComfyUI Checklist
+检查项	规则
+是否识别为 ComfyUI 任务	是则挂载 CWIM
+是否先生成语义 IR	是
+是否避免 LLM 直接裸生成 workflow JSON	是
+参数是否有语义来源	是
+模型/LoRA/ControlNet 是否兼容	是
+workflow 是否按图验证	是
+是否有 preview / dry-run	建议
+生成是否消耗额度	是则提示或确认
+是否记录素材、seed、workflow_hash	是
+是否可复现	尽量
+11. ASM.evaluator Checklist
+检查项	完成标准
+工具是否成功	tool status = success
+目标是否达成	finish_line met
+边界是否遵守	boundaries respected
+预算是否遵守	budget respected
+是否有证据	evidence attached
+是否有副作用未确认	none
+是否存在 fake-fix	false_fix_score below threshold
+是否需要用户确认	no pending confirmation
+最终状态	completed / needs_fix / failed / paused
+编辑
+规格 2：Fixability Estimator 三阶段接口协议
+1. 目标
+
+Fixability Estimator 用于在 self-heal / execute_plan / patch_file 重试前判断：
+
+这个错误是否可能由 CRUX 自动修复？
+应该重试、降级诊断、要求用户操作，还是 quarantine？
+
+它不直接修复，只输出决策。
+
+2. 三阶段结构
+阶段	名称	时延目标	作用	是否默认执行
+L0	Seed Prior	<5ms	基于 error_type/signature 的先验判断	是
+L1	Context Probe	100ms-1s	读取上下文，判断是否有可修复变量	是，若 L0 要求
+L2	Bounded Experiment	5s-30s	小范围低风险试验	仅高价值任务
+3. 核心枚举
+FixabilityAction = Literal[
+    "allow_retry",
+    "limited_retry",
+    "requires_new_evidence",
+    "requires_context_probe",
+    "downgrade_to_diagnosis",
+    "requires_user_action",
+    "quarantine",
+    "manual_review_required"
+]
+RepairClass = Literal[
+    "parameter_adjustment",
+    "dependency_install",
+    "environment_fix",
+    "code_patch",
+    "resource_reduction",
+    "permission_fix",
+    "network_retry",
+    "configuration_fix",
+    "not_fixable_by_code",
+    "unknown"
+]
+4. 输入协议
+{
+  "request_id": "uuid",
+  "timestamp": "iso8601",
+  "tool": "self_heal",
+  "error_type": "CUDAOutOfMemoryError",
+  "error_message": "...",
+  "error_signature": "sha256:...",
+  "context_fingerprint": "sha256:...",
+  "intent": "execute",
+  "domain": "comfyui",
+  "goal_id": "goal_x",
+  "run_id": "run_y",
+  "attempt_index": 1,
+  "budget": {
+    "remaining_steps": 6,
+    "remaining_tool_calls": 20,
+    "remaining_duration_ms": 300000
+  },
+  "context": {
+    "project_type": "comfyui",
+    "files_touched": [],
+    "workflow_hash": "...",
+    "model_names": ["sdxl"],
+    "batch_size": 32,
+    "resolution": [1024, 1024],
+    "vram_total_mb": 8192,
+    "vram_free_mb": 512,
+    "modifiable_knobs": ["batch_size", "resolution", "vae_tiling"]
+  },
+  "history": {
+    "same_signature_failures_24h": 2,
+    "same_context_failures": 1,
+    "quarantine_strike_count": 0,
+    "similar_successes": 3,
+    "last_action": "limited_retry"
+  }
+}
+5. 输出协议
+{
+  "decision_id": "uuid",
+  "fixability_score": 0.72,
+  "confidence": 0.81,
+  "action": "limited_retry",
+  "repair_class": "resource_reduction",
+  "max_attempts": 1,
+  "requires_new_evidence": true,
+  "requires_context_probe": false,
+  "allowed_mutations": [
+    "batch_size",
+    "resolution",
+    "vae_tiling"
+  ],
+  "forbidden_mutations": [
+    "delete_node",
+    "disable_validation",
+    "change_model_without_user_confirmation"
+  ],
+  "reason": "CUDA OOM appears parameter-driven; batch_size and tiling are adjustable.",
+  "evidence": {
+    "seed_rule": "cuda_oom_resource_pressure",
+    "context_probe": {
+      "batch_size": 32,
+      "vram_free_mb": 512,
+      "modifiable_knobs_found": true
+    },
+    "bounded_experiment": null
+  },
+  "quarantine": {
+    "should_quarantine": false,
+    "backoff_level": 0,
+    "quarantined_until": null
+  }
+}
+6. L0 Seed Prior 接口
+class SeedPriorResult(TypedDict):
+    fixability_prior: float
+    confidence: float
+    action_hint: FixabilityAction
+    repair_class_hint: RepairClass
+    requires_context_probe: bool
+    max_attempts_hint: int
+    rule_id: str
+    reason: str
+def estimate_seed_prior(
+    tool: str,
+    error_type: str,
+    error_message: str,
+    error_signature: str
+) -> SeedPriorResult:
+    ...
+L0 示例
+{
+  "fixability_prior": 0.35,
+  "confidence": 0.7,
+  "action_hint": "requires_context_probe",
+  "repair_class_hint": "resource_reduction",
+  "requires_context_probe": true,
+  "max_attempts_hint": 1,
+  "rule_id": "cuda_oom_requires_context",
+  "reason": "CUDA OOM may be parameter-fixable or environment-limited."
+}
+7. L1 Context Probe 接口
+class ContextProbeResult(TypedDict):
+    context_available: bool
+    context_fingerprint: str
+    modifiable_knobs: list[str]
+    constraints: dict
+    estimated_fixability_delta: float
+    evidence: dict
+def probe_context(
+    request: FixabilityRequest,
+    seed_result: SeedPriorResult
+) -> ContextProbeResult:
+    ...
+L1 必须遵守
+规则	说明
+不修改状态	只读探测
+不安装依赖	禁止副作用
+不运行长测试	超过 1s 进入 L2
+记录 context_fingerprint	用于 quarantine
+输出 evidence	方便 EventLog 和解释
+8. L2 Bounded Experiment 接口
+class BoundedExperimentResult(TypedDict):
+    attempted: bool
+    experiment_id: str
+    mutation: dict
+    success_signal: bool
+    duration_ms: int
+    rollback_required: bool
+    evidence: dict
+def run_bounded_experiment(
+    request: FixabilityRequest,
+    candidate_mutation: dict,
+    budget_ms: int = 30000
+) -> BoundedExperimentResult:
+    ...
+L2 允许场景
+场景	示例
+可回滚参数修改	batch_size 32→16
+dry-run	ComfyUI workflow validate
+低成本测试	单个相关测试
+临时环境探测	import check、version check
+L2 禁止场景
+禁止	原因
+删除文件	高风险
+修改生产配置	高风险
+安装未知依赖	需用户确认
+大规模重构	超出 bounded experiment
+生成昂贵媒体	消耗预算
+9. 决策流
+input
+→ L0 seed prior
+→ if action=quarantine/manual_review_required: stop
+→ if requires_context_probe: L1 context probe
+→ recompute fixability_score
+→ if score >= 0.70: limited_retry
+→ if 0.40 <= score < 0.70: requires_new_evidence / diagnosis
+→ if score < 0.40: downgrade_to_diagnosis
+→ if repeated failure: quarantine backoff
+→ optional L2 bounded experiment
+10. 推荐阈值
+fixability_score	动作
+0.80 - 1.00	allow_retry
+0.65 - 0.80	limited_retry
+0.45 - 0.65	requires_new_evidence
+0.25 - 0.45	downgrade_to_diagnosis
+0.10 - 0.25	requires_user_action
+0.00 - 0.10	quarantine / manual_review_required
+11. EventLog 事件
+
+必须记录：
+
+fixability.seed_prior
+fixability.context_probe
+fixability.bounded_experiment
+fixability.decision
+quarantine.backoff_applied
+quarantine.cleared
+
+事件示例：
+
+{
+  "event_type": "fixability.decision",
+  "tool": "self_heal",
+  "error_type": "CUDAOutOfMemoryError",
+  "fixability_score": 0.72,
+  "confidence": 0.81,
+  "action": "limited_retry",
+  "repair_class": "resource_reduction",
+  "context_fingerprint": "sha256:...",
+  "reason": "OOM appears parameter-driven."
+}
+12. 与 FakeFixDetector 的关系
+模块	作用
+FixabilityEstimator	修复前判断是否值得尝试
+FakeFixDetector	修复后判断是不是假修
+SeedPolicy	FixabilityEstimator 的 L0 先验来源
+Quarantine	重复失败后的抑制状态机
+EventLog	证据存储
+编辑
+规格 3：CWIM 降级为 ASM 子方法论的挂载点映射表
+1. 总体定位
+
+CWIM 不再作为 CRUX 全局方法论，而作为 ASM 的 ComfyUI 领域子方法论。
+
+ASM.core
+  └── ASM.media
+        └── CWIM
+
+CWIM 只在以下任务中挂载：
+
+domain = comfyui
+或 tool ∈ {
+  submit_workflow,
+  build_custom,
+  preview_workflow,
+  get_result,
+  lora_train,
+  lora_prepare,
+  workflow_validate,
+  comfyui_self_heal
+}
+
+普通问答、代码修复、文件操作、浏览器控制不默认加载 CWIM。
+
+2. 挂载规则
+条件	是否挂载 CWIM	同时挂载
+用户要求生成/修改 ComfyUI workflow	是	ASM.core + ASM.media + ASM.file
+用户要求 LoRA 训练/管理	是	ASM.core + ASM.media + ASM.skill
+用户要求 ComfyUI 错误修复	是	ASM.core + ASM.code + ASM.file + CWIM
+用户要求普通 Python 修复	否	ASM.core + ASM.code
+用户要求浏览器控制	否	ASM.core + ASM.browser
+用户要求通用问答	否	ASM.light
+用户要求图像创意提示词但不涉及 ComfyUI	可选	ASM.media
+用户要求 ComfyUI 节点兼容性判断	是	ASM.tool + CWIM
+3. CWIM 原则映射表
+CWIM 原则	原定位	ASM 挂载点	泛化方式	是否全局启用
+LLM 不直接生成 ComfyUI JSON	ComfyUI workflow 安全	CWIM.workflow_generation	高风险最终产物先生成 IR/Plan	否
+参数不是数字而是语义	参数设计	ASM.core.parameter_semantics	所有工具参数来自语义约束	是
+所有推荐必须可解释	推荐与路由	ASM.core.explainability	工具选择/推荐/降级必须给 reason	是
+LoRA 是项目不是文件	LoRA 生命周期	CWIM.lora_lifecycle	长生命周期资产按 project state 管理	否
+Workflow 是图不是 JSON	Workflow 表征	CWIM.graph_model	复杂结构使用 IR/graph 而非裸 JSON	否
+先诊断再生成	生成前置	ASM.core.observe_diagnose_act	任何高风险任务先观察/诊断	是
+节点兼容性优先	ComfyUI 兼容性	CWIM.node_compatibility	工具/模型/技能兼容性优先	部分
+错误恢复必须闭环	工作流修复	ASM.code.self_heal_loop	复现→修复→验证→fake-fix scan	是
+用户意图优先于模板	Workflow 选择	ASM.core.goal_first	工具服从目标，不让目标服从模板	是
+产物必须可验证	生成验收	ASM.evaluator	完成由证据裁决	是
+4. CWIM 子模块挂载点
+CWIM 子模块	挂载到 ASM	触发 intent	说明
+CWIM.intent_parse	ASM.core.intent	generate/review	识别 ComfyUI 任务类型
+CWIM.workflow_ir	ASM.media.ir	generate/execute	生成 workflow 中间表示
+CWIM.graph_validate	ASM.evaluator	review/execute	验证 workflow 图结构
+CWIM.node_compat	ASM.tool	review	检查节点/模型/插件兼容性
+CWIM.parameter_semantics	ASM.core.parameter_semantics	generate	参数语义化
+CWIM.lora_project	ASM.media.asset_lifecycle	generate/execute	LoRA 生命周期管理
+CWIM.model_binding	ASM.media.model_policy	generate	模型/VAE/ControlNet 绑定
+CWIM.workflow_repair	ASM.code.self_heal	execute/review	ComfyUI workflow 自愈
+CWIM.preview_policy	ASM.media.preview	generate	预览、dry-run、结果检查
+CWIM.export_policy	ASM.file	execute	workflow 保存、hash、版本化
+5. Methodology Router 规则
+输入
+{
+  "intent": "generate",
+  "domain": "comfyui",
+  "tools": ["build_custom", "submit_workflow"],
+  "risk": "medium",
+  "artifact_type": "workflow"
+}
+输出
+{
+  "methodologies": [
+    "ASM.core",
+    "ASM.tool",
+    "ASM.file",
+    "ASM.media",
+    "CWIM.workflow_ir",
+    "CWIM.graph_validate",
+    "CWIM.parameter_semantics"
+  ],
+  "cwim_enabled": true,
+  "reason": "ComfyUI workflow generation requires graph-based workflow methodology."
+}
+6. CWIM 不得影响的任务
+任务	原因
+普通问答	会过度工程
+Python 代码修复	应使用 ASM.code
+文件批量修改	应使用 ASM.file
+浏览器自动化	应使用 ASM.browser
+技能 manifest 校验	应使用 ASM.skill
+TRM 路由优化	应使用 ASM.tool
+多 Agent 协作	应使用 ASM.agent
+非 ComfyUI 文案生成	可用 ASM.media，但不需要 CWIM
+7. CWIM 注入粒度
+
+不要整篇 CWIM 常驻注入。按任务注入最小片段。
+
+场景	注入内容
+workflow 生成	workflow_ir + graph_validate + parameter_semantics
+workflow 修复	graph_validate + node_compat + workflow_repair
+LoRA 任务	lora_project + model_binding
+ComfyUI 诊断	node_compat + model_binding + workflow_repair
+ComfyUI 预览	preview_policy + export_policy
+8. CWIM 与 ASM 的优先级
+冲突	优先级
+CWIM 要自动生成 workflow，但 ASM 风险策略要求确认	ASM 优先
+CWIM 建议某节点，但 ASM.tool 判断插件缺失	ASM.tool 优先
+CWIM 参数推荐与用户边界冲突	用户边界优先
+CWIM workflow 修复会越界改文件	ASM.file 优先
+CWIM 认为可自愈，但 FixabilityEstimator 低分	FixabilityEstimator 优先
+CWIM 生成成功，但 ASM.evaluator 不通过	ASM.evaluator 优先
+9. CWIM 降级后的目录建议
+methodologies/
+  asm/
+    core.md
+    tool.md
+    file.md
+    code.md
+    browser.md
+    skill.md
+    agent.md
+    media.md
+    evaluator.md
+  cwim/
+    manifest.json
+    workflow_ir.md
+    graph_validate.md
+    node_compat.md
+    parameter_semantics.md
+    lora_project.md
+    model_binding.md
+    workflow_repair.md
+    preview_policy.md
+
+cwim/manifest.json 示例：
+
+{
+  "id": "methodology.cwim",
+  "name": "ComfyUI Workflow Intelligence Methodology",
+  "parent": "ASM.media",
+  "domain": "comfyui",
+  "enabled_by_default": false,
+  "mount_when": {
+    "domain": ["comfyui"],
+    "tools": [
+      "submit_workflow",
+      "build_custom",
+      "preview_workflow",
+      "lora_train"
+    ]
+  },
+  "priority": "domain_specific",
+  "conflict_policy": "ASM_OVERRIDES_CWIM"
+}
+10. 最终规则
+CWIM 只回答 ComfyUI 领域问题。
+ASM 决定是否允许 CWIM 介入。
+ASM 控制风险、权限、证据、回滚和完成裁决。
+CWIM 提供 ComfyUI 专业判断。
+
+一句话：
+
+CWIM 从 CRUX 的总方法论降级为 ASM.media 下的 ComfyUI 专科方法论。

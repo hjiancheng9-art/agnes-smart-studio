@@ -1,0 +1,6 @@
+{"timestamp": 1783243499.1563454, "category": "rate_limit", "severity": "high", "count": 1, "recommendation": "", "summary": ""}
+{"timestamp": 1783243499.1563454, "category": "timeout", "severity": "high", "count": 1, "recommendation": "", "summary": ""}
+{"timestamp": 1783243499.1563454, "category": "rate_limit", "severity": "high", "count": 1, "recommendation": "", "summary": ""}
+{"timestamp": 1783243499.1563454, "category": "provider_unavailable", "severity": "high", "count": 1, "recommendation": "", "summary": ""}
+{"timestamp": 1783243499.1563454, "category": "rate_limit", "severity": "high", "count": 1, "recommendation": "", "summary": ""}
+{"timestamp": 1783246884.2658336, "category": "rate_limit", "severity": "medium", "count": 1, "recommendation": "降低请求频率或升级套餐", "summary": "主要故障: rate_limit (共1次) high=0 medium=1"}

@@ -1,0 +1,5 @@
+def _classify(self, path: Path, rule_name: str, rule: dict):
+        if not path.exists():
+            return None
+        if not self._inside_root(path):
+            return None

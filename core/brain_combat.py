@@ -504,4 +504,3 @@ class SmartBrainMixin:
             "video_prompt_hints": video_prompt_hints,
             "creative_prompt_hints": creative_prompt_hints,
         }
-

@@ -7,9 +7,15 @@ GPT 规格关键修正：
 """
 
 from core.asm import (
-    BaseMethodology, MethodologyCheck, MethodologyPolicy,
-    TaskProfile, TaskIntent, TaskDomain, RiskLevel,
-    MethodologyPhase, register,
+    BaseMethodology,
+    MethodologyCheck,
+    MethodologyPolicy,
+    TaskProfile,
+    TaskIntent,
+    TaskDomain,
+    RiskLevel,
+    MethodologyPhase,
+    register,
 )
 
 
@@ -19,7 +25,7 @@ class CodeMethodology(BaseMethodology):
     version = "1.0.0"
     intent_filters = {TaskIntent.EXECUTE, TaskIntent.HEAL, TaskIntent.REVIEW, TaskIntent.FIX}
     domain_filters = {TaskDomain.CODE}
-    
+
     def get_checks(self, task: TaskProfile) -> list[MethodologyCheck]:
         checks = [
             # BEFORE: 先查 diagnostics，不是跑完整测试套件
@@ -67,18 +73,20 @@ class CodeMethodology(BaseMethodology):
                 severity="warn",
             ),
         ]
-        
+
         # 临界风险额外检查
         if task.risk == RiskLevel.CRITICAL:
-            checks.append(MethodologyCheck(
-                phase=MethodologyPhase.WRAP,
-                name="rollback-ready",
-                description="临界风险修复：确认回滚方案就绪（patch_undo 可用）",
-                severity="block",
-            ))
-        
+            checks.append(
+                MethodologyCheck(
+                    phase=MethodologyPhase.WRAP,
+                    name="rollback-ready",
+                    description="临界风险修复：确认回滚方案就绪（patch_undo 可用）",
+                    severity="block",
+                )
+            )
+
         return checks
-    
+
     def get_policies(self) -> list[MethodologyPolicy]:
         return [
             MethodologyPolicy(

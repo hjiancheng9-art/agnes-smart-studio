@@ -878,7 +878,8 @@ def execute_lsp_completion(file_path: str = "", line: int = 0, character: int = 
         result = client.get_completion(file_path, line, character)
         return json.dumps(
             {"file": file_path, "line": line, "character": character, "completions": result},
-            ensure_ascii=False, indent=2,
+            ensure_ascii=False,
+            indent=2,
         )
     except ValueError as e:
         return json.dumps({"error": str(e)}, ensure_ascii=False)
@@ -894,9 +895,9 @@ def execute_lsp_rename(file_path: str = "", line: int = 0, character: int = 0, n
     try:
         result = client.rename(file_path, line, character, new_name)
         return json.dumps(
-            {"file": file_path, "line": line, "character": character,
-             "new_name": new_name, "changes": result},
-            ensure_ascii=False, indent=2,
+            {"file": file_path, "line": line, "character": character, "new_name": new_name, "changes": result},
+            ensure_ascii=False,
+            indent=2,
         )
     except ValueError as e:
         return json.dumps({"error": str(e)}, ensure_ascii=False)

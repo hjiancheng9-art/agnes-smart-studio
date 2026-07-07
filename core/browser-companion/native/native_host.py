@@ -19,11 +19,13 @@ import traceback
 import urllib.request
 from collections import deque
 from pathlib import Path
+from core.error_sink import catch
 
 HOST_NAME = "com.crux.bridge"
 PROTOCOL_VERSION = "1.0"
 
 # ── message I/O ──
+
 
 def read_message():
     """Read a JSON message from stdin (Native Messaging protocol)."""
@@ -52,8 +54,8 @@ def log(msg):
         log_dir.mkdir(parents=True, exist_ok=True)
         with open(str(log_dir / "native_bridge.log"), "a", encoding="utf-8") as f:
             f.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
-    except Exception:
-        pass
+    except Exception as _es:
+        catch(_es, "core/browser-companion/native/native_host", "swallowed")
 
 
 # ── State ──
@@ -67,6 +69,7 @@ OUTPUT_DIR = Path.home() / "Downloads" / "CRUX"
 
 
 # ── Handlers ──
+
 
 def handle_ping(msg):
     return {"type": "pong", "host": HOST_NAME, "version": PROTOCOL_VERSION}
@@ -147,6 +150,7 @@ HANDLERS = {
 
 
 # ── Main loop ──
+
 
 def main():
     log(f"Native host started (PID: {os.getpid()})")

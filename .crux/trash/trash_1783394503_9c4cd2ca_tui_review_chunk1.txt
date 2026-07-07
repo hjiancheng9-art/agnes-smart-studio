@@ -1,0 +1,200 @@
+        self._rendered_lines.clear()
+        for msg in self.message_store.all():
+            for line in msg.raw_text.splitlines() or [""]:
+                self._rendered_lines.append((msg.role, line, msg.id))
+M2：CopyManager 不要靠 _sync_copy_mgr 手动同步
+问题
+
+你现在 _sync_copy_mgr 只在 _submit_user_message 调用，stream_end 后没调用。这个会直接导致：
+
+刚流完的 assistant 消息无法复制
+last_assistant 是旧消息
+代码块索引落后
+详情页打开旧内容
+修改文件
+ui/copy_manager.py
+ui/tui_v2.py
+ui/message_pane.py
+实现方案
+
+CopyManager 直接持有 MessageStore，不需要同步：
+
+Python
+运行
+# ui/copy_manager.py
+class CopyManager:
+    def __init__(self, message_store: MessageStore, clipboard):
+        self.message_store = message_store
+        self.clipboard = clipboard
+        self.focused_message_id: str | None = None
+        self.focused_code_block_index: int | None = None
+
+    def get_focused_or_none(self):
+        if self.focused_message_id:
+            return self.message_store.get(self.focused_message_id)
+        return None
+
+    def copy_focused(self) -> str:
+        msg = self.get_focused_or_none()
+        if not msg:
+            raise RuntimeError("NO_FOCUSED_MESSAGE")
+        self.clipboard.copy(msg.raw_text)
+        return msg.id
+
+    def copy_last_assistant(self) -> str:
+        msg = self.message_store.last_assistant()
+        if not msg:
+            raise RuntimeError("NO_ASSISTANT_MESSAGE")
+        self.clipboard.copy(msg.raw_text)
+        return msg.id
+
+_sync_copy_mgr 可以删除。
+
+M3：复制行为必须显式，不要 c 静默 fallback 到 last_assistant
+问题
+
+你已经察觉到了：用户按 c，如果没聚焦却复制 last_assistant，这是不明确行为。
+
+修改文件
+ui/tui_v2.py
+ui/copy_manager.py
+设计
+c：
+  如果有 focused_message → 复制 focused
+  如果没有 focus → 提示“未选中消息，按 ↑↓ 选择，或用 /copy last”
+
+不要静默 fallback。
+
+实现
+Python
+运行
+# ui/tui_v2.py
+def _copy_current_message(self):
+    try:
+        msg_id = self.copy_manager.copy_focused()
+        self._set_status(f"已复制消息 {msg_id[:8]}")
+    except RuntimeError as e:
+        if str(e) == "NO_FOCUSED_MESSAGE":
+            self._set_status("未选中消息：按 ↑/↓ 选择消息，或输入 /copy last")
+        else:
+            self._set_status(f"复制失败：{e}")
+
+/copy last 保留作为显式命令。
+
+M4：建立统一 InputMode / KeyRouter，解决 detail_view 与 ↑↓ 冲突
+问题
+
+现在 keybinding 分散在 TuiAppV2._setup_keybindings，detail active 时 ↑↓ 与消息聚焦冲突。
+
+修改文件
+新增：ui/input_router.py
+修改：ui/tui_v2.py
+修改：ui/message_detail.py
+新增状态
+Python
+运行
+# ui/input_router.py
+from enum import Enum
+
+class InputMode(str, Enum):
+    NORMAL = "normal"
+    STREAMING = "streaming"
+    DETAIL = "detail"
+    COPY = "copy"
+    NATIVE_SELECT = "native_select"
+    COMMAND = "command"
+
+class InputRouter:
+    def __init__(self):
+        self.mode = InputMode.NORMAL
+
+    def set_mode(self, mode: InputMode):
+        self.mode = mode
+
+    def is_detail(self):
+        return self.mode == InputMode.DETAIL
+TuiAppV2 中集中分发
+Python
+运行
+def _handle_up(self, event):
+    mode = self.input_router.mode
+
+    if mode == InputMode.DETAIL:
+        self.message_detail.scroll_up()
+    elif mode == InputMode.COPY:
+        self.copy_mode.move_up()
+    elif mode == InputMode.NORMAL:
+        self.copy_manager.focus_prev_message()
+    else:
+        self.message_pane.scroll_up()
+
+不要让每个组件直接抢键。
+
+M5：MessageDetailScreen 必须变成真正 overlay，不要改 _empty_renderer
+问题
+
+MessageDetailScreen.render 直接设 message_pane._empty_renderer 是危险 hack：
+
+污染主面板状态
+关闭详情后可能恢复不完整
+滚动状态耦合
+无法做多层弹窗
+后续 copy mode / help overlay 会冲突
+修改文件
+ui/tui_v2.py
+ui/message_detail.py
+方案
+
+如果你用 prompt_toolkit，应该用 FloatContainer + Float。
+
+伪结构：
+
+Python
+运行
+from prompt_toolkit.layout.containers import FloatContainer, Float, HSplit, Window
+
+self.root_container = FloatContainer(
+    content=HSplit([
+        self.header,
+        self.body,
+        self.input_area,
+        self.status_bar,
+    ]),
+    floats=[
+        Float(
+            content=self.message_detail.container,
+            left=4,
+            right=4,
+            top=2,
+            bottom=2,
+            hide_when_covering_content=False,
+        )
+    ],
+)
+
+MessageDetailScreen 提供：
+
+Python
+运行
+class MessageDetailScreen:
+    def __init__(self):
+        self.active = False
+        self.message_id = None
+        self.message_text = ""
+        self.scroll = 0
+        self.container = ConditionalContainer(
+            content=Window(content=FormattedTextControl(self.render)),
+            filter=Condition(lambda: self.active),
+        )
+
+打开详情：
+
+Python
+运行
+def open_detail(self, message_id: str):
+    msg = self.message_store.get(message_id)
+    if not msg:
+        return
+    self.message_detail.open(msg)
+    self.input_router.set_mode(InputMode.DETAIL)
+    self.app.invalidate()

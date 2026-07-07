@@ -2,6 +2,7 @@
 
 Pure dataclasses shared by MultiAgentCoordinator, AgentSwarm, and SmartDecomposer.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

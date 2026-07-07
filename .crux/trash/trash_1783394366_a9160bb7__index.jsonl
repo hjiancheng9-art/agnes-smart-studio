@@ -1,0 +1,24 @@
+{"root_trace_id": "test_root_1234", "status": "failed", "goal": "test goal", "total": 3, "failed": 1, "duration_ms": 1500, "created_at": 1783241432.4025671}
+{"root_trace_id": "6bb790bd3c1543ca", "status": "done", "goal": "explore current directory briefly", "total": 4, "failed": 0, "duration_ms": 3, "created_at": 1783242239.9243095}
+{"root_trace_id": "2618a383bcd942b3", "status": "done", "goal": "explore current directory briefly", "total": 4, "failed": 0, "duration_ms": 0, "created_at": 1783242239.934912}
+{"root_trace_id": "9d3e17357d2743d9", "status": "done", "goal": "explore current directory briefly", "total": 4, "failed": 0, "duration_ms": 3, "created_at": 1783243325.6294622}
+{"root_trace_id": "01afbd4ea10745f1", "status": "done", "goal": "explore current directory briefly", "total": 4, "failed": 0, "duration_ms": 0, "created_at": 1783243325.6309671}
+{"root_trace_id": "6bd56e6eb0774335", "status": "done", "goal": "explore current directory briefly", "total": 4, "failed": 0, "duration_ms": 1, "created_at": 1783244100.0437498}
+{"root_trace_id": "3f0b92a4c89d4dce", "status": "done", "goal": "explore current directory briefly", "total": 4, "failed": 0, "duration_ms": 0, "created_at": 1783244100.052879}
+{"root_trace_id": "853c10e30e3f4da7", "status": "done", "goal": "explore current directory briefly", "total": 4, "failed": 0, "duration_ms": 2, "created_at": 1783246619.404914}
+{"root_trace_id": "c1e786d6d8024722", "status": "done", "goal": "explore current directory briefly", "total": 4, "failed": 0, "duration_ms": 0, "created_at": 1783246619.4079335}
+{"root_trace_id": "da424645f6264352", "status": "done", "goal": "探索当前目录结构", "total": 4, "failed": 0, "duration_ms": 13, "created_at": 1783246862.8888772}
+{"root_trace_id": "da424645f6264352", "status": "done", "goal": "探索当前目录结构", "total": 4, "failed": 0, "duration_ms": 13, "created_at": 1783246862.8903852}
+{"root_trace_id": "581d51f776884289", "status": "done", "goal": "explore current directory briefly", "total": 4, "failed": 0, "duration_ms": 2, "created_at": 1783247200.0518117}
+{"root_trace_id": "4c83adbcfaff4cd8", "status": "done", "goal": "explore current directory briefly", "total": 4, "failed": 0, "duration_ms": 0, "created_at": 1783247200.0548484}
+{"root_trace_id": "38f4365d21bb4c82", "status": "done", "goal": "explore current directory briefly", "total": 4, "failed": 0, "duration_ms": 1, "created_at": 1783260021.047971}
+{"root_trace_id": "9e604b1e8b004cd4", "status": "done", "goal": "explore current directory briefly", "total": 4, "failed": 0, "duration_ms": 1, "created_at": 1783260021.0542634}
+{"root_trace_id": "062ade4996194f86", "status": "done", "goal": "并行执行 TUI 代码的 3 路交叉审查：\n\nAgent 1 (Claude Code) — 通过 MCP 调用 claude_code_review 审查 u", "total": 4, "failed": 0, "duration_ms": 57284, "created_at": 1783260073.3576028}
+{"root_trace_id": "71c72b70183744e4", "status": "done", "goal": "explore current directory briefly", "total": 4, "failed": 0, "duration_ms": 3, "created_at": 1783269134.1012766}
+{"root_trace_id": "0e2c6cdc66de4060", "status": "done", "goal": "explore current directory briefly", "total": 4, "failed": 0, "duration_ms": 1, "created_at": 1783269134.1162853}
+{"root_trace_id": "fba5617348534375", "status": "done", "goal": "explore current directory briefly", "total": 4, "failed": 0, "duration_ms": 3, "created_at": 1783271425.8153465}
+{"root_trace_id": "639aabe59aa04bc7", "status": "done", "goal": "explore current directory briefly", "total": 4, "failed": 0, "duration_ms": 0, "created_at": 1783271425.821524}
+{"root_trace_id": "53be4b68ce0e4651", "status": "done", "goal": "explore current directory briefly", "total": 4, "failed": 0, "duration_ms": 2, "created_at": 1783271489.9170308}
+{"root_trace_id": "d6890a5f37b045f9", "status": "done", "goal": "explore current directory briefly", "total": 4, "failed": 0, "duration_ms": 0, "created_at": 1783271489.920547}
+{"root_trace_id": "3fad2c2df1ca4c19", "status": "done", "goal": "explore current directory briefly", "total": 4, "failed": 0, "duration_ms": 1, "created_at": 1783272357.72893}
+{"root_trace_id": "f8a488d56e0c47f9", "status": "done", "goal": "explore current directory briefly", "total": 4, "failed": 0, "duration_ms": 0, "created_at": 1783272357.7319777}

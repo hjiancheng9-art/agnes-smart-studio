@@ -1,0 +1,199 @@
+class PendingMessage:
+    id: str
+    text: str
+    created_at: float
+    commit_at: float
+    status: Literal["pending", "committed", "undone"]
+
+EventLog：
+
+message.pending
+message.committed
+message.undone
+message.consumed
+S2：RunStateManager 应该携带 run_id / reason / last_transition
+问题
+
+现在只有状态机：
+
+idle→running→pausing→paused→cancelling
+
+但没有足够解释信息。
+
+修改文件
+core/control_plane.py
+ui/tui_control.py
+实现
+Python
+运行
+@dataclass
+class RunStateSnapshot:
+    run_id: str | None
+    state: str
+    reason: str | None
+    last_transition_at: float
+    cancellable: bool
+    rollback_available: bool
+
+这样状态栏可以显示：
+
+Running · tool=pytest · cancellable=kill_process · Esc暂停 Ctrl+C取消
+S3：ControlEvent 应该有 target_run_id 和 message_id
+问题
+
+priority_message、cancel、pause 如果没有 target，会在多 run / child goal 时混乱。
+
+修改文件
+core/control_plane.py
+ui/tui_control.py
+实现
+Python
+运行
+@dataclass(order=True)
+class ControlEvent:
+    priority: int
+    created_at: float
+    type: str
+    target_run_id: str | None = None
+    message_id: str | None = None
+    payload: dict = field(default_factory=dict)
+S4：_stream_response 里轮询 _queued_text 不够干净
+问题
+
+for kind,payload in send_stream → 每轮检查 _queued_text 是临时解法。
+
+问题：
+
+如果流很久不 yield，插话无法及时处理
+queued_text 没有强类型
+不能区分 correction / priority / cancel
+修改文件
+ui/tui_v2.py
+core/control_plane.py
+改法
+
+不要检查 _queued_text，改检查 control_queue：
+
+Python
+运行
+def _drain_control_events(self):
+    while event := self.control_queue.pop_nowait():
+        self._handle_control_event(event)
+
+在每个 stream chunk 后：
+
+Python
+运行
+self._drain_control_events()
+
+如果底层工具支持 cancel token，也传进去。
+
+S5：ToolInterruptRegistry 不应该只靠 15 个预设
+问题
+
+15 个预设工具够 MVP，但后续 skill/tool marketplace 会失真。
+
+修改文件
+core/control_plane.py
+core/tool_contract.py 或 comfyui_contract.py
+改法
+
+工具 contract 加字段：
+
+JSON
+{
+  "cancellable": true,
+  "interrupt_mode": "cooperative",
+  "cleanup": "supported",
+  "rollback": "checkpoint"
+}
+
+ToolInterruptRegistry：
+
+Python
+运行
+def get_interrupt_mode(self, tool_name: str):
+    if tool_contract := self.contract_registry.get(tool_name):
+        return tool_contract.interrupt_mode
+    return self.presets.get(tool_name, "not_interruptible")
+S6：MessagePane 的 _pinned 需要更细的滚动语义
+问题
+
+只有 _pinned 一个布尔值不够。用户聚焦消息、打开详情、copy mode、手动滚动时，自动滚到底部策略不同。
+
+修改文件
+ui/message_pane.py
+建议
+Python
+运行
+class ScrollMode(str, Enum):
+    FOLLOW_TAIL = "follow_tail"
+    MANUAL = "manual"
+    FOCUS_MESSAGE = "focus_message"
+    DETAIL = "detail"
+    COPY = "copy"
+
+逻辑：
+
+stream_chunk:
+  FOLLOW_TAIL → scroll_to_bottom
+  MANUAL/FOCUS/COPY/DETAIL → 不抢滚动
+S7：/copy 命令解析应支持行号、代码块、格式
+修改文件
+ui/copy_manager.py
+ui/tui_v2.py
+命令设计
+/copy last
+/copy last markdown
+/copy 42
+/copy 42 plain
+/copy 42:10-30
+/copy code
+/copy code 2
+/copy last code 1
+
+解析器不要散在 _handle_command，放 CopyManager：
+
+Python
+运行
+def execute_copy(command: str) -> CopyResult:
+    ...
+S8：MessageDetailScreen 应支持 line/block selection
+修改文件
+ui/message_detail.py
+ui/copy_manager.py
+最小实现
+s        开始选择
+↑↓       移动光标
+Space    标记起点/终点
+Enter    复制选区
+Esc      退出选择/详情
+S9：复制结果要显示明确状态
+修改文件
+ui/tui_v2.py
+ui/status_bar.py 如果有
+
+状态例子：
+
+已复制 Assistant #42 全文 · 216 lines
+已复制代码块 2/3 · python · 48 lines
+未选中消息：按 ↑↓ 选择，或 /copy last
+剪贴板不可用：已保存到 .crux/clipboard/latest.txt
+S10：加 TUI 行为测试
+修改文件
+新增：tests/test_tui_copy_manager.py
+新增：tests/test_tui_control_plane.py
+新增：tests/test_message_store.py
+
+最低测试：
+
+stream_start/chunk/end 后 last_assistant 完整
+c 无 focus 不复制
+/copy last 正常
+Tab 聚焦代码块
+pending undo 不进入 committed
+detail active 时 ↑↓ 不影响 message focus
+Nice to Have — 可以后续做
+N1：真正 Copy Mode
+
+文件：

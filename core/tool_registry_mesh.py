@@ -18,6 +18,59 @@ from __future__ import annotations
 
 import json
 import logging
+from enum import IntEnum
+from typing import Any, Optional
+
+# ─── 工具分层（ChatGPT 评审建议） ───
+class ToolTier(IntEnum):
+    CORE = 1       # 核心高频工具（读文件、搜索、提交等）
+    COMMON = 2     # 常用工具（代码审查、Web获取等）
+    SPECIALIZED = 3  # 专用工具（ComfyUI、CDP等）
+    EXPERIMENTAL = 4  # 实验性工具
+
+TOOL_CATEGORIES: dict[str, list[str]] = {
+    "infra": ["read_file", "write_file", "edit_file", "patch_file",
+              "run_bash", "run_python", "search_files", "glob_files",
+              "list_files", "tree_dir", "env_check"],
+    "creative": ["generate_image", "generate_video", "imagegen",
+                 "text_to_speech", "comfyui_submit_workflow",
+                 "comfyui_build_custom_workflow", "comfyui_status"],
+    "code": ["run_test", "code_review", "tdd_run_tests", "tdd_cycle",
+             "git_add_commit", "git_branch", "git_push", "git_pull",
+             "run_lint", "run_format", "debug_inspect"],
+    "web": ["web_search", "web_fetch", "github_search", "github_repo_view",
+            "browser_screenshot", "pw_navigate", "pw_screenshot"],
+    "data": ["db_query"],
+    "ai": ["multi_agent", "agent_swarm", "trm_route",
+           "skill_search", "trm_growth"],
+}
+
+TOOL_TIERS: dict[str, int] = {
+    # Tier 1 - 核心
+    "read_file": 1, "write_file": 1, "edit_file": 1, "patch_file": 1,
+    "run_bash": 1, "run_python": 1, "search_files": 1, "glob_files": 1,
+    "web_search": 1, "generate_image": 1,
+    "git_add_commit": 1, "git_status": 1, "git_diff": 1,
+    "task_launch": 1, "todo_add": 1, "todo_list": 1,
+    # Tier 2 - 常用
+    "generate_video": 2, "web_fetch": 2,
+    "code_review": 2, "run_test": 2, "run_lint": 2, "run_format": 2,
+    "github_search": 2, "github_repo_view": 2, "github_readme": 2,
+    "browser_screenshot": 2, "view_image": 2,
+    "comfyui_list_models": 2,
+    # Tier 3 - 专用
+    "comfyui_submit_workflow": 3, "comfyui_build_custom_workflow": 3,
+    "multi_agent": 3, "agent_swarm": 3,
+    "tdd_run_tests": 3, "tdd_cycle": 3,
+    "mcp_call": 3, "mcp_connect": 3,
+    "http_request": 3,
+    # Tier 4 - 实验性
+    "comfyui_create_custom_node": 4, "comfyui_lora_prepare": 4,
+    "create_pdf": 4, "deploy_vercel": 4,
+    "comfyui_lora_generate_config": 4,
+}
+
+DEFAULT_TIER = 2
 import os
 import subprocess
 import sys
@@ -29,25 +82,17 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).parent.parent
-PYTHON = os.path.expanduser(
-    r"C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\python.exe"
-)
+PYTHON = os.path.expanduser(r"C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\python.exe")
 
 # ── Task categories for routing ────────────────────────────
 
 CATEGORY_META = {
-    "search":    {"order": [],
-                  "desc": "代码探索 / 搜索"},
-    "review":    {"order": [],
-                  "desc": "代码审查"},
-    "execute":   {"order": [],
-                  "desc": "编码实现"},
-    "think":     {"order": [],
-                  "desc": "深度分析 / 架构"},
-    "generate":  {"order": ["generate_image", "generate_video"],
-                  "desc": "媒体生成"},
-    "status":    {"order": ["*_status"],
-                  "desc": "状态检查"},
+    "search": {"order": [], "desc": "代码探索 / 搜索"},
+    "review": {"order": [], "desc": "代码审查"},
+    "execute": {"order": [], "desc": "编码实现"},
+    "think": {"order": [], "desc": "深度分析 / 架构"},
+    "generate": {"order": ["generate_image", "generate_video"], "desc": "媒体生成"},
+    "status": {"order": ["*_status"], "desc": "状态检查"},
 }
 
 
@@ -109,12 +154,13 @@ CRUX_BUILTIN_TOOLS = [
 # Data model
 # ═══════════════════════════════════════════════════════════════
 
+
 @dataclass
 class ToolEntry:
     name: str
     description: str
-    source: str           # "crux" | "codex" | "kimi" | ...
-    category: str         # "search" | "review" | "execute" | "think" | "generate" | "status" | "unknown"
+    source: str  # "crux" | "codex" | "kimi" | ...
+    category: str  # "search" | "review" | "execute" | "think" | "generate" | "status" | "unknown"
     input_schema: dict = field(default_factory=dict)
     latency_ms: float = 0.0
     error: str = ""
@@ -143,6 +189,7 @@ class RouteResult:
 # Main Registry
 # ═══════════════════════════════════════════════════════════════
 
+
 class ToolRegistryMesh:
     """Central tool registry, router, and cache for the nine-beast mesh."""
 
@@ -153,6 +200,9 @@ class ToolRegistryMesh:
         self._cache: dict[str, tuple[float, Any]] = {}  # key → (timestamp, result)
         self._cache_maxsize: int = 500
         self._cache_ttl: float = 30.0  # seconds
+        # ─── 增强：分层路由（ChatGPT评审建议） ───
+        self._tier_scores: dict[str, float] = {}  # tool_name → historical success rate
+        self._route_stats: dict[str, dict] = {}  # tool_name → {calls, successes, failures}
         self._callbacks: dict[str, Callable] = {}  # tool_name → async callable
         self._discovered = False
 
@@ -195,18 +245,30 @@ class ToolRegistryMesh:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True, encoding="utf-8", errors="replace",
+                text=True,
+                encoding="utf-8",
+                errors="replace",
                 cwd=str(ROOT),
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
             )
             assert proc.stdin is not None and proc.stdout is not None  # guaranteed by PIPE
 
             # Initialize handshake
-            init_msg = json.dumps({
-                "jsonrpc": "2.0", "id": 1, "method": "initialize",
-                "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                           "clientInfo": {"name": "trm", "version": "1.0.0"}}
-            }) + "\n"
+            init_msg = (
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "initialize",
+                        "params": {
+                            "protocolVersion": "2024-11-05",
+                            "capabilities": {},
+                            "clientInfo": {"name": "trm", "version": "1.0.0"},
+                        },
+                    }
+                )
+                + "\n"
+            )
 
             try:
                 proc.stdin.write(init_msg)
@@ -222,9 +284,7 @@ class ToolRegistryMesh:
                 return []
 
             # tools/list request
-            tll_msg = json.dumps({
-                "jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}
-            }) + "\n"
+            tll_msg = json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}) + "\n"
             try:
                 proc.stdin.write(tll_msg)
                 proc.stdin.flush()
@@ -243,7 +303,7 @@ class ToolRegistryMesh:
             return data.get("result", {}).get("tools", [])
 
         except Exception:
-            if 'proc' in locals():
+            if "proc" in locals():
                 proc.kill()
             return []
 
@@ -290,8 +350,7 @@ class ToolRegistryMesh:
             return "review"
         if any(kw in combined for kw in ["exec", "code", "implement", "write", "edit", "build"]):
             return "execute"
-        if any(kw in combined for kw in ["think", "plan", "analyze", "research", "architect",
-                                          "design", "deliberat"]):
+        if any(kw in combined for kw in ["think", "plan", "analyze", "research", "architect", "design", "deliberat"]):
             return "think"
         if any(kw in combined for kw in ["image", "video", "generate", "create", "render"]):
             return "generate"
@@ -341,6 +400,90 @@ class ToolRegistryMesh:
 
     # ── Routing ─────────────────────────────────────────────
 
+    # ─── 增强：分层工具方法（ChatGPT评审建议） ───
+
+    def get_tier(self, tool_name: str) -> int:
+        """获取工具层级（1-4），默认 COMMON(2)"""
+        return TOOL_TIERS.get(tool_name, DEFAULT_TIER)
+
+    def get_category(self, tool_name: str) -> str:
+        """获取工具分类"""
+        for cat, tools in TOOL_CATEGORIES.items():
+            if tool_name in tools:
+                return cat
+        return "other"
+
+    def list_by_tier(self, tier: int) -> list[str]:
+        """按层级列出工具"""
+        return [name for name in self._tools if self.get_tier(name) == tier]
+
+    def list_by_category(self, category: str) -> list[str]:
+        """按分类列出工具"""
+        return [name for name in self._tools if self.get_category(name) == category]
+
+    def suggest_tools(self, intent: str, max_results: int = 5) -> list[tuple[str, float]]:
+        """基于意图智能推荐工具（含分层加权）"""
+        intent_lower = intent.lower()
+        candidates = []
+
+        for name, entry in self._tools.items():
+            tier = self.get_tier(name)
+            cat = self.get_category(name)
+            
+            # 基础匹配分
+            score = 0.0
+            desc = (entry.description or "").lower()
+            if any(kw in intent_lower for kw in desc.split()[:10]):
+                score += 0.3
+            
+            # 关键词匹配
+            kw_map = {
+                "infra": ["文件", "读取", "搜索", "执行", "bash", "python"],
+                "creative": ["图片", "视频", "生成", "画", "create", "image", "video", "语音"],
+                "code": ["测试", "提交", "git", "审查", "重构", "lint", "format"],
+                "web": ["搜索", "查找", "github", "网页", "浏览器", "search"],
+                "data": ["数据库", "sql", "query"],
+                "ai": ["多智能体", "并行", "swarm", "技能"],
+            }
+            for kw in kw_map.get(cat, []):
+                if kw in intent_lower:
+                    score += 0.2
+
+            # 层级加权：层级越低权重越大
+            tier_weight = 1.0 / tier  # Tier 1=1.0, Tier 2=0.5, Tier 3=0.33, Tier 4=0.25
+            score *= tier_weight
+
+            # 历史成功率加权
+            stats = self._route_stats.get(name, {})
+            total_calls = stats.get("calls", 0)
+            if total_calls > 0:
+                success_rate = stats.get("successes", 0) / total_calls
+                score *= (0.5 + 0.5 * success_rate)
+
+            candidates.append((name, round(score, 3)))
+
+        candidates.sort(key=lambda x: -x[1])
+        return candidates[:max_results]
+
+    def record_call(self, tool_name: str, success: bool):
+        """记录工具调用结果，用于路由优化"""
+        if tool_name not in self._route_stats:
+            self._route_stats[tool_name] = {"calls": 0, "successes": 0, "failures": 0}
+        self._route_stats[tool_name]["calls"] += 1
+        if success:
+            self._route_stats[tool_name]["successes"] += 1
+        else:
+            self._route_stats[tool_name]["failures"] += 1
+
+    def get_route_stats(self) -> dict:
+        """获取路由统计"""
+        return {
+            name: stats for name, stats in sorted(
+                self._route_stats.items(),
+                key=lambda x: -x[1]["calls"]
+            )[:20]
+        }
+
     def route(self, intent: str, **kwargs) -> RouteResult:
         """Route a task intent to the best available tool.
 
@@ -360,10 +503,12 @@ class ToolRegistryMesh:
         meta = CATEGORY_META.get(intent)
         if not meta:
             return RouteResult(
-                tool="", source="",
+                tool="",
+                source="",
                 result=None,
                 error=f"Unknown intent: {intent}. Use: {', '.join(CATEGORY_META)}",
-                fallback_used=False, latency_ms=0,
+                fallback_used=False,
+                latency_ms=0,
             )
 
         # Try GrowthEngine optimized ordering first, merge with static fallback
@@ -392,15 +537,17 @@ class ToolRegistryMesh:
             # Record to GrowthEngine for adaptive learning
             try:
                 from core.growth_engine import hook_trm_route
-                hook_trm_route(intent, tool_name, success=success,
-                               latency_ms=latency, source=entry.source)
+
+                hook_trm_route(intent, tool_name, success=success, latency_ms=latency, source=entry.source)
             except Exception:
                 pass  # growth engine is non-critical
 
             if success:
                 return RouteResult(
-                    tool=tool_name, source=entry.source,
-                    result=result, error="",
+                    tool=tool_name,
+                    source=entry.source,
+                    result=result,
+                    error="",
                     fallback_used=(tool_name != first_tool),
                     latency_ms=latency,
                 )
@@ -411,7 +558,8 @@ class ToolRegistryMesh:
             source="",
             result=None,
             error=f"All tools failed for intent '{intent}'. Last: {last_error}",
-            fallback_used=False, latency_ms=0,
+            fallback_used=False,
+            latency_ms=0,
         )
 
     @staticmethod
@@ -436,18 +584,23 @@ class ToolRegistryMesh:
                     seen = set(persisted)
                     return persisted + [t for t in static_order if t not in seen]
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            import logging
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
 
         # 2. Try GrowthEngine live stats
         try:
             from core.growth_engine import get_growth_engine
+
             ge = get_growth_engine()
             learned = ge.get_route(intent)
             if learned:
                 seen = set(learned)
                 return learned + [t for t in static_order if t not in seen]
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            import logging
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
 
         # 3. Static fallback
         return list(static_order)
@@ -487,26 +640,40 @@ class ToolRegistryMesh:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True, encoding="utf-8", errors="replace",
+                text=True,
+                encoding="utf-8",
+                errors="replace",
                 cwd=str(ROOT),
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
             )
             assert proc.stdin is not None and proc.stdout is not None  # guaranteed by PIPE
 
             # Initialize first
-            init_msg = json.dumps({
-                "jsonrpc": "2.0", "id": 1, "method": "initialize",
-                "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                           "clientInfo": {"name": "trm", "version": "1.0.0"}}
-            }) + "\n"
+            init_msg = (
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "initialize",
+                        "params": {
+                            "protocolVersion": "2024-11-05",
+                            "capabilities": {},
+                            "clientInfo": {"name": "trm", "version": "1.0.0"},
+                        },
+                    }
+                )
+                + "\n"
+            )
             proc.stdin.write(init_msg)
             proc.stdin.flush()
 
             # Send tools/call
-            call_msg = json.dumps({
-                "jsonrpc": "2.0", "id": 2, "method": "tools/call",
-                "params": {"name": name, "arguments": kwargs}
-            }) + "\n"
+            call_msg = (
+                json.dumps(
+                    {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": name, "arguments": kwargs}}
+                )
+                + "\n"
+            )
             proc.stdin.write(call_msg)
             proc.stdin.flush()
 
@@ -518,7 +685,9 @@ class ToolRegistryMesh:
                     if line:
                         response_lines.append(line.strip())
                 except Exception:
-                    import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                    import logging
+
+                    logging.getLogger("crux").debug("silent except", exc_info=True)
 
             proc.kill()
 
@@ -538,7 +707,7 @@ class ToolRegistryMesh:
             return None
 
         except Exception as e:
-            if 'proc' in locals():
+            if "proc" in locals():
                 proc.kill()
             return {"error": str(e)}
 

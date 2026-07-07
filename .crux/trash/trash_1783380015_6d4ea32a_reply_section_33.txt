@@ -1,0 +1,11 @@
+lora_intermediate_checkpoints:
+    patterns:
+      - "lora_runs/**/checkpoints/epoch_*.safetensors"
+      - "lora_runs/**/checkpoints/step_*.safetensors"
+    action: "trash"
+    min_age_days: 30
+    risk: "high"
+    keep_patterns:
+      - "*best*"
+      - "*final*"
+      - "*last*"

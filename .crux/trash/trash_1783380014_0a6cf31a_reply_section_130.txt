@@ -1,0 +1,8 @@
+cookies/profile/session 不能自动删除。
+除非用户明确执行 reset browser profile。
+代码生成
+.crux/generated/
+  drafts/        # 30 天
+  patches/       # 30-90 天
+  applied/       # 保留摘要
+  rejected/      # 14 天

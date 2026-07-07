@@ -1,0 +1,283 @@
+Exception in thread Thread-1 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0xaf in position 4586: illegal multibyte sequence
+Exception in thread Thread-324 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0xaa in position 38: illegal multibyte sequence
+Exception in thread Thread-405 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0xaf in position 29: illegal multibyte sequence
+Exception in thread Thread-1270 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0xab in position 60: illegal multibyte sequence
+Exception in thread Thread-1272 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0x80 in position 55: illegal multibyte sequence
+Exception in thread Thread-1328 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0xa4 in position 31: illegal multibyte sequence
+Exception in thread Thread-1830 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0xab in position 49: illegal multibyte sequence
+Exception in thread Thread-1904 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0x88 in position 37: illegal multibyte sequence
+Exception in thread Thread-1906 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0x88 in position 37: illegal multibyte sequence
+Exception in thread Thread-1908 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0x88 in position 37: illegal multibyte sequence
+Exception in thread Thread-1910 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0x88 in position 37: illegal multibyte sequence
+Exception in thread Thread-1912 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0x88 in position 37: illegal multibyte sequence
+Exception in thread Thread-1914 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0x88 in position 37: illegal multibyte sequence
+Exception in thread Thread-1916 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0x88 in position 37: illegal multibyte sequence
+Exception in thread Thread-1918 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0x88 in position 37: illegal multibyte sequence
+Exception in thread Thread-1920 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0x88 in position 37: illegal multibyte sequence
+Exception in thread Thread-1922 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0x88 in position 37: illegal multibyte sequence
+Exception in thread Thread-1924 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0x88 in position 37: illegal multibyte sequence
+Exception in thread Thread-1926 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0x88 in position 37: illegal multibyte sequence
+Exception in thread Thread-1928 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0x88 in position 37: illegal multibyte sequence
+Exception in thread Thread-1930 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0x88 in position 37: illegal multibyte sequence
+Exception in thread Thread-2116 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\Lib\subprocess.py", line 1599, in _readerthread
+    buffer.append(fh.read())
+                  ^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0xae in position 54: illegal multibyte sequence
+╔════════════════════════════════════════════════════════════════════╗
+║  🧹 CRUX Cleanup Report — SCAN                                          ║
+╠════════════════════════════════════════════════════════════════════╣
+║  Run ID:    scan_1783379839                                     ║
+║  Time:      2026-07-07T07:17:19.939099                          ║
+║  Scanned:    2458 files, 535.2 MB       ║
+║  Duration:  44.46s                                                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║  🔒 Protected          1216 files                                       ║
+║  📋 Cache/Garbage       242 files                                       ║
+║  🗑️  Trash             234 files                                       ║
+║  ❓ Unknown             766 files                                       ║
+╠════════════════════════════════════════════════════════════════════╣
+║  🎯 Cleanable:    476 files, 189.3 MB       ║
+╠════════════════════════════════════════════════════════════════════╣
+║  ├─ generated_output                233 files / 182.1 MB  ║
+║  ├─ temp_files                      204 files /   3.8 MB  ║
+║  ├─ log_files                        30 files /   3.0 MB  ║
+║  ├─ browser_screenshots               9 files / 386.1 KB  ║
+╠════════════════════════════════════════════════════════════════════╣
+║  [T4] output\videos\Lunch_ByLoA_v2\Lunch_ByLoA_v2_fin...  31.4 MB  ║
+║  [T4] output\videos\Lunch_ByLoA_v2\Lunch_ByLoA_v2_sub...  27.9 MB  ║
+║  [T4] output\videos\Lunch_ByLoA_final.mp4                 16.5 MB  ║
+║  [T4] output\videos\vid_20260614_002943.mp4                4.0 MB  ║
+║  [T4] output\videos\vid_20260615_000341.mp4                3.9 MB  ║
+║  [T4] output\videos\vid_20260615_002036.mp4                3.6 MB  ║
+║  [T4] output\videos\vid_20260614_015749.mp4                3.6 MB  ║
+║  [T4] output\videos\vid_20260618_230226.mp4                3.4 MB  ║
+║  [T4] output\videos\vid_20260615_000725.mp4                3.2 MB  ║
+║  [T4] output\videos\vid_20260618_221225.mp4                2.7 MB  ║
+║  [T4] output\videos\vid_20260616_160916.mp4                2.5 MB  ║
+║  [T4] output\videos\vid_20260614_030830.mp4                2.4 MB  ║
+║  [T4] output\jianying_draft\Lunch_ByLoA\01_IMPORT_TO_...   2.4 MB  ║
+║  [T4] output\jianying_draft\Lunch_ByLoA\01_IMPORT_TO_...   2.4 MB  ║
+║  [T4] output\jianying_draft\Lunch_ByLoA\01_IMPORT_TO_...   2.4 MB  ║
+║  [T4] output\jianying_draft\Lunch_ByLoA\01_IMPORT_TO_...   2.4 MB  ║
+║  [T4] output\jianying_draft\Lunch_ByLoA\media\video\0...   2.4 MB  ║
+║  [T4] output\jianying_draft\Lunch_ByLoA\media\video\0...   2.4 MB  ║
+║  [T4] output\jianying_draft\Lunch_ByLoA\media\video\0...   2.4 MB  ║
+║  [T4] output\jianying_draft\Lunch_ByLoA\media\video\0...   2.4 MB  ║
+║  ... and 456 more files                                                ║
+╚════════════════════════════════════════════════════════════════════╝
+
+=== 摘要 ===
+总文件: 2458
+保护跳过: 1216
+可清理: 476
+分级: {'T0': 1216, 'unknown': 766, 'T3': 242, 'T4': 234}
+规则分布: {'protected_extension': 745, 'browser_screenshots': 9, 'log_files': 30, 'generated_output': 233, 'temp_files': 204}
+
+前十可清理文件:
+  [T4] output\videos\Lunch_ByLoA_v2\Lunch_ByLoA_v2_final.mp4         31.4 MB  (10d old)
+  [T4] output\videos\Lunch_ByLoA_v2\Lunch_ByLoA_v2_subtitled.mp4     27.9 MB  (10d old)
+  [T4] output\videos\Lunch_ByLoA_final.mp4                           16.5 MB  (10d old)
+  [T4] output\videos\vid_20260614_002943.mp4                          4.0 MB  (23d old)
+  [T4] output\videos\vid_20260615_000341.mp4                          3.9 MB  (22d old)
+  [T4] output\videos\vid_20260615_002036.mp4                          3.6 MB  (22d old)
+  [T4] output\videos\vid_20260614_015749.mp4                          3.6 MB  (23d old)
+  [T4] output\videos\vid_20260618_230226.mp4                          3.4 MB  (18d old)
+  [T4] output\videos\vid_20260615_000725.mp4                          3.2 MB  (22d old)
+  [T4] output\videos\vid_20260618_221225.mp4                          2.7 MB  (18d old)
+
+READY_TO_CLEAN

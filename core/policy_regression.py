@@ -47,9 +47,21 @@ def check_regression(request: dict, expected_first: str) -> tuple[bool, str]:
 def run_regression_suite() -> list[dict]:
     """运行回归测试套件。"""
     tests = [
-        ("coding task", {"task_type": "code", "require_code": True, "budget_remaining": 100, "prefer_local": False}, "deepseek"),
-        ("general text", {"task_type": "text", "require_code": False, "budget_remaining": 100, "prefer_local": False}, "deepseek"),
-        ("low budget", {"task_type": "text", "require_code": False, "budget_remaining": 10, "prefer_local": True}, "local"),
+        (
+            "coding task",
+            {"task_type": "code", "require_code": True, "budget_remaining": 100, "prefer_local": False},
+            "deepseek",
+        ),
+        (
+            "general text",
+            {"task_type": "text", "require_code": False, "budget_remaining": 100, "prefer_local": False},
+            "deepseek",
+        ),
+        (
+            "low budget",
+            {"task_type": "text", "require_code": False, "budget_remaining": 10, "prefer_local": True},
+            "local",
+        ),
     ]
 
     results = []

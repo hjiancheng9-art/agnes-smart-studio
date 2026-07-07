@@ -33,12 +33,13 @@ logger = logging.getLogger(__name__)
 # 错误分类
 # ═══════════════════════════════════════════════════════════════════
 
+
 class ErrorLayer(Enum):
-    L1_JSON = "L1"       # JSON 结构 — 中止，不自愈
-    L2_GRAPH = "L2"      # 图拓扑 — 高自动修复率
-    L3_CONTRACT = "L3"   # 节点契约 — 中自动修复率
-    L4_RESOURCE = "L4"   # 运行时资源 — 中自动修复率
-    L5_SEMANTIC = "L5"   # 业务语义 — 仅通知
+    L1_JSON = "L1"  # JSON 结构 — 中止，不自愈
+    L2_GRAPH = "L2"  # 图拓扑 — 高自动修复率
+    L3_CONTRACT = "L3"  # 节点契约 — 中自动修复率
+    L4_RESOURCE = "L4"  # 运行时资源 — 中自动修复率
+    L5_SEMANTIC = "L5"  # 业务语义 — 仅通知
 
     @classmethod
     def from_str(cls, s: str) -> "ErrorLayer":
@@ -49,17 +50,18 @@ class ErrorLayer(Enum):
 
 
 class AutoFixLevel(Enum):
-    ABORT = "abort"              # 不修复，直接反馈用户
-    HIGH = "high"                # 规则化修复，高成功率
-    MEDIUM = "medium"            # 可尝试修复，需验证
-    CAUTIOUS = "cautious"        # 小心修复，依赖上下文
+    ABORT = "abort"  # 不修复，直接反馈用户
+    HIGH = "high"  # 规则化修复，高成功率
+    MEDIUM = "medium"  # 可尝试修复，需验证
+    CAUTIOUS = "cautious"  # 小心修复，依赖上下文
 
 
 @dataclass
 class ErrorRecord:
     """错误记录 — 来自 Validator 的单个问题。"""
-    layer: str           # L1/L2/L3/L4/L5
-    message: str         # 错误描述
+
+    layer: str  # L1/L2/L3/L4/L5
+    message: str  # 错误描述
     node_id: str | None = None
     fix_hint: str | None = None
     error_code: str | None = None  # 标准化错误码
@@ -74,23 +76,26 @@ class ErrorRecord:
 @dataclass
 class RecoveryDecision:
     """对单个错误的修复决策。"""
+
     error: ErrorRecord
     fix_level: AutoFixLevel
-    strategy: str               # 修复策略描述
+    strategy: str  # 修复策略描述
     can_auto_fix: bool = True
-    repair: str | None = None   # 修复方法描述
-    fallback: str | None = None # 回退方案
+    repair: str | None = None  # 修复方法描述
+    fallback: str | None = None  # 回退方案
 
 
 # ═══════════════════════════════════════════════════════════════════
 # RecoveryPlan — 分层级恢复策略
 # ═══════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class RepairPatch:
     """单个确定性修复补丁。"""
-    action: str                 # delete_node / add_node / reconnect / clamp_param / replace_model
-    target: str                 # node_id 或其他目标
+
+    action: str  # delete_node / add_node / reconnect / clamp_param / replace_model
+    target: str  # node_id 或其他目标
     params: dict = field(default_factory=dict)
     description: str = ""
 
@@ -98,6 +103,7 @@ class RepairPatch:
 @dataclass
 class RecoveryPlan:
     """完整恢复计划 — 由 Validator 报告生成。"""
+
     can_recover: bool = False
     patches: list[RepairPatch] = field(default_factory=list)
     decisions: list[RecoveryDecision] = field(default_factory=list)
@@ -106,14 +112,16 @@ class RecoveryPlan:
     summary: str = ""
 
     def add_patch(self, action: str, target: str, **params):
-        self.patches.append(RepairPatch(action=action, target=target, params=params,
-                                         description=f"{action} on {target}"))
+        self.patches.append(
+            RepairPatch(action=action, target=target, params=params, description=f"{action} on {target}")
+        )
         self.can_recover = True
 
 
 @dataclass
 class RecoveryResult:
     """恢复执行结果。"""
+
     success: bool
     plan: RecoveryPlan
     applied_patches: list[RepairPatch] = field(default_factory=list)
@@ -162,14 +170,29 @@ class ErrorKnowledgeBase:
             """)
             conn.commit()
 
-    def record(self, error_code: str, error_pattern: str, layer: str,
-               fix_applied: str, success: bool, source_workflow: str | None = None):
+    def record(
+        self,
+        error_code: str,
+        error_pattern: str,
+        layer: str,
+        fix_applied: str,
+        success: bool,
+        source_workflow: str | None = None,
+    ):
         """记录一次错误修复。"""
         with sqlite3.connect(self._db_path) as conn:
             conn.execute(
                 "INSERT INTO error_knowledge (error_code, error_pattern, layer, fix_applied, success, source_workflow, created_at) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (error_code, error_pattern[:200], layer, fix_applied, 1 if success else 0, source_workflow, time.time()),
+                (
+                    error_code,
+                    error_pattern[:200],
+                    layer,
+                    fix_applied,
+                    1 if success else 0,
+                    source_workflow,
+                    time.time(),
+                ),
             )
             conn.commit()
 
@@ -182,19 +205,14 @@ class ErrorKnowledgeBase:
                 "ORDER BY created_at DESC LIMIT ?",
                 (error_code, limit),
             ).fetchall()
-        return [
-            {"pattern": r[0], "fix": r[1], "success": bool(r[2]), "retry_after": r[3]}
-            for r in rows
-        ]
+        return [{"pattern": r[0], "fix": r[1], "success": bool(r[2]), "retry_after": r[3]} for r in rows]
 
     def get_stats(self) -> dict:
         """获取知识库统计。"""
         with sqlite3.connect(self._db_path) as conn:
             total = conn.execute("SELECT COUNT(*) FROM error_knowledge").fetchone()[0]
             success = conn.execute("SELECT COUNT(*) FROM error_knowledge WHERE success = 1").fetchone()[0]
-            layers = conn.execute(
-                "SELECT layer, COUNT(*) FROM error_knowledge GROUP BY layer"
-            ).fetchall()
+            layers = conn.execute("SELECT layer, COUNT(*) FROM error_knowledge GROUP BY layer").fetchall()
         return {
             "total": total,
             "success_rate": round(success / total * 100, 1) if total else 0,
@@ -205,6 +223,7 @@ class ErrorKnowledgeBase:
 # ═══════════════════════════════════════════════════════════════════
 # ExecutionRecovery — 执行恢复器
 # ═══════════════════════════════════════════════════════════════════
+
 
 class ExecutionRecovery:
     """执行恢复器 — 将 Validator 结果转化为修复计划并执行。"""
@@ -244,7 +263,8 @@ class ExecutionRecovery:
 
         if layer == ErrorLayer.L1_JSON:
             return RecoveryDecision(
-                error=err, fix_level=AutoFixLevel.ABORT,
+                error=err,
+                fix_level=AutoFixLevel.ABORT,
                 strategy="L1 结构错误，禁止自动修复",
                 can_auto_fix=False,
                 fallback="反馈用户：工作流结构异常，请检查 JSON 格式",
@@ -253,7 +273,8 @@ class ExecutionRecovery:
         if layer == ErrorLayer.L2_GRAPH:
             if "孤立" in msg or "orphan" in msg or "无连接" in msg:
                 return RecoveryDecision(
-                    error=err, fix_level=AutoFixLevel.HIGH,
+                    error=err,
+                    fix_level=AutoFixLevel.HIGH,
                     strategy="删除孤立节点",
                     can_auto_fix=True,
                     repair=f"删除孤立节点 {err.node_id}",
@@ -261,20 +282,23 @@ class ExecutionRecovery:
                 )
             if "死端" in msg or "dead" in msg:
                 return RecoveryDecision(
-                    error=err, fix_level=AutoFixLevel.HIGH,
+                    error=err,
+                    fix_level=AutoFixLevel.HIGH,
                     strategy="删除死端节点或接入主链",
                     can_auto_fix=True,
                     repair=f"删除死端节点 {err.node_id}",
                 )
             if "循环" in msg or "cycle" in msg:
                 return RecoveryDecision(
-                    error=err, fix_level=AutoFixLevel.MEDIUM,
+                    error=err,
+                    fix_level=AutoFixLevel.MEDIUM,
                     strategy="断开循环连接",
                     can_auto_fix=True,
                     repair="断开循环引用",
                 )
             return RecoveryDecision(
-                error=err, fix_level=AutoFixLevel.MEDIUM,
+                error=err,
+                fix_level=AutoFixLevel.MEDIUM,
                 strategy="检查图拓扑连接",
                 can_auto_fix=True,
                 repair="自动重连",
@@ -283,7 +307,8 @@ class ExecutionRecovery:
         if layer == ErrorLayer.L3_CONTRACT:
             if "缺少必需输入" in msg or "missing" in msg:
                 return RecoveryDecision(
-                    error=err, fix_level=AutoFixLevel.MEDIUM,
+                    error=err,
+                    fix_level=AutoFixLevel.MEDIUM,
                     strategy="查找上游可兼容输出并连接",
                     can_auto_fix=True,
                     repair=f"为 {err.node_id} 补充缺少的输入",
@@ -291,14 +316,16 @@ class ExecutionRecovery:
                 )
             if "节点类型不在本体" in msg or "unknown" in msg:
                 return RecoveryDecision(
-                    error=err, fix_level=AutoFixLevel.CAUTIOUS,
+                    error=err,
+                    fix_level=AutoFixLevel.CAUTIOUS,
                     strategy="查 extension_map 或降级替换",
                     can_auto_fix=True,
                     repair=f"替换未知节点 {err.node_id}",
                     fallback="移除该节点",
                 )
             return RecoveryDecision(
-                error=err, fix_level=AutoFixLevel.MEDIUM,
+                error=err,
+                fix_level=AutoFixLevel.MEDIUM,
                 strategy="尝试参数范围修正",
                 can_auto_fix=True,
                 repair="clamp 参数到合法范围",
@@ -307,7 +334,8 @@ class ExecutionRecovery:
         if layer == ErrorLayer.L4_RESOURCE:
             if "显存" in msg or "vram" in msg or "batch" in msg:
                 return RecoveryDecision(
-                    error=err, fix_level=AutoFixLevel.HIGH,
+                    error=err,
+                    fix_level=AutoFixLevel.HIGH,
                     strategy="降分辨率/减 batch_size",
                     can_auto_fix=True,
                     repair="降低 batch_size 到 1",
@@ -315,14 +343,16 @@ class ExecutionRecovery:
                 )
             if "模型" in msg or "model" in msg or "checkpoint" in msg:
                 return RecoveryDecision(
-                    error=err, fix_level=AutoFixLevel.MEDIUM,
+                    error=err,
+                    fix_level=AutoFixLevel.MEDIUM,
                     strategy="尝试替代模型",
                     can_auto_fix=True,
                     repair=f"查找 {err.node_id} 的替代模型",
                     fallback="提示用户安装缺失模型",
                 )
             return RecoveryDecision(
-                error=err, fix_level=AutoFixLevel.MEDIUM,
+                error=err,
+                fix_level=AutoFixLevel.MEDIUM,
                 strategy="检查资源约束",
                 can_auto_fix=True,
                 repair="调整资源配置",
@@ -330,7 +360,8 @@ class ExecutionRecovery:
 
         # L5: 仅通知
         return RecoveryDecision(
-            error=err, fix_level=AutoFixLevel.CAUTIOUS,
+            error=err,
+            fix_level=AutoFixLevel.CAUTIOUS,
             strategy="语义问题，需用户确认",
             can_auto_fix=False,
             fallback="向用户展示语义检查结果",
@@ -399,8 +430,11 @@ class ExecutionRecovery:
             applied_patches=patches_applied,
             audit_log=audit,
         )
+
+
 # 便捷函数
 # ═══════════════════════════════════════════════════════════════════
+
 
 def create_error_record(validation_issue: Any) -> ErrorRecord:
     """从 ValidationIssue 创建 ErrorRecord。"""
@@ -412,8 +446,9 @@ def create_error_record(validation_issue: Any) -> ErrorRecord:
     )
 
 
-def auto_recover(workflow: dict, validation_errors: list[Any],
-                 error_kb: ErrorKnowledgeBase | None = None) -> RecoveryResult:
+def auto_recover(
+    workflow: dict, validation_errors: list[Any], error_kb: ErrorKnowledgeBase | None = None
+) -> RecoveryResult:
     """一键自动恢复：分析 → 修复 → 返回结果。"""
     recovery = ExecutionRecovery(error_kb)
     errors = [create_error_record(e) for e in validation_errors]

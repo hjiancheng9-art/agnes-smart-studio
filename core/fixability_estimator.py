@@ -11,6 +11,7 @@
   - FixabilityEstimator: 三阶段编排器
 
 用法：
+from core.error_sink import catch
   from core.fixability_estimator import estimate_fixability
   
   result = estimate_fixability("self_heal", "CUDA out of memory", ctx)
@@ -395,8 +396,8 @@ class LLMAnalyzer:
         try:
             system_state["python_version"] = sys.version[:30]
             system_state["platform"] = sys.platform
-        except Exception:
-            pass
+        except Exception as _es:
+            catch(_es, "core.fixability_estimator", "swallowed")
         try:
             import torch
             system_state["torch_version"] = torch.__version__
@@ -408,8 +409,8 @@ class LLMAnalyzer:
             import shutil
             _, _, free = shutil.disk_usage(os.getcwd())
             system_state["free_disk_mb"] = free // (1024 * 1024)
-        except Exception:
-            pass
+        except Exception as _es:
+            catch(_es, "core.fixability_estimator", "swallowed")
         
         prompt = self._prompt_template.format(
             error_type=error_type,

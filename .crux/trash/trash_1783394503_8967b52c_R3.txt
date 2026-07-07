@@ -1,0 +1,75 @@
+         self._rendered_lines.append((msg.role, line, msg.id))
+M2：CopyManager 不要靠 _sync_copy_mgr 手动同步
+问题
+
+你现在 _sync_copy_mgr 只在 _submit_user_message 调用，stream_end 后没调用。这个会直接导致：
+
+刚流完的 assistant 消息无法复制
+last_assistant 是旧消息
+代码块索引落后
+详情页打开旧内容
+修改文件
+ui/copy_manager.py
+ui/tui_v2.py
+ui/message_pane.py
+实现方案
+
+CopyManager 直接持有 MessageStore，不需要同步：
+
+Python
+运行
+# ui/copy_manager.py
+class CopyManager:
+    def __init__(self, message_store: MessageStore, clipboard):
+        self.message_store = message_store
+        self.clipboard = clipboard
+        self.focused_message_id: str | None = None
+        self.focused_code_block_index: int | None = None
+
+    def get_focused_or_none(self):
+        if self.focused_message_id:
+            return self.message_store.get(self.focused_message_id)
+        return None
+
+    def copy_focused(self) -> str:
+        msg = self.get_focused_or_none()
+        if not msg:
+            raise RuntimeError("NO_FOCUSED_MESSAGE")
+        self.clipboard.copy(msg.raw_text)
+        return msg.id
+
+    def copy_last_assistant(self) -> str:
+        msg = self.message_store.last_assistant()
+        if not msg:
+            raise RuntimeError("NO_ASSISTANT_MESSAGE")
+        self.clipboard.copy(msg.raw_text)
+        return msg.id
+
+_sync_copy_mgr 可以删除。
+
+M3：复制行为必须显式，不要 c 静默 fallback 到 last_assistant
+问题
+
+你已经察觉到了：用户按 c，如果没聚焦却复制 last_assistant，这是不明确行为。
+
+修改文件
+ui/tui_v2.py
+ui/copy_manager.py
+设计
+c：
+  如果有 focused_message → 复制 focused
+  如果没有 focus → 提示“未选中消息，按 ↑↓ 选择，或用 /copy last”
+
+不要静默 fallback。
+
+实现
+Python
+运行
+# ui/tui_v2.py
+def _copy_current_message(self):
+    try:
+        msg_id = self.copy_manager.copy_focused()
+        self._set_status(f"已复制消息 {msg_id[:8]}")
+    except RuntimeError as e:
+        if str(e) == "NO_FOCUSED_MESSAGE":
+            self._set_status("未选中

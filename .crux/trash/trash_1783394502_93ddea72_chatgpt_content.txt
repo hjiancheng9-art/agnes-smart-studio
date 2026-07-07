@@ -1,0 +1,1675 @@
+跳至内容
+黄
+历史聊天记录
+ChatGPT Plus
+新聊天
+搜索
+文件库
+项目
+已安排
+应用
+Codex
+更多
+已置顶
+Fantasy Concept Art Request
+Codex 方法论全本
+CRUX Studio架构诊断
+最近
+CRUX 架构演进建议
+CWIM 方法论与改进建议
+V2项目工作流模板数据
+ComfyUI模板提取脚本
+导出V2 ComfyUI模板数据
+方向选择与推进建议
+ComfyUI架构审计
+新烬龙V2架构分析
+ComfyUI 架构审计
+今日日期与星期
+颜色色号识别
+问题诊断指导
+高级模型与低级模型切换影响
+GPT生图生视频方法论
+Lunch Video Storyboard
+Lunch Scene Request
+Lunch Scene Image Request
+Lunch Scene Description
+Codex 503 错误排查
+Codex接入DeepSeek配置
+Claude Code 文件修复
+显卡4060ti编码模型推荐
+Pixar 3D 角色设计
+Cinematic storyboard generation
+Storyboard keyframe request
+Storyboard Blueprint Request
+Cinematic Keyframe Blueprint
+Storyboard Keyframe Blueprint
+黄
+黄建程
+Plus
+分享
+
+我会直接按实现决策来讲：EventLog 不要在热路径同步写 SQLite；AST 可以抓到直白恶意，但不能作为安全边界；TRM 冷启动更像“带先验的上下文 bandit”，不是纯 ε-greedy。
+
+已思考 24s
+
+下面只回答你指定的三块：Q3 EventLog 存储、Q4 AST 边界、TRM 冷启动 bandit 策略。
+
+Q3：EventLog 存储——SQLite 可以用，但不要热路径同步写
+
+你的倾向 SQLite 是对的，但实现方式要避免：
+
+每次工具调用 → 同步 insert SQLite → commit
+
+这样会把工具热路径绑死在 I/O 上，尤其 agent_swarm 并发时会出现锁等待。
+
+我的建议是：
+
+内存队列 / ring buffer
+→ 异步批量写 SQLite
+→ 可选 JSONL 旁路备份
+推荐结构
+Hot Path:
+tool_call 结束
+→ event_queue.put_nowait(event)
+→ 立即返回
+
+Background Writer:
+每 50-200ms 或累计 32-128 条
+→ SQLite batch insert
+→ commit
+
+也就是：SQLite 是主存储，但写入由异步 writer 承担。
+
+最小落地架构
+EventEmitter
+  ├─ in-memory ring buffer，用于驾驶舱实时显示
+  ├─ async SQLite writer，用于持久化和 metrics 聚合
+  └─ optional JSONL mirror，用于崩溃恢复/人工排查
+
+ring buffer 保最近：
+
+最近 1000-10000 条事件
+
+SQLite 保完整历史或按天清理。
+
+SQLite 设置建议
+SQL
+PRAGMA journal_mode = WAL;
+PRAGMA synchronous = NORMAL;
+PRAGMA busy_timeout = 250;
+PRAGMA temp_store = MEMORY;
+
+WAL + NORMAL 对 CRUX 这类本地 Agent 平台比较合适：写入性能好，崩溃风险可接受。
+
+表结构建议
+
+你给的 schema 可以作为最小版，但我建议多加几个字段，否则后面 trace、goal、self-heal 很快不够用：
+
+SQL
+CREATE TABLE IF NOT EXISTS event_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id TEXT UNIQUE NOT NULL,
+    timestamp TEXT NOT NULL,
+
+    session_id TEXT,
+    run_id TEXT,
+    goal_id TEXT,
+    step_id TEXT,
+
+    trace_id TEXT,
+    span_id TEXT,
+    parent_span_id TEXT,
+
+    event_type TEXT NOT NULL,
+    intent TEXT,
+    tool TEXT,
+
+    status TEXT NOT NULL,
+    duration_ms INTEGER,
+    error_type TEXT,
+
+    input_digest TEXT,
+    output_digest TEXT,
+
+    metadata_json TEXT
+);
+
+索引：
+
+SQL
+CREATE INDEX IF NOT EXISTS idx_event_ts ON event_log(timestamp);
+CREATE INDEX IF NOT EXISTS idx_event_run ON event_log(run_id);
+CREATE INDEX IF NOT EXISTS idx_event_goal ON event_log(goal_id);
+CREATE INDEX IF NOT EXISTS idx_event_tool ON event_log(tool);
+CREATE INDEX IF NOT EXISTS idx_event_type ON event_log(event_type);
+
+你原 schema 里缺的关键字段是：
+
+event_type
+run_id
+goal_id
+step_id
+trace_id/span_id
+input_digest/output_digest
+
+否则后面你只能知道“patch_file 成功了”，但不知道它属于哪个 goal、哪个 step、哪个 self-heal 阶段、前后状态是什么。
+
+热路径性能策略
+
+事件写入应分级：
+
+critical event：不能丢
+normal event：尽量写
+debug event：队列满时可采样/丢弃
+
+critical 包括：
+
+patch_file
+delete/write
+self_heal
+rollback
+goal_completed/failed
+skill_install
+permission_denied
+
+如果队列满了，不要阻塞所有工具调用。策略：
+
+critical：阻塞最多 50-100ms，仍失败则写 emergency JSONL
+normal：降级采样
+debug：直接丢弃
+结论
+
+CRUX 最优方案：
+
+SQLite 作为主持久层。
+内存 ring buffer 作为实时层。
+异步批量 writer 避免阻塞热路径。
+JSONL 作为可选崩溃旁路。
+
+不要直接同步写 SQLite。
+也不要只用内存 ring buffer，否则 self-heal 和成长引擎无法做长期统计。
+
+Q4：AST 能不能检测 __import__('os').system('rm -rf /')
+
+能检测这个直白版本。
+
+AST 里它大概长这样：
+
+Python
+运行
+Call(
+    func=Attribute(
+        value=Call(
+            func=Name(id="__import__"),
+            args=[Constant(value="os")]
+        ),
+        attr="system"
+    ),
+    args=[Constant(value="rm -rf /")]
+)
+
+所以 AST visitor 可以抓：
+
+Call(func=Name("__import__"))
+Attribute(attr="system")
+Constant("os")
+Constant("rm -rf /")
+
+最小检测规则：
+
+Python
+运行
+import ast
+
+DANGEROUS_NAMES = {
+    "__import__", "eval", "exec", "compile", "open",
+    "getattr", "setattr", "delattr", "globals", "locals", "vars"
+}
+
+DANGEROUS_MODULES = {
+    "os", "sys", "subprocess", "socket", "requests",
+    "urllib", "importlib", "ctypes", "shutil", "pathlib"
+}
+
+DANGEROUS_ATTRS = {
+    "system", "popen", "remove", "unlink", "rmdir",
+    "rmtree", "rename", "replace", "spawn", "fork",
+    "execv", "execve", "Popen", "run", "call"
+}
+
+class SkillSecurityVisitor(ast.NodeVisitor):
+    def __init__(self):
+        self.findings = []
+
+    def visit_Import(self, node):
+        for alias in node.names:
+            root = alias.name.split(".")[0]
+            if root in DANGEROUS_MODULES:
+                self.findings.append(("dangerous_import", alias.name, node.lineno))
+        self.generic_visit(node)
+
+    def visit_ImportFrom(self, node):
+        root = (node.module or "").split(".")[0]
+        if root in DANGEROUS_MODULES:
+            self.findings.append(("dangerous_import_from", node.module, node.lineno))
+        self.generic_visit(node)
+
+    def visit_Call(self, node):
+        if isinstance(node.func, ast.Name):
+            if node.func.id in DANGEROUS_NAMES:
+                self.findings.append(("dangerous_call", node.func.id, node.lineno))
+
+        if isinstance(node.func, ast.Attribute):
+            if node.func.attr in DANGEROUS_ATTRS:
+                self.findings.append(("dangerous_attr_call", node.func.attr, node.lineno))
+
+        self.generic_visit(node)
+
+这个能抓到：
+
+Python
+运行
+__import__("os").system("rm -rf /")
+
+但问题是：AST 只能抓明显模式，不能作为安全边界。
+
+AST 抓不稳的绕过方式
+
+例如：
+
+Python
+运行
+m = "__im" + "port__"
+getattr(__builtins__, m)("os").system("rm -rf /")
+
+或者：
+
+Python
+运行
+name = "".join(["o", "s"])
+fn = getattr(__builtins__, "__import__")(name)
+getattr(fn, "system")("rm -rf /")
+
+或者：
+
+Python
+运行
+import importlib
+importlib.import_module("os").system("rm -rf /")
+
+或者更隐蔽：
+
+Python
+运行
+().__class__.__base__.__subclasses__()
+
+通过对象图找文件、进程、loader、subprocess 相关类。
+
+所以边界是：
+
+AST 可以做 suspicious scoring。
+AST 不能证明代码安全。
+对你三层设计的修正
+
+你现在的设计是：
+
+L1 AST + 能力声明，通过则运行
+L2 suspicious subprocess
+L3 Docker
+
+我建议改成：
+
+L1 prompt-only / declarative skill：
+不执行任意 Python，最快路径
+
+L2 trusted Python skill：
+即使 AST 通过，也在 subprocess 运行
+
+L3 suspicious / marketplace Python skill：
+subprocess + restricted cwd + no secrets + no network + timeout + capability proxy
+
+L4 high-risk skill：
+Docker / Windows Sandbox / WSL sandbox
+
+关键变化：
+
+不要让任意 Python 技能在 CRUX 主进程内运行。哪怕 AST 通过。
+
+因为一旦主进程内执行，技能可以：
+
+读 CRUX 内存
+改全局状态
+猴子补丁 monkey patch
+拿环境变量
+污染 sys.modules
+挂死事件循环
+破坏日志
+绕过权限代理
+
+所以最低要求：
+
+Python skill = subprocess
+Declarative skill = in-process
+Prompt-only skill = in-process
+运行时能力模型
+
+不要给技能真实文件系统 API。给 capability proxy：
+
+Python
+运行
+def run(ctx, input):
+    content = ctx.fs.read_project_file("README.md")
+    return {"summary": content[:500]}
+
+ctx.fs.read_project_file 内部做：
+
+路径规范化
+目录越界检测
+权限检查
+大小限制
+EventLog 记录
+敏感文件拦截
+
+即使技能在 subprocess 中，也不要让它自由 open()。
+
+结论
+
+对你的具体问题：
+
+AST 能检测 __import__('os').system(...) 这种直白写法。
+但不能可靠检测所有变体。
+所以 AST 只能用于 suspicious 标记，不能作为安全边界。
+
+CRUX 的安全底线应该是：
+
+任意 Python 技能不进主进程。
+所有 Python 技能至少 subprocess。
+高风险技能才 Docker。
+
+这样不会牺牲太多体验，也不会把主进程暴露给技能包。
+
+新话题：TRM 成长引擎冷启动
+
+你的直觉 ε-greedy 简单、可解释，这没错。
+但对 Agent 工具路由，我不建议把 ε-greedy 作为主策略。
+
+原因：
+
+ε-greedy 会随机探索。
+随机探索在普通推荐系统里可以接受。
+但在 Agent 工具路由里，错误工具可能产生副作用。
+
+例如：
+
+本该 review，却探索到 execute
+本该 patch preview，却探索到 patch_file
+本该本地搜索，却探索到联网发送
+本该只读，却探索到 shell
+
+所以 TRM 不是普通 bandit，而是：
+
+带安全约束的上下文 bandit。
+
+三种策略对比
+1. ε-greedy
+
+机制：
+
+1 - ε：选当前最优工具
+ε：随机选一个候选工具
+
+优点：
+
+实现最简单
+可解释
+容易调参
+
+缺点：
+
+探索太盲
+不利用不确定性
+对高风险工具不安全
+低频 intent 学得慢
+
+适合 CRUX 的位置：
+
+只适合 Top-K 安全候选内部的小比例探索。
+不适合作为全局路由主策略。
+
+例如：
+
+只在 risk <= low 且候选工具同属 intent 时，
+以 3%-5% 概率在 top-3 内探索。
+2. UCB
+
+机制：
+
+score = mean_reward + c * uncertainty_bonus
+
+优点：
+
+鼓励探索样本少的工具
+比 ε-greedy 不那么随机
+可解释性较好
+
+缺点：
+
+对非平稳环境不够灵活
+容易过度探索新工具
+reward 定义不好时会被污染
+上下文适配能力弱
+
+适合 CRUX 的位置：
+
+工具健康度探索
+provider fallback 探索
+同一能力不同供应商排序
+
+比如：
+
+同样是 search：
+crux_search vs kimi_search vs codebuddy_search
+
+UCB 很适合比较这些“能力相似、风险相近”的工具。
+
+3. Thompson Sampling
+
+机制：
+
+为每个工具维护成功率分布。
+每次从分布采样一个可能成功率。
+选采样值最高的工具。
+
+优点：
+
+天然平衡探索/利用
+比 ε-greedy 更少盲目随机
+适合冷启动先验
+可以表达不确定性
+可以按 intent / namespace 建模
+
+缺点：
+
+实现比 ε-greedy 稍复杂
+解释性略差
+reward 设计要谨慎
+
+我认为它最适合 CRUX 的 TRM 成长引擎。
+
+但不是裸 Thompson Sampling，而是：
+
+Constrained Contextual Thompson Sampling with Priors
+带约束、带上下文、带先验的 Thompson Sampling。
+
+推荐方案：规则路由 + 先验分数 + Thompson Sampling 微调
+
+CRUX 工具路由不要完全交给 bandit。应该分层：
+
+1. Policy gate
+   过滤掉风险不允许的工具
+
+2. Intent / capability retrieval
+   关键词 + embedding 召回 top-K
+
+3. Static prior score
+   根据 tool manifest / schema / route card 打初始分
+
+4. Thompson Sampling
+   在安全候选中做成长排序
+
+5. Deterministic override
+   对危险/确定场景强制固定工具
+
+也就是说，bandit 只做：
+
+候选工具之间的排序微调
+
+不要让 bandit 决定：
+
+是否允许危险工具
+是否跨 intent
+是否绕过确认
+冷启动先验怎么设
+
+新工具不能随机排。给它一个先验。
+
+先验来自：
+
+intent match
+capability match
+schema fit
+关键词分数
+embedding 分数
+namespace 可信度
+skill trust tier
+相似工具历史表现
+静态 eval 分数
+
+例如每个工具维护：
+
+JSON
+{
+  "tool": "patch_file",
+  "intent": "execute",
+  "success_alpha": 18,
+  "success_beta": 4,
+  "latency_mu": 700,
+  "latency_sigma": 120,
+  "risk_penalty": 0.15,
+  "cost_penalty": 0.05
+}
+
+对于新工具：
+
+如果和高质量旧工具相似：
+alpha/beta 继承部分先验
+
+如果是 marketplace 新工具：
+保守先验
+
+如果本地可信工具：
+中性偏乐观先验
+
+如果高风险工具：
+强保守先验
+
+示例：
+
+trusted built-in tool:
+Beta(8, 2)
+
+new local trusted skill:
+Beta(5, 3)
+
+new marketplace skill:
+Beta(2, 4)
+
+suspicious skill:
+Beta(1, 6)
+
+这比 ε-greedy 冷启动安全得多。
+
+Reward 不要只看 success
+
+Agent 工具路由里的 reward 应该是复合的：
+
+reward =
+  success
+- wrong_tool_penalty
+- fallback_penalty
+- latency_penalty
+- cost_penalty
+- user_interruption_penalty
+- rollback_penalty
+- false_success_penalty
+
+建议归一化到 0-1：
+
+Python
+运行
+reward = 0.0
+
+if call.success:
+    reward += 0.60
+
+if evaluator_pass:
+    reward += 0.25
+
+if no_fallback:
+    reward += 0.05
+
+if latency_ms <= latency_budget:
+    reward += 0.05
+
+if no_user_correction:
+    reward += 0.05
+
+if rollback:
+    reward -= 0.40
+
+if false_fix_suspected:
+    reward -= 0.50
+
+if policy_violation:
+    reward = 0.0
+
+注意：
+tool_call success 不是最终成功。比如 patch_file 成功写入文件，但 goal_evaluate failed，这个 reward 不能高。
+
+上下文维度
+
+不要只维护：
+
+tool_success_rate
+
+要维护：
+
+success_rate by intent
+success_rate by task_type
+success_rate by project_type
+success_rate by risk_level
+success_rate by model/provider
+success_rate by error_type
+
+最小 key：
+
+(intent, tool)
+
+更好：
+
+(intent, capability, tool)
+
+高级：
+
+(intent, capability, project_language, tool)
+
+例如：
+
+patch_file 在 Python 项目表现好
+但在 TypeScript monorepo 可能表现一般
+
+kimi_search 在中文知识检索表现好
+但代码库本地搜索不如 ripgrep
+冷启动新 intent
+
+新 intent 没历史时，不应该随机试工具。策略：
+
+1. 继承父 intent 先验
+2. 使用 capability match
+3. 使用 offline eval seed
+4. 只在低风险候选中探索
+
+例如新 intent 是：
+
+refactor
+
+可以继承：
+
+review + execute
+
+但权限上更靠近 execute，所以 risk policy 更严格。
+
+新工具加入的上线策略
+
+新工具不要直接进入主路由。
+
+推荐 lifecycle：
+
+shadow
+→ canary
+→ active
+→ preferred
+→ quarantined
+shadow
+
+只参与打分，不实际调用。
+
+记录：
+如果启用它，它会排第几？
+它和实际选择工具是否一致？
+它是否经常误入候选？
+canary
+
+小流量，只在低风险场景启用。
+
+risk <= low
+confidence margin 小
+用户无副作用任务
+active
+
+正常参与排序。
+
+preferred
+
+历史表现显著好于旧工具。
+
+quarantined
+
+失败率、超时、误路由、策略违规过高。
+
+我对三种算法的最终选择
+主策略：Constrained Thompson Sampling
+辅助策略：UCB for provider/tool variants
+兜底策略：ε-greedy within safe top-3
+
+具体：
+
+工具能力差异大：
+用 Thompson Sampling
+
+供应商能力相似：
+用 UCB
+
+低风险且需要探索：
+top-3 ε-greedy，ε=0.03-0.05
+
+高风险/写操作：
+禁止随机探索，只允许确定性选择或用户确认
+TRM 冷启动落地版
+
+最小实现：
+
+Python
+运行
+def rank_tools(intent, query, candidates, context):
+    safe_candidates = policy_gate(candidates, context)
+
+    for tool in safe_candidates:
+        static = static_route_score(intent, query, tool)
+        prior = load_or_init_prior(intent, tool)
+        sampled_success = beta_sample(prior.alpha, prior.beta)
+
+        tool.final_score = (
+            0.50 * static
+            + 0.30 * sampled_success
+            + 0.10 * tool.health_score
+            + 0.05 * tool.latency_score
+            + 0.05 * tool.trust_score
+            - tool.risk_penalty
+        )
+
+    return sorted(safe_candidates, key=lambda t: t.final_score, reverse=True)
+
+更新：
+
+Python
+运行
+def update_tool_posterior(intent, tool, reward):
+    stat = load_stat(intent, tool)
+
+    if reward >= 0.7:
+        stat.alpha += 1
+    elif reward <= 0.3:
+        stat.beta += 1
+    else:
+        stat.alpha += 0.3
+        stat.beta += 0.3
+
+    save_stat(stat)
+
+更细可以用连续 reward，而不是二元 success/failure。
+
+最终建议汇总
+EventLog
+SQLite 主存储可以。
+但必须异步批量写。
+热路径只写内存队列。
+ring buffer 用于实时 UI。
+SQLite 用于历史、metrics、self-heal 证据。
+AST
+能检测直白 __import__('os').system(...)。
+不能证明安全。
+任意 Python 技能不要进主进程。
+AST 只做 suspicious scoring。
+TRM 冷启动
+不要用裸 ε-greedy。
+推荐：
+规则过滤 + 静态先验 + Constrained Thompson Sampling。
+UCB 用于同能力 provider 选择。
+ε-greedy 只在低风险 top-3 内小比例探索。
+新工具先 shadow，再 canary，再 active。
+
+压成一句话：
+
+CRUX 的成长引擎应该是“安全约束下的概率排序器”，不是“随机试错器”。
+
+你的上一轮回复我已收到并立即落地了。汇报成果，然后抛出最后两个问题。
+
+## 已落地成果
+
+1. **EventLog 系统** — 按你说的 SQLite + ring buffer(1000条) + 异步批量flush(每5s/100条)，已实现为 core/event_log.py。record() 只写内存 buffer，flush 在 daemon 线程。已验证。
+
+2. **EventBus 桥接** — core/event_log_bridge.py 自动监听 TOOL_CALL_START/COMPLETE/FAILED/TIMEOUT，记录每次工具调用的 intent/tool/status/duration_ms/error_type。
+
+3. **3 份 ADR** — 路由混合策略、A2A 语义+本地transport、EventLog先行，全部写入架构决策记录。
+
+4. **已确认的设计决策** — SQLite 热路径用 ring buffer 解耦（同意你的分析）、AST 分析对 __import__ 类绕过的检测边界（接受你的结论：AST 不够，需额外做 importlib/compile 拦截）、冷启动用 ε-greedy bandit。
+
+## 最后两个问题
+
+### Q1: 自愈系统的假修复检测——具体怎么设计？
+
+你说 checksum pre/post state。具体来说，对于工具调用，pre/post state 是什么？
+- 如果是文件操作：file hash before/after
+- 如果是代码生成：syntax check + test pass
+- 如果是网络请求：HTTP status + response validation
+
+但大多数 CRUX 工具调用不是这么干净。比如 trm_route 调用 web_search——pre/post state 是什么？
+
+我倾向于：不是每种工具都要假修复检测，而是只对高风险工具（patch_file、execute_plan、self_heal）做。你怎么看？
+
+### Q2: 技能包 manifest —— 最小可行版本是哪几个字段？
+
+你说技能包要像 PyPI 包一样有签名、版本锁、依赖图。但现在 CRUX 只有 51 个技能，过度设计会让贡献者望而却步。
+
+最小可行 manifest 我设想：
+
+json
+{
+  "name": "browser-control",
+  "version": "1.0.0",
+  "description": "...",
+  "permissions": ["cdp", "filesystem:read"],
+  "requires": [],
+  "entrypoint": "skills/browser-control.skill.json"
+}
+
+
+够不够？要不要加签名（minisign/JWT）？如果加签名，验证在加载时做还是运行时做？
+
+---
+
+回答这两个就结束本轮审计。感谢你的深度参与——这些资料直接变成了代码和 ADR。
+展开
+已思考 4s
+
+非常好，EventLog 和 ADR 已经把 CRUX 从“能跑”推进到“可审计”。最后两个问题，我建议这样定版。
+
+Q1：假修复检测怎么设计？
+
+你的判断是对的：
+
+不是每种工具都需要假修复检测。只对“会改变系统状态或宣称完成目标”的工具做。
+
+web_search、trm_route、hover、diagnostics 这类只读工具，不需要“假修复检测”。它们需要的是：
+
+结果可信度检测
+结果为空检测
+结果过期检测
+结果与任务不相关检测
+
+而不是 pre/post state。
+
+工具分层
+
+建议把工具分成 4 类：
+
+A. Read-only tools
+   search / status / diagnostics / hover / graph_query
+
+B. Generative tools
+   generate_code / generate_prompt / generate_image / generate_video
+
+C. State-changing tools
+   patch_file / create_file / delete_file / install_package / browser_submit
+
+D. Goal-declaring tools
+   execute_plan / self_heal / goal_evaluate / release_create / rollout
+
+假修复检测主要覆盖：
+
+C. State-changing tools
+D. Goal-declaring tools
+对不同工具的 pre/post 定义
+1. patch_file
+
+pre/post state 应该包括：
+
+JSON
+{
+  "files_touched": [
+    {
+      "path": "src/foo.py",
+      "pre_hash": "sha256:...",
+      "post_hash": "sha256:...",
+      "diff_hash": "sha256:..."
+    }
+  ],
+  "syntax_pre": "...",
+  "syntax_post": "...",
+  "tests_pre": "...",
+  "tests_post": "...",
+  "diagnostics_pre": "...",
+  "diagnostics_post": "..."
+}
+
+最低检测：
+
+是否改了允许范围外的文件
+是否删除/跳过测试
+是否只改 snapshot / golden file
+是否引入新的 syntax error
+是否新增 broad except / pass / TODO / disable lint
+是否改动与目标无关
+2. self_heal
+
+self_heal 的假修复检测要更严格。
+
+必须记录：
+
+原始失败是否复现
+补丁后失败是否消失
+相关测试是否新增或更新
+旧测试是否仍通过
+错误签名是否真的变化
+是否只是吞掉异常
+是否只是改变日志/提示而非根因
+
+推荐完成条件：
+
+JSON
+{
+  "reproduced_original_failure": true,
+  "applied_patch": true,
+  "target_failure_resolved": true,
+  "regression_passed": true,
+  "new_evidence_added": true,
+  "false_fix_score": 0.12
+}
+
+如果没有 reproduced_original_failure，self_heal 不能宣称 completed，只能是：
+
+status = mitigated | attempted | needs_review
+3. execute_plan
+
+execute_plan 的 pre/post 不应该盯单个工具，而应该盯 goal-level evidence。
+
+JSON
+{
+  "goal_id": "...",
+  "pre": {
+    "repo_hash": "...",
+    "failing_tests": ["..."],
+    "open_diagnostics": 12,
+    "known_errors": ["..."]
+  },
+  "post": {
+    "repo_hash": "...",
+    "failing_tests": [],
+    "open_diagnostics": 2,
+    "known_errors": []
+  },
+  "acceptance": {
+    "finish_line_met": true,
+    "boundaries_respected": true,
+    "budget_respected": true
+  }
+}
+
+execute_plan 的重点是：
+
+有没有完成 finish_line
+有没有越界
+有没有消耗超预算
+有没有把错误转移到别处
+有没有留下未处理 fallback
+4. generate_code
+
+代码生成本身不一定改状态，所以不要强行假修复检测。
+但如果它输出代码并被 patch_file 应用，则检测在 patch_file 层做。
+
+如果只是生成文本：
+
+schema_valid
+syntax_valid
+compilation_possible
+references_resolved
+5. web_search / trm_route
+
+这类不要做 pre/post checksum。
+
+它们应该记录：
+
+JSON
+{
+  "query": "...",
+  "selected_tool": "web_search",
+  "candidate_tools": ["web_search", "wiki_search", "file_search"],
+  "route_confidence": 0.82,
+  "result_count": 8,
+  "empty_result": false,
+  "fallback_used": false
+}
+
+需要的是 route quality，而不是 false-fix。
+
+建议新增一个字段：tool_effect_class
+
+每个工具 manifest / contract 加：
+
+JSON
+{
+  "effect_class": "readonly | generative | state_changing | goal_declaring",
+  "requires_false_fix_scan": false
+}
+
+规则：
+
+readonly:
+  不做假修复检测
+
+generative:
+  做 schema/syntax/quality check
+
+state_changing:
+  做 pre/post state diff
+
+goal_declaring:
+  做 evidence-level false-fix scan
+最小落地版本
+
+你现在可以先实现这 3 个：
+
+1. patch_file pre/post file hash + diff hash
+2. self_heal reproduction/evidence checklist
+3. execute_plan goal evidence summary
+
+暂时不要覆盖所有工具。
+
+最终结论：
+
+假修复检测不是工具通用能力，而是状态改变和目标完成类工具的验收层。
+
+Q2：技能包 manifest 最小可行版本
+
+你给的这个版本基本够 MVP：
+
+JSON
+{
+  "name": "browser-control",
+  "version": "1.0.0",
+  "description": "...",
+  "permissions": ["cdp", "filesystem:read"],
+  "requires": [],
+  "entrypoint": "skills/browser-control.skill.json"
+}
+
+但我建议最小可行版再加 5 个字段，否则后面会返工：
+
+JSON
+{
+  "id": "crux.browser-control",
+  "name": "browser-control",
+  "version": "1.0.0",
+  "description": "...",
+  "category": "tool",
+  "entrypoint": "skills/browser-control.skill.json",
+  "runtime": "declarative",
+  "permissions": ["cdp", "filesystem:read"],
+  "requires": [],
+  "capabilities": ["browser_control", "page_inspect"],
+  "min_crux_version": "5.0.0",
+  "trust": {
+    "level": "local"
+  }
+}
+字段解释
+id
+
+必须有。name 可以展示给人看，但系统内部要用稳定 id。
+
+JSON
+"id": "crux.browser-control"
+
+否则后面会出现：
+
+browser-control
+browser_control
+BrowserControl
+com.crux.browser-control
+
+导致依赖、权限、统计全乱。
+
+runtime
+
+必须有。
+
+JSON
+"runtime": "prompt | declarative | python | subprocess | docker"
+
+这决定怎么加载技能。
+
+推荐 MVP 支持：
+
+prompt
+declarative
+python_subprocess
+
+不要让任意 Python 默认主进程执行。
+
+capabilities
+
+必须有。
+
+JSON
+"capabilities": ["browser_control", "page_inspect"]
+
+permissions 是“允许访问什么”，capabilities 是“能完成什么”。
+TRM 路由需要的是 capabilities。
+
+min_crux_version
+
+建议有。
+
+JSON
+"min_crux_version": "5.0.0"
+
+否则 CRUX v5.2 改了 skill API，旧技能会静默坏掉。
+
+trust
+
+MVP 可以很简单：
+
+JSON
+"trust": {
+  "level": "local"
+}
+
+枚举：
+
+builtin
+local
+marketplace
+verified
+untrusted
+
+这个字段会影响：
+
+是否允许自动运行
+是否需要 subprocess
+是否需要用户确认
+是否允许网络/文件写入
+是否进入 TRM 主路由
+最小 manifest v1 建议
+JSON
+{
+  "schema_version": "1.0",
+  "id": "crux.browser-control",
+  "name": "browser-control",
+  "version": "1.0.0",
+  "description": "Control and inspect browser pages through CDP.",
+  "category": "tool",
+  "runtime": "declarative",
+  "entrypoint": "skills/browser-control.skill.json",
+  "capabilities": ["browser_control", "page_inspect"],
+  "permissions": ["cdp", "filesystem:read"],
+  "requires": [],
+  "min_crux_version": "5.0.0",
+  "trust": {
+    "level": "local"
+  }
+}
+
+这已经足够 MVP，不会吓退贡献者。
+
+要不要加签名？
+
+我的建议：
+
+现在 manifest v1 不强制签名。
+但字段要预留。
+
+可以加 optional：
+
+JSON
+"signature": {
+  "type": "none"
+}
+
+未来升级为：
+
+JSON
+"signature": {
+  "type": "minisign",
+  "key_id": "...",
+  "value": "..."
+}
+
+或者：
+
+JSON
+"signature": {
+  "type": "sigstore",
+  "bundle": "..."
+}
+
+不建议用 JWT 作为技能包签名主方案。JWT 更适合声明身份和授权，不是最自然的软件包完整性签名格式。
+minisign/cosign/sigstore 这类更贴近包分发场景。
+
+验证在加载时做还是运行时做？
+
+答案是：
+
+加载时验证完整性。
+运行时验证权限。
+
+具体：
+
+加载时
+
+检查：
+
+manifest schema 是否合法
+id/version 是否合法
+entrypoint 是否存在
+requires 是否满足
+min_crux_version 是否满足
+signature 是否有效
+hash 是否匹配
+权限是否超过 trust level
+
+加载失败则技能不进入 registry。
+
+运行时
+
+检查：
+
+这次调用是否请求了声明外权限
+是否访问越界路径
+是否联网
+是否调用 CDP 危险动作
+是否超时
+是否消耗预算
+是否需要用户确认
+
+也就是说：
+
+signature 证明“这个包没被篡改”
+manifest 说明“它声称要什么权限”
+runtime guard 决定“它这一刻能不能做”
+
+签名不能替代运行时权限控制。
+
+MVP 不要做太重
+
+你现在只有 51 个技能，不需要立刻引入完整供应链系统。
+
+推荐路线：
+
+v1:
+manifest schema + permissions + capabilities + runtime + trust
+
+v1.1:
+entrypoint hash / lockfile
+
+v1.2:
+optional minisign signature
+
+v1.3:
+marketplace install requires signature
+
+v2:
+trusted publishing / attestation
+最终定版建议
+假修复检测
+只覆盖高风险和目标完成类工具：
+patch_file
+execute_plan
+self_heal
+release / rollout / rollback
+install / delete / write
+
+readonly 工具不做 pre/post checksum。
+它们做 result quality / route quality 记录。
+
+核心字段：
+
+JSON
+{
+  "effect_class": "state_changing",
+  "requires_false_fix_scan": true
+}
+Skill manifest
+
+你给的版本够 MVP，但建议升级为：
+
+JSON
+{
+  "schema_version": "1.0",
+  "id": "crux.browser-control",
+  "name": "browser-control",
+  "version": "1.0.0",
+  "description": "...",
+  "category": "tool",
+  "runtime": "declarative",
+  "entrypoint": "skills/browser-control.skill.json",
+  "capabilities": ["browser_control"],
+  "permissions": ["cdp", "filesystem:read"],
+  "requires": [],
+  "min_crux_version": "5.0.0",
+  "trust": {
+    "level": "local"
+  },
+  "signature": {
+    "type": "none"
+  }
+}
+
+一句话收束：
+
+CRUX 现在不需要“大而全”的治理系统，但每个 schema 都要为未来治理预留位置。
+
+Q1/Q2 已落地。汇报成果。
+
+## Q1 落地：假修复检测
+
+core/fake_fix_detector.py — 已实现：
+
+- **仅对高风险工具检测**：patch_file, execute_plan, self_heal, pip_install
+- **Pre/post state**：文件 hash + git diff --stat
+- **三态分类**：fix-probable / fix-unknown / fix-spurious
+- **隔离机制**：error_signature = sha256(tool + error_type + context)，24h 内同签名最多重试 3 次，超过则 quarantine
+
+已验证：
+- 无变更场景 → fix-spurious ✅
+- 第4次同错误重试 → 拒绝（quarantined）✅
+
+## Q2 落地：技能包 Manifest
+
+core/skill_manifest.py — 已实现：
+
+
+json
+{
+  "name": "browser-control",
+  "version": "1.2.0",
+  "description": "...",
+  "runtime": "declarative",
+  "permissions": ["cdp", "browser:navigate", "browser:screenshot", "browser:input", "network:outbound"],
+  "requires": [],
+  "entrypoint": "skills/browser-control.skill.json",
+  "integrity": "",
+  "min_crux_version": "5.0.0",
+  "author": "CRUX Studio"
+}
+
+
+关键设计：
+- permission 是 capability-based（"cdp" 而非 "filesystem:write"）
+- runtime 决定执行方式：prompt | declarative | python_subprocess | python_inline | docker
+- integrity 加载时校验，不做运行时扫描
+- semver + validate() 方法
+
+---
+
+## 新话题：下一步
+
+两个问题想在本次对话中收尾：
+
+### Q1: 假修复检测的冷启动
+quarantine 依赖 error_signature 积累。新部署的 CRUX 没有任何 quarantine 数据 → 所有 self-heal 都会执行 → 可能重复踩坑。怎么解决？我想到两个方案：
+- A: 预置一个 seed quarantine list（常见 ComfyUI 错误 → 不重试）
+- B: 放行前 3 次但记录 → 第 4 次自动隔离（当前方案，但有学习成本）
+
+### Q2: manifest 迁移路径
+现有 51 个技能包都没有 manifest。强制迁移会破坏兼容。我打算：
+- 阶段1：自动生成默认 manifest（name=文件名, runtime=prompt, permissions=[]）
+- 阶段2：鼓励技能作者手动补充
+- 阶段3：新技能必须有 manifest，旧技能 6 个月宽限期
+
+你觉得这个路径合理吗？
+
+---
+
+另外，这一轮对话的产出汇总：
+| 模块 | 文件 | 状态 |
+|------|------|------|
+| EventLog | core/event_log.py | ✅ |
+| Bridge | core/event_log_bridge.py | ✅ |
+| 假修复检测 | core/fake_fix_detector.py | ✅ |
+| 技能 Manifest | core/skill_manifest.py | ✅ |
+| ADR | 3 份 | ✅ |
+| 路由规范 | ADR-0001 | ✅ |
+| A2A 语义 | ADR-0002 | ✅ |
+| EventLog | ADR-0003 | ✅ |
+
+这个对话产出了 5 个代码模块 + 3 份 ADR。值得。
+展开
+已思考 7s
+
+这轮产出确实值。你已经把 CRUX 从“功能堆叠”推进到了 可观测 + 可治理 + 可回滚 的阶段。
+
+下面收尾回答两个问题。
+
+Q1：假修复检测的冷启动
+
+你的两个方案里，A 和 B 不应该二选一。最佳方案是：
+
+Seed policy + 本地学习 quarantine
+
+也就是：
+
+预置 seed 规则，避免已知死坑；
+同时保留“24h 内同签名 3 次，第 4 次 quarantine”的在线学习。
+不建议只用 B
+
+只放行前三次的问题是：
+
+新部署必踩坑
+高成本 self-heal 会重复消耗
+危险修复可能污染代码库
+ComfyUI / pip / 环境类错误很容易无限试错
+
+例如这些错误不应该靠真实失败学习：
+
+pip install permission denied
+CUDA out of memory
+model file missing
+ComfyUI custom node missing
+网络超时 / 404
+Python import path 错误
+Windows 文件锁
+
+它们很多不是“代码修复”能解决的。
+
+但也不建议 seed quarantine 太硬
+
+不要做成：
+
+遇到某类错误 → 永久不重试
+
+因为同一个错误类型在不同上下文下可能可修。
+
+应该做成 seed policy，不是纯 quarantine list。
+
+建议枚举：
+
+allow_retry
+limited_retry
+requires_new_evidence
+requires_user_action
+downgrade_to_diagnosis
+quarantine
+
+例如：
+
+JSON
+{
+  "signature_pattern": "CUDA out of memory",
+  "tool": "self_heal",
+  "policy": "downgrade_to_diagnosis",
+  "reason": "资源不足通常不能通过代码补丁修复",
+  "max_retries": 0
+}
+JSON
+{
+  "signature_pattern": "ModuleNotFoundError",
+  "tool": "self_heal",
+  "policy": "requires_user_action",
+  "reason": "可能需要安装依赖或修正环境",
+  "max_retries": 1
+}
+JSON
+{
+  "signature_pattern": "SyntaxError",
+  "tool": "patch_file",
+  "policy": "limited_retry",
+  "max_retries": 2
+}
+推荐实现
+
+加一个 core/fake_fix_seed_policy.py：
+
+Python
+运行
+class FakeFixSeedPolicy:
+    def classify(self, tool: str, error_type: str, context: dict) -> PolicyDecision:
+        ...
+
+返回：
+
+JSON
+{
+  "action": "limited_retry",
+  "max_retries": 1,
+  "requires_new_evidence": true,
+  "reason": "Known environment-level failure"
+}
+CRUX 冷启动策略
+
+最终建议：
+
+1. seed policy 先拦截明显不可自愈错误
+2. 当前 quarantine 机制继续保留
+3. 每次 quarantine 写入 EventLog + Retro
+4. 允许用户手动解除 quarantine
+5. 允许项目级 whitelist / override
+
+一句话：
+
+冷启动不能靠“踩坑学习”，要靠 seed policy 防止低价值自愈；但 seed 只做降级和限流，不要一刀切封死。
+
+Q2：Manifest 迁移路径
+
+你的迁移路径是合理的，但阶段 1 需要更保守一点。
+
+你设想：
+
+自动生成默认 manifest:
+name = 文件名
+runtime = prompt
+permissions = []
+
+这个对纯 prompt 技能没问题，但对现有 51 个技能里如果有脚本、浏览器、ComfyUI、文件操作类技能，就可能错误降级。
+
+我建议阶段 1 改成：
+
+自动推断 manifest，而不是统一 runtime=prompt。
+阶段 1：兼容加载 + 自动生成 legacy manifest
+
+生成：
+
+JSON
+{
+  "schema_version": "1.0",
+  "name": "browser-control",
+  "version": "0.0.0-legacy",
+  "description": "Auto-generated legacy manifest.",
+  "runtime": "legacy_inferred",
+  "permissions": [],
+  "requires": [],
+  "entrypoint": "skills/browser-control.skill.json",
+  "integrity": "",
+  "min_crux_version": "5.0.0",
+  "author": "unknown",
+  "legacy": true,
+  "trust": "local_legacy"
+}
+
+然后根据文件类型推断：
+
+.skill.json / .yaml      → declarative
+.prompt / .md / .txt     → prompt
+.py                      → python_subprocess
+目录型技能               → inspect entrypoint
+未知类型                 → disabled_pending_manifest
+
+不要把 .py 技能推成 prompt。
+
+阶段 2：自动补全建议
+
+CRUX 可以生成一份建议 manifest，但不强制写入源文件：
+
+.crux/generated_manifests/<skill>.manifest.json
+
+并提示：
+
+该技能疑似需要 permissions:
+- filesystem:read
+- cdp
+- network:outbound
+
+请确认后写入正式 manifest。
+
+这样不会破坏现有技能，也不会默默授予权限。
+
+阶段 3：新技能强制 manifest
+
+这个没问题。
+
+建议规则：
+
+新技能：必须有 manifest
+旧技能：可 legacy 加载，但降权
+市场技能：必须 manifest + integrity
+Python 技能：必须 runtime=python_subprocess 或 docker
+python_inline：默认 deprecated
+
+我特别建议你把 python_inline 标记为：
+
+experimental / unsafe / only_builtin
+
+不要让第三方技能使用 python_inline。否则 manifest 做了权限系统，最后又被主进程执行绕过。
+
+阶段 4：6 个月宽限期合理
+
+可以这样分阶段：
+
+0-2 个月：
+legacy 技能正常加载，但 EventLog 记录 warning
+
+2-4 个月：
+legacy 技能可用，但不进入 TRM 自动路由，只能手动调用
+
+4-6 个月：
+legacy 技能需要用户确认后运行
+
+6 个月后：
+无 manifest 技能默认禁用
+
+这样不会突然破坏兼容，也能推动迁移。
+
+两个最终定版建议
+假修复冷启动
+
+采用：
+
+seed policy + 在线 quarantine
+
+不要只靠第 4 次隔离。
+
+最小 seed categories：
+
+environment_error
+dependency_missing
+resource_exhausted
+permission_denied
+network_unavailable
+model_missing
+external_service_error
+syntax_error
+test_failure
+unknown
+
+其中前 6 类默认不进入 aggressive self-heal，只进入 diagnosis / user-action / limited-retry。
+
+Manifest 迁移
+
+你的三阶段路径成立，但阶段 1 改成：
+
+自动推断 legacy manifest
+而不是统一 runtime=prompt
+
+并给 legacy 技能降权：
+
+legacy = true
+trust = local_legacy
+不进入自动路由高优先级
+高风险动作需要确认
+
+最终一句话收束：
+
+CRUX 现在要允许旧系统继续跑，但所有旧能力都必须被包进 manifest、policy、EventLog 的治理壳里。
+
+高级
+ChatGPT 也可能会犯错。请核查重要信息。

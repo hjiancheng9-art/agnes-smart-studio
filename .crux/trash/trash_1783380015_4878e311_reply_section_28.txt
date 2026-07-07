@@ -1,0 +1,7 @@
+extensions:
+    - ".py"
+    - ".md"
+    - ".toml"
+    - ".yaml"
+    - ".yml"
+    - ".json"

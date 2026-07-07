@@ -1,0 +1,42 @@
+╔════════════════════════════════════════════════════════════════════╗
+║  🧹 CRUX Cleanup Report — SCAN                                          ║
+╠════════════════════════════════════════════════════════════════════╣
+║  Run ID:    scan_1783379529                                     ║
+║  Time:      2026-07-07T07:12:09.955064                          ║
+║  Scanned:    1315 files, 205.8 MB       ║
+║  Duration:  24.24s                                                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║  🔒 Protected           491 files                                       ║
+║  📋 Cache/Garbage       229 files                                       ║
+║  🗑️  Trash             203 files                                       ║
+║  ❓ Unknown             392 files                                       ║
+╠════════════════════════════════════════════════════════════════════╣
+║  🎯 Cleanable:    432 files, 186.4 MB       ║
+╠════════════════════════════════════════════════════════════════════╣
+║  ├─ generated_output                233 files / 182.1 MB  ║
+║  ├─ temp_files                      173 files /   3.8 MB  ║
+║  ├─ log_files                        17 files / 169.2 KB  ║
+║  ├─ browser_screenshots               9 files / 386.1 KB  ║
+╠════════════════════════════════════════════════════════════════════╣
+║  [T4] output\videos\Lunch_ByLoA_v2\Lunch_ByLoA_v2_fin...  31.4 MB  ║
+║  [T4] output\videos\Lunch_ByLoA_v2\Lunch_ByLoA_v2_sub...  27.9 MB  ║
+║  [T4] output\videos\Lunch_ByLoA_final.mp4                 16.5 MB  ║
+║  [T4] output\videos\vid_20260614_002943.mp4                4.0 MB  ║
+║  [T4] output\videos\vid_20260615_000341.mp4                3.9 MB  ║
+║  [T4] output\videos\vid_20260615_002036.mp4                3.6 MB  ║
+║  [T4] output\videos\vid_20260614_015749.mp4                3.6 MB  ║
+║  [T4] output\videos\vid_20260618_230226.mp4                3.4 MB  ║
+║  [T4] output\videos\vid_20260615_000725.mp4                3.2 MB  ║
+║  [T4] output\videos\vid_20260618_221225.mp4                2.7 MB  ║
+║  [T4] output\videos\vid_20260616_160916.mp4                2.5 MB  ║
+║  [T4] output\videos\vid_20260614_030830.mp4                2.4 MB  ║
+║  [T4] output\jianying_draft\Lunch_ByLoA\01_IMPORT_TO_...   2.4 MB  ║
+║  [T4] output\jianying_draft\Lunch_ByLoA\01_IMPORT_TO_...   2.4 MB  ║
+║  [T4] output\jianying_draft\Lunch_ByLoA\01_IMPORT_TO_...   2.4 MB  ║
+║  [T4] output\jianying_draft\Lunch_ByLoA\01_IMPORT_TO_...   2.4 MB  ║
+║  [T4] output\jianying_draft\Lunch_ByLoA\media\video\0...   2.4 MB  ║
+║  [T4] output\jianying_draft\Lunch_ByLoA\media\video\0...   2.4 MB  ║
+║  [T4] output\jianying_draft\Lunch_ByLoA\media\video\0...   2.4 MB  ║
+║  [T4] output\jianying_draft\Lunch_ByLoA\media\video\0...   2.4 MB  ║
+║  ... and 412 more files                                                ║
+╚════════════════════════════════════════════════════════════════════╝

@@ -68,10 +68,7 @@ class CognitiveOrchestrator:
         # Phase 1: parallel calls
         responses = {}
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(models)) as executor:
-            futures = {
-                executor.submit(self._call_model, model, prompt): model
-                for model in models
-            }
+            futures = {executor.submit(self._call_model, model, prompt): model for model in models}
             for future in concurrent.futures.as_completed(futures, timeout=60):
                 model = futures[future]
                 try:
@@ -82,12 +79,15 @@ class CognitiveOrchestrator:
         if len(responses) < 2:
             # Only one model responded — return it directly
             only = next(iter(responses.values())) if responses else prompt
-            return {"answer": only, "confidence": "low", "dissenting": "insufficient responses", "models_used": len(responses)}
+            return {
+                "answer": only,
+                "confidence": "low",
+                "dissenting": "insufficient responses",
+                "models_used": len(responses),
+            }
 
         # Phase 2: synthesize with a light comparator
-        response_texts = "\n\n---\n\n".join(
-            f"[{m}]: {r[:1000]}" for m, r in responses.items()
-        )
+        response_texts = "\n\n---\n\n".join(f"[{m}]: {r[:1000]}" for m, r in responses.items())
         synthesis = self._call_model(
             "deepseek-v4-flash",
             COMPARE_PROMPT.format(n=len(responses), question=prompt[:500], responses=response_texts),
@@ -118,6 +118,7 @@ class CognitiveOrchestrator:
         """Call a single model and return its text response."""
         if self._client_factory:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             # Find which provider has this model
             for pid, pdata in mgr.providers.items():
@@ -133,6 +134,7 @@ class CognitiveOrchestrator:
                     return choices[0].get("message", {}).get("content", "") if choices else ""
             # Fallback: try with default client
             from core.client import CruxClient
+
             resp = CruxClient().chat(
                 model,
                 messages=[{"role": "user", "content": prompt}],

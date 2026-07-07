@@ -1,0 +1,1 @@
+CRUX 的自动清理不应该是简单的 delete tmp files，而应该是一个 Cleanup Governance System：

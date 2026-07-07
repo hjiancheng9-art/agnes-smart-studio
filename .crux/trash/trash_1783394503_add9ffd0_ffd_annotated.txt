@@ -1,0 +1,265 @@
+0: """Self-Heal Fake Fix Detection — 区分真修复 vs 假成功
+1: 
+2: 基于 GPT 架构审计 Q1 建议：
+3: - 仅对高风险工具做检测：patch_file, execute_plan, self_heal, pip_install
+4: - Pre/post state checksum 对比
+5: - 三态结果：fix-probable / fix-unknown / fix-spurious
+6: - Spurious fix 隔离：24h 内同类型最多重试 3 次
+7: 
+8: 与 EventLog 集成：每次 self-heal 前后状态写入 metadata，
+9: 后续可从 event_log 查询假阳性率。
+10: """
+11: 
+12: import hashlib
+13: import json
+14: import os
+15: import time
+16: from dataclasses import dataclass, field
+17: from typing import Any
+18: 
+19: # ── High-risk tools that need fake-fix detection ──────────
+20: HIGH_RISK_TOOLS = {"patch_file", "execute_plan", "self_heal", "pip_install"}
+21: 
+22: # ── Quarantine tracking ───────────────────────────────────
+23: @dataclass
+24: class QuarantineEntry:
+25:     tool: str
+26:     error_signature: str  # hash of error_type + key context
+27:     first_seen: float
+28:     retry_count: int = 0
+29:     last_retry: float = 0.0
+30: 
+31: _quarantine: dict[str, QuarantineEntry] = {}
+32: MAX_RETRIES_24H = 3
+33: QUARANTINE_WINDOW = 24 * 3600  # seconds
+34: 
+35: 
+36: def _make_error_signature(tool: str, error_type: str, context: dict) -> str:
+37:     """Create a stable signature for an error pattern."""
+38:     key_parts = [
+39:         tool,
+40:         error_type,
+41:         json.dumps(context, sort_keys=True, default=str),
+42:     ]
+43:     raw = "|".join(key_parts)
+44:     return hashlib.sha256(raw.encode()).hexdigest()[:16]
+45: 
+46: 
+47: def is_quarantined(tool: str, error_type: str, context: dict = None) -> bool:
+48:     """Check if this error pattern has been quarantined."""
+49:     if tool not in HIGH_RISK_TOOLS:
+50:         return False
+51: 
+52:     sig = _make_error_signature(tool, error_type, context or {})
+53:     entry = _quarantine.get(sig)
+54: 
+55:     if entry is None:
+56:         return False
+57: 
+58:     # Check if quarantine window has passed
+59:     if time.time() - entry.first_seen > QUARANTINE_WINDOW:
+60:         del _quarantine[sig]
+61:         return False
+62: 
+63:     # Check retry count
+64:     if entry.retry_count >= MAX_RETRIES_24H:
+65:         return True
+66: 
+67:     return False
+68: 
+69: 
+70: def record_retry(tool: str, error_type: str, context: dict = None):
+71:     """Record a retry attempt for quarantine tracking."""
+72:     if tool not in HIGH_RISK_TOOLS:
+73:         return
+74: 
+75:     sig = _make_error_signature(tool, error_type, context or {})
+76:     now = time.time()
+77: 
+78:     if sig not in _quarantine:
+79:         _quarantine[sig] = QuarantineEntry(
+80:             tool=tool,
+81:             error_signature=sig,
+82:             first_seen=now,
+83:             retry_count=1,
+84:             last_retry=now,
+85:         )
+86:     else:
+87:         _quarantine[sig].retry_count += 1
+88:         _quarantine[sig].last_retry = now
+89: 
+90: 
+91: # ── Pre/Post State Capture ────────────────────────────────
+92: class StateSnapshot:
+93:     """Captures pre- or post-execution state for comparison."""
+94: 
+95:     def __init__(self):
+96:         self.file_hashes: dict[str, str] = {}
+97:         self.git_diff_stat: str = ""
+98:         self.test_results: dict[str, Any] = {}
+99:         self.import_status: dict[str, bool] = {}
+100:         self.timestamp: float = time.time()
+101: 
+102:     def to_dict(self) -> dict:
+103:         return {
+104:             "file_hashes": self.file_hashes,
+105:             "git_diff_stat": self.git_diff_stat[:500],  # truncate
+106:             "test_results": self.test_results,
+107:             "import_status": self.import_status,
+108:             "timestamp": self.timestamp,
+109:         }
+110: 
+111: 
+112: def capture_pre_state(project_dir: str = ".") -> StateSnapshot:
+113:     """Capture state before a risky operation."""
+114:     state = StateSnapshot()
+115: 
+116:     # File hashes for key project files
+117:     key_patterns = ["*.py", "*.json", "*.yaml", "*.yml", "*.toml"]
+118:     try:
+119:         import glob as _glob
+120:         for pattern in key_patterns:
+121:             for fpath in _glob.glob(os.path.join(project_dir, "**", pattern), recursive=True):
+122:                 # Skip __pycache__, .git, node_modules
+123:                 if any(skip in fpath for skip in ["__pycache__", ".git", "node_modules", "venv", ".venv"]):
+124:                     continue
+125:                 try:
+126:                     with open(fpath, "rb") as f:
+127:                         state.file_hashes[fpath] = hashlib.sha256(f.read()).hexdigest()
+128:                 except Exception:
+129:                     state.file_hashes[fpath] = "ERROR:unreadable"
+130:     except Exception:
+131:         pass
+132: 
+133:     # Git diff stat
+134:     try:
+135:         import subprocess
+136:         r = subprocess.run(
+137:             ["git", "diff", "--stat"],
+138:             capture_output=True, text=True, timeout=5, cwd=project_dir
+139:         )
+140:         state.git_diff_stat = r.stdout.strip()
+141:     except Exception:
+142:         pass
+143: 
+144:     return state
+145: 
+146: 
+147: def capture_post_state(pre_state: StateSnapshot, project_dir: str = ".") -> StateSnapshot:
+148:     """Capture state after a risky operation."""
+149:     post = StateSnapshot()
+150: 
+151:     # Re-hash only files that existed in pre-state or have changed
+152:     try:
+153:         import glob as _glob
+154:         for pattern in ["*.py", "*.json", "*.yaml", "*.yml", "*.toml"]:
+155:             for fpath in _glob.glob(os.path.join(project_dir, "**", pattern), recursive=True):
+156:                 if any(skip in fpath for skip in ["__pycache__", ".git", "node_modules", "venv", ".venv"]):
+157:                     continue
+158:                 try:
+159:                     with open(fpath, "rb") as f:
+160:                         h = hashlib.sha256(f.read()).hexdigest()
+161:                     # Only include if changed or new
+162:                     if fpath not in pre_state.file_hashes or pre_state.file_hashes[fpath] != h:
+163:                         post.file_hashes[fpath] = h
+164:                 except Exception:
+165:                     post.file_hashes[fpath] = "ERROR:unreadable"
+166:     except Exception:
+167:         pass
+168: 
+169:     # Git diff stat
+170:     try:
+171:         import subprocess
+172:         r = subprocess.run(
+173:             ["git", "diff", "--stat"],
+174:             capture_output=True, text=True, timeout=5, cwd=project_dir
+175:         )
+176:         post.git_diff_stat = r.stdout.strip()
+177:     except Exception:
+178:         pass
+179: 
+180:     return post
+181: 
+182: 
+183: # ── Fix Classification ────────────────────────────────────
+184: def classify_fix(
+185:     tool: str,
+186:     error_type: str,
+187:     pre: StateSnapshot,
+188:     post: StateSnapshot,
+189:     test_passed: bool = False,
+190: ) -> str:
+191:     """Classify a self-heal outcome.
+192: 
+193:     Returns:
+194:         "fix-probable": state changed meaningfully + tests pass
+195:         "fix-unknown": can't determine (not enough state change)
+196:         "fix-spurious": no state change, or only ephemeral change
+197:     """
+198:     if tool not in HIGH_RISK_TOOLS:
+199:         return "fix-unknown"
+200: 
+201:     # Count meaningful changes
+202:     changed_files = 0
+203:     for fpath, post_hash in post.file_hashes.items():
+204:         pre_hash = pre.file_hashes.get(fpath, "")
+205:         if pre_hash != post_hash:
+206:             changed_files += 1
+207: 
+208:     git_changed = pre.git_diff_stat != post.git_diff_stat and bool(post.git_diff_stat)
+209: 
+210:     # Classification logic
+211:     if changed_files > 0 and test_passed:
+212:         return "fix-probable"
+213:     elif changed_files > 0 and not test_passed:
+214:         return "fix-unknown"  # files changed but tests fail — suspicious
+215:     elif changed_files == 0 and git_changed:
+216:         return "fix-unknown"  # git shows diff but no file hash change (whitespace?)
+217:     elif changed_files == 0 and not git_changed:
+218:         return "fix-spurious"  # nothing changed — patch did nothing
+219:     else:
+220:         return "fix-unknown"
+221: 
+222: 
+223: def should_retry(tool: str, error_type: str, context: dict = None) -> dict:
+224:     """Decision helper: should we retry this self-heal?
+225: 
+226:     Returns:
+227:         {"retry": bool, "reason": str}
+228:     """
+229:     if tool not in HIGH_RISK_TOOLS:
+230:         return {"retry": False, "reason": "not a high-risk tool"}
+231: 
+232:     sig = _make_error_signature(tool, error_type, context or {})
+233:     entry = _quarantine.get(sig)
+234: 
+235:     if entry is None:
+236:         return {"retry": True, "reason": "first attempt"}
+237: 
+238:     if time.time() - entry.first_seen > QUARANTINE_WINDOW:
+239:         del _quarantine[sig]
+240:         return {"retry": True, "reason": "quarantine window expired"}
+241: 
+242:     remaining = MAX_RETRIES_24H - entry.retry_count
+243:     if remaining > 0:
+244:         return {"retry": True, "reason": f"{remaining} retries remaining"}
+245:     else:
+246:         return {
+247:             "retry": False,
+248:             "reason": f"quarantined: {entry.retry_count} retries in 24h, error_sig={sig}",
+249:         }
+250: 
+251: 
+252: def quarantine_status() -> dict:
+253:     """Get current quarantine state for monitoring."""
+254:     now = time.time()
+255:     active = {}
+256:     for sig, entry in _quarantine.items():
+257:         if now - entry.first_seen < QUARANTINE_WINDOW:
+258:             active[sig] = {
+259:                 "tool": entry.tool,
+260:                 "retry_count": entry.retry_count,
+261:                 "first_seen_ago_sec": now - entry.first_seen,
+262:                 "quarantined": entry.retry_count >= MAX_RETRIES_24H,
+263:             }
+264:     return active

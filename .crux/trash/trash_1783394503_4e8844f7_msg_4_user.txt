@@ -1,0 +1,76 @@
+Q1/Q2 已落地。汇报成果。
+
+## Q1 落地：假修复检测
+
+core/fake_fix_detector.py — 已实现：
+
+- **仅对高风险工具检测**：patch_file, execute_plan, self_heal, pip_install
+- **Pre/post state**：文件 hash + git diff --stat
+- **三态分类**：fix-probable / fix-unknown / fix-spurious
+- **隔离机制**：error_signature = sha256(tool + error_type + context)，24h 内同签名最多重试 3 次，超过则 quarantine
+
+已验证：
+- 无变更场景 → fix-spurious ✅
+- 第4次同错误重试 → 拒绝（quarantined）✅
+
+## Q2 落地：技能包 Manifest
+
+core/skill_manifest.py — 已实现：
+
+
+json
+{
+  "name": "browser-control",
+  "version": "1.2.0",
+  "description": "...",
+  "runtime": "declarative",
+  "permissions": ["cdp", "browser:navigate", "browser:screenshot", "browser:input", "network:outbound"],
+  "requires": [],
+  "entrypoint": "skills/browser-control.skill.json",
+  "integrity": "",
+  "min_crux_version": "5.0.0",
+  "author": "CRUX Studio"
+}
+
+
+关键设计：
+- permission 是 capability-based（"cdp" 而非 "filesystem:write"）
+- runtime 决定执行方式：prompt | declarative | python_subprocess | python_inline | docker
+- integrity 加载时校验，不做运行时扫描
+- semver + validate() 方法
+
+---
+
+## 新话题：下一步
+
+两个问题想在本次对话中收尾：
+
+### Q1: 假修复检测的冷启动
+quarantine 依赖 error_signature 积累。新部署的 CRUX 没有任何 quarantine 数据 → 所有 self-heal 都会执行 → 可能重复踩坑。怎么解决？我想到两个方案：
+- A: 预置一个 seed quarantine list（常见 ComfyUI 错误 → 不重试）
+- B: 放行前 3 次但记录 → 第 4 次自动隔离（当前方案，但有学习成本）
+
+### Q2: manifest 迁移路径
+现有 51 个技能包都没有 manifest。强制迁移会破坏兼容。我打算：
+- 阶段1：自动生成默认 manifest（name=文件名, runtime=prompt, permissions=[]）
+- 阶段2：鼓励技能作者手动补充
+- 阶段3：新技能必须有 manifest，旧技能 6 个月宽限期
+
+你觉得这个路径合理吗？
+
+---
+
+另外，这一轮对话的产出汇总：
+| 模块 | 文件 | 状态 |
+|------|------|------|
+| EventLog | core/event_log.py | ✅ |
+| Bridge | core/event_log_bridge.py | ✅ |
+| 假修复检测 | core/fake_fix_detector.py | ✅ |
+| 技能 Manifest | core/skill_manifest.py | ✅ |
+| ADR | 3 份 | ✅ |
+| 路由规范 | ADR-0001 | ✅ |
+| A2A 语义 | ADR-0002 | ✅ |
+| EventLog | ADR-0003 | ✅ |
+
+这个对话产出了 5 个代码模块 + 3 份 ADR。值得。
+展开

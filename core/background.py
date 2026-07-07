@@ -36,6 +36,7 @@ __all__ = [
 
 # ── BackgroundTask dataclass ──────────────────────────────────
 
+
 @dataclass
 class BackgroundTask:
     """Represents a background shell task."""
@@ -380,10 +381,7 @@ BACKGROUND_TOOL_DEFS = [
         "type": "function",
         "function": {
             "name": "task_list",
-            "description": (
-                "列出后台任务及其状态。"
-                "默认只列出活跃（非终结）任务；传 active_only=false 可查看全部。"
-            ),
+            "description": ("列出后台任务及其状态。默认只列出活跃（非终结）任务；传 active_only=false 可查看全部。"),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -400,10 +398,7 @@ BACKGROUND_TOOL_DEFS = [
         "type": "function",
         "function": {
             "name": "task_output",
-            "description": (
-                "获取后台任务的输出快照。"
-                "默认非阻塞（立即返回当前输出）；block=true 时等待任务完成。"
-            ),
+            "description": ("获取后台任务的输出快照。默认非阻塞（立即返回当前输出）；block=true 时等待任务完成。"),
             "parameters": {
                 "type": "object",
                 "properties": {

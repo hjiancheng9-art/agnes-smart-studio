@@ -1,0 +1,15 @@
+                                    ))
+                        pending_tool = None
+                    elif "fallback" in msg.lower() or "连接中断" in msg:
+                        self._log_append(("⚠", "class:activity-warn", msg[:100]))
+                    elif "预算" in msg:
+                        self._log_append(("💰", "class:activity-info", msg[:100]))
+                    else:
+                        self._log_append(("·", "class:activity-info", msg[:120]))
+                    self._ui(lambda: None)
+                elif kind == "tool_result":
+                    if pending_tool:
+                        _last_entry = self._log_last()
+                        if _last_entry:
+                            last_icon, _, last_msg = _last_entry
+                            if "●" in last_icon:

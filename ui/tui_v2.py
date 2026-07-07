@@ -1447,6 +1447,11 @@ class TuiAppV2:
         )
         self._start_pending_commit_timer()
 
+    def _sync_copy_mgr(self) -> None:
+        """Sync CopyManager from MessageStore (reads directly, kept as no-op shim)."""
+        if hasattr(self, "_copy_mgr") and hasattr(self, "_msg_store"):
+            self._copy_mgr.sync_store(self._msg_store)
+
     def _start_pending_commit_timer(self) -> None:
         """Pending 窗口过期后自动提交。"""
         def wait_and_commit():
@@ -1602,6 +1607,8 @@ class TuiAppV2:
                     _interrupted_flag = getattr(self, "_interrupted_by_priority", False)
                 if _interrupted_flag:
                     break
+                if kind == "text":
+                    self._ui(self.message_pane.stream_append, str(payload))
                 elif kind == "thinking":
                     self.thinking_panel.append(str(payload))
                     self._ui(lambda: None)
@@ -1668,6 +1675,9 @@ class TuiAppV2:
                     if loc:
                         self._ui(self.message_pane.append_info, f"Saved: {loc}")
                         self._log_append(("✓", "class:activity-done", f"已保存: {loc}"))
+                else:
+                    # Unknown kind — log for debugging, don't silently drop
+                    logger.debug("tui.stream: unknown kind=%s, payload_type=%s", kind, type(payload).__name__)
             # Mark any remaining pending tool as done
             if pending_tool:
                 _last_entry = self._log_last()
@@ -1721,8 +1731,6 @@ class TuiAppV2:
             except Exception:
                 logger.debug("wire.record_turn failed", exc_info=True)
 
-        def _sync_copy_mgr(self) -> None:
-            self._copy_mgr.sync_store(self._msg_store)
     # ══════════════════════════════════════════════════════════════
     #  UI helpers
     # ══════════════════════════════════════════════════════════════

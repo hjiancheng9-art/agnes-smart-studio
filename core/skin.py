@@ -63,10 +63,7 @@ def _grid_to_svg_fallback(grid) -> str:
                 op = 1.0
             else:
                 continue
-            rects.append(
-                f'<rect x="{c * P}" y="{r * P}" width="{P}" height="{P}" '
-                f'fill="{fill}" opacity="{op}"/>'
-            )
+            rects.append(f'<rect x="{c * P}" y="{r * P}" width="{P}" height="{P}" fill="{fill}" opacity="{op}"/>')
     w, h = cols * P, rows * P
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" '
@@ -92,16 +89,13 @@ def _grid_to_web_fallback(grid) -> str:
                 op = 1.0
             else:
                 continue
-            rects.append(
-                f'<rect x="{c * P}" y="{r * P}" width="{P}" height="{P}" '
-                f'fill="{fill}" opacity="{op}"/>'
-            )
+            rects.append(f'<rect x="{c * P}" y="{r * P}" width="{P}" height="{P}" fill="{fill}" opacity="{op}"/>')
     w, h = cols * P, rows * P
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" '
         f'shape-rendering="crispEdges" style="image-rendering:pixelated">'
         f'<rect width="{w}" height="{h}" fill="{COLORS["surface"]}"/>'
-        f'{"".join(rects)}</svg>'
+        f"{''.join(rects)}</svg>"
     )
 
 

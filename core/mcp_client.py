@@ -593,22 +593,38 @@ def ensure_mcp_servers() -> None:
     如果已存在，不做任何修改（保留用户自定义配置）。
     """
     default_servers = [
-        {"name": "claude-code", "command": "python",
-         "args": ["core/mcp_servers/claude_code_bridge.py"],
-         "enabled": True, "connected": False,
-         "description": "Claude Code Bridge — MCP 桥接"},
-        {"name": "kimi", "command": "python",
-         "args": ["core/mcp_servers/kimi_bridge.py"],
-         "enabled": True, "connected": False,
-         "description": "Kimi ACP → MCP Bridge"},
-        {"name": "qoder", "command": "python",
-         "args": ["core/mcp_servers/qoder_bridge.py"],
-         "enabled": True, "connected": False,
-         "description": "Qoder CLI → MCP Bridge"},
-        {"name": "zcode", "command": "python",
-         "args": ["core/mcp_servers/crux_mcp_entry.py"],
-         "enabled": True, "connected": False,
-         "description": "CRUX MCP Server — 向 ZCode 暴露工具"},
+        {
+            "name": "claude-code",
+            "command": "python",
+            "args": ["core/mcp_servers/claude_code_bridge.py"],
+            "enabled": True,
+            "connected": False,
+            "description": "Claude Code Bridge — MCP 桥接",
+        },
+        {
+            "name": "kimi",
+            "command": "python",
+            "args": ["core/mcp_servers/kimi_bridge.py"],
+            "enabled": True,
+            "connected": False,
+            "description": "Kimi ACP → MCP Bridge",
+        },
+        {
+            "name": "qoder",
+            "command": "python",
+            "args": ["core/mcp_servers/qoder_bridge.py"],
+            "enabled": True,
+            "connected": False,
+            "description": "Qoder CLI → MCP Bridge",
+        },
+        {
+            "name": "zcode",
+            "command": "python",
+            "args": ["core/mcp_servers/crux_mcp_entry.py"],
+            "enabled": True,
+            "connected": False,
+            "description": "CRUX MCP Server — 向 ZCode 暴露工具",
+        },
     ]
     config_path = OUTPUT_DIR / "mcp_servers.json"
     if config_path.exists():

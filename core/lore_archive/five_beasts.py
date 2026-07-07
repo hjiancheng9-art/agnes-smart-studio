@@ -95,4 +95,5 @@ def get_beasts_prompt() -> str:
 def get_five_beasts_prompt() -> str:
     """Deprecated alias — use core.seven_beasts_fusion.get_fusion_prompt()"""
     from core.seven_beasts_fusion import get_fusion_prompt
+
     return get_fusion_prompt()

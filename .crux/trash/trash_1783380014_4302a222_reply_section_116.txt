@@ -1,0 +1,8 @@
+return CleanupCandidate(
+            path=path,
+            rule=rule_name,
+            risk=rule.get("risk", "medium"),
+            size=self._size(path),
+            reason=f"matched rule {rule_name}",
+            action=rule.get("action", "trash")
+        )

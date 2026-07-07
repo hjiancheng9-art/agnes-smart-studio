@@ -1,0 +1,11 @@
+def _cancel_current_response(self) -> None:
+        """Cancel the currently streaming response."""
+        with self._state_lock:
+            self._cancel_requested = True
+        try:
+            self._spinner.stop()
+        except Exception:
+            pass
+        self._ui(self.message_pane.stream_end, _force=True)
+
+    

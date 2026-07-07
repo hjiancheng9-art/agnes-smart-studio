@@ -1,0 +1,28 @@
+def should_retry(tool: str, error_type: str, context: dict = None) -> dict:
+    """Decision helper: should we retry this self-heal?
+
+    Returns:
+        {"retry": bool, "reason": str}
+    """
+    if tool not in HIGH_RISK_TOOLS:
+        return {"retry": False, "reason": "not a high-risk tool"}
+
+    sig = _make_error_signature(tool, error_type, context or {})
+    entry = _quarantine.get(sig)
+
+    if entry is None:
+        return {"retry": True, "reason": "first attempt"}
+
+    if time.time() - entry.first_seen > QUARANTINE_WINDOW:
+        del _quarantine[sig]
+        return {"retry": True, "reason": "quarantine window expired"}
+
+    remaining = MAX_RETRIES_24H - entry.retry_count
+    if remaining > 0:
+        return {"retry": True, "reason": f"{remaining} retries remaining"}
+    else:
+        return {
+            "retry": False,
+            "reason": f"quarantined: {entry.retry_count} retries in 24h, error_sig={sig}",
+        }
+

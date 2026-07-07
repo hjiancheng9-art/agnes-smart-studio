@@ -21,32 +21,36 @@ logger = logging.getLogger(__name__)
 # 契约定义类型
 # ═══════════════════════════════════════════════════════════════════
 
+
 class PrincipleID(Enum):
     """CWIM 原则编号映射。"""
-    P1_UNDERSTAND_FIRST = "P1"     # 先理解任务再决定方案
-    P2_REUSE_FIRST = "P2"          # 优先复用成熟模板
-    P3_IR_NOT_JSON = "P3"          # LLM → TaskSpec → WorkflowIR → Compiler
-    P4_VALIDATOR_GATE = "P4"       # 所有 workflow 必须经过 Validator
-    P5_FAILURE_LEARN = "P5"        # 失败不是结束而是学习
-    P6_PARAM_SEMANTIC = "P6"       # 参数是语义不是数字
-    P7_EXPLAINABLE = "P7"          # 所有推荐必须可解释
-    P8_LORA_AS_PROJECT = "P8"      # LoRA 是项目不是文件
-    P9_WORKFLOW_AS_GRAPH = "P9"    # Workflow 是图不是 JSON
-    P10_TASK_NOT_NODE = "P10"      # 用户面对任务不是节点
+
+    P1_UNDERSTAND_FIRST = "P1"  # 先理解任务再决定方案
+    P2_REUSE_FIRST = "P2"  # 优先复用成熟模板
+    P3_IR_NOT_JSON = "P3"  # LLM → TaskSpec → WorkflowIR → Compiler
+    P4_VALIDATOR_GATE = "P4"  # 所有 workflow 必须经过 Validator
+    P5_FAILURE_LEARN = "P5"  # 失败不是结束而是学习
+    P6_PARAM_SEMANTIC = "P6"  # 参数是语义不是数字
+    P7_EXPLAINABLE = "P7"  # 所有推荐必须可解释
+    P8_LORA_AS_PROJECT = "P8"  # LoRA 是项目不是文件
+    P9_WORKFLOW_AS_GRAPH = "P9"  # Workflow 是图不是 JSON
+    P10_TASK_NOT_NODE = "P10"  # 用户面对任务不是节点
 
 
 @dataclass
 class PreCondition:
     """前置条件 — 调用前必须满足。"""
+
     principle: PrincipleID
-    check: str                    # 检查逻辑描述
-    required: bool = True         # True=硬性, False=建议
-    error_message: str = ""       # 不满足时的提示
+    check: str  # 检查逻辑描述
+    required: bool = True  # True=硬性, False=建议
+    error_message: str = ""  # 不满足时的提示
 
 
 @dataclass
 class PostCondition:
     """后置条件 — 执行后必须满足。"""
+
     principle: PrincipleID
     check: str
     required: bool = True
@@ -55,6 +59,7 @@ class PostCondition:
 @dataclass
 class SideEffect:
     """副作用声明。"""
+
     description: str
     type: str  # write_file / network_call / install / execute / none
     irreversible: bool = False
@@ -63,6 +68,7 @@ class SideEffect:
 @dataclass
 class FailurePolicy:
     """失败策略。"""
+
     max_retries: int = 0
     auto_recover: bool = False
     user_message: str = "操作失败，请检查输入后重试"
@@ -71,9 +77,10 @@ class FailurePolicy:
 @dataclass
 class ToolContract:
     """完整工具契约。"""
+
     tool_name: str
     description: str
-    principles: list[str]        # 应用的原则列表
+    principles: list[str]  # 应用的原则列表
     pre_conditions: list[PreCondition] = field(default_factory=list)
     post_conditions: list[PostCondition] = field(default_factory=list)
     side_effects: list[SideEffect] = field(default_factory=list)
@@ -86,12 +93,10 @@ class ToolContract:
             "description": self.description,
             "principles": self.principles,
             "pre_conditions": [
-                {"principle": p.principle.value, "check": p.check, "required": p.required}
-                for p in self.pre_conditions
+                {"principle": p.principle.value, "check": p.check, "required": p.required} for p in self.pre_conditions
             ],
             "post_conditions": [
-                {"principle": p.principle.value, "check": p.check, "required": p.required}
-                for p in self.post_conditions
+                {"principle": p.principle.value, "check": p.check, "required": p.required} for p in self.post_conditions
             ],
             "side_effects": [
                 {"description": s.description, "type": s.type, "irreversible": s.irreversible}
@@ -110,9 +115,11 @@ class ToolContract:
 # 契约检查器
 # ═══════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class ContractCheckResult:
     """契约检查结果。"""
+
     passed: bool
     tool_name: str
     pre_ok: list[str] = field(default_factory=list)
@@ -134,8 +141,7 @@ class ContractChecker:
         """执行前检查契约。"""
         contract = self._contracts.get(tool_name)
         if not contract:
-            return ContractCheckResult(passed=True, tool_name=tool_name,
-                                       message="未找到契约定义")
+            return ContractCheckResult(passed=True, tool_name=tool_name, message="未找到契约定义")
 
         pre_ok: list[str] = []
         pre_fail: list[str] = []
@@ -191,12 +197,8 @@ class ContractChecker:
 
         # P10: 用户面对任务
         if p == PrincipleID.P10_TASK_NOT_NODE:
-            has_task_level_input = bool(
-                kwargs.get("prompt") or kwargs.get("intent") or kwargs.get("task_type")
-            )
-            has_node_level_input = bool(
-                kwargs.get("workflow_json") or kwargs.get("node_id")
-            )
+            has_task_level_input = bool(kwargs.get("prompt") or kwargs.get("intent") or kwargs.get("task_type"))
+            has_node_level_input = bool(kwargs.get("workflow_json") or kwargs.get("node_id"))
             if has_node_level_input and not has_task_level_input:
                 return {"ok": False, "reason": "用户不应直接面对节点参数"}
             return {"ok": True}
@@ -243,6 +245,7 @@ class ContractChecker:
 # 内置契约定义
 # ═══════════════════════════════════════════════════════════════════
 
+
 def build_contracts() -> dict[str, ToolContract]:
     """构建所有 ComfyUI 工具的契约。"""
     contracts: dict[str, ToolContract] = {}
@@ -253,20 +256,31 @@ def build_contracts() -> dict[str, ToolContract]:
         description="CWIM C-step: TaskSpec → Compile → Validate 一条龙",
         principles=["P1", "P3", "P4", "P6", "P7", "P10"],
         pre_conditions=[
-            PreCondition(PrincipleID.P1_UNDERSTAND_FIRST, "需要 prompt 或 intent", required=True,
-                         error_message="必须先理解任务目标"),
-            PreCondition(PrincipleID.P10_TASK_NOT_NODE, "使用任务级输入", required=True,
-                         error_message="应使用 prompt/task_type 而非直接传 workflow"),
-            PreCondition(PrincipleID.P3_IR_NOT_JSON, "LLM 输出 TaskSpec", required=True,
-                         error_message="不应直接生成 ComfyUI JSON"),
+            PreCondition(
+                PrincipleID.P1_UNDERSTAND_FIRST,
+                "需要 prompt 或 intent",
+                required=True,
+                error_message="必须先理解任务目标",
+            ),
+            PreCondition(
+                PrincipleID.P10_TASK_NOT_NODE,
+                "使用任务级输入",
+                required=True,
+                error_message="应使用 prompt/task_type 而非直接传 workflow",
+            ),
+            PreCondition(
+                PrincipleID.P3_IR_NOT_JSON,
+                "LLM 输出 TaskSpec",
+                required=True,
+                error_message="不应直接生成 ComfyUI JSON",
+            ),
         ],
         post_conditions=[
             PostCondition(PrincipleID.P4_VALIDATOR_GATE, "输出必须经过 Validator", required=True),
             PostCondition(PrincipleID.P7_EXPLAINABLE, "必须返回可解释的摘要", required=True),
         ],
         side_effects=[SideEffect("编译工作流内存中", "none")],
-        failure_policy=FailurePolicy(max_retries=1, auto_recover=False,
-                                     user_message="编译失败，请检查输入参数"),
+        failure_policy=FailurePolicy(max_retries=1, auto_recover=False, user_message="编译失败，请检查输入参数"),
     )
 
     # ── validate_workflow ──
@@ -275,15 +289,18 @@ def build_contracts() -> dict[str, ToolContract]:
         description="CWIM 原则4: 对 workflow 执行 5 层校验",
         principles=["P4", "P9"],
         pre_conditions=[
-            PreCondition(PrincipleID.P9_WORKFLOW_AS_GRAPH, "workflow 必须是 dict", required=True,
-                         error_message="输入必须是 dict 格式的 workflow"),
+            PreCondition(
+                PrincipleID.P9_WORKFLOW_AS_GRAPH,
+                "workflow 必须是 dict",
+                required=True,
+                error_message="输入必须是 dict 格式的 workflow",
+            ),
         ],
         post_conditions=[
             PostCondition(PrincipleID.P4_VALIDATOR_GATE, "必须返回 L1-L5 各层结果", required=True),
         ],
         side_effects=[SideEffect("只读校验，不修改任何数据", "none")],
-        failure_policy=FailurePolicy(max_retries=0, auto_recover=False,
-                                     user_message="校验执行异常"),
+        failure_policy=FailurePolicy(max_retries=0, auto_recover=False, user_message="校验执行异常"),
     )
 
     # ── recover_workflow ──
@@ -292,15 +309,18 @@ def build_contracts() -> dict[str, ToolContract]:
         description="CWIM 原则5: 对校验失败的 workflow 执行自动恢复",
         principles=["P5"],
         pre_conditions=[
-            PreCondition(PrincipleID.P5_FAILURE_LEARN, "必须有 Validator 报告", required=True,
-                         error_message="恢复前必须先执行校验"),
+            PreCondition(
+                PrincipleID.P5_FAILURE_LEARN,
+                "必须有 Validator 报告",
+                required=True,
+                error_message="恢复前必须先执行校验",
+            ),
         ],
         post_conditions=[
             PostCondition(PrincipleID.P5_FAILURE_LEARN, "失败必须记录到知识库", required=True),
         ],
         side_effects=[SideEffect("可能修改 workflow 结构", "none")],
-        failure_policy=FailurePolicy(max_retries=2, auto_recover=False,
-                                     user_message="自动恢复失败，请检查 workflow"),
+        failure_policy=FailurePolicy(max_retries=2, auto_recover=False, user_message="自动恢复失败，请检查 workflow"),
     )
 
     # ── build_workflow ──
@@ -309,10 +329,15 @@ def build_contracts() -> dict[str, ToolContract]:
         description="构建 ComfyUI 工作流",
         principles=["P1", "P2", "P3", "P10"],
         pre_conditions=[
-            PreCondition(PrincipleID.P1_UNDERSTAND_FIRST, "需要 prompt 描述", required=True,
-                         error_message="需要提供任务描述"),
-            PreCondition(PrincipleID.P10_TASK_NOT_NODE, "使用任务级描述而非节点级", required=False,
-                         error_message="建议使用任务描述（如'生成赛博朋克城市'）而非节点名"),
+            PreCondition(
+                PrincipleID.P1_UNDERSTAND_FIRST, "需要 prompt 描述", required=True, error_message="需要提供任务描述"
+            ),
+            PreCondition(
+                PrincipleID.P10_TASK_NOT_NODE,
+                "使用任务级描述而非节点级",
+                required=False,
+                error_message="建议使用任务描述（如'生成赛博朋克城市'）而非节点名",
+            ),
         ],
         post_conditions=[
             PostCondition(PrincipleID.P3_IR_NOT_JSON, "应通过 IR 编译而非直接生成 JSON", required=False),
@@ -326,16 +351,27 @@ def build_contracts() -> dict[str, ToolContract]:
         description="提交 workflow 到 ComfyUI 执行",
         principles=["P4", "P5"],
         pre_conditions=[
-            PreCondition(PrincipleID.P4_VALIDATOR_GATE, "需要 workflow_json 参数", required=True,
-                         error_message="必须提供 workflow_json"),
-            PreCondition(PrincipleID.P4_VALIDATOR_GATE, "workflow 必须经过 Validator", required=False,
-                         error_message="建议先执行 validate_workflow"),
-            PreCondition(PrincipleID.P5_FAILURE_LEARN, "失败应进入恢复流程", required=True,
-                         error_message="执行失败应调用 recover_workflow"),
+            PreCondition(
+                PrincipleID.P4_VALIDATOR_GATE,
+                "需要 workflow_json 参数",
+                required=True,
+                error_message="必须提供 workflow_json",
+            ),
+            PreCondition(
+                PrincipleID.P4_VALIDATOR_GATE,
+                "workflow 必须经过 Validator",
+                required=False,
+                error_message="建议先执行 validate_workflow",
+            ),
+            PreCondition(
+                PrincipleID.P5_FAILURE_LEARN,
+                "失败应进入恢复流程",
+                required=True,
+                error_message="执行失败应调用 recover_workflow",
+            ),
         ],
         side_effects=[SideEffect("提交到 ComfyUI 远程服务", "network_call")],
-        failure_policy=FailurePolicy(max_retries=2, auto_recover=True,
-                                     user_message="执行失败，已尝试自动恢复"),
+        failure_policy=FailurePolicy(max_retries=2, auto_recover=True, user_message="执行失败，已尝试自动恢复"),
     )
 
     # ── error_kb_query ──

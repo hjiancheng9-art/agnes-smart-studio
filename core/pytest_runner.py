@@ -144,10 +144,13 @@ def debug_inspect(target: str, extra_args: str = "") -> str:
         output = r.stdout + "\n" + r.stderr
 
         if r.returncode == 0:
-            return _json.dumps({
-                "status": "passed",
-                "output": output[-3000:],
-            }, ensure_ascii=False)
+            return _json.dumps(
+                {
+                    "status": "passed",
+                    "output": output[-3000:],
+                },
+                ensure_ascii=False,
+            )
 
         # Parse traceback frames and locals from output
         frames = []
@@ -164,12 +167,16 @@ def debug_inspect(target: str, extra_args: str = "") -> str:
                     # Capture variable dumps from pytest --showlocals
                     pass
 
-        return _json.dumps({
-            "status": "failed",
-            "returncode": r.returncode,
-            "frames": frames if frames else None,
-            "output": output[-5000:],
-        }, ensure_ascii=False, indent=2)
+        return _json.dumps(
+            {
+                "status": "failed",
+                "returncode": r.returncode,
+                "frames": frames if frames else None,
+                "output": output[-5000:],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
     except _sp.TimeoutExpired:
         return _json.dumps({"status": "timeout", "error": "Execution timed out after 120s"}, ensure_ascii=False)
     except Exception as e:

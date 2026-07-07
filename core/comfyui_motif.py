@@ -30,6 +30,7 @@ ParamRange = dict[str, Any]  # {"min": X, "max": Y, "default": Z, "type": "int|f
 @dataclass
 class MotifPort:
     """Motif 端口。"""
+
     name: str
     data_type: str  # MODEL / CLIP / VAE / LATENT / IMAGE / CONDITIONING / VIDEO
     direction: str  # "input" | "output"
@@ -39,17 +40,19 @@ class MotifPort:
 @dataclass
 class MotifNode:
     """Motif 中的节点模板。"""
-    role: str                    # 语义角色
-    class_type: str              # ComfyUI 节点类名
+
+    role: str  # 语义角色
+    class_type: str  # ComfyUI 节点类名
     params: dict = field(default_factory=dict)  # 固定参数
     param_ranges: dict[str, ParamRange] = field(default_factory=dict)  # 可调参数范围
-    optional: bool = False       # 是否可选
+    optional: bool = False  # 是否可选
     model_family: str | None = None  # 模型族
 
 
 @dataclass
 class MotifEdge:
     """Motif 中的连接模板。"""
+
     from_node: str
     from_port: str
     to_node: str
@@ -68,11 +71,12 @@ class MotifDefinition:
     - quality_score: 质量控制
     - edges: 明确图结构而非隐式连接
     """
+
     motif_id: str
     name: str
     description: str
-    category: str               # loader / encoder / sampler / decoder / output / pipeline
-    task_types: list[str]       # 适用任务类型: txt2img / img2img / video ...
+    category: str  # loader / encoder / sampler / decoder / output / pipeline
+    task_types: list[str]  # 适用任务类型: txt2img / img2img / video ...
 
     nodes: list[MotifNode] = field(default_factory=list)
     edges: list[MotifEdge] = field(default_factory=list)
@@ -81,8 +85,8 @@ class MotifDefinition:
     # 质量控制
     canonical_hash: str = ""
     source_templates: list[str] = field(default_factory=list)
-    quality_score: float = 0.8   # 0-1 质量评分
-    pass_rate: float = 1.0       # 回放通过率
+    quality_score: float = 0.8  # 0-1 质量评分
+    pass_rate: float = 1.0  # 回放通过率
 
     # 约束
     compatible_models: list[str] = field(default_factory=list)
@@ -101,12 +105,16 @@ class MotifDefinition:
 
     def _compute_hash(self) -> str:
         """根据内容计算去重 hash。"""
-        content = json.dumps({
-            "nodes": [{"role": n.role, "class_type": n.class_type} for n in self.nodes],
-            "edges": [{"from": e.from_node, "to": e.to_node} for e in self.edges],
-            "category": self.category,
-            "task_types": sorted(self.task_types),
-        }, sort_keys=True, ensure_ascii=False)
+        content = json.dumps(
+            {
+                "nodes": [{"role": n.role, "class_type": n.class_type} for n in self.nodes],
+                "edges": [{"from": e.from_node, "to": e.to_node} for e in self.edges],
+                "category": self.category,
+                "task_types": sorted(self.task_types),
+            },
+            sort_keys=True,
+            ensure_ascii=False,
+        )
         return hashlib.sha256(content.encode()).hexdigest()[:16]
 
     def to_dict(self) -> dict:
@@ -118,7 +126,8 @@ class MotifDefinition:
             "task_types": self.task_types,
             "nodes": [
                 {
-                    "role": n.role, "class_type": n.class_type,
+                    "role": n.role,
+                    "class_type": n.class_type,
                     "param_ranges": {k: v for k, v in n.param_ranges.items()},
                     "optional": n.optional,
                 }
@@ -138,6 +147,7 @@ class MotifDefinition:
 # ═══════════════════════════════════════════════════════════════════
 # MotifRegistry — Motif 注册表
 # ═══════════════════════════════════════════════════════════════════
+
 
 class MotifRegistry:
     """Motif 注册表 — 管理、查询、去重、准入门禁。"""
@@ -186,8 +196,9 @@ class MotifRegistry:
         """按任务类型查找。"""
         return [m for m in self._motifs.values() if task_type in m.task_types]
 
-    def find_compatible(self, task_type: str, model: str | None = None,
-                        vram_gb: int | None = None) -> list[MotifDefinition]:
+    def find_compatible(
+        self, task_type: str, model: str | None = None, vram_gb: int | None = None
+    ) -> list[MotifDefinition]:
         """查找兼容的 Motif。"""
         results = []
         for m in self._motifs.values():
@@ -226,6 +237,7 @@ class MotifRegistry:
 # 从旧的 BUILTIN_MOTIFS 迁移
 # ═══════════════════════════════════════════════════════════════════
 
+
 def migrate_from_old(registry: MotifRegistry) -> int:
     """将旧的 BUILTIN_MOTIFS 迁移到新的 MotifRegistry。"""
     from core.comfyui_compiler import BUILTIN_MOTIFS as old_motifs
@@ -261,6 +273,7 @@ def migrate_from_old(registry: MotifRegistry) -> int:
 # 内置 Motif 库（新格式）
 # ═══════════════════════════════════════════════════════════════════
 
+
 def build_default_motifs() -> list[MotifDefinition]:
     """构建默认 Motif 库。"""
     return [
@@ -271,24 +284,27 @@ def build_default_motifs() -> list[MotifDefinition]:
             category="pipeline",
             task_types=["txt2img"],
             nodes=[
-                MotifNode(role="model_loader", class_type="CheckpointLoaderSimple",
-                          params={"ckpt_name": ""}),
-                MotifNode(role="text_encoder_pos", class_type="CLIPTextEncode",
-                          params={"text": ""}),
-                MotifNode(role="text_encoder_neg", class_type="CLIPTextEncode",
-                          params={"text": ""}),
-                MotifNode(role="latent_init", class_type="EmptyLatentImage",
-                          params={"width": 1024, "height": 1024, "batch_size": 1},
-                          param_ranges={
-                              "width": {"type": "int", "min": 64, "max": 2048, "default": 1024, "step": 64},
-                              "height": {"type": "int", "min": 64, "max": 2048, "default": 1024, "step": 64},
-                          }),
-                MotifNode(role="sampler", class_type="KSampler",
-                          params={"seed": -1, "steps": 20, "cfg": 7.0, "sampler_name": "euler", "scheduler": "normal"},
-                          param_ranges={
-                              "steps": {"type": "int", "min": 1, "max": 80, "default": 20},
-                              "cfg": {"type": "float", "min": 1.0, "max": 30.0, "default": 7.0},
-                          }),
+                MotifNode(role="model_loader", class_type="CheckpointLoaderSimple", params={"ckpt_name": ""}),
+                MotifNode(role="text_encoder_pos", class_type="CLIPTextEncode", params={"text": ""}),
+                MotifNode(role="text_encoder_neg", class_type="CLIPTextEncode", params={"text": ""}),
+                MotifNode(
+                    role="latent_init",
+                    class_type="EmptyLatentImage",
+                    params={"width": 1024, "height": 1024, "batch_size": 1},
+                    param_ranges={
+                        "width": {"type": "int", "min": 64, "max": 2048, "default": 1024, "step": 64},
+                        "height": {"type": "int", "min": 64, "max": 2048, "default": 1024, "step": 64},
+                    },
+                ),
+                MotifNode(
+                    role="sampler",
+                    class_type="KSampler",
+                    params={"seed": -1, "steps": 20, "cfg": 7.0, "sampler_name": "euler", "scheduler": "normal"},
+                    param_ranges={
+                        "steps": {"type": "int", "min": 1, "max": 80, "default": 20},
+                        "cfg": {"type": "float", "min": 1.0, "max": 30.0, "default": 7.0},
+                    },
+                ),
                 MotifNode(role="vae_decode", class_type="VAEDecode"),
                 MotifNode(role="image_output", class_type="SaveImage"),
             ],
@@ -314,12 +330,15 @@ def build_default_motifs() -> list[MotifDefinition]:
             task_types=["txt2img", "img2img"],
             nodes=[
                 MotifNode(role="model_loader", class_type="CheckpointLoaderSimple"),
-                MotifNode(role="lora_loader", class_type="LoraLoader",
-                          params={"strength_model": 1.0, "strength_clip": 1.0},
-                          param_ranges={
-                              "strength_model": {"type": "float", "min": 0.0, "max": 2.0, "default": 1.0},
-                              "strength_clip": {"type": "float", "min": 0.0, "max": 2.0, "default": 1.0},
-                          }),
+                MotifNode(
+                    role="lora_loader",
+                    class_type="LoraLoader",
+                    params={"strength_model": 1.0, "strength_clip": 1.0},
+                    param_ranges={
+                        "strength_model": {"type": "float", "min": 0.0, "max": 2.0, "default": 1.0},
+                        "strength_clip": {"type": "float", "min": 0.0, "max": 2.0, "default": 1.0},
+                    },
+                ),
                 MotifNode(role="text_encoder_pos", class_type="CLIPTextEncode"),
                 MotifNode(role="text_encoder_neg", class_type="CLIPTextEncode"),
                 MotifNode(role="latent_init", class_type="EmptyLatentImage"),
@@ -356,9 +375,12 @@ def build_default_motifs() -> list[MotifDefinition]:
                 MotifNode(role="text_encoder_neg", class_type="CLIPTextEncode"),
                 MotifNode(role="image_loader", class_type="LoadImage"),
                 MotifNode(role="vae_encode", class_type="VAEEncode"),
-                MotifNode(role="sampler", class_type="KSampler",
-                          params={"denoise": 0.7},
-                          param_ranges={"denoise": {"type": "float", "min": 0.0, "max": 1.0, "default": 0.7}}),
+                MotifNode(
+                    role="sampler",
+                    class_type="KSampler",
+                    params={"denoise": 0.7},
+                    param_ranges={"denoise": {"type": "float", "min": 0.0, "max": 1.0, "default": 0.7}},
+                ),
                 MotifNode(role="vae_decode", class_type="VAEDecode"),
                 MotifNode(role="image_output", class_type="SaveImage"),
             ],

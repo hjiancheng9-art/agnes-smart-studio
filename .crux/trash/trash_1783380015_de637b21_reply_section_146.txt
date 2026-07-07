@@ -1,0 +1,26 @@
+建议：
+  先执行 /cleanup apply --risk low
+8. 最终落地优先级
+Must
+1. cleanup_policy.yaml
+2. CleanupManager scan/dry-run
+3. protected path 检查
+4. inside-root 检查
+5. symlink 检查
+6. move-to-trash
+7. restore
+8. EventLog 记录
+Should
+1. Git 状态检查
+2. 引用检查
+3. LoRA best/final 保留规则
+4. ComfyUI workflow hash 去重
+5. 大文件二次确认
+6. TUI /cleanup 命令
+Nice
+1. 自动压缩旧日志
+2. 清理收益统计
+3. 可视化 dashboard
+4. 按项目/模块分组清理
+5. 基于 EventLog 的“未使用文件”判断
+最终建议

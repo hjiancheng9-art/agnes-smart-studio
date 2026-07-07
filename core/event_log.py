@@ -31,26 +31,33 @@ RING_BUFFER_SIZE = 1000
 FLUSH_INTERVAL_SEC = 5
 FLUSH_BATCH_SIZE = 100
 
+
 # ── Data Model ─────────────────────────────────────────────
 @dataclass
 class EventRecord:
     """Single event in the CRUX event log."""
+
     event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     session_id: str = ""
-    intent: str = ""           # search | review | execute | think | generate | status
-    tool: str = ""             # tool name
-    status: str = ""           # success | failure | fallback | timeout
+    intent: str = ""  # search | review | execute | think | generate | status
+    tool: str = ""  # tool name
+    status: str = ""  # success | failure | fallback | timeout
     duration_ms: int = 0
     error_type: str = ""
     metadata: dict = field(default_factory=dict)
 
     def to_row(self) -> tuple:
         return (
-            self.event_id, self.timestamp, self.session_id,
-            self.intent, self.tool, self.status,
-            self.duration_ms, self.error_type,
-            json.dumps(self.metadata, ensure_ascii=False)
+            self.event_id,
+            self.timestamp,
+            self.session_id,
+            self.intent,
+            self.tool,
+            self.status,
+            self.duration_ms,
+            self.error_type,
+            json.dumps(self.metadata, ensure_ascii=False),
         )
 
 
@@ -152,7 +159,7 @@ class EventLog:
                            (event_id, timestamp, session_id, intent, tool, status,
                             duration_ms, error_type, metadata)
                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                        [r.to_row() for r in batch]
+                        [r.to_row() for r in batch],
                     )
             except Exception as e:
                 print(f"[EventLog] flush error: {e}")
@@ -164,7 +171,7 @@ class EventLog:
     # ── Record ──────────────────────────────────────────
     def record(self, **kwargs):
         """Record an event. Lightweight — just appends to ring buffer.
-        
+
         Args:
             intent: search|review|execute|think|generate|status
             tool: tool name
@@ -198,7 +205,7 @@ class EventLog:
             return {"error": "db not ready"}
 
         conditions = ["timestamp >= datetime('now', ?)"]
-        params: list[Any] = [f'-{hours} hours']
+        params: list[Any] = [f"-{hours} hours"]
 
         if intent:
             conditions.append("intent = ?")
@@ -225,7 +232,7 @@ class EventLog:
                         MIN(duration_ms) as min_duration_ms,
                         MAX(duration_ms) as max_duration_ms
                     FROM event_log WHERE {where}""",
-                    params
+                    params,
                 ).fetchone()
 
                 # Per-tool breakdown
@@ -235,7 +242,7 @@ class EventLog:
                         AVG(duration_ms) as avg_ms
                     FROM event_log WHERE {where}
                     GROUP BY tool ORDER BY cnt DESC LIMIT 20""",
-                    params
+                    params,
                 ).fetchall()
 
                 # Per-intent breakdown
@@ -245,7 +252,7 @@ class EventLog:
                         AVG(duration_ms) as avg_ms
                     FROM event_log WHERE {where}
                     GROUP BY intent ORDER BY cnt DESC""",
-                    params
+                    params,
                 ).fetchall()
 
                 return {
@@ -265,8 +272,7 @@ class EventLog:
             return {"error": str(e)}
 
     def query_events(
-        self, session_id: str = "", intent: str = "", tool: str = "",
-        status: str = "", limit: int = 50
+        self, session_id: str = "", intent: str = "", tool: str = "", status: str = "", limit: int = 50
     ) -> list[dict]:
         """Query raw events."""
         self._flush()
@@ -274,13 +280,17 @@ class EventLog:
         conditions = ["1=1"]
         params: list[Any] = []
         if session_id:
-            conditions.append("session_id = ?"); params.append(session_id)
+            conditions.append("session_id = ?")
+            params.append(session_id)
         if intent:
-            conditions.append("intent = ?"); params.append(intent)
+            conditions.append("intent = ?")
+            params.append(intent)
         if tool:
-            conditions.append("tool = ?"); params.append(tool)
+            conditions.append("tool = ?")
+            params.append(tool)
         if status:
-            conditions.append("status = ?"); params.append(status)
+            conditions.append("status = ?")
+            params.append(status)
 
         where = " AND ".join(conditions)
 
@@ -290,7 +300,7 @@ class EventLog:
                 rows = conn.execute(
                     f"""SELECT * FROM event_log WHERE {where}
                     ORDER BY timestamp DESC LIMIT ?""",
-                    params + [limit]
+                    params + [limit],
                 ).fetchall()
                 return [dict(r) for r in rows]
         except Exception as e:
@@ -307,7 +317,7 @@ class EventLog:
                     WHERE status = 'failure'
                     AND timestamp >= datetime('now', ?)
                     ORDER BY timestamp DESC LIMIT 30""",
-                    [f'-{hours} hours']
+                    [f"-{hours} hours"],
                 ).fetchall()
                 return [dict(r) for r in rows]
         except Exception as e:

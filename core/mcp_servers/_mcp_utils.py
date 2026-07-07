@@ -106,6 +106,7 @@ def run_subprocess(
         loop = asyncio.get_running_loop()
         if loop.is_running():
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 future = pool.submit(_sync_worker)
                 try:
@@ -157,9 +158,7 @@ async def run_subprocess_async(
     )
 
     try:
-        stdout_bytes, stderr_bytes = await asyncio.wait_for(
-            proc.communicate(input=stdin_data), timeout=timeout
-        )
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(input=stdin_data), timeout=timeout)
     except asyncio.TimeoutError:
         proc.kill()
         raise subprocess.TimeoutExpired(cmd, timeout) from None
@@ -168,9 +167,7 @@ async def run_subprocess_async(
     stderr = stderr_bytes.decode("utf-8", errors="replace") if stderr_bytes else ""
 
     if check and proc.returncode != 0:
-        raise subprocess.CalledProcessError(
-            proc.returncode or -1, cmd, output=stdout, stderr=stderr
-        )
+        raise subprocess.CalledProcessError(proc.returncode or -1, cmd, output=stdout, stderr=stderr)
 
     return subprocess.CompletedProcess(
         args=cmd,
@@ -204,8 +201,11 @@ def check_binary_health(name: str, binary: str | None) -> tuple[bool, str]:
 
 def build_tools_json(tools: list[dict[str, Any]]) -> str:
     """Build a tools/list JSON response."""
-    return json.dumps({
-        "jsonrpc": "2.0",
-        "result": {"tools": tools},
-        "id": None,
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "result": {"tools": tools},
+            "id": None,
+        },
+        ensure_ascii=False,
+    )

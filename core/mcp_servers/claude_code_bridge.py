@@ -53,7 +53,11 @@ class ClaudeCodeMCPBridge:
                     "type": "object",
                     "properties": {
                         "target": {"type": "string", "description": "File path, directory, or 'git diff'"},
-                        "focus": {"type": "string", "enum": ["all", "bugs", "security", "style", "performance"], "description": "Review focus (default: all)"},
+                        "focus": {
+                            "type": "string",
+                            "enum": ["all", "bugs", "security", "style", "performance"],
+                            "description": "Review focus (default: all)",
+                        },
                         "work_dir": {"type": "string", "description": "Working directory"},
                         "timeout": {"type": "integer", "description": "Timeout in seconds (default: 300)"},
                     },
@@ -127,7 +131,14 @@ class ClaudeCodeMCPBridge:
             return {"success": False, "installed": False, "binary": CLAUDE_CODE_PATH}
 
         try:
-            result = subprocess.run([CLAUDE_CODE_PATH, "--version"], capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace")
+            result = subprocess.run(
+                [CLAUDE_CODE_PATH, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                encoding="utf-8",
+                errors="replace",
+            )
             return {
                 "success": True,
                 "installed": True,
@@ -139,7 +150,9 @@ class ClaudeCodeMCPBridge:
 
     # ── JSON-RPC helpers ────────────────────────────────────────
 
-    def _make_jsonrpc_response(self, req_id: int | str | None, result: dict | None = None, error: dict | None = None) -> dict:
+    def _make_jsonrpc_response(
+        self, req_id: int | str | None, result: dict | None = None, error: dict | None = None
+    ) -> dict:
         resp = {"jsonrpc": "2.0"}
         if req_id is not None:
             resp["id"] = req_id  # pyright: ignore[reportArgumentType]
@@ -154,11 +167,14 @@ class ClaudeCodeMCPBridge:
 
     def _dispatch(self, req_id: int | str | None, method: str, params: dict) -> dict:
         if method == "initialize":
-            return self._make_jsonrpc_response(req_id, {
-                "protocolVersion": "2024-11-05",
-                "serverInfo": {"name": "claude-code-bridge", "version": "1.0.0"},
-                "capabilities": {"tools": {}}
-            })
+            return self._make_jsonrpc_response(
+                req_id,
+                {
+                    "protocolVersion": "2024-11-05",
+                    "serverInfo": {"name": "claude-code-bridge", "version": "1.0.0"},
+                    "capabilities": {"tools": {}},
+                },
+            )
 
         if method == "tools/list":
             return self._make_jsonrpc_response(req_id, {"tools": self.tools})

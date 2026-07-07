@@ -100,8 +100,7 @@ TOOLS = [
     {
         "name": "find_files",
         "description": (
-            "Fast file pattern matching using glob. Returns matching file paths "
-            "sorted by modification time."
+            "Fast file pattern matching using glob. Returns matching file paths sorted by modification time."
         ),
         "inputSchema": {
             "type": "object",
@@ -121,8 +120,7 @@ TOOLS = [
     {
         "name": "read_file",
         "description": (
-            "Read file contents. Supports offset and limit for large files. "
-            "Reads images (PNG, JPG) as base64."
+            "Read file contents. Supports offset and limit for large files. Reads images (PNG, JPG) as base64."
         ),
         "inputSchema": {
             "type": "object",
@@ -222,9 +220,7 @@ TOOLS = [
     },
     {
         "name": "web_search",
-        "description": (
-            "Search the web and return structured results with titles and URLs."
-        ),
+        "description": ("Search the web and return structured results with titles and URLs."),
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -242,10 +238,7 @@ TOOLS = [
     },
     {
         "name": "web_fetch",
-        "description": (
-            "Fetch a URL and return its content. Handles redirects. "
-            "Returns text content up to 100KB."
-        ),
+        "description": ("Fetch a URL and return its content. Handles redirects. Returns text content up to 100KB."),
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -264,8 +257,7 @@ TOOLS = [
     {
         "name": "git_diff_full",
         "description": (
-            "Show complete git diff output. Supports file filtering, staged changes, "
-            "and commit comparison."
+            "Show complete git diff output. Supports file filtering, staged changes, and commit comparison."
         ),
         "inputSchema": {
             "type": "object",
@@ -288,9 +280,7 @@ TOOLS = [
     },
     {
         "name": "git_log_detailed",
-        "description": (
-            "Show git commit history with flexible formatting and filtering."
-        ),
+        "description": ("Show git commit history with flexible formatting and filtering."),
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -419,7 +409,17 @@ def _handle_search_code(params: dict) -> dict:
         r = run_subprocess(cmd, timeout=30)
     except FileNotFoundError:
         # Fallback: use Python's re module for basic search
-        return _search_fallback(pattern, search_path, glob_filter, output_mode, context_lines, head_limit, offset, multiline, case_insensitive)
+        return _search_fallback(
+            pattern,
+            search_path,
+            glob_filter,
+            output_mode,
+            context_lines,
+            head_limit,
+            offset,
+            multiline,
+            case_insensitive,
+        )
     except subprocess.TimeoutExpired:
         return _tool_error("Search timed out after 30s")
 
@@ -441,7 +441,9 @@ def _handle_search_code(params: dict) -> dict:
     return {"content": [{"type": "text", "text": text}], "isError": False}
 
 
-def _search_fallback(pattern, search_path, glob_filter, output_mode, context_lines, head_limit, offset, multiline, case_insensitive):
+def _search_fallback(
+    pattern, search_path, glob_filter, output_mode, context_lines, head_limit, offset, multiline, case_insensitive
+):
     """Fallback search using Python stdlib when ripgrep is not available."""
     import fnmatch
 
@@ -467,10 +469,35 @@ def _search_fallback(pattern, search_path, glob_filter, output_mode, context_lin
     for fp in files:
         if not fp.is_file():
             continue
-        if fp.suffix not in (".py", ".js", ".ts", ".jsx", ".tsx", ".html", ".css",
-                              ".json", ".md", ".txt", ".toml", ".yaml", ".yml",
-                              ".cfg", ".ini", ".sh", ".bat", ".ps1", ".rs", ".go",
-                              ".java", ".c", ".cpp", ".h", ".hpp", ".xml", ".svg"):
+        if fp.suffix not in (
+            ".py",
+            ".js",
+            ".ts",
+            ".jsx",
+            ".tsx",
+            ".html",
+            ".css",
+            ".json",
+            ".md",
+            ".txt",
+            ".toml",
+            ".yaml",
+            ".yml",
+            ".cfg",
+            ".ini",
+            ".sh",
+            ".bat",
+            ".ps1",
+            ".rs",
+            ".go",
+            ".java",
+            ".c",
+            ".cpp",
+            ".h",
+            ".hpp",
+            ".xml",
+            ".svg",
+        ):
             continue
         try:
             content = fp.read_text(encoding="utf-8", errors="replace")
@@ -639,6 +666,7 @@ def _handle_edit_file(params: dict) -> dict:
     # Backup before writing
     backup = fp.with_suffix(fp.suffix + ".bak")
     import contextlib
+
     with contextlib.suppress(OSError):
         backup.write_text(content, encoding="utf-8")
 
@@ -648,7 +676,12 @@ def _handle_edit_file(params: dict) -> dict:
         return _tool_error(f"Failed to write file: {e}")
 
     return {
-        "content": [{"type": "text", "text": f"File edited: {file_path} ({replacements} replacement(s)). Backup at {backup.name}"}],
+        "content": [
+            {
+                "type": "text",
+                "text": f"File edited: {file_path} ({replacements} replacement(s)). Backup at {backup.name}",
+            }
+        ],
         "isError": False,
     }
 

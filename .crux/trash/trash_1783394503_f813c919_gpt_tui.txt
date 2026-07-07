@@ -1,0 +1,1309 @@
+跳至内容
+黄
+历史聊天记录
+ChatGPT Plus
+新聊天
+搜索
+文件库
+项目
+已安排
+应用
+Codex
+更多
+已置顶
+Fantasy Concept Art Request
+Codex 方法论全本
+CRUX Studio架构诊断
+最近
+CRUX 架构演进建议
+CWIM 方法论与改进建议
+V2项目工作流模板数据
+ComfyUI模板提取脚本
+导出V2 ComfyUI模板数据
+方向选择与推进建议
+ComfyUI架构审计
+新烬龙V2架构分析
+ComfyUI 架构审计
+今日日期与星期
+颜色色号识别
+问题诊断指导
+高级模型与低级模型切换影响
+GPT生图生视频方法论
+Lunch Video Storyboard
+Lunch Scene Request
+Lunch Scene Image Request
+Lunch Scene Description
+Codex 503 错误排查
+Codex接入DeepSeek配置
+Claude Code 文件修复
+显卡4060ti编码模型推荐
+Pixar 3D 角色设计
+Cinematic storyboard generation
+Storyboard keyframe request
+Storyboard Blueprint Request
+Cinematic Keyframe Blueprint
+Storyboard Keyframe Blueprint
+黄
+黄建程
+Plus
+分享
+已思考 7s
+
+你的判断是对的：CWIM 不应该继续作为 CRUX 的总方法论。
+
+它适合做 ComfyUI 领域方法论插件，不适合作为通用 Agent 的最高层操作系统。
+
+更准确地说：
+
+CWIM 是 Domain Methodology，不是 Agent Methodology。
+CRUX 需要一套更高层的 Agent Studio Methodology，然后把 CWIM 挂在其中作为 ComfyUI 专用子方法论。
+
+1. CWIM 对 CRUX 是框架还是束缚？
+
+答案是：现在一半是框架，一半会逐渐变成束缚。
+
+CWIM 里有两类原则。
+
+A 类：可泛化原则
+
+这些应该保留，并上升为 CRUX 通用原则：
+
+参数不是数字，而是语义
+所有推荐必须可解释
+不要直接生成最终产物，先理解目标结构
+工作流要可验证、可回滚、可诊断
+推荐必须说明适用条件和失败边界
+
+这些不是 ComfyUI 专用，而是 Agent 可靠性的基础。
+
+例如：
+
+参数不是数字，而是语义
+
+泛化后就是：
+
+任何工具参数都不是裸值，而是意图、约束、风险和上下文的投影。
+
+这对文件操作、浏览器控制、代码修复、工具路由都成立。
+
+B 类：领域专用原则
+
+这些应该留在 CWIM 内部，不应污染通用 Agent：
+
+LLM 不直接生成 ComfyUI JSON
+LoRA 是项目不是文件
+Workflow 是图不是 JSON
+节点兼容性优先于表面结构
+模型 / VAE / ControlNet / Sampler 是语义绑定
+
+这些对 ComfyUI 极其正确，但对通用任务会变形。
+
+例如：
+
+Workflow 是图不是 JSON
+
+在 ComfyUI 中很强。
+但在通用 Agent 中，文件操作、问答、浏览器控制并不总是图。硬套会造成过度工程。
+
+2. 你不该问“继续 CWIM 还是放弃 CWIM”
+
+正确问题是：
+
+CWIM 应该降级为领域方法包，CRUX 应该升级出通用方法论内核。
+
+推荐结构：
+
+CRUX Agent Studio Methodology
+│
+├─ Core Agent Methodology
+│  ├─ 意图澄清
+│  ├─ 工具治理
+│  ├─ 证据化执行
+│  ├─ 风险控制
+│  ├─ 可解释性
+│  ├─ 回滚与自愈
+│  └─ 预算管理
+│
+├─ Code Methodology
+│  ├─ 先复现后修复
+│  ├─ no evidence no patch
+│  ├─ 假修复检测
+│  └─ 测试闭环
+│
+├─ ComfyUI Methodology / CWIM
+│  ├─ Workflow 是图不是 JSON
+│  ├─ 参数语义化
+│  ├─ 模型兼容性
+│  └─ LoRA 生命周期
+│
+├─ Browser Methodology
+│  ├─ 只读优先
+│  ├─ 提交动作需确认
+│  ├─ DOM 证据
+│  └─ 截图/状态回放
+│
+├─ File Methodology
+│  ├─ patch 前 checksum
+│  ├─ 备份
+│  ├─ diff 可解释
+│  └─ rollback
+│
+└─ Creative Methodology
+   ├─ 风格锁
+   ├─ 角色一致性
+   ├─ 镜头语言
+   └─ 输出质量评估
+
+CWIM 不消失，只是从“宪法”变成“专业部门规程”。
+
+3. 方法论对 Agent 是必需品还是奢侈品？
+
+看 Agent 的能力等级。
+
+对普通聊天模型：方法论是加分项
+
+普通问答、闲聊、写作辅助，方法论不是必需品。
+
+因为它没有强副作用：
+
+不会改文件
+不会调用浏览器
+不会安装依赖
+不会提交表单
+不会生成昂贵媒体
+不会自动执行多步计划
+
+这时方法论太重，反而会显得啰嗦。
+
+对 CRUX 这种通用 Agent：方法论是必需品
+
+你不是普通聊天模型。你有：
+
+50+ 工具
+文件写入
+浏览器控制
+ComfyUI 执行
+self-heal
+execute_plan
+技能市场
+多 Agent
+Goal Mode
+patch_file
+pip_install
+
+这类系统没有方法论会变成：
+
+能做很多事，但不知道什么时候不该做
+能修很多东西，但不知道是不是真修好
+能调用很多工具，但不知道为什么选这个
+能自动执行，但用户不敢信任
+
+所以对 CRUX 来说，方法论不是奢侈品，而是 运行时安全与质量的操作系统。
+
+但有一个前提：
+
+方法论必须可路由、可降级、可局部启用，不能是一篇大 prompt 常驻压制所有任务。
+
+坏的方法论会变成束缚。
+好的方法论会变成治理层。
+
+4. CRUX 应该发展 Agent Studio Methodology
+
+我建议你把通用方法论命名为：
+
+ASM — Agent Studio Methodology
+
+或者更工程化一点：
+
+CAGM — CRUX Agent Governance Methodology
+
+其中 CWIM 作为：
+
+CWIM — ComfyUI Workflow Intelligence Methodology
+
+被 ASM 调用。
+
+5. ASM 应该有哪些核心原则？
+
+我建议第一版不要太多，控制在 10 条以内。
+
+ASM v1 十原则
+1. 先定义完成契约，再选择工具
+2. 工具参数必须来自语义约束，而不是裸值猜测
+3. 读操作优先，写操作必须可回滚
+4. 高风险动作必须有确认、沙箱或降级路径
+5. 所有执行必须留下 EventLog 证据
+6. 所有推荐必须解释选择理由、适用边界和替代方案
+7. 自愈必须先复现，再修复，再验证
+8. 失败重试必须引入新证据，禁止盲重试
+9. 方法论按任务路由，不得全局硬套
+10. 完成不是“工具成功”，而是“目标证据通过”
+
+这 10 条比 CWIM 更适合 CRUX 通用 Agent。
+
+6. CWIM 原则应该如何迁移？
+
+可以这样映射。
+
+CWIM 原则	保留方式	泛化后
+LLM 不直接生成 ComfyUI JSON	降级为 ComfyUI 专用	Agent 不直接生成高风险最终产物，先生成 IR / plan / patch
+参数不是数字而是语义	上升为核心原则	所有工具参数都是语义约束投影
+推荐必须可解释	上升为核心原则	每次路由、推荐、降级都要有 reason
+LoRA 是项目不是文件	保留在 CWIM	长生命周期资源不是单文件，而是项目状态
+Workflow 是图不是 JSON	保留在 CWIM	复杂任务应有结构化中间表示
+先诊断再生成	上升为核心原则	Observe → Diagnose → Act
+模型兼容性优先	泛化	工具/技能/上下文兼容性优先
+错误恢复必须闭环	上升为核心原则	Retry 必须有 evidence
+用户意图优先于模板	上升为核心原则	工具服从目标，不让目标服从工具
+产物必须可验证	上升为核心原则	完成由 evaluator 裁决
+
+这说明 CWIM 的价值很高，但它不该是总框架。
+
+7. 最关键：方法论要从 prompt 变成 runtime policy
+
+你现在最容易踩的坑是：
+
+把方法论写成一大段系统提示
+
+这会导致：
+
+简单问答也过度分析
+文件操作套 ComfyUI 逻辑
+浏览器控制套 workflow graph
+编程任务被视觉生成原则污染
+模型每次都背诵原则而不是执行任务
+
+正确做法是：
+
+Methodology Router
+
+根据任务选择方法论。
+
+例如：
+
+JSON
+{
+  "intent": "execute",
+  "domain": "code",
+  "risk": "medium",
+  "methodology": ["ASM.core", "ASM.code", "ASM.file"]
+}
+
+ComfyUI 任务：
+
+JSON
+{
+  "intent": "generate",
+  "domain": "comfyui",
+  "risk": "medium",
+  "methodology": ["ASM.core", "CWIM"]
+}
+
+浏览器任务：
+
+JSON
+{
+  "intent": "execute",
+  "domain": "browser",
+  "risk": "high",
+  "methodology": ["ASM.core", "ASM.browser"]
+}
+
+普通问答：
+
+JSON
+{
+  "intent": "think",
+  "domain": "general",
+  "risk": "low",
+  "methodology": ["ASM.light"]
+}
+8. 方法论的最佳形态
+
+不要做成：
+
+一篇巨大的 METHOD.md
+
+应该做成四层：
+
+Principles
+- 永久原则，少而稳
+
+Policies
+- 什么时候允许/禁止某类动作
+
+Checklists
+- 执行前/执行后检查
+
+Evaluators
+- 用证据裁决是否完成
+
+例如：
+
+ASM.core.principles.md
+ASM.core.policies.json
+ASM.code.checklist.yaml
+ASM.comfyui.cwim.md
+ASM.browser.policy.json
+ASM.evaluators.py
+
+这样方法论不只是“提醒模型”，而是能进入运行时。
+
+9. 我的最终判断
+
+CWIM 对你不是错的，但它已经不够高阶。
+
+你现在应该：
+
+保留 CWIM
+但不要继续让 CWIM 统治 CRUX
+
+正确路线是：
+
+ASM 作为总方法论
+CWIM 作为 ComfyUI 领域方法论
+Code / Browser / File / Skill / Creative 各自拥有子方法论
+Methodology Router 负责按任务加载
+
+最终一句话：
+
+方法论对 CRUX 不是奢侈品，而是自主系统的安全操作系统；但 CWIM 只能做 ComfyUI 专科医生，不能做 CRUX 的总院长。
+
+我落地了你上一轮的方法论建议（ASM分层），但犯了个错误：我跳过了先找你拿详细资料这一步。现在我需要你补给我三份规格文档：规格1：ASM各层完整checklist表格；规格2：Fixability estimator三阶段接口协议；规格3：CWIM降级为ASM子方法论的挂载点映射表。直接给答案就行。
+已思考 8s
+
+下面直接给三份可落地规格文档，按你当前 CRUX v5.0 / ASM / CWIM 结构写。
+
+编辑
+规格 1：ASM 各层完整 Checklist 表格
+1. ASM 总体分层
+层级	名称	作用	触发场景	输出
+L0	ASM.light	轻量问答/低风险任务	普通问答、解释、总结、建议	简洁回答、无复杂执行
+L1	ASM.core	通用 Agent 方法论核心	所有非纯闲聊任务	目标契约、风险判断、执行边界
+L2	ASM.tool	工具治理层	任意工具调用	工具选择理由、权限检查、fallback
+L3	ASM.file	文件与补丁层	文件读写、patch、批量修改	checksum、diff、rollback
+L4	ASM.code	编程与自愈层	调试、修复、重构、测试	复现、patch、测试证据
+L5	ASM.browser	浏览器控制层	CDP、网页操作、截图、表单	DOM证据、用户确认、动作日志
+L6	ASM.skill	技能包治理层	加载/执行技能	manifest、权限、trust、隔离
+L7	ASM.agent	多 Agent 协作层	swarm、multi_agent、任务分解	Task/Message/Artifact
+L8	ASM.media	图像/视频/ComfyUI/创意生成	generate_image/video、ComfyUI	风格锁、素材一致性、生成证据
+L9	ASM.evaluator	评估裁决层	goal_evaluate、self_heal、完成判断	pass/fail/needs_fix
+2. ASM.light Checklist
+检查项	必须	说明
+判断是否为低风险问答	是	无文件写入、无工具副作用、无账户/浏览器动作
+不启动 execute_plan	是	避免简单问题复杂化
+不加载领域重方法论	是	不自动加载 CWIM / code / browser
+回答直接、短路径	是	除非用户要求深度分析
+不生成 EventLog 详细链路	否	可只记录 session-level summary
+3. ASM.core Checklist
+阶段	Checklist	失败处理
+Intent	是否识别 intent：search/review/execute/think/generate/status	低置信度时转 clarify 或 light answer
+Goal	是否需要 Goal Contract	需要多步或副作用时必须生成
+Boundary	是否有边界：文件范围、权限、预算、禁止动作	边界不清时降级到 plan/draft
+Risk	是否评估 risk：readonly/low/medium/high/destructive	高风险必须确认或沙箱
+Evidence	是否定义完成证据	无证据不得宣称 completed
+Budget	是否设置 max_steps/max_tool_calls/max_duration	超预算 paused/failed
+Explain	是否能解释决策	不能解释则不自动执行
+4. ASM.tool Checklist
+检查项	必须	说明
+工具是否在 TRM 注册	是	未注册工具不得自动调用
+是否匹配 intent/capability	是	避免跨意图误调用
+是否通过 permission gate	是	特别是 filesystem/network/browser/shell
+是否有 route_reason	是	记录为何选择该工具
+是否有 fallback_graph	建议	失败时语义降级，而不是盲重试
+是否记录 EventLog	是	TOOL_CALL_START/COMPLETE/FAILED/TIMEOUT
+retry 是否有新证据	是	无新日志/状态/上下文，不允许重试
+是否进入成长引擎更新	是	成功率、延迟、fallback、reward
+5. ASM.file Checklist
+阶段	Checklist	必须
+Pre	记录目标文件列表	是
+Pre	记录 pre_hash	是
+Pre	检查路径越界	是
+Pre	检查是否触碰禁止路径	是
+Execute	使用 patch_file 而非任意写入	建议
+Execute	自动备份	是
+Execute	批量修改需事务化	是
+Post	记录 post_hash	是
+Post	记录 git diff --stat	是
+Post	语法检查	视类型
+Post	可回滚验证	是
+Fake-fix	无变更但宣称修复 → fix-spurious	是
+Fake-fix	改测试/快照/跳过断言需高风险标记	是
+6. ASM.code Checklist
+阶段	Checklist	完成标准
+Observe	读取错误、日志、诊断、测试输出	有明确 failure evidence
+Reproduce	尝试复现原始失败	reproduced_original_failure=true
+Diagnose	形成 root cause hypothesis	有文件/函数/调用链依据
+Patch	最小修改	不做无关重构
+Validate	运行相关测试	target failure resolved
+Regression	运行回归测试/语法检查	no new failure
+False-fix Scan	检测吞异常、删测试、弱化断言	false_fix_score 低于阈值
+Complete	goal_evaluate pass	工具成功不等于目标成功
+7. ASM.browser Checklist
+操作类型	策略	说明
+页面读取	自动允许	截图/DOM/URL 记录
+导航	低风险可自动	记录 URL 和来源
+输入文本	中风险	表单内容需可回放
+点击按钮	按语义分类	普通 UI 可自动，提交/支付/删除需确认
+表单提交	必须确认	除非用户明确授权
+文件上传	必须确认	涉及本地文件泄露风险
+下载	需路径控制	不允许覆盖敏感文件
+登录/支付/发布	禁止自动	必须人工确认
+8. ASM.skill Checklist
+检查项	规则
+是否存在 manifest	新技能必须有，legacy 允许自动生成
+legacy 是否 confirmed	false 时降权，不进自动高优先级路由
+runtime 是否安全	python 默认 python_subprocess，不默认 inline
+permissions 是否人工确认	inferred_permissions 不等于真实 permissions
+integrity 是否校验	加载时校验
+min_crux_version 是否满足	不满足禁用
+trust level 是否匹配权限	local_legacy 不得自动获得高风险权限
+entrypoint 是否存在	不存在禁用
+requires 是否满足	缺依赖则 disabled/requires_user_action
+执行是否记录 EventLog	必须
+9. ASM.agent Checklist
+检查项	必须
+是否生成 AgentTask	是
+是否有 TaskState：submitted/working/input_required/completed/failed/cancelled	是
+是否有 Message/Artifact 结构	是
+是否有 parent_task_id	建议
+是否限制 max_parallel_tasks	是
+是否防止重复派发	是
+是否有 merge/evaluator	是
+是否能解释每个子 Agent 的职责	是
+是否能取消/暂停	是
+是否记录 agent-level EventLog	是
+10. ASM.media / ComfyUI Checklist
+检查项	规则
+是否识别为 ComfyUI 任务	是则挂载 CWIM
+是否先生成语义 IR	是
+是否避免 LLM 直接裸生成 workflow JSON	是
+参数是否有语义来源	是
+模型/LoRA/ControlNet 是否兼容	是
+workflow 是否按图验证	是
+是否有 preview / dry-run	建议
+生成是否消耗额度	是则提示或确认
+是否记录素材、seed、workflow_hash	是
+是否可复现	尽量
+11. ASM.evaluator Checklist
+检查项	完成标准
+工具是否成功	tool status = success
+目标是否达成	finish_line met
+边界是否遵守	boundaries respected
+预算是否遵守	budget respected
+是否有证据	evidence attached
+是否有副作用未确认	none
+是否存在 fake-fix	false_fix_score below threshold
+是否需要用户确认	no pending confirmation
+最终状态	completed / needs_fix / failed / paused
+编辑
+规格 2：Fixability Estimator 三阶段接口协议
+1. 目标
+
+Fixability Estimator 用于在 self-heal / execute_plan / patch_file 重试前判断：
+
+这个错误是否可能由 CRUX 自动修复？
+应该重试、降级诊断、要求用户操作，还是 quarantine？
+
+它不直接修复，只输出决策。
+
+2. 三阶段结构
+阶段	名称	时延目标	作用	是否默认执行
+L0	Seed Prior	<5ms	基于 error_type/signature 的先验判断	是
+L1	Context Probe	100ms-1s	读取上下文，判断是否有可修复变量	是，若 L0 要求
+L2	Bounded Experiment	5s-30s	小范围低风险试验	仅高价值任务
+3. 核心枚举
+FixabilityAction = Literal[
+    "allow_retry",
+    "limited_retry",
+    "requires_new_evidence",
+    "requires_context_probe",
+    "downgrade_to_diagnosis",
+    "requires_user_action",
+    "quarantine",
+    "manual_review_required"
+]
+RepairClass = Literal[
+    "parameter_adjustment",
+    "dependency_install",
+    "environment_fix",
+    "code_patch",
+    "resource_reduction",
+    "permission_fix",
+    "network_retry",
+    "configuration_fix",
+    "not_fixable_by_code",
+    "unknown"
+]
+4. 输入协议
+{
+  "request_id": "uuid",
+  "timestamp": "iso8601",
+  "tool": "self_heal",
+  "error_type": "CUDAOutOfMemoryError",
+  "error_message": "...",
+  "error_signature": "sha256:...",
+  "context_fingerprint": "sha256:...",
+  "intent": "execute",
+  "domain": "comfyui",
+  "goal_id": "goal_x",
+  "run_id": "run_y",
+  "attempt_index": 1,
+  "budget": {
+    "remaining_steps": 6,
+    "remaining_tool_calls": 20,
+    "remaining_duration_ms": 300000
+  },
+  "context": {
+    "project_type": "comfyui",
+    "files_touched": [],
+    "workflow_hash": "...",
+    "model_names": ["sdxl"],
+    "batch_size": 32,
+    "resolution": [1024, 1024],
+    "vram_total_mb": 8192,
+    "vram_free_mb": 512,
+    "modifiable_knobs": ["batch_size", "resolution", "vae_tiling"]
+  },
+  "history": {
+    "same_signature_failures_24h": 2,
+    "same_context_failures": 1,
+    "quarantine_strike_count": 0,
+    "similar_successes": 3,
+    "last_action": "limited_retry"
+  }
+}
+5. 输出协议
+{
+  "decision_id": "uuid",
+  "fixability_score": 0.72,
+  "confidence": 0.81,
+  "action": "limited_retry",
+  "repair_class": "resource_reduction",
+  "max_attempts": 1,
+  "requires_new_evidence": true,
+  "requires_context_probe": false,
+  "allowed_mutations": [
+    "batch_size",
+    "resolution",
+    "vae_tiling"
+  ],
+  "forbidden_mutations": [
+    "delete_node",
+    "disable_validation",
+    "change_model_without_user_confirmation"
+  ],
+  "reason": "CUDA OOM appears parameter-driven; batch_size and tiling are adjustable.",
+  "evidence": {
+    "seed_rule": "cuda_oom_resource_pressure",
+    "context_probe": {
+      "batch_size": 32,
+      "vram_free_mb": 512,
+      "modifiable_knobs_found": true
+    },
+    "bounded_experiment": null
+  },
+  "quarantine": {
+    "should_quarantine": false,
+    "backoff_level": 0,
+    "quarantined_until": null
+  }
+}
+6. L0 Seed Prior 接口
+class SeedPriorResult(TypedDict):
+    fixability_prior: float
+    confidence: float
+    action_hint: FixabilityAction
+    repair_class_hint: RepairClass
+    requires_context_probe: bool
+    max_attempts_hint: int
+    rule_id: str
+    reason: str
+def estimate_seed_prior(
+    tool: str,
+    error_type: str,
+    error_message: str,
+    error_signature: str
+) -> SeedPriorResult:
+    ...
+L0 示例
+{
+  "fixability_prior": 0.35,
+  "confidence": 0.7,
+  "action_hint": "requires_context_probe",
+  "repair_class_hint": "resource_reduction",
+  "requires_context_probe": true,
+  "max_attempts_hint": 1,
+  "rule_id": "cuda_oom_requires_context",
+  "reason": "CUDA OOM may be parameter-fixable or environment-limited."
+}
+7. L1 Context Probe 接口
+class ContextProbeResult(TypedDict):
+    context_available: bool
+    context_fingerprint: str
+    modifiable_knobs: list[str]
+    constraints: dict
+    estimated_fixability_delta: float
+    evidence: dict
+def probe_context(
+    request: FixabilityRequest,
+    seed_result: SeedPriorResult
+) -> ContextProbeResult:
+    ...
+L1 必须遵守
+规则	说明
+不修改状态	只读探测
+不安装依赖	禁止副作用
+不运行长测试	超过 1s 进入 L2
+记录 context_fingerprint	用于 quarantine
+输出 evidence	方便 EventLog 和解释
+8. L2 Bounded Experiment 接口
+class BoundedExperimentResult(TypedDict):
+    attempted: bool
+    experiment_id: str
+    mutation: dict
+    success_signal: bool
+    duration_ms: int
+    rollback_required: bool
+    evidence: dict
+def run_bounded_experiment(
+    request: FixabilityRequest,
+    candidate_mutation: dict,
+    budget_ms: int = 30000
+) -> BoundedExperimentResult:
+    ...
+L2 允许场景
+场景	示例
+可回滚参数修改	batch_size 32→16
+dry-run	ComfyUI workflow validate
+低成本测试	单个相关测试
+临时环境探测	import check、version check
+L2 禁止场景
+禁止	原因
+删除文件	高风险
+修改生产配置	高风险
+安装未知依赖	需用户确认
+大规模重构	超出 bounded experiment
+生成昂贵媒体	消耗预算
+9. 决策流
+input
+→ L0 seed prior
+→ if action=quarantine/manual_review_required: stop
+→ if requires_context_probe: L1 context probe
+→ recompute fixability_score
+→ if score >= 0.70: limited_retry
+→ if 0.40 <= score < 0.70: requires_new_evidence / diagnosis
+→ if score < 0.40: downgrade_to_diagnosis
+→ if repeated failure: quarantine backoff
+→ optional L2 bounded experiment
+10. 推荐阈值
+fixability_score	动作
+0.80 - 1.00	allow_retry
+0.65 - 0.80	limited_retry
+0.45 - 0.65	requires_new_evidence
+0.25 - 0.45	downgrade_to_diagnosis
+0.10 - 0.25	requires_user_action
+0.00 - 0.10	quarantine / manual_review_required
+11. EventLog 事件
+
+必须记录：
+
+fixability.seed_prior
+fixability.context_probe
+fixability.bounded_experiment
+fixability.decision
+quarantine.backoff_applied
+quarantine.cleared
+
+事件示例：
+
+{
+  "event_type": "fixability.decision",
+  "tool": "self_heal",
+  "error_type": "CUDAOutOfMemoryError",
+  "fixability_score": 0.72,
+  "confidence": 0.81,
+  "action": "limited_retry",
+  "repair_class": "resource_reduction",
+  "context_fingerprint": "sha256:...",
+  "reason": "OOM appears parameter-driven."
+}
+12. 与 FakeFixDetector 的关系
+模块	作用
+FixabilityEstimator	修复前判断是否值得尝试
+FakeFixDetector	修复后判断是不是假修
+SeedPolicy	FixabilityEstimator 的 L0 先验来源
+Quarantine	重复失败后的抑制状态机
+EventLog	证据存储
+编辑
+规格 3：CWIM 降级为 ASM 子方法论的挂载点映射表
+1. 总体定位
+
+CWIM 不再作为 CRUX 全局方法论，而作为 ASM 的 ComfyUI 领域子方法论。
+
+ASM.core
+  └── ASM.media
+        └── CWIM
+
+CWIM 只在以下任务中挂载：
+
+domain = comfyui
+或 tool ∈ {
+  submit_workflow,
+  build_custom,
+  preview_workflow,
+  get_result,
+  lora_train,
+  lora_prepare,
+  workflow_validate,
+  comfyui_self_heal
+}
+
+普通问答、代码修复、文件操作、浏览器控制不默认加载 CWIM。
+
+2. 挂载规则
+条件	是否挂载 CWIM	同时挂载
+用户要求生成/修改 ComfyUI workflow	是	ASM.core + ASM.media + ASM.file
+用户要求 LoRA 训练/管理	是	ASM.core + ASM.media + ASM.skill
+用户要求 ComfyUI 错误修复	是	ASM.core + ASM.code + ASM.file + CWIM
+用户要求普通 Python 修复	否	ASM.core + ASM.code
+用户要求浏览器控制	否	ASM.core + ASM.browser
+用户要求通用问答	否	ASM.light
+用户要求图像创意提示词但不涉及 ComfyUI	可选	ASM.media
+用户要求 ComfyUI 节点兼容性判断	是	ASM.tool + CWIM
+3. CWIM 原则映射表
+CWIM 原则	原定位	ASM 挂载点	泛化方式	是否全局启用
+LLM 不直接生成 ComfyUI JSON	ComfyUI workflow 安全	CWIM.workflow_generation	高风险最终产物先生成 IR/Plan	否
+参数不是数字而是语义	参数设计	ASM.core.parameter_semantics	所有工具参数来自语义约束	是
+所有推荐必须可解释	推荐与路由	ASM.core.explainability	工具选择/推荐/降级必须给 reason	是
+LoRA 是项目不是文件	LoRA 生命周期	CWIM.lora_lifecycle	长生命周期资产按 project state 管理	否
+Workflow 是图不是 JSON	Workflow 表征	CWIM.graph_model	复杂结构使用 IR/graph 而非裸 JSON	否
+先诊断再生成	生成前置	ASM.core.observe_diagnose_act	任何高风险任务先观察/诊断	是
+节点兼容性优先	ComfyUI 兼容性	CWIM.node_compatibility	工具/模型/技能兼容性优先	部分
+错误恢复必须闭环	工作流修复	ASM.code.self_heal_loop	复现→修复→验证→fake-fix scan	是
+用户意图优先于模板	Workflow 选择	ASM.core.goal_first	工具服从目标，不让目标服从模板	是
+产物必须可验证	生成验收	ASM.evaluator	完成由证据裁决	是
+4. CWIM 子模块挂载点
+CWIM 子模块	挂载到 ASM	触发 intent	说明
+CWIM.intent_parse	ASM.core.intent	generate/review	识别 ComfyUI 任务类型
+CWIM.workflow_ir	ASM.media.ir	generate/execute	生成 workflow 中间表示
+CWIM.graph_validate	ASM.evaluator	review/execute	验证 workflow 图结构
+CWIM.node_compat	ASM.tool	review	检查节点/模型/插件兼容性
+CWIM.parameter_semantics	ASM.core.parameter_semantics	generate	参数语义化
+CWIM.lora_project	ASM.media.asset_lifecycle	generate/execute	LoRA 生命周期管理
+CWIM.model_binding	ASM.media.model_policy	generate	模型/VAE/ControlNet 绑定
+CWIM.workflow_repair	ASM.code.self_heal	execute/review	ComfyUI workflow 自愈
+CWIM.preview_policy	ASM.media.preview	generate	预览、dry-run、结果检查
+CWIM.export_policy	ASM.file	execute	workflow 保存、hash、版本化
+5. Methodology Router 规则
+输入
+{
+  "intent": "generate",
+  "domain": "comfyui",
+  "tools": ["build_custom", "submit_workflow"],
+  "risk": "medium",
+  "artifact_type": "workflow"
+}
+输出
+{
+  "methodologies": [
+    "ASM.core",
+    "ASM.tool",
+    "ASM.file",
+    "ASM.media",
+    "CWIM.workflow_ir",
+    "CWIM.graph_validate",
+    "CWIM.parameter_semantics"
+  ],
+  "cwim_enabled": true,
+  "reason": "ComfyUI workflow generation requires graph-based workflow methodology."
+}
+6. CWIM 不得影响的任务
+任务	原因
+普通问答	会过度工程
+Python 代码修复	应使用 ASM.code
+文件批量修改	应使用 ASM.file
+浏览器自动化	应使用 ASM.browser
+技能 manifest 校验	应使用 ASM.skill
+TRM 路由优化	应使用 ASM.tool
+多 Agent 协作	应使用 ASM.agent
+非 ComfyUI 文案生成	可用 ASM.media，但不需要 CWIM
+7. CWIM 注入粒度
+
+不要整篇 CWIM 常驻注入。按任务注入最小片段。
+
+场景	注入内容
+workflow 生成	workflow_ir + graph_validate + parameter_semantics
+workflow 修复	graph_validate + node_compat + workflow_repair
+LoRA 任务	lora_project + model_binding
+ComfyUI 诊断	node_compat + model_binding + workflow_repair
+ComfyUI 预览	preview_policy + export_policy
+8. CWIM 与 ASM 的优先级
+冲突	优先级
+CWIM 要自动生成 workflow，但 ASM 风险策略要求确认	ASM 优先
+CWIM 建议某节点，但 ASM.tool 判断插件缺失	ASM.tool 优先
+CWIM 参数推荐与用户边界冲突	用户边界优先
+CWIM workflow 修复会越界改文件	ASM.file 优先
+CWIM 认为可自愈，但 FixabilityEstimator 低分	FixabilityEstimator 优先
+CWIM 生成成功，但 ASM.evaluator 不通过	ASM.evaluator 优先
+9. CWIM 降级后的目录建议
+methodologies/
+  asm/
+    core.md
+    tool.md
+    file.md
+    code.md
+    browser.md
+    skill.md
+    agent.md
+    media.md
+    evaluator.md
+  cwim/
+    manifest.json
+    workflow_ir.md
+    graph_validate.md
+    node_compat.md
+    parameter_semantics.md
+    lora_project.md
+    model_binding.md
+    workflow_repair.md
+    preview_policy.md
+
+cwim/manifest.json 示例：
+
+{
+  "id": "methodology.cwim",
+  "name": "ComfyUI Workflow Intelligence Methodology",
+  "parent": "ASM.media",
+  "domain": "comfyui",
+  "enabled_by_default": false,
+  "mount_when": {
+    "domain": ["comfyui"],
+    "tools": [
+      "submit_workflow",
+      "build_custom",
+      "preview_workflow",
+      "lora_train"
+    ]
+  },
+  "priority": "domain_specific",
+  "conflict_policy": "ASM_OVERRIDES_CWIM"
+}
+10. 最终规则
+CWIM 只回答 ComfyUI 领域问题。
+ASM 决定是否允许 CWIM 介入。
+ASM 控制风险、权限、证据、回滚和完成裁决。
+CWIM 提供 ComfyUI 专业判断。
+
+一句话：
+
+CWIM 从 CRUX 的总方法论降级为 ASM.media 下的 ComfyUI 专科方法论。
+来聊聊CRUX的TUI——终端用户界面。有2个痛点我准备改：1.没有优先插话功能——agent在执行任务时，用户想打断插入新指令，现在的TUI没法做到，只能等agent执行完。2.没有撤销发送功能——用户发错消息后没法取消，只能硬着头皮等错误的响应。
+已思考 7s
+
+这两个痛点本质上是同一个问题：
+
+CRUX 的 TUI 现在只有“对话输入通道”，没有“控制通道”。
+
+用户输入被当成普通 message 排队，但没有更高优先级的 control_event。所以 agent 一旦进入执行循环，TUI 就像被“占用”了。
+
+我建议把这次 TUI 改造定义为：
+
+TUI Control Plane v1
+
+核心目标不是“输入框能打字”，而是让用户在 agent 运行中拥有：
+
+插话
+中断
+暂停
+撤销
+改写
+确认
+取消工具调用
+1. 痛点一：优先插话功能
+你需要区分三种“插话”
+
+用户说“打断插入新指令”，其实有三种语义：
+
+类型	示例	Agent 应该怎么做
+interrupt	“停一下” / “别继续了”	暂停当前 run
+correction	“不是改 A，是改 B”	修改当前 goal / plan
+priority message	“先回答这个问题”	当前 run 暂停，新消息优先处理
+
+不要把三者都实现成 KeyboardInterrupt。那样太粗。
+
+推荐事件模型
+
+新增一个高优先级控制队列：
+
+Python
+运行
+ControlEvent:
+    id: str
+    type: "interrupt" | "pause" | "cancel" | "correction" | "priority_message"
+    priority: int
+    target_run_id: str | None
+    payload: dict
+    created_at: datetime
+
+TUI 普通消息走：
+
+message_queue
+
+控制事件走：
+
+control_queue
+
+Agent 执行循环每一步都先检查：
+
+Python
+运行
+if control_queue.has_event():
+    handle_control_event()
+执行循环应该变成这样
+while goal.active:
+    check_control_events()
+
+    next_step = planner.next_step()
+
+    before_tool_call:
+        check_control_events()
+
+    result = tool.call(...)
+
+    after_tool_call:
+        check_control_events()
+
+    evaluator.update(result)
+
+关键点：
+
+优先插话不一定要打断正在执行的底层工具，但必须在每个 step / tool boundary 处可响应。
+
+长工具调用怎么办？
+
+比如：
+
+ComfyUI submit_workflow
+browser automation
+pip install
+long test run
+agent_swarm
+
+这些不是每 100ms 都能停。
+
+所以需要工具声明：
+
+JSON
+{
+  "tool": "pip_install",
+  "cancellable": true,
+  "interrupt_mode": "cooperative | kill_process | not_interruptible"
+}
+
+三类：
+
+interrupt_mode	含义
+cooperative	工具定期检查 cancel token
+kill_process	可杀子进程
+not_interruptible	不能中止，只能标记“完成后暂停”
+用户体验建议
+
+运行中输入框仍可输入。按 Enter 后出现选择：
+
+Agent 正在执行：
+[1] 插话优先处理
+[2] 修改当前任务
+[3] 中止当前任务后处理
+[4] 追加到任务后续
+
+快捷键可以设计成：
+
+Enter        普通发送 / 运行中默认作为 priority_message
+Ctrl+Enter   追加到当前任务上下文
+Esc          暂停当前 agent
+Ctrl+C       请求取消当前 run，不直接杀 TUI
+Ctrl+Z       撤销刚发送消息
+
+注意：Ctrl+C 不建议直接退出程序。应该先解释为：
+
+cancel current run
+
+连续两次 Ctrl+C 再退出 TUI。
+
+2. 痛点二：撤销发送功能
+
+撤销发送要分两个阶段处理。
+
+阶段 A：消息还没被 agent 消费
+
+这是最干净的撤销。
+
+流程：
+
+用户 Enter
+→ 消息进入 pending 状态
+→ TUI 显示 2 秒撤销窗口
+→ 2 秒后 commit 到 message_queue
+
+状态机：
+
+draft
+→ pending
+→ committed
+→ consumed
+
+只要还在 pending，就可以无副作用撤销。
+
+UI 可以显示：
+
+你：帮我删除整个项目
+状态：待发送 2.0s  [Ctrl+Z 撤销]
+
+如果用户按 Ctrl+Z：
+
+pending message removed
+不会进入 agent
+不会写入 goal
+不会触发 tool
+阶段 B：消息已经被 agent 消费
+
+这时不能叫“撤销发送”，应该叫：
+
+撤回并中止当前响应
+
+因为 agent 已经可能：
+
+读了消息
+开始规划
+调用工具
+修改文件
+
+这时撤销要做的是：
+
+1. 发送 cancel event
+2. 暂停当前 run
+3. 标记用户消息为 retracted
+4. 如果产生副作用，提示是否 rollback
+
+EventLog 里记录：
+
+JSON
+{
+  "event_type": "message.retracted",
+  "message_id": "...",
+  "run_id": "...",
+  "retract_mode": "before_consumed | after_consumed",
+  "rollback_available": true
+}
+3. 两个功能应该共用一个底层：Control Plane
+
+不要分别实现“插话”和“撤销”。应该统一成：
+
+TUI Control Plane
+
+核心对象：
+
+Python
+运行
+MessageState:
+    draft
+    pending
+    committed
+    consumed
+    retracted
+
+RunState:
+    idle
+    running
+    pausing
+    paused
+    cancelling
+    cancelled
+    completed
+
+ControlEvent:
+    interrupt
+    cancel
+    pause
+    priority_message
+    retract_message
+    modify_goal
+
+这样后面你还能自然扩展：
+
+暂停
+恢复
+换模型
+改预算
+改 goal boundary
+撤销工具调用
+rollback patch
+4. 最小可行实现方案
+MVP 1：撤销发送
+
+先做这个，收益最大，风险最小。
+
+实现：
+
+发送后进入 pending_outbox
+默认延迟 1.5 - 2 秒 commit
+Ctrl+Z 删除 pending message
+TUI 显示倒计时
+
+配置：
+
+Python
+运行
+UNDO_SEND_WINDOW_MS = 2000
+
+建议不要太长，2 秒够了。太长会让交互变慢。
+
+MVP 2：运行中插话
+
+实现：
+
+agent running 时，输入仍然可用
+新消息不进普通队列，进入 control_queue
+默认类型 priority_message
+当前 run 在下一个 step boundary 暂停
+先处理 priority_message
+
+如果当前工具不可中断，UI 显示：
+
+已收到插话，将在当前工具完成后优先处理。
+当前工具：pip_install，不支持即时中断。
+MVP 3：取消当前 run
+
+实现：
+
+Esc       pause
+Ctrl+C    cancel current run
+Ctrl+C x2 exit TUI
+
+如果已有 patch/checkpoint：
+
+是否回滚本次修改？[y/N]
+5. 这两个功能和 Goal Mode 的关系
+
+优先插话不应该只是 TUI 层功能，它要影响 Goal Mode。
+
+建议：
+
+priority_message
+→ 当前 goal 状态 active → paused
+→ 新消息创建 child goal 或 priority goal
+
+两种模式：
+
+插话作为临时问题
+current goal paused
+priority question answered
+current goal resumed
+插话作为任务修正
+current goal paused
+goal_contract updated
+plan invalidated
+resume with new plan
+
+所以用户插话后，CRUX 应询问或自动判断：
+
+这是：
+1. 临时问题
+2. 修改当前任务
+3. 取消当前任务
+4. 新任务
+
+低风险时自动判断，高风险时让用户选。
+
+6. TUI 展示建议
+
+运行中底部输入区可以变成：
+
+Agent 正在执行 patch_file → pytest
+输入内容将作为【优先插话】发送
+快捷键：Esc 暂停｜Ctrl+C 取消｜Ctrl+Z 撤销刚发送
+
+消息气泡状态：
+
+[Pending 1.8s] 用户消息……
+[Committed] 用户消息……
+[Consumed] 用户消息……
+[Retracted] 用户已撤回
+
+不要只靠颜色，终端里要有文字状态。
+
+7. 需要避免的坑
+坑 1：用 Ctrl+C 直接杀进程
+
+不建议。会破坏：
+
+EventLog
+checkpoint
+rollback
+tool cleanup
+subprocess cleanup
+
+应该先发 cancel_run。
+
+坑 2：插话直接写入当前 prompt
+
+如果 agent 正在执行多步任务，直接把插话塞进上下文会污染当前 plan。
+
+应该作为：
+
+ControlEvent
+
+由 run controller 决定：
+
+pause / update_goal / create_priority_goal
+坑 3：撤销只改 UI，不改后端状态
+
+撤销必须同步更新：
+
+message_store
+run_context
+EventLog
+Goal memory
+
+否则 UI 上撤销了，agent 记忆里还在。
+
+坑 4：不可中断工具假装可中断
+
+每个工具必须声明：
+
+cancellable
+interrupt_mode
+cleanup_handler
+rollback_handler
+
+否则用户按取消后以为停了，实际上后台还在跑。
+
+8. 我建议的落地顺序
+1. Message lifecycle
+   draft / pending / committed / consumed / retracted
+
+2. Undo send
+   pending window + Ctrl+Z
+
+3. ControlEvent / control_queue
+   priority_message / pause / cancel
+
+4. Agent loop checkpoint
+   每个 step/tool boundary 检查 control_queue
+
+5. Tool cancellability contract
+   cancellable / interrupt_mode / cleanup
+
+6. Goal Mode integration
+   pause/resume/cancel/child goal
+
+7. TUI status display
+   pending / running / paused / cancelling / rollback available
+
+最终一句话：
+
+这两个痛点不是 TUI 小功能，而是 CRUX 从“命令式聊天”升级到“可控自主 Agent”的关键入口。
+
+高级
+ChatGPT 也可能会犯错。请核查重要信息。

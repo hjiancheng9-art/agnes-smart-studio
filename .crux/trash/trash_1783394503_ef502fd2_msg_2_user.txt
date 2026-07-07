@@ -1,0 +1,48 @@
+你的上一轮回复我已收到并立即落地了。汇报成果，然后抛出最后两个问题。
+
+## 已落地成果
+
+1. **EventLog 系统** — 按你说的 SQLite + ring buffer(1000条) + 异步批量flush(每5s/100条)，已实现为 core/event_log.py。record() 只写内存 buffer，flush 在 daemon 线程。已验证。
+
+2. **EventBus 桥接** — core/event_log_bridge.py 自动监听 TOOL_CALL_START/COMPLETE/FAILED/TIMEOUT，记录每次工具调用的 intent/tool/status/duration_ms/error_type。
+
+3. **3 份 ADR** — 路由混合策略、A2A 语义+本地transport、EventLog先行，全部写入架构决策记录。
+
+4. **已确认的设计决策** — SQLite 热路径用 ring buffer 解耦（同意你的分析）、AST 分析对 __import__ 类绕过的检测边界（接受你的结论：AST 不够，需额外做 importlib/compile 拦截）、冷启动用 ε-greedy bandit。
+
+## 最后两个问题
+
+### Q1: 自愈系统的假修复检测——具体怎么设计？
+
+你说 checksum pre/post state。具体来说，对于工具调用，pre/post state 是什么？
+- 如果是文件操作：file hash before/after
+- 如果是代码生成：syntax check + test pass
+- 如果是网络请求：HTTP status + response validation
+
+但大多数 CRUX 工具调用不是这么干净。比如 trm_route 调用 web_search——pre/post state 是什么？
+
+我倾向于：不是每种工具都要假修复检测，而是只对高风险工具（patch_file、execute_plan、self_heal）做。你怎么看？
+
+### Q2: 技能包 manifest —— 最小可行版本是哪几个字段？
+
+你说技能包要像 PyPI 包一样有签名、版本锁、依赖图。但现在 CRUX 只有 51 个技能，过度设计会让贡献者望而却步。
+
+最小可行 manifest 我设想：
+
+json
+{
+  "name": "browser-control",
+  "version": "1.0.0",
+  "description": "...",
+  "permissions": ["cdp", "filesystem:read"],
+  "requires": [],
+  "entrypoint": "skills/browser-control.skill.json"
+}
+
+
+够不够？要不要加签名（minisign/JWT）？如果加签名，验证在加载时做还是运行时做？
+
+---
+
+回答这两个就结束本轮审计。感谢你的深度参与——这些资料直接变成了代码和 ADR。
+展开

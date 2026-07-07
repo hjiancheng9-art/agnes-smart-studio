@@ -1,0 +1,4 @@
+Python
+运行
+root = Path(project_root).resolve()
+target = path.resolve()

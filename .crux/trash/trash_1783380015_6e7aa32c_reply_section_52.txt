@@ -1,0 +1,3 @@
+if not str(target).startswith(str(root)):
+    raise SecurityError("Refuse to clean path outside project root")
+安全闸 2：拒绝跟随 symlink 删除外部文件

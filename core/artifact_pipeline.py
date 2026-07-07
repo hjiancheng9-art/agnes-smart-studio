@@ -31,9 +31,7 @@ def artifact_store(build_id: str, files: list[str], metadata: dict | None = None
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dest)
             record["files"][src.name] = str(dest)
-    (ARTIFACTS_DIR / f"{build_id}.json").write_text(
-        json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    (ARTIFACTS_DIR / f"{build_id}.json").write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
     return record
 
 
@@ -69,25 +67,42 @@ def artifact_promote(artifact_id: str, stage: str) -> dict:
 
 
 ARTIFACT_TOOL_DEFS = [
-    {"type": "function", "function": {
-        "name": "artifact_store", "description": "Store build artifacts with metadata.",
-        "parameters": {"type": "object", "properties": {
-            "build_id": {"type": "string"}, "files": {"type": "array", "items": {"type": "string"}},
-            "metadata": {"type": "object"}
-        }, "required": ["build_id", "files"]}
-    }},
-    {"type": "function", "function": {
-        "name": "artifact_list", "description": "List stored artifacts.",
-        "parameters": {"type": "object", "properties": {
-            "build_id": {"type": "string"}
-        }}
-    }},
-    {"type": "function", "function": {
-        "name": "artifact_promote", "description": "Promote artifact across dev/staging/prod.",
-        "parameters": {"type": "object", "properties": {
-            "artifact_id": {"type": "string"}, "stage": {"type": "string", "enum": STAGES}
-        }, "required": ["artifact_id", "stage"]}
-    }},
+    {
+        "type": "function",
+        "function": {
+            "name": "artifact_store",
+            "description": "Store build artifacts with metadata.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "build_id": {"type": "string"},
+                    "files": {"type": "array", "items": {"type": "string"}},
+                    "metadata": {"type": "object"},
+                },
+                "required": ["build_id", "files"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "artifact_list",
+            "description": "List stored artifacts.",
+            "parameters": {"type": "object", "properties": {"build_id": {"type": "string"}}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "artifact_promote",
+            "description": "Promote artifact across dev/staging/prod.",
+            "parameters": {
+                "type": "object",
+                "properties": {"artifact_id": {"type": "string"}, "stage": {"type": "string", "enum": STAGES}},
+                "required": ["artifact_id", "stage"],
+            },
+        },
+    },
 ]
 
 ARTIFACT_EXECUTOR_MAP = {

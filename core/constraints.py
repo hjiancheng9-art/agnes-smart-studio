@@ -97,8 +97,8 @@ WRITE_TOOLS = frozenset(
     {
         "write_file",
         "edit_file",
-        "patch_file",        # structured patch (PatchEngine.apply)
-        "apply_patch",       # convenience alias
+        "patch_file",  # structured patch (PatchEngine.apply)
+        "apply_patch",  # convenience alias
         "github_write_file",
         "git_add_commit",
         "git_push",
@@ -173,12 +173,11 @@ CONFIRMABLE_TOOLS = frozenset(
         "browser_navigate",
         "browser_click",
         "browser_type",
-    "execute_plan",
-    "multi_agent",
+        "execute_plan",
+        "multi_agent",
     }
 )
 
 # ═══════════════════════════════════════════════════════════════════
 # METHODOLOGY — 方法论禁区（来自 core/methodology.py）
 # ═══════════════════════════════════════════════════════════════════
-

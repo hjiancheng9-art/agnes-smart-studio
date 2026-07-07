@@ -1,0 +1,75 @@
+ last_assistant(self) -> Message | None:
+        for msg in reversed(self._messages):
+            if msg.role == "assistant":
+                return msg
+        return None
+MessagePane 改法
+
+MessagePane 不再自己做消息真相源，只负责渲染：
+
+Python
+运行
+# ui/message_pane.py
+class MessagePane:
+    def __init__(self, message_store: MessageStore):
+        self.message_store = message_store
+        self._rendered_lines: list[tuple[str, str, str | None]] = []
+        # role, text, message_id
+
+    def append_message(self, role: str, text: str):
+        msg = self.message_store.append(role, text)
+        self._rebuild_lines()
+        self.invalidate()
+
+    def stream_start(self, role: str):
+        self.message_store.stream_start(role)
+        self._rebuild_lines()
+        self.invalidate()
+
+    def stream_chunk(self, text: str):
+        self.message_store.stream_chunk(text)
+        self._rebuild_lines()
+        if self._pinned:
+            self.scroll_to_bottom()
+        self.invalidate()
+
+    def stream_end(self):
+        self.message_store.stream_end()
+        self._rebuild_lines()
+        if self._pinned:
+            self.scroll_to_bottom()
+        self.invalidate()
+
+    def _rebuild_lines(self):
+        self._rendered_lines.clear()
+        for msg in self.message_store.all():
+            for line in msg.raw_text.splitlines() or [""]:
+                self._rendered_lines.append((msg.role, line, msg.id))
+M2：CopyManager 不要靠 _sync_copy_mgr 手动同步
+问题
+
+你现在 _sync_copy_mgr 只在 _submit_user_message 调用，stream_end 后没调用。这个会直接导致：
+
+刚流完的 assistant 消息无法复制
+last_assistant 是旧消息
+代码块索引落后
+详情页打开旧内容
+修改文件
+ui/copy_manager.py
+ui/tui_v2.py
+ui/message_pane.py
+实现方案
+
+CopyManager 直接持有 MessageStore，不需要同步：
+
+Python
+运行
+# ui/copy_manager.py
+class CopyManager:
+    def __init__(self, message_store: MessageStore, clipboard):
+        self.message_store = message_store
+        self.clipboard = clipboard
+        self.focused_message_id: str | None = None
+        self.focused_code_block_index: int | None = None
+
+    def get_focused_or_no

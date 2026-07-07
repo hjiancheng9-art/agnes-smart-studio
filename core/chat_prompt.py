@@ -7,6 +7,7 @@ ChatSession._build_system_prompt() 调用 build_system_prompt()。
 
 from __future__ import annotations
 
+from core.error_sink import catch
 import logging
 
 logger = logging.getLogger("crux.chat_prompt")
@@ -165,8 +166,8 @@ def load_cold_lore(name: str) -> str:
             if isinstance(result, str):
                 _COLD_LORE_LOADED[name] = result
                 return result
-    except Exception:
-        pass
+    except Exception as _es:
+        catch(_es, "core.chat_prompt", "swallowed")
     return ""
 
 
@@ -212,8 +213,8 @@ def _get_injections_fingerprint() -> str:
             f = getattr(mod, "__file__", None)
             if f:
                 mtimes.append(str(int(os.path.getmtime(f))))
-        except Exception:
-            pass
+        except Exception as _es:
+            catch(_es, "core.chat_prompt", "swallowed")
     # 兜底：lore 目录下所有 .py（含新增/重命名文件）
     lore_dir = os.path.join(os.path.dirname(__file__), "lore")
     if os.path.isdir(lore_dir):
@@ -350,8 +351,8 @@ def build_system_prompt(
         _cm = format_methodology_prompt()
         if _cm:
             base += _cm
-    except Exception:
-        pass
+    except Exception as _es:
+        catch(_es, "core.chat_prompt", "swallowed")
 
     # Skill 三态：注入所有 trigger=auto 的技能 prompt
     if skills_auto_prompt_manager is not None:

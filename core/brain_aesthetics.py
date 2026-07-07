@@ -554,4 +554,3 @@ class SmartBrainMixin:
                 if term:
                     all_terms.add(term)
         return ", ".join(sorted(all_terms))
-

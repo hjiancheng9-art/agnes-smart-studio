@@ -259,7 +259,11 @@ def TraceContext(name: str, root_trace_id: str = "", **attributes: Any):
             span.set_attribute("result_length", len(result))
     """
     parent = _current_span.get()
-    span = tracer.start_span(name, parent=parent) if parent is not None else tracer.start_trace(name, root_trace_id=root_trace_id)
+    span = (
+        tracer.start_span(name, parent=parent)
+        if parent is not None
+        else tracer.start_trace(name, root_trace_id=root_trace_id)
+    )
     for key, value in attributes.items():
         span.set_attribute(key, value)
 

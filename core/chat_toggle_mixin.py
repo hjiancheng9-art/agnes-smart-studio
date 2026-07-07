@@ -3,6 +3,7 @@
 Extracted from core/chat.py to reduce module size (brain.py Mixin precedent).
 Methods in this Mixin access ChatSession attributes via type stubs (see class body).
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -73,12 +74,14 @@ class ChatToggleMixin:
             )
             try:
                 from core.hooks import register_code_hooks
+
                 register_code_hooks()
             except (ImportError, OSError):
                 pass
             try:
                 from core.config import SETTINGS
                 from core.hooks import register_reflection_hook
+
                 register_reflection_hook(
                     client=self.client,
                     interval=SETTINGS.reflection_interval,

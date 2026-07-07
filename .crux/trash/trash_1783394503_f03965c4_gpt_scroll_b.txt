@@ -1,0 +1,260 @@
+文。
+技术实现建议
+
+需要把渲染文本和原始消息分开。
+
+Python
+运行
+Message:
+    id: str
+    role: "user" | "assistant" | "tool"
+    raw_text: str
+    rendered_lines: list[str]
+    markdown_blocks: list[Block]
+    code_blocks: list[CodeBlock]
+
+复制时不要从屏幕 buffer 复制，而是从 raw_text 或 block AST 复制。
+
+Python
+运行
+copy_message(message_id, format="raw|markdown|plain")
+copy_lines(message_id, start_line, end_line)
+copy_code_block(message_id, block_index)
+
+这样不会受换行、折叠、屏幕宽度、ANSI 颜色影响。
+
+最终建议
+
+不要试图让终端鼠标选择承担所有复制需求。正确方向是：
+
+消息级复制解决全文复制
+详情页解决长消息查看
+Copy Mode 解决跨屏片段选择
+代码块复制解决编程场景
+Native Select Mode 作为兼容兜底
+
+一句话：
+
+CRUX TUI 应该从“让用户选屏幕文本”升级为“让用户操作消息对象”。
+
+聊一个新痛点：CRUX的TUI在用户用鼠标选取消息文本打算复制的时候，屏幕不能上下滚动。这意味着如果消息长于一屏，用户只能选到当前显示的部分，选不完整。你有好的UI设计方案吗？
+已思考几秒
+
+这个痛点不要从“让鼠标拖选时还能滚动”入手。终端环境里，鼠标选区、滚轮、TUI 鼠标事件、终端原生复制机制天然会冲突。正确设计应该是：
+
+不要让用户复制“屏幕文本”，而是让用户复制“消息对象”。
+
+也就是说，CRUX TUI 应该提供消息级复制、详情页复制、片段选择模式，而不是依赖终端原生鼠标拖选。
+
+推荐方案：三层复制体系
+1. 消息级复制：解决 80% 场景
+
+每条消息都变成可操作对象。
+
+聚焦某条消息时显示：
+
+Assistant #42 · 216 lines
+[c] 复制全文   [m] 复制 Markdown   [s] 选择片段   [o] 打开详情   [e] 导出
+
+快捷键：
+
+↑ / ↓      切换消息
+c          复制当前消息全文
+m          复制当前消息 Markdown
+s          进入片段选择模式
+o          打开消息详情页
+
+命令：
+
+/copy last
+/copy 42
+/copy 42 markdown
+/copy 42 plain
+
+这样用户不需要鼠标拖完整个长回复，一键复制整条消息。
+
+2. Message Detail：长消息详情页
+
+对于超过一屏的消息，主聊天流不应该承担完整阅读和复制任务。
+
+按 o 打开详情页：
+
+┌─ Message Detail · Assistant #42 · 216 lines ─────────────┐
+│ c 复制全文 · m 复制Markdown · s 片段选择 · Esc 返回        │
+├───────────────────────────────────────────────────────────┤
+│ 这里显示完整消息内容，可独立滚动                           │
+│ ...                                                       │
+└───────────────────────────────────────────────────────────┘
+
+详情页特性：
+
+PageUp / PageDown     翻页
+↑ / ↓                 单行滚动
+c                     复制全文
+s                     选择片段
+Enter                 复制当前选区
+Esc                   返回主界面
+
+这个方案很稳，因为它不依赖终端原生鼠标选区。
+
+3. Copy Mode：跨屏片段选择
+
+用户确实只想复制中间一段时，进入 Copy Mode。
+
+进入方式：
+
+s
+Ctrl+Shift+C
+右键消息 → 选择片段
+
+顶部显示：
+
+COPY MODE · ↑↓滚动 · Space标记起点/终点 · Enter复制 · Esc退出
+
+选择逻辑由 CRUX 自己维护，而不是终端原生选区。
+
+内部状态：
+
+Python
+运行
+SelectionState:
+    message_id: str
+    start_line: int
+    end_line: int
+    start_offset: int | None
+    end_offset: int | None
+    mode: "line" | "block" | "char"
+
+用户可以：
+
+Space       设置起点
+↑ / ↓       滚动
+Shift+↑/↓   扩展选择
+Space       设置终点
+Enter       复制选区
+Esc         取消
+
+这样即使消息跨 10 屏，也能完整选择。
+
+代码块单独复制
+
+CRUX 是编程/创作双栖平台，代码块复制必须一等公民。
+
+代码块显示：
+
+```python  [c]复制  [w]写入文件  [r]运行  [e]展开
+def foo():
+    pass
+
+快捷键：
+
+```text
+Tab        跳到下一个代码块
+c          复制当前代码块
+Shift+C    复制当前消息全部代码块
+
+命令：
+
+/copy code
+/copy code 2
+/copy last code
+
+不要让用户手动框选代码块。
+
+鼠标方案：不要硬刚，做 Native Select Mode
+
+保留一个兜底模式：
+
+F9：进入原生选择模式
+
+进入后：
+
+NATIVE SELECT MODE · TUI mouse disabled · Press F9 to return
+
+这时 CRUX 暂停捕获鼠标事件，让用户使用终端自己的拖选、滚动、复制能力。
+
+再次按 F9 恢复 TUI 鼠标控制。
+
+这个方案不作为主路径，因为不同终端兼容性差，但很适合兜底。
+
+推荐落地顺序
+第一阶段：最快解决痛点
+1. 消息聚焦
+2. c 复制当前消息全文
+3. /copy last
+4. /copy <message_id>
+5. 代码块复制
+
+这一步成本低，收益最大。
+
+第二阶段：详情页
+1. o 打开 Message Detail
+2. 独立滚动
+3. c 复制全文
+4. s 选择片段
+
+这一步解决长消息阅读和复制。
+
+第三阶段：Copy Mode
+1. 跨屏选择
+2. 行级选择
+3. 块级选择
+4. Enter 复制
+
+这一步解决精确片段复制。
+
+第四阶段：Native Select Mode
+F9 暂停鼠标捕获
+F9 恢复 TUI 控制
+
+作为兼容兜底。
+
+技术关键点
+
+不要从屏幕 buffer 复制，要从消息原文复制。
+
+建议消息结构：
+
+Python
+运行
+class Message:
+    id: str
+    role: str
+    raw_text: str
+    rendered_lines: list[str]
+    markdown_blocks: list[Block]
+    code_blocks: list[CodeBlock]
+
+复制 API：
+
+Python
+运行
+copy_message(message_id, format="markdown")
+copy_lines(message_id, start_line, end_line)
+copy_code_block(message_id, block_index)
+copy_selection(selection_state)
+
+这样不会受这些因素影响：
+
+终端宽度
+自动换行
+ANSI 颜色
+滚动位置
+鼠标选区
+屏幕 buffer 截断
+最终建议
+
+CRUX TUI 不应该追求“鼠标拖选跨屏滚动”这个传统终端体验，而应该升级成：
+
+消息级复制
+详情页复制
+片段 Copy Mode
+代码块一键复制
+原生选择模式兜底
+
+一句话：
+
+不要让用户复制屏幕，让用户复制消息。
+
+高级
+ChatGPT 也可能会犯错。请核查重要信息。

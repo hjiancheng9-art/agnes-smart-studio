@@ -27,23 +27,23 @@ STATE_FILE = ROOT / "output" / "merit_state.json"
 logger = logging.getLogger("crux.arbiter")
 
 # ── Scoring constants ──────────────────────────────────────────
-MERIT_FAST_TOOL = 1.0       # tool success + latency < 500ms
-MERIT_NORMAL_TOOL = 0.5     # tool success, latency >= 500ms
-MERIT_SESSION_CLEAN = 2.0   # session with zero errors
-MERIT_PROVIDER_OK = 0.3     # provider health check passes
+MERIT_FAST_TOOL = 1.0  # tool success + latency < 500ms
+MERIT_NORMAL_TOOL = 0.5  # tool success, latency >= 500ms
+MERIT_SESSION_CLEAN = 2.0  # session with zero errors
+MERIT_PROVIDER_OK = 0.3  # provider health check passes
 MERIT_CIRCUIT_RESTORED = 1.0  # circuit closed after trip
 
-DEMERIT_TOOL_FAIL = -1.0    # any tool failure
-DEMERIT_TIMEOUT = -2.0      # timeout (classified as TIMEOUT)
-DEMERIT_PROVIDER = -1.5     # provider returns error
-DEMERIT_CIRCUIT = -5.0      # circuit breaker trips
-DEMERIT_HIGH_RISK = -3.0    # high-risk tool called without confirmation
-DEMERIT_REPEATED = -4.0     # same-tool + same-error-type 3+ consecutive times
+DEMERIT_TOOL_FAIL = -1.0  # any tool failure
+DEMERIT_TIMEOUT = -2.0  # timeout (classified as TIMEOUT)
+DEMERIT_PROVIDER = -1.5  # provider returns error
+DEMERIT_CIRCUIT = -5.0  # circuit breaker trips
+DEMERIT_HIGH_RISK = -3.0  # high-risk tool called without confirmation
+DEMERIT_REPEATED = -4.0  # same-tool + same-error-type 3+ consecutive times
 
 DEGRADE_THRESHOLD = -10.0
-DECAY_HALF_LIFE = 86400.0   # 24 hours in seconds
+DECAY_HALF_LIFE = 86400.0  # 24 hours in seconds
 DECAY_MIN_INTERVAL = 3600.0  # minimum 1 hour between decay runs
-SAVE_MIN_INTERVAL = 5.0      # minimum 5 seconds between saves
+SAVE_MIN_INTERVAL = 5.0  # minimum 5 seconds between saves
 
 
 @dataclass
@@ -116,7 +116,7 @@ class MeritDemeritArbiter:
 
     def record_tool_success(self, tool_name: str, latency: float, provider: str = "") -> None:
         amount = MERIT_FAST_TOOL if latency < 0.5 else MERIT_NORMAL_TOOL
-        self.award_merit(tool_name, amount, f"success {latency*1000:.0f}ms")
+        self.award_merit(tool_name, amount, f"success {latency * 1000:.0f}ms")
         if provider:
             self._record_provider_result(provider, success=True)
 
@@ -257,9 +257,7 @@ class MeritDemeritArbiter:
 
     def _check_degraded_unlocked(self) -> None:
         """Check if total score crossed the degrade threshold. Caller must hold lock."""
-        total = sum(e.score for e in self._state.tools.values()) + sum(
-            e.score for e in self._state.providers.values()
-        )
+        total = sum(e.score for e in self._state.tools.values()) + sum(e.score for e in self._state.providers.values())
         was_degraded = self._state.degraded
         if not was_degraded and total <= DEGRADE_THRESHOLD:
             self._state.degraded = True
@@ -319,7 +317,9 @@ class MeritDemeritArbiter:
                 last_save_ts=raw.get("last_save_ts", 0.0),
                 degraded=raw.get("degraded", False),
             )
-            logger.debug("[功过格] loaded state: %d tools, %d providers", len(self._state.tools), len(self._state.providers))
+            logger.debug(
+                "[功过格] loaded state: %d tools, %d providers", len(self._state.tools), len(self._state.providers)
+            )
         except (json.JSONDecodeError, TypeError, KeyError, OSError) as e:
             logger.debug("[功过格] load failed: %s — starting fresh", e)
             self._state = MeritState()

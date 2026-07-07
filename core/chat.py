@@ -96,7 +96,6 @@ def _build_model_aliases() -> dict[str, str]:
         pmap = mgr.get_active_models()
         return {k: v for k, v in pmap.items() if k in ("light", "pro")}
     except Exception as e:
-
         logger.debug("unexpected error: %s", e, exc_info=True)
 
         return {}
@@ -109,7 +108,6 @@ def _build_model_info() -> dict[str, str]:
 
         return {mid: info.description for mid, info in MODEL_REGISTRY.items() if info.description}
     except Exception as e:
-
         logger.debug("unexpected error: %s", e, exc_info=True)
 
         return {}
@@ -199,40 +197,40 @@ class ChatSession(ChatToggleMixin):
 
             wire_all()
         except (ImportError, OSError):
-            logger.debug('spectrum module not available')
+            logger.debug("spectrum module not available")
         # 激活学习钩子（agent 从工具成败中学习）
         try:
             from core.hooks import register_learning_hooks
+
             register_learning_hooks()
         except (ImportError, OSError) as e:
-
             logger.debug("optional module skipped: %s", e)
 
             pass
         # 激活工具拦截器（PreToolUse 安全守卫）
         try:
             from core.tool_interceptor import register_tool_interceptor
+
             register_tool_interceptor()
         except (ImportError, OSError) as e:
-
             logger.debug("optional module skipped: %s", e)
 
             pass
         # 启动配置热重载（models.json + tools.json 变更自动生效）
         try:
             from core.settings_watcher import start_watcher
+
             start_watcher()
         except (ImportError, OSError) as e:
-
             logger.debug("optional module skipped: %s", e)
 
             pass
         # 激活三层防御（PreCheck + CircuitBreaker + PostValidate + AutoRollback）
         try:
             from core.defense import register_defense_hooks
+
             register_defense_hooks()
         except (ImportError, OSError) as e:
-
             logger.debug("optional module skipped: %s", e)
 
             pass
@@ -257,11 +255,15 @@ class ChatSession(ChatToggleMixin):
 
         def _collect_git():
             import subprocess
+
             cwd = str(Path(__file__).resolve().parent.parent)
             try:
                 r = subprocess.run(
                     ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                    capture_output=True, text=True, timeout=3, cwd=cwd,
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                    cwd=cwd,
                 )
                 branch = r.stdout.strip()
                 if branch:
@@ -272,7 +274,10 @@ class ChatSession(ChatToggleMixin):
             try:
                 r = subprocess.run(
                     ["git", "status", "--short"],
-                    capture_output=True, text=True, timeout=3, cwd=cwd,
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                    cwd=cwd,
                 )
                 changed = [line.strip() for line in r.stdout.splitlines()[:20] if line.strip()]
                 if changed:
@@ -283,7 +288,10 @@ class ChatSession(ChatToggleMixin):
             try:
                 r = subprocess.run(
                     ["git", "log", "--oneline", "-5"],
-                    capture_output=True, text=True, timeout=3, cwd=cwd,
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                    cwd=cwd,
                 )
                 commits = [line.strip() for line in r.stdout.splitlines() if line.strip()]
                 if commits:
@@ -292,6 +300,7 @@ class ChatSession(ChatToggleMixin):
                 logger.debug("git log failed: %s", e)
 
         import threading
+
         t = threading.Thread(target=_collect_git, daemon=True)
         t.start()
         t.join(timeout=2.0)  # 最多等 2s，超时就放弃
@@ -333,7 +342,6 @@ class ChatSession(ChatToggleMixin):
             mgr = get_provider_manager()
             return mgr.get_model("light") or "deepseek-v4-flash"
         except Exception as e:
-
             logger.debug("unexpected error: %s", e, exc_info=True)
 
             return "deepseek-v4-flash"
@@ -343,6 +351,7 @@ class ChatSession(ChatToggleMixin):
         """Get or create the unified ModelRouter instance (shared with sub-agents)."""
         if self._model_router is None:
             from core.agent import ModelRouter
+
             self._model_router = ModelRouter()
         return self._model_router
 
@@ -363,6 +372,7 @@ class ChatSession(ChatToggleMixin):
         target_model = None
         try:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             mgr.load()
 
@@ -379,11 +389,13 @@ class ChatSession(ChatToggleMixin):
                 all_pids = list(mgr.providers.keys())
                 try:
                     from core.provider_policy import select_candidates
+
                     circuit_states = {p: mgr.state.circuit_state(p) for p in all_pids}
                     request = {"task_type": "text", "require_code": True, "budget_remaining": 100}
                     ordered_pids = select_candidates(request, all_pids, circuit_states)
                     try:
                         from core.policy_regression import record_route_decision
+
                         record_route_decision(request, ordered_pids, circuit_states)
                     except ImportError:
                         pass
@@ -403,7 +415,6 @@ class ChatSession(ChatToggleMixin):
                                 self.client = new_client
                         break
         except Exception as e:
-
             logger.debug("unexpected error: %s", e, exc_info=True)
 
             return tier  # routing failed silently, keep current model
@@ -461,10 +472,14 @@ class ChatSession(ChatToggleMixin):
 
             if pipeline or comfyui:
                 self.tools = get_registry()
-                self.tools.load(pipeline=pipeline, comfyui=comfyui,
-                                browser=self.browser_enabled,
-                                notebook=self.notebook_enabled,
-                                audio=self.audio_enabled, mcp=True)
+                self.tools.load(
+                    pipeline=pipeline,
+                    comfyui=comfyui,
+                    browser=self.browser_enabled,
+                    notebook=self.notebook_enabled,
+                    audio=self.audio_enabled,
+                    mcp=True,
+                )
 
             # 重建 system prompt
             base = self._current_base_prompt()
@@ -477,9 +492,9 @@ class ChatSession(ChatToggleMixin):
             # 注入技能的额外工具
             for t in self.skills.get_extra_tools():
                 from core.skills import resolve_skill_executor
+
                 self.tools.register(
-                    t["name"], t.get("description", ""), t.get("parameters", {}),
-                    resolve_skill_executor(t["name"], t)
+                    t["name"], t.get("description", ""), t.get("parameters", {}), resolve_skill_executor(t["name"], t)
                 )
             return name
         return None
@@ -490,10 +505,14 @@ class ChatSession(ChatToggleMixin):
         self.skills.unload()
         # 重新加载纯净工具集（只含内置 + 外部 tools.json）
         self.tools = get_registry()
-        self.tools.load(pipeline=False, comfyui=False,
-                        browser=self.browser_enabled,
-                        notebook=self.notebook_enabled,
-                        audio=self.audio_enabled, mcp=True)
+        self.tools.load(
+            pipeline=False,
+            comfyui=False,
+            browser=self.browser_enabled,
+            notebook=self.notebook_enabled,
+            audio=self.audio_enabled,
+            mcp=True,
+        )
         base = self._current_base_prompt()
         self.messages[0] = {"role": "system", "content": base}
         for msg in self.messages[1:]:
@@ -533,9 +552,9 @@ class ChatSession(ChatToggleMixin):
         rules_hash = ""
         try:
             from core.rules import get_rules
+
             rules_hash = str(hash(str([r.name for r in get_rules().active_rules])))
         except (ImportError, OSError) as e:
-
             logger.debug("optional module skipped: %s", e)
 
             pass
@@ -658,7 +677,6 @@ class ChatSession(ChatToggleMixin):
                         fallback_client = mgr.create_client(pid)
                         chain.append((mid, fallback_client))
                     except (OSError, RuntimeError) as e:
-
                         logger.debug("op failed: %s", e)
 
                         pass
@@ -674,12 +692,10 @@ class ChatSession(ChatToggleMixin):
                     if light_mid and light_mid != self.model:
                         chain.append((light_mid, self.client))  # 同 client，不另建
             except (OSError, RuntimeError) as e:
-
                 logger.debug("op failed: %s", e)
 
                 pass
         except (ImportError, OSError, RuntimeError) as e:
-
             logger.debug("fallback skipped: %s", e)
 
             pass
@@ -706,9 +722,9 @@ class ChatSession(ChatToggleMixin):
         try:
             from core.hooks import HookType
             from core.hooks import fire as _fire_hook
+
             _fire_hook(HookType.CHAT_TURN_START, prompt=user_text)
         except (ImportError, OSError) as e:
-
             logger.debug("optional module skipped: %s", e)
 
             pass
@@ -735,7 +751,6 @@ class ChatSession(ChatToggleMixin):
             if state.task_level.value in ("complex", "critical"):
                 yield ("info", f"[方法] 任务等级 {state.task_level.name} — {state.summary()}")
         except (ImportError, OSError) as e:
-
             logger.debug("optional module skipped: %s", e)
 
             pass
@@ -779,13 +794,11 @@ class ChatSession(ChatToggleMixin):
 
         # Multi-model deliberation for complex questions
         from core.cognitive_orchestrator import is_complex
+
         if self._vote_enabled and is_complex(user_text) and not image_url:
             result = self._deliberate(user_text)
             if result and result.get("confidence") in ("high", "medium"):
-                content = (
-                    f"{result['answer']}\n\n"
-                    f"[{result['models_used']} models, confidence: {result['confidence']}]"
-                )
+                content = f"{result['answer']}\n\n[{result['models_used']} models, confidence: {result['confidence']}]"
                 if result.get("dissenting") and result["dissenting"] != "none":
                     content += f"\n[dim]Dissent: {result['dissenting']}[/]"
                 self.messages.append({"role": "assistant", "content": content})
@@ -868,6 +881,7 @@ class ChatSession(ChatToggleMixin):
                         # 通知 ProviderManager 标记当前供应商为 down
                         try:
                             from core.provider import get_provider_manager
+
                             mgr = get_provider_manager()
                             # 先尝试自动 failover（handle_failure 会选一个可用 provider）
                             new_client, new_pid = mgr.handle_failure(mgr.state.active, 500)
@@ -900,7 +914,6 @@ class ChatSession(ChatToggleMixin):
                             yield ("info", w)
                         get_methodology_state().advance_workflow("verified")
                 except (ImportError, OSError) as e:
-
                     logger.debug("optional module skipped: %s", e)
 
                     pass
@@ -949,6 +962,7 @@ class ChatSession(ChatToggleMixin):
         last_usage = None
         # 从统一适配层读取模型实际能力
         from core.provider_adapter import get_max_tokens, get_thinking_params
+
         max_tok = get_max_tokens(model, is_tool_call=bool(tools))
         kwargs = {}
         if self.enable_thinking:
@@ -962,6 +976,7 @@ class ChatSession(ChatToggleMixin):
         ):
             # 供应商感知的 thinking token 提取
             from core.provider_adapter import get_adapter, get_capability
+
             cap = get_capability(model)
             adapter = get_adapter(cap.provider_id if cap else "deepseek")
             think_field = adapter.thinking_response_field
@@ -1061,7 +1076,6 @@ class ChatSession(ChatToggleMixin):
                         if "[错误]" in str(tool_result) or "error" in str(tool_result).lower():
                             get_prompt_lab().record_tool_error()
                     except (ImportError, OSError) as e:
-
                         logger.debug("optional module skipped: %s", e)
 
                         pass
@@ -1128,9 +1142,9 @@ class ChatSession(ChatToggleMixin):
         # ── 方法论: 自动推进至"验证+diff审查"步骤 ──
         try:
             from core.methodology import get_methodology_state
+
             get_methodology_state().advance_workflow("verified")
         except (ImportError, OSError) as e:
-
             logger.debug("optional module skipped: %s", e)
 
             pass
@@ -1140,6 +1154,7 @@ class ChatSession(ChatToggleMixin):
         if self._reflection is None:
             try:
                 from core.reflection_loop import ReflectionLoop
+
                 self._reflection = ReflectionLoop()
             except (ImportError, OSError) as e:
                 logger.debug("ReflectionLoop init failed: %s", e)
@@ -1154,6 +1169,7 @@ class ChatSession(ChatToggleMixin):
         if self._memory is None:
             try:
                 from core.memory_bridge import MemoryBridge
+
                 self._memory = MemoryBridge()
             except (ImportError, OSError) as e:
                 logger.debug("MemoryBridge init failed: %s", e)
@@ -1185,7 +1201,6 @@ class ChatSession(ChatToggleMixin):
             try:
                 modified = apply_technique(user_text, level=level)
             except Exception as e:
-
                 logger.debug("unexpected error: %s", e, exc_info=True)
 
                 continue
@@ -1248,6 +1263,7 @@ class ChatSession(ChatToggleMixin):
         if self._cog is None:
             try:
                 from core.cognitive_orchestrator import CognitiveOrchestrator
+
                 self._cog = CognitiveOrchestrator()
             except (ImportError, OSError) as e:
                 logger.debug("CognitiveOrchestrator init failed: %s", e)
@@ -1265,7 +1281,7 @@ class ChatSession(ChatToggleMixin):
 
             get_prompt_lab().record_outcome()
         except (ImportError, OSError):
-            logger.debug('spectrum module not available')
+            logger.debug("spectrum module not available")
 
 
 # ═══════════════════════════════════════════════════════════════

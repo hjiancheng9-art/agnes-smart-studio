@@ -82,7 +82,10 @@ class RecoveryEngine:
             usage = _shutil.disk_usage(self.root)
             free_mb = usage.free / (1024 * 1024)
             if free_mb >= threshold_mb:
-                return {"success": True, "message": f"Disk space OK ({free_mb:.0f} MB free > {threshold_mb} MB threshold)"}
+                return {
+                    "success": True,
+                    "message": f"Disk space OK ({free_mb:.0f} MB free > {threshold_mb} MB threshold)",
+                }
         except OSError:
             # disk_usage 失败时保守清理（如网络文件系统不支持 statvfs）
             pass
@@ -125,6 +128,7 @@ class RecoveryEngine:
         hints = []
         if provider:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             mgr.state.mark_down(provider)
             hints.append(f"Provider {provider} temporarily marked down (cooldown)")
@@ -150,6 +154,7 @@ class RecoveryEngine:
             # Attempt to load and sanitize
             try:
                 import json as _json
+
                 with open(history_path, encoding="utf-8") as f:
                     data = _json.load(f)
                 # Trim to last valid session

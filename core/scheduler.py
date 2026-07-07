@@ -145,7 +145,9 @@ class Scheduler:
 
     # ── Public API ─────────────────────────────────────────
 
-    def add_task(self, name: str, prompt: str, schedule_type: str, schedule_value: str, run_once: bool = False) -> ScheduledTask:
+    def add_task(
+        self, name: str, prompt: str, schedule_type: str, schedule_value: str, run_once: bool = False
+    ) -> ScheduledTask:
         """Create and add a new scheduled task.
 
         Args:

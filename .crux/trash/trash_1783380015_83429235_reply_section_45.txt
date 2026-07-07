@@ -1,0 +1,4 @@
+HIGH RISK:
+  7 files, 3.2 GB
+  - LoRA intermediate checkpoints
+  Requires confirmation.

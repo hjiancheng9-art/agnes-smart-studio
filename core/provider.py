@@ -322,6 +322,7 @@ def get_thinking_params_for_model(model_id: str) -> dict[str, Any]:
         return {}
     # 委托 ProviderAdapter 处理供应商特定参数格式
     from core.provider_adapter import get_adapter as _get_adapter
+
     adapter = _get_adapter(info.provider_id)
     return adapter.build_thinking_params()
 
@@ -333,7 +334,7 @@ def get_thinking_params_for_model(model_id: str) -> dict[str, Any]:
 
 class ProviderState:
     """Tracks which provider is active and which have failed.
-    
+
     Implements circuit breaker pattern:
     - CLOSED: normal operation
     - OPEN: >=3 consecutive failures, skip for cooldown_sec
@@ -563,6 +564,7 @@ class ProviderManager:
         if not root_trace_id:
             try:
                 from core.multi_agent import get_current_root_trace_id
+
                 root_trace_id = get_current_root_trace_id()
             except ImportError:
                 pass
@@ -598,21 +600,24 @@ class ProviderManager:
             fallback = self._first_available(exclude={pid})
             if fallback:
                 import logging
+
                 try:
                     from core.provider_history import record_call
+
                     record_call(pid, "", False, 0, "fallback to " + fallback)
                 except ImportError:
                     pass
                 logging.getLogger("crux").info(
-                    "provider fallback: %s -> %s (depth=%d, trace=%s)",
-                    pid, fallback, _depth + 1, root_trace_id
+                    "provider fallback: %s -> %s (depth=%d, trace=%s)", pid, fallback, _depth + 1, root_trace_id
                 )
                 return self.create_client(fallback, _depth=_depth + 1, root_trace_id=root_trace_id)
             raise NoProviderAvailable(f"No API key for provider '{pid}'")
 
         return CruxClient(api_key=api_key, base_url=provider["base_url"])
 
-    def handle_failure(self, failed_provider: str, status_code: int, _depth: int = 0) -> tuple[object | None, str | None]:
+    def handle_failure(
+        self, failed_provider: str, status_code: int, _depth: int = 0
+    ) -> tuple[object | None, str | None]:
         """Called when a provider request fails. Returns (new_client, new_provider_id)
         if failover succeeded, or (None, None) if all providers exhausted.
 

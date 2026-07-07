@@ -54,10 +54,10 @@ RuntimeType = Literal["prompt", "declarative", "python_subprocess", "python_inli
 ConfidenceScore = float  # 0.0 - 1.0
 
 ReviewStatus = Literal[
-    "auto-inferred",       # 自动推断，置信度高
+    "auto-inferred",  # 自动推断，置信度高
     "auto-inferred-degraded",  # 自动推断，置信度中（运行时降级）
-    "user-confirmed",      # 用户确认过
-    "user-modified",       # 用户修改过
+    "user-confirmed",  # 用户确认过
+    "user-modified",  # 用户修改过
 ]
 
 
@@ -166,7 +166,8 @@ class SkillManifest:
 def _is_semver(version: str) -> bool:
     """Basic semver check: X.Y.Z or X.Y.Z-pre+meta."""
     import re
-    pattern = r'^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
+
+    pattern = r"^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$"
     return bool(re.match(pattern, version))
 
 
@@ -181,28 +182,55 @@ def load_manifest(path: str) -> SkillManifest:
     return manifest
 
 
-
 # ── Runtime Inference for Legacy Skills ────────────────────
 
 # Patterns for inferring runtime from skill content
 _RUNTIME_HINTS = {
     "declarative": [
-        "steps", "workflow", "nodes", "connections",
-        "browser", "cdp", "playwright", "screenshot", "navigate",
-        "comfyui", "imagegen", "dimension", "resolution", "cinematic",
-        "audio", "media", "encode",
+        "steps",
+        "workflow",
+        "nodes",
+        "connections",
+        "browser",
+        "cdp",
+        "playwright",
+        "screenshot",
+        "navigate",
+        "comfyui",
+        "imagegen",
+        "dimension",
+        "resolution",
+        "cinematic",
+        "audio",
+        "media",
+        "encode",
     ],
     "python_subprocess": [
-        "script", "command", "execute", "subprocess", "run_bash",
-        "shell", "pip", "install", "process",
+        "script",
+        "command",
+        "execute",
+        "subprocess",
+        "run_bash",
+        "shell",
+        "pip",
+        "install",
+        "process",
     ],
     "python_inline": [
-        "import ", "def ", "class ", "asyncio", "__init__",
+        "import ",
+        "def ",
+        "class ",
+        "asyncio",
+        "__init__",
     ],
     "docker": [
-        "container", "docker", "image:", "Dockerfile",
+        "container",
+        "docker",
+        "image:",
+        "Dockerfile",
     ],
 }
+
 
 def infer_runtime(skill_data: dict) -> tuple[str, float]:
     """从技能内容推断最佳 runtime 类型，返回 (runtime, confidence)。

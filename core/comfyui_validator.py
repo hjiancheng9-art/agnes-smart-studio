@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 # 校验结果类型
 # ═══════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class ValidationIssue:
     level: str  # error / warning / info
@@ -62,6 +63,7 @@ class ValidationResult:
 # ═══════════════════════════════════════════════════════════════════
 # 5 层 Validator
 # ═══════════════════════════════════════════════════════════════════
+
 
 class ComfyUIValidator:
     """ComfyUI Workflow 5 层校验器。"""
@@ -119,9 +121,12 @@ class ComfyUIValidator:
                 if isinstance(input_value, list) and len(input_value) == 2:
                     src_id, src_idx = input_value
                     if str(src_id) not in workflow:
-                        result.add_error("L1", f"连接引用了不存在的节点 {src_id}", node_id=node_id,
-                                         fix_hint=f"检查 {input_name} 连接的源节点")
-
+                        result.add_error(
+                            "L1",
+                            f"连接引用了不存在的节点 {src_id}",
+                            node_id=node_id,
+                            fix_hint=f"检查 {input_name} 连接的源节点",
+                        )
 
     # ── L2: 节点 schema 校验 ──
 
@@ -134,8 +139,9 @@ class ComfyUIValidator:
         for node_id, node in workflow.items():
             class_type = node.get("class_type", "")
             if class_type not in self._ontology:
-                result.add_warning("L2", f"节点类型不在本体中: {class_type}", node_id=node_id,
-                                   fix_hint="安装缺失的自定义节点")
+                result.add_warning(
+                    "L2", f"节点类型不在本体中: {class_type}", node_id=node_id, fix_hint="安装缺失的自定义节点"
+                )
 
             # 检查必需输入
             node_info = self._ontology.get(class_type, {})
@@ -144,9 +150,12 @@ class ComfyUIValidator:
 
             for req_name in required_inputs:
                 if req_name not in actual_inputs:
-                    result.add_error("L2", f"缺少必需输入: {req_name}", node_id=node_id,
-                                     fix_hint=f"为 {class_type} 添加 {req_name} 输入")
-
+                    result.add_error(
+                        "L2",
+                        f"缺少必需输入: {req_name}",
+                        node_id=node_id,
+                        fix_hint=f"为 {class_type} 添加 {req_name} 输入",
+                    )
 
     # ── L3: 图拓扑校验 ──
 
@@ -172,17 +181,15 @@ class ComfyUIValidator:
                 for input_value in other.get("inputs", {}).values()
                 if isinstance(input_value, list) and len(input_value) == 2
             )
-            has_input_connections = any(
-                isinstance(v, list) and len(v) == 2
-                for v in inputs.values()
-            )
+            has_input_connections = any(isinstance(v, list) and len(v) == 2 for v in inputs.values())
             node_type = workflow[node_id].get("class_type", "")
             # 不是 SaveImage/VHS 等输出节点，但没有连接
             is_output_node = node_type in ("SaveImage", "PreviewImage", "VHS_VideoCombine")
 
             if not has_input_connections and not has_output_connections and not is_output_node:
-                result.add_warning("L3", f"孤立节点（无连接）", node_id=node_id,
-                                   fix_hint=f"连接 {node_id} 到其他节点或删除它")
+                result.add_warning(
+                    "L3", f"孤立节点（无连接）", node_id=node_id, fix_hint=f"连接 {node_id} 到其他节点或删除它"
+                )
 
         # 死端检测
         dead_ends = []
@@ -202,7 +209,6 @@ class ComfyUIValidator:
             for de in dead_ends:
                 result.add_warning("L3", f"死端节点（有输入无输出）", node_id=de)
 
-
     # ── L4: 运行时资源校验 ──
 
     def _validate_l4(self, workflow: dict, result: ValidationResult):
@@ -211,7 +217,13 @@ class ComfyUIValidator:
         for node_id, node in workflow.items():
             inputs = node.get("inputs", {})
             for input_name, input_value in inputs.items():
-                if isinstance(input_value, str) and input_name in ("ckpt_name", "lora_name", "vae_name", "controlnet_name", "upscale_model"):
+                if isinstance(input_value, str) and input_name in (
+                    "ckpt_name",
+                    "lora_name",
+                    "vae_name",
+                    "controlnet_name",
+                    "upscale_model",
+                ):
                     if input_value and input_value not in self._models:
                         result.add_warning("L4", f"引用的模型可能不可用: {input_value}", node_id=node_id)
 
@@ -222,11 +234,11 @@ class ComfyUIValidator:
                 try:
                     bs = int(inputs["batch_size"])
                     if bs > 4:
-                        result.add_warning("L4", f"batch_size={bs} 可能超出显存", node_id=node_id,
-                                           fix_hint="减小 batch_size 到 1-4")
+                        result.add_warning(
+                            "L4", f"batch_size={bs} 可能超出显存", node_id=node_id, fix_hint="减小 batch_size 到 1-4"
+                        )
                 except (ValueError, TypeError):
                     pass
-
 
     # ── L5: 业务语义校验 ──
 
@@ -235,7 +247,9 @@ class ComfyUIValidator:
         # 检查基本的 encode+sample+decode 链路
         has_checkpoint = any(n.get("class_type", "").startswith("Checkpoint") for n in workflow.values())
         has_sampler = any(n.get("class_type", "") in ("KSampler", "KSamplerAdvanced") for n in workflow.values())
-        has_output = any(n.get("class_type", "") in ("SaveImage", "PreviewImage", "VHS_VideoCombine") for n in workflow.values())
+        has_output = any(
+            n.get("class_type", "") in ("SaveImage", "PreviewImage", "VHS_VideoCombine") for n in workflow.values()
+        )
 
         if not has_checkpoint and not has_sampler:
             result.add_info("L5", "无模型加载器+采样器 — 可能是非标准 workflow")
@@ -247,8 +261,10 @@ class ComfyUIValidator:
 # 便捷函数
 # ═══════════════════════════════════════════════════════════════════
 
-def validate_workflow(workflow: dict, node_ontology: dict | None = None,
-                      model_inventory: dict | None = None) -> ValidationResult:
+
+def validate_workflow(
+    workflow: dict, node_ontology: dict | None = None, model_inventory: dict | None = None
+) -> ValidationResult:
     """验证 ComfyUI workflow 并返回结果。"""
     validator = ComfyUIValidator(node_ontology, model_inventory)
     return validator.validate(workflow)

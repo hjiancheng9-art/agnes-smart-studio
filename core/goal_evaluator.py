@@ -20,8 +20,8 @@ from typing import Any
 
 
 class GoalVerdict(enum.Enum):
-    PASS = "pass"          # 目标已达成
-    FAIL = "fail"           # 目标未达成
+    PASS = "pass"  # 目标已达成
+    FAIL = "fail"  # 目标未达成
     NEEDS_FIX = "needs_fix"  # 基本达成，但有可改进项
 
 
@@ -31,10 +31,10 @@ class EvaluationResult:
 
     goal_id: str
     verdict: GoalVerdict
-    evidence: str = ""          # 评估依据（LLM 输出或启发式检查详情）
+    evidence: str = ""  # 评估依据（LLM 输出或启发式检查详情）
     issues: list[str] = field(default_factory=list)  # 发现的问题
     suggestions: list[str] = field(default_factory=list)  # 改进建议
-    confidence: float = 1.0     # 评估置信度 (0.0-1.0)
+    confidence: float = 1.0  # 评估置信度 (0.0-1.0)
 
     def to_dict(self) -> dict:
         return {
@@ -160,6 +160,7 @@ class GoalEvaluator:
             if "do not modify" in line or "不要修改" in line or "禁止修改" in line:
                 # Extract the target path/file
                 import re
+
                 targets = re.findall(r"[`'\"]([^`'\"]+)[`'\"]", line)
                 for target in targets:
                     for art in artifacts:
@@ -167,6 +168,7 @@ class GoalEvaluator:
                             issues.append(f"Boundary violation: 可能修改了禁止区域 {target} → {art}")
             if "only in" in line or "仅在" in line or "限定在" in line:
                 import re
+
                 targets = re.findall(r"[`'\"]([^`'\"]+)[`'\"]", line)
                 for target in targets:
                     for art in artifacts:
@@ -216,11 +218,13 @@ class GoalEvaluator:
         if issues:
             parts.append(f"启发式检查发现的问题: {'; '.join(issues)}")
 
-        parts.extend([
-            "",
-            "请给出裁决，仅输出 JSON：",
-            '{"verdict": "pass"|"fail"|"needs_fix", "evidence": "判定依据", "issues": ["问题1"], "suggestions": ["建议1"], "confidence": 0.0-1.0}',
-        ])
+        parts.extend(
+            [
+                "",
+                "请给出裁决，仅输出 JSON：",
+                '{"verdict": "pass"|"fail"|"needs_fix", "evidence": "判定依据", "issues": ["问题1"], "suggestions": ["建议1"], "confidence": 0.0-1.0}',
+            ]
+        )
         return "\n".join(parts)
 
     def _parse_llm_result(

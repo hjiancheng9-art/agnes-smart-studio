@@ -14,8 +14,9 @@ BACKUP_DIR = Path("output/backups")
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def release_create(name: str, version: str, files: list[str] | None = None,
-                   rollout_percent: int = 100, description: str = "") -> dict:
+def release_create(
+    name: str, version: str, files: list[str] | None = None, rollout_percent: int = 100, description: str = ""
+) -> dict:
     """Create a release with optional gray rollout percentage."""
     release = {
         "id": f"{name}-{version}",
@@ -50,11 +51,9 @@ def release_rollout(release_id: str, percent: int | None = None) -> dict:
     pct = percent if percent is not None else release.get("rollout_percent", 100)
     release["status"] = "rolling_out" if pct < 100 else "deployed"
     release["rollout_percent"] = pct
-    release["rollout_history"].append({
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "percent": pct,
-        "action": f"rolled out to {pct}%"
-    })
+    release["rollout_history"].append(
+        {"timestamp": datetime.now(timezone.utc).isoformat(), "percent": pct, "action": f"rolled out to {pct}%"}
+    )
     release["updated_at"] = datetime.now(timezone.utc).isoformat()
     path.write_text(json.dumps(release, indent=2, ensure_ascii=False), encoding="utf-8")
     return release
@@ -76,10 +75,9 @@ def release_rollback(release_id: str) -> dict:
                 shutil.copy2(f, Path.cwd() / f.name)
                 restored.append(f.name)
     release["status"] = "rolled_back"
-    release["rollout_history"].append({
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "action": f"rolled back, restored {len(restored)} files"
-    })
+    release["rollout_history"].append(
+        {"timestamp": datetime.now(timezone.utc).isoformat(), "action": f"rolled back, restored {len(restored)} files"}
+    )
     release["updated_at"] = datetime.now(timezone.utc).isoformat()
     path.write_text(json.dumps(release, indent=2, ensure_ascii=False), encoding="utf-8")
     return release
@@ -92,38 +90,69 @@ def release_list(status: str | None = None) -> list[dict]:
         r = json.loads(p.read_text(encoding="utf-8"))
         if status and r.get("status") != status:
             continue
-        result.append({"id": r["id"], "name": r["name"], "version": r["version"], "status": r["status"], "rollout": r.get("rollout_percent", 0)})
+        result.append(
+            {
+                "id": r["id"],
+                "name": r["name"],
+                "version": r["version"],
+                "status": r["status"],
+                "rollout": r.get("rollout_percent", 0),
+            }
+        )
     return result
 
 
 RELEASE_TOOL_DEFS = [
-    {"type": "function", "function": {
-        "name": "release_create", "description": "Create a release with backup and rollout control.",
-        "parameters": {"type": "object", "properties": {
-            "name": {"type": "string"}, "version": {"type": "string"},
-            "files": {"type": "array", "items": {"type": "string"}},
-            "rollout_percent": {"type": "integer", "description": "0-100"},
-            "description": {"type": "string"}
-        }, "required": ["name", "version"]}
-    }},
-    {"type": "function", "function": {
-        "name": "release_rollout", "description": "Rollout release to a percentage.",
-        "parameters": {"type": "object", "properties": {
-            "release_id": {"type": "string"}, "percent": {"type": "integer"}
-        }, "required": ["release_id"]}
-    }},
-    {"type": "function", "function": {
-        "name": "release_rollback", "description": "Rollback to previous version.",
-        "parameters": {"type": "object", "properties": {
-            "release_id": {"type": "string"}
-        }, "required": ["release_id"]}
-    }},
-    {"type": "function", "function": {
-        "name": "release_list", "description": "List releases.",
-        "parameters": {"type": "object", "properties": {
-            "status": {"type": "string"}
-        }}
-    }},
+    {
+        "type": "function",
+        "function": {
+            "name": "release_create",
+            "description": "Create a release with backup and rollout control.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "version": {"type": "string"},
+                    "files": {"type": "array", "items": {"type": "string"}},
+                    "rollout_percent": {"type": "integer", "description": "0-100"},
+                    "description": {"type": "string"},
+                },
+                "required": ["name", "version"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "release_rollout",
+            "description": "Rollout release to a percentage.",
+            "parameters": {
+                "type": "object",
+                "properties": {"release_id": {"type": "string"}, "percent": {"type": "integer"}},
+                "required": ["release_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "release_rollback",
+            "description": "Rollback to previous version.",
+            "parameters": {
+                "type": "object",
+                "properties": {"release_id": {"type": "string"}},
+                "required": ["release_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "release_list",
+            "description": "List releases.",
+            "parameters": {"type": "object", "properties": {"status": {"type": "string"}}},
+        },
+    },
 ]
 
 RELEASE_EXECUTOR_MAP = {

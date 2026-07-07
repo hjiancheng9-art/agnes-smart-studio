@@ -35,6 +35,7 @@ Y = "\033[33m"
 B = "\033[34m"
 N = "\033[0m"
 
+
 class Finding:
     def __init__(self, severity: str, category: str, file: str, line: int, msg: str, fixable: bool = False):
         self.severity = severity  # critical / high / medium / low
@@ -78,12 +79,16 @@ class SelfHealer:
                 if i < len(lines):
                     next_line = lines[i].strip()
                     if next_line in ("pass", "", "pass  #"):
-                        self.findings.append(Finding(
-                            "medium", "silent-exception",
-                            str(py_file.relative_to(ROOT)), i,
-                            f"Silent except swallows error: {stripped}",
-                            fixable=True,
-                        ))
+                        self.findings.append(
+                            Finding(
+                                "medium",
+                                "silent-exception",
+                                str(py_file.relative_to(ROOT)),
+                                i,
+                                f"Silent except swallows error: {stripped}",
+                                fixable=True,
+                            )
+                        )
 
     def scan_syntax(self):
         """Check all Python files for syntax errors."""
@@ -94,33 +99,49 @@ class SelfHealer:
                 source = py_file.read_text(encoding="utf-8")
                 ast.parse(source)
             except SyntaxError as e:
-                self.findings.append(Finding(
-                    "critical", "syntax",
-                    str(py_file.relative_to(ROOT)), e.lineno or 0,
-                    f"SyntaxError: {e.msg}",
-                    fixable=False,
-                ))
+                self.findings.append(
+                    Finding(
+                        "critical",
+                        "syntax",
+                        str(py_file.relative_to(ROOT)),
+                        e.lineno or 0,
+                        f"SyntaxError: {e.msg}",
+                        fixable=False,
+                    )
+                )
 
     def scan_test_failures(self):
         """Run pytest --collect-only to find collection errors first, then check if tests pass."""
         try:
             r = subprocess.run(
                 [sys.executable, "-m", "pytest", "tests/", "--co", "-q"],
-                capture_output=True, text=True, timeout=30, cwd=str(ROOT),
+                capture_output=True,
+                text=True,
+                timeout=30,
+                cwd=str(ROOT),
             )
             if r.returncode != 0:
-                self.findings.append(Finding(
-                    "critical", "tests",
-                    "tests/", 0,
-                    f"Test collection failed: {r.stderr[:200]}",
-                    fixable=False,
-                ))
+                self.findings.append(
+                    Finding(
+                        "critical",
+                        "tests",
+                        "tests/",
+                        0,
+                        f"Test collection failed: {r.stderr[:200]}",
+                        fixable=False,
+                    )
+                )
         except Exception as e:
-            self.findings.append(Finding(
-                "high", "tests", "tests/", 0,
-                f"Test runner failed: {e}",
-                fixable=False,
-            ))
+            self.findings.append(
+                Finding(
+                    "high",
+                    "tests",
+                    "tests/",
+                    0,
+                    f"Test runner failed: {e}",
+                    fixable=False,
+                )
+            )
 
     def scan_import_errors(self):
         """Try importing all core modules, catch failures."""
@@ -134,47 +155,77 @@ class SelfHealer:
             try:
                 __import__(mod)
             except SyntaxError as e:
-                self.findings.append(Finding(
-                    "critical", "import", mod, e.lineno or 0,
-                    f"SyntaxError: {e.msg}", fixable=False,
-                ))
+                self.findings.append(
+                    Finding(
+                        "critical",
+                        "import",
+                        mod,
+                        e.lineno or 0,
+                        f"SyntaxError: {e.msg}",
+                        fixable=False,
+                    )
+                )
             except ImportError as e:
-                self.findings.append(Finding(
-                    "high", "import", mod, 0,
-                    f"ImportError: {e}", fixable=False,
-                ))
+                self.findings.append(
+                    Finding(
+                        "high",
+                        "import",
+                        mod,
+                        0,
+                        f"ImportError: {e}",
+                        fixable=False,
+                    )
+                )
             except Exception as e:
-                self.findings.append(Finding(
-                    "medium", "import", mod, 0,
-                    f"Init error ({type(e).__name__}): {e}", fixable=False,
-                ))
+                self.findings.append(
+                    Finding(
+                        "medium",
+                        "import",
+                        mod,
+                        0,
+                        f"Init error ({type(e).__name__}): {e}",
+                        fixable=False,
+                    )
+                )
 
     def scan_config_drift(self):
         """Check models.json vs MODEL_REGISTRY consistency."""
         try:
             from core.provider import MODEL_REGISTRY, get_provider_manager
+
             mgr = get_provider_manager()
             for pid, p in mgr.providers.items():
                 models = p.get("models", {})
                 for tier, mid in models.items():
                     if mid not in MODEL_REGISTRY:
-                        self.findings.append(Finding(
-                            "high", "config-drift",
-                            f"models.json [{pid}]", 0,
-                            f"Model '{mid}' (tier={tier}) not in MODEL_REGISTRY",
-                            fixable=False,
-                        ))
+                        self.findings.append(
+                            Finding(
+                                "high",
+                                "config-drift",
+                                f"models.json [{pid}]",
+                                0,
+                                f"Model '{mid}' (tier={tier}) not in MODEL_REGISTRY",
+                                fixable=False,
+                            )
+                        )
         except Exception as e:
-            self.findings.append(Finding(
-                "medium", "config-drift", "models.json", 0,
-                f"Config check failed: {e}", fixable=False,
-            ))
+            self.findings.append(
+                Finding(
+                    "medium",
+                    "config-drift",
+                    "models.json",
+                    0,
+                    f"Config check failed: {e}",
+                    fixable=False,
+                )
+            )
 
     def scan_hook_gaps(self):
         """Check for registered hooks that are never fired."""
         # Already fixed in this session — verify they're still active
         try:
             from core.hooks import HookType, get_registered_hooks
+
             get_registered_hooks()
             fired_types = set()
             # Scan chat.py for _fire_hook calls
@@ -184,12 +235,16 @@ class SelfHealer:
                     fired_types.add(ht)
             for ht in HookType:
                 if ht not in fired_types:
-                    self.findings.append(Finding(
-                        "low", "hooks",
-                        "core/hooks.py", 0,
-                        f"HookType.{ht.name} is registered but never fired",
-                        fixable=False,
-                    ))
+                    self.findings.append(
+                        Finding(
+                            "low",
+                            "hooks",
+                            "core/hooks.py",
+                            0,
+                            f"HookType.{ht.name} is registered but never fired",
+                            fixable=False,
+                        )
+                    )
         except Exception:
             pass  # hooks module has its own issues, don't compound
 
@@ -214,8 +269,7 @@ class SelfHealer:
                 if pass_idx < len(lines) and lines[pass_idx].strip() in ("pass", "pass  #"):
                     indent = len(lines[pass_idx]) - len(lines[pass_idx].lstrip())
                     lines[pass_idx] = (
-                        " " * indent
-                        + "import logging; logging.getLogger('crux').debug('silent except', exc_info=True)"
+                        " " * indent + "import logging; logging.getLogger('crux').debug('silent except', exc_info=True)"
                     )
                     fpath.write_text("\n".join(lines) + "\n", encoding="utf-8")
                     fixed += 1
@@ -238,27 +292,41 @@ class SelfHealer:
             try:
                 scanner()
             except Exception as e:
-                self.findings.append(Finding(
-                    "low", "scanner", scanner.__name__, 0, f"Scanner failed: {e}", fixable=False,
-                ))
+                self.findings.append(
+                    Finding(
+                        "low",
+                        "scanner",
+                        scanner.__name__,
+                        0,
+                        f"Scanner failed: {e}",
+                        fixable=False,
+                    )
+                )
         return self.findings
 
     def quick_fix(self) -> dict:
         """Auto-fix common issues. Returns {ruff_fixed: int, patches: int}."""
         import subprocess
+
         result = {"ruff_fixed": 0, "patches": 0}
         try:
             r = subprocess.run(
                 ["python", "-m", "ruff", "check", "core/", "ui/", "engines/", "--fix"],
-                capture_output=True, text=True, timeout=30, cwd=str(ROOT),
+                capture_output=True,
+                text=True,
+                timeout=30,
+                cwd=str(ROOT),
             )
             import re
+
             for line in r.stdout.split("\n"):
                 m = re.search(r"(\d+)\s+fixed", line)
                 if m:
                     result["ruff_fixed"] = int(m.group(1))
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            import logging
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
         return result
 
     def report(self) -> str:
@@ -285,8 +353,10 @@ class SelfHealer:
 
 # ── CLI ───────────────────────────────────────────────
 
+
 def main():
     import argparse
+
     p = argparse.ArgumentParser(description="CRUX Self-Healer — 白虎自愈引擎")
     p.add_argument("--fix", action="store_true", help="Auto-fix what can be safely fixed")
     p.add_argument("--json", action="store_true", help="Machine-readable output")
@@ -307,14 +377,23 @@ def main():
         print(f"  {G}{n} silent exception handlers patched{N}")
 
     if args.json:
-        print(json.dumps([{
-            "severity": f.severity,
-            "category": f.category,
-            "file": f.file,
-            "line": f.line,
-            "msg": f.msg,
-            "fixable": f.fixable,
-        } for f in healer.findings], indent=2, ensure_ascii=False))
+        print(
+            json.dumps(
+                [
+                    {
+                        "severity": f.severity,
+                        "category": f.category,
+                        "file": f.file,
+                        "line": f.line,
+                        "msg": f.msg,
+                        "fixable": f.fixable,
+                    }
+                    for f in healer.findings
+                ],
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
     else:
         print(healer.report())
 

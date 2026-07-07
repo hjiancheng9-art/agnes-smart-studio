@@ -1,0 +1,67 @@
+    try:
+        import subprocess
+        r = subprocess.run(
+            ["git", "diff", "--stat"],
+            capture_output=True, text=True, timeout=5, cwd=project_dir
+        )
+        state.git_diff_stat = r.stdout.strip()
+    except Exception:
+        pass
+
+    return state
+
+
+def capture_post_state(pre_state: StateSnapshot, project_dir: str = ".") -> StateSnapshot:
+    """Capture state after a risky operation."""
+    post = StateSnapshot()
+
+    # Re-hash only files that existed in pre-state or have changed
+    try:
+        import glob as _glob
+        for pattern in ["*.py", "*.json", "*.yaml", "*.yml", "*.toml"]:
+            for fpath in _glob.glob(os.path.join(project_dir, "**", pattern), recursive=True):
+                if any(skip in fpath for skip in ["__pycache__", ".git", "node_modules", "venv", ".venv"]):
+                    continue
+                try:
+                    with open(fpath, "rb") as f:
+                        h = hashlib.sha256(f.read()).hexdigest()
+                    # Only include if changed or new
+                    if fpath not in pre_state.file_hashes or pre_state.file_hashes[fpath] != h:
+                        post.file_hashes[fpath] = h
+                except Exception:
+                    post.file_hashes[fpath] = "ERROR:unreadable"
+    except Exception:
+        pass
+
+    # Git diff stat
+    try:
+        import subprocess
+        r = subprocess.run(
+            ["git", "diff", "--stat"],
+            capture_output=True, text=True, timeout=5, cwd=project_dir
+        )
+        post.git_diff_stat = r.stdout.strip()
+    except Exception:
+        pass
+
+    return post
+
+
+# ── Fix Classification ────────────────────────────────────
+def classify_fix(
+    tool: str,
+    error_type: str,
+    pre: StateSnapshot,
+    post: StateSnapshot,
+    test_passed: bool = False,
+) -> str:
+    """Classify a self-heal outcome.
+
+    Returns:
+        "fix-probable": state changed meaningfully + tests pass
+        "fix-unknown": can't determine (not enough state change)
+        "fix-spurious": no state change, or only ephemeral change
+    """
+    if tool not in HIGH_RISK_TOOLS:
+        return "fix-unknown"
+

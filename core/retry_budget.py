@@ -25,6 +25,7 @@ def can_retry(root_trace_id: str, max_retries: int = DEFAULT_MAX_RETRIES) -> boo
 def record_retry_attempt(root_trace_id: str, action: str, result: str) -> dict:
     """记录一次重试尝试。"""
     import time
+
     if root_trace_id not in _retry_ledger:
         _retry_ledger[root_trace_id] = []
     entry = {

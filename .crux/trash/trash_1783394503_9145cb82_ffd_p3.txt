@@ -1,0 +1,64 @@
+    # Count meaningful changes
+    changed_files = 0
+    for fpath, post_hash in post.file_hashes.items():
+        pre_hash = pre.file_hashes.get(fpath, "")
+        if pre_hash != post_hash:
+            changed_files += 1
+
+    git_changed = pre.git_diff_stat != post.git_diff_stat and bool(post.git_diff_stat)
+
+    # Classification logic
+    if changed_files > 0 and test_passed:
+        return "fix-probable"
+    elif changed_files > 0 and not test_passed:
+        return "fix-unknown"  # files changed but tests fail — suspicious
+    elif changed_files == 0 and git_changed:
+        return "fix-unknown"  # git shows diff but no file hash change (whitespace?)
+    elif changed_files == 0 and not git_changed:
+        return "fix-spurious"  # nothing changed — patch did nothing
+    else:
+        return "fix-unknown"
+
+
+def should_retry(tool: str, error_type: str, context: dict = None) -> dict:
+    """Decision helper: should we retry this self-heal?
+
+    Returns:
+        {"retry": bool, "reason": str}
+    """
+    if tool not in HIGH_RISK_TOOLS:
+        return {"retry": False, "reason": "not a high-risk tool"}
+
+    sig = _make_error_signature(tool, error_type, context or {})
+    entry = _quarantine.get(sig)
+
+    if entry is None:
+        return {"retry": True, "reason": "first attempt"}
+
+    if time.time() - entry.first_seen > QUARANTINE_WINDOW:
+        del _quarantine[sig]
+        return {"retry": True, "reason": "quarantine window expired"}
+
+    remaining = MAX_RETRIES_24H - entry.retry_count
+    if remaining > 0:
+        return {"retry": True, "reason": f"{remaining} retries remaining"}
+    else:
+        return {
+            "retry": False,
+            "reason": f"quarantined: {entry.retry_count} retries in 24h, error_sig={sig}",
+        }
+
+
+def quarantine_status() -> dict:
+    """Get current quarantine state for monitoring."""
+    now = time.time()
+    active = {}
+    for sig, entry in _quarantine.items():
+        if now - entry.first_seen < QUARANTINE_WINDOW:
+            active[sig] = {
+                "tool": entry.tool,
+                "retry_count": entry.retry_count,
+                "first_seen_ago_sec": now - entry.first_seen,
+                "quarantined": entry.retry_count >= MAX_RETRIES_24H,
+            }
+    return active

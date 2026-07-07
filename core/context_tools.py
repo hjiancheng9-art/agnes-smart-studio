@@ -38,10 +38,12 @@ __all__ = [
 # 从 24000 提高到 100000 — 现代模型都有 >128K 上下文，6K 太保守
 DEFAULT_MAX_CHARS = 100000  # ~25K tokens for CJK text
 
+
 def get_model_max_chars(model_id: str = "") -> int:
     """读取模型的上下文窗口，计算合理的截断上限。"""
     try:
         from core.provider_adapter import get_capability
+
         cap = get_capability(model_id)
         if cap and cap.context_window > 0:
             # 用上下文窗口的 25% 作为消息截断上限
@@ -49,6 +51,7 @@ def get_model_max_chars(model_id: str = "") -> int:
     except ImportError:
         pass
     return DEFAULT_MAX_CHARS
+
 
 # 截断标记（与 ContextManager._truncate_messages 的格式逐字一致，保证行为兼容）
 _TRUNCATED_MARKER = "\n\n...[truncated {n} chars]...\n\n"
@@ -265,6 +268,7 @@ def abstractive_compress(
     if not model:
         try:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             model = mgr.get_model("pro")
         except Exception:

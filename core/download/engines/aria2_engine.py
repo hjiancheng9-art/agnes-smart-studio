@@ -7,6 +7,7 @@ import subprocess
 import time
 import urllib.request
 from dataclasses import dataclass
+from core.error_sink import catch
 
 
 @dataclass
@@ -41,13 +42,15 @@ class Aria2Engine:
         if self.config.rpc_secret:
             args.append(f"--rpc-secret={self.config.rpc_secret}")
         self._proc = subprocess.Popen(
-            args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            args,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
         time.sleep(0.3)
 
-    def add_uri(self, url: str, *, out: str | None = None,
-                dir: str | None = None,
-                headers: dict[str, str] | None = None) -> str:
+    def add_uri(
+        self, url: str, *, out: str | None = None, dir: str | None = None, headers: dict[str, str] | None = None
+    ) -> str:
         """Add a download URI. Returns gid."""
         self.ensure_daemon()
         options = {}
@@ -61,10 +64,13 @@ class Aria2Engine:
         return self._rpc("aria2.addUri", params)
 
     def tell_status(self, gid: str) -> dict:
-        return self._rpc("aria2.tellStatus", [
-            gid, ["status", "totalLength", "completedLength",
-                  "downloadSpeed", "files", "errorMessage"],
-        ])
+        return self._rpc(
+            "aria2.tellStatus",
+            [
+                gid,
+                ["status", "totalLength", "completedLength", "downloadSpeed", "files", "errorMessage"],
+            ],
+        )
 
     def pause(self, gid: str) -> None:
         self._rpc("aria2.pause", [gid])
@@ -78,8 +84,8 @@ class Aria2Engine:
     def shutdown(self) -> None:
         try:
             self._rpc("aria2.shutdown", [])
-        except Exception:
-            pass
+        except Exception as _es:
+            catch(_es, "core/download/engines/aria2_engine", "swallowed")
         if self._proc:
             self._proc.terminate()
             self._proc = None
@@ -87,8 +93,7 @@ class Aria2Engine:
     def _rpc(self, method: str, params: list):
         if self.config.rpc_secret:
             params = [f"token:{self.config.rpc_secret}", *params]
-        payload = {"jsonrpc": "2.0", "id": "crux-dl",
-                   "method": method, "params": params}
+        payload = {"jsonrpc": "2.0", "id": "crux-dl", "method": method, "params": params}
         req = urllib.request.Request(
             self.config.rpc_url,
             data=json.dumps(payload).encode("utf-8"),

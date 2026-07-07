@@ -1,0 +1,3 @@
+默认只删除 symlink 本身，不删除指向目标。
+如果 symlink 指向项目外，标记 high-risk。
+安全闸 3：protected path 永不自动删除

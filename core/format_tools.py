@@ -17,8 +17,12 @@ def _run_subprocess(cmd: list[str], cwd: str | None = None, timeout: int = 60) -
     """Run a subprocess and return {ok, stdout, stderr, returncode}."""
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout,
-            cwd=cwd or str(ROOT), shell=False,
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=cwd or str(ROOT),
+            shell=False,
         )
         return {
             "ok": result.returncode == 0,
@@ -89,11 +93,15 @@ def execute_run_format(paths: str = "", check: bool = False) -> str:
         results.append({"tool": "prettier", "check_only": check, **r})
 
     any_fail = any(not r["ok"] for r in results)
-    return json.dumps({
-        "ok": not any_fail,
-        "language": lang,
-        "results": results,
-    }, ensure_ascii=False, indent=2)
+    return json.dumps(
+        {
+            "ok": not any_fail,
+            "language": lang,
+            "results": results,
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
 
 
 def execute_run_lint(paths: str = "", fix: bool = False) -> str:
@@ -124,14 +132,18 @@ def execute_run_lint(paths: str = "", fix: bool = False) -> str:
         cmd.extend(targets if targets else ["."])
         r = _run_subprocess(cmd, cwd=cwd, timeout=120)
 
-    return json.dumps({
-        "ok": r["ok"],
-        "tool": "ruff check" if lang == "python" else "eslint",
-        "fix_applied": fix,
-        "stdout": r["stdout"][:4000],
-        "stderr": r["stderr"][:2000],
-        "returncode": r["returncode"],
-    }, ensure_ascii=False, indent=2)
+    return json.dumps(
+        {
+            "ok": r["ok"],
+            "tool": "ruff check" if lang == "python" else "eslint",
+            "fix_applied": fix,
+            "stdout": r["stdout"][:4000],
+            "stderr": r["stderr"][:2000],
+            "returncode": r["returncode"],
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
 
 
 # ── Tool definitions ────────────────────────────────────────

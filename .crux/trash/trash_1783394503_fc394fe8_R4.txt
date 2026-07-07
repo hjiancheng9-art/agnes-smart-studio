@@ -1,0 +1,89 @@
+消息：按 ↑/↓ 选择消息，或输入 /copy last")
+        else:
+            self._set_status(f"复制失败：{e}")
+
+/copy last 保留作为显式命令。
+
+M4：建立统一 InputMode / KeyRouter，解决 detail_view 与 ↑↓ 冲突
+问题
+
+现在 keybinding 分散在 TuiAppV2._setup_keybindings，detail active 时 ↑↓ 与消息聚焦冲突。
+
+修改文件
+新增：ui/input_router.py
+修改：ui/tui_v2.py
+修改：ui/message_detail.py
+新增状态
+Python
+运行
+# ui/input_router.py
+from enum import Enum
+
+class InputMode(str, Enum):
+    NORMAL = "normal"
+    STREAMING = "streaming"
+    DETAIL = "detail"
+    COPY = "copy"
+    NATIVE_SELECT = "native_select"
+    COMMAND = "command"
+
+class InputRouter:
+    def __init__(self):
+        self.mode = InputMode.NORMAL
+
+    def set_mode(self, mode: InputMode):
+        self.mode = mode
+
+    def is_detail(self):
+        return self.mode == InputMode.DETAIL
+TuiAppV2 中集中分发
+Python
+运行
+def _handle_up(self, event):
+    mode = self.input_router.mode
+
+    if mode == InputMode.DETAIL:
+        self.message_detail.scroll_up()
+    elif mode == InputMode.COPY:
+        self.copy_mode.move_up()
+    elif mode == InputMode.NORMAL:
+        self.copy_manager.focus_prev_message()
+    else:
+        self.message_pane.scroll_up()
+
+不要让每个组件直接抢键。
+
+M5：MessageDetailScreen 必须变成真正 overlay，不要改 _empty_renderer
+问题
+
+MessageDetailScreen.render 直接设 message_pane._empty_renderer 是危险 hack：
+
+污染主面板状态
+关闭详情后可能恢复不完整
+滚动状态耦合
+无法做多层弹窗
+后续 copy mode / help overlay 会冲突
+修改文件
+ui/tui_v2.py
+ui/message_detail.py
+方案
+
+如果你用 prompt_toolkit，应该用 FloatContainer + Float。
+
+伪结构：
+
+Python
+运行
+from prompt_toolkit.layout.containers import FloatContainer, Float, HSplit, Window
+
+self.root_container = FloatContainer(
+    content=HSplit([
+        self.header,
+        self.body,
+        self.input_area,
+        self.status_bar,
+    ]),
+    floats=[
+        Float(
+            content=self.message_detail.container,
+            

@@ -167,7 +167,20 @@ class Orchestra:
         triggered = []
         for rule in self._rules:
             cond, action = rule["condition"], rule["action"]
-            if cond.startswith("tool_failed_twice:") and event == "tool_error" and tool_name == cond.split(":",1)[1] and error_count >= 2 or cond == "tool_failed_twice" and event == "tool_error" and error_count >= 2 or cond.startswith("provider_down:") and event == "provider_down" and provider == cond.split(":",1)[1] or cond.startswith("error_count:>=") and error_count >= int(cond.split(">=",1)[1]):
+            if (
+                cond.startswith("tool_failed_twice:")
+                and event == "tool_error"
+                and tool_name == cond.split(":", 1)[1]
+                and error_count >= 2
+                or cond == "tool_failed_twice"
+                and event == "tool_error"
+                and error_count >= 2
+                or cond.startswith("provider_down:")
+                and event == "provider_down"
+                and provider == cond.split(":", 1)[1]
+                or cond.startswith("error_count:>=")
+                and error_count >= int(cond.split(">=", 1)[1])
+            ):
                 triggered.append(action)
         return triggered
 
@@ -175,13 +188,13 @@ class Orchestra:
         results = {}
         for action in actions:
             if action.startswith("activate:"):
-                cap_name = action.split(":",1)[1]
+                cap_name = action.split(":", 1)[1]
                 cap = self.resolve(cap_name)
                 if cap:
                     cap.enabled = True
                     results[action] = f"activated {cap_name}"
             elif action.startswith("notify:"):
-                results[action] = action.split(":",1)[1]
+                results[action] = action.split(":", 1)[1]
             else:
                 results[action] = "unknown action"
         return results

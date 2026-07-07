@@ -1163,11 +1163,11 @@ class CruxCLI:
         """Interrupt (Ctrl+C) — no-op, captured for dispatch completeness."""
         pass
 
-
     def _cmd_runs(self, args: str = "") -> str:
         """显示最近执行历史。用法: /runs [N]"""
         try:
             from core.run_summary import list_recent_runs, list_failed_runs
+
             n = int(args.strip()) if args.strip().isdigit() else 10
             if args.strip().startswith("--failed"):
                 n = int(args.strip().split()[-1]) if args.strip().split()[-1].isdigit() else 10
@@ -1196,6 +1196,7 @@ class CruxCLI:
             return "用法: /summary <root_trace_id>"
         try:
             from core.run_summary import get_run
+
             data = get_run(rid)
             if not data:
                 return f"未找到执行记录: {rid}"
@@ -1207,12 +1208,12 @@ class CruxCLI:
                 f"任务: {data.get('total_tasks', 0)}总 / {data.get('completed', 0)}完成 / {data.get('failed', 0)}失败 / {data.get('skipped', 0)}跳过 / {data.get('timeout', 0)}超时",
                 f"事件: {data.get('event_counts', {})}",
             ]
-            failure = data.get('failure_reasons', {})
+            failure = data.get("failure_reasons", {})
             if failure:
                 lines.append(f"失败原因: {failure}")
-            longest = data.get('longest_task')
+            longest = data.get("longest_task")
             if longest:
-                            lines.append(f"最长任务: {longest.get('id', '?')} ({longest.get('duration_ms', 0)}ms)")
+                lines.append(f"最长任务: {longest.get('id', '?')} ({longest.get('duration_ms', 0)}ms)")
             quality = data.get("quality_status", "")
             if quality:
                 score = data.get("quality_score", 0)
@@ -1238,40 +1239,44 @@ class CruxCLI:
             return "run_summary 模块未加载。"
 
     def _cmd_providers(self, args):
-        '''View provider health status. Use --why for detailed score breakdown.'''
+        """View provider health status. Use --why for detailed score breakdown."""
         try:
             from core.provider_history import get_all_stats
             from core.provider_policy import score_provider, format_route, format_explain
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             all_pids = list(mgr.providers.keys())
             circuit_states = {p: mgr.state.circuit_state(p) for p in all_pids}
-            show_why = '--why' in args
-            lines = ['Provider health (EMA 60min):']
+            show_why = "--why" in args
+            lines = ["Provider health (EMA 60min):"]
             stats = get_all_stats()
-            req = {'task_type': 'text', 'require_code': False, 'budget_remaining': 100}
+            req = {"task_type": "text", "require_code": False, "budget_remaining": 100}
             for pid in all_pids:
                 s = stats.get(pid, {})
-                calls = s.get('calls', 0)
-                rate = s.get('success_rate', 1.0)
-                lat = s.get('avg_latency_ms', 0)
-                err = s.get('recent_error', '')
-                circuit = circuit_states.get(pid, 'CLOSED')
+                calls = s.get("calls", 0)
+                rate = s.get("success_rate", 1.0)
+                lat = s.get("avg_latency_ms", 0)
+                err = s.get("recent_error", "")
+                circuit = circuit_states.get(pid, "CLOSED")
                 sc = score_provider(pid, req, circuit_states)
-                lines.append(f'  {pid:12s} circuit={circuit:10s} score={sc:5.1f} calls={calls:3d} success={rate:.0%} latency={lat:.0f}ms')
-                if show_why and circuit != 'OPEN':
+                lines.append(
+                    f"  {pid:12s} circuit={circuit:10s} score={sc:5.1f} calls={calls:3d} success={rate:.0%} latency={lat:.0f}ms"
+                )
+                if show_why and circuit != "OPEN":
                     explanation = format_explain(pid, req, circuit_states)
-                    lines.append(f'           {explanation}')
-            route = format_route([p for p in all_pids if circuit_states.get(p) != 'OPEN'])
-            lines.append('Route: ' + route)
+                    lines.append(f"           {explanation}")
+            route = format_route([p for p in all_pids if circuit_states.get(p) != "OPEN"])
+            lines.append("Route: " + route)
             return chr(10).join(lines)
         except ImportError as e:
-            return 'Module error: ' + str(e)
+            return "Module error: " + str(e)
 
     def _cmd_regression(self, args):
         """Run policy regression tests."""
         try:
             from core.policy_regression import run_regression_suite
+
             results = run_regression_suite()
             lines = ["Policy regression results:"]
             all_pass = True
@@ -1285,11 +1290,11 @@ class CruxCLI:
         except ImportError as e:
             return "Module error: " + str(e)
 
-
     def _cmd_incidents(self, args):
         """View incident trends."""
         try:
             from core.incident_store import get_incident_trends
+
             trends = get_incident_trends(24)
             if trends["total"] == 0:
                 return "No incidents in last 24h."
@@ -1306,13 +1311,12 @@ class CruxCLI:
         except ImportError as e:
             return "Module error: " + str(e)
 
-
-
     def _cmd_playbook(self, args):
         """View remediation playbook. Usage: /playbook <category>"""
         cat = args.strip()
         try:
             from core.incident_playbook import format_playbook, PLAYBOOKS
+
             if not cat:
                 lines = ["Available playbooks:"]
                 for key, pb in PLAYBOOKS.items():
@@ -1324,11 +1328,11 @@ class CruxCLI:
         except ImportError as e:
             return "Module error: " + str(e)
 
-
     def _cmd_replays(self, args):
         """List saved run replays."""
         try:
             from core.run_replay import list_replays
+
             replays = list_replays(10)
             if not replays:
                 return "No replays found."
@@ -1351,6 +1355,7 @@ class CruxCLI:
             return "Usage: /replay <root_trace_id>"
         try:
             from core.run_replay import get_failure_timeline, format_timeline, load_replay
+
             timeline = get_failure_timeline(rid)
             replay = load_replay(rid)
             lines = []
@@ -1358,16 +1363,21 @@ class CruxCLI:
                 summary = replay.get("summary", {})
                 lines.append(f"Run: {rid}")
                 lines.append(f"Status: {summary.get('quality_status', '?')} score={summary.get('quality_score', 0)}")
-                lines.append(f"Tasks: {summary.get('tasks_done', 0)} done / {summary.get('tasks_failed', 0)} failed / {summary.get('tasks_skipped', 0)} skipped")
+                lines.append(
+                    f"Tasks: {summary.get('tasks_done', 0)} done / {summary.get('tasks_failed', 0)} failed / {summary.get('tasks_skipped', 0)} skipped"
+                )
                 lines.append(f"Policy: {summary.get('policy_action', '')} ({summary.get('policy_reason', '')})")
                 incident = summary.get("incident", {})
                 if incident:
-                    lines.append(f"Failure: {incident.get('primary_category', '?')} ({incident.get('total_incidents', 0)} incidents)")
+                    lines.append(
+                        f"Failure: {incident.get('primary_category', '?')} ({incident.get('total_incidents', 0)} incidents)"
+                    )
                     lines.append(f"Recommendation: {incident.get('recommendation', '')}")
                     primary = incident.get("primary_category", "")
                     if primary:
                         try:
                             from core.incident_playbook import format_playbook
+
                             lines.append("")
                             lines.append("Remediation playbook:")
                             lines.append(format_playbook(primary, rid))
@@ -1382,9 +1392,3 @@ class CruxCLI:
             return chr(10).join(lines)
         except ImportError as e:
             return "Module error: " + str(e)
-
-
-
-
-
-

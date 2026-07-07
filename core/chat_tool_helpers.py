@@ -3,11 +3,13 @@
 Pure functions for merging, normalizing, and sanitizing tool calls.
 No ChatSession dependency — usable by both sync and async sessions.
 """
+
 from __future__ import annotations
 
 import json
 
 _sanitize_cache: tuple[int, int, list[dict]] = (0, 0, [])
+
 
 def normalize_tool_args(args_json: str) -> str:
     """归一化工具 arguments JSON 字符串，用于语义去重签名。
@@ -15,16 +17,17 @@ def normalize_tool_args(args_json: str) -> str:
     解析 JSON → 按 key 排序 → 紧凑序列化，使 {"a":1,"b":2} 与 {"b":2,"a":1}
     产生相同签名。解析失败时退化为去空白原串（仍能去重明显重复）。
     """
-    s = (args_json or '').strip()
+    s = (args_json or "").strip()
     if not s:
-        return ''
+        return ""
     try:
         parsed = json.loads(s)
         if isinstance(parsed, dict):
-            return json.dumps(parsed, sort_keys=True, separators=(',', ':'))
-        return json.dumps(parsed, sort_keys=True, separators=(',', ':'))
+            return json.dumps(parsed, sort_keys=True, separators=(",", ":"))
+        return json.dumps(parsed, sort_keys=True, separators=(",", ":"))
     except (json.JSONDecodeError, TypeError):
-        return ''.join(s.split())
+        return "".join(s.split())
+
 
 def merge_tool_calls(fragments: list[dict]) -> list[dict]:
     """合并流式 tool_calls 分片（按 index 聚合 name + arguments 字符串）。
@@ -35,27 +38,30 @@ def merge_tool_calls(fragments: list[dict]) -> list[dict]:
     """
     merged: dict[int, dict] = {}
     for frag in fragments:
-        idx = frag.get('index', 0)
-        slot = merged.setdefault(idx, {'id': frag.get('id', ''), 'type': 'function', 'function': {'name': '', 'arguments': ''}})
-        if frag.get('id'):
-            slot['id'] = frag['id']
-        fn = frag.get('function', {}) or {}
-        if fn.get('name'):
-            slot['function']['name'] += fn['name']
-        if fn.get('arguments'):
-            slot['function']['arguments'] += fn['arguments']
+        idx = frag.get("index", 0)
+        slot = merged.setdefault(
+            idx, {"id": frag.get("id", ""), "type": "function", "function": {"name": "", "arguments": ""}}
+        )
+        if frag.get("id"):
+            slot["id"] = frag["id"]
+        fn = frag.get("function", {}) or {}
+        if fn.get("name"):
+            slot["function"]["name"] += fn["name"]
+        if fn.get("arguments"):
+            slot["function"]["arguments"] += fn["arguments"]
     ordered = [merged[k] for k in sorted(merged.keys())]
     seen: set[tuple[str, str]] = set()
     deduped: list[dict] = []
     for entry in ordered:
-        name = (entry.get('function', {}).get('name') or '').strip()
-        args_raw = entry.get('function', {}).get('arguments', '') or ''
+        name = (entry.get("function", {}).get("name") or "").strip()
+        args_raw = entry.get("function", {}).get("arguments", "") or ""
         sig = (name, normalize_tool_args(args_raw))
         if not name or sig in seen:
             continue
         seen.add(sig)
         deduped.append(entry)
     return deduped
+
 
 def sanitize_tool_call_history(messages: list[dict]) -> list[dict]:
     """清洗消息历史中的孤儿 tool_calls，保证发给 API 的消息始终合法。
@@ -75,19 +81,19 @@ def sanitize_tool_call_history(messages: list[dict]) -> list[dict]:
     result = [dict(m) for m in messages]
     assistant_indices: list[int] = []
     for i, msg in enumerate(result):
-        if msg.get('role') == 'assistant' and msg.get('tool_calls'):
+        if msg.get("role") == "assistant" and msg.get("tool_calls"):
             assistant_indices.append(i)
     tool_ids_from_assistant: dict[int, set[str]] = {}
     for ai in assistant_indices:
-        tc_ids = {tc.get('id', '') for tc in result[ai].get('tool_calls', []) if tc.get('id')}
+        tc_ids = {tc.get("id", "") for tc in result[ai].get("tool_calls", []) if tc.get("id")}
         tool_ids_from_assistant[ai] = tc_ids
     tool_msg_indices: list[int] = []
     tool_msg_matched_to: dict[int, int] = {}
     unmatched_tool_indices: set[int] = set()
     for i, msg in enumerate(result):
-        if msg.get('role') == 'tool':
+        if msg.get("role") == "tool":
             tool_msg_indices.append(i)
-            tcid = msg.get('tool_call_id', '')
+            tcid = msg.get("tool_call_id", "")
             matched = False
             for ai in assistant_indices:
                 if ai >= i:
@@ -113,10 +119,10 @@ def sanitize_tool_call_history(messages: list[dict]) -> list[dict]:
         remaining = tool_ids_from_assistant.get(ai, set())
         if remaining:
             result[ai] = dict(result[ai])
-            tcs = result[ai].get('tool_calls', [])
-            result[ai]['tool_calls'] = [tc for tc in tcs if tc.get('id', '') not in remaining]
+            tcs = result[ai].get("tool_calls", [])
+            result[ai]["tool_calls"] = [tc for tc in tcs if tc.get("id", "") not in remaining]
     for i in range(len(result)):
-        if result[i].get('role') == 'assistant' and result[i].get('tool_calls') == []:
-            del result[i]['tool_calls']
+        if result[i].get("role") == "assistant" and result[i].get("tool_calls") == []:
+            del result[i]["tool_calls"]
     _sanitize_cache = (current_id, current_len, result)
     return result

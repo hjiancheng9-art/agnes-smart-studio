@@ -1,0 +1,13 @@
+不直接删除，先归档。
+归档后再按 TTL 清理。
+T2：可重新生成，适合定期清理
+类型	示例	TTL 建议
+Python 缓存	__pycache__/, .pytest_cache/, .mypy_cache/, .ruff_cache/	随时可删
+构建产物	dist/, build/, *.egg-info/	随时可删
+TUI 渲染缓存	.crux/cache/tui/	7 天
+搜索索引缓存	.crux/cache/search/	7-30 天
+embedding cache	.crux/cache/embeddings/	30-90 天，按版本失效
+浏览器截图缓存	.crux/cache/browser/screenshots/	3-14 天
+临时下载	.crux/tmp/downloads/	1-7 天
+preview 图片	.crux/previews/	7-30 天
+ComfyUI 临时 workflow	.crux/comfyui/tmp_workflows/	7-14 天

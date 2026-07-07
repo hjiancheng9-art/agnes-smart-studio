@@ -68,8 +68,8 @@ def tool_health_trends() -> dict:
         calls = stats["calls"]
         result[name] = {
             "calls": calls,
-            "success_rate": f"{stats['success']/calls*100:.0f}%" if calls else "0%",
-            "avg_ms": f"{stats['total_ms']/calls:.0f}" if calls else "0",
+            "success_rate": f"{stats['success'] / calls * 100:.0f}%" if calls else "0%",
+            "avg_ms": f"{stats['total_ms'] / calls:.0f}" if calls else "0",
             "max_ms": stats["max_ms"],
         }
     return result

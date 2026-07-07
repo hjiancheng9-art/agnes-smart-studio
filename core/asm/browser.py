@@ -7,9 +7,15 @@ GPT 规格关键修正：
 """
 
 from core.asm import (
-    BaseMethodology, MethodologyCheck, MethodologyPolicy,
-    TaskProfile, TaskIntent, TaskDomain, RiskLevel,
-    MethodologyPhase, register,
+    BaseMethodology,
+    MethodologyCheck,
+    MethodologyPolicy,
+    TaskProfile,
+    TaskIntent,
+    TaskDomain,
+    RiskLevel,
+    MethodologyPhase,
+    register,
 )
 
 
@@ -19,7 +25,7 @@ class BrowserMethodology(BaseMethodology):
     version = "1.0.0"
     intent_filters = {TaskIntent.EXECUTE, TaskIntent.SEARCH, TaskIntent.BROWSE}
     domain_filters = {TaskDomain.BROWSER}
-    
+
     def get_checks(self, task: TaskProfile) -> list[MethodologyCheck]:
         checks = [
             # BEFORE
@@ -49,18 +55,20 @@ class BrowserMethodology(BaseMethodology):
                 severity="block",
             ),
         ]
-        
+
         # 高风险操作的提交确认
         if task.risk in (RiskLevel.HIGH, RiskLevel.CRITICAL):
-            checks.append(MethodologyCheck(
-                phase=MethodologyPhase.BEFORE,
-                name="confirm-submit",
-                description="高风险提交操作（表单/删除/修改）需用户确认",
-                severity="block",
-            ))
-        
+            checks.append(
+                MethodologyCheck(
+                    phase=MethodologyPhase.BEFORE,
+                    name="confirm-submit",
+                    description="高风险提交操作（表单/删除/修改）需用户确认",
+                    severity="block",
+                )
+            )
+
         return checks
-    
+
     def get_policies(self) -> list[MethodologyPolicy]:
         return [
             MethodologyPolicy(

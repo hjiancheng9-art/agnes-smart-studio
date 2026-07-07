@@ -1,0 +1,10 @@
+类型	示例	原因
+源代码	core/, ui/, agents/, skills/, tools/	项目主体
+配置与契约	config/*.yaml, *.toml, pyproject.toml, .env.example	运行和部署依据
+技能 manifest	skill_manifest.json, *.skill.json	技能治理入口
+ADR / 方法论	docs/adr/, methodologies/, CWIM, ASM	架构决策不可丢
+测试代码	tests/	自愈和回归基础
+数据库 schema / migration	migrations/, schema.sql	状态结构依据
+手写模板	templates/, workflow_templates/	人工沉淀资产
+README / 文档	README.md, docs/	项目知识
+锁文件	requirements.lock, poetry.lock, uv.lock	可复现依赖

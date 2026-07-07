@@ -29,8 +29,12 @@ from rich.console import Console as _RC
 
 console = _RC()
 COLORS = {
-    "success": "green", "error": "red", "warning": "yellow",
-    "primary": "blue", "muted": "dim white", "info": "cyan",
+    "success": "green",
+    "error": "red",
+    "warning": "yellow",
+    "primary": "blue",
+    "muted": "dim white",
+    "info": "cyan",
 }
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -49,9 +53,11 @@ def _check_dna_identity():
     not a startup gate.  The TUI activity feed may surface a one-liner.
     """
     import logging
+
     _log = logging.getLogger("crux.startup")
     try:
         from core.chat_prompt import _BASE_INJECTIONS, CHAT_SYSTEM_PROMPT, CODE_SYSTEM_PROMPT
+
         if "CRUX Studio" not in CHAT_SYSTEM_PROMPT:
             _add("dna", False, "CHAT_SYSTEM_PROMPT lost CRUX identity")
             _log.warning("DNA: CHAT_SYSTEM_PROMPT identity missing")

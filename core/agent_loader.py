@@ -23,6 +23,7 @@ AGENTS_DIR = Path(__file__).resolve().parent.parent / "agents"
 @dataclass
 class AgentSpec:
     """Parsed agent specification from .agent.md frontmatter."""
+
     name: str
     description: str = ""
     model_ids: list[str] = field(default_factory=list)
@@ -206,10 +207,21 @@ def _filter_tools(tool_registry, whitelist: list[str]):
 def _filter_readonly(tool_registry):
     """Return a tool_registry copy with only read-only tools."""
     READONLY_TOOLS = {
-        "read_file", "search_files", "glob_files", "list_files",
-        "web_search", "web_fetch", "web_read",
-        "code_analyze", "find_symbol", "search_symbols", "find_references",
-        "graph_neighbors", "graph_descendants", "graph_ancestors",
-        "view_image", "count_lines",
+        "read_file",
+        "search_files",
+        "glob_files",
+        "list_files",
+        "web_search",
+        "web_fetch",
+        "web_read",
+        "code_analyze",
+        "find_symbol",
+        "search_symbols",
+        "find_references",
+        "graph_neighbors",
+        "graph_descendants",
+        "graph_ancestors",
+        "view_image",
+        "count_lines",
     }
     return _filter_tools(tool_registry, list(READONLY_TOOLS))

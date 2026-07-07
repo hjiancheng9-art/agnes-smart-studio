@@ -435,5 +435,3 @@ class SmartBrainMixin:
         result["methods_used"] = methods
 
         return result
-
-

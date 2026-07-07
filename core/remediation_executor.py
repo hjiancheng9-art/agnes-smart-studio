@@ -212,9 +212,7 @@ def remediate_incident(
         risk = classify_command(cmd)
 
         # Auto-approve low risk, gate high risk
-        can_run = (risk == "low" and auto_approve_low_risk) or (
-            risk == "high" and auto_approve_high_risk
-        )
+        can_run = (risk == "low" and auto_approve_low_risk) or (risk == "high" and auto_approve_high_risk)
 
         if can_run:
             result = execute_command(cmd, incident_id, auto_approve_high_risk=auto_approve_high_risk)
@@ -239,13 +237,15 @@ def _queue_for_approval(incident_id: str, command: str, risk: str) -> None:
     try:
         from ui.tui_v2 import _APPROVAL_PENDING
 
-        _APPROVAL_PENDING.append({
-            "incident_id": incident_id,
-            "command": command,
-            "risk": risk,
-            "status": "pending",
-            "timestamp": time.time(),
-        })
+        _APPROVAL_PENDING.append(
+            {
+                "incident_id": incident_id,
+                "command": command,
+                "risk": risk,
+                "status": "pending",
+                "timestamp": time.time(),
+            }
+        )
     except ImportError:
         # No TUI available — log and skip
         logger.warning("No TUI available, skipping approval queue for %s", command)

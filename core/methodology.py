@@ -61,15 +61,23 @@ PROTECTED_DEP_FILES: frozenset[str] = frozenset({"requirements.txt", "pyproject.
 
 
 _HOMOGLYPH_MAP = {
-    0x0131: "i", 0x0430: "a", 0x0435: "e", 0x043E: "o",
-    0x0440: "p", 0x0441: "c", 0x0443: "y", 0x0445: "x",
-    0x0456: "i", 0x04BB: "h",
+    0x0131: "i",
+    0x0430: "a",
+    0x0435: "e",
+    0x043E: "o",
+    0x0440: "p",
+    0x0441: "c",
+    0x0443: "y",
+    0x0445: "x",
+    0x0456: "i",
+    0x04BB: "h",
 }
 
 
 def _sanitize_path(path: str) -> str:
     """Strip zero-width chars, null bytes, and homoglyph confusables."""
     import re
+
     path = path.replace("\x00", "")
     path = re.sub(r"[\u200b-\u200f\u2028-\u202e\ufeff]", "", path)
     return path.translate(_HOMOGLYPH_MAP)
@@ -78,12 +86,10 @@ def _sanitize_path(path: str) -> str:
 def is_protected_file(path: str) -> bool:
     """Path protection with Unicode + case normalization."""
     import os
+
     s = _sanitize_path(path)
     n = os.path.normpath(s).replace("\\", "/").lower()
-    return any(
-        n.endswith(os.path.normpath(_sanitize_path(p)).replace("\\", "/").lower())
-        for p in PROTECTED_FILES
-    )
+    return any(n.endswith(os.path.normpath(_sanitize_path(p)).replace("\\", "/").lower()) for p in PROTECTED_FILES)
 
 
 def is_protected_dep_file(path: str) -> bool:
@@ -114,9 +120,24 @@ class TaskLevel(Enum):
 # C/D 级关键词（触发升级）
 _CD_KEYWORDS = frozenset(
     {
-        "database", "migration", "schema", "auth", "authentication",
-        "security", "api", "deploy", "release", "refactor", "architecture",
-        "拆分", "重构", "数据库", "安全", "认证", "部署", "架构",
+        "database",
+        "migration",
+        "schema",
+        "auth",
+        "authentication",
+        "security",
+        "api",
+        "deploy",
+        "release",
+        "refactor",
+        "architecture",
+        "拆分",
+        "重构",
+        "数据库",
+        "安全",
+        "认证",
+        "部署",
+        "架构",
     }
 )
 
@@ -299,7 +320,18 @@ def escalate_task(level: TaskLevel, reason: str) -> TaskLevel:
 
     # → C 级触发器
     if level in (TaskLevel.A, TaskLevel.B):
-        c_triggers = {"files>3", ">3", "超过3", "public_api", "api变动", "新增依赖", "依赖", "test_failure", "失败", "子agent"}
+        c_triggers = {
+            "files>3",
+            ">3",
+            "超过3",
+            "public_api",
+            "api变动",
+            "新增依赖",
+            "依赖",
+            "test_failure",
+            "失败",
+            "子agent",
+        }
         if any(t in reason_lower for t in c_triggers):
             return TaskLevel.C
 
@@ -345,8 +377,11 @@ def methodology_pre_check(tool_name: str, args: dict, state: MethodologyState | 
     """
     # ── L1 禁区 — 硬拦截（无关任务等级）──
     file_path = args.get("path") or args.get("file_path") or args.get("target") or ""
-    if (file_path and is_protected_file(file_path)
-            and tool_name in ("write_file", "edit_file", "patch_file", "safe_rewrite_file", "delete_files")):
+    if (
+        file_path
+        and is_protected_file(file_path)
+        and tool_name in ("write_file", "edit_file", "patch_file", "safe_rewrite_file", "delete_files")
+    ):
         return False, f"禁区文件不可修改: {file_path}"
 
     # 依赖文件添加受保护
@@ -362,9 +397,11 @@ def methodology_pre_check(tool_name: str, args: dict, state: MethodologyState | 
     level = state.task_level
 
     # D 级额外约束
-    if (level == TaskLevel.D
-            and tool_name in ("git_add_commit", "git_push", "git_pr_create", "git_pr_merge")
-            and not state.plan_exists):
+    if (
+        level == TaskLevel.D
+        and tool_name in ("git_add_commit", "git_push", "git_pr_create", "git_pr_merge")
+        and not state.plan_exists
+    ):
         return False, "D 级任务: 需先确认 Plan 再提交/推送"
 
     return True, ""
@@ -462,18 +499,27 @@ VERIFICATION_CHECKS: dict[str, str] = {
     "git_diff": "git diff --stat HEAD",
     "residue": (
         'python -c "import subprocess,sys; '
-        'cmd=[\"tasklist\",\"/FI\",\"IMAGENAME eq python.exe\"] if sys.platform==\"win32\" '
-        'else [\"pgrep\",\"-a\",\"python\"]; '
-        'r=subprocess.run(cmd,capture_output=True,text=True,timeout=5,shell=sys.platform==\"win32\"); '
-        'lines=[l for l in r.stdout.split(chr(10)) if l.strip() and \"grep\" not in l]; '
-        'print(f\"{len(lines)} python processes\") if lines else print(\"clean\")\"'
+        'cmd=["tasklist","/FI","IMAGENAME eq python.exe"] if sys.platform=="win32" '
+        'else ["pgrep","-a","python"]; '
+        'r=subprocess.run(cmd,capture_output=True,text=True,timeout=5,shell=sys.platform=="win32"); '
+        'lines=[l for l in r.stdout.split(chr(10)) if l.strip() and "grep" not in l]; '
+        'print(f"{len(lines)} python processes") if lines else print("clean")"'
     ),
 }
 
-DONE_TRIGGERS: frozenset[str] = frozenset({
-    "完成了", "done", "完成!", "finished", "搞定",
-    "all done", "task complete", "任务完成", "已修复",
-})
+DONE_TRIGGERS: frozenset[str] = frozenset(
+    {
+        "完成了",
+        "done",
+        "完成!",
+        "finished",
+        "搞定",
+        "all done",
+        "task complete",
+        "任务完成",
+        "已修复",
+    }
+)
 
 
 def run_verification() -> dict[str, tuple[bool, str]]:
@@ -490,5 +536,3 @@ def run_verification() -> dict[str, tuple[bool, str]]:
         except Exception as e:
             results[name] = (False, str(e))
     return results
-
-

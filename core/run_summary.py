@@ -86,15 +86,21 @@ def save_run(summary_dict: dict) -> str:
     # 追加到索引
     index_path = os.path.join(RUNS_DIR, "_index.jsonl")
     with open(index_path, "a", encoding="utf-8") as f:
-        f.write(json.dumps({
-            "root_trace_id": summary.root_trace_id,
-            "status": summary.status,
-            "goal": summary.goal[:80],
-            "total": summary.total_tasks,
-            "failed": summary.failed,
-            "duration_ms": summary.duration_ms,
-            "created_at": summary.created_at,
-        }, ensure_ascii=False) + "\n")
+        f.write(
+            json.dumps(
+                {
+                    "root_trace_id": summary.root_trace_id,
+                    "status": summary.status,
+                    "goal": summary.goal[:80],
+                    "total": summary.total_tasks,
+                    "failed": summary.failed,
+                    "duration_ms": summary.duration_ms,
+                    "created_at": summary.created_at,
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
     return summary.root_trace_id
 
 

@@ -63,11 +63,13 @@ class DiffReviewer:
         if old == current:
             return None
         diff = self._compute_diff(file_path, old, current)
-        self._changes.append({
-            "tool": tool_name,
-            "file": file_path,
-            "diff": diff,
-        })
+        self._changes.append(
+            {
+                "tool": tool_name,
+                "file": file_path,
+                "diff": diff,
+            }
+        )
         return diff
 
     def pending_diffs(self) -> list[dict]:
@@ -110,6 +112,7 @@ class DiffReviewer:
 
 # ── POST_TOOL_USE hook for integration ──────────────────────
 
+
 def diff_review_hook(tool_name: str, args: dict, result: str) -> str | None:
     """POST_TOOL_USE hook: capture diffs after write/edit operations.
 
@@ -134,6 +137,7 @@ def register_diff_review_hook():
     """Register the diff review hook into the global hook system."""
     try:
         from core.hooks import HookType, register_hook
+
         register_hook(HookType.POST_TOOL_USE, diff_review_hook, priority=50)
     except ImportError:
         pass

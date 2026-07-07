@@ -3,6 +3,7 @@
 Contains pure dataclasses shared by TaskExecutor, SmartPlanner, and SelfReflection.
 No I/O or tool-calling logic here. Verbatim copies from the original executor.py.
 """
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field

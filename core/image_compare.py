@@ -26,7 +26,7 @@ __all__ = [
     "COMPARE_EXECUTOR_MAP",
     "COMPARE_TOOL_DEFS",
     "IMAGE_OUT",
-        "OUTPUT_ROOT",
+    "OUTPUT_ROOT",
     "compare_images_dispatch",
     "execute_compare_ai_judge",
     "execute_compare_diff",
@@ -323,15 +323,19 @@ _JUDGE_SYSTEM = """你是严格的图像评审专家。用户会给你 2~4 张�
   "per_dimension_winner": {"prompt_match":"A","composition":"A","lighting":"B","detail":"A","aesthetic":"A"}
 }"""
 
+
 def get_judge_vision_model() -> str:
     """从 models.json active provider 读取视觉评审模型，fallback 到 deepseek-v4-flash。"""
     try:
         from core.provider import get_provider_manager
+
         mgr = get_provider_manager()
         return mgr.get_model("light") or "deepseek-v4-flash"
     except (KeyError, ValueError, RuntimeError, OSError) as e:
         logger = logging.getLogger("crux.image_compare")
-        logger.debug("Judge vision model resolution failed (%s: %s), fallback to deepseek-v4-flash", type(e).__name__, e)
+        logger.debug(
+            "Judge vision model resolution failed (%s: %s), fallback to deepseek-v4-flash", type(e).__name__, e
+        )
         return "deepseek-v4-flash"
 
 

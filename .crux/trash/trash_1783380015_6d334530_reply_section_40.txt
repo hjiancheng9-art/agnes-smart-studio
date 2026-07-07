@@ -1,0 +1,6 @@
+Bash
+python -m core.cleanup_manager scan
+python -m core.cleanup_manager dry-run
+python -m core.cleanup_manager apply
+python -m core.cleanup_manager restore --id <cleanup_id>
+清理报告格式
