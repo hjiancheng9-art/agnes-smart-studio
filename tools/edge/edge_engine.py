@@ -20,8 +20,14 @@ Edge Browser Headless 引擎 — 稳定、可复用
   python edge_engine.py text "h3"
 """
 
-import asyncio, json, os, sys, time
-from playwright.async_api import async_playwright, TimeoutError as PwTimeout
+import asyncio
+import json
+import os
+import sys
+import time
+
+from playwright.async_api import TimeoutError as PwTimeout
+from playwright.async_api import async_playwright
 
 
 class EdgeEngine:
@@ -152,7 +158,7 @@ COMMANDS = {"goto", "screenshot", "click", "fill", "press", "eval", "text", "lin
 async def main_cli():
     if len(sys.argv) < 2:
         print("Edge Engine CLI")
-        print(f"用法: python edge_engine.py <命令> [参数...]")
+        print("用法: python edge_engine.py <命令> [参数...]")
         print(f"命令: {', '.join(sorted(COMMANDS))}")
         return
 

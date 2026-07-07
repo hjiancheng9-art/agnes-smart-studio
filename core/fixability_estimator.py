@@ -26,13 +26,11 @@ from core.error_sink import catch
       ...
 """
 
-import hashlib
 import json
-import os
 import sys
 import time
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Literal
 
 # ── 数据结构 ──────────────────────────────────────────────
 
@@ -52,7 +50,7 @@ class FixabilityResult:
     source: str = ""              # 哪个阶段给出的结论
     details: dict = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
-    
+
     def to_dict(self) -> dict:
         return {
             "score": self.score,
@@ -69,24 +67,24 @@ class FixabilityResult:
 
 class StaticSeedFilter:
     """L0：秒级字符串匹配，封装已有 seed policy。"""
-    
+
     def __init__(self):
         # Lazy import to avoid circular
         self._seed_policy = None
-    
+
     @property
     def seed_policy(self):
         if self._seed_policy is None:
             from core.fake_fix_seed_policy import get_seed_policy
             self._seed_policy = get_seed_policy()
         return self._seed_policy
-    
+
     def evaluate(self, tool: str, error_type: str, context: dict = None) -> FixabilityResult | None:
         """L0 评估。如果匹配到规则，直接返回裁决；不匹配则返回 None。"""
         decision = self.seed_policy.classify(tool, error_type, context or {})
-        
+
         result = FixabilityResult(source="L0:StaticSeed")
-        
+
         if decision.action == "quarantine":
             result.score = 0.0
             result.confidence = 0.95
@@ -94,7 +92,7 @@ class StaticSeedFilter:
             result.repair_class_hint = "impossible"
             result.reasons = [decision.reason]
             return result
-        
+
         if decision.action == "downgrade_to_diagnosis":
             result.score = 0.05
             result.confidence = 0.85
@@ -102,7 +100,7 @@ class StaticSeedFilter:
             result.repair_class_hint = "resource"
             result.reasons = [decision.reason]
             return result
-        
+
         if decision.action == "requires_user_action":
             result.score = 0.1
             result.confidence = 0.80
@@ -110,7 +108,7 @@ class StaticSeedFilter:
             result.repair_class_hint = "env"
             result.reasons = [decision.reason]
             return result
-        
+
         if decision.action == "limited_retry":
             result.score = 0.5
             result.confidence = 0.60
@@ -118,11 +116,11 @@ class StaticSeedFilter:
             result.repair_class_hint = "code"
             result.reasons = [decision.reason]
             return result
-        
+
         if decision.action == "allow_retry":
             # 种子策略放行，交给 L1 判断
             return None
-        
+
         # 未知规则
         result.score = 0.3
         result.confidence = 0.50
@@ -135,14 +133,14 @@ class StaticSeedFilter:
 
 class FixabilityProbe:
     """L1 探针基类 — 每种常见错误类型一个探针。"""
-    
+
     probe_name: str = ""
     probe_version: str = "1.0.0"
-    
+
     def can_handle(self, error_type: str, context: dict) -> bool:
         """判断该探针是否能处理此错误。"""
         return False
-    
+
     def estimate(self, error_type: str, context: dict) -> FixabilityResult:
         """评估可修复性，返回 0-1 score。"""
         return FixabilityResult(
@@ -154,27 +152,27 @@ class FixabilityProbe:
 class CUDAMemoryProbe(FixabilityProbe):
     """CUDA OOM 探针：检查显存使用和 batch_size。"""
     probe_name = "cuda-memory"
-    
+
     def can_handle(self, error_type: str, context: dict) -> bool:
         return bool("cuda" in error_type.lower() and ("oom" in error_type.lower() or "out of memory" in error_type.lower()))
-    
+
     def estimate(self, error_type: str, context: dict) -> FixabilityResult:
         result = FixabilityResult(source="L1:cuda-memory")
-        
+
         try:
             import torch
-            
+
             batch_size = context.get("batch_size", 0)
             has_torch = True
-            
+
             if torch.cuda.is_available():
                 device = torch.cuda.current_device()
                 total_mem = torch.cuda.get_device_properties(device).total_mem // (1024**2)
                 allocated = torch.cuda.memory_allocated(device) // (1024**2)
                 free = total_mem - allocated
-                
+
                 result.details = {"total_mem_mb": total_mem, "allocated_mb": allocated, "free_mb": free}
-                
+
                 if batch_size and batch_size > 1:
                     # 有可调参数 → 可能可修复
                     if free > total_mem * 0.1:  # 至少 10% 显存可用
@@ -207,25 +205,25 @@ class CUDAMemoryProbe(FixabilityProbe):
             result.action_hint = "diagnose"
             result.repair_class_hint = "unknown"
             result.reasons = ["torch 未安装，无法评估显存"]
-        
+
         return result
 
 
 class ModuleImportProbe(FixabilityProbe):
     """ModuleNotFound 探针：检查包是否存在/版本。"""
     probe_name = "module-import"
-    
+
     def can_handle(self, error_type: str, context: dict) -> bool:
         return bool("modulenotfound" in error_type.lower() or "no module named" in error_type.lower())
-    
+
     def estimate(self, error_type: str, context: dict) -> FixabilityResult:
         result = FixabilityResult(source="L1:module-import")
-        
+
         # Extract module name from error
         import re
         match = re.search(r"['\"](\S+)['\"]", error_type)
         module_name = match.group(1) if match else ""
-        
+
         try:
             import subprocess
             r = subprocess.run(
@@ -233,7 +231,7 @@ class ModuleImportProbe(FixabilityProbe):
                 capture_output=True, text=True, timeout=5
             )
             installed = r.stdout.lower()
-            
+
             if module_name and module_name.lower() in installed:
                 result.score = 0.5
                 result.confidence = 0.6
@@ -251,7 +249,7 @@ class ModuleImportProbe(FixabilityProbe):
             result.confidence = 0.4
             result.action_hint = "diagnose"
             result.reasons = ["无法查询 pip list"]
-        
+
         result.requires_context_probe = True
         result.details = {"module": module_name}
         return result
@@ -260,16 +258,16 @@ class ModuleImportProbe(FixabilityProbe):
 class HTTPStatusProbe(FixabilityProbe):
     """HTTP 错误探针：检查 404/500/超时。"""
     probe_name = "http-status"
-    
+
     def can_handle(self, error_type: str, context: dict) -> bool:
         return bool(any(k in error_type.lower() for k in ["404", "500", "502", "503", "timeout", "timed out"]))
-    
+
     def estimate(self, error_type: str, context: dict) -> FixabilityResult:
         result = FixabilityResult(source="L1:http-status")
-        
+
         url = context.get("url", "")
         has_variables = "{" in url or "<" in url or "{{" in url
-        
+
         if "404" in error_type:
             if has_variables:
                 result.score = 0.6
@@ -295,7 +293,7 @@ class HTTPStatusProbe(FixabilityProbe):
             result.action_hint = "diagnose"
             result.repair_class_hint = "network"
             result.reasons = ["网络/超时错误，不确定是否可修复"]
-        
+
         result.details = {"url": url[:200], "has_variables": has_variables}
         return result
 
@@ -303,10 +301,10 @@ class HTTPStatusProbe(FixabilityProbe):
 class SyntaxErrorProbe(FixabilityProbe):
     """语法错误探针：检查能否通过 patch 修复。"""
     probe_name = "syntax-error"
-    
+
     def can_handle(self, error_type: str, context: dict) -> bool:
         return bool(any(k in error_type.lower() for k in ["syntaxerror", "indentationerror", "taberror"]))
-    
+
     def estimate(self, error_type: str, context: dict) -> FixabilityResult:
         result = FixabilityResult(source="L1:syntax-error")
         result.score = 0.75
@@ -319,16 +317,16 @@ class SyntaxErrorProbe(FixabilityProbe):
 
 class Registry:
     """探针注册表。"""
-    
+
     def __init__(self):
         self._probes: list[FixabilityProbe] = []
-    
+
     def register(self, probe: FixabilityProbe) -> None:
         self._probes.append(probe)
-    
+
     def all(self) -> list[FixabilityProbe]:
         return list(self._probes)
-    
+
     def find(self, error_type: str, context: dict) -> FixabilityProbe | None:
         for probe in self._probes:
             if probe.can_handle(error_type, context):
@@ -382,15 +380,15 @@ Return ONLY valid JSON, no markdown."""
 
 class LLMAnalyzer:
     """L2: LLM 深度分析。用于 L0+L1 都无法给出高置信度结论的场景。"""
-    
+
     def __init__(self, max_tokens: int = 500):
         self.max_tokens = max_tokens
         self._prompt_template = LLM_FIXABILITY_PROMPT
-    
+
     def evaluate(self, tool: str, error_type: str, context: dict = None) -> FixabilityResult:
         """LLM 分析（需要外部 LLM 调用支持）。"""
         ctx = context or {}
-        
+
         # 收集系统状态
         system_state = {}
         try:
@@ -411,14 +409,14 @@ class LLMAnalyzer:
             system_state["free_disk_mb"] = free // (1024 * 1024)
         except Exception as _es:
             catch(_es, "core.fixability_estimator", "swallowed")
-        
+
         prompt = self._prompt_template.format(
             error_type=error_type,
             tool=tool,
             context=json.dumps(ctx, default=str)[:500],
             system_state=json.dumps(system_state, default=str)[:500],
         )
-        
+
         # 标记需要 LLM 调用（实际调用由外部完成）
         result = FixabilityResult(
             score=0.3,
@@ -444,23 +442,23 @@ class FixabilityEstimator:
       ↓ 不匹配或置信度低
       L2 (LLM) → 兜底
     """
-    
+
     CONFIDENCE_THRESHOLD = 0.6
-    
+
     def __init__(self):
         self.l0 = StaticSeedFilter()
         self.l1_registry = get_probe_registry()
         self.l2 = LLMAnalyzer()
-    
+
     def estimate(self, tool: str, error_type: str, context: dict = None) -> FixabilityResult:
         """评估错误的可修复性。"""
         ctx = context or {}
-        
+
         # ── L0: Static Seed Filter ──
         l0_result = self.l0.evaluate(tool, error_type, ctx)
         if l0_result is not None:
             return l0_result
-        
+
         # ── L1: Lightweight Probes ──
         probe = self.l1_registry.find(error_type, ctx)
         if probe:
@@ -471,12 +469,12 @@ class FixabilityEstimator:
             l1_result.requires_context_probe = True
             l1_result.source += " (low confidence, escalate to L2)"
             return l1_result
-        
+
         # ── L2: LLM Analysis ──
         l2_result = self.l2.evaluate(tool, error_type, ctx)
         l2_result.source = "L2:LLM(fallback)"
         return l2_result
-    
+
     def should_attempt_fix(self, tool: str, error_type: str, context: dict = None) -> tuple[bool, FixabilityResult]:
         """简便方法：是否应该尝试修复？"""
         result = self.estimate(tool, error_type, context)

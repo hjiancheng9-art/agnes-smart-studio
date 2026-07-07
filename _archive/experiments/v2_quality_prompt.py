@@ -1,4 +1,5 @@
 import asyncio
+
 from playwright.async_api import async_playwright
 
 # 重新设计的图像生成提示词 — 走 V2 的 prompt 管道思路
@@ -43,7 +44,7 @@ async def run():
         if not page:
             print("no gemini page")
             return
-        
+
         await page.bring_to_front()
         input_box = page.locator('[contenteditable="true"], textarea').first
         await input_box.click()

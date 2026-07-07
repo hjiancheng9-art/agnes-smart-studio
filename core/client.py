@@ -93,7 +93,8 @@ class ContentPolicyError(Exception):
         self.detail = detail or {}
 
 
-from utils.unicode_safety import sanitize_payload as _sanitize_json, has_surrogate, InvalidUnicodePayloadError
+from utils.unicode_safety import has_surrogate
+from utils.unicode_safety import sanitize_payload as _sanitize_json
 
 
 class CruxClient:
@@ -126,7 +127,7 @@ class CruxClient:
         # failover because it's a local payload problem, not a provider issue.
         json_body = kwargs.get("json")
         if json_body is not None:
-            from utils.unicode_safety import ensure_utf8_encodable, InvalidUnicodePayloadError
+            from utils.unicode_safety import InvalidUnicodePayloadError, ensure_utf8_encodable
 
             if not ensure_utf8_encodable(json_body):
                 raise InvalidUnicodePayloadError(

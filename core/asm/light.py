@@ -8,11 +8,9 @@
 from core.asm import (
     BaseMethodology,
     MethodologyCheck,
-    TaskProfile,
-    TaskIntent,
-    TaskDomain,
-    RiskLevel,
     MethodologyPhase,
+    RiskLevel,
+    TaskProfile,
     register,
 )
 

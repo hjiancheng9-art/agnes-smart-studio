@@ -22,7 +22,7 @@ HISTORY_FILE = os.path.join(OUTPUT_DIR, "provider_history.jsonl")
 def _load_history() -> list[dict]:
     if not os.path.exists(HISTORY_FILE):
         return []
-    with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+    with open(HISTORY_FILE, encoding="utf-8") as f:
         return [json.loads(line) for line in f if line.strip()]
 
 

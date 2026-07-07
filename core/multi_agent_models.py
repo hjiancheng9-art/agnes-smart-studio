@@ -5,8 +5,8 @@ Pure dataclasses shared by MultiAgentCoordinator, AgentSwarm, and SmartDecompose
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import uuid
+from dataclasses import dataclass, field
 
 ROOT = __import__("pathlib").Path(__file__).resolve().parent.parent
 

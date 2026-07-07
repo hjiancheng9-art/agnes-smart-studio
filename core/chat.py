@@ -44,7 +44,6 @@ from core.chat_tool_helpers import merge_tool_calls, sanitize_tool_call_history
 from core.chat_tool_helpers import normalize_tool_args as _normalize_tool_args
 from core.chat_vision import _vision_fallback
 from core.client import CruxClient
-from utils.unicode_safety import InvalidUnicodePayloadError
 from core.config import get_crux_vision_model
 from core.observability import TraceContext, metrics
 from core.provider import (
@@ -57,6 +56,7 @@ from core.tools import AGENT_SYSTEM_PROMPT, ToolRegistry, get_registry
 from core.vision_context import VisionContext
 from engines.text_to_image import TextToImageEngine
 from engines.video import VideoEngine
+from utils.unicode_safety import InvalidUnicodePayloadError
 
 __all__ = [
     "CHAT_SYSTEM_PROMPT",

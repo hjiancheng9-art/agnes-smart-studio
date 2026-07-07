@@ -1,9 +1,19 @@
 """Quick functional verification of AgentMode 4-tier system."""
 from core.multi_agent import (
-    AgentMode, AgentModeResult, compute_agent_mode, should_use_multi_agent,
-    keyword_score, length_score, file_scope_score, failure_score,
-    risk_score, ambiguity_score, simplicity_score,
-    build_context_state, record_agent_mode_result, get_mode_statistics,
+    AgentMode,
+    AgentModeResult,
+    ambiguity_score,
+    build_context_state,
+    compute_agent_mode,
+    failure_score,
+    file_scope_score,
+    get_mode_statistics,
+    keyword_score,
+    length_score,
+    record_agent_mode_result,
+    risk_score,
+    should_use_multi_agent,
+    simplicity_score,
 )
 
 
@@ -40,14 +50,14 @@ def test_length_score():
     assert length_score("x" * 600) == 1.5
     assert length_score("x" * 100) == 0.0
     assert length_score("x" * 2500) == 3.0
-    print(f"  length_score: OK")
+    print("  length_score: OK")
 
 
 def test_file_scope_score():
     assert file_scope_score({"files_touched": 12}) == 2.0
     assert file_scope_score({"files_touched": 1}) == 0.0
     assert file_scope_score({}) == 0.0
-    print(f"  file_scope_score: OK")
+    print("  file_scope_score: OK")
 
 
 def test_failure_score():
@@ -55,7 +65,7 @@ def test_failure_score():
     assert ff == 5.0
     ff2 = failure_score({})
     assert ff2 == 0.0
-    print(f"  failure_score: OK")
+    print("  failure_score: OK")
 
 
 def test_risk_score():

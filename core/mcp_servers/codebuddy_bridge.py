@@ -14,9 +14,8 @@ import re
 import shutil
 import subprocess
 import sys
-from pathlib import Path
-from core.error_sink import catch
 
+from core.error_sink import catch
 
 # ── ANSI cleanup ──
 
@@ -282,7 +281,7 @@ def main():
             break
         except Exception as e:
             print(f"[codebuddy_bridge] Error: {e}", file=sys.stderr, flush=True)
-    print(f"[codebuddy_bridge] shutting down", file=sys.stderr, flush=True)
+    print("[codebuddy_bridge] shutting down", file=sys.stderr, flush=True)
 
 
 if __name__ == "__main__":

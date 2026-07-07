@@ -1,6 +1,5 @@
 """Incident Classifier — 将执行失败分类为稳定的故障类别。"""
 
-from typing import Any
 
 
 # 故障类别定义

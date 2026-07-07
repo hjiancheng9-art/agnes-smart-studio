@@ -19,6 +19,7 @@ import traceback
 import urllib.request
 from collections import deque
 from pathlib import Path
+
 from core.error_sink import catch
 
 HOST_NAME = "com.crux.bridge"

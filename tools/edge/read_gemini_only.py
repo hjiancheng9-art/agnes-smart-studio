@@ -1,4 +1,5 @@
 from playwright.sync_api import sync_playwright
+
 CDP_URL = "http://127.0.0.1:9222"
 p = sync_playwright().start()
 browser = p.chromium.connect_over_cdp(CDP_URL)

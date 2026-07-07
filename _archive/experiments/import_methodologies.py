@@ -1,4 +1,5 @@
-import os, json
+import json
+import os
 
 d = r"C:\Users\huangjiancheng\Desktop\生图生视频方法论"
 
@@ -33,6 +34,7 @@ os.makedirs(knowledge_dir, exist_ok=True)
 
 # 复制所有16个方法论文件到 V2 knowledge/ 目录
 import shutil
+
 target_dir = os.path.join(knowledge_dir, "methodologies")
 os.makedirs(target_dir, exist_ok=True)
 for fname in os.listdir(d):

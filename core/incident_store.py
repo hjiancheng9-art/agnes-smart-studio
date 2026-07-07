@@ -4,7 +4,6 @@ import json
 import os
 import time
 from collections import Counter
-from typing import Any
 
 from core.config import OUTPUT_DIR
 
@@ -40,7 +39,7 @@ def get_incident_trends(hours: int = 24) -> dict:
     severities = Counter()
     recent = []
 
-    with open(INCIDENT_FILE, "r", encoding="utf-8") as f:
+    with open(INCIDENT_FILE, encoding="utf-8") as f:
         for line in f:
             if not line.strip():
                 continue
@@ -69,7 +68,7 @@ def should_alert(incident: dict, threshold: int = 3) -> dict:
 
     cutoff = time.time() - 3600
     count = 0
-    with open(INCIDENT_FILE, "r", encoding="utf-8") as f:
+    with open(INCIDENT_FILE, encoding="utf-8") as f:
         for line in f:
             if not line.strip():
                 continue

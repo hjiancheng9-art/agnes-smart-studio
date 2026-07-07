@@ -3,10 +3,11 @@ V2 Bridge Server — 浏览器扩展后端 (port 4366)
 CRUX AI 通过此服务驱动浏览器扩展，操控 ChatGPT/Gemini 等页面。
 """
 import json
+import threading
 import time
 import uuid
-import threading
-from flask import Flask, request, jsonify
+
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 app = Flask(__name__)

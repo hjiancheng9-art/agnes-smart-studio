@@ -1,6 +1,7 @@
 """Send CRUX debate prompt to Zhipu and wait for response"""
-from playwright.sync_api import sync_playwright
 import time
+
+from playwright.sync_api import sync_playwright
 
 CDP_URL = "http://127.0.0.1:9222"
 p = sync_playwright().start()
@@ -32,7 +33,7 @@ for ctx in browser.contexts:
         if 'open.bigmodel' in pg.url:
             pg.bring_to_front()
             time.sleep(1)
-            
+
             # Click "新建对话"
             try:
                 new_btn = pg.query_selector('button:has-text("新建对话")')
@@ -42,7 +43,7 @@ for ctx in browser.contexts:
                     time.sleep(1.5)
             except:
                 pass
-            
+
             # Find textarea and fill
             ta = pg.query_selector('textarea')
             if ta:
@@ -53,7 +54,7 @@ for ctx in browser.contexts:
                 ta.fill(prompt)
                 print(f"✅ 智谱: 已输入 ({len(prompt)} chars)")
                 time.sleep(1)
-                
+
                 # Click submit button - find the icon-send1 or submit-btn
                 submit = pg.evaluate("""() => {
                     const icon = document.querySelector('.icon-send1, .submit-btn');
@@ -63,14 +64,14 @@ for ctx in browser.contexts:
                     }
                     return {found: false};
                 }""")
-                
+
                 if submit['found']:
                     pg.mouse.click(submit['x'], submit['y'])
                     print("✅ 智谱: 已点击发送")
                 else:
                     pg.keyboard.press('Control+Enter')
                     print("✅ 智谱: Ctrl+Enter发送")
-                
+
                 # Wait for response
                 print("⏳ 智谱: 等待回复...")
                 for i in range(40):
@@ -84,7 +85,7 @@ for ctx in browser.contexts:
                             hasDebate: allText.includes('正方') || allText.includes('反方') || allText.includes('裁决')
                         };
                     }""")
-                    
+
                     if not status['generating'] and status['textLen'] > 300:
                         text = pg.evaluate("() => document.body.innerText")
                         with open('tools/edge/zhipu_full_verdict.txt', 'w', encoding='utf-8') as f:

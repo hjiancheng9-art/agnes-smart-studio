@@ -1,4 +1,5 @@
 import sys
+
 with open('ui/widgets_v2.py', encoding='utf-8') as f:
     lines = f.readlines()
 idx = next(i for i, l in enumerate(lines) if 'class Spinner' in l)

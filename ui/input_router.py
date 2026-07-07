@@ -8,9 +8,8 @@ GPT Review M2/M3/S1 要求：
 
 import enum
 import threading
-from dataclasses import dataclass, field
-from typing import Any, Callable
-
+from collections.abc import Callable
+from dataclasses import dataclass
 
 # ── 输入模式 ──────────────────────────────────────────────
 

@@ -9,13 +9,11 @@
 
 from __future__ import annotations
 
-from core.error_sink import catch
 import datetime
 import fnmatch
 import hashlib
 import json
 import os
-import re
 import shutil
 import sqlite3
 import subprocess
@@ -23,10 +21,10 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import Any, Optional
 
 import yaml
 
+from core.error_sink import catch
 
 # ═══════════════════════════════════════════════════════════
 # Data types
@@ -156,14 +154,14 @@ class CleanupManager:
     def _load_policy(self) -> dict:
         if not self.policy_path.exists():
             return {}
-        with open(self.policy_path, "r", encoding="utf-8") as f:
+        with open(self.policy_path, encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
 
     def _load_patterns(self, path: Path) -> list[str]:
         if not path.exists():
             return []
         lines = []
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line and not line.startswith("#"):
@@ -523,7 +521,7 @@ class CleanupManager:
 
         if not auto_confirm:
             print(self._format_report(report))
-            print("\n⚠️  确认执行清理？这将移动 {0} 个文件到 .crux/trash/".format(len(report.files_to_clean)))
+            print(f"\n⚠️  确认执行清理？这将移动 {len(report.files_to_clean)} 个文件到 .crux/trash/")
             resp = input("输入 'yes' 确认: ").strip()
             if resp.lower() != "yes":
                 print("❌ 已取消。")
@@ -799,11 +797,7 @@ def main():
     if args.action == "status":
         mgr.status()
 
-    elif args.action == "scan":
-        report = mgr.scan()
-        mgr.dry_run(report)
-
-    elif args.action == "dry-run":
+    elif args.action == "scan" or args.action == "dry-run":
         report = mgr.scan()
         mgr.dry_run(report)
 

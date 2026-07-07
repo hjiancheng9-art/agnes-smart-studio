@@ -1,4 +1,5 @@
 import asyncio
+
 from playwright.async_api import async_playwright
 
 PROMPT = """# ComfyUI 智能体: 如何成为真正的工作流生成器

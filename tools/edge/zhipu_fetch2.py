@@ -1,6 +1,8 @@
 """Second try - fetch fresh Zhipu response"""
+import os
+import time
+
 from playwright.sync_api import sync_playwright
-import time, os
 
 CDP_URL = "http://127.0.0.1:9222"
 p = sync_playwright().start()

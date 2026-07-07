@@ -1,4 +1,6 @@
-import asyncio, json, os
+import asyncio
+import os
+
 from playwright.async_api import async_playwright
 
 d = r"C:\Users\huangjiancheng\CodeBuddy\comfyui智能体"
@@ -57,12 +59,12 @@ async def main():
     async with async_playwright() as p:
         browser = await p.chromium.connect_over_cdp("http://127.0.0.1:9222")
         context = browser.contexts[0]
-        
+
         # Open new ChatGPT page
         page = await context.new_page()
         await page.goto("https://chatgpt.com/", wait_until="domcontentloaded")
         await asyncio.sleep(4000)
-        
+
         # Click new chat if needed
         try:
             new_btn = page.locator('a:has-text("新聊天"), a:has-text("New chat"), button:has-text("新聊天")').first
@@ -71,9 +73,9 @@ async def main():
                 await asyncio.sleep(2000)
         except:
             pass
-        
+
         await page.wait_for_timeout(2000)
-        
+
         input_box = page.locator("#prompt-textarea")
         await input_box.click()
         await input_box.fill(PROMPT)

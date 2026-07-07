@@ -1,4 +1,3 @@
-import re
 with open('ui/tui_v2.py', encoding='utf-8') as f:
     lines = f.readlines()
 targets = ['_closing', '_streaming', '_thinking', '_cancel_requested']

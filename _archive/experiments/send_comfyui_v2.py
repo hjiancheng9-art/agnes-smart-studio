@@ -1,4 +1,6 @@
-import asyncio, json, os
+import asyncio
+import os
+
 from playwright.async_api import async_playwright
 
 d = r"C:\Users\huangjiancheng\CodeBuddy\comfyui智能体"
@@ -49,10 +51,10 @@ async def main():
             page = await browser.contexts[0].new_page()
             await page.goto("https://chatgpt.com/")
             await asyncio.sleep(4)
-        
+
         await page.bring_to_front()
         await asyncio.sleep(1)
-        
+
         # Check if it's a fresh page (no conversation) or has an old one
         url = page.url
         if "/c/" in url:
@@ -64,9 +66,9 @@ async def main():
                     await asyncio.sleep(2)
             except:
                 pass
-        
+
         await asyncio.sleep(1)
-        
+
         ta = page.locator("#prompt-textarea")
         if await ta.is_visible(timeout=5000):
             await ta.click()

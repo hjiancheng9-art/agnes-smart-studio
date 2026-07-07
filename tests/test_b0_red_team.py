@@ -17,23 +17,25 @@ T07 多轮 Compile/Validate/Recover 闭环 → 最终输出一致
 T08 Contract 空输入 → 返回明确的拒绝信息而非 crash
 """
 
-import sys
-import os
 import json
+import os
+import sys
 
 # Add project root
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.comfyui_contract import check_tool_contract, DEFAULT_CONTRACTS
-from core.comfyui_validator import validate_workflow, ValidationResult, ComfyUIValidator
+from core.comfyui_api import quick_txt2img
 from core.comfyui_compiler import (
-    build_txt2img_spec, compile_spec, GraphCompiler,
-    BUILTIN_MOTIFS, spec_to_workflow_ir,
+    build_txt2img_spec,
+    compile_spec,
 )
+from core.comfyui_contract import check_tool_contract
 from core.comfyui_recovery import (
-    ExecutionRecovery, ErrorKnowledgeBase, ErrorRecord, auto_recover,
+    ErrorRecord,
+    ExecutionRecovery,
+    auto_recover,
 )
-from core.comfyui_api import build_and_validate, validate_existing, quick_txt2img
+from core.comfyui_validator import validate_workflow
 
 pass_count = 0
 fail_count = 0
@@ -159,6 +161,7 @@ test("T04b 有 prompt 时 Contract 放行",
 
 # Test pipeline executor
 from core.comfyui_pipeline import COMFYUI_PIPELINE_EXECUTOR_MAP
+
 fn_compile = COMFYUI_PIPELINE_EXECUTOR_MAP["comfyui_compile_and_validate"]
 
 r_empty = fn_compile()
@@ -251,7 +254,7 @@ test("T07b 多轮校验全部通过",
 wf_stress = {"1": {"class_type": "KSampler", "inputs": {}},
              "2": {"class_type": "BadNode", "inputs": {}}}
 for i in range(5):
-    errs = [ErrorRecord(layer="L3", message=f"孤立节点: 2", node_id="2")]
+    errs = [ErrorRecord(layer="L3", message="孤立节点: 2", node_id="2")]
     result_stress = auto_recover(wf_stress, errs)
 test("T07c 重复恢复不崩溃",
       result_stress.success,

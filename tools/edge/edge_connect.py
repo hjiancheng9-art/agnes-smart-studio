@@ -10,7 +10,9 @@ Edge 浏览器自动化控制
 已安装: Playwright 1.61.0 | Edge (Chromium)
 """
 
-import sys, asyncio, os
+import asyncio
+import sys
+
 from playwright.async_api import async_playwright
 
 EDGE_PATH = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
@@ -44,7 +46,7 @@ async def connect_existing():
     """连接已有 Edge（需先以调试端口启动）"""
     async with async_playwright() as p:
         browser = await p.chromium.connect_over_cdp("http://127.0.0.1:9222")
-        print(f"✅ 已连接到 Edge 实例")
+        print("✅ 已连接到 Edge 实例")
         for i, ctx in enumerate(browser.contexts):
             for j, page in enumerate(ctx.pages):
                 print(f"   [{i}.{j}] {page.url}")
@@ -54,7 +56,7 @@ async def connect_existing():
 
 async def run_script(script_path: str):
     """执行自定义控制脚本"""
-    with open(script_path, "r", encoding="utf-8") as f:
+    with open(script_path, encoding="utf-8") as f:
         code = f.read()
     exec(code)
 

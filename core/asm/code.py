@@ -9,12 +9,12 @@ GPT 规格关键修正：
 from core.asm import (
     BaseMethodology,
     MethodologyCheck,
-    MethodologyPolicy,
-    TaskProfile,
-    TaskIntent,
-    TaskDomain,
-    RiskLevel,
     MethodologyPhase,
+    MethodologyPolicy,
+    RiskLevel,
+    TaskDomain,
+    TaskIntent,
+    TaskProfile,
     register,
 )
 

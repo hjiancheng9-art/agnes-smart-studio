@@ -35,7 +35,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from dataclasses import dataclass
 from typing import Any
 
 
@@ -50,7 +49,7 @@ class SessionContext:
     previous_plan_exists: bool = False
 
     @staticmethod
-    def from_dict(d: dict) -> "SessionContext":
+    def from_dict(d: dict) -> SessionContext:
         return SessionContext(
             recent_failures=d.get("recent_failures", 0),
             files_touched=d.get("files_touched", 0),
@@ -428,11 +427,15 @@ def get_mode_statistics() -> dict[str, dict[str, Any]]:
     return stats
 
 
-from core.error_sink import catch
 import logging
+
+from core.error_sink import catch
 
 logger = logging.getLogger("crux.multi_agent")
 import asyncio
+
+# 跨模块 trace 上下文：供 cost_tracker 等下游模块读取当前 root_trace_id
+import contextvars as _crux_ctx
 import inspect
 import json
 import threading
@@ -442,8 +445,6 @@ from collections.abc import Callable
 
 from core.multi_agent_models import ROOT, Agent, AgentTask  # noqa: F401
 
-# 跨模块 trace 上下文：供 cost_tracker 等下游模块读取当前 root_trace_id
-import contextvars as _crux_ctx
 _current_root_trace_id = _crux_ctx.ContextVar("crux_root_trace_id", default="")
 _current_trace_id = _crux_ctx.ContextVar("crux_trace_id", default="")
 
@@ -1305,11 +1306,11 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
     skipped = sum(1 for t in tasks if t.status == "skipped")
     timed_out = sum(1 for t in tasks if "[timeout]" in t.result or "[deadlock]" in t.result)
     cancelled = sum(1 for t in tasks if t.status == "pending")
-    
+
     deadlock_count = sum(1 for e in log if e.get("event") == "dag_deadlock")
     fallback_count = sum(1 for e in log if e.get("event") in ("wave_timeout", "task_timeout"))
     timeout_count = sum(1 for e in log if e.get("event") == "task_timeout")
-    
+
     # 提取 provider route 信息
     provider_route = ""
     for entry in log:
@@ -1321,15 +1322,15 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
     longest_info = {}
     if longest and longest.finished_at > 0:
         longest_info = {"id": longest.id, "duration_ms": int((longest.finished_at - longest.started_at) * 1000), "status": longest.status}
-    
+
     failure_reasons: dict[str, int] = {}
     for t in tasks:
         if t.status == "failed" and t.result:
             reason = t.result[:60]
             failure_reasons[reason] = failure_reasons.get(reason, 0) + 1
-    
+
     root_id = tasks[0].root_trace_id if tasks else ""
-    
+
     result = {
         "goal": goal,
         "root_trace_id": root_id,
@@ -1347,11 +1348,11 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
         "provider_route": provider_route,
     }
     try:
-        from core.run_summary import save_run
-        from core.run_replay import save_run_replay
-        from core.quality_gate import assess_quality
         from core.policy_gate import auto_recover
+        from core.quality_gate import assess_quality
         from core.retry_budget import auto_retry_decision, record_retry_attempt
+        from core.run_replay import save_run_replay
+        from core.run_summary import save_run
         quality = assess_quality(result)
         result.update(quality)
         policy = auto_recover(result)

@@ -13,12 +13,10 @@ ASM.core 始终加载，是方法论基底。
 from core.asm import (
     BaseMethodology,
     MethodologyCheck,
-    MethodologyPolicy,
-    TaskProfile,
-    TaskIntent,
-    TaskDomain,
-    RiskLevel,
     MethodologyPhase,
+    MethodologyPolicy,
+    RiskLevel,
+    TaskProfile,
     register,
 )
 

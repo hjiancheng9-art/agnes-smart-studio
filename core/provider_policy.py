@@ -1,6 +1,5 @@
 """ProviderPolicy — 策略路由，替代固定 fallback 链。"""
 
-from typing import Any
 
 
 def score_provider(pid: str, request: dict, circuit_states: dict[str, str]) -> float:
@@ -70,7 +69,7 @@ def explain_routing(pid: str, request: dict, circuit_states: dict[str, str]) -> 
     """解释某个 provider 的评分明细。"""
     reasons = []
     score = 50.0
-    reasons.append(f"base=50")
+    reasons.append("base=50")
 
     task_type = request.get("task_type", "text")
     require_code = request.get("require_code", False)
@@ -82,39 +81,39 @@ def explain_routing(pid: str, request: dict, circuit_states: dict[str, str]) -> 
         return [f"{pid}: excluded (circuit=OPEN)"]
     if circuit == "HALF_OPEN":
         score -= 30
-        reasons.append(f"circuit=HALF_OPEN: -30")
+        reasons.append("circuit=HALF_OPEN: -30")
 
     if pid == "deepseek":
         if require_code or task_type in ("code", "debug", "refactor"):
             score += 30
-            reasons.append(f"strong_coding: +30")
+            reasons.append("strong_coding: +30")
         score += 15
-        reasons.append(f"general_power: +15")
+        reasons.append("general_power: +15")
     elif pid == "crux":
         if task_type in ("image", "video"):
             score += 40
-            reasons.append(f"media_expert: +40")
+            reasons.append("media_expert: +40")
         score += 10
-        reasons.append(f"general: +10")
+        reasons.append("general: +10")
     elif pid == "zhipu":
         if prefer_local:
             score += 20
-            reasons.append(f"local_preferred: +20")
+            reasons.append("local_preferred: +20")
         score += 5
-        reasons.append(f"general: +5")
+        reasons.append("general: +5")
     elif pid == "local":
         if prefer_local:
             score += 30
-            reasons.append(f"local_preferred: +30")
+            reasons.append("local_preferred: +30")
         if budget < 20:
             score += 25
-            reasons.append(f"low_cost: +25")
+            reasons.append("low_cost: +25")
         score -= 10
-        reasons.append(f"limited_capability: -10")
+        reasons.append("limited_capability: -10")
 
     if budget < 30 and pid in ("deepseek", "crux"):
         score -= 15
-        reasons.append(f"budget_constraint: -15")
+        reasons.append("budget_constraint: -15")
 
     try:
         from core.provider_history import adapt_score

@@ -3,9 +3,8 @@
 o 打开详情 → ↑↓滚动 → c复制/m复制MD/Esc返回
 """
 
-from ui.message_store import Message, MessageStore
-from ui.copy_manager import extract_code_blocks
 from ui.input_router import get_clipboard
+from ui.message_store import MessageStore
 
 
 class MessageDetailScreen:

@@ -322,12 +322,12 @@ def _chat_tui():
         + bottom_line + "\n"
         + "\n"
         + f"  ◈ {model_name} · 主人: 黄建程\n"
-        + f"  ◈ 根因优先 → 最小复现 → 一次修对\n"
-        f"\n"
-        f"  试试这些:\n"
-        f"    /status  查看状态    /health  系统健康\n"
-        f"    /help    命令列表    /skill   技能市场\n"
-        f"    Ctrl+V 粘贴   Enter 发送\n"
+        + "  ◈ 根因优先 → 最小复现 → 一次修对\n"
+        "\n"
+        "  试试这些:\n"
+        "    /status  查看状态    /health  系统健康\n"
+        "    /help    命令列表    /skill   技能市场\n"
+        "    Ctrl+V 粘贴   Enter 发送\n"
     )
     # ── Terminal height guard ──
     if shutil.get_terminal_size().lines < 10:

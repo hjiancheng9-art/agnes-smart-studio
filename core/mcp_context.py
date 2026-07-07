@@ -12,8 +12,6 @@ ChatGPT+智谱评审共识：MCP 全量注入导致上下文污染。
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Optional
 
 # MCP 工具 → 场景映射
 MCP_TOOL_SCENES: dict[str, str] = {

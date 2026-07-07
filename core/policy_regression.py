@@ -3,7 +3,6 @@
 import json
 import os
 import time
-from typing import Any
 
 from core.config import OUTPUT_DIR
 
@@ -25,8 +24,8 @@ def record_route_decision(request: dict, selected: list[str], circuit_states: di
 
 def check_regression(request: dict, expected_first: str) -> tuple[bool, str]:
     """检查路由决策是否与预期一致。"""
-    from core.provider_policy import select_candidates
     from core.provider import get_provider_manager
+    from core.provider_policy import select_candidates
 
     try:
         mgr = get_provider_manager()

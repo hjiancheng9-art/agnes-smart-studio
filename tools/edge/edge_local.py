@@ -21,15 +21,18 @@ Edge 本地控制台 — 你打开浏览器，我远程操控
   exit / quit       — 关闭
 """
 
-import asyncio, sys, os
+import asyncio
+import sys
+
 from playwright.async_api import async_playwright
+
 
 async def main():
     if len(sys.argv) > 1:
         url = sys.argv[1]
     else:
         url = "https://chatgpt.com"
-    
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             channel="msedge",
@@ -41,32 +44,32 @@ async def main():
             locale="zh-CN",
         )
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
-        
+
         print(f"🌐 正在打开 {url} ...")
         await page.goto(url, timeout=60000, wait_until="domcontentloaded")
         print(f"✅ 已打开 → {await page.title()}")
         print(f"📌 当前地址: {page.url}")
         print(f"\n{'='*50}")
-        print(f"💡 在下方输入我给你的命令")
+        print("💡 在下方输入我给你的命令")
         print(f"{'='*50}\n")
-        
+
         while True:
             try:
                 cmd = input("> ").strip()
             except (EOFError, KeyboardInterrupt):
                 print("\n👋 关闭中...")
                 break
-            
+
             if not cmd:
                 continue
-            
+
             parts = cmd.split()
             action = parts[0].lower()
             args_list = parts[1:]
-            
+
             if action in ("exit", "quit"):
                 break
-            
+
             elif action == "help":
                 print("""可用命令:
   goto <url>        — 导航
@@ -82,7 +85,7 @@ async def main():
   back              — 后退
   help              — 帮助
   exit              — 退出""")
-            
+
             elif action == "goto":
                 u = args_list[0] if args_list else "https://www.baidu.com"
                 try:
@@ -91,12 +94,12 @@ async def main():
                     print(f"📄 {await page.title()}")
                 except Exception as e:
                     print(f"❌ {e}")
-            
+
             elif action in ("ss", "screenshot"):
                 name = args_list[0] if args_list else f"ss_{int(asyncio.get_event_loop().time())}.png"
                 await page.screenshot(path=name)
                 print(f"📸 已保存: {name}")
-            
+
             elif action == "click":
                 sel = args_list[0] if args_list else "body"
                 try:
@@ -105,7 +108,7 @@ async def main():
                     print(f"✅ 已点击: {sel}")
                 except Exception as e:
                     print(f"❌ {e}")
-            
+
             elif action == "fill":
                 if len(args_list) < 2:
                     print("❌ 用法: fill <选择器> <文本>")
@@ -114,13 +117,13 @@ async def main():
                     text = " ".join(args_list[1:])
                     await page.fill(sel, text)
                     print(f"✅ 已填入: {sel} ← {text[:50]}{'...' if len(text)>50 else ''}")
-            
+
             elif action == "press":
                 key = args_list[0] if args_list else "Enter"
                 await page.keyboard.press(key)
                 await asyncio.sleep(0.5)
                 print(f"✅ 已按键: {key}")
-            
+
             elif action == "text":
                 sel = args_list[0] if args_list else "body"
                 els = await page.query_selector_all(sel)
@@ -134,7 +137,7 @@ async def main():
                     for i, t in enumerate(texts):
                         print(f"[{i}] {t[:100]}")
                     print(f"...共 {len(els)} 个元素")
-            
+
             elif action == "links":
                 links = await page.eval_on_selector_all(
                     "a[href]", "els => els.map(el => ({text: el.innerText.trim(), href: el.href})).filter(x => x.text)"
@@ -142,7 +145,7 @@ async def main():
                 for l in links[:30]:
                     print(f"  🔗 {l['text'][:50]} → {l['href'][:80]}")
                 print(f"  ...共 {len(links)} 个链接")
-            
+
             elif action == "js":
                 code = " ".join(args_list)
                 try:
@@ -150,22 +153,22 @@ async def main():
                     print(f"🖥️ {result}")
                 except Exception as e:
                     print(f"❌ {e}")
-            
+
             elif action == "url":
                 print(f"🔗 {page.url}")
                 print(f"📄 {await page.title()}")
-            
+
             elif action == "reload":
                 await page.reload()
                 print("🔄 已刷新")
-            
+
             elif action == "back":
                 await page.go_back()
                 print(f"🔙 {page.url}")
-            
+
             else:
                 print(f"❌ 未知命令: {action} (输入 help 查看帮助)")
-    
+
     await browser.close()
 
 if __name__ == "__main__":

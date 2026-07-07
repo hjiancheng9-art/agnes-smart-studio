@@ -18,9 +18,11 @@ from typing import Any
 
 import httpx
 
+from utils.unicode_safety import has_surrogate
+from utils.unicode_safety import sanitize_payload as _sanitize_json
+
 from .client import ContentPolicyError
 from .config import SETTINGS
-from utils.unicode_safety import sanitize_payload as _sanitize_json, has_surrogate
 
 __all__ = ["AsyncCruxClient"]
 
@@ -51,7 +53,7 @@ class AsyncCruxClient:
         # ── Unicode safety: pre-flight UTF-8 encoding check ──
         json_body = kwargs.get("json")
         if json_body is not None:
-            from utils.unicode_safety import ensure_utf8_encodable, InvalidUnicodePayloadError
+            from utils.unicode_safety import InvalidUnicodePayloadError, ensure_utf8_encodable
 
             if not ensure_utf8_encodable(json_body):
                 raise InvalidUnicodePayloadError(

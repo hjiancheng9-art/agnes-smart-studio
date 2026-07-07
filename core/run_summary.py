@@ -9,9 +9,7 @@
 import json
 import os
 import time
-from dataclasses import dataclass, field, asdict
-from datetime import datetime
-from typing import Any
+from dataclasses import asdict, dataclass, field
 
 from core.config import OUTPUT_DIR
 
@@ -109,7 +107,7 @@ def get_run(root_trace_id: str) -> dict | None:
     path = os.path.join(RUNS_DIR, f"{root_trace_id}.json")
     if not os.path.exists(path):
         return None
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -118,7 +116,7 @@ def list_recent_runs(limit: int = 10) -> list[dict]:
     index_path = os.path.join(RUNS_DIR, "_index.jsonl")
     if not os.path.exists(index_path):
         return []
-    with open(index_path, "r", encoding="utf-8") as f:
+    with open(index_path, encoding="utf-8") as f:
         lines = f.readlines()
     runs = [json.loads(line) for line in lines if line.strip()]
     runs.sort(key=lambda r: r.get("created_at", 0), reverse=True)

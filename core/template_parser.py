@@ -4,11 +4,11 @@
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Any
+
 import json
 import logging
 import re
+from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
@@ -215,7 +215,7 @@ def _from_yaml_dict(data: dict) -> ParsedTemplate | None:
 
 def parsed_to_motif(template: ParsedTemplate, registry=None) -> bool:
     """将解析后的模板注册为 Motif。"""
-    from core.comfyui_motif import MotifDefinition, MotifNode, MotifEdge, get_registry
+    from core.comfyui_motif import MotifDefinition, MotifEdge, MotifNode, get_registry
 
     reg = registry or get_registry()
 

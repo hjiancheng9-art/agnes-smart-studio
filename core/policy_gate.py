@@ -1,6 +1,5 @@
 """Policy Gate — based on quality assessment, decide next action automatically."""
 
-from typing import Any
 
 
 def decide_action(summary: dict) -> str:

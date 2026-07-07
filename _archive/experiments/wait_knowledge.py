@@ -1,5 +1,8 @@
-import asyncio, json
+import asyncio
+import json
+
 from playwright.async_api import async_playwright
+
 
 async def main():
     async with async_playwright() as p:
@@ -12,7 +15,7 @@ async def main():
                 break
         if not page:
             return
-        
+
         print("waiting...")
         for i in range(60):
             await asyncio.sleep(5)
@@ -21,7 +24,7 @@ async def main():
             if resp["done"] and resp["len"] > 1000:
                 break
             print(f"  {resp['len']} chars")
-        
+
         text = await page.evaluate("() => {const m=document.querySelectorAll('[data-message-author-role=assistant]');return m.length>0?m[m.length-1].textContent:''}")
         with open("chatgpt_knowledge.txt", "w", encoding="utf-8") as f:
             f.write(text)

@@ -4,6 +4,7 @@
 """
 
 from __future__ import annotations
+
 import json
 import logging
 
@@ -23,7 +24,6 @@ def execute_recover_workflow(
     4. 记录到 ErrorKnowledgeBase
     """
     from core.comfyui_recovery import (
-        ExecutionRecovery,
         ErrorKnowledgeBase,
         ErrorRecord,
         auto_recover,

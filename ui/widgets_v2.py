@@ -175,9 +175,10 @@ def build_welcome_formatted(
     branch: str = "",
 ) -> FormattedText:
     """Build welcome — responsive layout: TW-driven 3-column grid."""
-    from core.version import __version__ as _ver
     import os as _os
     import shutil
+
+    from core.version import __version__ as _ver
     _model = model_name or "deepseek-v4-flash"
     _branch = branch or "main"
     _home = _os.path.expanduser("~")
@@ -256,7 +257,7 @@ def build_welcome_formatted(
 
     _cmd = [("/help    commands",B),("/skill   marketplace",P),("/status  overview",B),("/health  diagnostics",B),("/image   generate",T)]
     _wsp = [("/method  methodology",P),("/config  settings",B),("/model   switch model",P),("/chat    new chat",T),("/video   generate",T)]
-    _sys = [("● ready",G),(f"Hot path <1K tok",W),("平时如刀，出事成阵",Y),("97+ tools on demand",M),("极简内核 · 按需治理",P)]
+    _sys = [("● ready",G),("Hot path <1K tok",W),("平时如刀，出事成阵",Y),("97+ tools on demand",M),("极简内核 · 按需治理",P)]
 
     for i in range(5):
         cl,cs=_cmd[i]; wl,ws=_wsp[i]; sl,ss=_sys[i]

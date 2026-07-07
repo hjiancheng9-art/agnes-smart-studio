@@ -1,5 +1,8 @@
-import asyncio, json
+import asyncio
+import json
+
 from playwright.async_api import async_playwright
+
 
 async def main():
     async with async_playwright() as p:
@@ -13,7 +16,7 @@ async def main():
         if not page:
             print("no page")
             return
-        
+
         print("waiting for business layer analysis...", flush=True)
         for i in range(90):
             await asyncio.sleep(4)
@@ -23,7 +26,7 @@ async def main():
                 break
             if i % 10 == 0:
                 print(f"  {d['l']} chars, streaming={d['s']}", flush=True)
-        
+
         text = await page.evaluate("() => {const m=document.querySelectorAll('[data-message-author-role=assistant]');return m.length>0?m[m.length-1].textContent:''}")
         with open("chatgpt_business.txt","w",encoding="utf-8") as f:
             f.write(text)

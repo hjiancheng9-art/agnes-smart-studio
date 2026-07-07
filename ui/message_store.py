@@ -7,11 +7,10 @@ GPT Review M1 要求：
 - 按行号反查消息
 """
 
+import threading
 import time
 import uuid
-import threading
 from dataclasses import dataclass, field
-from typing import Any
 
 
 @dataclass

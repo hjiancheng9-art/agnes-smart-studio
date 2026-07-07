@@ -13,8 +13,10 @@ ChatGPT+Gemini+智谱评审共识：CDP 强依赖 DOM 选择器太脆弱。
   python tools/edge/cdp_control.py read
 """
 
+import sys
+import time
+
 from playwright.sync_api import sync_playwright
-import sys, json, time
 
 CDP_URL = "http://127.0.0.1:9222"
 

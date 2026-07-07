@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 import urllib.request
 
-from core.download.models import DownloadKind, DownloadRequest
 from core.download.manager import get_manager
+from core.download.models import DownloadKind, DownloadRequest
 
 BRIDGE_URL = "http://127.0.0.1:4366"
 
@@ -96,7 +96,7 @@ def handle_download_command(text: str, width: int, append_msg, append_err, _log_
             best = max(candidates, key=lambda c: c.get("confidence", 0))
             job = _submit_download_from_media(best, item.get("page_url", ""), item.get("title", ""))
             _log_append(("↓", "class:activity-info", f"下载已排队: {job.job_id} {best.get('url','')[:48]}"))
-            append_msg("info", f"已提交下载\n")
+            append_msg("info", "已提交下载\n")
             append_msg("muted", f" URL: {best.get('url','')}\n")
             return True
 

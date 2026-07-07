@@ -7,11 +7,12 @@
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Any
+
 import json
 import logging
 import re
+from dataclasses import dataclass, field
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -242,7 +243,7 @@ def template_to_motif(template: ParsedWorkflowTemplate) -> tuple | None:
     Returns:
         (MotifDefinition, edges) or None if parsing fails
     """
-    from core.comfyui_motif import MotifDefinition, MotifNode, MotifEdge
+    from core.comfyui_motif import MotifDefinition, MotifEdge, MotifNode
 
     if not template.bindings:
         return None
@@ -370,7 +371,7 @@ def parse_and_register(text: str, registry=None, source: str = "text") -> tuple[
     Returns:
         (成功数, 总数, 错误列表)
     """
-    from core.comfyui_motif import get_registry, reset_registry
+    from core.comfyui_motif import get_registry
 
     reg = registry or get_registry()
     errors: list[str] = []

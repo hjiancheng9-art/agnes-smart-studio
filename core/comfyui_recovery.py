@@ -17,14 +17,14 @@
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Any, Literal
-from enum import Enum
-import json
+
 import logging
-import sqlite3
 import os
+import sqlite3
 import time
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class ErrorLayer(Enum):
     L5_SEMANTIC = "L5"  # 业务语义 — 仅通知
 
     @classmethod
-    def from_str(cls, s: str) -> "ErrorLayer":
+    def from_str(cls, s: str) -> ErrorLayer:
         for e in cls:
             if e.value == s:
                 return e
@@ -375,9 +375,7 @@ class ExecutionRecovery:
 
         msg_lower = (err.message + (decision.repair or "")).lower()
 
-        if "孤立" in msg_lower or "orphan" in msg_lower:
-            plan.add_patch("delete_node", err.node_id)
-        elif "死端" in msg_lower or "dead" in msg_lower:
+        if "孤立" in msg_lower or "orphan" in msg_lower or "死端" in msg_lower or "dead" in msg_lower:
             plan.add_patch("delete_node", err.node_id)
         elif "缺少必需输入" in msg_lower or "missing" in msg_lower:
             plan.add_patch("auto_connect", err.node_id, hint=err.fix_hint or "")

@@ -18,11 +18,10 @@ LLM 生成 TaskSpec / WorkflowIR，GraphCompiler 确定性生成 ComfyUI workflo
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Any, Literal
-from enum import Enum
-import json
+
 import logging
+from dataclasses import dataclass, field
+from typing import Literal
 
 logger = logging.getLogger(__name__)
 
@@ -445,7 +444,6 @@ class GraphCompiler:
             return self._motifs[component.motif]
         # 也从新 MotifRegistry 查
         if self._registry:
-            from core.comfyui_motif import MotifDefinition as NewMotif
 
             motif_obj = self._registry.get(component.motif or component.role)
             if motif_obj:

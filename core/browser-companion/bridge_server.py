@@ -8,10 +8,10 @@ Port: 4366
 """
 
 import json
-import uuid
 import time
+import uuid
 from collections import deque
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 TASKS = []
 PENDING_MEDIA = deque(maxlen=200)
@@ -100,8 +100,8 @@ def add_task(task_dict):
 
 def serve():
     server = HTTPServer(("127.0.0.1", 4366), BridgeHandler)
-    print(f"Bridge server on http://127.0.0.1:4366")
-    print(f"  GET  /download/pending  — view detected media")
+    print("Bridge server on http://127.0.0.1:4366")
+    print("  GET  /download/pending  — view detected media")
     server.serve_forever()
 
 

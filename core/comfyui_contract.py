@@ -8,11 +8,10 @@ Tool Contract = {pre_conditions, post_conditions, side_effects, failure_policy}
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Any, Callable
-from enum import Enum
-import json
+
 import logging
+from dataclasses import dataclass, field
+from enum import Enum
 
 logger = logging.getLogger(__name__)
 

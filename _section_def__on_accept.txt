@@ -1,0 +1,61 @@
+def _on_accept(self, buf: Buffer) -> bool:
+        try:
+            text = buf.text.strip()
+            buf.reset()
+            if not text:
+                return True
+
+            # ── Command routing ──
+            if self._handle_command(text):
+                return True
+
+            # ── Thinking guard — queue input if streaming ──
+            if self._thinking or self._streaming:
+                self._queue_input_while_streaming(text)
+                return True
+
+            # ── Submit for streaming ──
+            self._submit_user_message(text)
+            return True
+
+        except Exception as e:
+            self._log_append(("✗", "class:activity-fail",
+                f"Input failed: {type(e).__name__}: {self._shorten(e, 80)}"))
+            try:
+                self.message_pane.append_error(
+                    f"Input processing failed: {type(e).__name__}: {e}"
+                )
+            except Exception:
+                pass
+            return False
+
+    # ══════════════════════════════════════════════════════════════
+    #  Command handlers
+    # ══════════════════════════════════════════════════════════════
+
+    def _handle_command(self, text: str) -> bool:
+        """Route all command-like inputs. Returns True if handled."""
+        # ── Drag-drop image detection ──
+        drag_images = detect_drag_images(text)
+        if drag_images and len(drag_images) == 1:
+            self._send_image(drag_images[0])
+            return True
+        if drag_images:
+            for img in drag_images:
+                self._send_image(img)
+            return True
+
+        # ── Single image path ──
+        single_path = is_image_path(text)
+        if single_path:
+            self._send_image(single_path)
+            return True
+
+        # ── Quit ──
+        if text in ("/q", "/quit", "/exit"):
+            self._app.exit()
+            return True
+
+        # ── Screen commands ──
+        if text == "/dashboard" or text.startswith("/dashboard "):
+            self

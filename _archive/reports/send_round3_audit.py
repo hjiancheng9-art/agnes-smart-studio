@@ -1,4 +1,5 @@
-import asyncio, json, os, time
+import asyncio
+
 from playwright.async_api import async_playwright
 
 PROMPT = """# ComfyUI 智能体 第三轮审计 — 终审
@@ -52,10 +53,10 @@ async def main():
             page = await browser.contexts[0].new_page()
             await page.goto("https://chatgpt.com/")
             await asyncio.sleep(5)
-        
+
         await page.bring_to_front()
         await asyncio.sleep(1)
-        
+
         ta = page.locator("#prompt-textarea")
         await ta.wait_for(state="visible", timeout=10000)
         await ta.click()

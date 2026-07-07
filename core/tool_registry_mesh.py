@@ -19,7 +19,8 @@ from __future__ import annotations
 import json
 import logging
 from enum import IntEnum
-from typing import Any, Optional
+from typing import Any
+
 
 # ─── 工具分层（ChatGPT 评审建议） ───
 class ToolTier(IntEnum):
@@ -79,7 +80,6 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 ROOT = Path(__file__).parent.parent
 PYTHON = os.path.expanduser(r"C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\python.exe")

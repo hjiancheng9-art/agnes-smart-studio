@@ -13,10 +13,9 @@
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Any
-import json
+
 import logging
+from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +104,7 @@ class ComfyUIValidator:
             if not isinstance(node_id, str):
                 result.add_error("L1", f"节点 key 必须是字符串: {node_id}")
             if not isinstance(node, dict):
-                result.add_error("L1", f"节点值必须是 dict", node_id=node_id)
+                result.add_error("L1", "节点值必须是 dict", node_id=node_id)
                 continue
             if "class_type" not in node:
                 result.add_error("L1", "节点缺少 class_type", node_id=node_id)
@@ -162,7 +161,7 @@ class ComfyUIValidator:
     def _validate_l3(self, workflow: dict, result: ValidationResult):
         """L3: 检查图的连通性、孤立节点、循环引用。"""
         # 构建入度
-        in_degree: dict[str, int] = {nid: 0 for nid in workflow}
+        in_degree: dict[str, int] = dict.fromkeys(workflow, 0)
         edges: list[tuple[str, str]] = []
 
         for node_id, node in workflow.items():
@@ -188,7 +187,7 @@ class ComfyUIValidator:
 
             if not has_input_connections and not has_output_connections and not is_output_node:
                 result.add_warning(
-                    "L3", f"孤立节点（无连接）", node_id=node_id, fix_hint=f"连接 {node_id} 到其他节点或删除它"
+                    "L3", "孤立节点（无连接）", node_id=node_id, fix_hint=f"连接 {node_id} 到其他节点或删除它"
                 )
 
         # 死端检测
@@ -207,7 +206,7 @@ class ComfyUIValidator:
 
         if dead_ends:
             for de in dead_ends:
-                result.add_warning("L3", f"死端节点（有输入无输出）", node_id=de)
+                result.add_warning("L3", "死端节点（有输入无输出）", node_id=de)
 
     # ── L4: 运行时资源校验 ──
 

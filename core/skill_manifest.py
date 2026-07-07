@@ -14,8 +14,7 @@ import hashlib
 import json
 import os
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 # ── Capability-based permissions (not filesystem r/w) ─────
 # 参考: browser-control 技能 -> 声明 ["cdp", "clipboard:read"]
@@ -173,7 +172,7 @@ def _is_semver(version: str) -> bool:
 
 def load_manifest(path: str) -> SkillManifest:
     """Load a skill manifest from JSON file."""
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
     manifest = SkillManifest.from_dict(data)
     errors = manifest.validate()
@@ -380,7 +379,7 @@ def generate_legacy_manifest(
         SkillManifest 实例
     """
     if skill_data is None:
-        with open(skill_path, "r", encoding="utf-8") as f:
+        with open(skill_path, encoding="utf-8") as f:
             skill_data = json.load(f)
 
     name = os.path.splitext(os.path.basename(skill_path))[0]

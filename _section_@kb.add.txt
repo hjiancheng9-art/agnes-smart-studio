@@ -1,0 +1,62 @@
+@kb.add("c-c")
+        def _(event):
+            with self._state_lock:
+                streaming = self._streaming or self._thinking
+            if streaming:
+                self._cancel_current_response()
+                self._log_append(("\u25a0", "class:activity-warn", "已请求中断当前响应"))
+                event.app.invalidate()
+                return
+            self._log_append(("\u2022", "class:activity-info", "按 Ctrl+Q 退出 CRUX"))
+            event.app.invalidate()
+
+        @kb.add("c-q")
+        def _(event):
+            self._request_exit()
+            event.app.exit()
+
+        @kb.add("escape", "enter")  # Alt+Enter: insert newline
+        @kb.add("c-j")            # Ctrl+J: insert newline (alternative)
+        def _(event):
+            self.input_buffer.insert_text("\n")
+
+        @kb.add("enter")
+        def _(event):
+            """Enter: submit message. Alt+Enter / Ctrl+J to insert newline."""
+            event.current_buffer.validate_and_handle()
+
+        @kb.add("c-v")
+        def _(event):
+            img_path = get_clipboard_image()
+            if img_path:
+                self._send_image(img_path)
+            else:
+                self.input_buffer.paste_from_clipboard(event.app.clipboard.get_data())
+
+        @kb.add("escape", "escape")  # Double-Escape: clear input (avoids Alt+Enter conflict)
+        def _(event):
+            self.input_buffer.reset()
+            event.app.invalidate()
+
+        @kb.add("c-l")
+        def _(event):
+            self.message_pane.clear()
+            self._log_clear()
+            self.thinking_panel.clear()
+            event.app.invalidate()
+
+        @kb.add("c-t")
+        def _(event):
+            """Toggle thinking panel pin state."""
+            self.thinking_panel.toggle_pin()
+            event.app.invalidate()
+
+        @kb.add("c-k")
+        def _(event):
+            """Clear current input."""
+            self.input_buffer.reset()
+            event.app.invalidate()
+
+        @kb.add("f11")
+        def _(event):
+        

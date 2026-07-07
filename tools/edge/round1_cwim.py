@@ -1,6 +1,7 @@
 """Round 1: CWIM Methodology debate - send to ChatGPT, Gemini, Zhipu"""
+import time
+
 from playwright.sync_api import sync_playwright
-import time, os
 
 CDP_URL = "http://127.0.0.1:9222"
 p = sync_playwright().start()
@@ -46,7 +47,7 @@ def type_and_send(page, text, send_selector=None, press_enter=False):
     """Type text into a page and send it"""
     page.bring_to_front()
     time.sleep(0.8)
-    
+
     # Find input
     selectors = ['[contenteditable="true"]', 'textarea', '[role="textbox"]']
     input_el = None
@@ -58,28 +59,28 @@ def type_and_send(page, text, send_selector=None, press_enter=False):
                 break
         except:
             pass
-    
+
     if not input_el:
         print(f"  ❌ No input found on {page.url[:40]}")
         return False
-    
+
     input_el.click()
     time.sleep(0.3)
     input_el.fill('')
     time.sleep(0.2)
     page.keyboard.insert_text(text)
     time.sleep(1)
-    
+
     if send_selector:
         btn = page.query_selector(send_selector)
         if btn and not btn.is_disabled():
             btn.click()
             return True
-    
+
     if press_enter:
         page.keyboard.press('Enter')
         return True
-    
+
     # Auto-detect send button
     is_gemini = 'gemini' in page.url
     is_zhipu = 'bigmodel' in page.url
@@ -100,7 +101,7 @@ def type_and_send(page, text, send_selector=None, press_enter=False):
         }
         return 'none';
     }""", {"isGemini": is_gemini, "isZhipu": is_zhipu})
-    
+
     print(f"  Send method: {result}")
     return True
 

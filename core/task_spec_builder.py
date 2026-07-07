@@ -15,9 +15,9 @@ ChatGPT 评审核心建议: "TRM 要从关键词匹配升级为 TaskSpec → 工
 """
 
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 
 class IntentType(Enum):
@@ -154,7 +154,8 @@ class TaskSpecBuilder:
 
         # 7. 多智能体
         try:
-            from core.multi_agent import compute_agent_mode, SessionContext as _SessionContext
+            from core.multi_agent import SessionContext as _SessionContext
+            from core.multi_agent import compute_agent_mode
             session = _SessionContext(
                 recent_failures=context.get("recent_failures", 0),
                 files_touched=context.get("files_touched", 0),

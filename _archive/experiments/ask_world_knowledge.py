@@ -1,4 +1,5 @@
 import asyncio
+
 from playwright.async_api import async_playwright
 
 PROMPT = """# 向世界知识库索取全部资料

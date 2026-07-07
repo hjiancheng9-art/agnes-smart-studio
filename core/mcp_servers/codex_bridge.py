@@ -14,9 +14,7 @@ import re
 import shutil
 import subprocess
 import sys
-import time
 from pathlib import Path
-
 
 # ── ANSI cleanup ───────────────────────────────────────────────────
 
@@ -410,7 +408,7 @@ def main():
                 }
             )
 
-    print(f"[codex_bridge] shutting down", file=sys.stderr, flush=True)
+    print("[codex_bridge] shutting down", file=sys.stderr, flush=True)
 
 
 if __name__ == "__main__":

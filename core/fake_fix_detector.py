@@ -12,13 +12,14 @@
 后续可从 event_log 查询假阳性率。
 """
 
-from core.error_sink import catch
 import hashlib
 import json
 import os
 import time
 from dataclasses import dataclass, field
 from typing import Any
+
+from core.error_sink import catch
 
 # ── High-risk tools that need fake-fix detection ──────────
 HIGH_RISK_TOOLS = {"patch_file", "execute_plan", "self_heal", "pip_install"}
@@ -117,7 +118,7 @@ def _get_backoff_window(entry: QuarantineEntry) -> float:
     - 如果 context 变化了 → 降一级 backoff
     """
     level = entry.backoff_level
-    
+
     # Context stability check: 如果 context 有变化，降一级
     if len(entry.context_snapshots) >= 2:
         last = entry.context_snapshots[-1]
@@ -128,7 +129,7 @@ def _get_backoff_window(entry: QuarantineEntry) -> float:
                 changes += 1
         if changes > 0:
             level = max(0, level - 1)
-    
+
     if level >= len(BACKOFF_LEVELS):
         return float("inf")  # 永久隔离
     return BACKOFF_LEVELS[level]
@@ -297,7 +298,6 @@ def capture_post_state(pre_state: StateSnapshot, project_dir: str = ".") -> Stat
     post = StateSnapshot()
 
     try:
-        import glob as _glob
         for fpath in pre_state.file_hashes:
             try:
                 if os.path.exists(fpath):
@@ -351,9 +351,7 @@ def classify_fix(
 
     if changed_files > 0 and test_passed:
         return "fix-probable"
-    elif changed_files > 0 and not test_passed:
-        return "fix-unknown"
-    elif changed_files == 0 and git_changed:
+    elif changed_files > 0 and not test_passed or changed_files == 0 and git_changed:
         return "fix-unknown"
     elif changed_files == 0 and not git_changed:
         return "fix-spurious"

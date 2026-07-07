@@ -16,7 +16,6 @@ Methodology Router 根据 task intent/domain/risk 自动选择加载。
 from dataclasses import dataclass
 from typing import Literal
 
-
 # ── 任务分类 ──────────────────────────────────────────────
 
 

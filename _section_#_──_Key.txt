@@ -1,0 +1,58 @@
+# ── Key bindings ──
+        self.kb = self._setup_keybindings()
+
+        # ── Build app ──
+        self._app = self._make_app()
+
+        # ── Download manager ──
+        from core.download.manager import get_manager
+        self._dl_manager = get_manager()
+        self._dl_manager.on_update(self._on_download_update)
+
+        # Welcome screen replaces banner — see _setup_welcome()
+
+    # ══════════════════════════════════════════════════════════════
+    #  Welcome screen setup
+    # ══════════════════════════════════════════════════════════════
+
+    def _setup_welcome(self) -> None:
+        """Configure the welcome screen as the message pane's empty state."""
+        model_name = self.session.model
+        cwd = str(Path.cwd())
+        branch = ""
+        try:
+            import subprocess
+            r = subprocess.run(
+                ["git", "branch", "--show-current"],
+                capture_output=True, text=True, timeout=2,
+            )
+            branch = r.stdout.strip()
+        except Exception:
+            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+
+        def _welcome_renderer() -> FormattedText:
+            return build_welcome_formatted(
+                model_name=model_name,
+                cwd=cwd,
+                branch=branch,
+            )
+
+        self.message_pane.set_empty_renderer(_welcome_renderer)
+
+    # ══════════════════════════════════════════════════════════════
+    #  Key bindings
+    # ══════════════════════════════════════════════════════════════
+
+    def _setup_keybindings(self) -> KeyBindings:
+        kb = KeyBindings()
+
+        @kb.add("c-c")
+        def _(event):
+            with self._state_lock:
+                streaming = self._streaming or self._thinking
+            if streaming:
+                self._cancel_current_response()
+                self._log_append(("\u25a0", "class:activity-warn", "已请求中断当前响应"))
+                event.app.invalidate()
+                return
+            self._lo

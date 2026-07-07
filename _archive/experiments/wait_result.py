@@ -1,5 +1,9 @@
-import asyncio, json, time, sys
+import asyncio
+import json
+import time
+
 from playwright.async_api import async_playwright
+
 
 async def main():
     async with async_playwright() as p:
@@ -13,7 +17,7 @@ async def main():
         if not page:
             print("no page")
             return
-        
+
         # Wait for ChatGPT to finish generating
         print("⏳ 等待 ChatGPT 完成回复...", flush=True)
         start = time.time()
@@ -25,12 +29,12 @@ async def main():
             elapsed = time.time() - start
             if int(elapsed) % 15 == 0:
                 print(f"  等待中... {elapsed:.0f}s", flush=True)
-        
+
         text = await page.evaluate("""() => {
             const m = document.querySelectorAll('[data-message-author-role="assistant"]');
             return m.length > 0 ? m[m.length-1].textContent : '';
         }""")
-        
+
         with open("v2_first_project_result.txt", "w", encoding="utf-8") as f:
             f.write(text)
         print(f"📝 已保存 {len(text)} chars", flush=True)

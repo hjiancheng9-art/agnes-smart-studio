@@ -15,8 +15,8 @@
 """
 
 import re
-from dataclasses import dataclass, field
-from typing import Any, Literal
+from dataclasses import dataclass
+from typing import Literal
 
 PolicyAction = Literal[
     "allow_retry",

@@ -7,8 +7,9 @@ ChatSession._build_system_prompt() 调用 build_system_prompt()。
 
 from __future__ import annotations
 
-from core.error_sink import catch
 import logging
+
+from core.error_sink import catch
 
 logger = logging.getLogger("crux.chat_prompt")
 

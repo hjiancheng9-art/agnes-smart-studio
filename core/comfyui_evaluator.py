@@ -10,9 +10,9 @@
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Any
+
 import logging
+from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,6 @@ class MotifEvaluator:
 
     def evaluate(self, motif) -> MotifEvalResult:
         """评估单个 Motif。"""
-        from core.comfyui_compiler import WorkflowIR, IRComponent, IRConnection, IROutput, GraphCompiler
 
         errors = []
 
@@ -150,7 +149,7 @@ class MotifEvaluator:
 
     def _eval_compile(self, motif) -> tuple[EvalScore, list[str]]:
         """尝试将 Motif 编译为 WorkflowIR 并执行 Compiler。"""
-        from core.comfyui_compiler import WorkflowIR, IRComponent, IRConnection, IROutput, GraphCompiler, BUILTIN_MOTIFS
+        from core.comfyui_compiler import BUILTIN_MOTIFS, GraphCompiler, IRComponent, IRConnection, WorkflowIR
 
         errors = []
 
@@ -196,7 +195,7 @@ class MotifEvaluator:
 
     def _eval_validate(self, motif) -> EvalScore:
         """尝试编译后校验。"""
-        from core.comfyui_compiler import WorkflowIR, IRComponent, IRConnection, GraphCompiler, BUILTIN_MOTIFS
+        from core.comfyui_compiler import BUILTIN_MOTIFS, GraphCompiler, IRComponent, IRConnection, WorkflowIR
         from core.comfyui_validator import validate_workflow
 
         if not motif.nodes:

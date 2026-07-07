@@ -1,5 +1,9 @@
 """Edge 持久服务 — 非 headless 模式，过 Cloudflare"""
-import asyncio, json, os, sys
+import asyncio
+import json
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from playwright.async_api import async_playwright
 
@@ -21,82 +25,82 @@ async def main():
         locale="zh-CN",
     )
     page = ctx.pages[0] if ctx.pages else await ctx.new_page()
-    
+
     # Anti-detection
     await page.context.add_init_script("""
         Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
         Object.defineProperty(navigator, 'plugins', { get: () => [1,2,3,4,5] });
     """)
-    
+
     with open(PID_FILE, "w") as f:
         f.write(str(os.getpid()))
-    
+
     print("OK|READY")
     sys.stdout.flush()
-    
+
     running = True
     while running:
         try:
             if os.path.exists(CMD_FILE):
-                with open(CMD_FILE, "r") as f:
+                with open(CMD_FILE) as f:
                     cmd = json.load(f)
                 os.unlink(CMD_FILE)
-                
+
                 action = cmd.get("action", "")
                 params = cmd.get("params", {})
                 result = {"status": "ok"}
-                
+
                 if action == "goto":
                     url = params.get("url")
                     await page.goto(url, timeout=60000, wait_until="domcontentloaded")
                     await asyncio.sleep(2)
                     result = {"url": page.url, "title": await page.title()}
-                
+
                 elif action == "screenshot":
                     path = params.get("path", os.path.join(SVC_DIR, f"ss_{int(asyncio.get_event_loop().time())}.png"))
                     await page.screenshot(path=path)
                     result = {"path": path}
-                
+
                 elif action == "click":
                     await page.click(params["selector"], timeout=5000)
                     await asyncio.sleep(1)
                     result = {"ok": True, "url": page.url}
-                
+
                 elif action == "fill":
                     await page.fill(params["selector"], params["text"])
                     result = {"ok": True}
-                
+
                 elif action == "press":
                     await page.keyboard.press(params.get("key", "Enter"))
                     await asyncio.sleep(1)
                     result = {"ok": True}
-                
+
                 elif action == "text":
                     sel = params.get("selector", "body")
                     els = await page.query_selector_all(sel)
                     texts = [await el.inner_text() for el in els[:30]]
                     result = {"texts": texts, "count": len(texts)} if len(texts) > 1 else {"text": texts[0] if texts else ""}
-                
+
                 elif action == "eval":
                     result = {"result": await page.evaluate(params["js"])}
-                
+
                 elif action == "url":
                     result = {"url": page.url, "title": await page.title()}
-                    
+
                 elif action == "stop":
                     running = False
                     result = {"ok": True}
-                
+
                 with open(RESP_FILE, "w") as f:
                     json.dump(result, f, ensure_ascii=False, default=str)
-            
+
             await asyncio.sleep(0.3)
         except Exception as e:
             try:
                 with open(RESP_FILE, "w") as f:
                     json.dump({"status": "error", "error": str(e)}, f, ensure_ascii=False)
             except: pass
-    
+
     await browser.close()
     await pw.__aexit__(None, None, None)
 

@@ -1,12 +1,13 @@
 """ControlPlane 单元测试 — ControlQueue / PendingOutbox / RunState / ToolRegistry"""
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
 class TestControlQueue:
     def test_push_and_poll(self):
-        from core.control_plane import ControlQueue, ControlEventType, ControlEvent
+        from core.control_plane import ControlEvent, ControlEventType, ControlQueue
         q = ControlQueue()
         q.push(ControlEvent(type=ControlEventType.INTERRUPT))
         assert q.has_events()
@@ -16,7 +17,7 @@ class TestControlQueue:
         assert not q.has_events()
 
     def test_priority_ordering(self):
-        from core.control_plane import ControlQueue, ControlEventType, ControlEvent
+        from core.control_plane import ControlEvent, ControlEventType, ControlQueue
         q = ControlQueue()
         q.push(ControlEvent(type=ControlEventType.PAUSE, priority=1))
         q.push(ControlEvent(type=ControlEventType.CANCEL, priority=2))
@@ -29,7 +30,7 @@ class TestControlQueue:
         assert e3.type == ControlEventType.PAUSE
 
     def test_peek_does_not_remove(self):
-        from core.control_plane import ControlQueue, ControlEventType
+        from core.control_plane import ControlEventType, ControlQueue
         q = ControlQueue()
         q.push(type=ControlEventType.INTERRUPT)
         peek = q.peek()
@@ -40,7 +41,7 @@ class TestControlQueue:
         assert not q.has_events()
 
     def test_clear(self):
-        from core.control_plane import ControlQueue, ControlEventType
+        from core.control_plane import ControlEventType, ControlQueue
         q = ControlQueue()
         q.push(type=ControlEventType.INTERRUPT)
         q.push(type=ControlEventType.PAUSE)
@@ -48,7 +49,7 @@ class TestControlQueue:
         assert not q.has_events()
 
     def test_remove_by_id(self):
-        from core.control_plane import ControlQueue, ControlEventType, ControlEvent
+        from core.control_plane import ControlEvent, ControlEventType, ControlQueue
         q = ControlQueue()
         ev = ControlEvent(type=ControlEventType.INTERRUPT)
         q.push(ev)
@@ -104,13 +105,13 @@ class TestPendingOutbox:
 
 class TestRunStateManager:
     def test_initial_idle(self):
-        from core.control_plane import RunStateManager, RunState
+        from core.control_plane import RunStateManager
         r = RunStateManager()
         assert r.is_idle
         assert not r.is_running
 
     def test_start_and_complete_run(self):
-        from core.control_plane import RunStateManager, RunState
+        from core.control_plane import RunStateManager
         r = RunStateManager()
         assert r.start_run("test-1")
         assert r.is_running
@@ -118,7 +119,7 @@ class TestRunStateManager:
         assert r.is_idle
 
     def test_pause_and_resume(self):
-        from core.control_plane import RunStateManager, RunState
+        from core.control_plane import RunState, RunStateManager
         r = RunStateManager()
         r.start_run()
         assert r.request_pause()
@@ -127,7 +128,7 @@ class TestRunStateManager:
         assert r.is_running
 
     def test_cancel_run(self):
-        from core.control_plane import RunStateManager, RunState
+        from core.control_plane import RunState, RunStateManager
         r = RunStateManager()
         r.start_run()
         assert r.request_cancel()
@@ -140,7 +141,7 @@ class TestRunStateManager:
         assert not r.start_run()
 
     def test_check_control_with_event(self):
-        from core.control_plane import RunStateManager, RunState, ControlQueue, ControlEventType
+        from core.control_plane import ControlEventType, ControlQueue, RunState, RunStateManager
         r = RunStateManager()
         q = ControlQueue()
         r.start_run("test")
@@ -150,7 +151,7 @@ class TestRunStateManager:
         assert r.state == RunState.CANCELLING
 
     def test_state_change_callback(self):
-        from core.control_plane import RunStateManager, RunState
+        from core.control_plane import RunState, RunStateManager
         r = RunStateManager()
         changes = []
         r.on_state_change(lambda old, new: changes.append((old, new)))

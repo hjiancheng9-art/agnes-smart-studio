@@ -1,6 +1,8 @@
 """Use Playwright to send msg to ChatGPT."""
 import asyncio
+
 from playwright.async_api import async_playwright
+
 
 async def main():
     async with async_playwright() as p:

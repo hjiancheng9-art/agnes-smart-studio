@@ -17,10 +17,12 @@ ChatGPT 评审裁决后的核心修复：为 CRUX 增加统一的任务治理层
 """
 
 from __future__ import annotations
-import json, time, logging, traceback
+
+import logging
+import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger("task_governor")
 
@@ -71,7 +73,7 @@ class TaskStep:
     retry_count: int = 0
     max_retries: int = 2
     timeout: int = 60
-    fallback: Optional[str] = None
+    fallback: str | None = None
     depends_on: list[int] = field(default_factory=list)
 
 
@@ -94,7 +96,7 @@ class StepResult:
     tool: str
     success: bool
     output: Any = None
-    error: Optional[str] = None
+    error: str | None = None
     duration_ms: int = 0
     used_fallback: bool = False
 
@@ -298,7 +300,7 @@ class ContractRegistry:
             self._by_category[contract.category] = []
         self._by_category[contract.category].append(contract)
 
-    def get(self, name: str) -> Optional[ToolContract]:
+    def get(self, name: str) -> ToolContract | None:
         return self._contracts.get(name)
 
     def list_by_tier(self, tier: int) -> list[ToolContract]:
@@ -307,7 +309,7 @@ class ContractRegistry:
     def list_by_category(self, category: str) -> list[ToolContract]:
         return self._by_category.get(category, [])
 
-    def suggest_fallback(self, tool_name: str) -> Optional[str]:
+    def suggest_fallback(self, tool_name: str) -> str | None:
         contract = self.get(tool_name)
         if contract and contract.fallback_tools:
             return contract.fallback_tools[0]

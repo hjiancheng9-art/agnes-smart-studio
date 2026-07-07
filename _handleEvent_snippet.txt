@@ -1,0 +1,32 @@
+function handleEvent(msg) {
+  var type = msg.type || '';
+  
+  if (type === 'state.snapshot' || type === 'dashboard.update') {
+    renderState(msg.data || msg);
+  }
+  else if (type === 'session.started' || type === 'model.changed') {
+    document.getElementById('model-badge').textContent = (msg.data || {}).model || '—';
+  }
+  else if (type === 'message.received' || type === 'message.sent') {
+    addMessage(msg.data || msg);
+  }
+  else if (type === 'system.metrics') {
+    render系统Metrics(msg.data || msg);
+  }
+  else if (type === 'error.occurred') {
+    var errData = msg.data || msg;
+    addMessage({role:'error', content: errData.message || errData.error_msg || 'Unknown error'});
+  }
+}
+
+function renderState(state) {
+  if (state.model) {
+    document.getElementById('model-badge').textContent = state.model;
+    document.getElementById('s-model').textContent = state.model;
+  }
+  document.getElementById('s-agents').textContent = state.active_agents != null ? state.active_agents : '0';
+  
+  var ctx = Math.round(state.context_pct || 0);
+  var ctxEl = document.getElementById('s-ctx');
+  ctxEl.textContent = ctx + '%';
+  ctxEl.className = 'value' + (ctx > 85 ? ' error' : ctx > 65 ? ' warn' : '

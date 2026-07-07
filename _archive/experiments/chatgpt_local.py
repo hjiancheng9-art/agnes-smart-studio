@@ -9,7 +9,9 @@ ChatGPT 浏览器自动化 — 本地 Windows 运行
 """
 
 import asyncio
+
 from playwright.async_api import async_playwright
+
 
 async def main():
     async with async_playwright() as p:
@@ -23,11 +25,11 @@ async def main():
             locale="zh-CN",
         )
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
-        
+
         print("🚀 正在打开 ChatGPT...")
         await page.goto("https://chatgpt.com")
         print(f"✅ 已打开: {await page.title()}")
-        
+
         # 保持运行
         await asyncio.Event().wait()
 

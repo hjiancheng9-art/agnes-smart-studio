@@ -135,6 +135,14 @@ class MessagePane:
         self._empty_render_cache = None
         self._empty_render_cache_key = None
 
+        # ── Virtual Scrolling (per 3-platform debate: enable at 100+ messages) ──
+        self._virtual_scroll_threshold = 100
+        self._visible_range = (0, 0)
+        self._scroll_offset = 0
+        self._virtual_buffer = 20
+        # ── Markdown rendering (per debate R6) ──
+        self._enable_markdown = True  # can toggle at runtime
+
         def _render():
             # Snapshot state atomically, render without lock
             with self._lock:
@@ -148,6 +156,17 @@ class MessagePane:
                         return self._empty_render_cache
                     return FormattedText([("class:message-info", "Type a message or /help for commands")])
                 lines_snapshot = list(self._lines)
+                # ── Virtual Scrolling: only render visible range when over threshold ──
+                total_msgs = len(lines_snapshot)
+                if total_msgs > self._virtual_scroll_threshold:
+                    height_est = 3  # average lines per message
+                    visible_count = 50  # visible messages on screen
+                    mid = self._scroll_offset
+                    half = visible_count // 2
+                    start = max(0, mid - half)
+                    end = min(total_msgs, mid + half + self._virtual_buffer)
+                    lines_snapshot = lines_snapshot[start:end]
+                    self._visible_range = (start, end)
                 stream_snapshot = self._stream_buffer
             pieces = []
             for style_class, text in lines_snapshot:
@@ -319,6 +338,29 @@ class MessagePane:
             self._end_stream()
             fmt = _ROLE_FORMATS.get(role)
             sc, label = fmt if fmt else ("", role)
+
+            # ── Markdown rendering (per R6 debate) ──
+            if self._enable_markdown and role in ("assistant", "user") and ("```" in text or "**" in text or "* " in text):
+                try:
+                    from ui.markdown_renderer import render_markdown
+                    prefix = f"[{label}] "
+                    fragments = render_markdown(text)
+                    # Add prefix to first fragment
+                    if fragments:
+                        first_style, first_text = fragments[0]
+                        fragments[0] = (first_style, prefix + first_text)
+                    # Store as separate line entries
+                    self._lines.append(("", ""))  # spacing
+                    for style, frag in fragments:
+                        if frag.strip() or style:
+                            self._lines.append((sc if style == "" else style, frag))
+                    self._lines.append(("", ""))
+                    self._auto_scroll()
+                    return
+                except ImportError:
+                    pass  # Fall through to plain text
+
+            # Plain text fallback
             self._lines.append((sc, f"[{label}] {text}"))
             self._lines.append(("", ""))
             self._auto_scroll()

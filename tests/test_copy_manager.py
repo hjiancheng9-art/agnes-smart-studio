@@ -1,13 +1,14 @@
 """CopyManager 单元测试 — 基于 MessageStore"""
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
 class TestCopyManager:
     def test_sync_store(self):
-        from ui.message_store import MessageStore
         from ui.copy_manager import CopyManager
+        from ui.message_store import MessageStore
         store = MessageStore()
         store.append("user", "q")
         store.append("assistant", "a")
@@ -15,8 +16,8 @@ class TestCopyManager:
         assert cm.focus.total == 2
 
     def test_copy_focused_last_assistant(self):
-        from ui.message_store import MessageStore
         from ui.copy_manager import CopyManager
+        from ui.message_store import MessageStore
         store = MessageStore()
         store.append("user", "hello")
         store.append("assistant", "world")
@@ -26,15 +27,15 @@ class TestCopyManager:
         assert "world" in msg
 
     def test_copy_focused_no_messages(self):
-        from ui.message_store import MessageStore
         from ui.copy_manager import CopyManager
+        from ui.message_store import MessageStore
         cm = CopyManager(MessageStore())
         ok, msg = cm.copy_focused()
         assert not ok
 
     def test_copy_markdown(self):
-        from ui.message_store import MessageStore
         from ui.copy_manager import CopyManager
+        from ui.message_store import MessageStore
         store = MessageStore()
         store.append("assistant", "**bold**")
         cm = CopyManager(store)
@@ -43,8 +44,8 @@ class TestCopyManager:
         assert "Markdown" in msg
 
     def test_copy_code_block(self):
-        from ui.message_store import MessageStore
         from ui.copy_manager import CopyManager
+        from ui.message_store import MessageStore
         store = MessageStore()
         store.append("assistant", "```python\nx = 1\n```")
         cm = CopyManager(store)
@@ -53,8 +54,8 @@ class TestCopyManager:
         assert ok2
 
     def test_copy_code_block_invalid_index(self):
-        from ui.message_store import MessageStore
         from ui.copy_manager import CopyManager
+        from ui.message_store import MessageStore
         store = MessageStore()
         store.append("assistant", "no code here")
         cm = CopyManager(store)
@@ -62,8 +63,8 @@ class TestCopyManager:
         assert not ok
 
     def test_copy_lines_range(self):
-        from ui.message_store import MessageStore
         from ui.copy_manager import CopyManager
+        from ui.message_store import MessageStore
         store = MessageStore()
         store.append("assistant", "a\nb\nc\nd\ne")
         cm = CopyManager(store)
@@ -71,8 +72,8 @@ class TestCopyManager:
         assert ok
 
     def test_handle_command_copy_last(self):
-        from ui.message_store import MessageStore
         from ui.copy_manager import CopyManager
+        from ui.message_store import MessageStore
         store = MessageStore()
         store.append("assistant", "final answer")
         cm = CopyManager(store)
@@ -81,8 +82,8 @@ class TestCopyManager:
         assert "final answer" in msg
 
     def test_handle_command_copy_last_markdown(self):
-        from ui.message_store import MessageStore
         from ui.copy_manager import CopyManager
+        from ui.message_store import MessageStore
         store = MessageStore()
         store.append("assistant", "# title")
         cm = CopyManager(store)
@@ -91,8 +92,8 @@ class TestCopyManager:
         assert "Markdown" in msg
 
     def test_handle_command_target_not_found(self):
-        from ui.message_store import MessageStore
         from ui.copy_manager import CopyManager
+        from ui.message_store import MessageStore
         store = MessageStore()
         store.append("user", "hi")
         cm = CopyManager(store)
@@ -100,8 +101,8 @@ class TestCopyManager:
         assert not ok
 
     def test_focus_navigation_with_copy(self):
-        from ui.message_store import MessageStore
         from ui.copy_manager import CopyManager
+        from ui.message_store import MessageStore
         store = MessageStore()
         store.append("user", "q1")
         store.append("assistant", "a1")
@@ -114,8 +115,8 @@ class TestCopyManager:
         assert msg.text == "q2"
 
     def test_handle_command_copy_by_index(self):
-        from ui.message_store import MessageStore
         from ui.copy_manager import CopyManager
+        from ui.message_store import MessageStore
         store = MessageStore()
         store.append("assistant", "msg0")
         store.append("assistant", "msg1")

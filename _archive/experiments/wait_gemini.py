@@ -1,5 +1,8 @@
-import asyncio, json, time, sys
+import asyncio
+import time
+
 from playwright.async_api import async_playwright
+
 
 async def main():
     async with async_playwright() as p:
@@ -12,12 +15,12 @@ async def main():
         if not page:
             print("no gemini page")
             return
-        
+
         print("⏳ Gemini 生成中...", flush=True)
         start = time.time()
         prev = 0
         stable = 0
-        
+
         while time.time() - start < 180:
             await asyncio.sleep(5)
             text = await page.evaluate("() => document.body.innerText")
@@ -32,7 +35,7 @@ async def main():
             elapsed = time.time()-start
             if int(elapsed) % 15 == 0:
                 print(f"  {elapsed:.0f}s - {l} chars", flush=True)
-        
+
         text = await page.evaluate("() => document.body.innerText")
         with open("v2_keyframe_prompts.txt","w",encoding="utf-8") as f:
             f.write(text)

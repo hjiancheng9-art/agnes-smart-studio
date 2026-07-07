@@ -24,12 +24,12 @@ GPT 规格核心设计：
 """
 
 import enum
+import threading
 import time
 import uuid
-import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Literal
-
+from typing import Literal
 
 # ── 枚举 ──────────────────────────────────────────────────
 

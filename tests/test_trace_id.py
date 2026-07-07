@@ -1,6 +1,5 @@
 """Tests for AgentTask trace_id and root_trace_id propagation via contextvars."""
 
-import uuid
 from core.multi_agent_models import AgentTask
 
 
@@ -84,6 +83,7 @@ class TestTraceId:
     def test_root_trace_id_in_log_async(self):
         """异步路径：日志记录同时包含 trace_id 和 root_trace_id."""
         import asyncio
+
         from core.multi_agent import AsyncMultiAgentCoordinator
 
         async def fake_exec(tool, args):

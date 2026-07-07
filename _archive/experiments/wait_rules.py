@@ -1,5 +1,8 @@
-import asyncio, json
+import asyncio
+import json
+
 from playwright.async_api import async_playwright
+
 
 async def main():
     async with async_playwright() as p:
@@ -13,7 +16,7 @@ async def main():
         if not page:
             print("no page")
             return
-        
+
         print("waiting for rules...")
         for i in range(60):
             await asyncio.sleep(5)
@@ -22,7 +25,7 @@ async def main():
             if not d["s"] and d["l"] > 1000:
                 break
             print(f"  {d['l']} chars, streaming={d['s']}")
-        
+
         text = await page.evaluate("() => {const m=document.querySelectorAll('[data-message-author-role=assistant]');return m.length>0?m[m.length-1].textContent:''}")
         with open("chatgpt_rules.txt","w",encoding="utf-8") as f:
             f.write(text)

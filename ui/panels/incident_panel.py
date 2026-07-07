@@ -4,8 +4,8 @@ Data source: core.incident_store (get_incident_trends, incident files)
 Command: /incidents [open|acknowledged|closed]
 """
 
-import os
 import json
+import os
 
 
 def _shorten(text: object, limit: int = 60) -> str:

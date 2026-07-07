@@ -1,6 +1,8 @@
 """Fetch Zhipu response - wait for completion"""
+import os
+import time
+
 from playwright.sync_api import sync_playwright
-import time, os
 
 CDP_URL = "http://127.0.0.1:9222"
 p = sync_playwright().start()
@@ -15,7 +17,7 @@ for ctx in browser.contexts:
 
 if page:
     page.bring_to_front()
-    
+
     # Wait for generation to finish (wait for stop button to disappear)
     for i in range(20):
         info = page.evaluate("""() => {
@@ -25,14 +27,14 @@ if page:
         if not info['generating'] and info['len'] > 800:
             break
         time.sleep(3)
-    
+
     # Get the complete text
     text = page.evaluate("() => document.body.innerText")
     out = os.path.join('tools', 'edge', 'zhipu_complete.txt')
     with open(out, 'w', encoding='utf-8') as f:
         f.write(text)
     print(f"SAVED {len(text)} chars")
-    
+
     # Print debate sections
     for marker in ['正方', '反方', '裁决', '论点']:
         idx = text.find(marker)

@@ -1,6 +1,7 @@
 """InputRouter / FocusState / ClipboardAdapter 单元测试"""
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
@@ -113,13 +114,13 @@ class TestInputRouter:
         assert router.mode.value == "normal"
 
     def test_set_mode(self):
-        from ui.input_router import InputRouter, InputMode
+        from ui.input_router import InputMode, InputRouter
         router = InputRouter()
         router.set_mode(InputMode.FOCUS_MESSAGE)
         assert router.mode == InputMode.FOCUS_MESSAGE
 
     def test_mode_change_callback(self):
-        from ui.input_router import InputRouter, InputMode
+        from ui.input_router import InputMode, InputRouter
         router = InputRouter()
         changes = []
         router.on_mode_change(lambda m: changes.append(m))
@@ -127,7 +128,7 @@ class TestInputRouter:
         assert changes == [InputMode.DETAIL_VIEW]
 
     def test_dispatch_finds_handler(self):
-        from ui.input_router import InputRouter, InputMode
+        from ui.input_router import InputMode, InputRouter
         router = InputRouter()
         called = []
         router.add_handler("up", InputMode.NORMAL, lambda: called.append("up") or True)
@@ -136,14 +137,14 @@ class TestInputRouter:
         assert called == ["up"]
 
     def test_dispatch_mode_filtering(self):
-        from ui.input_router import InputRouter, InputMode
+        from ui.input_router import InputMode, InputRouter
         router = InputRouter()
         normal_called = []
         focus_called = []
         # Register NORMAL before FOCUS
         router.add_handler("c", InputMode.NORMAL, lambda: normal_called.append("n") or True)
         router.add_handler("c", InputMode.FOCUS_MESSAGE, lambda: focus_called.append("f") or True)
-        
+
         # Normal mode: NORMAL handler fires (no mode-specific match)
         router.dispatch("c")
         assert normal_called == ["n"]
@@ -162,7 +163,7 @@ class TestInputRouter:
         assert not consumed
 
     def test_remove_handlers(self):
-        from ui.input_router import InputRouter, InputMode
+        from ui.input_router import InputMode, InputRouter
         router = InputRouter()
         called = []
         router.add_handler("d", InputMode.NORMAL, lambda: called.append("d") or True)

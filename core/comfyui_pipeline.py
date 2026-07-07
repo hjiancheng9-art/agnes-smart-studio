@@ -4,14 +4,14 @@ AI 构建工作流、调数值、练 LoRA 全流程。
 """
 
 import json
+import logging as _contract_logging
 import random
 
-# ── D-step: 错误恢复工具 ──
-from core.comfyui_recovery_tools import execute_recover_workflow, execute_error_kb_query
-
 # ── A-step: 工具契约层 ──
-from core.comfyui_contract import check_tool_contract, ContractCheckResult
-import logging as _contract_logging
+from core.comfyui_contract import check_tool_contract
+
+# ── D-step: 错误恢复工具 ──
+from core.comfyui_recovery_tools import execute_error_kb_query, execute_recover_workflow
 
 _contract_logger = _contract_logging.getLogger(__name__)
 
@@ -323,8 +323,9 @@ def execute_compile_and_validate(
     使用 ComfyUI 方法论 (COMFYUI_METHODOLOGY.md) 的原则 3+4：
     LLM → TaskSpec → WorkflowIR → GraphCompiler → Validator。
     """
-    from core.comfyui_api import quick_txt2img, validate_existing
     import json
+
+    from core.comfyui_api import quick_txt2img
 
     try:
         result = quick_txt2img(
@@ -378,8 +379,9 @@ def execute_validate_workflow(
 
     独立 Validator 入口 — 不经过 Compiler。
     """
-    from core.comfyui_api import validate_existing
     import json
+
+    from core.comfyui_api import validate_existing
 
     try:
         workflow = json.loads(workflow_json)

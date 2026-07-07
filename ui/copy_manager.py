@@ -6,8 +6,8 @@ GPT Review 要求：
 - 聚焦状态独立
 """
 
-from ui.message_store import Message, MessageStore
 from ui.input_router import FocusState, get_clipboard
+from ui.message_store import Message, MessageStore
 
 
 def extract_code_blocks(text: str) -> list[dict]:

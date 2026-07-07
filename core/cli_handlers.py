@@ -1166,7 +1166,7 @@ class CruxCLI:
     def _cmd_runs(self, args: str = "") -> str:
         """显示最近执行历史。用法: /runs [N]"""
         try:
-            from core.run_summary import list_recent_runs, list_failed_runs
+            from core.run_summary import list_failed_runs, list_recent_runs
 
             n = int(args.strip()) if args.strip().isdigit() else 10
             if args.strip().startswith("--failed"):
@@ -1241,9 +1241,9 @@ class CruxCLI:
     def _cmd_providers(self, args):
         """View provider health status. Use --why for detailed score breakdown."""
         try:
-            from core.provider_history import get_all_stats
-            from core.provider_policy import score_provider, format_route, format_explain
             from core.provider import get_provider_manager
+            from core.provider_history import get_all_stats
+            from core.provider_policy import format_explain, format_route, score_provider
 
             mgr = get_provider_manager()
             all_pids = list(mgr.providers.keys())
@@ -1315,7 +1315,7 @@ class CruxCLI:
         """View remediation playbook. Usage: /playbook <category>"""
         cat = args.strip()
         try:
-            from core.incident_playbook import format_playbook, PLAYBOOKS
+            from core.incident_playbook import PLAYBOOKS, format_playbook
 
             if not cat:
                 lines = ["Available playbooks:"]
@@ -1354,7 +1354,7 @@ class CruxCLI:
         if not rid:
             return "Usage: /replay <root_trace_id>"
         try:
-            from core.run_replay import get_failure_timeline, format_timeline, load_replay
+            from core.run_replay import format_timeline, get_failure_timeline, load_replay
 
             timeline = get_failure_timeline(rid)
             replay = load_replay(rid)

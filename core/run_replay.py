@@ -3,7 +3,6 @@
 import json
 import os
 import time
-from typing import Any
 
 from core.config import OUTPUT_DIR
 
@@ -41,7 +40,7 @@ def load_replay(root_trace_id: str) -> dict | None:
     path = os.path.join(REPLAY_DIR, f"{root_trace_id}.json")
     if not os.path.exists(path):
         return None
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -56,7 +55,7 @@ def list_replays(limit: int = 10) -> list[dict]:
             continue
         path = os.path.join(REPLAY_DIR, fname)
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
             replays.append(
                 {

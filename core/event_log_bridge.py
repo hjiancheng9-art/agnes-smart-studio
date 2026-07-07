@@ -11,13 +11,12 @@ import time
 from typing import Any
 
 from core.event_bus import (
-    TOOL_CALL_START,
     TOOL_CALL_COMPLETE,
     TOOL_CALL_FAILED,
+    TOOL_CALL_START,
     TOOL_CALL_TIMEOUT,
 )
-from core.event_log import get_event_log, record_event
-
+from core.event_log import record_event
 
 # ── Per-call tracking ─────────────────────────────────────
 _pending_calls: dict[str, dict[str, Any]] = {}

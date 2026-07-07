@@ -33,39 +33,42 @@ from typing import TYPE_CHECKING
 from prompt_toolkit import Application
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.filters import Condition
-from prompt_toolkit.application.current import get_app
 from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout import HSplit, Layout, Window
 from prompt_toolkit.layout.containers import ConditionalContainer
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
+from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.processors import BeforeInput
 from prompt_toolkit.output import create_output
 from prompt_toolkit.output.vt100 import Vt100_Output
 
+# ── Control Plane ─────────────────────────────────────────
+from core.control_plane import ControlEventType, control
+from core.protocol import emit_state
+
 # ── Static imports (avoid per-frame re-import) ──
 from core.version import __version__ as _CRUX_VERSION
+from ui.animation_gov import AnimationGovernor
 from ui.clipboard_image import detect_drag_images, get_clipboard_image, is_image_path
+from ui.completer import TuiCompleter
+from ui.copy_manager import CopyManager
+from ui.dashboard import DashboardState
+from ui.input_router import InputRouter, get_clipboard
+from ui.message_detail import MessageDetailScreen
 from ui.message_pane import MessagePane
+from ui.message_store import MessageStore
+from ui.panels.incident_panel import load_incidents, render_incidents
+from ui.panels.provider_route_panel import render_provider_route
+
+# ── Panels ──
+from ui.panels.run_summary_panel import render_run_summary
+from ui.responsive import EnvironmentInfo, LayoutManager
 from ui.status_bar import StatusBar
 from ui.theme_v2 import build_style_v2
 from ui.widgets_v2 import Spinner, ThinkingPanel, build_welcome_formatted, context_bar
-# ── Panels ──
-from ui.panels.run_summary_panel import render_run_summary
-from ui.panels.provider_route_panel import render_provider_route
-from ui.panels.incident_panel import load_incidents, render_incidents
-# ── Control Plane ─────────────────────────────────────────
-from core.control_plane import get_control, control, ControlEventType
-from ui.message_store import MessageStore, Message
-from ui.copy_manager import CopyManager
-from ui.message_detail import MessageDetailScreen
-from ui.input_router import InputRouter, InputMode, FocusState, get_clipboard
-
-
-
 
 try:
     from core.methodology import get_methodology_state as _get_methodology_state
@@ -125,61 +128,24 @@ class ScreenStack:
 
 
 class DashboardScreen(Screen):
+    '''Full-screen dashboard overlay. Delegates to problem-oriented DashboardState.'''
     name = "dashboard"
     def __init__(self):
-        self._cached_data = {}
-        self._last_refresh = 0
+        self._cached = []
     def on_enter(self, app):
-        self._refresh_data()
+        if app and hasattr(app, '_dash_state'):
+            app._dash_state.set_state("active")
         if app:
             app._app.invalidate()
-    def _refresh_data(self):
-        import time
-        if time.monotonic() - self._last_refresh < 2:
-            return
-        self._last_refresh = time.monotonic()
+    def __pt_formatted_text__(self):
+        from ui.dashboard import render_dashboard
         try:
-            from core.incident_store import get_incident_trends, load_incidents
-            self._cached_data["trends"] = get_incident_trends()
-            self._cached_data["incidents"] = load_incidents(limit=10)
+            result = render_dashboard()
+            from prompt_toolkit.formatted_text import FormattedText
+            return FormattedText(result)
         except Exception:
-            pass
-        try:
-            from core.run_replay import list_replays
-            self._cached_data["runs"] = list_replays(limit=5)
-        except Exception:
-            self._pending = []
-    def render(self, tw):
-        self._refresh_data()
-        d = self._cached_data
-        ft = []
-        ft.append(("bold", f'{"=" * tw}\n'))
-        ft.append(("bold class:header", "  DASHBOARD\n"))
-        ft.append(("class:dim", f"  {tw * '-'}\n"))
-        # Trends
-        trends = d.get("trends", {})
-        ft.append(("", f"  Incidents (24h): {trends.get('total', 0)}\n"))
-        incs = d.get("incidents", [])
-        if incs:
-            ft.append(("bold", "  Recent:\n"))
-            for inc in incs[:8]:
-                cat = inc.get("category", "?")
-                sev = inc.get("severity", "?")
-                ts = str(inc.get("timestamp", "?"))[:12]
-                ft.append(("", f"    [{sev[:1].upper()}] {cat:<20} {ts}\n"))
-        # Runs
-        runs = d.get("runs", [])
-        if runs:
-            ft.append(("bold", "\n  Recent runs:\n"))
-            for r in runs[:5]:
-                rid = str(r.get("root_trace_id", "?"))[:16]
-                st = r.get("status", "?")
-                ft.append(("", f"    {rid:<20} {st}\n"))
-        # Hint
-        ft.append(("class:dim", f"\n  {'=' * tw}\n"))
-        ft.append(("class:dim", "  Esc: exit /incidents /remediate /replay\n"))
-        return ft
-
+            from prompt_toolkit.formatted_text import FormattedText
+            return FormattedText([("class:dim", "Dashboard loading...")])
 
 class IncidentLogScreen(Screen):
     name = "incidents"
@@ -391,8 +357,18 @@ class TuiAppV2:
         self._native_select: bool = False
         self._cancel_requested: bool = False
         self._interrupted_by_priority: bool = False
-        self._closing = False
-        self._last_invalidate = 0.0
+        # ── Responsive Layout & Animation Governance (per 3-platform debate) ──
+        self._env = EnvironmentInfo.detect()
+        self._layout_mgr = LayoutManager(env=self._env)
+        self._anim_gov = AnimationGovernor(ssh_mode=self._env.is_ssh)
+        self._current_layout = self._layout_mgr.config
+        # ── React to layout/environment changes ──
+        self._layout_mgr.on_change(self._on_layout_changed)
+        # ── Focus Mode: hide chrome, show only messages (F12 toggle) ──
+        self._focus_mode = False
+        # ── Problem-Oriented Dashboard State (per debate: quiet normally, speak up on problems) ──
+        self._dash_state = DashboardState()
+
         self._latency: float | None = None
         self._state_lock = threading.Lock()
 
@@ -440,10 +416,12 @@ class TuiAppV2:
 
         # ── Input ──
         self._history = InMemoryHistory()
+        self._completer = TuiCompleter()
         self.input_buffer = Buffer(
             multiline=True,
             accept_handler=self._on_accept,
             history=self._history,
+            completer=self._completer,
         )
 
         # ── Key bindings ──
@@ -553,10 +531,25 @@ class TuiAppV2:
             self.input_buffer.reset()
             event.app.invalidate()
 
+        @kb.add("c-t")
+        def _(event):
+            """Toggle secondary metrics panel (CPU/memory/disk)."""
+            if hasattr(event.app, '_dash_state'):
+                event.app._dash_state.toggle_secondary()
+                event.app.invalidate()
+
         @kb.add("f11")
         def _(event):
             renderer = event.app.renderer
-            renderer.full_screen = not renderer.full_screen
+        @kb.add("f12")
+        def _(event):
+            """Toggle focus mode: hide all chrome, show only messages."""
+            app = event.app
+            self._focus_mode = not self._focus_mode
+            if self._focus_mode:
+                self.message_pane._pinned = True
+            app.invalidate()
+            self.message_pane._refresh()
             if not renderer.full_screen and renderer._in_alternate_screen:
                 renderer.output.quit_alternate_screen()
                 renderer._in_alternate_screen = False
@@ -565,7 +558,7 @@ class TuiAppV2:
             )
             event.app.invalidate()
 
-        @kb.add("pageup")
+
         def _(event):
             self.message_pane.scroll_page_up()
             event.app.invalidate()
@@ -928,7 +921,6 @@ class TuiAppV2:
 
         # ── Assemble layout (full-screen replacement) ──
         screen_mode = Condition(lambda: self.screen_stack.active)
-        normal_mode = Condition(lambda: not self.screen_stack.active)
 
         normal_body = HSplit([
             header_window,
@@ -942,9 +934,18 @@ class TuiAppV2:
             status_window,                # Status (1)
         ])
 
+        # ── Focus Mode: full-height message area only (F12) ──
+        focus_body = Window(
+            content=self.message_pane.pane.content,
+            always_hide_cursor=True,
+        )
+        focus_condition = Condition(lambda: self._focus_mode)
+        normal_condition = Condition(lambda: not self._focus_mode and not self.screen_stack.active)
+
         root = HSplit([
             ConditionalContainer(self._screen_window, filter=screen_mode),
-            ConditionalContainer(normal_body, filter=normal_mode),
+            ConditionalContainer(normal_body, filter=normal_condition),
+            ConditionalContainer(focus_body, filter=focus_condition),
         ])
 
         # On Windows with a Unix-like terminal (Git Bash, etc.), create_output()
@@ -957,7 +958,7 @@ class TuiAppV2:
         return Application(
             layout=Layout(root),
             key_bindings=self.kb,
-            style=build_style_v2(),
+            style=build_style_v2(self._layout_mgr.theme_mode),
             full_screen=True,
             mouse_support=True,
             output=output,
@@ -1083,15 +1084,27 @@ class TuiAppV2:
 
 
     def _render_dashboard(self):
-        """Render dashboard if active."""
-        if not self._show_dashboard:
-            from prompt_toolkit.formatted_text import FormattedText
+        """Render dashboard using problem-oriented DashboardState + responsive LayoutConfig."""
+        from prompt_toolkit.formatted_text import FormattedText
+
+        layout_config = self._layout_mgr.config
+
+        # Hide dashboard entirely when layout says so
+        if not layout_config.dashboard_visible:
             return FormattedText([])
+
+        # Feed current state to dashboard state
+        if self._streaming:
+            self._dash_state.set_state("streaming")
+        elif self._thinking:
+            self._dash_state.set_state("thinking")
+        # Note: _dash_state stays as-is otherwise (idle/active/error managed externally)
+
         try:
             from ui.dashboard import render_dashboard
-            return render_dashboard()
+            result = render_dashboard(state=self._dash_state, layout=layout_config)
+            return FormattedText(result)
         except Exception as e:
-            from prompt_toolkit.formatted_text import FormattedText
             return FormattedText([("class:header-error", f"Dashboard error: {e}")])
 
 
@@ -1136,6 +1149,11 @@ class TuiAppV2:
             # ── Command routing ──
             if self._handle_command(text):
                 return True
+
+            # ── Feed accepted words to completer ──
+            words = [w.strip().rstrip(',.;:!?') for w in text.split() if len(w.strip()) >= 3]
+            if words:
+                self._completer.update_history_words(words)
 
             # ── Thinking guard — queue input if streaming ──
             if self._thinking or self._streaming:
@@ -1233,6 +1251,31 @@ class TuiAppV2:
                 self.message_pane.append_error(f"Error: {e}")
             return True
 
+        # ── Theme switching (per 3-platform debate) ──
+        if text.startswith("/theme"):
+            parts = text.split()
+            if len(parts) >= 2:
+                new_mode = parts[1].strip().lower()
+                if new_mode in ("normal", "high_contrast", "mono"):
+                    self._layout_mgr._override_theme = new_mode
+                    self._on_layout_changed(self._layout_mgr.config)
+                    self.message_pane.append_info(f"Theme: {new_mode}")
+                else:
+                    self.message_pane.append_info(f"Theme not found: {new_mode}. Options: normal, high_contrast, mono")
+            else:
+                current = getattr(self._layout_mgr, "_override_theme", None) or self._layout_mgr.theme_mode
+                self.message_pane.append_info(f"Current theme: {current}")
+            return True
+
+        # ── System metrics toggle ──
+        if text == "/sys":
+            self._dash_state.toggle_secondary()
+            if self._dash_state._show_secondary:
+                self.message_pane.append_info("System metrics: ON (Ctrl+T to hide)")
+            else:
+                self.message_pane.append_info("System metrics: OFF")
+            return True
+
 
 
         # ── Panel commands ──
@@ -1283,7 +1326,7 @@ class TuiAppV2:
             return True
 
 
-        
+
 
         # ── Download commands ──
         if text == "/download" or text.startswith("/download ") or text == "/downloads":
@@ -1297,9 +1340,9 @@ class TuiAppV2:
 # ── Dashboard ──
         if text == "/dashboard":
             try:
-                from ui.panels.run_summary_panel import render_run_summary
-                from ui.panels.incident_panel import load_incidents, render_incidents
                 from core.remediation_executor import get_recent_actions
+                from ui.panels.incident_panel import load_incidents, render_incidents
+                from ui.panels.run_summary_panel import render_run_summary
                 self._log_clear()
                 self.message_pane.append_message("info", " CRUX DASHBOARD\n")
                 self.message_pane.append_message("info", " R refresh \u2502 Q/Esc back\n\n")
@@ -1319,8 +1362,8 @@ class TuiAppV2:
         # ── Run detail ──
         if text == "/run" or text.startswith("/run "):
             try:
-                from ui.panels.run_detail_panel import render_run_detail
                 from core.remediation_executor import get_recent_actions
+                from ui.panels.run_detail_panel import render_run_detail
                 parts = text.split(" ", 1)
                 target = parts[1].strip() if len(parts) > 1 else "last"
                 actions = get_recent_actions(20)
@@ -1374,8 +1417,8 @@ class TuiAppV2:
         # ── Provider health ──
         if text == "/providers":
             try:
-                from ui.panels.system_status_panel import render_system_status
                 from core.remediation_executor import get_recent_actions
+                from ui.panels.system_status_panel import render_system_status
                 providers = []
                 seen = set()
                 for a in get_recent_actions(15):
@@ -1465,6 +1508,9 @@ class TuiAppV2:
             with self._state_lock:
                 self._thinking = True
                 self._streaming = True
+                self._anim_gov.streaming = True
+                emit_state(streaming=True, thinking=self._thinking)
+                self._dash_state.set_state("streaming")
             from threading import Thread as _Thread
             self._worker_thread = _Thread(
                 target=self._stream_response,
@@ -1588,7 +1634,9 @@ class TuiAppV2:
             with self._state_lock:
                 self._streaming = False
                 self._thinking = False
-            self.thinking_panel.done()
+                self._anim_gov.streaming = False
+                self._dash_state.set_state("idle")
+            emit_state(streaming=False, thinking=False)
             self._spinner.stop()
             self._ui(self._refresh_status, _force=True)
 
@@ -1705,7 +1753,7 @@ class TuiAppV2:
                 if not _interrupted:
                     _qt = self._queued_text
                     self._queued_text = None
-            
+
             if _interrupted:
                 # 优先插话中断 — 立即处理用户的优先消息
                 _ev = control().queue.poll()
@@ -1791,6 +1839,21 @@ class TuiAppV2:
         message = self._shorten(str(error), limit)
         return f"{name}: {message}" if message else name
 
+    def _on_layout_changed(self, new_config):
+        """React to layout/environment changes: update theme, invalidate UI."""
+        self._current_layout = new_config
+        # Apply theme mode
+        mode = self._layout_mgr.theme_mode
+        try:
+            from prompt_toolkit.application.current import get_app
+
+            from ui.theme_v2 import build_style_v2
+            app = get_app()
+            app.style = build_style_v2(mode)
+            app.invalidate()
+        except Exception:
+            pass  # App not yet running
+
     def _refresh_status(self):
         self.status_bar.set_model(self.session.model)
         self.status_bar.set_thinking(self._thinking)
@@ -1799,8 +1862,27 @@ class TuiAppV2:
             chars = sum(len(str(m.get("content", ""))) for m in self.session.messages)
             self._cached_ctx_pct = min(100.0, chars * 0.4 / 128000 * 100)
             self.status_bar.set_context(int(chars * 0.4), 128000)
+            # Feed context to dashboard state (per debate: P0 metric)
+            self._dash_state._context_pct = self._cached_ctx_pct
         except Exception:
             import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+        # ── Collect system metrics for secondary panel ──
+        if self._dash_state._show_secondary:
+            try:
+                import psutil
+                self._dash_state._cpu_pct = psutil.cpu_percent(interval=None)
+                mem = psutil.virtual_memory()
+                self._dash_state._memory_pct = mem.percent
+                self._dash_state._memory_used_mb = mem.used // (1024*1024)
+                self._dash_state._memory_total_mb = mem.total // (1024*1024)
+                self._dash_state._disk_pct = psutil.disk_usage('/').percent
+                self._dash_state._process_count = len(psutil.pids())
+                self._dash_state._uptime_hours = 0.0
+            except ImportError:
+                pass
+            except Exception:
+                pass
+
         # Cache git info (call once, not per frame)
         self.status_bar.refresh()
         try:
@@ -1809,6 +1891,14 @@ class TuiAppV2:
             self._cached_git = f" {b}" + (f" [{d}]" if d else "") if b else ""
         except Exception:
             self._cached_git = ""
+        # ── Broadcast state to protocol bus ──
+        emit_state(
+            model=self.session.model,
+            thinking=self._thinking,
+            streaming=self._streaming,
+            context_pct=self._cached_ctx_pct,
+            active_agents=len(getattr(self, "_running_runs", [])),
+        )
 
     def _request_exit(self) -> None:
         """Graceful shutdown request: stop streaming, spinner, thinking."""
@@ -1886,8 +1976,8 @@ class TuiAppV2:
 
     def run(self):
         # ── signal handlers for graceful Ctrl+C / kill ──
-        import signal as _signal
         import atexit as _atexit
+        import signal as _signal
 
         _shutdown_once = False
 

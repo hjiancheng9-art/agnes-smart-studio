@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -87,7 +85,7 @@ def get_recovery_ledger(incident_id: str) -> list[dict]:
     if not ledger_file.is_file():
         return []
     entries: list[dict] = []
-    with open(ledger_file, "r", encoding="utf-8") as f:
+    with open(ledger_file, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line:
@@ -100,7 +98,6 @@ def get_recovery_ledger(incident_id: str) -> list[dict]:
 
 def _exec_retry_with_backoff(args: str = "") -> str:
     """Clear retry state to allow immediate retry."""
-    from core.provider import get_provider_health
 
     return f"retry state cleared (args={args})"
 
@@ -260,7 +257,7 @@ def get_recent_actions(limit: int = 20) -> list[dict]:
     actions: list[dict] = []
     for f in sorted(ledger_dir.iterdir(), reverse=True)[:limit]:
         if f.suffix == ".jsonl":
-            with open(f, "r", encoding="utf-8") as fh:
+            with open(f, encoding="utf-8") as fh:
                 for line in fh:
                     line = line.strip()
                     if line:

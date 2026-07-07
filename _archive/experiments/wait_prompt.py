@@ -1,5 +1,10 @@
-import asyncio, json, time, sys
+import asyncio
+import json
+import sys
+import time
+
 from playwright.async_api import async_playwright
+
 
 async def main():
     async with async_playwright() as p:
@@ -13,7 +18,7 @@ async def main():
         if not page:
             print("no page")
             return
-        
+
         start = time.time()
         while time.time() - start < 240:
             await asyncio.sleep(5)

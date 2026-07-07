@@ -12,8 +12,8 @@
     自动调用此模块追加方法论内容。
 """
 
-import os
 import logging
+import os
 from functools import lru_cache
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ def get_comfyui_methodology() -> str:
         logger.warning("COMFYUI_METHODOLOGY.md 不存在于 %s", METHODOLOGY_FILE)
         return ""
     try:
-        with open(METHODOLOGY_FILE, "r", encoding="utf-8") as f:
+        with open(METHODOLOGY_FILE, encoding="utf-8") as f:
             content = f.read()
         logger.info("已加载 ComfyUI 方法论 (%d 字符)", len(content))
         return content
@@ -44,7 +44,7 @@ def format_methodology_prompt() -> str:
         return ""
 
     # 提取核心原则和决策树
-    return f"""
+    return """
 # ComfyUI Agent Methodology (CWIM) — 方法论文档已加载
 
 以下原则是 ComfyUI 工作流智能体的硬性执行准则：

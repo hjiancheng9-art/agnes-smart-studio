@@ -2,7 +2,6 @@
 
 from typing import Any
 
-
 # 全局预算：每个 root_trace_id 最多重试次数
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_COOLDOWN_SEC = 30  # 重试冷却
@@ -59,7 +58,7 @@ def auto_retry_decision(summary: dict, max_retries: int = DEFAULT_MAX_RETRIES) -
         {"should_retry": bool, "reason": str, "budget": dict}
     """
     root_id = summary.get("root_trace_id", "")
-    from core.policy_gate import should_retry, should_escalate
+    from core.policy_gate import should_escalate, should_retry
 
     budget = get_retry_budget(root_id, max_retries)
 

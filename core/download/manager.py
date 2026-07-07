@@ -5,21 +5,20 @@ from __future__ import annotations
 import os
 import threading
 import time
+from collections.abc import Callable
 from datetime import datetime
-from typing import Callable
 
-from core.error_sink import catch
-
-from core.download.models import (
-    DownloadKind,
-    DownloadRequest,
-    DownloadJob,
-    new_job_id,
-)
-from core.download.engines.aria2_engine import Aria2Engine, Aria2Config
+from core.download.config import load_config
+from core.download.engines.aria2_engine import Aria2Config, Aria2Engine
 from core.download.engines.ffmpeg_engine import FFmpegEngine
 from core.download.engines.ytdlp_engine import YtdlpEngine
-from core.download.config import load_config
+from core.download.models import (
+    DownloadJob,
+    DownloadKind,
+    DownloadRequest,
+    new_job_id,
+)
+from core.error_sink import catch
 
 DEFAULT_DIR = os.path.expanduser("~/Downloads/CRUX")
 

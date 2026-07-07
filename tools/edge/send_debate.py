@@ -1,8 +1,9 @@
 """
 发送 CRUX 辩论提示到 Gemini 和 智谱，并读取回复
 """
+import time
+
 from playwright.sync_api import sync_playwright
-import time, json, sys
 
 CDP_URL = "http://127.0.0.1:9222"
 
@@ -32,7 +33,7 @@ def send_to_gemini(p, browser):
             if 'gemini' in pg.url:
                 pg.bring_to_front()
                 time.sleep(1)
-                
+
                 # Click new conversation if exists
                 try:
                     new_btn = pg.query_selector('button[aria-label="发起新对话"]')
@@ -41,23 +42,23 @@ def send_to_gemini(p, browser):
                         time.sleep(1)
                 except:
                     pass
-                
+
                 # Find and fill the input
                 input_el = pg.query_selector('[contenteditable="true"]')
                 if not input_el:
                     print("❌ Gemini: 找不到输入框")
                     return None
-                
+
                 input_el.click()
                 time.sleep(0.3)
                 input_el.fill('')
                 time.sleep(0.3)
-                
+
                 # Type the prompt
                 pg.keyboard.insert_text(DEBATE_PROMPT)
                 print(f"✅ Gemini: 已输入提示 ({len(DEBATE_PROMPT)} chars)")
                 time.sleep(2)
-                
+
                 # Check for send button now that text is entered
                 send_btn = pg.query_selector('button[aria-label="发送"]')
                 if send_btn and not send_btn.is_disabled():
@@ -67,7 +68,7 @@ def send_to_gemini(p, browser):
                     # Try pressing Enter
                     pg.keyboard.press('Enter')
                     print("✅ Gemini: 已按 Enter")
-                
+
                 # Wait for response
                 print("⏳ Gemini: 等待回复...")
                 for i in range(30):
@@ -84,13 +85,13 @@ def send_to_gemini(p, browser):
                         }
                         return {done: false, textLen: allText.length, hasStop: !!stopBtn};
                     }""")
-                    
+
                     if result.get('done'):
                         print(f"✅ Gemini: 回复完成! ({len(result['text'])} chars)")
                         return result['text']
                     else:
                         print(f"  ⏳ 等待... ({result.get('textLen', 0)} chars, stop={result.get('hasStop')})")
-                
+
                 print("⚠️ Gemini: 超时")
                 return pg.evaluate("() => document.body.innerText")
 
@@ -101,13 +102,13 @@ def send_to_zhipu(p, browser):
             if 'open.bigmodel' in pg.url:
                 pg.bring_to_front()
                 time.sleep(1)
-                
+
                 # Find and fill textarea
                 ta = pg.query_selector('textarea')
                 if not ta:
                     print("❌ 智谱: 找不到输入框")
                     return None
-                
+
                 # Click "新建对话" to start fresh
                 try:
                     new_btn = pg.query_selector('button:has-text("新建对话")')
@@ -117,7 +118,7 @@ def send_to_zhipu(p, browser):
                         time.sleep(1.5)
                 except:
                     pass
-                
+
                 # Re-find textarea after new conversation
                 ta = pg.query_selector('textarea')
                 if ta:
@@ -128,7 +129,7 @@ def send_to_zhipu(p, browser):
                     ta.fill(DEBATE_PROMPT)
                     print(f"✅ 智谱: 已输入提示 ({len(DEBATE_PROMPT)} chars)")
                     time.sleep(1)
-                    
+
                     # Click the submit button
                     submit_btn = pg.evaluate("""() => {
                         // Find the submit div
@@ -145,7 +146,7 @@ def send_to_zhipu(p, browser):
                         }
                         return {found: false};
                     }""")
-                    
+
                     if submit_btn['found']:
                         pg.mouse.click(submit_btn['x'], submit_btn['y'])
                         print("✅ 智谱: 已点击发送按钮")
@@ -153,7 +154,7 @@ def send_to_zhipu(p, browser):
                         # Try Ctrl+Enter
                         pg.keyboard.press('Control+Enter')
                         print("✅ 智谱: 已按 Ctrl+Enter")
-                    
+
                     # Wait for response
                     print("⏳ 智谱: 等待回复...")
                     for i in range(30):
@@ -168,13 +169,13 @@ def send_to_zhipu(p, browser):
                             }
                             return {done: false, textLen: allText.length, hasStop: !!stopBtn};
                         }""")
-                        
+
                         if result.get('done'):
                             print(f"✅ 智谱: 回复完成! ({len(result['text'])} chars)")
                             return result['text']
                         else:
                             print(f"  ⏳ 等待... ({result.get('textLen', 0)} chars, stop={result.get('hasStop')})")
-                    
+
                     print("⚠️ 智谱: 超时")
                     return pg.evaluate("() => document.body.innerText")
 

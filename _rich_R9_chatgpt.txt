@@ -1,0 +1,1178 @@
+反方，给结论。
+2/2
+辩论 CRUX TUI v2 的消息渲染策略：
+1.【Markdown子集】AI编程助手最常用的Markdown元素是哪些？应该支持哪些，放弃哪些？
+.【代码高亮】Pygments是唯一选择吗？流式输出时的逐行高亮策略？语言自动检测怎么处理？
+.【CJK宽度】east_asian_width计算的实际效果？全角字符/emoji/Nerd Font怎么处理？
+4.【表格/数学公式】终端里怎么处理表格和公式？降级策略？
+5.【图片粘贴】剪贴板粘贴图片的方案？终端里的显示方案（ASCII art？链路？文件路径？）
+2/2
+
+你打断得对，这一轮应该从“可访问性”自然切到“消息渲染”，因为渲染策略本身就是可访问性的落地点：能读、能降级、不卡顿，比完整支持所有 Markdown 更重要。
+
+下面继续辩论 CRUX TUI v2 的消息渲染策略。我会把它当成一个核心问题：
+
+终端消息渲染不是“把网页 Markdown 搬进终端”，而是选择一个稳定、快速、可降级的 AI 编程助手 Markdown 子集。
+
+CRUX TUI v2 的渲染目标应该是：
+
+能读代码
+能读错误
+能读列表
+能读路径
+能读表格摘要
+能在 CJK/SSH/小窗口下不崩
+
+不是追求 GitHub Markdown 100% 还原。
+
+1.【Markdown 子集】应该支持哪些，放弃哪些？
+正方：Markdown 支持越完整越好
+
+论点1：AI 输出天然是 Markdown。
+大模型经常输出标题、列表、代码块、表格、引用、链接。如果 TUI 不支持 Markdown，长回答会变成纯文本泥石流。
+
+论点2：编程助手特别依赖结构化排版。
+修复方案、步骤、文件列表、diff、命令、错误原因，都需要层级结构。Markdown 是最自然的表达格式。
+
+论点3：用户会从 ChatGPT/IDE Chat 迁移预期。
+用户已经习惯 Markdown 渲染。如果 CRUX TUI 只显示原始文本，会显得粗糙。
+
+反方：完整 Markdown 不适合终端
+
+论点1：终端没有网页布局能力。
+复杂表格、HTML、图片、数学公式、脚注、嵌套列表，在终端里很容易错位。
+
+论点2：完整 Markdown 会拖慢性能。
+每条消息都完整解析、换行、样式化、缓存失效，配合流式输出会产生卡顿。
+
+论点3：过度支持会增加 bug 面。
+TUI 的核心不是排版引擎。支持越多 Markdown 特性，越容易出现宽度、滚动、复制、换行、CJK 错位问题。
+
+我的结论：支持 AI 编程助手 Markdown 子集
+
+我建议分成 P0 / P1 / P2 / 放弃 四层。
+
+P0：必须支持
+
+这些是 AI 编程助手高频元素。
+
+Markdown 元素	支持策略
+普通段落	必须支持，自动换行
+标题 # ## ###	支持 1-3 级，超过 3 级降级为普通加粗行
+无序列表 - *	支持，最多稳定渲染 2-3 层
+有序列表 1.	支持，最多稳定渲染 2-3 层
+代码块 ```	必须支持，是最核心能力
+行内代码 `code`	必须支持
+引用 >	支持，用左侧竖线或缩进
+分隔线 ---	支持，渲染为终端横线
+链接 [text](url)	支持，但以文本形式显示
+diff 代码块	必须支持，AI 编程助手高频
+
+推荐效果：
+
+# 标题
+→ 粗体 / 颜色轻强调，不要大字号幻想
+
+- 列表
+  - 二级列表
+    - 三级最多，之后降级缩进
+
+```python
+代码块
+
+inline_code
+
+引用内容
+
+text
+
+→ text <url>
+
+
+---
+
+## P1：建议支持，但可降级
+
+| Markdown 元素 | 支持策略 |
+|---|---|
+| 粗体 `**text**` | 支持，但不要过度样式 |
+| 斜体 `*text*` | 可支持，也可仅保留文本 |
+| 删除线 `~~text~~` | 可支持，不重要 |
+| 任务列表 `- [ ]` / `- [x]` | 建议支持，适合 todo |
+| 简单表格 | 支持小表格，大表格降级 |
+| 自动链接 | 支持，但不做复杂点击 |
+| 文件路径识别 | 建议支持，高价值 |
+| 行号/错误定位 | 建议支持，高价值 |
+
+其中最值得做的是：
+
+```text
+任务列表
+简单表格
+文件路径
+错误位置
+
+因为它们和 AI 编程助手强相关。
+
+P2：可选支持
+Markdown 元素	判断
+脚注	低频，不建议优先
+定义列表	低频
+admonition / callout	可以降级为引用块
+Mermaid	不建议在 TUI 内渲染，显示源码或导出
+HTML 内嵌	不建议渲染
+图片 Markdown	不直接渲染，转附件链接
+复杂嵌套表格	不支持
+数学公式渲染	不原生渲染，保留源码
+应该放弃的
+
+我建议明确放弃这些：
+
+原生 HTML 渲染
+复杂 LaTeX 排版
+Mermaid 图形渲染
+嵌套表格
+图片内嵌式渲染
+GitHub 全量 Markdown 兼容
+复杂 CSS 风格
+
+原因很简单：
+
+终端不是浏览器。CRUX TUI 的目标是“高效阅读 AI 编程输出”，不是复刻 GitHub。
+
+2.【代码高亮】Pygments 是唯一选择吗？
+正方：Pygments 是合理默认
+
+论点1：Python 生态成熟。
+CRUX TUI 是 Python prompt_toolkit，Pygments 是最自然的语法高亮方案。
+
+论点2：语言覆盖广。
+Python、JavaScript、TypeScript、JSON、YAML、Bash、Diff、Markdown、TOML、Rust、Go 等都能覆盖。
+
+论点3：集成成本低。
+不需要外部命令，不依赖 Node/Rust 二进制，部署简单。
+
+反方：Pygments 不是完美答案
+
+论点1：性能不是最强。
+长代码块、多次刷新、流式输出时反复高亮，Pygments 会成为性能瓶颈。
+
+论点2：自动识别语言不稳定。
+Pygments 的 guess 机制可能误判，尤其是短代码片段、混合日志、错误栈。
+
+论点3：prompt_toolkit 样式整合有成本。
+Pygments 输出 token 后还要映射到 prompt_toolkit style，主题同步需要额外维护。
+
+可选方案对比
+方案	优点	缺点	结论
+Pygments	成熟、Python 原生、语言多	流式高亮慢	推荐默认
+Rich	Markdown/高亮体验好	和 prompt_toolkit 混用麻烦	不建议直接混
+Textual	TUI 框架强	等于换架构	不适合当前 v2
+tree-sitter	结构准确、增量潜力强	集成重、主题复杂	后期可选
+bat/syntect 外部命令	高亮漂亮	依赖外部程序	不适合核心路径
+简单 regex 高亮	快	准确性弱	可用于流式阶段
+
+我的建议：
+
+Pygments 做最终精渲染；流式阶段不用 Pygments，或者只做极轻量高亮。
+
+流式输出时逐行高亮要不要做？
+正方：可以逐行高亮
+
+论点1：用户边看边获得语法结构。
+长代码输出时，实时高亮确实更舒服。
+
+论点2：完整代码块可能很晚才结束。
+如果等到整条消息完成才高亮，用户在生成过程中看到的都是朴素文本。
+
+论点3：逐行高亮可以缓存。
+如果按完整行缓存，未变的行不需要重复解析。
+
+反方：不建议逐行高亮
+
+论点1：代码块未闭合时不稳定。
+流式输出中语言标记、代码边界、缩进都可能还没完整，逐行高亮容易错。
+
+论点2：逐行高亮仍然会频繁触发解析。
+模型每来几行就解析一次，长代码块会明显拖慢 UI。
+
+论点3：高亮导致滚动跳动。
+流式时朴素文本，之后逐行高亮，样式和宽度变化可能造成视觉抖动。
+
+我的策略：两阶段渲染
+StreamingRender：流式阶段
+- 不跑完整 Pygments
+- 只识别代码块边界
+- 显示语言名
+- 使用单色代码块样式
+- diff 可做极轻量 + / - 行前缀颜色
+- 最多 10-15 fps 刷新
+
+示例：
+
+```python  streaming...
+│ def foo():
+│     return 1
+FinalRender：完成阶段
+- 消息完成后完整 Markdown parse
+- 代码块闭合后运行 Pygments
+- 写入 RenderCache
+- 后续滚动直接使用缓存
+
+这样兼顾：
+
+流式顺滑
+最终漂亮
+性能稳定
+语言自动检测怎么处理？
+
+语言识别优先级：
+
+1. 代码围栏显式语言：```python
+2. @file 引用的文件扩展名
+3. 当前任务上下文：正在编辑 .py / .ts / .json
+4. shebang：#!/usr/bin/env python
+5. 文件内容轻量规则
+6. Pygments guess，低置信度时不用
+7. fallback: text
+
+不要过度猜。
+
+尤其短片段：
+
+{"a": 1}
+
+可能是 JSON，也可能只是日志。
+如果没有明确语言，宁可当 plain text，也不要误高亮。
+
+推荐规则：
+
+显式语言 > 文件扩展名 > 上下文 > 轻量检测 > plain text
+
+不要把 Pygments guess 放到高优先级。
+
+3.【CJK 宽度】east_asian_width 实际效果如何？
+正方：east_asian_width 是必要基础
+
+论点1：中文、日文、韩文必须按宽字符处理。
+如果不处理 CJK，中文会把边框、表格、列表、状态栏全部挤歪。
+
+论点2：Python 标准库可用。
+unicodedata.east_asian_width() 能区分 Fullwidth、Wide、Narrow 等类别，是基本工具。
+
+论点3：对普通中文文本效果不错。
+大部分汉字、全角标点、日文假名、韩文字符都能得到接近正确的宽度。
+
+反方：east_asian_width 不够
+
+论点1：Ambiguous 字符依赖终端环境。
+一些符号在东亚终端里显示为 2 宽，在西方终端里显示为 1 宽。east_asian_width 无法知道实际终端怎么渲染。
+
+论点2：emoji 很复杂。
+emoji、肤色修饰符、ZWJ 组合、国旗、variation selector，不能简单按单字符宽度计算。
+
+例如：
+
+👨‍💻
+🏳️‍🌈
+🇯🇵
+⚙️
+
+这些不是简单 1 个 Unicode code point。
+
+论点3：Nerd Font 图标不可预测。
+很多图标在某些字体里是 1 宽，在某些字体里是 2 宽，甚至显示为 tofu 方块。
+
+我的结论：不要只用 east_asian_width，应该使用 wcwidth + 保守符号集
+
+推荐宽度策略：
+
+1. 使用 wcwidth/wcswidth 作为主宽度计算
+2. east_asian_width 作为辅助判断
+3. 对 emoji 和组合字符做保守处理
+4. 对 UI 装饰符号使用白名单
+5. 提供 ascii-only 模式
+全角字符怎么处理？
+
+全角字符：
+
+中文：你我他
+全角标点：，。！？【】
+日文假名：あア
+
+原则：
+
+按 2 宽处理
+表格和边框布局必须使用 wcswidth
+不要用 len()
+
+错误示例：
+
+Python
+运行
+len("你好") == 2
+
+但显示宽度是：
+
+wcswidth("你好") == 4
+
+TUI 里所有对齐都必须基于显示宽度，不是字符数。
+
+emoji 怎么处理？
+
+建议：
+
+正文中允许 emoji，但不保证完美对齐
+状态栏和边框禁止使用复杂 emoji
+Dashboard 禁止使用 ZWJ emoji
+关键状态不要用 emoji 作为唯一符号
+
+也就是说，可以允许用户消息里出现：
+
+修好了 ✅
+
+但不要把 UI 核心符号设计成：
+
+🐯 YOU
+🐉 AI
+🪽 ERR
+
+原因是 emoji 宽度太不稳定。
+
+七兽如果要显示，建议用文本标签，不用 emoji：
+
+TIGER / DRAGON / QILIN
+
+或者更短：
+
+YOU / AI / THINK / ERR
+Nerd Font 怎么处理？
+
+Nerd Font 图标很诱人，但不建议作为默认。
+
+正方：Nerd Font 好看
+
+论点1：开发者喜欢。
+很多终端主题、Starship、Lazygit 都用 Nerd Font，视觉现代。
+
+论点2：图标可以节省空间。
+Git、branch、folder、model、tool 都可以用图标表达。
+
+论点3：品牌感更强。
+
+反方：不适合作为默认
+
+论点1：用户不一定安装 Nerd Font。
+没装就显示乱码或方块。
+
+论点2：SSH/远程环境不可控。
+远程终端字体是本地决定的，程序无法保证。
+
+论点3：屏幕阅读器和复制日志不友好。
+
+结论
+
+默认不用 Nerd Font。
+可以提供：
+
+icon_mode = "ascii" | "unicode" | "nerd"
+
+默认：
+
+unicode
+
+远程/异常：
+
+ascii
+
+用户手动开启：
+
+nerd
+4.【表格 / 数学公式】终端里怎么处理？
+表格
+正方：表格应该支持
+
+论点1：AI 经常输出对比表。
+架构评审、方案排序、评分、命令说明，都非常适合表格。
+
+论点2：表格比长列表更清晰。
+特别是参数、状态、优先级、文件改动总结，表格可读性高。
+
+论点3：CRUX 评审类对话高频使用表格。
+你现在大量架构评审都适合用表格呈现。
+
+反方：终端表格很脆
+
+论点1：宽度不够就崩。
+表格需要横向空间，小窗口下必然换行错乱。
+
+论点2：CJK 宽度会放大问题。
+中文表头、中文内容、英文路径混排，很容易对不齐。
+
+论点3：长代码/路径不适合表格。
+文件路径、错误信息、长建议放进表格，会让整张表无法阅读。
+
+表格策略
+
+我建议支持简单表格，但必须有自动降级。
+
+宽屏：正常表格
+| 项目 | 建议 | 原因 |
+|---|---|---|
+| Dashboard | 按需显示 | 避免干扰 |
+
+渲染为：
+
+项目        建议        原因
+────────────────────────────
+Dashboard  按需显示    避免干扰
+中屏：压缩列宽
+项目        建议
+────────────────
+Dashboard  按需显示
+原因: 避免干扰
+小屏：转为卡片
+[Dashboard]
+建议: 按需显示
+原因: 避免干扰
+极小屏：保留原始 Markdown
+| Dashboard | 按需显示 | 避免干扰 |
+表格降级规则
+
+建议：
+
+终端宽度 >= 120：
+允许 3-4 列表格
+
+终端宽度 96-119：
+最多 3 列，长内容截断/换行
+
+终端宽度 80-95：
+转 key-value 卡片
+
+终端宽度 <80：
+保留 Markdown 原文或卡片
+
+表格硬限制：
+
+超过 5 列：默认不渲染成表格
+超过 20 行：折叠，只显示前 10 行 + 展开提示
+单元格超过 40 显示宽度：截断或换行
+包含代码块：不渲染表格
+数学公式
+正方：应该支持公式
+
+论点1：AI 可能输出算法、复杂度、损失函数。
+编程助手也会涉及数学、机器学习、渲染参数、图像模型公式。
+
+论点2：公式保留结构有价值。
+如果把公式打散，可读性会下降。
+
+论点3：部分终端可以显示 Unicode 数学符号。
+
+反方：终端不适合公式渲染
+
+论点1：LaTeX 公式无法优雅排版。
+分式、矩阵、上下标、积分、根号，在终端里很难还原。
+
+论点2：渲染依赖外部工具。
+真正渲染公式通常需要 MathJax、KaTeX、图片或 Unicode 转换，TUI 不适合内置。
+
+论点3：公式渲染可能严重破坏宽度计算。
+
+数学公式策略
+
+我的建议：
+
+不做真正公式渲染
+保留 LaTeX 原文
+对 inline math 做轻量突出
+对 block math 做代码块式展示
+
+例如：
+
+Inline:
+损失函数为 `$L = \sum_i (y_i - \hat{y_i})^2$`
+
+渲染：
+损失函数为 [math: L = \sum_i (y_i - \hat{y_i})^2]
+
+Block math：
+
+$$
+L = \sum_i (y_i - \hat{y_i})^2
+$$
+
+渲染为：
+
+MATH
+│ L = \sum_i (y_i - \hat{y_i})^2
+
+如果用户需要漂亮公式：
+
+/export html
+/export markdown
+
+交给浏览器或文档渲染。
+
+5.【图片粘贴】剪贴板图片和终端显示怎么做？
+
+这部分要分清楚两个问题：
+
+1. 图片如何进入 CRUX？
+2. 图片如何在终端里展示？
+正方：支持图片粘贴很重要
+
+论点1：AI 编程/创意助手需要多模态输入。
+用户会贴截图、错误弹窗、UI 设计稿、ComfyUI 节点图、颜色参考、生成图结果。图片入口很有价值。
+
+论点2：比手动保存路径更顺。
+用户截图后直接粘贴，比先保存文件再输入路径快很多。
+
+论点3：CRUX 有创意管线，图片是核心资产。
+如果 CRUX 要做图片/视频生成工程化，图片引用、预览、附件管理是必要能力。
+
+反方：终端图片粘贴很麻烦
+
+论点1：终端剪贴板图片标准不统一。
+不同系统、不同终端、SSH、tmux 对图片粘贴支持差异很大。
+
+论点2：终端内显示图片不可靠。
+Kitty graphics、iTerm2 inline image、Sixel、Windows Terminal 支持情况不同。不能依赖某一个协议。
+
+论点3：图片会增加状态管理复杂度。
+附件保存、哈希、路径、缓存、清理、隐私、模型上传、导出，都需要设计。
+
+我的结论：图片粘贴要支持，但显示要降级
+
+正确方案不是“终端里强行显示图片”，而是：
+
+图片作为附件进入 CRUX，终端里显示稳定的附件卡片；能预览就预览，不能预览就显示路径和元数据。
+
+图片进入 CRUX 的方案
+本地终端
+
+支持几种入口：
+
+1. 剪贴板图片粘贴
+2. 拖入文件路径
+3. @image 文件补全
+4. /attach path
+5. 直接粘贴图片路径
+
+图片粘贴后：
+
+- 保存到项目临时目录
+- 计算 hash
+- 生成 attachment_id
+- 记录原始来源
+- 在消息中插入附件引用
+
+推荐目录：
+
+.crux/attachments/
+
+示例：
+
+.crux/attachments/2026-07-07/shot_153012_a81f.png
+
+消息里显示：
+
+[IMG a81f] screenshot.png  1280x720  243KB
+path: .crux/attachments/2026-07-07/shot_153012_a81f.png
+远程 / SSH 场景
+
+SSH 下不要假设能读取本地剪贴板图片。
+
+推荐降级：
+
+- 提示用户使用 /attach path
+- 支持远程文件路径
+- 支持 @file 补全
+- 支持 base64 粘贴但不推荐
+- 支持用户把图片放入项目目录后引用
+
+可以显示：
+
+Clipboard image paste unavailable over SSH.
+Use /attach <path> or @image.
+终端里的显示方案
+第一层：附件卡片，必须支持
+
+所有终端都能显示：
+
+┌─ image ─────────────────────────────
+│ id: img_a81f
+│ file: screenshot.png
+│ size: 1280x720 · 243KB
+│ path: .crux/attachments/.../shot.png
+│ open: /open img_a81f
+└────────────────────────────────────
+
+这是默认方案。
+
+第二层：协议预览，可选支持
+
+检测终端能力后可用：
+
+Kitty graphics protocol
+iTerm2 inline images
+辩论 CRUX TUI v2 的动画策略：
+.【Spinner】braille动画保留还是去掉？什么场景启用/关闭？
+.【AnimatedBorder】边框动画是否必要？还是过度设计？3.【PulseText】脉冲闪烁文字的价值和风险？
+.【Thinking面板动画】折叠/展开动画是否值得？5.【动画帧率】统一帧率多少？是否根据终端能力自动调整？
+2/2
+
+继续聚焦 CRUX TUI v2 动画策略。我的总立场很明确：
+
+动画可以保留，但必须从“装饰动画”降级为“状态反馈动画”。默认克制，异常可见，远程降级，用户可一键关闭。
+
+CRUX TUI 是生产力工具，不是启动器皮肤。动画的价值是告诉用户“系统正在做什么”，不是让界面一直动。
+
+1.【Spinner】braille 动画保留还是去掉？
+
+当前 Spinner：
+
+⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏
+正方：保留 Spinner
+
+论点1：Spinner 是最有效的“系统还活着”信号。
+AI 生成、工具调用、ComfyUI 排队、下载模型、TRM 路由时，如果界面完全静止，用户会以为卡死。Spinner 能给最小反馈。
+
+论点2：braille spinner 视觉精致，占位小。
+相比一大段“正在执行中……”，一个小 spinner 更节省空间，也更像现代终端工具。
+
+论点3：适合多 Agent 执行状态。
+CRUX 有工具调用、Agent 协调、ComfyUI 队列，很多任务会等待。Spinner 是必要的运行态标记。
+
+反方：Spinner 有兼容和干扰问题
+
+论点1：braille 字符在部分终端不稳定。
+SSH、老 Windows 控制台、字体不完整、某些等宽字体下，braille 可能错位、显示为方块或宽度异常。
+
+论点2：多个 Spinner 会造成视觉噪音。
+如果 Dashboard、thinking、工具列表、状态栏同时有 Spinner，用户会觉得满屏都在转。
+
+论点3：高频刷新会影响性能。
+Spinner 看似轻量，但本质是周期性刷新。多个 Spinner 叠加会增加 prompt_toolkit 的 invalidate 压力。
+
+结论：保留，但严格限制
+
+Spinner 应该保留，但只能用于当前唯一活跃任务。
+
+推荐规则：
+
+启用场景：
+- 模型正在生成且暂无 token 输出
+- 工具正在执行
+- TRM 正在路由
+- ComfyUI 正在排队/生成
+- 下载/安装/扫描等长任务
+
+关闭场景：
+- 空闲状态
+- 历史消息
+- 成功状态
+- 错误状态
+- Dashboard 常规指标
+- 多个子任务同时显示时只保留主任务 Spinner
+
+推荐降级：
+
+本地 Unicode：⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏
+ASCII 模式：| / - \
+无动画模式：…
+完成：✓
+失败：✕
+
+示例：
+
+⠹ TOOL  running tests...
+✓ TOOL  tests passed
+✕ TOOL  tests failed
+
+一句话：
+
+Spinner 保留，但全局同一时间最多一个主 Spinner。
+
+2.【AnimatedBorder】边框动画是否必要？
+正方：AnimatedBorder 有价值
+
+论点1：增强“驾驶舱感”。
+CRUX TUI v2 如果完全静态，会像普通 CLI。轻微边框动画可以让界面有系统运行感。
+
+论点2：适合表达焦点态。
+当前输入区、当前工具执行面板、当前错误诊断面板，用轻微边框变化可以提示用户“这里是活跃区域”。
+
+论点3：适合欢迎屏和演示模式。
+像素艺术欢迎屏、启动界面、宣传演示中，AnimatedBorder 能明显提升品牌感。
+
+反方：AnimatedBorder 很容易过度设计
+
+论点1：边框不是内容。
+用户主要看代码、错误、回答、任务状态。边框一直动，会抢走不该抢的注意力。
+
+论点2：边框动画刷新面积大。
+相比 Spinner 只更新一个字符，AnimatedBorder 通常涉及整条边框或多个区域重绘，性能成本更高。
+
+论点3：长期使用会疲劳。
+第一次看高级，十分钟后烦。生产力工具不能靠常驻装饰保持存在感。
+
+结论：不作为常驻默认，只用于少数场景
+
+AnimatedBorder 不应该在主界面常驻运行。
+
+推荐：
+
+允许：
+- 欢迎屏
+- 当前 focus 的输入框，低频轻微变化
+- 工具调用详情面板短暂高亮
+- 错误诊断面板出现时闪一次/亮一次
+- demo mode / presentation mode
+
+禁止：
+- 每条消息卡片都有动画边框
+- Dashboard 常驻动画边框
+- thinking 面板持续动画
+- 错误状态持续闪烁
+- 代码块边框动画
+
+更推荐的替代方案是：
+
+静态边框 + 活跃状态符号
+
+例如：
+
+╭─ TOOL running ─────────────
+│ pytest -q
+╰────────────────────────────
+
+而不是持续渐变流动。
+
+一句话：
+
+AnimatedBorder 可以用于“出现的一瞬间”和“焦点态”，不应该用于常驻装饰。
+
+3.【PulseText】脉冲闪烁文字的价值和风险
+正方：PulseText 有价值
+
+论点1：能提示用户下一步操作。
+例如首次启动时：
+
+Press / for commands
+Press Tab for dashboard
+
+轻微脉冲能帮助新人发现功能。
+
+论点2：适合短暂等待状态。
+连接模型、等待 provider、等待 ComfyUI 响应时，PulseText 可以传达“正在尝试”。
+
+论点3：适合 onboarding。
+CRUX TUI 功能多，PulseText 可以在新用户阶段提示 /help、@file、Tab 等入口。
+
+反方：PulseText 是最容易烦的动画
+
+论点1：文字闪烁比 spinner 更干扰。
+用户阅读时，闪烁文字会不断抢注意力。尤其在代码和错误栈旁边，非常不友好。
+
+论点2：可访问性风险高。
+持续闪烁对视觉敏感用户很不友好，也会让屏幕阅读器/日志复制体验变差。
+
+论点3：容易显得廉价。
+终端里文字一闪一闪，很容易从“高级提示”变成“网页广告感”。
+
+结论：默认关闭，仅用于短暂提示
+
+PulseText 应该是三者里最克制的。
+
+推荐规则：
+
+允许：
+- 首次启动 onboarding 提示
+- 空输入区 placeholder 的轻微低频提示
+- 连接中/等待中状态
+- 重要快捷键提示，显示 3-5 秒后停止
+
+禁止：
+- 错误信息闪烁
+- 成功信息闪烁
+- Dashboard 指标闪烁
+- 模型回复正文闪烁
+- 代码块闪烁
+- 长时间常驻闪烁
+
+推荐替代：
+
+不要闪烁错误
+用静态强标签：
+✕ ERR
+! WARN
+✓ OK
+
+一句话：
+
+PulseText 只适合 onboarding 和短暂提示，不适合生产界面常驻。
+
+4.【Thinking 面板动画】折叠/展开动画是否值得？
+正方：值得
+
+论点1：降低状态变化突兀感。
+thinking 面板突然展开，会把消息区往上推。轻微动画可以让用户理解布局变化。
+
+论点2：增强“过程可见”的体验。
+CRUX 的 thinking 面板承载执行轨迹、工具原因、错误恢复。展开动画能强调“现在进入诊断/过程视图”。
+
+论点3：适合大屏本地终端。
+在高性能、本地、大窗口环境下，轻微展开动画可以提升精致感。
+
+反方：不值得
+
+论点1：终端里的布局动画很容易抖。
+prompt_toolkit 不是网页布局引擎。高度变化动画可能导致滚动错位、消息跳动、输入区抖动。
+
+论点2：thinking 面板展开通常发生在关键时刻。
+比如错误、卡住、工具失败。此时用户想看原因，不想看动画。
+
+论点3：小屏下动画会破坏稳定性。
+本来高度就不够，面板再动画展开，体验会很乱。
+
+结论：不要做真正的高度动画，做“状态切换动画”
+
+不建议做平滑高度展开动画。
+
+建议：
+
+默认折叠：
+… THINK  routing tools · 2 calls · 8s  [T expand]
+
+展开时：
+立即展开，不做多帧高度动画
+标题行可以短暂高亮一次
+内容按静态面板显示
+
+也就是说：
+
+不做：
+1行 → 2行 → 3行 → 4行 的高度动画
+
+做：
+折叠态 → 展开态 的即时切换
+标题轻微闪一次/颜色强调一次
+
+推荐效果：
+
+… THINK  tool failed · open diagnostics
+
+按 T 后：
+
+╭─ THINK diagnostics ─────────
+│ route: code.patch
+│ tool: apply_patch
+│ error: context mismatch
+│ next: retry with smaller hunk
+╰─────────────────────────────
+
+一句话：
+
+Thinking 面板要“切换清晰”，不要“动画展开”。
+
+5.【动画帧率】统一帧率多少？是否自动调整？
+正方：统一帧率有必要
+
+论点1：避免各组件乱刷新。
+Spinner、PulseText、AnimatedBorder 如果各自定时，会造成重绘风暴。
+
+论点2：便于性能控制。
+统一调度后，可以根据终端能力、SSH、窗口大小、当前任务自动降级。
+
+论点3：用户输入优先。
+统一帧率调度可以保证输入和流式输出优先，动画永远低优先级。
+
+反方：所有动画一个帧率不合理
+
+论点1：不同动画需求不同。
+Spinner 需要稍快，PulseText 应该很慢，AnimatedBorder 也不需要高频。
+
+论点2：忙碌和空闲状态不同。
+工具执行时需要反馈，空闲时不该刷新。
+
+论点3：终端能力差异巨大。
+本地 GPU 终端、Windows Terminal、SSH、tmux、VS Code Terminal，刷新能力完全不同。
+
+结论：统一调度，不统一所有帧率
+
+推荐做一个统一 AnimationScheduler，但每种动画有自己的帧率上限。
+
+推荐帧率表
+场景	Spinner	PulseText	AnimatedBorder
+本地 full motion	8 fps	2 fps	4 fps
+默认 reduced motion	4 fps	关闭或 1 fps	关闭
+SSH/tmux	2-4 fps ASCII spinner	关闭	关闭
+小窗口	2-4 fps	关闭	关闭
+no-animation	静态符号	关闭	静态边框
+demo mode	8-10 fps	2 fps	4-6 fps
+自动调整规则
+
+建议检测：
+
+1. 是否 SSH
+2. 是否 tmux/screen
+3. TERM 类型
+4. 是否支持 truecolor
+5. 是否支持 Unicode
+6. 终端宽高
+7. 最近渲染耗时
+8. 输入延迟
+9. 用户配置
+
+自动策略：
+
+本地大屏 + 渲染稳定：
+允许 full motion
+
+默认日常：
+reduced motion
+
+SSH/tmux/screen：
+reduced motion 或 ascii spinner
+
+渲染耗时过高：
+自动降帧
+
+用户正在输入：
+暂停非必要动画
+
+模型流式输出：
+暂停 AnimatedBorder 和 PulseText，只保留必要 Spinner
+
+Dashboard 隐藏：
+Dashboard 动画全部停
+推荐最终动画策略
+动画优先级
+P0：用户输入光标，不可被动画影响
+P1：模型流式输出
+P2：工具/任务 Spinner
+P3：Dashboard 状态刷新
+P4：PulseText 临时提示
+P5：AnimatedBorder 装饰
+
+低优先级永远不能影响高优先级。
+
+动画默认配置
+
+我建议默认：
+
+TOML
+[tui.motion]
+mode = "reduced"          # full | reduced | none
+spinner = true
+spinner_style = "unicode" # unicode | ascii | static
+pulse_text = false
+animated_border = false
+thinking_transition = "instant"
+max_fps = 8
+
+如果用户打开演示模式：
+
+TOML
+[tui.motion]
+mode = "full"
+spinner = true
+pulse_text = true
+animated_border = true
+thinking_transition = "highlight"
+max_fps = 10
+
+SSH 自动降级：
+
+TOML
+[tui.motion]
+mode = "reduced"
+spinner_style = "ascii"
+pulse_text = false
+animated_border = false
+max_fps = 4
+具体结论
+Spinner
+保留。
+只用于当前活跃任务。
+本地用 braille，SSH 降级 ASCII，无动画模式用静态符号。
+AnimatedBorder
+不做默认常驻。
+只用于欢迎屏、焦点态、错误/工具面板出现瞬间、demo 模式。
+日常界面默认关闭。
+PulseText
+默认关闭。
+只用于 onboarding、短暂提示、连接中状态。
+禁止用于错误、代码、正文、Dashboard 常驻指标。
+Thinking 面板动画
+不做平滑高度动画。
+采用即时展开/折叠 + 标题短暂高亮。
+小屏和 SSH 下完全静态。
+帧率
+统一调度，不统一帧率。
+默认 reduced motion：
+Spinner 4 fps
+PulseText 关闭
+AnimatedBorder 关闭
+
+本地 full：
+Spinner 8 fps
+PulseText 2 fps
+AnimatedBorder 4 fps
+
+SSH：
+ASCII Spinner 2-4 fps，其余关闭。
+动画策略三条铁律
+铁律一：动画只表示状态，不承担内容表达
+
+错误不能靠闪烁表达，成功不能靠脉冲表达，thinking 不能靠边框流动表达。
+
+必须有静态文本兜底：
+
+✓ OK
+✕ ERR
+… THINK
+⠹ TOOL
+铁律二：同一时间只有一个主动画源
+
+不要 Spinner、Dashboard、AnimatedBorder、PulseText 同时动。
+
+优先级：
+
+工具执行 Spinner > 模型生成 Spinner > 临时提示 > 装饰边框
+铁律三：动画必须可降级、可关闭、不可影响输入
+
+任何动画一旦造成：
+
+输入延迟
+滚动抖动
+SSH 卡顿
+代码阅读干扰
+
+都必须自动降级或关闭。
+
+最终一句话
+
+CRUX TUI v2 的动画应该像仪表盘指示灯：平时安静，工作时轻动，出错时明确，绝不满屏炫技。
+
+这样既保留高级感，也不会牺牲稳定性和专业感。
+
+辩论 CRUX TUI v2 的远程/SSH兼容性，正反方辩论：
+【剪贴板】远程不可用时图片粘贴怎么降级？5.【颜色检测】256色vs真彩色的检测策略？
+.【远程原则】3条铁律。
+2/2
+
+继续辩论 CRUX TUI v2 的远程 / SSH 兼容性。这一轮的核心判断是：
+
+TUI 的最大优势就是远程可用；如果 SSH 下体验崩，CRUX TUI 的战略价值会直接减半。
+
+所以远程兼容不是边缘适配，而是 TUI v2 的核心设计约束。
+
+1.【远程/SSH 场景】TUI 是优势还是负担？
+正方：TUI 天然适合远程
+
+论点1：SSH 是 TUI 的主战场。
+CRUX 很可能运行在远程开发机、云服务器、GPU 主机、ComfyUI 节点、WSL 环境。TUI 不需要浏览器、不需要 Electron、不需要端口转发，天然适合远程。
+
+论点2：部署成本低。
+只要 Python 环境和终端可用，就能进入 CRUX。相比 GUI，TUI 在服务器环境里更可靠。
+
+论点3：开发者已有终端肌肉记忆。
+Git、pytest、日志、路径、模型进程、ComfyUI 服务状态，本来就在终端里。CRUX TUI 和这些工作流贴得很近。
+
+反方：SSH 会放大 TUI 的所有问题
+
+论点1：刷新延迟更明显。
+Dashboard 1s 刷新、Spinner、AnimatedBorder、流式输出，如果在 SSH 下高频刷新，会造成抖动、卡顿、输入延迟。
+
+论点2：终端能力不可控。
+用户可能在 Windows Terminal、VS Code Terminal、iTerm2、tmux、screen、老 Linux 控制台、移动 SSH 客户端里运行。Unicode、颜色、宽度、剪贴板都不稳定。
+
+论点3：视觉设计容易失效。
+七兽色、braille spinner、Unicode 边框、图片粘贴、真彩色主题，在远程环境里都可能退化。
+
+结论
+
+远程不是“兼容一下”，而是要有专门模式：
+
+local-rich      本地完整模式
+remote-smart    SSH 智能降级模式
+remote-safe     SSH 安全模式
+plain           最小纯文本模式
+
+默认检测到 SSH/tmux/screen 时，应进入 remote-smart，而不是继续跑完整动效主题。
+
+2.【Unicode / 边框 / Spinner】远程下怎么处理？
+正方：Unicode 可以保留
+
+论点1：现代终端大多支持 Unicode。
+Windows Terminal、iTerm2、VS Code Terminal、WezTerm 等都能较好显示 Unicode。
+
+论点2：Unicode 能显著提升质感。
+╭─╮、│、╰─╯、braille spinner、状态符号都比纯 ASCII 更高级。
+
+论点3：七兽 TUI 需要一定视觉符号。
+如果全部退回 ASCII，CRUX 的品牌辨识度会明显下降。
+
+反方：Unicode 是 SSH 下的高风险源
+
+论点1：字体和宽度不稳定。
+braille、emoji、Nerd Font、CJK、全角符号在不同终端宽度可能不一致。
+
+论点2：tmux/screen 可能改变能力。
+外层终端支持 Unicode，不代表 tmux 内部显示一定正常。
+
+论点3：错位比丑更糟糕。
+TUI 最怕边框错位、列宽错乱。一旦错位，看起来就像 bug。
+
+结论
+
+Unicode 可以用，但必须有 ASCII fallback。
+
+推荐映射：
+
+Unicode 边框：
+╭ ─ ╮ │ ╰ ╯
+
+ASCII fallback：
++ - + | + +
+
+Unicode Spinner：
+⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏
+
+ASCII Spinner：
+| / - \
+
+Unicode 状态：
+✓ ✕ … ◆ ▌
+
+ASCII 状态：
+OK ERR ... SYS >
+
+检测失败或用户设置 ascii_only=true 时，所有组件必须稳定降级。
+
+3.【剪贴板 / 图片粘贴】远程不可用时怎么降级？
+
+这是远程兼容里的重点。
+
+当前设计里有：
+
+支持图片粘贴：剪贴板 → 消息区
+
+这个在本地可行
+
+整体评价 CRUX TUI v2，给出最终建议：
+比】与Cursor、Copilot CLI、Warp终端、tmux、Lazygit对比定位2.【差异化】CRUX TUI 在AI编程助手领域的核心竞争壁垒3.【roadmap】所有维度按实施优先级P0/P1/P2排序
+最大三个风险5.【机会】最大三个机会点
+2/2
+
+我会把前面所有讨论收束成“产品定位 + 工程路线图”。这里会拿 Cursor、Copilot CLI、Warp、tmux、Lazygit 做参照，但重点仍然落到 CRUX TUI v2 自己该怎么取舍。
+
+正在思考
+
+】10分制最终评分给出结构化分析和结论。
+
+高级
+ChatGPT 也可能会犯错。请核查重要信息。
