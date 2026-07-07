@@ -2,23 +2,6 @@
 requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.ruff]
-exclude = ["_archive", "node_modules", ".git", ".crux", "stub_modules", "_temp", "*.min.js"]
-
-[tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP"]
-ignore = ["E501", "E402"]
-
-[tool.ruff.format]
-quote-style = "double"
-
-[tool.pyright]
-exclude = ["_archive", "node_modules", ".crux", "stub_modules", "_temp"]
-pythonVersion = "3.11"
-typeCheckingMode = "basic"
-reportMissingImports = false
-reportMissingModuleSource = true
-
 [project]
 name = "crux-smart-studio"
 version = "5.1.0"
@@ -91,7 +74,7 @@ asyncio_mode = "strict"
 [tool.ruff]
 line-length = 120
 target-version = "py310"
-extend-exclude = ["scripts/scratch", "tests/manual", "output", ".codebuddy", "models"]
+extend-exclude = ["scripts/scratch", "tests/manual", "output", ".codebuddy", "models", "_archive", "stub_modules", "_temp*"]
 
 [tool.ruff.lint]
 select = [
@@ -120,7 +103,7 @@ ignore = [
 # 全量业务代码类型检查（不含 tests，tests 有独立基线）
 include = ["core", "ui", "engines", "pipeline", "utils"]
 # 与 ruff extend-exclude 保持一致：临时脚本/生成产物不纳入静态分析
-exclude = ["scripts/scratch", "tests/manual", "output", ".codebuddy", "**/__pycache__", "**/node_modules/**"]
+exclude = ["scripts/scratch", "tests/manual", "output", ".codebuddy", "_archive", "stub_modules", "_temp*", "**/__pycache__", "**/node_modules/**"]
 # basic 模式：消化存量错误，逐步向 strict 推进
 typeCheckingMode = "basic"
 # 忽略第三方库的 stub 缺失（playwright/prompt_toolkit 等）
