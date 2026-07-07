@@ -3,7 +3,7 @@
 <INSTRUCTIONS>
 # Global Instructions
 
-CRUX Studio v5.0.0 — 平时如刀，出事成阵 · 极简内核 + 百器待命 + 七兽按需治理
+CRUX Studio v6.0.0 — 平时如刀，出事成阵 · 极简内核 + 百器待命 + 七兽按需治理
 
 > 项目命名：Agnes Smart Studio 是产品/仓库名称，CRUX Studio 是 TUI/工程系统名称。
 > 本文中 CRUX 与 Agnes 指同一项目的不同层级。

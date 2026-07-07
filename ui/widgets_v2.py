@@ -291,6 +291,8 @@ def build_welcome_formatted(
         _wbox_row(S, "", wl_w),
         _wbox_row(W, "平时如刀，出事成阵", wl_w),
         _wbox_row(W, "Lean core · Tools ready · Beasts on call", wl_w),
+        _wbox_row(G, "v6.0 • Tests 1659 ✓ • CI/CD ✓ • Wiki 14 ✓", wl_w),
+        _wbox_row(A, "AI Score: 8.1 → 8.9 • Ruff: 177 left", wl_w),
         _wbox_row(S, "", wl_w),
         (S, bbot(wl_w)),
     ]

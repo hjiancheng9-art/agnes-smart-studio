@@ -200,7 +200,8 @@ async def main(port=9733):
         tool_status="idle", comfyui_online=False,
     )
     bus.publish(Event(EventType.SESSION_STARTED.value,
-        {"model": "CRUX Studio v5.0", "status": "ready"}, source='engine'))
+        {"model": "CRUX Studio v6.0", "status": "ready", 
+                     "version_info": get_version_info()}, source='engine'))
 
     http_server = await asyncio.start_server(http_handler, '0.0.0.0', port)
     ws_server = await serve(ws_handler, '0.0.0.0', port + 1)

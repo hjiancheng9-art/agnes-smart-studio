@@ -78,7 +78,7 @@ pkill -f pytest                                           # Linux/Mac
 - Engines: engines/text_to_image.py, engines/image_to_image.py, engines/video.py
 - Knowledge: utils/memory.py (user memory), utils/history.py
 
-## Extended Architecture (v5.0 新增子系统)
+## Extended Architecture (v6.0 新增子系统)
 核心四件套之外，v5.0 引入了以下架构级子系统（均为 core/*.py 独立模块）：
 - 编排/执行层: core/orchestra.py (多源能力协调), core/multi_agent.py (并行子智能体), core/executor.py (自主 plan-execute-verify 循环), core/showrunner.py (创意流水线导演)
 - 智能体基础设施: core/sandbox.py (命令执行守卫，配合 core/tools.py 的 shell 执行点), core/hooks.py (生命周期钩子), core/provider.py (供应商自动 failover + 模型注册表), core/resilience.py + core/recovery.py (错误恢复 + 失败剧本)

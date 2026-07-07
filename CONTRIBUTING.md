@@ -138,6 +138,6 @@ test_search                    ⚠️  过于宽泛
 
 ## 7. 版本
 
-当前版本：`v5.0.0`（见 `crux_manifest.json`）
+当前版本：`v6.0.0`（见 `core/version.py`）
 
 版本号变更在 `core/version.py` + `crux_manifest.json` 同步更新。

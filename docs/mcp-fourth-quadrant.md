@@ -23,7 +23,7 @@ CRUX 通过 `crux mcp-serve` 子命令暴露 **MCP (Model Context Protocol) Serv
 
 ```bash
 # 验证
-crux version          # → CRUX Studio v5.0.0
+crux version          # → CRUX Studio v6.0.0
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | crux mcp-serve
 # → {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05",...}}
 ```
