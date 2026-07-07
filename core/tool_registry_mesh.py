@@ -421,39 +421,87 @@ class ToolRegistryMesh:
         """按分类列出工具"""
         return [name for name in self._tools if self.get_category(name) == category]
 
-    def suggest_tools(self, intent: str, max_results: int = 5) -> list[tuple[str, float]]:
-        """基于意图智能推荐工具（含分层加权）"""
-        intent_lower = intent.lower()
+    def suggest_tools(self, intent_or_spec, max_results: int = 5, session_context: dict = None) -> list[tuple[str, float]]:
+        """基于意图或 TaskSpec 智能推荐工具（含加权路由升级）。"""
         candidates = []
+
+        # 解析输入 - 如果看起来像 TaskSpec (有 intent_type 属性) 就用，否则当字符串
+        if hasattr(intent_or_spec, 'intent_type'):
+            spec = intent_or_spec
+            intent_lower = spec.intent.lower()
+            spec_type = spec.intent_type
+            spec_output = spec.output_type
+            spec_risk = spec.risk
+        else:
+            # 向后兼容：字符串输入
+            try:
+                from core.task_spec_builder import TaskSpecBuilder
+                builder = TaskSpecBuilder()
+                spec = builder.build(intent_or_spec, session_context or {})
+                intent_lower = intent_or_spec.lower()
+                spec_type = spec.intent_type
+                spec_output = spec.output_type
+            except ImportError:
+                intent_lower = intent_or_spec.lower()
+                intent_or_spec = intent_lower  # 保持原始字符串
+                spec_type = None
+                spec_output = None
 
         for name, entry in self._tools.items():
             tier = self.get_tier(name)
             cat = self.get_category(name)
-            
-            # 基础匹配分
+
             score = 0.0
             desc = (entry.description or "").lower()
-            if any(kw in intent_lower for kw in desc.split()[:10]):
-                score += 0.3
-            
-            # 关键词匹配
-            kw_map = {
-                "infra": ["文件", "读取", "搜索", "执行", "bash", "python"],
-                "creative": ["图片", "视频", "生成", "画", "create", "image", "video", "语音"],
-                "code": ["测试", "提交", "git", "审查", "重构", "lint", "format"],
-                "web": ["搜索", "查找", "github", "网页", "浏览器", "search"],
-                "data": ["数据库", "sql", "query"],
-                "ai": ["多智能体", "并行", "swarm", "技能"],
-            }
-            for kw in kw_map.get(cat, []):
-                if kw in intent_lower:
+
+            # 1. 关键词匹配（基础分）
+            for word in intent_lower.split()[:10]:
+                if word in desc:
+                    score += 0.15
+
+            # 2. 分类匹配（如果 TaskSpec 可用）
+            if spec_type is not None:
+                cat_map = {
+                    0: "creative",  # IntentType.GENERATE → creative
+                    1: "code",      # IntentType.ANALYZE → code
+                    2: "code",
+                    3: "web",       # SEARCH
+                    4: "infra",     # EXECUTE
+                    5: "code",      # REVIEW
+                    6: "code",      # DIAGNOSE
+                    7: "infra",     # DEPLOY
+                }
+                # Map enum to expected category using value
+                try:
+                    expected_cat = {
+                        "generate": "creative",
+                        "analyze": "code",
+                        "modify": "code",
+                        "search": "web",
+                        "execute": "infra",
+                        "review": "code",
+                        "diagnose": "code",
+                        "deploy": "infra",
+                    }.get(spec_type.value, "infra")
+                except AttributeError:
+                    expected_cat = "infra"
+
+                if cat == expected_cat:
+                    score += 0.5
+                elif cat == "infra" and expected_cat in ("code", "web"):
                     score += 0.2
 
-            # 层级加权：层级越低权重越大
-            tier_weight = 1.0 / tier  # Tier 1=1.0, Tier 2=0.5, Tier 3=0.33, Tier 4=0.25
+            # 3. 输出匹配
+            if spec_output == "image" and cat == "creative":
+                score += 0.4
+            elif spec_output == "code" and cat == "code":
+                score += 0.3
+
+            # 4. 层级加权
+            tier_weight = 1.0 / tier
             score *= tier_weight
 
-            # 历史成功率加权
+            # 5. 历史成功率
             stats = self._route_stats.get(name, {})
             total_calls = stats.get("calls", 0)
             if total_calls > 0:

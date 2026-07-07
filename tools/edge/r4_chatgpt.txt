@@ -1,0 +1,918 @@
+下面继续按“正反方答辩”评审 CRUX 的 Skill Market / 技能市场。
+
+总体判断
+
+CRUX 有 51 个技能包，说明它已经不只是一个“单体智能体”，而是具备了插件生态雏形。
+
+但当前核心问题是：
+
+技能市场已经有“货架”，但没有“导购、货品说明、适用场景、组合规则、冲突规则”。
+
+所以技能包数量越多，用户越难用。
+这不是技能市场方向错了，而是市场层缺少调度系统和需求映射系统。
+
+【正方 - 技能市场有价值】
+论点1：生态扩张是 CRUX 的正确路径
+
+技能市场本质上解决的是一个问题：
+
+不可能把所有能力都硬编码进 CRUX 主体。
+
+如果 CRUX 想长期扩张，技能市场是合理方向。
+
+原因有四个。
+
+1. 主体保持轻量，能力通过技能扩展
+
+CRUX 主体应该负责：
+
+理解任务
+
+路由工具
+
+调度模型
+
+管理上下文
+
+处理执行流程
+
+做安全和质量控制
+
+而不是把所有能力都塞进核心代码。
+
+例如：
+
+视频分镜
+
+文案润色
+
+代码审查
+
+UI 评审
+
+质量检测
+
+工具链封装
+
+Prompt 生成
+
+文件分析
+
+多智能体协调
+
+这些都可以变成技能包，而不是污染核心系统。
+
+这是对的。
+
+2. 技能包让 CRUX 从“模型外壳”变成“能力平台”
+
+如果没有技能市场，CRUX 只是：
+
+一个更复杂的聊天壳子。
+
+有了技能市场，CRUX 才有机会变成：
+
+一个可插拔的智能工作台。
+
+技能市场的长期价值不是“多几个命令”，而是让 CRUX 拥有持续生长能力。
+
+今天装 51 个技能包，未来可以是：
+
+用户自定义技能
+
+团队共享技能
+
+本地私有技能
+
+远程市场技能
+
+行业专用技能
+
+项目级技能包
+
+工作流技能包
+
+这个方向是有潜力的。
+
+3. 本地 + 远程市场组合是合理架构
+
+你提到有 CodeBuddy 本地和远程市场，这个设计本身有价值。
+
+本地市场适合：
+
+私有项目
+
+离线能力
+
+本地工具链
+
+自定义脚本
+
+敏感文件处理
+
+用户个人工作流
+
+远程市场适合：
+
+通用能力分发
+
+官方技能更新
+
+社区技能共享
+
+推荐榜单
+
+模板生态
+
+版本升级
+
+这两个市场应该互补，而不是互相替代。
+
+4. 技能市场可以降低主系统复杂度
+
+很多能力如果没有技能市场，就只能写死在主程序里。
+
+这会导致：
+
+主程序越来越臃肿
+
+功能耦合严重
+
+改一个能力影响全局
+
+难以灰度测试
+
+难以让用户选择
+
+技能包机制可以把能力隔离出来：
+
+CRUX Core
+ ├─ task router
+ ├─ context manager
+ ├─ tool runtime
+ ├─ skill resolver
+ └─ skill packages
+
+这样主系统只需要知道：
+
+什么时候调用什么技能、如何传入上下文、如何回收结果。
+
+这比所有能力硬塞进一个 agent 更健康。
+
+【正方 - 什么场景下技能市场能发挥价值】
+
+技能市场真正有价值的场景，不是“用户手动点一个技能”，而是 CRUX 自动识别任务并推荐/调用合适技能。
+
+场景1：专业化任务
+
+例如用户说：
+
+帮我评审这个 TUI 界面为什么右边和下面总是空。
+
+这时候 CRUX 应该自动推荐或调用：
+
+UI/TUI layout skill
+
+terminal rendering skill
+
+prompt_toolkit diagnostic skill
+
+quality review skill
+
+而不是让用户自己知道该选哪个。
+
+场景2：复杂工作流
+
+例如：
+
+把这个视频文案拆成分镜、生图 prompt、生视频 prompt、音效表、对白表。
+
+这不是一个普通问答任务，而是技能组合任务。
+
+可能需要：
+
+script breakdown skill
+
+storyboard skill
+
+image prompt skill
+
+video prompt skill
+
+audio design skill
+
+quality check skill
+
+技能市场在这种情况下非常有价值，因为它可以把复杂任务拆成标准化模块。
+
+场景3：行业模板复用
+
+例如用户长期做：
+
+生图
+
+生视频
+
+代码审查
+
+TUI 工具
+
+Prompt 工程
+
+文档方法论
+
+CRUX 评审
+
+这些都可以有专用技能包。
+
+长期来看，技能市场不是给“偶尔用一次”的功能准备的，而是给高频专业工作流准备的。
+
+场景4：质量保障
+
+比如代码修改后，可以自动调用：
+
+lint skill
+
+test skill
+
+diff review skill
+
+regression check skill
+
+security audit skill
+
+这些技能用户未必会主动选择，但系统应该自动接上。
+
+技能市场的价值不是“让用户多点按钮”，而是让系统更可靠。
+
+【反方 - 技能市场当前问题】
+论点1：51 个技能包为什么成了摆设
+
+因为现在的问题不是技能包少，而是技能包没有进入任务流。
+
+51 个技能包如果只是摆在那里，本质上和没有差不多。
+
+它们成了摆设的原因大概率有这些。
+
+1. 用户不知道技能包能解决什么问题
+
+技能包分类是：
+
+creative / other / quality / tool / video
+
+这个分类对开发者有意义，但对用户不够直观。
+
+用户不会想：
+
+我现在该用 creative 还是 quality？
+
+用户只会想：
+
+我这个 bug 怎么修？
+我这个界面怎么调？
+我这个视频怎么拆？
+我这个项目怎么审计？
+我这个 prompt 怎么变高级？
+
+所以技能包不能只按“技术分类”展示，还要按“用户意图”映射。
+
+2. 技能包缺少可发现性
+
+一个技能包如果没有这些信息，就很难被用起来：
+
+适用任务
+
+不适用任务
+
+输入要求
+
+输出格式
+
+示例请求
+
+依赖技能
+
+冲突技能
+
+推荐触发词
+
+成本/耗时
+
+成功率
+
+最近更新
+
+是否本地可用
+
+是否需要联网
+
+是否会修改文件
+
+没有这些元数据，市场就是一堆名字。
+
+3. 没有自动推荐，用户只能靠直觉
+
+这是最大问题。
+
+如果用户必须手动选择技能包，利用率一定低。
+
+因为用户通常不知道：
+
+有哪些技能
+
+哪个技能最好
+
+能不能组合使用
+
+用错会怎样
+
+是否需要先调用另一个技能
+
+所以技能市场必须有一个 Skill Router。
+
+用户输入任务后，系统应该自动做：
+
+用户请求
+  ↓
+任务意图识别
+  ↓
+候选技能召回
+  ↓
+技能评分排序
+  ↓
+推荐 / 自动调用
+  ↓
+执行后记录效果
+
+否则技能市场会一直停留在“仓库”状态。
+
+4. 技能之间没有依赖关系
+
+这是生态系统的大问题。
+
+例如视频工作流可能需要：
+
+story_parser
+  → storyboard_splitter
+  → image_prompt_builder
+  → video_prompt_builder
+  → audio_prompt_builder
+  → quality_checker
+
+如果这些技能之间没有依赖图，用户就必须自己知道调用顺序。
+
+这不现实。
+
+技能包应该声明：
+
+YAML
+requires:
+  - script_parser
+  - shot_table_schema
+
+provides:
+  - storyboard_table
+  - video_prompt
+
+这样 CRUX 才能自动编排。
+
+5. 没有冲突检测
+
+技能包之间可能存在冲突。
+
+例如：
+
+minimal_prompt_skill
+
+和：
+
+cinematic_full_dimension_prompt_skill
+
+可能输出风格完全相反。
+
+又比如：
+
+fast_code_patch_skill
+
+和：
+
+strict_architecture_review_skill
+
+一个追求快，一个追求审慎。
+
+如果系统不知道冲突，就会出现：
+
+两个技能互相覆盖
+
+输出风格打架
+
+一个技能简化，另一个技能扩展
+
+用户得到混乱结果
+
+所以技能市场必须有 conflicts_with 和 priority 机制。
+
+6. 技能没有被任务结果反哺
+
+如果一个技能被调用后效果很好，系统应该记住。
+
+如果某个技能经常导致用户纠正，也应该降权。
+
+目前如果没有使用反馈，技能市场就无法进化。
+
+理想情况是：
+
+技能调用次数
+成功率
+用户满意度
+平均耗时
+失败原因
+是否被二次修改
+是否被用户撤销
+
+这些数据应该反过来影响推荐排序。
+
+【反方 - 有市场无需求，还是无推荐？】
+
+我的判断是：
+
+不是无需求，而是无推荐、无编排、无场景化入口。
+
+需求一定存在。
+用户每天的任务本身就对应技能需求：
+
+写代码，需要 code skill
+
+调 UI，需要 layout skill
+
+查 bug，需要 diagnostic skill
+
+写 prompt，需要 prompt skill
+
+做视频，需要 video skill
+
+做评审，需要 audit skill
+
+做质量控制，需要 quality skill
+
+但用户不会主动说：
+
+请启动 quality/video/creative 里的某某技能包。
+
+用户只会说自然语言任务。
+
+所以问题不是市场没有需求，而是需求没有被翻译成技能调用。
+
+当前技能市场像这样：
+
+用户任务 ←→ 技能市场
+
+中间缺了：
+
+用户任务
+  ↓
+意图识别
+  ↓
+技能推荐
+  ↓
+依赖编排
+  ↓
+冲突检测
+  ↓
+执行反馈
+  ↓
+技能市场
+
+也就是说，真正缺的是 Skill Orchestrator / 技能编排器。
+
+【修复建议】如何激活技能市场
+建议1：给每个技能包补全 Manifest 元数据
+
+每个技能包都应该有一个标准 manifest。
+
+示例：
+
+YAML
+id: video.storyboard_splitter
+name: Storyboard Splitter
+category: video
+version: 1.2.0
+
+description: 将故事、文案或视频描述拆分为分镜表。
+
+intents:
+  - 分镜拆分
+  - 视频脚本拆解
+  - 镜头规划
+  - storyboarding
+
+triggers:
+  - 分镜
+  - 镜头
+  - storyboard
+  - 拆成镜头
+  - shot table
+
+inputs:
+  - script_text
+  - style_reference
+  - duration_limit
+
+outputs:
+  - shot_table
+  - image_prompts
+  - video_prompts
+
+requires:
+  - text.parser
+
+conflicts_with:
+  - minimal_summary_mode
+
+risk_level: low
+cost_level: medium
+latency_level: medium
+auto_invocation: recommend
+
+没有 manifest，技能市场就无法智能推荐。
+
+建议2：建立 Skill Router
+
+新增一个核心模块：
+
+Skill Router
+
+职责：
+
+读取用户任务
+
+提取意图
+
+匹配候选技能
+
+按相关度、风险、成本、历史成功率排序
+
+决定自动调用还是推荐给用户
+
+记录调用结果
+
+简单评分公式可以是：
+
+Python
+运行
+skill_score =
+    intent_match * 0.35 +
+    trigger_match * 0.20 +
+    context_fit * 0.20 +
+    historical_success * 0.15 -
+    cost_penalty * 0.10 -
+    conflict_penalty
+
+不要只靠关键词，必须结合上下文。
+
+建议3：建立技能依赖图
+
+技能之间应该形成 DAG，而不是散装列表。
+
+例如视频生成工作流：
+
+文案输入
+  ↓
+script_parser
+  ↓
+storyboard_splitter
+  ↓
+visual_prompt_builder
+  ↓
+video_motion_prompt_builder
+  ↓
+audio_design_builder
+  ↓
+quality_checker
+
+代码修复工作流：
+
+错误日志
+  ↓
+error_diagnosis
+  ↓
+code_locator
+  ↓
+patch_planner
+  ↓
+safe_editor
+  ↓
+test_runner
+  ↓
+regression_reviewer
+
+这样技能市场就从“商店”升级成了“技能网络”。
+
+建议4：增加技能冲突检测
+
+每个技能包声明：
+
+YAML
+conflicts_with:
+  - skill_a
+  - skill_b
+
+exclusive_group:
+  - prompt_style_mode
+
+例如：
+
+minimal_output
+
+和：
+
+cinematic_full_detail
+
+应该互斥。
+
+再比如：
+
+fast_patch
+
+和：
+
+strict_review
+
+不一定完全冲突，但执行优先级要明确。
+
+建议 CRUX 在执行前输出内部决策：
+
+已选择：
+- tui_layout_diagnosis
+- quality_reviewer
+
+未选择：
+- fast_patch，因为当前任务需要评审不是快速修复
+- video_prompt_builder，因为任务不涉及视频
+
+这能让用户理解系统为什么这么做。
+
+建议5：把技能推荐做成“自动提示”，而不是让用户翻市场
+
+当用户输入：
+
+帮我评审 CRUX 的多智能体协调。
+
+CRUX 可以提示：
+
+检测到这是架构评审任务，建议使用：
+1. architecture_review
+2. risk_audit
+3. quality_scorecard
+
+用户可以选择：
+
+使用推荐技能 / 仅普通回答 / 以后自动使用
+
+这比让用户打开市场自己找有效得多。
+
+建议6：增加“场景包”，而不是只卖单技能
+
+51 个技能如果都是单点能力，用户还是不知道怎么组合。
+
+应该增加场景包：
+
+代码修复包
+架构审计包
+TUI 诊断包
+视频分镜包
+Prompt 工程包
+质量评审包
+文档整理包
+安全检查包
+
+场景包内部可以包含多个技能。
+
+例如：
+
+TUI 诊断包
+ ├─ terminal_layout_checker
+ ├─ prompt_toolkit_renderer_review
+ ├─ scroll_behavior_diagnosis
+ ├─ visual_spacing_review
+ └─ patch_suggestion_builder
+
+这比 51 个散装技能更容易被用户理解。
+
+建议7：技能市场首页按任务入口展示
+
+不要首页只展示分类：
+
+creative / other / quality / tool / video
+
+应该展示：
+
+你想做什么？
+- 修代码
+- 审架构
+- 做视频
+- 写 Prompt
+- 检查质量
+- 改 UI
+- 生成文档
+- 批量处理文件
+
+用户点进去后再映射技能。
+
+也就是说，市场入口应该从“技能视角”改成“任务视角”。
+
+建议8：加入使用数据和排行榜
+
+市场要活起来，必须有反馈指标：
+
+最近常用
+推荐给你
+当前项目常用
+高成功率
+低成本
+官方精选
+本地技能
+远程技能
+
+特别是“当前项目常用”非常重要。
+
+如果用户一直在做 CRUX / TUI / Prompt / 视频，那么推荐应该明显偏向这些技能，而不是通用排序。
+
+建议9：支持自动技能链
+
+用户不应该手动一个个点技能。
+
+例如用户说：
+
+把这段故事做成可生视频的分镜表。
+
+CRUX 应该自动生成技能链：
+
+script_parse → shot_split → visual_prompt → motion_prompt → audio_design → quality_check
+
+并展示：
+
+将使用 6 个技能完成此任务。
+
+这才叫真正激活技能市场。
+
+推荐的新架构
+
+我建议 CRUX 技能市场升级为：
+
+Skill Market
+  ├─ Skill Registry          技能注册表
+  ├─ Skill Manifest          技能元数据
+  ├─ Skill Router            技能推荐器
+  ├─ Skill Dependency Graph  依赖图
+  ├─ Skill Conflict Detector 冲突检测
+  ├─ Skill Chain Planner     技能链规划器
+  ├─ Skill Runtime           执行环境
+  ├─ Skill Feedback Tracker  效果追踪
+  └─ Skill UI                场景化入口
+
+当前 CRUX 有的是：
+
+Skill Market + Skill Packages
+
+但缺的是：
+
+Router + Graph + Conflict + Feedback + Scenario UI
+
+所以技能市场没有真正闭环。
+
+最小可行修复方案
+
+不用一次性重做。可以分三步。
+
+第一阶段：让技能能被发现
+
+目标：从摆设变成可推荐。
+
+做：
+
+给 51 个技能补 manifest
+
+每个技能加 intents / triggers / inputs / outputs
+
+增加 /skills recommend <task> 命令
+
+用户输入任务时自动提示 Top 3 技能
+
+这一阶段就能显著提升利用率。
+
+评分提升空间：从摆设变成“能找到”。
+
+第二阶段：让技能能组合
+
+目标：从单技能变成工作流。
+
+做：
+
+增加 requires / provides
+
+建立技能依赖图
+
+增加技能链规划
+
+支持场景包
+
+例如：
+
+video_creation_pack
+code_review_pack
+tui_diagnosis_pack
+architecture_audit_pack
+
+这一阶段才能释放 51 个技能的真实价值。
+
+第三阶段：让技能能进化
+
+目标：从静态市场变成智能市场。
+
+做：
+
+记录调用成功率
+
+记录用户是否采纳
+
+记录执行耗时
+
+记录失败原因
+
+根据项目和用户偏好推荐技能
+
+自动降权低价值技能
+
+这时技能市场才算真正成为 CRUX 的生态系统。
+
+【最终评分：6.5 / 10】
+
+我给当前 CRUX Skill Market 设计 6.5 分。
+
+为什么不是低分？
+
+因为方向是对的。
+
+CRUX 有：
+
+51 个技能包
+
+本地市场
+
+远程市场
+
+分类体系
+
+可扩展能力基础
+
+这说明底层已经有生态意识，不是临时功能。
+
+所以它不是 3 分或 4 分。
+
+为什么不是高分？
+
+因为目前缺少关键闭环：
+
+用户不知道什么时候用哪个技能
+
+技能之间没有依赖图
+
+技能之间没有冲突检测
+
+没有智能推荐
+
+没有场景化入口
+
+没有根据任务自动编排
+
+没有基于成功率的反馈学习
+
+这导致 51 个技能包实际利用率低。
+
+最终结论
+
+当前 Skill Market 的问题不是“技能太多”，而是：
+
+技能市场还停留在插件仓库阶段，没有进化成智能调度生态。
+
+正确方向应该是：
+
+技能包数量扩张
+  ↓
+技能元数据标准化
+  ↓
+任务到技能的智能推荐
+  ↓
+技能依赖图和冲突检测
+  ↓
+场景包和技能链
+  ↓
+调用效果反馈
+  ↓
+个性化推荐和自动编排
+
+一句话总结：
+
+CRUX 技能市场有生态价值，但目前缺少 Skill Router。
+没有 Router，51 个技能就是货架；有了 Router，51 个技能才会变成能力网络。

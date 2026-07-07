@@ -1,0 +1,259 @@
+【优化建议】如何让触发更准
+
+我建议把 should_use_multi_agent() 从“关键词判断器”升级为任务风险评分器。
+
+不要直接判断：
+
+Python
+运行
+trigger_count >= 2
+
+而是计算一个 complexity_score / risk_score。
+
+1. 从关键词阈值改成加权评分
+
+不同词的权重不应该一样。
+
+例如：
+
+Python
+运行
+TRIGGER_WEIGHTS = {
+    "架构": 2,
+    "审计": 3,
+    "重构": 3,
+    "迁移": 4,
+    "批量": 3,
+    "并行": 3,
+    "跨文件": 4,
+    "全局": 3,
+    "回归": 3,
+    "自动修复": 4,
+    "删除": 4,
+    "清理": 3,
+    "启动失败": 3,
+}
+
+判断逻辑：
+
+Python
+运行
+score >= 5 -> use multi-agent
+score 3-4 -> use planner/reviewer, not full swarm
+score < 3 -> single agent
+
+这样比“命中 2 个词”更稳。
+
+2. 加入阻断词，但不要一票否决
+
+阻断词如“简单/快速/直接/只要/解释一下”是有价值的，但不能直接跳过。
+
+例如：
+
+“快速帮我审计整个项目启动失败原因。”
+
+虽然有“快速”，但任务仍然复杂。
+
+所以阻断词应该是减分，不是一票否决：
+
+Python
+运行
+BLOCKER_WEIGHTS = {
+    "简单": -2,
+    "快速": -1,
+    "直接": -1,
+    "只解释": -3,
+    "不用改代码": -2,
+}
+
+而不是：
+
+Python
+运行
+if blocker:
+    return False
+
+否则用户一句“快速”就把复杂任务压成单智能体。
+
+3. 加入上下文状态特征
+
+这是最关键的优化。
+
+should_use_multi_agent() 不应该只看当前输入，还要看 session 状态：
+
+Python
+运行
+context_features = {
+    "recent_failures": 2,
+    "files_touched": 5,
+    "tools_used": 4,
+    "error_repeated": True,
+    "task_continuation": True,
+    "previous_plan_exists": True,
+}
+
+建议加入这些信号：
+
+信号	意义
+最近连续失败 ≥2 次	需要诊断/审计角色
+已涉及文件 ≥3 个	可能跨模块
+用户连续说“还是不行”	需要回归分析
+上一轮做过大改动	需要 reviewer
+错误栈变化	需要比较新旧错误
+涉及删除/清理/迁移	高风险写操作
+
+这会显著提升真实准确率。
+
+4. 增加“中间模式”，不要只有 single / swarm
+
+现在的二分法太硬：
+
+Python
+运行
+False = 单智能体
+True = 多智能体
+
+建议改成四档：
+
+Python
+运行
+AgentMode.SINGLE
+AgentMode.SINGLE_WITH_REVIEWER
+AgentMode.PLAN_EXECUTE
+AgentMode.SWARM
+
+对应关系：
+
+模式	适用任务
+SINGLE	简单解释、单文件小修、小脚本
+SINGLE_WITH_REVIEWER	有风险但不大，需要自检
+PLAN_EXECUTE	中等复杂任务，先计划再执行
+SWARM	架构审计、跨文件迁移、批量改造、红队评审
+
+很多任务不需要完整多智能体，但需要一个“审查者”。这比直接开 swarm 更省成本。
+
+5. 让多智能体触发后也要可降级
+
+即使命中多智能体，也不应该一开到底。
+
+建议加入：
+
+Python
+运行
+if swarm_plan_subtasks <= 1:
+    downgrade_to_single()
+
+也就是说，多智能体先做一次轻量规划：
+
+是否真的能拆成多个独立子任务？
+
+是否存在互相依赖？
+
+是否需要并行？
+
+是否需要多角色审查？
+
+如果拆不出来，就自动降级。这样可以避免“为了多智能体而多智能体”。
+
+6. 加入失败反馈学习
+
+你已经在 TRM 里做了 record_call() 成功率统计。多智能体也应该有类似机制：
+
+Python
+运行
+record_agent_mode_result(
+    mode="SWARM",
+    task_type="refactor",
+    success=True,
+    latency=18.2,
+    user_correction=False,
+)
+
+长期记录：
+
+哪些任务开 swarm 成功率更高
+
+哪些任务开 swarm 反而被用户嫌慢
+
+哪些触发词经常误判
+
+哪些短句其实经常变成长链诊断
+
+最终从硬编码规则过渡到经验型路由。
+
+我建议的最终判断公式
+
+可以这样设计：
+
+Python
+运行
+def should_use_multi_agent(task, session):
+    score = 0
+
+    score += keyword_score(task)
+    score += length_score(task)
+    score += file_scope_score(session)
+    score += failure_score(session)
+    score += risk_score(task)
+    score += ambiguity_score(task)
+    score -= simplicity_score(task)
+
+    if destructive_action(task):
+        score += 4
+
+    if score >= 8:
+        return AgentMode.SWARM
+
+    if score >= 5:
+        return AgentMode.PLAN_EXECUTE
+
+    if score >= 3:
+        return AgentMode.SINGLE_WITH_REVIEWER
+
+    return AgentMode.SINGLE
+
+这样比单纯返回 True/False 更适合 CRUX。
+
+【最终评分：7.5 / 10】
+
+我给当前 should_use_multi_agent() 设计 7.5 分。
+
+理由：
+
+优点很明确：
+
+默认关闭多智能体是正确方向。
+
+触发词机制简单、可解释、容易调试。
+
+加入阻断词能防止“简单任务过度调度”。
+
+任务 >500 字 作为复杂度信号也合理。
+
+相比原来默认并行，已经是明显架构进步。
+
+扣分点：
+
+仍然偏关键词匹配，语义理解不够。
+
+阻断词如果一票否决，会误伤复杂任务。
+
+没有利用上下文状态，例如连续失败、涉及文件数、历史修改。
+
+没有中间模式，只有单智能体 / 多智能体二分。
+
+没有把“高风险短任务”纳入判断，例如删除、清理、启动逻辑修改。
+
+没有基于实际成功率持续校准。
+
+我的结论是：
+
+这个策略作为 v1 修复非常合理，但它不是最终形态。
+真正成熟的 CRUX 多智能体调度，不应该问“要不要多智能体”，而应该问：
+这个任务需要哪种协作强度？是否需要审查？是否需要并行？是否需要降级？
+
+推荐下一步不是继续加触发词，而是把它升级为：
+
+Agent Coordination Router：任务复杂度评分 + 风险评分 + 上下文状态 + 动态降级。
+
+当前版本：能止血，能防止滥用，但还不够聪明。

@@ -1,0 +1,899 @@
+CRUX v5.0 → v6.0 架构路线图
+【当前状态总结】v5.0 的核心能力与核心短板
+
+CRUX v5.0 已经不是普通 AI Shell，而是一个具备雏形的 智能体操作平台。
+
+它已经有几条很强的主干能力：
+
+CWIM 方法论
+TRM 工具路由
+多智能体协调
+技能市场 Skill Market
+MCP + CDP 协议层
+ComfyUI / 图片 / 视频创意管线
+
+v5.0 的核心价值是：
+
+CRUX 已经具备“连接很多能力、调度很多工具、生成复杂内容”的基础。
+
+但 v5.0 的核心短板也很清楚：
+
+能力很多，但缺少统一状态、统一路由、统一评估、统一闭环。
+
+换句话说，v5.0 更像：
+
+很多强模块并存
+
+但还没有完全变成：
+
+一个可控、可观测、可复现、可自我修复的系统
+v5.0 核心能力
+1. CWIM 方法论方向正确
+
+CWIM 的核心价值是把 ComfyUI 复杂工作流从“手写 JSON”升级为：
+
+TaskSpec → WorkflowIR → GraphCompiler → ComfyUI JSON
+
+这是非常正确的方向。
+
+它解决的是：
+
+LLM 不擅长直接写复杂节点 JSON
+
+ComfyUI workflow 太复杂
+
+创意任务需要语义层，而不是裸参数层
+
+图像/视频生成需要可复现、可评估、可重跑
+
+CWIM 是 CRUX 创意管线工业化的理论基础。
+
+2. TRM 工具路由已经有平台雏形
+
+TRM 的价值在于：
+
+用户任务 → 工具能力匹配 → 执行 → 记录结果
+
+它让 CRUX 不再只是“调用工具”，而是开始具备“选择工具”的能力。
+
+但当前 TRM 还需要升级成更完整的：
+
+Capability Router + Cost Router + Risk Router + Feedback Router
+
+也就是不仅知道“能用哪个工具”，还要知道：
+
+哪个更稳
+
+哪个更便宜
+
+哪个风险更低
+
+哪个历史成功率更高
+
+哪个适合当前上下文
+
+3. 多智能体协调开始收敛
+
+之前默认倾向开启多智能体并行，现在已经修成：
+
+默认单智能体
+复杂任务再触发多智能体
+
+这是对的。
+
+v5.0 的进步是：
+
+多智能体从默认行为，变成高风险/复杂任务的增强能力。
+
+但现在仍然偏关键词判断，需要升级成：
+
+任务复杂度评分 + 风险评分 + 上下文状态 + 动态降级
+4. Skill Market 有生态雏形
+
+CRUX 已安装 51 个技能包，有本地和远程市场，这说明 CRUX 已经具备插件生态的基础。
+
+但问题是：
+
+有技能包
+没技能路由
+
+有市场
+没推荐
+
+有分类
+没依赖图
+
+有能力
+没场景入口
+
+所以 51 个技能包目前利用率低，不是因为技能市场没有价值，而是因为缺少：
+
+Skill Router + Skill Manifest + Skill Dependency Graph + Conflict Detector
+5. MCP + CDP 扩展性强
+
+MCP 负责结构化工具连接，CDP 负责浏览器网页 AI 自动化。
+
+这个组合很强：
+
+MCP = 工具生态连接层
+CDP = 网页 AI 操作层
+
+它让 CRUX 可以同时接入：
+
+本地工具
+
+远程工具
+
+文件系统
+
+浏览器
+
+ChatGPT / Gemini 等网页 AI
+
+自定义服务
+
+ComfyUI
+
+其他自动化环境
+
+但风险是：
+
+MCP bridge 多了会分裂
+CDP 依赖 DOM，页面更新就容易坏
+协议层缺统一状态
+6. 创意管线是最大差异点
+
+CRUX 的图片/视频生成能力是最有护城河的地方。
+
+相比纯 ComfyUI，CRUX 可以做任务级抽象。
+相比 Midjourney，CRUX 可以做项目级工作流。
+相比普通 AI 绘图工具，CRUX 可以做：
+
+剧本 → 分镜 → 角色 → 场景 → 图像 → 视频 → 质量评估 → 重跑 → 归档
+
+但当前还缺：
+
+seed bank
+
+参数语义层
+
+自动质量评估
+
+自动重跑
+
+候选筛选
+
+workflow 校验
+
+创意运行日志
+
+可复现包
+
+v5.0 核心短板总结
+
+一句话：
+
+v5.0 的问题不是能力不足，而是能力之间没有形成工程闭环。
+
+主要短板如下：
+
+1. 缺统一状态管理
+2. 缺统一能力注册表
+3. 缺工具/技能/协议的全局调度层
+4. 缺质量评估闭环
+5. 缺自动降级和自修复
+6. 缺创意生成的可复现体系
+7. 缺用户等待体验管理
+8. 缺跨模块的观测、日志、评分、反馈
+【v6.0 路线图】
+Phase 1：优先级 P0
+最核心的 1-2 项修复
+
+P0 不要贪多。
+v6.0 第一阶段最重要的是先把 CRUX 从“功能集合”变成“可控系统”。
+
+P0-1：建立 Unified Run State / 全局运行状态层
+
+这是 v6.0 最重要的底座。
+
+现在 CRUX 的问题很多都来自同一个根因：
+
+不同模块各跑各的，但没有一个统一状态中心知道全局发生了什么。
+
+必须建立一个统一的 RunState / TaskState / ProtocolState。
+
+建议设计：
+
+Python
+运行
+class CruxRun:
+    run_id: str
+    user_request: str
+    task_type: str
+
+    task_spec: dict
+    selected_mode: str
+    selected_tools: list
+    selected_skills: list
+    selected_agents: list
+
+    protocol_calls: list
+    mcp_states: list
+    cdp_states: list
+    creative_runs: list
+
+    status: str
+    current_stage: str
+    progress: float
+
+    errors: list
+    retries: list
+    artifacts: list
+
+    final_result: dict
+    evaluation: dict
+
+它要覆盖：
+
+用户请求
+任务计划
+工具路由
+技能调用
+多智能体状态
+MCP 调用
+CDP 页面状态
+ComfyUI 生成状态
+错误与重试
+产物与评估
+最终输出
+
+这是 CRUX v6.0 的“黑匣子记录仪”。
+
+没有它，后面所有优化都会变散。
+
+为什么这是 P0？
+
+因为它同时解决：
+
+MCP/CDP 状态分裂
+
+工具调用不可追踪
+
+多智能体协作不可控
+
+创意生成不可复现
+
+用户等待体验黑盒
+
+失败后不知道哪里坏
+
+无法基于历史结果优化路由
+
+统一状态层是所有高级能力的前提。
+
+P0-2：建立 Capability Registry + Router 统一路由层
+
+第二个 P0 是统一能力注册与路由。
+
+现在 CRUX 有：
+
+TRM 工具路由
+Skill Market 技能包
+MCP bridge
+CDP browser action
+ComfyUI workflow
+多智能体
+
+但它们不应该各自判断自己什么时候出场。
+
+需要统一成：
+
+Capability Registry
+        ↓
+Capability Router
+        ↓
+Executor
+        ↓
+Feedback Tracker
+
+每个能力都要注册成统一格式：
+
+YAML
+id: crux.browser.chatgpt.send_message
+type: protocol.cdp
+category: browser_ai
+version: 1.0.0
+
+provides:
+  - web_ai_generation
+  - browser_interaction
+
+requires:
+  - browser_session
+  - logged_in_account
+
+risk_level: medium
+cost_level: medium
+latency_level: high
+side_effect: true
+
+inputs:
+  - prompt
+  - target_page
+
+outputs:
+  - assistant_response
+  - screenshots
+  - trace_log
+
+fallbacks:
+  - mcp.openai_api
+  - browser.visual_fallback
+
+conflicts_with:
+  - offline_only_mode
+
+所有工具、技能、MCP、CDP、创意 workflow 都要进入这个注册表。
+
+然后由 Router 决定：
+
+当前任务该用什么？
+用哪个成本最低？
+哪个成功率最高？
+哪个风险最低？
+是否需要多智能体？
+是否需要技能链？
+是否需要 CDP？
+是否需要 ComfyUI？
+失败后降级到哪里？
+P0 的目标
+
+Phase 1 完成后，CRUX 至少要做到：
+
+每一次任务都有 run_id
+每一次工具调用有状态
+每一次失败可追踪
+每一个能力可注册
+每一次路由有理由
+每一次结果可记录
+
+这是 v6.0 的地基。
+
+Phase 2：优先级 P1
+架构加固 3-4 项
+
+P1 是在 P0 底座上做工程化加固。
+
+P1-1：CWIM 工业化：TaskSpec → WorkflowIR → GraphCompiler → Validator
+
+这是创意管线的核心加固。
+
+必须禁止 LLM 直接生成复杂 ComfyUI JSON。
+
+正确链路：
+
+用户创意需求
+  ↓
+Creative TaskSpec
+  ↓
+WorkflowIR
+  ↓
+GraphCompiler
+  ↓
+Workflow Validator
+  ↓
+ComfyUI JSON
+  ↓
+Executor
+
+关键是 Validator。
+
+至少需要四类校验：
+
+Schema Validator      JSON 结构是否合法
+Node Validator        节点是否存在
+Edge Validator        输入输出类型是否兼容
+Runtime Validator     模型、路径、显存、尺寸、依赖是否可运行
+
+并且要建立：
+
+Workflow Template Library
+Motif Library
+Parameter Preset Library
+Model Compatibility Matrix
+
+也就是说，ComfyUI 不再是“让 LLM 拼节点”，而是：
+
+LLM 规划语义
+Compiler 生成节点
+Validator 保证可运行
+Executor 执行
+QA 评估结果
+
+这是 CRUX 创意能力从 demo 走向工业化的关键。
+
+P1-2：Creative QA + Auto Rerun 创意质量闭环
+
+创意管线必须解决抽卡问题。
+
+不是完全消灭随机性，而是把随机性纳入流程。
+
+v6.0 应该支持：
+
+多候选生成
+自动评分
+失败诊断
+自动重跑
+人工选择
+版本归档
+
+图片评估维度：
+
+构图
+主体清晰度
+风格一致性
+角色一致性
+场景一致性
+细节质量
+是否有文字污染
+是否符合 prompt
+是否符合项目设定
+
+视频评估维度：
+
+首帧质量
+末帧质量
+跨帧一致性
+主体漂移
+运动合理性
+闪烁程度
+镜头稳定性
+是否适合入剪
+
+生成不再是：
+
+生成一次 → 用户自己判断
+
+而是：
+
+生成候选 → 系统评分 → 淘汰差结果 → 推荐重跑策略 → 归档最佳结果
+
+这会极大提升 CRUX 的创意专业度。
+
+P1-3：Protocol Orchestrator 加固 MCP + CDP
+
+MCP + CDP 是 CRUX 的外部能力骨架，但必须工程化。
+
+新增：
+
+Protocol Orchestrator
+  ├─ MCP Gateway
+  ├─ Browser Gateway
+  ├─ State Store
+  ├─ Error Normalizer
+  ├─ Retry Manager
+  ├─ Circuit Breaker
+  ├─ Health Monitor
+  └─ Audit Log
+
+MCP 侧要做：
+
+bridge 健康检查
+能力注册
+schema 版本检查
+超时控制
+并发限制
+错误标准化
+熔断降级
+
+CDP 侧要做：
+
+页面状态机
+站点 adapter
+selector resolver
+accessibility 优先定位
+DOM fallback
+视觉 fallback
+截图与 DOM trace
+
+CDP 不应该散落各种 selector。
+必须封装成高层动作：
+
+send_message()
+upload_file()
+wait_for_generation()
+extract_answer()
+detect_login_required()
+recover_from_popup()
+
+这样 ChatGPT/Gemini UI 更新时，只修 adapter，不修核心逻辑。
+
+P1-4：多智能体从 True/False 升级为 Coordination Mode
+
+当前 should_use_multi_agent() 已经从默认开启改成默认关闭，这是正确止血。
+
+但 v6.0 应该进一步升级为多档模式：
+
+SINGLE
+SINGLE_WITH_REVIEWER
+PLAN_EXECUTE
+SWARM
+RED_TEAM_REVIEW
+
+不要再只问：
+
+要不要多智能体？
+
+而是问：
+
+这个任务需要什么协作强度？
+
+建议评分维度：
+
+任务长度
+跨文件数量
+风险等级
+是否涉及删除/迁移/重构
+连续失败次数
+用户是否要求审计/评审
+工具调用数量
+上下文复杂度
+历史错误状态
+
+输出：
+
+低风险 → SINGLE
+中风险 → SINGLE_WITH_REVIEWER
+中高复杂 → PLAN_EXECUTE
+跨模块/审计/迁移 → SWARM
+高风险方案评审 → RED_TEAM_REVIEW
+
+这样多智能体会变成专业能力，而不是性能负担。
+
+Phase 3：优先级 P2
+生态与体验升级
+
+P2 是让 v6.0 从“稳定系统”升级为“好用生态”。
+
+P2-1：Skill Market 激活：从技能仓库变成技能路由生态
+
+现在 51 个技能包利用率低，核心原因不是没需求，而是没推荐。
+
+v6.0 要做：
+
+Skill Manifest
+Skill Router
+Skill Dependency Graph
+Skill Conflict Detector
+Skill Packs
+Skill Feedback Tracker
+
+每个技能包都要有 manifest：
+
+YAML
+id: video.storyboard_splitter
+category: video
+intents:
+  - 分镜
+  - 镜头拆分
+  - 视频脚本
+triggers:
+  - 分镜
+  - storyboard
+  - 镜头表
+inputs:
+  - script
+outputs:
+  - shot_table
+requires:
+  - text.parser
+conflicts_with:
+  - minimal_summary
+cost_level: medium
+risk_level: low
+
+市场首页不要按：
+
+creative / other / quality / tool / video
+
+而要按用户任务：
+
+修代码
+审架构
+做视频
+写 Prompt
+改 UI
+查错误
+生成文档
+质量检查
+
+技能市场要从“用户自己找技能”变成：
+
+CRUX 自动推荐技能
+CRUX 自动组合技能
+CRUX 根据结果调整推荐
+P2-2：用户等待体验产品化
+
+CRUX 有很多长任务：
+
+视频生成
+
+ComfyUI 执行
+
+MCP 调用
+
+浏览器自动化
+
+多智能体审计
+
+批量处理
+
+用户不能面对黑盒等待。
+
+v6.0 应该有统一进度反馈：
+
+正在解析任务
+正在选择技能
+正在编译工作流
+正在调用 MCP
+正在控制浏览器
+正在生成候选
+正在质量评估
+正在重跑失败项
+正在整理最终结果
+
+每个阶段要显示：
+
+当前阶段
+已完成步骤
+失败与重试
+中间产物
+下一步动作
+可取消/可降级选项
+
+这样用户等待 18 秒甚至更久时，不会觉得卡死。
+
+P2-3：项目级资产系统
+
+尤其是创意管线，需要项目资产管理。
+
+v6.0 应该支持：
+
+Project Pack
+Style Pack
+Character Pack
+Scene Pack
+Seed Bank
+Workflow Pack
+Reference Pack
+Reproducibility Pack
+
+这对图片/视频生成非常重要。
+
+例如一个视频项目应该沉淀：
+
+角色设定
+场景设定
+风格词
+参考图
+好 seed
+坏 seed
+工作流版本
+模型版本
+镜头表
+生成记录
+最终结果
+
+这样 CRUX 不是每次从零开始，而是不断积累项目资产。
+
+P2-4：自我评估与反馈学习
+
+v6.0 要有系统级反馈：
+
+工具成功率
+技能成功率
+MCP bridge 稳定性
+CDP adapter 成功率
+ComfyUI workflow 成功率
+多智能体模式成功率
+用户采纳率
+平均耗时
+失败原因统计
+
+这些数据要反哺：
+
+TRM 路由
+Skill Router
+Agent Coordinator
+Protocol Orchestrator
+Creative QA
+
+最终 CRUX 应该能回答：
+
+这个任务我为什么选这个工具？
+这个技能最近为什么降权？
+这个 MCP bridge 为什么熔断？
+这个 workflow 为什么不推荐？
+这个 seed 为什么被选中？
+
+这才是 v6.0 的智能化。
+
+【预期效果】v6.0 完成后比 v5.0 强在哪
+1. 从“能用”变成“稳定可控”
+
+v5.0 的能力很多，但失败后难诊断。
+
+v6.0 有：
+
+RunState
+ProtocolState
+Tool Trace
+CreativeRun
+Error Normalizer
+Audit Log
+
+所以每次失败都能知道：
+
+哪里失败
+为什么失败
+是否可重试
+该降级到哪里
+是否影响最终结果
+2. 从“工具集合”变成“能力操作系统”
+
+v5.0 是：
+
+工具 + 技能 + MCP + CDP + ComfyUI + Agent
+
+v6.0 是：
+
+统一能力注册
+统一路由
+统一执行
+统一状态
+统一评估
+统一反馈
+
+这是质变。
+
+3. 从“用户选工具”变成“系统推荐工具”
+
+v5.0 用户需要知道什么时候用哪个技能包、哪个工具、哪个模式。
+
+v6.0 应该是：
+
+用户只说目标
+CRUX 自动选择工具链
+CRUX 给出推荐理由
+CRUX 失败后自动降级
+
+这会大幅降低使用门槛。
+
+4. 从“抽卡生成”变成“创意生产线”
+
+v5.0 的图片/视频生成仍有抽卡问题。
+
+v6.0 通过：
+
+Seed Bank
+多候选
+Creative QA
+Auto Rerun
+Workflow Validator
+Reproducibility Pack
+
+把创意生成变成可控流程。
+
+不是保证每次都完美，而是保证：
+
+每次生成都可评估
+每次失败都可诊断
+每次成功都可复现
+每次项目都能积累资产
+5. 从“浏览器自动化脆弱”变成“协议层可维护”
+
+v5.0 的 CDP 可能因 UI 更新失效。
+
+v6.0 通过：
+
+Site Adapter
+Page State Machine
+Selector Resolver
+Visual Fallback
+Trace Screenshot
+DOM Snapshot
+
+让网页 AI 自动化可维护、可诊断、可降级。
+
+6. 从“多智能体并行”变成“协作强度路由”
+
+v5.0 已经开始默认关闭多智能体。
+
+v6.0 会进一步变成：
+
+单智能体
+单智能体 + 审查
+计划执行
+多智能体
+红队评审
+
+这样既避免过度调度，又能在真正复杂任务里发挥多智能体价值。
+
+【综合评分】v5.0 整体评分
+
+我给 CRUX v5.0 整体评分：
+
+7.3 / 10
+为什么有 7.3 分？
+
+因为 v5.0 已经具备很强的系统潜力：
+
+CWIM 方向正确
+TRM 已有路由雏形
+多智能体开始收敛
+技能市场已有生态基础
+MCP + CDP 扩展性强
+创意管线差异化明显
+ComfyUI 工程化潜力大
+
+这不是普通工具，已经有平台架构雏形。
+
+为什么不是 8.5 或 9 分？
+
+因为 v5.0 还缺几个关键闭环：
+
+缺统一状态层
+缺统一能力注册
+缺统一协议编排
+缺技能推荐
+缺工作流编译校验
+缺创意质量评估
+缺自动重跑
+缺系统级反馈学习
+
+这些不是小功能，而是决定 CRUX 能不能从“强工具”升级成“强系统”的核心。
+
+最终结论
+
+CRUX v5.0 的现状可以概括为：
+
+能力很强，系统性还不够。
+
+CRUX v6.0 的主线应该是：
+
+统一状态
+统一路由
+统一协议
+统一评估
+统一反馈
+
+推荐 v6.0 架构核心口号：
+
+From Powerful Toolkit
+To Observable Creative Agent OS
+
+中文可以说：
+
+从“强能力工具箱”，升级为“可观测、可调度、可复现的创意智能体操作系统”。
+
+最关键的落点不是继续增加模型、技能包、MCP server 或 ComfyUI 节点，而是先把已有能力收束成闭环：
+
+TaskSpec
+  ↓
+Capability Router
+  ↓
+Protocol / Skill / Agent / Creative Executor
+  ↓
+Unified RunState
+  ↓
+QA Evaluation
+  ↓
+Auto Recovery / Rerun
+  ↓
+Feedback Learning
+
+如果 v6.0 能完成这条主线，CRUX 会从 v5.0 的 7.3 分 提升到大约：
+
+8.6 - 9.0 分
+
+它会真正进入“工程化智能体平台”的级别。
