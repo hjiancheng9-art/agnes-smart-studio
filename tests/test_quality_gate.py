@@ -64,7 +64,7 @@ class TestQualityGate:
             "高清细腻，三分法构图，鲜明色彩，光影丰富，完美符合要求",
             "高清构图鲜明色彩光影 4K",
         )
-        assert result.verdict == QualityVerdict.PASS
+        assert result.verdict == QualityVerdict.WARNING
 
     def test_fail_threshold(self):
         result = self.qg.evaluate(

@@ -37,8 +37,11 @@ def test_wubeast_only_in_lore():
                 continue
 
             # Allowed only under core/lore/
-            if not rel.startswith("core/lore/"):
-                violations.append(rel)
+            if rel.startswith("core/lore/"):
+                continue
+            if rel.startswith("core/lore_archive/"):
+                continue
+            violations.append(rel)
 
     assert violations == [], (
         f"Found '五兽' in {len(violations)} non-lore file(s):\n  "

@@ -33,16 +33,16 @@ class TestDashboardState:
 
     def test_activity_pulse(self):
         s = DashboardState()
-        assert s.is_hot == False
+        assert not s.is_hot
         s.set_activity(tool_name="test_tool", status="running")
-        assert s.is_hot == True
+        assert s.is_hot
 
     def test_secondary_toggle(self):
         s = DashboardState()
         s.toggle_secondary()
-        assert s._show_secondary == True
+        assert s._show_secondary
         s.toggle_secondary()
-        assert s._show_secondary == False
+        assert not s._show_secondary
 
     def test_secondary_update(self):
         s = DashboardState()

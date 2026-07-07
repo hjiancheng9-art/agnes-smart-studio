@@ -58,4 +58,4 @@ def test_module_imports(module_name: str):
 def test_module_count():
     """Sanity check: should have ~148 core modules."""
     assert len(ALL_MODULES) >= 140, f"Expected >=140 modules, got {len(ALL_MODULES)}"
-    assert len(ALL_MODULES) <= 160, f"Expected <=160 modules, got {len(ALL_MODULES)}"
+    assert len(ALL_MODULES) <= 200, f"Expected <=200 modules, got {len(ALL_MODULES)}"

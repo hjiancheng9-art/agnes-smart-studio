@@ -61,6 +61,7 @@ import logging
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
+
 from typing import Any
 
 logger = logging.getLogger("crux.event_bus")
@@ -192,6 +193,12 @@ MODEL_STREAMING = "model:streaming"
 TOOL_BEFORE = "tool:before"
 TOOL_AFTER = "tool:after"
 TOOL_UPDATED = "tool:updated"
+
+# Tool call lifecycle events
+TOOL_CALL_COMPLETE = "tool_call:complete"
+TOOL_CALL_FAILED = "tool_call:failed"
+TOOL_CALL_START = "tool_call:start"
+TOOL_CALL_TIMEOUT = "tool_call:timeout"
 
 PERMISSION_REQUESTED = "permission:requested"
 PERMISSION_RESOLVED = "permission:resolved"

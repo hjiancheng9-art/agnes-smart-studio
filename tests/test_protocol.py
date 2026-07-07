@@ -73,7 +73,7 @@ class TestSessionState:
         s = SessionState()
         d = s.to_dict()
         assert d["model"] == ""
-        assert d["streaming"] == False
+        assert not d["streaming"]
 
     def test_populated_state(self):
         s = SessionState(
@@ -106,7 +106,7 @@ class TestGlobalBus:
         state = get_bus().latest_state
         assert state is not None
         assert state.model == "gpt-4"
-        assert state.thinking == True
+        assert state.thinking
 
     def test_emit(self):
         emit(EventType.MODEL_CHANGED, {"model": "claude"})

@@ -66,20 +66,20 @@ print("\n--- T01: raw graph 直接 execute ---")
 # Test: submit_workflow contract should require validation
 contract_check = check_tool_contract("comfyui_submit_workflow")
 _run_test("T01a 无验证直接提交被拦截",
-      contract_check.passed == False,
+      not contract_check.passed,
       f"contract_check.passed={contract_check.passed} (expected=False)")
 
 # Test: passing workflow_json without prompt should at least warn
 check_no_prompt = check_tool_contract("comfyui_build_workflow")
 _run_test("T01b build_workflow 无 prompt 被拦截",
-      check_no_prompt.passed == False,
+      not check_no_prompt.passed,
       f"passed={check_no_prompt.passed} (expected=False) | {check_no_prompt.message}")
 
 # Test: validate_workflow accepts raw graph (it should)
 raw_wf = {"1": {"class_type": "KSampler", "inputs": {"model": ["2", 0], "seed": -1}}}
 check_raw = check_tool_contract("comfyui_validate_workflow", workflow_json=json.dumps(raw_wf))
 _run_test("T01c validate_workflow 接受 raw graph",
-      check_raw.passed == True,
+      check_raw.passed,
       f"passed={check_raw.passed} | {check_raw.message}")
 
 
@@ -92,19 +92,19 @@ print("\n--- T02: validation failed 后 execute 行为 ---")
 bad_wf = {"bad": {"no_class_type": True}}
 validation_bad = validate_workflow(bad_wf)
 _run_test("T02a 坏 workflow 校验失败",
-      validation_bad.is_valid == False,
+      not validation_bad.is_valid,
       f"is_valid={validation_bad.is_valid} | errors={len(validation_bad.errors)}")
 
 # submit_workflow contract check — P4 是建议(required=False)，所以空参不过但传参过
 check_empty_submit = check_tool_contract("comfyui_submit_workflow")
 _run_test("T02b submit 空参数被拦截",
-      check_empty_submit.passed == False,
+      not check_empty_submit.passed,
       f"passed={check_empty_submit.passed} (expected=False) | {check_empty_submit.message}")
 
 # 带参数时契约通过（实际校验由 Executor 做）
 check_with_wf = check_tool_contract("comfyui_submit_workflow", workflow_json=json.dumps(bad_wf))
 _run_test("T02c submit 有参数时契约放行（执行时校验）",
-      check_with_wf.passed == True,
+      check_with_wf.passed,
       f"passed={check_with_wf.passed} | {check_with_wf.message}")
 
 
@@ -151,12 +151,12 @@ print("\n--- T04: 无 prompt 调用 compile 被拦截 ---")
 
 check_empty = check_tool_contract("comfyui_compile_and_validate")
 _run_test("T04a 空参数 compile 被 Contract 拦截",
-      check_empty.passed == False,
+      not check_empty.passed,
       f"passed={check_empty.passed} (expected=False) | {check_empty.message}")
 
 check_with_prompt = check_tool_contract("comfyui_compile_and_validate", prompt="test")
 _run_test("T04b 有 prompt 时 Contract 放行",
-      check_with_prompt.passed == True,
+      check_with_prompt.passed,
       f"passed={check_with_prompt.passed} | {check_with_prompt.message}")
 
 # Test pipeline executor
@@ -167,13 +167,13 @@ fn_compile = COMFYUI_PIPELINE_EXECUTOR_MAP["comfyui_compile_and_validate"]
 r_empty = fn_compile()
 d_empty = json.loads(r_empty)
 _run_test("T04c Pipeline 空参数返回明确拒绝",
-      d_empty.get("contract_violation", False) == True,
+      d_empty.get("contract_violation", False),
       f"contract_violation={d_empty.get('contract_violation')} message={d_empty.get('message', '')[:80]}")
 
 r_ok = fn_compile(prompt="test", width=512, height=512)
 d_ok = json.loads(r_ok)
 _run_test("T04d Pipeline 有参数正常执行",
-      d_ok.get("success", False) == True,
+      d_ok.get("success", False),
       f"success={d_ok.get('success')} nodes={d_ok.get('node_count', '?')}")
 
 
