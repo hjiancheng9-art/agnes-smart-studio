@@ -216,7 +216,7 @@ class ErrorKnowledgeBase:
         return {
             "total": total,
             "success_rate": round(success / total * 100, 1) if total else 0,
-            "by_layer": {l: c for l, c in layers},
+            "by_layer": dict(layers),
         }
 
 

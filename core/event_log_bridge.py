@@ -43,14 +43,13 @@ def _on_tool_end(event: str, **kwargs):
     duration_ms = 0
     tool = kwargs.get("tool_name", "")
     intent = ""
-    session_id = ""
     metadata = {}
 
     if pending:
         duration_ms = int((time.time() - pending["start_time"]) * 1000)
         tool = tool or pending["tool"]
         intent = pending["intent"]
-        session_id = pending["session_id"]
+        pending["session_id"]
         metadata = pending.get("metadata", {})
 
     # Merge result metadata

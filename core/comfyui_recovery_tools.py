@@ -117,10 +117,7 @@ def execute_error_kb_query(
     from core.comfyui_recovery import ErrorKnowledgeBase
 
     kb = ErrorKnowledgeBase()
-    if error_code:
-        similar = kb.find_similar(error_code)
-    else:
-        similar = []
+    similar = kb.find_similar(error_code) if error_code else []
 
     stats = kb.get_stats()
 

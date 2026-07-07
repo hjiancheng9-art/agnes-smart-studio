@@ -25,14 +25,14 @@ from ui.responsive import LayoutConfig
 class DashboardState:
     """
     Tracks system state to determine what dashboard should show.
-    
+
     States:
         idle      → compact (3 indicators, no animation)
         active    → show tool calls, agent status (medium detail)
         streaming → show model output info
         error     → auto-expand, show error chain
         thinking  → show reasoning progress
-    
+
     Secondary panel (collapsible): CPU, memory, disk metrics — P5, hidden by default.
     """
 
@@ -137,9 +137,9 @@ def render_dashboard(state: DashboardState | None = None,
                      layout: LayoutConfig | None = None) -> list[tuple[str, str]]:
     """
     Render dashboard content based on current state and layout config.
-    
+
     Returns list of (style, text) tuples for FormattedTextControl.
-    
+
     Modes:
         compact   → 3 key indicators (context%, agent, status)
         expanded  → full panel with all sections

@@ -83,7 +83,8 @@ class StatusBar:
                 if ahead and ahead != "0":
                     self._diff_stats += f" ^ {ahead}"
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                import logging
+                logging.getLogger('crux').debug('silent except', exc_info=True)
 
     def set_context(self, token_count: int, max_tokens: int) -> None:
         self._context_tokens = token_count

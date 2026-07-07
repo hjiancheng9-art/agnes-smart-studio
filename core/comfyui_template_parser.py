@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import re
@@ -169,10 +170,8 @@ def _extract_list_items(text: str, list_key: str, item_pattern: str) -> list[str
             if item_pattern:
                 m = re.search(item_pattern, line)
                 if m:
-                    try:
+                    with contextlib.suppress(IndexError, AttributeError):
                         val = m.group(1).strip("\"'")
-                    except (IndexError, AttributeError):
-                        pass
             if val and val != "null":
                 items.append(val)
     return items
@@ -300,7 +299,7 @@ def template_to_motif(template: ParsedWorkflowTemplate) -> tuple | None:
         edges=[MotifEdge(s, "out", t, "in") for s, t in inferred_edges],
         source_templates=[template.workflow_id],
         quality_score=0.7,  # default, will be updated after validation
-        compatible_models=list(set(m.split("/")[-1] for m in template.models)),
+        compatible_models=list({m.split("/")[-1] for m in template.models}),
         min_vram_gb=template.estimated_vram_gb,
         version="1.0.0",
     )

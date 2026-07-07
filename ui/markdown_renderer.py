@@ -170,7 +170,7 @@ def _render_inline(text: str) -> list[tuple[str, str]]:
     """
     Render inline Markdown elements (bold, italic, code, links).
     Returns [(style_class, fragment), ...] for prompt_toolkit.
-    
+
     Processing order:
         1. Inline code `...`
         2. Links [text](url)
@@ -275,11 +275,11 @@ def _render_block(text: str, width: int = 80) -> list[tuple[str, str]]:
 def render_markdown(text: str, width: int = 80) -> list[tuple[str, str]]:
     """
     Render Markdown text to prompt_toolkit formatted text fragments.
-    
+
     Args:
         text: Raw markdown string
         width: Terminal width for wrapping (unused currently)
-    
+
     Returns:
         List of (style, fragment) tuples for FormattedText
     """

@@ -95,11 +95,11 @@ PREFIX_MAP: dict[MsgType, MsgPrefix] = {
 def get_prefix(msg_type: str, mode: str = "compact") -> str:
     """
     Get prefix for message type.
-    
+
     Args:
         msg_type: Message type string ('user', 'assistant', etc.)
         mode: 'symbol' | 'label' | 'compact' | 'full' | 'accessible'
-    
+
     Returns:
         Prefix string
     """

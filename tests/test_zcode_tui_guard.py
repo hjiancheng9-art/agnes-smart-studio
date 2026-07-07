@@ -46,11 +46,10 @@ def test_tui_has_height_guard():
                 found_guard = True
 
         # Check for TuiApp / TuiAppV2 import or creation
-        if isinstance(node, ast.ImportFrom):
-            if node.module in ("ui.tui_app", "ui.tui_v2"):
-                found_tui_import_or_create = True
-                if found_guard:
-                    guard_before_tui = True
+        if isinstance(node, ast.ImportFrom) and node.module in ("ui.tui_app", "ui.tui_v2"):
+            found_tui_import_or_create = True
+            if found_guard:
+                guard_before_tui = True
         if isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name) and node.func.id in ("TuiApp", "TuiAppV2"):
                 found_tui_import_or_create = True

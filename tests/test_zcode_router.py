@@ -380,7 +380,7 @@ class TestModelRoutingFindByCapability:
         assert len(results) > 0
         # All results should have >= 1M context
         from core.model_routing import resolve_model
-        for pid, mid in results:
+        for _pid, mid in results:
             m = resolve_model(mid)
             assert m is not None
             assert m.context_window >= 1000000
@@ -390,7 +390,7 @@ class TestModelRoutingFindByCapability:
         results = find_models_by_capability(supports_image=True)
         assert len(results) > 0
         from core.model_routing import resolve_model
-        for pid, mid in results:
+        for _pid, mid in results:
             m = resolve_model(mid)
             assert m is not None
             assert "image" in m.modalities[0]
@@ -400,7 +400,7 @@ class TestModelRoutingFindByCapability:
         results = find_models_by_capability(supports_reasoning=True)
         assert len(results) > 0
         from core.model_routing import resolve_model
-        for pid, mid in results:
+        for _pid, mid in results:
             m = resolve_model(mid)
             assert m is not None
             assert m.reasoning is not None
@@ -491,7 +491,7 @@ class TestModelRoutingGetProtocolPath:
     def test_get_protocol_path_wrong_kind(self):
         # bigmodel only has "anthropic", not "openai-compatible"
         from core.model_routing import get_protocol_path, resolve_provider
-        p = resolve_provider("bigmodel")
+        resolve_provider("bigmodel")
         result = get_protocol_path("bigmodel", "glm-5.1", "openai-compatible")
         assert result is None
 

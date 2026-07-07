@@ -19,7 +19,7 @@ if page:
     page.bring_to_front()
 
     # Wait for generation to finish (wait for stop button to disappear)
-    for i in range(20):
+    for _i in range(20):
         info = page.evaluate("""() => {
             const stopBtn = document.querySelector('button:has-text("停止生成")');
             return {generating: !!stopBtn, len: document.body.innerText.length};

@@ -131,7 +131,7 @@ def migrate_from_electron_store(source_path: str | None = None) -> bool:
     except Exception:
         return False
 
-    cfg = load_config()
+    load_config()
     # Map old electron-store keys to new config
     key_map = {
         "download.path": ("download", "default_dir"),

@@ -2,7 +2,7 @@
 
 用法：在 ui/tui_v2.py 的 CRUXApp 中：
     from ui.tui_control import TuiControlMixin
-    
+
     class CRUXApp(TuiControlMixin, ...):
         ...
 """
@@ -17,7 +17,7 @@ from core.control_plane import (
 
 class TuiControlMixin:
     """TUI Control Plane 混入类 —— 为 CRUXApp 添加控制通道能力。
-    
+
     提供：
     - 消息发送改为 pending → committed（2 秒撤销窗口）
     - Ctrl+Z 撤销 pending 消息
@@ -44,7 +44,7 @@ class TuiControlMixin:
 
         if is_streaming:
             # 执行中 → 走优先插话
-            event = control().priority_message(text)
+            control().priority_message(text)
             self._log_append(
                 ("→", "class:activity-info",
                  f"优先插话入队: {self._shorten(text, 60)}")
@@ -155,7 +155,7 @@ class TuiControlMixin:
 
     def _bind_control_keys(self, kb) -> None:
         """绑定 Control Plane 快捷键。
-        
+
         Ctrl+Z    撤销 pending 消息
         Ctrl+C    取消当前 run（不退出 TUI）
         Esc       暂停当前 run

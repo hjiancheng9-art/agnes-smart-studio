@@ -41,7 +41,7 @@ ANIM_PRIORITY = {
 class AnimationGovernor:
     """
     Central animation controller.
-    
+
     Ensures:
     - Only 1 animation active at a time
     - Animations disabled during streaming
@@ -89,7 +89,7 @@ class AnimationGovernor:
     def can_animate(self, anim_type: AnimType) -> bool:
         """
         Check whether an animation of given type can start.
-        
+
         Rules:
         1. If animations globally disabled → False
         2. If streaming and anim is not SPINNER/PROGRESS_BAR → False

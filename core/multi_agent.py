@@ -704,7 +704,7 @@ class MultiAgentCoordinator:
             t.start()
 
         # Wait for all (use per-task timeout, default 120s)
-        for task, t in zip(self.tasks, threads):
+        for task, t in zip(self.tasks, threads, strict=False):
             to = task.timeout_seconds if task.timeout_seconds > 0 else 120
             t.join(timeout=to)
 
@@ -725,9 +725,9 @@ class MultiAgentCoordinator:
             if deadlock_msg:
                 self._log.append({"event": "dag_deadlock", "deadlock": deadlock_msg, "root_trace_id": root_id})
 
-            elapsed = time.time() - started
-            done = sum(1 for t in self.tasks if t.status == "done")
-            failed = sum(1 for t in self.tasks if t.status == "failed")
+            time.time() - started
+            sum(1 for t in self.tasks if t.status == "done")
+            sum(1 for t in self.tasks if t.status == "failed")
 
         return _build_run_summary(goal, self.tasks, self._log, self.agents, started)
 
@@ -922,9 +922,9 @@ class AsyncMultiAgentCoordinator:
             if deadlock_msg:
                 await self._log_append({"event": "dag_deadlock", "deadlock": deadlock_msg, "root_trace_id": root_id})
 
-        elapsed = time.time() - started
-        done = sum(1 for t in self.tasks if t.status == "done")
-        failed = sum(1 for t in self.tasks if t.status == "failed")
+        time.time() - started
+        sum(1 for t in self.tasks if t.status == "done")
+        sum(1 for t in self.tasks if t.status == "failed")
 
         return _build_run_summary(goal, self.tasks, self._log, self.agents, started)
 

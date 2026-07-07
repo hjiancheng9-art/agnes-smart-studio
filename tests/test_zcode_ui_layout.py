@@ -294,10 +294,7 @@ class TestActivityLogContent:
         ctrl = activity_window.content
 
         # Get rendered content
-        if hasattr(ctrl, "get_formatted_text"):
-            result = ctrl.get_formatted_text()
-        else:
-            result = ctrl.text()
+        result = ctrl.get_formatted_text() if hasattr(ctrl, "get_formatted_text") else ctrl.text()
 
         assert isinstance(result, FormattedText)
         fragments = list(result.__iter__() if hasattr(result, "__iter__") else [])

@@ -74,7 +74,7 @@ for ctx in browser.contexts:
 
                 # Wait for response
                 print("⏳ 智谱: 等待回复...")
-                for i in range(40):
+                for _i in range(40):
                     time.sleep(3)
                     status = pg.evaluate("""() => {
                         const stopBtn = document.querySelector('button:has-text("停止生成")');

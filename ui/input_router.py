@@ -6,6 +6,7 @@ GPT Review M2/M3/S1 要求：
 - ClipboardAdapter 统一剪贴板操作
 """
 
+import contextlib
 import enum
 import threading
 from collections.abc import Callable
@@ -115,10 +116,8 @@ class InputRouter:
         self._mode = mode
         if old != mode:
             for cb in self._on_mode_change:
-                try:
+                with contextlib.suppress(Exception):
                     cb(mode)
-                except Exception:
-                    pass
 
     def on_mode_change(self, callback: Callable[[InputMode], None]) -> None:
         self._on_mode_change.append(callback)
@@ -129,21 +128,16 @@ class InputRouter:
 
     def dispatch(self, key: str) -> bool:
         """根据当前模式分发按键。返回 True=已消费。
-        
+
         优先级: 精确模式匹配 > NORMAL 兜底
         """
         handlers = self._handlers.get(key, [])
         # 先试精确模式匹配
         for mode, handler in handlers:
-            if mode == self._mode:
-                if handler():
-                    return True
+            if mode == self._mode and handler():
+                return True
         # 再试 NORMAL 兜底
-        for mode, handler in handlers:
-            if mode == InputMode.NORMAL:
-                if handler():
-                    return True
-        return False
+        return any(mode == InputMode.NORMAL and handler() for mode, handler in handlers)
 
     def remove_handlers(self, key: str) -> None:
         self._handlers.pop(key, None)

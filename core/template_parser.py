@@ -328,9 +328,8 @@ def parse_many(text: str, format: str = "auto") -> tuple[int, int, list[str]]:
             parsed = parse_template_json(block)
         if not parsed:
             parsed = parse_template_yaml(block)
-        if parsed:
-            if parsed_to_motif(parsed, reg):
-                success += 1
+        if parsed and parsed_to_motif(parsed, reg):
+            success += 1
 
     return success, len(blocks), errors
 

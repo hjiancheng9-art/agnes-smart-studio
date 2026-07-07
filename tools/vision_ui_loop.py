@@ -95,7 +95,7 @@ def analyze(image_path: str) -> dict:
 def apply_changes(changes: list[dict]) -> list[str]:
     """应用改动到源文件。返回日志列表。"""
     log = []
-    for i, c in enumerate(changes):
+    for _i, c in enumerate(changes):
         fpath = ROOT / c["file"]
         if not fpath.exists():
             log.append(f"  ✗ {fpath}: file not found")

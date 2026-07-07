@@ -5,6 +5,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import contextlib
+
 from playwright.async_api import async_playwright
 
 SVC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output", ".edge_svc")
@@ -105,7 +107,5 @@ async def main():
     await pw.__aexit__(None, None, None)
 
 if __name__ == "__main__":
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(main())
-    except KeyboardInterrupt:
-        pass

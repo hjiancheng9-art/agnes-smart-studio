@@ -284,7 +284,7 @@ class TestToolRegistryCategories:
         cats = fresh_registry.tool_categories
         # generate_image/generate_video should be in the generate category
         found = False
-        for cat_name, tool_list in cats.items():
+        for _cat_name, tool_list in cats.items():
             if "generate_image" in tool_list:
                 found = True
                 break

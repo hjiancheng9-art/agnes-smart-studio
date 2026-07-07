@@ -5,7 +5,7 @@ Implements breakpoint-driven layout adaptation per debate conclusions.
 
 Breakpoints (columns):
     >= 160  → FULL     Dashboard expanded, all features
-    140-159 → WIDE     Dashboard expanded  
+    140-159 → WIDE     Dashboard expanded
     110-139 → NORMAL   Dashboard compact (3 key indicators)
     90-109  → NARROW   Dashboard hidden, status bar enriched
     70-89   → TIGHT    Single column, pure conversation
@@ -16,6 +16,7 @@ Core principle: message area width ALWAYS prioritized.
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable
 from enum import Enum, auto
 
@@ -177,7 +178,7 @@ class EnvironmentInfo:
 class LayoutManager:
     """
     Manages responsive layout based on terminal width and environment.
-    
+
     Usage:
         manager = LayoutManager()
         config = manager.update(width=120)
@@ -253,10 +254,8 @@ class LayoutManager:
 
         # Notify listeners
         for listener in self._listeners:
-            try:
+            with contextlib.suppress(Exception):
                 listener(new_config)
-            except Exception:
-                pass
 
         return new_config
 
@@ -276,7 +275,7 @@ class LayoutManager:
         """
         Determine theme mode based on environment.
         Returns: 'normal', 'high_contrast', or 'mono'
-        
+
         Can be overridden via /theme command (sets _override_theme).
         """
         if hasattr(self, '_override_theme') and self._override_theme:

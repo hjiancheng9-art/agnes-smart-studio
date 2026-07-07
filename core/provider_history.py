@@ -81,7 +81,7 @@ def get_provider_stats(provider: str, window_minutes: int = 60) -> dict[str, Any
     success_rate = (
         _ema([1.0] * len(successes) + [0.0] * (total - len(successes))) if total > 0 else COLD_START_SUCCESS_RATE
     )
-    latencies = [r.get("latency_ms", 0) * r.get("_decay", 1.0) for r in records if r.get("latency_ms", 0) > 0]
+    [r.get("latency_ms", 0) * r.get("_decay", 1.0) for r in records if r.get("latency_ms", 0) > 0]
     recent_errors = [r.get("error", "") for r in records[-5:] if not r.get("success") and r.get("error")]
 
     return {
@@ -116,7 +116,7 @@ def get_all_stats(window_minutes: int = 60) -> dict[str, dict]:
             providers[r.get("provider", "unknown")].append(r)
 
     result = {}
-    for pid, records in providers.items():
+    for pid, _records in providers.items():
         result[pid] = get_provider_stats(pid, window_minutes)
     return result
 

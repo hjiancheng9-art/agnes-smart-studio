@@ -193,7 +193,7 @@ _run_test("T05a 超大参数 workflow 仍可通过 L1-L3",
       f"is_valid={v_extreme.is_valid} warnings={len(v_extreme.warnings)}")
 
 # Modify a sampler to have extreme values
-for nid, node in extreme_wf.items():
+for _nid, node in extreme_wf.items():
     if node.get("class_type") == "KSampler":
         node["inputs"]["steps"] = 9999
         node["inputs"]["cfg"] = 99.9

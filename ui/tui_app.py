@@ -451,7 +451,8 @@ class TuiApp:
             chars = sum(len(str(m.get("content", ""))) for m in self.session.messages)
             self.status_bar.set_context(int(chars * 0.4), 128000)
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            import logging
+            logging.getLogger('crux').debug('silent except', exc_info=True)
         self.status_bar.refresh()
 
     def run(self):

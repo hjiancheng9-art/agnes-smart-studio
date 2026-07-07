@@ -404,7 +404,7 @@ class TestDNAIntegrity:
 
     def test_base_injections_wired(self):
         from core.chat_prompt import _BASE_INJECTIONS
-        labels = [label for _, _, label in _BASE_INJECTIONS]
+        [label for _, _, label in _BASE_INJECTIONS]
         assert isinstance(_BASE_INJECTIONS, list), f"_BASE_INJECTIONS should be a list, got {type(_BASE_INJECTIONS)}"
         # NOTE: After AGENTS split + on-demand beast loading,
         # _BASE_INJECTIONS is empty by default.  Injections are added

@@ -59,7 +59,7 @@ def test_quest_dependency():
     from core.quest_engine import quest_complete, quest_create, quest_load, quest_start
 
     # Create and complete a dependency first
-    dep = quest_create("dependency-1", tags=["dep"])
+    quest_create("dependency-1", tags=["dep"])
     quest_start("dependency-1")
     quest_complete("dependency-1", "ok")
     assert quest_load("dependency-1")["status"] == "done"
@@ -77,7 +77,7 @@ def test_quest_lifecycle():
     _clean_output_dirs()
     from core.quest_engine import quest_complete, quest_create, quest_list, quest_start
 
-    q = quest_create("lifecycle", steps=[{"name": "step1", "action": "a"}, {"name": "step2", "action": "b"}])
+    quest_create("lifecycle", steps=[{"name": "step1", "action": "a"}, {"name": "step2", "action": "b"}])
     quest_start("lifecycle")
     quest_complete("lifecycle", "all done")
 

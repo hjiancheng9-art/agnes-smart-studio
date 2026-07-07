@@ -252,7 +252,6 @@ class FakeFixSeedPolicy:
         Returns:
             PolicyDecision: 默认为 allow_retry（不放行任何限制）
         """
-        ctx = context or {}
         signature_key = self._make_key(tool, error_type)
 
         # 1. 用户白名单

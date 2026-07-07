@@ -88,9 +88,7 @@ class VisionContext:
             if kw in text_lower:
                 return True
         # 超短查询（≤3字）且图片活跃 → 很可能指图
-        if len(text_lower) <= 6 and self.queries:
-            return True
-        return False
+        return bool(len(text_lower) <= 6 and self.queries)
 
     def reask(self, question: str, vision_caller: Callable[[str, str], str]) -> str | None:
         """按具体问题重新查询 vision 模型。

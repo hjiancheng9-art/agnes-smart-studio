@@ -13,7 +13,7 @@
 用法：
 from core.error_sink import catch
   from core.fixability_estimator import estimate_fixability
-  
+
   result = estimate_fixability("self_heal", "CUDA out of memory", ctx)
   if result.score < 0.3:
       # 不可修复，降级为诊断
@@ -163,7 +163,6 @@ class CUDAMemoryProbe(FixabilityProbe):
             import torch
 
             batch_size = context.get("batch_size", 0)
-            has_torch = True
 
             if torch.cuda.is_available():
                 device = torch.cuda.current_device()
@@ -434,7 +433,7 @@ class LLMAnalyzer:
 
 class FixabilityEstimator:
     """三阶段可修复性评估编排器。
-    
+
     流程：
       L0 (StaticSeed) → 匹配 → 直接返回
       ↓ 不匹配

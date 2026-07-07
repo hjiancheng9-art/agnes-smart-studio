@@ -3,6 +3,8 @@
 o 打开详情 → ↑↓滚动 → c复制/m复制MD/Esc返回
 """
 
+import contextlib
+
 from ui.input_router import get_clipboard
 from ui.message_store import MessageStore
 
@@ -37,10 +39,8 @@ class MessageDetailScreen:
     def close(self) -> None:
         self._active = False
         for cb in self._on_close:
-            try:
+            with contextlib.suppress(Exception):
                 cb()
-            except Exception:
-                pass
 
     def build_formatted(self) -> list:
         """构建详情视图的格式文本（供 prompt_toolkit 使用）。"""

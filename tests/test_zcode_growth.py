@@ -311,7 +311,7 @@ class TestTRMHook:
 
     def test_delegates_to_record(self):
         from core.growth_engine import get_growth_engine, hook_trm_route
-        ge = get_growth_engine()
+        get_growth_engine()
         ts = hook_trm_route("search", "tool_x", success=True, latency_ms=30)
         assert ts.tool == "tool_x"
         assert ts.calls >= 1

@@ -109,7 +109,7 @@ def _list_files(prefix: str) -> list[tuple[str, str, str]]:
 class TuiCompleter(Completer):
     """
     Smart completer for CRUX TUI input.
-    
+
     Modes:
       / → command completion
       @ → file path completion
@@ -168,12 +168,11 @@ class TuiCompleter(Completer):
             if len(last_word) >= 2:  # only complete words with 2+ chars
                 seen = set()
                 for word in self._history_words:
-                    if word.lower().startswith(last_word.lower()):
-                        if word not in seen:
-                            seen.add(word)
-                            yield Completion(
-                                text=word,
-                                start_position=-len(last_word),
-                                display=word,
-                                style="class:history-completion",
-                            )
+                    if word.lower().startswith(last_word.lower()) and word not in seen:
+                        seen.add(word)
+                        yield Completion(
+                            text=word,
+                            start_position=-len(last_word),
+                            display=word,
+                            style="class:history-completion",
+                        )

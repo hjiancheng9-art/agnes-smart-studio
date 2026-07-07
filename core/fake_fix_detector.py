@@ -112,7 +112,7 @@ def _capture_context_snapshot(context: dict = None) -> dict:
 
 def _get_backoff_window(entry: QuarantineEntry) -> float:
     """获取当前 backoff 级别对应的时间窗口（秒）。
-    
+
     使用 exponential backoff + context stability multiplier:
     - 如果 context 稳定（无变化）→ 正常递增 backoff
     - 如果 context 变化了 → 降一级 backoff
@@ -141,10 +141,7 @@ def _is_context_stable(entry: QuarantineEntry) -> bool:
         return True
     last = entry.context_snapshots[-1]
     prev = entry.context_snapshots[-2]
-    for key in CONTEXT_STABILITY_KEYS:
-        if last.get(key) != prev.get(key):
-            return False
-    return True
+    return all(last.get(key) == prev.get(key) for key in CONTEXT_STABILITY_KEYS)
 
 
 def is_quarantined(tool: str, error_type: str, context: dict = None) -> bool:
@@ -188,10 +185,7 @@ def is_quarantined(tool: str, error_type: str, context: dict = None) -> bool:
     if decision.action == "limited_retry":
         seed_max = min(decision.max_retries, MAX_RETRIES_24H)
 
-    if entry.retry_count >= seed_max:
-        return True
-
-    return False
+    return entry.retry_count >= seed_max
 
 
 def record_retry(tool: str, error_type: str, context: dict = None):

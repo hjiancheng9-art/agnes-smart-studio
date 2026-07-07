@@ -28,6 +28,7 @@ Events:  All state changes flow through a unified event bus
 
 from __future__ import annotations
 
+import contextlib
 import json
 import threading
 import time
@@ -137,11 +138,11 @@ class SessionState:
 class EventBus:
     """
     Thread-safe pub/sub event bus.
-    
+
     Both TUI and GUI connect to this bus.
     TUI: reads from in-process queue, renders in terminal
     GUI: reads from WebSocket bridge, renders in browser
-    
+
     Usage:
         bus = EventBus()
         bus.subscribe("message.*", my_handler)
@@ -174,10 +175,8 @@ class EventBus:
 
             for pattern, callback in self._subscribers:
                 if self._matches(pattern, event.type):
-                    try:
+                    with contextlib.suppress(Exception):
                         callback(event)
-                    except Exception:
-                        pass
 
     def subscribe(self, pattern: str, callback: Callable):
         """

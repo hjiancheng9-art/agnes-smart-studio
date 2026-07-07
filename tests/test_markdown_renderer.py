@@ -80,7 +80,7 @@ def hello(name):
     def test_no_ansi_codes(self):
         """Pygments output should NOT contain raw ANSI escape codes."""
         result = render_markdown("```python\nx = 1\n```")
-        for style, text in result:
+        for _style, text in result:
             assert '\x1b[' not in text, f"ANSI code found: {repr(text[:50])}"
 
     def test_clear_cache(self):

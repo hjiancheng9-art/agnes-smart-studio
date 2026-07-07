@@ -431,7 +431,6 @@ class ToolRegistryMesh:
             intent_lower = spec.intent.lower()
             spec_type = spec.intent_type
             spec_output = spec.output_type
-            spec_risk = spec.risk
         else:
             # 向后兼容：字符串输入
             try:
@@ -461,16 +460,6 @@ class ToolRegistryMesh:
 
             # 2. 分类匹配（如果 TaskSpec 可用）
             if spec_type is not None:
-                cat_map = {
-                    0: "creative",  # IntentType.GENERATE → creative
-                    1: "code",      # IntentType.ANALYZE → code
-                    2: "code",
-                    3: "web",       # SEARCH
-                    4: "infra",     # EXECUTE
-                    5: "code",      # REVIEW
-                    6: "code",      # DIAGNOSE
-                    7: "infra",     # DEPLOY
-                }
                 # Map enum to expected category using value
                 try:
                     expected_cat = {
@@ -541,12 +530,10 @@ class ToolRegistryMesh:
 
     def get_route_stats(self) -> dict:
         """获取路由统计"""
-        return {
-            name: stats for name, stats in sorted(
+        return dict(sorted(
                 self._route_stats.items(),
                 key=lambda x: -x[1]["calls"]
-            )[:20]
-        }
+            )[:20])
 
     def route(self, intent: str, **kwargs) -> RouteResult:
         """Route a task intent to the best available tool.

@@ -50,7 +50,7 @@ class TestChatDefaults:
         """ChatSession._vote_enabled should default to False."""
         from core.chat import ChatSession
         # Create a minimal session to check default
-        session = ChatSession.__new__(ChatSession)
+        ChatSession.__new__(ChatSession)
         # _vote_enabled is set in __init__, so we need to init
         # Instead, check the class source for the default value
         import inspect

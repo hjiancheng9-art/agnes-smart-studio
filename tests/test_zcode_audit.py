@@ -35,7 +35,7 @@ class TestAuditSyntax:
         broken_py.write_text("def broken(\n", encoding="utf-8")
         result = audit_syntax(root=tmp_path)
         # Should have at least one error
-        broken_rel = str(Path("broken.py"))
+        str(Path("broken.py"))
         matching = [e for e in result if "broken.py" in str(e)]
         assert len(matching) >= 1
 

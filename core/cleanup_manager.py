@@ -531,7 +531,7 @@ class CleanupManager:
         moved_count = 0
         for sf in report.files_to_clean:
             try:
-                entry = self._move_to_trash(sf)
+                self._move_to_trash(sf)
                 moved_count += 1
             except Exception as e:
                 report.errors.append(f"{sf.path}: {e}")
@@ -578,7 +578,7 @@ class CleanupManager:
         # 记录到数据库
         conn = sqlite3.connect(str(self.log_db))
         conn.execute(
-            """INSERT INTO event_log (run_id, timestamp, action, original_path, trashed_path, 
+            """INSERT INTO event_log (run_id, timestamp, action, original_path, trashed_path,
                size_bytes, rule, tier, risk, reason, checksum)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             ("trash_" + entry.id, now, "trash", entry.original_path, str(trashed_path),

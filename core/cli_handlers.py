@@ -1257,7 +1257,7 @@ class CruxCLI:
                 calls = s.get("calls", 0)
                 rate = s.get("success_rate", 1.0)
                 lat = s.get("avg_latency_ms", 0)
-                err = s.get("recent_error", "")
+                s.get("recent_error", "")
                 circuit = circuit_states.get(pid, "CLOSED")
                 sc = score_provider(pid, req, circuit_states)
                 lines.append(

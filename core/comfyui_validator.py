@@ -165,14 +165,14 @@ class ComfyUIValidator:
         edges: list[tuple[str, str]] = []
 
         for node_id, node in workflow.items():
-            for input_name, input_value in node.get("inputs", {}).items():
+            for _input_name, input_value in node.get("inputs", {}).items():
                 if isinstance(input_value, list) and len(input_value) == 2:
                     src_id = str(input_value[0])
                     in_degree[node_id] += 1
                     edges.append((src_id, node_id))
 
         # 孤立节点检测
-        for node_id, deg in in_degree.items():
+        for node_id, _deg in in_degree.items():
             inputs = workflow[node_id].get("inputs", {})
             has_output_connections = any(
                 str(input_value[0]) == node_id
@@ -222,9 +222,8 @@ class ComfyUIValidator:
                     "vae_name",
                     "controlnet_name",
                     "upscale_model",
-                ):
-                    if input_value and input_value not in self._models:
-                        result.add_warning("L4", f"引用的模型可能不可用: {input_value}", node_id=node_id)
+                ) and input_value and input_value not in self._models:
+                    result.add_warning("L4", f"引用的模型可能不可用: {input_value}", node_id=node_id)
 
         # 检查潜在显存问题
         for node_id, node in workflow.items():

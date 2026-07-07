@@ -159,7 +159,6 @@ class MessagePane:
                 # ── Virtual Scrolling: only render visible range when over threshold ──
                 total_msgs = len(lines_snapshot)
                 if total_msgs > self._virtual_scroll_threshold:
-                    height_est = 3  # average lines per message
                     visible_count = 50  # visible messages on screen
                     mid = self._scroll_offset
                     half = visible_count // 2

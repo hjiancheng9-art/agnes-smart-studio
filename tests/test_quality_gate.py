@@ -67,7 +67,7 @@ class TestQualityGate:
         assert result.verdict == QualityVerdict.WARNING
 
     def test_fail_threshold(self):
-        result = self.qg.evaluate(
+        self.qg.evaluate(
             "模糊失真噪点严重",
             "模糊",
         )

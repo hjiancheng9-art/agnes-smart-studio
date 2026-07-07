@@ -129,7 +129,7 @@ class MotifDefinition:
                 {
                     "role": n.role,
                     "class_type": n.class_type,
-                    "param_ranges": {k: v for k, v in n.param_ranges.items()},
+                    "param_ranges": dict(n.param_ranges.items()),
                     "optional": n.optional,
                 }
                 for n in self.nodes
@@ -219,7 +219,7 @@ class MotifRegistry:
             by_category[m.category] = by_category.get(m.category, 0) + 1
         return {
             "total": len(self._motifs),
-            "unique": len(set(m.canonical_hash for m in self._motifs.values())),
+            "unique": len({m.canonical_hash for m in self._motifs.values()}),
             "by_category": by_category,
         }
 

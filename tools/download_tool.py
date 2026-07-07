@@ -62,7 +62,6 @@ def handle_download_command(text: str, width: int, append_msg, append_err, _log_
             pct = j.progress_pct()
             bar = _progress_bar(pct, 10)
             speed = j.speed_str() if j.status == "running" else ""
-            style = "run-success" if j.status == "completed" else "run-warn" if j.status == "running" else "muted"
             row = f" {j.job_id:<14} {j.status:<10} {pct:>5.1f}%{bar} {speed:<10} {j.url[:40]}\n"
             append_msg("info", row)
         return True

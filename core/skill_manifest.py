@@ -276,9 +276,9 @@ def infer_runtime(skill_data: dict) -> tuple[str, float]:
             return "python_subprocess", 0.80
 
     # ── Keyword-based (medium confidence) ──
-    decl_score = scores.get("declarative", 0)
-    py_inline_score = scores.get("python_inline", 0)
-    py_sub_score = scores.get("python_subprocess", 0)
+    scores.get("declarative", 0)
+    scores.get("python_inline", 0)
+    scores.get("python_subprocess", 0)
 
     # Check for conflicts: if description is the main source of keywords
     desc = ""
@@ -332,9 +332,8 @@ def infer_permissions(skill_data: dict) -> list[str]:
     perms = set()
 
     # Separate description from actual content
-    desc = ""
     if isinstance(skill_data, dict):
-        desc = (skill_data.get("description", "") or "").lower()
+        (skill_data.get("description", "") or "").lower()
 
     _perm_hints = {
         "cdp": ["browser", "cdp", "playwright", "navigate", "screenshot"],

@@ -24,8 +24,7 @@ def _make_mock_client(stream_chunks=None, model="deepseek-v4-flash"):
         ]
 
     def _mock_stream(*args, **kwargs):
-        for chunk in stream_chunks:
-            yield chunk
+        yield from stream_chunks
         # Yield usage info at end
         yield {"usage": {"total_tokens": 50, "prompt_tokens": 20, "completion_tokens": 30}}
 

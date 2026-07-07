@@ -291,7 +291,7 @@ class ContractRegistry:
         self._load_builtins()
 
     def _load_builtins(self):
-        for name, contract in BUILTIN_CONTRACTS.items():
+        for _name, contract in BUILTIN_CONTRACTS.items():
             self.register(contract)
 
     def register(self, contract: ToolContract):
