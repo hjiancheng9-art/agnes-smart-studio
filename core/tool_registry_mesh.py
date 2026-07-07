@@ -511,6 +511,22 @@ class ToolRegistryMesh:
             candidates.append((name, round(score, 3)))
 
         candidates.sort(key=lambda x: -x[1])
+
+        # 联动技能市场推荐（v6.0: 工具+技能包联合推荐）
+        try:
+            from core.skill_recommender import SkillRecommender
+            sr = SkillRecommender()
+            if spec_type is not None:
+                skill_recs = sr.recommend(spec_type.value, top_k=3)
+                for skill_name, skill_score in skill_recs:
+                    candidates.append((
+                        f"[技能] {skill_name}",
+                        round(skill_score / 10, 2),  # 归一化到工具评分范围
+                    ))
+        except ImportError:
+            pass
+
+        candidates.sort(key=lambda x: -x[1])
         return candidates[:max_results]
 
     def record_call(self, tool_name: str, success: bool):

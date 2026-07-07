@@ -238,6 +238,25 @@ def simplicity_score(goal: str) -> tuple[float, list[str]]:
     return _match_weighted(goal, _SIMPLICITY_BLOCKERS)
 
 
+def decomposability_score(goal: str) -> tuple[float, list[str]]:
+    """DAG decomposability estimation (v6.0).
+
+    智谱清言建议：预判任务是否能拆解为独立并行子任务。
+    可分解性高的任务 → 有并行叶子节点 → 适合 SWARM。
+    """
+    patterns: list[tuple[str, float]] = [
+        ("并且", 3.0), ("同时", 3.0), ("分别", 3.0),
+        ("先", 1.5), ("再", 1.5), ("然后", 1.5),
+        ("前端", 2.0), ("后端", 2.0), ("前后端", 3.0),
+        ("数据库", 2.0), ("API", 2.0),
+        ("同时生成", 4.0), ("并行处理", 4.0),
+        ("分别处理", 3.0), ("各自", 2.0),
+        ("多维度", 2.0), ("多个方面", 2.0), ("多角度", 2.0),
+        ("提取", 1.5), ("转换", 1.5), ("合并", 1.5),
+    ]
+    return _match_weighted(goal, patterns)
+
+
 # ─── Context state features ───
 
 def build_context_state(
@@ -296,8 +315,9 @@ def compute_agent_mode(
     rk, rk_matched = risk_score(goal)
     am, am_matched = ambiguity_score(goal)
     sp, sp_matched = simplicity_score(goal)
+    dg, dg_matched = decomposability_score(goal)
 
-    total = kw + ln + fs + ff + rk + am - sp
+    total = kw + ln + fs + ff + rk + am - sp + dg
 
     if total >= 8:
         mode = AgentMode.SWARM
@@ -323,6 +343,7 @@ def compute_agent_mode(
         "risk": {"score": rk, "matched": rk_matched},
         "ambiguity": {"score": am, "matched": am_matched},
         "simplicity": {"score": sp, "matched": sp_matched, "subtracted": True},
+        "decomposability": {"score": dg, "matched": dg_matched},
         "total": round(total, 2),
         "mode": mode.value,
     }
