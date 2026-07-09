@@ -1,0 +1,24 @@
+  agent.py
+  execution.py
+  browser.py
+  mcp.py
+  lsp.py
+  errors.py
+
+建议运行静态检查：
+
+Bash
+python -m compileall core tests
+python -m pytest -m "unit and not slow" --tb=short
+
+阶段完成标准：
+
+核心工具、执行器、浏览器、MCP、LSP 都能被 fake 实现替换。
+
+单元测试不再依赖真实浏览器、真实网络、真实 MCP、真实 LSP。
+
+approval_gate 和 sandbox 成为强制边界，而不是可选工具。
+
+阶段3: 补核心模块测试，先覆盖高风险链路
+
+目标：围绕真实故障和高副

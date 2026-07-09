@@ -1,0 +1,62 @@
+nner → Tool Registry → Executor → Browser/MCP/LSP/GitHub 的边界需要固定。
+
+缺少“测试运行指南”：哪些测试可本地快速跑，哪些需要浏览器、网络、GitHub token、MCP server。
+
+缺少“工具开发规范”：新工具如何声明能力、权限、输入输出 schema、错误、超时、幂等性。
+
+缺少“故障处理手册”：CDP 断连、模型断连、输入区污染、滚动锁死、MCP 不可用、LSP 崩溃等应有 runbook。
+
+2. 测试计划
+P0：必须先补，阻断级
+模块	需要补的测试	目标
+tests/test_zcode_launcher.py	import-safe 测试、依赖缺失 skip、launcher 参数解析测试	解除 pytest 收集阻塞
+tool_registry_mesh	工具注册、查找、路由、失败降级、重复工具冲突	防止 80+ 工具失控
+approval_gate	高危操作拦截、低危操作放行、权限继承、审计日志	防止 agent 绕过审批
+sandbox	命令白名单、路径逃逸、超时、stdout/stderr 限制	防止执行层失控
+code_executor	正常执行、超时、异常、权限拒绝、沙箱失败	固定执行语义
+cdp_browser	连接、断连重连、输入缓冲清空、滚动事件恢复	解决 CRUX 真实痛点
+context_manager	上下文裁剪、去重、token 预算、历史污染防护	防止消息炸开
+task_governor	并发限制、取消任务、超时、重试预算	防止任务堆积
+P1：核心稳定性测试
+模块	需要补的测试	目标
+agent_swarm	多 agent 调度、失败隔离、结果合并	防止群体智能体互相污染
+multi_agent	角色分工、消息路由、死循环保护	控制多智能体复杂度
+plan_executor	plan DAG 执行、失败回滚、步骤跳过	固定规划执行行为
+pipeline_executor	pipeline 串并行、产物传递、失败恢复	保证流水线可预测
+capability_registry	能力发现、版本匹配、缺失能力提示	支撑工具选择
+skill_loader	技能加载、schema 校验、冲突处理、禁用技能	管住 56/750 技能生态
+lsp_session	启动、请求、超时、重启、假 LSP server	稳定代码理解
+mcp 相关	协议握手、工具调用、超时、fallback	防止远程工具拖垮本地
+P2：智能增强模块测试
+模块	需要补的测试	目标
+knowledge_graph	节点写入、边关系、检索排序、去重	知识可控
+wiki_engine	文档索引、查询、增量更新、过期处理	文档知识稳定
+code_understanding	文件摘要、符号提取、依赖分析	支撑代码审查
+review_engine	diff 审查、规则命中、误报控制	提升代码质量
+self_heal	错误分类、修复建议、禁止危险修复	防止自愈误伤
+retrospective	任务复盘、问题归因、行动项生成	保持长期迭代质量
+tdd_engine	红绿重构流程、测试生成、失败定位	固化 TDD 能力
+metrics_collector	指标采集、聚合、导出、异常容忍	建立可观测性
+阶段1: 解除测试阻塞，建立最小可信反馈环
+
+目标：先让测试能稳定收集、快速运行、可分层执行。不要一开始重构架构。
+
+ 定位阻塞导入错误：python -m pytest tests/test_zcode_launcher.py -vv --tb=short
+
+ 单独验证 pytest 收集：python -m pytest --collect-only -q
+
+ 修复 tests/test_zcode_launcher.py 的 import 阶段副作用：把真实 launcher 启动、环境探测、路径扫描移动到测试函数内部。
+
+ 如果 launcher 依赖本机环境，改为条件跳过：pytest.importorskip("module_name")
+
+ 给测试加标记文件 pytest.ini：unit、integration、e2e、slow、browser、network、mcp、lsp。
+
+ 先跑快速单元测试：python -m pytest -m "unit and not slow" --tb=short
+
+ 对全量测试生成耗时报告：python -m pytest --durations=50 --tb=short
+
+ 把超过 2 秒的测试先标记为 slow。
+
+ 把需要真实浏览器的测试标记为 browser。
+
+ 把需要网络、GitHub、MCP server、LSP s

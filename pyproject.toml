@@ -61,6 +61,18 @@ dev = [
 # tests/manual/ 是手动集成脚本（打真实 API、有自己的入口），不纳入 CI 收集。
 testpaths = ["tests"]
 norecursedirs = ["tests/manual", "scripts", "output", ".codebuddy"]
+markers = [
+    "unit: Fast tests, no I/O, no network, no browser. Run first.",
+    "integration: Tests that wire multiple modules together.",
+    "slow: Tests taking >2 seconds.",
+    "browser: Requires real browser (Playwright/CDP).",
+    "network: Requires internet connectivity.",
+    "mcp: Requires MCP server running.",
+    "lsp: Requires LSP server running.",
+    "github: Requires GitHub token.",
+    "e2e: End-to-end, full stack.",
+    "smoke: Quick sanity check (subset of unit).",
+]
 pythonpath = ["."]
 python_files = ["test_*.py"]
 addopts = "-q"

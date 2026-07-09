@@ -1,0 +1,74 @@
+下面按“先救测试收集 → 再切架构边界 → 再补核心回归 → 再治理工具系统 → 最后固化质量门禁”的顺序审计。
+
+总体判断
+
+CRUX Studio 现在不是“小修小补”阶段，而是大型智能体平台进入架构债务清算期。当前最大风险不是代码量，而是：
+
+测试系统已经失去快速反馈能力。
+
+核心模块数量多，但边界可能不够清晰。
+
+CDP / MCP / LSP / TDD / Tool Registry / Agent Swarm 都是高状态、高异步、高副作用模块，若缺少分层测试，很容易出现“能跑但不可维护”。
+
+技能包和内部工具数量巨大，缺少统一契约测试会导致工具路由、权限、环境、版本兼容持续退化。
+
+tests/test_zcode_launcher.py ImportError 阻塞收集，说明测试入口有副作用或依赖污染，必须先修。
+
+1. 债务清单
+A. 测试债务
+
+tests/test_zcode_launcher.py 的 ImportError 阻塞全部测试收集，说明测试文件在 import 阶段执行了不安全依赖。
+
+pytest 全量超过 180 秒，说明测试未分层，缺少 unit / integration / e2e / slow / browser / network 标记。
+
+测试/源码比 19.2%，对 24 万行项目偏低，尤其不适合智能体系统。
+
+很可能存在“测试导入即启动服务 / 浏览器 / 网络连接 / 文件扫描”的问题。
+
+CDP、MCP、LSP、GitHub、TDD、pipeline 等副作用模块如果没有 mock/fake 层，会导致测试慢、不稳定、依赖本机环境。
+
+缺少契约测试：工具接口、技能包接口、MCP 协议、TRM 路由结果都需要固定输入输出。
+
+缺少回归测试：历史 bug，例如输入区消息炸开、滚动失效、模型断连，应沉淀为 regression tests。
+
+缺少性能预算测试：pytest 超时、工具路由耗时、上下文构建耗时、知识图谱检索耗时都应有上限。
+
+B. 架构债务
+
+core/ 模块过多，已经形成“超级核心层”。core 既包含 agent、browser、executor、registry、knowledge、wiki、TDD、pipeline、self-heal，职责过宽。
+
+多个执行相关模块可能存在重叠：code_executor、sandbox、pipeline_executor、plan_executor、tdd_engine、task_governor。
+
+多个智能体编排模块可能存在边界重叠：agent_swarm、multi_agent、goal_mode、quest_engine、retrospective、review_engine、self_heal。
+
+工具系统规模大：80+ 内部工具、56 技能包、750 市场技能，若缺少统一 ToolSpec / ToolResult / ToolError / Capability 模型，会快速失控。
+
+tool_registry_mesh 和 trm_growth 可能是核心复杂度中心，必须明确“路由、发现、授权、执行、降级、统计”边界。
+
+CDP 浏览器控制天然脆弱，若选择器、事件监听、重连、输入缓冲没有隔离，会导致 UI 状态污染。
+
+MCP 与本地工具如果共享执行路径但错误模型不同，会造成重试、降级、权限边界混乱。
+
+context_manager、knowledge_graph、wiki_engine 可能重复承担“记忆/知识/检索/上下文裁剪”职责，需要统一分层。
+
+approval_gate、sandbox、file_locker、code_executor 涉及安全边界，必须不能被 agent 或工具绕过。
+
+C. 代码质量债务
+
+582 个 Python 文件，若没有强制 import lint、循环依赖检测、类型检查，很容易出现隐式耦合。
+
+JSON 738 文件、66k 行，说明配置/蓝图/技能元数据量很大，必须用 schema 校验。
+
+TypeScript/JavaScript 文件虽少，但如果承载 UI、CDP bridge 或 dashboard，缺少测试也会成为高风险入口。
+
+可能存在动态 import、字符串路由、反射式工具加载，静态分析覆盖不足。
+
+异步模块可能混用 sync/async，容易出现事件循环冲突、阻塞、未 await、任务泄漏。
+
+需要统一错误类型，否则工具失败、浏览器断连、LLM 失败、权限拒绝、超时都会被混成普通异常。
+
+D. 文档债务
+
+Markdown 137 文件，接近 2 万行，文档量不小，但可能存在版本漂移。
+
+缺少“当前真实架构图”：Agent → Pla
