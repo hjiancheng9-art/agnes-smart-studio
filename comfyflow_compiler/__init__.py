@@ -1,7 +1,7 @@
 """ComfyFlow Compiler — 零门槛 ComfyUI 高级工作流生成器"""
 
-__version__ = "6.5.0"
-__version_name__ = "Polish Closure"
+__version__ = "6.6.0"
+__version_name__ = "Production Hardening"
 
 from .compiler import ComfyFlowCompiler
 from .models import CompileResult, TaskSpec

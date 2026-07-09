@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.6.0] - 2026-07-10 — Production Hardening
+
+### Added
+- Benchmark suite: `python -m comfyflow_compiler.benchmark` (10 intents, compile speed, quality scoring)
+- Blueprint × Capability Matrix: `python -m comfyflow_compiler.capability.matrix`
+- Soak test: `python tests/soak_test.py` (continuous compile, pass rate tracking)
+- `test_benchmark.py` (7 tests)
+
+### Fixed
+- `__version__` sync across modules
+- `benchmark.py` MIN_NODES includes "video" task type
+- `print_report` pass_rate computed inline
+
+### Tests
+- 117 tests, all passing
+
 ## [v6.5.0] - 2026-07-10 — Polish Closure
 
 ### Added

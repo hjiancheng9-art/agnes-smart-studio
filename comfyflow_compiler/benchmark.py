@@ -42,6 +42,7 @@ MIN_NODES = {
     "img2img": 3,
     "t2v": 3,
     "i2v": 3,
+    "video": 3,   # intent parser returns "video" before compiler splits to t2v/i2v
 }
 
 
@@ -212,7 +213,7 @@ def print_report(report: BenchmarkReport):
     print(f"    Total:     {report.total}")
     print(f"    Passed:    {report.passed} ✅")
     print(f"    Failed:    {report.failed} {'❌' if report.failed else '✅'}")
-    print(f"    Pass rate: {report.pass_rate}")
+    print(f"    Pass rate: {report.passed}/{report.total} ({report.passed/max(report.total,1)*100:.0f}%)")
     print(f"    Avg compile: {report.avg_compile_ms:.0f}ms")
     print(f"    Avg quality: {report.avg_quality:.3f}")
     print(f"    Min nodes ok: {report.min_nodes_ok}/{report.passed}")
