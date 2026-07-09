@@ -1,142 +1,160 @@
-# CRUX Studio v5.0
+# ComfyFlow Compiler v6.5
 
-CRUX Studio — AI-Native 开发工作室 — 代码 / 图像 / 视频 / 多智能体。
+零门槛 ComfyUI 高级工作流编译器 — 自然语言 → 生产级 Workflow JSON → 真实 ComfyUI 执行。
 
-> 白虎为骨(容灾) · 青龙为脉(并行) · 朱雀为眼(洞察)  
-> 玄武为甲(守卫) · 麒麟为手(生成) · 螣蛇为忆(记忆) · 应龙为令(号令)
+```bash
+pip install -e .
+comfyflow probe              # 探测 ComfyUI 环境
+comfyflow compile "a cat"    # 编译为 workflow
+comfyflow run "a cat"        # 编译 + 执行
+```
 
 ---
 
-## 五分钟上手
+## 10 分钟上手
 
 ### 1. 安装
 
 ```bash
-pip install -r requirements.txt
-cp .env.example .env   # 填入你的 API Key
+git clone <repo>
+cd comfyflow-compiler
+pip install -e .
 ```
 
-### 2. 启动
+### 2. 探测环境
 
 ```bash
-python crux_studio.py          # 交互模式
-python crux_studio.py -q "你的问题"  # 快速模式
+comfyflow probe
+# 🔍 探测 ComfyUI: http://127.0.0.1:8188
+#   在线:     ✅
+#   版本:     v1.0.0
+#   节点:     342 total (56 custom)
+#   模型:     28 across 5 categories
 ```
 
-### 3. 常用命令
+### 3. 编译一条指令
+
+```bash
+comfyflow compile "a cat astronaut in space, cinematic"
+# ✅ 编译成功
+#   蓝图: SDXL 高清生成
+#   节点: 8 (CLIPTextEncode, KSampler, VAEDecode, SaveImage, ...)
+```
+
+### 4. 一键执行
+
+```bash
+comfyflow run "a cat astronaut in space"
+# ✅ 编译成功: SDXL 高清生成
+# 🚀 提交到 ComfyUI...
+# ✅ trace=a1b2c3 | task=txt2img | blueprint=flux_basic | elapsed=8.2s | Output: 1 images
+#   📁 C:/ComfyUI/output/ComfyUI_00001.png (image)
+```
+
+### 5. 匹配兼容性
+
+```bash
+comfyflow match "a dog running, video"
+# 🎯 匹配: a dog running, video
+#   意图: task_type=t2v, style=['realistic']
+#   配方: video_t2v_ltx → ['ltx_t2v_basic']
+#   最佳兼容: ltx_t2v_basic (score=0.85)
+```
+
+### 6. 查看蓝图
+
+```bash
+comfyflow list-blueprints
+# 📋 共 24 个蓝图:
+#   ✅ flux_txt2img_basic                     txt2img   9 nodes  [stable]
+#   ✅ sdxl_img2img_basic                     img2img   8 nodes  [stable]
+#   🔶 ltx_t2v_basic                          t2v       5 nodes  [beta]
+#   ...
+```
+
+---
+
+## CLI 命令
 
 | 命令 | 用途 |
 |------|------|
-| `/help` | 查看所有命令 |
-| `/skill list` | 列出可用技能 |
-| `/model` | 切换/查看模型 |
-| `/img` 描述 | 生成图片 |
-| `/video` 描述 | 生成视频 |
-| `/git commit` | 提交代码 |
-| `/todo` | 任务追踪 |
-| `/plan` | 多步规划执行 |
-| `/audit` | 代码审查 |
-| `/self heal` | 系统自检修复 |
-
-### 4. 权限模式
-
-```
-/yolo    → 所有工具直接执行（信任模式）
-/auto    → 高危工具需确认（默认）
-/manual  → 所有写入操作需确认（安全模式）
-```
-
-### 5. 核心能力索引
-
-```
-/白虎    → 查看容灾自愈状态
-/青龙    → 查看并行任务
-/朱雀    → 代码审查
-/玄武    → 安全规则
-/麒麟    → 文档生成
-/螣蛇    → 用户记忆
-/应龙    → 目标管理
-```
+| `comfyflow probe [url]` | 探测 ComfyUI 环境 |
+| `comfyflow list-blueprints` | 列出所有蓝图 |
+| `comfyflow match <prompt>` | 匹配最佳蓝图 |
+| `comfyflow compile <prompt>` | 编译为 workflow JSON |
+| `comfyflow run <prompt>` | 编译 + 执行 |
+| `comfyflow pack <workflow.json> [id]` | 打包 workflow 为蓝图 |
+| `comfyflow report [--json]` | 蓝图覆盖报告 |
+| `comfyflow version` | 版本信息 |
 
 ---
 
-## 核心架构
+## 架构概览
 
 ```
-.
-├── crux_studio.py       # 主入口
-├── launcher.py          # 七兽启动器
-├── core/                # 核心引擎 (149 .py)
-│   ├── chat.py          # 聊天会话 + 流式协议
-│   ├── commands.py      # 命令注册表 (45 commands)
-│   ├── tools.py         # 工具注册表 (97 tools)
-│   ├── provider.py      # 多供应商 failover
-│   ├── methodology.py   # 方法论引擎
-│   └── lore/            # 七兽 DNA
-├── ui/                  # 终端 TUI
-├── engines/             # 生图/生视频引擎
-├── skills/              # 本地技能 (28)
-└── tests/               # 43 测试文件
-│   │   ├── crux_dna.py  # 白虎·容灾
-│   │   ├── codex_dna.py # 青龙·并行
-│   │   ├── claude_dna.py# 朱雀·洞察
-│   │   ├── zcode_dna.py # 玄武·守卫（ZCode 吸收）
-│   │   ├── codebuddy_dna.py # 麒麟·生成
-│   │   ├── tengshe_dna.py   # 螣蛇·记忆
-|   |   ├── five_beasts.py   # 五兽总览
-│   ├── ... (149 模块)
-├── ui/                  # 终端 UI
-├── skills/              # 本地技能 (28)
-├── output/              # 输出 / 日志
-└── tests/               # 43 测试文件
+用户输入 (NL)
+    ↓
+[intent_parser] → task_type, style, subject
+    ↓
+[blueprint_registry] → 匹配场景配方 + 选择最佳蓝图
+    ↓
+[graph_composer] → 组装 workflow JSON
+    ↓
+[quality_gate] → 质量门 (结构/模型/参数/环境)
+    ↓
+[capability/snapshot] → 运行时能力探测
+    ↓
+[capability/compatibility] → 蓝图兼容性匹配
+    ↓
+[orchestrator/mcp_first] → MCP / 本地降级
+    ↓
+[execution] → 提交 → 轮询 → 收集产物
+    ↓
+输出 (图片/视频/音频)
 ```
 
----
+## 蓝图资产
 
-## 核心能力
-
-| 类别 | 能力 | 说明 |
-|------|------|------|
-| 🎨 图像 | 文生图 · 图生图 · 批量变种 · AI 裁判 | Agnes + runware |
-| 🎬 视频 | 文生视频 · 图生视频 · 关键帧动画 | Agnes Video API |
-| 💻 编程 | 代码生成/修改 · Bug 修复 · 审查 · 重构 | 多智能体 |
-| 🔧 插件 | 插件发现/加载/卸载 · 技能创作 | ZCode 兼容 |
-| 🤖 模型 | 多供应商自动故障切换 · 双协议路由 |
-| 🛡️ 安全 | 三级权限 · 沙箱 · 日志脱敏 · 熔断器 | 5 层自愈 |
-| 📊 Git | 全工作流 · GitHub API · PR 管理 | 一站式 |
-| 🧠 记忆 | 跨会话用户画像 · 技能匹配 | 渐进披露 |
-| 🌐 工具 | 97 工具 · MCP 协议 · 代码知识图谱 | 可扩展 |
-
----
-
-## 独特价值
-
-- **七兽融合**：不是装饰，每个组件有对应的工程实践和设计理念
-- **Agnes 生成通道**：对话中直接调用文本/图像/视频生成
-- **MCP 协议桥**：连接外部 MCP 服务器扩展能力
-- **5 层自愈**：熔断器 → 指数退避 → 自动回滚 → 供应商切换 → 检查点恢复
-- **ZCode 全吸收**：模型路由 + 插件体系 + 事件生命周期 + 技能系统
-- **技能市场**：28 已安装 + 668 可用技能
-
----
-
-## 状态自检
+| 类型 | 数量 | 覆盖 |
+|---|---|---|
+| txt2img | 14 | ✅ |
+| img2img | 4 | ✅ |
+| i2v | 2 | ✅ |
+| t2v | 2 | ✅ |
+| general | 2 | ✅ |
+| **合计** | **24** | **全达标** |
 
 ```bash
-python -m pytest tests/ --tb=short -q    # 运行测试
-```
-
-评分（自检）：**8.5/10**
-
-```
-架构  🟢  9/10  代码  🟢  8/10  测试  🟡  7/10
-工具  🟢  9/10  自愈  🟢  9/10  UX    🟡  8/10
-文档  🟢  8/10  安全  🟠  7/10  特性  🟢  9/10
-性能  🟢  9/10
+comfyflow report
 ```
 
 ---
 
-## 许可证
+## 开发
 
-MIT
+```bash
+# 运行全部测试
+pytest tests/golden/
+
+# 批量打包 workflow
+python scripts/batch_pack.py --input ./output/workflows --output ./blueprints
+
+# 覆盖报告 (JSON)
+python -m comfyflow_compiler.blueprint.report --json
+```
+
+## 依赖
+
+- Python ≥ 3.11
+- httpx (MCP 客户端)
+- ComfyUI (运行时，可选)
+
+## 版本历史
+
+| 版本 | 代号 | 核心 |
+|---|---|---|
+| v6.1 | Reality Closure | 蓝图资产 + MCP fallback |
+| v6.2 | Video-MCP Closure | t2v 链路 + MCP 真实端点 |
+| v6.3 | Capability Closure | 运行时探测 + 兼容性匹配 |
+| v6.4 | Execution Closure | 提交/轮询/输出契约 |
+| **v6.5** | **Polish Closure** | **CLI + 文档 + examples** |

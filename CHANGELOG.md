@@ -2,7 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
-## [v6.1.0] - 2026-07-07 — Reality Closure
+## [v6.5.0] - 2026-07-10 — Polish Closure
+
+### Added
+- CLI: `comfyflow` command with 8 subcommands (probe/list-blueprints/match/compile/run/pack/report/version)
+- `comfyflow_compiler/cli.py` — unified CLI entry point
+- README.md — rewritten as ComfyFlow Compiler quickstart
+- docs/quickstart.md, docs/blueprint_schema.md
+- examples/compatibility_match.py — runnable example
+- pyproject.toml — pip install -e . support
+
+### Fixed
+- `__version__` sync (6.5.0)
+
+### Tests
+- All existing tests pass (110+)
+
+## [v6.4.0] - 2026-07-10 — Execution Contract Closure
 
 ### Added
 - Blueprint subsystem: `schema/types/errors/loader/validator/normalizer/packer/registry/report` (9 modules, ~1100 lines)

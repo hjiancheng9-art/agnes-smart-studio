@@ -1,5 +1,8 @@
 """ComfyFlow Compiler — 零门槛 ComfyUI 高级工作流生成器"""
 
+__version__ = "6.5.0"
+__version_name__ = "Polish Closure"
+
 from .compiler import ComfyFlowCompiler
 from .models import CompileResult, TaskSpec
 from .intent_parser import parse_intent
@@ -35,4 +38,4 @@ __all__ = [
     "BlueprintMiner", "ProductionBlueprint", "BlueprintPacker", "auto_mine_blueprints",
     "WorkflowEnricher", "WorkflowAnalyzer",
 ]
-__version__ = "0.7.0"
+

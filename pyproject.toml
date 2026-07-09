@@ -1,131 +1,19 @@
-[build-system]
-requires = ["setuptools>=61", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
-name = "crux-smart-studio"
-version = "5.1.0"
-description = "CRUX Studio — 平时如刀，出事成阵 · 极简内核 + 97+ tools on demand"
-requires-python = ">=3.10"
+name = "comfyflow-compiler"
+version = "6.5.0"
+description = "零门槛 ComfyUI 高级工作流编译器"
+requires-python = ">=3.11"
 dependencies = [
-    "httpx>=0.27",
-    "rich>=13",
-    "Pillow>=10",
-    "python-dotenv>=1.0",
-    "pyyaml>=6.0",
-    "prompt_toolkit>=3.0",
-    "nest_asyncio>=1.5",
-    "playwright>=1.40",
-    "edge-tts>=6.1",
-    "requests>=2.28",
-]
-authors = [{name = "CRUX Studio"}]
-readme = "README.md"
-license = {text = "MIT"}
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Environment :: Console",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
+    "httpx",
+    "playwright",
 ]
 
 [project.scripts]
-crux = "crux_studio:main"
-crux-chat = "crux_studio:main_chat"
-crux-query = "crux_studio:main_query"
+comfyflow = "comfyflow_compiler.cli:main"
 
-# 扁平多包布局：显式声明只收代码包，避免 setuptools 自动发现把
-# output/assets/skills 等非代码目录当成 Python 包（flat-layout 多包会直接报错）。
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
 [tool.setuptools.packages.find]
-include = ["core*", "ui*", "engines*", "pipeline*", "utils*"]
-
-[tool.setuptools]
-py-modules = ["crux_studio"]
-
-[project.urls]
-Homepage = "https://github.com/user/crux-smart-studio"
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0",
-    "pytest-cov>=4.0",
-    "pytest-asyncio>=0.23",
-    "coverage>=7.0",
-    "ruff>=0.4",
-    "pyright>=1.1.400",
-]
-
-[tool.pytest.ini_options]
-# 只收集 tests/ 顶层单元测试（mock，不打真实 API）。
-# tests/manual/ 是手动集成脚本（打真实 API、有自己的入口），不纳入 CI 收集。
-testpaths = ["tests"]
-norecursedirs = ["tests/manual", "scripts", "output", ".codebuddy"]
-pythonpath = ["."]
-python_files = ["test_*.py"]
-addopts = "-q"
-
-# pytest-asyncio 显式声明 strict 模式：仅 @pytest.mark.asyncio 标记的测试走
-# asyncio 执行器。其余同步测试方法中的 async 协程必须自行用 asyncio.run()
-# 驱动（见 test_async_chat / test_async_engines / test_showrunner / _multi_agent）。
-# 显式声明避免未来 pytest-asyncio 版本改默认值（auto）时静默改变收集行为。
-asyncio_mode = "strict"
-
-[tool.ruff]
-line-length = 120
-target-version = "py310"
-extend-exclude = ["scripts/scratch", "tests/manual", "output", ".codebuddy", "models", "_archive", "stub_modules", "_temp*"]
-
-[tool.ruff.lint]
-select = [
-    "E",    # pycodestyle errors
-    "W",    # pycodestyle warnings
-    "F",    # pyflakes
-    "I",    # isort (import sorting)
-    "UP",   # pyupgrade
-    "B",    # flake8-bugbear
-    "SIM",  # flake8-simplify
-    "C4",   # flake8-comprehensions
-]
-ignore = [
-    "E501",   # line-length 由 formatter / line-length 配置管理
-    "E402",   # module-import-not-at-top（入口文件/条件 import 较多，per-file-ignores 已覆盖）
-]
-
-[tool.ruff.lint.per-file-ignores]
-"crux_studio.py" = ["E402"]
-"core/brain_data/__init__.py" = ["E402"]
-"core/comfyui_tools.py" = ["E402"]
-"core/web_api.py" = ["E402"]
-"tests/*.py" = ["E402"]
-
-[tool.pyright]
-# 全量业务代码类型检查（不含 tests，tests 有独立基线）
-include = ["core", "ui", "engines", "pipeline", "utils"]
-# 与 ruff extend-exclude 保持一致：临时脚本/生成产物不纳入静态分析
-exclude = ["scripts/scratch", "tests/manual", "output", ".codebuddy", "_archive", "stub_modules", "_temp*", "**/__pycache__", "**/node_modules/**"]
-# basic 模式：消化存量错误，逐步向 strict 推进
-typeCheckingMode = "basic"
-# 忽略第三方库的 stub 缺失（playwright/prompt_toolkit 等）
-reportMissingTypeStubs = "none"
-# Mixin 多继承架构：pyright 在 Mixin 类定义中无法看到组合后主类的方法/属性，
-# 产生大量 reportAttributeAccessIssue 误报。所有调用点均通过 hasattr() 守卫，
-# 运行时安全。关闭此规则，后续可在每个 Mixin 加 Protocol 后按文件重新启用。
-reportAttributeAccessIssue = "none"
-# Mixin sync/async 双 API 模式：不同 Mixin 定义同名 sync/async 方法（如
-# enhance_image_prompt），最终 SmartBrain 类通过多继承组合。pyright 将此报为
-# Redeclaration，但运行时 MRO 按预期工作。关闭此规则。
-reportRedeclaration = "none"
-
-[tool.coverage.run]
-source = ["core", "ui", "engines", "utils", "pipeline"]
-omit = ["*/__pycache__/*", "*/tests/*"]
-
-[tool.coverage.report]
-show_missing = true
-skip_covered = true
-# 门禁策略：基线 55%（当前实际约 57%），留 ~2% 防抖余量。
-# 周爬坡：每 merge 一个 worktree 把门禁上调 2-3 个百分点。
-# 上游原来是 96%（与实际值脱节），CI 也没跑 --cov，等于形同虚设。
-fail_under = 55
-
+include = ["comfyflow_compiler*"]
