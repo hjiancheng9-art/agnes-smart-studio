@@ -16,7 +16,11 @@ from playwright.sync_api import sync_playwright, TimeoutError as PwTimeout
 
 CDP_URL = "http://127.0.0.1:9222"
 EDGE_PATH = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-USER_DATA = os.path.expanduser(r"~\edge_cdp_profile")
+# Edge CDP 用户数据目录，从环境变量读取，默认 ~/edge_cdp_profile
+USER_DATA = os.environ.get(
+    "CRUX_EDGE_PROFILE",
+    os.path.expanduser(r"~\edge_cdp_profile")
+)
 SHORT_TIMEOUT = 5000   # ms — 单次动作超时
 NAV_TIMEOUT = 15000    # ms — 页面导航超时
 LONG_TIMEOUT = 45000   # ms — ChatGPT 生成等待

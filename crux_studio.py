@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 import core.encoding as _enc
+from core.workspace_guard import resolve_workspace
 
 _enc.setup()
 
@@ -238,7 +239,7 @@ def _chat_tui():
     from core.chat import ChatSession
     from core.cli_handlers import CruxCLI
 
-    cwd = Path.cwd()
+    cwd = resolve_workspace()
     _rprint = _safe_rich_print()
 
     # ── Session wire init ──
@@ -431,7 +432,7 @@ def _chat_plain():
 
     _rprint = _safe_rich_print()
     _p = print
-    cwd = Path.cwd()
+    cwd = resolve_workspace()
 
     session_id = f"session_{uuid.uuid4().hex[:8]}"
     try:
