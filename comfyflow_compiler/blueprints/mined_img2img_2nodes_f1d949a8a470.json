@@ -1,18 +1,17 @@
 {
   "schema_version": "1.0.0",
   "id": "mined_img2img_2nodes_f1d949a8a470",
-  "name": "Mined img2img (2 nodes)",
+  "name": "Mined img2img",
   "version": "1.0.0",
   "status": "beta",
   "source": {
     "origin": "mined",
     "workflow_id": "custom_workflow_1783068532.json",
-    "mined_at": "2026-07-09T17:42:23.156895+00:00",
-    "author": "ComfyFlow Batch Packer"
+    "mined_at": "2026-07-09T18:21:46.625431+00:00"
   },
   "capability": {
     "task_type": "txt2img",
-    "description": "Mined img2img (2 nodes)",
+    "description": "Mined img2img",
     "tags": [
       "img2img",
       "mined"
@@ -110,12 +109,9 @@
     "tested_models": []
   },
   "metadata": {
-    "created_at": "2026-07-09T17:42:23.156895+00:00",
-    "updated_at": "2026-07-09T17:42:23.156895+00:00",
+    "created_at": "2026-07-09T18:21:46.625431+00:00",
+    "updated_at": "2026-07-09T18:21:46.625431+00:00",
     "total_nodes": 2,
-    "total_edges": 1,
-    "changelog": [
-      "v1.0.0: Batch packed from custom_workflow_1783068532.json"
-    ]
+    "total_edges": 1
   }
 }

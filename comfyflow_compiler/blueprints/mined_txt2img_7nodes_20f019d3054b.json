@@ -1,18 +1,17 @@
 {
   "schema_version": "1.0.0",
   "id": "mined_txt2img_7nodes_20f019d3054b",
-  "name": "Mined txt2img (7 nodes)",
+  "name": "Mined txt2img",
   "version": "1.0.0",
   "status": "beta",
   "source": {
     "origin": "mined",
     "workflow_id": "custom_workflow_1781773690.json",
-    "mined_at": "2026-07-09T17:42:23.156895+00:00",
-    "author": "ComfyFlow Batch Packer"
+    "mined_at": "2026-07-09T18:21:46.623912+00:00"
   },
   "capability": {
     "task_type": "txt2img",
-    "description": "Mined txt2img (7 nodes)",
+    "description": "Mined txt2img",
     "tags": [
       "txt2img",
       "mined"
@@ -301,12 +300,9 @@
     "tested_models": []
   },
   "metadata": {
-    "created_at": "2026-07-09T17:42:23.156895+00:00",
-    "updated_at": "2026-07-09T17:42:23.156895+00:00",
+    "created_at": "2026-07-09T18:21:46.623912+00:00",
+    "updated_at": "2026-07-09T18:21:46.623912+00:00",
     "total_nodes": 7,
-    "total_edges": 7,
-    "changelog": [
-      "v1.0.0: Batch packed from custom_workflow_1781773690.json"
-    ]
+    "total_edges": 7
   }
 }

@@ -5,7 +5,7 @@
 
 from .compile_orchestrator import CompileOrchestrator, CompileMode
 from .result import CompileResult
-from .mcp_client import MCPClient, MCPError, MCPTimeoutError, MCPUnavailableError, MCPInvalidWorkflowError
+from .mcp_client import MCPClient, MCPError, MCPTimeoutError, MCPUnavailableError, MCPInvalidWorkflowError, CompileRequest
 from .fallback_policy import FallbackPolicy, FailureGrade
 
 __all__ = [

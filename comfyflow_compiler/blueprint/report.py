@@ -162,5 +162,14 @@ def print_report(report: dict) -> None:
 
 
 if __name__ == "__main__":
-    report = scan_blueprints()
-    print_report(report)
+    import argparse
+    parser = argparse.ArgumentParser(description="Blueprint Coverage Report")
+    parser.add_argument("--json", action="store_true", help="JSON 格式输出")
+    parser.add_argument("--dir", default="comfyflow_compiler/blueprints", help="蓝图目录")
+    args = parser.parse_args()
+
+    report = scan_blueprints(args.dir)
+    if args.json:
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+    else:
+        print_report(report)

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from .result import CompileResult, CompileMode
-from .mcp_client import MCPClient, MCPUnavailableError, MCPTimeoutError, MCPInvalidWorkflowError
+from .mcp_client import MCPClient, MCPUnavailableError, MCPTimeoutError, MCPInvalidWorkflowError, CompileRequest
 from .fallback_policy import FallbackPolicy
 
 
@@ -62,8 +62,9 @@ class CompileOrchestrator:
                      style: list[str] | None = None,
                      **kwargs) -> CompileResult:
         """仅 MCP 编译"""
+        req = CompileRequest(prompt=prompt, task_type=task_type, style=style or [])
         try:
-            mcp_result = self.mcp.compile(prompt, task_type, style, **kwargs)
+            mcp_result = self.mcp.compile(req)
         except MCPTimeoutError as e:
             return CompileResult(
                 success=False,
