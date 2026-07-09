@@ -133,6 +133,10 @@ class ToolCallValidator:
             ))
             return issues
 
+        # ── 参数归一化：cdp_ask_chatgpt 接受 question/text/prompt/message/query/input ──
+        if name == "cdp_ask_chatgpt":
+            args = _normalize_chatgpt_args(args)
+
         # Validate against schema
         schema = self._get_schema(name)
         if schema:
@@ -356,3 +360,21 @@ class ToolCallValidator:
                 ))
 
         return issues
+
+
+# ── cdp_ask_chatgpt 参数归一化（模块级别） ──────────────────────────────
+# 模型可能传 text/prompt/message/query/input 而不是 question，
+# 在 schema 校验和 dispatch 之前统一归一化。
+
+_CDP_CHATGPT_ALIASES = ("question", "text", "prompt", "message", "query", "input")
+
+
+def _normalize_chatgpt_args(args: dict) -> dict:
+    """将 cdp_ask_chatgpt 的参数归一化为 'question'。"""
+    if not isinstance(args, dict):
+        return args
+    for key in _CDP_CHATGPT_ALIASES:
+        val = args.get(key)
+        if val and isinstance(val, str) and val.strip():
+            return {"question": val.strip()}
+    return args

@@ -1,0 +1,325 @@
+{
+  "schema_version": "1.0.0",
+  "id": "sdxl_img2img_basic",
+  "name": "SDXL Image-to-Image",
+  "version": "1.0.0",
+  "status": "stable",
+  "source": {
+    "origin": "mined",
+    "workflow_id": "sdxl_img2img_001",
+    "mined_at": "2026-07-09T17:36:05.823637+00:00",
+    "author": "ComfyFlow Miner"
+  },
+  "capability": {
+    "task_type": "img2img",
+    "description": "SDXL 图生图 — 基础版",
+    "tags": [
+      "sdxl",
+      "img2img",
+      "realistic"
+    ],
+    "styles": [
+      "realistic",
+      "cinematic",
+      "artistic"
+    ],
+    "models": [
+      {
+        "name": "sd_xl_base_1.0.safetensors",
+        "type": "unet",
+        "required": true
+      },
+      {
+        "name": "sd_xl_refiner_1.0.safetensors",
+        "type": "unet",
+        "required": false
+      }
+    ],
+    "performance_hint": {
+      "gpu_vram_gb": 8.0,
+      "avg_gen_time_s": 12.0
+    }
+  },
+  "requirements": {
+    "min_nodes": 10,
+    "required_nodes": [
+      {
+        "class_type": "LoadImage",
+        "reason": "输入图片"
+      },
+      {
+        "class_type": "CLIPTextEncode",
+        "reason": "提示词编码"
+      },
+      {
+        "class_type": "KSampler",
+        "reason": "采样核心"
+      }
+    ],
+    "recommended_nodes": [
+      "VAELoader",
+      "VAEDecode",
+      "SaveImage",
+      "ImageScale"
+    ],
+    "custom_nodes": []
+  },
+  "input_contract": {
+    "fields": [
+      {
+        "name": "image",
+        "type": "image",
+        "description": "输入图片",
+        "required": true
+      },
+      {
+        "name": "positive_prompt",
+        "type": "text",
+        "description": "正向提示词",
+        "required": true,
+        "example": "turn into a cyberpunk city"
+      },
+      {
+        "name": "negative_prompt",
+        "type": "text",
+        "description": "负向提示词",
+        "required": false
+      },
+      {
+        "name": "denoise",
+        "type": "number",
+        "description": "重绘强度",
+        "required": false,
+        "default": 0.7,
+        "min": 0.0,
+        "max": 1.0
+      }
+    ]
+  },
+  "output_contract": {
+    "fields": [
+      {
+        "name": "output",
+        "type": "image",
+        "description": "生成图片",
+        "preview": true
+      }
+    ]
+  },
+  "graph_template": {
+    "nodes": [
+      {
+        "id": "1",
+        "class_type": "LoadImage",
+        "title": "Load Image",
+        "is_input": true
+      },
+      {
+        "id": "2",
+        "class_type": "VAELoader",
+        "title": "Load VAE"
+      },
+      {
+        "id": "3",
+        "class_type": "VAEEncode",
+        "title": "VAE Encode"
+      },
+      {
+        "id": "4",
+        "class_type": "CLIPTextEncode",
+        "title": "CLIP Text Encode (Prompt)"
+      },
+      {
+        "id": "5",
+        "class_type": "CLIPTextEncode",
+        "title": "CLIP Text Encode (Negative)"
+      },
+      {
+        "id": "6",
+        "class_type": "KSampler",
+        "title": "KSampler"
+      },
+      {
+        "id": "7",
+        "class_type": "VAEDecode",
+        "title": "VAE Decode"
+      },
+      {
+        "id": "8",
+        "class_type": "SaveImage",
+        "title": "Save Image",
+        "is_output": true
+      }
+    ],
+    "edges": [
+      {
+        "from_node": "1",
+        "from_slot": 0,
+        "to_node": "3",
+        "to_slot": 0
+      },
+      {
+        "from_node": "2",
+        "from_slot": 0,
+        "to_node": "3",
+        "to_slot": 1
+      },
+      {
+        "from_node": "2",
+        "from_slot": 0,
+        "to_node": "7",
+        "to_slot": 1
+      },
+      {
+        "from_node": "3",
+        "from_slot": 0,
+        "to_node": "6",
+        "to_slot": 4
+      },
+      {
+        "from_node": "4",
+        "from_slot": 0,
+        "to_node": "6",
+        "to_slot": 6
+      },
+      {
+        "from_node": "5",
+        "from_slot": 0,
+        "to_node": "6",
+        "to_slot": 7
+      },
+      {
+        "from_node": "6",
+        "from_slot": 0,
+        "to_node": "7",
+        "to_slot": 0
+      },
+      {
+        "from_node": "7",
+        "from_slot": 0,
+        "to_node": "8",
+        "to_slot": 0
+      }
+    ],
+    "entry_points": [
+      "1",
+      "4",
+      "5"
+    ],
+    "exit_points": [
+      "8"
+    ]
+  },
+  "slots": {
+    "LoadImage.image": {
+      "node_id": "1",
+      "input_name": "image",
+      "type": "image",
+      "description": "输入图片",
+      "required": true,
+      "expose_to_ui": true,
+      "ui_label": "Input Image",
+      "ui_group": "input"
+    },
+    "CLIPTextEncode.text": {
+      "node_id": "4",
+      "input_name": "text",
+      "type": "text",
+      "description": "正向提示词",
+      "required": true,
+      "expose_to_ui": true,
+      "ui_label": "Positive Prompt",
+      "ui_group": "prompt"
+    },
+    "CLIPTextEncode.text_n": {
+      "node_id": "5",
+      "input_name": "text",
+      "type": "text",
+      "description": "负向提示词",
+      "expose_to_ui": true,
+      "ui_label": "Negative Prompt",
+      "ui_group": "prompt"
+    },
+    "KSampler.seed": {
+      "node_id": "6",
+      "input_name": "seed",
+      "type": "seed",
+      "description": "种子",
+      "expose_to_ui": true,
+      "ui_label": "Seed",
+      "ui_group": "sampling"
+    },
+    "KSampler.steps": {
+      "node_id": "6",
+      "input_name": "steps",
+      "type": "number",
+      "description": "步数",
+      "default": 30,
+      "min": 1,
+      "max": 100,
+      "expose_to_ui": true,
+      "ui_label": "Steps",
+      "ui_group": "sampling"
+    },
+    "KSampler.cfg": {
+      "node_id": "6",
+      "input_name": "cfg",
+      "type": "number",
+      "description": "CFG",
+      "default": 7.0,
+      "min": 1.0,
+      "max": 30.0,
+      "expose_to_ui": true,
+      "ui_label": "CFG",
+      "ui_group": "sampling"
+    },
+    "KSampler.denoise": {
+      "node_id": "6",
+      "input_name": "denoise",
+      "type": "number",
+      "description": "重绘强度",
+      "default": 0.7,
+      "min": 0.0,
+      "max": 1.0,
+      "expose_to_ui": true,
+      "ui_label": "Denoise",
+      "ui_group": "sampling"
+    }
+  },
+  "quality_modes": {
+    "draft": {
+      "steps": 15,
+      "cfg": 3.5,
+      "sampler": "euler",
+      "scheduler": "normal",
+      "resolution": "512x512"
+    },
+    "standard": {
+      "steps": 30,
+      "cfg": 7.0,
+      "sampler": "euler",
+      "scheduler": "normal",
+      "resolution": "1024x1024"
+    },
+    "quality": {
+      "steps": 50,
+      "cfg": 7.0,
+      "sampler": "dpmpp_2m",
+      "scheduler": "karras",
+      "resolution": "1024x1024"
+    }
+  },
+  "validation": {
+    "required_vram_gb": 8.0,
+    "tested_models": [
+      "sd_xl_base_1.0.safetensors"
+    ],
+    "known_issues": []
+  },
+  "metadata": {
+    "created_at": "2026-07-09T17:36:05.823637+00:00",
+    "updated_at": "2026-07-09T17:36:05.823637+00:00",
+    "total_nodes": 8,
+    "total_edges": 8
+  }
+}

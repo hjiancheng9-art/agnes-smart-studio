@@ -1,0 +1,4 @@
+common_edges = [
+        edge for edge, count in edge_counter.items()
+        if count / total >= 0.3
+    ]

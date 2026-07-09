@@ -1,0 +1,10 @@
+@dataclass
+class MinedBlueprint:
+    id: str
+    category: str
+    required_nodes: list[str]
+    optional_nodes: list[str]
+    common_edges: list[tuple[str, str]]
+    source_workflow_count: int
+    estimated_node_count: int
+    confidence_score: float

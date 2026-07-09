@@ -1,0 +1,15 @@
+==========================================================================
+
+if __name__ == "__main__":
+    # 1. 保存一个 SDXL workflow API JSON
+    save_sdxl_workflow_api_json("sdxl_txt2img_api.json")
+    print("[OK] Saved sdxl_txt2img_api.json")
+
+    # 2. 检测 GPU
+    gpu = detect_gpu()
+    print("[GPU]")
+    print(json.dumps(asdict(gpu), ensure_ascii=False, indent=2))
+
+    # 3. 扫描 ComfyUI 环境
+    # 改成你的真实路径
+    comfyui_root = r"C:\Users\huangjiancheng\CodeBuddy\_

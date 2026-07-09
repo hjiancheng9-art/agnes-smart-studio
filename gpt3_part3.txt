@@ -1,0 +1,189 @@
+llow_video=True,
+            use_tiled_vae=False,
+            use_cpu_offload=False,
+            precision="fp16",
+        )
+
+注意：这些不是绝对真理，而是保守默认策略。后面可以用真实执行结果自动学习。
+
+四、蓝图要增加硬件成本合同
+
+每个蓝图不能只写“适合什么任务”，还要写：
+
+最低显存
+推荐显存
+峰值显存估计
+是否需要 SDXL
+是否需要 Refiner
+是否需要 Upscale
+是否需要 ControlNet
+是否需要 Video 模型
+
+例如：
+
+Python
+运行
+from dataclasses import dataclass
+from typing import List
+
+
+@dataclass
+class BlueprintContract:
+    id: str
+    task_type: str
+    quality_score: float
+
+    min_vram_gb: float
+    recommended_vram_gb: float
+
+    requires_sdxl: bool = False
+    requires_refiner: bool = False
+    requires_upscale: bool = False
+    requires_controlnet: bool = False
+    requires_video: bool = False
+
+    supported_ratios: List[str] = None
+    tags: List[str] = None
+
+示例蓝图：
+
+Python
+运行
+BLUEPRINTS = [
+    BlueprintContract(
+        id="txt2img_sd15_light",
+        task_type="txt2img",
+        quality_score=0.68,
+        min_vram_gb=4,
+        recommended_vram_gb=6,
+        requires_sdxl=False,
+        requires_upscale=False,
+        tags=["low_vram", "safe", "fast"],
+    ),
+    BlueprintContract(
+        id="txt2img_sd15_hires_fix",
+        task_type="txt2img",
+        quality_score=0.76,
+        min_vram_gb=6,
+        recommended_vram_gb=8,
+        requires_sdxl=False,
+        requires_upscale=True,
+        tags=["low_vram", "better_quality"],
+    ),
+    BlueprintContract(
+        id="txt2img_sdxl_basic",
+        task_type="txt2img",
+        quality_score=0.84,
+        min_vram_gb=8,
+        recommended_vram_gb=12,
+        requires_sdxl=True,
+        requires_upscale=False,
+        tags=["sdxl", "high_quality"],
+    ),
+    BlueprintContract(
+        id="txt2img_sdxl_refiner",
+        task_type="txt2img",
+        quality_score=0.89,
+        min_vram_gb=14,
+        recommended_vram_gb=16,
+        requires_sdxl=True,
+        requires_refiner=True,
+        tags=["sdxl", "refiner", "cinematic"],
+    ),
+    BlueprintContract(
+        id="txt2img_sdxl_refiner_upscale",
+        task_type="txt2img",
+        quality_score=0.94,
+        min_vram_gb=20,
+        recommended_vram_gb=24,
+        requires_sdxl=True,
+        requires_refiner=True,
+        requires_upscale=True,
+        tags=["sdxl", "refiner", "upscale", "premium"],
+    ),
+]
+五、Planner 的目标：在约束内最大化质量
+
+这一步很关键。
+
+以前的降级链是：
+
+高级 → 中级 → 低级
+
+现在应该变成：
+
+从所有候选中筛掉不可运行的
+然后在剩下的里面选质量最高的
+
+也就是一个约束优化问题：
+
+maximize quality_score
+subject to:
+  blueprint.min_vram <= usable_vram
+  required_nodes installed
+  required_models installed
+  task_type matches
+  output_ratio supported
+  estimated_peak_vram <= budget
+
+最小实现：
+
+Python
+运行
+# hardware_aware_planner.py
+from typing import List, Optional
+
+from runtime_budget import RuntimeBudget
+
+
+class HardwareAwarePlanner:
+    def select_best(
+        self,
+        task_type: str,
+        blueprints: List[BlueprintContract],
+        budget: RuntimeBudget,
+        installed_features: dict,
+    ) -> Optional[BlueprintContract]:
+        candidates = []
+
+        for bp in blueprints:
+            if bp.task_type != task_type:
+                continue
+
+            if not self._fits_budget(bp, budget):
+                continue
+
+            if not self._fits_environment(bp, installed_features):
+                continue
+
+            candidates.append(bp)
+
+        if not candidates:
+            return None
+
+        return sorted(
+            candidates,
+            key=lambda x: (
+                x.quality_score,
+                -x.recommended_vram_gb,
+            ),
+            reverse=True,
+        )[0]
+
+    def _fits_budget(self, bp: BlueprintContract, budget: RuntimeBudget) -> bool:
+        if bp.min_vram_gb > budget.usable_vram_gb:
+            return False
+
+        if bp.requires_sdxl and not budget.allow_sdxl:
+            return False
+
+        if bp.requires_refiner and not budget.allow_refiner:
+            return False
+
+        if bp.requires_upscale and not budget.allow_upscale:
+            return False
+
+        if bp.requires_controlnet and not budget.allow_controlnet:
+            return False
+
+  

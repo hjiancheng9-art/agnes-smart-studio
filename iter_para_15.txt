@@ -1,0 +1,2 @@
+2. flux_image_edit_pro
+   LoadImage + GetImageSize + resize + Flux edit + LoRA + sampler + decode

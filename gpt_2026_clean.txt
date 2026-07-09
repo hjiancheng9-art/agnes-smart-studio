@@ -1,0 +1,40 @@
+Workflow submission endpoint
+Yes: for local ComfyUI / ComfyUI Desktop instances, workflow execution is still POST /prompt; it validates the prompt and queues it, returning prompt_id or error/node_errors. Use /ws for progress/events and /history/{prompt_id} for outputs. 
+ComfyUI
++1
+
+Workflow JSON format
+For execution, the standard is still API Prompt Format: { "node_id": {"class_type": "...", "inputs": {...}, "_meta": {...}} }; links are input values like ["4", 0]. The newer Save Format has version: 1, state, nodes, links, groups, models, etc., but don’t submit that directly to /prompt; export as API format first. 
+ComfyUI
++1
+
+Common production custom nodes
+Most production stacks still include: ComfyUI-Manager, rgthree-comfy, ComfyUI-KJNodes, ComfyUI_essentials, ComfyUI-Impact-Pack, comfyui-controlnet-aux, ComfyUI-Advanced-ControlNet, comfyui-ipadapter, ComfyUI-GGUF, plus video packs like ComfyUI-VideoHelperSuite, ComfyUI-LTXVideo, and Wan wrappers. Manager/Registry is now the safest discovery layer; don’t rely only on static custom_nodes scanning. 
+GitHub
++2
+GitHub
++2
+
+Video generation: WanVideo or LTXVideo?
+Use Wan when you want the most common native ComfyUI video route and broader T2V/I2V workflow coverage; official Wan2.1/2.2 workflows are documented and Wan2.2 includes 5B and 14B routes. Use LTXVideo / LTX-2 when you specifically want LTX’s newer audio-video / advanced video features; LTX-2 is built into ComfyUI core, with the custom LTXVideo repo adding advanced nodes/workflows. 
+ComfyUI
++2
+ComfyUI
++2
+
+Detect GPU VRAM on Windows
+Best order: pynvml → nvidia-smi → torch.cuda fallback. Minimal reliable function:
+
+Python
+运行
+from dataclasses import dataclass
+from typing import Optional
+import shutil, subprocess
+
+@dataclass
+class GPUInfo:
+    gpu_name: Optional[str]
+    vram_gb: float
+    cuda_available: bool
+    source: str
+    error: Optional[str] = None

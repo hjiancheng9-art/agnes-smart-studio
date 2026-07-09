@@ -1,0 +1,173 @@
+6GB 显卡。",
+    ),
+
+    ("sdxl", "balanced"): ParameterPreset(
+        model_family="sdxl",
+        quality_mode="balanced",
+        steps=28,
+        cfg=7.0,
+        width=1024,
+        height=1024,
+        batch_size=1,
+        vram_cost_gb=9.0,
+        min_vram_gb=8.0,
+        recommended_vram_gb=12.0,
+        reason="SDXL 标准 1024 基础生成方案。",
+    ),
+
+    ("flux", "balanced"): ParameterPreset(
+        model_family="flux",
+        quality_mode="balanced",
+        steps=24,
+        cfg=1.0,
+        width=1024,
+        height=1024,
+        batch_size=1,
+        vram_cost_gb=12.0,
+        min_vram_gb=10.0,
+        recommended_vram_gb=16.0,
+        reason="Flux 常规推理 CFG 通常较低，优先保证显存稳定。",
+    ),
+
+    ("ltx", "balanced"): ParameterPreset(
+        model_family="ltx",
+        quality_mode="balanced",
+        steps=30,
+        cfg=3.0,
+        width=768,
+        height=512,
+        batch_size=1,
+        vram_cost_gb=12.0,
+        min_vram_gb=10.0,
+        recommended_vram_gb=16.0,
+        reason="LTX 视频生成显存受帧数影响大，默认限制分辨率。",
+    ),
+}
+
+
+def get_parameter_preset(
+    model_family: ModelFamily,
+    quality_mode: QualityMode,
+) -> ParameterPreset:
+    key = (model_family, quality_mode)
+
+    if key in PARAMETER_PRESETS:
+        return PARAMETER_PRESETS[key]
+
+    fallback = (model_family, "balanced")
+    if fallback in PARAMETER_PRESETS:
+        return PARAMETER_PRESETS[fallback]
+
+    raise KeyError(f"missing parameter preset: {model_family}/{quality_mode}")
+
+蓝图里不要再写死：
+
+Python
+运行
+steps = 32
+cfg = 7.0
+
+改成：
+
+Python
+运行
+preset = get_parameter_preset(task.model_family, task.quality_mode)
+
+spec.steps = preset.steps
+spec.cfg = preset.cfg
+spec.width = preset.width
+spec.height = preset.height
+spec.batch_size = preset.batch_size
+2 天内验收标准
+- steps/cfg/resolution/vram_cost 全部有单位
+- 每个 preset 有 reason
+- 蓝图不再直接散落硬编码参数
+4. 认知债：第四优先级
+问题
+
+新人接手困难主要不是代码少注释，而是：
+
+1. 缩写太多
+2. node_id += 1 到处出现
+3. 没有架构图
+4. 没有“从输入到输出”的路径说明
+最小修复 A：加一页架构文档
+
+docs/ARCHITECTURE.md
+
+Markdown
+# ComfyFlow Compiler Architecture
+
+## 一句话
+
+ComfyFlow Compiler 把用户自然语言需求编译成可在 ComfyUI 中执行的 workflow JSON。
+
+## 核心链路
+
+```text
+User Prompt
+  ↓
+IntentClassifier
+  ↓
+TaskSpec
+  ↓
+EnvironmentResolver
+  ↓
+HardwareBudget
+  ↓
+BlueprintRetriever
+  ↓
+ParameterPolicy
+  ↓
+GraphComposer
+  ↓
+WorkflowValidator
+  ↓
+QualityGate
+  ↓
+SafetyGate
+  ↓
+UserFacingResult
+模块职责
+Module	Responsibility
+intent_classifier.py	把自然语言转成任务类型
+task_spec.py	编译器中间表示
+environment_resolver.py	获取节点、模型、插件环境
+hardware_profiler.py	检测 GPU / VRAM
+runtime_budget.py	把硬件转成运行预算
+blueprint_registry.py	保存预审蓝图
+blueprint_retriever.py	选择最合适蓝图
+parameter_policy.py	决定 steps/cfg/resolution
+graph_composer.py	生成 workflow graph
+workflow_validator.py	校验 JSON / 节点 / 连线
+quality_gate.py	检查质量和参数
+safety_gate.py	执行前安全护栏
+user_facing.py	给小白看的输出
+compiler.py	总入口
+核心原则
+
+LLM 不直接生成 workflow 拓扑。
+
+蓝图决定拓扑。
+
+参数来自参数表。
+
+workflow 执行前必须经过 validator + quality_gate + safety_gate。
+
+对小白输出中文解释，对开发者保留 technical_report。
+
+
+---
+
+## 最小修复 B：集中 node_id 分配器
+
+不要再写：
+
+```python
+node_id += 1
+
+改成：
+
+Python
+运行
+# comfyflow/node_id_allocato

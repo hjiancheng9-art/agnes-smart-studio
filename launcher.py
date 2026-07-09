@@ -101,6 +101,7 @@ CODEBUDDY_BIN = os.path.expanduser(r"~\AppData\Roaming\npm\codebuddy.cmd")
 ZCODE_BIN = os.path.expanduser(r"~\.zcode\cli\zcode.cjs")
 ZCODE_NODE = shutil.which("node") or "node"
 
+_COMFIGENT_PATH = os.path.expanduser(r"C:\Users\huangjiancheng\CodeBuddy\comfyui智能体")
 
 BEASTS: dict[str, BeastConfig] = {
     "crux": BeastConfig(
@@ -125,7 +126,21 @@ BEASTS: dict[str, BeastConfig] = {
     # "codex": BeastConfig( ... )  # DISABLED — bridge removed, see bridge-essence-extracted.md
     # "qoder-bridge": BeastConfig( ... )  # DISABLED — bridge removed, see bridge-essence-extracted.md
     # "codebuddy": BeastConfig( ... )  # DISABLED — bridge removed, see bridge-essence-extracted.md
-    # "zcode": BeastConfig( ... )  # DISABLED — bridge removed, see bridge-essence-extracted.md
+    "comfyui-agent": BeastConfig(
+        name="ComfyUI Agent",
+        role="工作流智能 · 生图引擎 · ComfyUI 驾驶舱",
+        icon="🎨",
+        binary=PYTHON,
+        args=f'"{_COMFIGENT_PATH}\\启动驾驶舱.py"',
+        cwd=_COMFIGENT_PATH,
+        wait_seconds=3,
+        health_url="http://127.0.0.1:5000/api/health",
+        health_ok_statuses={200, 500},
+        health_timeout=8,
+        startup_desc="ComfyUI Agent —— 智能工作流引擎",
+        restart_after=int(os.environ.get("COMFYUI_AGENT_RESTART", "0")) or None,
+    ),
+    # "code": BeastConfig( ... )  # DISABLED — bridge removed, see bridge-essence-extracted.md
 }
 
 

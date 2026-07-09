@@ -1,0 +1,8 @@
+基础生成
+  + MarkdownNote 使用说明
+  + Reroute / Group 可读性
+  + Upscale 可选
+  + Detailer 可选
+  + PreviewImage
+  + metadata manifest
+  + Safety fallback

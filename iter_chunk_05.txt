@@ -1,0 +1,33 @@
+des = [
+        node for node, count in node_counter.items()
+        if 0.25 <= count / total < 0.6
+    ]
+
+    common_edges = [
+        edge for edge, count in edge_counter.items()
+        if count / total >= 0.3
+    ]
+
+    confidence = min(1.0, len(selected) / 20) * min(1.0, len(required_nodes) / 8)
+
+    return MinedBlueprint(
+        id=f"{category}_production_mined",
+        category=category,
+        required_nodes=sorted(required_nodes),
+        optional_nodes=sorted(optional_nodes),
+        common_edges=common_edges,
+        source_workflow_count=total,
+        estimated_node_count=round(sum(node_counts) / len(node_counts)),
+        confidence_score=round(confidence, 3),
+    )
+最终建议
+
+不要马上去手写 50 节点大蓝图。
+
+先做：
+
+v0.5.0 = Production Blueprint Mining
+
+等 miner 把真实工作流规律挖出来，再做：
+
+v0.6.0 = Produc

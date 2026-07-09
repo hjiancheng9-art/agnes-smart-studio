@@ -1,0 +1,32 @@
+on_edges: list[tuple[str, str]]
+    source_workflow_count: int
+    estimated_node_count: int
+    confidence_score: float
+
+
+def mine_category_blueprint(workflows: list[dict], category: str) -> MinedBlueprint:
+    selected = [w for w in workflows if w["category"] == category]
+    total = len(selected)
+
+    node_counter = Counter()
+    edge_counter = Counter()
+    node_counts = []
+
+    for w in selected:
+        node_types = w["node_types"]
+        edges = w.get("edges_by_type", [])
+
+        node_counts.append(len(node_types))
+
+        for t in set(node_types):
+            node_counter[t] += 1
+
+        for edge in edges:
+            edge_counter[tuple(edge)] += 1
+
+    required_nodes = [
+        node for node, count in node_counter.items()
+        if count / total >= 0.6
+    ]
+
+    optional_no

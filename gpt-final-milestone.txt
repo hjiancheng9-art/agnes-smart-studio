@@ -1,0 +1,325 @@
+收到。新烬龙V2 现在已经从 “架构救火期” 正式进入 “生产能力成长期”。
+一句话判断：
+不要再继续大规模重构。
+下一步目标：从“第一张真图”推进到“第一条真视频 + 可追踪 + 可重跑 + 可评分 + 可导出”。
+
+当前状态评估
+你已经完成了非常关键的跃迁：
+旧状态：
+代码能跑，但结构混乱、入口分裂、无测试、无契约、无追踪。
+
+当前状态：
+入口收口、核心管线成型、ComfyUI 直连成功、真实图片已出、测试和架构规则开始护航。
+这说明新烬龙V2 已经不是纸面架构了，而是开始具备真实生产能力。
+但现在不要兴奋过头继续加一堆功能。下一阶段要做的是：
+把“能生成一次”变成“稳定生产系统”。
+
+先指出 3 个需要留意的小问题
+1. 你汇报里的链路还有一个信号要检查
+你写的是：
+cockpit-server → business-engine → workflow-executor → stages → quality-gate → ComfyUI → 图片
+我建议最终应该收敛成：
+cockpit-server
+→ project-runner / pipeline-runner
+→ workflow-executor
+→ stages
+→ prompt-compiler
+→ comfyui-provider
+→ asset-registry
+→ quality-gate
+→ output-manifest
+business-engine 可以作为 facade，但不应该成为主流程中枢。
+如果现在 business-engine 只是转发，那没问题。
+如果它还在做流程判断、业务拼装、旧 API 兼容、结果转换，那它会变成新的瓶颈。
+
+2. config/ 不存在不是问题，但现在该补最小配置层了
+之前没有 config 可以接受。
+但现在 ComfyUI 真接通了，就必须有最小配置：
+src/config/runtime-config.js
+src/config/provider-config.js
+src/config/model-config.js
+src/config/config-validator.js
+否则端口、模型、默认 workflow、provider fallback、是否允许 browser provider 等都会散落在代码里。
+
+3. “12471 JS文件”这个指标要确认是否包含 node_modules
+你前面一直说项目是 126 个 JS 文件左右。现在出现：
+12471 JS文件 → 零错误
+这个数字很可能把 node_modules、ComfyUI 前端、临时目录或依赖包扫进去了。
+建议语法审计范围只算：
+src/
+tests/
+scripts/
+server/
+不要把 node_modules/ 算进架构健康指标。
+
+下一阶段总目标
+我建议下一个里程碑命名为：
+Milestone V2-PROD-1：First Controlled Video
+目标不是再生成一张图，而是跑通：
+用户文本
+→ 创意重建
+→ 分镜
+→ PromptPackage
+→ ComfyUI 首帧图
+→ LTX 视频生成
+→ AssetRegistry 记录图片和视频血缘
+→ QualityGate 评分
+→ OutputManifest 导出
+→ Trace 可回放
+验收目标：
+生成一条 3-4 秒视频。
+能知道它来自哪个 prompt、哪个模型、哪个 workflow、哪个 trace。
+失败后能定位，成功后能复用，局部重跑能只重跑一个 shot。
+
+下一步 P0-P7 优先级
+
+P0：ComfyUI Provider 正式产品化
+你已经直连成功，但现在要把“测试调用”升级成“系统 Provider”。
+目标：
+所有 ComfyUI 调用都必须经过统一 comfyui-provider。
+不能让业务代码、测试代码、workflow-executor 到处直接打 8188。
+建议模块：
+src/providers/comfyui/
+  index.js
+  comfyui-client.js
+  comfyui-provider.js
+  comfyui-health.js
+  comfyui-output-parser.js
+  comfyui-error-normalizer.js
+必须实现：
+JavaScript{
+  name: "comfyui",
+  capabilities: ["image_generation", "video_generation"],
+  healthCheck,
+  dryRun,
+  invoke
+}
+验收标准：
+1. validateGenerationProvider(comfyui) 通过
+2. healthCheck 能检查 8188 是否可用
+3. 能列出基础能力：image/video/model/node
+4. 生成成功后返回标准 ProviderResponse
+5. 输出图片自动注册到 AssetRegistry
+6. trace 记录 prompt、workflow、jobId、output path
+
+P1：建立 ComfyUI Model Registry
+你现在有：
+SD1.5
+SDXL
+LTX-2.3
+2092 个节点
+下一步要把这些从“环境事实”变成“系统认知”。
+新增：
+src/comfyui/model-registry.js
+src/comfyui/workflow-presets.js
+src/comfyui/capability-map.js
+模型能力建议这样定义：
+JavaScript{
+  id: "sdxl",
+  type: "image",
+  capabilities: ["text_to_image"],
+  defaultResolution: "1024x1024",
+  recommendedSampler: "dpmpp_2m",
+  status: "available"
+}
+LTX：
+JavaScript{
+  id: "ltx-2.3",
+  type: "video",
+  capabilities: ["image_to_video", "text_to_video"],
+  defaultDurationSec: 4,
+  status: "available"
+}
+验收标准：
+workflow-executor 不写死 SDXL/LTX。
+它只问 capability-map：我要 image_generation/video_generation，用哪个模型？
+
+P2：PromptPackage → ComfyUI Graph Compiler
+你已经有 prompt-compiler.js，现在下一步是把 PromptPackage 真正编译成 ComfyUI workflow graph。
+新增：
+src/comfyui/graph-compiler.js
+src/comfyui/graph-templates/
+  sdxl-text2image.js
+  sd15-text2image.js
+  ltx-image2video.js
+src/comfyui/graph-validator.js
+输入：
+JavaScriptPromptPackage {
+  type,
+  prompt,
+  negativePrompt,
+  referenceImages,
+  parameters,
+  metadata
+}
+输出：
+JavaScriptComfyUIGraph {
+  graph,
+  bindings,
+  requiredModels,
+  outputNodeIds,
+  validation
+}
+短期不要追求覆盖 2092 个节点。
+只做 2 条模板：
+1. SDXL text-to-image
+2. LTX image-to-video
+验收标准：
+PromptPackage 不直接拼 ComfyUI JSON。
+所有 ComfyUI JSON 都由 graph-compiler 生成。
+
+P3：First Controlled Video
+这是下一个核心里程碑。
+不要直接做复杂长视频。先做一条最小可控视频：
+输入：dragon flying over cyberpunk city
+步骤：
+1. 生成一张首帧图
+2. 用 LTX-2.3 生成 3-4 秒视频
+3. 注册 image asset
+4. 注册 video asset
+5. 建立 image → video 血缘
+6. 输出 trace
+7. 输出 quality report
+验收标准：
+1. 生成真实视频文件
+2. AssetRegistry 中有 image asset 和 video asset
+3. video asset 能追溯到 image asset 和 PromptPackage
+4. trace 中有 image_generation 和 video_generation 两个 provider span
+5. QualityGate 给出视频级评分
+6. OutputManifest 能引用视频
+这一步完成后，新烬龙V2 就从“图像生成工作流”进入“视频生产工作流”。
+
+P4：Job Runtime 最小版
+你现在已经能生成图，但真实视频生成会慢、会失败、会排队。
+所以在做视频时，必须引入最小 Job Runtime。
+不要一开始搞复杂分布式队列，先做内存版即可。
+新增：
+src/runtime/job-state-machine.js
+src/runtime/job-runner.js
+src/runtime/job-store.js
+src/runtime/run-policy.js
+Job 状态：
+created
+→ running
+→ succeeded
+→ failed
+→ retrying
+→ cancelled
+每次 ComfyUI 调用都是一个 Job：
+JavaScript{
+  id,
+  type: "image_generation" | "video_generation",
+  provider: "comfyui",
+  status,
+  input,
+  output,
+  error,
+  traceId,
+  assetIds,
+  startedAt,
+  finishedAt
+}
+验收标准：
+1. 生成图/视频不再只是普通函数调用，而是 job
+2. 失败可 retry
+3. 超时可失败
+4. 成功自动注册 asset
+5. trace 能看到 job 生命周期
+
+P5：QualityGate V2，加入真实输出检查
+你现在的 QualityGate 大概率还是结构评分。
+下一步要加真实输出检查：
+图片是否存在
+图片大小是否合理
+文件是否损坏
+分辨率是否达标
+视频是否存在
+视频时长是否达标
+视频文件是否可读取
+asset 血缘是否完整
+先别急着做 AI 审美评分。
+先做硬指标：
+FileGate
+AssetGate
+ResolutionGate
+DurationGate
+LineageGate
+验收标准：
+生成结果不是“provider 返回成功”就算成功。
+必须文件存在、可读、大小合理、注册完整、血缘完整。
+
+P6：OutputManifest + 项目持久化
+第一张图已经出来了，接下来要避免生成结果散落在文件夹里。
+新增或完善：
+src/core/storage/project-store.js
+src/business/output/output-manifest-builder.js
+每次 pipeline 输出：
+JavaScript{
+  projectId,
+  runId,
+  prompt,
+  assets: [],
+  videos: [],
+  images: [],
+  traceId,
+  qualityReport,
+  outputFiles: []
+}
+验收标准：
+1. 每次生成都有 project record
+2. 能从 projectId 找回图片/视频/trace
+3. 能导出 run-result.json
+4. 能复现这次生成用了什么 prompt/model/workflow
+
+P7：再回头处理 creative.js/output.js
+现在 P3 被你标成“GPT说不动”，这个判断仍然成立，但有一个前提：
+只要它们不挡 First Controlled Video，就先不动。
+等你跑通第一条真视频后，再用真实链路判断它们怎么拆。
+如果 First Controlled Video 用到了它们，就只拆相关路径。
+如果完全没用到，就把它们标为：
+legacy-business
+并加架构规则：
+新代码禁止直接 import business/creative.js
+新代码禁止直接 import business/output.js
+只能 import business/creative/
+只能 import business/output/
+
+你现在最不该做的事
+1. 不要继续大范围清理 legacy
+已经够干净了。继续清会拖慢生产验证。
+2. 不要急着做完整 UI
+先把视频生产链路稳定，再做 UI 工作台。否则 UI 会跟着底层反复返工。
+3. 不要急着支持所有 ComfyUI 节点
+2092 个节点不需要全管。
+先控制住：
+SDXL text-to-image
+LTX image-to-video
+4. 不要急着加更多模型
+已有 SD1.5、SDXL、LTX-2.3 足够完成第一阶段视频闭环。
+
+下一轮执行顺序
+我建议你按这个顺序执行：
+P0：ComfyUI Provider 正式化
+P1：Model Registry + Workflow Presets
+P2：PromptPackage → ComfyUI Graph Compiler
+P3：First Controlled Video
+P4：Job Runtime 最小版
+P5：QualityGate V2 文件/资产/时长检查
+P6：OutputManifest + ProjectStore 持久化
+P7：根据真实链路再处理 creative.js/output.js
+如果只能选一个，就是：
+P3：First Controlled Video
+但为了不把一次性脚本写成新技术债，我建议至少先做 P0 + P1，再做 P3。
+
+最终指令
+下一阶段目标：
+从“真图已出”推进到“真视频已出”。
+具体定义：
+输入一条文本 prompt，
+生成一张首帧图，
+再用 LTX-2.3 生成一段 3-4 秒视频，
+全程经过 workflow-executor，
+所有结果进入 AssetRegistry，
+所有步骤进入 Trace，
+最终生成 OutputManifest。
+这就是新烬龙V2 的下一个真正里程碑。

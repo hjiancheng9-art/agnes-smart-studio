@@ -1,0 +1,24 @@
+........................F............................................... [ 82%]
+...........F...                                                          [100%]
+================================== FAILURES ===================================
+______________ TestBlueprintSanity.test_recipe_blueprints_exist _______________
+tests\unit\test_blueprint_registry.py:245: in test_recipe_blueprints_exist
+    assert bp_name in registry.blueprints, \
+E   AssertionError: 配方 pose_control 引用了不存在的蓝图 controlnet_openpose_sdxl
+E   assert 'controlnet_openpose_sdxl' in {'flux_dev_fp8': Blueprint(name='flux_dev_fp8', display_name='Flux Dev FP8 高清生成', description='Flux Dev FP8 主力高质量方案，16...: {'images': ('6', 'image'), 'filename_prefix': 'ComfyFlow_Flux'}}}, edges=[], quality_score=0.65, chain_depth=0), ...}
+E    +  where {'flux_dev_fp8': Blueprint(name='flux_dev_fp8', display_name='Flux Dev FP8 高清生成', description='Flux Dev FP8 主力高质量方案，16...: {'images': ('6', 'image'), 'filename_prefix': 'ComfyFlow_Flux'}}}, edges=[], quality_score=0.65, chain_depth=0), ...} = <comfyflow_compiler.blueprint_registry.BlueprintRegistry object at 0x00000243829C73D0>.blueprints
+_______________ TestValidateWorkflow.test_invalid_no_class_type _______________
+tests\unit\test_workflow_parser.py:133: in test_invalid_no_class_type
+    valid, errors = validate_workflow({"1": {"inputs": {}}})
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+comfyflow_compiler\workflow_parser.py:300: in validate_workflow
+    class_types = {n["class_type"] for n in workflow.values()}
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+comfyflow_compiler\workflow_parser.py:300: in <setcomp>
+    class_types = {n["class_type"] for n in workflow.values()}
+                   ^^^^^^^^^^^^^^^
+E   KeyError: 'class_type'
+=========================== short test summary info ===========================
+FAILED tests/unit/test_blueprint_registry.py::TestBlueprintSanity::test_recipe_blueprints_exist
+FAILED tests/unit/test_workflow_parser.py::TestValidateWorkflow::test_invalid_no_class_type
+2 failed, 85 passed in 0.23s

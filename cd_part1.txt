@@ -1,0 +1,113 @@
+下面按 ComfyFlow Compiler v0.3 / 14 模块 / 3254 行 给清债方案。优先目标：先把编译器核心稳定住，不追求全量 E2E。
+
+1. 当前技术债清单：先修顺序
+P0：必须先清
+1. Workflow JSON 格式债
+   - API Format / Save Format 混用风险
+   - node_id 是 str 还是 int 不统一
+   - link 输入 ["node_id", output_index] 没有统一校验
+
+2. ComfyUI 环境依赖债
+   - /object_info、/models、custom_nodes 扫描没有统一抽象
+   - 真实 ComfyUI 不应该出现在单元测试里
+
+3. 蓝图质量债
+   - blueprint required_nodes / optional_nodes / required_models 没有合同化
+   - Flux / LTX / Wan / SDXL 的 loader mode 没有强约束
+
+4. 参数策略债
+   - quality_mode、hardware_budget、task_type 三者可能互相覆盖
+   - steps / cfg / resolution / batch_size 需要统一 clamp
+
+5. 错误类型债
+   - 编译失败、环境缺失、模型缺失、质量门失败、显存预算失败不能都返回 str
+P1：第二批清
+6. Golden workflow 缺失
+   - 没有固定样本防止 compiler 输出结构漂移
+
+7. 模块边界不清
+   - intent / recipe / blueprint / graph compose / validate / quality gate 职责可能混在一起
+
+8. 可复现 manifest 不完整
+   - blueprint_id、compiler_version、model_names、node_requirements、quality_report 应固定
+
+9. fallback 行为不可测
+   - 缺节点 / 缺模型 / 显存不足时应该有确定降级链
+
+10. 缺少 smoke test
+   - 至少要保证 3 个核心任务能编译成功：sd_txt2img、flux_txt2img、ltx_i2v
+2. 测试策略：14 模块分层测
+
+pytest 官方支持在 pyproject.toml 里配置 testpaths、addopts 等测试参数；pytest-cov 也支持在 pytest 配置中加入 coverage 参数和 --cov-fail-under。
+pytest文档
++2
+pytest-cov
++2
+
+推荐测试分层
+tests/unit/
+  测纯函数、策略、分类器、validator、quality gate
+
+tests/contract/
+  测 blueprint contract、node contract、model contract
+
+tests/integration/
+  用 fake ComfyUI client / requests_mock 测 API 行为
+
+tests/golden/
+  固定输入 → 固定 workflow 结构快照
+
+tests/e2e/
+  可选，需要真实 ComfyUI，默认 CI 不跑
+3. pytest 配置
+pyproject.toml
+TOML
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=comfyflow",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+    "--cov-fail-under=65"
+]
+markers = [
+    "unit: fast unit tests",
+    "contract: blueprint/node/model contract tests",
+    "integration: mocked integration tests",
+    "golden: golden workflow snapshot tests",
+    "e2e: requires real ComfyUI server"
+]
+
+[tool.coverage.run]
+branch = true
+source = ["comfyflow"]
+omit = [
+    "tests/*",
+    "*/__init__.py",
+    "comfyflow/cli.py"
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+precision = 2
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:"
+]
+requirements-dev.txt
+pytest>=8.0
+pytest-cov>=6.0
+requests-mock>=1.12
+ruff>=0.6
+mypy>=1.10
+
+requests-mock 提供 pytest fixture，可以直接在测试函数里声明 requests_mock 来 mock HTTP 请求，不需要真实 ComfyUI 服务。
+Requ

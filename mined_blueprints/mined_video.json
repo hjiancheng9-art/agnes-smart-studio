@@ -1,0 +1,35 @@
+{
+  "name": "mined_video",
+  "display_name": "通用视频",
+  "category": "video",
+  "source_workflow_count": 22,
+  "confidence_score": 0.129,
+  "required_nodes": [
+    "CLIPTextEncode",
+    "MarkdownNote",
+    "UNETLoader",
+    "VAEDecode",
+    "VAELoader"
+  ],
+  "optional_nodes": [
+    "ConditioningZeroOut",
+    "DualCLIPLoader",
+    "FluxGuidance",
+    "KSampler",
+    "LoadImage",
+    "Note",
+    "PreviewImage",
+    "SaveImage",
+    "ShowAnything|Mie",
+    "VAEEncode"
+  ],
+  "common_edges": [],
+  "estimated_node_count": 24,
+  "typical_pipeline": [
+    "模型加载",
+    "文本编码",
+    "解码",
+    "输出"
+  ],
+  "model_type": "sdxl"
+}

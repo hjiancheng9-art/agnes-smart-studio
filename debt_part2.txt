@@ -1,0 +1,112 @@
+",
+                    message="把 workflow JSON 拖入 ComfyUI，然后点击 Queue Prompt 运行。",
+                    suggestion=None,
+                )
+            ],
+            technical_report=compile_result.report,
+        )
+
+    messages = []
+    for err in compile_result.errors:
+        data = translate_error(err.code, getattr(err, "message", None))
+        messages.append(UserFacingMessage(**data))
+
+    return UserFacingResult(
+        success=False,
+        title="工作流生成失败",
+        summary="系统没有找到当前环境下可安全运行的工作流。",
+        workflow=None,
+        messages=messages,
+        technical_report=compile_result.report,
+    )
+2 天内验收标准
+- 成功输出不再只有 raw JSON
+- 失败输出有中文标题、中文原因、中文建议
+- technical_report 仍保留给开发者
+2. 安全债：第二优先级
+判断：是真风险，不是过度担心
+
+你们的风险不是“模型安全”，而是工程风险：
+
+1. workflow JSON 直接送 /prompt
+   风险：恶意/错误节点、坏路径、超显存、未知 class_type、远程执行型 custom node。
+
+2. 子进程调用
+   风险：命令注入、阻塞、路径逃逸。
+
+3. 路径读取
+   风险：读到 ComfyUI 根目录外、扫描超大目录、符号链接逃逸。
+
+但也不要过度治理。2 天内只做 边界护栏。
+
+最小修复 A：/prompt 前强制安全检查
+Python
+运行
+# comfyflow/safety_gate.py
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+
+@dataclass
+class SafetyIssue:
+    code: str
+    message: str
+    severity: str = "error"
+
+
+@dataclass
+class SafetyReport:
+    passed: bool
+    issues: list[SafetyIssue] = field(default_factory=list)
+
+
+class WorkflowSafetyGate:
+    def __init__(
+        self,
+        allowed_class_types: set[str],
+        blocked_class_keywords: list[str] | None = None,
+    ):
+        self.allowed_class_types = allowed_class_types
+        self.blocked_class_keywords = blocked_class_keywords or [
+            "exec",
+            "subprocess",
+            "shell",
+            "cmd",
+            "powershell",
+            "download",
+            "http",
+            "request",
+        ]
+
+    def check(self, workflow: dict[str, Any]) -> SafetyReport:
+        issues: list[SafetyIssue] = []
+
+        if not isinstance(workflow, dict):
+            issues.append(SafetyIssue("bad_workflow_type", "workflow 必须是 dict"))
+            return SafetyReport(False, issues)
+
+        for node_id, node in workflow.items():
+            if not isinstance(node_id, str):
+                issues.append(SafetyIssue("bad_node_id", f"node_id 必须是字符串: {node_id}"))
+
+            class_type = node.get("class_type")
+            if not class_type:
+                issues.append(SafetyIssue("missing_class_type", f"节点 {node_id} 缺少 class_type"))
+                continue
+
+            if class_type not in self.allowed_class_types:
+                issues.append(SafetyIssue(
+                    "unknown_class_type",
+                    f"节点 {node_id} 使用了未注册节点: {class_type}",
+                ))
+
+            low = class_type.lower()
+            if any(k in low for k in self.blocked_class_keywords):
+                issues.append(SafetyIssue(
+                    "risky_node_type",
+                    f"节点 {node_id} class_type 看起来有风险: {class_type}",
+                ))
+
+        return SafetyReport(
+            passed=not any(i.severity == "error" for i in i

@@ -1,0 +1,148 @@
+r_summary": "...",
+    "technical_report": {...}
+}
+最小 A/B 框架
+
+先只做“策略选择记录”，不做实验平台。
+
+Python
+运行
+# comfyflow/experiment.py
+import hashlib
+
+
+def choose_variant(user_or_task_id: str, experiment_name: str, variants: list[str]) -> str:
+    key = f"{experiment_name}:{user_or_task_id}"
+    value = int(hashlib.sha256(key.encode("utf-8")).hexdigest(), 16)
+    return variants[value % len(variants)]
+
+用法：
+
+Python
+运行
+variant = choose_variant(
+    user_or_task_id=task.request_id,
+    experiment_name="flux_sampler_policy",
+    variants=["advanced_sampler_v1", "advanced_sampler_v2"],
+)
+2 天内验收标准
+- 每个 workflow 都带 manifest
+- 每个 workflow 都有 checksum
+- blueprint 有 version 字段
+- 参数表有版本号
+- A/B 只做 variant 选择和记录，不做复杂平台
+6. 两天执行清单
+Day 1 上午：体验债
+- 新增 user_facing.py
+- 新增 error_translator.py
+- compiler 输出包一层 UserFacingResult
+- 给 5 类错误加中文翻译
+
+对应测试：
+
+Python
+运行
+def test_user_facing_success_result():
+    ...
+
+
+def test_translate_missing_model_error():
+    ...
+
+
+def test_failed_compile_returns_chinese_message:
+    ...
+Day 1 下午：安全债
+- 新增 safety_gate.py
+- /prompt 前强制 safety_gate.check()
+- 新增 safe_subprocess.py
+- 新增 safe_path.py
+
+对应测试：
+
+Python
+运行
+def test_safety_gate_rejects_unknown_node():
+    ...
+
+
+def test_safety_gate_rejects_risky_node_name():
+    ...
+
+
+def test_safe_path_rejects_escape():
+    ...
+
+
+def test_safe_subprocess_rejects_non_whitelisted_command():
+    ...
+Day 2 上午：数据债
+- 新增 parameter_table.py
+- 给 vram_cost 改名 vram_cost_gb
+- 给 min_vram_gb / recommended_vram_gb 加单位
+- 从蓝图里移除散落 steps/cfg
+
+对应测试：
+
+Python
+运行
+def test_parameter_preset_has_units():
+    ...
+
+
+def test_flux_preset_uses_low_cfg():
+    ...
+
+
+def test_missing_quality_mode_falls_back_to_balanced():
+    ...
+Day 2 下午：认知债 + 演进债
+- docs/ARCHITECTURE.md
+- docs/GLOSSARY.md
+- 新增 NodeIdAllocator
+- 替换 node_id += 1
+- 新增 manifest.py
+- workflow 输出附带 manifest/checksum
+
+对应测试：
+
+Python
+运行
+def test_node_id_allocator_returns_string_ids():
+    ...
+
+
+def test_workflow_checksum_is_stable():
+    ...
+
+
+def test_manifest_contains_versions():
+    ...
+最终排序表
+1. 体验债
+   影响最大，小白产品化必须先清。
+   最小修复：UserFacingResult + 中文错误翻译。
+
+2. 安全债
+   是真实风险，不是过度担心。
+   最小修复：SafetyGate + subprocess 白名单 + safe_path。
+
+3. 数据债
+   影响质量稳定性和后续调参。
+   最小修复：parameter_table.py，所有参数带单位和 reason。
+
+4. 认知债
+   影响新人接手和长期维护。
+   最小修复：ARCHITECTURE.md + GLOSSARY.md + NodeIdAllocator。
+
+5. 演进债
+   当前不急，但必须埋点。
+   最小修复：manifest + checksum + blueprint_version + 简单 variant 记录。
+
+最终目标不是“把工程债彻底清零”，而是两天内把项目从：
+
+能跑的编译器
+
+升级成：
+
+可解释、可交付、可防错、可追踪、可交接的编译器

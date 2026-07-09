@@ -1,0 +1,125 @@
+kflow.ensure_node("VHS_VideoCombine")
+
+    if output_mode == "editable":
+        workflow.add_notes = True
+        workflow.add_reroutes = True
+        workflow.add_groups = True
+
+    if blueprint.node_count_estimate > 50:
+        workflow.enable_global_variables = True
+
+    return workflow
+升级 4：模型选择器要从 checkpoint 扩展到 model family
+
+你现在不能只扫：
+
+models/checkpoints
+
+必须扫：
+
+models/unet
+models/diffusion_models
+models/clip
+models/vae
+models/loras
+models/upscale_models
+models/controlnet
+
+模型选择结构：
+
+Python
+运行
+@dataclass
+class ModelFamilyPlan:
+    family: str  # "sd15" | "sdxl" | "flux" | "ltx" | "wan"
+    loader_mode: str  # "checkpoint" | "modular"
+    required_folders: list[str]
+    required_nodes: list[str]
+
+
+MODEL_FAMILY_PLANS = {
+    "sdxl": ModelFamilyPlan(
+        family="sdxl",
+        loader_mode="checkpoint",
+        required_folders=["checkpoints"],
+        required_nodes=["CheckpointLoaderSimple"],
+    ),
+    "flux": ModelFamilyPlan(
+        family="flux",
+        loader_mode="modular",
+        required_folders=["unet", "clip", "vae"],
+        required_nodes=["UNETLoader", "DualCLIPLoader", "VAELoader"],
+    ),
+    "ltx": ModelFamilyPlan(
+        family="ltx",
+        loader_mode="modular",
+        required_folders=["diffusion_models", "clip", "vae", "loras"],
+        required_nodes=["UNETLoader", "CLIPLoader", "VAELoader"],
+    ),
+    "wan": ModelFamilyPlan(
+        family="wan",
+        loader_mode="modular",
+        required_folders=["diffusion_models", "clip", "vae"],
+        required_nodes=["UNETLoader", "CLIPLoader", "VAELoader"],
+    ),
+}
+升级 5：用真实工作流反向生成蓝图库
+
+你现在有 104 个真实 workflow，最有价值的不是人工总结，而是自动挖 pattern。
+
+建议写一个 blueprint miner：
+
+Python
+运行
+from collections import Counter, defaultdict
+from dataclasses import dataclass
+
+
+@dataclass
+class MinedPattern:
+    category: str
+    node_set: list[str]
+    frequency: int
+    confidence: float
+
+
+def mine_required_nodes(workflows, category, min_ratio=0.5):
+    selected = [w for w in workflows if w["category"] == category]
+    total = len(selected)
+
+    counter = Counter()
+    for w in selected:
+        for node_type in set(w["node_types"]):
+            counter[node_type] += 1
+
+    patterns = []
+    for node_type, count in counter.items():
+        ratio = count / total
+        if ratio >= min_ratio:
+            patterns.append((node_type, count, round(ratio, 3)))
+
+    return sorted(patterns, key=lambda x: x[1], reverse=True)
+
+
+def mine_cooccurrence(workflows, min_count=5):
+    pair_counter = Counter()
+
+    for w in workflows:
+        types = sorted(set(w["node_types"]))
+        for i in range(len(types)):
+            for j in range(i + 1, len(types)):
+                pair_counter[(types[i], types[j])] += 1
+
+    return [
+        {
+            "a": a,
+            "b": b,
+            "count": c,
+        }
+        for (a, b), c in pair_counter.items()
+        if c >= min_count
+    ]
+
+
+def suggest_blueprint_from_workflows(workflows, category):
+    required = mine_required_nodes(workflows, category, min_ratio=

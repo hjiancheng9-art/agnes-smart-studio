@@ -780,6 +780,47 @@
       "category": "utility"
     },
     {
+      "name": "cdp_ask_chatgpt",
+      "type": "function",
+      "description": "通过 CDP 浏览器向 ChatGPT 发送问题并获取回复。自动处理页面导航、填入、发送、等待生成、读取回复。参数名可用 question/text/prompt/message/query/input 任一。",
+      "function": "core.cdp_browser.cdp_ask_chatgpt",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "description": "要发送给 ChatGPT 的问题（主参数名）"
+          },
+          "text": {
+            "type": "string",
+            "description": "要发送给 ChatGPT 的问题（别名，等同于 question）"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "要发送给 ChatGPT 的问题（别名，等同于 question）"
+          },
+          "message": {
+            "type": "string",
+            "description": "要发送给 ChatGPT 的问题（别名，等同于 question）"
+          },
+          "query": {
+            "type": "string",
+            "description": "要发送给 ChatGPT 的问题（别名，等同于 question）"
+          },
+          "input": {
+            "type": "string",
+            "description": "要发送给 ChatGPT 的问题（别名，等同于 question）"
+          },
+          "properties": {
+            "type": "string",
+            "description": "备选参数容器（兼容 properties 参数名传入，自动提取 question/text/prompt 等字段）"
+          }
+        },
+        "required": []
+      },
+      "category": "browser"
+    },
+    {
       "name": "transcribe_audio",
       "type": "python",
       "description": "Transcribe audio file to text",

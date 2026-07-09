@@ -1,0 +1,205 @@
+我的判断：不要全部废弃，但要全部降级改名。
+
+这 3 个模块的问题不是“完全没用”，而是身份错位：它们不该叫 Manager / Trainer，也不该进 V4 主链路当“训练能力”。它们最有价值的部分，是帮助 ComfyFlow Compiler 选择、插入、校验、解释 LoRA。
+
+ComfyUI 里的 LoRA 更接近“工作流节点能力”：LoraLoader 会从 ComfyUI\models\loras 识别 LoRA，可链式加载多个 LoRA，并通过 lora_name / strength_model / strength_clip 影响 model 与 clip 输出。
+ComfyUI
+ ComfyUI 也提供 object_info 用来获取节点定义、输入输出规格，这正好适合 Compiler 做动态校验。
+ComfyUI
+ 但真正训练 LoRA 是另一条链路，例如 kohya/sd-scripts 的 train_network.py、sdxl_train_network.py、flux_train_network.py 都是外部训练脚本，需要数据集配置、模型路径、命令行参数和运行环境。
+GitHub
++2
+GitHub
++2
+
+1. 有抢救价值吗？
+
+有，但只抢救 lora_knowledge.py 的核心。
+
+我的建议：
+
+模块	处理方式	原因
+lora_knowledge.py	保留，瘦身，接入 Compiler	文件名分类、LoRA 类型判断、叠加建议、缺失检测有价值
+lora_manager.py	从核心移除 / 改名为 training_spec_builder.py	它不执行训练，不该叫 Manager
+lora_trainer.py	改名为 lora_training_advisor.py，放到 extras/labs	它是训练知识库，不是训练器
+V4 主链路	只接 LoRA 推理编排，不接训练	Compiler 的职责是合成工作流，不是训练模型
+
+一句话：废弃“训练器身份”，保留“LoRA 编排知识”。
+
+2. “工作流合成大师”需要懂 LoRA 吗？
+
+需要，但只懂到 inference / workflow compile 层。
+
+它应该懂：
+
+用户需求里有没有 LoRA 意图
+例如：
+“用某角色 LoRA”、“保持这个人物一致”、“赛博朋克风格 LoRA”、“加细节 LoRA”。
+
+当前 ComfyUI 里有哪些 LoRA
+从 /object_info/LoraLoader 或模型目录拿 lora_name 候选。
+
+LoRA 类型和用途
+例如：
+
+character LoRA：角色一致性
+
+style LoRA：画风
+
+concept LoRA：特定概念
+
+detail / quality LoRA：细节增强
+
+clothing / pose / object LoRA：局部控制
+
+怎么插入工作流
+典型结构是：
+
+CheckpointLoaderSimple
+  ├─ MODEL ─→ LoraLoader ─→ KSampler
+  └─ CLIP  ─→ LoraLoader ─→ CLIPTextEncode
+
+多个 LoRA 就链式插入：
+
+CheckpointLoaderSimple
+  → LoraLoader(character)
+  → LoraLoader(style)
+  → LoraLoader(detail)
+  → KSampler / CLIPTextEncode
+
+怎么校验
+
+LoRA 文件是否存在
+
+LoraLoader 节点是否存在
+
+lora_name 是否在可选项里
+
+base model 是否兼容
+
+是否叠太多
+
+strength 是否越界
+
+是否和用户需求冲突
+
+它不应该懂：
+
+真正训练 LoRA
+
+数据集清洗
+
+caption 生成
+
+optimizer / scheduler 细节
+
+kohya 参数爆炸式配置
+
+GPU 训练进程管理
+
+checkpoint 保存、断点恢复
+
+这些属于 Training Service，不是 Workflow Compiler。
+
+3. 如果保留，应该怎么改？
+
+推荐方案：瘦身 + 改名 + 接入 FlowCompiler。
+
+目标结构：
+
+comfyui_agent/
+  lora/
+    catalog.py          # 扫描/读取可用 LoRA
+    policy.py           # LoRA 类型判断、默认强度、叠加规则
+    planner.py          # 根据需求生成 LoRAPlan
+    compiler_hook.py    # 把 LoRAPlan 注入 workflow
+    validator.py        # 缺失、兼容性、节点合法性校验
+
+  extras/
+    lora_training_advisor.py   # 原 lora_trainer.py 精简后放这里
+
+核心数据契约：
+
+Python
+运行
+from dataclasses import dataclass
+from typing import Literal
+
+LoraKind = Literal["character", "style", "concept", "detail", "clothing", "pose", "object", "unknown"]
+
+@dataclass
+class LoraAsset:
+    name: str
+    kind: LoraKind
+    path: str | None = None
+    base_family: str | None = None   # sd15 / sdxl / flux / wan / unknown
+    trigger_words: list[str] | None = None
+
+@dataclass
+class LoraRequest:
+    purpose: str                  # "character consistency", "style", etc.
+    query: str
+    required: bool = False
+    preferred_kind: LoraKind = "unknown"
+
+@dataclass
+class LoraSelection:
+    asset: LoraAsset
+    strength_model: float = 0.7
+    strength_clip: float = 0.7
+    reason: str = ""
+
+@dataclass
+class LoraPlan:
+    selections: list[LoraSelection]
+    missing: list[LoraRequest]
+    warnings: list[str]
+
+Compiler 接入点应该非常简单：
+
+Python
+运行
+class FlowCompiler:
+    def compile(self, nl: str, llm_chat_func=None) -> dict:
+        intent = self.intent_parser.parse(nl)
+        workflow = self.base_workflow_builder.build(intent)
+
+        lora_requests = self.lora_planner.extract_requests(nl, intent)
+        lora_plan = self.lora_planner.plan(lora_requests)
+
+        workflow = self.lora_compiler.inject(workflow, lora_plan)
+        self.validator.validate(workflow)
+
+        return {
+            "success": True,
+            "workflow": workflow,
+            "lora_plan": lora_plan,
+        }
+最终建议
+
+不要让 LoRA 模块继续伪装成训练系统。
+
+正确定位应该是：
+
+LoRA subsystem = ComfyFlow Compiler 的模型适配层，负责识别需求、选择 LoRA、插入 LoRALoader、校验缺失与冲突，而不是训练 LoRA。
+
+具体处理：
+
+lora_knowledge.py
+→ 拆成 catalog.py + policy.py + planner.py
+→ 接入 FlowCompiler
+
+lora_manager.py
+→ 从 V4 core 移除
+→ 改名 training_spec_builder.py，放 extras/labs
+
+lora_trainer.py
+→ 改名 lora_training_advisor.py
+→ 保留为知识助手，不参与主链路
+
+新增 lora_compiler_hook.py
+→ 真正负责 workflow 注入
+
+一句话总结：
+
+LoRA 要留，但不能以“Trainer”身份留；它应该变成 Compiler 的“LoRA 编排插件”。

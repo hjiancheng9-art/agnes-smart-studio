@@ -1,0 +1,96 @@
+out
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if (Test-Path requirements.txt) { pip install -r requirements.txt }
+          pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: |
+          ruff check comfyflow tests
+
+      - name: Type check
+        run: |
+          mypy comfyflow
+
+      - name: Test
+        run: |
+          pytest -m "not e2e"
+
+      - name: Upload coverage xml
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: coverage.xml
+
+如果你暂时没有 mypy 类型标注，可以先把 type check 改成非阻塞：
+
+YAML
+      - name: Type check
+        continue-on-error: true
+        run: |
+          mypy comfyflow
+7. 哪 5 个模块最需要先补测试
+第一优先级 1：workflow_validator.py
+
+原因：它是最后防线。
+
+Python
+运行
+def test_validator_rejects_missing_class_type(sample_txt2img_api_workflow):
+    from comfyflow.workflow_validator import WorkflowValidator
+
+    workflow = dict(sample_txt2img_api_workflow)
+    workflow["3"] = {"inputs": {}}
+
+    result = WorkflowValidator(available_nodes={"KSampler"}).validate(workflow)
+
+    assert not result.ok
+    assert result.errors[0].code == "missing_class_type"
+
+
+def test_validator_rejects_broken_link(sample_txt2img_api_workflow, fake_object_info):
+    from comfyflow.workflow_validator import WorkflowValidator
+
+    workflow = dict(sample_txt2img_api_workflow)
+    workflow["8"]["inputs"]["samples"] = ["999", 0]
+
+    result = WorkflowValidator(available_nodes=set(fake_object_info)).validate(workflow)
+
+    assert not result.ok
+    assert any(e.code == "broken_link" for e in result.errors)
+第一优先级 2：blueprint_registry.py / blueprint_retriever.py
+
+原因：蓝图选错，后面全错。
+
+Python
+运行
+def test_retriever_selects_flux_when_flux_models_available(fake_models, fake_object_info):
+    from comfyflow.blueprint_retriever import BlueprintRetriever
+    from comfyflow.task_spec import TaskSpec
+
+    task = TaskSpec(
+        intent="flux_txt2img",
+        prompt="cinematic cyberpunk cat",
+        aspect_ratio="9:16",
+        quality_mode="high",
+    )
+
+    retriever = BlueprintRetriever(
+        object_info=fake_object_info,
+        models=fake_models,
+        vram_gb=16,
+    )
+
+    blueprint = retriever.select(task)
+
+    assert blueprint.id.startswith("flux")
+    assert "UNETL

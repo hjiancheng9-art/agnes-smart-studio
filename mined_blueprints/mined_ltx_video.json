@@ -1,0 +1,124 @@
+{
+  "name": "mined_ltx_video",
+  "display_name": "LTX 视频",
+  "category": "ltx_video",
+  "source_workflow_count": 31,
+  "confidence_score": 0.334,
+  "required_nodes": [
+    "CFGGuider",
+    "CLIPTextEncode",
+    "CheckpointLoaderSimple",
+    "KSamplerSelect",
+    "LTXAVTextEncoderLoader",
+    "LTXVAudioVAEDecode",
+    "LTXVAudioVAELoader",
+    "LTXVConcatAVLatent",
+    "LTXVConditioning",
+    "LTXVCropGuides",
+    "LTXVSeparateAVLatent",
+    "RandomNoise",
+    "SamplerCustomAdvanced",
+    "VAEDecodeTiled",
+    "VHS_VideoCombine"
+  ],
+  "optional_nodes": [
+    "DualCLIPLoader",
+    "EmptyImage",
+    "EmptyLTXVLatentVideo",
+    "GetImageSize",
+    "ImageScaleBy",
+    "ImpactExecutionOrderController",
+    "LTXVChunkFeedForward",
+    "LTXVEmptyLatentAudio",
+    "LTXVImgToVideoInplace",
+    "LTXVLatentUpsampler",
+    "LTXVPreprocess",
+    "LTXVScheduler",
+    "LatentUpscaleModelLoader",
+    "LoadImage",
+    "LoraLoaderModelOnly",
+    "ManualSigmas",
+    "MarkdownNote",
+    "ModelPatchTorchSettings",
+    "Note",
+    "PathchSageAttentionKJ",
+    "PrimitiveInt",
+    "Reroute",
+    "ReservedVRAMSetter",
+    "UnetLoaderGGUF",
+    "VAEDecode",
+    "VAELoader",
+    "VAELoaderKJ"
+  ],
+  "common_edges": [
+    [
+      "CFGGuider",
+      "positive",
+      "102",
+      ""
+    ],
+    [
+      "CFGGuider",
+      "negative",
+      "102",
+      ""
+    ],
+    [
+      "VAEDecodeTiled",
+      "vae",
+      "149",
+      ""
+    ],
+    [
+      "SamplerCustomAdvanced",
+      "sampler",
+      "135",
+      ""
+    ],
+    [
+      "SamplerCustomAdvanced",
+      "noise",
+      "115",
+      ""
+    ],
+    [
+      "LTXVConditioning",
+      "negative",
+      "110",
+      ""
+    ],
+    [
+      "SamplerCustomAdvanced",
+      "sigmas",
+      "100",
+      ""
+    ],
+    [
+      "LTXVLatentUpsampler",
+      "vae",
+      "155",
+      ""
+    ],
+    [
+      "LTXVSeparateAVLatent",
+      "av_latent",
+      "113",
+      ""
+    ],
+    [
+      "LTXVConcatAVLatent",
+      "audio_latent",
+      "116",
+      ""
+    ]
+  ],
+  "estimated_node_count": 46,
+  "typical_pipeline": [
+    "模型加载",
+    "文本编码",
+    "采样",
+    "解码",
+    "视频合成"
+  ],
+  "model_type": "ltx"
+}

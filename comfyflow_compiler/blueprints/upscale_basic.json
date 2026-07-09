@@ -1,0 +1,136 @@
+{
+  "schema_version": "1.0.0",
+  "id": "upscale_basic",
+  "name": "Basic Upscale",
+  "version": "1.0.0",
+  "status": "beta",
+  "source": {
+    "origin": "handcrafted",
+    "workflow_id": "upscale_001",
+    "mined_at": "2026-07-09T18:05:39.071048+00:00"
+  },
+  "capability": {
+    "task_type": "general",
+    "description": "图片放大 — 基础版",
+    "tags": [
+      "upscale",
+      "utility"
+    ],
+    "styles": [],
+    "models": []
+  },
+  "requirements": {
+    "min_nodes": 4,
+    "required_nodes": [
+      {
+        "class_type": "LoadImage",
+        "reason": "输入图片"
+      }
+    ],
+    "recommended_nodes": [
+      "ImageUpscaleWithModel",
+      "SaveImage"
+    ]
+  },
+  "input_contract": {
+    "fields": [
+      {
+        "name": "image",
+        "type": "image",
+        "description": "输入图片",
+        "required": true
+      },
+      {
+        "name": "scale",
+        "type": "number",
+        "description": "放大倍数",
+        "default": 2.0,
+        "min": 1.0,
+        "max": 4.0
+      }
+    ]
+  },
+  "output_contract": {
+    "fields": [
+      {
+        "name": "output",
+        "type": "image",
+        "description": "放大后图片"
+      }
+    ]
+  },
+  "graph_template": {
+    "nodes": [
+      {
+        "id": "1",
+        "class_type": "LoadImage",
+        "title": "Load Image",
+        "is_input": true
+      },
+      {
+        "id": "2",
+        "class_type": "ImageUpscaleWithModel",
+        "title": "Upscale"
+      },
+      {
+        "id": "3",
+        "class_type": "SaveImage",
+        "title": "Save Image",
+        "is_output": true
+      }
+    ],
+    "edges": [
+      {
+        "from_node": "1",
+        "from_slot": 0,
+        "to_node": "2",
+        "to_slot": 0
+      },
+      {
+        "from_node": "2",
+        "from_slot": 0,
+        "to_node": "3",
+        "to_slot": 0
+      }
+    ],
+    "entry_points": [
+      "1"
+    ],
+    "exit_points": [
+      "3"
+    ]
+  },
+  "slots": {},
+  "quality_modes": {
+    "draft": {
+      "steps": 1,
+      "cfg": 1,
+      "sampler": "euler",
+      "scheduler": "normal",
+      "resolution": "1024x1024"
+    },
+    "standard": {
+      "steps": 1,
+      "cfg": 1,
+      "sampler": "euler",
+      "scheduler": "normal",
+      "resolution": "2048x2048"
+    },
+    "quality": {
+      "steps": 1,
+      "cfg": 1,
+      "sampler": "euler",
+      "scheduler": "normal",
+      "resolution": "4096x4096"
+    }
+  },
+  "validation": {
+    "known_issues": []
+  },
+  "metadata": {
+    "created_at": "2026-07-09T18:05:39.071048+00:00",
+    "updated_at": "2026-07-09T18:05:39.071048+00:00",
+    "total_nodes": 3,
+    "total_edges": 2
+  }
+}

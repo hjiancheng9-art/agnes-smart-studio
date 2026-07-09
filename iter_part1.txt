@@ -1,0 +1,69 @@
+给 3 个方向，优先级我建议：
+
+P0：Production Blueprint Mining
+P1：Production-grade Blueprint Pack
+P2：Workflow Enrichment Layer
+
+最推荐先做：P0 Production Blueprint Mining。
+
+方向 1：Production Blueprint Mining，先从真实工作流挖蓝图
+
+你们手里已经有 104 个真实工作流，这比手写“高级蓝图”更值钱。先做一个 miner，把真实 workflow 里的节点共现、阶段结构、输入输出模式、常见链路挖出来。
+
+目标不是直接复制工作流，而是提炼成：
+
+真实生产蓝图 = 高频节点集合 + 阶段结构 + required/optional 节点 + 参数范围 + 适用任务
+
+最小产物：
+
+mined_blueprints/
+  flux_txt2img_pro.json
+  ltx_i2v_pro.json
+  ltx_audio_video_pro.json
+  wan_action_transfer_pro.json
+  flux_to_ltx_pipeline_pro.json
+
+你们现在的问题是“蓝图太教科书”，所以第一步不是让 LLM 更聪明，而是让蓝图库来自真实生产数据。
+
+推荐优先做这个。
+
+方向 2：Production-grade Blueprint Pack，手工补 5 个高级蓝图
+
+直接把你们最缺的 7 节点蓝图扩成 20-50 节点生产版。
+
+先补这 5 个：
+
+1. flux_txt2img_pro
+   UNETLoader + DualCLIPLoader + VAELoader + LoraLoaderModelOnly
+   + advanced sampler + tiled decode + upscale/detailer
+
+2. flux_image_edit_pro
+   LoadImage + GetImageSize + resize + Flux edit + LoRA + sampler + decode
+
+3. ltx_i2v_pro
+   LoadImage + LTXVConditioning + LTXVImgToVideoInplace
+   + concat/separate latent + tiled decode + VHS_VideoCombine
+
+4. ltx_i2v_audio_pro
+   LTXVAudioVAELoader + AudioAdjustVolume
+   + LTXVConcatAVLatent + LTXVSeparateAVLatent + VHS_VideoCombine
+
+5. wan_action_transfer_pro
+   VHS_LoadVideo + resize + mask/segment + motion/action transfer
+   + recombine/export
+
+这个方向见效快，但风险是：你们会继续手写蓝图，容易再次变成“专家拍脑袋”。
+
+所以它适合 P1，不适合 P0。
+
+方向 3：Workflow Enrichment Layer，把基础蓝图自动加厚
+
+这不是新增蓝图，而是在现有 7 节点工作流后面自动加“生产增强层”。
+
+例如基础 txt2img：
+
+CheckpointLoader
+CLIPTextEncode
+KSampler
+VAEDecode
+Sa

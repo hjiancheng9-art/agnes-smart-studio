@@ -1,0 +1,208 @@
+{
+  "schema_version": "1.0.0",
+  "id": "controlnet_pose_basic",
+  "name": "ControlNet Pose",
+  "version": "1.0.0",
+  "status": "beta",
+  "source": {
+    "origin": "handcrafted",
+    "workflow_id": "controlnet_pose_001",
+    "mined_at": "2026-07-09T18:07:29.302997+00:00"
+  },
+  "capability": {
+    "task_type": "img2img",
+    "description": "ControlNet 姿态控制 — 姿势引导图生图",
+    "tags": [
+      "controlnet",
+      "pose",
+      "img2img",
+      "guidance"
+    ],
+    "styles": [
+      "realistic",
+      "artistic"
+    ],
+    "models": [
+      {
+        "name": "sd_xl_base_1.0.safetensors",
+        "type": "unet",
+        "required": true
+      }
+    ]
+  },
+  "requirements": {
+    "min_nodes": 10,
+    "required_nodes": [
+      {
+        "class_type": "LoadImage",
+        "reason": "输入图片及姿态图"
+      },
+      {
+        "class_type": "ControlNetLoader",
+        "reason": "ControlNet 模型"
+      },
+      {
+        "class_type": "KSampler",
+        "reason": "采样核心"
+      }
+    ],
+    "recommended_nodes": [
+      "ControlNetApply",
+      "CLIPTextEncode",
+      "VAEDecode",
+      "SaveImage"
+    ]
+  },
+  "input_contract": {
+    "fields": [
+      {
+        "name": "image",
+        "type": "image",
+        "description": "输入图片",
+        "required": true
+      },
+      {
+        "name": "pose_image",
+        "type": "image",
+        "description": "姿态参考图",
+        "required": true
+      },
+      {
+        "name": "positive_prompt",
+        "type": "text",
+        "description": "正向提示词",
+        "required": true
+      },
+      {
+        "name": "controlnet_strength",
+        "type": "number",
+        "description": "ControlNet 强度",
+        "default": 0.8,
+        "min": 0.0,
+        "max": 2.0
+      }
+    ]
+  },
+  "output_contract": {
+    "fields": [
+      {
+        "name": "output",
+        "type": "image",
+        "description": "生成图片"
+      }
+    ]
+  },
+  "graph_template": {
+    "nodes": [
+      {
+        "id": "1",
+        "class_type": "LoadImage",
+        "title": "Load Image",
+        "is_input": true
+      },
+      {
+        "id": "2",
+        "class_type": "LoadImage",
+        "title": "Load Pose",
+        "is_input": true
+      },
+      {
+        "id": "3",
+        "class_type": "ControlNetLoader",
+        "title": "Load ControlNet"
+      },
+      {
+        "id": "4",
+        "class_type": "CLIPTextEncode",
+        "title": "CLIP Text Encode"
+      },
+      {
+        "id": "5",
+        "class_type": "ControlNetApply",
+        "title": "Apply ControlNet"
+      },
+      {
+        "id": "6",
+        "class_type": "KSampler",
+        "title": "KSampler"
+      }
+    ],
+    "edges": [
+      {
+        "from_node": "1",
+        "from_slot": 0,
+        "to_node": "5",
+        "to_slot": 0
+      },
+      {
+        "from_node": "2",
+        "from_slot": 0,
+        "to_node": "5",
+        "to_slot": 1
+      },
+      {
+        "from_node": "3",
+        "from_slot": 0,
+        "to_node": "5",
+        "to_slot": 2
+      },
+      {
+        "from_node": "4",
+        "from_slot": 0,
+        "to_node": "5",
+        "to_slot": 3
+      },
+      {
+        "from_node": "5",
+        "from_slot": 0,
+        "to_node": "6",
+        "to_slot": 0
+      }
+    ],
+    "entry_points": [
+      "1",
+      "2",
+      "4"
+    ],
+    "exit_points": [
+      "6"
+    ]
+  },
+  "slots": {},
+  "quality_modes": {
+    "draft": {
+      "steps": 15,
+      "cfg": 3.5,
+      "sampler": "euler",
+      "scheduler": "normal",
+      "resolution": "512x512"
+    },
+    "standard": {
+      "steps": 30,
+      "cfg": 7.0,
+      "sampler": "euler",
+      "scheduler": "normal",
+      "resolution": "1024x1024"
+    },
+    "quality": {
+      "steps": 50,
+      "cfg": 7.0,
+      "sampler": "dpmpp_2m",
+      "scheduler": "karras",
+      "resolution": "1024x1024"
+    }
+  },
+  "validation": {
+    "required_vram_gb": 8.0,
+    "tested_models": [],
+    "known_issues": [
+      "需要 ControlNet 模型文件"
+    ]
+  },
+  "metadata": {
+    "created_at": "2026-07-09T18:07:29.302997+00:00",
+    "updated_at": "2026-07-09T18:07:29.302997+00:00",
+    "total_nodes": 6,
+    "total_edges": 5
+  }
+}

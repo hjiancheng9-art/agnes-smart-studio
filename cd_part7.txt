@@ -1,0 +1,41 @@
+   test_compiler_with_fake_comfy.py
+
+  golden/
+    test_golden_sdxl_txt2img.py
+    test_golden_flux_txt2img.py
+    test_golden_ltx_i2v.py
+
+  fixtures/
+    golden/
+      sdxl_txt2img_basic.json
+      flux_txt2img_basic.json
+      ltx_i2v_basic.json
+    object_info/
+      minimal_object_info.json
+    models/
+      fake_models.json
+10. 本周清债执行顺序
+Day 1:
+  - 加 pyproject.toml pytest/cov 配置
+  - 加 conftest.py fake_comfy_client
+  - 加 CI
+
+Day 2:
+  - 补 workflow_validator 测试
+  - 补 parameter_policy 测试
+
+Day 3:
+  - 补 blueprint_retriever 测试
+  - 补 graph_composer 测试
+
+Day 4:
+  - 补 quality_gate/runtime_budget 测试
+  - 固定 3 个 golden workflow
+
+Day 5:
+  - 修失败测试暴露出的模块边界问题
+  - 覆盖率拉到 65%+
+
+最终优先级一句话：
+
+先测 validator、blueprint selector、parameter policy、graph composer、quality gate；这 5 个模块稳了，ComfyFlow Compiler 的工程债就从“不可控”变成“可演进”。

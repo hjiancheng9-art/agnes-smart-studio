@@ -1,0 +1,16 @@
+{
+  "id": "proj_mrd4c2f2_ljuop",
+  "name": "测试",
+  "description": "",
+  "status": "draft",
+  "created": "2026-07-09T06:21:14.942Z",
+  "updated": "2026-07-09T06:21:14.942Z",
+  "pipeline": {
+    "stage": "intent",
+    "intent": null,
+    "brief": null,
+    "storyboard": [],
+    "shots": [],
+    "deliverables": []
+  }
+}

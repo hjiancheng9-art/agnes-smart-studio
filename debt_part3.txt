@@ -1,0 +1,148 @@
+ssues),
+            issues=issues,
+        )
+
+发送 /prompt 前：
+
+Python
+运行
+def safe_queue_prompt(client, workflow, object_info):
+    gate = WorkflowSafetyGate(allowed_class_types=set(object_info.keys()))
+    report = gate.check(workflow)
+
+    if not report.passed:
+        return {
+            "success": False,
+            "stage": "safety_gate",
+            "errors": [i.__dict__ for i in report.issues],
+        }
+
+    return client.queue_prompt(workflow)
+最小修复 B：安全子进程调用
+Python
+运行
+# comfyflow/safe_subprocess.py
+import subprocess
+from dataclasses import dataclass
+
+
+@dataclass
+class CommandResult:
+    ok: bool
+    stdout: str
+    stderr: str
+    returncode: int
+
+
+ALLOWED_COMMANDS = {
+    "nvidia-smi",
+}
+
+
+def run_safe_command(args: list[str], timeout: int = 10) -> CommandResult:
+    if not args:
+        raise ValueError("empty command")
+
+    exe = args[0]
+
+    if exe not in ALLOWED_COMMANDS:
+        raise PermissionError(f"command not allowed: {exe}")
+
+    completed = subprocess.run(
+        args,
+        shell=False,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+        encoding="utf-8",
+        errors="ignore",
+    )
+
+    return CommandResult(
+        ok=completed.returncode == 0,
+        stdout=completed.stdout,
+        stderr=completed.stderr,
+        returncode=completed.returncode,
+    )
+最小修复 C：路径读取限制在 ComfyUI 根目录内
+Python
+运行
+# comfyflow/safe_path.py
+from pathlib import Path
+
+
+def resolve_under_root(root: str | Path, target: str | Path) -> Path:
+    root_path = Path(root).expanduser().resolve()
+    target_path = Path(target).expanduser().resolve()
+
+    if root_path not in target_path.parents and target_path != root_path:
+        raise PermissionError(f"path escapes root: {target_path}")
+
+    return target_path
+2 天内验收标准
+- 所有 /prompt 之前必须经过 safety_gate
+- subprocess 只允许白名单命令
+- 所有 ComfyUI 文件扫描必须限制在 comfyui_path 内
+3. 数据债：第三优先级
+问题
+
+现在蓝图里写：
+
+Python
+运行
+steps = 32
+cfg = 7.0
+vram_cost = 12
+
+但没有单位、没有来源、没有为什么。
+
+最小修复
+
+建立一个参数表，不追求数据库，先用 YAML 或 Python dict。
+
+推荐先用 Python，避免引入 YAML 依赖。
+
+Python
+运行
+# comfyflow/parameter_table.py
+from dataclasses import dataclass
+from typing import Literal
+
+
+QualityMode = Literal["fast", "balanced", "high", "premium"]
+ModelFamily = Literal["sd15", "sdxl", "flux", "ltx", "wan"]
+
+
+@dataclass(frozen=True)
+class ParameterPreset:
+    model_family: ModelFamily
+    quality_mode: QualityMode
+
+    steps: int
+    cfg: float
+    width: int
+    height: int
+    batch_size: int
+
+    vram_cost_gb: float
+    min_vram_gb: float
+    recommended_vram_gb: float
+
+    reason: str
+    source: str = "internal_benchmark"
+
+
+PARAMETER_PRESETS: dict[tuple[ModelFamily, QualityMode], ParameterPreset] = {
+    ("sd15", "balanced"): ParameterPreset(
+        model_family="sd15",
+        quality_mode="balanced",
+        steps=24,
+        cfg=7.0,
+        width=768,
+        height=1024,
+        batch_size=1,
+        vram_cost_gb=5.0,
+        min_vram_gb=4.0,
+        recommended_vram_gb=6.0,
+        reason="SD1.5 低显存稳定方案，适合 

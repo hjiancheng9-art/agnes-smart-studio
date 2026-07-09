@@ -1,0 +1,30 @@
+{
+  "3": {
+    "tier": "minimal",
+    "score": 1.0
+  },
+  "4": {
+    "tier": "low",
+    "score": 2.5
+  },
+  "6": {
+    "tier": "low_plus",
+    "score": 4.0
+  },
+  "8": {
+    "tier": "medium",
+    "score": 5.5
+  },
+  "12": {
+    "tier": "medium_plus",
+    "score": 7.0
+  },
+  "16": {
+    "tier": "high",
+    "score": 8.5
+  },
+  "24": {
+    "tier": "ultra",
+    "score": 10.0
+  }
+}

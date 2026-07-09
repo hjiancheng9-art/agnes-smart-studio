@@ -1,0 +1,241 @@
+结论：ComfyUI Agent V4 已经从“架构可行”进入“实机 RC0 / Release Candidate 0”状态。
+
+不是原型了，也不是纸面方案了。你现在已经证明了三件最关键的事：
+
+能找到并启动真实 ComfyUI
+
+能诊断、修复、编译、执行完整链路
+
+能用真实工作流在本机成功出图
+
+这意味着 V4 的核心闭环已经成立。
+
+1. 当前是什么状态？距离推出还差什么？
+当前状态判断
+
+我会把现在定义为：
+
+ComfyUI Agent V4 RC0：核心能力闭环完成，进入推出前硬化阶段。
+
+已完成的是：
+
+NL/Showrunner 请求
+→ IntentClassifier
+→ FlowCompiler / ShotPlan
+→ DiagnosePipeline
+→ ExecutionRepair / RecoveryManager
+→ UnifiedExecutor
+→ 真 ComfyUI
+→ 真实产物输出
+
+这已经不是“能不能跑”的阶段，而是“能不能稳定交付给别人用”的阶段。
+
+距离推出还差的不是大架构，而是最后 5 类硬化
+A. Release Gate：防回归
+
+你现在需要一个固定的发布门禁：
+
+pytest 全量通过
++ ComfyUI 可连接
++ /health 正常
++ 1 个最小 txt2img 真实出图
++ 1 个错误修复用例通过
++ 1 个 Showrunner→Agent 编排通过
+
+建议命名：
+
+tests/e2e/test_release_gate.py
+
+只要这个过，才允许发布。
+
+B. 环境自检与一键启动
+
+既然 D:\ComfyUI_windows_portable 已经探测成功，下一步要把它产品化：
+
+python main.py doctor
+python main.py serve
+python main.py smoke
+python main.py release-check
+
+其中 doctor 必须输出：
+
+ComfyUI path: OK
+Python env: OK
+ComfyUI API: OK
+Model files: OK / Missing
+Output dir writable: OK
+Port available: OK
+GPU/CUDA: OK / WARN
+
+推出前最怕的是用户环境不一致，所以 doctor 比继续加功能更重要。
+
+C. 模型依赖清单
+
+真实出图成功只证明当前工作流能跑。推出前要明确：
+
+必需模型：
+- checkpoint: xxx.safetensors
+- vae: optional / required
+- clip: optional / required
+
+可选模型：
+- LTX video
+- ControlNet
+- LoRA
+- upscaler
+
+并做成：
+
+configs/model_manifest.json
+
+否则别人一跑就是：
+
+Checkpoint not found
+VAE missing
+Node class missing
+
+这类问题会严重损害第一印象。
+
+D. API 契约冻结
+
+现在 Showrunner 通过 HTTP API 调 Agent，这个方向是对的。推出前要冻结 API 契约：
+
+GET  /health
+POST /classify
+POST /diagnose
+POST /repair
+POST /execute
+POST /produce
+POST /actor/design
+
+每个接口固定返回：
+
+Python
+运行
+{
+    "ok": true,
+    "data": {},
+    "error": null,
+    "trace_id": "...",
+    "duration_ms": 1234
+}
+
+不要让每个端点返回格式各不相同。推出后最难维护的就是 API 返回结构漂移。
+
+E. 日志、产物、追踪
+
+推出前必须统一：
+
+runs/{run_id}/
+  request.json
+  workflow.json
+  result.json
+  logs.txt
+  outputs/
+    image.png
+
+每次执行都要有：
+
+run_id
+trace_id
+workflow_id
+started_at
+ended_at
+status
+error_type
+output_paths
+
+这会直接决定后面能不能调试真实用户问题。
+
+一个小风险：你汇报里的分类修复口径要再核对
+
+你写的是：
+
+classify("状态") → status 而非 diagnose，已修复：将"状态"和"状态检查"加入 diagnose 关键词
+
+这里逻辑上有点冲突。
+
+如果你期望：
+
+"状态" → status
+
+那应该加入 status 关键词，不是 diagnose 关键词。
+
+建议最终语义这样定：
+
+"状态" / "当前状态" / "服务状态" / "health" → status
+"检查问题" / "诊断" / "为什么失败" / "环境检查" → diagnose
+"状态检查" → 可以映射 diagnose 或 status，但必须固定
+
+我建议：
+
+"状态" → status
+"状态检查" → status
+"诊断状态" → diagnose
+"检查环境" → diagnose
+
+否则后面中文意图会出现边界混乱。
+
+2. 下个里程碑应该是什么？
+
+下个里程碑建议叫：
+
+V4 RC1 — Launch Readiness Gate
+
+目标不是继续扩功能，而是：
+
+把当前能跑的系统，变成别人也能稳定跑、出错能定位、接口不会漂移、发布不会回归的系统。
+
+推出前最后清单
+P0：必须完成，否则不要推出
+[ ] test_release_gate.py：真实 ComfyUI E2E 出图门禁
+[ ] main.py doctor：本机环境自检
+[ ] main.py smoke：最小链路烟测
+[ ] 统一 API 返回格式 {ok,data,error,trace_id,duration_ms}
+[ ] run_id 产物目录标准化
+[ ] model_manifest.json 模型依赖清单
+[ ] ComfyUI 路径探测优先级固定
+[ ] 端口占用/ComfyUI 未启动/模型缺失/OOM/超时 5类错误可读化
+[ ] README：Windows 本机启动步骤
+[ ] 一条官方 demo：文字 → 工作流 → 出图
+P1：强烈建议推出前完成
+[ ] 3 个内置模板：txt2img / image2image / actor-design-shot
+[ ] /produce 接口打通 ShowrunnerOrchestrator
+[ ] 输出图片路径自动回传 CRUX
+[ ] 失败时自动保存 failed_workflow.json
+[ ] 执行超时可配置
+[ ] 并发数默认限制为 1，避免 ComfyUI 被打爆
+[ ] 日志分级：INFO / WARN / ERROR
+[ ] Windows 路径兼容测试
+[ ] 中文 prompt 编码测试
+[ ] classify 意图边界测试：status vs diagnose vs repair vs generate
+P2：可以推出后迭代
+[ ] Web UI
+[ ] 多工作流模板市场
+[ ] 自动安装缺失模型
+[ ] 多 ComfyUI 实例调度
+[ ] 视频工作流 LTX / Wan / AnimateDiff 深度支持
+[ ] ActorDesigner 与 ShotPlan 长期角色一致性
+[ ] 自动 benchmark 不同工作流耗时
+我建议你的发布节奏
+RC0：你现在已经到了
+真实 ComfyUI 连通
+真实出图成功
+核心模块跑通
+RC1：推出前硬化
+Release Gate
+doctor/smoke/release-check
+日志/产物/run_id
+API 契约冻结
+模型依赖清单
+Beta：给自己或少数用户用
+CRUX Showrunner 调用稳定
+3 个 demo 场景稳定
+错误提示可读
+v1.0：正式推出
+安装文档完整
+失败可恢复
+用户不懂 ComfyUI 也能跑
+一句话判断
+
+ComfyUI Agent V4 的“智能体核心”已经完成；现在差的是 Release Engineering、环境自检、API 契约、日志追踪和发布门禁。下个里程碑不要再叫架构重构，应该叫 V4 RC1 Launch Readiness。

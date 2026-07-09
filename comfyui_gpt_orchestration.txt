@@ -1,0 +1,634 @@
+结论
+
+Showrunner 主导，ComfyUI Agent 被调用。
+
+关系应该是：
+
+用户目标
+  ↓
+Showrunner：创意导演 / 制片人 / 总编排
+  ↓
+SkillStep / ShotSpec / CharacterSpec / AssetSpec
+  ↓
+ComfyUI Agent V4：摄影师 + 剪辑师 + 工作流执行器
+  ↓
+FlowCompiler → diagnose → repair → validate → execute
+  ↓
+图片 / 视频 / 中间资产 / 最终影片
+
+不要让 ComfyUI Agent 反向调用 Showrunner。
+Showrunner 管“做什么、为什么、顺序、风格一致性”；ComfyUI Agent 管“怎么生成、怎么修、怎么跑 ComfyUI workflow”。
+
+1. 推荐目录结构
+project/
+  showrunner/
+    __init__.py
+    orchestrator.py          # 上层总编排，不再叫 agent.py 更好
+    pipeline.py
+    skill_steps.py
+    actor_craft.py
+    comfy_adapter.py         # 调 ComfyUI Agent 的适配器
+    contracts.py             # 双方共享契约
+
+  comfyui_agent/
+    __init__.py
+    agent.py                 # ComfyUIAgent V4
+    flow_compiler.py
+    execution_repair.py
+    workflow_validator.py
+    node_registry.py
+
+如果暂时不能改名，也至少这样导入：
+
+Python
+运行
+from showrunner.agent import ShowrunnerAgent
+from comfyui_agent.agent import ComfyUIAgent
+
+不要写：
+
+Python
+运行
+import agent  # 禁止，必冲突
+2. 核心契约：Showrunner 不直接生成 workflow JSON
+
+Showrunner 只输出 创意级任务，ComfyUI Agent 负责把它编译成 ComfyUI workflow。
+
+Python
+运行
+# showrunner/contracts.py
+
+from dataclasses import dataclass, field
+from typing import Any, Literal
+
+
+StepKind = Literal[
+    "script",
+    "character_design",
+    "scene_design",
+    "storyboard",
+    "txt2img",
+    "img2img",
+    "image_to_video",
+    "video_extend",
+    "upscale",
+    "edit",
+    "final_delivery",
+]
+
+
+@dataclass
+class ActorCraftSpec:
+    name: str
+    role: str
+    layer_1_core_identity: str
+    layer_2_visual_silhouette: str
+    layer_3_costume_material: str
+    layer_4_motion_signature: str
+    layer_5_emotional_aura: str
+    negative_traits: list[str] = field(default_factory=list)
+    reference_assets: list[str] = field(default_factory=list)
+
+
+@dataclass
+class AssetRef:
+    id: str
+    kind: Literal["image", "video", "audio", "workflow", "text"]
+    path: str | None = None
+    url: str | None = None
+    meta: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class SkillStep:
+    id: str
+    kind: StepKind
+    title: str
+    prompt: str
+    depends_on: list[str] = field(default_factory=list)
+    actor_refs: list[str] = field(default_factory=list)
+    input_assets: list[AssetRef] = field(default_factory=list)
+    constraints: dict[str, Any] = field(default_factory=dict)
+    output_key: str | None = None
+
+
+@dataclass
+class ShowrunnerPlan:
+    goal: str
+    style_bible: dict[str, Any]
+    actors: dict[str, ActorCraftSpec]
+    steps: list[SkillStep]
+
+
+@dataclass
+class ComfyJobSpec:
+    job_id: str
+    task_type: Literal[
+        "txt2img",
+        "img2img",
+        "image_to_video",
+        "video_extend",
+        "upscale",
+        "edit",
+    ]
+    prompt: str
+    negative_prompt: str = ""
+    actors: list[ActorCraftSpec] = field(default_factory=list)
+    input_assets: list[AssetRef] = field(default_factory=list)
+    constraints: dict[str, Any] = field(default_factory=dict)
+    workflow_hint: str | None = None
+
+
+@dataclass
+class ComfyJobResult:
+    ok: bool
+    job_id: str
+    assets: list[AssetRef] = field(default_factory=list)
+    workflow_json: dict[str, Any] | None = None
+    diagnostics: list[dict[str, Any]] = field(default_factory=list)
+    error: str | None = None
+3. Showrunner → ComfyUI 的接口
+
+Showrunner 只依赖一个抽象接口，不直接依赖 ComfyUI 内部 153 个文件。
+
+Python
+运行
+# showrunner/comfy_port.py
+
+from typing import Protocol
+from .contracts import ComfyJobSpec, ComfyJobResult
+
+
+class ComfyExecutorPort(Protocol):
+    def run_job(self, spec: ComfyJobSpec) -> ComfyJobResult:
+        ...
+4. ComfyUI Agent 适配器
+
+这里是融合关键：Showrunner 调这个 adapter，adapter 内部再走 ComfyUI Agent V4 的管线。
+
+Python
+运行
+# showrunner/comfy_adapter.py
+
+from .contracts import ComfyJobSpec, ComfyJobResult, AssetRef
+from comfyui_agent.agent import ComfyUIAgent
+from comfyui_agent.flow_compiler import FlowCompiler
+
+
+class ComfyUIAgentAdapter:
+    def __init__(
+        self,
+        comfy_agent: ComfyUIAgent,
+        flow_compiler: FlowCompiler,
+    ):
+        self.agent = comfy_agent
+        self.compiler = flow_compiler
+
+    def run_job(self, spec: ComfyJobSpec) -> ComfyJobResult:
+        try:
+            workflow = self.compiler.compile(
+                task_type=spec.task_type,
+                prompt=spec.prompt,
+                negative_prompt=spec.negative_prompt,
+                input_assets=spec.input_assets,
+                actors=spec.actors,
+                constraints=spec.constraints,
+                workflow_hint=spec.workflow_hint,
+            )
+
+            diag = self.agent.diagnose(workflow)
+            if not diag.ok:
+                workflow = self.agent.repair(workflow, diag)
+
+            validation = self.agent.validate(workflow)
+            if not validation.ok:
+                workflow = self.agent.repair(workflow, validation)
+
+            result = self.agent.execute(workflow)
+
+            return ComfyJobResult(
+                ok=result.ok,
+                job_id=spec.job_id,
+                assets=[
+                    AssetRef(
+                        id=a.id,
+                        kind=a.kind,
+                        path=a.path,
+                        meta=getattr(a, "meta", {}),
+                    )
+                    for a in result.assets
+                ],
+                workflow_json=workflow,
+                diagnostics=[
+                    getattr(diag, "to_dict", lambda: diag.__dict__)(),
+                    getattr(validation, "to_dict", lambda: validation.__dict__)(),
+                ],
+                error=result.error if not result.ok else None,
+            )
+
+        except Exception as e:
+            return ComfyJobResult(
+                ok=False,
+                job_id=spec.job_id,
+                error=f"ComfyUI job failed: {type(e).__name__}: {e}",
+            )
+5. SkillStep 如何映射成 ComfyUI workflow
+
+不要让 SkillStep 直接等于 workflow。
+正确关系是：
+
+SkillStep
+  ↓ mapper
+ComfyJobSpec
+  ↓ FlowCompiler
+workflow JSON
+  ↓ ComfyUI Agent
+execute
+Python
+运行
+# showrunner/skill_step_mapper.py
+
+from .contracts import SkillStep, ShowrunnerPlan, ComfyJobSpec, ActorCraftSpec
+
+
+class SkillStepMapper:
+    def to_comfy_job(
+        self,
+        step: SkillStep,
+        plan: ShowrunnerPlan,
+        runtime_assets: dict[str, list],
+    ) -> ComfyJobSpec | None:
+        if step.kind in {"script", "final_delivery"}:
+            return None
+
+        actors = [
+            plan.actors[actor_id]
+            for actor_id in step.actor_refs
+            if actor_id in plan.actors
+        ]
+
+        input_assets = []
+        for dep_id in step.depends_on:
+            input_assets.extend(runtime_assets.get(dep_id, []))
+
+        prompt = self._build_prompt(step, plan, actors)
+
+        task_type = self._map_task_type(step.kind)
+
+        return ComfyJobSpec(
+            job_id=step.id,
+            task_type=task_type,
+            prompt=prompt,
+            negative_prompt=self._build_negative_prompt(step, plan),
+            actors=actors,
+            input_assets=input_assets + step.input_assets,
+            constraints={
+                **plan.style_bible,
+                **step.constraints,
+            },
+            workflow_hint=step.constraints.get("workflow_hint"),
+        )
+
+    def _map_task_type(self, kind: str) -> str:
+        mapping = {
+            "character_design": "txt2img",
+            "scene_design": "txt2img",
+            "storyboard": "txt2img",
+            "txt2img": "txt2img",
+            "img2img": "img2img",
+            "image_to_video": "image_to_video",
+            "video_extend": "video_extend",
+            "upscale": "upscale",
+            "edit": "edit",
+        }
+
+        if kind not in mapping:
+            raise ValueError(f"Unsupported ComfyUI step kind: {kind}")
+
+        return mapping[kind]
+
+    def _build_prompt(
+        self,
+        step: SkillStep,
+        plan: ShowrunnerPlan,
+        actors: list[ActorCraftSpec],
+    ) -> str:
+        actor_block = "\n".join(
+            [
+                f"""
+Character: {a.name}
+Role: {a.role}
+Core identity: {a.layer_1_core_identity}
+Silhouette: {a.layer_2_visual_silhouette}
+Costume/material: {a.layer_3_costume_material}
+Motion: {a.layer_4_motion_signature}
+Aura: {a.layer_5_emotional_aura}
+"""
+                for a in actors
+            ]
+        )
+
+        style_block = "\n".join(
+            f"{k}: {v}" for k, v in plan.style_bible.items()
+        )
+
+        return f"""
+TASK:
+{step.title}
+
+PROMPT:
+{step.prompt}
+
+STYLE BIBLE:
+{style_block}
+
+ACTOR CRAFT:
+{actor_block}
+
+CONSTRAINTS:
+{step.constraints}
+""".strip()
+
+    def _build_negative_prompt(
+        self,
+        step: SkillStep,
+        plan: ShowrunnerPlan,
+    ) -> str:
+        negatives = []
+
+        for actor_id in step.actor_refs:
+            actor = plan.actors.get(actor_id)
+            if actor:
+                negatives.extend(actor.negative_traits)
+
+        negatives.extend(step.constraints.get("negative_prompt", []))
+        negatives.extend(plan.style_bible.get("global_negative_prompt", []))
+
+        return ", ".join(dict.fromkeys(negatives))
+6. Showrunner 上层编排骨架
+Python
+运行
+# showrunner/orchestrator.py
+
+from .contracts import ShowrunnerPlan, ComfyJobResult
+from .skill_step_mapper import SkillStepMapper
+from .comfy_port import ComfyExecutorPort
+
+
+class ShowrunnerOrchestrator:
+    def __init__(
+        self,
+        comfy_executor: ComfyExecutorPort,
+        mapper: SkillStepMapper,
+    ):
+        self.comfy = comfy_executor
+        self.mapper = mapper
+
+    def run(self, plan: ShowrunnerPlan) -> dict:
+        runtime_assets: dict[str, list] = {}
+        step_results: dict[str, ComfyJobResult | dict] = {}
+
+        for step in plan.steps:
+            self._ensure_dependencies_done(step, step_results)
+
+            if step.kind == "script":
+                step_results[step.id] = self._run_script_step(step, plan)
+                continue
+
+            if step.kind == "final_delivery":
+                step_results[step.id] = self._run_delivery_step(
+                    step=step,
+                    plan=plan,
+                    runtime_assets=runtime_assets,
+                )
+                continue
+
+            comfy_job = self.mapper.to_comfy_job(
+                step=step,
+                plan=plan,
+                runtime_assets=runtime_assets,
+            )
+
+            if comfy_job is None:
+                continue
+
+            result = self.comfy.run_job(comfy_job)
+            step_results[step.id] = result
+
+            if not result.ok:
+                raise RuntimeError(
+                    f"Step failed: {step.id} / {step.title}: {result.error}"
+                )
+
+            runtime_assets[step.id] = result.assets
+
+        return {
+            "ok": True,
+            "goal": plan.goal,
+            "assets": runtime_assets,
+            "steps": step_results,
+        }
+
+    def _ensure_dependencies_done(self, step, step_results):
+        missing = [
+            dep for dep in step.depends_on
+            if dep not in step_results
+        ]
+
+        if missing:
+            raise RuntimeError(
+                f"Step {step.id} has missing dependencies: {missing}"
+            )
+
+    def _run_script_step(self, step, plan):
+        return {
+            "ok": True,
+            "kind": "script",
+            "text": step.prompt,
+        }
+
+    def _run_delivery_step(self, step, plan, runtime_assets):
+        return {
+            "ok": True,
+            "kind": "final_delivery",
+            "assets": runtime_assets,
+        }
+7. FlowCompiler 应该吃 ComfyJobSpec，而不是吃 Showrunner
+Python
+运行
+# comfyui_agent/flow_compiler.py
+
+class FlowCompiler:
+    def __init__(self, node_registry, template_registry, validator):
+        self.node_registry = node_registry
+        self.template_registry = template_registry
+        self.validator = validator
+
+    def compile(
+        self,
+        task_type: str,
+        prompt: str,
+        negative_prompt: str = "",
+        input_assets=None,
+        actors=None,
+        constraints=None,
+        workflow_hint: str | None = None,
+    ) -> dict:
+        constraints = constraints or {}
+        input_assets = input_assets or []
+        actors = actors or []
+
+        template = self.template_registry.select(
+            task_type=task_type,
+            hint=workflow_hint,
+            constraints=constraints,
+            input_assets=input_assets,
+        )
+
+        workflow = template.render(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            input_assets=input_assets,
+            actors=actors,
+            constraints=constraints,
+        )
+
+        self.node_registry.assert_no_hallucinated_nodes(workflow)
+        self.validator.assert_valid(workflow)
+
+        return workflow
+8. Actor-craft 放哪一层？
+
+Actor-craft 放在 Showrunner 层。
+
+原因：
+
+Actor-craft = 角色设计法 / 角色圣经 / 连续性约束
+ComfyUI Agent = 具体执行 / 节点 / 模型 / workflow
+
+所以 Actor-craft 不应该塞进 ComfyUI Agent 的核心逻辑。
+它应该作为 Showrunner 生成的 ActorCraftSpec，在每个相关 SkillStep 里传给 ComfyUI Agent。
+
+推荐位置：
+
+showrunner/actor_craft.py
+Python
+运行
+# showrunner/actor_craft.py
+
+from .contracts import ActorCraftSpec
+
+
+class ActorCraftBuilder:
+    def build(self, brief: dict) -> ActorCraftSpec:
+        return ActorCraftSpec(
+            name=brief["name"],
+            role=brief.get("role", "main character"),
+            layer_1_core_identity=brief["core_identity"],
+            layer_2_visual_silhouette=brief["visual_silhouette"],
+            layer_3_costume_material=brief["costume_material"],
+            layer_4_motion_signature=brief["motion_signature"],
+            layer_5_emotional_aura=brief["emotional_aura"],
+            negative_traits=brief.get("negative_traits", []),
+            reference_assets=brief.get("reference_assets", []),
+        )
+
+ComfyUI 层只消费它：
+
+Python
+运行
+def build_character_prompt(actor: ActorCraftSpec) -> str:
+    return f"""
+consistent character identity,
+{actor.layer_1_core_identity},
+{actor.layer_2_visual_silhouette},
+{actor.layer_3_costume_material},
+{actor.layer_4_motion_signature},
+{actor.layer_5_emotional_aura}
+""".strip()
+9. 两个 agent.py 会不会冲突？
+
+会，条件是它们都在 Python path 顶层，并且你写了 import agent。
+
+不会冲突的写法：
+
+Python
+运行
+from showrunner.agent import ShowrunnerAgent
+from comfyui_agent.agent import ComfyUIAgent
+
+更推荐改名：
+
+showrunner/agent.py          → showrunner/orchestrator.py
+comfyui_agent/agent.py       → comfyui_agent/agent.py 保留
+
+然后统一出口：
+
+Python
+运行
+# showrunner/__init__.py
+
+from .orchestrator import ShowrunnerOrchestrator
+
+__all__ = ["ShowrunnerOrchestrator"]
+Python
+运行
+# comfyui_agent/__init__.py
+
+from .agent import ComfyUIAgent
+
+__all__ = ["ComfyUIAgent"]
+10. 最终融合入口
+Python
+运行
+# main_fused.py
+
+from showrunner.orchestrator import ShowrunnerOrchestrator
+from showrunner.skill_step_mapper import SkillStepMapper
+from showrunner.comfy_adapter import ComfyUIAgentAdapter
+
+from comfyui_agent.agent import ComfyUIAgent
+from comfyui_agent.flow_compiler import FlowCompiler
+from comfyui_agent.node_registry import NodeRegistry
+from comfyui_agent.workflow_validator import WorkflowValidator
+from comfyui_agent.template_registry import TemplateRegistry
+
+
+def build_system():
+    node_registry = NodeRegistry()
+    validator = WorkflowValidator(node_registry=node_registry)
+    template_registry = TemplateRegistry()
+
+    flow_compiler = FlowCompiler(
+        node_registry=node_registry,
+        template_registry=template_registry,
+        validator=validator,
+    )
+
+    comfy_agent = ComfyUIAgent(
+        flow_compiler=flow_compiler,
+        validator=validator,
+    )
+
+    comfy_adapter = ComfyUIAgentAdapter(
+        comfy_agent=comfy_agent,
+        flow_compiler=flow_compiler,
+    )
+
+    showrunner = ShowrunnerOrchestrator(
+        comfy_executor=comfy_adapter,
+        mapper=SkillStepMapper(),
+    )
+
+    return showrunner
+11. 一句话架构原则
+Showrunner 负责编排创意意图，ComfyUI Agent 负责编译和执行工作流；Actor-craft 是上层角色圣经，通过契约下发，不侵入节点执行层。
+
+最小落地优先级：
+
+P0：包命名隔离，解决两个 agent.py 冲突
+P1：定义 contracts.py，固定 SkillStep → ComfyJobSpec → ComfyJobResult
+P2：写 ComfyUIAgentAdapter，让 Showrunner 能调用 ComfyUI Agent V4
+P3：写 SkillStepMapper，把创意步骤映射成 Comfy 任务
+P4：Actor-craft 上移到 Showrunner，作为角色连续性约束传入
+P5：Showrunner_pipeline.py 改成只调 ShowrunnerOrchestrator，不直接碰 ComfyUI workflow

@@ -1,0 +1,44 @@
+0.5)
+    common_pairs = mine_cooccurrence(
+        [w for w in workflows if w["category"] == category],
+        min_count=5,
+    )
+
+    return {
+        "category": category,
+        "required_nodes": [x[0] for x in required],
+        "node_frequency": required,
+        "common_pairs": common_pairs[:50],
+    }
+
+把 104 个 workflow 变成：
+
+真实蓝图候选
+真实节点共现关系
+真实任务范式
+真实 required_nodes / optional_nodes
+
+这比手写模板可靠得多。
+
+最终落地优先级
+
+你们现在最该改的 5 件事：
+
+1. 增加 Flux modular loader 蓝图
+   UNETLoader + DualCLIPLoader + VAELoader + LoraLoaderModelOnly
+
+2. 增加 advanced sampler 蓝图
+   RandomNoise + KSamplerSelect + CFGGuider + SamplerCustomAdvanced
+
+3. 增加 LTX 视频蓝图族
+   ltx_i2v / ltx_audio / ltx_controlled / ltx_loop
+
+4. 增加 Wan 视频编辑蓝图族
+   action_transfer / character_replace / segmentation_tracking
+
+5. 增加 editable workflow 输出
+   MarkdownNote + Note + Reroute + Group + GetNode/SetNode
+
+一句话总结：
+
+这批 104 个真实工作流说明：2025-2026 的 ComfyUI 生产范式已经从“SD checkpoint + KSampler 单链路”转向“Flux/LTX/Wan 模块化模型加载 + 高级采样拆解 + 视频基础设施 + LoRA 模型侧叠加 + 多阶段可维护流水线”。ComfyFlow Compiler 如果还只会生成 txt2img/img2img/controlnet/video 四类基础图，就会严重落后真实生产工作流。

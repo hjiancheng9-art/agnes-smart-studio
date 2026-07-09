@@ -1,0 +1,41 @@
+upscale/detailer
+
+2. flux_image_edit_pro
+   LoadImage + GetImageSize + resize + Flux edit + LoRA + sampler + decode
+
+3. ltx_i2v_pro
+   LoadImage + LTXVConditioning + LTXVImgToVideoInplace
+   + concat/separate latent + tiled decode + VHS_VideoCombine
+
+4. ltx_i2v_audio_pro
+   LTXVAudioVAELoader + AudioAdjustVolume
+   + LTXVConcatAVLatent + LTXVSeparateAVLatent + VHS_VideoCombine
+
+5. wan_action_transfer_pro
+   VHS_LoadVideo + resize + mask/segment + motion/action transfer
+   + recombine/export
+
+这个方向见效快，但风险是：你们会继续手写蓝图，容易再次变成“专家拍脑袋”。
+
+所以它适合 P1，不适合 P0。
+
+方向 3：Workflow Enrichment Layer，把基础蓝图自动加厚
+
+这不是新增蓝图，而是在现有 7 节点工作流后面自动加“生产增强层”。
+
+例如基础 txt2img：
+
+CheckpointLoader
+CLIPTextEncode
+KSampler
+VAEDecode
+SaveImage
+
+自动增强成：
+
+基础生成
+  + MarkdownNote 使用说明
+  + Reroute / Group 可读性
+  + Upscale 可选
+  + Detailer 可选
+ 

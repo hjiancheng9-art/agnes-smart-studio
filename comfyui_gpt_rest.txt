@@ -1,0 +1,682 @@
+下面直接给 4 个核心补丁骨架。
+
+3. chat.py：正则中文匹配 → LLM 意图分类
+Python
+运行
+# comfyui_agent/intent_classifier.py
+from dataclasses import dataclass
+from typing import Any, Dict, Literal
+import json
+
+Intent = Literal[
+    "txt2img",
+    "img2img",
+    "txt2video",
+    "img2video",
+    "workflow_run",
+    "workflow_edit",
+    "diagnose",
+    "repair",
+    "status",
+    "help",
+    "unknown",
+]
+
+@dataclass
+class IntentResult:
+    intent: Intent
+    confidence: float
+    slots: Dict[str, Any]
+    reason: str = ""
+
+
+INTENT_SCHEMA = {
+    "type": "object",
+    "required": ["intent", "confidence", "slots", "reason"],
+    "properties": {
+        "intent": {
+            "type": "string",
+            "enum": [
+                "txt2img", "img2img", "txt2video", "img2video",
+                "workflow_run", "workflow_edit",
+                "diagnose", "repair", "status", "help", "unknown"
+            ],
+        },
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "slots": {
+            "type": "object",
+            "properties": {
+                "prompt": {"type": "string"},
+                "negative_prompt": {"type": "string"},
+                "input_image": {"type": "string"},
+                "workflow_id": {"type": "string"},
+                "width": {"type": "integer"},
+                "height": {"type": "integer"},
+                "steps": {"type": "integer"},
+                "seed": {"type": "integer"},
+                "model": {"type": "string"},
+                "duration": {"type": "number"},
+                "fps": {"type": "integer"},
+            },
+            "additionalProperties": True,
+        },
+        "reason": {"type": "string"},
+    },
+}
+
+
+class LLMIntentClassifier:
+    def __init__(self, brain, min_confidence: float = 0.65):
+        self.brain = brain
+        self.min_confidence = min_confidence
+
+    def classify(self, user_text: str, context: dict | None = None) -> IntentResult:
+        prompt = self._build_prompt(user_text, context or {})
+
+        raw = self.brain.complete_json(
+            prompt=prompt,
+            schema=INTENT_SCHEMA,
+            temperature=0,
+        )
+
+        data = self._safe_parse(raw)
+
+        result = IntentResult(
+            intent=data.get("intent", "unknown"),
+            confidence=float(data.get("confidence", 0)),
+            slots=data.get("slots") or {},
+            reason=data.get("reason", ""),
+        )
+
+        if result.confidence < self.min_confidence:
+            result.intent = "unknown"
+
+        return result
+
+    def _build_prompt(self, user_text: str, context: dict) -> str:
+        return f"""
+你是 ComfyUI 智能体的意图分类器。只输出 JSON，不要解释。
+
+任务：
+从用户输入中判断他想做什么，并抽取参数。
+
+意图枚举：
+- txt2img: 文生图
+- img2img: 图生图 / 改图
+- txt2video: 文生视频
+- img2video: 图生视频
+- workflow_run: 运行已有工作流
+- workflow_edit: 修改工作流
+- diagnose: 诊断环境/模型/工作流/服务
+- repair: 修复错误
+- status: 查看状态
+- help: 使用帮助
+- unknown: 无法判断
+
+输出格式：
+{{
+  "intent": "...",
+  "confidence": 0.0,
+  "slots": {{}},
+  "reason": "一句话说明"
+}}
+
+上下文：
+{json.dumps(context, ensure_ascii=False)}
+
+用户输入：
+{user_text}
+""".strip()
+
+    def _safe_parse(self, raw: Any) -> dict:
+        if isinstance(raw, dict):
+            return raw
+        try:
+            return json.loads(raw)
+        except Exception:
+            return {
+                "intent": "unknown",
+                "confidence": 0,
+                "slots": {},
+                "reason": "LLM returned invalid JSON",
+            }
+
+接入 chat.py：
+
+Python
+运行
+# chat.py
+from comfyui_agent.intent_classifier import LLMIntentClassifier
+
+class ChatParser:
+    def __init__(self, brain, *args, **kwargs):
+        self.intent_classifier = LLMIntentClassifier(brain)
+
+    def parse(self, user_text: str, context: dict | None = None):
+        result = self.intent_classifier.classify(user_text, context)
+
+        return {
+            "intent": result.intent,
+            "confidence": result.confidence,
+            "params": result.slots,
+            "reason": result.reason,
+        }
+
+旧正则保留为兜底，不再作为主路径：
+
+Python
+运行
+def parse(self, user_text: str, context: dict | None = None):
+    result = self.intent_classifier.classify(user_text, context)
+
+    if result.intent != "unknown":
+        return {
+            "intent": result.intent,
+            "confidence": result.confidence,
+            "params": result.slots,
+            "source": "llm",
+        }
+
+    return self._legacy_regex_parse(user_text)
+4. execution_repair.py：错误模式库 + 自动学习
+Python
+运行
+# comfyui_agent/error_patterns.py
+from dataclasses import dataclass, asdict
+from typing import Callable, Pattern
+import re
+import json
+from pathlib import Path
+
+
+@dataclass
+class RepairSuggestion:
+    category: str
+    severity: str
+    message: str
+    action: str
+    patch: dict | None = None
+
+
+@dataclass
+class ErrorPattern:
+    name: str
+    category: str
+    severity: str
+    pattern: str
+    suggestion: str
+    action: str
+
+
+DEFAULT_PATTERNS = [
+    ErrorPattern(
+        name="missing_model",
+        category="model",
+        severity="fatal",
+        pattern=r"(No such file|not found|missing).*?\.(safetensors|ckpt|pt|pth)",
+        suggestion="模型文件缺失，请检查 checkpoints / unet / vae / clip 目录。",
+        action="check_model_files",
+    ),
+    ErrorPattern(
+        name="comfyui_down",
+        category="service",
+        severity="fatal",
+        pattern=r"(connection refused|failed to establish|timeout|Max retries exceeded)",
+        suggestion="ComfyUI 服务不可用，请启动服务或检查端口。",
+        action="restart_or_check_comfyui",
+    ),
+    ErrorPattern(
+        name="unknown_node",
+        category="workflow",
+        severity="fatal",
+        pattern=r"(Cannot find|Unknown).*node|Node type.*not found",
+        suggestion="工作流中存在未安装或幻觉节点，请替换为已安装节点。",
+        action="replace_unknown_node",
+    ),
+    ErrorPattern(
+        name="bad_link",
+        category="workflow",
+        severity="fatal",
+        pattern=r"(invalid link|bad input|input.*not connected|missing input)",
+        suggestion="工作流拓扑不合法，请修复节点连接。",
+        action="repair_workflow_topology",
+    ),
+    ErrorPattern(
+        name="cuda_oom",
+        category="runtime",
+        severity="fatal",
+        pattern=r"(CUDA out of memory|out of memory|OOM)",
+        suggestion="显存不足，请降低分辨率、batch、steps 或使用低显存模型。",
+        action="reduce_memory_usage",
+    ),
+    ErrorPattern(
+        name="bad_prompt_type",
+        category="prompt",
+        severity="error",
+        pattern=r"(expected.*string|invalid prompt|prompt.*type)",
+        suggestion="Prompt 类型错误，请确保正负提示词都是字符串。",
+        action="normalize_prompt",
+    ),
+]
+
+
+class ErrorPatternLibrary:
+    def __init__(self, learn_path: str = "data/learned_errors.jsonl"):
+        self.learn_path = Path(learn_path)
+        self.patterns = list(DEFAULT_PATTERNS)
+        self._load_learned()
+
+    def match(self, error_text: str) -> RepairSuggestion:
+        text = error_text or ""
+
+        for p in self.patterns:
+            if re.search(p.pattern, text, re.I | re.S):
+                return RepairSuggestion(
+                    category=p.category,
+                    severity=p.severity,
+                    message=p.suggestion,
+                    action=p.action,
+                )
+
+        return RepairSuggestion(
+            category="unknown",
+            severity="error",
+            message="未知错误，已记录，可进入自动学习流程。",
+            action="ask_llm_or_manual_repair",
+        )
+
+    def learn(self, error_text: str, resolved_action: str, category: str = "learned"):
+        item = {
+            "error_sample": error_text[:1000],
+            "category": category,
+            "severity": "error",
+            "action": resolved_action,
+        }
+
+        self.learn_path.parent.mkdir(parents=True, exist_ok=True)
+        with self.learn_path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(item, ensure_ascii=False) + "\n")
+
+    def _load_learned(self):
+        if not self.learn_path.exists():
+            return
+
+        for line in self.learn_path.read_text(encoding="utf-8").splitlines():
+            try:
+                item = json.loads(line)
+                sample = re.escape(item["error_sample"][:80])
+                self.patterns.append(
+                    ErrorPattern(
+                        name="learned_error",
+                        category=item.get("category", "learned"),
+                        severity=item.get("severity", "error"),
+                        pattern=sample,
+                        suggestion=f"历史错误匹配，建议执行：{item.get('action')}",
+                        action=item.get("action", "manual_check"),
+                    )
+                )
+            except Exception:
+                continue
+
+接入 execution_repair.py：
+
+Python
+运行
+# execution_repair.py
+from comfyui_agent.error_patterns import ErrorPatternLibrary
+
+class ExecutionRepair:
+    def __init__(self, brain=None):
+        self.brain = brain
+        self.patterns = ErrorPatternLibrary()
+
+    def analyze_error(self, error_text: str, workflow: dict | None = None) -> dict:
+        suggestion = self.patterns.match(error_text)
+
+        if suggestion.category != "unknown":
+            return {
+                "ok": False,
+                "category": suggestion.category,
+                "severity": suggestion.severity,
+                "suggestion": suggestion.message,
+                "action": suggestion.action,
+                "patch": suggestion.patch,
+            }
+
+        return self._llm_repair(error_text, workflow)
+
+    def _llm_repair(self, error_text: str, workflow: dict | None):
+        if not self.brain:
+            return {
+                "ok": False,
+                "category": "unknown",
+                "severity": "error",
+                "suggestion": "无法自动识别错误，请查看日志。",
+                "action": "manual_check",
+            }
+
+        result = self.brain.complete_json(
+            prompt=f"""
+你是 ComfyUI 错误修复器。根据错误和 workflow，输出修复动作 JSON。
+
+错误：
+{error_text}
+
+workflow:
+{workflow}
+
+输出：
+{{
+  "category": "model|workflow|service|runtime|prompt|unknown",
+  "severity": "info|warning|error|fatal",
+  "suggestion": "...",
+  "action": "...",
+  "patch": {{}}
+}}
+""",
+            temperature=0,
+        )
+
+        action = result.get("action", "manual_check")
+        self.patterns.learn(error_text, action, result.get("category", "learned"))
+
+        return {
+            "ok": False,
+            "category": result.get("category", "unknown"),
+            "severity": result.get("severity", "error"),
+            "suggestion": result.get("suggestion", ""),
+            "action": action,
+            "patch": result.get("patch"),
+        }
+5. server.py：Flask 错误中间件 + 健康检查
+Python
+运行
+# server.py
+from flask import Flask, jsonify, request
+from werkzeug.exceptions import HTTPException
+import traceback
+import time
+import requests
+
+app = Flask(__name__)
+START_TIME = time.time()
+
+COMFYUI_URL = "http://127.0.0.1:8188"
+
+
+def json_error(message, status=500, code="INTERNAL_ERROR", detail=None):
+    payload = {
+        "ok": False,
+        "error": {
+            "code": code,
+            "message": message,
+            "detail": detail,
+        },
+        "request_id": request.headers.get("X-Request-ID"),
+    }
+    return jsonify(payload), status
+
+
+@app.errorhandler(HTTPException)
+def handle_http_error(e: HTTPException):
+    return json_error(
+        message=e.description,
+        status=e.code,
+        code=e.name.upper().replace(" ", "_"),
+    )
+
+
+@app.errorhandler(Exception)
+def handle_uncaught_error(e: Exception):
+    app.logger.exception("Unhandled server error")
+
+    return json_error(
+        message=str(e),
+        status=500,
+        code="UNHANDLED_EXCEPTION",
+        detail=traceback.format_exc() if app.debug else None,
+    )
+
+
+@app.before_request
+def before_request():
+    request.start_time = time.time()
+
+
+@app.after_request
+def after_request(response):
+    cost_ms = int((time.time() - request.start_time) * 1000)
+    response.headers["X-Cost-MS"] = str(cost_ms)
+    return response
+
+
+@app.get("/health")
+def health():
+    return jsonify({
+        "ok": True,
+        "service": "comfyui-agent",
+        "uptime_sec": int(time.time() - START_TIME),
+    })
+
+
+@app.get("/health/comfyui")
+def health_comfyui():
+    try:
+        r = requests.get(f"{COMFYUI_URL}/system_stats", timeout=2)
+        return jsonify({
+            "ok": r.ok,
+            "comfyui_url": COMFYUI_URL,
+            "status_code": r.status_code,
+            "data": r.json() if r.ok else None,
+        }), 200 if r.ok else 503
+
+    except requests.RequestException as e:
+        return jsonify({
+            "ok": False,
+            "comfyui_url": COMFYUI_URL,
+            "error": str(e),
+            "suggestion": "ComfyUI 服务未启动或端口不可达",
+        }), 503
+
+API 路由统一返回结构：
+
+Python
+运行
+@app.post("/api/execute")
+def execute_workflow():
+    body = request.get_json(force=True, silent=False)
+
+    if not isinstance(body, dict):
+        return json_error("Invalid JSON body", 400, "BAD_REQUEST")
+
+    workflow = body.get("workflow")
+    if not workflow:
+        return json_error("Missing workflow", 400, "MISSING_WORKFLOW")
+
+    result = app.agent.execute(workflow)
+
+    return jsonify({
+        "ok": True,
+        "data": result,
+    })
+6. 集成测试：pytest fixture + E2E 骨架
+
+目录建议：
+
+tests/
+  conftest.py
+  test_health.py
+  test_diagnose_e2e.py
+  test_execute_e2e.py
+  fixtures/
+    valid_workflow.json
+    broken_workflow_missing_model.json
+    broken_workflow_bad_link.json
+
+conftest.py：
+
+Python
+运行
+# tests/conftest.py
+import json
+import pytest
+from pathlib import Path
+
+from comfyui_agent.server import app as flask_app
+from comfyui_agent.agent import ComfyUIAgent
+
+
+@pytest.fixture
+def client(monkeypatch):
+    flask_app.config["TESTING"] = True
+
+    fake_agent = FakeAgent()
+    flask_app.agent = fake_agent
+
+    with flask_app.test_client() as c:
+        yield c
+
+
+@pytest.fixture
+def fixtures_dir():
+    return Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture
+def valid_workflow(fixtures_dir):
+    return json.loads((fixtures_dir / "valid_workflow.json").read_text(encoding="utf-8"))
+
+
+class FakeAgent:
+    def diagnose(self, workflow=None):
+        return {
+            "ok": True,
+            "items": [
+                {
+                    "ok": True,
+                    "severity": "info",
+                    "evidence": "fake diagnose passed",
+                    "suggestion": "",
+                }
+            ],
+        }
+
+    def execute(self, workflow):
+        return {
+            "run_id": "test-run-001",
+            "status": "submitted",
+            "outputs": [],
+        }
+
+    def repair(self, error, workflow=None):
+        return {
+            "ok": False,
+            "category": "workflow",
+            "severity": "error",
+            "suggestion": "fake repair suggestion",
+            "action": "repair_workflow_topology",
+        }
+
+test_health.py：
+
+Python
+运行
+# tests/test_health.py
+
+def test_health_ok(client):
+    r = client.get("/health")
+    assert r.status_code == 200
+
+    data = r.get_json()
+    assert data["ok"] is True
+    assert data["service"] == "comfyui-agent"
+
+
+def test_404_returns_json(client):
+    r = client.get("/not-exist")
+    assert r.status_code == 404
+
+    data = r.get_json()
+    assert data["ok"] is False
+    assert "error" in data
+
+test_execute_e2e.py：
+
+Python
+运行
+# tests/test_execute_e2e.py
+
+def test_execute_valid_workflow(client, valid_workflow):
+    r = client.post("/api/execute", json={
+        "workflow": valid_workflow,
+    })
+
+    assert r.status_code == 200
+
+    data = r.get_json()
+    assert data["ok"] is True
+    assert data["data"]["run_id"] == "test-run-001"
+
+
+def test_execute_missing_workflow(client):
+    r = client.post("/api/execute", json={})
+
+    assert r.status_code == 400
+
+    data = r.get_json()
+    assert data["ok"] is False
+    assert data["error"]["code"] == "MISSING_WORKFLOW"
+
+test_diagnose_e2e.py：
+
+Python
+运行
+# tests/test_diagnose_e2e.py
+
+def test_diagnose_e2e(client, valid_workflow):
+    r = client.post("/api/diagnose", json={
+        "workflow": valid_workflow,
+    })
+
+    assert r.status_code == 200
+
+    data = r.get_json()
+    assert data["ok"] is True
+    assert isinstance(data["data"]["items"], list)
+
+补一个 /api/diagnose：
+
+Python
+运行
+# server.py
+
+@app.post("/api/diagnose")
+def diagnose():
+    body = request.get_json(force=True, silent=True) or {}
+    workflow = body.get("workflow")
+
+    result = app.agent.diagnose(workflow=workflow)
+
+    return jsonify({
+        "ok": True,
+        "data": result,
+    })
+
+运行：
+
+Bash
+pytest -q
+
+这 4 个补丁的主线是：
+
+chat.py:
+正则匹配 → LLMIntentClassifier
+
+execution_repair.py:
+硬编码少量错误 → ErrorPatternLibrary + learned_errors.jsonl
+
+server.py:
+裸 Flask 路由 → JSON error middleware + /health + /health/comfyui
+
+tests:
+无集成测试 → Flask test_client + fake agent + E2E 骨架

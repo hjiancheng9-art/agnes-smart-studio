@@ -1,0 +1,2 @@
+输入：104 个真实 workflow JSON
+输出：5 个 mined production blueprint

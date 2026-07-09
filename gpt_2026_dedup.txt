@@ -1,0 +1,106 @@
+Workflow submission endpoint
+Yes: for local ComfyUI / ComfyUI Desktop instances, workflow execution is still POST /prompt; it validates the prompt and queues it, returning prompt_id or error/node_errors. Use /ws for progress/events and /history/{prompt_id} for outputs. 
+ComfyUI
++1
+
+POST /prompt
+
+prompt_id
+
+error/node_errors
+
+/ws
+
+/history/{prompt_id}
+
+Workflow JSON format
+For execution, the standard is still API Prompt Format: { "node_id": {"class_type": "...", "inputs": {...}, "_meta": {...}} }; links are input values like ["4", 0]. The newer Save Format has version: 1, state, nodes, links, groups, models, etc., but don’t submit that directly to
+
+{ "node_id": {"class_type": "...", "inputs": {...}, "_meta": {...}} }
+
+["4", 0]
+
+version: 1
+
+state
+
+nodes
+
+links
+
+groups
+
+models
+
+/prompt
+
+Common production custom nodes
+Most production stacks still include: ComfyUI-Manager, rgthree-comfy, ComfyUI-KJNodes, ComfyUI_essentials, ComfyUI-Impact-Pack, comfyui-controlnet-aux, ComfyUI-Advanced-ControlNet, comfyui-ipadapter, ComfyUI-GGUF, plus video packs like ComfyUI-VideoHelperSuite, ComfyUI
+
+ComfyUI-Manager
+
+rgthree-comfy
+
+ComfyUI-KJNodes
+
+ComfyUI_essentials
+
+ComfyUI-Impact-Pack
+
+comfyui-controlnet-aux
+
+ComfyUI-Advanced-ControlNet
+
+comfyui-ipadapter
+
+ComfyUI-GGUF
+
+ComfyUI-VideoHelperSuite
+
+ComfyUI-LTXVideo
+
+custom_nodes
+
+Video generation: WanVideo or LTXVideo?
+Use Wan when you want the most common native ComfyUI video route and broader T2V/I2V workflow coverage; official Wan2.1/2.2 workflows are documented and Wan2.2 includes 5B and 14B routes. Use LTXVideo / LTX-2 when you specifically want LTX’s newer audio-video
+
+Detect GPU VRAM on Windows
+Best order: pynvml → nvidia-smi → torch.cuda fallback. Minimal reliable function:
+
+pynvml
+
+nvidia-smi
+
+torch.cuda
+
+Python
+运行
+from dataclasses import dataclass
+from typing import Optional
+import shutil, subprocess
+
+@dataclass
+class GPUInfo:
+    gpu_name: Optional[str]
+    vram_gb: float
+    cuda_available: bool
+    source: str
+    error: Optional[str] = None
+
+def detect_gpu() -> GPUInfo:
+    try:
+        import p
+
+from dataclasses import dataclass
+from typing import Optional
+import shutil, subprocess
+
+def detect_gpu() -> GPUInfo:
+    try:
+        import pynvml
+
+For a compiler, pair this with /object_info and /models/{folder} checks before selecting a workflow.
+
+/object_info
+
+/models/{folder}

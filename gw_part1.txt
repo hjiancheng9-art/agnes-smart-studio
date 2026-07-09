@@ -1,0 +1,180 @@
+下面是从你这批 104 个真实生产工作流样本反推出来的结论。注意一个小问题：你给的分类数相加是 103，说明有 1 个工作流可能未分类或统计漏掉。
+
+1. 这些工作流反映的真实生产范式
+结论 1：这批样本已经不是“传统 SD1.5/SDXL txt2img 时代”
+
+从分类看：
+
+video: 48
+flux: 18
+other: 29
+txt2img: 5
+img2img: 2
+controlnet: 1
+
+这说明真实生产流已经明显转向：
+
+Flux / LTX / Wan / 视频 / 编辑 / 换装 / 动作迁移 / 角色替换
+
+传统 CheckpointLoaderSimple → CLIPTextEncode → KSampler → VAEDecode → SaveImage 只剩基础能力，不再代表高级工作流。
+
+结论 2：UNETLoader > CheckpointLoaderSimple，说明进入“模块化模型加载”时代
+
+你数据里：
+
+UNETLoader: 47
+CheckpointLoaderSimple: 40
+CLIPLoader: 34
+DualCLIPLoader: 30
+VAELoader: 57
+
+这非常关键。
+
+传统 checkpoint 是：
+
+CheckpointLoaderSimple 一次加载 model + clip + vae
+
+而 Flux / LTX / Wan / 新视频模型更常见的是：
+
+UNETLoader
+CLIPLoader / DualCLIPLoader
+VAELoader
+单独组合
+
+所以 ComfyFlow Compiler 不能再假设“一个 checkpoint 解决一切”。必须支持：
+
+model / clip / vae / text_encoder / diffusion model 分离加载
+结论 3：SamplerCustomAdvanced 已经进入高级工作流主线
+
+你数据里：
+
+KSampler: 32
+SamplerCustomAdvanced: 34
+KSamplerSelect: 37
+RandomNoise: 33
+CFGGuider: 28
+ManualSigmas: 多个复杂流里高频出现
+
+这说明高级工作流正在从：
+
+KSampler 黑盒节点
+
+转向：
+
+RandomNoise
++ KSamplerSelect
++ CFGGuider
++ BasicScheduler / ManualSigmas
++ SamplerCustomAdvanced
+
+也就是采样链拆解化。
+
+你的智能体必须支持两套采样蓝图：
+
+basic_sampling:
+  KSampler
+
+advanced_sampling:
+  RandomNoise
+  KSamplerSelect
+  CFGGuider
+  BasicScheduler / ManualSigmas
+  SamplerCustomAdvanced
+结论 4：LoraLoaderModelOnly 高频，说明 LoRA 主要作用在模型侧
+
+你数据里：
+
+LoraLoaderModelOnly: 39
+
+这比很多传统 LoRA 节点更值得重视。
+
+传统 LoRA 是：
+
+LoraLoader(model, clip)
+
+但 Flux / LTX / 视频工作流里更常见：
+
+LoraLoaderModelOnly(model)
+
+也就是说 LoRA 不再一定改 CLIP，而是更多叠在 UNET / diffusion model 上。
+
+你的蓝图应该支持：
+
+single_lora_model_only
+multi_lora_model_stack
+ltx_lora_stack
+flux_lora_stack
+结论 5：LTX 视频在这批样本里已经是标配级主线
+
+你数据里：
+
+VHS_VideoCombine: 48
+LTXVConditioning: 37
+LTXVConcatAVLatent: 31
+LTXVSeparateAVLatent: 31
+LTXVCropGuides: 29
+LTXVAudioVAEDecode: 27
+LTXVAudioVAELoader: 25
+
+48 个 video 工作流里，VHS_VideoCombine 刚好 48 次，说明 VideoHelperSuite 是视频输出基础设施。
+
+LTXVConditioning 出现 37 次，说明在你的样本中：
+
+LTX I2V / T2V / Audio-aware video 是高频生产路线
+
+Wan 也重要，但从这批数据看，Wan 更偏“复杂人物替换 / 动作迁移 / 数字人”这类重型工作流，而 LTX 更像通用视频生成主线。
+
+2. 智能体必须支持的节点和蓝图
+必须支持的节点分层
+
+建议直接把节点分成下面这些能力层。
+
+Python
+运行
+REQUIRED_NODE_CAPABILITY_MAP = {
+    # 基础图像生成
+    "core_image": [
+        "CheckpointLoaderSimple",
+        "CLIPTextEncode",
+        "KSampler",
+        "VAEDecode",
+        "VAEDecodeTiled",
+        "SaveImage",
+        "LoadImage",
+        "PreviewImage",
+    ],
+
+    # 模块化模型加载：Flux / LTX / Wan / 新模型必需
+    "modular_model_loading": [
+        "UNETLoader",
+        "CLIPLoader",
+        "DualCLIPLoader",
+        "VAELoader",
+    ],
+
+    # 高级采样链
+    "advanced_sampling": [
+        "RandomNoise",
+        "KSamplerSelect",
+        "CFGGuider",
+        "SamplerCustomAdvanced",
+        "ManualSigmas",
+    ],
+
+    # LoRA 模型侧叠加
+    "model_only_lora": [
+        "LoraLoaderModelOnly",
+        "LTX2LoraLoaderAdvanced",
+    ],
+
+    # 视频基础设施
+    "video_io": [
+        "VHS_LoadVideo",
+        "VHS_VideoCombine",
+    ],
+
+    # LTX 视频核心
+    "ltx_video": [
+        "LTXVConditioning",
+        "LTXVImgToVideoConditionOnly",
+        "L

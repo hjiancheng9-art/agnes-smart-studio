@@ -125,7 +125,7 @@ THEMES: dict[str, dict[str, str]] = {
 }
 
 # ── Active theme tracking ──
-_active_theme_name: str = "blade"
+_active_theme_name: str = "jade"
 
 # C is the active theme dict — code uses C["bg"], C["fg"], etc.
 C: dict[str, str] = BLADE

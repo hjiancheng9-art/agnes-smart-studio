@@ -1,0 +1,155 @@
+5. 硬件适配：实际显存预算表
+
+先说结论：没有全局“精确显存需求”。显存受以下变量影响：
+
+模型精度：fp16 / bf16 / fp8 / int8 / nf4 / gguf q4
+分辨率
+batch size
+是否 refiner
+是否 ControlNet
+是否 IPAdapter
+是否 video
+是否 tiled VAE / offload
+ComfyUI 版本和 attention backend
+
+所以你们系统里不要写“绝对显存”，要写 保守预算阈值。
+
+5.1 建议内置预算表
+Python
+运行
+HARDWARE_MODEL_BUDGET = {
+    "4gb": {
+        "image": ["sd15_512", "sd15_768_cautious"],
+        "avoid": ["sdxl", "flux", "video", "refiner"],
+        "notes": "CPU/offload fallback only"
+    },
+
+    "6gb": {
+        "image": ["sd15_768", "sd15_hires_tiled"],
+        "control": ["sd15_controlnet_light"],
+        "avoid": ["sdxl_refiner", "flux_full", "wan_video"],
+        "notes": "小白默认 SD1.5 稳定路线"
+    },
+
+    "8gb": {
+        "image": ["sdxl_basic_cautious", "sd15_high_quality", "flux_gguf_q4"],
+        "video": ["wan2.1_1.3b", "wan2.2_5b_native_offload"],
+        "avoid": ["sdxl_refiner_upscale", "flux_full", "wan14b"],
+        "notes": "8GB 是低门槛视频/Flux 量化分界线"
+    },
+
+    "12gb": {
+        "image": ["sdxl_basic", "sdxl_light_upscale", "flux_fp8_cautious", "flux_gguf_q5_q8"],
+        "video": ["ltx_fp8", "wan_480p_short"],
+        "avoid": ["flux_full", "wan14b_long", "large_refiner_chain"],
+        "notes": "主流中端卡，适合 SDXL 和部分 FP8/量化 Flux"
+    },
+
+    "16gb": {
+        "image": ["sdxl_refiner", "flux_fp8", "sd3_5_medium", "sd3_5_quant"],
+        "video": ["ltx_2_3_fp8", "wan_short_mid"],
+        "avoid": ["flux_full_batch", "wan14b_heavy"],
+        "notes": "可以跑高级图像，但视频仍需限制帧数和分辨率"
+    },
+
+    "24gb": {
+        "image": ["sdxl_refiner_upscale", "flux_full", "flux_fp8_fast", "sd3_5_large_quant_or_full_cautious"],
+        "video": ["wan2.2_14b", "ltx_2_3_full_or_fp8"],
+        "notes": "本地高端工作流主力档"
+    }
+}
+5.2 SDXL
+
+实用建议：
+
+6GB:
+  不推荐小白默认 SDXL。
+
+8GB:
+  可尝试 SDXL basic，限制 1024 以下或接近 1024，batch=1，tiled VAE。
+
+12GB:
+  SDXL basic 稳定，轻量 upscale 可用。
+
+16GB:
+  SDXL + refiner 可用。
+
+24GB:
+  SDXL + refiner + upscale + detailer 全链路。
+
+SDXL 自身包含更大的 UNet、第二文本编码器和 refiner，显存压力天然高于 SD1.5；ComfyUI 可能通过卸载等机制跑得更省，但 refiner/upscale/detailer 叠加后仍应按 12-24GB 档规划。
+arXiv
++1
+
+5.3 Flux
+
+实用建议：
+
+8GB:
+  Flux GGUF Q4 / NF4 类低显存路线。
+
+12GB:
+  Flux GGUF Q5/Q8 或 FP8 cautious，可能依赖系统内存/offload。
+
+16GB:
+  Flux FP8 / int8 比较合理。
+
+24GB:
+  Flux dev full / fp16 主力档。
+
+官方 ComfyUI 文档说明 Flux.1 是 12B 参数、原始文件约 23GB；full version 最好但需要更大显存，FP8 checkpoint 资源要求更低但质量略降。Hugging Face 社区讨论中常见经验是 full/bf16/fp16 约 24GB 档，Q8/fp8/int8 约 16GB 档，NF4/Q4 类可到 8GB 档，但质量和速度会变化。
+ComfyUI
++1
+
+5.4 SD3 / SD3.5
+
+SD3 Medium / SD3.5 Medium 实用建议：
+
+6GB:
+  SD3 Medium fp8 package 可尝试，但不要加重 ControlNet / upscale。
+
+10-12GB:
+  SD3.5 Medium 常规路线更合理。
+
+16GB:
+  SD3.5 Medium + 部分控制/后处理。
+
+24GB:
+  SD3.5 Large / Large Turbo 或更复杂链路。
+
+Stability AI 的 SD3 Medium 模型卡提供多种打包：不含 text encoders、含 fp16 T5XXL、含 fp8 T5XXL、以及不含 T5XXL 的低资源版本；SD3.5 Medium 模型卡也直接给出 bitsandbytes 4-bit 量化示例来降低 VRAM。
+Hugging Face
++1
+
+5.5 Wan / LTX 视频
+
+实用建议：
+
+8GB:
+  Wan2.1 1.3B
+  Wan2.2 5B native offload
+  短视频、低分辨率、低帧数
+
+12-16GB:
+  LTX-2.3 FP8
+  Wan 480p / 720p 谨慎
+  I2V 优先于长 T2V
+
+24GB:
+  Wan2.2 14B T2V/I2V
+  LTX-2.3 full / fp8
+  可加 latent upscaler
+
+ComfyUI 官方文档明确说 Wan2.2 5B 版本在原生 offloading 下适合 8GB VRAM；Wan2.2 14B T2V/I2V 需要 high-noise / low-noise 双 diffusion model、text encoder、VAE。LTX-2.3 官方文档则列出 full BF16、FP8 checkpoint、distilled LoRA、latent upscale model 和 Gemma text encoder。
+ComfyUI
++1
+
+你们系统应该立刻改的设计
+A. Workflow parser 要支持三种格式
+Python
+运行
+class WorkflowFormat:
+    API_PROMPT = "api_prompt"       # /prompt 执行格式
+    SAVE_V1 = "save_v1"             # version=1 的前端格式
+    LEGACY_SAVE = "legacy_save"     # 老 workflow / LiteGraph 兼容
+B. 节点能力获取优先级

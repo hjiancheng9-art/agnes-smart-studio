@@ -1,0 +1,163 @@
+{
+  "schema_version": "1.0.0",
+  "id": "lora_stack_basic",
+  "name": "LoRA Stack",
+  "version": "1.0.0",
+  "status": "beta",
+  "source": {
+    "origin": "handcrafted",
+    "workflow_id": "lora_stack_001",
+    "mined_at": "2026-07-09T18:07:29.302997+00:00"
+  },
+  "capability": {
+    "task_type": "general",
+    "description": "LoRA 堆叠 — 多 LoRA 组合加载",
+    "tags": [
+      "lora",
+      "stack",
+      "utility",
+      "style"
+    ],
+    "styles": [],
+    "models": []
+  },
+  "requirements": {
+    "min_nodes": 5,
+    "required_nodes": [
+      {
+        "class_type": "LoraLoader",
+        "reason": "LoRA 加载"
+      }
+    ],
+    "recommended_nodes": [
+      "CLIPTextEncode",
+      "KSampler",
+      "VAELoader"
+    ]
+  },
+  "input_contract": {
+    "fields": [
+      {
+        "name": "lora_1_name",
+        "type": "text",
+        "description": "LoRA 1 名称",
+        "required": true
+      },
+      {
+        "name": "lora_1_strength",
+        "type": "number",
+        "description": "LoRA 1 强度",
+        "default": 0.8,
+        "min": 0.0,
+        "max": 2.0
+      },
+      {
+        "name": "lora_2_name",
+        "type": "text",
+        "description": "LoRA 2 名称",
+        "required": false
+      },
+      {
+        "name": "lora_2_strength",
+        "type": "number",
+        "description": "LoRA 2 强度",
+        "default": 0.5
+      }
+    ]
+  },
+  "output_contract": {
+    "fields": [
+      {
+        "name": "output",
+        "type": "image",
+        "description": "生成结果"
+      }
+    ]
+  },
+  "graph_template": {
+    "nodes": [
+      {
+        "id": "1",
+        "class_type": "LoraLoader",
+        "title": "LoRA Loader 1"
+      },
+      {
+        "id": "2",
+        "class_type": "LoraLoader",
+        "title": "LoRA Loader 2"
+      },
+      {
+        "id": "3",
+        "class_type": "CLIPTextEncode",
+        "title": "CLIP Text Encode"
+      },
+      {
+        "id": "4",
+        "class_type": "KSampler",
+        "title": "KSampler"
+      }
+    ],
+    "edges": [
+      {
+        "from_node": "1",
+        "from_slot": 0,
+        "to_node": "2",
+        "to_slot": 0
+      },
+      {
+        "from_node": "2",
+        "from_slot": 0,
+        "to_node": "3",
+        "to_slot": 0
+      },
+      {
+        "from_node": "3",
+        "from_slot": 0,
+        "to_node": "4",
+        "to_slot": 6
+      }
+    ],
+    "entry_points": [
+      "1",
+      "3"
+    ],
+    "exit_points": [
+      "4"
+    ]
+  },
+  "slots": {},
+  "quality_modes": {
+    "draft": {
+      "steps": 20,
+      "cfg": 3.5,
+      "sampler": "euler",
+      "scheduler": "normal",
+      "resolution": "512x512"
+    },
+    "standard": {
+      "steps": 30,
+      "cfg": 7.0,
+      "sampler": "euler",
+      "scheduler": "normal",
+      "resolution": "1024x1024"
+    },
+    "quality": {
+      "steps": 50,
+      "cfg": 7.0,
+      "sampler": "dpmpp_2m",
+      "scheduler": "karras",
+      "resolution": "1024x1024"
+    }
+  },
+  "validation": {
+    "known_issues": [
+      "需要 LoRA 模型文件"
+    ]
+  },
+  "metadata": {
+    "created_at": "2026-07-09T18:07:29.302997+00:00",
+    "updated_at": "2026-07-09T18:07:29.302997+00:00",
+    "total_nodes": 4,
+    "total_edges": 3
+  }
+}

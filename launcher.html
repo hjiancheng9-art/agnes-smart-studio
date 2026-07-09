@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>新烬龙V2 · 启动器</title>
+<style>
+:root{
+  --bg:#070b14; --srf:#0d1425; --crd:#111a30; --brd:#1a2d4a;
+  --t1:#e8edf5; --t2:#8899bb; --t3:#556688;
+  --acc:#ff5e3a; --acc2:#ff8c42; --accb:#ff3b20;
+  --grn:#2ecc71; --yel:#f1c40f; --red:#e74c3c;
+  --pip1:#3498db; --pip2:#9b59b6; --pip3:#e67e22; --pip4:#1abc9c;
+  --grad:linear-gradient(135deg,var(--acc),var(--acc2));
+  --shd:0 4px 24px rgba(0,0,0,.4);
+  --rad:12px; --rads:6px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--bg); color:var(--t1); min-height:100vh;
+  display:flex; flex-direction:column; align-items:center;
+  background-image:radial-gradient(ellipse at 50% 0%, rgba(255,94,58,.04) 0%, transparent 60%);
+}
+/* HEADER */
+.hd{
+  width:100%; max-width:720px; padding:48px 20px 0; text-align:center;
+}
+.hd .ico{ font-size:48px; }
+.hd h1{ font-size:28px; font-weight:800; margin:12px 0 6px; letter-spacing:-.3px; }
+.hd h1 span{ background:var(--grad); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.hd .sub{ color:var(--t3); font-size:14px; margin-bottom:4px; }
+.hd .ver{ color:var(--t3); font-size:12px; }
+/* STATUS BAR */
+.sb{
+  width:100%; max-width:720px; padding:20px;
+  display:flex; gap:12px; flex-wrap:wrap; justify-content:center;
+}
+.sb .sc{
+  flex:1; min-width:160px; background:var(--crd); border:1px solid var(--brd);
+  border-radius:var(--rad); padding:16px; text-align:center;
+  transition:all .2s; cursor:default; position:relative; overflow:hidden;
+}
+.sb .sc::before{ content:''; position:absolute; top:0; left:0; right:0; height:3px; }
+.sb .sc.online::before{ background:var(--grn); }
+.sb .sc.offline::before{ background:var(--red); }
+.sb .sc .sn{ font-size:11px; color:var(--t3); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+.sb .sc .sv{ font-size:22px; font-weight:700; margin-bottom:4px; }
+.sb .sc .sv.on{ color:var(--grn); }
+.sb .sc .sv.off{ color:var(--red); }
+.sb .sc .ss{ font-size:12px; color:var(--t2); }
+.sb .sc .sa{ margin-top:12px; display:flex; gap:6px; justify-content:center; flex-wrap:wrap; }
+.sb .sc .sa a{
+  display:inline-flex; align-items:center; gap:4px; padding:5px 12px;
+  border-radius:var(--rads); font-size:11px; font-weight:600; text-decoration:none;
+  transition:all .15s; border:1px solid var(--brd); color:var(--t2);
+}
+.sb .sc .sa a:hover{ border-color:var(--acc); color:var(--t1); background:var(--crd); }
+.sb .sc .sa .act{ background:var(--grad); color:#fff; border:none; }
+.sb .sc .sa .act:hover{ opacity:.85; }
+/* SERVICE GRID */
+.sg{
+  width:100%; max-width:720px; padding:0 20px 20px;
+}
+.sg .sh{ font-size:13px; font-weight:600; color:var(--t2); margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+.sg .sh::after{ content:''; flex:1; height:1px; background:var(--brd); }
+.sg .gc{ display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; }
+.sg .gc .gc{
+  background:var(--srf); border:1px solid var(--brd); border-radius:var(--rads);
+  padding:14px; transition:all .15s; cursor:pointer;
+}
+.sg .gc .gc:hover{ border-color:var(--acc); }
+.sg .gc .gc .gn{ font-size:12px; font-weight:600; color:var(--t1); display:flex; align-items:center; gap:6px; }
+.sg .gc .gc .gn .gd{ width:6px; height:6px; border-radius:50%; background:var(--t3); }
+.sg .gc .gc .gn .gd.up{ background:var(--grn); }
+.sg .gc .gc .gn .gd.down{ background:var(--red); }
+.sg .gc .gc .gp{ font-size:11px; color:var(--t3); margin-top:4px; }
+/* QUICK ACTIONS */
+.qa{
+  width:100%; max-width:720px; padding:0 20px 20px;
+}
+.qa .qh{ font-size:13px; font-weight:600; color:var(--t2); margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+.qa .qh::after{ content:''; flex:1; height:1px; background:var(--brd); }
+.qa .qb{ display:flex; gap:8px; flex-wrap:wrap; }
+.qa .qb button{
+  padding:10px 18px; border-radius:var(--rads); font-size:13px; font-weight:600;
+  cursor:pointer; border:1px solid var(--brd); background:var(--crd); color:var(--t2);
+  transition:all .15s; display:flex; align-items:center; gap:6px;
+}
+.qa .qb button:hover{ border-color:var(--acc); color:var(--t1); background:var(--srf); transform:translateY(-1px); }
+.qa .qb .pr{ background:var(--grad); color:#fff; border:none; }
+.qa .qb .pr:hover{ opacity:.85; box-shadow:0 4px 16px rgba(255,94,58,.3); }
+.qa .qb .dr{ background:transparent; border-color:var(--red); color:var(--red); }
+.qa .qb .dr:hover{ background:rgba(231,76,60,.1); }
+/* SYSTEM INFO */
+.si{
+  width:100%; max-width:720px; padding:0 20px 20px;
+}
+.si .sih{ font-size:13px; font-weight:600; color:var(--t2); margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+.si .sih::after{ content:''; flex:1; height:1px; background:var(--brd); }
+.si .sic{
+  background:var(--srf); border:1px solid var(--brd); border-radius:var(--rads);
+  padding:16px; display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px;
+}
+.si .sic .it{ font-size:12px; }
+.si .sic .it .il{ color:var(--t3); margin-bottom:2px; }
+.si .sic .it .iv{ color:var(--t1); font-weight:600; }
+/* FOOTER */
+.ft{
+  width:100%; max-width:720px; padding:20px; text-align:center;
+  color:var(--t3); font-size:11px; border-top:1px solid var(--brd); margin-top:auto;
+}
+.ft a{ color:var(--t2); text-decoration:none; }
+.ft a:hover{ color:var(--acc); }
+/* TOAST */
+#toast{
+  position:fixed; bottom:24px; right:24px; z-index:300;
+  padding:12px 20px; border-radius:var(--rads); font-size:13px; font-weight:600;
+  opacity:0; transform:translateY(10px); transition:all .3s; pointer-events:none;
+}
+#toast.show{ opacity:1; transform:translateY(0); }
+#toast.ok{ background:var(--grn); color:#fff; }
+#toast.err{ background:var(--red); color:#fff; }
+/* RESPONSIVE */
+@media(max-width:600px){
+  .hd{ padding-top:32px; }
+  .hd h1{ font-size:22px; }
+  .sb .sc{ min-width:140px; padding:12px; }
+  .sg .gc{ grid-template-columns:1fr; }
+  .qa .qb button{ flex:1; justify-content:center; }
+}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <div class="ico">🔥</div>
+  <h1><span>新烬龙V2</span></h1>
+  <div class="sub">AI 视频生产流水线 · 驾驶舱</div>
+  <div class="ver" id="verInfo">加载中...</div>
+</div>
+
+<div class="sb" id="statusBar">
+  <div class="sc offline" id="scCockpit">
+    <div class="sn">🚀 驾驶舱</div>
+    <div class="sv off" id="cockpitStatus">检测中...</div>
+    <div class="ss" id="cockpitMeta">端口 4366</div>
+    <div class="sa" id="cockpitActions">
+      <a id="cockpitLink" href="http://localhost:4366" target="_blank">打开 →</a>
+    </div>
+  </div>
+  <div class="sc offline" id="scDashboard">
+    <div class="sn">📊 监控面板</div>
+    <div class="sv off" id="dashStatus">检测中...</div>
+    <div class="ss" id="dashMeta">端口 4377</div>
+    <div class="sa" id="dashActions">
+      <a id="dashLink" href="http://localhost:4377" target="_blank">打开 →</a>
+    </div>
+  </div>
+</div>
+
+<div class="sg">
+  <div class="sh">📋 服务列表</div>
+  <div class="gc" id="serviceGrid">
+    <div class="gc" onclick="window.open('http://localhost:4366','_blank')">
+      <div class="gn"><span class="gd" id="sCockpit"></span>🔥 驾驶舱</div>
+      <div class="gp">AI 视频生产主引擎 · 端口 4366</div>
+    </div>
+    <div class="gc" onclick="window.open('http://localhost:4377','_blank')">
+      <div class="gn"><span class="gd" id="sDashboard"></span>📊 监控面板</div>
+      <div class="gp">系统监控与管理 · 端口 4377</div>
+    </div>
+    <div class="gc" onclick="showInfo()">
+      <div class="gn">📖 使用说明</div>
+      <div class="gp">了解新烬龙V2 的工作流程</div>
+    </div>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="qh">⚡ 快捷操作</div>
+  <div class="qb">
+    <button class="pr" onclick="openCockpit()">🔥 打开驾驶舱</button>
+    <button onclick="openDashboard()">📊 打开监控</button>
+    <button onclick="refreshAll()">🔄 刷新状态</button>
+    <button class="dr" onclick="killAll()">⛔ 停止所有服务</button>
+  </div>
+</div>
+
+<div class="si">
+  <div class="sih">ℹ 系统信息</div>
+  <div class="sic" id="sysInfo">
+    <div class="it"><div class="il">Node.js</div><div class="iv" id="nodeVer">检测中...</div></div>
+    <div class="it"><div class="il">工作目录</div><div class="iv" id="workDir">加载中...</div></div>
+    <div class="it"><div class="il">平台</div><div class="iv" id="platform">加载中...</div></div>
+    <div class="it"><div class="il">更新时间</div><div class="iv" id="updateTime">—</div></div>
+  </div>
+</div>
+
+<div class="ft">
+  <a href="http://localhost:4366">驾驶舱</a> · 
+  <a href="http://localhost:4377">监控</a> · 
+  新烬龙V2 v3.0.0
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  新烬龙V2 · 启动器
+// ═══════════════════════════════════════════════
+
+const SVC = [
+  { id:'cockpit', name:'驾驶舱', port:4366, url:'http://localhost:4366', sc:'scCockpit',
+    st:'cockpitStatus', sm:'cockpitMeta', sd:'sCockpit' },
+  { id:'dashboard', name:'监控面板', port:4377, url:'http://localhost:4377', sc:'scDashboard',
+    st:'dashStatus', sm:'dashMeta', sd:'sDashboard' },
+];
+
+let intervals = [];
+
+async function checkSvc(svc){
+  try {
+    const r = await fetch(svc.url+'/api/status', { signal: AbortSignal.timeout(3000) });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d = await r.json();
+    // Card
+    document.getElementById(svc.sc).className = 'sc online';
+    document.getElementById(svc.st).className = 'sv on';
+    document.getElementById(svc.st).textContent = '在线';
+    document.getElementById(svc.sm).textContent = '端口 '+svc.port+' · 运行中';
+    // Indicator dot
+    const dot = document.getElementById(svc.sd);
+    if(dot) dot.className = 'gd up';
+    // Actions
+    const act = document.getElementById(svc.id+'Actions');
+    if(act && !act.querySelector('.act')){
+      const a = document.createElement('a');
+      a.href = svc.url; a.target = '_blank'; a.className = 'act';
+      a.textContent = '🚀 打开';
+      act.prepend(a);
+    }
+    return d;
+  } catch(e){
+    document.getElementById(svc.sc).className = 'sc offline';
+    document.getElementById(svc.st).className = 'sv off';
+    document.getElementById(svc.st).textContent = '离线';
+    document.getElementById(svc.sm).textContent = '端口 '+svc.port+' · 未运行';
+    const dot = document.getElementById(svc.sd);
+    if(dot) dot.className = 'gd down';
+    const act = document.getElementById(svc.id+'Actions');
+    if(act){ const b = act.querySelector('.act'); if(b) b.remove(); }
+    return null;
+  }
+}
+
+async function refreshAll(){
+  const results = await Promise.all(SVC.map(s => checkSvc(s)));
+  
+  // Cockpit-specific info
+  if(results[0]){
+    document.getElementById('verInfo').textContent = 
+      'v'+results[0].version+' · Node '+results[0].node+' · '+
+      results[0].projects+' 个项目 · 运行 '+(results[0].uptime>60?Math.floor(results[0].uptime/60)+'m':Math.floor(results[0].uptime)+'s');
+  } else {
+    document.getElementById('verInfo').textContent = '驾驶舱离线';
+  }
+  
+  // System info (via cockpit)
+  if(results[0]){
+    document.getElementById('nodeVer').textContent = results[0].node || '—';
+    document.getElementById('workDir').textContent = 'agnes-smart-studio';
+    document.getElementById('platform').textContent = navigator.platform || '—';
+  }
+  document.getElementById('updateTime').textContent = new Date().toLocaleString('zh-CN');
+}
+
+async function killAll(){
+  if(!confirm('确定停止所有新烬龙服务？（Node 进程）')) return;
+  try {
+    const r = await fetch('http://localhost:4366/api/status', { signal: AbortSignal.timeout(1000) });
+    // If it responds, we can't kill it from browser (no API for that)
+    toast('请使用命令行停止服务：taskkill /f /im node.exe','err');
+  } catch(e){
+    toast('服务已离线','ok');
+  }
+  refreshAll();
+}
+
+function openCockpit(){ window.open('http://localhost:4366','_blank'); }
+function openDashboard(){ window.open('http://localhost:4377','_blank'); }
+
+function showInfo(){
+  const el = document.getElementById('serviceGrid');
+  const infoCard = document.querySelector('.gc[onclick*="showInfo"]');
+  if(infoCard) infoCard.style.display = 'none';
+  
+  // If already showing, toggle back
+  const existing = document.getElementById('infoPanel');
+  if(existing){
+    existing.remove();
+    if(infoCard) infoCard.style.display = '';
+    return;
+  }
+  
+  const panel = document.createElement('div');
+  panel.id = 'infoPanel';
+  panel.style.cssText = 'grid-column:1/-1;background:var(--srf);border:1px solid var(--brd);border-radius:var(--rads);padding:20px;font-size:13px;line-height:1.8;';
+  panel.innerHTML = `
+    <div style="font-weight:700;font-size:15px;margin-bottom:12px;">📖 新烬龙V2 使用说明</div>
+    <div style="color:var(--t2);">
+      <p><b>🔥 驾驶舱</b> — AI 视频生产流水线</p>
+      <p style="margin:8px 0 4px;color:var(--t3);">步骤流程：</p>
+      <ol style="color:var(--t2);padding-left:20px;">
+        <li><b>设定意图</b> — 描述你想生成的视频内容</li>
+        <li><b>设定简报</b> — 风格、色调、目标受众等</li>
+        <li><b>设定分镜</b> — 逐镜头描述画面</li>
+        <li><b>设定镜头图像</b> — 为每个镜头指定图片 URL</li>
+        <li><b>设定镜头视频</b> — 为每个镜头指定视频 URL</li>
+      </ol>
+      <p style="margin-top:8px;color:var(--t3);">📊 <b>监控面板</b> — 系统运行监控与管理</p>
+    </div>
+    <div style="margin-top:12px;">
+      <button onclick="document.getElementById('infoPanel').remove();document.querySelector('.gc[onclick*=\\'showInfo\\']').style.display=''" 
+        style="padding:6px 14px;border-radius:var(--rads);font-size:12px;cursor:pointer;border:1px solid var(--brd);background:var(--crd);color:var(--t2);">关闭</button>
+    </div>
+  `;
+  el.appendChild(panel);
+}
+
+function toast(msg, tp='ok'){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'show '+tp;
+  clearTimeout(t._t); t._t = setTimeout(()=>t.className='',2500);
+}
+
+// Auto-refresh
+async function init(){
+  await refreshAll();
+  setInterval(refreshAll, 15000);
+}
+
+init();
+</script>
+</body>
+</html>

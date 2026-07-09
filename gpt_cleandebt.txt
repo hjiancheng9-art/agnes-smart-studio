@@ -1,0 +1,659 @@
+下面按 ComfyFlow Compiler v0.3 / 14 模块 / 3254 行 给清债方案。优先目标：先把编译器核心稳定住，不追求全量 E2E。
+
+1. 当前技术债清单：先修顺序
+P0：必须先清
+1. Workflow JSON 格式债
+   - API Format / Save Format 混用风险
+   - node_id 是 str 还是 int 不统一
+   - link 输入 ["node_id", output_index] 没有统一校验
+
+2. ComfyUI 环境依赖债
+   - /object_info、/models、custom_nodes 扫描没有统一抽象
+   - 真实 ComfyUI 不应该出现在单元测试里
+
+3. 蓝图质量债
+   - blueprint required_nodes / optional_nodes / required_models 没有合同化
+   - Flux / LTX / Wan / SDXL 的 loader mode 没有强约束
+
+4. 参数策略债
+   - quality_mode、hardware_budget、task_type 三者可能互相覆盖
+   - steps / cfg / resolution / batch_size 需要统一 clamp
+
+5. 错误类型债
+   - 编译失败、环境缺失、模型缺失、质量门失败、显存预算失败不能都返回 str
+P1：第二批清
+6. Golden workflow 缺失
+   - 没有固定样本防止 compiler 输出结构漂移
+
+7. 模块边界不清
+   - intent / recipe / blueprint / graph compose / validate / quality gate 职责可能混在一起
+
+8. 可复现 manifest 不完整
+   - blueprint_id、compiler_version、model_names、node_requirements、quality_report 应固定
+
+9. fallback 行为不可测
+   - 缺节点 / 缺模型 / 显存不足时应该有确定降级链
+
+10. 缺少 smoke test
+   - 至少要保证 3 个核心任务能编译成功：sd_txt2img、flux_txt2img、ltx_i2v
+2. 测试策略：14 模块分层测
+
+pytest 官方支持在 pyproject.toml 里配置 testpaths、addopts 等测试参数；pytest-cov 也支持在 pytest 配置中加入 coverage 参数和 --cov-fail-under。
+pytest文档
++2
+pytest-cov
++2
+
+推荐测试分层
+tests/unit/
+  测纯函数、策略、分类器、validator、quality gate
+
+tests/contract/
+  测 blueprint contract、node contract、model contract
+
+tests/integration/
+  用 fake ComfyUI client / requests_mock 测 API 行为
+
+tests/golden/
+  固定输入 → 固定 workflow 结构快照
+
+tests/e2e/
+  可选，需要真实 ComfyUI，默认 CI 不跑
+3. pytest 配置
+pyproject.toml
+TOML
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=comfyflow",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+    "--cov-fail-under=65"
+]
+markers = [
+    "unit: fast unit tests",
+    "contract: blueprint/node/model contract tests",
+    "integration: mocked integration tests",
+    "golden: golden workflow snapshot tests",
+    "e2e: requires real ComfyUI server"
+]
+
+[tool.coverage.run]
+branch = true
+source = ["comfyflow"]
+omit = [
+    "tests/*",
+    "*/__init__.py",
+    "comfyflow/cli.py"
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+precision = 2
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:"
+]
+requirements-dev.txt
+pytest>=8.0
+pytest-cov>=6.0
+requests-mock>=1.12
+ruff>=0.6
+mypy>=1.10
+
+requests-mock 提供 pytest fixture，可以直接在测试函数里声明 requests_mock 来 mock HTTP 请求，不需要真实 ComfyUI 服务。
+Requests Mock
+
+4. 怎么 mock ComfyUI
+tests/conftest.py
+Python
+运行
+import json
+from dataclasses import dataclass
+from pathlib import Path
+
+import pytest
+
+
+@pytest.fixture
+def fake_object_info():
+    return {
+        "CheckpointLoaderSimple": {
+            "input": {
+                "required": {
+                    "ckpt_name": [["sd_xl_base_1.0.safetensors"]]
+                }
+            }
+        },
+        "UNETLoader": {},
+        "DualCLIPLoader": {},
+        "CLIPLoader": {},
+        "VAELoader": {},
+        "CLIPTextEncode": {},
+        "KSampler": {},
+        "RandomNoise": {},
+        "KSamplerSelect": {},
+        "CFGGuider": {},
+        "SamplerCustomAdvanced": {},
+        "VAEDecode": {},
+        "VAEDecodeTiled": {},
+        "SaveImage": {},
+        "LoadImage": {},
+        "VHS_VideoCombine": {},
+        "LTXVConditioning": {},
+        "LTXVImgToVideoInplace": {},
+        "LoraLoaderModelOnly": {},
+    }
+
+
+@pytest.fixture
+def fake_models():
+    return {
+        "checkpoints": ["sd_xl_base_1.0.safetensors"],
+        "unet": ["flux1-dev-fp8.safetensors", "ltxv-2.3.safetensors"],
+        "clip": ["t5xxl_fp8_e4m3fn.safetensors", "clip_l.safetensors"],
+        "vae": ["ae.safetensors", "ltxv-vae.safetensors"],
+        "loras": ["flux-cinematic-lora.safetensors"],
+        "upscale_models": ["4x-UltraSharp.pth"],
+    }
+
+
+@dataclass
+class FakeComfyUIClient:
+    object_info: dict
+    models: dict
+
+    def get_object_info(self):
+        return self.object_info
+
+    def get_models(self, folder: str):
+        return self.models.get(folder, [])
+
+    def queue_prompt(self, workflow: dict):
+        return {
+            "prompt_id": "fake-prompt-id",
+            "number": 1,
+            "node_errors": {},
+        }
+
+    def get_history(self, prompt_id: str):
+        return {
+            prompt_id: {
+                "outputs": {
+                    "9": {
+                        "images": [
+                            {
+                                "filename": "test.png",
+                                "subfolder": "",
+                                "type": "output",
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+
+@pytest.fixture
+def fake_comfy_client(fake_object_info, fake_models):
+    return FakeComfyUIClient(
+        object_info=fake_object_info,
+        models=fake_models,
+    )
+
+
+@pytest.fixture
+def sample_txt2img_api_workflow():
+    return {
+        "4": {
+            "class_type": "CheckpointLoaderSimple",
+            "inputs": {"ckpt_name": "sd_xl_base_1.0.safetensors"},
+        },
+        "5": {
+            "class_type": "EmptyLatentImage",
+            "inputs": {"width": 1024, "height": 1024, "batch_size": 1},
+        },
+        "6": {
+            "class_type": "CLIPTextEncode",
+            "inputs": {"text": "cat", "clip": ["4", 1]},
+        },
+        "7": {
+            "class_type": "CLIPTextEncode",
+            "inputs": {"text": "bad", "clip": ["4", 1]},
+        },
+        "3": {
+            "class_type": "KSampler",
+            "inputs": {
+                "seed": 1,
+                "steps": 30,
+                "cfg": 7,
+                "sampler_name": "dpmpp_2m",
+                "scheduler": "karras",
+                "denoise": 1.0,
+                "model": ["4", 0],
+                "positive": ["6", 0],
+                "negative": ["7", 0],
+                "latent_image": ["5", 0],
+            },
+        },
+        "8": {
+            "class_type": "VAEDecode",
+            "inputs": {"samples": ["3", 0], "vae": ["4", 2]},
+        },
+        "9": {
+            "class_type": "SaveImage",
+            "inputs": {"filename_prefix": "ComfyFlow/test", "images": ["8", 0]},
+        },
+    }
+如果你的 ComfyUI client 用 requests
+Python
+运行
+def test_fetch_object_info_with_requests_mock(requests_mock):
+    base_url = "http://127.0.0.1:8188"
+    requests_mock.get(
+        f"{base_url}/object_info",
+        json={"KSampler": {}, "CLIPTextEncode": {}},
+    )
+
+    from comfyflow.comfy_client import ComfyUIHTTPClient
+
+    client = ComfyUIHTTPClient(base_url)
+    info = client.get_object_info()
+
+    assert "KSampler" in info
+    assert requests_mock.called
+5. 覆盖率目标
+
+对 3000+ 行编译器项目，建议分阶段：
+
+v0.3 清债阶段：
+  total coverage >= 65%
+  核心模块 >= 80%
+  API / CLI / 适配层可以低一些
+
+v0.4 稳定阶段：
+  total coverage >= 75%
+  核心模块 >= 85%
+
+v1.0 前：
+  total coverage >= 80%
+  核心模块 >= 90%
+
+不要一开始把总覆盖率卡到 85%，会逼你写一堆低价值测试。先把 compiler / validator / blueprint / parameter_policy / fallback 测牢。
+
+6. 最小 GitHub Actions
+
+GitHub 官方的 Python CI 指南支持用 GitHub Actions 构建和测试 Python 项目；actions/setup-python 会在 runner 的工具缓存中查找指定 Python 版本，不存在时再下载。
+GitHub Docs
++1
+
+.github/workflows/ci.yml
+YAML
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if (Test-Path requirements.txt) { pip install -r requirements.txt }
+          pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: |
+          ruff check comfyflow tests
+
+      - name: Type check
+        run: |
+          mypy comfyflow
+
+      - name: Test
+        run: |
+          pytest -m "not e2e"
+
+      - name: Upload coverage xml
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: coverage.xml
+
+如果你暂时没有 mypy 类型标注，可以先把 type check 改成非阻塞：
+
+YAML
+      - name: Type check
+        continue-on-error: true
+        run: |
+          mypy comfyflow
+7. 哪 5 个模块最需要先补测试
+第一优先级 1：workflow_validator.py
+
+原因：它是最后防线。
+
+Python
+运行
+def test_validator_rejects_missing_class_type(sample_txt2img_api_workflow):
+    from comfyflow.workflow_validator import WorkflowValidator
+
+    workflow = dict(sample_txt2img_api_workflow)
+    workflow["3"] = {"inputs": {}}
+
+    result = WorkflowValidator(available_nodes={"KSampler"}).validate(workflow)
+
+    assert not result.ok
+    assert result.errors[0].code == "missing_class_type"
+
+
+def test_validator_rejects_broken_link(sample_txt2img_api_workflow, fake_object_info):
+    from comfyflow.workflow_validator import WorkflowValidator
+
+    workflow = dict(sample_txt2img_api_workflow)
+    workflow["8"]["inputs"]["samples"] = ["999", 0]
+
+    result = WorkflowValidator(available_nodes=set(fake_object_info)).validate(workflow)
+
+    assert not result.ok
+    assert any(e.code == "broken_link" for e in result.errors)
+第一优先级 2：blueprint_registry.py / blueprint_retriever.py
+
+原因：蓝图选错，后面全错。
+
+Python
+运行
+def test_retriever_selects_flux_when_flux_models_available(fake_models, fake_object_info):
+    from comfyflow.blueprint_retriever import BlueprintRetriever
+    from comfyflow.task_spec import TaskSpec
+
+    task = TaskSpec(
+        intent="flux_txt2img",
+        prompt="cinematic cyberpunk cat",
+        aspect_ratio="9:16",
+        quality_mode="high",
+    )
+
+    retriever = BlueprintRetriever(
+        object_info=fake_object_info,
+        models=fake_models,
+        vram_gb=16,
+    )
+
+    blueprint = retriever.select(task)
+
+    assert blueprint.id.startswith("flux")
+    assert "UNETLoader" in blueprint.required_nodes
+
+
+def test_retriever_falls_back_to_sdxl_when_flux_unavailable(fake_models, fake_object_info):
+    from comfyflow.blueprint_retriever import BlueprintRetriever
+    from comfyflow.task_spec import TaskSpec
+
+    fake_models["unet"] = []
+
+    task = TaskSpec(
+        intent="flux_txt2img",
+        prompt="cinematic cat",
+        aspect_ratio="1:1",
+        quality_mode="balanced",
+    )
+
+    retriever = BlueprintRetriever(
+        object_info=fake_object_info,
+        models=fake_models,
+        vram_gb=12,
+    )
+
+    blueprint = retriever.select(task)
+
+    assert blueprint.id in {"sdxl_txt2img_basic", "sd_txt2img_basic"}
+第一优先级 3：parameter_policy.py
+
+原因：最容易导致 OOM、烂图、不可复现。
+
+Python
+运行
+def test_parameter_policy_clamps_bad_values():
+    from comfyflow.parameter_policy import ParameterPolicy
+    from comfyflow.task_spec import TaskSpec
+    from comfyflow.runtime_budget import RuntimeBudget
+
+    task = TaskSpec(
+        intent="txt2img",
+        prompt="cat",
+        width=9999,
+        height=1001,
+        steps=100,
+        cfg=99,
+        batch_size=8,
+        aspect_ratio="9:16",
+    )
+
+    budget = RuntimeBudget(
+        tier="low_6gb",
+        vram_gb=6,
+        max_width=768,
+        max_height=1152,
+        max_batch_size=1,
+        allow_sdxl=False,
+        allow_flux=False,
+        allow_video=False,
+    )
+
+    spec = ParameterPolicy().apply(task, budget)
+
+    assert spec.width % 8 == 0
+    assert spec.height % 8 == 0
+    assert spec.width <= 768
+    assert spec.height <= 1152
+    assert 8 <= spec.steps <= 40
+    assert 1 <= spec.cfg <= 15
+    assert spec.batch_size == 1
+第一优先级 4：graph_composer.py
+
+原因：它真正生成 workflow graph，必须做结构测试。
+
+Python
+运行
+def test_graph_composer_builds_sdxl_txt2img(sample_txt2img_api_workflow, fake_object_info):
+    from comfyflow.graph_composer import GraphComposer
+    from comfyflow.blueprints import get_blueprint
+    from comfyflow.task_spec import TaskSpec
+
+    task = TaskSpec(
+        intent="sdxl_txt2img",
+        prompt="cinematic cyberpunk cat",
+        negative_prompt="low quality",
+        width=1024,
+        height=1792,
+        seed=123,
+    )
+
+    blueprint = get_blueprint("sdxl_txt2img_basic")
+    workflow = GraphComposer(object_info=fake_object_info).compose(task, blueprint)
+
+    class_types = {node["class_type"] for node in workflow.values()}
+
+    assert "CheckpointLoaderSimple" in class_types
+    assert "CLIPTextEncode" in class_types
+    assert "KSampler" in class_types
+    assert "VAEDecode" in class_types
+    assert "SaveImage" in class_types
+第一优先级 5：quality_gate.py / runtime_budget.py
+
+原因：决定“高级但不爆显存”。
+
+Python
+运行
+def test_quality_gate_rejects_cfg_100(sample_txt2img_api_workflow):
+    from comfyflow.quality_gate import QualityGate
+
+    sample_txt2img_api_workflow["3"]["inputs"]["cfg"] = 100
+
+    report = QualityGate().evaluate(sample_txt2img_api_workflow)
+
+    assert not report.passed
+    assert any(issue.code == "bad_cfg" for issue in report.issues)
+
+
+def test_runtime_budget_6gb_disallows_flux_full():
+    from comfyflow.runtime_budget import RuntimeBudgetEngine
+    from comfyflow.hardware_profiler import HardwareProfile
+
+    hw = HardwareProfile(
+        gpu_name="RTX 3060 Laptop",
+        vram_gb=6,
+        cuda_available=True,
+        ram_gb=16,
+        cpu_name="unknown",
+        cpu_cores=8,
+    )
+
+    budget = RuntimeBudgetEngine().build(hw)
+
+    assert budget.tier in {"low_6gb", "low"}
+    assert budget.allow_flux_full is False
+    assert budget.max_batch_size == 1
+8. Golden workflow 测试骨架
+
+这个很重要。它防止你改 compiler 后 workflow 结构悄悄变坏。
+
+Python
+运行
+import json
+from pathlib import Path
+
+
+def normalize_workflow(workflow: dict) -> dict:
+    """
+    去掉 seed / 随机 id / UI 坐标等不稳定字段。
+    """
+    result = json.loads(json.dumps(workflow))
+
+    for node in result.values():
+        inputs = node.get("inputs", {})
+        if "seed" in inputs:
+            inputs["seed"] = 123456
+
+    return result
+
+
+def test_golden_sdxl_txt2img(tmp_path):
+    from comfyflow.compiler import ComfyFlowCompiler
+
+    compiler = ComfyFlowCompiler.from_fake_environment(
+        vram_gb=12,
+        models={
+            "checkpoints": ["sd_xl_base_1.0.safetensors"],
+        },
+    )
+
+    result = compiler.compile(
+        "电影感赛博朋克猫，霓虹雨夜，9:16",
+        quality_mode="balanced",
+    )
+
+    actual = normalize_workflow(result.workflow)
+
+    golden_path = Path("tests/fixtures/golden/sdxl_txt2img_basic.json")
+    expected = json.loads(golden_path.read_text(encoding="utf-8"))
+
+    assert actual == expected
+
+第一次生成 golden：
+
+Bash
+pytest tests/golden --update-golden
+
+你可以自己加一个 --update-golden 选项，或者先手动保存。
+
+9. 最小测试目录结构
+tests/
+  conftest.py
+
+  unit/
+    test_intent_classifier.py
+    test_task_spec.py
+    test_parameter_policy.py
+    test_runtime_budget.py
+    test_quality_gate.py
+    test_workflow_validator.py
+
+  contract/
+    test_blueprint_contracts.py
+    test_node_contracts.py
+    test_model_family_plans.py
+
+  integration/
+    test_comfy_client_mocked.py
+    test_environment_resolver.py
+    test_compiler_with_fake_comfy.py
+
+  golden/
+    test_golden_sdxl_txt2img.py
+    test_golden_flux_txt2img.py
+    test_golden_ltx_i2v.py
+
+  fixtures/
+    golden/
+      sdxl_txt2img_basic.json
+      flux_txt2img_basic.json
+      ltx_i2v_basic.json
+    object_info/
+      minimal_object_info.json
+    models/
+      fake_models.json
+10. 本周清债执行顺序
+Day 1:
+  - 加 pyproject.toml pytest/cov 配置
+  - 加 conftest.py fake_comfy_client
+  - 加 CI
+
+Day 2:
+  - 补 workflow_validator 测试
+  - 补 parameter_policy 测试
+
+Day 3:
+  - 补 blueprint_retriever 测试
+  - 补 graph_composer 测试
+
+Day 4:
+  - 补 quality_gate/runtime_budget 测试
+  - 固定 3 个 golden workflow
+
+Day 5:
+  - 修失败测试暴露出的模块边界问题
+  - 覆盖率拉到 65%+
+
+最终优先级一句话：
+
+先测 validator、blueprint selector、parameter policy、graph composer、quality gate；这 5 个模块稳了，ComfyFlow Compiler 的工程债就从“不可控”变成“可演进”。

@@ -1,0 +1,47 @@
+5. 内置 fallback catalog
+
+不要只扫 custom_nodes。V3 custom node 已经不保证都有 NODE_CLASS_MAPPINGS。
+ComfyUI
+
+C. 蓝图选择逻辑
+Python
+运行
+def select_blueprint(task, hardware, env):
+    candidates = retrieve_blueprints(task)
+
+    candidates = filter_by_comfyui_version(candidates, env.comfyui_version)
+    candidates = filter_by_registered_nodes(candidates, env.object_info)
+    candidates = filter_by_installed_models(candidates, env.models)
+    candidates = filter_by_vram_budget(candidates, hardware.vram_gb)
+    candidates = rank_by_quality(candidates, task.quality_mode)
+
+    return candidates[0]
+D. 2025 后默认蓝图优先级
+txt2img:
+  Flux dev FP8 / SDXL / SD1.5 fallback
+
+img2img:
+  Flux Kontext / SDXL img2img / SD1.5 fallback
+
+control:
+  ControlNet Aux + Advanced ControlNet
+  Flux control only if verified installed
+
+identity:
+  PuLID / InstantID / IPAdapter FaceID
+  ReActor only as postprocess fallback
+
+video:
+  LTX-2.3
+  Wan2.2 5B/14B
+  Wan2.1 1.3B fallback
+  AnimateDiff only legacy fallback
+
+upscale:
+  tiled VAE
+  Impact Pack detailer
+  latent upscale / pixel upscale by hardware
+
+最终建议：
+
+你们的 ComfyUI 智能体不要再以“SDXL KSampler 工作流生成器”为核心，而要升级为：Flux / Wan / LTX / SDXL / SD3.5 多后端的 hardware-aware workflow planner。最新 ComfyUI 生态的关键变化不是 JSON 多了几个字段，而是：workflow 格式 v1.0、custom node V3 schema、官方视频/Flux 模板、以及低显存量化路线已经成为编译器必须理解的一等公民。

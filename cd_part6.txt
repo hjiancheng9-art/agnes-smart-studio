@@ -1,0 +1,111 @@
+Decode" in class_types
+    assert "SaveImage" in class_types
+第一优先级 5：quality_gate.py / runtime_budget.py
+
+原因：决定“高级但不爆显存”。
+
+Python
+运行
+def test_quality_gate_rejects_cfg_100(sample_txt2img_api_workflow):
+    from comfyflow.quality_gate import QualityGate
+
+    sample_txt2img_api_workflow["3"]["inputs"]["cfg"] = 100
+
+    report = QualityGate().evaluate(sample_txt2img_api_workflow)
+
+    assert not report.passed
+    assert any(issue.code == "bad_cfg" for issue in report.issues)
+
+
+def test_runtime_budget_6gb_disallows_flux_full():
+    from comfyflow.runtime_budget import RuntimeBudgetEngine
+    from comfyflow.hardware_profiler import HardwareProfile
+
+    hw = HardwareProfile(
+        gpu_name="RTX 3060 Laptop",
+        vram_gb=6,
+        cuda_available=True,
+        ram_gb=16,
+        cpu_name="unknown",
+        cpu_cores=8,
+    )
+
+    budget = RuntimeBudgetEngine().build(hw)
+
+    assert budget.tier in {"low_6gb", "low"}
+    assert budget.allow_flux_full is False
+    assert budget.max_batch_size == 1
+8. Golden workflow 测试骨架
+
+这个很重要。它防止你改 compiler 后 workflow 结构悄悄变坏。
+
+Python
+运行
+import json
+from pathlib import Path
+
+
+def normalize_workflow(workflow: dict) -> dict:
+    """
+    去掉 seed / 随机 id / UI 坐标等不稳定字段。
+    """
+    result = json.loads(json.dumps(workflow))
+
+    for node in result.values():
+        inputs = node.get("inputs", {})
+        if "seed" in inputs:
+            inputs["seed"] = 123456
+
+    return result
+
+
+def test_golden_sdxl_txt2img(tmp_path):
+    from comfyflow.compiler import ComfyFlowCompiler
+
+    compiler = ComfyFlowCompiler.from_fake_environment(
+        vram_gb=12,
+        models={
+            "checkpoints": ["sd_xl_base_1.0.safetensors"],
+        },
+    )
+
+    result = compiler.compile(
+        "电影感赛博朋克猫，霓虹雨夜，9:16",
+        quality_mode="balanced",
+    )
+
+    actual = normalize_workflow(result.workflow)
+
+    golden_path = Path("tests/fixtures/golden/sdxl_txt2img_basic.json")
+    expected = json.loads(golden_path.read_text(encoding="utf-8"))
+
+    assert actual == expected
+
+第一次生成 golden：
+
+Bash
+pytest tests/golden --update-golden
+
+你可以自己加一个 --update-golden 选项，或者先手动保存。
+
+9. 最小测试目录结构
+tests/
+  conftest.py
+
+  unit/
+    test_intent_classifier.py
+    test_task_spec.py
+    test_parameter_policy.py
+    test_runtime_budget.py
+    test_quality_gate.py
+    test_workflow_validator.py
+
+  contract/
+    test_blueprint_contracts.py
+    test_node_contracts.py
+    test_model_family_plans.py
+
+  integration/
+    test_comfy_client_mocked.py
+    test_environment_resolver.py
+ 

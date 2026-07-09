@@ -1,0 +1,347 @@
+下面给你一个很实用的判断标准：
+
+清债不是清到“没有债”，而是清到“债不会阻塞交付、不会放大风险、不会拖慢下一轮迭代”。
+
+你们 v0.4.0、91 测试全绿后，已经不该继续无限清债。现在应该进入 “阈值达标就停” 模式。
+
+总判断
+够了 = 新人能接手 + 小白能看懂 + 本地执行不裸奔 + 参数有出处 + 核心路径有测试 + 出问题能定位
+
+如果继续清债不能明显改善这 6 件事，就该停。
+
+1. 体验债：够了的阈值
+
+你们现在有：
+
+UserFacingResult
+中文错误翻译
+Note 节点
+
+这已经达到 v0.4.0 的够用线。
+
+停手阈值
+
+做到下面这些就够：
+
+成功时：
+- 用户知道生成了什么工作流
+- 用户知道怎么拖进 ComfyUI 运行
+- 用户知道输出在哪里
+- 用户不用看 raw JSON 才能理解结果
+
+失败时：
+- 错误有中文标题
+- 有中文原因
+- 有明确下一步建议
+- 不暴露 Python stack trace 给小白
+- technical_report 仍保留给开发者
+不要继续卷的东西
+彩色 CLI 输出：可做，但不是 P0
+复杂 UI：不要现在做
+语音提示：完全没必要
+动画进度条：除非你已经有真实执行进度
+体验债停止标准
+小白看到结果后，只需要知道：
+1. 能不能跑
+2. 怎么跑
+3. 失败了怎么办
+
+超过这个，就不是清债，是做产品包装。
+
+2. 安全债：够了的阈值
+
+你们现在有：
+
+class_type 白名单
+子进程白名单
+路径校验
+
+对于 本地 ComfyUI workflow compiler，这已经是合理安全基线。
+
+停手阈值
+
+做到下面这些就够：
+
+workflow 送 /prompt 前：
+- class_type 必须在 object_info / allowlist 中
+- workflow 必须通过 validator
+- workflow 必须通过 quality_gate
+- workflow 必须通过 safety_gate
+- 禁止未知节点
+- 禁止可疑路径逃逸
+
+子进程：
+- shell=False
+- 只允许白名单命令
+- 必须 timeout
+- 不拼接用户输入命令
+
+路径：
+- 所有读取限制在 ComfyUI 根目录或用户显式授权目录内
+- 禁止 .. 路径逃逸
+- 禁止跟随危险 symlink 到根目录外
+不需要过度做的东西
+不需要沙箱化整个 ComfyUI
+不需要自研权限系统
+不需要对每个 custom node 做安全审计
+不需要把本地工具做成企业安全平台
+但有一个边界
+
+如果你们未来支持：
+
+导入陌生人 workflow
+自动安装 custom node
+自动下载模型
+远程执行 ComfyUI
+多人共享服务
+
+那安全等级要升级。
+
+当前如果只是：
+
+自己生成 workflow → 本机 ComfyUI 执行
+
+现在这套够了。
+
+3. 数据债：够了的阈值
+
+你们已经有 19 个参数表字段，80% 硬编码搬出去了。
+
+结论：不用追 100%。
+
+该搬进参数表的
+
+必须集中管理：
+
+steps
+cfg
+width
+height
+batch_size
+frames
+fps
+denoise
+sampler
+scheduler
+vram_cost_gb
+min_vram_gb
+recommended_vram_gb
+quality_mode
+model_family
+fallback_policy
+upscale_factor
+tile_size
+seed_policy
+
+这些会影响：
+
+质量
+显存
+速度
+模型兼容
+用户体验
+
+必须有单位、reason、适用范围。
+
+可以保留硬编码的
+
+这些不用强行搬：
+
+ComfyUI 节点 class_type 名
+固定 input key
+内部错误 code
+manifest 字段名
+默认文件名前缀
+测试 fixture 常量
+schema 固定字段
+数据债停止标准
+所有“会影响生成结果、显存、速度、稳定性”的参数已经进参数表，就够了。
+
+不是所有常量都要进参数表。
+
+判断公式：
+
+如果产品经理/用户/硬件条件/模型族会改变它 → 进参数表
+如果只是协议字段或代码结构常量 → 留在代码里
+4. 认知债：够了的阈值
+
+你们有：
+
+ARCHITECTURE.md
+GLOSSARY.md
+
+这已经够 v0.4.0。
+
+不需要 docstring 全覆盖
+
+docstring 全覆盖很容易变成形式主义。
+
+应该只给这些地方写：
+
+公开 API
+核心数据结构
+复杂策略函数
+危险边界函数
+容易误用的函数
+
+例如：
+
+compile()
+WorkflowValidator.validate()
+BlueprintRetriever.select()
+ParameterPolicy.apply()
+SafetyGate.check()
+RuntimeBudgetEngine.build()
+
+这些需要 docstring。
+
+但这种不需要：
+
+Python
+运行
+def _round8(x): ...
+def _is_link(value): ...
+def _next_id(): ...
+注释比例不要定死
+
+不要追求“注释占比 20%”。
+
+更好的规则是：
+
+代码说明 what
+命名说明 intent
+注释说明 why
+文档说明 architecture
+测试说明 expected behavior
+认知债停止标准
+
+找一个没参与开发的人，让他完成：
+
+1. 看文档理解编译链路
+2. 新增一个 blueprint
+3. 改一个参数 preset
+4. 跑通测试
+
+如果能在 30-60 分钟内完成，认知债就够了。
+
+5. 覆盖率 / 测试债：够了的阈值
+
+91 个测试全绿，数量本身已经不少。现在不要问“还要多少测试”，要问：
+
+核心失败模式有没有被锁住？
+覆盖率建议
+
+对 3254 行编译器：
+
+总覆盖率：70% - 80% 够用
+核心模块：85%+ 较好
+边缘适配层：50% - 70% 可以接受
+CLI / 打印 / demo：低覆盖没关系
+
+核心模块包括：
+
+compiler
+workflow_validator
+blueprint_retriever
+graph_composer
+parameter_policy
+quality_gate
+safety_gate
+runtime_budget
+environment_resolver
+
+这些应该高覆盖。
+
+必须有的测试类型
+
+做到这些就够：
+
+1. happy path
+   sd_txt2img / flux_txt2img / ltx_i2v 至少各一个
+
+2. fallback path
+   缺节点、缺模型、显存不足时能降级
+
+3. bad input path
+   坏 JSON、断 link、未知 class_type
+
+4. safety path
+   路径逃逸、未知节点、非法 subprocess
+
+5. golden path
+   固定输入生成稳定 workflow 结构
+
+6. user-facing path
+   错误能翻译成人话
+什么时候再写一个测试是浪费？
+
+出现下面情况就该停：
+
+测试只是在重复 assert 某个字段等于硬编码值
+测试和实现细节强绑定，重构就碎
+测试不覆盖真实风险
+测试失败不能说明产品坏了
+测试只是为了涨覆盖率
+
+好测试应该满足：
+
+它失败时，你会真的想修。
+
+如果一个测试失败了，你第一反应是“这个测试太脆”，那它大概率没价值。
+
+最终「够了」阈值清单
+体验债够了：
+- 成功/失败都有中文摘要
+- 小白知道怎么运行
+- 小白知道失败后怎么办
+- raw JSON 不作为唯一输出
+- 不需要继续卷 UI/语音/彩色输出
+
+安全债够了：
+- /prompt 前有 validator + quality_gate + safety_gate
+- class_type 白名单
+- subprocess 白名单 + timeout + shell=False
+- 路径限制在授权根目录
+- 当前只处理本地自生成 workflow，不处理远程不可信 workflow
+
+数据债够了：
+- 影响质量/显存/速度/模型选择的参数都进参数表
+- 参数有单位、reason、适用模型族
+- 剩余协议字段和节点名可以硬编码
+- 不追求 100% 常量外置
+
+认知债够了：
+- ARCHITECTURE.md 能讲清主链路
+- GLOSSARY.md 能解释缩写
+- 新人 30-60 分钟能新增 blueprint 并跑通测试
+- docstring 只覆盖公开 API 和复杂策略函数
+- 不追求注释比例
+
+测试债够了：
+- 总覆盖率 70-80%
+- 核心模块 85%+
+- 有 happy/fallback/bad input/safety/golden/user-facing 测试
+- 新测试必须覆盖真实风险
+- 不为覆盖率写脆弱测试
+现在建议停在哪里？
+
+以你们当前状态：
+
+v0.4.0
+91 测试全绿
+5 种债都有最小修复
+
+我建议：
+
+停止继续清债。
+进入 v0.5.0 功能迭代。
+
+下一步更有价值的不是继续补注释、补 UI、补 20 个测试，而是：
+
+1. 用真实 104 个 workflow 反向生成蓝图库
+2. 增加 Flux / LTX / Wan 的生产级 blueprint
+3. 做一次真实 ComfyUI 端到端执行验证
+
+一句话判断：
+
+如果债务不会让用户失败、不会让安全裸奔、不会让新人卡死、不会让下一次迭代明显变慢，就已经够了。

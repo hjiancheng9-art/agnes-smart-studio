@@ -1,0 +1,222 @@
+{
+  "generated_at": "2026-07-09T17:42:23.155379+00:00",
+  "sources": {
+    "real_workflows": [
+      {
+        "file": "output/workflows\\custom_workflow_1781773690.json",
+        "blueprint_id": "mined_txt2img_7nodes_20f019d3054b",
+        "task_type": "txt2img",
+        "nodes": 7
+      },
+      {
+        "file": "output/workflows\\custom_workflow_1783068532.json",
+        "blueprint_id": "mined_img2img_2nodes_f1d949a8a470",
+        "task_type": "img2img",
+        "nodes": 2
+      }
+    ],
+    "compiler_generated": [
+      {
+        "intent": "a cat astronaut in space",
+        "blueprint_id": "compiled_txt2img_cat",
+        "task_type": "txt2img",
+        "nodes": 8
+      },
+      {
+        "intent": "cinematic portrait of a warrior",
+        "blueprint_id": "compiled_txt2img_portrait",
+        "task_type": "txt2img",
+        "nodes": 8
+      },
+      {
+        "intent": "cyberpunk city at night, neon lights",
+        "blueprint_id": "compiled_txt2img_cyberpunk",
+        "task_type": "txt2img",
+        "nodes": 8
+      },
+      {
+        "intent": "anime girl with blue hair",
+        "blueprint_id": "compiled_txt2img_anime",
+        "task_type": "txt2img",
+        "nodes": 8
+      },
+      {
+        "intent": "mountain landscape at sunset, photorealistic",
+        "blueprint_id": "compiled_txt2img_landscape",
+        "task_type": "txt2img",
+        "nodes": 8
+      },
+      {
+        "intent": "product shot of a perfume bottle",
+        "blueprint_id": "compiled_txt2img_product",
+        "task_type": "txt2img",
+        "nodes": 8
+      },
+      {
+        "intent": "fantasy dragon flying over castle",
+        "blueprint_id": "compiled_txt2img_fantasy",
+        "task_type": "txt2img",
+        "nodes": 8
+      },
+      {
+        "intent": "turn this photo into anime style",
+        "blueprint_id": "compiled_img2img_style",
+        "task_type": "txt2img",
+        "nodes": 8
+      },
+      {
+        "intent": "transform into cyberpunk style",
+        "blueprint_id": "compiled_img2img_cyberpunk",
+        "task_type": "txt2img",
+        "nodes": 8
+      },
+      {
+        "intent": "a photorealistic tiger in the snow, detailed fur, flux",
+        "blueprint_id": "compiled_flux_cat",
+        "task_type": "txt2img",
+        "nodes": 8
+      },
+      {
+        "intent": "cinematic portrait of an elderly man, flux",
+        "blueprint_id": "compiled_flux_portrait",
+        "task_type": "txt2img",
+        "nodes": 8
+      }
+    ],
+    "existing": []
+  },
+  "results": [
+    {
+      "id": "compiled_flux_cat",
+      "valid": true,
+      "task_type": "txt2img",
+      "nodes": 8,
+      "source": "generated"
+    },
+    {
+      "id": "compiled_flux_portrait",
+      "valid": true,
+      "task_type": "txt2img",
+      "nodes": 8,
+      "source": "generated"
+    },
+    {
+      "id": "compiled_img2img_cyberpunk",
+      "valid": true,
+      "task_type": "txt2img",
+      "nodes": 8,
+      "source": "generated"
+    },
+    {
+      "id": "compiled_img2img_style",
+      "valid": true,
+      "task_type": "txt2img",
+      "nodes": 8,
+      "source": "generated"
+    },
+    {
+      "id": "compiled_txt2img_anime",
+      "valid": true,
+      "task_type": "txt2img",
+      "nodes": 8,
+      "source": "generated"
+    },
+    {
+      "id": "compiled_txt2img_cat",
+      "valid": true,
+      "task_type": "txt2img",
+      "nodes": 8,
+      "source": "generated"
+    },
+    {
+      "id": "compiled_txt2img_cyberpunk",
+      "valid": true,
+      "task_type": "txt2img",
+      "nodes": 8,
+      "source": "generated"
+    },
+    {
+      "id": "compiled_txt2img_fantasy",
+      "valid": true,
+      "task_type": "txt2img",
+      "nodes": 8,
+      "source": "generated"
+    },
+    {
+      "id": "compiled_txt2img_landscape",
+      "valid": true,
+      "task_type": "txt2img",
+      "nodes": 8,
+      "source": "generated"
+    },
+    {
+      "id": "compiled_txt2img_portrait",
+      "valid": true,
+      "task_type": "txt2img",
+      "nodes": 8,
+      "source": "generated"
+    },
+    {
+      "id": "compiled_txt2img_product",
+      "valid": true,
+      "task_type": "txt2img",
+      "nodes": 8,
+      "source": "generated"
+    },
+    {
+      "id": "flux_txt2img_basic",
+      "valid": true,
+      "task_type": "txt2img",
+      "nodes": 9,
+      "source": "mined"
+    },
+    {
+      "id": "ltx_i2v_basic",
+      "valid": true,
+      "task_type": "i2v",
+      "nodes": 6,
+      "source": "mined"
+    },
+    {
+      "id": "mined_img2img_2nodes_f1d949a8a470",
+      "valid": true,
+      "task_type": "txt2img",
+      "nodes": 2,
+      "source": "mined"
+    },
+    {
+      "id": "mined_txt2img_7nodes_20f019d3054b",
+      "valid": true,
+      "task_type": "txt2img",
+      "nodes": 7,
+      "source": "mined"
+    },
+    {
+      "id": "sdxl_img2img_basic",
+      "valid": true,
+      "task_type": "img2img",
+      "nodes": 8,
+      "source": "mined"
+    }
+  ],
+  "summary": {
+    "total_blueprints": 16,
+    "valid": 16,
+    "invalid": 0,
+    "real_workflow_mined": 2,
+    "compiler_generated": 11,
+    "by_task": {
+      "i2v": 1,
+      "img2img": 1,
+      "txt2img": 14
+    },
+    "by_origin": {
+      "generated": 11,
+      "mined": 5
+    },
+    "coverage_gaps": [
+      "缺少 general",
+      "缺少 t2v"
+    ]
+  }
+}

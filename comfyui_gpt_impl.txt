@@ -1,0 +1,738 @@
+1. 调用方式结论
+
+CRUX Showrunner → ComfyUI Agent：用 HTTP API。
+
+不要在 CRUX 里直接 import ComfyUIAgent，否则两个项目的 agent.py、依赖、路径、配置会互相污染。
+
+推荐边界：
+
+CRUX Studio / core/showrunner.py
+    ↓ HTTP JSON
+ComfyUI Agent / showrunner_orchestrator.py
+    ↓ Python import
+ComfyUIAgent / agent.py
+    ↓
+diagnose → repair → validate → execute
+
+CRUX 侧只保留一个客户端：
+
+Python
+运行
+# CRUX: core/comfyui_client.py
+from __future__ import annotations
+
+import requests
+from typing import Any, Dict
+
+
+class ComfyUIShowrunnerClient:
+    def __init__(self, base_url: str = "http://127.0.0.1:5000"):
+        self.base_url = base_url.rstrip("/")
+
+    def execute_shot(self, shot_plan: Dict[str, Any]) -> Dict[str, Any]:
+        r = requests.post(
+            f"{self.base_url}/v1/showrunner/shot",
+            json=shot_plan,
+            timeout=300,
+        )
+        r.raise_for_status()
+        return r.json()
+
+    def execute_scene(self, scene_plan: Dict[str, Any]) -> Dict[str, Any]:
+        r = requests.post(
+            f"{self.base_url}/v1/showrunner/scene",
+            json=scene_plan,
+            timeout=900,
+        )
+        r.raise_for_status()
+        return r.json()
+2. Actor-craft 放哪里
+
+Actor-craft 不要塞进 ShotPlan。
+
+它应该是独立模块：
+
+CRUX Studio/
+  core/
+    showrunner.py
+    showrunner_pipeline.py
+    actor_designer.py        ✅ 新增
+    comfyui_client.py        ✅ 新增
+
+关系：
+
+ScenePlan
+  ├─ ActorProfile[]     ← actor_designer 生成
+  └─ ShotPlan[]
+        └─ actor_refs / actor_notes
+
+接口建议：
+
+Python
+运行
+# CRUX: core/actor_designer.py
+from __future__ import annotations
+
+from dataclasses import dataclass, asdict
+from typing import Dict, List, Any
+
+
+@dataclass
+class ActorProfile:
+    actor_id: str
+    name: str
+
+    # Actor-craft / 斯坦尼斯拉夫斯基 5层
+    identity: str              # 外在身份：年龄、气质、外观、服装
+    given_circumstances: str   # 规定情境：世界观、处境、关系
+    objective: str             # 目标：此角色想要什么
+    obstacle: str              # 阻碍：外部/内部冲突
+    action_subtext: str        # 行动与潜台词：怎么演、怎么动、眼神/姿态
+
+    visual_lock: str           # 给图像/视频模型的一致性锁定词
+    negative_lock: str = ""
+
+    def to_prompt_block(self) -> str:
+        return f"""
+[Actor: {self.name}]
+identity: {self.identity}
+given circumstances: {self.given_circumstances}
+objective: {self.objective}
+obstacle: {self.obstacle}
+action/subtext: {self.action_subtext}
+visual lock: {self.visual_lock}
+negative lock: {self.negative_lock}
+""".strip()
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+class ActorDesigner:
+    def design_from_scene(self, scene_brief: str, actor_specs: List[Dict[str, Any]]) -> List[ActorProfile]:
+        actors: List[ActorProfile] = []
+
+        for i, spec in enumerate(actor_specs, start=1):
+            actor_id = spec.get("actor_id") or f"actor_{i}"
+
+            actors.append(
+                ActorProfile(
+                    actor_id=actor_id,
+                    name=spec.get("name", actor_id),
+                    identity=spec.get("identity", ""),
+                    given_circumstances=spec.get("given_circumstances", scene_brief),
+                    objective=spec.get("objective", ""),
+                    obstacle=spec.get("obstacle", ""),
+                    action_subtext=spec.get("action_subtext", ""),
+                    visual_lock=spec.get("visual_lock", ""),
+                    negative_lock=spec.get("negative_lock", ""),
+                )
+            )
+
+        return actors
+
+ShotPlan 里只引用角色：
+
+Python
+运行
+shot_plan = {
+    "shot_id": "s01_001",
+    "scene_id": "scene_01",
+    "media_type": "video",
+    "description": "男光人与女光人站在盾形飞行平台上，穿过神性光塔群。",
+    "camera": "slow dolly-in, low angle, wide shot",
+    "duration": 4,
+    "actor_refs": ["male_light_being", "female_light_being"],
+    "actor_notes": {
+        "male_light_being": "calm, protective, sword in right hand",
+        "female_light_being": "curious, silent, sword in left hand",
+    },
+}
+3. showrunner_orchestrator.py
+
+放在 ComfyUI Agent 项目根目录：
+
+comfyui_agent_project/
+  agent.py
+  server.py
+  execution_repair.py
+  flow_compiler.py
+  showrunner_orchestrator.py   ✅ 新增
+
+完整代码：
+
+Python
+运行
+# showrunner_orchestrator.py
+from __future__ import annotations
+
+import inspect
+import os
+import traceback
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
+
+from flask import Flask, jsonify, request
+
+
+# =========================
+# Data Models
+# =========================
+
+@dataclass
+class ActorProfile:
+    actor_id: str
+    name: str = ""
+    identity: str = ""
+    given_circumstances: str = ""
+    objective: str = ""
+    obstacle: str = ""
+    action_subtext: str = ""
+    visual_lock: str = ""
+    negative_lock: str = ""
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ActorProfile":
+        return cls(
+            actor_id=d.get("actor_id") or d.get("id") or d.get("name") or "actor",
+            name=d.get("name", ""),
+            identity=d.get("identity", ""),
+            given_circumstances=d.get("given_circumstances", ""),
+            objective=d.get("objective", ""),
+            obstacle=d.get("obstacle", ""),
+            action_subtext=d.get("action_subtext", ""),
+            visual_lock=d.get("visual_lock", ""),
+            negative_lock=d.get("negative_lock", ""),
+        )
+
+    def to_prompt_block(self) -> str:
+        return f"""
+[Actor: {self.name or self.actor_id}]
+identity: {self.identity}
+given_circumstances: {self.given_circumstances}
+objective: {self.objective}
+obstacle: {self.obstacle}
+action_subtext: {self.action_subtext}
+visual_lock: {self.visual_lock}
+negative_lock: {self.negative_lock}
+""".strip()
+
+
+@dataclass
+class ShotRequest:
+    shot_id: str
+    scene_id: str = ""
+    media_type: str = "image"  # image | video
+    description: str = ""
+    style: str = ""
+    camera: str = ""
+    lighting: str = ""
+    composition: str = ""
+    motion: str = ""
+    duration: float = 4.0
+    aspect_ratio: str = "9:16"
+    resolution: str = "1024x1792"
+    seed: Optional[int] = None
+
+    actors: List[ActorProfile] = field(default_factory=list)
+    actor_refs: List[str] = field(default_factory=list)
+    actor_notes: Dict[str, str] = field(default_factory=dict)
+
+    negative_prompt: str = ""
+    workflow_hint: str = ""
+    raw: Dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ShotRequest":
+        actors = [ActorProfile.from_dict(x) for x in d.get("actors", [])]
+
+        return cls(
+            shot_id=d.get("shot_id") or d.get("id") or "shot",
+            scene_id=d.get("scene_id", ""),
+            media_type=d.get("media_type", "image"),
+            description=d.get("description", ""),
+            style=d.get("style", ""),
+            camera=d.get("camera", ""),
+            lighting=d.get("lighting", ""),
+            composition=d.get("composition", ""),
+            motion=d.get("motion", ""),
+            duration=float(d.get("duration", 4.0)),
+            aspect_ratio=d.get("aspect_ratio", "9:16"),
+            resolution=d.get("resolution", "1024x1792"),
+            seed=d.get("seed"),
+            actors=actors,
+            actor_refs=d.get("actor_refs", []),
+            actor_notes=d.get("actor_notes", {}),
+            negative_prompt=d.get("negative_prompt", ""),
+            workflow_hint=d.get("workflow_hint", ""),
+            raw=d,
+        )
+
+
+@dataclass
+class SceneRequest:
+    scene_id: str
+    title: str = ""
+    description: str = ""
+    style: str = ""
+    actors: List[ActorProfile] = field(default_factory=list)
+    shots: List[ShotRequest] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "SceneRequest":
+        scene_actors = [ActorProfile.from_dict(x) for x in d.get("actors", [])]
+
+        shots: List[ShotRequest] = []
+        for shot_dict in d.get("shots", []):
+            merged = dict(shot_dict)
+
+            if "actors" not in merged:
+                merged["actors"] = d.get("actors", [])
+
+            if not merged.get("style"):
+                merged["style"] = d.get("style", "")
+
+            if not merged.get("scene_id"):
+                merged["scene_id"] = d.get("scene_id", "")
+
+            shots.append(ShotRequest.from_dict(merged))
+
+        return cls(
+            scene_id=d.get("scene_id") or d.get("id") or "scene",
+            title=d.get("title", ""),
+            description=d.get("description", ""),
+            style=d.get("style", ""),
+            actors=scene_actors,
+            shots=shots,
+            raw=d,
+        )
+
+
+# =========================
+# Prompt Composer
+# =========================
+
+class ShowrunnerPromptComposer:
+    def compose_positive(self, shot: ShotRequest) -> str:
+        actor_blocks = "\n\n".join(a.to_prompt_block() for a in shot.actors)
+
+        actor_notes = ""
+        if shot.actor_notes:
+            actor_notes = "\n".join(
+                f"- {actor_id}: {note}"
+                for actor_id, note in shot.actor_notes.items()
+            )
+
+        return f"""
+cinematic production shot
+
+[Shot]
+shot_id: {shot.shot_id}
+scene_id: {shot.scene_id}
+media_type: {shot.media_type}
+description: {shot.description}
+
+[Style]
+{shot.style}
+
+[Actors]
+{actor_blocks}
+
+[Actor Notes]
+{actor_notes}
+
+[Camera]
+{shot.camera}
+
+[Lighting]
+{shot.lighting}
+
+[Composition]
+{shot.composition}
+
+[Motion]
+{shot.motion}
+
+[Technical]
+aspect_ratio: {shot.aspect_ratio}
+resolution: {shot.resolution}
+duration: {shot.duration}s
+
+[Quality]
+IMAX cinematic quality, high-end film production, coherent subject identity,
+clean topology, stable anatomy, rich depth, cinematic lighting, detailed materials
+""".strip()
+
+    def compose_negative(self, shot: ShotRequest) -> str:
+        actor_negatives = ", ".join(
+            a.negative_lock for a in shot.actors if a.negative_lock
+        )
+
+        base = """
+low quality, blurry, bad anatomy, broken hands, extra fingers,
+inconsistent character identity, duplicate face, ugly composition,
+overexposed bloom, cheap CGI, plastic texture, watermark, text, logo
+""".strip()
+
+        parts = [base]
+
+        if shot.negative_prompt:
+            parts.append(shot.negative_prompt)
+
+        if actor_negatives:
+            parts.append(actor_negatives)
+
+        return ", ".join(parts)
+
+
+# =========================
+# Workflow Intent Mapper
+# =========================
+
+class WorkflowIntentMapper:
+    def build_agent_task(self, shot: ShotRequest) -> Dict[str, Any]:
+        composer = ShowrunnerPromptComposer()
+
+        positive = composer.compose_positive(shot)
+        negative = composer.compose_negative(shot)
+
+        task_type = self._task_type(shot)
+
+        return {
+            "source": "showrunner",
+            "task_type": task_type,
+            "shot_id": shot.shot_id,
+            "scene_id": shot.scene_id,
+            "media_type": shot.media_type,
+            "prompt": positive,
+            "positive_prompt": positive,
+            "negative_prompt": negative,
+            "duration": shot.duration,
+            "aspect_ratio": shot.aspect_ratio,
+            "resolution": shot.resolution,
+            "seed": shot.seed,
+            "workflow_hint": shot.workflow_hint,
+            "metadata": {
+                "camera": shot.camera,
+                "lighting": shot.lighting,
+                "composition": shot.composition,
+                "motion": shot.motion,
+                "actor_refs": shot.actor_refs,
+            },
+        }
+
+    def _task_type(self, shot: ShotRequest) -> str:
+        hint = (shot.workflow_hint or "").lower()
+        media = (shot.media_type or "").lower()
+
+        if "image2video" in hint or "i2v" in hint:
+            return "image_to_video"
+
+        if media == "video":
+            return "text_to_video"
+
+        if media == "image":
+            return "text_to_image"
+
+        return "text_to_image"
+
+
+# =========================
+# ComfyUI Agent Adapter
+# =========================
+
+class ComfyUIAgentAdapter:
+    def __init__(self) -> None:
+        self.agent = self._load_agent()
+
+    def _load_agent(self) -> Any:
+        try:
+            from agent import ComfyUIAgent
+            return ComfyUIAgent()
+        except Exception:
+            try:
+                from comfyui_agent.agent import ComfyUIAgent
+                return ComfyUIAgent()
+            except Exception as exc:
+                raise RuntimeError(
+                    "Cannot import ComfyUIAgent. Put showrunner_orchestrator.py "
+                    "beside agent.py or make comfyui_agent importable."
+                ) from exc
+
+    def run_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
+        result: Dict[str, Any] = {
+            "ok": False,
+            "task": task,
+            "diagnose": None,
+            "repair": None,
+            "validate": None,
+            "execute": None,
+            "error": None,
+        }
+
+        try:
+            if hasattr(self.agent, "diagnose"):
+                result["diagnose"] = self._call("diagnose", task)
+
+            if self._needs_repair(result["diagnose"]) and hasattr(self.agent, "repair"):
+                result["repair"] = self._call("repair", task)
+
+            if hasattr(self.agent, "validate"):
+                result["validate"] = self._call("validate", task)
+
+            if self._validation_failed(result["validate"]):
+                result["ok"] = False
+                result["error"] = {
+                    "type": "validation_failed",
+                    "detail": result["validate"],
+                }
+                return result
+
+            if hasattr(self.agent, "execute"):
+                result["execute"] = self._call("execute", task)
+            elif hasattr(self.agent, "run"):
+                result["execute"] = self._call("run", task)
+            else:
+                raise RuntimeError("ComfyUIAgent has no execute() or run() method.")
+
+            result["ok"] = True
+            return result
+
+        except Exception as exc:
+            result["ok"] = False
+            result["error"] = {
+                "type": exc.__class__.__name__,
+                "message": str(exc),
+                "traceback": traceback.format_exc(),
+            }
+            return result
+
+    def _call(self, method_name: str, payload: Dict[str, Any]) -> Any:
+        method = getattr(self.agent, method_name)
+        sig = inspect.signature(method)
+
+        # Most compatible forms:
+        # method(payload)
+        # method(task=payload)
+        # method(prompt=..., negative_prompt=..., ...)
+        try:
+            if len(sig.parameters) == 0:
+                return method()
+        except Exception:
+            pass
+
+        try:
+            return method(payload)
+        except TypeError:
+            pass
+
+        try:
+            return method(task=payload)
+        except TypeError:
+            pass
+
+        kwargs = {
+            k: v
+            for k, v in payload.items()
+            if k in sig.parameters
+        }
+        return method(**kwargs)
+
+    def _needs_repair(self, diagnose_result: Any) -> bool:
+        if diagnose_result is None:
+            return False
+
+        if isinstance(diagnose_result, dict):
+            if diagnose_result.get("ok") is False:
+                return True
+
+            checks = diagnose_result.get("checks")
+            if isinstance(checks, list):
+                return any(c.get("ok") is False for c in checks if isinstance(c, dict))
+
+        return False
+
+    def _validation_failed(self, validate_result: Any) -> bool:
+        if validate_result is None:
+            return False
+
+        if isinstance(validate_result, dict):
+            return validate_result.get("ok") is False
+
+        return False
+
+
+# =========================
+# Orchestrator
+# =========================
+
+class ShowrunnerOrchestrator:
+    def __init__(self) -> None:
+        self.mapper = WorkflowIntentMapper()
+        self.agent = ComfyUIAgentAdapter()
+
+    def execute_shot(self, shot_payload: Dict[str, Any]) -> Dict[str, Any]:
+        shot = ShotRequest.from_dict(shot_payload)
+        task = self.mapper.build_agent_task(shot)
+        result = self.agent.run_task(task)
+
+        return {
+            "ok": result.get("ok", False),
+            "shot_id": shot.shot_id,
+            "scene_id": shot.scene_id,
+            "media_type": shot.media_type,
+            "task_type": task["task_type"],
+            "agent_result": result,
+        }
+
+    def execute_scene(self, scene_payload: Dict[str, Any]) -> Dict[str, Any]:
+        scene = SceneRequest.from_dict(scene_payload)
+
+        outputs: List[Dict[str, Any]] = []
+
+        for shot in scene.shots:
+            task = self.mapper.build_agent_task(shot)
+            result = self.agent.run_task(task)
+
+            outputs.append(
+                {
+                    "shot_id": shot.shot_id,
+                    "ok": result.get("ok", False),
+                    "task_type": task["task_type"],
+                    "agent_result": result,
+                }
+            )
+
+            if not result.get("ok"):
+                break
+
+        return {
+            "ok": all(x["ok"] for x in outputs),
+            "scene_id": scene.scene_id,
+            "title": scene.title,
+            "total_shots": len(scene.shots),
+            "finished_shots": len(outputs),
+            "outputs": outputs,
+        }
+
+
+# =========================
+# Flask API
+# =========================
+
+app = Flask(__name__)
+orchestrator: Optional[ShowrunnerOrchestrator] = None
+
+
+def get_orchestrator() -> ShowrunnerOrchestrator:
+    global orchestrator
+
+    if orchestrator is None:
+        orchestrator = ShowrunnerOrchestrator()
+
+    return orchestrator
+
+
+@app.get("/health")
+def health() -> Any:
+    return jsonify(
+        {
+            "ok": True,
+            "service": "showrunner_orchestrator",
+            "role": "CRUX Showrunner → ComfyUI Agent bridge",
+        }
+    )
+
+
+@app.post("/v1/showrunner/shot")
+def execute_shot() -> Any:
+    payload = request.get_json(force=True, silent=False)
+    result = get_orchestrator().execute_shot(payload)
+    return jsonify(result), 200 if result.get("ok") else 500
+
+
+@app.post("/v1/showrunner/scene")
+def execute_scene() -> Any:
+    payload = request.get_json(force=True, silent=False)
+    result = get_orchestrator().execute_scene(payload)
+    return jsonify(result), 200 if result.get("ok") else 500
+
+
+@app.errorhandler(Exception)
+def handle_error(exc: Exception) -> Any:
+    return jsonify(
+        {
+            "ok": False,
+            "error": {
+                "type": exc.__class__.__name__,
+                "message": str(exc),
+                "traceback": traceback.format_exc(),
+            },
+        }
+    ), 500
+
+
+if __name__ == "__main__":
+    host = os.getenv("SHOWRUNNER_HOST", "127.0.0.1")
+    port = int(os.getenv("SHOWRUNNER_PORT", "5000"))
+
+    app.run(host=host, port=port, debug=False)
+
+运行：
+
+Bash
+python showrunner_orchestrator.py
+
+CRUX 调用示例：
+
+Python
+运行
+from core.comfyui_client import ComfyUIShowrunnerClient
+
+client = ComfyUIShowrunnerClient("http://127.0.0.1:5000")
+
+result = client.execute_shot({
+    "shot_id": "s01_001",
+    "scene_id": "scene_01",
+    "media_type": "video",
+    "description": "两位光人站在盾形飞行平台上，穿越浮空神性光塔群。",
+    "style": "divine alien civilization, sacred geometry, cinematic IMAX, transparent cosmic void",
+    "camera": "wide low-angle slow dolly-in",
+    "lighting": "soft white-gold-cyan volumetric light, controlled bloom",
+    "composition": "deep foreground midground background, characters small, scenery dominant",
+    "motion": "platform glides forward, towers slowly rotate, light rivers flow",
+    "duration": 4,
+    "aspect_ratio": "9:16",
+    "actors": [
+        {
+            "actor_id": "male_light_being",
+            "name": "Male Light Being",
+            "identity": "ethereal male light entity, semi-transparent robe, single sword in right hand",
+            "given_circumstances": "travelling through a divine alien megastructure",
+            "objective": "protect the path toward the energy core",
+            "obstacle": "unstable fractal light storm",
+            "action_subtext": "calm, restrained, protective",
+            "visual_lock": "male light being, luminous robe, abstract face, non-human, no race feature",
+            "negative_lock": "nude, realistic human face, bulky armor"
+        },
+        {
+            "actor_id": "female_light_being",
+            "name": "Female Light Being",
+            "identity": "ethereal female light entity, semi-transparent robe, single sword in left hand",
+            "given_circumstances": "following the photonic river toward the sacred core",
+            "objective": "sense the hidden path",
+            "obstacle": "collapsing divine platform geometry",
+            "action_subtext": "silent curiosity, graceful movement",
+            "visual_lock": "female light being, luminous robe, abstract face, non-human, no race feature",
+            "negative_lock": "nude, realistic human face, exposed body"
+        }
+    ],
+    "negative_prompt": "cheap CGI, over-bloom, mechanical city, cyberpunk street"
+})
+
+print(result)
+
+一句话架构：
+
+Showrunner 只产出 ScenePlan / ShotPlan / ActorProfile；ComfyUI Agent 只接收标准 Shot JSON 并负责 diagnose → repair → validate → execute。

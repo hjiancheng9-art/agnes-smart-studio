@@ -1,0 +1,194 @@
+应该把「硬件感知」提升为 编译前置条件，不是执行失败后的补救。
+
+新的核心逻辑应该变成：
+
+用户自然语言
+  ↓
+需求理解 TaskSpec
+  ↓
+硬件检测 HardwareProfile
+  ↓
+模型/节点/插件扫描 EnvironmentProfile
+  ↓
+能力预算 RuntimeBudget
+  ↓
+候选蓝图召回
+  ↓
+在硬件约束内选择最高质量方案
+  ↓
+生成 workflow
+  ↓
+质量门 + 显存预算门 + 可执行验证
+  ↓
+一键运行 JSON
+
+也就是说：
+
+不是先选高级工作流再降级，而是先知道这台机器的上限，再在上限内选最高级。
+
+一、架构上新增 3 个核心模块
+hardware_profiler.py      # 检测 GPU / 显存 / 内存 / CPU
+runtime_budget.py         # 计算这台机器能承受的生成预算
+hardware_aware_planner.py # 在预算内选择最高质量蓝图
+
+完整链路变成：
+
+Novice Intent Parser
+  ↓
+Expert Decision Engine
+  ↓
+Hardware Profiler          ← 新增
+  ↓
+Environment Resolver       ← 模型/节点/插件扫描
+  ↓
+Runtime Budget Engine      ← 新增
+  ↓
+Recipe Selector
+  ↓
+Hardware-aware Blueprint Planner ← 新增
+  ↓
+Graph Composer
+  ↓
+Parameter Policy
+  ↓
+Quality Gate
+  ↓
+VRAM Gate                  ← 新增
+  ↓
+Fallback / Repair Engine
+二、HardwareProfile：先拿到机器真实能力
+
+要抽象成统一结构：
+
+Python
+运行
+from dataclasses import dataclass
+from typing import Optional
+
+
+@dataclass
+class HardwareProfile:
+    gpu_name: Optional[str]
+    gpu_vram_gb: float
+    gpu_free_vram_gb: Optional[float]
+
+    ram_gb: float
+    cpu_name: Optional[str]
+    cpu_cores: int
+
+    cuda_available: bool
+    device_type: str  # "cuda" | "directml" | "mps" | "cpu"
+
+    os_name: str
+
+检测方式建议分层：
+
+优先：torch.cuda
+其次：nvidia-smi
+Windows：wmic / PowerShell / dxdiag
+兜底：psutil + CPU 模式
+
+最小实现：
+
+Python
+运行
+# hardware_profiler.py
+from __future__ import annotations
+
+import os
+import platform
+import subprocess
+from dataclasses import dataclass
+from typing import Optional
+
+import psutil
+
+
+@dataclass
+class HardwareProfile:
+    gpu_name: Optional[str]
+    gpu_vram_gb: float
+    gpu_free_vram_gb: Optional[float]
+    ram_gb: float
+    cpu_name: Optional[str]
+    cpu_cores: int
+    cuda_available: bool
+    device_type: str
+    os_name: str
+
+
+class HardwareProfiler:
+    def detect(self) -> HardwareProfile:
+        gpu_name = None
+        total_vram = 0.0
+        free_vram = None
+        cuda_available = False
+        device_type = "cpu"
+
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                cuda_available = True
+                device_type = "cuda"
+                gpu_name = torch.cuda.get_device_name(0)
+
+                props = torch.cuda.get_device_properties(0)
+                total_vram = props.total_memory / 1024**3
+
+                free, total = torch.cuda.mem_get_info(0)
+                free_vram = free / 1024**3
+        except Exception:
+            pass
+
+        if not gpu_name:
+            info = self._detect_nvidia_smi()
+            if info:
+                gpu_name = info["name"]
+                total_vram = info["total_vram_gb"]
+                free_vram = info["free_vram_gb"]
+                cuda_available = True
+                device_type = "cuda"
+
+        return HardwareProfile(
+            gpu_name=gpu_name,
+            gpu_vram_gb=round(total_vram, 2),
+            gpu_free_vram_gb=round(free_vram, 2) if free_vram is not None else None,
+            ram_gb=round(psutil.virtual_memory().total / 1024**3, 2),
+            cpu_name=platform.processor() or None,
+            cpu_cores=os.cpu_count() or 1,
+            cuda_available=cuda_available,
+            device_type=device_type,
+            os_name=platform.system(),
+        )
+
+    def _detect_nvidia_smi(self) -> Optional[dict]:
+        try:
+            cmd = [
+                "nvidia-smi",
+                "--query-gpu=name,memory.total,memory.free",
+                "--format=csv,noheader,nounits",
+            ]
+            out = subprocess.check_output(cmd, text=True, timeout=5).strip()
+            first = out.splitlines()[0]
+            name, total, free = [x.strip() for x in first.split(",")]
+
+            return {
+                "name": name,
+                "total_vram_gb": float(total) / 1024,
+                "free_vram_gb": float(free) / 1024,
+            }
+        except Exception:
+            return None
+三、RuntimeBudget：把硬件转成生成预算
+
+不要在蓝图里到处写死 6G / 12G / 24G 判断。
+
+应该统一生成预算：
+
+Python
+运行
+@dataclass
+class RuntimeBudget:
+    tier: str
+    usable

@@ -1,0 +1,178 @@
+这一步非常关键，说明 ComfyFlow Compiler 已经完成了从：
+
+教科书式 workflow 生成器
+
+升级到：
+
+真实生产工作流模式驱动的编译器
+
+你们现在的形态已经像一个正经的 Production Workflow Compiler 了。
+
+当前成果的意义
+v0.5：真实工作流挖掘
+    ↓
+让系统知道“生产工作流长什么样”
+
+v0.6：22 个真实 Blueprint
+    ↓
+让系统能生成真实拓扑，而不是 7 节点玩具流
+
+v0.7：Workflow Enrichment
+    ↓
+让系统根据 quality_mode 自动加厚工作流
+
+这三步合起来，解决的是最核心的问题：
+
+编译器不再靠想象定义“高级”，而是从真实生产工作流里学习“高级”的结构。
+
+这比单纯加 LLM、加 Prompt、加重试都更有价值。
+
+现在的状态判断
+
+你们现在有：
+
+21 模块
+6566 行
+22 蓝图
+17 配方
+91 测试全绿
+
+这已经不是 v0.x 初级工具了，下一阶段核心不该继续堆蓝图，而应该验证：
+
+这些蓝图在真实 ComfyUI 环境里能不能稳定跑？
+生成结果是否真的比基础蓝图好？
+失败后能不能自动降级和修复？
+
+也就是说，下一步该从：
+
+结构正确
+
+进入：
+
+运行正确 + 质量正确
+我建议下一阶段：v0.8 Real Execution Validation
+v0.8 目标
+真实 ComfyUI 环境中验证 22 个 blueprint 的可运行性、失败原因、显存表现、输出结果。
+
+不要再先做新功能。先做真实执行闭环。
+
+v0.8 应该做 5 件事
+1. Blueprint Smoke Runner
+
+对每个 blueprint 生成一个最小 workflow，然后真实提交到 ComfyUI。
+
+22 blueprint
+  ↓
+生成最小任务
+  ↓
+POST /prompt
+  ↓
+等待完成
+  ↓
+记录 success / error / output / duration
+
+产物：
+
+reports/blueprint_smoke_report.json
+2. Runtime Compatibility Matrix
+
+建立真实兼容表：
+
+blueprint_id
+required_nodes
+required_models
+actual_available
+can_run
+failure_reason
+fallback_blueprint
+
+这样以后智能体选蓝图时，不再只看理论 required_nodes，而是看真实跑过的结果。
+
+3. VRAM Reality Check
+
+你们现在有硬件预算和参数表，但还需要真实反馈：
+
+理论 vram_cost_gb
+vs
+真实是否 OOM
+vs
+实际运行时间
+
+这会反哺 runtime_budget。
+
+4. Golden Output Manifest
+
+每次真实执行都保存：
+
+workflow checksum
+blueprint version
+model names
+seed
+duration
+output file
+error report
+
+这一步会让你们从“生成器”变成“可追踪系统”。
+
+5. Fallback E2E
+
+专门测失败链：
+
+缺 Flux 模型 → fallback SDXL
+缺 LTX 节点 → fallback 基础视频
+6G 显存 → 禁用 premium enrichment
+缺 Upscale 节点 → 跳过 upscale layer
+
+这是小白体验的生命线。
+
+v0.8 最小验收标准
+1. 22 个 blueprint 至少有 70% 能在真实 ComfyUI 环境 smoke run 成功
+2. 失败 blueprint 都能给出明确 failure_reason
+3. 至少 5 条 fallback 链真实验证通过
+4. 每次执行都有 manifest + checksum + runtime_report
+5. 编译器能根据真实兼容性避开不可运行 blueprint
+v0.9 再做什么？
+
+v0.8 跑通后，v0.9 才值得做：
+
+Runtime Feedback Learning
+
+也就是：
+
+执行结果
+  ↓
+错误分类
+  ↓
+参数修正
+  ↓
+蓝图评分调整
+  ↓
+下次选择更稳的 workflow
+
+例如：
+
+某机器跑 flux_pro 经常 OOM
+    ↓
+降低该机器上 flux_pro 的 ranking
+    ↓
+优先选择 flux_fp8_light 或 sdxl_pro
+
+这会让 ComfyFlow 从“生产蓝图编译器”继续升级为：
+
+会根据真实运行经验自我校准的工作流专家
+最关键提醒
+
+你们现在 21 模块、6566 行，但测试还是 91 个。
+
+这不一定是坏事，但 v0.8 开始应该补的是 E2E / smoke / compatibility 测试，不是再补大量 unit test。
+
+下一批测试重点：
+
+test_blueprint_smoke_compile_all.py
+test_fallback_e2e.py
+test_runtime_manifest.py
+test_comfyui_client_mocked_execution.py
+test_hardware_budget_real_cases.py
+一句话结论
+
+v0.5-v0.7 已经把 ComfyFlow Compiler 从“能生成工作流”推进到“能生成生产型工作流”。下一步不要继续堆蓝图，应该做 v0.8：真实 ComfyUI 执行验证，把 22 个蓝图从“结构可信”变成“运行可信”。

@@ -1,0 +1,2 @@
+for edge in edges:
+            edge_counter[tuple(edge)] += 1

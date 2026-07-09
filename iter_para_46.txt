@@ -1,0 +1,1 @@
+3. compiler 能优先选择 production blueprint

@@ -1,0 +1,486 @@
+你的系统现在已经过了“文件重构期”，进入 全系统收口期。我会把当前问题按一个核心标准判断：
+凡是会影响 /api/pipeline 主链路真实性的，优先修。
+凡是只是旧入口兼容、展示、历史脚本，后修。
+凡是可能制造第三套大脑/第三套入口的，立刻收口。
+总判断：
+P0：服务器入口和运行拓扑
+P1：brains/providers 契约统一
+P2：provider 内部真调用能力验证
+P3：配置层同步
+P4：business 深层遗留单体
+P5：根级 JS 文件归位
+P6：scripts 清理并入测试体系
+P7：死代码、临时文件、文档化
+
+总优先级表
+优先级方向是否必须现在修核心目标P0服务器层收口必须明确 cockpit/dashboard/server 三者职责，保证 /api/pipeline 是唯一生产入口P1brains 层审计必须统一 brain provider 和 provider-validator 契约，找出死 brainP2providers 内部真能力验证必须确认 ChatGPT/Gemini/Zhipu/CDP provider 不是空壳P3config 层同步必须配置、registry、代码能力三者一致P4creative.js/output.js有条件修如果仍在 Golden Path 上，切片拆；如果不在，冻结 legacyP5根级 JS 文件归位应修防止 src 根目录继续变垃圾场P6scripts/ 清理应修旧路径测试归档，新测试进入 npm testP7碎屑/死代码/文档可后修删除临时文件，隔离 dead code，补 ADR
+
+1. brains/ 层：必须审计，P1
+判断
+brains/ 现在是高风险层。原因是你已经有：
+providers/provider-router + provider-validator + provider-retry
+但 brains/ 里面又有：
+provider-base.js
+claude-provider.js
+codebuddy-provider.js
+socket.js
+这说明系统里可能存在 两套 Provider 契约：
+旧契约：brains/provider-base.js
+新契约：providers/provider-validator.js
+这很危险。
+如果不收口，后面会出现：
+workflow-executor 用新 provider-validator
+agents/showrunner 用 brains/provider-base
+配置层配置了 brain，但 router 找不到
+某个 provider healthCheck 通过，但实际 generate 不可用
+结论
+必须现在修，但不是重写。
+先做契约对齐和活跃度审计。
+具体方案
+新增：
+tests/brains/brain-contract.test.js
+tests/brains/brain-usage.test.js
+检查每个 brain 是否满足统一接口：
+JavaScript{
+  name: string,
+  type: "text" | "reasoning" | "socket" | "local",
+  capabilities: string[],
+  healthCheck: function,
+  invoke: function
+}
+如果 brains/provider-base.js 和 providers/provider-validator.js 不一致，二选一：
+推荐方案：把 brains 重新定义为 model providers
+brains/ = LLM/认知模型适配层
+providers/ = 外部生成/多模态服务适配层
+也就是：
+brains/claude-provider.js      → text/reasoning provider
+brains/codebuddy-provider.js   → local coding/reasoning bridge
+brains/socket.js               → remote model bridge
+
+providers/comfyui.js           → image/video generation
+providers/gemini.js            → multimodal API
+providers/browser-chatgpt.js   → browser automation fallback
+但它们都必须通过同一个 validator family：
+validateBrainProvider()
+validateGenerationProvider()
+validateBrowserProvider()
+不要继续让 provider-base.js 自己定义一套孤立契约。
+活跃度审计
+做一个静态扫描：
+谁 import 了 brains/index.js？
+谁 import 了 claude-provider？
+谁 import 了 codebuddy-provider？
+谁 import 了 socket？
+再做运行时 registry：
+JavaScriptlistBrains()
+getBrainStatus()
+healthCheckBrains()
+最终每个 brain 标记：
+active
+configured_but_unused
+legacy
+dead
+处理建议
+文件判断方案provider-base.js高风险和 provider-validator 对齐，或改名为 brain-provider-contract.jsclaude-provider.js可能有效接统一 BrainProvider 契约codebuddy-provider.js可能重要本地桥接必须重点保留，但要加 healthChecksocket.js高风险明确是 transport 还是 provider，不要混用index.js保留变成 brain registry，不只是 barrel
+
+2. 服务器层：必须现在修，P0
+判断
+三个服务器非常危险：
+dashboard.js       4377 控制面板
+cockpit-server.js  4366 主引擎
+server.js          插件 HTTP 服务器
+如果三者都能触发业务，会产生 三套入口。
+你现在已经新增：
+POST /api/pipeline
+那必须立刻定义唯一主入口。
+推荐职责
+cockpit-server.js
+  主引擎 API，只负责生产请求、pipeline、项目运行、trace、assets、quality。
+
+dashboard.js
+  控制面板，只读监控 + 调试界面。
+  不直接跑业务，只请求 cockpit-server API。
+
+server.js
+  插件/静态/扩展服务。
+  不直接调用 workflow-executor。
+必须立的规则
+1. 只有 cockpit-server.js 可以接收生产型请求
+2. 只有 /api/pipeline 可以触发新管线
+3. dashboard.js 不能直接 import workflow-executor/autoflow/business-engine
+4. server.js 不能直接 import workflow-executor/autoflow/business-engine
+5. dashboard/server 如需运行，只能 HTTP 调 cockpit-server
+具体 TODO
+1. 给三个 server 加 /health
+2. 给 cockpit-server 加 /api/pipeline/status
+3. dashboard 所有生产动作改成调用 cockpit-server
+4. server.js 标记为 plugin-server，不允许跑 pipeline
+5. 加 architecture test：只有 cockpit-server 可 import project-runner/workflow-executor
+隐藏问题
+你现在要特别防：
+dashboard 调旧 autoflow
+cockpit 调新 pipeline
+server 调 business-engine
+这会让用户从不同入口得到不同结果。
+
+3. providers/ 内部：必须修，P2
+判断
+你拆了 router/validator/retry，但 provider 内部没审，这就像：
+门卫很强，但屋里没人
+现在必须确认这些 provider 是真能力，不是骨架。
+gemini.js
+chatgpt.js
+zhipu.js
+browser-chatgpt.js
+browser-gemini.js
+核心问题
+每个 provider 必须回答：
+1. 它支持哪些 capability？
+2. 它的 healthCheck 是否真实？
+3. 它是否支持 dryRun？
+4. 它失败时是否返回 normalizeError？
+5. 它是否被 provider-router 发现？
+6. 它是否被 config 启用？
+7. 它有没有真实 smoke test？
+建议统一 Provider 接口
+JavaScript{
+  name: "gemini",
+  capabilities: ["text", "vision", "prompt_refine"],
+  healthCheck: async () => {},
+  invoke: async (request) => {},
+  dryRun: async (request) => {}
+}
+不建议每个 provider 各自暴露：
+generateImage
+generateVideo
+generateText
+analyzeImage
+chat
+除非外面有统一 adapter。
+推荐统一成：
+JavaScriptinvoke({
+  capability: "vision",
+  input,
+  parameters,
+  metadata
+})
+旧函数可以保留 wrapper。
+Provider 分级
+Tier 1：production-ready
+Tier 2：experimental
+Tier 3：browser-fallback
+Tier 4：legacy/dead
+我会初步判断：
+Provider风险建议gemini.js中加真实 vision/text smoke testchatgpt.js中明确是 API 还是兼容接口zhipu.js中加 env-gated smoke testbrowser-chatgpt.js高标记 browser-fallback，不能作为默认主 providerbrowser-gemini.js高同上，必须低可靠等级
+测试策略
+新增：
+tests/providers/provider-contract.test.js
+tests/providers/provider-dryrun.test.js
+tests/providers/provider-smoke.env.test.js
+provider-smoke.env.test.js 只在有 env 时跑：
+RUN_PROVIDER_SMOKE=1 npm test
+
+4. business 深层 creative.js/output.js：P4，有条件拆
+判断
+这两个文件确实是旧病：
+creative.js 20KB，只导出 buildCreativeReconstruction
+output.js 23KB，导出 3 个
+但现在要看它们是否仍在 /api/pipeline 的 Golden Path 上。
+判断标准
+做一次调用链检查：
+POST /api/pipeline
+→ project-runner?
+→ workflow-executor?
+→ business-engine?
+→ creative.js/output.js?
+如果 Golden Path 还调用它们：
+必须拆最小切片
+如果 Golden Path 已经绕过它们：
+冻结为 legacy，不急拆
+推荐策略
+不要全量拆，按业务产物拆。
+creative.js
+拆成：
+business/creative/
+  creative-reconstruction.js
+  shot-plan-builder.js
+  style-plan-builder.js
+  scene-plan-builder.js
+  character-plan-builder.js
+  index.js
+旧 creative.js 变 wrapper。
+output.js
+拆成：
+business/output/
+  output-manifest-builder.js
+  assembly-plan-builder.js
+  export-summary-builder.js
+  delivery-package-builder.js
+  index.js
+旧 output.js 变 wrapper。
+隐藏问题
+output.js 往往会偷偷包含：
+最终导出结构
+UI 展示结构
+剪映草稿结构
+文件路径逻辑
+质量报告摘要
+这些必须拆开，否则后面接真实视频导出时会很痛。
+
+5. 根级 JS 文件：P5，应修
+判断
+src/ 根目录不能继续放业务模块。
+现在这些文件必须归位：
+creative-direction.js
+professional-team.js
+project-store.js
+fs-utils.js
+api-registry.js
+logger.js
+逐个处理
+文件当前判断目标位置creative-direction.js中高风险，17KB/15函数business/creative/ 或 knowledge/adapterprofessional-team.js被 PipelineContext 引用，不能当死代码core/team/ 或 legacy/teamproject-store.js项目持久化，应归 storagestorage/project-store.jsfs-utils.js通用文件工具utils/fs-utils.jsapi-registry.jsAPI 注册server/api-registry.js 或 runtime/api-registry.jslogger.js基础设施core/logger.js 或 utils/logger.jsprompt-knowledge-orchestrator如果已移走，旧路径应 wrapper/deprecatedknowledge/orchestration
+creative-direction.js 的归属
+判断规则：
+如果它输出创意方向、风格策略、镜头建议：
+  → business/creative/creative-direction.js
+
+如果它组织知识检索和 prompt hints：
+  → knowledge/orchestration/
+
+如果它拼最终 prompt：
+  → prompt/
+根据你描述它被 common 引用，又和 knowledge 有关系，我建议：
+creative-direction.js → business/creative/creative-direction.js
+内部只通过 KnowledgeService 获取知识
+不直接 import prompt-knowledge-orchestrator
+professional-team.js 的隐藏问题
+你说它被 PipelineContext 引用。
+这要小心。
+PipelineContext 不应该依赖“团队配置/智能体配置”。否则它会重新膨胀。
+建议：
+PipelineContext 不直接 import professional-team
+改成外部注入 teamProfile
+例如：
+JavaScriptnew PipelineContext(project, {
+  teamProfile
+})
+professional-team.js 移到：
+src/core/team/team-profile.js
+或者如果它是旧 agent 角色配置：
+src/legacy/professional-team.js
+
+6. scripts/：P6，应清理，但不是最急
+判断
+20+ scripts 很可能是旧系统最大的“假安全感”。
+它们可能：
+跑得通，但测的是旧路径
+不进 npm test
+依赖本机环境
+修改过时文件
+绕过 /api/pipeline
+处理方案
+分四类：
+A. 正式测试：迁入 tests/
+B. 开发工具：迁入 scripts/dev/
+C. 迁移工具：迁入 scripts/migration/
+D. 旧脚本：迁入 scripts/legacy/ 或删除
+必做审计
+1. 搜索 scripts 中是否引用 autoflow/business-engine/旧 business 文件
+2. 能跑的保留，不能跑的隔离
+3. 关键脚本改成调用 /api/pipeline 或 project-runner
+4. 只有稳定脚本加入 npm test
+不要做的事
+不要把 20+ scripts 一次性全加入 npm test。
+先加入：
+unit
+architecture
+golden-path offline
+provider dryRun
+真实 provider smoke 单独用 env 开关。
+
+7. config/ 层：P3，必须修
+判断
+配置层非常重要，而且经常被低估。
+你现在有：
+brains 配置
+provider 路由配置
+代码里的 provider capabilities
+provider-validator 契约
+workflow-ir 的 STEP_TYPES
+这几者必须一致。
+否则会出现：
+配置启用了 claude，但 registry 没有
+provider 声称支持 video，但代码没有实现
+router 选了 gemini image_generation，但 gemini provider 不支持 image
+workflow step 需要 image_generation，但没有 provider
+建议新增 Config Validator
+src/config/config-validator.js
+检查：
+1. 每个配置中的 provider 都存在
+2. 每个启用 provider 都能 healthCheck
+3. 每个 capability 至少有一个 provider
+4. 默认 provider 支持默认 capability
+5. brain provider 和 generation provider 不混淆
+6. browser provider 不能被配置为默认生产 provider
+配置结构建议
+JavaScript{
+  brains: {
+    default: "codebuddy",
+    providers: {
+      codebuddy: { enabled: true, tier: "local" },
+      claude: { enabled: false, tier: "cloud" }
+    }
+  },
+
+  generationProviders: {
+    image: { default: "comfyui", fallback: ["gemini"] },
+    video: { default: "comfyui", fallback: [] },
+    vision: { default: "gemini", fallback: ["browser-gemini"] }
+  },
+
+  safety: {
+    allowBrowserProvidersInProduction: false
+  }
+}
+
+完整 P0-P7 TODO
+P0：服务器入口收口
+目标：系统只有一个生产入口。
+1. 明确 cockpit-server.js 是唯一生产 API
+2. dashboard.js 只做控制面板，不直接跑业务
+3. server.js 只做插件/静态/扩展服务
+4. /api/pipeline 成为唯一生产入口
+5. 加 architecture test：只有 cockpit-server/project-runner 可 import workflow-executor
+6. 所有旧 autoflow 调用必须走 legacy mode
+验收：
+grep cockpit/dashboard/server，不存在多个业务入口。
+
+P1：brains/provider 契约统一
+目标：消灭两套 provider 契约。
+1. 审计 brains/provider-base.js 和 provider-validator.js 差异
+2. 定义 BrainProviderContract
+3. claude/codebuddy/socket 全部接入契约
+4. brains/index.js 变 registry
+5. 标记 active/unused/legacy/dead
+6. 加 tests/brains/brain-contract.test.js
+验收：
+所有 brain 都能 list/status/healthCheck。
+
+P2：providers 内部能力验证
+目标：确认 provider 不是骨架。
+1. 给 gemini/chatgpt/zhipu/browser-* 加 dryRun
+2. 所有 provider 统一 invoke(request)
+3. generateImage/generateVideo 等旧函数变 wrapper
+4. 加 provider dryRun tests
+5. 加 env-gated smoke tests
+6. browser provider 标为 fallback-only
+验收：
+provider-router 选中的每个 provider 都能 dryRun，真实 smoke 可选跑。
+
+P3：config 同步验证
+目标：配置、代码、能力一致。
+1. 新增 config-validator.js
+2. 校验 provider 存在性
+3. 校验 capability 覆盖
+4. 校验默认 provider 可用
+5. 校验 browser provider 不作为生产默认
+6. 加 tests/config/config-validator.test.js
+验收：
+启动时 config 不一致直接失败。
+
+P4：creative/output 遗留单体处理
+目标：Golden Path 不依赖旧单体。
+1. 追踪 /api/pipeline 是否调用 creative.js/output.js
+2. 如果调用，抽 Golden Path 必需切片
+3. creative.js/output.js 变 legacy wrapper
+4. 如果未调用，冻结 legacy，不允许新增逻辑
+5. 加 business legacy compatibility test
+验收：
+Golden Path 不直接 import 旧 creative.js/output.js。
+
+P5：根级文件归位
+目标：src 根目录只放入口，不放业务模块。
+1. creative-direction.js 归入 business/creative 或 knowledge
+2. professional-team.js 从 PipelineContext 中解耦，改为注入
+3. project-store.js 移到 storage/
+4. fs-utils.js 移到 utils/
+5. api-registry.js 移到 server/
+6. logger.js 移到 core/ 或 utils/
+7. 根级旧路径保留 deprecated wrapper
+验收：
+src 根目录不再有中大型业务模块。
+
+P6：scripts/ 整理
+目标：脚本不再测试旧世界。
+1. 扫描 scripts 引用旧路径
+2. 分类为 dev/migration/legacy/tests
+3. 有价值测试迁到 tests/
+4. 旧路径脚本隔离
+5. npm test 只跑稳定单元/架构/Golden Path
+6. provider smoke 用 RUN_PROVIDER_SMOKE=1 单独跑
+验收：
+scripts 不再作为隐藏测试体系。
+
+P7：碎屑和文档化
+目标：防止回退。
+1. 删除审计临时文件
+2. 死代码移到 legacy/ 或删除
+3. 每个 legacy wrapper 标注 deprecated
+4. 写 ADR：主入口、provider 契约、knowledge 接入、server 职责
+5. 更新 README 架构图
+6. 加 forbidden-import architecture rules
+验收：
+新人能从 README 看懂唯一主链路。
+
+我认为你还没注意到的隐藏问题
+隐藏问题一：PipelineContext 引用 professional-team.js
+这是一个危险信号。
+PipelineContext 应该是状态容器，不应该知道“专业团队”。
+如果它 import 了 professional-team，说明 Context 可能正在重新变成：
+状态 + 智能体配置 + 业务默认值
+建议尽快改成注入。
+
+隐藏问题二：creative-direction.js 被 common barrel 引用
+你已经把 common.js 变成 barrel，但如果 barrel 仍然导出 creative-direction.js，外部可能还在绕过新 business/creative 目录。
+建议：
+common barrel 不再导出 creative-direction
+改由 business/creative/index.js 导出
+旧路径只兼容，不鼓励新代码用。
+
+隐藏问题三：offline E2E 全绿不等于生产链路真实
+你现在 Golden Path 是离线测试全绿。下一步必须有：
+provider dryRun
+real provider smoke
+server-level E2E
+否则它只证明 mock 世界正确。
+
+隐藏问题四：browser provider 不能进入默认生产路由
+browser-chatgpt / browser-gemini 这类 CDP provider 容易失效。
+必须规则化：
+browser provider 只能 fallback
+不能 default
+必须配置 allowBrowserProvidersInProduction
+
+隐藏问题五：barrel 可能掩盖旧依赖
+你现在很多文件变 barrel，这是好事，但也容易掩盖：
+外部仍然 import 旧路径
+但实际已经代理到新模块
+短期兼容没问题，长期要加 lint/architecture rule：
+新代码禁止 import legacy wrapper
+
+最终执行建议
+你不要同时开 7 条线。建议按这个节奏：
+第一轮：P0 + P1 + P3
+解决入口、brains契约、配置一致性。
+
+第二轮：P2
+确认 provider 真能用。
+
+第三轮：P4 + P5
+清业务旧单体和根级文件。
+
+第四轮：P6 + P7
+清 scripts、碎屑、文档、防回退。
+最关键的一句话：
+现在不是继续加功能的时候，而是把“入口、契约、配置、provider 能力”这四条生命线钉死。
+只要这四条钉死，新烬龙 V2 后面接 ComfyUI、真实模型、局部重跑、UI 工作台都不会再反复塌。

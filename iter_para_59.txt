@@ -1,0 +1,1 @@
+confidence = min(1.0, len(selected) / 20) * min(1.0, len(required_nodes) / 8)

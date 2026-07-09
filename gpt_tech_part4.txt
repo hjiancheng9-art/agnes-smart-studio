@@ -1,0 +1,183 @@
+=0.0,
+                cuda_available=False,
+                source="torch",
+                error="torch.cuda.is_available() is False.",
+            )
+
+        gpu_name = torch.cuda.get_device_name(0)
+        props = torch.cuda.get_device_properties(0)
+        vram_gb = round(props.total_memory / 1024**3, 2)
+
+        return GPUInfo(
+            gpu_name=gpu_name,
+            vram_gb=vram_gb,
+            cuda_available=True,
+            source="torch",
+        )
+
+    except Exception as e:
+        return GPUInfo(
+            gpu_name=None,
+            vram_gb=0.0,
+            cuda_available=False,
+            source="torch",
+            error=f"torch unavailable: {type(e).__name__}: {e}",
+        )
+
+
+# =============================================================================
+# 3. ComfyUI 环境扫描
+# =============================================================================
+
+"""
+ComfyUI 常见目录结构：
+
+ComfyUI/
+  main.py
+  custom_nodes/
+    ComfyUI-Manager/
+    ComfyUI-Impact-Pack/
+    ComfyUI-VideoHelperSuite/
+    ...
+  models/
+    checkpoints/
+      xxx.safetensors
+      xxx.ckpt
+    loras/
+      xxx.safetensors
+    vae/
+      xxx.safetensors
+    controlnet/
+      xxx.safetensors
+    clip/
+      xxx.safetensors
+    clip_vision/
+      xxx.safetensors
+    unet/
+      xxx.safetensors
+    diffusion_models/
+      xxx.safetensors
+    upscale_models/
+      xxx.pth
+      xxx.safetensors
+    embeddings/
+      EasyNegative.safetensors
+      badhandv4.pt
+    hypernetworks/
+    style_models/
+    gligen/
+    configs/
+    vae_approx/
+    photomaker/
+    ipadapter/
+      xxx.safetensors
+
+注意：
+  - 仅扫描 custom_nodes 文件夹只能知道“安装了哪些自定义节点包”
+  - 想知道 ComfyUI 实际注册了哪些 class_type，最可靠方式是启动 ComfyUI 后请求：
+      GET http://127.0.0.1:8188/object_info
+  - 本函数做离线扫描，不执行 custom node 的 Python 代码，避免副作用
+"""
+
+
+MODEL_EXTENSIONS = {
+    ".safetensors",
+    ".ckpt",
+    ".pt",
+    ".pth",
+    ".bin",
+    ".onnx",
+    ".gguf",
+}
+
+
+IMAGE_EXTENSIONS = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+}
+
+
+MODEL_DIR_ALIASES = {
+    "checkpoints": ["checkpoints"],
+    "loras": ["loras", "lora"],
+    "vae": ["vae"],
+    "controlnet": ["controlnet", "controlnets"],
+    "clip": ["clip"],
+    "clip_vision": ["clip_vision"],
+    "unet": ["unet"],
+    "diffusion_models": ["diffusion_models"],
+    "upscale_models": ["upscale_models"],
+    "embeddings": ["embeddings"],
+    "hypernetworks": ["hypernetworks"],
+    "style_models": ["style_models"],
+    "gligen": ["gligen"],
+    "configs": ["configs"],
+    "vae_approx": ["vae_approx"],
+    "photomaker": ["photomaker"],
+    "ipadapter": ["ipadapter", "ipadapter_models"],
+}
+
+
+@dataclass
+class CustomNodePackage:
+    name: str
+    path: str
+    has_init: bool
+    has_requirements: bool
+    has_pyproject: bool
+    possible_class_types: List[str] = field(default_factory=list)
+
+
+@dataclass
+class ModelFile:
+    name: str
+    relative_path: str
+    absolute_path: str
+    size_gb: float
+    extension: str
+
+
+@dataclass
+class ComfyUIEnvironment:
+    comfyui_path: str
+    exists: bool
+    custom_nodes_path: str
+    models_path: str
+    custom_node_packages: List[CustomNodePackage]
+    possible_custom_class_types: List[str]
+    models: Dict[str, List[ModelFile]]
+    summary: Dict[str, Any]
+    warnings: List[str]
+
+
+def scan_comfyui_environment(comfyui_path: str | Path) -> ComfyUIEnvironment:
+    """
+    离线扫描 ComfyUI 环境。
+
+    参数：
+      comfyui_path:
+        ComfyUI 根目录，例如：
+        C:/Users/xxx/ComfyUI
+        D:/AI/ComfyUI
+
+    返回：
+      ComfyUIEnvironment
+        - custom_node_packages: 已安装 custom_nodes 包
+        - possible_custom_class_types: 从源码静态解析出的疑似 NODE_CLASS_MAPPINGS key
+        - models: checkpoints / loras / vae / controlnet 等模型文件
+        - summary: 统计信息
+        - warnings: 缺失目录 / 异常说明
+    """
+
+    root = Path(comfyui_path).expanduser().resolve()
+    custom_nodes_dir = root / "custom_nodes"
+    models_dir = root / "models"
+
+    warnings: List[str] = []
+
+    if not root.exists():
+        warnings.append(f"ComfyUI root not found: {root}")
+
+    if 

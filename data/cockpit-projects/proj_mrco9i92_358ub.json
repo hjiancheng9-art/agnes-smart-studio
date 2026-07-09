@@ -1,0 +1,50 @@
+{
+  "id": "proj_mrco9i92_358ub",
+  "name": "CRUX·主控脑验证",
+  "description": "全链路流水线验证",
+  "status": "producing",
+  "created": "2026-07-08T22:51:21.638Z",
+  "updated": "2026-07-08T22:51:21.656Z",
+  "pipeline": {
+    "stage": "visual",
+    "intent": "赛博朋克城市宣传片，30秒，展现未来科技感",
+    "brief": "风格:赛博朋克 色调:紫蓝洋红",
+    "storyboard": [
+      "镜头1: 城市天际线全景",
+      "镜头2: 霓虹街道跟拍",
+      "镜头3: 全息广告特写"
+    ],
+    "shots": [
+      {
+        "index": 0,
+        "description": "镜头1: 城市天际线全景",
+        "visualStyle": "",
+        "motion": "",
+        "status": "video_done",
+        "imageUrl": "/generated/shot0.png",
+        "videoUrl": "/generated/shot0.mp4"
+      },
+      {
+        "index": 1,
+        "description": "镜头2: 霓虹街道跟拍",
+        "imagePrompt": "",
+        "visualStyle": "",
+        "motion": "",
+        "status": "pending",
+        "imageUrl": null,
+        "videoUrl": null
+      },
+      {
+        "index": 2,
+        "description": "镜头3: 全息广告特写",
+        "imagePrompt": "",
+        "visualStyle": "",
+        "motion": "",
+        "status": "pending",
+        "imageUrl": null,
+        "videoUrl": null
+      }
+    ],
+    "deliverables": []
+  }
+}

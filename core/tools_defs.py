@@ -787,7 +787,7 @@ TOOL_EXPANSION_CATEGORIES: dict[str, set[str]] = {
         "self_heal",
         "security_review",
     },
-    "browser": {"pw_navigate"},
+    "browser": {"pw_navigate", "cdp_ask_chatgpt"},
     "task_extended": {
         "todo_add",
         "todo_list",

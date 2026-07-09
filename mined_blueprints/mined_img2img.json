@@ -1,0 +1,118 @@
+{
+  "name": "mined_img2img",
+  "display_name": "图生图",
+  "category": "img2img",
+  "source_workflow_count": 2,
+  "confidence_score": 0.519,
+  "required_nodes": [
+    "CFGNorm",
+    "CLIPLoader",
+    "CheckpointLoaderSimple",
+    "Fast Groups Bypasser (rgthree)",
+    "Image Comparer (rgthree)",
+    "KSampler",
+    "PathchSageAttentionKJ",
+    "RAMCleanup",
+    "ReferenceLatent",
+    "ReservedVRAMSetter",
+    "SaveImage",
+    "UNETLoader",
+    "VAEDecode",
+    "VAEEncode",
+    "VAELoader",
+    "VRAMCleanup"
+  ],
+  "optional_nodes": [
+    "02957c1b-177f-4f1d-b2ab-65c5d071fb63",
+    "21221cf3-1c1a-421f-b3fe-95b10f511bfb",
+    "28a47431-8432-49b6-88a4-90b561732e3f",
+    "35a88bbb-843a-4b2d-a3c8-3764702c92b9",
+    "6711f262-f5e4-49b8-91f5-606543408500",
+    "784d990a-66eb-495b-bed6-da0d63a833e4",
+    "8e966330-6e65-416b-a660-09f3499c3228",
+    "ImpactInt",
+    "LayerUtility: ImageScaleByAspectRatio V2",
+    "LoadImage",
+    "LoadImageListFromDir //Inspire",
+    "LoraLoaderModelOnly",
+    "ModelSamplingAuraFlow",
+    "Power Lora Loader (rgthree)",
+    "TextEncodeQwenImageEditPlus",
+    "VHS_LoadVideo",
+    "bdcbcfcb-220e-4bb2-8e89-291310291ed6",
+    "db6cc2f4-11f5-4eb8-bbeb-c972f1ff665a",
+    "e04cdf77-58f7-4f4a-8dcf-75cf7147bd8b",
+    "e08c19e5-db4b-4d19-b0e5-ff118b6c87f4",
+    "easy boolean"
+  ],
+  "common_edges": [
+    [
+      "KSampler",
+      "negative",
+      "250",
+      ""
+    ],
+    [
+      "ReservedVRAMSetter",
+      "anything",
+      "244",
+      ""
+    ],
+    [
+      "KSampler",
+      "positive",
+      "249",
+      ""
+    ],
+    [
+      "KSampler",
+      "latent_image",
+      "247",
+      ""
+    ],
+    [
+      "KSampler",
+      "model",
+      "245",
+      ""
+    ],
+    [
+      "SaveImage",
+      "images",
+      "252",
+      ""
+    ],
+    [
+      "VAEDecode",
+      "samples",
+      "251",
+      ""
+    ],
+    [
+      "Image Comparer (rgthree)",
+      "image_b",
+      "252",
+      ""
+    ],
+    [
+      "VRAMCleanup",
+      "anything",
+      "252",
+      ""
+    ],
+    [
+      "ReferenceLatent",
+      "latent",
+      "247",
+      ""
+    ]
+  ],
+  "estimated_node_count": 34,
+  "typical_pipeline": [
+    "模型加载",
+    "采样",
+    "解码",
+    "输出"
+  ],
+  "model_type": "sdxl"
+}

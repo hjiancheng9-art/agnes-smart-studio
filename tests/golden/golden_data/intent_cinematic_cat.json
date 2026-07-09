@@ -1,0 +1,11 @@
+{
+  "task_type": "txt2img",
+  "subject": "电影感赛博朋克 猫霓虹雨夜",
+  "style": [
+    "cinematic",
+    "cyberpunk"
+  ],
+  "mood": "冷峻",
+  "aspect_ratio": "9:16",
+  "quality_mode": "balanced"
+}

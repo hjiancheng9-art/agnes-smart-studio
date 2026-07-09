@@ -1,0 +1,174 @@
+
+
+选择规则：
+
+Python
+运行
+def choose_sampler_blueprint(task, quality_mode, env):
+    if task.family in ["flux", "ltx", "wan"]:
+        return "advanced_sampler"
+
+    if quality_mode in ["high", "premium"] and env.has_nodes(ADVANCED_SAMPLER_CHAIN):
+        return "advanced_sampler"
+
+    return "ksampler_basic"
+缺口 3：LTX 视频全链路
+
+你们不能只做一个 generic video blueprint。
+
+至少要分：
+
+ltx_t2v
+ltx_i2v
+ltx_i2v_audio
+ltx_controlled_video
+ltx_loop_video
+ltx_lora_video
+
+代码建议：
+
+Python
+运行
+LTX_BLUEPRINTS = {
+    "ltx_i2v_basic": {
+        "required_nodes": [
+            "LoadImage",
+            "LTXVConditioning",
+            "LTXVImgToVideoInplace",
+            "SamplerCustomAdvanced",
+            "VAEDecodeTiled",
+            "VHS_VideoCombine",
+        ],
+        "optional_nodes": [
+            "LTXVCropGuides",
+            "LoraLoaderModelOnly",
+        ],
+    },
+
+    "ltx_i2v_audio": {
+        "required_nodes": [
+            "LTXVAudioVAELoader",
+            "LTXVAudioVAEDecode",
+            "LTXVConcatAVLatent",
+            "LTXVSeparateAVLatent",
+            "VHS_VideoCombine",
+        ],
+    },
+
+    "ltx_controlled_video": {
+        "required_nodes": [
+            "LTXVCropGuides",
+            "LTXVConditioning",
+            "LTXVImgToVideoInplace",
+            "ImageResizeKJv2",
+            "VHS_VideoCombine",
+        ],
+    },
+}
+缺口 4：Wan / SAM3 视频编辑链
+
+你的数据说明 Wan 类重型流常常和：
+
+VHS_LoadVideo
+SAM3_VideoTrack
+easy sam3GetObjectMask
+MaskToImage
+ImageResizeKJv2
+VHS_VideoCombine
+
+一起出现。
+
+应该新增：
+
+Python
+运行
+WAN_EDIT_BLUEPRINTS = {
+    "wan_action_transfer": {
+        "task_type": "video_edit",
+        "required_nodes": [
+            "VHS_LoadVideo",
+            "ImageResizeKJv2",
+            "VHS_VideoCombine",
+        ],
+        "optional_nodes": [
+            "SAM3_VideoTrack",
+            "easy sam3GetObjectMask",
+            "MaskToImage",
+        ],
+    },
+
+    "wan_character_replace": {
+        "task_type": "video_edit",
+        "required_nodes": [
+            "VHS_LoadVideo",
+            "SAM3_VideoTrack",
+            "MaskToImage",
+            "VHS_VideoCombine",
+        ],
+    },
+}
+缺口 5：工作流可维护性节点
+
+真实生产流不是只要能跑，还要能读、能改、能教学。
+
+建议你的生成器增加一个开关：
+
+Python
+运行
+compile(..., output_mode="api" | "editable")
+
+当 editable 时自动加入：
+
+MarkdownNote
+Note
+Reroute
+Group
+Label
+
+伪代码：
+
+Python
+运行
+def add_editable_annotations(workflow, task, blueprint):
+    workflow.add_markdown_note(
+        title="使用说明",
+        text=f"""
+# {blueprint.name}
+
+用途：{task.user_goal}
+
+建议：
+- 不懂参数时只改正向提示词
+- 显存不足时降低分辨率
+- 视频输出在 ComfyUI/output 目录
+"""
+    )
+
+    workflow.add_markdown_note(
+        title="模型需求",
+        text="\n".join(blueprint.required_models)
+    )
+
+    workflow.add_reroutes_for_long_links()
+    workflow.group_by_stage()
+
+    return workflow
+5. ComfyFlow Compiler 的 5 个最关键升级建议
+升级 1：从“任务类型分类”升级为“生产范式分类”
+
+不要只分：
+
+txt2img / img2img / controlnet / video
+
+要改成：
+
+Python
+运行
+PRODUCTION_INTENTS = [
+    "sd_txt2img",
+    "flux_txt2img",
+    "flux_image_edit",
+    "ltx_t2v",
+    "ltx_i2v",
+    "ltx_i2v_audio",
+    "ltx_controlled

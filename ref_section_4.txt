@@ -1,0 +1,215 @@
+==========================================================================
+
+@dataclass
+class GPUInfo:
+    gpu_name: Optional[str]
+    vram_gb: float
+    cuda_available: bool
+    source: str
+    error: Optional[str] = None
+
+
+def detect_gpu() -> GPUInfo:
+    """
+    Windows / Linux 都可用。
+    优先级：
+      1. pynvml
+      2. nvidia-smi
+      3. torch.cuda
+      4. fallback: 无 NVIDIA GPU
+
+    返回：
+      gpu_name: str | None
+      vram_gb: float
+      cuda_available: bool
+    """
+
+    # 1. pynvml: 最可靠，适合 Windows + NVIDIA
+    nvml_result = _detect_gpu_with_pynvml()
+    if nvml_result.cuda_available:
+        return nvml_result
+
+    # 2. nvidia-smi: 不需要 Python 包，但依赖驱动命令可用
+    smi_result = _detect_gpu_with_nvidia_smi()
+    if smi_result.cuda_available:
+        return smi_result
+
+    # 3. torch.cuda: 项目里如果已经装 torch，可以兜底
+    torch_result = _detect_gpu_with_torch()
+    if torch_result.cuda_available:
+        return torch_result
+
+    # 4. 没有 N 卡 / 驱动没装 / CUDA 不可用
+    errors = [
+        e for e in [
+            nvml_result.error,
+            smi_result.error,
+            torch_result.error,
+        ]
+        if e
+    ]
+
+    return GPUInfo(
+        gpu_name=None,
+        vram_gb=0.0,
+        cuda_available=False,
+        source="none",
+        error="; ".join(errors) if errors else "No NVIDIA CUDA GPU detected.",
+    )
+
+
+def _detect_gpu_with_pynvml() -> GPUInfo:
+    try:
+        import pynvml  # pip install nvidia-ml-py
+
+        pynvml.nvmlInit()
+        count = pynvml.nvmlDeviceGetCount()
+
+        if count <= 0:
+            pynvml.nvmlShutdown()
+            return GPUInfo(None, 0.0, False, "pynvml", "NVML found no GPU.")
+
+        # 默认取第 0 张卡；多卡场景可扩展成返回 List[GPUInfo]
+        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+
+        raw_name = pynvml.nvmlDeviceGetName(handle)
+        if isinstance(raw_name, bytes):
+            gpu_name = raw_name.decode("utf-8", errors="ignore")
+        else:
+            gpu_name = str(raw_name)
+
+        mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
+        vram_gb = round(mem.total / 1024**3, 2)
+
+        pynvml.nvmlShutdown()
+
+        return GPUInfo(
+            gpu_name=gpu_name,
+            vram_gb=vram_gb,
+            cuda_available=True,
+            source="pynvml",
+        )
+
+    except Exception as e:
+        return GPUInfo(
+            gpu_name=None,
+            vram_gb=0.0,
+            cuda_available=False,
+            source="pynvml",
+            error=f"pynvml unavailable: {type(e).__name__}: {e}",
+        )
+
+
+def _detect_gpu_with_nvidia_smi() -> GPUInfo:
+    try:
+        if not shutil.which("nvidia-smi"):
+            return GPUInfo(
+                gpu_name=None,
+                vram_gb=0.0,
+                cuda_available=False,
+                source="nvidia-smi",
+                error="nvidia-smi not found in PATH.",
+            )
+
+        cmd = [
+            "nvidia-smi",
+            "--query-gpu=name,memory.total",
+            "--format=csv,noheader,nounits",
+        ]
+
+        completed = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+            encoding="utf-8",
+            errors="ignore",
+        )
+
+        if completed.returncode != 0:
+            return GPUInfo(
+                gpu_name=None,
+                vram_gb=0.0,
+                cuda_available=False,
+                source="nvidia-smi",
+                error=completed.stderr.strip() or "nvidia-smi returned non-zero exit code.",
+            )
+
+        output = completed.stdout.strip()
+        if not output:
+            return GPUInfo(
+                gpu_name=None,
+                vram_gb=0.0,
+                cuda_available=False,
+                source="nvidia-smi",
+                error="nvidia-smi returned empty output.",
+            )
+
+        # 多卡时取第一行：
+        # NVIDIA GeForce RTX 4090, 24564
+        first_line = output.splitlines()[0]
+        parts = [p.strip() for p in first_line.split(",")]
+
+        if len(parts) < 2:
+            return GPUInfo(
+                gpu_name=None,
+                vram_gb=0.0,
+                cuda_available=False,
+                source="nvidia-smi",
+                error=f"Cannot parse nvidia-smi output: {first_line}",
+            )
+
+        gpu_name = parts[0]
+        memory_total_mb = float(parts[1])
+        vram_gb = round(memory_total_mb / 1024, 2)
+
+        return GPUInfo(
+            gpu_name=gpu_name,
+            vram_gb=vram_gb,
+            cuda_available=True,
+            source="nvidia-smi",
+        )
+
+    except Exception as e:
+        return GPUInfo(
+            gpu_name=None,
+            vram_gb=0.0,
+            cuda_available=False,
+            source="nvidia-smi",
+            error=f"nvidia-smi unavailable: {type(e).__name__}: {e}",
+        )
+
+
+def _detect_gpu_with_torch() -> GPUInfo:
+    try:
+        import torch
+
+        if not torch.cuda.is_available():
+            return GPUInfo(
+                gpu_name=None,
+                vram_gb=0.0,
+                cuda_available=False,
+                source="torch",
+                error="torch.cuda.is_available() is False.",
+            )
+
+        gpu_name = torch.cuda.get_device_name(0)
+        props = torch.cuda.get_device_properties(0)
+        vram_gb = round(props.total_memory / 1024**3, 2)
+
+        return GPUInfo(
+            gpu_name=gpu_name,
+            vram_gb=vram_gb,
+            cuda_available=True,
+            source="torch",
+        )
+
+    except Exception as e:
+        return GPUInfo(
+            gpu_name=None,
+            vram_gb=0.0,
+            cuda_available=False,
+            source="torch",
+            error=f"torch unavailable: {type(e).__name__}: {e}",
+        )

@@ -1,0 +1,93 @@
+{
+  "name": "mined_flux",
+  "display_name": "Flux 图像",
+  "category": "flux",
+  "source_workflow_count": 15,
+  "confidence_score": 0.171,
+  "required_nodes": [
+    "CLIPTextEncode",
+    "FluxGuidance",
+    "KSampler",
+    "MarkdownNote",
+    "SaveImage",
+    "UNETLoader",
+    "VAEDecode",
+    "VAELoader"
+  ],
+  "optional_nodes": [
+    "BasicGuider",
+    "CLIPLoader",
+    "DualCLIPLoader",
+    "EmptyFlux2LatentImage",
+    "EmptySD3LatentImage",
+    "KSamplerSelect",
+    "LoadImage",
+    "LoraLoaderModelOnly",
+    "Note",
+    "PrimitiveNode",
+    "RandomNoise",
+    "Reroute",
+    "SamplerCustomAdvanced",
+    "UnetLoaderGGUF",
+    "VAEEncode"
+  ],
+  "common_edges": [
+    [
+      "SaveImage",
+      "images",
+      "8",
+      ""
+    ],
+    [
+      "FluxGuidance",
+      "conditioning",
+      "6",
+      ""
+    ],
+    [
+      "CLIPTextEncode",
+      "clip",
+      "38",
+      ""
+    ],
+    [
+      "VAEDecode",
+      "samples",
+      "13",
+      ""
+    ],
+    [
+      "SamplerCustomAdvanced",
+      "noise",
+      "25",
+      ""
+    ],
+    [
+      "SamplerCustomAdvanced",
+      "sampler",
+      "16",
+      ""
+    ],
+    [
+      "SamplerCustomAdvanced",
+      "guider",
+      "22",
+      ""
+    ],
+    [
+      "VAEDecode",
+      "vae",
+      "10",
+      ""
+    ]
+  ],
+  "estimated_node_count": 33,
+  "typical_pipeline": [
+    "模型加载",
+    "文本编码",
+    "采样",
+    "解码",
+    "输出"
+  ],
+  "model_type": "flux"
+}

@@ -1,0 +1,150 @@
+      if bp.requires_video and not budget.allow_video:
+            return False
+
+        return True
+
+    def _fits_environment(self, bp: BlueprintContract, installed: dict) -> bool:
+        if bp.requires_sdxl and not installed.get("has_sdxl_model"):
+            return False
+
+        if bp.requires_refiner and not installed.get("has_refiner_model"):
+            return False
+
+        if bp.requires_upscale and not installed.get("has_upscale_model"):
+            return False
+
+        if bp.requires_controlnet and not installed.get("has_controlnet"):
+            return False
+
+        if bp.requires_video and not installed.get("has_video_model"):
+            return False
+
+        return True
+六、参数策略也要硬件感知
+
+同一个蓝图，在不同硬件上参数不同。
+
+例如用户都要 9:16：
+
+6G 显存  → 640x1024 / 768x1152 / batch 1 / tiled VAE
+12G 显存 → 896x1536 / batch 1 / 可轻量 upscale
+24G 显存 → 1024x1792 / refiner / upscale / detail pass
+
+所以 ParameterPolicy 要吃 RuntimeBudget：
+
+Python
+运行
+class HardwareAwareParameterPolicy:
+    def apply(self, spec, budget: RuntimeBudget):
+        w, h = self._fit_ratio_to_budget(
+            aspect_ratio=spec.aspect_ratio,
+            max_resolution=budget.max_resolution,
+        )
+
+        spec.width = w
+        spec.height = h
+        spec.batch_size = min(spec.batch_size or 1, budget.max_batch_size)
+
+        if budget.tier in ["cpu_or_tiny", "low_6gb"]:
+            spec.steps = min(spec.steps or 24, 24)
+            spec.cfg = min(spec.cfg or 7.0, 7.5)
+            spec.enable_tiled_vae = True
+            spec.enable_refiner = False
+            spec.enable_upscale = False
+
+        elif budget.tier in ["mid_8gb", "upper_12gb"]:
+            spec.steps = min(spec.steps or 30, 32)
+            spec.cfg = min(spec.cfg or 7.0, 8.0)
+            spec.enable_tiled_vae = True
+            spec.enable_refiner = False
+
+        else:
+            spec.steps = min(spec.steps or 36, 40)
+            spec.cfg = min(spec.cfg or 7.0, 8.5)
+            spec.enable_tiled_vae = budget.use_tiled_vae
+
+        return spec
+
+    def _fit_ratio_to_budget(self, aspect_ratio: str, max_resolution: tuple[int, int]):
+        max_w, max_h = max_resolution
+
+        if aspect_ratio == "9:16":
+            h = max_h
+            w = int(h * 9 / 16)
+            w = self._round8(min(w, max_w))
+            h = self._round8(h)
+            return w, h
+
+        if aspect_ratio == "16:9":
+            w = max_w
+            h = int(w * 9 / 16)
+            return self._round8(w), self._round8(h)
+
+        size = min(max_w, max_h)
+        return self._round8(size), self._round8(size)
+
+    def _round8(self, x: int) -> int:
+        return max(8, int(round(x / 8) * 8))
+七、动态降级链如何生成？
+
+不再手写固定链，而是根据候选排序生成：
+
+Python
+运行
+def build_dynamic_fallback_chain(task_type, blueprints, budget, installed):
+    runnable = []
+
+    for bp in blueprints:
+        if bp.task_type != task_type:
+            continue
+
+        if fits_environment(bp, installed):
+            runnable.append(bp)
+
+    # 先按质量从高到低排
+    runnable.sort(key=lambda x: x.quality_score, reverse=True)
+
+    # 再标记是否硬件可跑
+    safe = [bp for bp in runnable if fits_budget(bp, budget)]
+    risky = [bp for bp in runnable if not fits_budget(bp, budget)]
+
+    return safe, risky
+
+最终用户的 6G 显存可能得到：
+
+1. txt2img_sd15_hires_fix
+2. txt2img_sd15_light
+3. txt2img_minimal
+
+24G 显存可能得到：
+
+1. txt2img_sdxl_refiner_upscale
+2. txt2img_sdxl_refiner
+3. txt2img_sdxl_basic
+4. txt2img_sd15_hires_fix
+八、VRAM Gate：质量门里必须加显存门
+
+生成 workflow 后，还要做一次显存风险评估：
+
+Python
+运行
+@dataclass
+class VramRiskReport:
+    passed: bool
+    estimated_peak_gb: float
+    usable_vram_gb: float
+    risk_level: str
+    suggestions: list[str]
+
+
+class VramGate:
+    def check(self, workflow, budget: RuntimeBudget) -> VramRiskReport:
+        estimated = self.estimate_peak_vram(workflow)
+
+        if estimated <= budget.usable_vram_gb * 0.85:
+            return VramRiskReport(True, estimated, budget.usable_vram_gb, "low", [])
+
+        if estimated <= budget.usable_vram_gb:
+            return VramRiskReport(
+                True,
+         

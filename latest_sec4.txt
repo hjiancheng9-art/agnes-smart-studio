@@ -1,0 +1,136 @@
+4. 2024-2025 高级工作流范式
+4.1 图像生成主线：SDXL → Flux
+
+推荐优先级：
+
+低显存 / 稳定出图：
+  SD1.5 + HiresFix / Tiled VAE / Ultimate upscale
+
+中端显存：
+  SDXL Base + 可选 Refiner + Detailer
+
+高端显存：
+  Flux dev FP8 / full + LoRA / Control / Upscale
+
+低显存但想用 Flux：
+  Flux GGUF Q4/Q5/Q8
+
+SDXL 论文说明 SDXL 引入更大的 UNet、第二文本编码器、多比例训练，并提供 refiner 作为 post-hoc img2img 精修模型。你们的高级 SDXL 蓝图应把 Refiner 当“可选质量增强”，不是必选；因为它会明显增加显存和复杂度。
+arXiv
+
+4.2 Flux 工作流范式
+
+Flux 推荐拆成四个蓝图：
+
+Python
+运行
+FLUX_RECIPES = {
+    "flux_schnell_fast": {
+        "use": "快速出图 / 低步数 / 低显存",
+        "steps": 4,
+        "quality": "medium"
+    },
+    "flux_dev_fp8": {
+        "use": "主力高质量 / 显存可控",
+        "steps": "20-30",
+        "quality": "high"
+    },
+    "flux_dev_full": {
+        "use": "最高质量 / 24GB+",
+        "steps": "20-40",
+        "quality": "premium"
+    },
+    "flux_gguf": {
+        "use": "低显存运行 Flux",
+        "quant": "Q4/Q5/Q8",
+        "quality": "depends_on_quant"
+    }
+}
+
+官方文档明确区分 Flux full version 和 FP8 checkpoint：full version 效果最好但需要更多显存和多个模型文件；FP8 checkpoint 只需要一个 fp8 模型，资源要求更低，但质量略降。
+ComfyUI
+
+4.3 视频范式：Wan / LTX 代替旧 AnimateDiff 主导
+
+2025 后的视频主线建议：
+
+8GB:
+  Wan2.1 1.3B
+  Wan2.2 5B with native offloading
+  LTX low / fp8 route
+
+12-16GB:
+  Wan2.1/2.2 I2V 480p / 720p cautious
+  LTX-2.3 fp8
+  shorter length, fewer frames
+
+24GB+:
+  Wan2.2 14B T2V/I2V
+  LTX-2.3 full / fp8 + latent upscale
+
+Wan 论文说明 Wan 覆盖 T2V、I2V、视频编辑、个人视频生成等多任务；1.3B 版本强调消费级效率，约 8.19GB VRAM 可运行。
+arXiv
+
+LTX-Video 论文说明 LTX-Video 支持 T2V/I2V，采用高压缩 Video-VAE，目标是高效视频生成；官方 ComfyUI LTX-2.3 文档则把 I2V/T2V、9:16、音频、图生视频一致性列为新能力。
+arXiv
++1
+
+4.4 角色一致性 / FaceSwap 范式
+
+不要把“角色一致性”单一化。建议拆成 4 类：
+
+A. Prompt + Seed + Model Lock
+   最轻量，适合非脸部角色一致性。
+
+B. IPAdapter / FaceID
+   适合参考图主体、风格、身份迁移。
+
+C. InstantID / PuLID
+   适合人脸身份保持生成，不是简单贴脸。
+
+D. ReActor / FaceSwap
+   适合后处理换脸，但要明确风险和限制。
+
+InstantID 论文定位为 zero-shot identity-preserving generation，只需单张人脸图，可保持身份并适配 SD1.5/SDXL 等模型；PuLID 论文则强调 tuning-free ID customization，同时保持背景、光照、构图、风格等编辑性。
+arXiv
++1
+
+ReActor 是快速换脸节点，但它本质是后处理 face swap，不等同于“原生角色一致性生成”；其 README 也强调使用者需要自行承担责任，并带有成人内容防护。
+GitHub
+
+4.5 高清放大链最佳实践
+
+推荐三档：
+
+Python
+运行
+UPSCALE_RECIPES = {
+    "safe_low_vram": [
+        "generate <= 768/1024 side",
+        "tiled_vae_decode",
+        "external_upscale_model",
+        "optional_detailer"
+    ],
+    "sdxl_quality": [
+        "sdxl 1024 base",
+        "optional refiner",
+        "latent upscale or pixel upscale",
+        "detailer pass",
+        "save metadata"
+    ],
+    "premium": [
+        "flux/sdxl high-res base",
+        "region detailer",
+        "2x upscale",
+        "tile control",
+        "final sharpen/color pass"
+    ]
+}
+
+Impact Pack 的 Detector / Detailer / Upscaler / Pipe 是这个链路的常用基础设施；KJNodes、rgthree、Essentials、Custom-Scripts 更适合作为 workflow 可维护性和效率补充，不建议让小白工作流过度依赖 QoL 节点。
+GitHub
++3
+GitHub
++3
+GitHub
++3

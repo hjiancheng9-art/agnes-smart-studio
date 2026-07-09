@@ -1,0 +1,194 @@
+很好，这次已经把 NL→Workflow 的主链路真正闭环 了：agent.compile_workflow() 成为唯一入口，/compile 对外暴露，Showrunner 也不再绕路。现在剩下的不是“再接线”，而是补 真实可靠性边界。
+
+1. 还需要补什么？
+
+我建议只补 6 个关键点，不要继续扩架构。
+
+A. 编译结果分级返回
+
+现在 success=True/False 还不够，建议补 stage，方便定位失败点：
+
+Python
+运行
+{
+    "success": false,
+    "stage": "llm_compile | json_extract | schema_validate | node_validate | topology_validate | comfyui_submit",
+    "error": "...",
+    "raw": "...",
+    "hints": [...]
+}
+
+这样 /compile、Showrunner、测试都能知道是 LLM 输出错、JSON 错、节点错，还是 ComfyUI 拒收。
+
+B. 节点目录缓存
+
+2092 个节点每次实时拉可以，但启动和测试会慢。建议：
+
+cache/comfyui_nodes.json
+cache/comfyui_nodes.meta.json
+
+规则：
+
+Python
+运行
+优先用缓存
+启动时后台刷新，或 /health?refresh_nodes=1 手动刷新
+ComfyUI 不在线时使用最后一次缓存
+
+否则 ComfyUI 短暂断开时，compile_workflow() 会退化太厉害。
+
+C. 加一个真实 ComfyUI 提交前校验
+
+Schema 校验和拓扑校验只能证明“你自己认为合法”。最终还要让 ComfyUI 验。
+
+建议新增：
+
+Python
+运行
+agent.validate_with_comfyui(workflow)
+
+内部可以做：
+
+Python
+运行
+# 轻量模式：只调用 ComfyUI prompt 校验，不真正跑重任务
+# 或者用低 steps / 低分辨率 / 固定 seed 做 smoke run
+
+最终链路应该是：
+
+NL
+→ compile_workflow()
+→ local validate
+→ comfyui validate / smoke submit
+→ execute
+→ collect output
+D. 固定 5 条黄金 Prompt 回归集
+
+不要只测“画猫”。建议放进 tests/fixtures/nl_prompts.jsonl：
+
+JSON
+{"id":"txt2img_basic","nl":"生成一张512x512的电影感猫，写实风格"}
+{"id":"portrait","nl":"生成一个赛博朋克女性角色半身像，霓虹雨夜背景"}
+{"id":"landscape","nl":"生成一张神性外星文明浮空光塔，9:16，电影级构图"}
+{"id":"negative_prompt","nl":"生成写实机器人，不要文字，不要水印，不要畸形手"}
+{"id":"bad_request","nl":"随便弄个很高级的东西"}
+
+每条至少验证：
+
+能编译
+节点都存在
+拓扑连通
+ComfyUI 能接受
+失败时有明确 stage/error
+E. 给 LLM 输出加“最小工作流优先”约束
+
+真实 LLM 很容易过度复杂化。编译 prompt 里加一句硬约束：
+
+Prefer the simplest valid ComfyUI workflow that satisfies the request.
+Do not add optional nodes unless necessary.
+Use only nodes from the provided catalog.
+Return JSON only.
+
+否则 2092 个节点会诱导它乱选高级节点。
+
+F. Showrunner 不要直接相信 compile 结果
+
+showrunner_orchestrator.py 里建议这样：
+
+Python
+运行
+compiled = agent.compile_workflow(nl_prompt)
+
+if not compiled["success"]:
+    return {
+        "success": False,
+        "stage": "compile",
+        "shot_id": shot.id,
+        "error": compiled["error"],
+    }
+
+validated = agent.validate(compiled["workflow"])
+if not validated["ok"]:
+    return {
+        "success": False,
+        "stage": "validate",
+        "shot_id": shot.id,
+        "error": validated["error"],
+    }
+
+return agent.execute(compiled["workflow"])
+
+Showrunner 应该负责编排，不应该吞掉底层失败。
+
+2. 接下来是否应该配真实 LLM 做 E2E？
+
+是，立刻做。
+
+现在已经到了必须做真实验收的阶段：
+
+自然语言
+→ LLM 编译 workflow
+→ 本地校验
+→ ComfyUI 接收
+→ 真实生图
+→ 返回文件路径
+
+这是 V4 RC0 能不能升级到真正可用版的关键门槛。
+
+我的建议顺序：
+
+推荐先用 DeepSeek
+
+原因：
+
+JSON 遵循能力更稳
+API 接入简单
+比本地 Ollama 更适合先验证 NL→Workflow 编译质量
+
+然后再接 Ollama 做离线降级。
+
+推荐配置策略：
+
+Python
+运行
+LLM_PRIORITY = [
+    "deepseek",   # 主编译器
+    "ollama",     # 离线 fallback
+]
+E2E 验收标准
+
+建议你这次不要只测一次，直接定成 Release Gate：
+
+5 条 NL prompt
+每条最多重试 2 次
+至少 4/5 成功生成图片
+失败项必须有可读 error stage
+不能出现未知节点
+不能出现断拓扑
+不能出现空输出
+
+最低验收命令可以设计成：
+
+Bash
+python tests/e2e_compile_generate.py --provider deepseek --count 5
+
+成功输出：
+
+[1/5] txt2img_basic ✅ compiled ✅ validated ✅ generated
+[2/5] portrait ✅ compiled ✅ validated ✅ generated
+[3/5] landscape ✅ compiled ✅ validated ✅ generated
+[4/5] negative_prompt ✅ compiled ✅ validated ✅ generated
+[5/5] vague_request ⚠️ compile_failed stage=llm_compile hint=need_more_specific_prompt
+
+E2E PASS: 4/5 generated, 1 graceful failure
+下一步路线
+
+我建议下一步就做这 3 件：
+
+P0: 配 DeepSeek，跑真实 NL→Workflow→生图
+P1: 加 stage/error/hints 分级错误返回
+P2: 固化 5 条黄金 prompt 回归测试
+
+一句话判断：
+
+工作流生成功能现在已经从“骨架存在”进入“可真实验收”阶段，下一步必须用真实 LLM + 真实 ComfyUI 跑完整 E2E，而不是继续重构。

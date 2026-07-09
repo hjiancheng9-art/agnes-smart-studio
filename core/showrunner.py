@@ -504,3 +504,57 @@ def list_pipeline_templates():
         "concept_art": "Concept art: explore->prompts->generate->curate->deliver",
         "novel_chapter": "Novel chapter: expand->write->illustrate->polish->export",
     }
+
+
+    # ═══════════════════════════════════════════════
+    #  ComfyUI Agent 桥接 (V4 集成)
+    # ═══════════════════════════════════════════════
+
+    async def _comfyui_bridge(self, prompt: str, mode: str = "image", style: str = "cinematic") -> dict:
+        """通过 ComfyUI Agent Orchestrator 生成"""
+        try:
+            import requests
+            agent_url = os.environ.get("COMFYUI_AGENT_URL", "http://127.0.0.1:5000")
+            resp = requests.post(
+                f"{agent_url}/produce/quick",
+                json={"prompt": prompt, "style": style},
+                timeout=120,
+            )
+            data = resp.json()
+            if data.get("success"):
+                return {
+                    "source": "comfyui",
+                    "outputs": data.get("outputs", []),
+                    "mode": mode,
+                }
+            return {"source": "comfyui", "error": data.get("error", "unknown"), "mode": mode}
+        except Exception as e:
+            return {"source": "comfyui", "error": str(e), "fallback": "direct"}
+
+    async def produce_shot_plan(self, plan: dict) -> dict:
+        """提交完整 ShotPlan 到 ComfyUI Agent"""
+        try:
+            import requests
+            agent_url = os.environ.get("COMFYUI_AGENT_URL", "http://127.0.0.1:5000")
+            resp = requests.post(
+                f"{agent_url}/produce",
+                json=plan,
+                timeout=300,
+            )
+            return resp.json()
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def design_character(self, name: str, description: str = "", archetype: str = "") -> dict:
+        """通过 Actor-craft 设计角色"""
+        try:
+            import requests
+            agent_url = os.environ.get("COMFYUI_AGENT_URL", "http://127.0.0.1:5000")
+            resp = requests.post(
+                f"{agent_url}/actor/design",
+                json={"name": name, "description": description, "archetype": archetype},
+                timeout=30,
+            )
+            return resp.json()
+        except Exception as e:
+            return {"success": False, "error": str(e)}

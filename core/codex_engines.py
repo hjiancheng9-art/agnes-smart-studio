@@ -265,29 +265,62 @@ def _pw_run(action: str, **kwargs) -> dict:
 
 
 def pw_navigate(url: str) -> str:
-    """Navigate browser to URL (fresh subprocess, no async conflict)."""
-    r = _pw_run("navigate", url=url)
-    if r.get("error"):
-        return f"[错误] pw_navigate: {r['error']}"
-    return f"已导航: {r.get('url', url)} — {r.get('title', '')}"
+    """
+    浏览器导航到指定 URL
+    v6.1: CDP 直连（替代 subprocess），短超时 + JS 降级 + 自动重连
+    """
+    import json as _json
+    from core.cdp_browser import pw_navigate as _cdp_navigate
+    try:
+        result = _json.loads(_cdp_navigate(url))
+        if result.get("success"):
+            return f"已导航: {result.get('url', url)} — {result.get('title', '')}"
+        return f"[导航失败] {result.get('error', '未知错误')}"
+    except Exception as e:
+        return f"[导航错误] {type(e).__name__}: {e}"
 
 
 def pw_screenshot() -> str:
-    """Screenshot current browser (fresh subprocess, no async conflict)."""
+    """
+    截图当前浏览器页面
+    v6.1: CDP 直连（替代 subprocess）
+    """
     import time as _time
-    path = str(ROOT / "output" / f"browser_{int(_time.time())}.png")
-    r = _pw_run("screenshot", path=path)
-    if r.get("error"):
-        return f"[错误] pw_screenshot: {r['error']}"
-    return r.get("path", path)
+    from pathlib import Path as _Path
+    from core.cdp_browser import cdp_session
+
+    out_dir = _Path("output")
+    out_dir.mkdir(exist_ok=True)
+    path = str(out_dir / f"browser_{int(_time.time())}.png")
+
+    try:
+        with cdp_session() as browser:
+            for ctx in browser.contexts:
+                for p in ctx.pages:
+                    if p.url and p.url != "about:blank":
+                        p.screenshot(path=path, full_page=True)
+                        return f"✅ 截图已保存: {path}"
+            return "[截图] 无可用页面"
+    except Exception as e:
+        return f"[截图错误] {type(e).__name__}: {e}"
 
 
 def pw_click(selector: str) -> str:
-    """Click element (fresh subprocess, no async conflict)."""
-    r = _pw_run("click", selector=selector)
-    if r.get("error"):
-        return f"[错误] pw_click: {r['error']}"
-    return f"已点击: {selector}"
+    """
+    点击元素（CDP 直连）
+    v6.1: 短超时 + JS 降级
+    """
+    from core.cdp_browser import cdp_session, safe_click
+    try:
+        with cdp_session() as browser:
+            for ctx in browser.contexts:
+                for p in ctx.pages:
+                    if p.url and p.url != "about:blank":
+                        ok = safe_click(p, selector)
+                        return f"已点击: {selector}" if ok else f"[点击失败] {selector}"
+            return "[点击] 无可用页面"
+    except Exception as e:
+        return f"[点击错误] {type(e).__name__}: {e}"
 
 
 def pw_fill(selector: str, text: str) -> str:

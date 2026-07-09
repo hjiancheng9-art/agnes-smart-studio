@@ -1,0 +1,134 @@
+_video",
+    "flux_to_ltx_video",
+    "wan_t2v",
+    "wan_i2v",
+    "wan_action_transfer",
+    "wan_character_replace",
+    "video_lipsync",
+    "video_upscale",
+]
+
+最小代码：
+
+Python
+运行
+def classify_production_intent(text: str) -> str:
+    t = text.lower()
+
+    if any(x in t for x in ["动作迁移", "动作参考", "motion transfer", "animate"]):
+        return "wan_action_transfer"
+
+    if any(x in t for x in ["换人", "人物替换", "换脸", "character replace"]):
+        return "wan_character_replace"
+
+    if any(x in t for x in ["上传音频", "音频驱动", "audio", "对口型", "lip sync"]):
+        return "ltx_i2v_audio"
+
+    if any(x in t for x in ["图生视频", "i2v", "image to video"]):
+        return "ltx_i2v"
+
+    if any(x in t for x in ["视频", "video", "镜头", "运镜"]):
+        return "ltx_t2v"
+
+    if any(x in t for x in ["编辑图片", "换装", "改图", "image edit", "kontext"]):
+        return "flux_image_edit"
+
+    if any(x in t for x in ["flux", "高质量", "电影感", "真实感"]):
+        return "flux_txt2img"
+
+    return "sd_txt2img"
+升级 2：蓝图必须支持 multi-stage pipeline
+
+真实高级工作流不是一个 graph，而是多个 stage：
+
+stage 1: 输入 / 预处理
+stage 2: 图像生成 / 编辑
+stage 3: 视频生成
+stage 4: 音频 / latent 处理
+stage 5: 输出合成
+
+建议数据结构：
+
+Python
+运行
+@dataclass
+class StageSpec:
+    name: str
+    required_nodes: list[str]
+    optional_nodes: list[str]
+    output_type: str
+
+
+@dataclass
+class PipelineBlueprint:
+    id: str
+    intent: str
+    stages: list[StageSpec]
+    min_vram_gb: float
+    quality_score: float
+
+示例：
+
+Python
+运行
+FLUX_TO_LTX_PIPELINE = PipelineBlueprint(
+    id="flux_to_ltx_video_loop",
+    intent="flux_to_ltx_video",
+    min_vram_gb=16,
+    quality_score=0.94,
+    stages=[
+        StageSpec(
+            name="flux_image_edit",
+            required_nodes=[
+                "UNETLoader",
+                "DualCLIPLoader",
+                "VAELoader",
+                "LoraLoaderModelOnly",
+                "SamplerCustomAdvanced",
+                "VAEDecode",
+            ],
+            optional_nodes=["VAEDecodeTiled"],
+            output_type="IMAGE",
+        ),
+        StageSpec(
+            name="ltx_i2v",
+            required_nodes=[
+                "LTXVConditioning",
+                "LTXVImgToVideoInplace",
+                "LTXVConcatAVLatent",
+                "LTXVSeparateAVLatent",
+                "SamplerCustomAdvanced",
+                "VHS_VideoCombine",
+            ],
+            optional_nodes=[
+                "LTXVCropGuides",
+                "LTXVAudioVAEDecode",
+            ],
+            output_type="VIDEO",
+        ),
+    ],
+)
+升级 3：必须把 VHS / MarkdownNote / Reroute 当基础设施
+
+不要把它们当“无关节点”。
+
+你的生产级蓝图应该有：
+
+Python
+运行
+INFRA_NODE_POLICY = {
+    "video_output": "VHS_VideoCombine",
+    "input_video": "VHS_LoadVideo",
+    "documentation": ["MarkdownNote", "Note"],
+    "graph_readability": ["Reroute", "Label (rgthree)"],
+    "global_variables": ["GetNode", "SetNode"],
+    "group_toggle": ["Fast Groups Bypasser (rgthree)"],
+}
+
+规则：
+
+Python
+运行
+def apply_infra_policy(workflow, blueprint, output_mode):
+    if blueprint.output_type == "VIDEO":
+        wor

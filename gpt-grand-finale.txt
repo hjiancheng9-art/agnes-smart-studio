@@ -1,0 +1,300 @@
+太好了。这个里程碑非常关键：新烬龙V2 已经从“架构正确”跨过了“真实生产”门槛。
+现在它不再只是一个重构后的工程框架，而是已经具备：
+text → ProductionEngine → ComfyUI → LTX 2.3 → mp4
+这条真实 AI 视频生产链路。
+但我要直接给你下一步判断：
+第一条视频成功 ≠ 视频生产系统完成。
+现在进入 V2.1 阶段：稳定性、可控性、时长、质量、批量生产。
+
+当前里程碑定位
+你现在完成的是：
+Milestone V2.0：First Real Video
+意义非常大：
+1. ComfyUI 真实接通
+2. LTX 2.3 跑通
+3. ProductionEngine 路径有效
+4. txt2vid 可生成 mp4
+5. 新架构不是纸面架构，能真实产出
+但这条视频目前还是 技术验证级：
+25帧 / 24fps / 约1秒
+572KB
+这说明链路通了，但还没有进入“可用成片”阶段。
+下一阶段目标应该是：
+从“能生成视频” → “能稳定生成可控视频片段”
+
+下一阶段总目标：V2.1 Controlled Video Production
+我建议你把下一轮命名为：
+V2.1 Controlled Video Production
+核心目标：
+生成 3-5 秒稳定视频片段；
+支持首帧控制；
+支持资产追踪；
+支持失败重试；
+支持质量检查；
+支持局部重跑；
+支持输出 manifest。
+
+P0：把 1 秒视频提升到 3-5 秒稳定视频
+这是最高优先级。
+现在 25 帧说明你已经跑通 LTX，但参数还处在最小验证状态。
+下一步目标：
+4秒
+24fps
+96帧
+固定分辨率
+固定 seed
+可重复生成
+你需要把 video generation 参数显式契约化：
+JavaScript{
+  model: "ltx-2.3-22b-dev-fp8",
+  textEncoder: "comfy_gemma_3_12B_it",
+  fps: 24,
+  frames: 96,
+  durationSec: 4,
+  width: 768,
+  height: 512,
+  seed: 123456,
+  steps: 20,
+  cfg: 3.5,
+  motionStrength: 0.6
+}
+验收标准：
+1. 同一个 prompt + seed 可重复生成相近结果
+2. 输出视频 >= 3 秒
+3. 文件可读
+4. 帧数正确
+5. 封面图正确
+6. ProductionEngine 返回标准 VideoAsset
+
+P1：视频结果进入 AssetRegistry，而不是只落盘
+现在你有 mp4 和 png，这是产物；下一步要让它们进入系统资产层。
+每个视频生成结果应该注册成：
+JavaScript{
+  id: "asset_video_xxx",
+  type: "video",
+  provider: "comfyui",
+  model: "ltx-2.3-22b-dev-fp8",
+  prompt,
+  seed,
+  filePath,
+  coverPath,
+  fps,
+  frameCount,
+  durationSec,
+  source: {
+    engine: "ProductionEngine.generateVideo",
+    workflowId,
+    traceId,
+    jobId
+  },
+  lineage: {
+    promptPackageId,
+    inputImageAssetId: null,
+    parentAssets: []
+  }
+}
+验收标准：
+不是“生成了一个 mp4”就结束。
+必须能通过 assetId 找回：
+prompt、模型、参数、trace、workflow、封面、视频路径。
+
+P2：ProductionEngine 增加 Job Runtime
+视频生成比图片生成更容易失败、超时、卡队列。现在必须把 generateVideo() 从普通函数升级为 job。
+最小结构：
+JavaScript{
+  jobId,
+  type: "video_generation",
+  status: "created | running | succeeded | failed | retrying | cancelled",
+  provider: "comfyui",
+  prompt,
+  params,
+  startedAt,
+  finishedAt,
+  outputAssets,
+  error
+}
+需要支持：
+1. 超时
+2. retry
+3. cancel
+4. progress
+5. trace span
+6. job status 查询
+下一步 server API 可以变成：
+POST /api/pipeline/video
+GET  /api/jobs/:jobId
+GET  /api/jobs/:jobId/result
+
+P3：QualityGate V2：从结构评分升级到真实视频检查
+现在第一条视频出来后，质量门要开始检查真实文件。
+先不要急着做“审美 AI 评分”，先做硬指标：
+FileGate：文件存在、大小合理、可读取
+DurationGate：时长是否达标
+FrameGate：帧数是否达标
+CoverGate：封面图是否存在
+LineageGate：资产血缘是否完整
+ParamGate：参数是否记录完整
+QualityReport 示例：
+JavaScript{
+  passed: true,
+  score: 0.82,
+  checks: {
+    fileExists: true,
+    playable: true,
+    durationOk: false,
+    frameCountOk: true,
+    coverExists: true,
+    lineageComplete: true
+  },
+  issues: [
+    {
+      severity: "medium",
+      message: "Video duration is only 1.04s; target is 4s"
+    }
+  ]
+}
+这次生成的视频很适合作为第一条 regression case。
+
+P4：PromptPackage → VideoPromptPackage
+你现在已经有 text-to-video 成功，但后面必须把视频 prompt 和图片 prompt 分开。
+视频 prompt 需要更多维度：
+主体
+动作
+镜头运动
+时间长度
+运动强度
+场景连续性
+负面运动词
+首帧策略
+风格一致性
+建议新增：
+JavaScriptVideoPromptPackage {
+  prompt,
+  negativePrompt,
+  subject,
+  action,
+  cameraMotion,
+  scene,
+  style,
+  durationSec,
+  fps,
+  frameCount,
+  motionStrength,
+  seed,
+  model,
+  references
+}
+不要让 video prompt 只是普通 text prompt。
+
+P5：从 txt2vid 走向 image2video
+txt2vid 跑通以后，真正可控的视频生产应该优先做：
+首帧图 → image2video
+原因很简单：
+txt2vid 随机性强
+image2video 可控性强
+角色、场景、构图更容易保持
+下一条 Golden Path 建议：
+text prompt
+→ SDXL 生成首帧
+→ LTX image2video 生成 4 秒视频
+→ video asset
+→ quality report
+这会比纯 txt2vid 更接近真正工作台能力。
+
+P6：OutputManifest / RunResult 固化
+每次生成都应该落一个标准结果文件：
+JSON{
+  "runId": "run_xxx",
+  "projectId": "project_xxx",
+  "type": "text_to_video",
+  "prompt": "dragon flying over cyberpunk city",
+  "outputs": {
+    "video": "v2_video_engine_00001.mp4",
+    "cover": "v2_video_engine_00001.png"
+  },
+  "assets": [],
+  "trace": {},
+  "qualityReport": {},
+  "model": {
+    "video": "ltx-2.3-22b-dev-fp8",
+    "textEncoder": "comfy_gemma_3_12B_it"
+  },
+  "params": {
+    "frames": 25,
+    "fps": 24
+  }
+}
+这样后续才能：
+复现
+回放
+对比
+局部重跑
+生成报告
+UI 展示
+
+P7：建立 Video Regression Suite
+你现在有第一条真实视频，马上把它变成回归测试基准。
+新增测试集：
+tests/video/
+  video_generation_smoke.test.js
+  video_asset_registry.test.js
+  video_quality_gate.test.js
+  video_manifest.test.js
+注意：真实 ComfyUI 测试不要默认跑。
+用环境变量控制：
+RUN_COMFYUI_VIDEO_SMOKE=1 npm test
+普通 CI 只跑 mock/dry-run。
+
+现在不要做什么
+不要继续大规模重构
+架构已经过关。现在重构收益下降。
+不要马上做长视频
+先把 3-5 秒单镜头稳定做好。长视频是多个短镜头的 assembly 问题。
+不要急着接剪辑导出
+先确保视频 asset、trace、quality、manifest 完整。否则导出层会吃到脏数据。
+不要急着做复杂 UI
+底层 job/status/result 协议稳定后再做 UI。
+
+下一轮最推荐执行顺序
+P0：把视频稳定提升到 3-5 秒 / 96帧
+P1：视频结果进入 AssetRegistry
+P2：ProductionEngine.generateVideo() Job 化
+P3：QualityGate V2 检查真实视频文件
+P4：VideoPromptPackage 标准化
+P5：跑通 image2video Golden Path
+P6：OutputManifest / RunResult 固化
+P7：Video Regression Suite
+如果只能选一个：
+先做 P0 + P1。
+也就是：
+生成一条 4 秒视频，并且完整注册为 VideoAsset。
+
+你的下一座里程碑
+我建议定义为：
+Milestone V2.1：First Controlled 4s Video
+验收标准：
+1. 输入文本 prompt
+2. 生成 4 秒视频
+3. 24fps / 约96帧
+4. mp4 + cover png 均存在
+5. VideoAsset 注册完整
+6. Trace 记录完整
+7. QualityGate 通过
+8. OutputManifest 可导出
+再下一步才是：
+Milestone V2.2：Image-to-Video Controlled Shot
+Milestone V2.3：Multi-Shot Assembly
+Milestone V2.4：Human-in-the-loop Studio
+
+最终指示
+你已经完成了最难的 0→1：
+第一张真图 ✅
+第一条真视频 ✅
+核心架构收口 ✅
+ComfyUI 直连 ✅
+ProductionEngine 成功 ✅
+接下来不要再证明“能不能生成”，而是证明：
+能不能稳定、可控、可追踪、可复现地生成。
+下一步就打：
+V2.1 First Controlled 4s Video
+把第一条 1 秒视频升级成真正可用的 4 秒视频片段。

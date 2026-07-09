@@ -1,0 +1,77 @@
+{
+  "id": "proj_mrcp7cx7_aeo42",
+  "name": "入场演示",
+  "description": "欢迎使用新烬龙V2",
+  "status": "producing",
+  "created": "2026-07-08T23:17:41.035Z",
+  "updated": "2026-07-08T23:17:41.097Z",
+  "pipeline": {
+    "stage": "visual",
+    "intent": "30秒赛博朋克城市宣传片，展现未来科技感",
+    "brief": "风格: 赛博朋克\n色调: 紫蓝/洋红\n受众: 18-35岁科技爱好者",
+    "storyboard": "镜头1: 城市天际线全景, 霓虹灯海\n镜头2: 未来街道跟拍, 飞行汽车\n镜头3: 全息广告特写, 数据流环绕",
+    "shots": [
+      {
+        "index": 0,
+        "description": "镜头1: 城市天际线全景",
+        "imagePrompt": "",
+        "visualStyle": "",
+        "motion": "",
+        "status": "pending",
+        "imageUrl": null,
+        "videoUrl": null
+      },
+      {
+        "index": 1,
+        "description": "霓虹灯海",
+        "imagePrompt": "",
+        "visualStyle": "",
+        "motion": "",
+        "status": "pending",
+        "imageUrl": null,
+        "videoUrl": null
+      },
+      {
+        "index": 2,
+        "description": "镜头2: 未来街道跟拍",
+        "imagePrompt": "",
+        "visualStyle": "",
+        "motion": "",
+        "status": "pending",
+        "imageUrl": null,
+        "videoUrl": null
+      },
+      {
+        "index": 3,
+        "description": "飞行汽车",
+        "imagePrompt": "",
+        "visualStyle": "",
+        "motion": "",
+        "status": "pending",
+        "imageUrl": null,
+        "videoUrl": null
+      },
+      {
+        "index": 4,
+        "description": "镜头3: 全息广告特写",
+        "imagePrompt": "",
+        "visualStyle": "",
+        "motion": "",
+        "status": "pending",
+        "imageUrl": null,
+        "videoUrl": null
+      },
+      {
+        "index": 5,
+        "description": "数据流环绕",
+        "imagePrompt": "",
+        "visualStyle": "",
+        "motion": "",
+        "status": "pending",
+        "imageUrl": null,
+        "videoUrl": null
+      }
+    ],
+    "deliverables": []
+  }
+}

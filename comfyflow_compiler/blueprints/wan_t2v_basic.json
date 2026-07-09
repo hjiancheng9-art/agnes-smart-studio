@@ -1,0 +1,214 @@
+{
+  "schema_version": "1.0.0",
+  "id": "wan_t2v_basic",
+  "name": "WAN Text-to-Video",
+  "version": "1.0.0",
+  "status": "beta",
+  "source": {
+    "origin": "handcrafted",
+    "workflow_id": "wan_t2v_001",
+    "mined_at": "2026-07-09T18:15:05.155605+00:00"
+  },
+  "capability": {
+    "task_type": "t2v",
+    "description": "WAN 文生视频 — 基础版",
+    "tags": [
+      "wan",
+      "video",
+      "t2v"
+    ],
+    "styles": [
+      "cinematic",
+      "realistic"
+    ],
+    "models": [
+      {
+        "name": "WAN2.1-T2V",
+        "type": "unet",
+        "required": true
+      }
+    ],
+    "performance_hint": {
+      "gpu_vram_gb": 16.0,
+      "avg_gen_time_s": 90.0
+    }
+  },
+  "requirements": {
+    "min_nodes": 4,
+    "required_nodes": [
+      {
+        "class_type": "CLIPTextEncode",
+        "reason": "提示词编码"
+      },
+      {
+        "class_type": "WANVideoSampler",
+        "reason": "视频采样核心"
+      }
+    ],
+    "recommended_nodes": [
+      "VAEDecode",
+      "VHS_VideoCombine"
+    ],
+    "custom_nodes": [
+      {
+        "name": "ComfyUI-WAN",
+        "install_hint": "git clone https://github.com/WAN/ComfyUI-WAN"
+      }
+    ]
+  },
+  "input_contract": {
+    "fields": [
+      {
+        "name": "prompt",
+        "type": "text",
+        "description": "视频描述",
+        "required": true,
+        "example": "a dog running on the beach"
+      },
+      {
+        "name": "negative_prompt",
+        "type": "text",
+        "description": "负向提示词",
+        "required": false
+      },
+      {
+        "name": "seed",
+        "type": "number",
+        "description": "随机种子",
+        "default": -1
+      }
+    ]
+  },
+  "output_contract": {
+    "fields": [
+      {
+        "name": "output",
+        "type": "video",
+        "description": "生成视频",
+        "preview": true
+      }
+    ]
+  },
+  "graph_template": {
+    "nodes": [
+      {
+        "id": "1",
+        "class_type": "CLIPTextEncode",
+        "title": "CLIP Text Encode"
+      },
+      {
+        "id": "2",
+        "class_type": "WANVideoSampler",
+        "title": "WAN Video Sampler"
+      },
+      {
+        "id": "3",
+        "class_type": "VAEDecode",
+        "title": "VAE Decode"
+      },
+      {
+        "id": "4",
+        "class_type": "VHS_VideoCombine",
+        "title": "Video Combine",
+        "is_output": true
+      }
+    ],
+    "edges": [
+      {
+        "from_node": "1",
+        "from_slot": 0,
+        "to_node": "2",
+        "to_slot": 2
+      },
+      {
+        "from_node": "2",
+        "from_slot": 0,
+        "to_node": "3",
+        "to_slot": 0
+      },
+      {
+        "from_node": "3",
+        "from_slot": 0,
+        "to_node": "4",
+        "to_slot": 0
+      }
+    ],
+    "entry_points": [
+      "1"
+    ],
+    "exit_points": [
+      "4"
+    ]
+  },
+  "slots": {
+    "CLIPTextEncode.text": {
+      "node_id": "1",
+      "input_name": "text",
+      "type": "text",
+      "description": "视频描述",
+      "required": true,
+      "expose_to_ui": true,
+      "ui_label": "Prompt",
+      "ui_group": "prompt"
+    },
+    "WANVideoSampler.seed": {
+      "node_id": "2",
+      "input_name": "seed",
+      "type": "seed",
+      "description": "种子",
+      "expose_to_ui": true,
+      "ui_label": "Seed",
+      "ui_group": "sampling"
+    },
+    "WANVideoSampler.steps": {
+      "node_id": "2",
+      "input_name": "steps",
+      "type": "number",
+      "description": "步数",
+      "default": 30,
+      "min": 1,
+      "max": 100,
+      "expose_to_ui": true,
+      "ui_label": "Steps",
+      "ui_group": "sampling"
+    }
+  },
+  "quality_modes": {
+    "draft": {
+      "steps": 15,
+      "cfg": 3.0,
+      "sampler": "euler",
+      "scheduler": "normal",
+      "resolution": "512x288"
+    },
+    "standard": {
+      "steps": 30,
+      "cfg": 4.5,
+      "sampler": "euler",
+      "scheduler": "normal",
+      "resolution": "768x512"
+    },
+    "quality": {
+      "steps": 50,
+      "cfg": 5.0,
+      "sampler": "dpmpp_2m",
+      "scheduler": "karras",
+      "resolution": "768x512"
+    }
+  },
+  "validation": {
+    "required_vram_gb": 16.0,
+    "tested_models": [
+      "WAN2.1-T2V"
+    ],
+    "known_issues": [
+      "需要 ComfyUI-WAN 自定义节点"
+    ]
+  },
+  "metadata": {
+    "created_at": "2026-07-09T18:15:05.155605+00:00",
+    "updated_at": "2026-07-09T18:15:05.155605+00:00",
+    "total_nodes": 4,
+    "total_edges": 3
+  }
+}

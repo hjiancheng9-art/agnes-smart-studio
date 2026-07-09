@@ -1,0 +1,16 @@
+{
+  "id": "proj_mrd46ben_hws43",
+  "name": "test",
+  "description": "test",
+  "status": "draft",
+  "created": "2026-07-09T06:16:46.655Z",
+  "updated": "2026-07-09T06:16:46.655Z",
+  "pipeline": {
+    "stage": "intent",
+    "intent": null,
+    "brief": null,
+    "storyboard": [],
+    "shots": [],
+    "deliverables": []
+  }
+}

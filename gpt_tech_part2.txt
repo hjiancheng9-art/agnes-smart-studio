@@ -1,0 +1,155 @@
+   "7": {
+        "class_type": "CLIPTextEncode",
+        "inputs": {
+            "text": (
+                "low quality, worst quality, blurry, noisy, jpeg artifacts, "
+                "bad anatomy, deformed, extra limbs, watermark, text, logo, "
+                "oversaturated, flat lighting, ugly, duplicate"
+            ),
+            "clip": ["4", 1],
+        },
+        "_meta": {
+            "title": "Negative Prompt"
+        },
+    },
+
+    # -------------------------------------------------------------------------
+    # 3. 采样器
+    #
+    # 必须字段：
+    #   seed: int
+    #   steps: int
+    #   cfg: float
+    #   sampler_name: str
+    #   scheduler: str
+    #   denoise: float
+    #   model: ["CheckpointLoaderSimple", 0]
+    #   positive: ["CLIPTextEncode positive", 0]
+    #   negative: ["CLIPTextEncode negative", 0]
+    #   latent_image: ["EmptyLatentImage", 0]
+    #
+    # 推荐质量参数：
+    #   steps: 25-40
+    #   cfg: 5.5-8.5
+    #   sampler_name: "dpmpp_2m"
+    #   scheduler: "karras"
+    #   denoise: 1.0
+    # -------------------------------------------------------------------------
+    "3": {
+        "class_type": "KSampler",
+        "inputs": {
+            "seed": 123456789,
+            "steps": 32,
+            "cfg": 7.0,
+            "sampler_name": "dpmpp_2m",
+            "scheduler": "karras",
+            "denoise": 1.0,
+            "model": ["4", 0],
+            "positive": ["6", 0],
+            "negative": ["7", 0],
+            "latent_image": ["5", 0],
+        },
+        "_meta": {
+            "title": "KSampler"
+        },
+    },
+
+    # -------------------------------------------------------------------------
+    # 8. VAE Decode
+    #
+    # 必须字段：
+    #   samples: ["KSampler", 0]
+    #   vae: ["CheckpointLoaderSimple", 2]
+    # -------------------------------------------------------------------------
+    "8": {
+        "class_type": "VAEDecode",
+        "inputs": {
+            "samples": ["3", 0],
+            "vae": ["4", 2],
+        },
+        "_meta": {
+            "title": "VAE Decode"
+        },
+    },
+
+    # -------------------------------------------------------------------------
+    # 9. 保存图片
+    #
+    # 必须字段：
+    #   filename_prefix: str
+    #   images: ["VAEDecode", 0]
+    # -------------------------------------------------------------------------
+    "9": {
+        "class_type": "SaveImage",
+        "inputs": {
+            "filename_prefix": "ComfyFlow/cyberpunk_cat",
+            "images": ["8", 0],
+        },
+        "_meta": {
+            "title": "Save Image"
+        },
+    },
+}
+
+
+def save_sdxl_workflow_api_json(path: str | Path) -> None:
+    path = Path(path)
+    path.write_text(
+        json.dumps(SDXL_TXT2IMG_WORKFLOW_API, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def build_prompt_payload(workflow: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    提交给 ComfyUI /prompt 的 payload。
+    """
+    return {
+        "prompt": workflow
+    }
+
+
+# =============================================================================
+# 2. Windows 下显存检测：detect_gpu()
+# =============================================================================
+
+@dataclass
+class GPUInfo:
+    gpu_name: Optional[str]
+    vram_gb: float
+    cuda_available: bool
+    source: str
+    error: Optional[str] = None
+
+
+def detect_gpu() -> GPUInfo:
+    """
+    Windows / Linux 都可用。
+    优先级：
+      1. pynvml
+      2. nvidia-smi
+      3. torch.cuda
+      4. fallback: 无 NVIDIA GPU
+
+    返回：
+      gpu_name: str | None
+      vram_gb: float
+      cuda_available: bool
+    """
+
+    # 1. pynvml: 最可靠，适合 Windows + NVIDIA
+    nvml_result = _detect_gpu_with_pynvml()
+    if nvml_result.cuda_available:
+        return nvml_result
+
+    # 2. nvidia-smi: 不需要 Python 包，但依赖驱动命令可用
+    smi_result = _detect_gpu_with_nvidia_smi()
+    if smi_result.cuda_available:
+        return smi_result
+
+    # 3. torch.cuda: 项目里如果已经装 torch，可以兜底
+    torch_result = _detect_gpu_with_torch()
+    if torch_result.cuda_available:
+        return torch_result
+
+    # 4. 没有 N 卡 / 驱动没装 / CUDA 不

@@ -239,7 +239,7 @@ def build_welcome_formatted(
         return sum(2 if unicodedata.east_asian_width(c) in ("W", "F") else 1 for c in s)
 
     # ── Title ──
-    L([(Y, "  CRUX Studio"), (M, f"  v{_ver}"), (M, "  ·  "), (W, "平时如刀，出事成阵"), (M, "  ·  "), (G, "● ready")])
+    L([(Y, "  CRUX Studio"), (M, f"  v{_ver}"), (M, "  ·  "), (W, "平时如刀，出事成阵"), (M, "  ·  "), (T, "本地智能执行平台"), (M, "  ·  "), (G, "● ready")])
     L([("", "\n")])
 
     # ── Badge bar ──
@@ -250,7 +250,7 @@ def build_welcome_formatted(
     _bb: StyleAndTextTuples = []
     _bb.extend(_badge(B, f" {_model} "))
     _bb.extend(_badge(P, f" {_branch} "))
-    _bb.extend(_badge(G, " 1659 tests "))
+    _bb.extend(_badge(G, " 2626 tests "))
     _bb.extend(_badge(T, f" v{_ver} "))
     _bb.extend(_badge(A, " 50+ skills "))
     _bb.append((S, sp(CW - sum(len(x[1]) + 2 for x in _bb) - 2)))
@@ -340,10 +340,10 @@ def build_welcome_formatted(
     ]
     _sys = [
         ("● ready", G),
-        ("Hot path <1K tok", W),
-        ("平时如刀，出事成阵", Y),
-        ("97+ tools on demand", M),
-        ("极简内核 · 按需治理", P),
+        ("Intelligence Pipeline", P),
+        ("6 模式 · 82%/96% 路由", W),
+        ("7 Runtime · 289 tests ✓", G),
+        ("Arena · 自学习 · 灰度", T),
     ]
 
     for i in range(5):
@@ -394,9 +394,9 @@ def build_welcome_formatted(
         _wbox_row(Y, "CRUX SYSTEM ONLINE", wl_w),
         _wbox_row(S, "", wl_w),
         _wbox_row(W, "平时如刀，出事成阵", wl_w),
-        _wbox_row(W, "Lean core · Tools ready · Beasts on call", wl_w),
-        _wbox_row(G, "v6.0 • Tests 1659 ✓ • CI/CD ✓ • Wiki 14 ✓", wl_w),
-        _wbox_row(A, "AI Score: 8.1 → 8.9 • Ruff: 177 left", wl_w),
+        _wbox_row(W, "本地智能执行平台 · Agent OS", wl_w),
+        _wbox_row(G, "v6.0 · Router 82% · 2626 tests ✓ · Arena ready", wl_w),
+        _wbox_row(A, "AI Score: 8.5 · 7专业 Runtime · 自学习闭环", wl_w),
         _wbox_row(S, "", wl_w),
         (S, bbot(wl_w)),
     ]

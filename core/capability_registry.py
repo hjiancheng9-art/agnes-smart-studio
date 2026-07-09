@@ -217,6 +217,7 @@ class CapabilityRegistry:
             "generate_video": ["gpu"],
             "browser_screenshot": ["browser"],
             "pw_navigate": ["browser"],
+            "cdp_ask_chatgpt": ["browser", "network"],
             "text_to_speech": ["audio"],
         }
         return mapping.get(name, [])

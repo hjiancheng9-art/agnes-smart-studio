@@ -1,0 +1,145 @@
+r.py
+
+class NodeIdAllocator:
+    def __init__(self, start: int = 1):
+        self._next = start
+
+    def next(self) -> str:
+        node_id = str(self._next)
+        self._next += 1
+        return node_id
+
+    def reserve(self, node_id: int | str) -> str:
+        node_id_str = str(node_id)
+        self._next = max(self._next, int(node_id_str) + 1)
+        return node_id_str
+
+GraphComposer 用法：
+
+Python
+运行
+ids = NodeIdAllocator()
+
+loader_id = ids.next()
+prompt_id = ids.next()
+sampler_id = ids.next()
+
+workflow[loader_id] = {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {"ckpt_name": model_name},
+}
+最小修复 C：缩写表
+
+docs/GLOSSARY.md
+
+Markdown
+# Glossary
+
+| Term | Meaning |
+|---|---|
+| API Format | ComfyUI /prompt 可执行 JSON 格式 |
+| Save Format | ComfyUI 前端保存的完整 workflow 格式 |
+| Blueprint | 预审工作流拓扑模板 |
+| Recipe | 面向用户意图的创作配方 |
+| TaskSpec | 编译器中间表示 |
+| VRAM | 显存，单位 GB |
+| CFG | Classifier-Free Guidance，引导强度 |
+| VAE | 负责 latent/image 编码解码的模型 |
+| UNET | 扩散模型主体 |
+| LTX | 视频生成模型族 |
+| Flux | 图像生成模型族 |
+| VHS | VideoHelperSuite 视频输入输出节点 |
+2 天内验收标准
+- 新人能看 ARCHITECTURE.md 跑通心智模型
+- node_id 分配集中到 NodeIdAllocator
+- 缩写能在 GLOSSARY.md 查到
+5. 演进债：第五优先级
+问题
+
+没版本化、没 checksum、没 A/B 框架。
+
+这会影响以后排查：
+
+为什么今天生成的 workflow 和昨天不一样？
+哪个蓝图版本生成的？
+参数表改动有没有影响质量？
+最小修复
+
+先不要做完整 A/B 平台。2 天内做：
+
+1. compiler_version
+2. blueprint_version
+3. parameter_table_version
+4. workflow_checksum
+5. manifest
+manifest 结构
+Python
+运行
+# comfyflow/manifest.py
+import hashlib
+import json
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Any
+
+
+COMPILER_VERSION = "0.3.1"
+PARAMETER_TABLE_VERSION = "2026-07-09"
+
+
+def stable_json_dumps(data: dict[str, Any]) -> str:
+    return json.dumps(
+        data,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def workflow_checksum(workflow: dict[str, Any]) -> str:
+    raw = stable_json_dumps(workflow).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+@dataclass
+class WorkflowManifest:
+    compiler_version: str
+    blueprint_id: str
+    blueprint_version: str
+    parameter_table_version: str
+    workflow_checksum: str
+    created_at: str
+    task_intent: str
+    quality_mode: str
+    model_family: str
+    hardware_tier: str
+    notes: list[str] = field(default_factory=list)
+
+
+def build_manifest(
+    workflow: dict[str, Any],
+    task,
+    blueprint,
+    hardware_budget,
+) -> WorkflowManifest:
+    return WorkflowManifest(
+        compiler_version=COMPILER_VERSION,
+        blueprint_id=blueprint.id,
+        blueprint_version=getattr(blueprint, "version", "0.1.0"),
+        parameter_table_version=PARAMETER_TABLE_VERSION,
+        workflow_checksum=workflow_checksum(workflow),
+        created_at=datetime.now(timezone.utc).isoformat(),
+        task_intent=task.intent,
+        quality_mode=task.quality_mode,
+        model_family=task.model_family,
+        hardware_tier=hardware_budget.tier,
+    )
+
+输出结构：
+
+Python
+运行
+{
+    "workflow": workflow,
+    "manifest": manifest.__dict__,
+    "use

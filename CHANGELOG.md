@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.1.0] - 2026-07-07 — Reality Closure
+
+### Added
+- Blueprint subsystem: `schema/types/errors/loader/validator/normalizer/packer/registry/report` (9 modules, ~1100 lines)
+- 22 production-ready blueprint assets (txt2img:14, img2img:4, i2v:2, general:2)
+- Batch packer: `scripts/batch_pack.py` — real workflow → blueprint JSON pipeline
+- MCP Fallback orchestrator: `orchestrator/` (5 modules, ~1600 lines)
+  - Three compile modes: MCP_FIRST / LOCAL_ONLY / MCP_ONLY
+  - Failure grading (timeout/unavailable/invalid_workflow/missing_blueprint)
+  - Automatic local fallback with structured warnings
+- Blueprint coverage report: `python -m comfyflow_compiler.blueprint.report`
+- Structured `missing_blueprint` error for t2v (known gap, v6.2 target)
+
+### Fixed
+- Video intent routing: `"a dog running, video"` → proper t2v missing_blueprint error (no cross-task-type fallback)
+- `compile_with_fallback` skips fallback for known missing capabilities
+
+### Tests
+- 62 tests, 1 skipped (t2v), all passing
+- Coverage: blueprint validation (28), golden compile (11), regression (4), orchestrator (14), report (6)
+
+### Changed
+- `comfyflow_compiler/blueprint_registry.py` — unchanged, wrapped by new registry
+- `comfyflow_compiler/blueprint_loader.py` — unchanged, wrapped by new loader
+
 ## [5.1.0] — 2026-07-04
 
 ### Hotfix: Metaphor-to-Runtime Leakage 架构修复

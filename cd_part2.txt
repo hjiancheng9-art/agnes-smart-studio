@@ -1,0 +1,105 @@
+ests Mock
+
+4. 怎么 mock ComfyUI
+tests/conftest.py
+Python
+运行
+import json
+from dataclasses import dataclass
+from pathlib import Path
+
+import pytest
+
+
+@pytest.fixture
+def fake_object_info():
+    return {
+        "CheckpointLoaderSimple": {
+            "input": {
+                "required": {
+                    "ckpt_name": [["sd_xl_base_1.0.safetensors"]]
+                }
+            }
+        },
+        "UNETLoader": {},
+        "DualCLIPLoader": {},
+        "CLIPLoader": {},
+        "VAELoader": {},
+        "CLIPTextEncode": {},
+        "KSampler": {},
+        "RandomNoise": {},
+        "KSamplerSelect": {},
+        "CFGGuider": {},
+        "SamplerCustomAdvanced": {},
+        "VAEDecode": {},
+        "VAEDecodeTiled": {},
+        "SaveImage": {},
+        "LoadImage": {},
+        "VHS_VideoCombine": {},
+        "LTXVConditioning": {},
+        "LTXVImgToVideoInplace": {},
+        "LoraLoaderModelOnly": {},
+    }
+
+
+@pytest.fixture
+def fake_models():
+    return {
+        "checkpoints": ["sd_xl_base_1.0.safetensors"],
+        "unet": ["flux1-dev-fp8.safetensors", "ltxv-2.3.safetensors"],
+        "clip": ["t5xxl_fp8_e4m3fn.safetensors", "clip_l.safetensors"],
+        "vae": ["ae.safetensors", "ltxv-vae.safetensors"],
+        "loras": ["flux-cinematic-lora.safetensors"],
+        "upscale_models": ["4x-UltraSharp.pth"],
+    }
+
+
+@dataclass
+class FakeComfyUIClient:
+    object_info: dict
+    models: dict
+
+    def get_object_info(self):
+        return self.object_info
+
+    def get_models(self, folder: str):
+        return self.models.get(folder, [])
+
+    def queue_prompt(self, workflow: dict):
+        return {
+            "prompt_id": "fake-prompt-id",
+            "number": 1,
+            "node_errors": {},
+        }
+
+    def get_history(self, prompt_id: str):
+        return {
+            prompt_id: {
+                "outputs": {
+                    "9": {
+                        "images": [
+                            {
+                                "filename": "test.png",
+                                "subfolder": "",
+                                "type": "output",
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+
+@pytest.fixture
+def fake_comfy_client(fake_object_info, fake_models):
+    return FakeComfyUIClient(
+        object_info=fake_object_info,
+        models=fake_models,
+    )
+
+
+@pytest.fixture
+def sample_txt2img_api_workflow():
+    return {
+        "4": {
+            "class_type": "

@@ -1,0 +1,182 @@
+[
+  {
+    "tag": "LI",
+    "text": "Workflow submission endpoint\nYes: for local ComfyUI / ComfyUI Desktop instances, workflow execution is still POST /prompt; it validates the prompt and queues it, returning prompt_id or error/node_errors. Use /ws for progress/events and /history/{prompt_id} for outputs. \nComfyUI\n+1"
+  },
+  {
+    "tag": "P",
+    "text": "Workflow submission endpoint\nYes: for local ComfyUI / ComfyUI Desktop instances, workflow execution is still POST /prompt; it validates the prompt and queues it, returning prompt_id or error/node_errors. Use /ws for progress/events and /history/{prompt_id} for outputs. \nComfyUI\n+1"
+  },
+  {
+    "tag": "CODE",
+    "text": "POST /prompt"
+  },
+  {
+    "tag": "CODE",
+    "text": "prompt_id"
+  },
+  {
+    "tag": "CODE",
+    "text": "error/node_errors"
+  },
+  {
+    "tag": "CODE",
+    "text": "/ws"
+  },
+  {
+    "tag": "CODE",
+    "text": "/history/{prompt_id}"
+  },
+  {
+    "tag": "LI",
+    "text": "Workflow JSON format\nFor execution, the standard is still API Prompt Format: { \"node_id\": {\"class_type\": \"...\", \"inputs\": {...}, \"_meta\": {...}} }; links are input values like [\"4\", 0]. The newer Save Format has version: 1, state, nodes, links, groups, models, etc., but don’t submit that directly to"
+  },
+  {
+    "tag": "P",
+    "text": "Workflow JSON format\nFor execution, the standard is still API Prompt Format: { \"node_id\": {\"class_type\": \"...\", \"inputs\": {...}, \"_meta\": {...}} }; links are input values like [\"4\", 0]. The newer Save Format has version: 1, state, nodes, links, groups, models, etc., but don’t submit that directly to"
+  },
+  {
+    "tag": "CODE",
+    "text": "{ \"node_id\": {\"class_type\": \"...\", \"inputs\": {...}, \"_meta\": {...}} }"
+  },
+  {
+    "tag": "CODE",
+    "text": "[\"4\", 0]"
+  },
+  {
+    "tag": "CODE",
+    "text": "version: 1"
+  },
+  {
+    "tag": "CODE",
+    "text": "state"
+  },
+  {
+    "tag": "CODE",
+    "text": "nodes"
+  },
+  {
+    "tag": "CODE",
+    "text": "links"
+  },
+  {
+    "tag": "CODE",
+    "text": "groups"
+  },
+  {
+    "tag": "CODE",
+    "text": "models"
+  },
+  {
+    "tag": "CODE",
+    "text": "/prompt"
+  },
+  {
+    "tag": "LI",
+    "text": "Common production custom nodes\nMost production stacks still include: ComfyUI-Manager, rgthree-comfy, ComfyUI-KJNodes, ComfyUI_essentials, ComfyUI-Impact-Pack, comfyui-controlnet-aux, ComfyUI-Advanced-ControlNet, comfyui-ipadapter, ComfyUI-GGUF, plus video packs like ComfyUI-VideoHelperSuite, ComfyUI"
+  },
+  {
+    "tag": "P",
+    "text": "Common production custom nodes\nMost production stacks still include: ComfyUI-Manager, rgthree-comfy, ComfyUI-KJNodes, ComfyUI_essentials, ComfyUI-Impact-Pack, comfyui-controlnet-aux, ComfyUI-Advanced-ControlNet, comfyui-ipadapter, ComfyUI-GGUF, plus video packs like ComfyUI-VideoHelperSuite, ComfyUI"
+  },
+  {
+    "tag": "CODE",
+    "text": "ComfyUI-Manager"
+  },
+  {
+    "tag": "CODE",
+    "text": "rgthree-comfy"
+  },
+  {
+    "tag": "CODE",
+    "text": "ComfyUI-KJNodes"
+  },
+  {
+    "tag": "CODE",
+    "text": "ComfyUI_essentials"
+  },
+  {
+    "tag": "CODE",
+    "text": "ComfyUI-Impact-Pack"
+  },
+  {
+    "tag": "CODE",
+    "text": "comfyui-controlnet-aux"
+  },
+  {
+    "tag": "CODE",
+    "text": "ComfyUI-Advanced-ControlNet"
+  },
+  {
+    "tag": "CODE",
+    "text": "comfyui-ipadapter"
+  },
+  {
+    "tag": "CODE",
+    "text": "ComfyUI-GGUF"
+  },
+  {
+    "tag": "CODE",
+    "text": "ComfyUI-VideoHelperSuite"
+  },
+  {
+    "tag": "CODE",
+    "text": "ComfyUI-LTXVideo"
+  },
+  {
+    "tag": "CODE",
+    "text": "custom_nodes"
+  },
+  {
+    "tag": "LI",
+    "text": "Video generation: WanVideo or LTXVideo?\nUse Wan when you want the most common native ComfyUI video route and broader T2V/I2V workflow coverage; official Wan2.1/2.2 workflows are documented and Wan2.2 includes 5B and 14B routes. Use LTXVideo / LTX-2 when you specifically want LTX’s newer audio-video "
+  },
+  {
+    "tag": "P",
+    "text": "Video generation: WanVideo or LTXVideo?\nUse Wan when you want the most common native ComfyUI video route and broader T2V/I2V workflow coverage; official Wan2.1/2.2 workflows are documented and Wan2.2 includes 5B and 14B routes. Use LTXVideo / LTX-2 when you specifically want LTX’s newer audio-video "
+  },
+  {
+    "tag": "LI",
+    "text": "Detect GPU VRAM on Windows\nBest order: pynvml → nvidia-smi → torch.cuda fallback. Minimal reliable function:"
+  },
+  {
+    "tag": "P",
+    "text": "Detect GPU VRAM on Windows\nBest order: pynvml → nvidia-smi → torch.cuda fallback. Minimal reliable function:"
+  },
+  {
+    "tag": "CODE",
+    "text": "pynvml"
+  },
+  {
+    "tag": "CODE",
+    "text": "nvidia-smi"
+  },
+  {
+    "tag": "CODE",
+    "text": "torch.cuda"
+  },
+  {
+    "tag": "PRE",
+    "text": "Python\n运行\nfrom dataclasses import dataclass\nfrom typing import Optional\nimport shutil, subprocess\n\n@dataclass\nclass GPUInfo:\n    gpu_name: Optional[str]\n    vram_gb: float\n    cuda_available: bool\n    source: str\n    error: Optional[str] = None\n\ndef detect_gpu() -> GPUInfo:\n    try:\n        import p"
+  },
+  {
+    "tag": "PRE",
+    "text": "from dataclasses import dataclass\nfrom typing import Optional\nimport shutil, subprocess\n\n@dataclass\nclass GPUInfo:\n    gpu_name: Optional[str]\n    vram_gb: float\n    cuda_available: bool\n    source: str\n    error: Optional[str] = None\n\ndef detect_gpu() -> GPUInfo:\n    try:\n        import pynvml\n    "
+  },
+  {
+    "tag": "CODE",
+    "text": "from dataclasses import dataclass\nfrom typing import Optional\nimport shutil, subprocess\n\n@dataclass\nclass GPUInfo:\n    gpu_name: Optional[str]\n    vram_gb: float\n    cuda_available: bool\n    source: str\n    error: Optional[str] = None\n\ndef detect_gpu() -> GPUInfo:\n    try:\n        import pynvml\n    "
+  },
+  {
+    "tag": "P",
+    "text": "For a compiler, pair this with /object_info and /models/{folder} checks before selecting a workflow."
+  },
+  {
+    "tag": "CODE",
+    "text": "/object_info"
+  },
+  {
+    "tag": "CODE",
+    "text": "/models/{folder}"
+  }
+]

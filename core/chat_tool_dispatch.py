@@ -29,6 +29,12 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
         args = json.loads(args_json or "{}")
     except json.JSONDecodeError:
         args = {}
+
+    # ── cdp_ask_chatgpt 参数归一化（第二层防护） ──
+    if name == "cdp_ask_chatgpt":
+        from core.tool_call_validator import _normalize_chatgpt_args
+        args = _normalize_chatgpt_args(args)
+
     # trace 上下文由 multi_agent contextvar 自动传播
     if not confirmed:
         from core.permission import get_permission_manager

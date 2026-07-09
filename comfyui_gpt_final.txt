@@ -1,0 +1,340 @@
+整体评价：这轮 RC0 推出准备是对的，而且已经超过普通“能跑”的标准，进入了“可交付候选版”级别。
+你现在不是在修一个脚本，而是在推出一个真实的 ComfyUI 智能体运行时。
+
+1. 推出准备做得对吗？还有没有致命遗漏？
+
+做得对。 你已经覆盖了 RC0 最关键的 9 个门槛：
+
+真实 ComfyUI 在线验证
+
+Agent → ComfyUI 实机连接
+
+全量语法检查
+
+集成测试通过
+
+真实生图通过
+
+API 端点通过
+
+文档、版本号、启动器齐全
+
+旧链路已收敛为兼容包装器
+
+无旧代码引用
+
+这说明 V4 不是“架构图完成”，而是最小可发布系统完成。
+
+但还有 5 个需要在 RC1 前补的高危点，不一定是致命 bug，但属于“上线后最容易爆炸”的地方。
+
+A. 冷启动干净环境测试
+
+你现在是在本机已配置环境里通过测试。RC1 前必须做：
+
+Bash
+git clone fresh
+python -m venv .venv
+pip install -r requirements.txt
+python launch.py
+python -m pytest
+
+目标是确认：
+
+没有依赖本机隐藏环境变量
+
+没有依赖 IDE 工作目录
+
+没有硬编码路径
+
+没有遗漏 requirements
+
+launch.py 在干净环境可复现启动
+
+这是最容易遗漏的发布致命点。
+
+B. 真实失败场景回归测试
+
+现在你测了“成功链路”，但 RC1 要测“坏链路”：
+
+ComfyUI 没开
+
+ComfyUI 中途断开
+
+checkpoint 缺失
+
+workflow JSON 损坏
+
+workflow 节点不存在
+
+显存 OOM
+
+请求超时
+
+API 并发请求
+
+生成过程中用户取消
+
+输出目录无权限
+
+你的 V4 价值核心是 diagnose→repair→validate→execute，所以失败链路比成功链路更重要。
+
+C. API 鉴权/本地边界
+
+如果 server.py 默认开 0.0.0.0:5000 或无鉴权，后面可能被本机局域网误调用。RC0 可以接受，但 RC1 至少要明确：
+
+Python
+运行
+HOST = "127.0.0.1"  # default safe
+API_TOKEN = optional
+
+并在 README 里写清楚。
+
+D. 运行日志与 run_id 追踪
+
+现在如果用户说“刚才那张图失败了”，你要能定位：
+
+run_id
+prompt
+workflow_id
+comfy_prompt_id
+status
+error
+repair_attempts
+output_files
+duration_ms
+
+没有 run_id 追踪，RC0 可以跑；有用户后会很难排错。
+
+E. 发布包边界
+
+113 个 .py 文件已经可控，但 RC1 前最好确认：
+
+哪些是 public API
+
+哪些是 internal
+
+哪些 wrapper 会在 v4.1 删除
+
+README 中写清楚推荐入口：launch.py / main.py / server.py / ComfyUIAgent
+
+否则用户和你自己后续都会绕回旧入口。
+
+结论：没有看到立即阻止 RC0 的致命遗漏。
+但 RC1 的重点必须是“干净环境 + 失败场景 + 追踪日志 + 安全边界”。
+
+2. RC0 之后，下一个合理版本目标是什么？
+
+下一个目标不应该是 v4.1，也不应该马上堆新功能。
+合理路线是：
+
+v4.0.0-rc1：发布稳定性版
+
+目标：证明 V4 在不同机器、不同失败场景、不同入口下都稳定。
+
+RC1 必做：
+
+P0 — Fresh install test
+P0 — Failure-mode E2E
+P0 — Run tracing
+P0 — API safe defaults
+P0 — CLI smoke command
+P1 — Minimal benchmark report
+P1 — Wrapper deprecation notice
+
+建议新增命令：
+
+Bash
+python launch.py --doctor
+python launch.py --smoke
+python launch.py --api
+python launch.py --chat
+
+其中：
+
+Bash
+python launch.py --doctor
+
+输出：
+
+[OK] Python version
+[OK] ComfyUI path
+[OK] ComfyUI reachable
+[OK] Models found
+[OK] Output dir writable
+[OK] API server available
+[OK] Test workflow executable
+
+这会让项目从“能运行”变成“可诊断、可交付”。
+
+v4.0.0 stable：冻结接口版
+
+当 RC1 通过后，再做 stable。
+
+stable 标准：
+
+ComfyUIAgent API 冻结
+
+ShowrunnerOrchestrator API 冻结
+
+HTTP API schema 冻结
+
+README 按用户视角重写
+
+所有 wrapper 标注 deprecated
+
+有 release notes
+
+有最小可复现 demo
+
+版本目标可以写成：
+
+ComfyUI Agent V4.0 Stable
+A production-ready local ComfyUI orchestration agent with diagnosis, repair, validation, execution, and Showrunner integration.
+v4.1：能力增强版
+
+v4.1 再做新能力，比如：
+
+多工作流模板库
+
+Prompt 编译增强
+
+Actor-craft 更深集成
+
+视频工作流支持
+
+批量任务队列
+
+UI/TUI 控制台
+
+生成历史资产管理
+
+workflow marketplace / preset system
+
+不要在 RC1 塞这些。
+RC 阶段只修稳定性，不扩功能。
+
+3. 这个项目现在最大的技术债是什么？
+
+最大的技术债不是旧文件了。旧文件已经包装器化，问题降级了。
+
+现在最大的技术债是：
+
+缺少“契约化运行层”
+
+也就是 Showrunner、Orchestrator、Agent、ComfyUI 四层之间虽然已经跑通，但它们之间的输入输出契约还没有完全固化。
+
+现在架构是：
+
+Showrunner
+  ↓
+Orchestrator
+  ↓
+ComfyUIAgent V4
+  ↓
+FlowCompiler / Diagnose / Repair / Execute
+  ↓
+ComfyUI API
+
+但每层之间应该有明确 schema：
+
+Python
+运行
+CreativeGoal
+ScenePlan
+ShotPlan
+WorkflowRequest
+CompiledWorkflow
+ExecutionRequest
+ExecutionResult
+RepairReport
+RunTrace
+
+如果这些契约不固化，后面会出现三个问题：
+
+1. Showrunner 会慢慢侵入 Agent
+
+比如 Showrunner 开始关心 checkpoint、sampler、node name。
+这会让“导演层”和“摄影机执行层”再次耦合。
+
+2. Agent 会反向污染创意层
+
+比如 Agent 把 ComfyUI 的错误、节点概念、workflow 细节暴露给上层。
+这会让用户体验变得工程化，而不是创作化。
+
+3. 测试会越来越难写
+
+没有契约，测试只能测“最终有没有图”。
+有契约，才能测：
+
+Goal → ScenePlan 是否合理
+ScenePlan → ShotPlan 是否完整
+ShotPlan → WorkflowRequest 是否合法
+WorkflowRequest → Workflow JSON 是否连通
+ExecutionResult 是否可追踪
+RepairReport 是否可解释
+
+所以我建议你下一个大重构不是再拆文件，而是建一个：
+
+comfyui_agent/contracts/
+
+里面放：
+
+Python
+运行
+creative.py
+workflow.py
+execution.py
+repair.py
+trace.py
+api.py
+
+核心例子：
+
+Python
+运行
+from pydantic import BaseModel, Field
+from typing import Any, Literal
+
+class WorkflowRequest(BaseModel):
+    prompt: str
+    negative_prompt: str = ""
+    width: int = 1024
+    height: int = 1024
+    steps: int = 30
+    cfg: float = 7.0
+    seed: int | None = None
+    workflow_type: Literal["txt2img", "img2img", "video", "upscale"] = "txt2img"
+    style_tags: list[str] = Field(default_factory=list)
+
+class CompiledWorkflow(BaseModel):
+    workflow: dict[str, Any]
+    node_count: int
+    entry_nodes: list[str]
+    output_nodes: list[str]
+    warnings: list[str] = Field(default_factory=list)
+
+class ExecutionResult(BaseModel):
+    ok: bool
+    run_id: str
+    comfy_prompt_id: str | None = None
+    output_files: list[str] = Field(default_factory=list)
+    duration_ms: int | None = None
+    error: str | None = None
+    repair_attempts: int = 0
+
+然后所有模块只传这些对象，不再乱传 dict。
+
+我的最终判断
+
+你这轮 V4 RC0 是一次真正有效的发布收敛。
+
+当前状态可以定义为：
+
+V4 RC0 = 功能闭环完成
+V4 RC1 = 发布可靠性完成
+V4 Stable = 契约冻结完成
+V4.1 = 创作能力增强
+
+最重要的一句话：
+
+现在不要再急着加能力，先把 V4 从“能跑的智能体”压实成“可复现、可诊断、可追踪、接口稳定的本地 ComfyUI 运行时”。

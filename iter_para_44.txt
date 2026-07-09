@@ -1,0 +1,9 @@
+5. production_blueprint_registry.py
+   把 mined blueprint 注册进 compiler
+v0.5.0 的验收标准
+1. 能从 104 个 workflow 中自动挖出：
+   - flux_pro blueprint
+   - ltx_i2v_pro blueprint
+   - ltx_audio_pro blueprint
+   - wan_video_edit blueprint
+   - flux_to_ltx_pipeline blueprint

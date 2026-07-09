@@ -1,0 +1,2 @@
+for t in set(node_types):
+            node_counter[t] += 1

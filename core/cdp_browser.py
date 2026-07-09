@@ -1,0 +1,454 @@
+"""
+CRUX 全局 CDP 浏览器控制模块
+=============================
+统一入口：pw_navigate()、web_fetch_cdp()、ask_chatgpt()
+
+核心策略（ChatGPT 联合调试验证）：
+1. 动作超时压短（5s），外层重试
+2. JS DOM 直写降级，绕过 Playwright 可操作性检查
+3. 导航等待解耦（domcontentloaded 而非 load）
+4. CDP 连接保活 + 自动重连
+5. 全局单例复用，避免重复启动 Edge
+"""
+import time, socket, subprocess, os, functools, threading, json
+from contextlib import contextmanager
+from playwright.sync_api import sync_playwright, TimeoutError as PwTimeout
+
+CDP_URL = "http://127.0.0.1:9222"
+EDGE_PATH = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+USER_DATA = os.path.expanduser(r"~\edge_cdp_profile")
+SHORT_TIMEOUT = 5000   # ms — 单次动作超时
+NAV_TIMEOUT = 15000    # ms — 页面导航超时
+LONG_TIMEOUT = 45000   # ms — ChatGPT 生成等待
+
+# 全局单例
+_lock = threading.Lock()
+_global_state = {"pw": None, "browser": None, "refcount": 0}
+
+
+
+# ══════════════════════════════════════════════════════════
+#  CRUX 三连 Bug 修复（v6.1）— 输入清理 / 滚动恢复 / 断连重连
+# ══════════════════════════════════════════════════════════
+
+_INPUT_LOCK = threading.Lock()
+_FIX_SCROLL_INTERVAL = 0  # 自增计数器，避免重复注入
+
+def _clear_input_buffer(page):
+    """清空输入区缓冲区，防止历史消息炸出"""
+    try:
+        page.evaluate("""() => {
+            const ta = document.querySelector('#prompt-textarea');
+            if (!ta) return;
+            // 清空 React 受控状态：修改 value + 触发 input 事件
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                window.HTMLTextAreaElement.prototype, 'value'
+            ).set;
+            nativeInputValueSetter.call(ta, '');
+            ta.dispatchEvent(new Event('input', { bubbles: true }));
+            ta.dispatchEvent(new Event('change', { bubbles: true }));
+            // 清空剪贴板历史
+            try { document.execCommand('delete'); } catch(e) {}
+            // 清空选区
+            window.getSelection()?.removeAllRanges();
+        }""")
+    except Exception:
+        pass
+
+def _fix_scroll(page):
+    """修复滚动失效：移除遮罩层 + 恢复 wheel/keydown 事件"""
+    global _FIX_SCROLL_INTERVAL
+    _FIX_SCROLL_INTERVAL += 1
+    try:
+        page.evaluate("""(ts) => {
+            // 防重复执行
+            if (window.__crux_scroll_fixed && window.__crux_scroll_fixed >= ts) return;
+            // 移除可能拦截滚动的遮罩层/悬浮层
+            document.querySelectorAll('[class*="overlay"], [class*="modal"], [class*="backdrop"]')
+                .forEach(el => { if (el.style) el.style.pointerEvents = 'none'; });
+            // 恢复 body 滚动
+            document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
+            // 重新绑定 wheel 事件（如果被 preventDefault 了）
+            const handler = (e) => { if (e.defaultPrevented) return; window.__crux_scroll_ok = true; };
+            window.addEventListener('wheel', handler, { passive: true, once: true });
+            window.__crux_scroll_fixed = ts;
+        }""", _FIX_SCROLL_INTERVAL)
+    except Exception:
+        pass
+
+def _check_cdp_health(browser):
+    """检测 CDP 连接是否健康，返回 (ok, reason)"""
+    try:
+        for ctx in browser.contexts:
+            for p in ctx.pages:
+                _ = p.url
+                return True, ""
+        # 没页面也算健康（只是没开页面）
+        return True, "no_pages"
+    except Exception as e:
+        return False, str(e)
+
+def _auto_reconnect():
+    """强制重建 CDP 连接"""
+    global _global_state
+    try:
+        if _global_state["pw"]:
+            _global_state["pw"].stop()
+    except Exception:
+        pass
+    _global_state["pw"] = None
+    _global_state["browser"] = None
+    _global_state["refcount"] = 0
+    # 重新连接
+    pw, browser = _connect()
+    _global_state["pw"] = pw
+    _global_state["browser"] = browser
+    _global_state["refcount"] = 1
+    return browser
+
+def _ensure_cdp():
+   """确保 Edge CDP 端口在线"""
+   s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+   s.settimeout(1)
+   ok = s.connect_ex(("127.0.0.1", 9222)) == 0
+   s.close()
+   if ok:
+       return
+   os.makedirs(USER_DATA, exist_ok=True)
+   subprocess.Popen(
+       [EDGE_PATH, f"--user-data-dir={USER_DATA}",
+        "--remote-debugging-port=9222",
+        "--no-first-run", "--no-default-browser-check"],
+       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+   )
+   for _ in range(20):
+       time.sleep(1)
+       s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+       s.settimeout(1)
+       if s.connect_ex(("127.0.0.1", 9222)) == 0:
+           s.close()
+           return
+       s.close()
+   raise RuntimeError("CDP 启动超时（20s）")
+
+
+def _connect(retries=3):
+   """连接 CDP，带重试 + 指数退避"""
+   _ensure_cdp()
+   pw = sync_playwright().start()
+   for i in range(retries):
+       try:
+           browser = pw.chromium.connect_over_cdp(CDP_URL)
+           return pw, browser
+       except Exception as e:
+           if i == retries - 1:
+               # 最后一次失败：重启 CDP 再试一次
+               try: pw.stop()
+               except: pass
+               time.sleep(1)
+               _ensure_cdp()
+               pw2 = sync_playwright().start()
+               browser = pw2.chromium.connect_over_cdp(CDP_URL)
+               return pw2, browser
+           backoff = 2 ** (i + 1)  # 2s, 4s
+           time.sleep(backoff)
+   raise RuntimeError("CDP 连接失败（已重试+重启）")
+
+
+@contextmanager
+def cdp_session():
+   """全局单例 CDP 会话（context manager，自动引用计数）"""
+   global _global_state
+   with _lock:
+       if _global_state["browser"] is None:
+           pw, browser = _connect()
+           _global_state["pw"] = pw
+           _global_state["browser"] = browser
+       _global_state["refcount"] += 1
+   try:
+       yield _global_state["browser"]
+   finally:
+       with _lock:
+           _global_state["refcount"] -= 1
+           if _global_state["refcount"] <= 0:
+               try:
+                   _global_state["pw"].stop()
+               except Exception:
+                   pass
+               _global_state["pw"] = None
+               _global_state["browser"] = None
+               _global_state["refcount"] = 0
+
+
+def _get_page(browser, url_hint="", goto_url=""):
+   """找已有页面或创建新页面"""
+   for ctx in browser.contexts:
+       for p in ctx.pages:
+           if url_hint and url_hint in p.url:
+               p.bring_to_front()
+               return p
+   ctx = browser.contexts[0] if browser.contexts else browser.new_context()
+   page = ctx.new_page()
+   if goto_url:
+       page.goto(goto_url, timeout=NAV_TIMEOUT, wait_until="domcontentloaded")
+   return page
+
+
+# ═══════════════════════════════════════════════
+#  原子操作（短超时 + JS 降级）
+# ═══════════════════════════════════════════════
+
+def safe_click(page, selector, retries=3):
+   """点击：Playwright → JS 降级"""
+   for i in range(retries):
+       try:
+           el = page.locator(selector).first
+           el.click(timeout=SHORT_TIMEOUT)
+           return True
+       except PwTimeout:
+           time.sleep(0.3)
+       except Exception:
+           break
+   try:
+       page.evaluate(f"document.querySelector('{selector}')?.click()")
+       return True
+   except Exception:
+       return False
+
+
+def safe_fill(page, selector, text, retries=3):
+   """填入：Playwright fill → JS DOM 直写（带输入缓冲清理 + 互斥锁）"""
+   with _INPUT_LOCK:
+       # [Bugfix v6.1] 清空输入区缓冲区，防止历史消息炸出
+       _clear_input_buffer(page)
+       time.sleep(0.1)
+
+       for i in range(retries):
+           try:
+               el = page.locator(selector).first
+               el.click(timeout=SHORT_TIMEOUT)
+               el.fill(text, timeout=SHORT_TIMEOUT)
+               return True
+           except PwTimeout:
+               time.sleep(0.2)
+           except Exception:
+               break
+       try:
+           page.evaluate(f"""
+               (() => {{
+                   const el = document.querySelector('{selector}');
+                   if (!el) return false;
+                   el.focus();
+                   const t = {json.dumps(text)};
+                   if (el.isContentEditable) {{
+                       el.textContent = t;
+                   }} else {{
+                       el.value = t;
+                   }}
+                   el.dispatchEvent(new Event('input', {{bubbles: true}}));
+                   el.dispatchEvent(new Event('change', {{bubbles: true}}));
+                   return true;
+               }})()
+           """)
+           return True
+       except Exception:
+           return False
+
+
+def safe_type(page, text, delay=5):
+   """键盘逐字输入"""
+   page.keyboard.type(text, delay=delay)
+
+
+# ═══════════════════════════════════════════════
+#  导航工具（替代原 pw_navigate）
+# ═══════════════════════════════════════════════
+
+def pw_navigate(url: str) -> str:
+   """
+   CRUX 全局浏览器导航（替换原 subprocess 方案）
+   持久化会话，自动复用浏览器实例
+   返回页面标题和 URL 摘要
+   """
+   with cdp_session() as browser:
+       # 找已有页面或新开
+       page = None
+       for ctx in browser.contexts:
+           for p in ctx.pages:
+               if p.url and p.url != "about:blank":
+                   page = p
+                   break
+           if page:
+               break
+       if not page:
+           ctx = browser.contexts[0] if browser.contexts else browser.new_context()
+           page = ctx.new_page()
+       try:
+           # [Bugfix v6.1] 修复滚动失效
+           _fix_scroll(page)
+           page.goto(url, timeout=NAV_TIMEOUT, wait_until="domcontentloaded")
+           page.bring_to_front()
+           title = page.title()
+           body_preview = page.locator("body").inner_text()[:200]
+           return json.dumps({
+               "success": True,
+               "url": page.url,
+               "title": title,
+               "preview": body_preview,
+           }, ensure_ascii=False)
+       except PwTimeout:
+           return json.dumps({"success": False, "error": "导航超时", "url": url}, ensure_ascii=False)
+       except Exception as e:
+           return json.dumps({"success": False, "error": str(e), "url": url}, ensure_ascii=False)
+
+
+def web_fetch_cdp(url: str, max_chars: int = 5000) -> str:
+   """
+   通过 CDP 浏览器获取网页内容（支持需登录/Spa 页面）
+   作为 httpx web_fetch 的补充降级方案
+   """
+   with cdp_session() as browser:
+       page = _get_page(browser, goto_url=url)
+       try:
+           page.goto(url, timeout=NAV_TIMEOUT, wait_until="domcontentloaded")
+           time.sleep(1)  # 额外等待 JS 渲染
+           text = page.locator("body").inner_text()
+           if len(text) > max_chars:
+               text = text[:max_chars] + f"\n\n[截断：原 {len(text)} 字符]"
+           return text
+       except PwTimeout:
+           return f"[超时] 无法加载 {url}"
+       except Exception as e:
+           return f"[错误] {e}"
+
+
+# ═══════════════════════════════════════════════
+#  ChatGPT 专用
+# ═══════════════════════════════════════════════
+
+def _chatgpt_page(browser):
+   """获取或创建 ChatGPT 页面"""
+   for ctx in browser.contexts:
+       for p in ctx.pages:
+           if "chatgpt.com" in p.url:
+               p.bring_to_front()
+               return p
+   ctx = browser.contexts[0] if browser.contexts else browser.new_context()
+   page = ctx.new_page()
+   page.goto("https://chatgpt.com/", timeout=NAV_TIMEOUT, wait_until="domcontentloaded")
+   return page
+
+
+def _wait_chatgpt_done(page, max_wait=45):
+   """轮询等 ChatGPT 生成完成"""
+   for _ in range(max_wait):
+       try:
+           stop_btn = page.locator('[data-testid="stop-button"]').first
+           if not stop_btn.is_visible(timeout=800):
+               return True
+       except Exception:
+           return True
+       time.sleep(1)
+   return False
+
+
+def _get_chatgpt_reply(page):
+   """读最后一条 assistant 回复"""
+   return page.evaluate("""
+       (() => {
+           const msgs = document.querySelectorAll('[data-message-author-role="assistant"]');
+           if (msgs.length) return msgs[msgs.length-1].innerText;
+           const articles = document.querySelectorAll('article');
+           if (articles.length) return articles[articles.length-1].innerText;
+           return '';
+       })()
+   """)
+
+
+def ask_chatgpt(question: str, wait: bool = True) -> str:
+   """
+   一键发送问题到 ChatGPT 并返回回复
+   自动处理页面导航、填入、发送、等待、读取
+   timeout 由内部短超时 + 外层轮询保证不卡死
+   """
+   with cdp_session() as browser:
+       # [Bugfix v6.1] 连接健康检测 + 自动重连
+       ok, reason = _check_cdp_health(browser)
+       if not ok:
+           browser = _auto_reconnect()
+
+       page = _chatgpt_page(browser)
+       time.sleep(2)
+
+       if "chatgpt.com" not in page.url:
+           page.goto("https://chatgpt.com/", timeout=NAV_TIMEOUT, wait_until="domcontentloaded")
+           time.sleep(3)
+
+       # [Bugfix v6.1] 修复滚动失效
+       _fix_scroll(page)
+
+       safe_fill(page, "#prompt-textarea", question)
+       time.sleep(0.5)
+       safe_click(page, "button[data-testid='send-button']")
+
+       if not wait:
+           return json.dumps({"status": "sent", "question": question[:80]}, ensure_ascii=False)
+
+       _wait_chatgpt_done(page, max_wait=55)
+       reply = _get_chatgpt_reply(page)
+       return reply
+
+
+def cdp_ask_chatgpt(
+    question: str | None = None,
+    text: str | None = None,
+    prompt: str | None = None,
+    message: str | None = None,
+    query: str | None = None,
+    input: str | None = None,
+    properties: str | dict | None = None,
+) -> str:
+   """
+   注册到 tools.json 的公开工具
+   从 CDP 浏览器向 ChatGPT 提问并获取回复
+
+   接受 question/text/prompt/message/query/input/properties 任一参数名，
+   自动归一化为 question。
+   """
+   # properties 兼容：可能是 JSON 字符串 {"question":"..."} 或原始字符串
+   if properties:
+       if isinstance(properties, dict):
+           q = properties.get("question") or properties.get("text") or properties.get("prompt") or ""
+       elif isinstance(properties, str):
+           try:
+               d = json.loads(properties)
+               if isinstance(d, dict):
+                   q = d.get("question") or d.get("text") or d.get("prompt") or d.get("properties") or ""
+               else:
+                   q = str(d)
+           except (json.JSONDecodeError, TypeError):
+               q = properties
+   else:
+       q = ""
+   q = q or question or text or prompt or message or query or input
+   if not q or not q.strip():
+       return "[CDP ChatGPT 错误] 缺少问题参数（question/text/prompt/message/query/input/properties）"
+   try:
+       return ask_chatgpt(q.strip(), wait=True)
+   except Exception as e:
+       return f"[CDP ChatGPT 错误] {type(e).__name__}: {e}"
+
+
+def cdp_cleanup():
+   """强制清理全局 CDP 连接"""
+   global _global_state
+   with _lock:
+       if _global_state["pw"]:
+           try:
+               _global_state["pw"].stop()
+           except Exception:
+               pass
+       _global_state["pw"] = None
+       _global_state["browser"] = None
+       _global_state["refcount"] = 0

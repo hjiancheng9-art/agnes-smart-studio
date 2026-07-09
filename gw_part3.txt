@@ -1,0 +1,224 @@
+      "MarkdownNote",
+        "Note",
+        "Reroute",
+        "GetNode",
+        "SetNode",
+        "Fast Groups Bypasser (rgthree)",
+    ],
+}
+3. 这些工作流暴露出的高级范式
+范式 A：Flux 图像编辑 → LTX 视频生成 → 循环输出
+
+代表：
+
+Flux-Klein图像编辑+LTX2.3图生视频-循环.json
+88 nodes
+114 links
+54 unique_types
+
+结构模式：
+
+输入图 / 初始图
+  ↓
+Flux 图像编辑 / 换装 / 风格修改
+  ↓
+多 LoRA 模型侧叠加
+  ↓
+高级采样链
+  ↓
+Tiled VAE Decode
+  ↓
+LTX I2V Conditioning
+  ↓
+音频 / 视频 latent concat-separate
+  ↓
+VHS_VideoCombine
+  ↓
+循环 / 连续输出
+
+这不是单一工作流，而是 图像生成器 + 视频生成器 + 音视频后处理器 的复合流水线。
+
+智能体必须支持 pipeline blueprint：
+
+Python
+运行
+class PipelineBlueprint:
+    stages = [
+        "image_edit",
+        "image_to_video",
+        "audio_video_latent_process",
+        "video_export",
+    ]
+范式 B：Wan 动作迁移 + 人物替换
+
+代表：
+
+wanAnimate动作迁移+人物替换.json
+141 nodes
+110 links
+53 unique_types
+
+高频节点：
+
+GetNode: 38
+SetNode: 16
+Note: 15
+VHS_LoadVideo: 3
+VHS_VideoCombine: 9
+MaskToImage: 3
+easy sam3GetObjectMask: 2
+ImageResizeKJv2: 2
+
+结构模式：
+
+输入视频
+  ↓
+抽帧 / 读取视频
+  ↓
+人物检测 / mask / 分割
+  ↓
+动作迁移 / 姿态或运动参考
+  ↓
+人物替换 / 局部生成
+  ↓
+帧级合成
+  ↓
+视频重组
+
+这里的重点不是“Wan 生成视频”，而是：
+
+视频编辑型工作流
+
+你的智能体要区分：
+
+t2v: 文生视频
+i2v: 图生视频
+video_edit: 视频编辑
+action_transfer: 动作迁移
+character_replace: 人物替换
+lip_sync: 对口型 / 数字人
+范式 C：GetNode / SetNode 大量出现，说明复杂工作流已经有“变量系统”
+
+复杂工作流里：
+
+GetNode: 53 / 38
+SetNode: 26 / 16
+
+这说明高级工作流不只是节点串联，而是有：
+
+全局参数
+共享输入
+可复用变量
+组级控制
+开关控制
+
+所以你们的 compiler 不应该只生成 flat graph。
+
+需要支持：
+
+Python
+运行
+WorkflowVariable = {
+    "name": "width",
+    "type": "int",
+    "value": 1024,
+    "used_by": ["resize", "latent", "video_export"]
+}
+
+否则生成不了大规模可维护工作流。
+
+范式 D：MarkdownNote / Note 高频，说明生产工作流重视可读性
+
+你数据里：
+
+MarkdownNote: 55
+Note: 28
+
+这不是执行节点，但对生产很重要。
+
+说明真实工作流会写：
+
+使用说明
+模型下载说明
+参数说明
+版本说明
+分组说明
+注意事项
+
+你们的智能体如果只输出 API JSON，小白能跑，但不够“生产级”。
+
+建议输出两种格式：
+
+workflow_api.json      # 用于直接执行
+workflow_editable.json # 用于拖入 ComfyUI 编辑，带 Note / MarkdownNote / 分组 / Reroute
+范式 E：视频工作流普遍依赖 VHS 作为输出基础设施
+VHS_VideoCombine: 48
+
+这几乎等于所有 video 工作流都需要它。
+
+所以你们不能把视频 workflow 的终点设计成 SaveImage。
+
+视频蓝图终点应该是：
+
+frames / images
+  ↓
+VHS_VideoCombine
+  ↓
+mp4 / webm / gif
+4. 你们智能体蓝图缺什么
+
+根据这批真实工作流，你们现在如果只做 txt2img/img2img/controlnet/video 四类，明显不够。
+
+应该补下面这些。
+
+缺口 1：Flux modular loader 蓝图
+
+必须从：
+
+CheckpointLoaderSimple
+
+升级支持：
+
+UNETLoader + DualCLIPLoader + VAELoader
+
+代码建议：
+
+Python
+运行
+@dataclass
+class ModelLoadPlan:
+    mode: str  # "checkpoint" | "modular"
+    unet: str | None = None
+    clip: str | None = None
+    clip2: str | None = None
+    vae: str | None = None
+    checkpoint: str | None = None
+
+
+def choose_model_load_plan(task, env):
+    if task.family in ["flux", "ltx", "wan"]:
+        return ModelLoadPlan(
+            mode="modular",
+            unet=env.pick("unet"),
+            clip=env.pick("clip"),
+            clip2=env.pick_optional("clip"),
+            vae=env.pick("vae"),
+        )
+
+    return ModelLoadPlan(
+        mode="checkpoint",
+        checkpoint=env.pick("checkpoints"),
+    )
+缺口 2：高级采样链
+
+补这个：
+
+Python
+运行
+ADVANCED_SAMPLER_CHAIN = [
+    "RandomNoise",
+    "KSamplerSelect",
+    "CFGGuider",
+    "BasicScheduler",
+    "SamplerCustomAdvanced",
+]

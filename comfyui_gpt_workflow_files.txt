@@ -1,0 +1,184 @@
+你的判断基本正确，但我会稍微改成更安全的版本：
+
+V4 主链路不再依赖 workflow_*，这些文件不应继续留在运行时核心路径；但不要立刻物理删除，先隔离、审计、抽取少量可复用能力，再归档。
+
+1. 16 个 workflow_* 模块：不要抢救整套，最多“拆零件”
+
+它们已经不是 V4 架构核心了。V4 的正确主链路应该是：
+
+NL → flow_compiler.compile()
+   → WorkflowValidator
+   → UnifiedExecutor
+   → execution_repair
+
+所以旧的 workflow_* 不应该再参与主流程。否则会重新制造“双轨工作流系统”。
+
+我建议分三类处理：
+
+A. 直接废弃 / legacy 化
+
+这些大概率属于 V3 工作流时代的主干，和 V4 冲突最大：
+
+workflow_library.py
+workflow_composer.py
+workflow_generator.py
+workflow_searcher.py
+workflow_decomposer.py
+workflow_canvas.py
+workflow_handoff.py
+workflow_recommender.py
+
+处理方式：
+
+移动到 legacy/workflows/
+或保留原文件但只做 DeprecationWarning 包装器
+
+不要继续维护它们。
+
+B. 可以拆零件保留
+
+这些里面可能有可复用的静态分析能力：
+
+workflow_parser.py
+workflow_editor.py
+workflow_analyzer.py
+workflow_quality.py
+workflow_params.py
+workflow_utils.py
+workflow_versions.py
+
+但不要原样保留。只抽出 V4 需要的函数，例如：
+
+parse_workflow_json()
+summarize_graph()
+extract_node_types()
+detect_unlinked_nodes()
+diff_workflows()
+score_workflow_quality()
+
+最后沉淀成一个小模块：
+
+workflow_inspector.py
+
+目标是控制在 300–600 行以内，只服务 V4 的诊断、测试、可视化，不再承担生成职责。
+
+C. 已经是包装器的保留
+workflow_runner.py
+
+它已经指向 execution.py，可以暂时保留兼容，但标注 deprecated。
+
+2. templates/ 的 64 个 JSON：保留，但不要作为主生成系统
+
+模板有价值，但价值不是“继续走模板系统”，而是作为：
+
+1. V4 few-shot / reference corpus
+2. fallback preset
+3. regression test 样本
+4. intent → graph topology 的参考库
+
+但要先做一次模板审计。
+
+每个模板打标签：
+
+JSON
+{
+  "name": "txt2img_sdxl_basic",
+  "legacy": true,
+  "valid_v4": true,
+  "node_count": 12,
+  "node_types": ["CheckpointLoaderSimple", "CLIPTextEncode", "KSampler", "VAEDecode", "SaveImage"],
+  "task": "txt2img",
+  "requires_models": ["sdxl"],
+  "risk": "low"
+}
+
+然后分三层：
+
+templates/
+  legacy/        # 原始 64 个，不直接参与运行
+  curated/       # 通过 V4 validator 的精选模板
+  examples/      # 给 flow_compiler 的压缩参考，不放完整大 JSON
+
+重点：不要把完整 JSON 模板塞进 prompt。更好的做法是提取成“拓扑摘要”：
+
+任务: txt2img
+推荐节点链路:
+CheckpointLoaderSimple → CLIPTextEncode(pos/neg) → EmptyLatentImage → KSampler → VAEDecode → SaveImage
+
+关键参数:
+steps: 20-30
+cfg: 6-8
+sampler_name: euler / dpmpp_2m
+scheduler: normal / karras
+
+这样 flow_compiler 可以参考模板结构，但不会被旧 JSON 绑死。
+
+3. generated_workflows/ 的 1391 个 JSON：不要留在主仓库
+
+91MB 的历史生成物不应该继续放在主代码仓库里。它们不是源码，是运行产物。
+
+我的建议：
+
+generated_workflows/ → 清理出 repo
+
+但不要全删。先做一次筛选：
+
+保留这些：
+
+1. 能通过 V4 WorkflowValidator 的样本
+2. 曾经真实执行成功的样本
+3. 覆盖不同任务类型的样本
+4. 失败样本中有代表性的 20–50 个，用于 regression test
+5. release demo 需要的 golden workflows
+
+建议最后只保留：
+
+tests/fixtures/workflows/
+  valid/
+  invalid/
+  legacy/
+  golden/
+
+规模控制在：
+
+50–150 个 JSON
+总大小 < 10MB
+
+剩下的：
+
+archive/generated_workflows_legacy_YYYYMMDD.zip
+
+或者直接移出项目目录。
+
+同时加 .gitignore：
+
+gitignore
+generated_workflows/
+outputs/
+temp_workflows/
+*.workflow.tmp.json
+4. 对你的建议的判断
+
+你的方案：
+
+workflow_* 全部做包装器/废弃，templates 保留但标记旧版，generated_workflows 清理。
+
+我赞成，但建议改成：
+
+workflow_*：不是全部包装器，而是“主链路移除 + legacy 隔离 + 少量能力抽取”
+templates：保留，标记 legacy，筛选一批升级为 curated reference
+generated_workflows：清理主目录，只保留测试/回归/黄金样本
+
+原因是：全部做包装器会制造假维护成本。如果某个旧模块没有明确的新目标，不需要包装，直接 legacy 化即可。
+
+最终推荐决策
+P0：立刻冻结 workflow_*，禁止新代码引用
+P1：把旧模块移动到 legacy/workflows 或加 DeprecationWarning
+P2：审计 64 个模板，筛出 V4 可用 curated templates
+P3：generated_workflows 只留 golden/test fixtures，其余归档或删除
+P4：从 workflow_parser/editor/analyzer/quality 抽一个小型 workflow_inspector.py
+P5：V4 文档明确：唯一主链路是 flow_compiler + validator + executor
+
+一句话结论：
+
+V4 不应该抢救旧 workflow 系统；应该把它降级成“历史资产库 + 测试样本 + 少量分析工具”，主链路只保留 flow_compiler。
