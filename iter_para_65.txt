@@ -1,2 +1,0 @@
-v0.6.0 = Production Blueprint Pack
-v0.7.0 = Workflow Enrichment Layer

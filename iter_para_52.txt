@@ -1,3 +1,0 @@
-for w in selected:
-        node_types = w["node_types"]
-        edges = w.get("edges_by_type", [])

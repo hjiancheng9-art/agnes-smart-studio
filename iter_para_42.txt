@@ -1,2 +1,0 @@
-3. blueprint_synthesizer.py
-   生成 required_nodes / optional_nodes / stages

@@ -1,3 +1,0 @@
-5. wan_action_transfer_pro
-   VHS_LoadVideo + resize + mask/segment + motion/action transfer
-   + recombine/export

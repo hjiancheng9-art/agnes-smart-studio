@@ -1,2 +1,0 @@
-4. blueprint_review.py
-   打分：覆盖率、复杂度、可执行性、硬件成本

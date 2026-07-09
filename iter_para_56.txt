@@ -1,4 +1,0 @@
-required_nodes = [
-        node for node, count in node_counter.items()
-        if count / total >= 0.6
-    ]

@@ -1,4 +1,0 @@
-optional_nodes = [
-        node for node, count in node_counter.items()
-        if 0.25 <= count / total < 0.6
-    ]

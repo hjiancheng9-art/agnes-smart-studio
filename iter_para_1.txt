@@ -1,3 +1,0 @@
-P0：Production Blueprint Mining
-P1：Production-grade Blueprint Pack
-P2：Workflow Enrichment Layer

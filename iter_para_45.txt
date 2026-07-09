@@ -1,8 +1,0 @@
-2. 每个 blueprint 至少包含：
-   - required_nodes
-   - optional_nodes
-   - common_edges
-   - stage list
-   - estimated_node_count
-   - source_workflow_count
-   - confidence_score

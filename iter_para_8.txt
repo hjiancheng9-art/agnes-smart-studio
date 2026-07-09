@@ -1,6 +1,0 @@
-mined_blueprints/
-  flux_txt2img_pro.json
-  ltx_i2v_pro.json
-  ltx_audio_video_pro.json
-  wan_action_transfer_pro.json
-  flux_to_ltx_pipeline_pro.json

@@ -1,3 +1,0 @@
-1. flux_txt2img_pro
-   UNETLoader + DualCLIPLoader + VAELoader + LoraLoaderModelOnly
-   + advanced sampler + tiled decode + upscale/detailer

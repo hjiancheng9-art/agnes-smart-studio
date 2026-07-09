@@ -1,6 +1,0 @@
-基础视频生成
-  + VHS_VideoCombine
-  + fps/format/loop 控制
-  + crop guides
-  + tiled decode
-  + audio latent optional

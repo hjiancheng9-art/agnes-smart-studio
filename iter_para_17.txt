@@ -1,3 +1,0 @@
-4. ltx_i2v_audio_pro
-   LTXVAudioVAELoader + AudioAdjustVolume
-   + LTXVConcatAVLatent + LTXVSeparateAVLatent + VHS_VideoCombine

@@ -1,3 +1,0 @@
-node_counter = Counter()
-    edge_counter = Counter()
-    node_counts = []

@@ -1,3 +1,0 @@
-def mine_category_blueprint(workflows: list[dict], category: str) -> MinedBlueprint:
-    selected = [w for w in workflows if w["category"] == category]
-    total = len(selected)
