@@ -20,8 +20,7 @@ def render_incident_detail(incident: dict, width: int) -> list[tuple[str, str]]:
     """Render single incident with full info."""
     rows = []
     sev = incident.get("severity", "P2")
-    style = {"P0": "class:incident-p0", "P1": "class:incident-p1",
-             "P2": "class:incident-p2"}.get(sev, "class:muted")
+    style = {"P0": "class:incident-p0", "P1": "class:incident-p1", "P2": "class:incident-p2"}.get(sev, "class:muted")
 
     rows.append(("class:panel-title", " INCIDENT DETAIL\n"))
     rows.append((style, f" severity:    {sev}\n"))

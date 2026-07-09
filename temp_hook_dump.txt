@@ -1,0 +1,43 @@
+1: #!/usr/bin/env python3
+2: """Post-test resource check Hook — CRUX Studio.
+3: Checks for lingering high-memory Python processes after Bash commands.
+4: Warns if worker processes from previous test/build runs are still alive.
+5: """
+6: 
+7: import subprocess
+8: import sys
+9: 
+10: # Only check after commands that look like tests/builds
+11: # (Hook can't inspect the actual command, so we check every Bash call
+12: #  but only warn when residue is found)
+13: try:
+14:     result = subprocess.run(
+15:         ["tasklist", "/fi", "imagename eq python.exe", "/fo", "csv", "/nh"],
+16:         capture_output=True,
+17:         text=True,
+18:         timeout=5,
+19:     )
+20:     lines = [line for line in result.stdout.strip().split("\n") if line.strip()]
+21: 
+22:     high_mem = []
+23:     for line in lines:
+24:         parts = line.replace('"', "").split(",")
+25:         if len(parts) >= 5:
+26:             try:
+27:                 mem_kb = int(parts[4].strip())
+28:                 pid = parts[1].strip()
+29:                 # > 100MB = suspicious test worker
+30:                 if mem_kb > 100000:
+31:                     high_mem.append((pid, mem_kb // 1024))
+32:             except (ValueError, IndexError):
+33:                 continue
+34: 
+35:     if high_mem:
+36:         print("\n  [Hook: resource-check] High-memory Python processes detected:", file=sys.stderr)
+37:         for pid, mem_mb in high_mem:
+38:             print(f"    PID {pid}: {mem_mb}MB", file=sys.stderr)
+39:         print('  Consider: taskkill //F //FI "MEMUSAGE gt 40000" //IM "python.exe"', file=sys.stderr)
+40:         print("", file=sys.stderr)
+41: 
+42: except Exception:
+43:     pass  # Hook must never block

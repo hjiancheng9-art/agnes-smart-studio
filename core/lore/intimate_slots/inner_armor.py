@@ -38,7 +38,7 @@ class KeyVault:
             encoded = base64.b64encode(json.dumps(self._cache).encode("utf-8")).decode("utf-8")
             VAULT_FILE.write_text(encoded, encoding="utf-8")
         except (OSError, RuntimeError, ValueError, TypeError) as e:
-            logger.error("Vault save: %s", e)
+            logger.exception("Vault save: %s", e)
 
     def set(self, key: str, value: str):
         self._cache[key] = value

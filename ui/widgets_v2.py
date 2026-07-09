@@ -15,7 +15,7 @@ import time
 import unicodedata
 from collections.abc import Callable
 
-from prompt_toolkit.formatted_text import FormattedText
+from prompt_toolkit.formatted_text import FormattedText, StyleAndTextTuples
 
 # ══════════════════════════════════════════════════════════════════
 #  Spinner — animated braille spinner
@@ -99,18 +99,21 @@ _DL_CROSS = "╬"
 
 def _vw(s: str) -> int:
     """Visual width — CJK chars = 2 cells."""
-    return sum(2 if unicodedata.east_asian_width(c) in ("W","F") else 1 for c in s)
+    return sum(2 if unicodedata.east_asian_width(c) in ("W", "F") else 1 for c in s)
 
 
 def _cjk_trunc(txt: str, mw: int) -> str:
     """Truncate string to fit max visual width."""
     if _vw(txt) <= mw:
         return txt
-    acc = ""; aw = 0
+    acc = ""
+    aw = 0
     for c in txt:
-        cw = 2 if unicodedata.east_asian_width(c) in ("W","F") else 1
-        if aw + cw > mw: break
-        acc += c; aw += cw
+        cw = 2 if unicodedata.east_asian_width(c) in ("W", "F") else 1
+        if aw + cw > mw:
+            break
+        acc += c
+        aw += cw
     return acc
 
 
@@ -125,7 +128,7 @@ def panel_top(title: str, width: int, double: bool = False) -> str:
         left_pad = 2
         right_pad = inner - _vw(title) - left_pad - 2
         return f"{tl}{h * left_pad} {title} {h * right_pad}{tr}"
-    elif inner >= 2:
+    if inner >= 2:
         return f"{tl}{_cjk_trunc(title, inner - 2):^{inner}}{tr}"
     return f"{tl}{tr}"
 
@@ -173,42 +176,88 @@ def build_welcome_formatted(
     model_name: str = "",
     cwd: str = "",
     branch: str = "",
+    palette: dict | None = None,
 ) -> FormattedText:
-    """Build welcome — responsive layout: TW-driven 3-column grid."""
+    """Build welcome — responsive layout: TW-driven 3-column grid.
+
+    If *palette* is given (a dict like BLADE / LAVA / JADE / POLAR_NIGHT),
+    derive inline colors from it.  Otherwise fall back to Catppuccin Mocha.
+    """
     import os as _os
     import shutil
 
     from core.version import __version__ as _ver
+
     _model = model_name or "deepseek-v4-flash"
     _branch = branch or "main"
     _home = _os.path.expanduser("~")
     _cwd = cwd
-    if _cwd.startswith(_home): _cwd = "~" + _cwd[len(_home):]
-    if len(_cwd) > 28: _cwd = "..." + _cwd[-25:]
+    if _cwd.startswith(_home):
+        _cwd = "~" + _cwd[len(_home) :]
+    if len(_cwd) > 28:
+        _cwd = "..." + _cwd[-25:]
 
     TW = shutil.get_terminal_size().columns
     TW = max(60, min(120, TW))
     CW = TW - 4  # content width (2px margin each side)
 
-    B="bold fg:#89B4FA"; P="bold fg:#CBA6F7"; G="bold fg:#A6E3A1"
-    R="bold fg:#F38BA8"; Y="bold fg:#F9E2AF"; T="bold fg:#94E2D5"
-    M="fg:#7F849C"; W="fg:#CDD6F4"; S="fg:#45475A"; A="bold fg:#FAB387"
+    if palette:
+        PX = palette  # shorthand
+        B = f"bold fg:{PX['accent']}"
+        P = f"bold fg:{PX['crux']}"
+        G = f"bold fg:{PX['success']}"
+        R = f"bold fg:{PX['error']}"
+        Y = f"bold fg:{PX['warning']}"
+        T = f"bold fg:{PX.get('info', PX.get('accent2', PX['accent']))}"
+        M = f"fg:{PX['muted']}"
+        W = f"fg:{PX['primary']}"
+        S = f"fg:{PX['dim']}"
+        A = f"bold fg:{PX.get('accent2', PX['warning'])}"
+    else:
+        B = "bold fg:#89B4FA"
+        P = "bold fg:#CBA6F7"
+        G = "bold fg:#A6E3A1"
+        R = "bold fg:#F38BA8"
+        Y = "bold fg:#F9E2AF"
+        T = "bold fg:#94E2D5"
+        M = "fg:#7F849C"
+        W = "fg:#CDD6F4"
+        S = "fg:#45475A"
+        A = "bold fg:#FAB387"
 
     def clamp_box_width(width: int, terminal_width: int = TW, x: int = 0, margin: int = 2) -> int:
         return max(10, min(width, terminal_width - x - margin))
 
     lines: list[StyleAndTextTuples] = []
     L = lines.append
-    sp = lambda n: " "*max(0,n)
+
+    def sp(n):
+        return " " * max(0, n)
+
     def _vw(s: str) -> int:
         """Visual width — CJK = 2 cells."""
-        return sum(2 if unicodedata.east_asian_width(c) in ("W","F") else 1 for c in s)
+        return sum(2 if unicodedata.east_asian_width(c) in ("W", "F") else 1 for c in s)
 
     # ── Title ──
-    L([(Y,"  CRUX Studio"),(M,f"  v{_ver}"),(M,"  ·  "),(W,"平时如刀，出事成阵"),(M,"  ·  "),(G,"● ready")])
-    L([("","\n")])
-    L([(M, f"  model  {_model}    branch  {_branch}    path  {_cwd}")])
-    L([("","\n")]); L([(S,"  "+"─"*(CW-2))]); L([("","\n\n")])
+    L([(Y, "  CRUX Studio"), (M, f"  v{_ver}"), (M, "  ·  "), (W, "平时如刀，出事成阵"), (M, "  ·  "), (G, "● ready")])
+    L([("", "\n")])
+
+    # ── Badge bar ──
+    def _badge(sty: str, label: str, w: int = 0) -> StyleAndTextTuples:
+        """Build a pill-badge:  [label]  with colored bracket."""
+        return [(S, "["), (sty, label), (S, "] ")]
+
+    _bb: StyleAndTextTuples = []
+    _bb.extend(_badge(B, f" {_model} "))
+    _bb.extend(_badge(P, f" {_branch} "))
+    _bb.extend(_badge(G, " 1659 tests "))
+    _bb.extend(_badge(T, f" v{_ver} "))
+    _bb.extend(_badge(A, " 50+ skills "))
+    _bb.append((S, sp(CW - sum(len(x[1]) + 2 for x in _bb) - 2)))
+    L([("", "  ")] + _bb)
+    L([("", "\n")])
+    L([(S, "  " + "─" * (CW - 2))])
+    L([("", "\n\n")])
 
     # ═══════ 3-column grid ═══════
     col_w = clamp_box_width((CW - 4) // 3, CW)
@@ -218,60 +267,115 @@ def build_welcome_formatted(
     c3_w = clamp_box_width(c3_w, CW, x=col_w * 2 + 4)
     c1_x = 2
     c2_x = c1_x + col_w + 2
-    c3_x = c2_x + col_w + 2
+    c2_x + col_w + 2
 
     def btop(title, w):
         w = clamp_box_width(max(14, w), CW)
-        return f"╭─ {title} {'─'*max(0,w-_vw(title)-5)}╮"
+        return f"╭─ {title} {'─' * max(0, w - _vw(title) - 5)}╮"
+
     def bbot(w):
         w = clamp_box_width(max(4, w), CW)
-        return f"╰{'─'*max(0,w-2)}╯"
+        return f"╰{'─' * max(0, w - 2)}╯"
+
     def row_at(x, sty, txt, w):
         w = clamp_box_width(max(8, w), CW, x=x)
         t = str(txt)
         # Truncate by visual width
         if _vw(t) > w - 4:
-            acc = ""; aw = 0
+            acc = ""
+            aw = 0
             for c in t:
-                cw = 2 if unicodedata.east_asian_width(c) in ("W","F") else 1
-                if aw + cw > w - 4: break
-                acc += c; aw += cw
+                cw = 2 if unicodedata.east_asian_width(c) in ("W", "F") else 1
+                if aw + cw > w - 4:
+                    break
+                acc += c
+                aw += cw
             t = acc
-        return (sty, f"{' '*max(0,x)}{'│'} {t}{' '*max(0,w-4-_vw(t))} │")
+        return (sty, f"{' ' * max(0, x)}{'│'} {t}{' ' * max(0, w - 4 - _vw(t))} │")
 
     def _cjkt(txt, mw):
         """Truncate string to fit max visual width (CJK=2 cells)."""
-        if _vw(txt) <= mw: return txt
-        a=""; aw=0
+        if _vw(txt) <= mw:
+            return txt
+        a = ""
+        aw = 0
         for c in txt:
-            cw = 2 if unicodedata.east_asian_width(c) in ("W","F") else 1
-            if aw + cw > mw: break
-            a += c; aw += cw
+            cw = 2 if unicodedata.east_asian_width(c) in ("W", "F") else 1
+            if aw + cw > mw:
+                break
+            a += c
+            aw += cw
         return a
 
     # Box tops
-    r:StyleAndTextTuples = []
-    r.extend([(S, btop("Commands", col_w)), ("","  "), (S, btop("Workspace", col_w)), ("","  "), (S, btop("System", c3_w))])
-    L([(("","  "))] + [(S, btop("Commands",col_w)),("","  "),(S, btop("Workspace",col_w)),("","  "),(S, btop("System",c3_w))])
-    L([("","\n")])
+    r: StyleAndTextTuples = []
+    r.extend(
+        [(S, btop("Commands", col_w)), ("", "  "), (S, btop("Workspace", col_w)), ("", "  "), (S, btop("System", c3_w))]
+    )
+    L(
+        [(("", "  "))]
+        + [
+            (S, btop("Commands", col_w)),
+            ("", "  "),
+            (S, btop("Workspace", col_w)),
+            ("", "  "),
+            (S, btop("System", c3_w)),
+        ]
+    )
+    L([("", "\n")])
 
-    _cmd = [("/help    commands",B),("/skill   marketplace",P),("/status  overview",B),("/health  diagnostics",B),("/image   generate",T)]
-    _wsp = [("/method  methodology",P),("/config  settings",B),("/model   switch model",P),("/chat    new chat",T),("/video   generate",T)]
-    _sys = [("● ready",G),("Hot path <1K tok",W),("平时如刀，出事成阵",Y),("97+ tools on demand",M),("极简内核 · 按需治理",P)]
+    _cmd = [
+        ("/help    commands", B),
+        ("/skill   marketplace", P),
+        ("/status  overview", B),
+        ("/health  diagnostics", B),
+        ("/image   generate", T),
+    ]
+    _wsp = [
+        ("/method  methodology", P),
+        ("/config  settings", B),
+        ("/model   switch model", P),
+        ("/chat    new chat", T),
+        ("/video   generate", T),
+    ]
+    _sys = [
+        ("● ready", G),
+        ("Hot path <1K tok", W),
+        ("平时如刀，出事成阵", Y),
+        ("97+ tools on demand", M),
+        ("极简内核 · 按需治理", P),
+    ]
 
     for i in range(5):
-        cl,cs=_cmd[i]; wl,ws=_wsp[i]; sl,ss=_sys[i]
+        cl, cs = _cmd[i]
+        wl, ws = _wsp[i]
+        sl, ss = _sys[i]
         cl_t = _cjkt(cl, col_w - 4)
         wl_t = _cjkt(wl, col_w - 4)
         sl_t = _cjkt(sl, c3_w - 4)
-        L([("","  "),(S,"│ "),(cs,cl_t),("",sp(col_w-3-_vw(cl_t))),(S,"│"),
-           ("","  "),(S,"│ "),(ws,wl_t),("",sp(col_w-3-_vw(wl_t))),(S,"│"),
-           ("","  "),(S,"│ "),(ss,sl_t),("",sp(c3_w-3-_vw(sl_t))),(S,"│")])
-        L([("","\n")])
+        L(
+            [
+                ("", "  "),
+                (S, "│ "),
+                (cs, cl_t),
+                ("", sp(col_w - 3 - _vw(cl_t))),
+                (S, "│"),
+                ("", "  "),
+                (S, "│ "),
+                (ws, wl_t),
+                ("", sp(col_w - 3 - _vw(wl_t))),
+                (S, "│"),
+                ("", "  "),
+                (S, "│ "),
+                (ss, sl_t),
+                ("", sp(c3_w - 3 - _vw(sl_t))),
+                (S, "│"),
+            ]
+        )
+        L([("", "\n")])
 
-
-    L([("","  "),(S,bbot(col_w)),("","  "),(S,bbot(col_w)),("","  "),(S,bbot(c3_w))])
-    L([("","\n\n")])
+    L([("", "  "), (S, bbot(col_w)), ("", "  "), (S, bbot(col_w)), ("", "  "), (S, bbot(c3_w))])
+    L([("", "\n\n")])
 
     # ═══════ Welcome (2 cols) + Quick Start (1 col) ═══════
     wl_w = clamp_box_width(col_w * 2 + 2, CW)
@@ -282,7 +386,7 @@ def build_welcome_formatted(
         tw = _vw(txt)
         lp = (w - 2 - tw) // 2
         rp = w - 2 - tw - lp
-        return (sty, "│" + " "*lp + txt + " "*rp + "│")
+        return (sty, "│" + " " * lp + txt + " " * rp + "│")
 
     _wel = [
         (S, btop("Welcome", wl_w)),
@@ -306,38 +410,58 @@ def build_welcome_formatted(
     _qs = [(S, btop("Quick Start", qs_w))]
     for idx, cmd, desc in _qs_items:
         line = f"│ {idx:<3}{cmd:<8}{desc}"
-        _qs.append((M, line + " "*(qs_w - 2 - len(line)) + " │"))
-    _qs.append((S, "│"+" "*(qs_w-2)+"│"))
+        _qs.append((M, line + " " * (qs_w - 2 - len(line)) + " │"))
+    _qs.append((S, "│" + " " * (qs_w - 2) + "│"))
     _qs.append((S, bbot(qs_w)))
 
     for i in range(8):
-        ws,wt=_wel[i]; qs,qt=_qs[i]
-        L([("","  "),(ws,wt),("","  "+sp(wl_w-_vw(wt))),(qs,qt)])
-        L([("","\n")])
+        ws, wt = _wel[i]
+        qs, qt = _qs[i]
+        L([("", "  "), (ws, wt), ("", "  " + sp(wl_w - _vw(wt))), (qs, qt)])
+        L([("", "\n")])
 
-    L([("","\n")])
+    L([("", "\n")])
 
     # ═══════ Shortcuts (full width) ═══════
-    L([("","  "),(S,btop("Shortcuts",CW))]); L([("","\n")])
+    L([("", "  "), (S, btop("Shortcuts", CW))])
+    L([("", "\n")])
     for group in [
-        [("Ctrl+V","paste image"),("Enter","send"),("PgUp/Dn","scroll"),("Ctrl+C","new session")],
-        [("Tab","autocomplete"),("Mouse","select"),("Alt+Enter","newline"),("Ctrl+L","clear")],
+        [("Ctrl+V", "paste image"), ("Enter", "send"), ("PgUp/Dn", "scroll"), ("Ctrl+C", "new session")],
+        [("Tab", "autocomplete"), ("Mouse", "select"), ("Alt+Enter", "newline"), ("Ctrl+L", "clear")],
     ]:
-        r:StyleAndTextTuples = [("","  "),(S,"│ ")]
-        for k,d in group: r.extend([(A,f"{k} "),(M,f"{d}  ")])
-        r.append(("",sp(CW-4-sum(len(k)+len(d)+4 for k,d in group))))
-        r.append((S,"│"))
-        L(r); L([("","\n")])
-    L([("","  "),(S,bbot(CW))]); L([("","\n\n")])
+        r: StyleAndTextTuples = [("", "  "), (S, "│ ")]
+        for k, d in group:
+            r.extend([(A, f"{k} "), (M, f"{d}  ")])
+        r.append(("", sp(CW - 4 - sum(len(k) + len(d) + 4 for k, d in group))))
+        r.append((S, "│"))
+        L(r)
+        L([("", "\n")])
+    L([("", "  "), (S, bbot(CW))])
+    L([("", "\n\n")])
 
     # ── Footer ──
-    L([(R,"  /q quit"),("","    "),(P,"/method methodology"),("","    "),
-      (M,"session"),(G," ready"),("","    "),(M,"Python 3.11"),("","    "),
-      (M,"skills"),(P," 50+743")])
+    L(
+        [
+            (R, "  /q quit"),
+            ("", "    "),
+            (P, "/method methodology"),
+            ("", "    "),
+            (M, "session"),
+            (G, " ready"),
+            ("", "    "),
+            (M, "Python 3.11"),
+            ("", "    "),
+            (M, "skills"),
+            (P, " 50+743"),
+        ]
+    )
 
     flat: list[tuple[str, str]] = []
-    for line in lines: flat.extend(line)
+    for line in lines:
+        flat.extend(line)
     return FormattedText(flat)
+
+
 class ThinkingPanel:
     """A collapsible panel that shows model reasoning / thinking steps.
 
@@ -439,7 +563,9 @@ class ThinkingPanel:
                 pieces.append(("class:thinking-panel-border", " " * pad + " │\n"))
 
             if len(visual_lines) > self.MAX_LINES:
-                pieces.append(("class:thinking-panel-text", f"│ ... (+{len(visual_lines) - self.MAX_LINES} more lines) ... │\n"))
+                pieces.append(
+                    ("class:thinking-panel-text", f"│ ... (+{len(visual_lines) - self.MAX_LINES} more lines) ... │\n")
+                )
 
             # ── Bottom border ──
             bot = "└" + "─" * (width - 2) + "┘"
@@ -496,11 +622,11 @@ class AnimatedBadge:
     """
 
     _FRAMES = {
-        "pulse":   ["◉", "◎", "◉", "◎", "◉"],
-        "glow":    ["◆", "◇", "◆", "◇", "◆"],
+        "pulse": ["◉", "◎", "◉", "◎", "◉"],
+        "glow": ["◆", "◇", "◆", "◇", "◆"],
         "breathe": ["⬤", "◍", "○", "◍", "⬤"],
-        "scan":    ["◐", "◓", "◑", "◒"],
-        "blink":   ["●", "○", "●", "○"],
+        "scan": ["◐", "◓", "◑", "◒"],
+        "blink": ["●", "○", "●", "○"],
     }
 
     def __init__(
@@ -527,6 +653,7 @@ class AnimatedBadge:
     def render(self, frame: str | None = None) -> str:
         """渲染当前帧为 ANSI 字符串"""
         from tui_art import C as _C
+
         c = self.color or _C.CRUX_C
         dot = frame if frame is not None else self._frames[self._idx]
         icon_str = f"{self.icon} " if self.icon else ""
@@ -553,12 +680,12 @@ class PulseDot:
     """
 
     _STATES = {
-        "idle":  {"frames": ["○"],             "color": ""},
-        "busy":  {"frames": ["◉", "◎", "◉"],     "color": ""},
+        "idle": {"frames": ["○"], "color": ""},
+        "busy": {"frames": ["◉", "◎", "◉"], "color": ""},
         "think": {"frames": ["◌", "○", "◌", "○"], "color": ""},
-        "ok":    {"frames": ["●"],              "color": ""},
+        "ok": {"frames": ["●"], "color": ""},
         "error": {"frames": ["●", "⬤", "●", "⬤"], "color": ""},
-        "warn":  {"frames": ["◉", "⬤", "◉"],     "color": ""},
+        "warn": {"frames": ["◉", "⬤", "◉"], "color": ""},
     }
 
     def __init__(self, state: str = "idle"):
@@ -581,18 +708,19 @@ class PulseDot:
     def render(self) -> str:
         """渲染当前帧"""
         from tui_art import C as _C
+
         info = self._STATES.get(self._state, self._STATES["idle"])
         frames = info["frames"]
         dot = frames[self._idx % len(frames)]
         self._idx = (self._idx + 1) % len(frames)
 
         color_map = {
-            "idle":  _C.GRAY,
-            "busy":  _C.CRUX_C,
+            "idle": _C.GRAY,
+            "busy": _C.CRUX_C,
             "think": _C.CRUX_B,
-            "ok":    _C.CRUX_G,
+            "ok": _C.CRUX_G,
             "error": _C.CRUX_R,
-            "warn":  _C.CRUX_Y,
+            "warn": _C.CRUX_Y,
         }
         c = color_map.get(self._state, _C.GRAY)
         return f"{c}{dot}{_C.RESET}"
@@ -620,6 +748,7 @@ class BreathingLabel:
     def next(self) -> str:
         """前进并返回呼吸帧"""
         from tui_art import C as _C
+
         c = self.color or _C.CRUX_C
         t = (self._idx % self.steps) / self.steps
         breathe = 0.3 + 0.7 * (1 - abs(2 * t - 1))
@@ -627,10 +756,9 @@ class BreathingLabel:
 
         if breathe > 0.7:
             return f"{c}{_C.BOLD}{self.text}{_C.RESET}"
-        elif breathe > 0.4:
+        if breathe > 0.4:
             return f"{c}{self.text}{_C.RESET}"
-        else:
-            return f"{_C.DIM_C}{c}{self.text}{_C.RESET}"
+        return f"{_C.DIM_C}{c}{self.text}{_C.RESET}"
 
     def render(self) -> str:
         """渲染当前帧（不前进）"""
@@ -657,14 +785,14 @@ class EnhancedSpinner:
     """
 
     _MODE_FRAMES = {
-        "braille":  ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
-        "blocks":   ["▁", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▁"],
-        "wave":     ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▂", "▁"],
-        "arrows":   ["←", "↖", "↑", "↗", "→", "↘", "↓", "↙"],
-        "dots":     ["⡀", "⡄", "⡆", "⡇", "⣇", "⣧", "⣷", "⣿", "⣷", "⣧", "⣇", "⡇", "⡆", "⡄", "⡀"],
-        "moon":     ["○", "◔", "◐", "◕", "●", "◕", "◐", "◔"],
-        "pulse":    ["◌", "○", "◉", "●", "◉", "○", "◌"],
-        "cross":    ["┼", "┽", "╀", "╁", "╂", "╁", "╀", "┽"],
+        "braille": ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
+        "blocks": ["▁", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▁"],
+        "wave": ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▂", "▁"],
+        "arrows": ["←", "↖", "↑", "↗", "→", "↘", "↓", "↙"],
+        "dots": ["⡀", "⡄", "⡆", "⡇", "⣇", "⣧", "⣷", "⣿", "⣷", "⣧", "⣇", "⡇", "⡆", "⡄", "⡀"],
+        "moon": ["○", "◔", "◐", "◕", "●", "◕", "◐", "◔"],
+        "pulse": ["◌", "○", "◉", "●", "◉", "○", "◌"],
+        "cross": ["┼", "┽", "╀", "╁", "╂", "╁", "╀", "┽"],
     }
 
     def __init__(self, mode: str = "braille", interval: float = 0.1):
@@ -709,6 +837,7 @@ class EnhancedSpinner:
                 time.sleep(self._interval)
 
         import threading
+
         self._thread = threading.Thread(target=_spin_loop, daemon=True)
         self._thread.start()
 
@@ -773,6 +902,7 @@ def render_status_line(
         带 ANSI 的状态行字符串
     """
     from tui_art import C as _C
+
     dot = PulseDot(state)
     badge_color = _C.beast(beast)
     badge = AnimatedBadge(f"七{beast}", color=badge_color, anim="pulse")

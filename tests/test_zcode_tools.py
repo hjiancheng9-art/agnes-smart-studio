@@ -21,6 +21,7 @@ if str(PROJECT_ROOT) not in sys.path:
 # helpers
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="module")
 def tools():
     """Load tools.json once per test module."""
@@ -38,6 +39,7 @@ def tool_names(tools):
 # ---------------------------------------------------------------------------
 # tests
 # ---------------------------------------------------------------------------
+
 
 class TestToolCount:
     def test_tool_count(self, tools):
@@ -118,8 +120,9 @@ class TestFormatTools:
         """run_format uses core.format_tools.execute_run_format."""
         run_format = next((t for t in tools if t["name"] == "run_format"), None)
         assert run_format is not None, "run_format tool not found"
-        assert run_format.get("function") == "core.format_tools.execute_run_format", \
+        assert run_format.get("function") == "core.format_tools.execute_run_format", (
             f"Expected core.format_tools.execute_run_format, got {run_format.get('function')}"
+        )
 
 
 class TestNotebookTools:
@@ -143,8 +146,7 @@ class TestDebugInspect:
         """core.pytest_runner.debug_inspect is importable."""
         try:
             mod = importlib.import_module("core.pytest_runner")
-            assert hasattr(mod, "debug_inspect"), \
-                "core.pytest_runner has no attribute 'debug_inspect'"
+            assert hasattr(mod, "debug_inspect"), "core.pytest_runner has no attribute 'debug_inspect'"
         except Exception as exc:
             pytest.fail(f"core.pytest_runner.debug_inspect not importable: {exc}")
 

@@ -45,10 +45,7 @@ class TuiControlMixin:
         if is_streaming:
             # 执行中 → 走优先插话
             control().priority_message(text)
-            self._log_append(
-                ("→", "class:activity-info",
-                 f"优先插话入队: {self._shorten(text, 60)}")
-            )
+            self._log_append(("→", "class:activity-info", f"优先插话入队: {self._shorten(text, 60)}"))
             self._queue_input_while_streaming(text)
             return
 
@@ -58,8 +55,11 @@ class TuiControlMixin:
         self._pending_text = text
 
         self._log_append(
-            ("→", "class:activity-info",
-             f"待发送 ({control().outbox.UNDO_WINDOW_MS/1000:.0f}s 可撤销): {self._shorten(text, 60)}")
+            (
+                "→",
+                "class:activity-info",
+                f"待发送 ({control().outbox.UNDO_WINDOW_MS / 1000:.0f}s 可撤销): {self._shorten(text, 60)}",
+            )
         )
 
         # 启动定时器自动提交
@@ -79,10 +79,7 @@ class TuiControlMixin:
                 msg = pending[0]
                 control().outbox.commit(msg.id)
                 # 提交到 TUI 的流式响应
-                self._log_append(
-                    ("→", "class:activity-info",
-                     f"消息已发送: {self._shorten(msg.text, 60)}")
-                )
+                self._log_append(("→", "class:activity-info", f"消息已发送: {self._shorten(msg.text, 60)}"))
                 with self._state_lock:
                     self._thinking = True
                     self._streaming = True
@@ -94,9 +91,7 @@ class TuiControlMixin:
                 )
                 self._worker_thread.start()
 
-        self._pending_timer = threading.Thread(
-            target=wait_and_commit, daemon=True, name="pending-timer"
-        )
+        self._pending_timer = threading.Thread(target=wait_and_commit, daemon=True, name="pending-timer")
         self._pending_timer.start()
 
     def _undo_pending(self) -> bool:

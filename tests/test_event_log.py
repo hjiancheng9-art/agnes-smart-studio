@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from core.event_log import EventLog, EventRecord
 
 

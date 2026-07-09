@@ -1,197 +1,78 @@
-# CRUX Studio — 完整调用参考
+# CRUX Studio — 命令参考 (auto-generated)
 
-## 斜杠命令 `/`
+共 52 个命令
 
-命令可以直接输入，也可以用中文别名。输 `/help` 随时查看。
+## 创意生产
 
-### 对话控制
-| 命令 | 中文 | 作用 |
-|------|------|------|
-| `/help` | `/帮助` | 显示帮助 |
-| `/status` | `/状态` | 系统健康状态 |
-| `/clear` | `/清空` | 清空对话历史 |
-| `/exit` | `/退出` | 退出 |
+| 命令 | 说明 |
+|------|------|
+| `/showrun <目标>` | 视频生成管线（通过 Agnes Video API） |
+| `/agnes <模式>` | Agnes 多模态生成 (t2i/i2i/t2v/i2v/pipeline) |
+| `/video <描述>` | 快速生成视频（支持图生视频，可 --size --duration） |
+| `/img <描述>` | 快速生成图片（支持图生图，可 --size） |
+| `/vision <图> <问>` | 图片理解（智谱 GLM-4V-Flash 主视觉） |
 
-### 模型切换
-| 命令 | 中文 | 作用 |
-|------|------|------|
-| `/model` | `/模型` | 切换对话模型 (light/pro) |
-| `/provider` | `/提供商` | 切换供应商 (crux/deepseek/zhipu) |
-| `/thinking` | `/思考` | 开关深度思考模式 |
-| `/code` | `/编码` | 开关代码助手模式 |
-| `/agent` | `/代理` | 开关智能体模式（加载全部工具） |
+## 对话
 
-### 生图 / 生视频
-| 命令 | 中文 | 作用 |
-|------|------|------|
-| `/img` | `/图片` | 文字生图 |
-| `/video` | `/视频` | 文字生视频 |
-| `/vision` | `/视觉` | 图片理解分析 |
-| `/showrun` | `/制片` | Showrunner 全自动视频流水线 |
-| `/comfy` | — | ComfyUI 工作流管理 |
+| 命令 | 说明 |
+|------|------|
+| `/help` | 显示本帮助（/help /all 完整列表） |
+| `/theme [polar_night|lava|jade]` | 切换 TUI 主题配色（不传参=查看当前主题） |
+| `/status` | 系统健康状态 |
+| `/vote on|off` | 多模型表决开关（复杂问题自动并行咨询多个AI） |
+| `/model <别名|ID>` | 切换 AI 模型 (light/pro/deepseek/zhipu...) |
+| `/thinking` | 深度思考模式 |
+| `/code` | 代码助手模式（再输退出） |
+| `/agent` | 智能体模式（加载 tools.json 外部工具） |
+| `/tools` | 查看已注册的工具列表 |
+| `/skill <cmd>` | 技能包管理 (list/load/mode/unload/create) |
+| `/浏览器` | 加载浏览器操控技能 (等同于 /skill load browser-control) |
+| `/clear` | 清空对话历史 |
+| `/exit` | 退出聊天 |
+| `/copy [N]` | 复制最近N条对话到剪贴板 (Ctrl+Y) |
+| `/browser` | Browser Companion 网页生成开关（8平台） |
+| `/palette [filter]` | Command palette — fuzzy search all commands |
 
-### 项目管理
-| 命令 | 中文 | 作用 |
-|------|------|------|
-| `/plan` | `/计划` | 复杂任务先规划再执行 |
-| `/project` | `/项目` | 项目文件管理 |
-| `/todo` | `/待办` | 任务列表管理 |
-| `/sub` | `/子任务` | 创建子智能体并行工作 |
-| `/team` | `/团队` | 多智能体协作 |
+## 任务工程
 
-### Git / 部署
-| 命令 | 中文 | 作用 |
-|------|------|------|
-| `/commit` | `/提交` | 提交所有改动 |
-| `/changelog` | `/日志` | 自动生成变更日志 |
-| `/deploy` | `/部署` | 部署工作流 |
+| 命令 | 说明 |
+|------|------|
+| `/plan <任务>` | 先规划再执行（自动拆解步骤 + 用户审批） |
+| `/sub <任务>` | 启动子智能体处理子任务 |
+| `/compress` | 压缩长对话历史为摘要 |
+| `/team <类型>` | 智能体团队 (review/debug/feature) |
+| `/project <cmd>` | 项目管理 (new/save/load/analyze) |
+| `/deploy <目标>` | 一键部署 (vercel/netlify/github) |
+| `/todo [路径]` | 扫描项目 TODO/FIXME/HACK |
+| `/commit` | 从 git diff 自动生成 commit 消息 |
+| `/changelog` | 从 git log 生成 CHANGELOG.md |
+| `/refactor <旧> <新>` | 批量重命名/替换 |
 
-### 代码质量
-| 命令 | 中文 | 作用 |
-|------|------|------|
-| `/audit` | `/审计` | 代码审计/安全扫描 |
-| `/rules` | `/规范` | 编码规范检查 |
-| `/self` | — | 工具自诊断 |
-| `/refactor` | `/重构` | 代码重构 |
-| `/audit` | `/审计` | 代码审计/安全扫描 |
-| `/rules` | `/规范` | 编码规范检查 |
-| `/self` | — | 工具自诊断 |
+## 诊断配置
 
-### 知识 / 记忆
-| 命令 | 中文 | 作用 |
-|------|------|------|
-| `/know` | `/知识` | 知识库管理 |
-| `/evolve` | `/进化` | 从对话中学习进化 |
-| `/compress` | `/压缩` | 压缩对话上下文 |
-| `/automate` | `/定时` | 定时/自动化任务 |
-
-### 查询
-| 命令 | 中文 | 作用 |
-|------|------|------|
-| `/tools` | `/工具` | 列出所有可用工具 |
-| `/skill` | `/技能` | 加载/列出技能包 |
-| `/cost` | `/花费` `/账单` | 查看 API 费用统计 |
-| `/eval` | — | 智能体质量基准测试 |
-| `/extend` | — | 切换扩展工具集 |
-| `/browser` | — | Browser Companion 开关 |
+| 命令 | 说明 |
+|------|------|
+| `/self <cmd>` | 自诊断 (check/files/health/fix/audit) |
+| `/audit <pip|npm>` | 依赖安全审计 + 过期检测 |
+| `/rules <cmd>` | 编码规范管理 (list/enable/create) |
+| `/automate <cmd>` | 自动化定时任务 (add/list/remove) |
+| `/permission <yolo|auto|manual>` | 切换权限模式 (YOLO/自动/手动) |
+| `/tasks` | 查看后台任务状态 |
+| `/provider <cmd>` | 切换模型供应商 (list/switch) |
+| `/evolve` | 查看 Prompt 进化状态 |
+| `/done [quick]` | 完成前验证 (pytest+ruff+pyright+git diff) |
+| `/method [reset]` | 查看当前任务的方法论遵守状态 (A/B/C/D 分级 + Plan/基线/Worktree/TDD) |
+| `/know <cmd>` | 浏览内置知识库 (methods/templates/domain) |
+| `/health` | 工具质量评分 + 系统健康面板 |
+| `/rollback` | 回滚最近一次代码修改 |
+| `/trends [cost|tools|quality]` | 历史趋势分析（消费/工具健康/质量） |
+| `/docs [help|agents|manifest|all]` | 从代码自动生成文档 |
+| `/prompt-stats` | Prompt Lab 实验统计 |
+| `/prompt-assign <变体ID>` | 指定 Prompt Lab 变体 |
+| `/cost [budget <usd>|reset]` | 查看花费统计 / 设日预算 / 清零 |
+| `/eval [json]` | 运行智能体质量基准测试 |
+| `/extend <notebook|audio|browser|list>` | 切换扩展工具集（notebook/audio/browser） |
+| `/mcp <cmd>` | MCP 服务器管理 (list/add/remove/connect/disconnect/tools) |
 
 ---
-
-## 技能 `/skill`
-
-输入 `/skill list` 查看，`/skill load <name>` 加载。
-
-### 视频制片类 (14)
-| 技能 | 用途 |
-|------|------|
-| `showrunner` | 总导演 — 全流程视频制片 |
-| `core-showrunner` | 核心制片引擎 |
-| `storyboard-director` | 分镜导演 |
-| `script-writer` | 编剧 |
-| `copywriting-master` | 文案大师 |
-| `story-copywriter` | 故事文案 |
-| `audio-director` | 音频导演 |
-| `motion-director` | 运镜导演 |
-| `visual-director` | 视觉导演 |
-| `prompt-director` | 提示词导演 |
-| `cinematic-keyframe` | 电影级关键帧 |
-| `cinematic-master` | 电影大师 |
-| `video-pipeline` | 视频管道 |
-| `i2v-motion-rules` | 图生视频运动规则 |
-
-### 创意思维类 (7)
-| 技能 | 用途 |
-|------|------|
-| `creative-engine` | 创意引擎 |
-| `creative-leap-pro` | 创意飞跃专业版 |
-| `creative-thinking` | 创意思维 |
-| `novel-writer` | 小说作家 |
-| `comic-drama-writer` | 喜剧编剧 |
-| `world-building-engine` | 世界观构建 |
-| `actor-craft` | 演员修养 |
-
-### 质量控制类 (5)
-| 技能 | 用途 |
-|------|------|
-| `qc-inspector` | 质量检查 |
-| `master-quality` | 大师品质 |
-| `negative-prompt-rules` | 负面提示规则 |
-| `code-review-autofix` | 代码审查自动修复 |
-| `delivery-handoff` | 交付交接 |
-
-### 工具与系统类 (7)
-| 技能 | 用途 |
-|------|------|
-| `comfyui-bridge` | ComfyUI 桥接（本地生图/视频） |
-| `model-routing` | 模型路由选择 |
-| `prompt-engineering` | 提示词工程 |
-| `debug-master` | 调试大师 |
-| `recovery-playbooks` | 故障恢复手册 |
-| `self-evolution` | 自我进化 |
-| `shell-master` | Shell 大师 |
-
-### 专业领域类 (6)
-| 技能 | 用途 |
-|------|------|
-| `api-designer` | API 设计 |
-| `python-expert` | Python 专家 |
-| `asset-manager` | 资产管理 |
-| `publishing-packager` | 发布打包 |
-| `gaming-action-engine` | 游戏动作引擎 |
-| `ip-adaptation-guard` | IP 改编守护 |
-
----
-
-## 工具（113 个）
-
-模型会自动调用，你也可以直接在对话中说"用 xxx 工具"。
-
-### 文件操作
-`read_file` `write_file` `edit_file` `list_files` `glob_files` `tree_dir` `download_file`
-
-### 代码与搜索
-`search_files` `run_python` `run_bash` `run_test` `count_lines` `code_analyze` `find_symbol` `search_symbols` `find_references`
-
-### 网页
-`web_fetch` `web_search`
-
-### Git
-`git_status` `git_diff` `git_log` `git_add_commit` `git_branch` `git_push` `git_pull` `git_pr_create` `git_pr_merge` `git_stash` `git_tag` `git_conflict_check` `git_worktree`
-
-### 任务与调度
-`task_create` `task_update` `task_list` `task_get` `schedule_add` `schedule_remove` `schedule_list`
-
-### 生成
-`generate_image` `generate_video` `generate_variants` `extract_video_keyframes` `understand_image`
-
-### 项目管理
-`save_project_manifest` `check_file_exists` `list_project_files` `decompose_to_storyboard` `regenerate_asset` `project_dependency_graph` `mark_asset_ok`
-
-### ComfyUI 桥接
-`comfyui_status` `comfyui_list_models` `comfyui_get_node_info` `comfyui_build_custom_workflow` `comfyui_submit_workflow` `comfyui_get_result` `comfyui_preview_workflow` `comfyui_clear_queue` `comfyui_create_custom_node`
-
-### LoRA 训练
-`lora_prepare_dataset` `lora_generate_training_config` `lora_check_training_status`
-
-### 动态工具
-`create_tool` `list_custom_tools` `delete_tool`
-
-### 交互
-`ask_user` `create_plan`
-
-### 诊断
-`env_check` `pip_install` `check_file_exists` `fetch_url_content` `video_model_info`
-
----
-
-## 快速参考卡
-
-```
-聊天:  直接打字，Alt+Enter 换行
-命令:  /help  /model  /img  /video  /plan  /fix
-技能:  /skill list  →  /skill load showrunner
-工具:  直接说"读取 README.md"或"搜索 TODO"
-退出:  /exit 或 Ctrl+C 两次
-诊断:  python crux_studio.py --check
-测试:  python tests/test_smoke.py
-```
+*82 tools, 34 skills, 232 core modules, 129 test files*

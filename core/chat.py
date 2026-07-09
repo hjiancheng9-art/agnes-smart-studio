@@ -19,7 +19,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
+import uuid
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -45,6 +47,7 @@ from core.chat_tool_helpers import normalize_tool_args as _normalize_tool_args
 from core.chat_vision import _vision_fallback
 from core.client import CruxClient
 from core.config import get_crux_vision_model
+from core.intelligence_hook import IntelligenceHook  # Intelligence Pipeline 集成
 from core.observability import TraceContext, metrics
 from core.provider import (
     get_provider_name,
@@ -135,8 +138,7 @@ MODEL_PROVIDER_MAP = {}  # 已由 get_provider_name() 替代
 
 # tool calling 循环最大轮次（防止死循环）
 # agent 模式 / /self 命令会经 unlimited_tools 自动翻倍
-# 从 30 → 50：复杂任务（如批量生成）需要多轮工具调度
-MAX_TOOL_LOOPS = 100
+MAX_TOOL_LOOPS = 80
 
 # 429/503 过载自动降级阈值：连续多少次限流/过载就强制切换供应商
 RATE_LIMIT_FALLBACK_THRESHOLD = 2
@@ -245,6 +247,69 @@ class ChatSession(ChatToggleMixin):
         # 视觉上下文管理器（图片持久化 + 按需重查）
         self.vision_ctx = VisionContext()
 
+        # ── Phase 1: Tool validation + self-correction layer ──
+        try:
+            from core.tool_validation_integration import ValidationLayer
+            self.tvl = ValidationLayer(
+                schema_provider=self._get_schema_for_tool,
+                max_retries=3,
+            )
+        except Exception:
+            self.tvl = None
+
+        # ── Phase 3: Context memory hooks ──
+        try:
+            from core.context_memory_hooks import inject_context_hooks
+            inject_context_hooks(self)
+        except Exception as e:
+            logger.debug("Context memory hooks init failed: %s", e)
+
+        # ── Phase 4: Reviewer agent hooks ──
+        try:
+            from core.reviewer_hooks import inject_reviewer_hooks
+            inject_reviewer_hooks(self)
+        except Exception as e:
+            logger.debug("Reviewer hooks init failed: %s", e)
+
+        # ── Phase 5: Skill / Prompt compiler hooks ──
+        try:
+            from core.skill_compiler_hooks import inject_skill_compiler_hooks
+            inject_skill_compiler_hooks(self)
+        except Exception as e:
+            logger.debug("Skill compiler hooks init failed: %s", e)
+
+        # ── Phase 6: Telemetry + Config ──
+        self._p6_telemetry_hooked = True
+
+        # ── Phase 8: Policy router ──
+        self._p8_policy_hooked = True
+
+        # ── Phase 9: Project intelligence ──
+        self._p9_project_hooked = True
+
+        # ── Phase 10: Trace debugger ──
+        self._p10_trace_hooked = True
+
+        # ── Phase 11: Failure learning loop ──
+        self._p11_failure_learning_hooked = True
+
+        # ── Phase 12: Benchmark arena ──
+        self._p12_benchmark_hooked = True
+
+        # ── Phase 13: Field arena ──
+        self._p13_field_arena_hooked = True
+
+        # ── Phase 14: Intelligence Pipeline ──
+        self._intelligence_hook = IntelligenceHook()
+
+    def _get_schema_for_tool(self, name: str) -> dict | None:
+        """Provide JSON Schema for a tool, used by the validator."""
+        try:
+            from core.tool_router import get_tool_schema
+            return get_tool_schema(name)
+        except Exception:
+            return None
+
     def _build_session_context(self) -> str:
         """Build session context string — git branch + status + recent commits.
 
@@ -335,12 +400,12 @@ class ChatSession(ChatToggleMixin):
 
     @staticmethod
     def _resolve_default_model() -> str:
-        """从 active provider 派生默认 light 模型。"""
+        """从 active provider 派生默认模型。代码模式用 pro，聊天用 light。"""
         try:
             from core.provider import get_provider_manager
 
             mgr = get_provider_manager()
-            return mgr.get_model("light") or "deepseek-v4-flash"
+            return mgr.get_model("pro") or "deepseek-v4-pro"
         except Exception as e:
             logger.debug("unexpected error: %s", e, exc_info=True)
 
@@ -355,77 +420,91 @@ class ChatSession(ChatToggleMixin):
             self._model_router = ModelRouter()
         return self._model_router
 
-    def _auto_route(self, prompt: str) -> str | None:
-        """Analyze prompt and switch model if auto_model is enabled.
+    def _auto_route(self, prompt: str) -> dict | None:
+        """Analyze prompt and switch model/provider if auto_model is enabled.
 
-        Returns the selected tier string ('light'/'pro'/'reasoner') or None if
-        auto_model is disabled.  Caller should check the return value and show
-        a brief indicator if the model changed.
+        P0 HybridRouter: resolves tier → {provider, model} via models.json tiers
+        config, enabling cross-provider routing (deepseek for chat/code, crux for
+        vision/fallback). Switches self.client when provider changes.
+
+        Returns route dict {tier, provider, model} or None if auto_model disabled.
         """
         if not self.auto_model:
             return None
 
         router = self.model_router
         tier = router.classify_and_track(prompt)
+        route = router.resolve_route(tier)
 
-        # Resolve tier → model ID from current provider, fallback across providers
-        target_model = None
-        try:
-            from core.provider import get_provider_manager
+        target_model = route.get("model", "")
+        target_provider = route.get("provider", "")
 
-            mgr = get_provider_manager()
-            mgr.load()
+        if not target_model or target_model == "unknown":
+            return {"tier": tier, "provider": "", "model": self.model}
 
-            current_pid = mgr.state.active
-            pdata = mgr.providers.get(current_pid, {})
-            provider_models = pdata.get("models", {})
+        # Cross-provider switch if needed
+        if target_provider:
+            try:
+                from core.provider import get_provider_manager
+                mgr = get_provider_manager()
+                mgr.load()
+                current_pid = mgr.state.active
+                if target_provider != current_pid:
+                    pd = mgr.providers.get(target_provider, {})
+                    new_client = mgr.create_client(target_provider)
+                    if new_client:
+                        self.client = new_client
+                        self._current_provider = target_provider
+            except Exception as e:
+                logger.debug("cross-provider switch failed: %s", e, exc_info=True)
 
-            target_model = router.resolve_model(tier, provider_models)
-
-            # If current provider doesn't have this tier, search other providers
-            # by latency (fastest first) to minimize response time
-            if target_model not in provider_models.values() or target_model == "unknown":
-                # Sort providers by policy routing: task_type, budget, circuit-state
-                all_pids = list(mgr.providers.keys())
-                try:
-                    from core.provider_policy import select_candidates
-
-                    circuit_states = {p: mgr.state.circuit_state(p) for p in all_pids}
-                    request = {"task_type": "text", "require_code": True, "budget_remaining": 100}
-                    ordered_pids = select_candidates(request, all_pids, circuit_states)
-                    try:
-                        from core.policy_regression import record_route_decision
-
-                        record_route_decision(request, ordered_pids, circuit_states)
-                    except ImportError:
-                        pass
-                except ImportError:
-                    ordered_pids = mgr.state.available_by_latency(all_pids)
-                for pid in ordered_pids:
-                    pd = mgr.providers.get(pid, {})
-                    pm = pd.get("models", {})
-                    candidate = router.resolve_model(tier, pm)
-                    if candidate != "unknown" and candidate in pm.values():
-                        target_model = candidate
-                        # Switch provider if needed
-                        if pid != current_pid:
-                            new_client = mgr.create_client(pid)
-                            expected_url = pd.get("base_url", "")
-                            if new_client.base_url.rstrip("/") == expected_url.rstrip("/"):
-                                self.client = new_client
-                        break
-        except Exception as e:
-            logger.debug("unexpected error: %s", e, exc_info=True)
-
-            return tier  # routing failed silently, keep current model
-
-        # Switch if different
-        if target_model and target_model != self.model and target_model != "unknown":
+        # Switch model if different
+        if target_model != self.model:
             self.model = target_model
             self._rebuild_ctx_mgr()
             self.messages[0] = {"role": "system", "content": self._build_system_prompt()}
 
-        return tier
+        return {"tier": tier, "provider": target_provider, "model": target_model}
+
+    # ── P0: Cross-provider fallback chain ──
+    _FALLBACKS: dict[str, list[tuple[str, str]]] = {
+        "heavy": [("deepseek", "deepseek-v4-flash"), ("crux", "agnes-2.0-flash")],
+        "pro": [("deepseek", "deepseek-v4-flash"), ("crux", "agnes-2.0-flash")],
+        "light": [("deepseek", "deepseek-v4-pro"), ("crux", "agnes-2.0-flash")],
+        "vision": [("zhipu", "GLM-4V-Flash")],
+        "fallback": [("deepseek", "deepseek-v4-flash")],
+    }
+
+    def _call_with_fallback(self, route: dict, messages: list, **kwargs):
+        """Execute LLM call with cross-provider fallback chain.
+
+        On failure, iterates _FALLBACKS[tier] trying each (provider, model) combo.
+        Raises last error if all fallbacks exhausted.
+        """
+        chain = [(route.get("provider", ""), route.get("model", ""))]
+        tier = route.get("tier", "pro")
+        chain += self._FALLBACKS.get(tier, [("crux", "agnes-2.0-flash")])
+
+        last_err = None
+        for provider_id, model_id in chain:
+            if not provider_id or not model_id:
+                continue
+            try:
+                from core.provider import get_provider_manager
+                mgr = get_provider_manager()
+                mgr.load()
+                client = self.client
+                # Switch client for non-current providers
+                if provider_id != getattr(self, "_current_provider", ""):
+                    pd = mgr.providers.get(provider_id, {})
+                    new_client = mgr.create_client(provider_id)
+                    if new_client:
+                        client = new_client
+                return client.chat(model=model_id, messages=messages, **kwargs)
+            except Exception as e:
+                logger.warning("fallback: %s/%s failed → next (%s)", provider_id, model_id, e)
+                last_err = e
+        raise last_err or RuntimeError("All fallbacks exhausted")
 
     @property
     def supports_tools(self) -> bool:
@@ -437,11 +516,11 @@ class ChatSession(ChatToggleMixin):
     def _reload_tools(self):
         """重新加载工具注册表，传入当前所有 toggle 状态。
 
-        agent 模式: load(pipeline=..., comfyui=..., browser=..., notebook=..., audio=...)
+        agent 模式: load(browser=..., notebook=..., audio=...)
         普通模式: 也传入 browser/notebook/audio（这些 toggle 独立于 agent 模式）。
         """
-        pipeline = self.active_skill in ("showrunner", "core-showrunner")
-        comfyui = self.active_skill in ("comfyui-bridge",)
+        pipeline = False  # showrunner 已移除
+        comfyui = False  # ComfyUI 已移除
         self.tools = get_registry()
         self.tools.load(
             pipeline=pipeline,
@@ -455,20 +534,21 @@ class ChatSession(ChatToggleMixin):
     def load_skill(self, name: str) -> str | None:
         """加载技能包，返回技能名称或 None。
 
-        showrunner:  启用管道工具链（视频生产）
-        comfyui-bridge: 启用 ComfyUI 桥接工具（本地生图/生视频）
-        两者可同时加载（Showrunner 策划 + ComfyUI 执行）
+        showrunner:  已移除（由 Agnes 替代）
+        comfyui-bridge: 已移除
+        （Showrunner 和 ComfyUI 均已移除）
         """
         self.skills.discover()
         skill = self.skills.load(name)
         if skill:
             self.active_skill = name
-            # 不强制切模型：保留 self.model，由路由层/用户决定使用哪个支持 tools 的模型
-            self.enable_thinking = True
+            # Thinking only for code-heavy skills; browser/media skills don't need it
+            thinking_skills = {"caliber", "debug-master"}
+            self.enable_thinking = name in thinking_skills
 
             # ── 根据技能类型启用对应工具集 ──
-            pipeline = self.active_skill == "showrunner"
-            comfyui = self.active_skill == "comfyui-bridge"
+            pipeline = False  # showrunner 已移除
+            comfyui = False  # ComfyUI 已移除
 
             if pipeline or comfyui:
                 self.tools = get_registry()
@@ -500,7 +580,7 @@ class ChatSession(ChatToggleMixin):
         return None
 
     def unload_skill(self):
-        """卸载当前技能。管道/ComfyUI 工具集同时清理。"""
+        """卸载当前技能。管道工具集同时清理。"""
         self.active_skill = ""
         self.skills.unload()
         # 重新加载纯净工具集（只含内置 + 外部 tools.json）
@@ -559,7 +639,7 @@ class ChatSession(ChatToggleMixin):
 
             pass
 
-        prompt = build_system_prompt(
+        return build_system_prompt(
             model=self.model,
             provider_name=get_provider_name(self.model),
             code_mode=self.code_mode,
@@ -572,7 +652,6 @@ class ChatSession(ChatToggleMixin):
         )
 
         # Prompt cache managed by chat_prompt.PromptCache (single source of truth)
-        return prompt
 
     def reset(self):
         """清空对话历史（保留 system）"""
@@ -771,9 +850,22 @@ class ChatSession(ChatToggleMixin):
         # ── 纯文本分支：加 user message ──
         self.messages.append({"role": "user", "content": user_text})
 
+        # ── 事件协议: 生成 run_id，yield stream_start ──
+        _run_id = str(uuid.uuid4())[:12]
+        yield ("stream_start", {"run_id": _run_id, "message": "start"})
+
         # Auto-route: classify prompt intent → dynamically switch model tier
         # (e.g. complex code → pro, simple Q&A → light, deep reasoning → reasoner)
         self._auto_route(user_text)
+
+        # ── Intelligence Pipeline V2: 在流前分析，不破坏 yield 协议 ──
+        # analyze() 内部捕获异常，失败自动 fallback
+        intel_analysis = self._intelligence_hook.analyze(user_text)
+        self._intel_mode = intel_analysis.get("mode", "BALANCED")
+        self._intel_analysis = intel_analysis.get("summary", {})
+
+        # 由调用方决定是否 yield — 这里不直接 yield
+        # 状态提示通过 get_intel_yields() 获取
 
         # Inject relevant past memories as context
         self._inject_memory(user_text)
@@ -818,7 +910,9 @@ class ChatSession(ChatToggleMixin):
         fallback_tried = 0
 
         # tool calling 循环（有上限，防止死循环）
-        _effective_max = MAX_TOOL_LOOPS * 2 if getattr(self, "unlimited_tools", False) else MAX_TOOL_LOOPS
+        # 支持 CRUX_MAX_TOOL_LOOPS 环境变量热覆盖（免重启，设了立即生效）
+        _base = int(os.environ.get("CRUX_MAX_TOOL_LOOPS", str(MAX_TOOL_LOOPS)))
+        _effective_max = _base * 2 if getattr(self, "unlimited_tools", False) else _base
         buffer = ""  # 循环外预绑定，保证超出最大轮次时引用安全
         # 跨轮工具去重状态（见 _run_tool_calls 的注释）
         _executed_signatures: set[tuple[str, str]] = set()
@@ -930,11 +1024,13 @@ class ChatSession(ChatToggleMixin):
             yield ("info", f"已达到最大工具调用轮次 ({_effective_max})，已中止。请尝试简化你的请求。")
             self.messages.append({"role": "assistant", "content": buffer})
             self._record_outcome_promptlab()
+            yield ("stream_end", {"run_id": _run_id, "message": "done"})
             return
 
         # All fallback models exhausted — tell the user something went wrong.
         tried = ", ".join(m for m, _ in fallback_chain)
         yield ("error", f"所有模型均不可用（已尝试: {tried}），请稍后重试或 /provider 切换")
+        yield ("stream_end", {"run_id": _run_id, "message": "error"})
 
     # ── send_stream 的拆分子方法（行为不变，仅降低单方法复杂度）──
     # 以下三个方法由 send_stream 调用，分别处理：吃 delta / 执行工具 / 收尾计费。
@@ -1023,6 +1119,46 @@ class ChatSession(ChatToggleMixin):
         """
         from core.context_tools import compress_tool_result
 
+        # ── Phase 1: Tool call validation ──
+        if getattr(self, 'tvl', None) is not None:
+            import json as _json
+            import time as _time
+            validation_issues: list[str] = []
+            _merged_check = getattr(self, "_last_merged_tool_calls", merge_tool_calls(tool_calls))
+            _v_start = _time.time()
+            for tc_check in _merged_check:
+                fname_c = tc_check["function"]["name"]
+                fargs_raw = tc_check["function"].get("arguments", "{}")
+                if isinstance(fargs_raw, str):
+                    try:
+                        fargs_c = _json.loads(fargs_raw)
+                    except _json.JSONDecodeError:
+                        fargs_c = {}
+                else:
+                    fargs_c = fargs_raw
+                issues = self.tvl.validate_tool_call(fname_c, fargs_c)
+                if issues:
+                    for iss in issues:
+                        validation_issues.append(f"[{iss.code.value}] {iss.tool_name}: {iss.message}")
+            _v_duration = (_time.time() - _v_start) * 1000
+            if validation_issues:
+                error_text = "\\n".join(validation_issues)
+                logger.warning(f"Tool validation failed:\\n{error_text}")
+                yield ("validation_error", error_text)
+                msg = f"[ToolCall Validation Failed]\\n{error_text}\\n---\\nFix your tool calls and retry."
+                self.messages.append({"role": "tool", "content": msg, "tool_call_id": "__validation__"})
+                # Telemetry: validation blocked
+                try:
+                    self.tvl.record_telemetry("tool_validation", "p1", "", _v_duration, False, error_text[:100])
+                except Exception:
+                    import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                return False
+            # Telemetry: validation passed
+            try:
+                self.tvl.record_telemetry("tool_validation", "p1", "", _v_duration, True, f"{len(_merged_check)} calls OK")
+            except Exception:
+                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+
         merged = getattr(self, "_last_merged_tool_calls", merge_tool_calls(tool_calls))
         for tc in merged:
             fname = tc["function"]["name"]
@@ -1036,10 +1172,41 @@ class ChatSession(ChatToggleMixin):
             else:
                 with TraceContext("tool_call", tool_name=fname, call_id=tc.get("id", "")) as span:
                     try:
+                        # ── Phase 2c: Diff guard snapshot before write ──
+                        if fname in ("write_file", "edit_file", "patch_file"):
+                            try:
+                                import json as _json2
+                                _args2 = _json2.loads(fargs) if isinstance(fargs, str) else (fargs or {})
+                                _path2 = _args2.get("path", "")
+                                if _path2:
+                                    getattr(self, 'tvl', None) and self.tvl.snapshot_before_write(_path2)
+                            except Exception:
+                                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+
                         tool_result, side_effects = self._dispatch_tool(fname, fargs)
+
+                        # ── Phase 2a+b: Validate result + track history ──
+                        try:
+                            tvl = getattr(self, 'tvl', None)
+                            if tvl:
+                                vr = tvl.validate_result(fname, str(tool_result)[:2000], success=True)
+                                if not vr.is_valid:
+                                    logger.warning(f"Result validation: {fname} -> {len(vr.notes)} issues")
+                                tvl.track_tool_use_v2(fname, fargs, str(tool_result)[:2000], success=True)
+                        except Exception:
+                            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
                     except Exception as e:
                         logger.exception("工具 %s 执行异常", fname)
                         tool_result = f"[错误] 工具 {fname} 执行失败: {type(e).__name__}: {e}"
+
+                        # ── Phase 2a: Track failed execution ──
+                        try:
+                            tvl = getattr(self, 'tvl', None)
+                            if tvl:
+                                vr = tvl.validate_result(fname, tool_result, success=False)
+                                tvl.track_tool_use_v2(fname, fargs, tool_result, success=False)
+                        except Exception:
+                            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
                         side_effects = [("info", tool_result)]
                         metrics.increment("tool_errors")
                     # ── 方法论追踪: 自动记录文件操作 + 触发升级 ──
@@ -1273,6 +1440,12 @@ class ChatSession(ChatToggleMixin):
         except Exception as e:
             logger.debug("deliberation failed: %s", e)
             return None
+
+    def get_intel_yields(self) -> list[tuple[str, str]]:
+        """V2: 获取 Intelligence 状态 yield 列表，不破坏 send_stream 协议"""
+        if not hasattr(self, '_intelligence_hook'):
+            return []
+        return self._intelligence_hook.get_status_yield()
 
     def _record_outcome_promptlab(self) -> None:
         """记录会话 outcome 到 Prompt Lab（可选模块，失败静默降级）。"""

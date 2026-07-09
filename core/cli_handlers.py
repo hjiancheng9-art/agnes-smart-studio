@@ -188,7 +188,7 @@ class CruxCLI:
     def _chat_status(self, args: str) -> None:
         """Show real-time system health."""
         s = self.session
-        print("\n  ◆ CRUX Studio v5.0  状态面板")
+        print("\n  ◆ CRUX Studio v6.0.0  状态面板")
         print(f"  模型:{s.model}  代码:{'✓' if s.code_mode else '✗'}  智能体:{'✓' if s.agent_mode else '✗'}")
         print(
             f"  技能:{s.active_skill or '无'}  工具:{len(s.tools.tool_names) if hasattr(s.tools, 'tool_names') else '?'}"
@@ -245,65 +245,32 @@ class CruxCLI:
             if self.session.active_skill:
                 print(f"  当前技能: {self.session.active_skill}")
 
+    def _chat_skill_load_browser(self, _args: str = "") -> None:
+        """快捷命令: /浏览器 或 /bk — 加载浏览器操控技能"""
+        print("  加载浏览器操控技能...")
+        result = self.session.load_skill("browser-control")
+        if result:
+            print("  浏览器已就绪。告诉我你想做什么，比如: 帮我去 ChatGPT 问一下 xxx")
+        else:
+            print("  加载失败，试试 /skill load browser-control")
+
     # ════════════════════════════════════════════════════════════
     #  Creative production handlers
     # ════════════════════════════════════════════════════════════
 
     def _chat_showrun(self, args: str) -> None:
-        """Showrunner: full auto video pipeline."""
+        """Creative video generation via Agnes Video API."""
         if not args.strip():
-            print("  用法: /showrun <创意目标>")
-            print("  全自动: 理解创意 → 拆解资产 → 分镜 → 生成 → 质检 → 导出")
+            print("  用法: /showrun <创意目标>（委托到 Agnes 生成）")
             return
-        print(f"  🎬 Showrunner 启动: {args.strip()}")
-        print("  (通过 AI chat 执行全自动视频流水线)")
-        # Forward to session as a natural language instruction
-        for kind, payload in self.session.send_stream(f"使用 Showrunner 全自动视频流水线完成任务: {args.strip()}"):
+        print(f"  🎬 视频生成启动: {args.strip()}")
+        for kind, payload in self.session.send_stream(f"使用 Agnes 生成视频: {args.strip()}"):
             if kind == "text":
                 sys.stdout.write(str(payload))
                 sys.stdout.flush()
             elif kind == "info":
                 print(f"\n  {payload}", file=sys.stderr)
         print()
-
-    def _chat_comfy(self, args: str) -> None:
-        """ComfyUI workflow management."""
-        parts = args.strip().split(maxsplit=1)
-        sub = parts[0].lower() if parts else ""
-        parts[1] if len(parts) > 1 else ""
-
-        if sub == "list":
-            print("  正在查询 ComfyUI 工作流...")
-            try:
-                from core.comfyui_client import ComfyUIClient  # pyright: ignore[reportMissingImports]
-
-                client = ComfyUIClient()
-                workflows = client.list_workflows()
-                if workflows:
-                    print(f"\n  可用工作流 ({len(workflows)} 个):")
-                    for wf in workflows:
-                        print(f"    - {wf}")
-                else:
-                    print("  无可用工作流。")
-            except ImportError:
-                print("  ComfyUI 客户端未安装。")
-            except Exception as e:
-                print(f"  ComfyUI 错误: {e}")
-        elif sub == "status":
-            try:
-                from core.comfyui_client import ComfyUIClient  # pyright: ignore[reportMissingImports]
-
-                client = ComfyUIClient()
-                status = client.get_status()
-                print(f"  ComfyUI 状态: {status}")
-            except ImportError:
-                print("  ComfyUI 客户端未安装。")
-            except Exception as e:
-                print(f"  ComfyUI 未连接: {e}")
-        elif sub in ("run", "connect"):
-            print(f"  /comfy {sub} — 请通过 AI chat 执行具体操作。")
-        else:
-            print("  用法: /comfy <list|run|status|connect>")
 
     def _chat_agnes(self, args: str) -> None:
         """Agnes multi-modal generation dispatcher."""

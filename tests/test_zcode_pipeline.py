@@ -277,6 +277,7 @@ class TestDAGRun:
             def fn():
                 order.append(name)
                 return name
+
             return fn
 
         dag = DAG("order")
@@ -291,6 +292,7 @@ class TestDAGRun:
             def fn():
                 results[key] = key
                 return key
+
             return fn
 
         dag = DAG("parallel")
@@ -354,6 +356,7 @@ class TestDAGRunFailure:
 
     def test_missing_fallback_is_noop(self):
         """Failing node with missing fallback name still fails."""
+
         def fail_fn():
             raise ValueError("fail")
 
@@ -572,9 +575,7 @@ class TestPIPELINES:
     def test_qa_gates_are_valid_skills(self):
         for pid, pipe in PIPELINES.items():
             for gate in pipe.get("qa_gates", []):
-                assert gate in pipe["skills"], (
-                    f"{pid}: QA gate '{gate}' not in skills list"
-                )
+                assert gate in pipe["skills"], f"{pid}: QA gate '{gate}' not in skills list"
 
 
 class TestPipelineEngine:
@@ -600,6 +601,7 @@ class TestPipelineEngine:
     def test_run_invalid_pipeline_raises_valueerror(self):
         engine = PipelineEngine()
         import pytest
+
         with pytest.raises(ValueError, match="Unknown pipeline"):
             engine.run("nonexistent-pipeline-xyz", "input")
 
@@ -701,9 +703,7 @@ class TestPipelineToolDefinitions:
             params = tool["function"]["parameters"]["properties"]
             for pname, pdef in params.items():
                 assert "type" in pdef, f"{tool['function']['name']}:{pname} missing type"
-                assert "description" in pdef, (
-                    f"{tool['function']['name']}:{pname} missing description"
-                )
+                assert "description" in pdef, f"{tool['function']['name']}:{pname} missing description"
 
     def test_required_fields_present(self):
         for tool in PIPELINE_TOOLS:
@@ -711,9 +711,7 @@ class TestPipelineToolDefinitions:
             params = func["parameters"]
             required = params.get("required", [])
             for r in required:
-                assert r in params["properties"], (
-                    f"{func['name']}: required '{r}' missing from properties"
-                )
+                assert r in params["properties"], f"{func['name']}: required '{r}' missing from properties"
 
 
 class TestEXECUTORMAP:
@@ -723,8 +721,7 @@ class TestEXECUTORMAP:
         tool_names = {t["function"]["name"] for t in PIPELINE_TOOLS}
         executor_names = set(EXECUTOR_MAP.keys())
         assert tool_names == executor_names, (
-            f"Mismatch: tools={tool_names - executor_names}, "
-            f"extras={executor_names - tool_names}"
+            f"Mismatch: tools={tool_names - executor_names}, extras={executor_names - tool_names}"
         )
 
     def test_executor_map_values_are_callable(self):
@@ -734,6 +731,7 @@ class TestEXECUTORMAP:
     def test_executor_map_routes_to_correct_function(self):
         """Spot-check that executor lambda routes to the underlying function."""
         import inspect
+
         fn = EXECUTOR_MAP["check_file_exists"]
         source = inspect.getsource(fn)
         assert "execute_check_file" in source
@@ -788,6 +786,7 @@ class TestExecuteSaveManifest:
     def _run_with_temp(self, fn):
         """Run fn with temporary OUTPUT_ROOT and MANIFEST_DIR."""
         import core.pipeline_tools as pt
+
         old_root = pt.OUTPUT_ROOT
         old_mf = pt.MANIFEST_DIR
         with tempfile.TemporaryDirectory() as td:
@@ -847,6 +846,7 @@ class TestExecuteListFiles:
 
     def _run_with_temp(self, fn):
         import core.pipeline_tools as pt
+
         old_root = pt.OUTPUT_ROOT
         old_mf = pt.MANIFEST_DIR
         with tempfile.TemporaryDirectory() as td:
@@ -897,6 +897,7 @@ class TestExecuteDecomposeToStoryboard:
 
     def _run_with_temp(self, fn):
         import core.pipeline_tools as pt
+
         old_root = pt.OUTPUT_ROOT
         old_mf = pt.MANIFEST_DIR
         with tempfile.TemporaryDirectory() as td:
@@ -941,6 +942,7 @@ class TestExecuteDependencyGraph:
 
     def _run_with_temp(self, fn):
         import core.pipeline_tools as pt
+
         old_root = pt.OUTPUT_ROOT
         old_mf = pt.MANIFEST_DIR
         with tempfile.TemporaryDirectory() as td:
@@ -987,9 +989,7 @@ class TestExecuteDependencyGraph:
                     },
                 },
             }
-            (mf_dir / "manifest.json").write_text(
-                json.dumps(mf, ensure_ascii=False), encoding="utf-8"
-            )
+            (mf_dir / "manifest.json").write_text(json.dumps(mf, ensure_ascii=False), encoding="utf-8")
 
             result = execute_dependency_graph("my_film")
             data = json.loads(result)
@@ -1006,6 +1006,7 @@ class TestExecuteMarkAssetOk:
 
     def _run_with_temp(self, fn):
         import core.pipeline_tools as pt
+
         old_root = pt.OUTPUT_ROOT
         old_mf = pt.MANIFEST_DIR
         with tempfile.TemporaryDirectory() as td:
@@ -1057,18 +1058,14 @@ class TestExecuteMarkAssetOk:
                     }
                 },
             }
-            (mf_dir / "manifest.json").write_text(
-                json.dumps(mf, ensure_ascii=False), encoding="utf-8"
-            )
+            (mf_dir / "manifest.json").write_text(json.dumps(mf, ensure_ascii=False), encoding="utf-8")
             result = execute_mark_asset_ok("p1", "char-01")
             data = json.loads(result)
             assert data["success"] is True
             assert data["status"] == "done"
 
             # Verify file was updated
-            manifest = json.loads(
-                (mf_dir / "manifest.json").read_text(encoding="utf-8")
-            )
+            manifest = json.loads((mf_dir / "manifest.json").read_text(encoding="utf-8"))
             assert manifest["assets"]["char-01"]["status"] == "done"
 
         self._run_with_temp(_test)
@@ -1079,6 +1076,7 @@ class TestExecuteRegenerateAsset:
 
     def _run_with_temp(self, fn):
         import core.pipeline_tools as pt
+
         old_root = pt.OUTPUT_ROOT
         old_mf = pt.MANIFEST_DIR
         with tempfile.TemporaryDirectory() as td:
@@ -1130,17 +1128,13 @@ class TestExecuteRegenerateAsset:
                     }
                 },
             }
-            (mf_dir / "manifest.json").write_text(
-                json.dumps(mf, ensure_ascii=False), encoding="utf-8"
-            )
+            (mf_dir / "manifest.json").write_text(json.dumps(mf, ensure_ascii=False), encoding="utf-8")
             result = execute_regenerate_asset("p1", "kf-03")
             data = json.loads(result)
             assert data["success"] is True
             assert data["new_status"] == "needs_redo"
 
-            manifest = json.loads(
-                (mf_dir / "manifest.json").read_text(encoding="utf-8")
-            )
+            manifest = json.loads((mf_dir / "manifest.json").read_text(encoding="utf-8"))
             assert manifest["assets"]["kf-03"]["status"] == "needs_redo"
 
         self._run_with_temp(_test)
@@ -1160,16 +1154,12 @@ class TestExecuteRegenerateAsset:
                     }
                 },
             }
-            (mf_dir / "manifest.json").write_text(
-                json.dumps(mf, ensure_ascii=False), encoding="utf-8"
-            )
+            (mf_dir / "manifest.json").write_text(json.dumps(mf, ensure_ascii=False), encoding="utf-8")
             result = execute_regenerate_asset("p1", "char-01", '{"prompt": "warmer tone"}')
             data = json.loads(result)
             assert data["success"] is True
 
-            manifest = json.loads(
-                (mf_dir / "manifest.json").read_text(encoding="utf-8")
-            )
+            manifest = json.loads((mf_dir / "manifest.json").read_text(encoding="utf-8"))
             assert manifest["assets"]["char-01"]["params_update"] == {"prompt": "warmer tone"}
 
         self._run_with_temp(_test)

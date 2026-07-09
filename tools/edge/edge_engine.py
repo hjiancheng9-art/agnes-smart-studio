@@ -20,6 +20,10 @@ Edge Browser Headless 引擎 — 稳定、可复用
   python edge_engine.py text "h3"
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 import asyncio
 import json
 import os
@@ -61,9 +65,13 @@ class EdgeEngine:
         """确保有一个可用页面"""
         await self._ensure_browser()
         if not self._page or self._page.is_closed():
-            ctx = self._browser.contexts[0] if self._browser.contexts else await self._browser.new_context(
-                viewport={"width": 1280, "height": 800},
-                locale="zh-CN",
+            ctx = (
+                self._browser.contexts[0]
+                if self._browser.contexts
+                else await self._browser.new_context(
+                    viewport={"width": 1280, "height": 800},
+                    locale="zh-CN",
+                )
             )
             self._page = ctx.pages[0] if ctx.pages else await ctx.new_page()
 
@@ -121,7 +129,8 @@ class EdgeEngine:
             try:
                 t = await el.inner_text()
                 texts.append(t[:200])
-            except: pass
+            except Exception as e:
+                logger.debug("Non-critical: %s", e, exc_info=True)
         if len(texts) == 1:
             return {"text": texts[0]}
         return {"texts": texts, "count": len(texts)}
@@ -132,7 +141,7 @@ class EdgeEngine:
         links = await self._page.eval_on_selector_all(
             "a[href]", "els => els.map(el => ({text: el.innerText.trim(), href: el.href}))"
         )
-        return {"links": [l for l in links if l["text"]][:50]}
+        return {"links": [link for link in links if link["text"]][:50]}
 
     async def wait(self, seconds: float):
         """等待"""
@@ -145,7 +154,8 @@ class EdgeEngine:
                 await self._browser.close()
             if self._pw:
                 await self._pw.__aexit__(None, None, None)
-        except: pass
+        except Exception as e:
+            logger.debug("Non-critical: %s", e, exc_info=True)
         self._browser = None
         self._pw = None
         self._page = None

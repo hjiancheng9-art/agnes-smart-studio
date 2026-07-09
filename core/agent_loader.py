@@ -60,7 +60,7 @@ def load_agent_spec(agent_name: str) -> AgentSpec | None:
     except yaml.YAMLError:
         return None
 
-    spec = AgentSpec(
+    return AgentSpec(
         name=meta.get("name", agent_name),
         description=meta.get("description", ""),
         model_ids=meta.get("model", []) or [],
@@ -69,8 +69,6 @@ def load_agent_spec(agent_name: str) -> AgentSpec | None:
         disable_model=meta.get("disable-model-invocation", False),
         handoffs=meta.get("handoffs", []) or [],
     )
-
-    return spec
 
 
 def resolve_agent_model(spec: AgentSpec) -> str:

@@ -38,6 +38,7 @@ def _make_app(**kwargs):
 
     # ptk 3.0.52 _parse_key rejects "wheel-up"/"wheel-down" — patch it
     import prompt_toolkit.key_binding.key_bindings as kb_mod
+
     _real_parse = kb_mod._parse_key
 
     def _patched_parse_key(key: str):
@@ -61,9 +62,16 @@ class TestKeyBindings:
     """test_tui_app_has_correct_keybindings — verify all required keys are bound."""
 
     REQUIRED_KEYS = [
-        "c-c", "c-v", "escape", "c-l",
-        "pageup", "pagedown", "home", "end",
-        "<scroll-up>", "<scroll-down>",  # Keys.ScrollUp / Keys.ScrollDown string form
+        "c-c",
+        "c-v",
+        "escape",
+        "c-l",
+        "pageup",
+        "pagedown",
+        "home",
+        "end",
+        "<scroll-up>",
+        "<scroll-down>",  # Keys.ScrollUp / Keys.ScrollDown string form
     ]
 
     def test_has_required_keybindings(self):

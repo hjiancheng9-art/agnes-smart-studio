@@ -9,7 +9,7 @@ browser = p.chromium.connect_over_cdp(CDP_URL)
 page = None
 for ctx in browser.contexts:
     for pg in ctx.pages:
-        if 'gemini' in pg.url:
+        if "gemini" in pg.url:
             page = pg
             break
 
@@ -28,10 +28,10 @@ if page:
     }""")
 
     print(f"generating={result['generating']}, count={result['count']}")
-    print(result['texts'])
+    print(result["texts"])
 
-    with open('tools/edge/gemini_verdict.txt', 'w', encoding='utf-8') as f:
-        f.write(result['texts'])
+    with open("tools/edge/gemini_verdict.txt", "w", encoding="utf-8") as f:
+        f.write(result["texts"])
 else:
     print("Gemini page not found!")
 

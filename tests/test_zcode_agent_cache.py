@@ -16,6 +16,7 @@ class TestAgentCacheConstruction:
 
     def test_construction(self):
         from core.agent_cache import AgentCache
+
         ac = AgentCache()
         assert ac is not None
         assert len(ac._decomp) == 0
@@ -23,6 +24,7 @@ class TestAgentCacheConstruction:
 
     def test_stats_on_empty_cache(self):
         from core.agent_cache import AgentCache
+
         ac = AgentCache()
         s = ac.stats()
         assert s["decomp_entries"] == 0
@@ -39,6 +41,7 @@ class TestDecompositionCache:
 
     def test_set_and_get_decomposition(self):
         from core.agent_cache import AgentCache
+
         ac = AgentCache()
         value = ["task1", "task2", "task3"]
         ac.set_decomposition("build a thing", "explore", value)
@@ -47,11 +50,13 @@ class TestDecompositionCache:
 
     def test_get_missing_decomposition(self):
         from core.agent_cache import AgentCache
+
         ac = AgentCache()
         assert ac.get_decomposition("never cached", "explore") is None
 
     def test_different_agent_types_different_keys(self):
         from core.agent_cache import AgentCache
+
         ac = AgentCache()
         ac.set_decomposition("goal", "explore", ["a"])
         ac.set_decomposition("goal", "implement", ["b"])
@@ -60,6 +65,7 @@ class TestDecompositionCache:
 
     def test_decomposition_ttl_expiry(self, monkeypatch):
         from core.agent_cache import DECOMP_TTL, AgentCache
+
         ac = AgentCache()
         ac.set_decomposition("goal", "explore", ["val"])
 
@@ -70,6 +76,7 @@ class TestDecompositionCache:
 
     def test_lru_eviction(self):
         from core.agent_cache import MAX_DECOMPOSITIONS, AgentCache
+
         ac = AgentCache()
         # Fill beyond max
         for i in range(MAX_DECOMPOSITIONS + 5):
@@ -90,6 +97,7 @@ class TestExplorationCache:
 
     def test_set_and_get_exploration(self):
         from core.agent_cache import AgentCache
+
         ac = AgentCache()
         value = ["file1.py", "file2.py"]
         ac.set_exploration("**/*.py", "src", value)
@@ -98,11 +106,13 @@ class TestExplorationCache:
 
     def test_get_missing_exploration(self):
         from core.agent_cache import AgentCache
+
         ac = AgentCache()
         assert ac.get_exploration("never searched", "/tmp") is None
 
     def test_different_directories_different_keys(self):
         from core.agent_cache import AgentCache
+
         ac = AgentCache()
         ac.set_exploration("**/*.py", "src", ["a.py"])
         ac.set_exploration("**/*.py", "tests", ["test_a.py"])
@@ -111,6 +121,7 @@ class TestExplorationCache:
 
     def test_exploration_ttl_expiry(self, monkeypatch):
         from core.agent_cache import EXPLORE_TTL, AgentCache
+
         ac = AgentCache()
         ac.set_exploration("query", "dir", ["result"])
         future = time.time() + EXPLORE_TTL + 5
@@ -119,6 +130,7 @@ class TestExplorationCache:
 
     def test_lru_eviction(self):
         from core.agent_cache import MAX_EXPLORATIONS, AgentCache
+
         ac = AgentCache()
         for i in range(MAX_EXPLORATIONS + 5):
             ac.set_exploration(f"query_{i}", "dir", [i])
@@ -136,6 +148,7 @@ class TestCacheClear:
 
     def test_clear_removes_all(self):
         from core.agent_cache import AgentCache
+
         ac = AgentCache()
         ac.set_decomposition("goal", "explore", ["val"])
         ac.set_exploration("query", "dir", ["result"])
@@ -156,6 +169,7 @@ class TestAgentCacheStats:
 
     def test_reflects_decomp_entries(self):
         from core.agent_cache import AgentCache
+
         ac = AgentCache()
         ac.set_decomposition("g1", "explore", ["a"])
         ac.set_decomposition("g2", "explore", ["b"])
@@ -163,6 +177,7 @@ class TestAgentCacheStats:
 
     def test_reflects_explore_entries(self):
         from core.agent_cache import AgentCache
+
         ac = AgentCache()
         ac.set_exploration("q1", "d", ["a"])
         assert ac.stats()["explore_entries"] == 1
@@ -178,12 +193,14 @@ class TestAgentCacheSingleton:
 
     def test_returns_same_instance(self):
         from core.agent_cache import get_cache
+
         c1 = get_cache()
         c2 = get_cache()
         assert c1 is c2
 
     def test_returns_agent_cache_instance(self):
         from core.agent_cache import AgentCache, get_cache
+
         c = get_cache()
         assert isinstance(c, AgentCache)
 
@@ -198,6 +215,7 @@ class TestCachedDecompose:
 
     def test_returns_cached_on_hit(self):
         from core.agent_cache import cached_decompose, get_cache
+
         cache = get_cache()
         cache.clear()
         cache.set_decomposition("goal", "explore", ["cached_result"])
@@ -214,6 +232,7 @@ class TestCachedDecompose:
 
     def test_calls_fn_on_miss(self):
         from core.agent_cache import cached_decompose, get_cache
+
         cache = get_cache()
         cache.clear()
 
@@ -236,6 +255,7 @@ class TestCachedExplore:
 
     def test_returns_cached_on_hit(self):
         from core.agent_cache import cached_explore, get_cache
+
         cache = get_cache()
         cache.clear()
         cache.set_exploration("**/*.py", "my_dir", ["cached.py"])
@@ -252,6 +272,7 @@ class TestCachedExplore:
 
     def test_calls_fn_on_miss(self):
         from core.agent_cache import cached_explore, get_cache
+
         cache = get_cache()
         cache.clear()
 

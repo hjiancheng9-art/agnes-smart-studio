@@ -14,19 +14,22 @@ from dataclasses import dataclass
 
 # ── 输入模式 ──────────────────────────────────────────────
 
+
 class InputMode(enum.Enum):
-    NORMAL = "normal"               # 默认：可输入、鼠标滚轮滚动
-    FOCUS_MESSAGE = "focus"         # 消息聚焦模式：↑↓切换消息
-    DETAIL_VIEW = "detail"          # 消息详情：独立滚动
-    COPY_MODE = "copy"              # 复制模式：选择范围
-    NATIVE_SELECT = "native"        # 原生选择：TUI 松开鼠标
+    NORMAL = "normal"  # 默认：可输入、鼠标滚轮滚动
+    FOCUS_MESSAGE = "focus"  # 消息聚焦模式：↑↓切换消息
+    DETAIL_VIEW = "detail"  # 消息详情：独立滚动
+    COPY_MODE = "copy"  # 复制模式：选择范围
+    NATIVE_SELECT = "native"  # 原生选择：TUI 松开鼠标
 
 
 # ── 聚焦状态（独立于 CopyManager） ─────────────────────────
 
+
 @dataclass
 class FocusState:
     """消息聚焦状态 — 独立组件。"""
+
     enabled: bool = False
     index: int = -1
     total: int = 0
@@ -53,6 +56,7 @@ class FocusState:
 
 # ── 剪贴板适配器 ─────────────────────────────────────────
 
+
 class ClipboardAdapter:
     """统一剪贴板操作，自动处理不可用场景。"""
 
@@ -63,6 +67,7 @@ class ClipboardAdapter:
     def _test(self):
         try:
             import pyperclip
+
             pyperclip.copy("")
         except Exception:
             self._available = False
@@ -76,6 +81,7 @@ class ClipboardAdapter:
             return False
         try:
             import pyperclip
+
             pyperclip.copy(text)
             return True
         except Exception:
@@ -91,6 +97,7 @@ class ClipboardAdapter:
 
 
 # ── 输入路由器 ────────────────────────────────────────────
+
 
 class InputRouter:
     """统一键盘调度器。
@@ -148,6 +155,7 @@ class InputRouter:
 
 # ── 全局实例 ──────────────────────────────────────────────
 _clipboard: ClipboardAdapter | None = None
+
 
 def get_clipboard() -> ClipboardAdapter:
     global _clipboard

@@ -2,7 +2,10 @@
   "mcpServers": {
     "crux": {
       "command": "C:/Users/huangjiancheng/AppData/Local/Programs/Python/Python311/python.exe",
-      "args": ["C:/Users/huangjiancheng/agnes-smart-studio/crux_studio.py", "mcp-serve"]
+      "args": ["C:/Users/huangjiancheng/agnes-smart-studio/crux_studio.py", "mcp-serve"],
+      "env": {
+        "CRUX_API_KEY": "sk-REeAdNPEFoWFOEwDL4Govn54h"
+      }
     }
   }
 }

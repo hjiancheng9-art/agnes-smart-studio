@@ -18,6 +18,7 @@ from core.mcp_context import (
 
 # ─── ConfirmCheckpoint Tests ────────────────────────────
 
+
 class TestConfirmCheckpoint:
     def test_creation(self):
         cp = ConfirmCheckpoint(
@@ -54,7 +55,9 @@ class TestConfirmCheckpoint:
 
     def test_low_level_has_info_icon(self):
         cp = ConfirmCheckpoint(
-            id="test", title="信息", description="x",
+            id="test",
+            title="信息",
+            description="x",
             level=ConfirmLevel.LOW,
         )
         msg = cp.to_message()
@@ -67,7 +70,9 @@ class TestConfirmManager:
 
     def test_request_adds_to_pending(self):
         cp = ConfirmCheckpoint(
-            id="test-1", title="Test", description="Test",
+            id="test-1",
+            title="Test",
+            description="Test",
             level=ConfirmLevel.MEDIUM,
         )
         self.cm.request(cp)
@@ -75,7 +80,9 @@ class TestConfirmManager:
 
     def test_resolve_moves_to_history(self):
         cp = ConfirmCheckpoint(
-            id="test-1", title="Test", description="Test",
+            id="test-1",
+            title="Test",
+            description="Test",
             level=ConfirmLevel.MEDIUM,
         )
         self.cm.request(cp)
@@ -91,8 +98,12 @@ class TestConfirmManager:
 
     def test_auto_resolve_expired(self):
         cp = ConfirmCheckpoint(
-            id="test-1", title="Test", description="Test",
-            level=ConfirmLevel.MEDIUM, timeout=0, auto_approve=True,
+            id="test-1",
+            title="Test",
+            description="Test",
+            level=ConfirmLevel.MEDIUM,
+            timeout=0,
+            auto_approve=True,
         )
         self.cm.request(cp)
         # Simulate creation in the past
@@ -103,8 +114,12 @@ class TestConfirmManager:
 
     def test_auto_resolve_without_auto_approve(self):
         cp = ConfirmCheckpoint(
-            id="test-1", title="Test", description="Test",
-            level=ConfirmLevel.MEDIUM, timeout=0, auto_approve=False,
+            id="test-1",
+            title="Test",
+            description="Test",
+            level=ConfirmLevel.MEDIUM,
+            timeout=0,
+            auto_approve=False,
         )
         self.cm.request(cp)
         cp.created_at = 0
@@ -114,7 +129,9 @@ class TestConfirmManager:
 
     def test_stats(self):
         cp = ConfirmCheckpoint(
-            id="test", title="Test", description="x",
+            id="test",
+            title="Test",
+            description="x",
             level=ConfirmLevel.MEDIUM,
         )
         self.cm.request(cp)
@@ -127,7 +144,9 @@ class TestConfirmManager:
     def test_get_history(self):
         for i in range(3):
             cp = ConfirmCheckpoint(
-                id=f"test-{i}", title=f"Test {i}", description="x",
+                id=f"test-{i}",
+                title=f"Test {i}",
+                description="x",
                 level=ConfirmLevel.MEDIUM,
             )
             self.cm.request(cp)
@@ -162,7 +181,9 @@ class TestCheckpointFactories:
 
     def test_multi_step_checkpoint(self):
         cp = multi_step_checkpoint(
-            "代码审查", "发现3个问题", "修复问题",
+            "代码审查",
+            "发现3个问题",
+            "修复问题",
         )
         assert cp.level == ConfirmLevel.LOW
         assert cp.auto_approve is True
@@ -171,6 +192,7 @@ class TestCheckpointFactories:
 
 
 # ─── MCP Context Tests ───────────────────────────────────
+
 
 class TestMCPContext:
     def test_filter_code_tools(self):

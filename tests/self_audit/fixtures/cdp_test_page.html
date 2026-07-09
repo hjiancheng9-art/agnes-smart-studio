@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>CDP Test Page</title>
+<style>
+  body { font-family: sans-serif; padding: 20px; }
+  button { padding: 8px 16px; margin: 4px; }
+  #result { margin-top: 12px; padding: 8px; border: 1px solid #ccc; min-height: 20px; }
+  #status { color: green; }
+</style>
+</head>
+<body>
+  <h1>CDP Test Page</h1>
+  <p id="status">Ready</p>
+
+  <button id="btn-click">Click me</button>
+  <button id="btn-toggle">Toggle</button>
+
+  <input id="input-text" type="text" placeholder="Type here..." />
+  <input id="input-number" type="number" value="42" />
+
+  <div id="result"></div>
+
+  <script>
+    document.getElementById("btn-click").onclick = () => {
+      document.getElementById("result").textContent = "clicked";
+    };
+    document.getElementById("btn-toggle").onclick = () => {
+      const el = document.getElementById("result");
+      el.textContent = el.textContent === "ON" ? "OFF" : "ON";
+    };
+    document.getElementById("input-text").oninput = (e) => {
+      document.getElementById("result").textContent = "typed: " + e.target.value;
+    };
+  </script>
+</body>
+</html>

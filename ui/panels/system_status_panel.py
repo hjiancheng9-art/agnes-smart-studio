@@ -30,10 +30,12 @@ def render_system_status(providers: list[dict], width: int) -> list[tuple[str, s
         else:
             style = "class:provider-warn"
 
-        rows.append((
-            style,
-            f" {name:<21} {health:>5.2f}    {circuit:<11} {latency:>5}ms   {status}\n",
-        ))
+        rows.append(
+            (
+                style,
+                f" {name:<21} {health:>5.2f}    {circuit:<11} {latency:>5}ms   {status}\n",
+            )
+        )
 
     if not providers:
         rows.append(("class:muted", " No provider status available.\n"))

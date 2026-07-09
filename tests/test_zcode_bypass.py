@@ -72,15 +72,15 @@ class TestDetectTriggerWords:
         # The _detect_trigger_words function contains a 'dangerous' list
         # Count all entries across all categories
         import inspect
+
         source = inspect.getsource(prompt_bypass._detect_trigger_words)
         # Count string literals that look like trigger words
         # Each trigger word is a quoted string in the 'dangerous' list
         import re
+
         # Match quoted strings in the dangerous list
         words = re.findall(r'"([a-z][a-z\s]+)"', source)
-        assert len(words) >= 55, (
-            f"Expected 55+ trigger words, got {len(words)}: {words}"
-        )
+        assert len(words) >= 55, f"Expected 55+ trigger words, got {len(words)}: {words}"
 
 
 class TestFigureTriggers:
@@ -105,8 +105,5 @@ class TestPolicyKeywords:
 
     def test_policy_keywords_has_chinese(self):
         """POLICY_KEYWORDS should include Chinese keywords."""
-        has_chinese = any(
-            any('一' <= c <= '鿿' for c in kw)
-            for kw in prompt_bypass.POLICY_KEYWORDS
-        )
+        has_chinese = any(any("一" <= c <= "鿿" for c in kw) for kw in prompt_bypass.POLICY_KEYWORDS)
         assert has_chinese, "POLICY_KEYWORDS should contain Chinese keywords"

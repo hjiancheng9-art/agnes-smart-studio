@@ -3,6 +3,8 @@
 Auto-deletes tmp*.py files from home directory and generated .txt files from project root.
 Hook must never block — all errors silently caught.
 """
+
+import logging
 import os
 import sys
 import time
@@ -14,7 +16,7 @@ def clean_tmp_py(home: str) -> int:
     count = 0
     try:
         for f in os.listdir(home):
-            if f.startswith('tmp') and f.endswith('.py'):
+            if f.startswith("tmp") and f.endswith(".py"):
                 fp = os.path.join(home, f)
                 try:
                     st = os.stat(fp)
@@ -24,7 +26,8 @@ def clean_tmp_py(home: str) -> int:
                 except (OSError, PermissionError):
                     pass
     except Exception:
-        pass
+        import logging
+        logging.getLogger('crux').debug('silent except', exc_info=True)
     return count
 
 
@@ -33,26 +36,27 @@ def clean_generated_txt(root: str) -> int:
     Keep: requirements.txt, anything user-created manually.
     Auto-generated patterns: crux_b_*, crux_banner*, splash_*, tui_*, ptk_*, debug_*
     """
-    auto_prefixes = ('crux_b_', 'crux_banner', 'splash_', 'tui_', 'ptk_', 'debug_', 'system_prompt_', 'entity_')
-    keep = {'requirements.txt'}
+    auto_prefixes = ("crux_b_", "crux_banner", "splash_", "tui_", "ptk_", "debug_", "system_prompt_", "entity_")
+    keep = {"requirements.txt"}
     count = 0
     try:
         for f in os.listdir(root):
-            if f.endswith('.txt') and f not in keep and any(f.startswith(p) for p in auto_prefixes):
-                    fp = os.path.join(root, f)
-                    try:
-                        os.remove(fp)
-                        count += 1
-                    except (OSError, PermissionError):
-                        pass
+            if f.endswith(".txt") and f not in keep and any(f.startswith(p) for p in auto_prefixes):
+                fp = os.path.join(root, f)
+                try:
+                    os.remove(fp)
+                    count += 1
+                except (OSError, PermissionError):
+                    pass
     except Exception:
-        pass
+        import logging
+        logging.getLogger('crux').debug('silent except', exc_info=True)
     return count
 
 
 def main():
-    root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))  # .claude/hooks/ -> project root
-    home = os.path.expanduser('~')
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))  # .claude/hooks/ -> project root
+    home = os.path.expanduser("~")
 
     deleted_py = clean_tmp_py(home)
     deleted_txt = clean_generated_txt(root)
@@ -66,5 +70,5 @@ def main():
         print(f"\n  [cleanup] 已清理: {', '.join(parts)}", file=sys.stderr)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

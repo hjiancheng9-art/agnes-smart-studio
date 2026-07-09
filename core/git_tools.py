@@ -87,7 +87,7 @@ def execute_git_branch(name: str = "", action: str = "list", base: str = "") -> 
             return json.dumps({"branches": branches, "count": len(branches)}, ensure_ascii=False, indent=2)
         return json.dumps(r, ensure_ascii=False)
 
-    elif action == "create":
+    if action == "create":
         if not name:
             return json.dumps({"error": "branch name required"})
         args = ["checkout", "-b", name]
@@ -96,19 +96,19 @@ def execute_git_branch(name: str = "", action: str = "list", base: str = "") -> 
         r = _run_git(args)
         return json.dumps({"created": name, "base": base or "current", **r}, ensure_ascii=False)
 
-    elif action == "switch":
+    if action == "switch":
         if not name:
             return json.dumps({"error": "branch name required"})
         r = _run_git(["checkout", name])
         return json.dumps({"switched": name, **r}, ensure_ascii=False)
 
-    elif action == "delete":
+    if action == "delete":
         if not name:
             return json.dumps({"error": "branch name required"})
         r = _run_git(["branch", "-d", name])
         return json.dumps({"deleted": name, **r}, ensure_ascii=False)
 
-    elif action == "current":
+    if action == "current":
         r = _run_git(["branch", "--show-current"])
         return json.dumps({"current_branch": r["stdout"] if r["success"] else ""}, ensure_ascii=False)
 
@@ -227,22 +227,22 @@ def execute_git_stash(action: str = "list", message: str = "") -> str:
     if action == "list":
         r = _run_git(["stash", "list"])
         return json.dumps({"stashes": r["stdout"].split("\n") if r["stdout"] else [], **r}, ensure_ascii=False)
-    elif action == "push":
+    if action == "push":
         args = ["stash", "push"]
         if message:
             args.extend(["-m", message])
         r = _run_git(args)
         return json.dumps({"stashed": r["success"], **r}, ensure_ascii=False)
-    elif action == "pop":
+    if action == "pop":
         r = _run_git(["stash", "pop"])
         return json.dumps({"popped": r["success"], **r}, ensure_ascii=False)
-    elif action == "apply":
+    if action == "apply":
         r = _run_git(["stash", "apply"])
         return json.dumps({"applied": r["success"], **r}, ensure_ascii=False)
-    elif action == "drop":
+    if action == "drop":
         r = _run_git(["stash", "drop"])
         return json.dumps({"dropped": r["success"], **r}, ensure_ascii=False)
-    elif action == "clear":
+    if action == "clear":
         r = _run_git(["stash", "clear"])
         return json.dumps({"cleared": r["success"], **r}, ensure_ascii=False)
 
@@ -275,7 +275,7 @@ def execute_git_tag(name: str = "", action: str = "list", message: str = "") -> 
         r = _run_git(["tag", "-l", "--sort=-creatordate"])
         tags = r["stdout"].split("\n")[:20] if r["stdout"] else []
         return json.dumps({"tags": tags, **r}, ensure_ascii=False)
-    elif action == "create":
+    if action == "create":
         if not name:
             return json.dumps({"error": "tag name required"})
         args = ["tag", name]
@@ -283,7 +283,7 @@ def execute_git_tag(name: str = "", action: str = "list", message: str = "") -> 
             args.extend(["-a", "-m", message])
         r = _run_git(args)
         return json.dumps({"created": name, **r}, ensure_ascii=False)
-    elif action == "delete":
+    if action == "delete":
         if not name:
             return json.dumps({"error": "tag name required"})
         r = _run_git(["tag", "-d", name])
@@ -328,7 +328,7 @@ def execute_git_worktree(
             return json.dumps({"worktrees": worktrees, "count": len(worktrees)}, ensure_ascii=False, indent=2)
         return json.dumps(r, ensure_ascii=False)
 
-    elif action == "add":
+    if action == "add":
         if not path:
             return json.dumps({"error": "path required for add"})
         args = ["worktree", "add"]
@@ -353,7 +353,7 @@ def execute_git_worktree(
             ensure_ascii=False,
         )
 
-    elif action == "remove":
+    if action == "remove":
         if not path:
             return json.dumps({"error": "path required for remove"})
         args = ["worktree", "remove"]
@@ -370,7 +370,7 @@ def execute_git_worktree(
             ensure_ascii=False,
         )
 
-    elif action == "prune":
+    if action == "prune":
         r = _run_git(["worktree", "prune"])
         return json.dumps({"pruned": r["success"], **r}, ensure_ascii=False)
 

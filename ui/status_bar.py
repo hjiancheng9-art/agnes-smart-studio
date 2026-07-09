@@ -3,6 +3,7 @@
 import os
 import shutil
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 from prompt_toolkit.formatted_text import FormattedText
@@ -15,12 +16,10 @@ def _term_width() -> int:
         return 80
 
 
-from collections.abc import Callable
-
-
 class StatusBar:
-
-    def __init__(self, model_fn: Callable[[], str] | str | None = None, cwd: Path | None = None, model: str = "") -> None:
+    def __init__(
+        self, model_fn: Callable[[], str] | str | None = None, cwd: Path | None = None, model: str = ""
+    ) -> None:
         if callable(model_fn):
             self._model_fn = model_fn
             self._model_fallback = model or ""
@@ -42,7 +41,10 @@ class StatusBar:
         try:
             r = subprocess.run(
                 ["git", "branch", "--show-current"],
-                capture_output=True, text=True, timeout=3, cwd=str(self.cwd),
+                capture_output=True,
+                text=True,
+                timeout=3,
+                cwd=str(self.cwd),
             )
             self._branch = r.stdout.strip()
         except Exception:
@@ -52,12 +54,18 @@ class StatusBar:
             try:
                 r = subprocess.run(
                     ["git", "diff", "--shortstat", "--cached"],
-                    capture_output=True, text=True, timeout=3, cwd=str(self.cwd),
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                    cwd=str(self.cwd),
                 )
                 staged = r.stdout.strip()
                 r2 = subprocess.run(
                     ["git", "diff", "--shortstat"],
-                    capture_output=True, text=True, timeout=3, cwd=str(self.cwd),
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                    cwd=str(self.cwd),
                 )
                 unstaged = r2.stdout.strip()
                 added = deleted = 0
@@ -77,14 +85,18 @@ class StatusBar:
                     self._diff_stats = " ".join(parts)
                 r3 = subprocess.run(
                     ["git", "rev-list", "--count", "--right-only", "@{u}...HEAD"],
-                    capture_output=True, text=True, timeout=3, cwd=str(self.cwd),
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                    cwd=str(self.cwd),
                 )
                 ahead = r3.stdout.strip()
                 if ahead and ahead != "0":
                     self._diff_stats += f" ^ {ahead}"
             except Exception:
                 import logging
-                logging.getLogger('crux').debug('silent except', exc_info=True)
+
+                logging.getLogger("crux").debug("silent except", exc_info=True)
 
     def set_context(self, token_count: int, max_tokens: int) -> None:
         self._context_tokens = token_count
@@ -115,7 +127,7 @@ class StatusBar:
         cwd_str = str(self.cwd)
         home = os.path.expanduser("~")
         if cwd_str.startswith(home):
-            cwd_str = "~" + cwd_str[len(home):]
+            cwd_str = "~" + cwd_str[len(home) :]
 
         left = f"{model_str}{' thinking...' if self._thinking else ''}"
         mid = f" {cwd_str}"
@@ -130,6 +142,7 @@ class StatusBar:
         # ── 方法论等级 ──
         try:
             from core.methodology import get_methodology_state
+
             ms = get_methodology_state()
             level_short = {0: "A", 1: "B", 2: "C", 3: "D"}.get(
                 {"micro": 0, "normal": 1, "complex": 2, "critical": 3}.get(ms.task_level.value, -1), ""
@@ -147,7 +160,7 @@ class StatusBar:
         # Truncate mid if content exceeds width
         total = len(left) + len(mid) + len(right) + 2
         if total > w:
-            mid = mid[:max(0, w - len(left) - len(right) - 4)] + ".."
+            mid = mid[: max(0, w - len(left) - len(right) - 4)] + ".."
         pad = max(1, w - len(left) - len(mid) - len(right))
 
         pieces = [

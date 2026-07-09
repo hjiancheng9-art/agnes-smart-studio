@@ -1,4 +1,9 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 """Edge 持久化后台服务 (headless)"""
+
 import asyncio
 import json
 import os
@@ -39,7 +44,7 @@ async def main():
     try:
         await page.goto("https://www.baidu.com", timeout=15000, wait_until="domcontentloaded")
         print(f"OK|READY|{await page.title()}")
-    except:
+    except Exception:
         print("OK|READY|blank")
 
     sys.stdout.flush()
@@ -88,7 +93,9 @@ async def main():
                     sel = params.get("selector", "body")
                     els = await page.query_selector_all(sel)
                     texts = [await el.inner_text() for el in els[:30]]
-                    result = {"texts": texts, "count": len(texts)} if len(texts) > 1 else {"text": texts[0] if texts else ""}
+                    result = (
+                        {"texts": texts, "count": len(texts)} if len(texts) > 1 else {"text": texts[0] if texts else ""}
+                    )
 
                 elif action == "eval":
                     result = {"result": await page.evaluate(params["js"])}
@@ -108,7 +115,8 @@ async def main():
             try:
                 with open(RESP_FILE, "w") as f:
                     json.dump({"status": "error", "error": str(e)}, f, ensure_ascii=False)
-            except: pass
+            except Exception as e:
+                logger.debug("Non-critical: %s", e, exc_info=True)
 
     await browser.close()
     await pw.__aexit__(None, None, None)

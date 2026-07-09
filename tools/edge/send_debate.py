@@ -1,6 +1,11 @@
 """
 发送 CRUX 辩论提示到 Gemini 和 智谱，并读取回复
 """
+
+import logging
+
+logger = logging.getLogger(__name__)
+
 import time
 
 from playwright.sync_api import sync_playwright
@@ -26,11 +31,12 @@ CRUX是AI-native创意+编程双栖平台，核心特点：图片/视频生成�
 【反方最后陈述】
 【你的最终裁决-核心问题Top3+最优先修复项+具体方案】"""
 
+
 def send_to_gemini(p, browser):
     """Send prompt to Gemini and wait for response"""
     for ctx in browser.contexts:
         for pg in ctx.pages:
-            if 'gemini' in pg.url:
+            if "gemini" in pg.url:
                 pg.bring_to_front()
                 time.sleep(1)
 
@@ -40,8 +46,8 @@ def send_to_gemini(p, browser):
                     if new_btn:
                         new_btn.click()
                         time.sleep(1)
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug("Non-critical: %s", e, exc_info=True)
 
                 # Find and fill the input
                 input_el = pg.query_selector('[contenteditable="true"]')
@@ -51,7 +57,7 @@ def send_to_gemini(p, browser):
 
                 input_el.click()
                 time.sleep(0.3)
-                input_el.fill('')
+                input_el.fill("")
                 time.sleep(0.3)
 
                 # Type the prompt
@@ -66,7 +72,7 @@ def send_to_gemini(p, browser):
                     print("✅ Gemini: 已点击发送按钮")
                 else:
                     # Try pressing Enter
-                    pg.keyboard.press('Enter')
+                    pg.keyboard.press("Enter")
                     print("✅ Gemini: 已按 Enter")
 
                 # Wait for response
@@ -86,25 +92,26 @@ def send_to_gemini(p, browser):
                         return {done: false, textLen: allText.length, hasStop: !!stopBtn};
                     }""")
 
-                    if result.get('done'):
+                    if result.get("done"):
                         print(f"✅ Gemini: 回复完成! ({len(result['text'])} chars)")
-                        return result['text']
+                        return result["text"]
                     else:
                         print(f"  ⏳ 等待... ({result.get('textLen', 0)} chars, stop={result.get('hasStop')})")
 
                 print("⚠️ Gemini: 超时")
                 return pg.evaluate("() => document.body.innerText")
 
+
 def send_to_zhipu(p, browser):
     """Send prompt to 智谱清言 and wait for response"""
     for ctx in browser.contexts:
         for pg in ctx.pages:
-            if 'open.bigmodel' in pg.url:
+            if "open.bigmodel" in pg.url:
                 pg.bring_to_front()
                 time.sleep(1)
 
                 # Find and fill textarea
-                ta = pg.query_selector('textarea')
+                ta = pg.query_selector("textarea")
                 if not ta:
                     print("❌ 智谱: 找不到输入框")
                     return None
@@ -116,15 +123,15 @@ def send_to_zhipu(p, browser):
                         new_btn.click()
                         print("✅ 智谱: 已新建对话")
                         time.sleep(1.5)
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug("Non-critical: %s", e, exc_info=True)
 
                 # Re-find textarea after new conversation
-                ta = pg.query_selector('textarea')
+                ta = pg.query_selector("textarea")
                 if ta:
                     ta.click()
                     time.sleep(0.3)
-                    ta.fill('')
+                    ta.fill("")
                     time.sleep(0.3)
                     ta.fill(DEBATE_PROMPT)
                     print(f"✅ 智谱: 已输入提示 ({len(DEBATE_PROMPT)} chars)")
@@ -147,12 +154,12 @@ def send_to_zhipu(p, browser):
                         return {found: false};
                     }""")
 
-                    if submit_btn['found']:
-                        pg.mouse.click(submit_btn['x'], submit_btn['y'])
+                    if submit_btn["found"]:
+                        pg.mouse.click(submit_btn["x"], submit_btn["y"])
                         print("✅ 智谱: 已点击发送按钮")
                     else:
                         # Try Ctrl+Enter
-                        pg.keyboard.press('Control+Enter')
+                        pg.keyboard.press("Control+Enter")
                         print("✅ 智谱: 已按 Ctrl+Enter")
 
                     # Wait for response
@@ -170,42 +177,43 @@ def send_to_zhipu(p, browser):
                             return {done: false, textLen: allText.length, hasStop: !!stopBtn};
                         }""")
 
-                        if result.get('done'):
+                        if result.get("done"):
                             print(f"✅ 智谱: 回复完成! ({len(result['text'])} chars)")
-                            return result['text']
+                            return result["text"]
                         else:
                             print(f"  ⏳ 等待... ({result.get('textLen', 0)} chars, stop={result.get('hasStop')})")
 
                     print("⚠️ 智谱: 超时")
                     return pg.evaluate("() => document.body.innerText")
 
+
 # Main
 p = sync_playwright().start()
 browser = p.chromium.connect_over_cdp(CDP_URL)
 
 # Save debate prompt for reference
-with open('tools/edge/debate_prompt.txt', 'w', encoding='utf-8') as f:
+with open("tools/edge/debate_prompt.txt", "w", encoding="utf-8") as f:
     f.write(DEBATE_PROMPT)
 
 # Send to Gemini
-print("\n" + "="*50)
+print("\n" + "=" * 50)
 print("🚀 发送到 Gemini...")
-print("="*50)
+print("=" * 50)
 gemini_result = send_to_gemini(p, browser)
 if gemini_result:
-    with open('tools/edge/gemini_verdict.txt', 'w', encoding='utf-8') as f:
+    with open("tools/edge/gemini_verdict.txt", "w", encoding="utf-8") as f:
         f.write(gemini_result)
     print(f"\n📝 Gemini 回复已保存 ({len(gemini_result)} chars)")
 
 # Send to Zhipu
-print("\n" + "="*50)
+print("\n" + "=" * 50)
 print("🚀 发送到 智谱清言...")
-print("="*50)
+print("=" * 50)
 # Need to reconnect browser after page switching
 browser2 = p.chromium.connect_over_cdp(CDP_URL)
 zhipu_result = send_to_zhipu(p, browser2)
 if zhipu_result:
-    with open('tools/edge/zhipu_verdict.txt', 'w', encoding='utf-8') as f:
+    with open("tools/edge/zhipu_verdict.txt", "w", encoding="utf-8") as f:
         f.write(zhipu_result)
     print(f"\n📝 智谱回复已保存 ({len(zhipu_result)} chars)")
 

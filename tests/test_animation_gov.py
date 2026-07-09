@@ -1,6 +1,7 @@
 """
 TDD tests for AnimationGovernor (ui/animation_gov.py)
 """
+
 from __future__ import annotations
 
 from ui.animation_gov import AnimationGovernor, AnimType
@@ -17,8 +18,8 @@ class TestAnimationGovernor:
     def test_streaming_disables_decoration(self):
         gov = AnimationGovernor()
         gov.streaming = True
-        assert gov.can_spin()        # spinner OK during stream
-        assert not gov.can_decorate()   # decoration OFF
+        assert gov.can_spin()  # spinner OK during stream
+        assert not gov.can_decorate()  # decoration OFF
 
     def test_streaming_off_restores(self):
         gov = AnimationGovernor()
@@ -51,9 +52,10 @@ class TestAnimationGovernor:
 
     def test_frame_rate(self):
         gov = AnimationGovernor()
-        assert gov.should_frame()   # first always OK
+        assert gov.should_frame()  # first always OK
         assert not gov.should_frame()  # too soon
         import time
+
         time.sleep(0.05)  # >41.7ms
         assert gov.should_frame()
 

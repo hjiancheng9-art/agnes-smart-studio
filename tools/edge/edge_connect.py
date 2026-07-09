@@ -74,9 +74,7 @@ async def demo_actions(page):
     print("   截图已保存: screenshot.png")
 
     # 获取页面内容
-    links = await page.eval_on_selector_all(
-        "h3", "els => els.map(el => el.innerText)"
-    )
+    links = await page.eval_on_selector_all("h3", "els => els.map(el => el.innerText)")
     print(f"   搜索结果标题: {links[:5]}")
 
 

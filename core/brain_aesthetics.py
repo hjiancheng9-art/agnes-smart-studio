@@ -297,70 +297,69 @@ class SmartBrainMixin:
                 "entity_type": None,
                 "surface_policy": None,
             }
-        else:
-            if any(k in p for k in anime_keywords):
-                result = SWEET_SPOT_TEMPLATES["anime"]
-                return {
-                    "name": result["name"],
-                    "suffix": result["suffix"],
-                    "negative": result["negative"],
-                    "entity_type": None,
-                    "surface_policy": None,
-                }
-            if any(k in p for k in action_keywords):
-                result = SWEET_SPOT_TEMPLATES["action"]
-                return {
-                    "name": result["name"],
-                    "suffix": result["suffix"],
-                    "negative": result["negative"],
-                    "entity_type": None,
-                    "surface_policy": None,
-                }
-            if any(k in p for k in full_body_keywords):
-                result = SWEET_SPOT_TEMPLATES["full_body"]
-                return {
-                    "name": result["name"],
-                    "suffix": result["suffix"],
-                    "negative": result["negative"],
-                    "entity_type": None,
-                    "surface_policy": None,
-                }
-            if any(k in p for k in person_keywords):
-                result = SWEET_SPOT_TEMPLATES["portrait"]
-                return {
-                    "name": result["name"],
-                    "suffix": result["suffix"],
-                    "negative": result["negative"],
-                    "entity_type": None,
-                    "surface_policy": None,
-                }
-            if any(k in p for k in animal_keywords):
-                result = SWEET_SPOT_TEMPLATES["animal"]
-                return {
-                    "name": result["name"],
-                    "suffix": result["suffix"],
-                    "negative": result["negative"],
-                    "entity_type": None,
-                    "surface_policy": None,
-                }
-            if any(k in p for k in food_keywords):
-                result = SWEET_SPOT_TEMPLATES["food"]
-                return {
-                    "name": result["name"],
-                    "suffix": result["suffix"],
-                    "negative": result["negative"],
-                    "entity_type": None,
-                    "surface_policy": None,
-                }
-            if any(k in p for k in landscape_keywords):
-                result = SWEET_SPOT_TEMPLATES["landscape"]
-                return {
-                    "name": result["name"],
-                    "suffix": result["suffix"],
-                    "negative": result["negative"],
-                    "entity_type": None,
-                    "surface_policy": None,
-                }
+        if any(k in p for k in anime_keywords):
+            result = SWEET_SPOT_TEMPLATES["anime"]
+            return {
+                "name": result["name"],
+                "suffix": result["suffix"],
+                "negative": result["negative"],
+                "entity_type": None,
+                "surface_policy": None,
+            }
+        if any(k in p for k in action_keywords):
+            result = SWEET_SPOT_TEMPLATES["action"]
+            return {
+                "name": result["name"],
+                "suffix": result["suffix"],
+                "negative": result["negative"],
+                "entity_type": None,
+                "surface_policy": None,
+            }
+        if any(k in p for k in full_body_keywords):
+            result = SWEET_SPOT_TEMPLATES["full_body"]
+            return {
+                "name": result["name"],
+                "suffix": result["suffix"],
+                "negative": result["negative"],
+                "entity_type": None,
+                "surface_policy": None,
+            }
+        if any(k in p for k in person_keywords):
+            result = SWEET_SPOT_TEMPLATES["portrait"]
+            return {
+                "name": result["name"],
+                "suffix": result["suffix"],
+                "negative": result["negative"],
+                "entity_type": None,
+                "surface_policy": None,
+            }
+        if any(k in p for k in animal_keywords):
+            result = SWEET_SPOT_TEMPLATES["animal"]
+            return {
+                "name": result["name"],
+                "suffix": result["suffix"],
+                "negative": result["negative"],
+                "entity_type": None,
+                "surface_policy": None,
+            }
+        if any(k in p for k in food_keywords):
+            result = SWEET_SPOT_TEMPLATES["food"]
+            return {
+                "name": result["name"],
+                "suffix": result["suffix"],
+                "negative": result["negative"],
+                "entity_type": None,
+                "surface_policy": None,
+            }
+        if any(k in p for k in landscape_keywords):
+            result = SWEET_SPOT_TEMPLATES["landscape"]
+            return {
+                "name": result["name"],
+                "suffix": result["suffix"],
+                "negative": result["negative"],
+                "entity_type": None,
+                "surface_policy": None,
+            }
 
         return None
 

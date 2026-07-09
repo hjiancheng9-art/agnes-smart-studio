@@ -15,15 +15,11 @@ class TestDeletedFiles:
 
     def test_core_fusion_deleted(self):
         """core/core_fusion.py should not exist (stale fusion module)."""
-        assert not (PROJECT_ROOT / "core" / "core_fusion.py").exists(), (
-            "core/core_fusion.py should be deleted"
-        )
+        assert not (PROJECT_ROOT / "core" / "core_fusion.py").exists(), "core/core_fusion.py should be deleted"
 
     def test_plan_verify_deleted(self):
         """core/plan_verify.py should not exist (stale plan verify module)."""
-        assert not (PROJECT_ROOT / "core" / "plan_verify.py").exists(), (
-            "core/plan_verify.py should be deleted"
-        )
+        assert not (PROJECT_ROOT / "core" / "plan_verify.py").exists(), "core/plan_verify.py should be deleted"
 
 
 class TestModelsConfig:
@@ -38,9 +34,7 @@ class TestModelsConfig:
         providers = data.get("providers", {})
         assert "zhipu" in providers, "zhipu provider should exist in models.json"
         api_key = providers["zhipu"].get("api_key", None)
-        assert api_key == "", (
-            f"providers.zhipu.api_key should be empty string, got: {api_key!r}"
-        )
+        assert api_key == "", f"providers.zhipu.api_key should be empty string, got: {api_key!r}"
 
 
 class TestChatDefaults:
@@ -49,11 +43,13 @@ class TestChatDefaults:
     def test_vote_default_false(self):
         """ChatSession._vote_enabled should default to False."""
         from core.chat import ChatSession
+
         # Create a minimal session to check default
         ChatSession.__new__(ChatSession)
         # _vote_enabled is set in __init__, so we need to init
         # Instead, check the class source for the default value
         import inspect
+
         source = inspect.getsource(ChatSession.__init__)
         assert "_vote_enabled" in source, "_vote_enabled should be set in __init__"
         assert "False" in source.split("_vote_enabled")[1].split("=")[1].split("#")[0], (
@@ -79,10 +75,10 @@ class TestVersionImport:
     def test_version_module_exists(self):
         """core/version.py should exist and export __version__."""
         from core.version import __version__
+
         assert isinstance(__version__, str)
         assert len(__version__) > 0
         # Should follow semver pattern
         import re
-        assert re.match(r"^\d+\.\d+\.\d+", __version__), (
-            f"Version should be semver, got: {__version__}"
-        )
+
+        assert re.match(r"^\d+\.\d+\.\d+", __version__), f"Version should be semver, got: {__version__}"

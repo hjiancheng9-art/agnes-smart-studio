@@ -146,6 +146,7 @@ class CodexSkill:
             self.name = raw
         self._content = ""
         self._sections: dict[str, str] = {}
+        self._metadata: dict = {}  # target, models, etc.
         self._loaded = False
 
     def load(self):
@@ -169,6 +170,11 @@ class CodexSkill:
         tools = data.get("tools", [])
         if tools:
             self._sections["tools"] = json.dumps(tools, ensure_ascii=False)
+        # Load provider-routing metadata (Agnes skill filtering)
+        self._metadata = {
+            "target": data.get("target", "general"),
+            "models": data.get("models", ["*"]),
+        }
 
     def _load_md(self):
         content = self.path.read_text(encoding="utf-8")
@@ -255,9 +261,43 @@ class AgnetaSkillSystem:
         self._discovered = False
         self.discover()
 
-    def list_skills(self) -> list[dict]:
+    def list_skills(self, target: str = "") -> list[dict]:
+        """List discovered skills. Pass target='media'/'code'/'general' to filter."""
         self.discover()
-        return [{"name": s.name, "desc": s._sections.get("description", "")[:80]} for s in self.skills.values()]
+        result = []
+        for s in self.skills.values():
+            skill_target = s._metadata.get("target", "general")
+            if target and skill_target != target:
+                continue
+            result.append(
+                {
+                    "name": s.name,
+                    "desc": s._sections.get("description", "")[:80],
+                    "target": skill_target,
+                    "models": s._metadata.get("models", ["*"]),
+                }
+            )
+        return result
+
+    def skills_for_active_provider(self, provider_id: str = "") -> list[dict]:
+        """Return skills compatible with the active provider.
+
+        Filtering rule: skill is loaded if its target matches the provider's
+        runtime role, OR if skill.target='general' (works with any provider).
+
+        provider_id: 'deepseek'|'crux'|'zhipu'. Empty = return all.
+        """
+        # Map provider to its primary target
+        PROVIDER_TARGET = {
+            "crux": "media",  # CRUX/Agnes = media generation
+            "deepseek": "code",  # DeepSeek = engineering
+            "zhipu": "general",  # Zhipu = free fallback, any skill
+        }
+        expected = PROVIDER_TARGET.get(provider_id, "")
+        if not expected:
+            return self.list_skills()
+
+        return [s for s in self.list_skills() if s["target"] in ("general", expected)]
 
     def load_skill(self, name: str) -> str | None:
         self.discover()
@@ -354,12 +394,11 @@ class AgnetaSkillSystem:
 
         if creative_score > eng_score * 2:
             return "creative"
-        elif eng_score > creative_score * 2:
+        if eng_score > creative_score * 2:
             return "engineering"
-        elif creative_score > 0 and eng_score > 0:
+        if creative_score > 0 and eng_score > 0:
             return "mixed"
-        else:
-            return "general"
+        return "general"
 
     def inject_for_task(self, task_hint: str, max_skills: int = 4) -> str:
         """Find and inject relevant skills into system prompt. Auto-routes creative vs engineering."""

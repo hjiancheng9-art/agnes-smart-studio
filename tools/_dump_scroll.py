@@ -1,23 +1,24 @@
-with open('ui/message_pane.py', encoding='utf-8') as f:
+"""Dump scroll methods from tui_app.py for analysis."""
+
+with open("ui/tui_app.py", encoding="utf-8") as f:
     lines = f.readlines()
 # Write _scroll method + scroll_up/scroll_down methods to a temp file
-with open('ui/_scroll_methods.txt', 'w', encoding='utf-8') as out:
+with open("ui/_scroll_methods.txt", "w", encoding="utf-8") as out:
     in_method = False
-    for i, l in enumerate(lines):
-        if 'def _scroll(' in l or 'def scroll_up' in l or 'def scroll_down' in l or \
-           'def scroll_page_up' in l or 'def scroll_page_down' in l:
+    for idx, line in enumerate(lines):
+        if (
+            "def _scroll(" in line
+            or "def scroll_up" in line
+            or "def scroll_down" in line
+            or "def scroll_page_up" in line
+            or "def scroll_page_down" in line
+        ):
             in_method = True
         if in_method:
-            out.write(f"{i+1:4d}: {l}")
+            out.write(f"{idx + 1:4d}: {line}")
             # Check if next line is a new method (not indented)
-            if i+1 < len(lines) and lines[i+1].strip() and not lines[i+1].startswith((' ', '\t')):
-                if l.strip().startswith('def ') and 'scroll_' in l:
+            if idx + 1 < len(lines) and lines[idx + 1].strip() and not lines[idx + 1].startswith((" ", "\t")):
+                if line.strip().startswith("def ") and "scroll_" in line:
                     pass  # continue, same method
-                elif l.strip().startswith('def ') and i > 0:
-                    pass
-            # Stop when we hit the next def or class at same indent
-            if i+1 < len(lines) and lines[i+1].strip() and not lines[i+1].startswith((' ', '\t', '"""', '#')):
-                if not l.strip().startswith(('    def ', '        def ', '        try:', '        except', '        with ', '            ')):
-                    pass  # continue
-                else:
-                    pass
+                elif line.strip().startswith("def ") and idx > 0:
+                    in_method = False

@@ -22,7 +22,8 @@
           "description": "最多读多少行（0=全部，默认0=最多500行）",
           "required": false
         }
-      }
+      },
+      "category": "file"
     },
     {
       "name": "write_file",
@@ -40,7 +41,8 @@
           "description": "要写入的内容",
           "required": true
         }
-      }
+      },
+      "category": "file"
     },
     {
       "name": "edit_file",
@@ -63,7 +65,8 @@
           "description": "替换后的新文本",
           "required": true
         }
-      }
+      },
+      "category": "file"
     },
     {
       "name": "search_files",
@@ -76,7 +79,8 @@
           "required": true
         }
       },
-      "function": "core.file_tools.search_files"
+      "function": "core.file_tools.search_files",
+      "category": "search"
     },
     {
       "name": "glob_files",
@@ -89,7 +93,8 @@
           "description": "glob 文件名模式，如 **/*.py",
           "required": true
         }
-      }
+      },
+      "category": "search"
     },
     {
       "name": "list_files",
@@ -102,7 +107,8 @@
           "required": false
         }
       },
-      "function": "core.file_tools.list_files"
+      "function": "core.file_tools.list_files",
+      "category": "search"
     },
     {
       "name": "think_deep",
@@ -120,7 +126,8 @@
           "description": "最大回复长度，默认2000",
           "required": false
         }
-      }
+      },
+      "category": "reasoning"
     },
     {
       "name": "run_python",
@@ -133,7 +140,9 @@
           "description": "Python 代码",
           "required": true
         }
-      }
+      },
+      "category": "exec",
+      "timeout": 60
     },
     {
       "name": "run_bash",
@@ -161,7 +170,9 @@
           "description": "后台任务描述（run_in_background=true时建议填写,用于任务列表显示）。",
           "required": false
         }
-      }
+      },
+      "category": "exec",
+      "timeout": 120
     },
     {
       "name": "run_test",
@@ -174,7 +185,9 @@
           "description": "测试路径，默认 tests/",
           "required": false
         }
-      }
+      },
+      "category": "exec",
+      "timeout": 300
     },
     {
       "name": "web_fetch",
@@ -187,7 +200,8 @@
           "description": "网页 URL",
           "required": true
         }
-      }
+      },
+      "category": "web"
     },
     {
       "name": "web_search",
@@ -200,28 +214,32 @@
           "description": "搜索关键词",
           "required": true
         }
-      }
+      },
+      "category": "web"
     },
     {
       "name": "git_status",
       "type": "python",
       "description": "查看 git 仓库状态（简短格式）",
       "function": "core.git_tools.git_status",
-      "parameters": {}
+      "parameters": {},
+      "category": "git"
     },
     {
       "name": "git_diff",
       "type": "python",
       "description": "查看 git 未提交的更改（统计摘要）",
       "function": "core.git_tools.git_diff",
-      "parameters": {}
+      "parameters": {},
+      "category": "git"
     },
     {
       "name": "git_log",
       "type": "python",
       "description": "查看最近 git 提交记录（最近10条）",
       "function": "core.git_tools.git_log",
-      "parameters": {}
+      "parameters": {},
+      "category": "git"
     },
     {
       "name": "git_add_commit",
@@ -234,7 +252,8 @@
           "description": "提交信息",
           "required": true
         }
-      }
+      },
+      "category": "git"
     },
     {
       "name": "github_search",
@@ -282,7 +301,8 @@
           "description": "标签过滤（issues/prs）",
           "required": false
         }
-      }
+      },
+      "category": "github"
     },
     {
       "name": "github_repo_view",
@@ -295,7 +315,8 @@
           "description": "仓库: owner/repo 或完整 URL。空则自动检测当前仓库",
           "required": false
         }
-      }
+      },
+      "category": "github"
     },
     {
       "name": "github_repo_list",
@@ -313,7 +334,8 @@
           "description": "结果数量（默认 20，最大 100）",
           "required": false
         }
-      }
+      },
+      "category": "github"
     },
     {
       "name": "github_browse",
@@ -331,7 +353,8 @@
           "description": "文件路径或目录路径（空则列出根目录）",
           "required": false
         }
-      }
+      },
+      "category": "github"
     },
     {
       "name": "github_readme",
@@ -344,7 +367,8 @@
           "description": "仓库: owner/repo 或 URL（必填）",
           "required": true
         }
-      }
+      },
+      "category": "github"
     },
     {
       "name": "github_release",
@@ -367,7 +391,8 @@
           "description": "结果数量（默认 10，最大 30）",
           "required": false
         }
-      }
+      },
+      "category": "github"
     },
     {
       "name": "github_issue",
@@ -400,7 +425,8 @@
           "description": "open | closed | all（默认 open）",
           "required": false
         }
-      }
+      },
+      "category": "github"
     },
     {
       "name": "github_pr",
@@ -423,7 +449,8 @@
           "description": "PR 编号（指定则查看详情）",
           "required": false
         }
-      }
+      },
+      "category": "github"
     },
     {
       "name": "github_api",
@@ -456,7 +483,8 @@
           "description": "自动翻页: true 启用",
           "required": false
         }
-      }
+      },
+      "category": "github"
     },
     {
       "name": "github_write_file",
@@ -494,7 +522,8 @@
           "description": "文件当前 blob sha（更新已有文件时必填，可通过 github_browse 获取）",
           "required": false
         }
-      }
+      },
+      "category": "github"
     },
     {
       "name": "pip_install",
@@ -507,7 +536,8 @@
           "required": true
         }
       },
-      "function": "core.file_tools.pip_install"
+      "function": "core.file_tools.pip_install",
+      "category": "package"
     },
     {
       "name": "tree_dir",
@@ -520,7 +550,8 @@
           "description": "目录深度，默认3",
           "required": false
         }
-      }
+      },
+      "category": "fs"
     },
     {
       "name": "count_lines",
@@ -533,14 +564,16 @@
           "description": "目录或文件路径（空=项目根目录 .）",
           "required": false
         }
-      }
+      },
+      "category": "fs"
     },
     {
       "name": "env_check",
       "type": "python",
       "description": "检查当前运行环境：Python 版本、已安装的关键包、git 状态。诊断环境问题时使用。",
       "parameters": {},
-      "function": "core.file_tools.env_check"
+      "function": "core.file_tools.env_check",
+      "category": "diagnostic"
     },
     {
       "name": "download_file",
@@ -558,20 +591,8 @@
           "description": "保存路径",
           "required": true
         }
-      }
-    },
-    {
-      "name": "browser_screenshot",
-      "type": "python",
-      "description": "Take a webpage screenshot via Playwright",
-      "function": "core.codex_tools.browser_screenshot",
-      "parameters": {
-        "url": {
-          "type": "string",
-          "description": "要截图的网页 URL",
-          "required": true
-        }
-      }
+      },
+      "category": "net"
     },
     {
       "name": "create_markdown",
@@ -589,7 +610,8 @@
           "description": "Markdown 正文内容",
           "required": true
         }
-      }
+      },
+      "category": "document"
     },
     {
       "name": "create_html",
@@ -607,7 +629,8 @@
           "description": "HTML body 内容（放在 <h1> 之后）",
           "required": true
         }
-      }
+      },
+      "category": "document"
     },
     {
       "name": "create_pdf",
@@ -620,7 +643,8 @@
           "description": "PDF 文本内容（支持中文，使用 reportlab 渲染）",
           "required": true
         }
-      }
+      },
+      "category": "document"
     },
     {
       "name": "text_to_speech",
@@ -638,14 +662,8 @@
           "description": "语音语言代码：zh=中文（XiaoxiaoNeural），其它=英文（JennyNeural），默认 zh",
           "required": false
         }
-      }
-    },
-    {
-      "name": "desktop_screenshot",
-      "type": "python",
-      "description": "Take a desktop screenshot",
-      "function": "core.codex_tools.desktop_screenshot",
-      "parameters": {}
+      },
+      "category": "media"
     },
     {
       "name": "deploy_vercel",
@@ -663,7 +681,8 @@
           "description": "Vercel 认证 token（留空则用已登录的账户）",
           "required": false
         }
-      }
+      },
+      "category": "deploy"
     },
     {
       "name": "skill_search",
@@ -681,7 +700,8 @@
           "description": "返回结果数（默认 10）",
           "required": false
         }
-      }
+      },
+      "category": "skill"
     },
     {
       "name": "js_eval",
@@ -694,7 +714,8 @@
           "description": "JavaScript code to execute",
           "required": true
         }
-      }
+      },
+      "category": "exec"
     },
     {
       "name": "mcp_connect",
@@ -717,7 +738,8 @@
           "description": "传给服务器命令的参数（空格分隔，留空表示无额外参数）",
           "required": false
         }
-      }
+      },
+      "category": "utility"
     },
     {
       "name": "mcp_call",
@@ -740,7 +762,8 @@
           "description": "传给工具的参数 JSON 字符串（默认 \"{}\"）",
           "required": false
         }
-      }
+      },
+      "category": "utility"
     },
     {
       "name": "pw_navigate",
@@ -753,14 +776,8 @@
           "description": "要让浏览器导航到的 URL（会做安全校验）",
           "required": true
         }
-      }
-    },
-    {
-      "name": "pw_screenshot",
-      "type": "python",
-      "description": "Screenshot current browser page",
-      "function": "core.codex_engines.pw_screenshot",
-      "parameters": {}
+      },
+      "category": "utility"
     },
     {
       "name": "transcribe_audio",
@@ -773,203 +790,8 @@
           "description": "要转写的音频文件路径（mp3/wav/m4a 等）",
           "required": true
         }
-      }
-    },
-    {
-      "name": "imagegen",
-      "type": "python",
-      "description": "Independent image generation channel",
-      "function": "core.codex_engines.imagegen",
-      "parameters": {
-        "prompt": {
-          "type": "string",
-          "description": "图像生成文本提示词",
-          "required": true
-        },
-        "size": {
-          "type": "string",
-          "description": "图像尺寸，格式 宽x高（默认 1024x1024）",
-          "required": false
-        },
-        "style": {
-          "type": "string",
-          "description": "可选风格修饰词（非空时追加为 \"prompt, style style\"）",
-          "required": false
-        }
-      }
-    },
-    {
-      "name": "comfyui_status",
-      "type": "python",
-      "description": "Check if ComfyUI server is running",
-      "function": "core.comfyui_tools.execute_status",
-      "parameters": {}
-    },
-    {
-      "name": "comfyui_list_models",
-      "type": "python",
-      "description": "List available ComfyUI models",
-      "function": "core.comfyui_tools.execute_list_models",
-      "parameters": {}
-    },
-    {
-      "name": "comfyui_submit_workflow",
-      "type": "python",
-      "description": "Submit a workflow to ComfyUI and optionally wait for result",
-      "function": "core.comfyui_tools.execute_submit_workflow",
-      "parameters": {
-        "workflow_json": {
-          "type": "string",
-          "description": "ComfyUI API 格式的工作流 JSON（非画布/UI 格式）",
-          "required": true
-        },
-        "wait": {
-          "type": "boolean",
-          "description": "是否轮询等待完成（true=等待并返回结果，false=立即返回 prompt_id）",
-          "required": false
-        }
-      }
-    },
-    {
-      "name": "comfyui_get_result",
-      "type": "python",
-      "description": "Get result of a ComfyUI workflow by prompt_id",
-      "function": "core.comfyui_tools.execute_get_result",
-      "parameters": {
-        "prompt_id": {
-          "type": "string",
-          "description": "提交工作流时返回的 prompt_id",
-          "required": true
-        }
-      }
-    },
-    {
-      "name": "comfyui_preview_workflow",
-      "type": "python",
-      "description": "Preview a ComfyUI workflow JSON",
-      "function": "core.comfyui_tools.execute_preview_workflow",
-      "parameters": {
-        "workflow_json": {
-          "type": "string",
-          "description": "ComfyUI 画布格式的工作流 JSON（含节点位置等 UI 元数据）",
-          "required": true
-        }
-      }
-    },
-    {
-      "name": "comfyui_clear_queue",
-      "type": "python",
-      "description": "Clear the ComfyUI job queue",
-      "function": "core.comfyui_tools.execute_clear_queue",
-      "parameters": {}
-    },
-    {
-      "name": "comfyui_get_node_info",
-      "type": "python",
-      "description": "Get info about ComfyUI nodes",
-      "function": "core.comfyui_tools.execute_get_node_info",
-      "parameters": {
-        "node_type": {
-          "type": "string",
-          "description": "节点类名（如 KSampler、CLIPTextEncode）；留空返回所有节点的分类摘要",
-          "required": false
-        },
-        "category_filter": {
-          "type": "string",
-          "description": "分类子串过滤（如 loaders、sampling、conditioning、image），仅当 node_type 为空时生效",
-          "required": false
-        }
-      }
-    },
-    {
-      "name": "comfyui_build_custom_workflow",
-      "type": "python",
-      "description": "Build a custom ComfyUI workflow from node specs",
-      "function": "core.comfyui_tools.execute_build_custom_workflow",
-      "parameters": {
-        "nodes": {
-          "type": "string",
-          "description": "节点定义 JSON 数组字符串，每项含 id/class_type/inputs（input 值可为字面值或 [源节点id, 输出索引] 连线）",
-          "required": true
-        },
-        "output_node_id": {
-          "type": "integer",
-          "description": "最终输出节点 id（通常是 SaveImage）；-1 表示自动检测最后一个有图像输出的节点",
-          "required": false
-        }
-      }
-    },
-    {
-      "name": "comfyui_create_custom_node",
-      "type": "python",
-      "description": "Create a custom ComfyUI node",
-      "function": "core.comfyui_tools.execute_create_custom_node",
-      "parameters": {
-        "node_name": {
-          "type": "string",
-          "description": "自定义节点名（同时用作文件名和类标识，如 MyImageProcessor）",
-          "required": true
-        },
-        "node_code": {
-          "type": "string",
-          "description": "节点类完整 Python 源码，必须含 CATEGORY/RETURN_TYPES/FUNCTION/INPUT_TYPES 类属性",
-          "required": true
-        }
-      }
-    },
-    {
-      "name": "comfyui_lora_prepare",
-      "type": "python",
-      "description": "Prepare a LoRA training dataset",
-      "function": "core.comfyui_tools.execute_lora_prepare_dataset",
-      "parameters": {
-        "dataset_name": {
-          "type": "string",
-          "description": "数据集/LoRA 名（同时作为目录名，如 my_character_lora）",
-          "required": true
-        },
-        "concept_count": {
-          "type": "integer",
-          "description": "训练概念数量（1 个角色=1 个概念，默认 1）",
-          "required": false
-        },
-        "base_model": {
-          "type": "string",
-          "description": "基础模型文件名（仅作记录用途，如 sd_xl_base_1.0.safetensors）",
-          "required": false
-        }
-      }
-    },
-    {
-      "name": "comfyui_lora_generate_config",
-      "type": "python",
-      "description": "Generate LoRA training config",
-      "function": "core.comfyui_tools.execute_lora_generate_config",
-      "parameters": {
-        "dataset_name": {
-          "type": "string",
-          "description": "数据集名（必须先用 comfyui_lora_prepare 创建）",
-          "required": true
-        },
-        "base_model": {
-          "type": "string",
-          "description": "基础模型文件名/路径（如 sd_xl_base_1.0.safetensors、dreamshaper_8.safetensors）",
-          "required": false
-        }
-      }
-    },
-    {
-      "name": "comfyui_lora_check_status",
-      "type": "python",
-      "description": "Check LoRA training status",
-      "function": "core.comfyui_tools.execute_lora_check_status",
-      "parameters": {
-        "dataset_name": {
-          "type": "string",
-          "description": "要查询的数据集名；留空则列出所有 LoRA 训练项目及其状态",
-          "required": false
-        }
-      }
+      },
+      "category": "utility"
     },
     {
       "name": "code_analyze",
@@ -982,7 +804,8 @@
           "description": "Path to the source file to analyze",
           "required": true
         }
-      }
+      },
+      "category": "utility"
     },
     {
       "name": "find_symbol",
@@ -1000,7 +823,8 @@
           "description": "Project directory to search (default: current dir)",
           "required": false
         }
-      }
+      },
+      "category": "utility"
     },
     {
       "name": "search_symbols",
@@ -1018,7 +842,8 @@
           "description": "Project directory to search (default: current dir)",
           "required": false
         }
-      }
+      },
+      "category": "search"
     },
     {
       "name": "find_references",
@@ -1036,7 +861,8 @@
           "description": "Symbol name to find references for",
           "required": true
         }
-      }
+      },
+      "category": "utility"
     },
     {
       "name": "graph_neighbors",
@@ -1064,7 +890,8 @@
           "description": "Project directory to search (default: current dir)",
           "required": false
         }
-      }
+      },
+      "category": "utility"
     },
     {
       "name": "graph_ancestors",
@@ -1082,7 +909,8 @@
           "description": "Project directory to search (default: current dir)",
           "required": false
         }
-      }
+      },
+      "category": "utility"
     },
     {
       "name": "graph_descendants",
@@ -1100,7 +928,8 @@
           "description": "Project directory to search (default: current dir)",
           "required": false
         }
-      }
+      },
+      "category": "utility"
     },
     {
       "name": "patch_file",
@@ -1118,14 +947,16 @@
           "description": "是否对 .py 文件做 AST 语法校验，失败则自动回滚全部变更（默认 true）",
           "required": false
         }
-      }
+      },
+      "category": "file"
     },
     {
       "name": "patch_undo",
       "type": "python",
       "description": "撤销最近一次 patch_file 的所有变更：把修改过的文件写回改前内容、删除新建的文件、恢复被删除的文件。幂等，连续调用第二次会返回 nothing_to_undo。用于 patch_file 应用后发现方向错误、语法虽过但逻辑不对、或误删文件时的快速回退。",
       "function": "core.patch.rollback_last",
-      "parameters": {}
+      "parameters": {},
+      "category": "utility"
     },
     {
       "name": "execute_plan",
@@ -1146,7 +977,8 @@
           "type": "boolean",
           "description": "是否用 LLM 智能规划生成步骤（默认 false）。steps 为空且此值为 true 时自动分解任务。"
         }
-      }
+      },
+      "category": "utility"
     },
     {
       "name": "create_goal",
@@ -1174,7 +1006,8 @@
           "description": "最大步骤数（超过此数自动停止,防止无限循环,默认20）",
           "required": false
         }
-      }
+      },
+      "category": "utility"
     },
     {
       "name": "get_goal",
@@ -1187,7 +1020,8 @@
           "description": "目标ID（不传则返回当前活跃目标）",
           "required": false
         }
-      }
+      },
+      "category": "utility"
     },
     {
       "name": "set_goal_budget",
@@ -1215,7 +1049,8 @@
           "description": "最大执行时长(秒)",
           "required": false
         }
-      }
+      },
+      "category": "utility"
     },
     {
       "name": "update_goal",
@@ -1238,14 +1073,22 @@
           "description": "完成证据（status=completed时建议提供）",
           "required": false
         }
-      }
+      },
+      "category": "utility"
     },
     {
       "name": "view_image",
       "type": "python",
       "description": "Open image with system default viewer. Supports PNG, JPG, GIF, WebP, SVG.",
       "function": "ui.display._view_image",
-      "parameters": {"path": {"type": "string", "description": "Path to image file", "required": true}}
+      "parameters": {
+        "path": {
+          "type": "string",
+          "description": "Path to image file",
+          "required": true
+        }
+      },
+      "category": "media"
     },
     {
       "name": "update_plan",
@@ -1253,27 +1096,66 @@
       "description": "Update the current execution plan mid-task — add, remove, modify, or insert a step.",
       "function": "ui.display._update_plan",
       "parameters": {
-        "action": {"type": "string", "description": "add | remove | modify | insert", "required": true},
-        "step_id": {"type": "integer", "description": "Step index (0-based)", "required": false},
-        "name": {"type": "string", "description": "Step name", "required": false},
-        "tool": {"type": "string", "description": "Tool for the step", "required": false},
-        "args": {"type": "object", "description": "Tool arguments", "required": false},
-        "reason": {"type": "string", "description": "Why the plan changed", "required": false}
-      }
+        "action": {
+          "type": "string",
+          "description": "add | remove | modify | insert",
+          "required": true
+        },
+        "step_id": {
+          "type": "integer",
+          "description": "Step index (0-based)",
+          "required": false
+        },
+        "name": {
+          "type": "string",
+          "description": "Step name",
+          "required": false
+        },
+        "tool": {
+          "type": "string",
+          "description": "Tool for the step",
+          "required": false
+        },
+        "args": {
+          "type": "object",
+          "description": "Tool arguments",
+          "required": false
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why the plan changed",
+          "required": false
+        }
+      },
+      "category": "utility"
     },
     {
       "name": "tool_search",
       "type": "python",
       "description": "Search available tools by keyword. Returns matching tool names and descriptions.",
       "function": "ui.display._tool_search",
-      "parameters": {"query": {"type": "string", "description": "Keyword to search", "required": true}}
+      "parameters": {
+        "query": {
+          "type": "string",
+          "description": "Keyword to search",
+          "required": true
+        }
+      },
+      "category": "search"
     },
     {
       "name": "request_user_input",
       "type": "python",
       "description": "Pause and ask the user a question. Returns the user's text response.",
       "function": "ui.display._request_user_input",
-      "parameters": {"question": {"type": "string", "description": "Question to ask", "required": true}}
+      "parameters": {
+        "question": {
+          "type": "string",
+          "description": "Question to ask",
+          "required": true
+        }
+      },
+      "category": "utility"
     },
     {
       "name": "safe_rewrite_file",
@@ -1281,10 +1163,23 @@
       "description": "Safer than apply_patch: provide old_lines + new_lines, code finds exact match and replaces. For self-repair of core files — no context guessing needed.",
       "function": "core.file_tools.safe_rewrite_file",
       "parameters": {
-        "path": {"type": "string", "description": "File path", "required": true},
-        "old_lines": {"type": "string", "description": "Exact text to replace (multi-line OK)", "required": true},
-        "new_lines": {"type": "string", "description": "Replacement text", "required": true}
-      }
+        "path": {
+          "type": "string",
+          "description": "File path",
+          "required": true
+        },
+        "old_lines": {
+          "type": "string",
+          "description": "Exact text to replace (multi-line OK)",
+          "required": true
+        },
+        "new_lines": {
+          "type": "string",
+          "description": "Replacement text",
+          "required": true
+        }
+      },
+      "category": "file"
     },
     {
       "name": "lsp_goto_definition",
@@ -1292,10 +1187,23 @@
       "description": "Jump to the definition of a symbol at a given position in a file using the Language Server Protocol. Returns the file URI and range of the definition. Use this to navigate code.",
       "function": "core.lsp.execute_lsp_goto_definition",
       "parameters": {
-        "file_path": {"type": "string", "description": "Absolute path to the source file", "required": true},
-        "line": {"type": "integer", "description": "0-based line number (first line is 0)", "required": true},
-        "character": {"type": "integer", "description": "0-based character offset in the line (first character is 0)", "required": true}
-      }
+        "file_path": {
+          "type": "string",
+          "description": "Absolute path to the source file",
+          "required": true
+        },
+        "line": {
+          "type": "integer",
+          "description": "0-based line number (first line is 0)",
+          "required": true
+        },
+        "character": {
+          "type": "integer",
+          "description": "0-based character offset in the line (first character is 0)",
+          "required": true
+        }
+      },
+      "category": "code_intel"
     },
     {
       "name": "lsp_hover",
@@ -1303,10 +1211,23 @@
       "description": "Get hover information (type signature, documentation) for a symbol at a given position in a file using LSP. Returns markdown or plaintext content with type info and docs.",
       "function": "core.lsp.execute_lsp_hover",
       "parameters": {
-        "file_path": {"type": "string", "description": "Absolute path to the source file", "required": true},
-        "line": {"type": "integer", "description": "0-based line number", "required": true},
-        "character": {"type": "integer", "description": "0-based character offset", "required": true}
-      }
+        "file_path": {
+          "type": "string",
+          "description": "Absolute path to the source file",
+          "required": true
+        },
+        "line": {
+          "type": "integer",
+          "description": "0-based line number",
+          "required": true
+        },
+        "character": {
+          "type": "integer",
+          "description": "0-based character offset",
+          "required": true
+        }
+      },
+      "category": "code_intel"
     },
     {
       "name": "lsp_diagnostics",
@@ -1314,8 +1235,13 @@
       "description": "Get diagnostics (errors, warnings, hints) for a file using LSP. The file is opened in the language server and any issues are returned. Use this to check for compilation or lint errors.",
       "function": "core.lsp.execute_lsp_diagnostics",
       "parameters": {
-        "file_path": {"type": "string", "description": "Absolute path to the source file", "required": true}
-      }
+        "file_path": {
+          "type": "string",
+          "description": "Absolute path to the source file",
+          "required": true
+        }
+      },
+      "category": "code_intel"
     },
     {
       "name": "lsp_find_references",
@@ -1323,10 +1249,23 @@
       "description": "Find all references to the symbol at a given position in a file using LSP. Returns a list of locations where the symbol is used. Use this to understand impact before refactoring.",
       "function": "core.lsp.execute_lsp_find_references",
       "parameters": {
-        "file_path": {"type": "string", "description": "Absolute path to the source file", "required": true},
-        "line": {"type": "integer", "description": "0-based line number", "required": true},
-        "character": {"type": "integer", "description": "0-based character offset", "required": true}
-      }
+        "file_path": {
+          "type": "string",
+          "description": "Absolute path to the source file",
+          "required": true
+        },
+        "line": {
+          "type": "integer",
+          "description": "0-based line number",
+          "required": true
+        },
+        "character": {
+          "type": "integer",
+          "description": "0-based character offset",
+          "required": true
+        }
+      },
+      "category": "code_intel"
     },
     {
       "name": "lsp_completion",
@@ -1334,10 +1273,23 @@
       "description": "Get autocomplete suggestions at a given position in a file using LSP. Returns a list of completion items with labels, detail, and documentation. Use this to get code suggestions.",
       "function": "core.lsp.execute_lsp_completion",
       "parameters": {
-        "file_path": {"type": "string", "description": "Absolute path to the source file", "required": true},
-        "line": {"type": "integer", "description": "0-based line number", "required": true},
-        "character": {"type": "integer", "description": "0-based character offset", "required": true}
-      }
+        "file_path": {
+          "type": "string",
+          "description": "Absolute path to the source file",
+          "required": true
+        },
+        "line": {
+          "type": "integer",
+          "description": "0-based line number",
+          "required": true
+        },
+        "character": {
+          "type": "integer",
+          "description": "0-based character offset",
+          "required": true
+        }
+      },
+      "category": "code_intel"
     },
     {
       "name": "lsp_rename",
@@ -1345,11 +1297,28 @@
       "description": "Rename a symbol across the entire project using LSP. Returns a list of workspace edits showing all files and positions that will be changed. Use this for safe, project-wide refactoring.",
       "function": "core.lsp.execute_lsp_rename",
       "parameters": {
-        "file_path": {"type": "string", "description": "Absolute path to the source file containing the symbol", "required": true},
-        "line": {"type": "integer", "description": "0-based line number of the symbol", "required": true},
-        "character": {"type": "integer", "description": "0-based character offset of the symbol", "required": true},
-        "new_name": {"type": "string", "description": "The new name for the symbol", "required": true}
-      }
+        "file_path": {
+          "type": "string",
+          "description": "Absolute path to the source file containing the symbol",
+          "required": true
+        },
+        "line": {
+          "type": "integer",
+          "description": "0-based line number of the symbol",
+          "required": true
+        },
+        "character": {
+          "type": "integer",
+          "description": "0-based character offset of the symbol",
+          "required": true
+        },
+        "new_name": {
+          "type": "string",
+          "description": "The new name for the symbol",
+          "required": true
+        }
+      },
+      "category": "code_intel"
     },
     {
       "name": "code_review",
@@ -1357,9 +1326,25 @@
       "description": "Review code quality: check changed files for style/logic/performance/maintainability issues. Modeled after Copilot CLI /review command.",
       "function": "core.code_review._exec_code_review",
       "parameters": {
-        "files": {"type": "array", "items": {"type": "string"}, "description": "List of file paths to review (empty = auto-detect git diff .py files)", "required": false},
-        "mode": {"type": "string", "enum": ["code", "security"], "description": "Review mode: code=code quality, security=security review (default code)", "required": false}
-      }
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of file paths to review (empty = auto-detect git diff .py files)",
+          "required": false
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "code",
+            "security"
+          ],
+          "description": "Review mode: code=code quality, security=security review (default code)",
+          "required": false
+        }
+      },
+      "category": "review"
     },
     {
       "name": "security_review",
@@ -1367,8 +1352,16 @@
       "description": "Review security vulnerabilities: check for hardcoded credentials/SQL injection/XSS/path traversal/insecure deserialization etc. Modeled after Copilot CLI /security-review command.",
       "function": "core.code_review._exec_security_review",
       "parameters": {
-        "files": {"type": "array", "items": {"type": "string"}, "description": "List of file paths to review (empty = auto-detect git diff .py files)", "required": false}
-      }
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of file paths to review (empty = auto-detect git diff .py files)",
+          "required": false
+        }
+      },
+      "category": "utility"
     },
     {
       "name": "run_format",
@@ -1376,9 +1369,18 @@
       "description": "Auto-format code files. Detects language and applies the correct formatter: ruff format + isort for Python, prettier for JS/TS/HTML/CSS. Use --check for dry-run without modifying files.",
       "function": "core.format_tools.execute_run_format",
       "parameters": {
-        "paths": {"type": "string", "description": "Space-separated file/directory paths to format. Default: all tracked files in project.", "required": false},
-        "check": {"type": "boolean", "description": "If true, only check formatting without modifying files (dry-run).", "required": false}
-      }
+        "paths": {
+          "type": "string",
+          "description": "Space-separated file/directory paths to format. Default: all tracked files in project.",
+          "required": false
+        },
+        "check": {
+          "type": "boolean",
+          "description": "If true, only check formatting without modifying files (dry-run).",
+          "required": false
+        }
+      },
+      "category": "exec"
     },
     {
       "name": "run_lint",
@@ -1386,9 +1388,18 @@
       "description": "Run static analysis / linting. Detects language and uses ruff check (Python) or eslint (JS/TS). Use --fix to auto-fix issues.",
       "function": "core.format_tools.execute_run_lint",
       "parameters": {
-        "paths": {"type": "string", "description": "Space-separated file/directory paths to lint. Default: all tracked files.", "required": false},
-        "fix": {"type": "boolean", "description": "If true, auto-fix lint issues where possible.", "required": false}
-      }
+        "paths": {
+          "type": "string",
+          "description": "Space-separated file/directory paths to lint. Default: all tracked files.",
+          "required": false
+        },
+        "fix": {
+          "type": "boolean",
+          "description": "If true, auto-fix lint issues where possible.",
+          "required": false
+        }
+      },
+      "category": "exec"
     },
     {
       "name": "debug_inspect",
@@ -1396,9 +1407,18 @@
       "description": "Run a test or script and capture full traceback with per-frame local variable values on failure. Use this to debug test failures or script errors — see exactly what variables were at each stack frame when the error occurred.",
       "function": "core.pytest_runner.debug_inspect",
       "parameters": {
-        "target": {"type": "string", "description": "Test target or script path. e.g. 'tests/' or 'tests/test_foo.py::test_bar' or 'core/agent.py'", "required": true},
-        "extra_args": {"type": "string", "description": "Extra pytest flags (e.g. '-x -k test_name') or script arguments", "required": false}
-      }
+        "target": {
+          "type": "string",
+          "description": "Test target or script path. e.g. 'tests/' or 'tests/test_foo.py::test_bar' or 'core/agent.py'",
+          "required": true
+        },
+        "extra_args": {
+          "type": "string",
+          "description": "Extra pytest flags (e.g. '-x -k test_name') or script arguments",
+          "required": false
+        }
+      },
+      "category": "utility"
     },
     {
       "name": "http_request",
@@ -1406,12 +1426,33 @@
       "description": "Make an HTTP request. Supports GET/POST/PUT/DELETE with custom headers and body. Use for testing REST APIs, fetching data from endpoints, or debugging HTTP services. Returns status, headers, and body (truncated to 10KB).",
       "function": "core.client.http_request",
       "parameters": {
-        "url": {"type": "string", "description": "Full URL to request", "required": true},
-        "method": {"type": "string", "description": "HTTP method: GET, POST, PUT, DELETE, PATCH (default GET)", "required": false},
-        "headers": {"type": "object", "description": "Request headers as {key: value} dict", "required": false},
-        "body": {"type": "string", "description": "Request body (for POST/PUT/PATCH)", "required": false},
-        "timeout": {"type": "integer", "description": "Timeout in seconds (default 30)", "required": false}
-      }
+        "url": {
+          "type": "string",
+          "description": "Full URL to request",
+          "required": true
+        },
+        "method": {
+          "type": "string",
+          "description": "HTTP method: GET, POST, PUT, DELETE, PATCH (default GET)",
+          "required": false
+        },
+        "headers": {
+          "type": "object",
+          "description": "Request headers as {key: value} dict",
+          "required": false
+        },
+        "body": {
+          "type": "string",
+          "description": "Request body (for POST/PUT/PATCH)",
+          "required": false
+        },
+        "timeout": {
+          "type": "integer",
+          "description": "Timeout in seconds (default 30)",
+          "required": false
+        }
+      },
+      "category": "utility"
     },
     {
       "name": "db_query",
@@ -1419,11 +1460,31 @@
       "description": "Execute a SQL query on a SQLite database file. Supports SELECT queries (read-only by default) and INSERT/UPDATE/DELETE with automatic read-write fallback. Returns rows as JSON array. Use for inspecting databases, running analytics queries, or data migrations.",
       "function": "core.client.db_query",
       "parameters": {
-        "db_path": {"type": "string", "description": "Path to the SQLite database file", "required": true},
-        "query": {"type": "string", "description": "SQL query to execute", "required": true},
-        "params": {"type": "array", "items": {"type": "string"}, "description": "Query parameters for parameterized queries", "required": false},
-        "limit": {"type": "integer", "description": "Max rows to return (default 100)", "required": false}
-      }
+        "db_path": {
+          "type": "string",
+          "description": "Path to the SQLite database file",
+          "required": true
+        },
+        "query": {
+          "type": "string",
+          "description": "SQL query to execute",
+          "required": true
+        },
+        "params": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Query parameters for parameterized queries",
+          "required": false
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Max rows to return (default 100)",
+          "required": false
+        }
+      },
+      "category": "utility"
     },
     {
       "name": "notebook_open",
@@ -1431,8 +1492,13 @@
       "description": "Open a Jupyter notebook (.ipynb) and return cell summaries with index, type, and source preview.",
       "function": "core.notebook._exec_notebook_open",
       "parameters": {
-        "path": {"type": "string", "description": "Path to the .ipynb notebook file", "required": true}
-      }
+        "path": {
+          "type": "string",
+          "description": "Path to the .ipynb notebook file",
+          "required": true
+        }
+      },
+      "category": "utility"
     },
     {
       "name": "notebook_edit_cell",
@@ -1440,10 +1506,23 @@
       "description": "Edit a cell's source in a Jupyter notebook. Provide the notebook path, cell index (0-based), and new source.",
       "function": "core.notebook._exec_notebook_edit_cell",
       "parameters": {
-        "path": {"type": "string", "description": "Path to the .ipynb file", "required": true},
-        "cell_index": {"type": "integer", "description": "0-based cell index to edit", "required": true},
-        "source": {"type": "string", "description": "New source code for the cell", "required": true}
-      }
+        "path": {
+          "type": "string",
+          "description": "Path to the .ipynb file",
+          "required": true
+        },
+        "cell_index": {
+          "type": "integer",
+          "description": "0-based cell index to edit",
+          "required": true
+        },
+        "source": {
+          "type": "string",
+          "description": "New source code for the cell",
+          "required": true
+        }
+      },
+      "category": "file"
     },
     {
       "name": "notebook_add_cell",
@@ -1451,11 +1530,28 @@
       "description": "Add a new cell to a Jupyter notebook. Specify cell_type as 'code' or 'markdown', and insertion position.",
       "function": "core.notebook._exec_notebook_add_cell",
       "parameters": {
-        "path": {"type": "string", "description": "Path to the .ipynb file", "required": true},
-        "source": {"type": "string", "description": "Cell source content", "required": true},
-        "cell_type": {"type": "string", "description": "'code' or 'markdown' (default code)", "required": false},
-        "index": {"type": "integer", "description": "Insertion index (append to end if omitted)", "required": false}
-      }
+        "path": {
+          "type": "string",
+          "description": "Path to the .ipynb file",
+          "required": true
+        },
+        "source": {
+          "type": "string",
+          "description": "Cell source content",
+          "required": true
+        },
+        "cell_type": {
+          "type": "string",
+          "description": "'code' or 'markdown' (default code)",
+          "required": false
+        },
+        "index": {
+          "type": "integer",
+          "description": "Insertion index (append to end if omitted)",
+          "required": false
+        }
+      },
+      "category": "utility"
     },
     {
       "name": "notebook_run_cell",
@@ -1463,9 +1559,18 @@
       "description": "Execute a cell in a Jupyter notebook and return the output (stdout, stderr, display data). Requires a running kernel.",
       "function": "core.notebook._exec_notebook_run_cell",
       "parameters": {
-        "path": {"type": "string", "description": "Path to the .ipynb file", "required": true},
-        "cell_index": {"type": "integer", "description": "0-based cell index to execute", "required": true}
-      }
+        "path": {
+          "type": "string",
+          "description": "Path to the .ipynb file",
+          "required": true
+        },
+        "cell_index": {
+          "type": "integer",
+          "description": "0-based cell index to execute",
+          "required": true
+        }
+      },
+      "category": "exec"
     },
     {
       "name": "notebook_save",
@@ -1473,8 +1578,13 @@
       "description": "Save a Jupyter notebook to disk. Call after making edits to persist changes.",
       "function": "core.notebook._exec_notebook_save",
       "parameters": {
-        "path": {"type": "string", "description": "Path to the .ipynb file", "required": true}
-      }
+        "path": {
+          "type": "string",
+          "description": "Path to the .ipynb file",
+          "required": true
+        }
+      },
+      "category": "utility"
     },
     {
       "name": "estimate_tokens",
@@ -1482,15 +1592,40 @@
       "description": "Estimate the token count for a given text using a simple heuristic (1 token ~ 4 chars English, ~1.5 chars Chinese). Use to check if content fits within model context limits before sending.",
       "function": "core.context_tools.estimate_tokens",
       "parameters": {
-        "text": {"type": "string", "description": "Text to estimate token count for", "required": true}
-      }
+        "text": {
+          "type": "string",
+          "description": "Text to estimate token count for",
+          "required": true
+        }
+      },
+      "category": "utility"
     },
     {
       "name": "inspect_last_error",
       "type": "python",
       "description": "Recover the last captured error traceback from a previous failed tool or script execution. Use when a previous operation failed and you need to see exactly what went wrong without re-running.",
       "function": "core.runtime_inspect.inspect_last_error",
-      "parameters": {}
+      "parameters": {},
+      "category": "utility"
+    },
+    {
+      "name": "pw_navigate_v2",
+      "type": "python",
+      "description": "使用 Playwright 独立子进程导航浏览器到指定 URL，无 asyncio 冲突",
+      "function": "core.pw_tools.navigate",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "要导航的 URL"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "category": "browser"
     }
   ]
 }

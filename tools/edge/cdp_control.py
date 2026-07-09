@@ -13,6 +13,10 @@ ChatGPT+Gemini+智谱评审共识：CDP 强依赖 DOM 选择器太脆弱。
   python tools/edge/cdp_control.py read
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 import sys
 import time
 
@@ -31,6 +35,7 @@ def get_page():
 
 # ─── 多策略输入查找 ──────────────────────────────────────
 
+
 def find_input(page, label_hint: str = "") -> dict:
     """按策略链查找输入框。返回 {el, method, confidence}"""
     results = []
@@ -41,37 +46,39 @@ def find_input(page, label_hint: str = "") -> dict:
         if acc:
             textboxes = _find_in_accessibility(acc, "textbox")
             if textboxes:
-                results.append({"el": None, "method": "accessibility_tree",
-                                "selector": textboxes[0], "confidence": 0.9})
-    except: pass
+                results.append(
+                    {"el": None, "method": "accessibility_tree", "selector": textboxes[0], "confidence": 0.9}
+                )
+    except Exception as e:
+        logger.debug("Non-critical: %s", e, exc_info=True)
 
     # Strategy 2: ARIA roles
     for role in ["textbox", "combobox", "searchbox"]:
         try:
             el = page.query_selector(f'[role="{role}"]')
             if el and el.is_visible():
-                results.append({"el": el, "method": f"role={role}",
-                                "selector": f'[role="{role}"]', "confidence": 0.8})
+                results.append({"el": el, "method": f"role={role}", "selector": f'[role="{role}"]', "confidence": 0.8})
                 break
-        except: pass
+        except Exception as e:
+            logger.debug("Non-critical: %s", e, exc_info=True)
 
     # Strategy 3: contenteditable (ProseMirror/rich text)
-    for sel in ['#prompt-textarea', '[contenteditable="true"]']:
+    for sel in ["#prompt-textarea", '[contenteditable="true"]']:
         try:
             el = page.query_selector(sel)
             if el and el.is_visible():
-                results.append({"el": el, "method": "contenteditable",
-                                "selector": sel, "confidence": 0.7})
+                results.append({"el": el, "method": "contenteditable", "selector": sel, "confidence": 0.7})
                 break
-        except: pass
+        except Exception as e:
+            logger.debug("Non-critical: %s", e, exc_info=True)
 
     # Strategy 4: textarea
     try:
-        el = page.query_selector('textarea')
+        el = page.query_selector("textarea")
         if el and el.is_visible():
-            results.append({"el": el, "method": "textarea",
-                            "selector": "textarea", "confidence": 0.6})
-    except: pass
+            results.append({"el": el, "method": "textarea", "selector": "textarea", "confidence": 0.6})
+    except Exception as e:
+        logger.debug("Non-critical: %s", e, exc_info=True)
 
     if results:
         return max(results, key=lambda r: r["confidence"])
@@ -97,7 +104,8 @@ def find_send_button(page) -> dict:
             el = page.query_selector(f'button[aria-label="{label}"]')
             if el and el.is_visible() and not el.is_disabled():
                 return {"el": el, "method": f"aria-label={label}", "confidence": 0.9}
-        except: pass
+        except Exception as e:
+            logger.debug("Non-critical: %s", e, exc_info=True)
 
     # Strategy 2: data-testid
     for tid in ["send-button", "send", "submit"]:
@@ -105,30 +113,34 @@ def find_send_button(page) -> dict:
             el = page.query_selector(f'[data-testid="{tid}"]')
             if el and el.is_visible() and not el.is_disabled():
                 return {"el": el, "method": f"data-testid={tid}", "confidence": 0.8}
-        except: pass
+        except Exception as e:
+            logger.debug("Non-critical: %s", e, exc_info=True)
 
     # Strategy 3: icon-send (Zhipu specific)
     try:
-        icon = page.query_selector('.icon-send1, .submit-btn')
+        icon = page.query_selector(".icon-send1, .submit-btn")
         if icon and icon.is_visible():
             return {"el": icon, "method": "icon-send", "confidence": 0.7}
-    except: pass
+    except Exception as e:
+        logger.debug("Non-critical: %s", e, exc_info=True)
 
     # Strategy 4: last visible button in input area
     try:
         input_area = page.query_selector('[contenteditable="true"], textarea')
         if input_area:
             parent = input_area.evaluate("el => el.closest('div, form')?.id || 'none'")
-            if parent != 'none':
-                btn = page.query_selector(f'#{parent} button:not([disabled])')
+            if parent != "none":
+                btn = page.query_selector(f"#{parent} button:not([disabled])")
                 if btn and btn.is_visible():
                     return {"el": btn, "method": "near-input-btn", "confidence": 0.5}
-    except: pass
+    except Exception as e:
+        logger.debug("Non-critical: %s", e, exc_info=True)
 
     return {"el": None, "method": "none", "confidence": 0.0}
 
 
 # ─── 命令实现 ──────────────────────────────────────────
+
 
 def cmd_status():
     p, browser, page = get_page()
@@ -146,7 +158,10 @@ def cmd_status():
 
 def cmd_send(text):
     p, browser, page = get_page()
-    if not page: print("❌ 无页面"); p.stop(); return
+    if not page:
+        print("❌ 无页面")
+        p.stop()
+        return
 
     inp = find_input(page)
     if inp["el"]:
@@ -156,12 +171,15 @@ def cmd_send(text):
         time.sleep(0.5)
     elif inp["method"] == "accessibility_tree":
         # 通过 JS 聚焦并设置文本
-        page.evaluate("""(t) => {
+        page.evaluate(
+            """(t) => {
             const el = document.querySelector('[contenteditable="true"]') ||
                        document.querySelector('textarea') ||
                        document.querySelector('[role="textbox"]');
             if (el) { el.focus(); el.innerText = t; el.dispatchEvent(new Event('input', {bubbles: true})); }
-        }""", text)
+        }""",
+            text,
+        )
     else:
         # 最终兜底：模拟键盘输入
         page.keyboard.insert_text(text)
@@ -183,13 +201,19 @@ def cmd_send(text):
 
 def cmd_read(lines=20):
     p, browser, page = get_page()
-    if not page: print("❌ 无页面"); p.stop(); return
+    if not page:
+        print("❌ 无页面")
+        p.stop()
+        return
 
     # 多策略读取页面内容
     # Strategy 1: ChatGPT 对话结构
-    for sel in ['[data-message-author-role="assistant"]',
-                'article[data-testid*="conversation"]',
-                '.model-response-text', 'main']:
+    for sel in [
+        '[data-message-author-role="assistant"]',
+        'article[data-testid*="conversation"]',
+        ".model-response-text",
+        "main",
+    ]:
         try:
             els = page.query_selector_all(sel)
             if els:
@@ -197,7 +221,8 @@ def cmd_read(lines=20):
                 print("\n---\n".join(texts[-lines:]))
                 p.stop()
                 return
-        except: pass
+        except Exception as e:
+            logger.debug("Non-critical: %s", e, exc_info=True)
 
     # Strategy 2: 全文回退
     print(page.evaluate("() => document.body.innerText"))

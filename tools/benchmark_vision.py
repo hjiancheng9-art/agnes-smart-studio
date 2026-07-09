@@ -56,8 +56,9 @@ class TestResult:
 class Benchmark:
     results: list[TestResult] = field(default_factory=list)
 
-    def call_vision(self, api_url: str, model: str, api_key: str,
-                    image_path: str, prompt: str, max_tokens: int = 1000) -> TestResult:
+    def call_vision(
+        self, api_url: str, model: str, api_key: str, image_path: str, prompt: str, max_tokens: int = 1000
+    ) -> TestResult:
         """调用视觉模型 API。"""
         t0 = time.monotonic()
         try:
@@ -66,19 +67,26 @@ class Benchmark:
                 img_data = base64.b64encode(f.read()).decode("utf-8")
 
             ext = Path(image_path).suffix.lower()
-            mime_map = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-                        ".webp": "image/webp", ".gif": "image/gif"}
+            mime_map = {
+                ".png": "image/png",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".webp": "image/webp",
+                ".gif": "image/gif",
+            }
             mime = mime_map.get(ext, "image/png")
 
             payload = {
                 "model": model,
-                "messages": [{
-                    "role": "user",
-                    "content": [
-                        {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{img_data}"}},
-                        {"type": "text", "text": prompt},
-                    ],
-                }],
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{img_data}"}},
+                            {"type": "text", "text": prompt},
+                        ],
+                    }
+                ],
                 "max_tokens": max_tokens,
                 "temperature": 0.1,
             }
@@ -96,13 +104,17 @@ class Benchmark:
             tps = tokens / (latency / 1000) if latency > 0 else 0
 
             return TestResult(
-                model=model, test="",
-                latency_ms=latency, output_len=len(content),
-                output=content, tokens_per_sec=tps,
+                model=model,
+                test="",
+                latency_ms=latency,
+                output_len=len(content),
+                output=content,
+                tokens_per_sec=tps,
             )
         except Exception as e:
             return TestResult(
-                model=model, test="",
+                model=model,
+                test="",
                 latency_ms=(time.monotonic() - t0) * 1000,
                 error=f"{type(e).__name__}: {e}",
             )
@@ -110,9 +122,9 @@ class Benchmark:
     def run(self, image_path: str, tests: list[str] | None = None):
         """对一张图片跑所有测试维度。"""
         tests = tests or list(TEST_PROMPTS.keys())
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Testing: {Path(image_path).name}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         for test_name in tests:
             prompt = TEST_PROMPTS[test_name]
@@ -232,9 +244,12 @@ class Benchmark:
         data = {
             "results": [
                 {
-                    "model": r.model, "test": r.test,
-                    "latency_ms": r.latency_ms, "output_len": r.output_len,
-                    "output": r.output[:500], "error": r.error,
+                    "model": r.model,
+                    "test": r.test,
+                    "latency_ms": r.latency_ms,
+                    "output_len": r.output_len,
+                    "output": r.output[:500],
+                    "error": r.error,
                 }
                 for r in self.results
             ],

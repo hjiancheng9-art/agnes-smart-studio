@@ -1,7 +1,11 @@
 """Round 1: CWIM Methodology debate - send to ChatGPT, Gemini, Zhipu"""
+
+import logging
 import time
 
 from playwright.sync_api import sync_playwright
+
+logger = logging.getLogger(__name__)
 
 CDP_URL = "http://127.0.0.1:9222"
 p = sync_playwright().start()
@@ -10,12 +14,12 @@ browser = p.chromium.connect_over_cdp(CDP_URL)
 pages = {}
 for ctx in browser.contexts:
     for pg in ctx.pages:
-        if'chatgpt.com' in pg.url:
-            pages['chatgpt'] = pg
-        elif'gemini' in pg.url:
-            pages['gemini'] = pg
-        elif'bigmodel' in pg.url:
-            pages['zhipu'] = pg
+        if "chatgpt.com" in pg.url:
+            pages["chatgpt"] = pg
+        elif "gemini" in pg.url:
+            pages["gemini"] = pg
+        elif "bigmodel" in pg.url:
+            pages["zhipu"] = pg
 
 CWIM_QUESTION = """继续我们关于CRUX Studio v5.0的评审。现在聚焦"CWIM方法论"这个维度。
 
@@ -46,13 +50,15 @@ CRUX 的 CWIM（ComfyUI Workflow Intelligent Methodology）方法论有 10 条�
 【正反交锋】
 【你的最终评分】1-10分，并说明理由"""
 
+
 def type_and_send(page, text, send_selector=None, press_enter=False):
     """Type text into a page and send it"""
+
     page.bring_to_front()
     time.sleep(0.8)
 
     # Find input
-    selectors = ['[contenteditable="true"]', 'textarea', '[role="textbox"]']
+    selectors = ['[contenteditable="true"]', "textarea", '[role="textbox"]']
     input_el = None
     for s in selectors:
         try:
@@ -60,8 +66,8 @@ def type_and_send(page, text, send_selector=None, press_enter=False):
             if el and el.is_visible():
                 input_el = el
                 break
-        except:
-            pass
+        except Exception as e:
+            logger.debug("Non-critical: %s", e, exc_info=True)
 
     if not input_el:
         print(f"  ❌ No input found on {page.url[:40]}")
@@ -69,7 +75,7 @@ def type_and_send(page, text, send_selector=None, press_enter=False):
 
     input_el.click()
     time.sleep(0.3)
-    input_el.fill('')
+    input_el.fill("")
     time.sleep(0.2)
     page.keyboard.insert_text(text)
     time.sleep(1)
@@ -81,13 +87,14 @@ def type_and_send(page, text, send_selector=None, press_enter=False):
             return True
 
     if press_enter:
-        page.keyboard.press('Enter')
+        page.keyboard.press("Enter")
         return True
 
     # Auto-detect send button
-    is_gemini = 'gemini' in page.url
-    is_zhipu = 'bigmodel' in page.url
-    result = page.evaluate("""(args) => {
+    is_gemini = "gemini" in page.url
+    is_zhipu = "bigmodel" in page.url
+    result = page.evaluate(
+        """(args) => {
         const isGemini = args.isGemini;
         const isZhipu = args.isZhipu;
         const btns = document.querySelectorAll('button');
@@ -103,27 +110,30 @@ def type_and_send(page, text, send_selector=None, press_enter=False):
             return 'enter';
         }
         return 'none';
-    }""", {"isGemini": is_gemini, "isZhipu": is_zhipu})
+    }""",
+        {"isGemini": is_gemini, "isZhipu": is_zhipu},
+    )
 
     print(f"  Send method: {result}")
     return True
 
+
 # === Send to ChatGPT ===
-if 'chatgpt' in pages:
+if "chatgpt" in pages:
     print("\n🚀 Sending to ChatGPT...")
-    type_and_send(pages['chatgpt'], CWIM_QUESTION, press_enter=True)
+    type_and_send(pages["chatgpt"], CWIM_QUESTION, press_enter=True)
     print("  ✅ ChatGPT sent!")
 
 # === Send to Gemini ===
-if 'gemini' in pages:
+if "gemini" in pages:
     print("\n🚀 Sending to Gemini...")
-    type_and_send(pages['gemini'], CWIM_QUESTION)
+    type_and_send(pages["gemini"], CWIM_QUESTION)
     print("  ✅ Gemini sent!")
 
 # === Send to Zhipu ===
-if 'zhipu' in pages:
+if "zhipu" in pages:
     print("\n🚀 Sending to Zhipu...")
-    type_and_send(pages['zhipu'], CWIM_QUESTION)
+    type_and_send(pages["zhipu"], CWIM_QUESTION)
     print("  ✅ Zhipu sent!")
 
 p.stop()

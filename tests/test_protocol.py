@@ -1,6 +1,7 @@
 """
 TDD tests for CRUX TUI v2 — Protocol (core/protocol.py)
 """
+
 from __future__ import annotations
 
 import json
@@ -56,8 +57,10 @@ class TestEventBus:
     def test_unsubscribe(self):
         bus = EventBus()
         received = []
+
         def cb(e):
             received.append(e)
+
         bus.subscribe("tool.*", cb)
         bus.publish(Event(EventType.TOOL_CALLED.value, {}))
         assert len(received) == 1
@@ -77,8 +80,7 @@ class TestSessionState:
 
     def test_populated_state(self):
         s = SessionState(
-            model="deepseek-v4", context_pct=75.5,
-            streaming=True, active_agents=2, tool_status="executing"
+            model="deepseek-v4", context_pct=75.5, streaming=True, active_agents=2, tool_status="executing"
         )
         d = s.to_dict()
         assert d["model"] == "deepseek-v4"

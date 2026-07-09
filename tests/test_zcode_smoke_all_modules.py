@@ -15,6 +15,7 @@ import pytest
 
 CORE_DIR = os.path.join(os.path.dirname(__file__), "..", "core")
 
+
 def _discover_modules() -> list[str]:
     modules = []
     for f in sorted(os.listdir(CORE_DIR)):

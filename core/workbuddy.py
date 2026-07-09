@@ -74,7 +74,7 @@ def report_export(report_id: str, fmt: str = "markdown") -> dict:
         out_path.write_text(content, encoding="utf-8")
         return {"status": "ok", "path": str(out_path), "format": "markdown", "length": len(content)}
 
-    elif fmt == "html":
+    if fmt == "html":
         html_parts = [f"<h1>{report['title']}</h1>"]
         for sec in report.get("sections", []):
             html_parts.append(f"<h2>{sec['heading']}</h2>")
@@ -140,14 +140,13 @@ def pipeline_run(requirement: str, steps: list[dict]) -> dict:
     steps: [{"phase": "research|analyze|report|code", "prompt": str}]
     Returns a plan with phases ready for execution.
     """
-    pipeline = {
+    return {
         "id": f"pipeline_{len(os.listdir(REPORTS_DIR))}",
         "requirement": requirement,
         "steps": steps,
         "created_at": _now(),
         "status": "planned",
     }
-    return pipeline
 
 
 # ── Tool Definitions ──

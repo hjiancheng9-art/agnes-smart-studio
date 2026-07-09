@@ -1,7 +1,5 @@
 """Incident Classifier — 将执行失败分类为稳定的故障类别。"""
 
-
-
 # 故障类别定义
 FAILURE_TAXONOMY = {
     "provider_unavailable": {

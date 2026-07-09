@@ -105,7 +105,7 @@ async def keep_alive():
                     with open(RESP_FILE, 'w', encoding='utf-8') as f:
                         f.write(json.dumps({"status": "error", "msg": str(e)}))
                 except:
-                    pass
+                    import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
 
             await asyncio.sleep(0.5)
 

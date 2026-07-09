@@ -53,9 +53,7 @@ class TestQualityGate:
             "城市风景",
         )
         expected = round(
-            result.aesthetic_score * 0.35 +
-            result.consistency_score * 0.35 +
-            result.technical_score * 0.30, 1
+            result.aesthetic_score * 0.35 + result.consistency_score * 0.35 + result.technical_score * 0.30, 1
         )
         assert result.composite_score == expected
 

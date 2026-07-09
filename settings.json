@@ -1,0 +1,17 @@
+{
+  "api_key": "sk-REeAdNPEFoWFOEwDLUylXnmxvQPwnRyFsWXwjLxu4Govn54h",
+  "base_url": "https://apihub.agnes-ai.com/v1",
+  "default_image_model": "agnes-image-2.1-flash",
+  "default_video_model": "agnes-video-v2.0",
+  "default_text_model": "agnes-2.0-flash",
+  "default_video_width": 1152,
+  "default_video_height": 768,
+  "default_num_frames": 121,
+  "default_frame_rate": 24,
+  "default_image_size": "1024x768",
+  "video_poll_interval": 5.0,
+  "video_max_wait": 300.0,
+  "max_retries": 3,
+  "reflection_enabled": true,
+  "reflection_interval": 5
+}

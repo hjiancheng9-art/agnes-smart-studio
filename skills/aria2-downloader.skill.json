@@ -20,5 +20,9 @@
   "auto_start": true,
   "rpc_port": 6801,
   "download_dir": "downloads/",
-  "source": "extracted from nsp-downloader"
+  "source": "extracted from nsp-downloader",
+  "target": "code",
+  "models": [
+    "deepseek-*"
+  ]
 }

@@ -294,17 +294,18 @@ class TestRouting:
 
         trm = ToolRegistryMesh()
         trm.discover_all = mock.MagicMock()  # skip discovery
-        trm._tools["my_tool"] = type("Entry", (), {
-            "name": "my_tool", "source": "test", "category": "search"
-        })()
+        trm._tools["my_tool"] = type("Entry", (), {"name": "my_tool", "source": "test", "category": "search"})()
 
         called = []
+
         def my_callback(**kw):
             called.append(kw)
             return {"success": True}
+
         trm.register_callback("my_tool", my_callback)
 
         from core.tool_registry_mesh import CATEGORY_META
+
         CATEGORY_META["search"]["order"] = ["my_tool"]
 
         result = trm.route("search", query="test query")
@@ -319,6 +320,7 @@ class TestRouting:
         trm.discover_all = mock.MagicMock()
 
         from core.tool_registry_mesh import CATEGORY_META
+
         CATEGORY_META["search"]["order"] = ["nonexistent_tool"]
 
         result = trm.route("search")

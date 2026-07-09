@@ -9,7 +9,7 @@ browser = p.chromium.connect_over_cdp(CDP_URL)
 
 for ctx in browser.contexts:
     for pg in ctx.pages:
-        if 'gemini' in pg.url:
+        if "gemini" in pg.url:
             pg.bring_to_front()
             time.sleep(0.3)
 
@@ -26,8 +26,8 @@ for ctx in browser.contexts:
             }""")
 
             # Save with unique name
-            path = os.path.join('tools', 'edge', 'gemini_full_verdict.txt')
-            with open(path, 'w', encoding='utf-8') as f:
+            path = os.path.join("tools", "edge", "gemini_full_verdict.txt")
+            with open(path, "w", encoding="utf-8") as f:
                 f.write(text)
             print(f"SAVED to {path}: {len(text)} chars")
             print(text[:500])

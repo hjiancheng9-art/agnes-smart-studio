@@ -51,10 +51,12 @@ class TestStreamTextGoesToMessagePane:
     """test_stream_text_goes_to_message_pane — "text" yield calls stream_append."""
 
     def test_stream_text_goes_to_message_pane(self):
-        session = _make_mock_session(yields=[
-            ("text", "hello"),
-            ("text", " world"),
-        ])
+        session = _make_mock_session(
+            yields=[
+                ("text", "hello"),
+                ("text", " world"),
+            ]
+        )
         tui = _make_tui(session=session)
         with patch.object(tui.message_pane, "stream_append") as mock_append:
             tui._stream_response("test message")
@@ -70,9 +72,11 @@ class TestStreamErrorGoesToMessagePane:
     """test_stream_error_goes_to_message_pane — "error" yield calls append_error."""
 
     def test_stream_error_goes_to_message_pane(self):
-        session = _make_mock_session(yields=[
-            ("error", "something failed"),
-        ])
+        session = _make_mock_session(
+            yields=[
+                ("error", "something failed"),
+            ]
+        )
         tui = _make_tui(session=session)
         with patch.object(tui.message_pane, "append_error") as mock_error:
             tui._stream_response("test message")
@@ -87,9 +91,11 @@ class TestStreamInfoToolStart:
 
     def test_stream_info_adds_activity_entry(self):
         """Generic info messages add a dot-bullet entry to activity log."""
-        session = _make_mock_session(yields=[
-            ("info", "hello info message"),
-        ])
+        session = _make_mock_session(
+            yields=[
+                ("info", "hello info message"),
+            ]
+        )
         tui = _make_tui(session=session)
         tui._stream_response("test message")
         assert len(tui._activity_log) >= 1
@@ -98,9 +104,11 @@ class TestStreamInfoToolStart:
 
     def test_stream_info_empty_skipped(self):
         """Empty info messages are skipped."""
-        session = _make_mock_session(yields=[
-            ("info", "   "),
-        ])
+        session = _make_mock_session(
+            yields=[
+                ("info", "   "),
+            ]
+        )
         tui = _make_tui(session=session)
         before = len(tui._activity_log)
         tui._stream_response("test message")
@@ -111,10 +119,12 @@ class TestStreamInfoToolDone:
     """test_stream_info_tool_done — "tool_result" yield is handled."""
 
     def test_tool_result_handled(self):
-        session = _make_mock_session(yields=[
-            ("info", "hello info message"),
-            ("tool_result", {"status": "ok"}),
-        ])
+        session = _make_mock_session(
+            yields=[
+                ("info", "hello info message"),
+                ("tool_result", {"status": "ok"}),
+            ]
+        )
         tui = _make_tui(session=session)
         tui._stream_response("test message")
         # tool_result should be handled without error
@@ -130,9 +140,11 @@ class TestStreamThinkingGoesToActivity:
     """test_stream_thinking_goes_to_activity — "thinking" yield adds activity entry."""
 
     def test_stream_thinking_goes_to_activity(self):
-        session = _make_mock_session(yields=[
-            ("thinking", "Let me analyze this code..."),
-        ])
+        session = _make_mock_session(
+            yields=[
+                ("thinking", "Let me analyze this code..."),
+            ]
+        )
         tui = _make_tui(session=session)
         tui._stream_response("test message")
         assert len(tui._activity_log) >= 1
@@ -141,9 +153,11 @@ class TestStreamThinkingGoesToActivity:
 
     def test_stream_thinking_truncated(self):
         long_reasoning = "x" * 200
-        session = _make_mock_session(yields=[
-            ("thinking", long_reasoning),
-        ])
+        session = _make_mock_session(
+            yields=[
+                ("thinking", long_reasoning),
+            ]
+        )
         tui = _make_tui(session=session)
         tui._stream_response("test message")
         msgs = [msg for _, _, msg in tui._activity_log]
@@ -157,27 +171,33 @@ class TestStreamImageVideoSaved:
     """test_stream_image_video_saved — "image"/"video" yield shows saved path."""
 
     def test_stream_image_saved(self):
-        session = _make_mock_session(yields=[
-            ("image", {"local_path": "/tmp/test.png"}),
-        ])
+        session = _make_mock_session(
+            yields=[
+                ("image", {"local_path": "/tmp/test.png"}),
+            ]
+        )
         tui = _make_tui(session=session)
         with patch.object(tui.message_pane, "append_info") as mock_info:
             tui._stream_response("test message")
             mock_info.assert_called_with("Saved: /tmp/test.png")
 
     def test_stream_video_saved(self):
-        session = _make_mock_session(yields=[
-            ("video", {"local_path": "/tmp/test.mp4"}),
-        ])
+        session = _make_mock_session(
+            yields=[
+                ("video", {"local_path": "/tmp/test.mp4"}),
+            ]
+        )
         tui = _make_tui(session=session)
         with patch.object(tui.message_pane, "append_info") as mock_info:
             tui._stream_response("test message")
             mock_info.assert_called_with("Saved: /tmp/test.mp4")
 
     def test_stream_image_activity_log_entry(self):
-        session = _make_mock_session(yields=[
-            ("image", {"local_path": "/tmp/test.png"}),
-        ])
+        session = _make_mock_session(
+            yields=[
+                ("image", {"local_path": "/tmp/test.png"}),
+            ]
+        )
         tui = _make_tui(session=session)
         tui._stream_response("test message")
         msgs = [msg for _, _, msg in tui._activity_log]
@@ -255,18 +275,22 @@ class TestStreamInfoSpecialCases:
     """test_stream_info_special_cases — fallback message handling."""
 
     def test_stream_info_fallback(self):
-        session = _make_mock_session(yields=[
-            ("info", "fallback to light model"),
-        ])
+        session = _make_mock_session(
+            yields=[
+                ("info", "fallback to light model"),
+            ]
+        )
         tui = _make_tui(session=session)
         tui._stream_response("test message")
         msgs = [msg for _, _, msg in tui._activity_log]
         assert any("fallback" in msg.lower() for msg in msgs)
 
     def test_stream_info_generic_message(self):
-        session = _make_mock_session(yields=[
-            ("info", "processing step 1"),
-        ])
+        session = _make_mock_session(
+            yields=[
+                ("info", "processing step 1"),
+            ]
+        )
         tui = _make_tui(session=session)
         tui._stream_response("test message")
         msgs = [msg for _, _, msg in tui._activity_log]

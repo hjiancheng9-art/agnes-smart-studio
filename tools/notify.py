@@ -27,7 +27,8 @@ $toast = [Windows.UI.Notifications.ToastNotification]::new($template)
     try:
         subprocess.run(
             ["powershell", "-NoProfile", "-Command", ps_script],
-            capture_output=True, timeout=5,
+            capture_output=True,
+            timeout=5,
         )
     except Exception:
         print(f"[CRUX] {title}: {message}")
@@ -37,6 +38,7 @@ $toast = [Windows.UI.Notifications.ToastNotification]::new($template)
 
 if __name__ == "__main__":
     import argparse
+
     p = argparse.ArgumentParser(description="Send desktop notification")
     p.add_argument("message", nargs="*", help="Notification message")
     p.add_argument("--title", default="CRUX Studio", help="Notification title")

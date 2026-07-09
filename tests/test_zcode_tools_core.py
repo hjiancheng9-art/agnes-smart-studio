@@ -17,10 +17,12 @@ if str(PROJECT_ROOT) not in sys.path:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def fresh_registry():
     """Return a fresh ToolRegistry with no shared state and no config load."""
     from core.tools import ToolRegistry, reload_registry
+
     reload_registry()
     registry = ToolRegistry()
     yield registry
@@ -31,9 +33,11 @@ def fresh_registry():
 # 1. ToolRegistry instantiation and singleton
 # ---------------------------------------------------------------------------
 
+
 class TestToolRegistryInstantiation:
     def test_instantiate(self, fresh_registry):
         from core.tools import ToolRegistry
+
         assert isinstance(fresh_registry, ToolRegistry)
 
     def test_default_attributes(self, fresh_registry):
@@ -43,6 +47,7 @@ class TestToolRegistryInstantiation:
 
     def test_singleton_get_registry(self):
         from core.tools import ToolRegistry, get_registry, reload_registry
+
         reload_registry()
         r1 = get_registry()
         r2 = get_registry()
@@ -52,6 +57,7 @@ class TestToolRegistryInstantiation:
 
     def test_reload_registry(self):
         from core.tools import get_registry, reload_registry
+
         reload_registry()
         r1 = get_registry()
         reload_registry()
@@ -60,10 +66,12 @@ class TestToolRegistryInstantiation:
 
     def test_config_path_default(self, fresh_registry):
         from core.tools import TOOLS_CONFIG
+
         assert fresh_registry._config_path == TOOLS_CONFIG
 
     def test_custom_config_path(self, tmp_path):
         from core.tools import ToolRegistry
+
         cfg = tmp_path / "custom_tools.json"
         registry = ToolRegistry(config_path=cfg)
         assert registry._config_path == cfg
@@ -73,14 +81,17 @@ class TestToolRegistryInstantiation:
 # 2. ToolDef-like structure validation
 # ---------------------------------------------------------------------------
 
+
 class TestToolDefinitions:
     def test_builtin_tools_is_list(self):
         from core.tools import BUILTIN_TOOLS
+
         assert isinstance(BUILTIN_TOOLS, list)
         assert len(BUILTIN_TOOLS) > 0
 
     def test_all_builtin_tools_have_function_structure(self):
         from core.tools import BUILTIN_TOOLS
+
         for tool in BUILTIN_TOOLS:
             assert tool["type"] == "function"
             fn = tool["function"]
@@ -90,6 +101,7 @@ class TestToolDefinitions:
 
     def test_pipeline_tool_defs(self):
         from core.tools import PIPELINE_TOOL_DEFS
+
         assert isinstance(PIPELINE_TOOL_DEFS, list)
         names = {td["function"]["name"] for td in PIPELINE_TOOL_DEFS}
         expected = {
@@ -103,11 +115,13 @@ class TestToolDefinitions:
 
     def test_comfyui_tool_defs(self):
         from core.tools import COMFYUI_TOOL_DEFS
+
         assert isinstance(COMFYUI_TOOL_DEFS, list)
         assert len(COMFYUI_TOOL_DEFS) > 0
 
     def test_agent_system_prompt(self):
         from core.tools import AGENT_SYSTEM_PROMPT
+
         assert isinstance(AGENT_SYSTEM_PROMPT, str)
         assert "{provider_name}" in AGENT_SYSTEM_PROMPT
         assert "{model_name}" in AGENT_SYSTEM_PROMPT
@@ -116,6 +130,7 @@ class TestToolDefinitions:
 # ---------------------------------------------------------------------------
 # 3. register / unregister tools
 # ---------------------------------------------------------------------------
+
 
 class TestToolRegistryRegister:
     def test_register_new_tool(self, fresh_registry):
@@ -151,7 +166,11 @@ class TestToolRegistryRegister:
 
         fresh_registry.register("override_tool", "desc", {"type": "object", "properties": {}}, exec1)
         ok = fresh_registry.register(
-            "override_tool", "desc", {"type": "object", "properties": {}}, exec2, override=True,
+            "override_tool",
+            "desc",
+            {"type": "object", "properties": {}},
+            exec2,
+            override=True,
         )
         assert ok is True
 
@@ -173,6 +192,7 @@ class TestToolRegistryRegister:
 # ---------------------------------------------------------------------------
 # 4. definitions property
 # ---------------------------------------------------------------------------
+
 
 class TestToolRegistryDefinitions:
     def test_definitions_is_list(self, fresh_registry):
@@ -202,14 +222,21 @@ class TestToolRegistryDefinitions:
     def test_definitions_contains_lsp_tools_after_load(self, fresh_registry):
         fresh_registry.load()
         names = [d["function"]["name"] for d in fresh_registry.definitions]
-        for lsp_tool in ["lsp_goto_definition", "lsp_hover", "lsp_diagnostics",
-                         "lsp_find_references", "lsp_completion", "lsp_rename"]:
+        for lsp_tool in [
+            "lsp_goto_definition",
+            "lsp_hover",
+            "lsp_diagnostics",
+            "lsp_find_references",
+            "lsp_completion",
+            "lsp_rename",
+        ]:
             assert lsp_tool in names, f"Missing LSP tool: {lsp_tool}"
 
 
 # ---------------------------------------------------------------------------
 # 5. tool_names property
 # ---------------------------------------------------------------------------
+
 
 class TestToolRegistryToolNames:
     def test_tool_names_is_list(self, fresh_registry):
@@ -242,12 +269,13 @@ class TestToolRegistryToolNames:
 # 6. has method
 # ---------------------------------------------------------------------------
 
+
 class TestToolRegistryHas:
     def test_has_registered_tool(self, fresh_registry):
         def my_exec(**kw):
             return "ok"
-        fresh_registry.register("my_tool", "desc",
-                                {"type": "object", "properties": {}}, my_exec)
+
+        fresh_registry.register("my_tool", "desc", {"type": "object", "properties": {}}, my_exec)
         assert fresh_registry.has("my_tool")
 
     def test_has_nonexistent(self, fresh_registry):
@@ -257,6 +285,7 @@ class TestToolRegistryHas:
 # ---------------------------------------------------------------------------
 # 7. schema method
 # ---------------------------------------------------------------------------
+
 
 class TestToolRegistrySchema:
     def test_schema_method_exists(self, fresh_registry):
@@ -272,6 +301,7 @@ class TestToolRegistrySchema:
 # ---------------------------------------------------------------------------
 # 8. tool_categories property
 # ---------------------------------------------------------------------------
+
 
 class TestToolRegistryCategories:
     def test_tool_categories_is_dict(self, fresh_registry):
@@ -294,6 +324,7 @@ class TestToolRegistryCategories:
 # ---------------------------------------------------------------------------
 # 9. load method with toggles
 # ---------------------------------------------------------------------------
+
 
 class TestToolRegistryLoad:
     def test_load_returns_count(self, fresh_registry):
@@ -321,83 +352,99 @@ class TestToolRegistryLoad:
 # 10. Tool validation helpers
 # ---------------------------------------------------------------------------
 
+
 class TestToolValidation:
     def test_validate_args_required_missing(self):
         from core.tools import _validate_args
-        definitions = [{
-            "function": {
-                "name": "test_tool",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "required_arg": {"type": "string", "description": "needed"},
+
+        definitions = [
+            {
+                "function": {
+                    "name": "test_tool",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "required_arg": {"type": "string", "description": "needed"},
+                        },
+                        "required": ["required_arg"],
                     },
-                    "required": ["required_arg"],
                 },
-            },
-        }]
+            }
+        ]
         ok, detail = _validate_args("test_tool", {}, definitions)
         assert ok is False
         assert "required_arg" in detail
 
     def test_validate_args_ok(self):
         from core.tools import _validate_args
-        definitions = [{
-            "function": {
-                "name": "test_tool",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string", "description": "a name"},
+
+        definitions = [
+            {
+                "function": {
+                    "name": "test_tool",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "a name"},
+                        },
+                        "required": ["name"],
                     },
-                    "required": ["name"],
                 },
-            },
-        }]
+            }
+        ]
         ok, detail = _validate_args("test_tool", {"name": "hello"}, definitions)
         assert ok is True
 
     def test_validate_args_type_mismatch(self):
         from core.tools import _validate_args
-        definitions = [{
-            "function": {
-                "name": "test_tool",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "count": {"type": "integer", "description": "a count"},
+
+        definitions = [
+            {
+                "function": {
+                    "name": "test_tool",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "count": {"type": "integer", "description": "a count"},
+                        },
+                        "required": ["count"],
                     },
-                    "required": ["count"],
                 },
-            },
-        }]
+            }
+        ]
         ok, detail = _validate_args("test_tool", {"count": "not_an_int"}, definitions)
         assert ok is False
         assert "count" in detail
 
     def test_validate_args_no_schema_passes(self):
         from core.tools import _validate_args
+
         ok, detail = _validate_args("unknown", {"a": 1}, [])
         assert ok is True
 
     def test_suggest_similar_tool(self):
         from core.tools import _suggest_similar_tool
-        definitions = [{
-            "function": {
-                "name": "read_file",
-                "parameters": {"type": "object", "properties": {}, "required": []},
+
+        definitions = [
+            {
+                "function": {
+                    "name": "read_file",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
             },
-        }, {
-            "function": {
-                "name": "write_file",
-                "parameters": {"type": "object", "properties": {}, "required": []},
+            {
+                "function": {
+                    "name": "write_file",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
             },
-        }]
+        ]
         suggestion = _suggest_similar_tool("read_fil", definitions)
         assert "read_file" in suggestion
 
     def test_suggest_similar_tool_no_match(self):
         from core.tools import _suggest_similar_tool
+
         suggestion = _suggest_similar_tool("zzzzz", [])
         assert suggestion == ""
 
@@ -406,15 +453,18 @@ class TestToolValidation:
 # 11. execute method
 # ---------------------------------------------------------------------------
 
+
 class TestToolRegistryExecute:
     def test_execute_registered_tool(self, fresh_registry):
         def my_exec(**kw):
             return f"got: {kw.get('name', '')}"
 
-        fresh_registry.register("echo", "echo tool",
-                                {"type": "object", "properties": {
-                                    "name": {"type": "string", "description": "name"}
-                                }}, my_exec)
+        fresh_registry.register(
+            "echo",
+            "echo tool",
+            {"type": "object", "properties": {"name": {"type": "string", "description": "name"}}},
+            my_exec,
+        )
         result = fresh_registry.execute("echo", {"name": "world"})
         assert "world" in result
 
@@ -426,10 +476,12 @@ class TestToolRegistryExecute:
         def my_exec(**kw):
             return "ok"
 
-        fresh_registry.register("validated", "needs arg",
-                                {"type": "object",
-                                 "properties": {"x": {"type": "string"}},
-                                 "required": ["x"]}, my_exec)
+        fresh_registry.register(
+            "validated",
+            "needs arg",
+            {"type": "object", "properties": {"x": {"type": "string"}}, "required": ["x"]},
+            my_exec,
+        )
         result = fresh_registry.execute("validated", {})
         assert "错误" in result
 
@@ -438,17 +490,21 @@ class TestToolRegistryExecute:
 # 12. Levenshtein distance
 # ---------------------------------------------------------------------------
 
+
 class TestLevenshtein:
     def test_levenshtein_identical(self):
         from core.tools import _levenshtein
+
         assert _levenshtein("abc", "abc") == 0
 
     def test_levenshtein_one_edit(self):
         from core.tools import _levenshtein
+
         assert _levenshtein("abc", "abd") == 1
 
     def test_levenshtein_empty(self):
         from core.tools import _levenshtein
+
         assert _levenshtein("", "") == 0
         assert _levenshtein("abc", "") == 3
         assert _levenshtein("", "abc") == 3
@@ -458,10 +514,12 @@ class TestLevenshtein:
 # 13. __all__ exports
 # ---------------------------------------------------------------------------
 
+
 class TestToolsAllExports:
     def test_all_exports_importable(self):
         import core.tools as mod
         from core.tools import __all__ as exports
+
         missing = []
         for name in exports:
             if not hasattr(mod, name):
@@ -470,9 +528,14 @@ class TestToolsAllExports:
         # in __all__ but may not be direct module attributes; only fail
         # if core symbols are missing.
         core_symbols = {
-            "AGENT_SYSTEM_PROMPT", "BUILTIN_TOOLS", "COMFYUI_TOOL_DEFS",
-            "PIPELINE_TOOL_DEFS", "TOOLS_CONFIG", "ToolRegistry",
-            "get_registry", "reload_registry",
+            "AGENT_SYSTEM_PROMPT",
+            "BUILTIN_TOOLS",
+            "COMFYUI_TOOL_DEFS",
+            "PIPELINE_TOOL_DEFS",
+            "TOOLS_CONFIG",
+            "ToolRegistry",
+            "get_registry",
+            "reload_registry",
         }
         truly_missing = [n for n in missing if n in core_symbols]
         assert not truly_missing, f"Core exports missing: {truly_missing}"

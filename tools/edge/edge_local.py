@@ -46,9 +46,9 @@ async def main():
         await page.goto(url, timeout=60000, wait_until="domcontentloaded")
         print(f"✅ 已打开 → {await page.title()}")
         print(f"📌 当前地址: {page.url}")
-        print(f"\n{'='*50}")
+        print(f"\n{'=' * 50}")
         print("💡 在下方输入我给你的命令")
-        print(f"{'='*50}\n")
+        print(f"{'=' * 50}\n")
 
         while True:
             try:
@@ -113,7 +113,7 @@ async def main():
                     sel = args_list[0]
                     text = " ".join(args_list[1:])
                     await page.fill(sel, text)
-                    print(f"✅ 已填入: {sel} ← {text[:50]}{'...' if len(text)>50 else ''}")
+                    print(f"✅ 已填入: {sel} ← {text[:50]}{'...' if len(text) > 50 else ''}")
 
             elif action == "press":
                 key = args_list[0] if args_list else "Enter"
@@ -139,8 +139,8 @@ async def main():
                 links = await page.eval_on_selector_all(
                     "a[href]", "els => els.map(el => ({text: el.innerText.trim(), href: el.href})).filter(x => x.text)"
                 )
-                for l in links[:30]:
-                    print(f"  🔗 {l['text'][:50]} → {l['href'][:80]}")
+                for link in links[:30]:
+                    print(f"  🔗 {link['text'][:50]} → {link['href'][:80]}")
                 print(f"  ...共 {len(links)} 个链接")
 
             elif action == "js":
@@ -167,6 +167,7 @@ async def main():
                 print(f"❌ 未知命令: {action} (输入 help 查看帮助)")
 
     await browser.close()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

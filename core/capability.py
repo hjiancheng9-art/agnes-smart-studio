@@ -128,15 +128,8 @@ class CapabilityRegistry:
         engines = {}
         for name in ("text_to_image", "image_to_image", "video"):
             engines[name] = "available"
-        # Check comfyui
+        # ComfyUI 已移除
 
-        try:
-            from core.config import SETTINGS
-
-            if getattr(SETTINGS, "comfyui_enabled", False):
-                engines["comfyui"] = "enabled"
-        except (AttributeError, ImportError, NameError):
-            pass
         return {"count": len(engines), "items": engines}
 
     def _list_models(self) -> dict:

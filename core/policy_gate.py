@@ -1,7 +1,6 @@
 """Policy Gate — based on quality assessment, decide next action automatically."""
 
 
-
 def decide_action(summary: dict) -> str:
     """基于质量评估决定下一步动作。
 

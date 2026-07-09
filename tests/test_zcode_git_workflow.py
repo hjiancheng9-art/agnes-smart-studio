@@ -15,16 +15,19 @@ class TestGitWorkflowConstruction:
 
     def test_default_root(self):
         from core.git_workflow import ROOT, GitWorkflow
+
         gw = GitWorkflow()
         assert gw.root == ROOT
 
     def test_custom_root(self, tmp_path):
         from core.git_workflow import GitWorkflow
+
         gw = GitWorkflow(root=tmp_path)
         assert gw.root == tmp_path
 
     def test_methods_exist(self):
         from core.git_workflow import GitWorkflow
+
         gw = GitWorkflow()
         assert callable(gw.status)
         assert callable(gw.diff)
@@ -48,24 +51,28 @@ class TestGitWorkflowStatus:
 
     def test_status_returns_string(self):
         from core.git_workflow import GitWorkflow
+
         gw = GitWorkflow()
         result = gw.status()
         assert isinstance(result, str)
 
     def test_status_returns_clean_when_empty(self):
         from core.git_workflow import GitWorkflow
+
         gw = GitWorkflow()
         with mock.patch.object(gw, "_run", return_value=(0, "", "")):
             assert gw.status() == "(clean)"
 
     def test_diff_when_empty(self):
         from core.git_workflow import GitWorkflow
+
         gw = GitWorkflow()
         with mock.patch.object(gw, "_run", return_value=(0, "", "")):
             assert gw.diff() == "(no changes)"
 
     def test_current_branch_returns_string(self):
         from core.git_workflow import GitWorkflow
+
         gw = GitWorkflow()
         result = gw.current_branch()
         assert isinstance(result, str)
@@ -76,6 +83,7 @@ class TestGitWorkflowStageAndCommit:
 
     def test_stage_all_returns_message(self):
         from core.git_workflow import GitWorkflow
+
         gw = GitWorkflow()
         with mock.patch.object(gw, "_run", return_value=(0, "", "")):
             msg = gw.stage_all()
@@ -83,6 +91,7 @@ class TestGitWorkflowStageAndCommit:
 
     def test_commit_returns_output(self):
         from core.git_workflow import GitWorkflow
+
         gw = GitWorkflow()
         with mock.patch.object(gw, "_run", return_value=(0, "commit ok", "")):
             result = gw.commit("test message")
@@ -90,6 +99,7 @@ class TestGitWorkflowStageAndCommit:
 
     def test_safe_autocommit_nothing_to_commit(self):
         from core.git_workflow import GitWorkflow
+
         gw = GitWorkflow()
         with mock.patch.object(gw, "status", return_value="(clean)"):
             result = gw.safe_autocommit("test message")
@@ -102,6 +112,7 @@ class TestGitWorkflowBranch:
 
     def test_create_branch_sanitizes_name(self):
         from core.git_workflow import GitWorkflow
+
         gw = GitWorkflow()
         with mock.patch.object(gw, "_run", return_value=(0, "", "")):
             result = gw.create_branch("My Feature Branch With Spaces")
@@ -113,12 +124,14 @@ class TestGitWorkflowLog:
 
     def test_log_returns_string(self):
         from core.git_workflow import GitWorkflow
+
         gw = GitWorkflow()
         result = gw.log(n=3)
         assert isinstance(result, str)
 
     def test_log_empty_repo_returns_message(self):
         from core.git_workflow import GitWorkflow
+
         gw = GitWorkflow()
         with mock.patch.object(gw, "_run", return_value=(0, "", "")):
             assert gw.log() == "(no commits)"
@@ -129,6 +142,7 @@ class TestGitWorkflowSnapshot:
 
     def test_snapshot_returns_string(self):
         from core.git_workflow import GitWorkflow
+
         gw = GitWorkflow()
         with mock.patch.object(gw, "_run", return_value=(0, "", "")):
             result = gw.snapshot(label="test-snap")
@@ -136,6 +150,7 @@ class TestGitWorkflowSnapshot:
 
     def test_snapshot_auto_label(self):
         from core.git_workflow import GitWorkflow
+
         gw = GitWorkflow()
         with mock.patch.object(gw, "_run", return_value=(0, "", "")):
             result = gw.snapshot()
@@ -143,6 +158,7 @@ class TestGitWorkflowSnapshot:
 
     def test_restore_snapshot_no_label(self):
         from core.git_workflow import GitWorkflow
+
         gw = GitWorkflow()
         with mock.patch.object(gw, "_run", return_value=(1, "", "nothing to pop")):
             result = gw.restore_snapshot()
@@ -159,19 +175,24 @@ class TestConvenienceFunctions:
 
     def test_git_status_exists(self):
         from core.git_workflow import git_status
+
         assert callable(git_status)
         result = git_status()
         assert isinstance(result, str)
 
     def test_git_autocommit_exists(self):
         from core.git_workflow import git_autocommit
+
         assert callable(git_autocommit)
-        with mock.patch("core.git_workflow.GitWorkflow.safe_autocommit", return_value={"committed": False, "message": "nothing"}):
+        with mock.patch(
+            "core.git_workflow.GitWorkflow.safe_autocommit", return_value={"committed": False, "message": "nothing"}
+        ):
             result = git_autocommit("test")
             assert isinstance(result, dict)
 
     def test_git_snapshot_exists(self):
         from core.git_workflow import git_snapshot
+
         assert callable(git_snapshot)
         with mock.patch("core.git_workflow.GitWorkflow.snapshot", return_value="snapshot 'test' saved"):
             result = git_snapshot(label="test")

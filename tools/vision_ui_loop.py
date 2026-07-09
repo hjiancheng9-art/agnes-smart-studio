@@ -52,6 +52,7 @@ JSON 格式：
 def screenshot(output_path: str) -> str:
     """截图桌面并返回文件路径。"""
     from PIL import ImageGrab
+
     img = ImageGrab.grab()
     img.save(output_path)
     return output_path
@@ -65,18 +66,28 @@ def analyze(image_path: str) -> dict:
     with open(image_path, "rb") as f:
         img64 = base64.b64encode(f.read()).decode()
 
-    resp = httpx.post(ZHIPU_URL, json={
-        "model": "GLM-4V-Flash",
-        "max_tokens": 2048,
-        "temperature": 0.3,
-        "messages": [{"role": "user", "content": [
-            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img64}"}},
-            {"type": "text", "text": DESIGN_PROMPT},
-        ]}],
-    }, headers={
-        "Authorization": f"Bearer {ZHIPU_KEY}",
-        "Content-Type": "application/json",
-    }, timeout=60)
+    resp = httpx.post(
+        ZHIPU_URL,
+        json={
+            "model": "GLM-4V-Flash",
+            "max_tokens": 2048,
+            "temperature": 0.3,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img64}"}},
+                        {"type": "text", "text": DESIGN_PROMPT},
+                    ],
+                }
+            ],
+        },
+        headers={
+            "Authorization": f"Bearer {ZHIPU_KEY}",
+            "Content-Type": "application/json",
+        },
+        timeout=60,
+    )
     resp.raise_for_status()
     content = resp.json()["choices"][0]["message"]["content"]
 
@@ -139,9 +150,9 @@ def main():
     max_iterations = 3
     while iteration < max_iterations:
         iteration += 1
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"ITERATION {iteration}/{max_iterations}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         # 1. 截图
         img_path = str(out_dir / f"screenshot_{iteration:02d}.png")
@@ -175,14 +186,15 @@ def main():
         # 4. 应用
         print("\nApplying changes...")
         log = apply_changes(changes)
-        for l in log:
-            print(l)
+        for line in log:
+            print(line)
 
         # 5. 语法验证
         for c in changes:
             fpath = ROOT / c["file"]
             try:
                 import py_compile
+
                 py_compile.compile(str(fpath), doraise=True)
                 print(f"  ✓ {c['file']}: syntax OK")
             except py_compile.PyCompileError as e:

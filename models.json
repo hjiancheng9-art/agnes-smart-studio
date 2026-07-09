@@ -1,13 +1,36 @@
 {
+  "active_strategy": "hybrid",
+  "default_chat_provider": "deepseek",
+  "tiers": {
+    "light": {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash"
+    },
+    "pro": {
+      "provider": "deepseek",
+      "model": "deepseek-v4-pro"
+    },
+    "heavy": {
+      "provider": "deepseek",
+      "model": "deepseek-v4-pro"
+    },
+    "vision": {
+      "provider": "crux",
+      "model": "agnes-2.0-flash"
+    },
+    "fallback": {
+      "provider": "crux",
+      "model": "agnes-2.0-flash"
+    }
+  },
   "providers": {
     "crux": {
       "name": "CRUX AI",
       "base_url": "https://apihub.agnes-ai.com/v1",
       "api_key": "",
       "models": {
-        "light": "agnes-2.0-flash",
-        "pro": "agnes-2.0-flash",
-        "heavy": "agnes-2.0-flash",
+        "vision": "agnes-2.0-flash",
+        "fallback": "agnes-2.0-flash",
         "image": "agnes-image-2.1-flash",
         "image_edit": "agnes-image-2.0-flash",
         "video": "agnes-video-v2.0"
@@ -42,7 +65,6 @@
       }
     }
   },
-  "active": "deepseek",
   "fallback": {
     "enabled": true,
     "priority": [
@@ -52,5 +74,6 @@
   },
   "codebuddy_extra": {
     "marketplace_url": "https://copilot.tencent.com/api"
-  }
+  },
+  "active": "deepseek"
 }

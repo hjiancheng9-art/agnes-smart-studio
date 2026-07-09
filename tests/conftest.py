@@ -4,6 +4,7 @@
 pythonpath=["."] 已在 pyproject.toml 的 [tool.pytest.ini_options] 中配置，
 pytest 运行时自动把项目根加入 sys.path，无需各测试文件手动 sys.path.insert。
 """
+
 from __future__ import annotations
 
 import sys

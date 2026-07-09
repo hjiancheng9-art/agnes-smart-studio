@@ -587,7 +587,7 @@ class ProviderManager:
         try:
             api_key = api_key.encode("ascii", errors="strict").decode("ascii") if api_key else ""
         except UnicodeEncodeError:
-            logger.error(
+            logger.exception(
                 "API key for provider '%s' contains non-ASCII characters. "
                 "Check your .env / models.json for stray full-width chars or BOM.",
                 pid,

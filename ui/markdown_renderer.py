@@ -26,32 +26,36 @@ from typing import Any
 
 _PYGMENTS_STYLE_MAP: dict[Any, str] = {}
 
+
 def _init_style_map():
     """Lazy-init Pygments token style map to avoid import overhead."""
     if _PYGMENTS_STYLE_MAP:
         return
     try:
         from pygments.token import Token
-        _PYGMENTS_STYLE_MAP.update({
-            Token.Keyword: "bold fg:#cba6f7",
-            Token.Keyword.Constant: "fg:#cba6f7",
-            Token.Keyword.Declaration: "bold fg:#cba6f7",
-            Token.Keyword.Namespace: "bold fg:#cba6f7",
-            Token.Keyword.Type: "bold fg:#89b4fa",
-            Token.Name.Function: "fg:#89b4fa",
-            Token.Name.Class: "bold fg:#f2cdcd",
-            Token.Name.Decorator: "fg:#f2cdcd",
-            Token.Name.Builtin: "fg:#89b4fa",
-            Token.Name.Constant: "fg:#fab387",
-            Token.String: "fg:#a6e3a1",
-            Token.String.Doc: "italic fg:#a6e3a1",
-            Token.Number: "fg:#fab387",
-            Token.Operator: "fg:#94e2d5",
-            Token.Comment: "italic fg:#585b70",
-            Token.Comment.Special: "bold fg:#585b70",
-            Token.Punctuation: "fg:#cdd6f4",
-            Token.Text: "",
-        })
+
+        _PYGMENTS_STYLE_MAP.update(
+            {
+                Token.Keyword: "bold fg:#cba6f7",
+                Token.Keyword.Constant: "fg:#cba6f7",
+                Token.Keyword.Declaration: "bold fg:#cba6f7",
+                Token.Keyword.Namespace: "bold fg:#cba6f7",
+                Token.Keyword.Type: "bold fg:#89b4fa",
+                Token.Name.Function: "fg:#89b4fa",
+                Token.Name.Class: "bold fg:#f2cdcd",
+                Token.Name.Decorator: "fg:#f2cdcd",
+                Token.Name.Builtin: "fg:#89b4fa",
+                Token.Name.Constant: "fg:#fab387",
+                Token.String: "fg:#a6e3a1",
+                Token.String.Doc: "italic fg:#a6e3a1",
+                Token.Number: "fg:#fab387",
+                Token.Operator: "fg:#94e2d5",
+                Token.Comment: "italic fg:#585b70",
+                Token.Comment.Special: "bold fg:#585b70",
+                Token.Punctuation: "fg:#cdd6f4",
+                Token.Text: "",
+            }
+        )
     except ImportError:
         pass
 
@@ -69,8 +73,10 @@ def _pygments_token_style(ttype: Any) -> str:
 
 # ── LRU Cache ──────────────────────────────────────────────
 
+
 class PygmentsCache:
     """LRU cache for syntax-highlighted code blocks."""
+
     def __init__(self, maxsize: int = 64):
         self._cache: OrderedDict[str, list[tuple[str, str]]] = OrderedDict()
         self._maxsize = maxsize
@@ -137,13 +143,14 @@ _cache = PygmentsCache(maxsize=64)
 
 # ── Markdown block parsing ─────────────────────────────────
 
+
 def _parse_code_blocks(text: str) -> list[tuple[str, str]]:
     """
     Split text into code blocks and non-code segments.
     Returns [(tag, content)] where tag is 'code' or 'text'.
     """
     segments: list[tuple[str, str]] = []
-    pattern = re.compile(r'```(\w*)\n(.*?)```', re.DOTALL)
+    pattern = re.compile(r"```(\w*)\n(.*?)```", re.DOTALL)
     last_end = 0
 
     for match in pattern.finditer(text):
@@ -152,7 +159,7 @@ def _parse_code_blocks(text: str) -> list[tuple[str, str]]:
 
         # Text before this code block
         if match.start() > last_end:
-            segments.append(("text", text[last_end:match.start()]))
+            segments.append(("text", text[last_end : match.start()]))
 
         # The code block
         highlighted = _cache.highlight(code, lang)
@@ -183,10 +190,10 @@ def _render_inline(text: str) -> list[tuple[str, str]]:
     # Combined pattern: code > link > bold > italic
     # Process in order of priority to avoid conflicts
     patterns = [
-        (r'`([^`]+)`', 'class:msg-assistant'),           # inline code
-        (r'\[([^\]]+)\]\(([^)]+)\)', 'class:msg-assistant underline'),  # link
-        (r'\*\*([^*]+)\*\*', 'bold'),                     # bold
-        (r'\*([^*]+)\*', 'italic'),                       # italic
+        (r"`([^`]+)`", "class:msg-assistant"),  # inline code
+        (r"\[([^\]]+)\]\(([^)]+)\)", "class:msg-assistant underline"),  # link
+        (r"\*\*([^*]+)\*\*", "bold"),  # bold
+        (r"\*([^*]+)\*", "italic"),  # italic
     ]
 
     while pos < len(text):
@@ -218,9 +225,9 @@ def _render_inline(text: str) -> list[tuple[str, str]]:
                 result.append(("", before))
 
         # The formatted element itself
-        if style.startswith('class:'):
+        if style.startswith("class:"):
             # Link style: show label, hide URL
-            if '(' in match.group(0):
+            if "(" in match.group(0):
                 label = match.group(1)
                 result.append((style, label))
             else:
@@ -243,27 +250,26 @@ def _render_block(text: str, width: int = 80) -> list[tuple[str, str]]:
         return [("", "")]
 
     # Header
-    if stripped.startswith('#'):
-        level = len(stripped) - len(stripped.lstrip('#'))
-        content = stripped.lstrip('#').strip()
+    if stripped.startswith("#"):
+        level = len(stripped) - len(stripped.lstrip("#"))
+        content = stripped.lstrip("#").strip()
         if level == 1:
             return [("class:msg-assistant bold underline", content)]
-        elif level == 2:
+        if level == 2:
             return [("class:msg-assistant bold", content)]
-        else:
-            return [("class:msg-assistant bold", content)]
+        return [("class:msg-assistant bold", content)]
 
     # Blockquote
-    if stripped.startswith('>'):
-        content = stripped.lstrip('>').strip()
+    if stripped.startswith(">"):
+        content = stripped.lstrip(">").strip()
         return _render_inline(content)
 
     # List item
-    if re.match(r'^[\s]*[-*+]\s', stripped) or re.match(r'^[\s]*\d+[.)]\s', stripped):
+    if re.match(r"^[\s]*[-*+]\s", stripped) or re.match(r"^[\s]*\d+[.)]\s", stripped):
         return _render_inline(stripped)
 
     # Code block indicator line (```) — skip silently
-    if stripped.startswith('```'):
+    if stripped.startswith("```"):
         return []
 
     # Regular paragraph
@@ -271,6 +277,7 @@ def _render_block(text: str, width: int = 80) -> list[tuple[str, str]]:
 
 
 # ── Public API ─────────────────────────────────────────────
+
 
 def render_markdown(text: str, width: int = 80) -> list[tuple[str, str]]:
     """
@@ -289,13 +296,14 @@ def render_markdown(text: str, width: int = 80) -> list[tuple[str, str]]:
 
     for tag, content in segments:
         if tag == "code_block":
-            # Pre-formatted highlighted code fragments
+            # Pre-formatted highlighted code fragments with code-block background
             if isinstance(content, list):
-                result.extend(content)
+                for style, text in content:
+                    result.append((f"class:code-block {style}", text))
             result.append(("", "\n"))
         else:
             # Text content — split into blocks and render each
-            blocks = content.split('\n')
+            blocks = content.split("\n")
             for block in blocks:
                 rendered = _render_block(block, width)
                 result.extend(rendered)

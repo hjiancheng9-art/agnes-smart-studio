@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 
 # ── Helpers ──────────────────────────────────────────────────
 
+
 def _make_mock_client(stream_chunks=None, model="deepseek-v4-flash"):
     """Create a mock CruxClient that returns controlled stream chunks."""
     client = MagicMock()
@@ -57,6 +58,7 @@ class TestSendStreamBasic:
 
     def test_simple_text_response(self):
         from core.chat import ChatSession
+
         client = _make_mock_client()
         session = ChatSession(client)
         result = _collect_stream(session, "Hello")
@@ -66,6 +68,7 @@ class TestSendStreamBasic:
 
     def test_session_builds_system_prompt(self):
         from core.chat import ChatSession
+
         client = _make_mock_client()
         session = ChatSession(client)
         assert len(session.messages) >= 1
@@ -73,6 +76,7 @@ class TestSendStreamBasic:
 
     def test_empty_stream_handled(self):
         from core.chat import ChatSession
+
         client = _make_mock_client(stream_chunks=[])
         session = ChatSession(client)
         result = _collect_stream(session, "test")
@@ -81,6 +85,7 @@ class TestSendStreamBasic:
 
     def test_user_message_added_to_history(self):
         from core.chat import ChatSession
+
         client = _make_mock_client()
         session = ChatSession(client)
         _collect_stream(session, "What is Python?")
@@ -94,6 +99,7 @@ class TestSendStreamErrors:
 
     def test_stream_error_handled(self):
         from core.chat import ChatSession
+
         client = MagicMock()
         client.base_url = "https://test.api/v1"
 
@@ -109,6 +115,7 @@ class TestSendStreamErrors:
 
     def test_client_rejects_bad_response(self):
         from core.chat import ChatSession
+
         client = MagicMock()
         client.base_url = "https://test.api/v1"
 
@@ -128,6 +135,7 @@ class TestSendStreamToolCalls:
 
     def test_tool_call_fragments_merge_correctly(self):
         from core.chat_tool_helpers import merge_tool_calls
+
         fragments = [
             {"index": 0, "id": "call_1", "function": {"name": "read_file", "arguments": '{"path":'}},
             {"index": 0, "function": {"arguments": '"test.txt"}'}},
@@ -139,6 +147,7 @@ class TestSendStreamToolCalls:
 
     def test_tool_call_dedup(self):
         from core.chat_tool_helpers import merge_tool_calls
+
         fragments = [
             {"index": 0, "id": "call_1", "function": {"name": "search", "arguments": '{"q": "test"}'}},
             {"index": 1, "id": "call_2", "function": {"name": "search", "arguments": '{"q": "test"}'}},
@@ -146,6 +155,7 @@ class TestSendStreamToolCalls:
         merged = merge_tool_calls(fragments)
         assert len(merged) == 1  # duplicates removed
         from core.chat_tool_helpers import merge_tool_calls
+
         fragments = [
             {"index": 0, "id": "call_1", "function": {"name": "generate_image", "arguments": '{"pr'}},
             {"index": 0, "function": {"arguments": 'ompt": "cat"}'}},
@@ -160,6 +170,7 @@ class TestSendStreamFallback:
 
     def test_fallback_chain_exists(self):
         from core.chat import ChatSession
+
         client = MagicMock()
         client.base_url = "https://test.api/v1"
         session = ChatSession(client)
@@ -168,6 +179,7 @@ class TestSendStreamFallback:
 
     def test_fallback_chain_valid_structure(self):
         from core.chat import ChatSession
+
         client = MagicMock()
         client.base_url = "https://test.api/v1"
         session = ChatSession(client)
@@ -182,6 +194,7 @@ class TestSendStreamMethodology:
 
     def test_methodology_classification_fires(self):
         from core.chat import ChatSession
+
         client = _make_mock_client()
         session = ChatSession(client)
         result = _collect_stream(session, "fix bug in multiple files across the project")
@@ -191,6 +204,7 @@ class TestSendStreamMethodology:
 
     def test_simple_query_no_methodology_noise(self):
         from core.chat import ChatSession
+
         client = _make_mock_client()
         session = ChatSession(client)
         result = _collect_stream(session, "hello")
@@ -215,11 +229,13 @@ class TestSendStreamFallbackIntegration:
         def _error_stream(*a, **kw):
             yield {"_finish": "error", "_error": True}
             yield {"_usage": {"total_tokens": 0}}
+
         client1.chat_stream = MagicMock(side_effect=_error_stream)
 
         def _success_stream(*a, **kw):
             yield {"content": "Hello from fallback"}
             yield {"_usage": {"total_tokens": 10}}
+
         client2.chat_stream = MagicMock(side_effect=_success_stream)
 
         session = ChatSession(client=client1, default_model="deepseek-v4-flash")
@@ -248,6 +264,7 @@ class TestSendStreamFallbackIntegration:
         def _fail(*a, **kw):
             yield {"_finish": "error"}
             yield {"_usage": {"total_tokens": 0}}
+
         client1.chat_stream = _fail
         client2.chat_stream = _fail
 
@@ -266,6 +283,7 @@ class TestSendStreamPipeline:
 
     def test_tool_merge_dedup_pipeline(self):
         from core.chat_tool_helpers import merge_tool_calls
+
         # Simulate: model emits 2 tool calls, one is duplicate
         fragments = [
             {"index": 0, "id": "call_1", "function": {"name": "search", "arguments": '{"q":"test"}'}},
@@ -276,6 +294,7 @@ class TestSendStreamPipeline:
 
     def test_sanitize_preserves_valid(self):
         from core.chat_tool_helpers import sanitize_tool_call_history
+
         msgs = [
             {"role": "system", "content": "You are helpful"},
             {"role": "user", "content": "hello"},
@@ -286,6 +305,7 @@ class TestSendStreamPipeline:
 
     def test_sanitize_removes_orphan_tools(self):
         from core.chat_tool_helpers import sanitize_tool_call_history
+
         msgs = [
             {"role": "user", "content": "test"},
             {"role": "tool", "tool_call_id": "orphan_1", "content": "result"},

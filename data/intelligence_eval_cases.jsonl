@@ -1,0 +1,20 @@
+{"id":"E001","request":"修复 src/auth.py:42 处的空指针异常","expected_outcome":"修复了空指针","tags":["bug_fix","code"],"difficulty":"easy"}
+{"id":"E002","request":"在 utils/validator.py 中新增一个 email 校验函数","expected_outcome":"新增了 validate_email 函数","tags":["code","feature"],"difficulty":"easy"}
+{"id":"E003","request":"重构 handle_login 函数，把 session 逻辑分离到单独的 AuthService 类","expected_outcome":"提取了 AuthService 类，handle_login 调用它","tags":["refactor","code"],"difficulty":"medium"}
+{"id":"E004","request":"排查 api/users.py 中用户列表接口偶尔返回 500 的根因","expected_outcome":"找到了根因并修复","tags":["debug","code"],"difficulty":"hard"}
+{"id":"E005","request":"写一个 Python 脚本，批量压缩当前目录下的所有 .png 文件","expected_outcome":"生成了可运行的脚本","tags":["code","script"],"difficulty":"easy"}
+{"id":"E006","request":"把项目从 Flask 迁移到 FastAPI，保留所有现有路由","expected_outcome":"迁移方案覆盖所有路由","tags":["migration","architecture"],"difficulty":"hard"}
+{"id":"E007","request":"设计一个分布式定时任务调度系统，支持失败重试和告警","expected_outcome":"给出了架构方案","tags":["architecture","design"],"difficulty":"hard"}
+{"id":"E008","request":"帮我分析 database.py 中连接池泄漏的原因","expected_outcome":"定位了泄漏原因","tags":["debug","performance"],"difficulty":"medium"}
+{"id":"E009","request":"给 order_service.py 写单元测试，覆盖下单和取消订单","expected_outcome":"生成了可运行的测试","tags":["test","code"],"difficulty":"medium"}
+{"id":"E010","request":"升级项目的 Python 版本从 3.9 到 3.12，检查所有依赖兼容性","expected_outcome":"提供了升级步骤和兼容性检查","tags":["migration","devops"],"difficulty":"medium"}
+{"id":"E011","request":"在 docker-compose.yml 里添加 Redis 和 Celery worker 服务","expected_outcome":"生成了可用的 docker-compose 配置","tags":["devops","code"],"difficulty":"medium"}
+{"id":"E012","request":"帮我优化这个 SQL 查询，它运行了 30 秒还 timeout","expected_outcome":"给出了优化方案","tags":["performance","debug"],"difficulty":"medium"}
+{"id":"E013","request":"实现一个简单的 rate limiter 中间件","expected_outcome":"生成了中间件代码","tags":["code","feature"],"difficulty":"medium"}
+{"id":"E014","request":"分析 CI pipeline 失败原因：'ModuleNotFoundError: No module named requests'","expected_outcome":"定位了依赖缺失问题","tags":["debug","devops"],"difficulty":"easy"}
+{"id":"E015","request":"给 User model 添加软删除功能，不影响现有查询","expected_outcome":"实现了软删除","tags":["code","feature"],"difficulty":"medium"}
+{"id":"E016","request":"写一个 bash 脚本，每天凌晨备份数据库并上传到 S3","expected_outcome":"生成了可用的 bash 脚本","tags":["devops","script"],"difficulty":"medium"}
+{"id":"E017","request":"把 config.py 中的硬编码 API key 移到环境变量","expected_outcome":"移除了硬编码","tags":["security","refactor"],"difficulty":"easy"}
+{"id":"E018","request":"设计一个微服务间的异步事件总线方案","expected_outcome":"给出了架构方案","tags":["architecture","design"],"difficulty":"hard"}
+{"id":"E019","request":"修复 celery worker 在任务队列积压时的 OOM 问题","expected_outcome":"给出了修复方案","tags":["debug","performance"],"difficulty":"hard"}
+{"id":"E020","request":"写一个 pre-commit hook，自动格式化代码并检查 lint","expected_outcome":"生成了可用的 hook 配置","tags":["devops","code"],"difficulty":"medium"}

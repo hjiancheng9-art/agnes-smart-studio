@@ -29,7 +29,13 @@ class TestChatMultimodalLocalFile:
         client = CruxClient(api_key="fake-key", base_url="http://localhost:9999")
 
         # We can't actually call the API, so we mock _request_with_retry
-        with patch.object(client, "_request_with_retry", return_value=MagicMock(status_code=200, json=MagicMock(return_value={"choices": [{"message": {"content": "ok"}}]}))):
+        with patch.object(
+            client,
+            "_request_with_retry",
+            return_value=MagicMock(
+                status_code=200, json=MagicMock(return_value={"choices": [{"message": {"content": "ok"}}]})
+            ),
+        ):
             # But chat_multimodal calls self.chat which calls _request_with_retry
             # We need to mock at the HTTP level
             pass
@@ -145,9 +151,11 @@ class TestHttpRequestDbQuery:
     def test_http_request_function_exists(self):
         """Verify http_request is importable and callable from core.client."""
         from core.client import http_request
+
         assert callable(http_request)
 
     def test_db_query_function_exists(self):
         """Verify db_query is importable and callable from core.client."""
         from core.client import db_query
+
         assert callable(db_query)

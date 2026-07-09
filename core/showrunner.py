@@ -44,7 +44,6 @@ class StepKind(Enum):
 
 class SourceKind(Enum):
     AGNES = "crux"
-    COMFYUI = "comfyui"
     EXTERNAL = "external"
     API = "api"
     CLI = "cli"
@@ -171,7 +170,6 @@ class PipelineTemplates:
         }
         sm = {
             "crux": SourceKind.AGNES,
-            "comfyui": SourceKind.COMFYUI,
             "external": SourceKind.EXTERNAL,
             "api": SourceKind.API,
             "cli": SourceKind.CLI,
@@ -393,28 +391,11 @@ class Showrunner:
 
     async def _gen_image(self, desc, src):
         p = self._context.get("last_prompt", desc)
-        if src == SourceKind.COMFYUI:
-            return await self._comfy_img(p)
         if src == SourceKind.EXTERNAL:
             return await self._ext_img(p)
         if src == SourceKind.AGNES:
             return await self._agnes_img(p)
-        return await self._comfy_img(p)
-
-    async def _comfy_img(self, prompt):
-        from core.comfyui_tools import submit_comfyui_workflow
-
-        wf = {
-            "prompt": prompt,
-            "negative_prompt": "ugly,blurry,low quality",
-            "width": 1024,
-            "height": 1024,
-            "steps": 20,
-            "cfg": 7.0,
-        }
-        r = submit_comfyui_workflow(wf)
-        self._context["last_images"] = r.get("images", [])
-        return {"comfyui": r, "source": "comfyui"}
+        return await self._agnes_img(p)
 
     async def _agnes_img(self, prompt):
         if not self.client:
@@ -440,20 +421,11 @@ class Showrunner:
     async def _gen_video(self, desc, src):
         p = self._context.get("last_prompt", desc)
         imgs = self._context.get("last_images", [])
-        if src == SourceKind.COMFYUI:
-            return await self._comfy_vid(p, imgs)
         if src == SourceKind.EXTERNAL:
             return await self._ext_vid(p, imgs)
         if src == SourceKind.AGNES:
             return await self._agnes_vid(p, imgs)
-        return await self._comfy_vid(p, imgs)
-
-    async def _comfy_vid(self, prompt, imgs):
-        from core.comfyui_tools import submit_comfyui_workflow
-
-        wf = {"prompt": prompt, "input_images": imgs, "num_frames": 30, "fps": 24}
-        r = submit_comfyui_workflow(wf, workflow_type="video")
-        return {"comfyui": r, "source": "comfyui"}
+        return await self._agnes_vid(p, imgs)
 
     async def _agnes_vid(self, prompt, imgs):
         if not self.client:

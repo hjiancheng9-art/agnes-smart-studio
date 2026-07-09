@@ -21,14 +21,14 @@ from enum import Enum
 
 
 class IntentType(Enum):
-    GENERATE = "generate"       # 生成 (图片/视频/代码/文档)
-    ANALYZE = "analyze"         # 分析 (代码/日志/架构)
-    MODIFY = "modify"           # 修改 (文件/配置)
-    SEARCH = "search"           # 搜索 (代码/知识)
-    EXECUTE = "execute"         # 执行 (脚本/命令/测试)
-    REVIEW = "review"           # 审查 (代码/安全/质量)
-    DIAGNOSE = "diagnose"       # 诊断 (错误/性能)
-    DEPLOY = "deploy"           # 部署 (危险)
+    GENERATE = "generate"  # 生成 (图片/视频/代码/文档)
+    ANALYZE = "analyze"  # 分析 (代码/日志/架构)
+    MODIFY = "modify"  # 修改 (文件/配置)
+    SEARCH = "search"  # 搜索 (代码/知识)
+    EXECUTE = "execute"  # 执行 (脚本/命令/测试)
+    REVIEW = "review"  # 审查 (代码/安全/质量)
+    DIAGNOSE = "diagnose"  # 诊断 (错误/性能)
+    DEPLOY = "deploy"  # 部署 (危险)
 
 
 class AssetType(Enum):
@@ -57,19 +57,20 @@ class Asset:
 @dataclass
 class TaskSpec:
     """结构化任务描述 — TRM 路由的核心输入"""
-    intent: str                          # 原始用户输入
-    intent_type: IntentType               # 意图分类
-    summary: str                         # 一句话摘要
-    complexity: int = 1                   # 复杂度 1-10
-    risk: RiskLevel = RiskLevel.LOW       # 风险等级
+
+    intent: str  # 原始用户输入
+    intent_type: IntentType  # 意图分类
+    summary: str  # 一句话摘要
+    complexity: int = 1  # 复杂度 1-10
+    risk: RiskLevel = RiskLevel.LOW  # 风险等级
     input_assets: list[Asset] = field(default_factory=list)
-    output_type: str = "text"            # 预期输出类型
-    suggested_category: str = "infra"    # 推荐工具分类 (infra/creative/code/web/data/ai)
-    requires_multi_agent: bool = False   # 是否需要多智能体
-    requires_approval: bool = False      # 是否需要人工确认
-    estimated_tools: int = 1             # 预估工具调用数
+    output_type: str = "text"  # 预期输出类型
+    suggested_category: str = "infra"  # 推荐工具分类 (infra/creative/code/web/data/ai)
+    requires_multi_agent: bool = False  # 是否需要多智能体
+    requires_approval: bool = False  # 是否需要人工确认
+    estimated_tools: int = 1  # 预估工具调用数
     constraints: list[str] = field(default_factory=list)  # 约束条件
-    context_hints: dict = field(default_factory=dict)      # 上下文提示
+    context_hints: dict = field(default_factory=dict)  # 上下文提示
 
 
 class TaskSpecBuilder:
@@ -78,54 +79,139 @@ class TaskSpecBuilder:
     # 意图分类关键词
     INTENT_PATTERNS = {
         IntentType.GENERATE: [
-            "生成", "创建", "画", "制作", "渲染", "导出",
-            "generate", "create", "render", "make",
+            "生成",
+            "创建",
+            "画",
+            "制作",
+            "渲染",
+            "导出",
+            "generate",
+            "create",
+            "render",
+            "make",
         ],
         IntentType.ANALYZE: [
-            "分析", "查看", "检查", "评估", "评审", "审查",
-            "analyze", "inspect", "evaluate", "review",
+            "分析",
+            "查看",
+            "检查",
+            "评估",
+            "评审",
+            "审查",
+            "analyze",
+            "inspect",
+            "evaluate",
+            "review",
         ],
         IntentType.MODIFY: [
-            "修改", "改", "更新", "修复", "修", "调整", "重构",
-            "modify", "fix", "update", "refactor", "change",
+            "修改",
+            "改",
+            "更新",
+            "修复",
+            "修",
+            "调整",
+            "重构",
+            "modify",
+            "fix",
+            "update",
+            "refactor",
+            "change",
         ],
         IntentType.SEARCH: [
-            "搜索", "查找", "找", "搜索代码", "搜",
-            "search", "find", "lookup",
+            "搜索",
+            "查找",
+            "找",
+            "搜索代码",
+            "搜",
+            "search",
+            "find",
+            "lookup",
         ],
         IntentType.EXECUTE: [
-            "运行", "执行", "跑", "启动", "构建", "编译", "测试",
-            "run", "execute", "build", "compile", "test",
+            "运行",
+            "执行",
+            "跑",
+            "启动",
+            "构建",
+            "编译",
+            "测试",
+            "run",
+            "execute",
+            "build",
+            "compile",
+            "test",
         ],
         IntentType.REVIEW: [
-            "审查", "review", "审计", "audit", "检查代码",
-            "安全检查", "代码审查",
+            "审查",
+            "review",
+            "审计",
+            "audit",
+            "检查代码",
+            "安全检查",
+            "代码审查",
         ],
         IntentType.DIAGNOSE: [
-            "为什么", "报错", "出错", "失败", "不行", "不对",
-            "哪里错", "怎么回事", "debug", "排查", "诊断",
-            "why", "error", "failed", "broken",
+            "为什么",
+            "报错",
+            "出错",
+            "失败",
+            "不行",
+            "不对",
+            "哪里错",
+            "怎么回事",
+            "debug",
+            "排查",
+            "诊断",
+            "why",
+            "error",
+            "failed",
+            "broken",
         ],
         IntentType.DEPLOY: [
-            "部署", "发布", "上线", "推送", "deploy", "release", "publish",
+            "部署",
+            "发布",
+            "上线",
+            "推送",
+            "deploy",
+            "release",
+            "publish",
         ],
     }
 
     # 输出类型推断
     OUTPUT_HINTS = {
-        "图片": "image", "图": "image", "image": "image",
-        "照片": "image", "插画": "image",
-        "视频": "video", "video": "video", "动画": "video",
-        "代码": "code", "code": "code", "脚本": "code", "script": "code",
-        "报告": "report", "report": "report", "总结": "report",
-        "文档": "document", "document": "document",
+        "图片": "image",
+        "图": "image",
+        "image": "image",
+        "照片": "image",
+        "插画": "image",
+        "视频": "video",
+        "video": "video",
+        "动画": "video",
+        "代码": "code",
+        "code": "code",
+        "脚本": "code",
+        "script": "code",
+        "报告": "report",
+        "report": "report",
+        "总结": "report",
+        "文档": "document",
+        "document": "document",
     }
 
     # 高风险关键词
     HIGH_RISK_PATTERNS = [
-        "删除", "销毁", "清空", "重置", "覆盖",
-        "生产环境", "正式环境", "线上", "prod",
-        "所有", "全部", "整个项目",
+        "删除",
+        "销毁",
+        "清空",
+        "重置",
+        "覆盖",
+        "生产环境",
+        "正式环境",
+        "线上",
+        "prod",
+        "所有",
+        "全部",
+        "整个项目",
     ]
 
     def build(self, intent: str, context: dict = None) -> TaskSpec:
@@ -154,22 +240,15 @@ class TaskSpecBuilder:
 
         # 7. 多智能体
         try:
-            from core.multi_agent import SessionContext as _SessionContext
             from core.multi_agent import compute_agent_mode
-            session = _SessionContext(
-                recent_failures=context.get("recent_failures", 0),
-                files_touched=context.get("files_touched", 0),
-                tools_used=context.get("tools_used", 0),
-                error_repeated=context.get("error_repeated", False),
-            )
+
             agent_mode, _, _ = compute_agent_mode(intent)
             requires_multi = agent_mode.value in ("swarm", "plan_execute")
         except (ImportError, AttributeError):
             requires_multi = False
 
         # 8. 人工确认
-        requires_approval = (risk in (RiskLevel.CRITICAL, RiskLevel.HIGH)
-                             or intent_type == IntentType.DEPLOY)
+        requires_approval = risk in (RiskLevel.CRITICAL, RiskLevel.HIGH) or intent_type == IntentType.DEPLOY
 
         return TaskSpec(
             intent=intent,
@@ -224,16 +303,21 @@ class TaskSpecBuilder:
     def _estimate_complexity(self, intent: str, context: dict) -> int:
         score = 1
         n = len(intent)
-        if n > 500: score += 2
-        elif n > 200: score += 1
+        if n > 500:
+            score += 2
+        elif n > 200:
+            score += 1
 
         # 关键词密度
         for kw in ["并且", "同时", "然后", "接着", "另外", "还要", "再"]:
-            if kw in intent: score += 1
+            if kw in intent:
+                score += 1
 
         # 上下文复杂性
-        if context.get("files_touched", 0) >= 3: score += 2
-        if context.get("recent_failures", 0) >= 2: score += 2
+        if context.get("files_touched", 0) >= 3:
+            score += 2
+        if context.get("recent_failures", 0) >= 2:
+            score += 2
 
         return min(score, 10)
 
@@ -251,9 +335,10 @@ class TaskSpecBuilder:
         assets = []
         # 文件路径
         import re
+
         path_patterns = [
-            r'(?:文件|路径|path|file)[：:]\s*([^\s,，、]+)',
-            r'([\w/\\-]+\.[\w]{1,6})',  # filename.ext
+            r"(?:文件|路径|path|file)[：:]\s*([^\s,，、]+)",
+            r"([\w/\\-]+\.[\w]{1,6})",  # filename.ext
         ]
         found = set()
         for pat in path_patterns:
@@ -261,9 +346,13 @@ class TaskSpecBuilder:
                 val = m.group(1) if m.lastindex else m.group(0)
                 if val not in found and len(val) > 2:
                     found.add(val)
-                    atype = AssetType.IMAGE if val.endswith(('.png','.jpg','.webp')) else \
-                            AssetType.VIDEO if val.endswith(('.mp4','.mov','.webm')) else \
-                            AssetType.FILE
+                    atype = (
+                        AssetType.IMAGE
+                        if val.endswith((".png", ".jpg", ".webp"))
+                        else AssetType.VIDEO
+                        if val.endswith((".mp4", ".mov", ".webm"))
+                        else AssetType.FILE
+                    )
                     assets.append(Asset(type=atype, path_or_value=val))
         return assets
 
@@ -290,8 +379,12 @@ class TaskSpecBuilder:
 
     def _extract_constraints(self, intent_lower: str) -> list[str]:
         constraints = []
-        if "不要修改" in intent_lower: constraints.append("read_only")
-        if "只读" in intent_lower: constraints.append("read_only")
-        if "不生成文件" in intent_lower: constraints.append("no_file_output")
-        if "先确认" in intent_lower: constraints.append("confirm_before_execute")
+        if "不要修改" in intent_lower:
+            constraints.append("read_only")
+        if "只读" in intent_lower:
+            constraints.append("read_only")
+        if "不生成文件" in intent_lower:
+            constraints.append("no_file_output")
+        if "先确认" in intent_lower:
+            constraints.append("confirm_before_execute")
         return constraints

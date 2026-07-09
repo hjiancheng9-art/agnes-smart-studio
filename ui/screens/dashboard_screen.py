@@ -19,11 +19,13 @@ class DashboardScreen:
         """Pull fresh data from backend stores."""
         try:
             from core.remediation_executor import get_recent_actions
+
             self._runs = get_recent_actions(5)
         except Exception:
             self._runs = []
         try:
             from ui.panels.incident_panel import load_incidents
+
             self._incidents = load_incidents("open")[:5]
         except Exception:
             self._incidents = []
@@ -36,11 +38,13 @@ class DashboardScreen:
 
         # ── Recent Runs ──
         from ui.panels.run_summary_panel import render_run_summary
+
         pieces.extend(render_run_summary(self._runs, width))
         pieces.append(("", "\n"))
 
         # ── Open Incidents ──
         from ui.panels.incident_panel import render_incidents
+
         pieces.extend(render_incidents(self._incidents, width, status_filter="open"))
 
         return pieces

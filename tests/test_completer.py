@@ -1,6 +1,7 @@
 """
 TDD tests for Completer (ui/completer.py)
 """
+
 from __future__ import annotations
 
 from prompt_toolkit.document import Document
@@ -25,7 +26,7 @@ class TestCommands:
 
     def test_each_command_has_description(self):
         for cmd, desc in COMMANDS:
-            assert cmd.startswith('/')
+            assert cmd.startswith("/")
             assert len(desc) > 0
 
 
@@ -40,10 +41,7 @@ class TestFileCompletion:
 
     def test_partial_filename(self):
         completions = list(TuiCompleter().get_completions(Document("@ui/r"), None))
-        all_start_with_r = all(
-            c.text.lower().startswith(('ui/r', 'r'))
-            for c in completions
-        )
+        all_start_with_r = all(c.text.lower().startswith(("ui/r", "r")) for c in completions)
         assert all_start_with_r or len(completions) >= 1
 
     def test_nonexistent_path(self):

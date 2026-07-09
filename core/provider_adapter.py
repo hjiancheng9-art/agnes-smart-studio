@@ -44,7 +44,7 @@ class ProviderAdapter:
         """Build provider-specific thinking/推理 parameter dict."""
         if self.thinking_param_style == "chat_template_kwargs":
             return {"chat_template_kwargs": {"enable_thinking": True}}
-        elif self.thinking_param_style == "thinking":
+        if self.thinking_param_style == "thinking":
             return {"thinking": {"type": "enabled"}}
         return {}
 

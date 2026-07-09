@@ -137,7 +137,7 @@ class PluginManager:
             manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
             manifest = PluginManifest.from_json(manifest_data)
         except (json.JSONDecodeError, KeyError, OSError) as e:
-            logger.error("Failed to load plugin manifest: %s → %s", plugin_path.name, e)
+            logger.exception("Failed to load plugin manifest: %s → %s", plugin_path.name, e)
             return None
 
         ok, err = manifest.validate()

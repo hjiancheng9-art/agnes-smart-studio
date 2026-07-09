@@ -21,19 +21,20 @@ from enum import Enum
 
 
 class QualityVerdict(Enum):
-    PASS = "pass"           # 质量合格
-    WARNING = "warning"     # 质量一般，建议重试
-    FAIL = "fail"           # 质量不合格，需重新生成
+    PASS = "pass"  # 质量合格
+    WARNING = "warning"  # 质量一般，建议重试
+    FAIL = "fail"  # 质量不合格，需重新生成
 
 
 @dataclass
 class QualityGateResult:
     """质量门禁评估报告"""
+
     verdict: QualityVerdict
-    composite_score: float           # 0-10
-    aesthetic_score: float           # 美学 0-10
-    consistency_score: float         # 提示词一致性 0-10
-    technical_score: float           # 技术质量 0-10
+    composite_score: float  # 0-10
+    aesthetic_score: float  # 美学 0-10
+    consistency_score: float  # 提示词一致性 0-10
+    technical_score: float  # 技术质量 0-10
     details: dict = field(default_factory=dict)
     suggestions: list[str] = field(default_factory=list)
     timestamp: float = 0.0
@@ -86,11 +87,7 @@ class QualityGate:
         technical = self._score_technical(image_desc)
 
         # 4. 综合评分（加权）
-        composite = (
-            aesthetic * 0.35 +
-            consistency * 0.35 +
-            technical * 0.30
-        )
+        composite = aesthetic * 0.35 + consistency * 0.35 + technical * 0.30
         composite = round(min(max(composite, 0), 10), 1)
 
         # 5. 判定
@@ -102,9 +99,7 @@ class QualityGate:
             verdict = QualityVerdict.FAIL
 
         # 6. 改进建议
-        suggestions = self._generate_suggestions(
-            aesthetic, consistency, technical
-        )
+        suggestions = self._generate_suggestions(aesthetic, consistency, technical)
 
         return QualityGateResult(
             verdict=verdict,
@@ -127,7 +122,7 @@ class QualityGate:
         score = 5.0  # 基准分
 
         # 正向美学特征
-        for category, elements in self.AESTHETIC_ELEMENTS.items():
+        for _category, elements in self.AESTHETIC_ELEMENTS.items():
             hits = sum(1 for e in elements if e in combined)
             score += hits * 0.3
 
@@ -137,10 +132,11 @@ class QualityGate:
         score -= hits * 0.5
 
         # 多样性加分（覆盖更多美学维度）
-        covered = sum(1 for cat in self.AESTHETIC_ELEMENTS
-                     for e in self.AESTHETIC_ELEMENTS[cat] if e in combined)
-        if covered >= 4: score += 0.5
-        if covered >= 8: score += 0.5
+        covered = sum(1 for cat in self.AESTHETIC_ELEMENTS for e in self.AESTHETIC_ELEMENTS[cat] if e in combined)
+        if covered >= 4:
+            score += 0.5
+        if covered >= 8:
+            score += 0.5
 
         return min(max(score, 0), 10)
 
@@ -241,3 +237,15 @@ class GenerativeQualityReport:
         if result.suggestions:
             lines.append(f"  建议: {'; '.join(result.suggestions)}")
         return "\n".join(lines)
+
+
+def assess_quality(result: dict) -> QualityGateResult:
+    """便捷函数 — 从 multi_agent 运行摘要字典评估质量。
+
+    GPT capability fix #4: multi_agent._build_run_summary 需要此函数，
+    之前因缺少导致持续 ImportError。直接委托给 QualityGate.evaluate()。
+    """
+    gate = QualityGate()
+    desc = str(result.get("summary", result.get("goal", "")))
+    prompt = str(result.get("goal", ""))
+    return gate.evaluate(image_desc=desc, prompt=prompt)

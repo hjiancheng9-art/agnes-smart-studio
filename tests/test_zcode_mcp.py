@@ -21,6 +21,7 @@ class TestMCPServerConstruction:
 
     def test_construct_with_mocks(self):
         from core.mcp_server import MCPServer
+
         mock_session = Mock()
         mock_registry = Mock()
         mock_registry.definitions = []
@@ -30,6 +31,7 @@ class TestMCPServerConstruction:
 
     def test_protocol_version_constant(self):
         from core.mcp_server import MCP_PROTOCOL_VERSION
+
         assert MCP_PROTOCOL_VERSION == "2024-11-05"
 
     def test_error_codes_defined(self):
@@ -40,6 +42,7 @@ class TestMCPServerConstruction:
             ERR_METHOD_NOT_FOUND,
             ERR_PARSE_ERROR,
         )
+
         assert ERR_PARSE_ERROR == -32700
         assert ERR_INVALID_REQUEST == -32600
         assert ERR_METHOD_NOT_FOUND == -32601
@@ -52,6 +55,7 @@ class TestMCPServerJSONRPC:
 
     def _make_server(self):
         from core.mcp_server import MCPServer
+
         mock_session = Mock()
         mock_session._dispatch_tool_impl = Mock(return_value=("ok", []))
         mock_registry = Mock()
@@ -88,10 +92,14 @@ class TestMCPServerJSONRPC:
 
     def test_handle_initialize(self):
         server, _, _ = self._make_server()
-        response = server._handle({
-            "jsonrpc": "2.0", "id": 1, "method": "initialize",
-            "params": {"protocolVersion": "2024-11-05", "capabilities": {}}
-        })
+        response = server._handle(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {"protocolVersion": "2024-11-05", "capabilities": {}},
+            }
+        )
         assert response is not None
         assert "result" in response
         assert response["result"]["protocolVersion"] == "2024-11-05"
@@ -101,9 +109,7 @@ class TestMCPServerJSONRPC:
 
     def test_handle_tools_list(self):
         server, _, _ = self._make_server()
-        response = server._handle({
-            "jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}
-        })
+        response = server._handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
         assert response is not None
         assert "result" in response
         assert "tools" in response["result"]
@@ -111,26 +117,19 @@ class TestMCPServerJSONRPC:
 
     def test_handle_unknown_method(self):
         server, _, _ = self._make_server()
-        response = server._handle({
-            "jsonrpc": "2.0", "id": 3, "method": "nonexistent/method"
-        })
+        response = server._handle({"jsonrpc": "2.0", "id": 3, "method": "nonexistent/method"})
         assert "error" in response
         assert response["error"]["code"] == -32601
 
     def test_handle_notification_no_response(self):
         """Notifications (no 'id') should return None."""
         server, _, _ = self._make_server()
-        response = server._handle({
-            "jsonrpc": "2.0", "method": "notifications/initialized"
-        })
+        response = server._handle({"jsonrpc": "2.0", "method": "notifications/initialized"})
         assert response is None
 
     def test_handle_tools_call_missing_name(self):
         server, _, _ = self._make_server()
-        response = server._handle({
-            "jsonrpc": "2.0", "id": 4, "method": "tools/call",
-            "params": {"arguments": {}}
-        })
+        response = server._handle({"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"arguments": {}}})
         assert response is not None
         # Missing name raises _JSONRPCError → caught → error response
         assert "error" in response
@@ -138,37 +137,31 @@ class TestMCPServerJSONRPC:
 
     def test_handle_tools_call_bridge_rejected(self):
         server, _, _ = self._make_server()
-        response = server._handle({
-            "jsonrpc": "2.0", "id": 5, "method": "tools/call",
-            "params": {"name": "mcp_call_tool", "arguments": {}}
-        })
+        response = server._handle(
+            {"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "mcp_call_tool", "arguments": {}}}
+        )
         assert response is not None
         result = response.get("result", {})
         assert result.get("isError") is True
 
     def test_handle_resources_list(self):
         server, _, _ = self._make_server()
-        response = server._handle({
-            "jsonrpc": "2.0", "id": 6, "method": "resources/list", "params": {}
-        })
+        response = server._handle({"jsonrpc": "2.0", "id": 6, "method": "resources/list", "params": {}})
         assert response is not None
         assert "result" in response
         assert "resources" in response["result"]
 
     def test_handle_resources_read_missing_uri(self):
         server, _, _ = self._make_server()
-        response = server._handle({
-            "jsonrpc": "2.0", "id": 7, "method": "resources/read", "params": {}
-        })
+        response = server._handle({"jsonrpc": "2.0", "id": 7, "method": "resources/read", "params": {}})
         assert response is not None
         assert "error" in response
 
     def test_handle_resources_read_path_traversal_blocked(self):
         server, _, _ = self._make_server()
-        response = server._handle({
-            "jsonrpc": "2.0", "id": 8, "method": "resources/read",
-            "params": {"uri": "file:///etc/passwd"}
-        })
+        response = server._handle(
+            {"jsonrpc": "2.0", "id": 8, "method": "resources/read", "params": {"uri": "file:///etc/passwd"}}
+        )
         assert response is not None
         assert "error" in response
 
@@ -190,6 +183,7 @@ class TestMCPServerJSONRPC:
 
     def test_is_bridge_tool(self):
         from core.mcp_server import MCPServer
+
         assert MCPServer._is_bridge_tool("mcp_call_tool") is True
         assert MCPServer._is_bridge_tool("mcp_list_servers") is True
         assert MCPServer._is_bridge_tool("generate_image") is False
@@ -197,6 +191,7 @@ class TestMCPServerJSONRPC:
 
     def test_openai_to_mcp_tool_conversion(self):
         from core.mcp_server import MCPServer
+
         openai_def = {
             "type": "function",
             "function": {
@@ -218,12 +213,14 @@ class TestMCPServerJSONRPC:
 
     def test_openai_to_mcp_tool_invalid_def(self):
         from core.mcp_server import MCPServer
+
         assert MCPServer._openai_to_mcp_tool({}) is None
         assert MCPServer._openai_to_mcp_tool({"type": "function"}) is None
         assert MCPServer._openai_to_mcp_tool({"function": {"description": "no name"}}) is None
 
     def test__all__exports(self):
         import core.mcp_server as mod
+
         assert "MCPServer" in mod.__all__
         assert "run_mcp_server" in mod.__all__
 
@@ -238,6 +235,7 @@ class TestMCPClientConstruction:
 
     def test_construct_client(self):
         from core.mcp_client import MCPClient
+
         client = MCPClient()
         assert client is not None
         assert hasattr(client, "_servers")
@@ -246,6 +244,7 @@ class TestMCPClientConstruction:
 
     def test_server_config_dataclass(self):
         from core.mcp_client import MCPServerConfig
+
         cfg = MCPServerConfig(
             name="test-server",
             command="python",
@@ -262,11 +261,10 @@ class TestMCPClientConstruction:
         import uuid
 
         from core.mcp_client import MCPClient
+
         client = MCPClient()
         name = f"test-srv-{uuid.uuid4().hex[:8]}"
-        result = client.add_server(
-            name, "python", args=["--version"], env={"KEY": "val"}
-        )
+        result = client.add_server(name, "python", args=["--version"], env={"KEY": "val"})
         assert result.get("status") == "ok"
         assert result["server"]["name"] == name
 
@@ -274,6 +272,7 @@ class TestMCPClientConstruction:
         import uuid
 
         from core.mcp_client import MCPClient
+
         client = MCPClient()
         name = f"dup-srv-{uuid.uuid4().hex[:8]}"
         client.add_server(name, "echo")
@@ -284,6 +283,7 @@ class TestMCPClientConstruction:
         import uuid
 
         from core.mcp_client import MCPClient
+
         client = MCPClient()
         name1 = f"srv1-{uuid.uuid4().hex[:8]}"
         name2 = f"srv2-{uuid.uuid4().hex[:8]}"
@@ -296,6 +296,7 @@ class TestMCPClientConstruction:
         import uuid
 
         from core.mcp_client import MCPClient
+
         client = MCPClient()
         name = f"to-remove-{uuid.uuid4().hex[:8]}"
         client.add_server(name, "cmd")
@@ -304,18 +305,21 @@ class TestMCPClientConstruction:
 
     def test_connect_nonexistent_server(self):
         from core.mcp_client import MCPClient
+
         client = MCPClient()
         result = client.connect("ghost-server")
         assert "error" in result
 
     def test_disconnect_nonexistent_server(self):
         from core.mcp_client import MCPClient
+
         client = MCPClient()
         result = client.disconnect("ghost-server")
         assert "error" in result
 
     def test_list_tools_not_connected(self):
         from core.mcp_client import MCPClient
+
         client = MCPClient()
         result = client.list_tools("no-such-server")
         assert len(result) == 1
@@ -323,12 +327,14 @@ class TestMCPClientConstruction:
 
     def test_call_tool_not_connected(self):
         from core.mcp_client import MCPClient
+
         client = MCPClient()
         result = client.call_tool("no-server", "some_tool")
         assert "error" in result
 
     def test_list_resources_not_connected(self):
         from core.mcp_client import MCPClient
+
         client = MCPClient()
         result = client.list_resources("no-server")
         assert len(result) == 1
@@ -336,6 +342,7 @@ class TestMCPClientConstruction:
 
     def test_read_resource_not_connected(self):
         from core.mcp_client import MCPClient
+
         client = MCPClient()
         result = client.read_resource("no-server", "file:///test")
         assert "error" in result
@@ -346,11 +353,13 @@ class TestMCPToolDefinitions:
 
     def test_tool_defs_is_list(self):
         from core.mcp_client import MCP_TOOL_DEFS
+
         assert isinstance(MCP_TOOL_DEFS, list)
         assert len(MCP_TOOL_DEFS) >= 1
 
     def test_tool_defs_have_required_fields(self):
         from core.mcp_client import MCP_TOOL_DEFS
+
         for tool in MCP_TOOL_DEFS:
             assert tool["type"] == "function"
             func = tool["function"]
@@ -362,17 +371,20 @@ class TestMCPToolDefinitions:
 
     def test_executor_map_covers_all_defs(self):
         from core.mcp_client import MCP_EXECUTOR_MAP, MCP_TOOL_DEFS
+
         def_names = [t["function"]["name"] for t in MCP_TOOL_DEFS]
         for name in def_names:
             assert name in MCP_EXECUTOR_MAP, f"Missing executor for {name}"
 
     def test_executor_map_values_are_callable(self):
         from core.mcp_client import MCP_EXECUTOR_MAP
+
         for name, fn in MCP_EXECUTOR_MAP.items():
             assert callable(fn), f"Executor for {name} is not callable"
 
     def test_mcp_list_servers_executor(self):
         from core.mcp_client import _exec_mcp_list_servers, reset_mcp_client
+
         reset_mcp_client()
         result = _exec_mcp_list_servers()
         parsed = json.loads(result)
@@ -380,6 +392,7 @@ class TestMCPToolDefinitions:
 
     def test_get_mcp_client_singleton(self):
         from core.mcp_client import get_mcp_client, reset_mcp_client
+
         reset_mcp_client()
         c1 = get_mcp_client()
         c2 = get_mcp_client()
@@ -387,6 +400,7 @@ class TestMCPToolDefinitions:
 
     def test_reset_mcp_client(self):
         from core.mcp_client import get_mcp_client, reset_mcp_client
+
         reset_mcp_client()
         c1 = get_mcp_client()
         reset_mcp_client()
@@ -410,12 +424,14 @@ class TestMCPClientJSONRPC:
     def test_config_path_exists(self):
         from core.config import OUTPUT_DIR
         from core.mcp_client import MCPClient
+
         client = MCPClient()
         expected = OUTPUT_DIR / "mcp_servers.json"
         assert expected == client.CONFIG_PATH
 
     def test__all__exports(self):
         import core.mcp_client as mod
+
         for name in ["MCPClient", "MCPServerConfig", "MCP_EXECUTOR_MAP", "MCP_TOOL_DEFS", "get_mcp_client"]:
             assert name in mod.__all__
 
@@ -430,6 +446,7 @@ class TestJSONRPCError:
 
     def test_create_and_catch(self):
         from core.mcp_server import _JSONRPCError
+
         err = _JSONRPCError(-32600, "bad request")
         assert err.code == -32600
         assert err.message == "bad request"
@@ -446,12 +463,15 @@ class TestCleanVideoId:
 
     def test_normal_video_id_passthrough(self):
         from engines.video import _clean_video_id
+
         assert _clean_video_id("video_abc123") == "video_abc123"
 
     def test_empty_input(self):
         from engines.video import _clean_video_id
+
         assert _clean_video_id("") == ""
 
     def test_non_video_prefix(self):
         from engines.video import _clean_video_id
+
         assert _clean_video_id("task_123") == "task_123"

@@ -46,16 +46,20 @@ class TestTraceId:
         from core.multi_agent import MultiAgentCoordinator, get_current_root_trace_id, get_current_trace_id
 
         captured = []
+
         def fake_executor(tool, args):
-            captured.append({
-                "root": get_current_root_trace_id(),
-                "trace": get_current_trace_id(),
-            })
+            captured.append(
+                {
+                    "root": get_current_root_trace_id(),
+                    "trace": get_current_trace_id(),
+                }
+            )
             return "ok"
 
         coord = MultiAgentCoordinator(fake_executor)
-        task = AgentTask(id="ctx_test", description="check contextvar",
-                         tool_sequence=[{"tool": "echo", "args": {"msg": "hi"}}])
+        task = AgentTask(
+            id="ctx_test", description="check contextvar", tool_sequence=[{"tool": "echo", "args": {"msg": "hi"}}]
+        )
         task.root_trace_id = "test_root_123456"
         task.trace_id = "test_trace_abcdef"
         coord.tasks = [task]
@@ -91,8 +95,11 @@ class TestTraceId:
 
         async def run():
             coord = AsyncMultiAgentCoordinator(fake_exec)
-            task = AgentTask(id="async_root", description="check async root",
-                             tool_sequence=[{"tool": "echo", "args": {"msg": "async"}}])
+            task = AgentTask(
+                id="async_root",
+                description="check async root",
+                tool_sequence=[{"tool": "echo", "args": {"msg": "async"}}],
+            )
             coord.tasks = [task]
             task.root_trace_id = "async_root_1234"
             await coord._execute_task(task)

@@ -89,8 +89,7 @@ def _parse_repo_arg(repo: str = "") -> str:
         if m:
             slug = m.group(1)
             # 去掉 URL path 中 tree/main 等后缀
-            slug = slug.split("/")[0] + "/" + slug.split("/")[1]
-            return slug
+            return slug.split("/")[0] + "/" + slug.split("/")[1]
 
     # 已经是 owner/repo 格式
     if "/" in repo and len(repo.split("/")) == 2:

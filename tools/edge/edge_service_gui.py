@@ -1,6 +1,8 @@
 """Edge 持久服务 — 非 headless 模式，过 Cloudflare"""
+
 import asyncio
 import json
+import logging
 import os
 import sys
 
@@ -9,11 +11,14 @@ import contextlib
 
 from playwright.async_api import async_playwright
 
+logger = logging.getLogger(__name__)
+
 SVC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output", ".edge_svc")
 os.makedirs(SVC_DIR, exist_ok=True)
 PID_FILE = os.path.join(SVC_DIR, "pid")
 CMD_FILE = os.path.join(SVC_DIR, "command.json")
 RESP_FILE = os.path.join(SVC_DIR, "response.json")
+
 
 async def main():
     pw = await async_playwright().__aenter__()
@@ -81,7 +86,9 @@ async def main():
                     sel = params.get("selector", "body")
                     els = await page.query_selector_all(sel)
                     texts = [await el.inner_text() for el in els[:30]]
-                    result = {"texts": texts, "count": len(texts)} if len(texts) > 1 else {"text": texts[0] if texts else ""}
+                    result = (
+                        {"texts": texts, "count": len(texts)} if len(texts) > 1 else {"text": texts[0] if texts else ""}
+                    )
 
                 elif action == "eval":
                     result = {"result": await page.evaluate(params["js"])}
@@ -101,10 +108,12 @@ async def main():
             try:
                 with open(RESP_FILE, "w") as f:
                     json.dump({"status": "error", "error": str(e)}, f, ensure_ascii=False)
-            except: pass
+            except Exception as e:
+                logger.debug("Non-critical: %s", e, exc_info=True)
 
     await browser.close()
     await pw.__aexit__(None, None, None)
+
 
 if __name__ == "__main__":
     with contextlib.suppress(KeyboardInterrupt):

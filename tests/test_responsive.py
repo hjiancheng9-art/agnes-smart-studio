@@ -1,6 +1,7 @@
 """
 TDD tests for LayoutManager + EnvironmentInfo (ui/responsive.py)
 """
+
 from __future__ import annotations
 
 import os
@@ -40,41 +41,41 @@ class TestBreakpoints:
 
 class TestEnvironmentInfo:
     def test_ssh_detection(self):
-        os.environ['SSH_TTY'] = '/dev/pts/0'
+        os.environ["SSH_TTY"] = "/dev/pts/0"
         env = EnvironmentInfo.detect()
         assert env.is_ssh
         # SSH should not have clipboard
         assert not env.has_clipboard
-        os.environ.pop('SSH_TTY', None)
+        os.environ.pop("SSH_TTY", None)
 
     def test_normal_desktop(self):
         # Clean environment
-        for k in ['SSH_TTY', 'SSH_CONNECTION', 'TMUX']:
+        for k in ["SSH_TTY", "SSH_CONNECTION", "TMUX"]:
             os.environ.pop(k, None)
         env = EnvironmentInfo.detect()
         assert not env.is_ssh
         assert not env.is_tmux
 
     def test_tmux_detection(self):
-        os.environ['TMUX'] = '/tmp/tmux-1000/default,1234,0'
+        os.environ["TMUX"] = "/tmp/tmux-1000/default,1234,0"
         env = EnvironmentInfo.detect()
         assert env.is_tmux
-        os.environ.pop('TMUX', None)
+        os.environ.pop("TMUX", None)
 
 
 class TestLayoutManager:
     def test_theme_mode(self):
         mgr = LayoutManager()
-        assert mgr.theme_mode in ('normal', 'high_contrast', 'mono')
+        assert mgr.theme_mode in ("normal", "high_contrast", "mono")
 
     def test_ssh_override(self):
-        os.environ['SSH_TTY'] = '/dev/pts/0'
+        os.environ["SSH_TTY"] = "/dev/pts/0"
         env = EnvironmentInfo.detect()
         mgr = LayoutManager(env=env)
         c = mgr.update(width=150)
         assert not c.dashboard_visible  # SSH 强制隐藏
         assert not c.animation_allowed
-        os.environ.pop('SSH_TTY', None)
+        os.environ.pop("SSH_TTY", None)
 
     def test_theme_override(self):
         mgr = LayoutManager()

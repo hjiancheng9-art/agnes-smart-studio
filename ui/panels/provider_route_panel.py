@@ -41,10 +41,12 @@ def render_provider_route(route: dict, width: int) -> list[tuple[str, str]]:
 
         reason = _shorten(reason, max(20, width - 48))
 
-        rows.append((
-            style,
-            f" {i:>2}. {icon} {provider:<16} {model:<20} {status:<12} {latency:>6}ms {reason}\n",
-        ))
+        rows.append(
+            (
+                style,
+                f" {i:>2}. {icon} {provider:<16} {model:<20} {status:<12} {latency:>6}ms {reason}\n",
+            )
+        )
 
     if not attempts:
         rows.append(("class:muted", " No provider route recorded.\n"))

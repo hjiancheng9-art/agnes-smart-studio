@@ -1,4 +1,5 @@
 """ControlPlane 单元测试 — ControlQueue / PendingOutbox / RunState / ToolRegistry"""
+
 import sys
 from pathlib import Path
 
@@ -8,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 class TestControlQueue:
     def test_push_and_poll(self):
         from core.control_plane import ControlEvent, ControlEventType, ControlQueue
+
         q = ControlQueue()
         q.push(ControlEvent(type=ControlEventType.INTERRUPT))
         assert q.has_events()
@@ -18,6 +20,7 @@ class TestControlQueue:
 
     def test_priority_ordering(self):
         from core.control_plane import ControlEvent, ControlEventType, ControlQueue
+
         q = ControlQueue()
         q.push(ControlEvent(type=ControlEventType.PAUSE, priority=1))
         q.push(ControlEvent(type=ControlEventType.CANCEL, priority=2))
@@ -31,6 +34,7 @@ class TestControlQueue:
 
     def test_peek_does_not_remove(self):
         from core.control_plane import ControlEventType, ControlQueue
+
         q = ControlQueue()
         q.push(type=ControlEventType.INTERRUPT)
         peek = q.peek()
@@ -42,6 +46,7 @@ class TestControlQueue:
 
     def test_clear(self):
         from core.control_plane import ControlEventType, ControlQueue
+
         q = ControlQueue()
         q.push(type=ControlEventType.INTERRUPT)
         q.push(type=ControlEventType.PAUSE)
@@ -50,6 +55,7 @@ class TestControlQueue:
 
     def test_remove_by_id(self):
         from core.control_plane import ControlEvent, ControlEventType, ControlQueue
+
         q = ControlQueue()
         ev = ControlEvent(type=ControlEventType.INTERRUPT)
         q.push(ev)
@@ -61,13 +67,16 @@ class TestControlQueue:
 class TestPendingOutbox:
     def test_stage_and_commit(self):
         from core.control_plane import PendingOutbox
+
         outbox = PendingOutbox()
         msg = outbox.stage("hello")
         assert msg.state.value == "pending"
         committed = False
+
         def on_commit(m):
             nonlocal committed
             committed = True
+
         outbox.on_commit(on_commit)
         ok = outbox.commit(msg.id)
         assert ok
@@ -76,6 +85,7 @@ class TestPendingOutbox:
 
     def test_retract_during_pending(self):
         from core.control_plane import PendingOutbox
+
         outbox = PendingOutbox()
         msg = outbox.stage("undo me")
         ok = outbox.retract(msg.id)
@@ -84,12 +94,14 @@ class TestPendingOutbox:
 
     def test_commit_invalid_id(self):
         from core.control_plane import PendingOutbox
+
         outbox = PendingOutbox()
         ok = outbox.commit("nonexistent")
         assert not ok
 
     def test_has_pending(self):
         from core.control_plane import PendingOutbox
+
         outbox = PendingOutbox()
         assert not outbox.has_pending()
         outbox.stage("hi")
@@ -100,18 +112,21 @@ class TestPendingOutbox:
 
     def test_undo_window_configurable(self):
         from core.control_plane import PendingOutbox
+
         assert PendingOutbox.UNDO_WINDOW_MS == 2000
 
 
 class TestRunStateManager:
     def test_initial_idle(self):
         from core.control_plane import RunStateManager
+
         r = RunStateManager()
         assert r.is_idle
         assert not r.is_running
 
     def test_start_and_complete_run(self):
         from core.control_plane import RunStateManager
+
         r = RunStateManager()
         assert r.start_run("test-1")
         assert r.is_running
@@ -120,6 +135,7 @@ class TestRunStateManager:
 
     def test_pause_and_resume(self):
         from core.control_plane import RunState, RunStateManager
+
         r = RunStateManager()
         r.start_run()
         assert r.request_pause()
@@ -129,6 +145,7 @@ class TestRunStateManager:
 
     def test_cancel_run(self):
         from core.control_plane import RunState, RunStateManager
+
         r = RunStateManager()
         r.start_run()
         assert r.request_cancel()
@@ -136,12 +153,14 @@ class TestRunStateManager:
 
     def test_invalid_transition_start_twice(self):
         from core.control_plane import RunStateManager
+
         r = RunStateManager()
         assert r.start_run()
         assert not r.start_run()
 
     def test_check_control_with_event(self):
         from core.control_plane import ControlEventType, ControlQueue, RunState, RunStateManager
+
         r = RunStateManager()
         q = ControlQueue()
         r.start_run("test")
@@ -152,6 +171,7 @@ class TestRunStateManager:
 
     def test_state_change_callback(self):
         from core.control_plane import RunState, RunStateManager
+
         r = RunStateManager()
         changes = []
         r.on_state_change(lambda old, new: changes.append((old, new)))
@@ -163,6 +183,7 @@ class TestRunStateManager:
 class TestToolInterruptRegistry:
     def test_defaults_loaded(self):
         from core.control_plane import get_control
+
         cp = get_control()
         t = cp.tools.get("pip_install")
         assert t.mode == "kill_process"
@@ -173,6 +194,7 @@ class TestToolInterruptRegistry:
 
     def test_unknown_tool_defaults_cooperative(self):
         from core.control_plane import get_control
+
         cp = get_control()
         t = cp.tools.get("nonexistent_tool")
         assert t.mode == "cooperative"
@@ -181,6 +203,7 @@ class TestToolInterruptRegistry:
 class TestControlPlaneFlow:
     def test_send_and_retract(self):
         from core.control_plane import get_control
+
         cp = get_control()
         msg = cp.send_message("delete all")
         assert cp.get_pending_timer() > 0
@@ -191,6 +214,7 @@ class TestControlPlaneFlow:
 
     def test_priority_message_flow(self):
         from core.control_plane import get_control
+
         cp = get_control()
         cp.priority_message("urgent question")
         assert cp.queue.has_events()
@@ -200,6 +224,7 @@ class TestControlPlaneFlow:
 
     def test_get_status_line(self):
         from core.control_plane import get_control
+
         cp = get_control()
         # Reset to clean state
         cp.runs.complete_run()

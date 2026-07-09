@@ -22,9 +22,7 @@ class TestIsImagePath:
         result = is_image_path('"C:/photo.jpg"')
         # The file doesn't exist, so it returns "" — but the quotes ARE stripped
         # Verify the function does NOT return the raw quoted string
-        assert result != '"C:/photo.jpg"', (
-            "Quotes should be stripped; raw quoted path should not be returned"
-        )
+        assert result != '"C:/photo.jpg"', "Quotes should be stripped; raw quoted path should not be returned"
 
     def test_is_image_path_strips_single_quotes(self):
         """is_image_path with single-quoted path strips quotes."""
@@ -39,6 +37,4 @@ class TestDetectDragImages:
         don't exist)."""
         result = detect_drag_images('"C:/a.png" "C:/b.jpg"')
         # Neither file exists, so it returns []
-        assert result == [], (
-            f"Expected empty list (files don't exist), got: {result}"
-        )
+        assert result == [], f"Expected empty list (files don't exist), got: {result}"

@@ -127,7 +127,7 @@ class ThreeWayCoordinator:
         return SystemStatus(
             name="crux",
             available=True,
-            version="v5.0",
+            version="v6.0.0",
             model="deepseek-v4-pro",
             error="",
         )

@@ -30,27 +30,30 @@ from core.error_sink import catch
 # Data types
 # ═══════════════════════════════════════════════════════════
 
+
 @dataclass
 class ScannedFile:
     """单个扫描结果"""
+
     path: Path
     size_bytes: int
-    mtime: float                 # 最后修改时间戳
-    extension: str               # 小写扩展名，如 ".py"
-    tier: str = "unknown"        # T0 ~ T4
-    rule: str = ""               # 匹配的清理规则名
-    risk: str = "unknown"        # low / medium / high / protected
-    reason: str = ""             # 为什么归到这个 tier
-    age_days: float = 0.0        # 文件年龄（天）
+    mtime: float  # 最后修改时间戳
+    extension: str  # 小写扩展名，如 ".py"
+    tier: str = "unknown"  # T0 ~ T4
+    rule: str = ""  # 匹配的清理规则名
+    risk: str = "unknown"  # low / medium / high / protected
+    reason: str = ""  # 为什么归到这个 tier
+    age_days: float = 0.0  # 文件年龄（天）
     is_git_tracked: bool = False
 
 
 @dataclass
 class CleanupReport:
     """清理报告"""
+
     run_id: str
     timestamp: str
-    mode: str                              # dry_run / execute
+    mode: str  # dry_run / execute
     total_scanned: int = 0
     total_size_bytes: int = 0
     by_tier: dict[str, int] = field(default_factory=dict)
@@ -64,6 +67,7 @@ class CleanupReport:
 @dataclass
 class TrashEntry:
     """回收站条目"""
+
     id: str
     original_path: str
     trashed_at: str
@@ -75,6 +79,7 @@ class TrashEntry:
 # ═══════════════════════════════════════════════════════════
 # Cleanup Manager
 # ═══════════════════════════════════════════════════════════
+
 
 class CleanupManager:
     """项目文件清理治理模块
@@ -105,10 +110,22 @@ class CleanupManager:
 
         # 扫描超大型目录时跳过
         self._skip_dirs = {
-            '.git', 'node_modules', '__pycache__', '.venv', 'venv',
-            '.mypy_cache', '.pytest_cache', '.ruff_cache', '.tox',
-            'dist', 'build', '.egg-info', '.next', '.nuxt',
-            'bower_components', 'vendor',
+            ".git",
+            "node_modules",
+            "__pycache__",
+            ".venv",
+            "venv",
+            ".mypy_cache",
+            ".pytest_cache",
+            ".ruff_cache",
+            ".tox",
+            "dist",
+            "build",
+            ".egg-info",
+            ".next",
+            ".nuxt",
+            "bower_components",
+            "vendor",
         }
 
     # ── 内部工具 ──────────────────────────────────────────
@@ -212,7 +229,10 @@ class CleanupManager:
         try:
             result = subprocess.run(
                 ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
-                cwd=str(self.root), capture_output=True, text=True, timeout=30,
+                cwd=str(self.root),
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             if result.returncode == 0:
                 return set(result.stdout.strip().split("\n"))
@@ -228,7 +248,10 @@ class CleanupManager:
         try:
             result = subprocess.run(
                 ["git", "ls-files", "--error-unmatch", rel_path],
-                cwd=str(self.root), capture_output=True, text=True, timeout=5,
+                cwd=str(self.root),
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             return result.returncode == 0
         except Exception:
@@ -321,12 +344,11 @@ class CleanupManager:
                         sf.rule = rule_name
                         sf.reason = f"rule '{rule_name}' matched (age {sf.age_days:.1f}d >= {min_age}d)"
                         return sf
-                    else:
-                        sf.tier = "T3"
-                        sf.risk = "low"
-                        sf.rule = rule_name
-                        sf.reason = f"rule '{rule_name}' matched but too young ({sf.age_days:.1f}d < {min_age}d)"
-                        return sf
+                    sf.tier = "T3"
+                    sf.risk = "low"
+                    sf.rule = rule_name
+                    sf.reason = f"rule '{rule_name}' matched but too young ({sf.age_days:.1f}d < {min_age}d)"
+                    return sf
 
         # 6. 落在 output/ 或 .crux/ 下的未知文件 → T1
         if rel.startswith("output/") or rel.startswith(".crux/"):
@@ -347,12 +369,11 @@ class CleanupManager:
         risk = rule_def.get("risk", "low")
         if risk == "low" and action == "trash":
             return "T4"
-        elif risk == "low" and action == "review":
+        if risk == "low" and action == "review":
             return "T3"
-        elif risk == "medium":
+        if risk == "medium":
             return "T2"
-        else:
-            return "T1"
+        return "T1"
 
     # ── 扫描 ──────────────────────────────────────────────
 
@@ -443,7 +464,9 @@ class CleanupManager:
         lines.append("╠" + "═" * 68 + "╣")
         lines.append(f"║  Run ID:    {report.run_id:<52s}║")
         lines.append(f"║  Time:      {report.timestamp:<52s}║")
-        lines.append(f"║  Scanned:   {report.total_scanned:>5d} files, {self._fmt_size(report.total_size_bytes):>8s}       ║")
+        lines.append(
+            f"║  Scanned:   {report.total_scanned:>5d} files, {self._fmt_size(report.total_size_bytes):>8s}       ║"
+        )
         lines.append(f"║  Duration:  {report.duration_seconds:.2f}s {' ' * 53}║")
         lines.append("╠" + "═" * 68 + "╣")
 
@@ -467,7 +490,9 @@ class CleanupManager:
 
         if report.files_to_clean:
             total_cleanable = sum(f.size_bytes for f in report.files_to_clean)
-            lines.append(f"║  🎯 Cleanable:  {len(report.files_to_clean):>5d} files, {self._fmt_size(total_cleanable):>8s}       ║")
+            lines.append(
+                f"║  🎯 Cleanable:  {len(report.files_to_clean):>5d} files, {self._fmt_size(total_cleanable):>8s}       ║"
+            )
             lines.append("╠" + "═" * 68 + "╣")
 
             # 按规则分组
@@ -483,13 +508,11 @@ class CleanupManager:
             lines.append("╠" + "═" * 68 + "╣")
 
             # 列出具体文件（最多 20 个）
-            shown = 0
-            for sf in sorted(report.files_to_clean, key=lambda f: -f.size_bytes):
+            for shown, sf in enumerate(sorted(report.files_to_clean, key=lambda f: -f.size_bytes)):
                 if shown >= 20:
                     break
                 rel = str(sf.path.relative_to(self.root))
                 lines.append(f"║  [{sf.tier}] {self._trunc(rel, 50):<50s} {self._fmt_size(sf.size_bytes):>8s}  ║")
-                shown += 1
 
             remaining = len(report.files_to_clean) - 20
             if remaining > 0:
@@ -510,7 +533,7 @@ class CleanupManager:
     def _trunc(s: str, max_len: int) -> str:
         if len(s) <= max_len:
             return s
-        return s[:max_len - 3] + "..."
+        return s[: max_len - 3] + "..."
 
     # ── 执行清理 ──────────────────────────────────────────
 
@@ -539,9 +562,7 @@ class CleanupManager:
         # 清理过期 trash
         self._purge_expired_trash()
 
-        report.duration_seconds = time.time() - time.mktime(
-            time.strptime(report.timestamp, "%Y-%m-%dT%H:%M:%S.%f")
-        )
+        report.duration_seconds = time.time() - time.mktime(time.strptime(report.timestamp, "%Y-%m-%dT%H:%M:%S.%f"))
 
         # 记录到 event log
         self._log_execute(report, moved_count)
@@ -581,15 +602,35 @@ class CleanupManager:
             """INSERT INTO event_log (run_id, timestamp, action, original_path, trashed_path,
                size_bytes, rule, tier, risk, reason, checksum)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("trash_" + entry.id, now, "trash", entry.original_path, str(trashed_path),
-             sf.size_bytes, sf.rule, sf.tier, sf.risk, sf.reason, checksum),
+            (
+                "trash_" + entry.id,
+                now,
+                "trash",
+                entry.original_path,
+                str(trashed_path),
+                sf.size_bytes,
+                sf.rule,
+                sf.tier,
+                sf.risk,
+                sf.reason,
+                checksum,
+            ),
         )
         conn.execute(
             """INSERT INTO trash_index (id, original_path, trashed_path, trashed_at,
                size_bytes, rule, reason, checksum, expires_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (entry.id, entry.original_path, str(trashed_path), now,
-             sf.size_bytes, sf.rule, sf.reason, checksum, expires_at),
+            (
+                entry.id,
+                entry.original_path,
+                str(trashed_path),
+                now,
+                sf.size_bytes,
+                sf.rule,
+                sf.reason,
+                checksum,
+                expires_at,
+            ),
         )
         conn.commit()
         conn.close()
@@ -600,9 +641,7 @@ class CleanupManager:
         """删除过期的 trash 条目"""
         now = datetime.datetime.now().isoformat()
         conn = sqlite3.connect(str(self.log_db))
-        rows = conn.execute(
-            "SELECT id, trashed_path FROM trash_index WHERE expires_at < ?", (now,)
-        ).fetchall()
+        rows = conn.execute("SELECT id, trashed_path FROM trash_index WHERE expires_at < ?", (now,)).fetchall()
 
         purged = 0
         for row in rows:
@@ -712,16 +751,18 @@ class CleanupManager:
         for row in rows:
             entry_id, orig, size, trashed_at, rule, expires = row
             remaining_days = (datetime.datetime.fromisoformat(expires) - datetime.datetime.now()).days
-            results.append({
-                "id": entry_id,
-                "original_path": orig,
-                "size_bytes": size,
-                "size": self._fmt_size(size),
-                "trashed_at": trashed_at,
-                "rule": rule,
-                "expires_in_days": max(0, remaining_days),
-                "status": "expired" if remaining_days <= 0 else "active",
-            })
+            results.append(
+                {
+                    "id": entry_id,
+                    "original_path": orig,
+                    "size_bytes": size,
+                    "size": self._fmt_size(size),
+                    "trashed_at": trashed_at,
+                    "rule": rule,
+                    "expires_in_days": max(0, remaining_days),
+                    "status": "expired" if remaining_days <= 0 else "active",
+                }
+            )
 
         return results
 
@@ -739,7 +780,9 @@ class CleanupManager:
         for e in entries:
             total_size += e["size_bytes"]
             status = "⏳" if e["status"] == "active" else "💀"
-            print(f"║  {status} [{e['id'][:16]}] {self._trunc(e['original_path'], 32):<32s} {e['size']:>10s}  {e['expires_in_days']}d left  ║")
+            print(
+                f"║  {status} [{e['id'][:16]}] {self._trunc(e['original_path'], 32):<32s} {e['size']:>10s}  {e['expires_in_days']}d left  ║"
+            )
         print("╠" + "═" * 70 + "╣")
         print(f"║  Total: {self._fmt_size(total_size):>10s} {' ' * 53}║")
         print("╚" + "═" * 70 + "╝")
@@ -780,12 +823,17 @@ class CleanupManager:
 # CLI entrypoint
 # ═══════════════════════════════════════════════════════════
 
+
 def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="CRUX 文件清理治理工具")
-    parser.add_argument("action", nargs="?", default="status",
-                        choices=["status", "scan", "clean", "dry-run", "trash", "restore", "purge"])
+    parser.add_argument(
+        "action",
+        nargs="?",
+        default="status",
+        choices=["status", "scan", "clean", "dry-run", "trash", "restore", "purge"],
+    )
     parser.add_argument("--root", default=".", help="项目根目录")
     parser.add_argument("--policy", help="策略文件路径")
     parser.add_argument("--yes", action="store_true", help="跳过确认")

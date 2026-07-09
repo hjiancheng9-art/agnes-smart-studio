@@ -76,7 +76,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
             parts = [p for p in path.split("/") if p]
             tid = parts[-2] if len(parts) >= 5 else None
             result = body.get("result", body)
-            save_path = r"C:\Users\huangjiancheng\agnes-smart-studio\output\browser_result.json"
+            save_path = r"output/browser_result.json"
             with open(save_path, "w", encoding="utf-8") as f:
                 json.dump({"taskId": tid, "result": result}, f, ensure_ascii=False, indent=2)
             print(f"[RESULT] Task {tid}")

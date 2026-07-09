@@ -23,11 +23,12 @@ from enum import Enum, auto
 
 class Breakpoint(Enum):
     """Terminal width breakpoints."""
-    FULL = auto()     # >= 160
-    WIDE = auto()     # 140-159
-    NORMAL = auto()   # 110-139
-    NARROW = auto()   # 90-109
-    TIGHT = auto()    # 70-89
+
+    FULL = auto()  # >= 160
+    WIDE = auto()  # 140-159
+    NORMAL = auto()  # 110-139
+    NARROW = auto()  # 90-109
+    TIGHT = auto()  # 70-89
     MINIMAL = auto()  # < 70
 
 
@@ -80,7 +81,7 @@ LAYOUT_CONFIGS: dict[Breakpoint, LayoutConfig] = {
     ),
     Breakpoint.NORMAL: LayoutConfig(
         dashboard_visible=True,
-        dashboard_compact=True,          # only 3 key indicators
+        dashboard_compact=True,  # only 3 key indicators
         thinking_panel_allowed=True,
         animation_allowed=True,
         status_bar_rich=True,
@@ -89,11 +90,11 @@ LAYOUT_CONFIGS: dict[Breakpoint, LayoutConfig] = {
         sidebar_width=25,
     ),
     Breakpoint.NARROW: LayoutConfig(
-        dashboard_visible=False,          # hidden entirely
+        dashboard_visible=False,  # hidden entirely
         dashboard_compact=False,
-        thinking_panel_allowed=False,     # collapsed
+        thinking_panel_allowed=False,  # collapsed
         animation_allowed=True,
-        status_bar_rich=True,             # status bar carries extra info
+        status_bar_rich=True,  # status bar carries extra info
         input_max_lines=4,
         message_min_width=60,
         sidebar_width=0,
@@ -102,8 +103,8 @@ LAYOUT_CONFIGS: dict[Breakpoint, LayoutConfig] = {
         dashboard_visible=False,
         dashboard_compact=False,
         thinking_panel_allowed=False,
-        animation_allowed=False,          # no animations
-        status_bar_rich=False,            # minimal status
+        animation_allowed=False,  # no animations
+        status_bar_rich=False,  # minimal status
         input_max_lines=3,
         message_min_width=50,
         sidebar_width=0,
@@ -122,6 +123,7 @@ LAYOUT_CONFIGS: dict[Breakpoint, LayoutConfig] = {
 
 
 # ── Environment detection ──────────────────────────────────
+
 
 class EnvironmentInfo:
     """Detected environment capabilities."""
@@ -145,26 +147,28 @@ class EnvironmentInfo:
         """Auto-detect environment capabilities."""
         import os
 
-        is_ssh = bool(os.environ.get('SSH_TTY') or
-                     os.environ.get('SSH_CONNECTION') or
-                     os.environ.get('SSH_CLIENT'))
+        is_ssh = bool(os.environ.get("SSH_TTY") or os.environ.get("SSH_CONNECTION") or os.environ.get("SSH_CLIENT"))
 
-        is_tmux = bool(os.environ.get('TMUX'))
+        is_tmux = bool(os.environ.get("TMUX"))
 
         # Check color capability
-        colorterm = os.environ.get('COLORTERM', '')
-        term = os.environ.get('TERM', '')
+        colorterm = os.environ.get("COLORTERM", "")
+        term = os.environ.get("TERM", "")
+        wt_session = os.environ.get("WT_SESSION", "")
+        # Windows Terminal supports true color; COLORTERM/TERM may not reflect it
         has_truecolor = (
-            colorterm in ('truecolor', '24bit') or
-            '256color' in term
+            colorterm in ("truecolor", "24bit")
+            or "256color" in term
+            or bool(wt_session)
+            or (os.name == "nt" and not is_ssh)
         )
 
         # Clipboard: assume no in SSH/tmux
         has_clipboard = not (is_ssh or is_tmux)
 
         # Unicode: assume yes unless in problematic SSH
-        lang = os.environ.get('LANG', '')
-        unicode_support = 'UTF-8' in lang.upper() or 'utf-8' in lang.lower()
+        lang = os.environ.get("LANG", "")
+        unicode_support = "UTF-8" in lang.upper() or "utf-8" in lang.lower()
 
         return cls(
             is_ssh=is_ssh,
@@ -211,16 +215,15 @@ class LayoutManager:
         """Map terminal column width to breakpoint."""
         if width >= 160:
             return Breakpoint.FULL
-        elif width >= 140:
+        if width >= 140:
             return Breakpoint.WIDE
-        elif width >= 110:
+        if width >= 110:
             return Breakpoint.NORMAL
-        elif width >= 90:
+        if width >= 90:
             return Breakpoint.NARROW
-        elif width >= 70:
+        if width >= 70:
             return Breakpoint.TIGHT
-        else:
-            return Breakpoint.MINIMAL
+        return Breakpoint.MINIMAL
 
     def update(self, width: int) -> LayoutConfig:
         """
@@ -278,20 +281,20 @@ class LayoutManager:
 
         Can be overridden via /theme command (sets _override_theme).
         """
-        if hasattr(self, '_override_theme') and self._override_theme:
+        if hasattr(self, "_override_theme") and self._override_theme:
             return self._override_theme
         if not self._env.has_truecolor or self._env.is_ssh:
-            return 'mono'
+            return "mono"
         if not self._env.unicode_support:
-            return 'high_contrast'
-        return 'normal'
+            return "high_contrast"
+        return "normal"
 
     def degradation_flags(self) -> dict:
         """Return CLI-compatible degradation flags."""
         return {
-            'no_color': self.theme_mode == 'mono',
-            'no_animation': not self.can_animate,
-            'no_unicode': not self._env.unicode_support,
-            'ascii_only': not self._env.unicode_support,
-            'high_contrast': self.theme_mode == 'high_contrast',
+            "no_color": self.theme_mode == "mono",
+            "no_animation": not self.can_animate,
+            "no_unicode": not self._env.unicode_support,
+            "ascii_only": not self._env.unicode_support,
+            "high_contrast": self.theme_mode == "high_contrast",
         }

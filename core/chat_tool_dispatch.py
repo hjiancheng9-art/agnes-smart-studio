@@ -10,9 +10,6 @@ from __future__ import annotations
 import json
 import logging
 
-from engines.image_to_image import ImageToImageEngine
-from engines.text_to_image import TextToImageEngine
-
 logger = logging.getLogger("crux.tool_dispatch")
 
 
@@ -55,124 +52,225 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
     gen_client = self.media_client
     if name == "generate_image":
         size = args.get("size", "1024x768")
-        seed = args.get("seed")
+        # seed 固定：未指定时随机生成，确保可复现
+        import random as _rnd
+        seed = args.get("seed") or _rnd.randint(0, 2147483647)
         system = args.get("system")
         neg_from_args = args.get("negative_prompt")
-        side: list[tuple[str, str | dict]] = [("info", f"正在生成图片: {prompt}")]
+        image_url = args.get("image_url")
+        image_urls = args.get("image_urls")
+        mode = args.get("mode", "text2image")
+
+        # 归一化：image_url → image_urls；冲突则报错
+        if image_url and image_urls and image_url not in image_urls:
+            return ("图片参数错误: image_url 和 image_urls 冲突", [])
+        if image_url and not image_urls:
+            image_urls = [image_url]
+
+        side: list[tuple[str, str | dict]] = [("info", f"生成图片: {args.get('prompt','')[:50]}...")]
+
         try:
+            prompt = args.get("prompt", "")
+            fp = prompt
+            neg = neg_from_args
+
             try:
                 r = self.brain.enhance_image_prompt(prompt)
                 fp = r.get("optimized_prompt", prompt)
-                neg = neg_from_args or r.get("negative_prompt", "") or None
-            except (OSError, RuntimeError, TypeError, ValueError, KeyError) as e:
-                logger.debug("brain.enhance_image_prompt failed: %s: %s", type(e).__name__, e)
-                fp, neg = (prompt, neg_from_args)
+                neg = neg or r.get("negative_prompt", "") or None
+            except Exception as e:
+                logger.debug("brain.enhance_image_prompt failed: %s", e)
+
             if system:
                 fp = f"[{system}] {fp}"
-            if image_urls:
-                i2i = ImageToImageEngine(gen_client)
-                data = i2i.edit(prompt=fp, image_urls=image_urls, size=size)
-            elif image_url:
-                from utils import image_input
 
-                url = image_input.load_image_as_url_or_data(image_url)
-                i2i = ImageToImageEngine(gen_client)
-                data = i2i.edit(prompt=fp, image_urls=url, size=size)
-            else:
-                t2i = TextToImageEngine(gen_client)
-                data = t2i.generate(prompt=fp, size=size, seed=seed, negative_prompt=neg)
-            side.append(("image", data))
+            from core.providers.agnes import AgnesProvider
+            agnes = AgnesProvider()
+            result = agnes.generate_image(
+                prompt=fp, size=size, seed=seed, negative_prompt=neg,
+                image_urls=image_urls,
+            )
+            agnes.close()
+            url = result.get("url", "")
+
+            if not url:
+                data = self.t2i.generate(prompt=fp, size=size, seed=seed)
+                url = data.get("url", "")
+
+            side.append(("image", {"url": url}))
+            side.append(("info", f"图片已生成: {url[:60]}..."))
+
             try:
                 from core.cost_tracker import record_usage
-
                 record_usage(model="agnes-image-2.1-flash", kind="image", label="generate_image", call_count=1)
-            except (ImportError, OSError) as e:
-                logger.debug("cost_tracker.record_usage(image) failed: %s: %s", type(e).__name__, e)
-            return (f"图片已生成并保存: {data.get('local_path', '')}", side)
-        except (OSError, RuntimeError, TypeError, ValueError, KeyError) as e:
+            except Exception:
+                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+
+            return (f"图片已生成: {url}", side)
+
+        except Exception as e:
             return (f"图片生成失败: {e}", side)
     if name == "generate_video":
         size_str = args.get("size", "1152x768")
         num_frames = args.get("num_frames", 121)
-        seed = args.get("seed")
+        import random as _rnd2
+        seed = args.get("seed") or _rnd2.randint(0, 2147483647)
         system = args.get("system")
         neg_from_args = args.get("negative_prompt")
-        try:
-            w_str, h_str = size_str.split("x")
-            w, h = (int(w_str), int(h_str))
-        except (ValueError, AttributeError):
-            w, h = (1152, 768)
+        image_url = args.get("image_url")
+        image_urls = args.get("image_urls")
+        mode = args.get("mode", "text2video")
+        prompt = args.get("prompt", "")
+
+        # 互斥校验：image_url 和 image_urls 不能同时为不同值
+        if image_url and image_urls and image_url not in image_urls:
+            return ("视频参数错误: image_url 和 image_urls 冲突，请只使用其中一个", side)
+
+        # 归一化：image_urls 只有1张图 → 降级为单图 image_url
+        if image_urls and len(image_urls) == 1 and not image_url:
+            image_url = image_urls[0]
+            image_urls = None
+
+        # duration（秒）→ num_frames 映射（优先，覆盖 num_frames）
+        duration = args.get("duration")
+        if duration:
+            duration_map = {2: 57, 3: 81, 4: 97, 5: 121, 6: 145, 8: 193, 10: 241, 12: 289, 15: 361, 18: 441}
+            num_frames = duration_map.get(duration, num_frames)
+
         side: list[tuple[str, str | dict]] = [("info", f"正在生成视频（可能需几分钟）: {prompt}")]
+        if duration:
+            side.append(("info", f"⏱ 时长 {duration}s → {num_frames} 帧 @24fps"))
+
         try:
+            fp = prompt
+            neg = neg_from_args
+
+            # P1: ShotContract — 强制一镜一动作
+            from core.creative.shot_contract import compile_shot, validate_single_action
+            is_valid, val_msg = validate_single_action(prompt)
+            if not is_valid:
+                return (f"视频生成被拒绝: {val_msg}\n请拆分为独立镜头，每个镜头只包含一个动作", side)
+
+            contract = compile_shot(prompt, num_frames=num_frames, seed=seed)
+            fp = contract.optimized_prompt
+
+            # I2V 引导：有参考图时自动切换 prompt 策略
+            if image_urls or image_url:
+                fp = (
+                    f"[I2V] Reference image defines identity/composition/style/first-frame. "
+                    f"Describe ONLY: ONE action, ONE camera movement, lighting changes, ending state. "
+                    f"Keep stable: composition, subject, style. "
+                    f"DO NOT repeat what reference already shows. | {fp}"
+                )
+
+            # P1: SmartBrain 增强
             try:
                 r = self.brain.enhance_video_prompt(prompt)
-                fp = r.get("optimized_prompt", prompt)
-                neg = neg_from_args or r.get("negative_prompt", "") or None
-            except (OSError, RuntimeError, TypeError, ValueError, KeyError) as e:
-                logger.debug("brain.enhance_video_prompt failed: %s: %s", type(e).__name__, e)
-                fp, neg = (prompt, neg_from_args)
+                enhanced = r.get("optimized_prompt", "")
+                if enhanced:
+                    fp = enhanced
+                neg = neg or r.get("negative_prompt", "") or None
+            except Exception as e:
+                logger.debug("brain.enhance_video_prompt failed: %s", e)
+
             if system:
                 fp = f"[{system}] {fp}"
+
             frame_rate = args.get("frame_rate", 24)
-            if mode == "keyframes" and image_urls:
-                data = self.vid.keyframe_animation(
-                    prompt=fp,
-                    image_urls=image_urls,
-                    width=w,
-                    height=h,
-                    num_frames=num_frames,
-                    frame_rate=frame_rate,
-                    negative_prompt=neg,
-                    timeout=120.0,
-                )
-            elif image_urls:
-                data = self.vid.multi_image_video(
-                    prompt=fp,
-                    image_urls=image_urls,
-                    width=w,
-                    height=h,
-                    num_frames=num_frames,
-                    frame_rate=frame_rate,
-                    negative_prompt=neg,
-                    timeout=120.0,
-                )
-            elif image_url:
-                from utils import image_input
 
-                url = image_input.load_image_as_url_or_data(image_url)
-                data = self.vid.image_to_video(
-                    prompt=fp,
-                    image_url=url,
-                    width=w,
-                    height=h,
-                    num_frames=num_frames,
-                    frame_rate=frame_rate,
-                    negative_prompt=neg,
-                    timeout=120.0,
+            # P1: RPM 限流 — 视频 1 RPM
+            from core.creative.rpm_limiter import RPMLimiter
+            limiter = RPMLimiter()
+            side.append(("info", "等待视频生成队列..."))
+            acquired = limiter.wait("video", timeout=120.0)
+            if not acquired:
+                return ("视频队列等待超时，请稍后再试", side)
+
+            # P1: 首帧 QC — 文生视频时才做
+            if not image_url and not image_urls:
+                try:
+                    from core.providers.agnes import AgnesProvider
+                    agnes = AgnesProvider()
+                    # 先生成首帧
+                    frame_result = agnes.generate_image(
+                        prompt=fp,
+                        size=size_str,
+                        seed=seed,
+                        negative_prompt=neg,
+                    )
+                    frame_url = frame_result.get("url", "")
+                    if frame_url:
+                        side.append(("info", "首帧已生成，进行 QC 检查..."))
+                        # QC 检查
+                        from core.creative.qc import FrameQC
+                        qc = FrameQC(threshold=60)
+                        qc_result = qc.check(frame_url, fp)
+                        side.append(("info", f"首帧 QC: {qc_result.score}/100 {'通过' if qc_result.passed else '未通过'}"))
+                        if not qc_result.passed:
+                            agnes.close()
+                            issues = ", ".join(qc_result.issues[:3])
+                            return (f"首帧 QC 未通过 (score={qc_result.score}/100): {issues}\n请优化提示词后重试", side)
+                    agnes.close()
+                except Exception as e:
+                    logger.debug("首帧 QC 失败（不阻塞视频生成）: %s", e)
+
+            # 使用 AgnesProvider 提交视频任务
+            from core.providers.agnes import AgnesProvider
+            agnes = AgnesProvider()
+
+            task = agnes.create_video_task(
+                prompt=fp,
+                size=size_str,
+                num_frames=num_frames,
+                frame_rate=frame_rate,
+                seed=seed,
+                negative_prompt=neg,
+                image_url=image_url,
+                image_urls=image_urls,
+                mode=mode,
+            )
+
+            video_id = task.get("video_id", "")
+            task_id = task.get("task_id", "")
+
+            if not video_id:
+                agnes.close()
+                return ("视频提交失败: 未获取到 video_id", side)
+
+            side.append(("info", f"视频任务已提交，video_id={video_id}"))
+
+            # 等待完成（最多 2 分钟）
+            import threading
+            result_holder = {"result": None}
+
+            def poll_worker():
+                result_holder["result"] = agnes.wait_for_video(
+                    video_id=video_id,
+                    poll_interval=3.0,
+                    max_wait=120.0,
                 )
+
+            t = threading.Thread(target=poll_worker, daemon=True)
+            t.start()
+            t.join(timeout=2.0)
+
+            agnes.close()
+
+            if t.is_alive():
+                return (f"视频生成中（请稍后用 video_id={video_id} 查询状态）", side)
             else:
-                data = self.vid.text_to_video(
-                    prompt=fp,
-                    width=w,
-                    height=h,
-                    num_frames=num_frames,
-                    frame_rate=frame_rate,
-                    negative_prompt=neg,
-                    timeout=120.0,
-                )
-            side.append(("video", data))
-            try:
-                from core.cost_tracker import record_usage
+                result = result_holder["result"]
+                if result and result.get("status") in ("completed", "SUCCESS", "done"):
+                    local_path = result.get("local_path", "")
+                    url = result.get("url", "")
+                    side.append(("video", {"url": url or "", "local_path": local_path}))
+                    return (f"视频已生成 [video_id={video_id}]: {local_path or url}", side)
+                elif result and result.get("status") in ("failed", "FAILED", "error"):
+                    return (f"视频生成失败: {result.get('error', 'unknown')}", side)
+                else:
+                    return (f"视频生成中（进度 {result.get('progress', 0):.0f}%），video_id={video_id}", side)
 
-                record_usage(model="agnes-video-v2.0", kind="video", label="generate_video", call_count=1)
-            except (ImportError, OSError) as e:
-                logger.debug("cost_tracker.record_usage(video) failed: %s: %s", type(e).__name__, e)
-            if data.get("status") == "timeout":
-                vid = data.get("video_id", "")
-                pct = data.get("progress", 0)
-                return (f"视频生成超时（进度 {pct:.0f}%），请稍后用 video_id={vid} 查询状态", side)
-            return (f"视频已生成: {data.get('local_path', '')}", side)
-        except (OSError, RuntimeError, TypeError, ValueError, KeyError) as e:
+        except Exception as e:
             return (f"视频生成失败: {e}", side)
     if name == "multi_agent":
         goal = args.get("goal", "")
@@ -308,6 +406,11 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
         except Exception as e:
             logger.debug("error in except: %s", e, exc_info=True)
             return (f"TRM route error: {e}", [])
+    # P0: Generation tool guard — image/video must NEVER fall through to chat executor
+    _GEN_TOOLS = frozenset({"generate_image", "generate_video"})
+    if name in _GEN_TOOLS:
+        return (f"[路由错误] {name} 是专用生成工具，必须由 dispatch 直接处理，不走通用执行器。请检查 _dispatch_tool_impl 的处理顺序。", [])
+
     if self.tools.has(name):
         from core.constraints import LONG_RUNNING_TOOLS
 

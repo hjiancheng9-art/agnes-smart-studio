@@ -1,4 +1,5 @@
 """Test .gitignore covers output/ runtime artifacts (Issue 5)."""
+
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -23,11 +24,9 @@ def test_history_in_gitignore():
     """Verify .gitignore contains output/history.json or *.json under output."""
     content = _read_gitignore()
     lines = [line.strip() for line in content.splitlines()]
-    assert (
-        "output/history.jsonl" in lines
-        or "output/history.json" in lines
-        or "output/*.json" in lines
-    ), ".gitignore must contain output/history.jsonl or output/*.json"
+    assert "output/history.jsonl" in lines or "output/history.json" in lines or "output/*.json" in lines, (
+        ".gitignore must contain output/history.jsonl or output/*.json"
+    )
 
 
 def test_runtime_artifacts_in_gitignore():

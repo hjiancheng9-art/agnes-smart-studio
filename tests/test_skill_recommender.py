@@ -103,7 +103,10 @@ class TestSkillEntry:
 
     def test_high_usage_high_success_scores_high(self):
         skill = SkillEntry(
-            name="test", category="tool", tags=["test"],
-            usage_count=100, success_count=95,
+            name="test",
+            category="tool",
+            tags=["test"],
+            usage_count=100,
+            success_count=95,
         )
         assert skill.score > 8.0

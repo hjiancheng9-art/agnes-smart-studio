@@ -32,6 +32,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Literal
 
+from core.error_sink import catch
+
 # ── 数据结构 ──────────────────────────────────────────────
 
 FixabilityAction = Literal["retry", "diagnose", "escalate", "abort"]
@@ -41,13 +43,14 @@ RepairClass = Literal["code", "config", "env", "resource", "dependency", "networ
 @dataclass
 class FixabilityResult:
     """可修复性评估结果。"""
-    score: float = 0.0           # 0.0 - 1.0 可修复概率
-    confidence: float = 0.0      # 评估的置信度
+
+    score: float = 0.0  # 0.0 - 1.0 可修复概率
+    confidence: float = 0.0  # 评估的置信度
     action_hint: FixabilityAction = "diagnose"
     repair_class_hint: RepairClass = "unknown"
     requires_context_probe: bool = False
     reasons: list[str] = field(default_factory=list)
-    source: str = ""              # 哪个阶段给出的结论
+    source: str = ""  # 哪个阶段给出的结论
     details: dict = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
 
@@ -65,6 +68,7 @@ class FixabilityResult:
 
 # ── L0: Static Seed Filter ────────────────────────────────
 
+
 class StaticSeedFilter:
     """L0：秒级字符串匹配，封装已有 seed policy。"""
 
@@ -76,6 +80,7 @@ class StaticSeedFilter:
     def seed_policy(self):
         if self._seed_policy is None:
             from core.fake_fix_seed_policy import get_seed_policy
+
             self._seed_policy = get_seed_policy()
         return self._seed_policy
 
@@ -131,6 +136,7 @@ class StaticSeedFilter:
 
 # ── L1: Lightweight Probes ────────────────────────────────
 
+
 class FixabilityProbe:
     """L1 探针基类 — 每种常见错误类型一个探针。"""
 
@@ -143,18 +149,18 @@ class FixabilityProbe:
 
     def estimate(self, error_type: str, context: dict) -> FixabilityResult:
         """评估可修复性，返回 0-1 score。"""
-        return FixabilityResult(
-            score=0.3, confidence=0.1, action_hint="diagnose",
-            source=f"L1:{self.probe_name}"
-        )
+        return FixabilityResult(score=0.3, confidence=0.1, action_hint="diagnose", source=f"L1:{self.probe_name}")
 
 
 class CUDAMemoryProbe(FixabilityProbe):
     """CUDA OOM 探针：检查显存使用和 batch_size。"""
+
     probe_name = "cuda-memory"
 
     def can_handle(self, error_type: str, context: dict) -> bool:
-        return bool("cuda" in error_type.lower() and ("oom" in error_type.lower() or "out of memory" in error_type.lower()))
+        return bool(
+            "cuda" in error_type.lower() and ("oom" in error_type.lower() or "out of memory" in error_type.lower())
+        )
 
     def estimate(self, error_type: str, context: dict) -> FixabilityResult:
         result = FixabilityResult(source="L1:cuda-memory")
@@ -210,6 +216,7 @@ class CUDAMemoryProbe(FixabilityProbe):
 
 class ModuleImportProbe(FixabilityProbe):
     """ModuleNotFound 探针：检查包是否存在/版本。"""
+
     probe_name = "module-import"
 
     def can_handle(self, error_type: str, context: dict) -> bool:
@@ -220,14 +227,15 @@ class ModuleImportProbe(FixabilityProbe):
 
         # Extract module name from error
         import re
+
         match = re.search(r"['\"](\S+)['\"]", error_type)
         module_name = match.group(1) if match else ""
 
         try:
             import subprocess
+
             r = subprocess.run(
-                [sys.executable, "-m", "pip", "list", "--format=columns"],
-                capture_output=True, text=True, timeout=5
+                [sys.executable, "-m", "pip", "list", "--format=columns"], capture_output=True, text=True, timeout=5
             )
             installed = r.stdout.lower()
 
@@ -256,6 +264,7 @@ class ModuleImportProbe(FixabilityProbe):
 
 class HTTPStatusProbe(FixabilityProbe):
     """HTTP 错误探针：检查 404/500/超时。"""
+
     probe_name = "http-status"
 
     def can_handle(self, error_type: str, context: dict) -> bool:
@@ -299,6 +308,7 @@ class HTTPStatusProbe(FixabilityProbe):
 
 class SyntaxErrorProbe(FixabilityProbe):
     """语法错误探针：检查能否通过 patch 修复。"""
+
     probe_name = "syntax-error"
 
     def can_handle(self, error_type: str, context: dict) -> bool:
@@ -397,6 +407,7 @@ class LLMAnalyzer:
             catch(_es, "core.fixability_estimator", "swallowed")
         try:
             import torch
+
             system_state["torch_version"] = torch.__version__
             system_state["cuda_available"] = torch.cuda.is_available()
         except ImportError:
@@ -404,6 +415,7 @@ class LLMAnalyzer:
         try:
             import os
             import shutil
+
             _, _, free = shutil.disk_usage(os.getcwd())
             system_state["free_disk_mb"] = free // (1024 * 1024)
         except Exception as _es:
@@ -417,7 +429,7 @@ class LLMAnalyzer:
         )
 
         # 标记需要 LLM 调用（实际调用由外部完成）
-        result = FixabilityResult(
+        return FixabilityResult(
             score=0.3,
             confidence=0.2,
             action_hint="diagnose",
@@ -426,10 +438,10 @@ class LLMAnalyzer:
             source="L2:LLM",
             details={"prompt": prompt, "pending": True},
         )
-        return result
 
 
 # ── 三阶段编排器 ──────────────────────────────────────────
+
 
 class FixabilityEstimator:
     """三阶段可修复性评估编排器。

@@ -24,9 +24,7 @@ def _get_module_docstring() -> str:
 def test_docstring_configuration_section_exists():
     """The module docstring must contain a 'Configuration:' section."""
     doc = _get_module_docstring()
-    assert "Configuration:" in doc, (
-        "Module docstring is missing a 'Configuration:' section\n\n" + doc
-    )
+    assert "Configuration:" in doc, "Module docstring is missing a 'Configuration:' section\n\n" + doc
 
 
 def test_docstring_says_default_true_not_false():
@@ -48,9 +46,7 @@ def test_docstring_says_default_true_not_false():
             config_line = line.strip()
             break
 
-    assert config_line is not None, (
-        "Could not find a line mentioning BYPASS_ENABLED in the docstring"
-    )
+    assert config_line is not None, "Could not find a line mentioning BYPASS_ENABLED in the docstring"
 
     # Must say "default True"
     assert "default True" in config_line, (
@@ -63,8 +59,7 @@ def test_docstring_says_default_true_not_false():
 
     # Must NOT say "default False"
     assert "default False" not in config_line, (
-        f"BYPASS_ENABLED docstring line says 'default False', "
-        f"but the actual default is True.\nFound: {config_line!r}"
+        f"BYPASS_ENABLED docstring line says 'default False', but the actual default is True.\nFound: {config_line!r}"
     )
 
 

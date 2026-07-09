@@ -22,23 +22,24 @@ from enum import Enum
 
 
 class ConfirmLevel(Enum):
-    LOW = "low"               # 信息确认，跳过不影响
-    MEDIUM = "medium"         # 建议确认，可自动通过
-    HIGH = "high"             # 必须确认
-    CRITICAL = "critical"     # 必须确认 + 需人工解释原因
+    LOW = "low"  # 信息确认，跳过不影响
+    MEDIUM = "medium"  # 建议确认，可自动通过
+    HIGH = "high"  # 必须确认
+    CRITICAL = "critical"  # 必须确认 + 需人工解释原因
 
 
 @dataclass
 class ConfirmCheckpoint:
     """确认检查点"""
+
     id: str
     title: str
     description: str
     level: ConfirmLevel
     options: list[str] = field(default_factory=lambda: ["确认", "取消"])
     context: dict = field(default_factory=dict)
-    timeout: int = 60                  # 超时秒数
-    auto_approve: bool = False         # 超时是否自动通过
+    timeout: int = 60  # 超时秒数
+    auto_approve: bool = False  # 超时是否自动通过
     created_at: float = 0.0
     resolved_at: float | None = None
     approved: bool | None = None
@@ -46,10 +47,7 @@ class ConfirmCheckpoint:
 
     def to_message(self) -> str:
         """生成发给用户的确认消息"""
-        icon = {
-            "low": "ℹ️", "medium": "⚠️",
-            "high": "🔴", "critical": "🚨"
-        }
+        icon = {"low": "ℹ️", "medium": "⚠️", "high": "🔴", "critical": "🚨"}
         lines = [
             f"{icon[self.level.value]} 需要确认: {self.title}",
             f"  {self.description}",
@@ -89,10 +87,7 @@ class ConfirmManager:
         """自动处理超时确认"""
         resolved = []
         now = time.time()
-        expired_ids = [
-            cid for cid, cp in self._pending.items()
-            if now - cp.created_at > cp.timeout
-        ]
+        expired_ids = [cid for cid, cp in self._pending.items() if now - cp.created_at > cp.timeout]
         for cid in expired_ids:
             cp = self._pending.pop(cid, None)
             if cp:
@@ -120,6 +115,7 @@ class ConfirmManager:
 
 
 # ─── 预置检查点工厂 ──────────────────────────────────────
+
 
 def destructive_action_checkpoint(action: str, target: str) -> ConfirmCheckpoint:
     """高风险操作确认（删除/清理/重置）"""
@@ -152,7 +148,7 @@ def ambiguous_intent_checkpoint(intent: str, options: list[str]) -> ConfirmCheck
     return ConfirmCheckpoint(
         id=f"clarify_{int(time.time())}",
         title="任务意图不明确，请确认方向",
-        description=f"你的请求: \"{intent[:80]}\"\n请选择最接近的意图:",
+        description=f'你的请求: "{intent[:80]}"\n请选择最接近的意图:',
         level=ConfirmLevel.MEDIUM,
         options=options,
         timeout=30,

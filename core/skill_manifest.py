@@ -262,9 +262,8 @@ def infer_runtime(skill_data: dict) -> tuple[str, float]:
         if "steps" in skill_data:
             # Check if steps look like declarations (list of dicts) vs text
             steps = skill_data.get("steps", [])
-            if isinstance(steps, list) and len(steps) > 0:
-                if isinstance(steps[0], dict) and "action" in steps[0]:
-                    return "declarative", 0.95
+            if isinstance(steps, list) and len(steps) > 0 and isinstance(steps[0], dict) and "action" in steps[0]:
+                return "declarative", 0.95
             return "declarative", 0.85
 
         workflow_keys = {"workflow", "nodes", "connections", "workflow_json"}

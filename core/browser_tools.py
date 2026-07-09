@@ -227,18 +227,50 @@ def _get_browser_context(provider_id: str):
     if provider_id in _active_browsers:
         return _active_playwright, _active_browsers[provider_id], None
 
+    playwright = pw().start()
+
+    # ── 优先连接已有 CDP 浏览器（检查端口，不重复启动）──
+    import socket
+    s = socket.socket()
+    port_open = s.connect_ex(("127.0.0.1", 9222)) == 0
+    s.close()
+    if not port_open:
+        # 自动启动 Edge CDP（只启动一次）
+        import subprocess as _sp
+        edge_path = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+        _sp.Popen([edge_path, "--remote-debugging-port=9222",
+            "--no-first-run", "--no-default-browser-check", "about:blank"],
+            stdout=_sp.DEVNULL, stderr=_sp.DEVNULL)
+        import time as _t
+        _t.sleep(4)
+
+    try:
+        browser = playwright.chromium.connect_over_cdp("http://127.0.0.1:9222", timeout=5000)
+        # CDP 返回 Browser，需要获取或创建 BrowserContext 供调用方 new_page()
+        if browser.contexts:
+            context = browser.contexts[0]
+        else:
+            context = browser.new_context()
+        _active_playwright = playwright
+        _active_browsers[provider_id] = context
+        logger.info("browser_tools: connected to CDP browser for %s", provider_id)
+        return playwright, context, None
+    except (RuntimeError, OSError) as e:
+        logger.debug("CDP connect failed for %s (%s), launching new browser", provider_id, e)
+
+    # ── 后备：启动新浏览器（使用持久化 profile 避免每次登录）──
     user_data_dir = SESSION_DIR / provider_id
     user_data_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        playwright = pw().start()
         browser = playwright.chromium.launch_persistent_context(
             str(user_data_dir),
-            headless=False,
+            headless=True,  # 后备浏览器静默运行，不弹窗
             args=["--disable-blink-features=AutomationControlled"],
         )
         _active_playwright = playwright
         _active_browsers[provider_id] = browser
+        logger.info("browser_tools: launched new browser for %s (CDP not available)", provider_id)
         return playwright, browser, None
     except (AttributeError, TypeError) as e:
         return None, None, f"浏览器启动失败: {e}"
@@ -451,7 +483,7 @@ def _api_generate(provider_id: str, prompt: str, image_path: str = "", config: d
 
     if provider_id == "dalle":
         return _dalle_generate(prompt, image_path, config)
-    elif provider_id == "gemini":
+    if provider_id == "gemini":
         return _gemini_generate(prompt, image_path, config)
     # Kling / Runway / Luma / Jimeng：优先 API（需用户配置 key），无 API key 时降级 Playwright
     api_key = os.environ.get(provider.get("env_key", ""))
@@ -523,25 +555,28 @@ def _dalle_generate(prompt: str, image_path: str = "", config: dict | None = Non
 
 
 def _gemini_generate(prompt: str, image_path: str = "", config: dict | None = None) -> str:
-    """Google Gemini API (imagen)"""
+    """Google Gemini image generation via Gemini API (gemini-2.0-flash-exp).
+
+    Falls back to Playwright CDP if API key is not configured.
+    """
     api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
         return json.dumps(
-            {"success": False, "fallback": "playwright", "error": "未配置 GEMINI_API_KEY，降级到 Playwright"},
+            {"success": False, "fallback": "playwright", "error": "未配置 GEMINI_API_KEY，降级到 Playwright CDP"},
             ensure_ascii=False,
         )
 
-    # Gemini Imagen API
     import urllib.request
 
+    # Gemini generateContent API (imagen replacement)
     body = {
-        "instances": [{"prompt": prompt}],
-        "parameters": {"sampleCount": 1},
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
     }
     req = urllib.request.Request(
-        "https://us-central1-aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/us-central1/publishers/google/models/imagen:predict",
+        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key={api_key}",
         data=json.dumps(body).encode("utf-8"),
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        headers={"Content-Type": "application/json"},
     )
     try:
         resp = json.loads(urllib.request.urlopen(req, timeout=120).read())
@@ -551,12 +586,12 @@ def _gemini_generate(prompt: str, image_path: str = "", config: dict | None = No
                 "provider": "gemini",
                 "method": "api",
                 "raw_response": resp,
-                "hint": "Gemini Imagen 结果需解析 predictions 字段，按 base64 图片解码保存",
+                "hint": "检查 candidates[0].content.parts 中的 inlineData (base64) 图片",
             },
             ensure_ascii=False,
         )
-    except (json.JSONDecodeError, TypeError, KeyError) as e:
-        return json.dumps({"success": False, "error": f"Gemini API 错误: {e}"}, ensure_ascii=False)
+    except (json.JSONDecodeError, TypeError, KeyError, OSError) as e:
+        return json.dumps({"success": False, "fallback": "playwright", "error": f"Gemini API 错误: {e}"}, ensure_ascii=False)
 
 
 # ============================================================

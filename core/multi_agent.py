@@ -41,6 +41,7 @@ from typing import Any
 @dataclass
 class SessionContext:
     """多智能体决策上下文"""
+
     recent_failures: int = 0
     files_touched: int = 0
     tools_used: int = 0
@@ -62,17 +63,20 @@ class SessionContext:
 # AgentMode 4-tier system — weighted multi-factor scoring
 # ═══════════════════════════════════════════════════════════
 
+
 class AgentMode(Enum):
     """4-tier agent orchestration mode, selected by weighted multi-factor scoring."""
-    SINGLE = "single"                       # score < 3
+
+    SINGLE = "single"  # score < 3
     SINGLE_WITH_REVIEWER = "single_with_reviewer"  # score >= 3
-    PLAN_EXECUTE = "plan_execute"           # score >= 5
-    SWARM = "swarm"                         # score >= 8
+    PLAN_EXECUTE = "plan_execute"  # score >= 5
+    SWARM = "swarm"  # score >= 8
 
 
 @dataclass
 class AgentModeResult:
     """Record of a completed agent mode execution for long-term learning."""
+
     mode: AgentMode
     task_type: str
     success: bool
@@ -85,47 +89,111 @@ class AgentModeResult:
 
 _TRIGGERS: dict[str, list[tuple[str, float]]] = {
     "high_complexity": [
-        ("refactor", 3.0), ("重构", 3.0), ("migrate", 3.0), ("迁移", 3.0),
-        ("architecture", 3.0), ("架构", 3.0), ("audit", 2.5), ("审计", 2.5),
-        ("review entire", 3.0), ("审查整个", 3.0), ("review whole", 3.0),
-        ("batch", 2.0), ("批量", 2.0), ("parallel", 2.5), ("并行", 2.5),
-        ("simultaneous", 2.5), ("同时处理", 2.5), ("multi-module", 2.5), ("多模块", 2.5),
-        ("cross-file", 2.5), ("跨文件", 2.5), ("entire project", 3.0), ("全项目", 3.0),
+        ("refactor", 3.0),
+        ("重构", 3.0),
+        ("migrate", 3.0),
+        ("迁移", 3.0),
+        ("architecture", 3.0),
+        ("架构", 3.0),
+        ("audit", 2.5),
+        ("审计", 2.5),
+        ("review entire", 3.0),
+        ("审查整个", 3.0),
+        ("review whole", 3.0),
+        ("batch", 2.0),
+        ("批量", 2.0),
+        ("parallel", 2.5),
+        ("并行", 2.5),
+        ("simultaneous", 2.5),
+        ("同时处理", 2.5),
+        ("multi-module", 2.5),
+        ("多模块", 2.5),
+        ("cross-file", 2.5),
+        ("跨文件", 2.5),
+        ("entire project", 3.0),
+        ("全项目", 3.0),
     ],
     "multi_perspective": [
-        ("compare", 2.0), ("对比", 2.0), ("comparison", 2.0), ("比较", 2.0),
-        ("pros and cons", 2.5), ("正反", 2.5), ("multi-angle", 2.5), ("多角度", 2.5),
+        ("compare", 2.0),
+        ("对比", 2.0),
+        ("comparison", 2.0),
+        ("比较", 2.0),
+        ("pros and cons", 2.5),
+        ("正反", 2.5),
+        ("multi-angle", 2.5),
+        ("多角度", 2.5),
     ],
     "coordination": [
-        ("orchestrate", 3.0), ("coordinate", 2.5), ("协同", 2.5),
-        ("multiple agents", 3.5), ("多智能体", 3.5), ("swarm", 3.5),
-        ("team", 2.0), ("团队", 2.0),
+        ("orchestrate", 3.0),
+        ("coordinate", 2.5),
+        ("协同", 2.5),
+        ("multiple agents", 3.5),
+        ("多智能体", 3.5),
+        ("swarm", 3.5),
+        ("team", 2.0),
+        ("团队", 2.0),
     ],
 }
 
 _SIMPLICITY_BLOCKERS: list[tuple[str, float]] = [
-    ("simple", 2.0), ("简单", 2.0), ("quick", 1.5), ("快速", 1.5),
-    ("immediate", 2.0), ("立即", 2.0), ("direct", 2.0), ("直接", 2.0),
-    ("single step", 3.0), ("单步", 3.0), ("one word", 3.0), ("一句话", 3.0),
-    ("简答", 3.0), ("brief", 1.5), ("tiny", 2.0),
-    ("just", 1.0), ("只", 1.0), ("only", 1.0),
+    ("simple", 2.0),
+    ("简单", 2.0),
+    ("quick", 1.5),
+    ("快速", 1.5),
+    ("immediate", 2.0),
+    ("立即", 2.0),
+    ("direct", 2.0),
+    ("直接", 2.0),
+    ("single step", 3.0),
+    ("单步", 3.0),
+    ("one word", 3.0),
+    ("一句话", 3.0),
+    ("简答", 3.0),
+    ("brief", 1.5),
+    ("tiny", 2.0),
+    ("just", 1.0),
+    ("只", 1.0),
+    ("only", 1.0),
 ]
 
 _DESTRUCTIVE_ACTIONS: list[tuple[str, float]] = [
-    ("delete", 4.0), ("clean", 4.0), ("migrate", 4.0),
-    ("reset", 4.0), ("drop", 4.0), ("truncate", 4.0),
-    ("purge", 4.0), ("rm ", 4.0), ("remove all", 4.0),
-    ("destroy", 4.0), ("wipe", 4.0), ("nuke", 4.0),
-    ("删除", 4.0), ("清理", 4.0), ("重置", 4.0), ("销毁", 4.0),
+    ("delete", 4.0),
+    ("clean", 4.0),
+    ("migrate", 4.0),
+    ("reset", 4.0),
+    ("drop", 4.0),
+    ("truncate", 4.0),
+    ("purge", 4.0),
+    ("rm ", 4.0),
+    ("remove all", 4.0),
+    ("destroy", 4.0),
+    ("wipe", 4.0),
+    ("nuke", 4.0),
+    ("删除", 4.0),
+    ("清理", 4.0),
+    ("重置", 4.0),
+    ("销毁", 4.0),
 ]
 
 _FUZZY_INTENT: list[tuple[str, float]] = [
-    ("maybe", 1.0), ("perhaps", 1.0), ("possibly", 1.0),
-    ("大概", 1.0), ("也许", 1.0), ("可能", 1.0), ("或许", 1.0),
-    ("unsure", 1.5), ("不确定", 1.5), ("not sure", 1.5),
-    ("something like", 1.5), ("之类", 1.5),
-    ("看看", 0.5), ("试试", 0.5), ("explore", 0.5),
-    ("不好用", 2.0), ("不对劲", 2.0), ("还是不行", 2.0),
+    ("maybe", 1.0),
+    ("perhaps", 1.0),
+    ("possibly", 1.0),
+    ("大概", 1.0),
+    ("也许", 1.0),
+    ("可能", 1.0),
+    ("或许", 1.0),
+    ("unsure", 1.5),
+    ("不确定", 1.5),
+    ("not sure", 1.5),
+    ("something like", 1.5),
+    ("之类", 1.5),
+    ("看看", 0.5),
+    ("试试", 0.5),
+    ("explore", 0.5),
+    ("不好用", 2.0),
+    ("不对劲", 2.0),
+    ("还是不行", 2.0),
 ]
 
 
@@ -142,6 +210,7 @@ def _match_weighted(text: str, patterns: list[tuple[str, float]]) -> tuple[float
 
 
 # ─── Individual scoring functions ───
+
 
 def keyword_score(goal: str) -> tuple[float, list[str]]:
     """Weighted keyword score from _TRIGGERS dict.
@@ -244,19 +313,33 @@ def decomposability_score(goal: str) -> tuple[float, list[str]]:
     可分解性高的任务 → 有并行叶子节点 → 适合 SWARM。
     """
     patterns: list[tuple[str, float]] = [
-        ("并且", 3.0), ("同时", 3.0), ("分别", 3.0),
-        ("先", 1.5), ("再", 1.5), ("然后", 1.5),
-        ("前端", 2.0), ("后端", 2.0), ("前后端", 3.0),
-        ("数据库", 2.0), ("API", 2.0),
-        ("同时生成", 4.0), ("并行处理", 4.0),
-        ("分别处理", 3.0), ("各自", 2.0),
-        ("多维度", 2.0), ("多个方面", 2.0), ("多角度", 2.0),
-        ("提取", 1.5), ("转换", 1.5), ("合并", 1.5),
+        ("并且", 3.0),
+        ("同时", 3.0),
+        ("分别", 3.0),
+        ("先", 1.5),
+        ("再", 1.5),
+        ("然后", 1.5),
+        ("前端", 2.0),
+        ("后端", 2.0),
+        ("前后端", 3.0),
+        ("数据库", 2.0),
+        ("API", 2.0),
+        ("同时生成", 4.0),
+        ("并行处理", 4.0),
+        ("分别处理", 3.0),
+        ("各自", 2.0),
+        ("多维度", 2.0),
+        ("多个方面", 2.0),
+        ("多角度", 2.0),
+        ("提取", 1.5),
+        ("转换", 1.5),
+        ("合并", 1.5),
     ]
     return _match_weighted(goal, patterns)
 
 
 # ─── Context state features ───
+
 
 def build_context_state(
     recent_failures: int = 0,
@@ -280,6 +363,7 @@ def build_context_state(
 
 
 # ─── Main scoring + mode selection ───
+
 
 def compute_agent_mode(
     goal: str,
@@ -351,6 +435,7 @@ def compute_agent_mode(
 
 # ─── Backward-compatible wrapper ───
 
+
 def should_use_multi_agent(goal: str) -> tuple[bool, str]:
     """Backward-compatible wrapper — delegates to compute_agent_mode().
 
@@ -405,8 +490,11 @@ def get_mode_statistics() -> dict[str, dict[str, Any]]:
         key = r.mode.value
         if key not in stats:
             stats[key] = {
-                "total": 0, "success": 0, "failure": 0,
-                "corrections": 0, "total_latency": 0.0,
+                "total": 0,
+                "success": 0,
+                "failure": 0,
+                "corrections": 0,
+                "total_latency": 0.0,
             }
         s = stats[key]
         s["total"] += 1
@@ -535,11 +623,13 @@ class MultiAgentCoordinator:
             if agent is None:
                 return None
             if new_goal:
-                agent.context_history.append({
-                    "ts": time.time(),
-                    "event": "new_goal",
-                    "goal": new_goal,
-                })
+                agent.context_history.append(
+                    {
+                        "ts": time.time(),
+                        "event": "new_goal",
+                        "goal": new_goal,
+                    }
+                )
             # 确保 agent 在活跃列表中
             if agent not in self.agents:
                 self.agents.append(agent)
@@ -564,11 +654,13 @@ class MultiAgentCoordinator:
             status="busy",
             created_at=time.time(),
         )
-        agent.context_history.append({
-            "ts": time.time(),
-            "event": "spawned",
-            "goal": goal,
-        })
+        agent.context_history.append(
+            {
+                "ts": time.time(),
+                "event": "spawned",
+                "goal": goal,
+            }
+        )
 
         with self._lock:
             self._agent_registry[agent_id] = agent
@@ -622,20 +714,21 @@ class MultiAgentCoordinator:
                         # ── 方法论: 子Agent失败分类与路由建议 ──
                         try:
                             from core.methodology import classify_failure, get_methodology_state
+
                             ftype, suggestion = classify_failure(error_str)
                             get_methodology_state()
-                            self._log.append({
-                                "event": "task_failed",
-                                "task": task.id,
-                                "trace_id": task.trace_id,
-                                "root_trace_id": task.root_trace_id,
-                                "error": error_str,
-                                "failure_type": ftype,
-                                "suggestion": suggestion,
-                                "consecutive_failures": sum(
-                                    1 for t in self.tasks if t.status == "failed"
-                                ),
-                            })
+                            self._log.append(
+                                {
+                                    "event": "task_failed",
+                                    "task": task.id,
+                                    "trace_id": task.trace_id,
+                                    "root_trace_id": task.root_trace_id,
+                                    "error": error_str,
+                                    "failure_type": ftype,
+                                    "suggestion": suggestion,
+                                    "consecutive_failures": sum(1 for t in self.tasks if t.status == "failed"),
+                                }
+                            )
                         except ImportError:
                             pass
                         break
@@ -648,19 +741,23 @@ class MultiAgentCoordinator:
             with self._lock:
                 agent.status = "idle"
                 agent.total_tasks_completed += 1
-                agent.context_history.append({
-                    "ts": time.time(),
-                    "event": "completed",
-                    "goal": goal,
-                })
+                agent.context_history.append(
+                    {
+                        "ts": time.time(),
+                        "event": "completed",
+                        "goal": goal,
+                    }
+                )
         except Exception as e:
             with self._lock:
                 agent.status = "failed"
-                agent.context_history.append({
-                    "ts": time.time(),
-                    "event": "error",
-                    "error": str(e),
-                })
+                agent.context_history.append(
+                    {
+                        "ts": time.time(),
+                        "event": "error",
+                        "error": str(e),
+                    }
+                )
 
     def decompose(self, goal: str) -> list[AgentTask]:
         """Break a goal into agent-sized tasks with dependencies.
@@ -717,7 +814,16 @@ class MultiAgentCoordinator:
                     task.status = "failed"
                     task.result = f"Task timed out (agent: {task.assigned_to})"
                     task.finished_at = time.time()
-                    self._log.append({"event": "task_timeout", "task": task.id, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id, "agent": task.assigned_to, "timeout": to})
+                    self._log.append(
+                        {
+                            "event": "task_timeout",
+                            "task": task.id,
+                            "trace_id": task.trace_id,
+                            "root_trace_id": task.root_trace_id,
+                            "agent": task.assigned_to,
+                            "timeout": to,
+                        }
+                    )
 
             # ── DAG runtime guard ────────────────────────────────────
             _propagate_failed_deps(self.tasks, root_trace_id=root_id)
@@ -753,7 +859,15 @@ class MultiAgentCoordinator:
         with self._lock:
             task.status = "running"
             task.started_at = time.time()
-            self._log.append({"event": "task_start", "task": task.id, "agent": task.assigned_to, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id})
+            self._log.append(
+                {
+                    "event": "task_start",
+                    "task": task.id,
+                    "agent": task.assigned_to,
+                    "trace_id": task.trace_id,
+                    "root_trace_id": task.root_trace_id,
+                }
+            )
             # tier 路由：若提供 model_router，按 task.tier/task_type 解析模型并注入 step
             resolved_model = self._resolve_model_for_task(task)
             if resolved_model:
@@ -778,12 +892,17 @@ class MultiAgentCoordinator:
                     # ── 方法论: 失败分类
                     try:
                         from core.methodology import classify_failure
+
                         ftype, suggestion = classify_failure(error_str)
-                        self._log.append({
-                            "event": "task_failed", "task": task.id,
-                            "error": error_str,
-                            "failure_type": ftype, "suggestion": suggestion,
-                        })
+                        self._log.append(
+                            {
+                                "event": "task_failed",
+                                "task": task.id,
+                                "error": error_str,
+                                "failure_type": ftype,
+                                "suggestion": suggestion,
+                            }
+                        )
                     except ImportError:
                         self._log.append({"event": "task_failed", "task": task.id, "error": error_str})
                 return
@@ -792,7 +911,15 @@ class MultiAgentCoordinator:
             task.result = "; ".join(results)
             task.finished_at = time.time()
             self._results[task.id] = task.result
-            self._log.append({"event": "task_done", "task": task.id, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id, "result_preview": task.result[:100]})
+            self._log.append(
+                {
+                    "event": "task_done",
+                    "task": task.id,
+                    "trace_id": task.trace_id,
+                    "root_trace_id": task.root_trace_id,
+                    "result_preview": task.result[:100],
+                }
+            )
 
 
 def coordinate(goal: str, tool_executor: Callable) -> dict:
@@ -857,7 +984,7 @@ class AsyncMultiAgentCoordinator:
         if self._log_lock is None:
             self._log_lock = asyncio.Lock()
 
-    _AUTO_TASK_TIMEOUT = 240   # seconds per task — prevents infinite-hang deadlock in multi-agent waves
+    _AUTO_TASK_TIMEOUT = 240  # seconds per task — prevents infinite-hang deadlock in multi-agent waves
     _WAVE_DEADLOCK_TIMEOUT = 300  # seconds per wave — upper-bound on any single wave
 
     async def execute(self, goal: str) -> dict:
@@ -891,6 +1018,7 @@ class AsyncMultiAgentCoordinator:
         # 拓扑分层：每层是可并行的任务集合
         waves = _topological_waves(self.tasks)
         for wave_idx, wave in enumerate(waves):
+
             async def _run_task_safe(task: AgentTask, _wave_idx=wave_idx) -> None:
                 """Wrap _execute_task with per-task timeout for deadlock prevention."""
                 try:
@@ -902,7 +1030,16 @@ class AsyncMultiAgentCoordinator:
                 except asyncio.TimeoutError:
                     task.status = "failed"
                     task.result = f"[timeout] task exceeded {task_timeout}s"
-                    await self._log_append({"event": "task_timeout", "task": task.id, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id, "timeout": task_timeout, "wave": _wave_idx})
+                    await self._log_append(
+                        {
+                            "event": "task_timeout",
+                            "task": task.id,
+                            "trace_id": task.trace_id,
+                            "root_trace_id": task.root_trace_id,
+                            "timeout": task_timeout,
+                            "wave": _wave_idx,
+                        }
+                    )
 
             try:
                 await asyncio.wait_for(
@@ -982,7 +1119,15 @@ class AsyncMultiAgentCoordinator:
 
                 task.status = "running"
                 task.started_at = time.time()
-                await self._log_append({"event": "task_start", "task": task.id, "agent": task.assigned_to, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id})
+                await self._log_append(
+                    {
+                        "event": "task_start",
+                        "task": task.id,
+                        "agent": task.assigned_to,
+                        "trace_id": task.trace_id,
+                        "root_trace_id": task.root_trace_id,
+                    }
+                )
                 # tier 路由：若解析出模型，注入到 step.args
                 resolved_model = self._resolve_model_for_task(task)
                 if resolved_model:
@@ -1000,14 +1145,22 @@ class AsyncMultiAgentCoordinator:
                         if resolved_model and "model" not in step_args:
                             step_args["model"] = resolved_model
                         # contextvar 已自动传播，_call_tool 不再需显式传递
-                        r = await self._call_tool(step["tool"], step_args,
-                                                  trace_id=task.trace_id,
-                                                  root_trace_id=task.root_trace_id)
+                        r = await self._call_tool(
+                            step["tool"], step_args, trace_id=task.trace_id, root_trace_id=task.root_trace_id
+                        )
                         results.append(str(r)[:200])
                     except Exception as e:
                         task.status = "failed"
                         task.result = str(e)
-                        await self._log_append({"event": "task_failed", "task": task.id, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id, "error": str(e)})
+                        await self._log_append(
+                            {
+                                "event": "task_failed",
+                                "task": task.id,
+                                "trace_id": task.trace_id,
+                                "root_trace_id": task.root_trace_id,
+                                "error": str(e),
+                            }
+                        )
                         agent.current_task = ""
                         return
 
@@ -1015,7 +1168,15 @@ class AsyncMultiAgentCoordinator:
                 task.result = "; ".join(results)
                 task.finished_at = time.time()
                 self._results[task.id] = task.result
-                await self._log_append({"event": "task_done", "task": task.id, "trace_id": task.trace_id, "root_trace_id": task.root_trace_id, "result_preview": task.result[:100]})
+                await self._log_append(
+                    {
+                        "event": "task_done",
+                        "task": task.id,
+                        "trace_id": task.trace_id,
+                        "root_trace_id": task.root_trace_id,
+                        "result_preview": task.result[:100],
+                    }
+                )
 
                 agent.status = "idle"
                 agent.current_task = ""
@@ -1090,6 +1251,7 @@ class SmartDecomposer:
         """
         # ── Check cache first ──
         from core.agent_cache import get_cache
+
         cache = get_cache()
         cached = cache.get_decomposition(goal, "decompose")
         if cached is not None:
@@ -1133,7 +1295,11 @@ class SmartDecomposer:
             client = self._client or CruxClient()
             chat_model = model or "deepseek-v4-pro"
             resp = client.chat(chat_model, messages=[{"role": "user", "content": prompt}])
-            raw = resp.get("choices", [{}])[0].get("message", {}).get("content", "") if isinstance(resp, dict) else str(resp)
+            raw = (
+                resp.get("choices", [{}])[0].get("message", {}).get("content", "")
+                if isinstance(resp, dict)
+                else str(resp)
+            )
         except ImportError:
             # Last resort: try via run_bash calling a simple script
             raise RuntimeError("No LLM client available for SmartDecomposer") from None
@@ -1194,75 +1360,106 @@ def _keyword_decompose(goal: str) -> list[AgentTask]:
     if "review" in goal_lower or "审查" in goal_lower or "audit" in goal_lower:
         return [
             AgentTask(
-                "t1", "探索并读取目标文件", [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}],
-                tier="light", task_type="explorer"
+                "t1",
+                "探索并读取目标文件",
+                [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}],
+                tier="light",
+                task_type="explorer",
             ),
             AgentTask(
-                "t2", "搜索潜在问题和反模式",
+                "t2",
+                "搜索潜在问题和反模式",
                 [{"tool": "search_files", "args": {"pattern": "TODO|FIXME|HACK|bug|error"}}],
-                depends_on=["t1"], tier="light", task_type="explorer"
+                depends_on=["t1"],
+                tier="light",
+                task_type="explorer",
             ),
             AgentTask(
-                "t3", "分析代码结构和依赖",
+                "t3",
+                "分析代码结构和依赖",
                 [{"tool": "code_analyze", "args": {"file_path": "PLACEHOLDER"}}],
-                depends_on=["t1"], tier="pro", task_type="analyst"
+                depends_on=["t1"],
+                tier="pro",
+                task_type="analyst",
             ),
             AgentTask(
-                "t4", "运行测试验证",
+                "t4",
+                "运行测试验证",
                 [{"tool": "run_test", "args": {}}],
-                depends_on=["t2", "t3"], tier="heavy", task_type="tester"
+                depends_on=["t2", "t3"],
+                tier="heavy",
+                task_type="tester",
             ),
         ]
 
     if "debug" in goal_lower or "fix" in goal_lower or "调试" in goal_lower or "修复" in goal_lower:
         return [
             AgentTask(
-                "t1", "检查错误日志", [{"tool": "search_files", "args": {"pattern": "error|exception|traceback"}}],
-                tier="light", task_type="explorer"
+                "t1",
+                "检查错误日志",
+                [{"tool": "search_files", "args": {"pattern": "error|exception|traceback"}}],
+                tier="light",
+                task_type="explorer",
             ),
             AgentTask(
-                "t2", "全局搜索相关代码",
+                "t2",
+                "全局搜索相关代码",
                 [{"tool": "search_files", "args": {"pattern": "def |class "}}],
-                tier="light", task_type="explorer"
+                tier="light",
+                task_type="explorer",
             ),
             AgentTask(
-                "t3", "定位根因并读取文件",
+                "t3",
+                "定位根因并读取文件",
                 [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}],
-                depends_on=["t1", "t2"], tier="pro", task_type="analyst"
+                depends_on=["t1", "t2"],
+                tier="pro",
+                task_type="analyst",
             ),
             AgentTask(
-                "t4", "实施修复",
+                "t4",
+                "实施修复",
                 [{"tool": "edit_file", "args": {"path": "PLACEHOLDER", "old_text": "", "new_text": ""}}],
-                depends_on=["t3"], tier="pro", task_type="fixer"
+                depends_on=["t3"],
+                tier="pro",
+                task_type="fixer",
             ),
             AgentTask(
-                "t5", "验证修复并运行测试",
+                "t5",
+                "验证修复并运行测试",
                 [{"tool": "run_test", "args": {}}],
-                depends_on=["t4"], tier="heavy", task_type="tester"
+                depends_on=["t4"],
+                tier="heavy",
+                task_type="tester",
             ),
         ]
 
     # Default: investigate → understand → act → verify
     first_word = goal.split()[0] if goal.split() else "main"
     return [
+        AgentTask("t1", "探索项目结构", [{"tool": "list_files", "args": {}}], tier="light", task_type="explorer"),
         AgentTask(
-            "t1", "探索项目结构", [{"tool": "list_files", "args": {}}],
-            tier="light", task_type="explorer"
-        ),
-        AgentTask(
-            "t2", "搜索相关文件",
+            "t2",
+            "搜索相关文件",
             [{"tool": "search_files", "args": {"pattern": first_word}}],
-            tier="light", task_type="explorer"
+            tier="light",
+            task_type="explorer",
         ),
         AgentTask(
-            "t3", "读取并分析关键文件",
+            "t3",
+            "读取并分析关键文件",
             [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}],
-            depends_on=["t2"], tier="pro", task_type="analyst"
+            depends_on=["t2"],
+            tier="pro",
+            task_type="analyst",
         ),
         AgentTask(
-            "t4", "执行操作并验证",
+            "t4",
+            "执行操作并验证",
             [{"tool": "run_test", "args": {}}],
-            depends_on=["t3"], tier="heavy", task_type="tester"
+            depends_on=["t3"],
+            tier="heavy",
+            task_type="tester",
         ),
     ]
 
@@ -1294,8 +1491,6 @@ def _extract_json(raw: str) -> list[dict]:
     return []
 
 
-
-
 # ── DAG Runtime Deadlock Guard ──────────────────────────
 
 
@@ -1321,7 +1516,11 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
     longest = max(tasks, key=lambda t: t.finished_at - t.started_at) if tasks else None
     longest_info = {}
     if longest and longest.finished_at > 0:
-        longest_info = {"id": longest.id, "duration_ms": int((longest.finished_at - longest.started_at) * 1000), "status": longest.status}
+        longest_info = {
+            "id": longest.id,
+            "duration_ms": int((longest.finished_at - longest.started_at) * 1000),
+            "status": longest.status,
+        }
 
     failure_reasons: dict[str, int] = {}
     for t in tasks:
@@ -1353,22 +1552,31 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
         from core.retry_budget import auto_retry_decision, record_retry_attempt
         from core.run_replay import save_run_replay
         from core.run_summary import save_run
+
         quality = assess_quality(result)
         result.update(quality)
         policy = auto_recover(result)
         result.update({"policy_action": policy["action"], "policy_reason": policy["reason"]})
         retry = auto_retry_decision(result)
-        result.update({"retry_budget": retry.get("budget", {}), "retry_decision": retry.get("should_retry", False), "retry_reason": retry.get("reason", "")})
+        result.update(
+            {
+                "retry_budget": retry.get("budget", {}),
+                "retry_decision": retry.get("should_retry", False),
+                "retry_reason": retry.get("reason", ""),
+            }
+        )
         if retry.get("should_retry"):
             record_retry_attempt(root_id, "scheduled", "pending")
         save_run(result)
         try:
             from core.incident_classifier import classify_run
             from core.incident_store import save_incident, should_alert
+
             incident = classify_run(result, log)
             result.update({"incident": incident})
             try:
                 from core.incident_playbook import auto_remediation
+
                 cmds = auto_remediation(incident, root_id)
                 if cmds:
                     result.update({"remediation_commands": cmds})
@@ -1384,13 +1592,24 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
         except Exception as _es:
             catch(_es, "core.multi_agent", "swallowed")
         try:
-            tasks_dict = [{"id": t.id, "status": t.status, "trace_id": t.trace_id, "result": t.result, "started_at": t.started_at, "finished_at": t.finished_at} for t in tasks]
+            tasks_dict = [
+                {
+                    "id": t.id,
+                    "status": t.status,
+                    "trace_id": t.trace_id,
+                    "result": t.result,
+                    "started_at": t.started_at,
+                    "finished_at": t.finished_at,
+                }
+                for t in tasks
+            ]
             save_run_replay(root_id, result, log, tasks_dict)
         except Exception as _es:
             catch(_es, "core.multi_agent", "swallowed")
     except Exception as _es:
         catch(_es, "core.multi_agent", "swallowed")
     return result
+
 
 def _check_dag_deadlock(tasks: list[AgentTask], wave_idx: int = 0, root_trace_id: str = "") -> str | None:
     """检查 DAG 死锁条件。返回描述字符串或 None（无死锁）。
@@ -1461,6 +1680,7 @@ def _topological_waves(tasks: list[AgentTask]) -> list[list[AgentTask]]:
     # 重复 ID 检测：SmartDecomposer 的 LLM 输出可能产生重复 ID
     if len({t.id for t in tasks}) != len(tasks):
         from collections import Counter
+
         dupes = [tid for tid, cnt in Counter(t.id for t in tasks).items() if cnt > 1]
         raise ValueError(f"Duplicate task IDs detected: {dupes}")
     by_id = {t.id: t for t in tasks}
@@ -1481,6 +1701,7 @@ def _topological_waves(tasks: list[AgentTask]) -> list[list[AgentTask]]:
 
 
 # ── AgentSwarm: 模板化批量并行分派 ──────────────────────────
+
 
 class AgentSwarm:
     """模板化大规模并行子智能体分派。
@@ -1547,8 +1768,7 @@ class AgentSwarm:
                 r = coordinator.execute(goal)
                 with self._lock:
                     results[item] = (
-                        f"done={r['tasks_done']}/{r['tasks_total']} failed={r['tasks_failed']}"
-                        f" elapsed={r['elapsed']}s"
+                        f"done={r['tasks_done']}/{r['tasks_total']} failed={r['tasks_failed']} elapsed={r['elapsed']}s"
                     )
             except Exception as e:
                 with self._lock:

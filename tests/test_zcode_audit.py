@@ -16,11 +16,13 @@ class TestAuditSyntax:
 
     def test_returns_list(self):
         from core.audit_runner import audit_syntax
+
         result = audit_syntax()
         assert isinstance(result, list)
 
     def test_returns_empty_for_valid_file(self, tmp_path):
         from core.audit_runner import audit_syntax
+
         # Create a valid Python file in tmp_path
         valid_py = tmp_path / "valid.py"
         valid_py.write_text("x = 1\ny = 2\n", encoding="utf-8")
@@ -31,6 +33,7 @@ class TestAuditSyntax:
 
     def test_detects_syntax_error(self, tmp_path):
         from core.audit_runner import audit_syntax
+
         broken_py = tmp_path / "broken.py"
         broken_py.write_text("def broken(\n", encoding="utf-8")
         result = audit_syntax(root=tmp_path)
@@ -41,6 +44,7 @@ class TestAuditSyntax:
 
     def test_skips_non_py_files(self, tmp_path):
         from core.audit_runner import audit_syntax
+
         txt = tmp_path / "readme.txt"
         txt.write_text("not python", encoding="utf-8")
         result = audit_syntax(root=tmp_path)
@@ -50,6 +54,7 @@ class TestAuditSyntax:
 
     def test_accepts_str_root(self, tmp_path):
         from core.audit_runner import audit_syntax
+
         result = audit_syntax(root=str(tmp_path))
         assert isinstance(result, list)
 
@@ -64,6 +69,7 @@ class TestAuditDeps:
 
     def test_returns_tuple(self):
         from core.audit_runner import audit_deps
+
         result = audit_deps()
         assert isinstance(result, tuple)
         assert len(result) == 2
@@ -73,6 +79,7 @@ class TestAuditDeps:
 
     def test_current_env_deps_ok(self):
         from core.audit_runner import audit_deps
+
         ok, msg = audit_deps()
         # In our test environment, deps should be installed
         assert ok is True
@@ -89,6 +96,7 @@ class TestHealthChecks:
 
     def test_health_checks_returns_list_of_dicts(self):
         from core.audit_runner import health_checks
+
         results = health_checks()
         assert isinstance(results, list)
         for entry in results:
@@ -98,6 +106,7 @@ class TestHealthChecks:
 
     def test_health_checks_includes_python_version(self):
         from core.audit_runner import health_checks
+
         results = health_checks()
         python_entry = [r for r in results if r["category"] == "Python"]
         assert len(python_entry) == 1
@@ -105,12 +114,14 @@ class TestHealthChecks:
 
     def test_health_checks_includes_dependencies(self):
         from core.audit_runner import health_checks
+
         results = health_checks()
         deps_entry = [r for r in results if r["category"] == "Dependencies"]
         assert len(deps_entry) >= 1
 
     def test_health_summary_returns_string(self):
         from core.audit_runner import health_summary
+
         summary = health_summary()
         assert isinstance(summary, str)
         assert "OK" in summary
@@ -118,6 +129,7 @@ class TestHealthChecks:
 
     def test_health_summary_counts_match(self):
         from core.audit_runner import health_checks, health_summary
+
         checks = health_checks()
         ok_count = sum(1 for c in checks if c["ok"])
         summary = health_summary()
@@ -134,11 +146,13 @@ class TestCollectSourceSnippets:
 
     def test_returns_string(self):
         from core.audit_runner import collect_source_snippets
+
         result = collect_source_snippets()
         assert isinstance(result, str)
 
     def test_returns_markdown_format(self, tmp_path):
         from core.audit_runner import collect_source_snippets
+
         # Create a test core dir with a Python file
         core_dir = tmp_path / "core"
         core_dir.mkdir()
@@ -151,6 +165,7 @@ class TestCollectSourceSnippets:
 
     def test_respects_max_chars(self, tmp_path):
         from core.audit_runner import collect_source_snippets
+
         core_dir = tmp_path / "core"
         core_dir.mkdir()
         (core_dir / "big.py").write_text("x = " + "1" * 5000, encoding="utf-8")
@@ -159,6 +174,7 @@ class TestCollectSourceSnippets:
 
     def test_skips_missing_dirs(self, tmp_path):
         from core.audit_runner import collect_source_snippets
+
         result = collect_source_snippets(root=tmp_path, dirs=["nonexistent_dir"])
         assert result == ""
 
@@ -173,11 +189,13 @@ class TestProjectTreeData:
 
     def test_returns_list(self):
         from core.audit_runner import project_tree_data
+
         result = project_tree_data()
         assert isinstance(result, list)
 
     def test_entries_have_required_keys(self, tmp_path):
         from core.audit_runner import project_tree_data
+
         # Create some test structure
         (tmp_path / "readme.txt").write_text("hello", encoding="utf-8")
         sub_dir = tmp_path / "subdir"
@@ -191,6 +209,7 @@ class TestProjectTreeData:
 
     def test_skips_hidden_dirs(self, tmp_path):
         from core.audit_runner import project_tree_data
+
         (tmp_path / ".hidden").mkdir()
         (tmp_path / "visible").mkdir()
         result = project_tree_data(root=tmp_path)
@@ -200,5 +219,6 @@ class TestProjectTreeData:
 
     def test_accepts_str_root(self, tmp_path):
         from core.audit_runner import project_tree_data
+
         result = project_tree_data(root=str(tmp_path))
         assert isinstance(result, list)

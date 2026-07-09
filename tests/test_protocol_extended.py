@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-from core.protocol import EventBus, Event, get_bus
+from core.protocol import Event, EventBus, get_bus
 
 
 class TestEvent:

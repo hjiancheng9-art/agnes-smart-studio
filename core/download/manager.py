@@ -139,7 +139,7 @@ class DownloadManager:
                         job.updated_at = datetime.now()
                         self._trigger_update(job)
                         return
-                    elif info.get("status") == "error":
+                    if info.get("status") == "error":
                         job.status = "failed"
                         job.error = info.get("errorMessage", "unknown aria2 error")
                         job.updated_at = datetime.now()

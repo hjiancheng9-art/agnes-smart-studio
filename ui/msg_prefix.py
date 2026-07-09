@@ -30,11 +30,12 @@ class MsgType(Enum):
 
 class MsgPrefix(NamedTuple):
     """Visual prefix for a message type."""
-    symbol: str          # Single char symbol
-    label: str           # One-char prefix label
-    short: str           # 2-char abbreviation
-    style_class: str     # CSS-like class for theming
-    description: str     # Human-readable description
+
+    symbol: str  # Single char symbol
+    label: str  # One-char prefix label
+    short: str  # 2-char abbreviation
+    style_class: str  # CSS-like class for theming
+    description: str  # Human-readable description
 
 
 # ── Prefix definitions ────────────────────────────────────
@@ -112,18 +113,13 @@ def get_prefix(msg_type: str, mode: str = "compact") -> str:
     if prefix is None:
         return ""
 
-    if mode == "symbol":
-        return f" {prefix.symbol} "
-    elif mode == "label":
-        return f"[{prefix.label}] "
-    elif mode == "compact":
-        return f"{prefix.short} "
-    elif mode == "full":
-        return f"{prefix.short} {prefix.description} "
-    elif mode == "accessible":
-        return f"[{prefix.label}] "  # same as label, designed for screen readers
-    else:
-        return f"{prefix.short} "
+    return {
+        "symbol": f" {prefix.symbol} ",
+        "label": f"[{prefix.label}] ",
+        "compact": f"{prefix.short} ",
+        "full": f"{prefix.short} {prefix.description} ",
+        "accessible": f"[{prefix.label}] ",
+    }.get(mode, f"{prefix.short} ")
 
 
 def get_prefix_style_class(msg_type: str) -> str:
@@ -140,11 +136,11 @@ def get_prefix_style_class(msg_type: str) -> str:
 # ── Color mapping for prefix styles (prompt_toolkit style strings) ──
 
 PREFIX_STYLES = {
-    "msg-user": "fg:#f2cdcd bold",       # 虎 - rose
-    "msg-assistant": "fg:#89b4fa bold",   # 龙 - blue
-    "msg-system": "fg:#fab387",           # 雀 - peach
-    "msg-error": "fg:#f5c2e7 bold",       # 翼 - pink
-    "msg-success": "fg:#a6e3a1",          # 武 - green
+    "msg-user": "fg:#f2cdcd bold",  # 虎 - rose
+    "msg-assistant": "fg:#89b4fa bold",  # 龙 - blue
+    "msg-system": "fg:#fab387",  # 雀 - peach
+    "msg-error": "fg:#f5c2e7 bold",  # 翼 - pink
+    "msg-success": "fg:#a6e3a1",  # 武 - green
     "msg-thinking": "fg:#cba6f7 italic",  # 麟 - mauve
-    "msg-info": "fg:#94e2d5",             # 蛇 - teal
+    "msg-info": "fg:#94e2d5",  # 蛇 - teal
 }

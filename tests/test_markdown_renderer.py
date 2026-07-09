@@ -1,6 +1,7 @@
 """
 TDD tests for Markdown Renderer (ui/markdown_renderer.py)
 """
+
 from __future__ import annotations
 
 from ui.markdown_renderer import clear_cache, render_markdown
@@ -14,32 +15,32 @@ class TestMarkdownRenderer:
 
     def test_bold(self):
         result = render_markdown("**bold text**")
-        has_bold = any(s == 'bold' for s, _ in result)
+        has_bold = any(s == "bold" for s, _ in result)
         assert has_bold
 
     def test_italic(self):
         result = render_markdown("*italic text*")
-        has_italic = any(s == 'italic' for s, _ in result)
+        has_italic = any(s == "italic" for s, _ in result)
         assert has_italic
 
     def test_inline_code(self):
         result = render_markdown("some `inline code` here")
-        has_inline = any('inline code' in t for _, t in result)
+        has_inline = any("inline code" in t for _, t in result)
         assert has_inline
 
     def test_header(self):
         result = render_markdown("# Main Title")
-        has_bold_underline = any('bold' in s and 'underline' in s for s, _ in result)
+        has_bold_underline = any("bold" in s and "underline" in s for s, _ in result)
         assert has_bold_underline
 
     def test_subheader(self):
         result = render_markdown("## Subtitle")
-        has_bold = any('bold' in s for s, _ in result)
+        has_bold = any("bold" in s for s, _ in result)
         assert has_bold
 
     def test_list(self):
         result = render_markdown("- Item 1\n- Item 2\n- Item 3")
-        items = [t for _, t in result if 'Item' in t]
+        items = [t for _, t in result if "Item" in t]
         assert len(items) >= 3
 
     def test_code_block(self):
@@ -81,7 +82,7 @@ def hello(name):
         """Pygments output should NOT contain raw ANSI escape codes."""
         result = render_markdown("```python\nx = 1\n```")
         for _style, text in result:
-            assert '\x1b[' not in text, f"ANSI code found: {repr(text[:50])}"
+            assert "\x1b[" not in text, f"ANSI code found: {repr(text[:50])}"
 
     def test_clear_cache(self):
         clear_cache()  # Should not raise

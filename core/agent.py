@@ -381,19 +381,18 @@ class PlanExecutor:
             # Execute the specified tool
             args = self._infer_tool_args(step, context)
             return self.tools.execute(step.tool, args)
-        else:
-            # Ask LLM to execute
-            prompt = f"Execute this step: {step.name}\nPurpose: {step.purpose}\n"
-            if context:
-                prompt += f"\nPrevious context:\n{context[:2000]}\n"
-            prompt += "\nProvide the result directly."
+        # Ask LLM to execute
+        prompt = f"Execute this step: {step.name}\nPurpose: {step.purpose}\n"
+        if context:
+            prompt += f"\nPrevious context:\n{context[:2000]}\n"
+        prompt += "\nProvide the result directly."
 
-            r = self.client.chat(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=2048,
-            )
-            return r["choices"][0]["message"]["content"] or "[no output]"
+        r = self.client.chat(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=2048,
+        )
+        return r["choices"][0]["message"]["content"] or "[no output]"
 
     def _infer_tool_args(self, step: PlanStep, context: str) -> dict:
         """Try to infer tool arguments from step purpose and context."""
@@ -718,20 +717,98 @@ class ModelRouter:
 
     # ── Heuristic prompt classification (auto-model) ──────────
 
-    @staticmethod
-    def classify_prompt(prompt: str) -> str:
-        """Classify a user prompt into model tier: 'light', 'pro', or 'reasoner'.
+    # ── Enhanced complexity signals (HybridRouter P0) ──────────
 
-        Pure heuristics — no extra LLM call. Used by main chat auto-model mode.
-        Returns one of: 'light', 'pro', 'reasoner'. Never raises.
+    _HEAVY_PAT = re.compile(
+        r"(架构|路线图|根因|多文件|全局|系统性|评审|fallback|router|"
+        r"traceback|stack\s*trace|pytest|CI|workflow|TUI|prompt_toolkit|"
+        r"security\s+(?:audit|review|assessment|hole|flaw|vulnerability)|"
+        r"threat\s+model|attack\s+(?:surface|vector|tree)|"
+        r"architecture\s+(?:design|review|decision)|"
+        r"migrat(?:e|ion)\s+(?:plan|strategy|方案)|"
+        r"重构\s*(?:跨模块|整个项目|全部|架构|系统)|"
+        r"并发|死锁|扩展|吞吐|延迟|安全审查)",
+        re.IGNORECASE,
+    )
+
+    _TRIVIAL_SET: frozenset[str] = frozenset({
+        "你好", "hello", "hi", "hey", "在吗", "在不在", "谢谢", "thanks",
+        "ok", "好的", "okay", "嗯", "哦", "好", "行", "可以",
+    })
+
+    @staticmethod
+    def _is_trivial(prompt: str) -> bool:
+        s = prompt.strip().lower()
+        return len(s) <= 20 and s in ModelRouter._TRIVIAL_SET
+
+    @staticmethod
+    def _is_heavy(prompt: str) -> bool:
+        return (
+            len(prompt) > 1800
+            or len(re.findall(r"```|\.py\b|Traceback|Exception", prompt)) >= 2
+        )
+
+    @staticmethod
+    def _is_pro(prompt: str) -> bool:
+        return len(prompt) > 600
+
+    @staticmethod
+    def classify_prompt(prompt: str, ctx: dict | None = None) -> str:
+        """Classify a user prompt into model tier.
+
+        Enhanced (P0): vision input → vision tier; trivial greetings → fallback;
+        complex code/arch → heavy; moderate → pro; else → light.
+
+        Returns one of: 'light', 'pro', 'heavy', 'vision', 'fallback'. Never raises.
         """
+        ctx = ctx or {}
+        if ctx.get("has_image_input"):
+            return "vision"
+
         if not prompt or not isinstance(prompt, str):
             return "pro"
 
         stripped = prompt.strip()
         length = len(stripped)
 
-        # Light: very short or pure command (unless strong reasoner signals present)
+        # Trivial greeting / short simple question → fallback tier
+        if ModelRouter._is_trivial(prompt):
+            return "fallback"
+
+        # Light commands: explicit test/format/lint invocations → light tier
+        if _LIGHT_COMMANDS.search(stripped):
+            return "light"
+
+        # Heavy tier: HEAVY_PAT (Chinese + English complex keywords)
+        if ModelRouter._HEAVY_PAT.search(stripped):
+            return "heavy"
+
+        # Heavy tier: long context or multiple traceback/exception signals
+        if ModelRouter._is_heavy(stripped):
+            return "heavy"
+
+        # Strong reasoner regex from original (architecture, security, etc.)
+        strong_hits = _count_matches(_STRONG_REASONER, stripped)
+        if strong_hits >= 1:
+            return "heavy"
+
+        # Pro tier: moderate complexity (length > 600 chars with code signals)
+        if ModelRouter._is_pro(stripped):
+            return "pro"
+
+        moderate_hits = _count_matches(_MODERATE_REASONER, stripped)
+        if moderate_hits >= 2:
+            return "heavy"
+        if moderate_hits >= 1 and length > 400:
+            return "heavy"
+
+        code_hits = _count_matches(_CODE_SIGNALS, stripped)
+        if code_hits >= 5 and length > 300:
+            return "heavy"
+        if code_hits >= 1 or length >= 30:
+            return "pro"
+
+        # Light: very short or pure command
         if length < 30 and not _CODE_SIGNALS.search(stripped) and not _STRONG_REASONER.search(stripped):
             return "light"
         if _LIGHT_COMMANDS.search(stripped):
@@ -744,24 +821,6 @@ class ModelRouter:
                     has_code = False
             if not has_code and not _MODERATE_REASONER.search(stripped):
                 return "light"
-
-        # Reasoner check
-        strong_hits = _count_matches(_STRONG_REASONER, stripped)
-        moderate_hits = _count_matches(_MODERATE_REASONER, stripped)
-
-        if strong_hits >= 1:
-            return "heavy"
-        if moderate_hits >= 2:
-            return "heavy"
-        if moderate_hits >= 1 and length > 400:
-            return "heavy"
-        code_hits = _count_matches(_CODE_SIGNALS, stripped)
-        if code_hits >= 5 and length > 300:
-            return "heavy"
-
-        # Code/engineering → pro (default)
-        if code_hits >= 1 or length >= 30:
-            return "pro"
 
         return "pro"
 
@@ -778,7 +837,7 @@ class ModelRouter:
         """Map a tier to an actual model ID.
 
         Args:
-            tier: 'light' / 'pro' / 'reasoner' / 'heavy'
+            tier: 'light' / 'pro' / 'reasoner' / 'heavy' / 'vision' / 'fallback'
             provider_models: optional dict like {'light': '...', 'pro': '...', 'reasoner': '...'}
                             If None, uses self.light / self.pro / self.primary.
 
@@ -793,8 +852,33 @@ class ModelRouter:
             "light": self.light,
             "pro": self.pro,
             "heavy": self.primary,
+            "vision": self.vision_model,
+            "fallback": self.light,
         }
         return tier_map.get(resolved_tier, self.primary)
+
+    def resolve_route(self, tier: str) -> dict[str, str]:
+        """Resolve tier → {provider, model} using models.json tiers config (P0).
+
+        New hybrid routing: reads tiers from models.json to determine which
+        provider+model combo serves each tier, enabling cross-provider routing.
+        Falls back to self.resolve_model() if tiers config is absent.
+        """
+        try:
+            import json
+            from pathlib import Path
+
+            cfg_path = Path(__file__).parent.parent / "models.json"
+            cfg = json.loads(cfg_path.read_text("utf-8"))
+            tiers_cfg = cfg.get("tiers", {})
+            if tier in tiers_cfg:
+                return dict(tiers_cfg[tier])
+        except (OSError, json.JSONDecodeError, KeyError):
+            pass
+
+        # Fallback: use internal assignments (pre-hybrid behavior)
+        model_id = self.resolve_model(tier)
+        return {"provider": "unknown", "model": model_id}
 
     # ── Task-type routing (sub-agent dispatch) ──────────────────
 

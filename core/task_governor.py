@@ -29,44 +29,49 @@ logger = logging.getLogger("task_governor")
 
 # ─── 域模型 ─────────────────────────────────────────────────
 
+
 class TaskComplexity(Enum):
     """任务复杂度等级"""
-    TRIVIAL = "trivial"           # 单工具调用，如"生成一张图片"
-    SIMPLE = "simple"             # 2-3步链式，如"搜索→总结→保存"
-    MODERATE = "moderate"         # 需要分支判断，如"分析代码→找bug→修复→测试"
-    COMPLEX = "complex"           # 多智能体协调，如"跨文件重构→多模块测试→生成报告"
-    CRITICAL = "critical"         # 需人工确认，如"部署到生产环境"
+
+    TRIVIAL = "trivial"  # 单工具调用，如"生成一张图片"
+    SIMPLE = "simple"  # 2-3步链式，如"搜索→总结→保存"
+    MODERATE = "moderate"  # 需要分支判断，如"分析代码→找bug→修复→测试"
+    COMPLEX = "complex"  # 多智能体协调，如"跨文件重构→多模块测试→生成报告"
+    CRITICAL = "critical"  # 需人工确认，如"部署到生产环境"
 
 
 class ExecutionStrategy(Enum):
     """执行策略"""
-    DIRECT = "direct"             # 直接调用一个工具
-    CHAIN = "chain"               # 顺序链式调用
-    BRANCH = "branch"             # 条件分支
-    SWARM = "swarm"               # 多智能体并行
-    HUMAN = "human"               # 需人工介入
+
+    DIRECT = "direct"  # 直接调用一个工具
+    CHAIN = "chain"  # 顺序链式调用
+    BRANCH = "branch"  # 条件分支
+    SWARM = "swarm"  # 多智能体并行
+    HUMAN = "human"  # 需人工介入
 
 
 @dataclass
 class ToolContract:
     """工具契约 — 每个工具的声明式接口"""
+
     name: str
     description: str
-    category: str                 # infra / creative / code / web / data
-    tier: int                     # 1=核心高频, 2=常用, 3=专用, 4=实验性
+    category: str  # infra / creative / code / web / data
+    tier: int  # 1=核心高频, 2=常用, 3=专用, 4=实验性
     input_schema: dict
     output_schema: dict
-    cost_estimate: str            # "low" / "medium" / "high"
-    common_scenarios: list[str]   # 典型使用场景
-    requirements: list[str]       # 前置条件
-    limitations: list[str]        # 已知限制
-    fallback_tools: list[str]     # 备选工具
-    success_rate: float = 0.0    # 历史成功率（自动更新）
+    cost_estimate: str  # "low" / "medium" / "high"
+    common_scenarios: list[str]  # 典型使用场景
+    requirements: list[str]  # 前置条件
+    limitations: list[str]  # 已知限制
+    fallback_tools: list[str]  # 备选工具
+    success_rate: float = 0.0  # 历史成功率（自动更新）
 
 
 @dataclass
 class TaskStep:
     """任务步骤"""
+
     tool: str
     input: dict
     expected_output: str
@@ -80,6 +85,7 @@ class TaskStep:
 @dataclass
 class TaskPlan:
     """任务计划 — 治理层的输出"""
+
     intent: str
     complexity: TaskComplexity
     strategy: ExecutionStrategy
@@ -92,6 +98,7 @@ class TaskPlan:
 @dataclass
 class StepResult:
     """单步执行结果"""
+
     step_index: int
     tool: str
     success: bool
@@ -103,19 +110,38 @@ class StepResult:
 
 # ─── 复杂度评估器 ─────────────────────────────────────────
 
+
 class ComplexityAnalyzer:
     """分析任务意图，判断复杂度等级"""
 
     # 关键指标：工具调用数预估、是否需要分支/并行、是否需要外部数据
     SWARM_TRIGGERS = [
-        "重构", "迁移", "审计", "审查", "分析所有",
-        "批量", "并行", "同时", "对比", "比较",
-        "多模块", "跨文件", "全项目", "架构",
+        "重构",
+        "迁移",
+        "审计",
+        "审查",
+        "分析所有",
+        "批量",
+        "并行",
+        "同时",
+        "对比",
+        "比较",
+        "多模块",
+        "跨文件",
+        "全项目",
+        "架构",
     ]
 
     HUMAN_TRIGGERS = [
-        "部署", "发布", "上线", "删除", "销毁",
-        "支付", "收费", "授权", "生产环境",
+        "部署",
+        "发布",
+        "上线",
+        "删除",
+        "销毁",
+        "支付",
+        "收费",
+        "授权",
+        "生产环境",
     ]
 
     @classmethod
@@ -151,60 +177,76 @@ class ComplexityAnalyzer:
 BUILTIN_CONTRACTS: dict[str, ToolContract] = {
     # ─── 基础设施层 (Tier 1) ───
     "read_file": ToolContract(
-        name="read_file", description="读取文本文件内容",
-        category="infra", tier=1,
+        name="read_file",
+        description="读取文本文件内容",
+        category="infra",
+        tier=1,
         input_schema={"path": "string", "offset": "int?", "limit": "int?"},
         output_schema={"content": "string", "line_count": "int"},
         cost_estimate="low",
         common_scenarios=["读取代码", "查看配置", "读取日志"],
-        requirements=[], limitations=["不超过500行"],
+        requirements=[],
+        limitations=["不超过500行"],
         fallback_tools=["search_files"],
     ),
     "write_file": ToolContract(
-        name="write_file", description="创建或覆写文件",
-        category="infra", tier=1,
+        name="write_file",
+        description="创建或覆写文件",
+        category="infra",
+        tier=1,
         input_schema={"path": "string", "content": "string"},
         output_schema={"success": "bool"},
         cost_estimate="low",
         common_scenarios=["创建文件", "修改配置", "写入输出"],
-        requirements=["确认路径正确"], limitations=[],
+        requirements=["确认路径正确"],
+        limitations=[],
         fallback_tools=["patch_file"],
     ),
     "run_bash": ToolContract(
-        name="run_bash", description="执行shell命令",
-        category="infra", tier=1,
+        name="run_bash",
+        description="执行shell命令",
+        category="infra",
+        tier=1,
         input_schema={"command": "string", "description": "string?"},
         output_schema={"stdout": "string", "return_code": "int"},
         cost_estimate="medium",
         common_scenarios=["运行脚本", "编译", "部署"],
-        requirements=["命令不可阻塞"], limitations=["30s超时"],
+        requirements=["命令不可阻塞"],
+        limitations=["30s超时"],
         fallback_tools=["run_python"],
     ),
     "web_search": ToolContract(
-        name="web_search", description="互联网搜索",
-        category="infra", tier=1,
+        name="web_search",
+        description="互联网搜索",
+        category="infra",
+        tier=1,
         input_schema={"query": "string"},
         output_schema={"results": "array"},
         cost_estimate="low",
         common_scenarios=["查资料", "搜文档", "找API"],
-        requirements=[], limitations=["仅返回摘要"],
+        requirements=[],
+        limitations=["仅返回摘要"],
         fallback_tools=["web_fetch"],
     ),
-
     # ─── 创意工具层 (Tier 1-2) ───
     "generate_image": ToolContract(
-        name="generate_image", description="文生图 / 图生图",
-        category="creative", tier=1,
+        name="generate_image",
+        description="文生图 / 图生图",
+        category="creative",
+        tier=1,
         input_schema={"prompt": "string", "size": "string?", "style": "string?"},
         output_schema={"image_url": "string"},
         cost_estimate="high",
         common_scenarios=["配图生成", "概念设计", "风格迁移"],
-        requirements=["需明确风格和尺寸"], limitations=["不支持视频"],
+        requirements=["需明确风格和尺寸"],
+        limitations=["不支持视频"],
         fallback_tools=["imagegen"],
     ),
     "generate_video": ToolContract(
-        name="generate_video", description="文生视频 / 图生视频",
-        category="creative", tier=1,
+        name="generate_video",
+        description="文生视频 / 图生视频",
+        category="creative",
+        tier=1,
         input_schema={"prompt": "string", "num_frames": "int?", "mode": "string?"},
         output_schema={"video_url": "string"},
         cost_estimate="high",
@@ -213,70 +255,85 @@ BUILTIN_CONTRACTS: dict[str, ToolContract] = {
         limitations=["最长18s", "需GPU"],
         fallback_tools=[],
     ),
-
     # ─── 代码工具层 (Tier 1-2) ───
     "git_add_commit": ToolContract(
-        name="git_add_commit", description="暂存并提交代码",
-        category="code", tier=1,
+        name="git_add_commit",
+        description="暂存并提交代码",
+        category="code",
+        tier=1,
         input_schema={"message": "string"},
         output_schema={"success": "bool", "commit_hash": "string"},
         cost_estimate="low",
         common_scenarios=["代码提交", "版本管理"],
-        requirements=["需有变更文件"], limitations=[],
+        requirements=["需有变更文件"],
+        limitations=[],
         fallback_tools=[],
     ),
     "run_test": ToolContract(
-        name="run_test", description="运行测试",
-        category="code", tier=1,
+        name="run_test",
+        description="运行测试",
+        category="code",
+        tier=1,
         input_schema={"path": "string?"},
         output_schema={"passed": "bool", "output": "string"},
         cost_estimate="medium",
         common_scenarios=["测试代码", "验证修改"],
-        requirements=["需配置pytest"], limitations=["可能耗时"],
+        requirements=["需配置pytest"],
+        limitations=["可能耗时"],
         fallback_tools=["run_bash"],
     ),
     "code_review": ToolContract(
-        name="code_review", description="审查代码质量",
-        category="code", tier=2,
+        name="code_review",
+        description="审查代码质量",
+        category="code",
+        tier=2,
         input_schema={"files": "array", "mode": "string?"},
         output_schema={"issues": "array"},
         cost_estimate="medium",
         common_scenarios=["代码审查", "安全检查"],
-        requirements=["需git跟踪"], limitations=[],
+        requirements=["需git跟踪"],
+        limitations=[],
         fallback_tools=["tdd_run_tests"],
     ),
-
     # ─── Web工具层 (Tier 2) ───
     "web_fetch": ToolContract(
-        name="web_fetch", description="获取网页文本",
-        category="web", tier=2,
+        name="web_fetch",
+        description="获取网页文本",
+        category="web",
+        tier=2,
         input_schema={"url": "string"},
         output_schema={"content": "string"},
         cost_estimate="low",
         common_scenarios=["爬取内容", "API调试"],
-        requirements=["URL可达"], limitations=["最多5000字"],
+        requirements=["URL可达"],
+        limitations=["最多5000字"],
         fallback_tools=["browser_screenshot"],
     ),
     "github_search": ToolContract(
-        name="github_search", description="搜索GitHub",
-        category="web", tier=2,
+        name="github_search",
+        description="搜索GitHub",
+        category="web",
+        tier=2,
         input_schema={"query": "string", "search_type": "string?"},
         output_schema={"results": "array"},
         cost_estimate="low",
         common_scenarios=["找开源项目", "搜代码"],
-        requirements=[], limitations=[],
+        requirements=[],
+        limitations=[],
         fallback_tools=["web_search"],
     ),
-
     # ─── 实验性工具 (Tier 4) ───
     "comfyui_submit_workflow": ToolContract(
-        name="comfyui_submit_workflow", description="提交ComfyUI工作流",
-        category="creative", tier=3,
+        name="comfyui_submit_workflow",
+        description="提交ComfyUI工作流",
+        category="creative",
+        tier=3,
         input_schema={"workflow_json": "string", "wait": "bool?"},
         output_schema={"result": "any"},
         cost_estimate="high",
         common_scenarios=["ComfyUI图片生成"],
-        requirements=["ComfyUI需运行"], limitations=["仅限高级用户"],
+        requirements=["ComfyUI需运行"],
+        limitations=["仅限高级用户"],
         fallback_tools=[],
     ),
 }
@@ -318,6 +375,7 @@ class ContractRegistry:
 
 # ─── 任务规划器 ─────────────────────────────────────────────
 
+
 class TaskPlanner:
     """将意图解析为可执行的任务计划"""
 
@@ -352,12 +410,14 @@ class TaskPlanner:
             return self._decompose_chain(intent)
 
         if strategy == ExecutionStrategy.SWARM:
-            return [TaskStep(
-                tool="agent_swarm",
-                input={"template": intent, "items": ["auto"]},
-                expected_output="multi-agent result",
-                timeout=300,
-            )]
+            return [
+                TaskStep(
+                    tool="agent_swarm",
+                    input={"template": intent, "items": ["auto"]},
+                    expected_output="multi-agent result",
+                    timeout=300,
+                )
+            ]
 
         return [self._intent_to_step(intent)]
 
@@ -393,23 +453,34 @@ class TaskPlanner:
         if any(k in intent_lower for k in ["读取文件", "读文件", "read file", "打开文件"]):
             return TaskStep(tool="read_file", input={"path": intent}, expected_output="file content")
         if any(k in intent_lower for k in ["写文件", "创建文件", "write file"]):
-            return TaskStep(tool="write_file", input={"path": "output", "content": intent}, expected_output="file written")
+            return TaskStep(
+                tool="write_file", input={"path": "output", "content": intent}, expected_output="file written"
+            )
 
         # 默认：使用通用工具
-        return TaskStep(tool="trm_route", input={"intent": "think", "prompt": intent}, expected_output="analysis", timeout=60)
+        return TaskStep(
+            tool="trm_route", input={"intent": "think", "prompt": intent}, expected_output="analysis", timeout=60
+        )
 
     def _decompose_chain(self, intent: str) -> list[TaskStep]:
         """将链式意图分解为有序步骤"""
         # 简单启发式分解
-        parts = [p.strip() for p in intent.replace("然后", "||").replace("接着", "||").replace("先", "||").replace("再", "||").split("||") if p.strip()]
+        parts = [
+            p.strip()
+            for p in intent.replace("然后", "||")
+            .replace("接着", "||")
+            .replace("先", "||")
+            .replace("再", "||")
+            .split("||")
+            if p.strip()
+        ]
         steps = []
         for part in parts:
             steps.append(self._intent_to_step(part))
         return steps
 
     def _estimate_cost(self, strategy: ExecutionStrategy, steps: list[TaskStep]) -> str:
-        high_cost_tools = {"generate_image", "generate_video", "comfyui_submit_workflow",
-                          "agent_swarm", "multi_agent"}
+        high_cost_tools = {"generate_image", "generate_video", "comfyui_submit_workflow", "agent_swarm", "multi_agent"}
         has_high = any(s.tool in high_cost_tools for s in steps)
         if strategy == ExecutionStrategy.SWARM:
             return "high"
@@ -419,6 +490,7 @@ class TaskPlanner:
 
 
 # ─── 执行引擎 ───────────────────────────────────────────────
+
 
 class TaskExecutor:
     """执行 TaskPlan，包含失败降级与重试"""
@@ -440,9 +512,9 @@ class TaskExecutor:
                 logger.warning(f"Step {i} ({step.tool}) failed, attempting fallback...")
                 fallback = self.contracts.suggest_fallback(step.tool)
                 if fallback:
-                    fallback_step = TaskStep(tool=fallback, input=step.input,
-                                             expected_output=step.expected_output,
-                                             max_retries=1)
+                    fallback_step = TaskStep(
+                        tool=fallback, input=step.input, expected_output=step.expected_output, max_retries=1
+                    )
                     fallback_result = self._execute_step(fallback_step, i, tool_executor)
                     fallback_result.used_fallback = True
                     results[-1] = fallback_result
@@ -470,23 +542,30 @@ class TaskExecutor:
                 output = executor(step.tool, step.input)
                 duration = int((time.time() - start) * 1000)
                 return StepResult(
-                    step_index=index, tool=step.tool, success=True,
-                    output=output, duration_ms=duration,
+                    step_index=index,
+                    tool=step.tool,
+                    success=True,
+                    output=output,
+                    duration_ms=duration,
                 )
             except Exception as e:
                 last_error = str(e)
                 duration = int((time.time() - start) * 1000)
                 if attempt < step.max_retries:
-                    logger.info(f"Retry {attempt+1}/{step.max_retries} for {step.tool}")
+                    logger.info(f"Retry {attempt + 1}/{step.max_retries} for {step.tool}")
                     time.sleep(1)
 
         return StepResult(
-            step_index=index, tool=step.tool, success=False,
-            error=last_error, duration_ms=0,
+            step_index=index,
+            tool=step.tool,
+            success=False,
+            error=last_error,
+            duration_ms=0,
         )
 
 
 # ─── 主入口 ─────────────────────────────────────────────────
+
 
 class TaskGovernor:
     """

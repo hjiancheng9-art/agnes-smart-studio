@@ -45,23 +45,27 @@ class TestTextToImageEngine:
 
     def test_instantiate_with_mock_client(self, mock_sync_client):
         from engines.text_to_image import TextToImageEngine
+
         engine = TextToImageEngine(mock_sync_client)
         assert engine.client is mock_sync_client
 
     def test_has_key_methods(self, mock_sync_client):
         from engines.text_to_image import TextToImageEngine
+
         engine = TextToImageEngine(mock_sync_client)
         assert callable(engine.generate)
         assert callable(engine.generate_batch)
 
     def test_get_model_returns_default(self, mock_sync_client):
         from engines.text_to_image import TextToImageEngine
+
         engine = TextToImageEngine(mock_sync_client)
         model = engine._get_model()
         assert isinstance(model, str) and len(model) > 0
 
     def test_get_model_returns_explicit(self, mock_sync_client):
         from engines.text_to_image import TextToImageEngine
+
         engine = TextToImageEngine(mock_sync_client)
         assert engine._get_model("my-custom-model") == "my-custom-model"
 
@@ -77,11 +81,14 @@ class TestTextToImageEngine:
 
     def test_generate_rejects_bad_api_response(self, mock_sync_client):
         from engines.text_to_image import TextToImageEngine
+
         engine = TextToImageEngine(mock_sync_client)
         mock_sync_client.create_image = Mock(return_value={"bad": "no data key"})
-        with patch("engines.text_to_image.validate_model", return_value="fake-model"):
-            with pytest.raises(RuntimeError):
-                engine.generate("a cat")
+        with (
+            patch("engines.text_to_image.validate_model", return_value="fake-model"),
+            pytest.raises(RuntimeError),
+        ):
+            engine.generate("a cat")
 
 
 class TestAsyncTextToImageEngine:
@@ -89,11 +96,13 @@ class TestAsyncTextToImageEngine:
 
     def test_instantiate_with_mock_client(self, mock_async_client):
         from engines.text_to_image import AsyncTextToImageEngine
+
         engine = AsyncTextToImageEngine(mock_async_client)
         assert engine.client is mock_async_client
 
     def test_has_key_methods(self, mock_async_client):
         from engines.text_to_image import AsyncTextToImageEngine
+
         engine = AsyncTextToImageEngine(mock_async_client)
         assert callable(engine.generate)
         assert callable(engine.generate_batch)
@@ -109,11 +118,13 @@ class TestImageToImageEngine:
 
     def test_instantiate_with_mock_client(self, mock_sync_client):
         from engines.image_to_image import ImageToImageEngine
+
         engine = ImageToImageEngine(mock_sync_client)
         assert engine.client is mock_sync_client
 
     def test_has_key_methods(self, mock_sync_client):
         from engines.image_to_image import ImageToImageEngine
+
         engine = ImageToImageEngine(mock_sync_client)
         assert callable(engine.edit)
         assert callable(engine.compose)
@@ -122,6 +133,7 @@ class TestImageToImageEngine:
 
     def test_get_model_returns_default(self, mock_sync_client):
         from engines.image_to_image import ImageToImageEngine
+
         engine = ImageToImageEngine(mock_sync_client)
         model = engine._get_model()
         assert isinstance(model, str) and len(model) > 0
@@ -132,11 +144,13 @@ class TestAsyncImageToImageEngine:
 
     def test_instantiate_with_mock_client(self, mock_async_client):
         from engines.image_to_image import AsyncImageToImageEngine
+
         engine = AsyncImageToImageEngine(mock_async_client)
         assert engine.client is mock_async_client
 
     def test_has_key_methods(self, mock_async_client):
         from engines.image_to_image import AsyncImageToImageEngine
+
         engine = AsyncImageToImageEngine(mock_async_client)
         assert callable(engine.edit)
         assert callable(engine.compose)
@@ -154,6 +168,7 @@ class TestVideoFuture:
 
     def test_initial_state(self):
         from engines.video import VideoFuture
+
         f = VideoFuture("vid_1", "task_1", "a cat", 121)
         assert f.video_id == "vid_1"
         assert f.task_id == "task_1"
@@ -164,12 +179,14 @@ class TestVideoFuture:
 
     def test_wait_timeout(self):
         from engines.video import VideoFuture
+
         f = VideoFuture("vid_2", "task_2", "a dog", 81)
         # Not done, should timeout
         assert f.wait(timeout=0.01) is False
 
     def test_get_result_raises_when_no_result(self):
         from engines.video import VideoFuture
+
         f = VideoFuture("vid_3", "task_3", "a bird", 161)
         # Mark done but no result set
         f._done.set()
@@ -178,6 +195,7 @@ class TestVideoFuture:
 
     def test_get_result_raises_when_error(self):
         from engines.video import VideoFuture
+
         f = VideoFuture("vid_4", "task_4", "a fish", 201)
         f._error = RuntimeError("poll failed")
         f._done.set()
@@ -186,6 +204,7 @@ class TestVideoFuture:
 
     def test_cancel(self):
         from engines.video import VideoFuture
+
         f = VideoFuture("vid_5", "task_5", "cancel me", 121)
         f.cancel()
         assert f.is_done() is True
@@ -196,11 +215,13 @@ class TestVideoEngine:
 
     def test_instantiate_with_mock_client(self, mock_sync_client):
         from engines.video import VideoEngine
+
         engine = VideoEngine(mock_sync_client)
         assert engine.client is mock_sync_client
 
     def test_has_submit_methods(self, mock_sync_client):
         from engines.video import VideoEngine
+
         engine = VideoEngine(mock_sync_client)
         assert callable(engine.submit_only)
         assert callable(engine.submit_async)
@@ -208,6 +229,7 @@ class TestVideoEngine:
 
     def test_has_convenience_methods(self, mock_sync_client):
         from engines.video import VideoEngine
+
         engine = VideoEngine(mock_sync_client)
         assert callable(engine.text_to_video)
         assert callable(engine.image_to_video)
@@ -216,10 +238,9 @@ class TestVideoEngine:
 
     def test_submit_only_returns_expected_keys(self, mock_sync_client):
         from engines.video import VideoEngine
+
         engine = VideoEngine(mock_sync_client)
-        mock_sync_client.create_video = Mock(return_value={
-            "task_id": "t123", "video_id": "video_abc"
-        })
+        mock_sync_client.create_video = Mock(return_value={"task_id": "t123", "video_id": "video_abc"})
         result = engine.submit_only("a cat")
         assert "task_id" in result
         assert "video_id" in result
@@ -227,6 +248,7 @@ class TestVideoEngine:
 
     def test_get_model_returns_string(self, mock_sync_client):
         from engines.video import VideoEngine
+
         engine = VideoEngine(mock_sync_client)
         model = engine._get_model()
         assert isinstance(model, str) and len(model) > 0
@@ -238,6 +260,7 @@ class TestAsyncVideoFuture:
     @pytest.mark.asyncio
     async def test_initial_state(self):
         from engines.video import AsyncVideoFuture
+
         f = AsyncVideoFuture("vid_a1", "task_a1", "async cat", 121)
         assert f.video_id == "vid_a1"
         assert f.progress == 0.0
@@ -247,12 +270,14 @@ class TestAsyncVideoFuture:
     @pytest.mark.asyncio
     async def test_wait_timeout(self):
         from engines.video import AsyncVideoFuture
+
         f = AsyncVideoFuture("vid_a2", "task_a2", "async dog", 81)
         assert await f.wait(timeout=0.01) is False
 
     @pytest.mark.asyncio
     async def test_cancel(self):
         from engines.video import AsyncVideoFuture
+
         f = AsyncVideoFuture("vid_a3", "task_a3", "cancel async", 121)
         f.cancel()
         assert f.is_done() is True
@@ -263,11 +288,13 @@ class TestAsyncVideoEngine:
 
     def test_instantiate_with_mock_client(self, mock_async_client):
         from engines.video import AsyncVideoEngine
+
         engine = AsyncVideoEngine(mock_async_client)
         assert engine.client is mock_async_client
 
     def test_has_key_methods(self, mock_async_client):
         from engines.video import AsyncVideoEngine
+
         engine = AsyncVideoEngine(mock_async_client)
         assert callable(engine.submit_only)
         assert callable(engine.submit_async)
@@ -278,13 +305,14 @@ class TestAsyncVideoEngine:
     @pytest.mark.asyncio
     async def test_submit_only_async(self, mock_async_client):
         from engines.video import AsyncVideoEngine
+
         engine = AsyncVideoEngine(mock_async_client)
-        mock_async_client.create_video = Mock(return_value={
-            "task_id": "t456", "video_id": "video_xyz"
-        })
+        mock_async_client.create_video = Mock(return_value={"task_id": "t456", "video_id": "video_xyz"})
+
         # Wrap sync mock result so await works
         async def _mock_create_video(**kw):
             return {"task_id": "t456", "video_id": "video_xyz"}
+
         mock_async_client.create_video = _mock_create_video
         result = await engine.submit_only("async cat")
         assert result["task_id"] == "t456"
@@ -335,17 +363,20 @@ class TestBatchVariantEngine:
 
     def test_instantiate_with_mock_client(self, mock_sync_client):
         from engines.batch_grid import BatchVariantEngine
+
         engine = BatchVariantEngine(mock_sync_client)
         assert engine.client is mock_sync_client
         assert engine.t2i is not None
 
     def test_has_generate_variants(self, mock_sync_client):
         from engines.batch_grid import BatchVariantEngine
+
         engine = BatchVariantEngine(mock_sync_client)
         assert callable(engine.generate_variants)
 
     def test_grid_cols_rules(self):
         from engines.batch_grid import _grid_cols
+
         assert _grid_cols(1) == 1
         assert _grid_cols(3) == 2
         assert _grid_cols(4) == 2
@@ -363,31 +394,37 @@ class TestValidatorEdgeCases:
 
     def test_image_size_invalid_format(self):
         from core.validator import ValidationError
+
         with pytest.raises(ValidationError):
             validate_image_size("not-a-size")
 
     def test_image_urls_empty(self):
         from core.validator import ValidationError, validate_image_urls
+
         with pytest.raises(ValidationError):
             validate_image_urls([])
 
     def test_image_urls_bad_protocol(self):
         from core.validator import ValidationError, validate_image_urls
+
         with pytest.raises(ValidationError):
             validate_image_urls("ftp://bad-protocol/image.png")
 
     def test_image_urls_single_string(self):
         from core.validator import validate_image_urls
+
         result = validate_image_urls("https://example.com/img.png")
         assert result == ["https://example.com/img.png"]
 
     def test_image_urls_valid_list(self):
         from core.validator import validate_image_urls
+
         urls = ["https://a.com/1.png", "https://b.com/2.jpg"]
         result = validate_image_urls(urls)
         assert result == urls
 
     def test_image_urls_data_uri(self):
         from core.validator import validate_image_urls
+
         result = validate_image_urls("data:image/png;base64,abc123")
         assert len(result) == 1

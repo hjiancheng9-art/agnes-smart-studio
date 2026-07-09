@@ -156,12 +156,11 @@ def _apply_jitter(fire_time: datetime, cron: str, recurring: bool) -> datetime:
         max_jitter = min(int(period_seconds * 0.1), 900)  # max 15 min
         jitter = random.randint(1, max(max_jitter, 1))
         return fire_time + timedelta(seconds=jitter)
-    else:
-        # One-shot: only jitter if on :00 or :30
-        if fire_time.minute == 0 or fire_time.minute == 30:
-            jitter = random.randint(-90, 0)
-            return fire_time + timedelta(seconds=jitter)
-        return fire_time
+    # One-shot: only jitter if on :00 or :30
+    if fire_time.minute == 0 or fire_time.minute == 30:
+        jitter = random.randint(-90, 0)
+        return fire_time + timedelta(seconds=jitter)
+    return fire_time
 
 
 def _estimate_period(cron: str) -> int:

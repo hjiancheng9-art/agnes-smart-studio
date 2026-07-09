@@ -40,6 +40,40 @@ def browser_screenshot(url: str, output: str = "") -> str:
         return "[错误] Playwright 未安装。运行: pip install playwright && playwright install chromium"
     out_path = Path(output) if output else ROOT / "output" / f"screenshot_{int(time.time())}.png"
     out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Check if we're inside an asyncio event loop — sync_playwright will crash.
+    # Fall back to subprocess isolation to avoid the conflict.
+    import asyncio as _asyncio
+    try:
+        _asyncio.get_running_loop()
+        _in_event_loop = True
+    except RuntimeError:
+        _in_event_loop = False
+
+    if _in_event_loop:
+        # Subprocess isolation: spawn a small standalone script
+        _script = (
+            "import sys, json\n"
+            "from pathlib import Path\n"
+            "from playwright.sync_api import sync_playwright\n"
+            "url, out = sys.argv[1], sys.argv[2]\n"
+            "with sync_playwright() as p:\n"
+            "    b = p.chromium.launch()\n"
+            "    pg = b.new_page()\n"
+            "    pg.goto(url, timeout=30000)\n"
+            "    pg.screenshot(path=out, full_page=True)\n"
+            "    b.close()\n"
+            'print(json.dumps({"ok": True, "path": out}))\n'
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", _script, url, str(out_path)],
+            capture_output=True, text=True, timeout=45, encoding="utf-8",
+            cwd=str(ROOT),
+        )
+        if result.returncode != 0:
+            return f"[错误] 截图失败: {result.stderr.strip()[:300]}"
+        return str(out_path)
+
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
@@ -195,11 +229,10 @@ def desktop_screenshot(output: str = "") -> str:
             img = ImageGrab.grab()
             img.save(str(out_path))
             return str(out_path)
-        elif system == "darwin":
+        if system == "darwin":
             run_subprocess(["screencapture", "-x", str(out_path)], timeout=10)
             return str(out_path)
-        else:
-            run_subprocess(["import", "-window", "root", str(out_path)], timeout=10)
-            return str(out_path)
+        run_subprocess(["import", "-window", "root", str(out_path)], timeout=10)
+        return str(out_path)
     except (subprocess.SubprocessError, OSError) as e:
         return f"[错误] 截图失败: {e}"

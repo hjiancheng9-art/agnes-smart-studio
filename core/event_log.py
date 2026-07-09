@@ -214,15 +214,13 @@ class EventLog:
             conditions.append("tool = ?")
             params.append(tool)
 
-        where = " AND ".join(conditions)
-
         try:
             with sqlite3.connect(DB_PATH) as conn:
                 conn.row_factory = sqlite3.Row
 
                 # Basic stats
                 row = conn.execute(
-                    f"""SELECT
+                    """SELECT
                         COUNT(*) as total,
                         SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) as success_count,
                         SUM(CASE WHEN status='failure' THEN 1 ELSE 0 END) as failure_count,
@@ -237,7 +235,7 @@ class EventLog:
 
                 # Per-tool breakdown
                 tool_rows = conn.execute(
-                    f"""SELECT tool, COUNT(*) as cnt,
+                    """SELECT tool, COUNT(*) as cnt,
                         SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as success_rate,
                         AVG(duration_ms) as avg_ms
                     FROM event_log WHERE {where}
@@ -247,7 +245,7 @@ class EventLog:
 
                 # Per-intent breakdown
                 intent_rows = conn.execute(
-                    f"""SELECT intent, COUNT(*) as cnt,
+                    """SELECT intent, COUNT(*) as cnt,
                         SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as success_rate,
                         AVG(duration_ms) as avg_ms
                     FROM event_log WHERE {where}

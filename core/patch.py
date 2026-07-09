@@ -307,7 +307,7 @@ class PatchEngine:
             for ch in changes:
                 if ch.startswith("-"):
                     continue  # remove line
-                elif ch.startswith("+") or ch.startswith(" "):
+                if ch.startswith("+") or ch.startswith(" "):
                     insert_lines.append(ch[1:])
                 else:
                     insert_lines.append(ch)

@@ -35,7 +35,6 @@ __all__ = [
     "AGENT_SYSTEM_PROMPT",
     "BUILTIN_TOOLS",
     "CORE_TOOL_NAMES",
-    "COMFYUI_TOOL_DEFS",
     "PIPELINE_TOOL_DEFS",
     "TOOLS_CONFIG",
     "TOOL_EXPANSION_CATEGORIES",
@@ -52,7 +51,6 @@ from core.tools_defs import (  # noqa: F401
     _PY_TYPE_MAP,
     AGENT_SYSTEM_PROMPT,
     BUILTIN_TOOLS,
-    COMFYUI_TOOL_DEFS,
     CORE_TOOL_NAMES,
     PIPELINE_TOOL_DEFS,
     TOOL_CATEGORIES,
@@ -78,24 +76,20 @@ class ToolRegistry:
     def load(
         self,
         pipeline: bool = False,
-        comfyui: bool = False,
         browser: bool = False,
         notebook: bool = False,
         audio: bool = False,
         mcp: bool = False,
         agnes: bool = False,
-        comfyui_pipeline: bool = False,
         showrunner: bool = False,
     ) -> int:
         """从 tools.json 加载工具，返回已加载数量
 
         Args:
             pipeline: 是否加载一键流视频管道工具（Showrunner 模式）
-            comfyui: 是否加载 ComfyUI 桥接工具（ComfyUI Bridge 模式）
             browser: 是否加载 Browser Companion 网页生成工具
             notebook: 是否加载 Notebook (.ipynb) 工具
             agnes: 是否加载 Agnes 多模态生成工具
-            comfyui_pipeline: 是否加载 ComfyUI 高级工作流工具
             showrunner: 是否加载 Showrunner 专业流水线工具
             audio: 是否加载音频工具（TTS/BGM/SFX/混音）
             mcp: 是否加载 MCP Client 桥接工具（四象融合：调 claude/codex/codebuddy）
@@ -117,15 +111,6 @@ class ToolRegistry:
                 self._executors[name] = executor
                 self._tool_modules[name] = "core.pipeline_tools"
 
-        # ── ComfyUI 桥接工具 ──
-        if comfyui:
-            self._definitions.extend(COMFYUI_TOOL_DEFS)
-            from core.comfyui_tools import COMFYUI_EXECUTOR_MAP
-
-            for name, executor in COMFYUI_EXECUTOR_MAP.items():
-                self._executors[name] = executor
-                self._tool_modules[name] = "core.comfyui_tools"
-
         # ── Agnes 多模态生成（文生图/图生图/文生视频/图生视频）──
         if agnes:
             from core.agnes_multimodal import AGNES_EXECUTOR_MAP, AGNES_TOOL_DEFS
@@ -134,18 +119,6 @@ class ToolRegistry:
             for name, executor in AGNES_EXECUTOR_MAP.items():
                 self._executors[name] = executor
                 self._tool_modules[name] = "core.agnes_multimodal"
-
-        # ── ComfyUI 高级工作流（AI建工作流/调参/练LoRA）──
-        if comfyui_pipeline:
-            from core.comfyui_pipeline import (
-                COMFYUI_PIPELINE_EXECUTOR_MAP,
-                COMFYUI_PIPELINE_TOOL_DEFS,
-            )
-
-            self._definitions.extend(COMFYUI_PIPELINE_TOOL_DEFS)
-            for name, executor in COMFYUI_PIPELINE_EXECUTOR_MAP.items():
-                self._executors[name] = executor
-                self._tool_modules[name] = "core.comfyui_pipeline"
 
         # ── Showrunner 专业流水线（文案→图片→视频→影片）──
         if showrunner:
@@ -411,6 +384,9 @@ class ToolRegistry:
 
             # 构建 OpenAI function 格式的参数 schema
             for pname, pinfo in params.items():
+                if not isinstance(pinfo, dict):
+                    # 防御：pinfo 是字符串/列表等非预期类型 → 跳到顶层 schema 字段
+                    continue
                 properties[pname] = {
                     "type": pinfo.get("type", "string"),
                     "description": pinfo.get("description", pname),
@@ -601,10 +577,9 @@ class ToolRegistry:
 
         if t == "http":
             return http_executor
-        elif t == "python":
+        if t == "python":
             return python_executor
-        else:
-            return shell_executor
+        return shell_executor
 
     # ── 注册/注销 ──
     def register(
@@ -694,8 +669,9 @@ class ToolRegistry:
     def schema(self, name: str) -> dict | None:
         """Return the JSON Schema for a registered tool."""
         for d in self.definitions:
-            if d.get("name") == name:
-                params = d.get("parameters")
+            func = d.get("function", {})
+            if func.get("name") == name:
+                params = func.get("parameters")
                 return {"parameters": params} if params else None
         return None
 

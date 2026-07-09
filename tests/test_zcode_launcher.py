@@ -19,6 +19,7 @@ from launcher import (
 
 # ── BeastConfig ──────────────────────────────────────────────────────────────
 
+
 def test_beast_config_creation():
     """BeastConfig can be created with name, role, icon, binary."""
     bc = BeastConfig(name="test-beast", role="tester", icon="T", binary="python")
@@ -41,6 +42,7 @@ def test_beast_config_defaults():
 
 
 # ── BEASTS dict ──────────────────────────────────────────────────────────────
+
 
 def test_beasts_contains_crux():
     """BEASTS dict contains 'crux' key."""
@@ -74,6 +76,7 @@ def test_beasts_claude_name():
 
 # ── HealthResult ─────────────────────────────────────────────────────────────
 
+
 def test_health_result_creation():
     """HealthResult can be created with name, icon, status."""
     hr = HealthResult(name="test", icon="T", status="online")
@@ -92,6 +95,7 @@ def test_health_result_defaults():
 
 
 # ── MeshLauncher ─────────────────────────────────────────────────────────────
+
 
 def test_mesh_launcher_empty_results():
     """MeshLauncher() creates instance with empty results."""
@@ -114,6 +118,7 @@ def test_mesh_launcher_discover_trm_returns_string():
 
 # ── ProcessManager ───────────────────────────────────────────────────────────
 
+
 def test_process_manager_empty_procs():
     """ProcessManager() creates instance with empty _procs."""
     pm = ProcessManager()
@@ -134,6 +139,7 @@ def test_process_manager_cleanup_zombies_zero():
 
 # ── STATUS_GLYPHS ────────────────────────────────────────────────────────────
 
+
 def test_status_glyphs_keys():
     """STATUS_GLYPHS has keys: online, degraded, offline."""
     assert "online" in STATUS_GLYPHS
@@ -142,6 +148,7 @@ def test_status_glyphs_keys():
 
 
 # ── STATUS_COLORS ────────────────────────────────────────────────────────────
+
 
 def test_status_colors_keys():
     """STATUS_COLORS has keys: online, degraded, offline."""
@@ -152,15 +159,16 @@ def test_status_colors_keys():
 
 # ── BEAST_ICONS ──────────────────────────────────────────────────────────────
 
+
 def test_beast_icons_keys():
     """BEAST_ICONS has keys: BAIHU, QINGLONG, ZHUQUE, XUANWU, QILIN,
     TENGSHE, YINGLONG."""
-    expected = {"BAIHU", "QINGLONG", "ZHUQUE", "XUANWU",
-                "QILIN", "TENGSHE", "YINGLONG"}
+    expected = {"BAIHU", "QINGLONG", "ZHUQUE", "XUANWU", "QILIN", "TENGSHE", "YINGLONG"}
     assert set(BEAST_ICONS.keys()) == expected
 
 
 # ── Constants ────────────────────────────────────────────────────────────────
+
 
 def test_python_path():
     """PYTHON path is a string ending with python.exe."""
@@ -181,6 +189,7 @@ def test_pid_file_ends_with_beasts_pids():
 
 # ── print_ascii_dashboard ────────────────────────────────────────────────────
 
+
 def test_print_ascii_dashboard_does_not_raise():
     """print_ascii_dashboard can be called with a list of HealthResult
     without raising."""
@@ -192,6 +201,7 @@ def test_print_ascii_dashboard_does_not_raise():
 
 
 # ── Edge cases ───────────────────────────────────────────────────────────────
+
 
 def test_beasts_crux_mcp_initialize():
     """BEASTS['crux'].mcp_initialize is True."""

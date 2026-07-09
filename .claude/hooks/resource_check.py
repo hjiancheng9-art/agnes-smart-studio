@@ -3,6 +3,7 @@
 Checks for lingering high-memory Python processes after Bash commands.
 Warns if worker processes from previous test/build runs are still alive.
 """
+
 import subprocess
 import sys
 
@@ -12,9 +13,11 @@ import sys
 try:
     result = subprocess.run(
         ["tasklist", "/fi", "imagename eq python.exe", "/fo", "csv", "/nh"],
-        capture_output=True, text=True, timeout=5,
+        capture_output=True,
+        text=True,
+        timeout=5,
     )
-    lines = [l for l in result.stdout.strip().split("\n") if l.strip()]
+    lines = [line for line in result.stdout.strip().split("\n") if line.strip()]
 
     high_mem = []
     for line in lines:
@@ -33,7 +36,7 @@ try:
         print("\n  [Hook: resource-check] High-memory Python processes detected:", file=sys.stderr)
         for pid, mem_mb in high_mem:
             print(f"    PID {pid}: {mem_mb}MB", file=sys.stderr)
-        print("  Consider: taskkill //F //FI \"MEMUSAGE gt 40000\" //IM \"python.exe\"", file=sys.stderr)
+        print('  Consider: taskkill //F //FI "MEMUSAGE gt 40000" //IM "python.exe"', file=sys.stderr)
         print("", file=sys.stderr)
 
 except Exception:

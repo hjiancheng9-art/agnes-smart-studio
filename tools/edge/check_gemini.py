@@ -8,7 +8,7 @@ browser = p.chromium.connect_over_cdp(CDP_URL)
 
 for ctx in browser.contexts:
     for pg in ctx.pages:
-        if 'gemini.google.com' in pg.url:
+        if "gemini.google.com" in pg.url:
             pg.bring_to_front()
             time.sleep(1)
             main_text = pg.evaluate('() => document.querySelector("main")?.innerText || document.body.innerText')

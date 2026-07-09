@@ -49,10 +49,7 @@ def sanitize_text(value: Any, replacement: str = _REPLACEMENT) -> Any:
     if not any(_SURROGATE_MIN <= ord(ch) <= _SURROGATE_MAX for ch in value):
         return value
 
-    return "".join(
-        replacement if _SURROGATE_MIN <= ord(ch) <= _SURROGATE_MAX else ch
-        for ch in value
-    )
+    return "".join(replacement if _SURROGATE_MIN <= ord(ch) <= _SURROGATE_MAX else ch for ch in value)
 
 
 def sanitize_payload(value: Any, replacement: str = _REPLACEMENT) -> Any:
@@ -68,10 +65,7 @@ def sanitize_payload(value: Any, replacement: str = _REPLACEMENT) -> Any:
         return sanitize_text(value, replacement=replacement)
 
     if isinstance(value, dict):
-        return {
-            sanitize_payload(k, replacement): sanitize_payload(v, replacement)
-            for k, v in value.items()
-        }
+        return {sanitize_payload(k, replacement): sanitize_payload(v, replacement) for k, v in value.items()}
 
     if isinstance(value, list):
         return [sanitize_payload(v, replacement) for v in value]

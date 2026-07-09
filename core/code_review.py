@@ -413,6 +413,7 @@ class CodeReviewer:
             try:
                 content = Path(fp).read_text(encoding="utf-8", errors="replace")
             except Exception:
+                self._log_debug("跳过不可读文件") if hasattr(self, "_log_debug") else None
                 continue
             total_lines += content.count("\n") + 1
             for rule in self.rules:

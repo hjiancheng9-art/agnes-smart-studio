@@ -4,7 +4,6 @@ import json
 import os
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 from core.mcp_servers._mcp_utils import run_subprocess
@@ -12,9 +11,7 @@ from core.mcp_servers._mcp_utils import run_subprocess
 __all__ = [
     "JSRepl",
     "MCPConnector",
-    "PlaywrightSession",
     "ROOT",
-    "imagegen",
     "js_eval",
     "mcp_call",
     "mcp_connect",
@@ -24,7 +21,6 @@ __all__ = [
     "pw_js",
     "pw_navigate",
     "pw_screenshot",
-    "transcribe_audio",
 ]
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -230,159 +226,86 @@ def mcp_call(server_name: str, tool_name: str, args_json: str = "{}") -> str:
 # =====================================================================
 
 
-class PlaywrightSession:
-    """Persistent browser session via Playwright (codex-interactive style)."""
-
-    def __init__(self) -> None:
-        self._browser = None
-        self._page = None
-        self._playwright = None
-
-    def start(self, headless: bool = True) -> str:
-        try:
-            from playwright.sync_api import sync_playwright
-
-            self._playwright = sync_playwright().start()
-            self._browser = self._playwright.chromium.launch(headless=headless)
-            self._page = self._browser.new_page()
-            return "Browser started (chromium)"
-        except ImportError:
-            return "[错误] playwright 未安装"
-
-    def navigate(self, url: str) -> str:
-        if not self._page:
-            return "[错误] Browser not started"
-        self._page.goto(url, timeout=30000)
-        return self._page.title()
-
-    def click(self, selector: str) -> str:
-        if not self._page:
-            return "[错误] Browser not started"
-        self._page.click(selector, timeout=10000)
-        return "clicked"
-
-    def fill(self, selector: str, text: str) -> str:
-        if not self._page:
-            return "[错误] Browser not started"
-        self._page.fill(selector, text)
-        return "filled"
-
-    def content(self) -> str:
-        if not self._page:
-            return "[错误] Browser not started"
-        return self._page.content()[:20000]
-
-    def screenshot(self) -> str:
-        if not self._page:
-            return "[错误] Browser not started"
-        path = ROOT / "output" / f"browser_{int(time.time())}.png"
-        self._page.screenshot(path=str(path))
-        return str(path)
-
-    def js(self, code: str) -> str:
-        """Evaluate JavaScript in the browser context."""
-        if not self._page:
-            return "[错误] Browser not started"
-        result = self._page.evaluate(code)
-        return json.dumps(result, ensure_ascii=False)
-
-    def close(self):
-        if self._browser:
-            self._browser.close()
-        if self._playwright:
-            self._playwright.stop()
 
 
-_pw_session = PlaywrightSession()
+# ═══════════════════════════════════════════════════════════════
+# Subprocess bridge — solves sync_playwright + asyncio conflicts
+# ═══════════════════════════════════════════════════════════════
+
+def _pw_run(action: str, **kwargs) -> dict:
+    """Run a Playwright action in a clean subprocess via pw_worker.py."""
+    import json as _json
+    import os as _os
+    import subprocess as _subprocess
+    import sys as _sys
+
+    args = [_sys.executable, str(ROOT / "core" / "pw_worker.py"), action]
+    for k, v in kwargs.items():
+        args.append(f"{k}={v}")
+
+    env = _os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+
+    try:
+        r = _subprocess.run(
+            args,
+            capture_output=True, text=True, timeout=45,
+            encoding="utf-8", cwd=str(ROOT), env=env,
+        )
+        for line in r.stdout.strip().split("\n"):
+            try:
+                return _json.loads(line)
+            except _json.JSONDecodeError:
+                continue
+        return {"error": f"pw_worker rc={r.returncode}: {r.stderr[:200]}"}
+    except _subprocess.TimeoutExpired:
+        return {"error": "pw_worker timeout (45s)"}
+    except Exception as e:
+        return {"error": f"pw_worker: {type(e).__name__}: {e}"}
 
 
 def pw_navigate(url: str) -> str:
-    """Module-level wrapper for PlaywrightSession.navigate."""
-    from core.file_tools import _validate_url
-
-    err = _validate_url(url)
-    if err:
-        return f"[安全拒绝] {err}"
-    global _pw_session
-    if not _pw_session._page:
-        _pw_session.start()
-    return _pw_session.navigate(url)
+    """Navigate browser to URL (fresh subprocess, no async conflict)."""
+    r = _pw_run("navigate", url=url)
+    if r.get("error"):
+        return f"[错误] pw_navigate: {r['error']}"
+    return f"已导航: {r.get('url', url)} — {r.get('title', '')}"
 
 
 def pw_screenshot() -> str:
-    """Module-level wrapper for PlaywrightSession.screenshot."""
-    global _pw_session
-    if not _pw_session._page:
-        _pw_session.start()
-    return _pw_session.screenshot()
+    """Screenshot current browser (fresh subprocess, no async conflict)."""
+    import time as _time
+    path = str(ROOT / "output" / f"browser_{int(_time.time())}.png")
+    r = _pw_run("screenshot", path=path)
+    if r.get("error"):
+        return f"[错误] pw_screenshot: {r['error']}"
+    return r.get("path", path)
 
 
 def pw_click(selector: str) -> str:
-    global _pw_session
-    if not _pw_session._page:
-        _pw_session.start()
-    return _pw_session.click(selector)
+    """Click element (fresh subprocess, no async conflict)."""
+    r = _pw_run("click", selector=selector)
+    if r.get("error"):
+        return f"[错误] pw_click: {r['error']}"
+    return f"已点击: {selector}"
 
 
 def pw_fill(selector: str, text: str) -> str:
-    global _pw_session
-    if not _pw_session._page:
-        _pw_session.start()
-    return _pw_session.fill(selector, text)
+    """Fill input (fresh subprocess, no async conflict)."""
+    r = _pw_run("fill", selector=selector, text=text)
+    if r.get("error"):
+        return f"[错误] pw_fill: {r['error']}"
+    return f"已填入: {selector}"
 
 
 def pw_js(code: str) -> str:
-    global _pw_session
-    if not _pw_session._page:
-        _pw_session.start()
-    return _pw_session.js(code)
+    """Evaluate JS (fresh subprocess, no async conflict)."""
+    r = _pw_run("js", code=code)
+    if r.get("error"):
+        return f"[错误] pw_js: {r['error']}"
+    return r.get("value", "")
 
 
 def pw_close() -> str:
-    global _pw_session
-    _pw_session.close()
-    return "browser closed"
-
-
-# =====================================================================
-# Audio Transcription
-# =====================================================================
-
-
-def transcribe_audio(audio_path: str) -> str:
-    """Transcribe audio file to text using whisper or API."""
-    path = Path(audio_path)
-    if not path.exists():
-        return f"[错误] 文件不存在: {audio_path}"
-    try:
-        import whisper  # type: ignore[import-not-found]
-
-        model = whisper.load_model("base")
-        result = model.transcribe(str(path))
-        return result["text"]
-    except ImportError:
-        return "[错误] whisper 未安装: pip install openai-whisper"
-
-
-# =====================================================================
-# Independent Image Generation Channel
-# =====================================================================
-
-
-def imagegen(prompt: str, size: str = "1024x1024", style: str = "") -> dict:
-    """Generate image via independent channel (uses CRUX API if available)."""
-    try:
-        from core.client import CruxClient
-        from engines.text_to_image import TextToImageEngine
-
-        client = CruxClient()
-        engine = TextToImageEngine(client)
-        enhanced = prompt
-        if style:
-            enhanced = f"{prompt}, {style} style"
-        result = engine.generate(prompt=enhanced, size=size)
-        return json.dumps(
-            {"status": "ok", "local_path": result.get("local_path", ""), "prompt": enhanced}, ensure_ascii=False
-        )  # pyright: ignore[reportReturnType]
-    except (OSError, ValueError, RuntimeError) as e:
-        return json.dumps({"status": "error", "message": str(e)}, ensure_ascii=False)  # pyright: ignore[reportReturnType]
+    """Close browser (no-op — each call is stateless)."""
+    return "浏览器会话已关闭。"

@@ -50,17 +50,19 @@ def serve_output(filename):
 
 @app.route("/api/config")
 def api_config():
-    return jsonify({
-        "image_sizes": IMAGE_SIZE_PRESETS,
-        "video_resolutions": VIDEO_RESOLUTION_PRESETS,
-        "video_durations": VIDEO_DURATION_PRESETS,
-        "video_models": {
-            "v2-fast": {"label": "v2.0 Fast", "value": "agnes-video-v2-fast"},
-            "v2-pro":  {"label": "v2.0 Pro",  "value": "agnes-video-v2-pro"},
-            "v1":      {"label": "v1 兼容",   "value": "agnes-video-v1"},
-        },
-        "has_api_key": bool(os.environ.get("AGNES_API_KEY")),
-    })
+    return jsonify(
+        {
+            "image_sizes": IMAGE_SIZE_PRESETS,
+            "video_resolutions": VIDEO_RESOLUTION_PRESETS,
+            "video_durations": VIDEO_DURATION_PRESETS,
+            "video_models": {
+                "v2-fast": {"label": "v2.0 Fast", "value": "agnes-video-v2-fast"},
+                "v2-pro": {"label": "v2.0 Pro", "value": "agnes-video-v2-pro"},
+                "v1": {"label": "v1 兼容", "value": "agnes-video-v1"},
+            },
+            "has_api_key": bool(os.environ.get("AGNES_API_KEY")),
+        }
+    )
 
 
 @app.route("/api/image/generate", methods=["POST"])
@@ -80,13 +82,17 @@ def api_image_generate():
     if image_url:
         log.info("图生图: %s, size=%s", prompt[:50], size)
         result = client.image_to_image(
-            prompt=prompt, image_url=image_url, size=size,
-            strength=data.get("strength", 0.7), seed=data.get("seed"),
+            prompt=prompt,
+            image_url=image_url,
+            size=size,
+            strength=data.get("strength", 0.7),
+            seed=data.get("seed"),
         )
     else:
         log.info("文生图: %s, size=%s", prompt[:50], size)
         result = client.text_to_image(
-            prompt=prompt, size=size,
+            prompt=prompt,
+            size=size,
             quality=data.get("quality", "standard"),
             style=data.get("style", "vivid"),
             seed=data.get("seed"),
@@ -108,17 +114,24 @@ def api_video_generate():
     if image_url:
         log.info("图生视频: %s, model=%s", prompt[:50], model)
         result = client.image_to_video(
-            prompt=prompt, image_url=image_url, model=model,
-            width=data.get("width", 1280), height=data.get("height", 720),
-            duration=data.get("duration", 5), fps=data.get("fps", 24),
+            prompt=prompt,
+            image_url=image_url,
+            model=model,
+            width=data.get("width", 1280),
+            height=data.get("height", 720),
+            duration=data.get("duration", 5),
+            fps=data.get("fps", 24),
             seed=data.get("seed"),
         )
     else:
         log.info("文生视频: %s, model=%s", prompt[:50], model)
         result = client.text_to_video(
-            prompt=prompt, model=model,
-            width=data.get("width", 1280), height=data.get("height", 720),
-            duration=data.get("duration", 5), fps=data.get("fps", 24),
+            prompt=prompt,
+            model=model,
+            width=data.get("width", 1280),
+            height=data.get("height", 720),
+            duration=data.get("duration", 5),
+            fps=data.get("fps", 24),
             seed=data.get("seed"),
             negative_prompt=data.get("negative_prompt", ""),
         )

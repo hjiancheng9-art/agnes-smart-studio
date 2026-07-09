@@ -1,0 +1,9 @@
+def _focus_up(event):
+            if hasattr(event.app, "detail_view") and event.app.detail_view and event.app.detail_view.active:
+                event.app.detail_view.handle_key("up")
+                event.app._ui(event.app._refresh_status)
+                return
+            msg = event.app._copy_mgr.store.get(event.app._copy_mgr.focus.prev())
+            if msg:
+                event.app._log_append(("→", "class:activity-info", f"聚焦 [{msg.role}] {msg.snippet(80)}"))
+            event.app._ui(event.app._refresh_status)

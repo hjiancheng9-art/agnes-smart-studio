@@ -24,50 +24,104 @@ from typing import Any
 
 # ─── 工具分层（ChatGPT 评审建议） ───
 class ToolTier(IntEnum):
-    CORE = 1       # 核心高频工具（读文件、搜索、提交等）
-    COMMON = 2     # 常用工具（代码审查、Web获取等）
+    CORE = 1  # 核心高频工具（读文件、搜索、提交等）
+    COMMON = 2  # 常用工具（代码审查、Web获取等）
     SPECIALIZED = 3  # 专用工具（ComfyUI、CDP等）
     EXPERIMENTAL = 4  # 实验性工具
 
+
 TOOL_CATEGORIES: dict[str, list[str]] = {
-    "infra": ["read_file", "write_file", "edit_file", "patch_file",
-              "run_bash", "run_python", "search_files", "glob_files",
-              "list_files", "tree_dir", "env_check"],
-    "creative": ["generate_image", "generate_video", "imagegen",
-                 "text_to_speech", "comfyui_submit_workflow",
-                 "comfyui_build_custom_workflow", "comfyui_status"],
-    "code": ["run_test", "code_review", "tdd_run_tests", "tdd_cycle",
-             "git_add_commit", "git_branch", "git_push", "git_pull",
-             "run_lint", "run_format", "debug_inspect"],
-    "web": ["web_search", "web_fetch", "github_search", "github_repo_view",
-            "browser_screenshot", "pw_navigate", "pw_screenshot"],
+    "infra": [
+        "read_file",
+        "write_file",
+        "edit_file",
+        "patch_file",
+        "run_bash",
+        "run_python",
+        "search_files",
+        "glob_files",
+        "list_files",
+        "tree_dir",
+        "env_check",
+    ],
+    "creative": [
+        "generate_image",
+        "generate_video",
+        "imagegen",
+        "text_to_speech",
+        "comfyui_submit_workflow",
+        "comfyui_build_custom_workflow",
+        "comfyui_status",
+    ],
+    "code": [
+        "run_test",
+        "code_review",
+        "tdd_run_tests",
+        "tdd_cycle",
+        "git_add_commit",
+        "git_branch",
+        "git_push",
+        "git_pull",
+        "run_lint",
+        "run_format",
+        "debug_inspect",
+    ],
+    "web": [
+        "web_search",
+        "web_fetch",
+        "github_search",
+        "github_repo_view",
+        "pw_navigate",
+    ],
     "data": ["db_query"],
-    "ai": ["multi_agent", "agent_swarm", "trm_route",
-           "skill_search", "trm_growth"],
+    "ai": ["multi_agent", "agent_swarm", "trm_route", "skill_search", "trm_growth"],
 }
 
 TOOL_TIERS: dict[str, int] = {
     # Tier 1 - 核心
-    "read_file": 1, "write_file": 1, "edit_file": 1, "patch_file": 1,
-    "run_bash": 1, "run_python": 1, "search_files": 1, "glob_files": 1,
-    "web_search": 1, "generate_image": 1,
-    "git_add_commit": 1, "git_status": 1, "git_diff": 1,
-    "task_launch": 1, "todo_add": 1, "todo_list": 1,
+    "read_file": 1,
+    "write_file": 1,
+    "edit_file": 1,
+    "patch_file": 1,
+    "run_bash": 1,
+    "run_python": 1,
+    "search_files": 1,
+    "glob_files": 1,
+    "web_search": 1,
+    "generate_image": 1,
+    "git_add_commit": 1,
+    "git_status": 1,
+    "git_diff": 1,
+    "task_launch": 1,
+    "todo_add": 1,
+    "todo_list": 1,
     # Tier 2 - 常用
-    "generate_video": 2, "web_fetch": 2,
-    "code_review": 2, "run_test": 2, "run_lint": 2, "run_format": 2,
-    "github_search": 2, "github_repo_view": 2, "github_readme": 2,
-    "browser_screenshot": 2, "view_image": 2,
+    "generate_video": 2,
+    "web_fetch": 2,
+    "code_review": 2,
+    "run_test": 2,
+    "run_lint": 2,
+    "run_format": 2,
+    "github_search": 2,
+    "github_repo_view": 2,
+    "github_readme": 2,
+    "view_image": 2,
     "comfyui_list_models": 2,
     # Tier 3 - 专用
-    "comfyui_submit_workflow": 3, "comfyui_build_custom_workflow": 3,
-    "multi_agent": 3, "agent_swarm": 3,
-    "tdd_run_tests": 3, "tdd_cycle": 3,
-    "mcp_call": 3, "mcp_connect": 3,
+    "comfyui_submit_workflow": 3,
+    "comfyui_build_custom_workflow": 3,
+    "multi_agent": 3,
+    "agent_swarm": 3,
+    "tdd_run_tests": 3,
+    "tdd_cycle": 3,
+    "mcp_call": 3,
+    "mcp_connect": 3,
     "http_request": 3,
     # Tier 4 - 实验性
-    "comfyui_create_custom_node": 4, "comfyui_lora_prepare": 4,
-    "create_pdf": 4, "deploy_vercel": 4,
+    "comfyui_create_custom_node": 4,
+    "comfyui_lora_prepare": 4,
+    "create_pdf": 4,
+    "deploy_vercel": 4,
     "comfyui_lora_generate_config": 4,
 }
 
@@ -82,7 +136,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
-PYTHON = os.path.expanduser(r"C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\python.exe")
+PYTHON = os.path.expanduser(r"python")
 
 # ── Task categories for routing ────────────────────────────
 
@@ -421,12 +475,14 @@ class ToolRegistryMesh:
         """按分类列出工具"""
         return [name for name in self._tools if self.get_category(name) == category]
 
-    def suggest_tools(self, intent_or_spec, max_results: int = 5, session_context: dict = None) -> list[tuple[str, float]]:
+    def suggest_tools(
+        self, intent_or_spec, max_results: int = 5, session_context: dict = None
+    ) -> list[tuple[str, float]]:
         """基于意图或 TaskSpec 智能推荐工具（含加权路由升级）。"""
         candidates = []
 
         # 解析输入 - 如果看起来像 TaskSpec (有 intent_type 属性) 就用，否则当字符串
-        if hasattr(intent_or_spec, 'intent_type'):
+        if hasattr(intent_or_spec, "intent_type"):
             spec = intent_or_spec
             intent_lower = spec.intent.lower()
             spec_type = spec.intent_type
@@ -435,6 +491,7 @@ class ToolRegistryMesh:
             # 向后兼容：字符串输入
             try:
                 from core.task_spec_builder import TaskSpecBuilder
+
                 builder = TaskSpecBuilder()
                 spec = builder.build(intent_or_spec, session_context or {})
                 intent_lower = intent_or_spec.lower()
@@ -495,7 +552,7 @@ class ToolRegistryMesh:
             total_calls = stats.get("calls", 0)
             if total_calls > 0:
                 success_rate = stats.get("successes", 0) / total_calls
-                score *= (0.5 + 0.5 * success_rate)
+                score *= 0.5 + 0.5 * success_rate
 
             candidates.append((name, round(score, 3)))
 
@@ -504,14 +561,17 @@ class ToolRegistryMesh:
         # 联动技能市场推荐（v6.0: 工具+技能包联合推荐）
         try:
             from core.skill_recommender import SkillRecommender
+
             sr = SkillRecommender()
             if spec_type is not None:
                 skill_recs = sr.recommend(spec_type.value, top_k=3)
                 for skill_name, skill_score in skill_recs:
-                    candidates.append((
-                        f"[技能] {skill_name}",
-                        round(skill_score / 10, 2),  # 归一化到工具评分范围
-                    ))
+                    candidates.append(
+                        (
+                            f"[技能] {skill_name}",
+                            round(skill_score / 10, 2),  # 归一化到工具评分范围
+                        )
+                    )
         except ImportError:
             pass
 
@@ -530,10 +590,7 @@ class ToolRegistryMesh:
 
     def get_route_stats(self) -> dict:
         """获取路由统计"""
-        return dict(sorted(
-                self._route_stats.items(),
-                key=lambda x: -x[1]["calls"]
-            )[:20])
+        return dict(sorted(self._route_stats.items(), key=lambda x: -x[1]["calls"])[:20])
 
     def route(self, intent: str, **kwargs) -> RouteResult:
         """Route a task intent to the best available tool.

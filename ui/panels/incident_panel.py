@@ -31,6 +31,7 @@ STATUS_ICON = {
 def load_incidents(status_filter: str | None = None) -> list[dict]:
     """Load incidents from incident store, optional status filter."""
     from core.incident_store import INCIDENT_DIR
+
     if not os.path.isdir(INCIDENT_DIR):
         return []
     incidents = []
@@ -48,8 +49,7 @@ def load_incidents(status_filter: str | None = None) -> list[dict]:
     return sorted(incidents, key=lambda x: x.get("created_at", ""), reverse=True)
 
 
-def render_incidents(incidents: list[dict], width: int,
-                     status_filter: str | None = None) -> list[tuple[str, str]]:
+def render_incidents(incidents: list[dict], width: int, status_filter: str | None = None) -> list[tuple[str, str]]:
     """Render incident list with severity colors."""
     rows = []
     title = " INCIDENTS"
@@ -66,10 +66,12 @@ def render_incidents(incidents: list[dict], width: int,
         summary = _shorten(inc.get("summary", ""), max(20, width - 44))
         style = SEVERITY_STYLE.get(sev, "class:incident-p2")
 
-        rows.append((
-            style,
-            f" {sev:<3}  {icon} {status:<12} {created:<19}  {summary}\n",
-        ))
+        rows.append(
+            (
+                style,
+                f" {sev:<3}  {icon} {status:<12} {created:<19}  {summary}\n",
+            )
+        )
 
     if not incidents:
         rows.append(("class:muted", " No incidents.\n"))

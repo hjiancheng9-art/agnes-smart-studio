@@ -67,7 +67,7 @@ class VideoFuture:
         self._cancel.set()
         self._done.set()
         # Cancel the asyncio task to prevent resource leak
-        if hasattr(self, '_task') and self._task and not self._task.done():
+        if hasattr(self, "_task") and self._task and not self._task.done():
             self._task.cancel()
 
     def wait(self, timeout: float | None = None) -> bool:
@@ -123,6 +123,7 @@ class VideoEngine:
     def _get_model(self) -> str:
         try:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             return mgr.get_active_models().get("video", "agnes-video-v2.0")
         except Exception:
@@ -571,6 +572,7 @@ class AsyncVideoEngine:
     def _get_model(self) -> str:
         try:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             return mgr.get_active_models().get("video", "agnes-video-v2.0")
         except Exception:

@@ -491,8 +491,7 @@ class ControlPlane:
         if not pending:
             return 0.0
         elapsed = (time.time() - pending[0].created_at) * 1000
-        remaining = max(0.0, self.outbox.UNDO_WINDOW_MS - elapsed) / 1000
-        return remaining
+        return max(0.0, self.outbox.UNDO_WINDOW_MS - elapsed) / 1000
 
     def get_pending_text(self) -> str:
         """获取当前 pending 消息的文本。"""

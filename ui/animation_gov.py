@@ -21,10 +21,11 @@ from enum import Enum, auto
 
 class AnimType(Enum):
     """Animation element types, ordered by priority (lower = higher priority)."""
-    SPINNER = auto()          # highest priority - shows activity
-    PROGRESS_BAR = auto()     # task progress
-    THINKING_FOLD = auto()    # thinking panel expand/collapse
-    PULSE_TEXT = auto()       # pulse/flash (deprecated per debate)
+
+    SPINNER = auto()  # highest priority - shows activity
+    PROGRESS_BAR = auto()  # task progress
+    THINKING_FOLD = auto()  # thinking panel expand/collapse
+    PULSE_TEXT = auto()  # pulse/flash (deprecated per debate)
     ANIMATED_BORDER = auto()  # decorative border (optional per debate)
 
 
@@ -81,10 +82,8 @@ class AnimationGovernor:
     def streaming(self, value: bool):
         """When streaming starts, kill all decorative animations."""
         self._streaming = value
-        if value:
-            # On stream start, only keep SPINNER if active
-            if self._active not in (None, AnimType.SPINNER, AnimType.PROGRESS_BAR):
-                self._active = None
+        if value and self._active not in (None, AnimType.SPINNER, AnimType.PROGRESS_BAR):
+            self._active = None
 
     def can_animate(self, anim_type: AnimType) -> bool:
         """
@@ -153,8 +152,7 @@ class AnimationGovernor:
 
     def can_decorate(self) -> bool:
         """Whether decorative animations (border, pulse) are allowed."""
-        return (self.can_animate(AnimType.ANIMATED_BORDER) and
-                not self._streaming)
+        return self.can_animate(AnimType.ANIMATED_BORDER) and not self._streaming
 
     def is_active(self, anim_type: AnimType) -> bool:
         return self._active == anim_type

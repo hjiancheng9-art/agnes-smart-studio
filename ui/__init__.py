@@ -1,7 +1,8 @@
-"""CRUX TUI package — prompt_toolkit three-zone chat interface."""
+"""CRUX UI package."""
 
+from ui.input_router import InputRouter
 from ui.message_pane import MessagePane
-from ui.status_bar import StatusBar
-from ui.tui_app import TuiApp
+from ui.responsive import LayoutConfig
+from ui.theme_v2 import build_style_v2
 
-__all__ = ["TuiApp", "MessagePane", "StatusBar"]
+__all__ = ["MessagePane", "InputRouter", "build_style_v2", "LayoutConfig"]

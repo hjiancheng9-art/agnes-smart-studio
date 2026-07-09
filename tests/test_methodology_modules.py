@@ -20,13 +20,23 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+
 # ── 清理测试数据 ──
 def _clean_output_dirs():
     """Clean test output dirs before each test group."""
     import shutil
-    for d in ["output/quests", "output/reports", "output/report_templates",
-              "output/pipelines", "output/artifacts", "output/releases",
-              "output/backups", "output/retros", "docs/adr"]:
+
+    for d in [
+        "output/quests",
+        "output/reports",
+        "output/report_templates",
+        "output/pipelines",
+        "output/artifacts",
+        "output/releases",
+        "output/backups",
+        "output/retros",
+        "docs/adr",
+    ]:
         p = Path(d)
         if p.exists():
             shutil.rmtree(p)
@@ -36,6 +46,7 @@ def _clean_output_dirs():
 # ════════════════════════════════════════════════════════════
 # 1. Quest 引擎
 # ════════════════════════════════════════════════════════════
+
 
 def test_quest_create():
     _clean_output_dirs()
@@ -89,14 +100,19 @@ def test_quest_lifecycle():
 # 2. WorkBuddy 报告
 # ════════════════════════════════════════════════════════════
 
+
 def test_report_create():
     _clean_output_dirs()
     from core.workbuddy import report_create, report_list
 
-    r = report_create("测试报告", [
-        {"heading": "概述", "content": "测试内容", "type": "text"},
-        {"heading": "数据", "content": "表数据", "type": "table"},
-    ], tags=["test"])
+    r = report_create(
+        "测试报告",
+        [
+            {"heading": "概述", "content": "测试内容", "type": "text"},
+            {"heading": "数据", "content": "表数据", "type": "table"},
+        ],
+        tags=["test"],
+    )
 
     assert r["title"] == "测试报告"
     assert r["word_count"] > 0
@@ -136,6 +152,7 @@ def test_template():
 # 3. Repo Wiki
 # ════════════════════════════════════════════════════════════
 
+
 def test_wiki_crud():
     _clean_output_dirs()
     from core.repo_wiki import wiki_create, wiki_delete, wiki_list, wiki_read
@@ -170,6 +187,7 @@ def test_wiki_search():
 # 4. ADR 架构决策
 # ════════════════════════════════════════════════════════════
 
+
 def test_adr():
     _clean_output_dirs()
     from core.adr_engine import adr_create, adr_list, adr_mermaid, adr_update
@@ -192,6 +210,7 @@ def test_adr():
 # 5. TDD 工作流
 # ════════════════════════════════════════════════════════════
 
+
 def test_tdd():
     _clean_output_dirs()
     from core.tdd_workflow import tdd_start, tdd_status
@@ -211,14 +230,18 @@ def test_tdd():
 # 6. Retro 复盘
 # ════════════════════════════════════════════════════════════
 
+
 def test_retro():
     _clean_output_dirs()
     from core.retro_engine import retro_create, retro_list, retro_summarize
 
-    r = retro_create("项目A", sprint="S1",
-                     what_went_well=["团队协作好", "代码质量高"],
-                     what_could_improve=["沟通效率"],
-                     action_items=[{"task": "改进沟通", "owner": "PM"}])
+    r = retro_create(
+        "项目A",
+        sprint="S1",
+        what_went_well=["团队协作好", "代码质量高"],
+        what_could_improve=["沟通效率"],
+        action_items=[{"task": "改进沟通", "owner": "PM"}],
+    )
     assert r["project"] == "项目A"
     assert len(r["what_went_well"]) == 2
 
@@ -234,6 +257,7 @@ def test_retro():
 # 7. CI Pipeline
 # ════════════════════════════════════════════════════════════
 
+
 def test_ci_pipeline():
     from core.ci_pipeline import pipeline_create, pipeline_list
 
@@ -248,6 +272,7 @@ def test_ci_pipeline():
 # ════════════════════════════════════════════════════════════
 # 8. Artifact Pipeline
 # ════════════════════════════════════════════════════════════
+
 
 def test_artifact():
     _clean_output_dirs()
@@ -272,6 +297,7 @@ def test_artifact():
 # 9. Rollback Engine
 # ════════════════════════════════════════════════════════════
 
+
 def test_release():
     _clean_output_dirs()
     from core.rollback_engine import release_create, release_list, release_rollback, release_rollout
@@ -293,6 +319,7 @@ def test_release():
 # ════════════════════════════════════════════════════════════
 # 10. Fast Scanner
 # ════════════════════════════════════════════════════════════
+
 
 def test_fast_scanner():
     from core.fast_scanner import count_files, fast_glob
@@ -318,6 +345,7 @@ def test_fast_scanner_excludes():
 # 11. MCP Health Check
 # ════════════════════════════════════════════════════════════
 
+
 def test_mcp_health():
     from core.mcp_client import get_mcp_client
 
@@ -335,6 +363,7 @@ def test_mcp_health():
 # 12. Brain Mixin Dispatch
 # ════════════════════════════════════════════════════════════
 
+
 def test_brain_mixin_import():
     from core.brain import SmartBrain
 
@@ -342,7 +371,7 @@ def test_brain_mixin_import():
     mro = [c.__name__ for c in SmartBrain.__mro__]
     assert mro[0] == "SmartBrain"
     # Mixin classes should be in the MRO
-    mixin_names = [c.__name__ for c in SmartBrain.__mro__ if 'Mixin' in c.__name__]
+    mixin_names = [c.__name__ for c in SmartBrain.__mro__ if "Mixin" in c.__name__]
     assert len(mixin_names) >= 1, f"Expected at least 1 Mixin in MRO, got: {mro}"
 
 
@@ -351,12 +380,12 @@ def test_brain_mixin_methods():
 
     # Key methods from each mixin should be accessible
     mixin_methods = [
-        "_match_combat_moves",     # combat
-        "creative_leap",           # creative
-        "_infer_entity_type",      # aesthetics
-        "entity_graft",            # vision
-        "enhance_image_prompt",    # core
-        "_ask_brain",              # core
+        "_match_combat_moves",  # combat
+        "creative_leap",  # creative
+        "_infer_entity_type",  # aesthetics
+        "entity_graft",  # vision
+        "enhance_image_prompt",  # core
+        "_ask_brain",  # core
     ]
     for name in mixin_methods:
         assert hasattr(SmartBrain, name), f"SmartBrain missing {name}"
@@ -395,6 +424,7 @@ def test_brain_vision_mixin():
 # ════════════════════════════════════════════════════════════
 # 13. AsyncSmartBrain preserved
 # ════════════════════════════════════════════════════════════
+
 
 def test_async_smartbrain():
     from core.brain import AsyncSmartBrain

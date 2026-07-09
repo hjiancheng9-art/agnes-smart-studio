@@ -195,11 +195,10 @@ def poll_video(task_id: str, key: str | None = None, save: bool = True) -> dict:
 
             return result
 
-        elif status == "FAIL":
+        if status == "FAIL":
             return {"status": "error", "message": "视频生成失败", "task_status": "FAIL"}
 
-        else:
-            return {"status": "processing", "task_status": status}
+        return {"status": "processing", "task_status": status}
 
     except requests.RequestException as e:
         return {"status": "error", "message": str(e)}

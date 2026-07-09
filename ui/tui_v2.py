@@ -89,32 +89,46 @@ def _tw() -> int:
         return 80
 
 
-
 # ── Screen system ────────────────────────────────────────────────
 
 
 class Screen:
     """Base class for a TUI screen (one view mode at a time)."""
+
     name: str = "screen"
 
-    def render(self, tw: int): return []
-    def on_enter(self, app): pass
-    def on_exit(self, app): pass
-    def handle_key(self, key: str) -> bool: return False
+    def render(self, tw: int):
+        return []
+
+    def on_enter(self, app):
+        pass
+
+    def on_exit(self, app):
+        pass
+
+    def handle_key(self, key: str) -> bool:
+        return False
 
 
 class ScreenStack:
     """Manages navigation between screens."""
+
     def __init__(self):
         self._stack = []
+
     @property
-    def current(self): return self._stack[-1] if self._stack else None
+    def current(self):
+        return self._stack[-1] if self._stack else None
+
     @property
-    def active(self): return len(self._stack) > 0
+    def active(self):
+        return len(self._stack) > 0
+
     def push(self, screen, app):
         self._stack.append(screen)
         if app is not None:
             screen.on_enter(app)
+
     def pop(self, app):
         if not self._stack:
             return None
@@ -122,44 +136,57 @@ class ScreenStack:
         if app is not None:
             s.on_exit(app)
         return s
+
     def pop_all(self, app):
         while self._stack:
             self.pop(app)
 
 
 class DashboardScreen(Screen):
-    '''Full-screen dashboard overlay. Delegates to problem-oriented DashboardState.'''
+    """Full-screen dashboard overlay. Delegates to problem-oriented DashboardState."""
+
     name = "dashboard"
+
     def __init__(self):
         self._cached = []
+
     def on_enter(self, app):
-        if app and hasattr(app, '_dash_state'):
+        if app and hasattr(app, "_dash_state"):
             app._dash_state.set_state("active")
         if app:
             app._app.invalidate()
+
     def __pt_formatted_text__(self):
         from ui.dashboard import render_dashboard
+
         try:
             result = render_dashboard()
             from prompt_toolkit.formatted_text import FormattedText
+
             return FormattedText(result)
         except Exception:
             from prompt_toolkit.formatted_text import FormattedText
+
             return FormattedText([("class:dim", "Dashboard loading...")])
+
 
 class IncidentLogScreen(Screen):
     name = "incidents"
+
     def __init__(self):
         self._incidents = []
+
     def on_enter(self, app):
         try:
             from core.incident_store import load_incidents
+
             self._incidents = load_incidents(limit=50)
         except Exception:
             self._incidents = []
+
     def render(self, tw):
         ft = []
-        ft.append(("bold", f'{"=" * tw}\n'))
+        ft.append(("bold", f"{'=' * tw}\n"))
         ft.append(("bold class:header", "  INCIDENT LOG\n"))
         ft.append(("class:dim", f"  {tw * '-'}\n"))
         if not self._incidents:
@@ -178,46 +205,62 @@ class IncidentLogScreen(Screen):
 
 class RemediationScreen(Screen):
     name = "remediate"
+
     def __init__(self):
         self._cats = []
         self._pb = None
         self._results = []
+
     def on_enter(self, app):
         try:
             from core.incident_playbook import PLAYBOOKS
+
             self._cats = list(PLAYBOOKS.keys())
         except Exception:
             self._cats = []
         self._results = []
+
     def select(self, cat):
         try:
             from core.incident_playbook import get_playbook
+
             self._pb = get_playbook(cat)
         except Exception:
             self._pb = None
+
     def run(self, iid):
         try:
             from core.incident_store import load_incidents
+
             incs = load_incidents(limit=100)
             inc = next((x for x in incs if x.get("incident_id", x.get("_id", "")) == iid), None)
             if inc:
                 from core.remediation_executor import remediate_incident
+
                 self._results = remediate_incident(inc)
             else:
                 self._results = [{"status": "failed", "command": iid, "risk": "?", "message": "not found"}]
         except Exception as e:
             self._results = [{"status": "failed", "command": iid, "risk": "?", "error": str(e)}]
+
     def back(self):
         self._pb = None
         self._results = []
+
     def render(self, tw):
         ft = []
-        ft.append(("bold", f'{"=" * tw}\n'))
+        ft.append(("bold", f"{'=' * tw}\n"))
         if self._results:
             ft.append(("bold class:header", "  REMEDIATION RESULTS\n"))
             for r in self._results:
-                ic = chr(10003) if r["status"] == "success" else chr(8857) if r["status"] == "pending_approval" else chr(10007)
-                ft.append(("", f"    {ic} {r.get('command','?'):35s} {r['status']}\n"))
+                ic = (
+                    chr(10003)
+                    if r["status"] == "success"
+                    else chr(8857)
+                    if r["status"] == "pending_approval"
+                    else chr(10007)
+                )
+                ft.append(("", f"    {ic} {r.get('command', '?'):35s} {r['status']}\n"))
             if self._results[-1].get("message"):
                 ft.append(("class:status-warn", f"    >> {self._results[-1]['message']}\n"))
             ft.append(("class:dim", "\n  Esc: back\n"))
@@ -246,26 +289,33 @@ class RemediationScreen(Screen):
 
 class RunReplayScreen(Screen):
     name = "replay"
+
     def __init__(self):
         self._records = []
         self._selected = None
+
     def on_enter(self, app):
         try:
             from core.run_replay import list_replays
+
             self._records = list_replays(limit=20)
         except Exception:
             self._records = []
+
     def select(self, rid):
         try:
             from core.run_replay import load_replay
+
             self._selected = load_replay(rid)
         except Exception:
             self._selected = None
+
     def back(self):
         self._selected = None
+
     def render(self, tw):
         ft = []
-        ft.append(("bold", f'{"=" * tw}\n'))
+        ft.append(("bold", f"{'=' * tw}\n"))
         ft.append(("bold class:header", "  RUN REPLAYS\n"))
         ft.append(("class:dim", f"  {tw * '-'}\n"))
         if not self._records:
@@ -283,17 +333,21 @@ class RunReplayScreen(Screen):
 
 class ApprovalScreen(Screen):
     name = "approval"
+
     def __init__(self):
         self._pending = []
+
     def on_enter(self, app):
         try:
             from ui.tui_v2 import _APPROVAL_PENDING
+
             self._pending = list(_APPROVAL_PENDING)
         except Exception:
             self._pending = []
+
     def render(self, tw):
         ft = []
-        ft.append(("bold", f'{"=" * tw}\n'))
+        ft.append(("bold", f"{'=' * tw}\n"))
         ft.append(("bold class:header", "  PENDING APPROVALS\n"))
         ft.append(("class:dim", f"  {tw * '-'}\n"))
         if not self._pending:
@@ -303,7 +357,7 @@ class ApprovalScreen(Screen):
                 if item.get("status") == "pending":
                     risk = item.get("risk", "?")
                     cls = "class:status-err" if risk == "critical" else "class:status-warn"
-                    ft.append((cls, f"  [{risk.upper()}] {item.get('command','?')}\n"))
+                    ft.append((cls, f"  [{risk.upper()}] {item.get('command', '?')}\n"))
                     ft.append(("", f"    {item.get('description', '')}\n"))
         ft.append(("class:dim", "\n  Esc: exit\n"))
         return ft
@@ -344,7 +398,7 @@ class TuiAppV2:
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
         self._thinking = False
         self._streaming = False
-                # ── Control Plane ──
+        # ── Control Plane ──
         self._pending_msg_id: str | None = None
         self._pending_text: str = ""
         self._pending_timer: threading.Thread | None = None
@@ -360,6 +414,9 @@ class TuiAppV2:
         # ── Responsive Layout & Animation Governance (per 3-platform debate) ──
         self._env = EnvironmentInfo.detect()
         self._layout_mgr = LayoutManager(env=self._env)
+        # Default to blade palette on truecolor terminals
+        if self._env.has_truecolor and not self._env.is_ssh:
+            self._layout_mgr._override_theme = "blade"
         self._anim_gov = AnimationGovernor(ssh_mode=self._env.is_ssh)
         self._current_layout = self._layout_mgr.config
         # ── React to layout/environment changes ──
@@ -409,7 +466,7 @@ class TuiAppV2:
 
         # ── Dashboard mode ──
         self._dashboard_mode = False
-        self._normal_container = None   # set in _make_app after building root
+        self._normal_container = None  # set in _make_app after building root
 
         # ── Welcome screen ──
         self._setup_welcome()
@@ -428,10 +485,13 @@ class TuiAppV2:
         self.kb = self._setup_keybindings()
 
         # ── Build app ──
+        self._last_invalidate = 0.0
+        self._invalidate_failed_once = False
         self._app = self._make_app()
 
         # ── Download manager ──
         from core.download.manager import get_manager
+
         self._dl_manager = get_manager()
         self._dl_manager.on_update(self._on_download_update)
 
@@ -448,19 +508,33 @@ class TuiAppV2:
         branch = ""
         try:
             import subprocess
+
             r = subprocess.run(
                 ["git", "branch", "--show-current"],
-                capture_output=True, text=True, timeout=2,
+                capture_output=True,
+                text=True,
+                timeout=2,
             )
             branch = r.stdout.strip()
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            import logging
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
 
         def _welcome_renderer() -> FormattedText:
+            palette = None
+            try:
+                from ui.theme_v2 import PALETTES
+
+                mode = self._layout_mgr.theme_mode
+                palette = PALETTES.get(mode)
+            except Exception:
+                palette = None
             return build_welcome_formatted(
                 model_name=model_name,
                 cwd=cwd,
                 branch=branch,
+                palette=palette,
             )
 
         self.message_pane.set_empty_renderer(_welcome_renderer)
@@ -490,7 +564,7 @@ class TuiAppV2:
             event.app.exit()
 
         @kb.add("escape", "enter")  # Alt+Enter: insert newline
-        @kb.add("c-j")            # Ctrl+J: insert newline (alternative)
+        @kb.add("c-j")  # Ctrl+J: insert newline (alternative)
         def _(event):
             self.input_buffer.insert_text("\n")
 
@@ -534,17 +608,19 @@ class TuiAppV2:
         @kb.add("c-t")
         def _(event):
             """Toggle secondary metrics panel (CPU/memory/disk)."""
-            if hasattr(event.app, '_dash_state'):
+            if hasattr(event.app, "_dash_state"):
                 event.app._dash_state.toggle_secondary()
                 event.app.invalidate()
 
         @kb.add("f11")
         def _(event):
-            renderer = event.app.renderer
+            pass
+
         @kb.add("f12")
         def _(event):
             """Toggle focus mode: hide all chrome, show only messages."""
             app = event.app
+            renderer = event.app.renderer
             self._focus_mode = not self._focus_mode
             if self._focus_mode:
                 self.message_pane._pinned = True
@@ -553,11 +629,8 @@ class TuiAppV2:
             if not renderer.full_screen and renderer._in_alternate_screen:
                 renderer.output.quit_alternate_screen()
                 renderer._in_alternate_screen = False
-            event.app.renderer.reset(
-                leave_alternate_screen=not renderer.full_screen
-            )
+            event.app.renderer.reset(leave_alternate_screen=not renderer.full_screen)
             event.app.invalidate()
-
 
         def _(event):
             self.message_pane.scroll_page_up()
@@ -571,14 +644,24 @@ class TuiAppV2:
         # Note: plain Home/End are consumed by the multiline Buffer for cursor
         # movement. Use Ctrl+Home / Ctrl+End to jump to top/bottom instead.
 
-        @kb.add("c-home")
+        @kb.add("c-home", eager=True)
         def _(event):
             self.message_pane.scroll_to_top()
             event.app.invalidate()
 
-        @kb.add("c-end")
+        @kb.add("c-end", eager=True)
         def _(event):
             self.message_pane.scroll_to_bottom()
+            event.app.invalidate()
+
+        @kb.add("pageup", eager=True)
+        def _(event):
+            self.message_pane.scroll_page_up()
+            event.app.invalidate()
+
+        @kb.add("pagedown", eager=True)
+        def _(event):
+            self.message_pane.scroll_page_down()
             event.app.invalidate()
 
         @kb.add(Keys.ScrollUp)
@@ -602,7 +685,6 @@ class TuiAppV2:
             self.message_pane.scroll_down(1)
             event.app.invalidate()
 
-
         # ── Streaming guards ──
         # When streaming, up/down only move cursor, don't trigger history
 
@@ -610,17 +692,13 @@ class TuiAppV2:
 
         @kb.add("up", filter=_is_streaming)
         def _(event):
-            try:
+            with contextlib.suppress(Exception):
                 event.current_buffer.cursor_up()
-            except Exception:
-                pass
 
         @kb.add("down", filter=_is_streaming)
         def _(event):
-            try:
+            with contextlib.suppress(Exception):
                 event.current_buffer.cursor_down()
-            except Exception:
-                pass
 
         @kb.add("f8")
         def _(event):
@@ -628,7 +706,6 @@ class TuiAppV2:
             event.app.invalidate()
 
         return kb
-
 
         # ── Control Plane 快捷键 ──
         @kb.add("c-z")
@@ -649,9 +726,21 @@ class TuiAppV2:
 
         @kb.add("escape")
         def _esc(event):
-            """Esc: 退出详情 / 暂停当前 run。"""
-            if hasattr(event.app, "detail_view") and event.app.detail_view and event.app.detail_view.active:
-                event.app.detail_view.close()
+            """Esc: 退出详情 / 退出焦点模式 / 退出复制模式 / 暂停当前 run。"""
+            app = event.app
+            if hasattr(app, "detail_view") and app.detail_view and app.detail_view.active:
+                app.detail_view.close()
+                return
+            if hasattr(app, '_focus_mode') and app._focus_mode:
+                app._focus_mode = False
+                app.message_pane._pinned = True
+                app._ui(app._refresh_status)
+                app.invalidate()
+                return
+            if hasattr(app, '_copy_mode') and app._copy_mode:
+                app._copy_mode = False
+                app._ui(app._refresh_status)
+                app.invalidate()
                 return
             if control().runs.is_running:
                 control().pause_run("用户按 Esc 暂停")
@@ -663,9 +752,10 @@ class TuiAppV2:
             if control().runs.is_paused:
                 control().runs.resume()
                 self._log_append(("→", "class:activity-info", "执行已恢复（Ctrl+Y）"))
-    # ══════════════════════════════════════════════════════════════
-    #  Layout
-    # ══════════════════════════════════════════════════════════════
+
+        # ══════════════════════════════════════════════════════════════
+        #  Layout
+        # ══════════════════════════════════════════════════════════════
 
         # ── Copy / Detail / Focus 快捷键 ──
         @kb.add("c")
@@ -679,6 +769,7 @@ class TuiAppV2:
             if _log:
                 _log((("✓", "class:activity-done") if ok else ("✗", "class:error"), msg[:100]))
             event.app._ui(event.app._refresh_status)
+
         # ── Shift+C: 复制 Markdown ──
         @kb.add("s-c")
         def _copy_markdown(event):
@@ -705,7 +796,6 @@ class TuiAppV2:
                     _log(("→", "class:activity-info", "已恢复 TUI 鼠标控制"))
                     event.app._ui(event.app._refresh_status)
 
-
         @kb.add("o")
         def _open_detail(event):
             """o: 打开消息详情视图。"""
@@ -716,31 +806,51 @@ class TuiAppV2:
             event.app._detail_view = MessageDetailScreen(event.app._msg_store, idx)
             event.app._detail_view.on_close(lambda: event.app._ui(event.app._refresh_status))
             event.app._detail_view.open()
-            event.app._log_append(("→", "class:activity-info",
-                f"打开详情: 消息 #{idx} ({event.app._msg_store.get(idx).snippet(40)}...)"))
+            event.app._log_append(
+                ("→", "class:activity-info", f"打开详情: 消息 #{idx} ({event.app._msg_store.get(idx).snippet(40)}...)")
+            )
             event.app._ui(event.app._refresh_status)
+
         @kb.add("up")
         def _focus_up(event):
             if hasattr(event.app, "detail_view") and event.app.detail_view and event.app.detail_view.active:
                 event.app.detail_view.handle_key("up")
                 event.app._ui(event.app._refresh_status)
                 return
-            msg = event.app._copy_mgr.store.get(event.app._copy_mgr.focus.prev())
-            if msg:
-                event.app._log_append(("→", "class:activity-info",
-                    f"聚焦 [{msg.role}] {msg.snippet(80)}"))
-            event.app._ui(event.app._refresh_status)
+            # 焦点/复制模式：消息间导航
+            in_focus = getattr(event.app, '_focus_mode', False)
+            in_copy = getattr(event.app, '_copy_mode', False)
+            if in_focus or in_copy:
+                msg = event.app._copy_mgr.store.get(event.app._copy_mgr.focus.prev())
+                if msg:
+                    event.app._log_append(("←", "class:activity-info", f"聚焦 [{msg.role}] {msg.snippet(80)}"))
+                    event.app._ui(event.app._refresh_status)
+                    return
+            # 没有特殊模式 → 消息面板滚动
+            event.app.message_pane._pinned = False
+            event.app.message_pane._scroll_up(3)
+            event.app.invalidate()
+
         @kb.add("down")
         def _focus_down(event):
             if hasattr(event.app, "detail_view") and event.app.detail_view and event.app.detail_view.active:
                 event.app.detail_view.handle_key("down")
                 event.app._ui(event.app._refresh_status)
                 return
-            msg = event.app._copy_mgr.store.get(event.app._copy_mgr.focus.next())
-            if msg:
-                event.app._log_append(("→", "class:activity-info",
-                    f"聚焦 [{msg.role}] {msg.snippet(80)}"))
-            event.app._ui(event.app._refresh_status)
+            # 焦点/复制模式：消息间导航
+            in_focus = getattr(event.app, '_focus_mode', False)
+            in_copy = getattr(event.app, '_copy_mode', False)
+            if in_focus or in_copy:
+                msg = event.app._copy_mgr.store.get(event.app._copy_mgr.focus.next())
+                if msg:
+                    event.app._log_append(("→", "class:activity-info", f"聚焦 [{msg.role}] {msg.snippet(80)}"))
+                    event.app._ui(event.app._refresh_status)
+                    return
+            # 没有特殊模式 → 消息面板滚动
+            event.app.message_pane._pinned = False
+            event.app.message_pane._scroll_down(3)
+            event.app.invalidate()
+
         @kb.add("tab")
         def _focus_next_code(event):
             """Tab: 在代码块之间跳转。"""
@@ -752,21 +862,23 @@ class TuiAppV2:
                 idx = len(store) - 1
             msg = store.get(idx)
             if msg and msg.code_blocks:
-                event.app._log_append(("→", "class:activity-info",
-                    f"代码块: {len(msg.code_blocks)} 个 — 按 c 复制当前"))
+                event.app._log_append(
+                    ("→", "class:activity-info", f"代码块: {len(msg.code_blocks)} 个 — 按 c 复制当前")
+                )
             event.app._ui(event.app._refresh_status)
 
+        return kb
 
     def _make_app(self) -> Application:
         # ── Header Bar ──
         # Design: beast mascot (2s rotation) + brand | separator | model + heartbeat + clock
         _BEASTS = [
-            ("class:status-bar-beast-baihu",    "🐅"),
+            ("class:status-bar-beast-baihu", "🐅"),
             ("class:status-bar-beast-qinglong", "🐉"),
-            ("class:status-bar-beast-zhuque",   "🦅"),
-            ("class:status-bar-beast-xuanwu",   "🐢"),
-            ("class:status-bar-beast-qilin",    "🦄"),
-            ("class:status-bar-beast-tengshe",  "🐍"),
+            ("class:status-bar-beast-zhuque", "🦅"),
+            ("class:status-bar-beast-xuanwu", "🐢"),
+            ("class:status-bar-beast-qilin", "🦄"),
+            ("class:status-bar-beast-tengshe", "🐍"),
             ("class:status-bar-beast-yinglong", "🐲"),
         ]
         _PULSE_DOTS = ["◎", "◉", "○", "◉"]
@@ -779,8 +891,8 @@ class TuiAppV2:
             now = datetime.now().strftime("%H:%M")
 
             # Emoji is 2 cells wide, pulse dot is 2 cells wide
-            left_vis = 2 + 2 + len(f"CRUX Studio v{_CRUX_VERSION}")   # emoji(2) + spaces(2) + brand
-            right_vis = 1 + len(model) + 1 + 2 + 1 + 5                 # space + model + space + pulse(2) + space + HH:MM
+            left_vis = 2 + 2 + len(f"CRUX Studio v{_CRUX_VERSION}")  # emoji(2) + spaces(2) + brand
+            right_vis = 1 + len(model) + 1 + 2 + 1 + 5  # space + model + space + pulse(2) + space + HH:MM
             pad = max(1, tw - left_vis - right_vis)
 
             pieces: list[tuple[str, str]] = [
@@ -829,7 +941,9 @@ class TuiAppV2:
             if count == 0:
                 return FormattedText([])
             with self._activity_lock:
-                max_lines = self._activity_expanded_height if self._activity_expanded else self._activity_collapsed_height
+                max_lines = (
+                    self._activity_expanded_height if self._activity_expanded else self._activity_collapsed_height
+                )
                 log_snapshot = self._log_snapshot(limit=max_lines)
             tw = _tw()
             pieces: list[tuple[str, str]] = []
@@ -843,10 +957,10 @@ class TuiAppV2:
         activity_window = Window(
             content=FormattedTextControl(_activity_content),
             height=Dimension.exact(
-                self._activity_expanded_height
-                if self._activity_expanded
-                else self._activity_collapsed_height
-            ) if self._log_count() else Dimension.exact(3),
+                self._activity_expanded_height if self._activity_expanded else self._activity_collapsed_height
+            )
+            if self._log_count()
+            else Dimension.exact(3),
             style="class:message-area",
             always_hide_cursor=True,
         )
@@ -889,11 +1003,13 @@ class TuiAppV2:
             hint_vis = 46
             bars_count = max(0, tw - hint_vis - 2)
             bars = "─" * bars_count
-            return FormattedText([
-                ("class:input-border", f"╚{bars}"),
-                ("class:welcome-desc", hint),
-                ("class:input-border", "╝"),
-            ])
+            return FormattedText(
+                [
+                    ("class:input-border", f"╚{bars}"),
+                    ("class:welcome-desc", hint),
+                    ("class:input-border", "╝"),
+                ]
+            )
 
         input_bottom_window = Window(
             content=FormattedTextControl(_input_bottom),
@@ -922,17 +1038,20 @@ class TuiAppV2:
         # ── Assemble layout (full-screen replacement) ──
         screen_mode = Condition(lambda: self.screen_stack.active)
 
-        normal_body = HSplit([
-            header_window,
-            header_sep_window,
-            self.message_pane.pane,       # Messages + Welcome (weight=1)
-            thinking_window,              # Thinking (0-N, conditional)
-            activity_sep_window,          # Separator above activity
-            activity_window,              # Activity (0-1, conditional)
-            input_window,                 # Input (1-8)
-            input_bottom_window,          # Input frame bottom
-            status_window,                # Status (1)
-        ])
+        normal_body = HSplit(
+            [
+                header_window,
+                header_sep_window,
+                self.message_pane.pane,  # Messages + Welcome (weight=1)
+                thinking_window,  # Thinking (0-N, conditional)
+                activity_sep_window,  # Separator above activity
+                activity_window,  # Activity (0-1, conditional)
+                input_window,  # Input (1-8)
+                input_bottom_window,  # Input frame bottom
+                status_window,  # Status (1)
+            ],
+            style="class:app",
+        )
 
         # ── Focus Mode: full-height message area only (F12) ──
         focus_body = Window(
@@ -942,16 +1061,19 @@ class TuiAppV2:
         focus_condition = Condition(lambda: self._focus_mode)
         normal_condition = Condition(lambda: not self._focus_mode and not self.screen_stack.active)
 
-        root = HSplit([
-            ConditionalContainer(self._screen_window, filter=screen_mode),
-            ConditionalContainer(normal_body, filter=normal_condition),
-            ConditionalContainer(focus_body, filter=focus_condition),
-        ])
+        root = HSplit(
+            [
+                ConditionalContainer(self._screen_window, filter=screen_mode),
+                ConditionalContainer(normal_body, filter=normal_condition),
+                ConditionalContainer(focus_body, filter=focus_condition),
+            ],
+            style="class:app",
+        )
 
         # On Windows with a Unix-like terminal (Git Bash, etc.), create_output()
         # defaults to Win32Output which fails. Force Vt100_Output instead.
-        if _sys.platform == 'win32' and 'TERM' in os.environ:
-            output = Vt100_Output.from_pty(_sys.stdout, term=os.environ.get('TERM'))
+        if _sys.platform == "win32" and "TERM" in os.environ:
+            output = Vt100_Output.from_pty(_sys.stdout, term=os.environ.get("TERM"))
         else:
             output = create_output()
 
@@ -968,7 +1090,6 @@ class TuiAppV2:
     #  Status bar (enhanced with context bar)
     # ══════════════════════════════════════════════════════════════
 
-
     # ── Screen renderer ──
 
     def _render_active_screen(self):
@@ -976,6 +1097,7 @@ class TuiAppV2:
         screen = self.screen_stack.current
         if screen is None:
             from prompt_toolkit.formatted_text import FormattedText
+
             return FormattedText([])
         tw = _tw()
         return screen.render(tw)
@@ -985,16 +1107,13 @@ class TuiAppV2:
 
         # ── Status: dot + model + cwd + git | context bar + latency ──
         # Status dot color: green=idle, yellow=thinking
-        if self._thinking:
-            status_dot = ("class:status-bar-beast-qilin", "◉")
-        else:
-            status_dot = ("class:status-bar-beast-xuanwu", "●")
+        status_dot = ("class:status-bar-beast-qilin", "◉") if self._thinking else ("class:status-bar-beast-xuanwu", "●")
 
         model_str = self.session.model or "CRUX"
         cwd_str = str(Path.cwd())
         home = os.path.expanduser("~")
         if cwd_str.startswith(home):
-            cwd_str = "~" + cwd_str[len(home):]
+            cwd_str = "~" + cwd_str[len(home) :]
         git_str = self._cached_git
 
         # Right section: methodology + context + latency
@@ -1005,11 +1124,15 @@ class TuiAppV2:
                 level_map = {"micro": "A", "normal": "B", "complex": "C", "critical": "D"}
                 level = level_map.get(ms.task_level.value, "")
                 if level:
-                    style_map = {"A": "class:status-bar-level-a", "B": "class:status-bar-level-b",
-                                 "C": "class:status-bar-level-c", "D": "class:status-bar-level-d"}
+                    style_map = {
+                        "A": "class:status-bar-level-a",
+                        "B": "class:status-bar-level-b",
+                        "C": "class:status-bar-level-c",
+                        "D": "class:status-bar-level-d",
+                    }
                     right_parts.append((style_map.get(level, "class:status-bar"), f"[{level}]"))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Non-critical: %s", e, exc_info=True)
 
         bar = context_bar(self._cached_ctx_pct, width=8)
         if self._cached_ctx_pct > 0:
@@ -1018,17 +1141,19 @@ class TuiAppV2:
         # ── Provider status ──
         try:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             active = mgr.state.active
             circuit = mgr.state.circuit_state(active)
             if circuit != "CLOSED":
                 right_parts.append(("class:status-bar-context", f" ⚡{active}⚠{circuit}"))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Non-critical: %s", e, exc_info=True)
 
         # ── Last run summary ──
         try:
             from core.run_summary import list_recent_runs
+
             runs = list_recent_runs(1)
             if runs:
                 r = runs[0]
@@ -1041,18 +1166,23 @@ class TuiAppV2:
                     right_parts.append(("class:status-bar-level-d", f" run:{status} ✗{failed}/{total}"))
                 else:
                     right_parts.append(("class:status-bar-level-a", f" run:{status} ✓{total}"))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Non-critical: %s", e, exc_info=True)
 
         # ── Provider latency ──
         try:
             from core.provider_history import get_all_stats
+
             stats = get_all_stats(5)
-            latencies = [f"{pid}:{s.get('avg_latency_ms', 0):.0f}ms" for pid, s in list(stats.items())[:2] if s.get('avg_latency_ms')]
+            latencies = [
+                f"{pid}:{s.get('avg_latency_ms', 0):.0f}ms"
+                for pid, s in list(stats.items())[:2]
+                if s.get("avg_latency_ms")
+            ]
             if latencies:
                 right_parts.append(("class:status-bar-context", " " + " ".join(latencies)))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Non-critical: %s", e, exc_info=True)
 
         if self._latency is not None:
             right_parts.append(("class:status-bar-context", f" ⚡{self._latency:.1f}s"))
@@ -1082,7 +1212,6 @@ class TuiAppV2:
     #  Input handling
     # ══════════════════════════════════════════════════════════════
 
-
     def _render_dashboard(self):
         """Render dashboard using problem-oriented DashboardState + responsive LayoutConfig."""
         from prompt_toolkit.formatted_text import FormattedText
@@ -1102,17 +1231,17 @@ class TuiAppV2:
 
         try:
             from ui.dashboard import render_dashboard
+
             result = render_dashboard(state=self._dash_state, layout=layout_config)
             return FormattedText(result)
         except Exception as e:
             return FormattedText([("class:header-error", f"Dashboard error: {e}")])
 
-
     def _log_append(self, item: tuple[str, str, str]) -> None:
         with self._activity_lock:
             self._activity_log.append(item)
             if len(self._activity_log) > self._activity_log_limit:
-                del self._activity_log[:-self._activity_log_limit]
+                del self._activity_log[: -self._activity_log_limit]
 
     def _log_update_last(self, item: tuple[str, str, str]) -> None:
         with self._activity_lock:
@@ -1151,7 +1280,7 @@ class TuiAppV2:
                 return True
 
             # ── Feed accepted words to completer ──
-            words = [w.strip().rstrip(',.;:!?') for w in text.split() if len(w.strip()) >= 3]
+            words = [w.strip().rstrip(",.;:!?") for w in text.split() if len(w.strip()) >= 3]
             if words:
                 self._completer.update_history_words(words)
 
@@ -1165,14 +1294,9 @@ class TuiAppV2:
             return True
 
         except Exception as e:
-            self._log_append(("✗", "class:activity-fail",
-                f"Input failed: {type(e).__name__}: {self._shorten(e, 80)}"))
-            try:
-                self.message_pane.append_error(
-                    f"Input processing failed: {type(e).__name__}: {e}"
-                )
-            except Exception:
-                pass
+            self._log_append(("✗", "class:activity-fail", f"Input failed: {type(e).__name__}: {self._shorten(e, 80)}"))
+            with contextlib.suppress(Exception):
+                self.message_pane.append_error(f"Input processing failed: {type(e).__name__}: {e}")
             return False
 
     # ══════════════════════════════════════════════════════════════
@@ -1213,16 +1337,16 @@ class TuiAppV2:
             screen = self._available_screens.get("remediate")
             if text.startswith("/remediate run "):
                 iid = text[16:].strip()
-                screen.run(iid) if hasattr(screen, 'run') else None
+                screen.run(iid) if hasattr(screen, "run") else None
                 if not self.screen_stack.active:
                     self.screen_stack.push(screen, self)
             elif " " in text:
                 cat = text.split(" ", 1)[1]
-                screen.select(cat) if hasattr(screen, 'select') else None
+                screen.select(cat) if hasattr(screen, "select") else None
                 if not self.screen_stack.active:
                     self.screen_stack.push(screen, self)
             else:
-                screen.back() if hasattr(screen, 'back') else None
+                screen.back() if hasattr(screen, "back") else None
             self._toggle_screen("remediate")
             self._app.invalidate()
             return True
@@ -1230,11 +1354,11 @@ class TuiAppV2:
             screen = self._available_screens.get("replay")
             if " " in text:
                 rid = text.split(" ", 1)[1]
-                screen.select(rid) if hasattr(screen, 'select') else None
+                screen.select(rid) if hasattr(screen, "select") else None
                 if not self.screen_stack.active:
                     self.screen_stack.push(screen, self)
             else:
-                screen.back() if hasattr(screen, 'back') else None
+                screen.back() if hasattr(screen, "back") else None
                 self._toggle_screen("replay")
             self._app.invalidate()
             return True
@@ -1243,9 +1367,12 @@ class TuiAppV2:
         if text == "/recent-actions":
             try:
                 from core.remediation_executor import get_recent_actions
+
                 acts = get_recent_actions(15)
                 lines = ["Recent Actions:"]
-                lines.extend(f"  [{a.get('risk','?')}] {a.get('command','?'):40s} {a.get('status','?')}" for a in acts)
+                lines.extend(
+                    f"  [{a.get('risk', '?')}] {a.get('command', '?'):40s} {a.get('status', '?')}" for a in acts
+                )
                 self.message_pane.append_info("\\n".join(lines))
             except Exception as e:
                 self.message_pane.append_error(f"Error: {e}")
@@ -1253,18 +1380,34 @@ class TuiAppV2:
 
         # ── Theme switching (per 3-platform debate) ──
         if text.startswith("/theme"):
+            from ui.theme_v2 import PALETTES
+
             parts = text.split()
             if len(parts) >= 2:
-                new_mode = parts[1].strip().lower()
-                if new_mode in ("normal", "high_contrast", "mono"):
-                    self._layout_mgr._override_theme = new_mode
+                choice = parts[1].strip().lower()
+                valid = set(PALETTES.keys()) | {"normal", "high_contrast", "mono"}
+                if choice in valid:
+                    self._layout_mgr._override_theme = choice
                     self._on_layout_changed(self._layout_mgr.config)
-                    self.message_pane.append_info(f"Theme: {new_mode}")
+                    if choice in PALETTES:
+                        self.message_pane.append_info(
+                            f"Theme: {PALETTES[choice]['name']} \u2014 {PALETTES[choice]['desc']}"
+                        )
+                    else:
+                        self.message_pane.append_info(f"Theme mode: {choice}")
                 else:
-                    self.message_pane.append_info(f"Theme not found: {new_mode}. Options: normal, high_contrast, mono")
+                    themes_list = ", ".join(sorted(PALETTES.keys()))
+                    self.message_pane.append_info(
+                        f"Theme not found: {choice}. Palettes: {themes_list}. Modes: normal, high_contrast, mono"
+                    )
             else:
                 current = getattr(self._layout_mgr, "_override_theme", None) or self._layout_mgr.theme_mode
-                self.message_pane.append_info(f"Current theme: {current}")
+                if current in PALETTES:
+                    self.message_pane.append_info(
+                        f"Current: {PALETTES[current]['name']} \u2014 {PALETTES[current]['desc']}"
+                    )
+                else:
+                    self.message_pane.append_info(f"Current mode: {current}")
             return True
 
         # ── System metrics toggle ──
@@ -1276,19 +1419,18 @@ class TuiAppV2:
                 self.message_pane.append_info("System metrics: OFF")
             return True
 
-
-
         # ── Panel commands ──
         if text == "/runs" or text.startswith("/runs "):
             try:
                 from core.remediation_executor import get_recent_actions
+
                 limit = 10
                 parts = text.split(" ", 1)
                 if len(parts) > 1 and parts[1].isdigit():
                     limit = min(50, max(1, int(parts[1])))
                 actions = get_recent_actions(limit)
                 pieces = render_run_summary(actions, _tw())
-                for style, line in pieces:
+                for _style, line in pieces:
                     self.message_pane.append_message("info", line)
             except Exception as e:
                 self.message_pane.append_error(f"Runs error: {e}")
@@ -1297,14 +1439,20 @@ class TuiAppV2:
         if text == "/route" or text.startswith("/route "):
             try:
                 from core.chat import get_provider_name
+
                 parts = text.split(" ", 1)
                 target = parts[1] if len(parts) > 1 else "last"
-                route = {"attempts": [
-                    {"provider": get_provider_name(), "model": "...",
-                     "status": "success", "latency_ms": 0}
-                ]} if not hasattr(self, '_last_route') or not self._last_route else self._last_route
+                route = (
+                    {
+                        "attempts": [
+                            {"provider": get_provider_name(), "model": "...", "status": "success", "latency_ms": 0}
+                        ]
+                    }
+                    if not hasattr(self, "_last_route") or not self._last_route
+                    else self._last_route
+                )
                 pieces = render_provider_route(route, _tw())
-                for style, line in pieces:
+                for _style, line in pieces:
                     self.message_pane.append_message("info", line)
             except Exception as e:
                 self.message_pane.append_info(f"Provider route: {e}")
@@ -1319,41 +1467,39 @@ class TuiAppV2:
                     return True
                 incidents = load_incidents(status_filter)
                 pieces = render_incidents(incidents, _tw(), status_filter)
-                for style, line in pieces:
+                for _style, line in pieces:
                     self.message_pane.append_message("info", line)
             except Exception as e:
                 self.message_pane.append_error(f"Incidents error: {e}")
             return True
 
-
-
-
         # ── Download commands ──
         if text == "/download" or text.startswith("/download ") or text == "/downloads":
             from tools.download_tool import handle_download_command
+
             return handle_download_command(
-                text, _tw(),
+                text,
+                _tw(),
                 self.message_pane.append_message,
                 self.message_pane.append_error,
                 self._log_append,
             )
-# ── Dashboard ──
+        # ── Dashboard ──
         if text == "/dashboard":
             try:
                 from core.remediation_executor import get_recent_actions
-                from ui.panels.incident_panel import load_incidents, render_incidents
-                from ui.panels.run_summary_panel import render_run_summary
+
                 self._log_clear()
                 self.message_pane.append_message("info", " CRUX DASHBOARD\n")
                 self.message_pane.append_message("info", " R refresh \u2502 Q/Esc back\n\n")
 
                 actions = get_recent_actions(5)
-                for style, line in render_run_summary(actions, _tw()):
+                for _style, line in render_run_summary(actions, _tw()):
                     self.message_pane.append_message("info", line)
                 self.message_pane.append_message("info", "")
 
                 incidents = load_incidents("open")[:5]
-                for style, line in render_incidents(incidents, _tw(), "open"):
+                for _style, line in render_incidents(incidents, _tw(), "open"):
                     self.message_pane.append_message("info", line)
             except Exception as e:
                 self.message_pane.append_error(f"Dashboard error: {e}")
@@ -1364,18 +1510,20 @@ class TuiAppV2:
             try:
                 from core.remediation_executor import get_recent_actions
                 from ui.panels.run_detail_panel import render_run_detail
+
                 parts = text.split(" ", 1)
                 target = parts[1].strip() if len(parts) > 1 else "last"
                 actions = get_recent_actions(20)
                 run = actions[0] if actions and target == "last" else None
                 if not run:
                     for a in actions:
-                        if target in (a.get("run_id",""), a.get("incident_id","")):
-                            run = a; break
+                        if target in (a.get("run_id", ""), a.get("incident_id", "")):
+                            run = a
+                            break
                 self._log_clear()
                 if run:
-                    for s, l in render_run_detail(run, _tw()):
-                        self.message_pane.append_message("info", l)
+                    for _s, line in render_run_detail(run, _tw()):
+                        self.message_pane.append_message("info", line)
                 else:
                     self.message_pane.append_info(f"No run found: {target}")
             except Exception as e:
@@ -1386,7 +1534,7 @@ class TuiAppV2:
         if text == "/incident" or text.startswith("/incident "):
             try:
                 from ui.panels.incident_detail_panel import render_incident_detail
-                from ui.panels.incident_panel import load_incidents
+
                 parts = text.split(" ", 1)
                 target = parts[1].strip() if len(parts) > 1 else "last"
                 incidents = load_incidents()
@@ -1394,11 +1542,12 @@ class TuiAppV2:
                 if not inc:
                     for i in incidents:
                         if i.get("id") == target:
-                            inc = i; break
+                            inc = i
+                            break
                 self._log_clear()
                 if inc:
-                    for s, l in render_incident_detail(inc, _tw()):
-                        self.message_pane.append_message("info", l)
+                    for _s, line in render_incident_detail(inc, _tw()):
+                        self.message_pane.append_message("info", line)
                 else:
                     self.message_pane.append_info(f"No incident found: {target}")
             except Exception as e:
@@ -1408,10 +1557,12 @@ class TuiAppV2:
         # ── Copy command ──
         if text.startswith("/copy"):
             ok, msg = self._copy_mgr.handle_command(text)
-            self._log_append((
-                ("✓", "class:activity-done") if ok else ("✗", "class:activity-fail"),
-                msg[:120],
-            ))
+            self._log_append(
+                (
+                    ("✓", "class:activity-done") if ok else ("✗", "class:activity-fail"),
+                    msg[:120],
+                )
+            )
             return True
 
         # ── Provider health ──
@@ -1419,6 +1570,7 @@ class TuiAppV2:
             try:
                 from core.remediation_executor import get_recent_actions
                 from ui.panels.system_status_panel import render_system_status
+
                 providers = []
                 seen = set()
                 for a in get_recent_actions(15):
@@ -1426,19 +1578,33 @@ class TuiAppV2:
                     for prov in chain:
                         if prov not in seen:
                             seen.add(prov)
-                            providers.append({"provider": prov, "health_score": 1.0,
-                                              "circuit_state": "CLOSED", "latency_ema_ms": 0, "status": "ok"})
+                            providers.append(
+                                {
+                                    "provider": prov,
+                                    "health_score": 1.0,
+                                    "circuit_state": "CLOSED",
+                                    "latency_ema_ms": 0,
+                                    "status": "ok",
+                                }
+                            )
                 if not providers:
-                    providers = [{"provider": "deepseek-v4-flash", "health_score": 1.0,
-                                  "circuit_state": "CLOSED", "latency_ema_ms": 0, "status": "ok"}]
+                    providers = [
+                        {
+                            "provider": "deepseek-v4-flash",
+                            "health_score": 1.0,
+                            "circuit_state": "CLOSED",
+                            "latency_ema_ms": 0,
+                            "status": "ok",
+                        }
+                    ]
                 self._log_clear()
-                for s, l in render_system_status(providers, _tw()):
-                    self.message_pane.append_message("info", l)
+                for _s, line in render_system_status(providers, _tw()):
+                    self.message_pane.append_message("info", line)
             except Exception as e:
                 self.message_pane.append_error(f"Providers error: {e}")
             return True
 
-# ── Slash commands ──
+        # ── Slash commands ──
         if text.startswith("/"):
             _buf = io.StringIO()
             _old = sys.stdout
@@ -1456,10 +1622,6 @@ class TuiAppV2:
 
         return False
 
-
-
-
-
     def _submit_user_message(self, text: str) -> None:
         """Submit user input via Control Plane (pending window / Ctrl+Z undo)."""
         text = (text or "").strip()
@@ -1475,7 +1637,7 @@ class TuiAppV2:
 
         if is_streaming:
             # 执行中 → 优先插话
-            event = control().priority_message(text)
+            control().priority_message(text)
             self._log_append(("→", "class:activity-info", f"优先插话: {self._shorten(text, 60)}"))
             self._queue_input_while_streaming(text)
             return
@@ -1485,8 +1647,11 @@ class TuiAppV2:
         self._pending_msg_id = msg.id
         self._pending_text = text
         self._log_append(
-            ("→", "class:activity-info",
-             f"待发送 ({control().outbox.UNDO_WINDOW_MS // 1000}s 可 Ctrl+Z 撤销): {self._shorten(text, 60)}")
+            (
+                "→",
+                "class:activity-info",
+                f"待发送 ({control().outbox.UNDO_WINDOW_MS // 1000}s 可 Ctrl+Z 撤销): {self._shorten(text, 60)}",
+            )
         )
         self._start_pending_commit_timer()
 
@@ -1497,6 +1662,7 @@ class TuiAppV2:
 
     def _start_pending_commit_timer(self) -> None:
         """Pending 窗口过期后自动提交。"""
+
         def wait_and_commit():
             time.sleep(control().outbox.UNDO_WINDOW_MS / 1000 + 0.1)
             pending = control().outbox.get_pending()
@@ -1512,6 +1678,7 @@ class TuiAppV2:
                 emit_state(streaming=True, thinking=self._thinking)
                 self._dash_state.set_state("streaming")
             from threading import Thread as _Thread
+
             self._worker_thread = _Thread(
                 target=self._stream_response,
                 args=(msg.text,),
@@ -1520,9 +1687,7 @@ class TuiAppV2:
             )
             self._worker_thread.start()
 
-        self._pending_timer = threading.Thread(
-            target=wait_and_commit, daemon=True, name="pending-commit"
-        )
+        self._pending_timer = threading.Thread(target=wait_and_commit, daemon=True, name="pending-commit")
         self._pending_timer.start()
 
     def _undo_pending(self) -> bool:
@@ -1544,12 +1709,11 @@ class TuiAppV2:
         control().cancel_run("用户取消响应")
         with self._state_lock:
             self._cancel_requested = True
-        try:
+        with contextlib.suppress(Exception):
             self._spinner.stop()
-        except Exception:
-            pass
         self._ui(self.message_pane.stream_end, _force=True)
         self._log_append(("→", "class:activity-warn", "响应已取消"))
+
     def _queue_input_while_streaming(self, text: str) -> None:
         """Queue user input during streaming — via priority message."""
         text = text.strip()
@@ -1572,18 +1736,20 @@ class TuiAppV2:
             self._queued_text = ""
             self._clear_queued_input = True
         return t
+
     def _clear_queued_input_flag(self) -> None:
         """Clear queued input flag."""
         with self._state_lock:
             self._queued_text = ""
             self._clear_queued_input = True
+
     def _build_hint_text(self) -> str:
         with self._state_lock:
             streaming = self._streaming or self._thinking
         if streaming:
             return " 正在响应：Enter 暂存输入 │ Ctrl+C 中断 "
 
-        if getattr(self, '_activity_expanded', False):
+        if getattr(self, "_activity_expanded", False):
             return ""
 
         return ""
@@ -1624,7 +1790,9 @@ class TuiAppV2:
             if _last_entry:
                 last_icon, _, last_msg = _last_entry
                 if "●" in last_icon:
-                    self._log_update_last(("✓", "class:activity-done", last_msg.replace("视觉分析: ", "视觉分析完成: ")))
+                    self._log_update_last(
+                        ("✓", "class:activity-done", last_msg.replace("视觉分析: ", "视觉分析完成: "))
+                    )
             self._ui(self.message_pane.stream_end, _force=True)
         except Exception as e:
             self._ui(self.message_pane.append_error, f"图片分析失败: {e}", _force=True)
@@ -1649,7 +1817,7 @@ class TuiAppV2:
             for kind, payload in self.session.send_stream(user_text):
                 if not _first_token and kind in ("text", "thinking"):
                     _first_token = True
-                    self._latency = time.monotonic() - _t0                # ── 检查优先插话标记（工具边界已设置） ──
+                    self._latency = time.monotonic() - _t0  # ── 检查优先插话标记（工具边界已设置） ──
                 _interrupted_flag = False
                 with self._state_lock:
                     _interrupted_flag = getattr(self, "_interrupted_by_priority", False)
@@ -1678,10 +1846,13 @@ class TuiAppV2:
                             if _last_entry:
                                 last_icon, _, last_msg = _last_entry
                                 if "●" in last_icon:
-                                    self._log_update_last((
-                                        "✓", "class:activity-done",
-                                        last_msg.replace("执行 ", "").replace("生成 ", ""),
-                                    ))
+                                    self._log_update_last(
+                                        (
+                                            "✓",
+                                            "class:activity-done",
+                                            last_msg.replace("执行 ", "").replace("生成 ", ""),
+                                        )
+                                    )
                         pending_tool = None
                     elif "fallback" in msg.lower() or "连接中断" in msg:
                         self._log_append(("⚠", "class:activity-warn", msg[:100]))
@@ -1696,10 +1867,13 @@ class TuiAppV2:
                         if _last_entry:
                             last_icon, _, last_msg = _last_entry
                             if "●" in last_icon:
-                                self._log_update_last((
-                                    "✓", "class:activity-done",
-                                last_msg.replace("执行 ", "").replace("生成 ", ""),
-                            ))
+                                self._log_update_last(
+                                    (
+                                        "✓",
+                                        "class:activity-done",
+                                        last_msg.replace("执行 ", "").replace("生成 ", ""),
+                                    )
+                                )
                     pending_tool = None
                     self._ui(lambda: None)
 
@@ -1707,10 +1881,7 @@ class TuiAppV2:
                     if control().queue.has_events():
                         _ev = control().queue.peek()
                         if _ev and _ev.type == ControlEventType.PRIORITY_MESSAGE:
-                            self._log_append(
-                                ("⚡", "class:activity-warn",
-                                 "检测到优先插话，将在当前工具完成后处理")
-                            )
+                            self._log_append(("⚡", "class:activity-warn", "检测到优先插话，将在当前工具完成后处理"))
                             # 标记中断，在循环结束后处理
                             with self._state_lock:
                                 self._interrupted_by_priority = True
@@ -1732,7 +1903,9 @@ class TuiAppV2:
                 if _last_entry:
                     last_icon, _, last_msg = _last_entry
                     if "●" in last_icon:
-                        self._log_update_last(("✓", "class:activity-done", last_msg.replace("执行 ", "").replace("生成 ", "")))
+                        self._log_update_last(
+                            ("✓", "class:activity-done", last_msg.replace("执行 ", "").replace("生成 ", ""))
+                        )
             self._ui(self.message_pane.stream_end, _force=True)
         except Exception as e:
             self._ui(self.message_pane.append_error, str(e), _force=True)
@@ -1745,7 +1918,7 @@ class TuiAppV2:
             self.thinking_panel.done()
             self._spinner.stop()
             self._ui(self._refresh_status, _force=True)
-                        # Auto-submit queued input or process priority interrupt
+            # Auto-submit queued input or process priority interrupt
             _qt = None
             with self._state_lock:
                 _interrupted = self._interrupted_by_priority
@@ -1760,18 +1933,20 @@ class TuiAppV2:
                 if _ev and _ev.type == ControlEventType.PRIORITY_MESSAGE:
                     _interrupt_text = _ev.payload.get("text", "")
                     if _interrupt_text:
-                        self._log_append(("⚡", "class:activity-warn",
-                            f"处理优先插话: {self._shorten(_interrupt_text, 60)}"))
+                        self._log_append(
+                            ("⚡", "class:activity-warn", f"处理优先插话: {self._shorten(_interrupt_text, 60)}")
+                        )
                         # 清除 _queued_text 避免重复提交
                         with self._state_lock:
                             self._queued_text = None
                         from threading import Thread as _T
-                        _T(target=self._stream_response, args=(_interrupt_text,),
-                           daemon=True, name="priority-stream").start()
+
+                        _T(
+                            target=self._stream_response, args=(_interrupt_text,), daemon=True, name="priority-stream"
+                        ).start()
                         _qt = None
             elif _qt:
-                self._log_append(("↪", "class:activity-info",
-                    f"自动发送暂存输入: {self._shorten(_qt, 48)}"))
+                self._log_append(("↪", "class:activity-info", f"自动发送暂存输入: {self._shorten(_qt, 48)}"))
                 self._submit_user_message(_qt)
         if self.wire:
             try:
@@ -1792,14 +1967,18 @@ class TuiAppV2:
         except Exception:
             logger.warning("TUI _ui callback failed", exc_info=True)
         try:
-            if self._app and self._app.is_running:
+            app = getattr(self, "_app", None)
+            if app is not None and app.is_running:
                 now = time.monotonic()
-                if _force or not self._thinking or now - self._last_invalidate > 0.030:
+                last = getattr(self, "_last_invalidate", 0.0)
+                thinking = getattr(self, "_thinking", False)
+                if _force or not thinking or now - last > 0.030:
                     self._last_invalidate = now
-                    self._app.invalidate()
+                    app.invalidate()
         except Exception:
+            if not getattr(self, "_invalidate_failed_once", False):
+                self._invalidate_failed_once = True
             logger.warning("TUI _ui invalidate failed", exc_info=True)
-
 
     def _toggle_screen(self, name):
         screen = self._available_screens.get(name)
@@ -1810,6 +1989,7 @@ class TuiAppV2:
         else:
             self.screen_stack.push(screen, self)
         self._app.invalidate()
+
     def _on_spinner_tick(self) -> None:
         """Called by Spinner thread every ~80ms. Triggers activity bar repaint."""
         if self._log_count() and self._app and self._app.is_running:
@@ -1819,11 +1999,8 @@ class TuiAppV2:
     def _on_download_update(self, job) -> None:
         """Called by DownloadManager when a download job changes state."""
         self._log_append(("↓", "class:activity-info", job.summary()[:80]))
-        try:
+        with contextlib.suppress(Exception):
             self._app.invalidate()
-        except Exception:
-            pass
-
 
     # ── Text utilities ──
 
@@ -1845,14 +2022,14 @@ class TuiAppV2:
         # Apply theme mode
         mode = self._layout_mgr.theme_mode
         try:
-            from prompt_toolkit.application.current import get_app
-
             from ui.theme_v2 import build_style_v2
-            app = get_app()
-            app.style = build_style_v2(mode)
-            app.invalidate()
-        except Exception:
-            pass  # App not yet running
+
+            if self._app is not None:
+                self._app.style = build_style_v2(mode)
+                self._app.invalidate()
+        except Exception as _exc:
+            logger.warning("Theme switch failed: %s", _exc, exc_info=True)
+            self.message_pane.append_error(f"Theme apply failed: {_exc}")
 
     def _refresh_status(self):
         self.status_bar.set_model(self.session.model)
@@ -1865,23 +2042,26 @@ class TuiAppV2:
             # Feed context to dashboard state (per debate: P0 metric)
             self._dash_state._context_pct = self._cached_ctx_pct
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            import logging
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
         # ── Collect system metrics for secondary panel ──
         if self._dash_state._show_secondary:
             try:
                 import psutil
+
                 self._dash_state._cpu_pct = psutil.cpu_percent(interval=None)
                 mem = psutil.virtual_memory()
                 self._dash_state._memory_pct = mem.percent
-                self._dash_state._memory_used_mb = mem.used // (1024*1024)
-                self._dash_state._memory_total_mb = mem.total // (1024*1024)
-                self._dash_state._disk_pct = psutil.disk_usage('/').percent
+                self._dash_state._memory_used_mb = mem.used // (1024 * 1024)
+                self._dash_state._memory_total_mb = mem.total // (1024 * 1024)
+                self._dash_state._disk_pct = psutil.disk_usage("/").percent
                 self._dash_state._process_count = len(psutil.pids())
                 self._dash_state._uptime_hours = 0.0
             except ImportError:
                 pass
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Non-critical: %s", e, exc_info=True)
 
         # Cache git info (call once, not per frame)
         self.status_bar.refresh()
@@ -1908,20 +2088,14 @@ class TuiAppV2:
             self._streaming = False
             self._thinking = False
 
-        try:
+        with contextlib.suppress(Exception):
             self._spinner.stop()
-        except Exception:
-            pass
 
-        try:
+        with contextlib.suppress(Exception):
             self.thinking_panel.done()
-        except Exception:
-            pass
 
-        try:
+        with contextlib.suppress(Exception):
             self._log_append(("•", "class:activity-info", "Exiting CRUX..."))
-        except Exception:
-            pass
 
     def _shutdown_resources(self) -> None:
         """Release external resources (spinner, executor, browser bridges).
@@ -1937,22 +2111,22 @@ class TuiAppV2:
             self._streaming = False
             self._thinking = False
 
-        try:
+        with contextlib.suppress(Exception):
             self._spinner.stop()
-        except Exception:
-            pass
 
-        try:
+        with contextlib.suppress(Exception):
             self.thinking_panel.done()
-        except Exception:
-            pass
 
         # Shut down browser / playwright bridges gracefully
         for attr in (
-            "_browser_bridge", "browser_bridge",
-            "_playwright_bridge", "playwright_bridge",
-            "_browser", "browser",
-            "_playwright", "playwright",
+            "_browser_bridge",
+            "browser_bridge",
+            "_playwright_bridge",
+            "playwright_bridge",
+            "_browser",
+            "browser",
+            "_playwright",
+            "playwright",
         ):
             obj = getattr(self, attr, None)
             if obj is None:
@@ -1966,13 +2140,11 @@ class TuiAppV2:
                     obj.shutdown()
             except (BrokenPipeError, EOFError, OSError):
                 pass
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Non-critical: %s", e, exc_info=True)
 
-        try:
+        with contextlib.suppress(Exception):
             self._executor.shutdown(wait=False)
-        except Exception:
-            pass
 
     def run(self):
         # ── signal handlers for graceful Ctrl+C / kill ──
@@ -1999,12 +2171,14 @@ class TuiAppV2:
         # Start a lightweight animation timer (~10 fps) for beast icon rotation
         # and live model-name updates. Independent of the activity spinner.
         self._anim_running = True
+
         def _anim_loop():
             while self._anim_running:
                 time.sleep(0.1)
                 if self._app and self._app.is_running:
                     with contextlib.suppress(Exception):
                         self._app.invalidate()
+
         threading.Thread(target=_anim_loop, daemon=True).start()
 
         try:
@@ -2020,4 +2194,3 @@ class TuiAppV2:
             # Unregister atexit to avoid double-call on clean exit
             with contextlib.suppress(Exception):
                 _atexit.unregister(self._shutdown_resources)
-

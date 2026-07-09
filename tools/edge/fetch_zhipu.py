@@ -1,4 +1,5 @@
 """Fetch Zhipu response"""
+
 import time
 
 from playwright.sync_api import sync_playwright
@@ -9,7 +10,7 @@ browser = p.chromium.connect_over_cdp(CDP_URL)
 
 for ctx in browser.contexts:
     for pg in ctx.pages:
-        if 'open.bigmodel' in pg.url:
+        if "open.bigmodel" in pg.url:
             pg.bring_to_front()
             time.sleep(1)
 
@@ -34,9 +35,9 @@ for ctx in browser.contexts:
                 return [...new Set(texts)].join('\\n---\\n');
             }""")
 
-            path = 'tools/edge/zhipu_full_verdict.txt'
-            with open(path, 'w', encoding='utf-8') as f:
-                f.write(msgs if len(msgs) > len(info['text']) else info['text'])
+            path = "tools/edge/zhipu_full_verdict.txt"
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(msgs if len(msgs) > len(info["text"]) else info["text"])
             print(f"Saved {len(msgs)} chars")
             print(msgs[:2000])
             break

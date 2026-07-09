@@ -50,11 +50,9 @@ class MessageDetailScreen:
         lines = self.msg.text.split("\n")
         result = []
 
-        result.append(("class:header-bar",
-            f"┌─ Message Detail ─ {self.msg.role.title()} ─ {self.total_lines} lines "))
+        result.append(("class:header-bar", f"┌─ Message Detail ─ {self.msg.role.title()} ─ {self.total_lines} lines "))
         result.append(("", "\n"))
-        result.append(("class:info",
-            " ↑↓scroll  c复制全文  m复制MD  Esc返回  "))
+        result.append(("class:info", " ↑↓scroll  c复制全文  m复制MD  Esc返回  "))
         result.append(("", "\n"))
         result.append(("class:header-bar", "├" + "─" * 60))
         result.append(("", "\n"))
@@ -65,7 +63,7 @@ class MessageDetailScreen:
 
         for i in range(start, end):
             line = lines[i] if i < len(lines) else ""
-            result.append(("class:line-number", f"{i+1:4d} "))
+            result.append(("class:line-number", f"{i + 1:4d} "))
             text = (line[:160] + ("…" if len(line) > 160 else "")) + "\n"
             result.append(("", text))
 

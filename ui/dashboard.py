@@ -67,8 +67,7 @@ class DashboardState:
         """Toggle secondary metrics panel visibility."""
         self._show_secondary = not self._show_secondary
 
-    def update_secondary(self, cpu=0, mem_pct=0, mem_used=0, mem_total=8192,
-                         disk=0, processes=0, uptime=0):
+    def update_secondary(self, cpu=0, mem_pct=0, mem_used=0, mem_total=8192, disk=0, processes=0, uptime=0):
         """Bulk-update secondary metrics."""
         self._cpu_pct = cpu
         self._memory_pct = mem_pct
@@ -109,8 +108,10 @@ class DashboardState:
     @property
     def is_hot(self) -> bool:
         """Whether dashboard should be auto-visible."""
-        return (self._state in ("error", "active", "thinking") or
-                time.monotonic() - self._last_activity < self._activity_decay)
+        return (
+            self._state in ("error", "active", "thinking")
+            or time.monotonic() - self._last_activity < self._activity_decay
+        )
 
     @property
     def state(self) -> str:
@@ -127,14 +128,15 @@ class DashboardState:
 
 # ── Render ────────────────────────────────────────────────
 
+
 def _tw() -> int:
     """Terminal width (fallback 120 if undetectable)."""
     import shutil
+
     return shutil.get_terminal_size().columns
 
 
-def render_dashboard(state: DashboardState | None = None,
-                     layout: LayoutConfig | None = None) -> list[tuple[str, str]]:
+def render_dashboard(state: DashboardState | None = None, layout: LayoutConfig | None = None) -> list[tuple[str, str]]:
     """
     Render dashboard content based on current state and layout config.
 
@@ -232,7 +234,9 @@ def render_dashboard(state: DashboardState | None = None,
         cpu_c = "class:ok" if state._cpu_pct < 70 else ("class:warn" if state._cpu_pct < 90 else "class:error")
         lines.append((cpu_c, f"  CPU:     {state._cpu_pct:.0f}%\n"))
         mem_c = "class:ok" if state._memory_pct < 70 else ("class:warn" if state._memory_pct < 90 else "class:error")
-        lines.append((mem_c, f"  Memory:  {state._memory_pct:.0f}% ({state._memory_used_mb}MB/{state._memory_total_mb}MB)\n"))
+        lines.append(
+            (mem_c, f"  Memory:  {state._memory_pct:.0f}% ({state._memory_used_mb}MB/{state._memory_total_mb}MB)\n")
+        )
         disk_c = "class:ok" if state._disk_pct < 80 else ("class:warn" if state._disk_pct < 95 else "class:error")
         lines.append((disk_c, f"  Disk:    {state._disk_pct:.0f}%\n"))
         lines.append(("class:dim", f"  Procs:   {state._process_count}\n"))

@@ -171,16 +171,15 @@ class Daemon:
             self.state.sessions_active += 1
             self.state.total_sessions += 1
             return json.dumps({"ok": True, "session": self.state.sessions_active})
-        elif op == "detach":
+        if op == "detach":
             self.state.sessions_active = max(0, self.state.sessions_active - 1)
             return json.dumps({"ok": True, "session": self.state.sessions_active})
-        elif op == "stop":
+        if op == "stop":
             self.stop()
             return json.dumps({"ok": True, "stopped": True})
-        elif op == "status":
+        if op == "status":
             return json.dumps(self.state.to_dict(), ensure_ascii=False, indent=2)
-        else:
-            return json.dumps({"ok": False, "error": f"unknown command: {op}"})
+        return json.dumps({"ok": False, "error": f"unknown command: {op}"})
 
     def attach(self) -> bool:
         self.state.sessions_active += 1

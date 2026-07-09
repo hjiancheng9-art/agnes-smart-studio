@@ -28,8 +28,8 @@ from utils.unicode_safety import (
 
 # ── Lone surrogate test strings ────────────────────────────────
 _SURROGATE_HIGH = "\ud800"  # U+D800
-_SURROGATE_LOW = "\udfff"   # U+DFFF
-_SURROGATE_MID = "\ud900"   # U+D900
+_SURROGATE_LOW = "\udfff"  # U+DFFF
+_SURROGATE_MID = "\ud900"  # U+D900
 
 
 class TestSanitizeText:

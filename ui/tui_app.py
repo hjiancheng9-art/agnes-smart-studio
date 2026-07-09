@@ -27,6 +27,7 @@ from ui.clipboard_image import detect_drag_images, get_clipboard_image, is_image
 from ui.message_pane import MessagePane
 from ui.status_bar import StatusBar
 from ui.theme import build_style
+from ui.ui_heartbeat import CdpSafeExecutor, MouseModeGuard, UIHeartbeat
 
 if TYPE_CHECKING:
     from core.chat import ChatSession
@@ -43,7 +44,6 @@ def _tw() -> int:
 
 
 class TuiApp:
-
     def __init__(
         self,
         session: ChatSession,
@@ -71,6 +71,15 @@ class TuiApp:
 
         self.kb = KeyBindings()
 
+        # ── UI Heartbeat + CDP Safe Executor + Mouse Mode Guard ──
+        self.heartbeat = UIHeartbeat()
+        self.safe_cdp = CdpSafeExecutor(heartbeat=self.heartbeat)
+        self.mouse_guard = MouseModeGuard()
+        self.mouse_guard.enable()
+        self._heartbeat_started = False
+        # Wire mouse_guard to message pane for auto-restore on scroll
+        self.message_pane._mouse_guard = self.mouse_guard
+
         @self.kb.add("c-c")
         def _(event):
             event.app.exit()
@@ -91,9 +100,9 @@ class TuiApp:
 
         @self.kb.add("c-y")  # Ctrl+Y: copy last response to clipboard
         def _(event):
-            texts = [t for style, t in self.message_pane._lines if '[CRUX]' in t]
+            texts = [t for style, t in self.message_pane._lines if "[CRUX]" in t]
             if texts:
-                last = texts[-1].replace('[CRUX] ', '')
+                last = texts[-1].replace("[CRUX] ", "")
                 event.app.clipboard.set_data(last)
                 self.message_pane.append_info("已复制到剪贴板")
 
@@ -115,9 +124,7 @@ class TuiApp:
                 renderer.output.quit_alternate_screen()
                 renderer._in_alternate_screen = False
             # Force full redraw
-            event.app.renderer.reset(
-                leave_alternate_screen=not renderer.full_screen
-            )
+            event.app.renderer.reset(leave_alternate_screen=not renderer.full_screen)
             event.app.invalidate()
 
         @self.kb.add("pageup")
@@ -143,6 +150,16 @@ class TuiApp:
         @self.kb.add("c-home")
         def _(event):
             self.message_pane.scroll_to_top()
+            event.app.invalidate()
+
+        @self.kb.add("c-up")
+        def _(event):
+            self.message_pane.scroll_up(1)
+            event.app.invalidate()
+
+        @self.kb.add("c-down")
+        def _(event):
+            self.message_pane.scroll_down(1)
             event.app.invalidate()
 
         @self.kb.add("c-end")
@@ -202,30 +219,40 @@ class TuiApp:
             focusable=True,
         )
 
-        root = HSplit([
-            # Message zone (top, fills)
-            self.message_pane.pane,
-            # Separator (always visible when there's activity)
-            Window(
-                content=FormattedTextControl(lambda: FormattedText(
-                    [("class:input-border", _H * _tw())]
-                ) if self._activity_log else FormattedText([])),
-                height=lambda: 1 if self._activity_log else 0,
-                style="class:input-border",
-                always_hide_cursor=True,
-            ),
-            # Activity zone (tool calls, thinking steps, status)
-            activity_window,
-            # Input
-            Window(content=input_ctrl, height=lambda: min(10, max(1, 1 + self.input_buffer.text.count('\n'))), style="class:input-field"),
-            # Status bar
-            Window(
-                content=FormattedTextControl(lambda: self.status_bar.render()),
-                height=1,
-                style="class:status-bar",
-                always_hide_cursor=True,
-            ),
-        ])
+        root = HSplit(
+            [
+                # Message zone (top, fills)
+                self.message_pane.pane,
+                # Separator (always visible when there's activity)
+                Window(
+                    content=FormattedTextControl(
+                        lambda: (
+                            FormattedText([("class:input-border", _H * _tw())])
+                            if self._activity_log
+                            else FormattedText([])
+                        )
+                    ),
+                    height=lambda: 1 if self._activity_log else 0,
+                    style="class:input-border",
+                    always_hide_cursor=True,
+                ),
+                # Activity zone (tool calls, thinking steps, status)
+                activity_window,
+                # Input
+                Window(
+                    content=input_ctrl,
+                    height=lambda: min(10, max(1, 1 + self.input_buffer.text.count("\n"))),
+                    style="class:input-field",
+                ),
+                # Status bar
+                Window(
+                    content=FormattedTextControl(lambda: self.status_bar.render()),
+                    height=1,
+                    style="class:status-bar",
+                    always_hide_cursor=True,
+                ),
+            ]
+        )
 
         return Application(
             layout=Layout(root),
@@ -259,6 +286,30 @@ class TuiApp:
         if text in ("/q", "/quit", "/exit"):
             self._app.exit()
             return True
+        # ── Theme switcher ──
+        if text == "/theme":
+            from ui.theme import THEMES, get_active_theme
+
+            C = get_active_theme()
+            cur_name = C["name"]
+            out = [f"🎨 当前主题: {cur_name} — {C['desc']}", "可用主题:"]
+            for tid, t in THEMES.items():
+                marker = "▸ " if t["name"] == cur_name else "  "
+                out.append(f"  {marker}{tid}: {t['name']} — {t['desc']}")
+            out.append("切换: /theme <名称>")
+            self.message_pane.append_info("\n".join(out))
+            return True
+        if text.startswith("/theme "):
+            name = text.split(" ", 2)[1].strip()
+            from ui.theme import THEMES, build_style, set_theme
+
+            if name in THEMES:
+                set_theme(name)
+                self._app.style = build_style()
+                self.message_pane.append_info(f"✅ 已切换至: {THEMES[name]['name']} — {THEMES[name]['desc']}")
+            else:
+                self.message_pane.append_info(f"❌ 未知主题: {name}  可用: {', '.join(THEMES.keys())}")
+            return True
         if text.startswith("/"):
             _buf = io.StringIO()
             _old = sys.stdout
@@ -288,6 +339,7 @@ class TuiApp:
     def _send_image(self, image_path: str) -> None:
         """Send an image file for vision analysis. Dispatched from paste or drag-drop."""
         import os
+
         if self._thinking:
             self.message_pane.append_info("Please wait — still processing previous request")
             return
@@ -342,7 +394,7 @@ class TuiApp:
                 elif kind == "thinking":
                     # Accumulate thinking chunks into a single activity log entry
                     chunk = str(payload)
-                    if not hasattr(self, '_thinking_buf'):
+                    if not hasattr(self, "_thinking_buf"):
                         self._thinking_buf = ""
                     if not self._thinking_buf:
                         self._activity_log.append(("●", "class:message-thinking", chunk[:120]))
@@ -374,9 +426,10 @@ class TuiApp:
                             last_icon, _, last_msg = self._activity_log[-1]
                             if "●" in last_icon:
                                 self._activity_log[-1] = (
-                                "✓", "class:success",
-                                last_msg.replace("执行 ", "").replace("生成 ", ""),
-                            )
+                                    "✓",
+                                    "class:success",
+                                    last_msg.replace("执行 ", "").replace("生成 ", ""),
+                                )
                         pending_tool = None
                     elif "fallback" in msg.lower() or "连接中断" in msg:
                         self._activity_log.append(("⚠", "class:message-error", msg[:100]))
@@ -391,7 +444,8 @@ class TuiApp:
                         last_icon, _, last_msg = self._activity_log[-1]
                         if "●" in last_icon:
                             self._activity_log[-1] = (
-                                "✓", "class:success",
+                                "✓",
+                                "class:success",
                                 last_msg.replace("执行 ", "").replace("生成 ", ""),
                             )
                     pending_tool = None
@@ -427,6 +481,7 @@ class TuiApp:
 
     def _ui(self, fn, *a, _force: bool = False):
         _log = logging.getLogger("crux.tui")
+        self.heartbeat.tick()  # mark UI activity
         try:
             if a:
                 fn(*a)
@@ -452,14 +507,24 @@ class TuiApp:
             self.status_bar.set_context(int(chars * 0.4), 128000)
         except Exception:
             import logging
-            logging.getLogger('crux').debug('silent except', exc_info=True)
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
         self.status_bar.refresh()
 
     def run(self):
         try:
+            # Start heartbeat monitoring
+            self.heartbeat.start()
+            self._heartbeat_started = True
+            # Restore mouse mode in case it was lost during startup
+            self.mouse_guard.restore()
+            logger.info("CRUX TUI started with heartbeat + mouse_guard")
             self._app.run()
         except Exception as e:
             print(f"TUI error: {e}", file=sys.stderr)
             traceback.print_exc()
         finally:
+            if self._heartbeat_started:
+                self.heartbeat.stop()
+                logger.info("CRUX TUI shutdown — heartbeat stopped")
             self._executor.shutdown(wait=False)

@@ -3,5 +3,9 @@
   "description": "提示词工程 — 10段结构/甜点区/人像/动作/实体推理",
   "version": "1.0",
   "icon": "🎯",
-  "prompt": "激活提示词工程专家模式。\n\n10段结构（每段不能缺失）：\n1.主体描述 2.场景环境 3.构图方案 4.镜头语言 5.光照方案 6.配色方案 7.材质纹理 8.风格锚点 9.技术质量 10.一致性约束\n\n甜点区模板（按场景自动匹配）：\n- 人像：portrait (面部×光影) → 负向: extra fingers/mutated hands/deformed face\n- 动作：action (动态×爆发) → 负向: static pose/still frame\n- 动物：animal (质感×自然光) → 负向: human features/cartoon\n- 美食：food (细节×诱人感) → 负向: blurry/low quality\n- 风景：landscape (广角×大气层) → 负向: cluttered/distorted\n- 二次元：anime (赛璐珞×干净) → 负向: realistic/3D render\n\n实体类型推理：\n灵体→ethereal/translucent | 能量体→luminous particles | 机器人→mechanical shell | 拟人化→species-accurate | AI虚拟体→holographic\n\n战斗VFX色系：火焰橙/冰蓝/雷电黄-紫/暗影黑-紫/龙绿/机甲蓝"
+  "prompt": "激活提示词工程专家模式。\n\n10段结构（每段不能缺失）：\n1.主体描述 2.场景环境 3.构图方案 4.镜头语言 5.光照方案 6.配色方案 7.材质纹理 8.风格锚点 9.技术质量 10.一致性约束\n\n甜点区模板（按场景自动匹配）：\n- 人像：portrait (面部×光影) → 负向: extra fingers/mutated hands/deformed face\n- 动作：action (动态×爆发) → 负向: static pose/still frame\n- 动物：animal (质感×自然光) → 负向: human features/cartoon\n- 美食：food (细节×诱人感) → 负向: blurry/low quality\n- 风景：landscape (广角×大气层) → 负向: cluttered/distorted\n- 二次元：anime (赛璐珞×干净) → 负向: realistic/3D render\n\n实体类型推理：\n灵体→ethereal/translucent | 能量体→luminous particles | 机器人→mechanical shell | 拟人化→species-accurate | AI虚拟体→holographic\n\n战斗VFX色系：火焰橙/冰蓝/雷电黄-紫/暗影黑-紫/龙绿/机甲蓝",
+  "target": "media",
+  "models": [
+    "agnes-*"
+  ]
 }

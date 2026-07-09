@@ -24,6 +24,7 @@ from core.error_sink import catch
 # ── High-risk tools that need fake-fix detection ──────────
 HIGH_RISK_TOOLS = {"patch_file", "execute_plan", "self_heal", "pip_install"}
 
+
 # ── Quarantine tracking ───────────────────────────────────
 @dataclass
 class QuarantineEntry:
@@ -34,7 +35,7 @@ class QuarantineEntry:
     last_retry: float = 0.0
     context_snapshots: list[dict] = field(default_factory=list)
     quarantine_count: int = 0  # how many times re-quarantined
-    backoff_level: int = 0     # 0=24h, 1=3d, 2=7d, 3=30d, 4+=permanent
+    backoff_level: int = 0  # 0=24h, 1=3d, 2=7d, 3=30d, 4+=permanent
 
 
 _quarantine: dict[str, QuarantineEntry] = {}
@@ -43,16 +44,20 @@ QUARANTINE_WINDOW = 24 * 3600  # base: 24 hours
 
 # Exponential backoff levels (in seconds)
 BACKOFF_LEVELS = [
-    24 * 3600,      # 0: 24h
+    24 * 3600,  # 0: 24h
     3 * 24 * 3600,  # 1: 3d
     7 * 24 * 3600,  # 2: 7d
-    30 * 24 * 3600, # 3: 30d
+    30 * 24 * 3600,  # 3: 30d
 ]  # Level 4+ = permanent (float('inf'))
 
 # Context keys considered "stable" — if none change, backoff multiplies
 CONTEXT_STABILITY_KEYS = {
-    "python_version", "torch_version", "cuda_version",
-    "os_type", "free_memory_mb", "free_disk_mb",
+    "python_version",
+    "torch_version",
+    "cuda_version",
+    "os_type",
+    "free_memory_mb",
+    "free_disk_mb",
     "pip_package_count",
 }
 
@@ -73,32 +78,35 @@ def _capture_context_snapshot(context: dict = None) -> dict:
     snapshot = {}
     try:
         import sys
+
         snapshot["python_version"] = sys.version[:30]
     except Exception as _es:
         catch(_es, "core.fake_fix_detector", "swallowed")
     try:
         import os
         import shutil
+
         _, _, free = shutil.disk_usage(os.getcwd())
         snapshot["free_disk_mb"] = free // (1024 * 1024)
     except Exception as _es:
         catch(_es, "core.fake_fix_detector", "swallowed")
     try:
         import psutil
+
         snapshot["free_memory_mb"] = psutil.virtual_memory().available // (1024 * 1024)
     except Exception as _es:
         catch(_es, "core.fake_fix_detector", "swallowed")
     try:
         import subprocess
-        r = subprocess.run(
-            ["pip", "list", "--format=columns"], capture_output=True, text=True, timeout=5
-        )
+
+        r = subprocess.run(["pip", "list", "--format=columns"], capture_output=True, text=True, timeout=5)
         lines = r.stdout.strip().split("\n")[2:]
         snapshot["pip_package_count"] = len(lines)
     except Exception as _es:
         catch(_es, "core.fake_fix_detector", "swallowed")
     try:
         import torch
+
         snapshot["torch_version"] = torch.__version__
         if torch.cuda.is_available():
             snapshot["cuda_version"] = torch.version.cuda or "unknown"
@@ -148,6 +156,7 @@ def is_quarantined(tool: str, error_type: str, context: dict = None) -> bool:
     """Check if this error pattern has been quarantined (evidence-driven backoff)."""
     # ── 先查种子策略 ──
     from core.fake_fix_seed_policy import get_seed_policy
+
     seed = get_seed_policy()
     decision = seed.classify(tool, error_type, context or {})
     if decision.action == "quarantine":
@@ -180,6 +189,7 @@ def is_quarantined(tool: str, error_type: str, context: dict = None) -> bool:
     # Check retry count
     seed_max = MAX_RETRIES_24H
     from core.fake_fix_seed_policy import get_seed_policy
+
     seed = get_seed_policy()
     decision = seed.classify(tool, error_type, context or {})
     if decision.action == "limited_retry":
@@ -219,6 +229,7 @@ def record_retry(tool: str, error_type: str, context: dict = None):
         # 当 retry_count 达到上限触发隔离时，增加 quarantine_count
         seed_max = MAX_RETRIES_24H
         from core.fake_fix_seed_policy import get_seed_policy
+
         seed = get_seed_policy()
         decision = seed.classify(tool, error_type, context or {})
         if decision.action == "limited_retry":
@@ -262,6 +273,7 @@ def capture_pre_state(project_dir: str = ".") -> StateSnapshot:
     key_patterns = ["*.py", "*.json", "*.yaml", "*.yml", "*.toml"]
     try:
         import glob as _glob
+
         for pattern in key_patterns:
             for fpath in _glob.glob(os.path.join(project_dir, "**", pattern), recursive=True):
                 if any(skip in fpath for skip in ["__pycache__", ".git", "node_modules", "venv", ".venv"]):
@@ -276,10 +288,8 @@ def capture_pre_state(project_dir: str = ".") -> StateSnapshot:
 
     try:
         import subprocess
-        r = subprocess.run(
-            ["git", "diff", "--stat"],
-            capture_output=True, text=True, timeout=5, cwd=project_dir
-        )
+
+        r = subprocess.run(["git", "diff", "--stat"], capture_output=True, text=True, timeout=5, cwd=project_dir)
         state.git_diff_stat = r.stdout.strip()
     except Exception as _es:
         catch(_es, "core.fake_fix_detector", "swallowed")
@@ -306,10 +316,8 @@ def capture_post_state(pre_state: StateSnapshot, project_dir: str = ".") -> Stat
 
     try:
         import subprocess
-        r = subprocess.run(
-            ["git", "diff", "--stat"],
-            capture_output=True, text=True, timeout=5, cwd=project_dir
-        )
+
+        r = subprocess.run(["git", "diff", "--stat"], capture_output=True, text=True, timeout=5, cwd=project_dir)
         post.git_diff_stat = r.stdout.strip()
     except Exception as _es:
         catch(_es, "core.fake_fix_detector", "swallowed")
@@ -345,12 +353,11 @@ def classify_fix(
 
     if changed_files > 0 and test_passed:
         return "fix-probable"
-    elif changed_files > 0 and not test_passed or changed_files == 0 and git_changed:
+    if changed_files > 0 and not test_passed or changed_files == 0 and git_changed:
         return "fix-unknown"
-    elif changed_files == 0 and not git_changed:
+    if changed_files == 0 and not git_changed:
         return "fix-spurious"
-    else:
-        return "fix-unknown"
+    return "fix-unknown"
 
 
 def should_retry(tool: str, error_type: str, context: dict = None) -> dict:
@@ -364,6 +371,7 @@ def should_retry(tool: str, error_type: str, context: dict = None) -> dict:
 
     # ── 先查种子策略 ──
     from core.fake_fix_seed_policy import get_seed_policy
+
     seed = get_seed_policy()
     decision = seed.classify(tool, error_type, context or {})
     if decision.action == "quarantine":
@@ -394,12 +402,11 @@ def should_retry(tool: str, error_type: str, context: dict = None) -> dict:
     remaining = seed_max - entry.retry_count
     if remaining > 0:
         return {"retry": True, "reason": f"{remaining} retries remaining"}
-    else:
-        level_name = _get_backoff_level_name(entry.backoff_level)
-        return {
-            "retry": False,
-            "reason": f"quarantined ({level_name}): {entry.retry_count} retries, error_sig={sig}",
-        }
+    level_name = _get_backoff_level_name(entry.backoff_level)
+    return {
+        "retry": False,
+        "reason": f"quarantined ({level_name}): {entry.retry_count} retries, error_sig={sig}",
+    }
 
 
 def _get_backoff_level_name(level: int) -> str:

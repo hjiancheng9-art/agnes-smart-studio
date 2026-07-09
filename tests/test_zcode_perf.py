@@ -29,6 +29,7 @@ class TestMessageThroughput:
 
     def test_1000_messages_under_100ms(self):
         from ui.message_pane import MessagePane
+
         mp = MessagePane()
         t0 = time.time()
         for i in range(1000):
@@ -38,6 +39,7 @@ class TestMessageThroughput:
 
     def test_stream_chunks_under_50ms(self):
         from ui.message_pane import MessagePane
+
         mp = MessagePane()
         mp.stream_start("crux")
         t0 = time.time()
@@ -55,8 +57,9 @@ class TestMemoryBaseline:
         import sys
 
         from ui.message_pane import MessagePane
+
         mp = MessagePane()
         for i in range(10000):
             mp.append_message("crux", f"Line {i}: " + "data " * 10)
         size = sys.getsizeof(mp._lines)
-        assert size < 1024 * 1024, f"10K messages: {size/1024:.0f}KB"
+        assert size < 1024 * 1024, f"10K messages: {size / 1024:.0f}KB"

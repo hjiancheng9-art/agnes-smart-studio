@@ -15,11 +15,11 @@ from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.mouse_events import MouseEventType
 
 _ROLE_FORMATS = {
-    "user": ("class:message-user", "You"),
-    "crux": ("class:message-crux", "CRUX"),
-    "assistant": ("class:message-crux", "CRUX"),
-    "info": ("class:message-info", "--"),
-    "error": ("class:message-error", "!!"),
+    "user": ("class:message-user", "▶ You"),
+    "crux": ("class:message-crux", "◆ CRUX"),
+    "assistant": ("class:message-crux", "◆ CRUX"),
+    "info": ("class:message-info", "○"),
+    "error": ("class:message-error", "✖"),
 }
 
 # Sentinel value: setting vertical_scroll to a very large number makes
@@ -28,7 +28,7 @@ _ROLE_FORMATS = {
 _SCROLL_BOTTOM = 999999
 
 # Scroll speed
-_SCROLL_LINE = 3   # lines per mouse wheel tick
+_SCROLL_LINE = 3  # lines per mouse wheel tick
 _SCROLL_PAGE_FACTOR = 0.85  # fraction of visible height for PageUp/PageDown
 
 
@@ -47,6 +47,11 @@ class _ScrollingWindow(Window):
     def _mouse_handler(self, mouse_event):
         """Intercept scroll events so they update _pinned via pane methods."""
         from prompt_toolkit.application.current import get_app
+
+        # Restore mouse mode if it was lost (e.g. by subprocess output)
+        if hasattr(self._mp_pane, "_mouse_guard") and self._mp_pane._mouse_guard:
+            self._mp_pane._mouse_guard.restore()
+
         if mouse_event.event_type == MouseEventType.SCROLL_UP:
             self._mp_pane.scroll_up(lines=_SCROLL_LINE)
             get_app().invalidate()
@@ -57,18 +62,38 @@ class _ScrollingWindow(Window):
             return None
         return super()._mouse_handler(mouse_event)
 
+    def mouse_handler(self, mouse_event):
+        """Public mouse_handler for ptk 3.x compatibility."""
+        from prompt_toolkit.application.current import get_app
+
+        if mouse_event.event_type == MouseEventType.SCROLL_UP:
+            self._mp_pane.scroll_up(lines=_SCROLL_LINE)
+            get_app().invalidate()
+            return None
+        if mouse_event.event_type == MouseEventType.SCROLL_DOWN:
+            self._mp_pane.scroll_down(lines=_SCROLL_LINE)
+            get_app().invalidate()
+            return None
+        return super().mouse_handler(mouse_event)
+
     def _scroll(self, ui_content, width, height):
-        # Let the parent calculate, but then restore our saved position
-        saved = self.vertical_scroll
-        super()._scroll(ui_content, width, height)
-        if saved >= _SCROLL_BOTTOM:
+        """No-op for manual scroll positions; only compute bottom when pinned.
+
+        We do NOT call super()._scroll() because _scroll_when_linewrapping
+        forces vertical_scroll toward cursor position (0,0 for our cursorless
+        FormattedTextControl), fighting every manual scroll operation.
+        """
+        # ptk's _scroll_when_linewrapping always resets horizontal_scroll = 0.
+        # Since we skip the parent call, we must do it ourselves to prevent
+        # horizontal drift from affecting line rendering.
+        self.horizontal_scroll = 0
+
+        if self.vertical_scroll >= _SCROLL_BOTTOM:
             # Pinned to bottom: compute actual scroll position accounting
             # for line wrapping (vertical_scroll_2 skips visual rows).
             total_wrapped = 0
             for i in range(ui_content.line_count if ui_content else 0):
-                total_wrapped += ui_content.get_height_for_line(
-                    i, width, self.get_line_prefix
-                )
+                total_wrapped += ui_content.get_height_for_line(i, width, self.get_line_prefix)
 
             if total_wrapped <= height:
                 # Content fits in window — no scrolling needed
@@ -77,21 +102,17 @@ class _ScrollingWindow(Window):
             else:
                 # Content exceeds window height — find the right content
                 # line and intra-line offset to show the bottom 'height'
-                # visual rows. Iterate forward from top: skip accumulates
-                # until we find the first visible line.
+                # visual rows.
                 skip = total_wrapped - height
                 for lineno in range(ui_content.line_count):
-                    line_h = ui_content.get_height_for_line(
-                        lineno, width, self.get_line_prefix
-                    )
+                    line_h = ui_content.get_height_for_line(lineno, width, self.get_line_prefix)
                     if line_h <= skip:
                         skip -= line_h
                     else:
                         self.vertical_scroll = lineno
                         self.vertical_scroll_2 = skip
                         break
-        elif saved > 0:
-            self.vertical_scroll = saved
+        # else: NO-OP — preserve user's manual scroll position
 
 
 class _MessagePaneControl(FormattedTextControl):
@@ -103,6 +124,7 @@ class _MessagePaneControl(FormattedTextControl):
 
     def mouse_handler(self, mouse_event):
         from prompt_toolkit.application.current import get_app
+
         if mouse_event.event_type == MouseEventType.SCROLL_UP:
             self._mp_pane.scroll_up(lines=_SCROLL_LINE)
             get_app().invalidate()
@@ -135,8 +157,11 @@ class MessagePane:
         self._empty_render_cache = None
         self._empty_render_cache_key = None
 
-        # ── Virtual Scrolling (per 3-platform debate: enable at 100+ messages) ──
-        self._virtual_scroll_threshold = 100
+        # Virtual scrolling disabled — _scroll_offset tracked vertical_scroll
+        # (wrapped line index), but _render used it to slice _lines (raw entries),
+        # causing a scale mismatch that made scrolling appear broken visually.
+        # Fix: threshold = max int, let ptk native scroll handle all rendering.
+        self._virtual_scroll_threshold = 10 ** 9
         self._visible_range = (0, 0)
         self._scroll_offset = 0
         self._virtual_buffer = 20
@@ -160,10 +185,15 @@ class MessagePane:
                 total_msgs = len(lines_snapshot)
                 if total_msgs > self._virtual_scroll_threshold:
                     visible_count = 50  # visible messages on screen
-                    mid = self._scroll_offset
-                    half = visible_count // 2
-                    start = max(0, mid - half)
-                    end = min(total_msgs, mid + half + self._virtual_buffer)
+                    # Handle bottom sentinel: show the tail of content
+                    if self._scroll_offset >= 999999:
+                        start = max(0, total_msgs - visible_count - self._virtual_buffer)
+                        end = total_msgs
+                    else:
+                        mid = self._scroll_offset
+                        half = visible_count // 2
+                        start = max(0, mid - half)
+                        end = min(total_msgs, mid + half + self._virtual_buffer)
                     lines_snapshot = lines_snapshot[start:end]
                     self._visible_range = (start, end)
                 stream_snapshot = self._stream_buffer
@@ -185,6 +215,8 @@ class MessagePane:
             allow_scroll_beyond_bottom=False,
             right_margins=[],
         )
+        # Reference to MouseModeGuard — set by TuiApp after initialization
+        self._mouse_guard = None
 
     # ── Public properties ────────────────────────────────────
 
@@ -227,9 +259,7 @@ class MessagePane:
             uc = ri.ui_content
             row = 0
             for i in range(min(vs, uc.line_count)):
-                row += uc.get_height_for_line(
-                    i, ri.window_width, self._window.get_line_prefix
-                )
+                row += uc.get_height_for_line(i, ri.window_width, self._window.get_line_prefix)
             return row + self._window.vertical_scroll_2
         # Fallback: clamp vs to valid range
         return min(vs, max(0, self.line_count - self._window_height()))
@@ -260,9 +290,7 @@ class MessagePane:
         # Walk through content lines to find which one contains target_row
         accum = 0
         for lineno in range(uc.line_count):
-            line_h = uc.get_height_for_line(
-                lineno, width, self._window.get_line_prefix
-            )
+            line_h = uc.get_height_for_line(lineno, width, self._window.get_line_prefix)
             if accum + line_h > target_row:
                 self._window.vertical_scroll = lineno
                 self._window.vertical_scroll_2 = target_row - accum
@@ -275,12 +303,23 @@ class MessagePane:
 
     # ── Scrolling ────────────────────────────────────────────
 
+    def _sync_scroll_offset(self) -> None:
+        """Sync _scroll_offset to vertical_scroll for virtual scrolling.
+
+        When virtual scrolling is active (>100 messages), _render uses
+        _scroll_offset to decide which messages to render. Without this
+        sync, scrolling past message 75 shows blank content.
+        """
+        vs = self._window.vertical_scroll
+        self._scroll_offset = 0 if vs >= _SCROLL_BOTTOM else vs
+
     def scroll_up(self, lines: int = _SCROLL_LINE) -> None:
         cur = self._current_visual_row()
         self._set_scroll_to_visual_row(cur - lines)
         new_row = self._current_visual_row()
         if new_row > 0:
             self._pinned = False
+        self._sync_scroll_offset()
 
     def scroll_down(self, lines: int = _SCROLL_LINE) -> None:
         cur = self._current_visual_row()
@@ -292,6 +331,7 @@ class MessagePane:
         else:
             self._set_scroll_to_visual_row(target, clamp=False)
             self._pinned = False
+        self._sync_scroll_offset()
 
     def scroll_page_up(self) -> None:
         page = max(5, int(self._wrapped_window_height() * _SCROLL_PAGE_FACTOR))
@@ -300,6 +340,7 @@ class MessagePane:
         new_row = self._current_visual_row()
         if new_row > 0:
             self._pinned = False
+        self._sync_scroll_offset()
 
     def scroll_page_down(self) -> None:
         page = max(5, int(self._wrapped_window_height() * _SCROLL_PAGE_FACTOR))
@@ -312,16 +353,19 @@ class MessagePane:
         else:
             self._set_scroll_to_visual_row(target, clamp=False)
             self._pinned = False
+        self._sync_scroll_offset()
 
     def scroll_to_top(self) -> None:
         self._window.vertical_scroll = 0
         self._window.vertical_scroll_2 = 0
         self._pinned = False
+        self._scroll_offset = 0
 
     def scroll_to_bottom(self) -> None:
         self._pinned = True
         self._window.vertical_scroll = _SCROLL_BOTTOM
         self._window.vertical_scroll_2 = 0
+        self._scroll_offset = 999999  # Bottom sentinel for virtual scrolling
 
     def _auto_scroll(self) -> None:
         if self._pinned:
@@ -339,9 +383,14 @@ class MessagePane:
             sc, label = fmt if fmt else ("", role)
 
             # ── Markdown rendering (per R6 debate) ──
-            if self._enable_markdown and role in ("assistant", "user") and ("```" in text or "**" in text or "* " in text):
+            if (
+                self._enable_markdown
+                and role in ("assistant", "user")
+                and ("```" in text or "**" in text or "* " in text)
+            ):
                 try:
                     from ui.markdown_renderer import render_markdown
+
                     prefix = f"[{label}] "
                     fragments = render_markdown(text)
                     # Add prefix to first fragment
@@ -377,6 +426,7 @@ class MessagePane:
 
     def stream_append(self, text: str) -> None:
         from utils.unicode_safety import sanitize_text
+
         text = sanitize_text(text)
         with self._lock:
             if self._stream_label:

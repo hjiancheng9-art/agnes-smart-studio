@@ -33,21 +33,21 @@ CRUX_PIXEL = [
 #  调色板 — CRT 终端风格 v2
 # ══════════════════════════════════════════════════════════════════
 PALETTE = {
-    "logo":        "#ffb347",  # 暖金
-    "logo_dim":    "#c08030",  # 金暗
-    "bg":          "#0a0a1a",  # 深空底色
-    "border":      "#5a5a8a",  # 边框紫灰（提亮）
-    "border_dim":  "#3a3a5a",  # 边框暗色
-    "accent":      "#00d4aa",  # 青绿 accent
-    "accent_dim":  "#008866",  # 青绿暗
-    "status_on":   "#00ff88",  # 在线绿
-    "status_off":  "#555555",  # 离线灰
-    "text":        "#c8c8d8",  # 浅灰文字
-    "dim":         "#606080",  # 暗文字
-    "highlight":   "#ff6b6b",  # 珊瑚高亮
-    "pink":        "#d4708a",  # 粉
-    "blue":        "#6b9eff",  # 蓝
-    "purple":      "#a070d8",  # 紫
+    "logo": "#ffb347",  # 暖金
+    "logo_dim": "#c08030",  # 金暗
+    "bg": "#0a0a1a",  # 深空底色
+    "border": "#5a5a8a",  # 边框紫灰（提亮）
+    "border_dim": "#3a3a5a",  # 边框暗色
+    "accent": "#00d4aa",  # 青绿 accent
+    "accent_dim": "#008866",  # 青绿暗
+    "status_on": "#00ff88",  # 在线绿
+    "status_off": "#555555",  # 离线灰
+    "text": "#c8c8d8",  # 浅灰文字
+    "dim": "#606080",  # 暗文字
+    "highlight": "#ff6b6b",  # 珊瑚高亮
+    "pink": "#d4708a",  # 粉
+    "blue": "#6b9eff",  # 蓝
+    "purple": "#a070d8",  # 紫
 }
 
 # ══════════════════════════════════════════════════════════════════
@@ -65,8 +65,13 @@ def _mode_tag(label: str, color_key: str, detail: str = "") -> str:
     """单行模式标签，带 icon 和颜色."""
     c = _P.get(color_key, _P["text"])
     icon_map = {
-        "tool": "⚙", "mode": "◈", "provider": "▣",
-        "model": "◇", "splash": "◆", "agent": "♢", "vision": "◎",
+        "tool": "⚙",
+        "mode": "◈",
+        "provider": "▣",
+        "model": "◇",
+        "splash": "◆",
+        "agent": "♢",
+        "vision": "◎",
     }
     icon = icon_map.get(label, "◆")
     return f"  [{c}]{icon} {detail or label}[/]"
@@ -75,6 +80,7 @@ def _mode_tag(label: str, color_key: str, detail: str = "") -> str:
 # ══════════════════════════════════════════════════════════════════
 #  渲染引擎
 # ══════════════════════════════════════════════════════════════════
+
 
 def build_logo_lines() -> list[str]:
     """Build pixel-art CRUX logo with Rich markup → list of markup lines."""
@@ -102,9 +108,8 @@ def build_border_line(char: str = "═", top: bool = True) -> str:
     if top:
         inner = f"╔{'═' * (LOGO_W - 2)}╗"
         return f"  [{bdr}]{inner}[/]"
-    else:
-        inner = f"╚{'═' * (LOGO_W - 2)}╝"
-        return f"  [{bdr}]{inner}[/]"
+    inner = f"╚{'═' * (LOGO_W - 2)}╝"
+    return f"  [{bdr}]{inner}[/]"
 
 
 def build_scanline() -> str:
@@ -116,6 +121,7 @@ def build_scanline() -> str:
 # ══════════════════════════════════════════════════════════════════
 #  打印入口
 # ══════════════════════════════════════════════════════════════════
+
 
 def _make_status_lamp(label: str, on: bool) -> str:
     dot = "●" if on else "○"
@@ -155,16 +161,15 @@ def _build_info_panel(console, extra_lines: list[tuple] | None = None):
     # ── Git 状态 ──
     try:
         import subprocess
+
         branch = subprocess.run(
-            ["git", "branch", "--show-current"],
-            capture_output=True, text=True, timeout=2
+            ["git", "branch", "--show-current"], capture_output=True, text=True, timeout=2
         ).stdout.strip()
         if branch:
             lines.append(("  ◈ branch", Style(color=accent, bold=True)))
             # count uncommitted
             status_out = subprocess.run(
-                ["git", "status", "--porcelain"],
-                capture_output=True, text=True, timeout=2
+                ["git", "status", "--porcelain"], capture_output=True, text=True, timeout=2
             ).stdout
             n_changed = len([line for line in status_out.splitlines() if line.strip()])
             changed_str = f"  {branch}"
@@ -180,32 +185,36 @@ def _build_info_panel(console, extra_lines: list[tuple] | None = None):
     # ── 最近提交 ──
     try:
         import subprocess
+
         last_commit = subprocess.run(
-            ["git", "log", "-1", "--format=%s", "--no-color"],
-            capture_output=True, text=True, timeout=2
+            ["git", "log", "-1", "--format=%s", "--no-color"], capture_output=True, text=True, timeout=2
         ).stdout.strip()
         if last_commit:
             lines.append(("  ◆ last commit", Style(color=accent, bold=True)))
             msg = last_commit[:45] + "…" if len(last_commit) > 45 else last_commit
             lines.append((f"  {msg}", Style(color=dim, italic=True)))
     except Exception:
-        import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+        import logging
+
+        logging.getLogger("crux").debug("silent except", exc_info=True)
     lines.append(("", Style()))
 
     # ── 会话统计 ──
     lines.append(("  ⚡ session", Style(color=accent, bold=True)))
     import sys
+
     py_ver = f"{sys.version_info.major}.{sys.version_info.minor}"
     lines.append((f"  Python {py_ver}  |  {console.width}×{console.height}", Style(color=dim, italic=True)))
     # count files
     try:
-        n_py = len(subprocess.run(
-            ["git", "ls-files", "*.py"],
-            capture_output=True, text=True, timeout=2
-        ).stdout.splitlines())
+        n_py = len(
+            subprocess.run(["git", "ls-files", "*.py"], capture_output=True, text=True, timeout=2).stdout.splitlines()
+        )
         lines.append((f"  {n_py} modules  |  skills 50+743", Style(color=dim, italic=True)))
     except Exception:
-        import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+        import logging
+
+        logging.getLogger("crux").debug("silent except", exc_info=True)
     lines.append(("", Style()))
 
     # ── 快速指南 ──
@@ -218,17 +227,20 @@ def _build_info_panel(console, extra_lines: list[tuple] | None = None):
         ("  Ctrl+C", "  new session"),
     ]
     for cmd, desc in tips:
-        lines.append((
-            f"  {cmd}",
-            Style(color=cyan),
-        ))
-        lines.append((
-            f"{desc}",
-            Style(color=dim, italic=True),
-        ))
+        lines.append(
+            (
+                f"  {cmd}",
+                Style(color=cyan),
+            )
+        )
+        lines.append(
+            (
+                f"{desc}",
+                Style(color=dim, italic=True),
+            )
+        )
 
-    info = Text.assemble(*lines)
-    return info
+    return Text.assemble(*lines)
 
 
 def print_splash(extra_lines: list[tuple] | None = None) -> None:
@@ -275,6 +287,7 @@ def print_splash(extra_lines: list[tuple] | None = None) -> None:
 
     # ── 版本 / 标语 ──
     from core.version import __version__
+
     version_tag = f"  v{__version__}  "
     tag_line = Text.assemble(
         ("  ═══  ", Style(color=bdr_d)),
@@ -290,8 +303,11 @@ def print_splash(extra_lines: list[tuple] | None = None) -> None:
     if extra_lines:
         for kind, label, color_key, detail in extra_lines:
             icon_map = {
-                "tool": "⚙", "mode": "◈", "provider": "▣",
-                "model": "◇", "splash": "◆",
+                "tool": "⚙",
+                "mode": "◈",
+                "provider": "▣",
+                "model": "◇",
+                "splash": "◆",
             }
             icon = icon_map.get(kind, "◆")
             c = _P.get(color_key, _P["text"])
@@ -304,6 +320,7 @@ def print_splash(extra_lines: list[tuple] | None = None) -> None:
 
     # ── 左面板 ──
     from rich.console import Group as RenderGroup
+
     left_body = [border_top, border_inner_top, logo_text, scanline, tag_line, scanline]
     if status_items:
         left_body.append(Text("\n", Style()))

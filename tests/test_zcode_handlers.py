@@ -19,9 +19,8 @@ class TestAllCommandsHaveHandlers:
             if not hasattr(CruxCLI, handler_name):
                 missing.append(f"{cmd.key} → {handler_name}")
 
-        assert not missing, (
-            f"{len(missing)} command(s) missing handlers on CruxCLI:\n"
-            + "\n".join(f"  - {m}" for m in missing)
+        assert not missing, f"{len(missing)} command(s) missing handlers on CruxCLI:\n" + "\n".join(
+            f"  - {m}" for m in missing
         )
 
     def test_missing_handler_count(self):
@@ -45,9 +44,7 @@ class TestAllCommandsHaveHandlers:
         """build_dispatch_table() has expected keys: 51 commands + 3 aliases."""
         table = build_dispatch_table()
         expected = 51 + 3  # = 54
-        assert len(table) == expected, (
-            f"Expected {expected} dispatch entries, got {len(table)}"
-        )
+        assert len(table) == expected, f"Expected {expected} dispatch entries, got {len(table)}"
 
     def test_expected_dispatch_keys(self):
         """Verify key dispatch table entries exist."""

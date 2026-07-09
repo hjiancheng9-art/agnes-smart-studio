@@ -59,7 +59,8 @@ def http_request(
 
 
 def db_query(
-    sql: str,
+    sql: str = "",
+    query: str = "",
     params: tuple | None = None,
     db_path: str = ":memory:",
 ) -> list[dict]:
@@ -68,6 +69,9 @@ def db_query(
     Returns a list of dicts, one per row, with column names as keys.
     For write queries (INSERT/UPDATE/DELETE/CREATE), returns [{"rowcount": N}].
     """
+    # Accept both 'sql' and 'query' parameter names
+    sql = query if query else sql
+
     import sqlite3 as _sqlite
 
     conn = _sqlite.connect(db_path)
@@ -76,11 +80,9 @@ def db_query(
         cursor = conn.execute(sql, params or ())
         sql_upper = sql.strip().upper()
         if sql_upper.startswith(("SELECT", "PRAGMA", "WITH")):
-            rows = [dict(row) for row in cursor.fetchall()]
-            return rows
-        else:
-            conn.commit()
-            return [{"rowcount": cursor.rowcount}]
+            return [dict(row) for row in cursor.fetchall()]
+        conn.commit()
+        return [{"rowcount": cursor.rowcount}]
     finally:
         conn.close()
 

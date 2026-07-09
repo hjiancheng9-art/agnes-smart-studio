@@ -19,20 +19,22 @@ from dataclasses import dataclass
 @dataclass
 class SkillEntry:
     """技能包元数据"""
+
     name: str
-    category: str              # creative / quality / tool / video / other
-    tags: list[str]            # 场景标签，如 "comfyui", "code-review", "batch"
+    category: str  # creative / quality / tool / video / other
+    tags: list[str]  # 场景标签，如 "comfyui", "code-review", "batch"
     description: str = ""
     version: str = "1.0"
     usage_count: int = 0
     success_count: int = 0
     avg_latency_ms: float = 0.0
-    is_local: bool = True       # CodeBuddy 本地 or 远程市场
-    hidden: bool = False        # 低频技能折叠
+    is_local: bool = True  # CodeBuddy 本地 or 远程市场
+    hidden: bool = False  # 低频技能折叠
 
     @property
     def success_rate(self) -> float:
-        if self.usage_count == 0: return 0.5
+        if self.usage_count == 0:
+            return 0.5
         return self.success_count / self.usage_count
 
     @property
@@ -54,22 +56,18 @@ class SkillRecommender:
         "image-batch": ["图片", "批量处理", "后处理", "放大"],
         "video-pipeline": ["视频", "动画", "关键帧", "渲染"],
         "style-transfer": ["风格迁移", "滤镜", "艺术效果"],
-
         # quality 类
         "code-linter": ["代码检查", "lint", "风格检查", "质量"],
         "security-scan": ["安全", "漏洞扫描", "审计"],
         "performance-audit": ["性能", "基准测试", "优化"],
-
         # tool 类
         "git-workflow": ["git", "版本控制", "分支管理"],
         "ci-cd-pipeline": ["CI/CD", "构建", "部署", "流水线"],
         "db-manager": ["数据库", "SQL", "迁移"],
         "api-tester": ["API", "测试", "REST", "接口"],
-
         # video 类
         "video-editing": ["视频编辑", "剪辑", "特效"],
         "motion-graphics": ["动效", "运动图形"],
-
         # other
         "document-gen": ["文档", "报告", "导出", "markdown"],
         "prompt-optimizer": ["提示词", "prompt", "优化", "模板"],
@@ -135,7 +133,8 @@ class SkillRecommender:
         """根据场景标签推荐技能包"""
         candidates = []
         for name, skill in self._skills.items():
-            if skill.hidden: continue
+            if skill.hidden:
+                continue
             match_score = sum(1 for t in tags if t in skill.tags)
             if match_score > 0:
                 candidates.append((name, skill.score * (1 + 0.2 * match_score)))
@@ -147,15 +146,16 @@ class SkillRecommender:
         """记录技能包使用效果"""
         if name in self._skills:
             self._skills[name].usage_count += 1
-            if success: self._skills[name].success_count += 1
+            if success:
+                self._skills[name].success_count += 1
             if latency_ms > 0:
                 old = self._skills[name].avg_latency_ms
                 n = self._skills[name].usage_count
-                self._skills[name].avg_latency_ms = (old * (n-1) + latency_ms) / n
+                self._skills[name].avg_latency_ms = (old * (n - 1) + latency_ms) / n
 
     def hide_low_performers(self, threshold: float = 0.3):
         """自动隐藏低绩效技能包（成功率 < 阈值 且 使用量 > 10）"""
-        for name, skill in self._skills.items():
+        for _name, skill in self._skills.items():
             if skill.usage_count > 10 and skill.success_rate < threshold:
                 skill.hidden = True
 
@@ -173,8 +173,7 @@ class SkillRecommender:
             "hidden": hidden,
             "active": total - hidden,
             "by_category": by_cat,
-            "top_skills": [{"name": s.name, "score": s.score, "usage": s.usage_count}
-                          for s in top],
+            "top_skills": [{"name": s.name, "score": s.score, "usage": s.usage_count} for s in top],
         }
 
     def to_recommendation_text(self, task_type: str, top_k: int = 3) -> str:

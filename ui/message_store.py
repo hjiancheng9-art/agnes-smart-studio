@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 @dataclass
 class Message:
     """单条消息。"""
+
     id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
     role: str = ""
     text: str = ""
@@ -32,13 +33,16 @@ class Message:
     def code_blocks(self) -> list[dict]:
         """惰性提取代码块。"""
         import re
+
         blocks = []
         for i, match in enumerate(re.finditer(r"```(\w*)\n(.*?)```", self.text, re.DOTALL)):
-            blocks.append({
-                "index": i,
-                "language": match.group(1).strip() or "text",
-                "code": match.group(2).strip(),
-            })
+            blocks.append(
+                {
+                    "index": i,
+                    "language": match.group(1).strip() or "text",
+                    "code": match.group(2).strip(),
+                }
+            )
         return blocks
 
     def snippet(self, max_len: int = 60) -> str:

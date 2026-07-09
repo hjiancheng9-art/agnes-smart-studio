@@ -388,9 +388,7 @@ class LSPClient:
 
         # Diagnostics are pushed via notification, not a request response.
         # Read any pending notifications from the server stdout.
-        diagnostics = self._collect_diagnostics(proc, file_path)
-
-        return diagnostics
+        return self._collect_diagnostics(proc, file_path)
 
     def get_completion(self, file_path: str, line: int, character: int) -> list[dict]:
         """LSP textDocument/completion -- get autocomplete suggestions.

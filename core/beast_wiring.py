@@ -340,10 +340,9 @@ def get_wiring_summary() -> str:
         dd = "standby"
 
     reg_summary = registry.summary() if registry else ""
-    as_text = f"""{reg_summary}
+    return f"""{reg_summary}
 ## Plugins
 {pm.summary() if pm else "unknown"}
 
 ## Daemon
   state: {dd} | watchdog: {wds}"""
-    return as_text

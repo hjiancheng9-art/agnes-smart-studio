@@ -80,7 +80,7 @@ pkill -f pytest                                           # Linux/Mac
 
 ## Extended Architecture (v6.0 新增子系统)
 核心四件套之外，v5.0 引入了以下架构级子系统（均为 core/*.py 独立模块）：
-- 编排/执行层: core/orchestra.py (多源能力协调), core/multi_agent.py (并行子智能体), core/executor.py (自主 plan-execute-verify 循环), core/showrunner.py (创意流水线导演)
+- 编排/执行层: core/orchestra.py (多源能力协调), core/multi_agent.py (并行子智能体), core/executor.py (自主 plan-execute-verify 循环), core/providers/agnes.py (Agnes 生成通道), core/creative/ (镜头合同/QC/限流)
 - 智能体基础设施: core/sandbox.py (命令执行守卫，配合 core/tools.py 的 shell 执行点), core/hooks.py (生命周期钩子), core/provider.py (供应商自动 failover + 模型注册表), core/resilience.py + core/recovery.py (错误恢复 + 失败剧本)
 - 代码智能: core/code_intel.py (AST/符号索引/语义搜索), core/rag.py (TF-IDF 语义检索), core/lsp.py (LSP 客户端)
 - 记忆/会话: core/semantic_memory.py (跨会话语义记忆), core/session_mgr.py (命名持久化会话)
@@ -142,7 +142,7 @@ CRUX 同时作为 MCP **Server**（被外部调用）和 MCP **Client**（调用
 - core/executor.md — 自主任务执行器 (Plan→Execute→Verify→Report)
 - core/orchestra.md — 能力协调层 (多源冲突仲裁/组合/发现/动态切换)
 - core/multi_agent.md — 多智能体并行调度 (分解/派发/聚合/共识/偷取)
-- core/showrunner.md — 创意流水线导演 (Goal→Plan→Generate→Deliver)
+- core/creative/ — 生成编排 (ShotContract, QC, RPM限流)
 - core/observability_stack.md — 可观测体系 (Tracing/Cost/Self-Audit)
 - core/provider_resilience.md — 供应商+韧性 (Failover/CircuitBreaker/Recovery)
 </INSTRUCTIONS>
@@ -164,8 +164,8 @@ Codex is the primary coding agent, colocated on this machine.
 
 ### Division of Labor
 **CRUX does:**
-- Creative pipelines (showrunner: plan -> decompose -> storyboard -> generate -> QC)
-- Image/video generation (ComfyUI, CRUX Image/Video API)
+- Creative pipelines (Agnes + ShotContract: prompt → contract → generate → QC → deliver)
+- Creative generation (Agnes: text/image/video, runware: image control)
 - Multi-provider model routing with failover
 - MCP server bridging (exposes tools to external agents)
 - Marketplace skill discovery and installation

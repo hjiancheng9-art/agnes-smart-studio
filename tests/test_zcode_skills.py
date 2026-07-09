@@ -17,10 +17,12 @@ if str(PROJECT_ROOT) not in sys.path:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def fresh_manager():
     """Return a fresh SkillManager with no shared state."""
     from core.skills import SkillManager, reset_skill_manager
+
     reset_skill_manager()
     mgr = SkillManager()
     yield mgr
@@ -31,9 +33,11 @@ def fresh_manager():
 # 1. SkillManager instantiation and singleton
 # ---------------------------------------------------------------------------
 
+
 class TestSkillManagerInstantiation:
     def test_instantiate(self, fresh_manager):
         from core.skills import SkillManager
+
         assert isinstance(fresh_manager, SkillManager)
 
     def test_default_attributes(self, fresh_manager):
@@ -44,6 +48,7 @@ class TestSkillManagerInstantiation:
 
     def test_singleton_get_manager(self):
         from core.skills import SkillManager, get_manager, reset_skill_manager
+
         reset_skill_manager()
         m1 = get_manager()
         m2 = get_manager()
@@ -53,6 +58,7 @@ class TestSkillManagerInstantiation:
 
     def test_reset_skill_manager(self):
         from core.skills import get_manager, reset_skill_manager
+
         reset_skill_manager()
         m1 = get_manager()
         reset_skill_manager()
@@ -62,6 +68,7 @@ class TestSkillManagerInstantiation:
 
     def test_custom_skills_dir(self, tmp_path):
         from core.skills import SkillManager
+
         mgr = SkillManager(skills_dir=tmp_path)
         assert mgr._dir == tmp_path
 
@@ -70,6 +77,7 @@ class TestSkillManagerInstantiation:
 # 2. discover method
 # ---------------------------------------------------------------------------
 
+
 class TestSkillManagerDiscover:
     def test_discover_returns_dict(self, fresh_manager):
         result = fresh_manager.discover()
@@ -77,6 +85,7 @@ class TestSkillManagerDiscover:
 
     def test_discover_creates_dir_if_missing(self, tmp_path):
         from core.skills import SkillManager
+
         sub = tmp_path / "nonexistent_skills"
         assert not sub.exists()
         mgr = SkillManager(skills_dir=sub)
@@ -85,35 +94,49 @@ class TestSkillManagerDiscover:
 
     def test_discover_loads_skill_files(self, fresh_manager, tmp_path):
         import json
+
         skill_dir = tmp_path / "skills"
         skill_dir.mkdir()
         skill_file = skill_dir / "test.skill.json"
-        skill_file.write_text(json.dumps({
-            "name": "test-skill",
-            "description": "A test skill",
-            "version": "1.0",
-            "prompt": "You are a test skill with at least 20 chars of prompt text.",
-        }), encoding="utf-8")
+        skill_file.write_text(
+            json.dumps(
+                {
+                    "name": "test-skill",
+                    "description": "A test skill",
+                    "version": "1.0",
+                    "prompt": "You are a test skill with at least 20 chars of prompt text.",
+                }
+            ),
+            encoding="utf-8",
+        )
 
         from core.skills import SkillManager
+
         mgr = SkillManager(skills_dir=skill_dir)
         available = mgr.discover()
         assert "test-skill" in available
 
     def test_discover_ignores_off_trigger(self, fresh_manager, tmp_path):
         import json
+
         skill_dir = tmp_path / "skills_off"
         skill_dir.mkdir()
         skill_file = skill_dir / "hidden.skill.json"
-        skill_file.write_text(json.dumps({
-            "name": "hidden-skill",
-            "description": "Hidden",
-            "version": "1.0",
-            "trigger": "off",
-            "prompt": "You are a hidden skill with enough prompt text here.",
-        }), encoding="utf-8")
+        skill_file.write_text(
+            json.dumps(
+                {
+                    "name": "hidden-skill",
+                    "description": "Hidden",
+                    "version": "1.0",
+                    "trigger": "off",
+                    "prompt": "You are a hidden skill with enough prompt text here.",
+                }
+            ),
+            encoding="utf-8",
+        )
 
         from core.skills import SkillManager
+
         mgr = SkillManager(skills_dir=skill_dir)
         available = mgr.discover()
         assert "hidden-skill" not in available
@@ -124,6 +147,7 @@ class TestSkillManagerDiscover:
         (skill_dir / "bad.skill.json").write_text("not json", encoding="utf-8")
 
         from core.skills import SkillManager
+
         mgr = SkillManager(skills_dir=skill_dir)
         available = mgr.discover()
         assert isinstance(available, dict)
@@ -133,6 +157,7 @@ class TestSkillManagerDiscover:
 # 3. available_names (list_available)
 # ---------------------------------------------------------------------------
 
+
 class TestSkillManagerListAvailable:
     def test_available_names_is_list(self, fresh_manager):
         fresh_manager.discover()
@@ -141,22 +166,34 @@ class TestSkillManagerListAvailable:
 
     def test_available_names_after_discover(self, fresh_manager, tmp_path):
         import json
+
         skill_dir = tmp_path / "skills_list"
         skill_dir.mkdir()
-        (skill_dir / "a.skill.json").write_text(json.dumps({
-            "name": "skill-a",
-            "description": "Skill A",
-            "version": "1.0",
-            "prompt": "You are skill A with enough prompt text for validation purposes.",
-        }), encoding="utf-8")
-        (skill_dir / "b.skill.json").write_text(json.dumps({
-            "name": "skill-b",
-            "description": "Skill B",
-            "version": "1.0",
-            "prompt": "You are skill B with enough prompt text for validation purposes.",
-        }), encoding="utf-8")
+        (skill_dir / "a.skill.json").write_text(
+            json.dumps(
+                {
+                    "name": "skill-a",
+                    "description": "Skill A",
+                    "version": "1.0",
+                    "prompt": "You are skill A with enough prompt text for validation purposes.",
+                }
+            ),
+            encoding="utf-8",
+        )
+        (skill_dir / "b.skill.json").write_text(
+            json.dumps(
+                {
+                    "name": "skill-b",
+                    "description": "Skill B",
+                    "version": "1.0",
+                    "prompt": "You are skill B with enough prompt text for validation purposes.",
+                }
+            ),
+            encoding="utf-8",
+        )
 
         from core.skills import SkillManager
+
         mgr = SkillManager(skills_dir=skill_dir)
         mgr.discover()
         names = mgr.available_names
@@ -168,9 +205,11 @@ class TestSkillManagerListAvailable:
 # 4. Skill operations (load, unload, get_system_prompt)
 # ---------------------------------------------------------------------------
 
+
 class TestSkillOperations:
     def test_load_skill(self, fresh_manager):
         from core.skills import Skill
+
         fresh_manager.create_examples()
         fresh_manager.discover()
         skill = fresh_manager.load("python-expert")
@@ -222,6 +261,7 @@ class TestSkillOperations:
 
     def test_skill_object_fields(self, fresh_manager):
         from core.skills import Skill
+
         fresh_manager.create_examples()
         fresh_manager.discover()
         skill = fresh_manager.load("python-expert")
@@ -239,6 +279,7 @@ class TestSkillOperations:
 # 5. Trigger modes
 # ---------------------------------------------------------------------------
 
+
 class TestSkillTriggerModes:
     def test_auto_skills_prompt_no_auto_skills(self, fresh_manager):
         fresh_manager.create_examples()
@@ -249,24 +290,36 @@ class TestSkillTriggerModes:
 
     def test_list_all_includes_all(self, fresh_manager, tmp_path):
         import json
+
         skill_dir = tmp_path / "skills_trigger"
         skill_dir.mkdir()
-        (skill_dir / "auto.skill.json").write_text(json.dumps({
-            "name": "auto-skill",
-            "description": "Auto",
-            "version": "1.0",
-            "trigger": "auto",
-            "prompt": "Auto skill with enough prompt text for validation.",
-        }), encoding="utf-8")
-        (skill_dir / "off.skill.json").write_text(json.dumps({
-            "name": "off-skill",
-            "description": "Off",
-            "version": "1.0",
-            "trigger": "off",
-            "prompt": "Off skill with enough prompt text for validation.",
-        }), encoding="utf-8")
+        (skill_dir / "auto.skill.json").write_text(
+            json.dumps(
+                {
+                    "name": "auto-skill",
+                    "description": "Auto",
+                    "version": "1.0",
+                    "trigger": "auto",
+                    "prompt": "Auto skill with enough prompt text for validation.",
+                }
+            ),
+            encoding="utf-8",
+        )
+        (skill_dir / "off.skill.json").write_text(
+            json.dumps(
+                {
+                    "name": "off-skill",
+                    "description": "Off",
+                    "version": "1.0",
+                    "trigger": "off",
+                    "prompt": "Off skill with enough prompt text for validation.",
+                }
+            ),
+            encoding="utf-8",
+        )
 
         from core.skills import SkillManager
+
         mgr = SkillManager(skills_dir=skill_dir)
         all_skills = mgr.list_all()
         names = {s.name for s in all_skills}
@@ -275,17 +328,24 @@ class TestSkillTriggerModes:
 
     def test_get_trigger(self, fresh_manager, tmp_path):
         import json
+
         skill_dir = tmp_path / "skills_gettrig"
         skill_dir.mkdir()
-        (skill_dir / "manual.skill.json").write_text(json.dumps({
-            "name": "manual-skill",
-            "description": "Manual",
-            "version": "1.0",
-            "trigger": "manual",
-            "prompt": "Manual skill with enough prompt text for validation.",
-        }), encoding="utf-8")
+        (skill_dir / "manual.skill.json").write_text(
+            json.dumps(
+                {
+                    "name": "manual-skill",
+                    "description": "Manual",
+                    "version": "1.0",
+                    "trigger": "manual",
+                    "prompt": "Manual skill with enough prompt text for validation.",
+                }
+            ),
+            encoding="utf-8",
+        )
 
         from core.skills import SkillManager
+
         mgr = SkillManager(skills_dir=skill_dir)
         trigger = mgr.get_trigger("manual-skill")
         assert trigger == "manual"
@@ -306,6 +366,7 @@ class TestSkillTriggerModes:
 # ---------------------------------------------------------------------------
 # 6. Validate
 # ---------------------------------------------------------------------------
+
 
 class TestSkillValidate:
     def test_validate_returns_dict(self, fresh_manager):
@@ -329,6 +390,7 @@ class TestSkillValidate:
         (skill_dir / "broken.skill.json").write_text("{not json", encoding="utf-8")
 
         from core.skills import SkillManager
+
         mgr = SkillManager(skills_dir=skill_dir)
         result = mgr.validate()
         assert len(result["failed"]) >= 1
@@ -338,18 +400,22 @@ class TestSkillValidate:
 # 7. Resolve skill executor
 # ---------------------------------------------------------------------------
 
+
 class TestResolveSkillExecutor:
     def test_resolve_generate_image(self):
         from core.skills import resolve_skill_executor
+
         executor = resolve_skill_executor("generate_image")
         assert callable(executor)
 
     def test_resolve_text_to_speech(self):
         from core.skills import resolve_skill_executor
+
         executor = resolve_skill_executor("text_to_speech")
         assert callable(executor)
 
     def test_resolve_unknown_tool(self):
         from core.skills import resolve_skill_executor
+
         executor = resolve_skill_executor("nonexistent_tool")
         assert callable(executor)

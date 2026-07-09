@@ -26,8 +26,7 @@ _CTRL_RE = re.compile(r"[\x00-\x08\x0e-\x1f]")
 def _clean_ansi(text: str) -> str:
     text = _ANSI_RE.sub("", text)
     text = _OSC_RE.sub("", text)
-    text = _CTRL_RE.sub("", text)
-    return text
+    return _CTRL_RE.sub("", text)
 
 
 # ── Codex binary resolution ─────────────────────────────────────────
@@ -132,7 +131,7 @@ def _extract_result(output: str, prompt: str) -> dict:
     """
     summary = ""
     code = ""
-    lines = [l.strip() for l in output.split("\n")]
+    lines = [line.strip() for line in output.split("\n")]
     in_code = False
     code_lines = []
 
@@ -268,11 +267,10 @@ def _handle_tool_call(name: str, args: dict) -> dict:
                         }
                     ]
                 }
-            else:
-                return {
-                    "content": [{"type": "text", "text": f"Error: {result.get('error', 'unknown')}"}],
-                    "isError": True,
-                }
+            return {
+                "content": [{"type": "text", "text": f"Error: {result.get('error', 'unknown')}"}],
+                "isError": True,
+            }
 
         if name == "codex_review":
             target = args.get("target", "")
@@ -314,11 +312,10 @@ def _handle_tool_call(name: str, args: dict) -> dict:
             result = _run_codex(f"Think deeply and analyze: {prompt}", timeout)
             if result.get("success"):
                 return {"content": [{"type": "text", "text": result["output"]}]}
-            else:
-                return {
-                    "content": [{"type": "text", "text": f"Error: {result.get('error', 'unknown')}"}],
-                    "isError": True,
-                }
+            return {
+                "content": [{"type": "text", "text": f"Error: {result.get('error', 'unknown')}"}],
+                "isError": True,
+            }
 
         return {
             "content": [{"type": "text", "text": f"Unknown tool: {name}"}],

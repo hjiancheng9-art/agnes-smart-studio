@@ -70,10 +70,9 @@ def get_clipboard_image() -> str | None:
     """
     if sys.platform == "win32":
         return _get_clipboard_image_win32()
-    elif sys.platform == "darwin":
+    if sys.platform == "darwin":
         return _get_clipboard_image_macos()
-    else:
-        return _get_clipboard_image_linux()
+    return _get_clipboard_image_linux()
 
 
 def _get_clipboard_image_win32() -> str | None:
@@ -134,10 +133,12 @@ def _save_clipboard_dib(data: bytes) -> str | None:
         tmp.close()
         # 注册 atexit 清理（临时文件非关键，失败不报错）
         import atexit
+
         @atexit.register
         def _clean():
             with contextlib.suppress(OSError):
                 os.unlink(tmp_path)
+
         logger.debug("clipboard image saved: %s (%dKB)", tmp_path, os.path.getsize(tmp_path) // 1024)
         return tmp_path
     except ImportError:
@@ -155,7 +156,9 @@ def _get_clipboard_image_macos() -> str | None:
         tmp.close()
         r = subprocess.run(
             ["pngpaste", tmp.name],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if r.returncode == 0 and os.path.getsize(tmp.name) > 100:
             return tmp.name
@@ -171,7 +174,8 @@ def _get_clipboard_image_linux() -> str | None:
         # Check if clipboard has image mimetype
         r = subprocess.run(
             ["xclip", "-selection", "clipboard", "-t", "image/png", "-o"],
-            capture_output=True, timeout=5,
+            capture_output=True,
+            timeout=5,
         )
         if r.returncode == 0 and len(r.stdout) > 100:
             tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False, prefix="crux_clip_")  # noqa: SIM115

@@ -49,8 +49,8 @@ class TestStreamStart:
         pane = MessagePane()
         pane.stream_start("crux")
         # Buffer should start with "[CRUX] "
-        assert "[CRUX]" in pane._stream_buffer
-        assert pane._stream_label == "CRUX"
+        assert "[◆ CRUX]" in pane._stream_buffer
+        assert pane._stream_label == "◆ CRUX"
         assert pane.line_count == 1  # stream buffer counts as 1
 
 
@@ -182,10 +182,7 @@ class TestWrappedAutoScrollToBottom:
         # But with the prefix "[CRUX] " (7 chars), total is ~13 rows
         # Actually, let's just verify: vertical_scroll_2 should be 0 when
         # total_wrapped <= height, and >0 when total_wrapped > height
-        total_h = sum(
-            ui.get_height_for_line(i, 40, w.get_line_prefix)
-            for i in range(ui.line_count)
-        )
+        total_h = sum(ui.get_height_for_line(i, 40, w.get_line_prefix) for i in range(ui.line_count))
 
         if total_h <= 15:
             # Content fits: no intra-line scroll needed
@@ -211,10 +208,7 @@ class TestWrappedAutoScrollToBottom:
         ui = pane._control.create_content(20, None)
         w._scroll(ui, width=20, height=10)
 
-        total_h = sum(
-            ui.get_height_for_line(i, 20, w.get_line_prefix)
-            for i in range(ui.line_count)
-        )
+        total_h = sum(ui.get_height_for_line(i, 20, w.get_line_prefix) for i in range(ui.line_count))
 
         # With "[CRUX] AAAA...", at width 20, 300 chars wrap to ~16 rows.
         # With height 10, total_h (16) > height (10), so vertical_scroll_2 must be > 0
@@ -238,10 +232,7 @@ class TestWrappedAutoScrollToBottom:
         # Fullscreen: width=120, height=30
         ui_wide = pane._control.create_content(120, None)
         w._scroll(ui_wide, width=120, height=30)
-        total_wide = sum(
-            ui_wide.get_height_for_line(i, 120, w.get_line_prefix)
-            for i in range(ui_wide.line_count)
-        )
+        total_wide = sum(ui_wide.get_height_for_line(i, 120, w.get_line_prefix) for i in range(ui_wide.line_count))
         # At width=120, content likely fits
         if total_wide <= 30:
             assert w.vertical_scroll_2 == 0  # No intra-line scroll needed
@@ -251,10 +242,7 @@ class TestWrappedAutoScrollToBottom:
         pane._auto_scroll()
         ui_narrow = pane._control.create_content(40, None)
         w._scroll(ui_narrow, width=40, height=15)
-        total_narrow = sum(
-            ui_narrow.get_height_for_line(i, 40, w.get_line_prefix)
-            for i in range(ui_narrow.line_count)
-        )
+        total_narrow = sum(ui_narrow.get_height_for_line(i, 40, w.get_line_prefix) for i in range(ui_narrow.line_count))
         # At width=40, content may exceed height
         if total_narrow > 15:
             assert w.vertical_scroll_2 > 0, (
@@ -267,6 +255,5 @@ class TestWrappedAutoScrollToBottom:
         if total_narrow > 15:
             visible_bottom = w.vertical_scroll_2 + 15  # approx
             assert visible_bottom >= total_narrow - 1, (
-                f"Expected visible_bottom ({visible_bottom}) to reach "
-                f"total content ({total_narrow})"
+                f"Expected visible_bottom ({visible_bottom}) to reach total content ({total_narrow})"
             )

@@ -157,11 +157,10 @@ class Aria2Bridge:
                     self._running = True
                     logger.info(f"[Aria2] Ready on port {self._rpc_port}")
                     return True
-                else:
-                    self._process.kill()
-                    self._process = None
-                    logger.error("[Aria2] Failed to start within timeout")
-                    return False
+                self._process.kill()
+                self._process = None
+                logger.error("[Aria2] Failed to start within timeout")
+                return False
             except (OSError, subprocess.SubprocessError) as e:
                 logger.exception(f"[Aria2] Start failed: {e}")
                 return False

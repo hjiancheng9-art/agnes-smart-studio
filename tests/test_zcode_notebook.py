@@ -26,7 +26,13 @@ class TestNotebook:
             "nbformat_minor": 5,
             "metadata": {"kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"}},
             "cells": [
-                {"cell_type": "code", "source": ["print('hello')\n"], "outputs": [], "execution_count": 0, "metadata": {}},
+                {
+                    "cell_type": "code",
+                    "source": ["print('hello')\n"],
+                    "outputs": [],
+                    "execution_count": 0,
+                    "metadata": {},
+                },
                 {"cell_type": "markdown", "source": ["# Title\n"], "metadata": {}},
             ],
         }
@@ -245,7 +251,9 @@ class TestNotebookManager:
             "nbformat": 4,
             "nbformat_minor": 5,
             "metadata": {},
-            "cells": [{"cell_type": "code", "source": ["x = 1\n"], "outputs": [], "execution_count": 0, "metadata": {}}],
+            "cells": [
+                {"cell_type": "code", "source": ["x = 1\n"], "outputs": [], "execution_count": 0, "metadata": {}}
+            ],
         }
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "test.ipynb")
@@ -262,7 +270,9 @@ class TestNotebookManager:
             "nbformat": 4,
             "nbformat_minor": 5,
             "metadata": {},
-            "cells": [{"cell_type": "code", "source": ["x = 1\n"], "outputs": [], "execution_count": 0, "metadata": {}}],
+            "cells": [
+                {"cell_type": "code", "source": ["x = 1\n"], "outputs": [], "execution_count": 0, "metadata": {}}
+            ],
         }
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "test.ipynb")

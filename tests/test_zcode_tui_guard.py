@@ -18,14 +18,13 @@ def _read_source(path: Path) -> str:
 
 # ── Issue 3: TUI minimum height guard ──────────────────────────────
 
+
 def test_tui_has_height_guard():
     """Verify _chat_tui has terminal height check before TuiApp.run()."""
     source = _read_source(CRUX_STUDIO)
 
     # Must have a terminal size check with < threshold
-    assert "get_terminal_size" in source, (
-        "crux_studio.py must call shutil.get_terminal_size() for height guard"
-    )
+    assert "get_terminal_size" in source, "crux_studio.py must call shutil.get_terminal_size() for height guard"
 
     # Must check lines against a threshold (10)
     assert re.search(r"\.lines\s*<\s*(10|8|12)", source), (
@@ -50,20 +49,18 @@ def test_tui_has_height_guard():
             found_tui_import_or_create = True
             if found_guard:
                 guard_before_tui = True
-        if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name) and node.func.id in ("TuiApp", "TuiAppV2"):
-                found_tui_import_or_create = True
-                if found_guard:
-                    guard_before_tui = True
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ("TuiApp", "TuiAppV2"):
+            found_tui_import_or_create = True
+            if found_guard:
+                guard_before_tui = True
 
     assert found_guard, "crux_studio.py missing height guard (lines < N check)"
     assert found_tui_import_or_create, "crux_studio.py missing TuiApp/TuiAppV2 reference"
-    assert guard_before_tui, (
-        "Height guard must appear BEFORE TuiApp import/creation in source"
-    )
+    assert guard_before_tui, "Height guard must appear BEFORE TuiApp import/creation in source"
 
 
 # ── Issue 4: self_heal fixer silent failures ────────────────────────
+
 
 def test_self_heal_fixer_has_logging():
     """Verify fix_silent_exceptions has logger.warning/debug in except block."""
@@ -89,8 +86,11 @@ def test_self_heal_fixer_has_logging():
                     if isinstance(subnode.func, ast.Attribute):
                         obj = subnode.func.value
                         attr = subnode.func.attr
-                        if (isinstance(obj, ast.Name) and obj.id == "logger"
-                                and attr in ("warning", "debug", "error", "info")):
+                        if (
+                            isinstance(obj, ast.Name)
+                            and obj.id == "logger"
+                            and attr in ("warning", "debug", "error", "info")
+                        ):
                             found_logger_call = True
                             break
                     elif isinstance(subnode.func, ast.Name):
@@ -101,6 +101,5 @@ def test_self_heal_fixer_has_logging():
                 break
 
     assert found_logger_call, (
-        "fix_silent_exceptions except block must call "
-        "logger.warning/logger.debug/etc. with exception info"
+        "fix_silent_exceptions except block must call logger.warning/logger.debug/etc. with exception info"
     )

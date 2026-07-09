@@ -46,7 +46,7 @@ BUILTIN_TOOLS = [
         "type": "function",
         "function": {
             "name": "generate_image",
-            "description": "Create an image from text. Supports text-to-image, image-to-image (image_url), and multi-image reference (image_urls array).",
+            "description": "Create an image from text. Supports text-to-image, image-to-image, multi-image reference (image_urls array). Rules: (1) Specify purpose first — product/film-keyframe/short-video-cover each needs different composition. (2) Complex scenes need visual hierarchy: main subject > secondary element > background. (3) Image-to-image MUST include what to preserve: composition/subject/lighting/style. (4) Multi-image input: image1=subject-identity, image2=scene-reference, image3=style-reference.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -76,7 +76,7 @@ BUILTIN_TOOLS = [
                             "684x1024",
                             "1024x684",
                         ],
-                        "description": "Image size (WxH). Default 1024x768.",
+                        "description": "Image size (WxH). Default 1024x768. Vertical/portrait → 768x1024 or 576x1024. Landscape/horizontal → 1024x768 or 1024x576. Square → 1024x1024.",
                     },
                     "seed": {"type": "integer", "description": "Optional random seed for reproducibility"},
                     "system": {
@@ -93,7 +93,7 @@ BUILTIN_TOOLS = [
         "type": "function",
         "function": {
             "name": "generate_video",
-            "description": "Create a video from text or images. Modes: text-to-video, image-to-video, keyframe animation.",
+            "description": "Create a video from text or images. Rules: (1) ONE action per video, ONE camera movement, ONE clear ending. (2) Image-to-video: reference image defines identity/composition/style; prompt should ONLY describe motion/camera/lighting-changes/ending-frame. (3) Multi-image keyframes: image1=start-frame, image2=style-ref, image3+=transition-frames. (4) Short clips only (2-10s). Edit multiple clips together for longer content.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -112,12 +112,12 @@ BUILTIN_TOOLS = [
                     "size": {
                         "type": "string",
                         "enum": ["1152x768", "1280x720", "720x1280", "1024x1024", "1024x768", "768x1024"],
-                        "description": "Video size (WxH). Default 1152x768.",
+                        "description": "Video size (WxH). Default 1152x768 (landscape). Short-form/vertical/reels/shorts → 720x1280 or 768x1024. YouTube/landscape/16:9 → 1152x768 or 1280x720. Square → 1024x1024.",
                     },
                     "num_frames": {
                         "type": "integer",
                         "enum": [81, 121, 161, 201, 241, 281, 321, 361, 401, 441],
-                        "description": "Video frames (8n+1). Default 121 (5.0s at 24fps). Max 441 (18.4s).",
+                        "description": "Video frames (8n+1). Default 121 (5.0s at 24fps). Max 441 (18.4s). Prefer using duration (seconds) instead — it auto-maps to correct frames.",
                     },
                     "frame_rate": {
                         "type": "integer",
@@ -129,6 +129,11 @@ BUILTIN_TOOLS = [
                         "description": "Optional style preset: cinematic, anime, watercolor, cyberpunk, fantasy",
                     },
                     "negative_prompt": {"type": "string", "description": "What to avoid in the generated video"},
+                    "duration": {
+                        "type": "integer",
+                        "enum": [2, 3, 4, 5, 6, 8, 10, 12, 15, 18],
+                        "description": "Video length in seconds. Maps to frames: 2s→57f, 3s→81f, 4s→97f, 5s→121f, 6s→145f, 8s→193f, 10s→241f, 12s→289f, 15s→361f, 18s→441f (all at 24fps). Overrides num_frames if both given.",
+                    },
                 },
                 "required": ["prompt"],
             },
@@ -782,7 +787,7 @@ TOOL_EXPANSION_CATEGORIES: dict[str, set[str]] = {
         "self_heal",
         "security_review",
     },
-    "browser": {"browser_screenshot", "pw_navigate", "pw_screenshot"},
+    "browser": {"pw_navigate"},
     "task_extended": {
         "todo_add",
         "todo_list",
@@ -811,7 +816,7 @@ TOOL_EXPANSION_CATEGORIES: dict[str, set[str]] = {
         "graph_ancestors",
         "graph_descendants",
     },
-    "media_extended": {"imagegen", "text_to_speech", "transcribe_audio", "desktop_screenshot"},
+    "media_extended": {"imagegen", "text_to_speech", "transcribe_audio"},
     "mcp": {
         "mcp_connect",
         "mcp_call",

@@ -46,8 +46,8 @@ COMMANDS = [
 ]
 
 # Files/folders to exclude from completion
-EXCLUDE_DIRS = {'.git', '__pycache__', 'node_modules', '.venv', '.tox', '.crux', '.codebuddy'}
-EXCLUDE_EXTS = {'.pyc', '.pyo', '.so', '.dll', '.exe'}
+EXCLUDE_DIRS = {".git", "__pycache__", "node_modules", ".venv", ".tox", ".crux", ".codebuddy"}
+EXCLUDE_EXTS = {".pyc", ".pyo", ".so", ".dll", ".exe"}
 
 
 def _list_files(prefix: str) -> list[tuple[str, str, str]]:
@@ -65,7 +65,7 @@ def _list_files(prefix: str) -> list[tuple[str, str, str]]:
         # Handle nested paths and trailing slashes
         if prefix:
             p = Path(prefix)
-            if prefix.endswith('/') or prefix.endswith('\\'):
+            if prefix.endswith("/") or prefix.endswith("\\"):
                 # @dir/ → list contents of dir
                 search_dir = cwd / p
                 search_prefix = ""
@@ -88,7 +88,7 @@ def _list_files(prefix: str) -> list[tuple[str, str, str]]:
         for entry in sorted(search_dir.iterdir(), key=lambda e: (not e.is_dir(), e.name.lower())):
             name = entry.name
 
-            if name.startswith('.') and not search_prefix.startswith('.'):
+            if name.startswith(".") and not search_prefix.startswith("."):
                 continue
             if entry.is_dir() and name in EXCLUDE_DIRS:
                 continue
@@ -127,10 +127,10 @@ class TuiCompleter(Completer):
         text = document.text_before_cursor
 
         # ── Mode 1: Slash command completion ────────────
-        if text.startswith('/'):
-            word = text.lstrip('/')
+        if text.startswith("/"):
+            word = text.lstrip("/")
             for cmd, desc in COMMANDS:
-                cmd_name = cmd.lstrip('/')
+                cmd_name = cmd.lstrip("/")
                 if cmd_name.startswith(word):
                     yield Completion(
                         text=cmd,
@@ -143,27 +143,24 @@ class TuiCompleter(Completer):
 
         # ── Mode 2: @file completion ───────────────────
         # Find the last @ in the text
-        at_pos = text.rfind('@')
-        if at_pos >= 0:
-            # Check if @ is at a word boundary
-            if at_pos == 0 or text[at_pos-1] in (' ', '\t', '\n', ''):
-                prefix = text[at_pos+1:]  # what comes after @
+        at_pos = text.rfind("@")
+        if at_pos >= 0 and (at_pos == 0 or text[at_pos - 1] in (" ", "\t", "\n", "")):
+            prefix = text[at_pos + 1 :]  # what comes after @
 
-                for full_path, display, entry_type in _list_files(prefix):
-                    style = "class:file-completion" if entry_type == "file" else "class:dir-completion"
-                    meta = "📄 file" if entry_type == "file" else "📁 dir"
+            for full_path, display, entry_type in _list_files(prefix):
+                style = "class:file-completion" if entry_type == "file" else "class:dir-completion"
+                meta = "📄 file" if entry_type == "file" else "📁 dir"
 
-                    yield Completion(
-                        text=full_path,
-                        start_position=-len(prefix),
-                        display=display,
-                        display_meta=meta,
-                        style=style,
-                    )
-                return
-
+                yield Completion(
+                    text=full_path,
+                    start_position=-len(prefix),
+                    display=display,
+                    display_meta=meta,
+                    style=style,
+                )
+            return
         # ── Mode 3: Word completion from history ──────
-        if text and not text.startswith(('@', '/', '#')):
+        if text and not text.startswith(("@", "/", "#")):
             last_word = text.split()[-1] if text.split() else text
             if len(last_word) >= 2:  # only complete words with 2+ chars
                 seen = set()

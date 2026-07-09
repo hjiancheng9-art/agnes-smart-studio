@@ -136,10 +136,9 @@ def _score_test_coverage(name: str, coverage: dict[str, int]) -> tuple[int, str]
     file_count = coverage.get(name, 0)
     if file_count >= 2:
         return 30, f"{file_count} files"
-    elif file_count == 1:
+    if file_count == 1:
         return 20, "1 file"
-    else:
-        return 0, "untested"
+    return 0, "untested"
 
 
 def _score_schema(name: str, defn: dict | None) -> tuple[int, str]:

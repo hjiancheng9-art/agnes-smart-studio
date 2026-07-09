@@ -38,6 +38,7 @@ from enum import Enum
 
 # ── Event Types ────────────────────────────────────────────
 
+
 class EventType(Enum):
     # Session events
     SESSION_STARTED = "session.started"
@@ -77,8 +78,9 @@ class EventType(Enum):
 @dataclass
 class Event:
     """A single protocol event."""
-    type: str          # EventType as string
-    data: dict         # Event payload
+
+    type: str  # EventType as string
+    data: dict  # Event payload
     timestamp: float = field(default_factory=time.monotonic)
     source: str = "engine"  # 'engine', 'tui', 'gui'
 
@@ -93,9 +95,11 @@ class Event:
 
 # ── State Snapshot ────────────────────────────────────────
 
+
 @dataclass
 class SessionState:
     """Immutable snapshot of current CRUX session state."""
+
     model: str = ""
     thinking: bool = False
     streaming: bool = False
@@ -135,6 +139,7 @@ class SessionState:
 
 # ── Event Bus ──────────────────────────────────────────────
 
+
 class EventBus:
     """
     Thread-safe pub/sub event bus.
@@ -161,7 +166,7 @@ class EventBus:
         with self._lock:
             self._history.append(event)
             if len(self._history) > self._history_max:
-                self._history = self._history[-self._history_max:]
+                self._history = self._history[-self._history_max :]
 
             # Update latest state if session state changed
             if event.type in (
@@ -188,18 +193,12 @@ class EventBus:
 
     def unsubscribe(self, pattern: str, callback: Callable):
         with self._lock:
-            self._subscribers = [
-                (p, c) for p, c in self._subscribers
-                if not (p == pattern and c == callback)
-            ]
+            self._subscribers = [(p, c) for p, c in self._subscribers if not (p == pattern and c == callback)]
 
     def get_history(self, since: float = 0.0, limit: int = 50) -> list[Event]:
         """Get events since a timestamp."""
         with self._lock:
-            return [
-                e for e in self._history[-limit:]
-                if e.timestamp > since
-            ]
+            return [e for e in self._history[-limit:] if e.timestamp > since]
 
     @property
     def latest_state(self) -> SessionState | None:
@@ -256,6 +255,7 @@ def get_bus() -> EventBus:
 
 
 # ── Convenience helpers ──────────────────────────────────
+
 
 def emit(event_type: EventType, data: dict, source: str = "engine"):
     """Quick-publish an event."""

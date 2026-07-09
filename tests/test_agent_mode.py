@@ -50,9 +50,7 @@ class TestComputeAgentMode:
 
     def test_high_complexity_goes_to_swarm(self):
         # "重构(3) + 迁移(3) + 跨文件(4)" = 10 → SWARM (≥8)
-        mode, score, _ = compute_agent_mode(
-            "重构支付模块并跨文件迁移数据库架构"
-        )
+        mode, score, _ = compute_agent_mode("重构支付模块并跨文件迁移数据库架构")
         assert mode == AgentMode.SWARM
 
     def test_strong_keywords_triggers_swarm(self):
@@ -170,9 +168,7 @@ class TestSimplicityScore:
 
 class TestDecomposabilityScore:
     def test_parallel_tasks_scores_high(self):
-        score, matched = decomposability_score(
-            "重构前端和后端，同时修改数据库schema"
-        )
+        score, matched = decomposability_score("重构前端和后端，同时修改数据库schema")
         assert score >= 5
 
     def test_single_task_scores_zero(self):
@@ -180,15 +176,11 @@ class TestDecomposabilityScore:
         assert score == 0
 
     def test_multi_phase_task(self):
-        score, matched = decomposability_score(
-            "先生成图片，然后转换成视频，并且添加配音"
-        )
+        score, matched = decomposability_score("先生成图片，然后转换成视频，并且添加配音")
         assert score >= 5
 
     def test_cross_domain_task(self):
-        score, matched = decomposability_score(
-            "前后端同时修改API接口"
-        )
+        score, matched = decomposability_score("前后端同时修改API接口")
         assert score >= 3
 
 
@@ -212,19 +204,32 @@ class TestBackwardCompatibleWrapper:
 class TestAgentModeRecording:
     def test_record_and_stats(self):
         import core.multi_agent as ma
+
         ma._agent_mode_history.clear()
-        record_agent_mode_result(AgentModeResult(
-            mode=AgentMode.SWARM, task_type="refactor",
-            success=True, latency=4500,
-        ))
-        record_agent_mode_result(AgentModeResult(
-            mode=AgentMode.SINGLE, task_type="fix_bug",
-            success=True, latency=200,
-        ))
-        record_agent_mode_result(AgentModeResult(
-            mode=AgentMode.SINGLE, task_type="fix_bug",
-            success=False, latency=500,
-        ))
+        record_agent_mode_result(
+            AgentModeResult(
+                mode=AgentMode.SWARM,
+                task_type="refactor",
+                success=True,
+                latency=4500,
+            )
+        )
+        record_agent_mode_result(
+            AgentModeResult(
+                mode=AgentMode.SINGLE,
+                task_type="fix_bug",
+                success=True,
+                latency=200,
+            )
+        )
+        record_agent_mode_result(
+            AgentModeResult(
+                mode=AgentMode.SINGLE,
+                task_type="fix_bug",
+                success=False,
+                latency=500,
+            )
+        )
         stats = get_mode_statistics()
         assert isinstance(stats, dict)
         assert len(stats) >= 1
@@ -236,7 +241,5 @@ class TestModeThresholds:
         assert mode == AgentMode.SINGLE
 
     def test_complex_task_not_single(self):
-        mode, _, _ = compute_agent_mode(
-            "审计整个项目架构，重构支付模块，跨文件迁移数据库"
-        )
+        mode, _, _ = compute_agent_mode("审计整个项目架构，重构支付模块，跨文件迁移数据库")
         assert mode != AgentMode.SINGLE

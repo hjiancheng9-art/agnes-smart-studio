@@ -21,10 +21,12 @@ def render_run_summary(actions: list[dict], width: int) -> list[tuple[str, str]]
     """Render action log as structured panel."""
     rows = []
     rows.append(("class:panel-title", " RECENT ACTIONS\n"))
-    rows.append((
-        "class:muted",
-        " RISK   STATUS      TIME                 COMMAND\n",
-    ))
+    rows.append(
+        (
+            "class:muted",
+            " RISK   STATUS      TIME                 COMMAND\n",
+        )
+    )
 
     for a in actions:
         risk = a.get("risk", "?")
@@ -35,10 +37,12 @@ def render_run_summary(actions: list[dict], width: int) -> list[tuple[str, str]]
         cmd_limit = max(12, width - 50)
         cmd = _shorten(cmd, cmd_limit)
 
-        rows.append((
-            style,
-            f" {risk:<6} {status:<10} {ts:<19} {cmd}\n",
-        ))
+        rows.append(
+            (
+                style,
+                f" {risk:<6} {status:<10} {ts:<19} {cmd}\n",
+            )
+        )
 
     if not actions:
         rows.append(("class:muted", " No actions yet.\n"))

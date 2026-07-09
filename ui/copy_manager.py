@@ -13,13 +13,16 @@ from ui.message_store import Message, MessageStore
 def extract_code_blocks(text: str) -> list[dict]:
     """从消息文本中提取代码块。"""
     import re
+
     blocks = []
     for i, match in enumerate(re.finditer(r"```(\w*)\n(.*?)```", text, re.DOTALL)):
-        blocks.append({
-            "index": i,
-            "language": match.group(1).strip() or "text",
-            "code": match.group(2).strip(),
-        })
+        blocks.append(
+            {
+                "index": i,
+                "language": match.group(1).strip() or "text",
+                "code": match.group(2).strip(),
+            }
+        )
     return blocks
 
 
@@ -73,7 +76,7 @@ class CopyManager:
         if start >= end:
             return False, "无效行范围"
         selected = "\n".join(lines[start:end])
-        return self.clip.copy_and_report(selected, f"已复制行 {start+1}-{end}")
+        return self.clip.copy_and_report(selected, f"已复制行 {start + 1}-{end}")
 
     # ── 聚焦操作 ──
 

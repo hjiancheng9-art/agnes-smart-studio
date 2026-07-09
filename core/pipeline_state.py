@@ -237,7 +237,7 @@ class PipelineEngine:
                     self.state.log_qa(skill_name, qa_passed, f"attempt {attempt + 1}" if attempt > 0 else "first pass")
                     if qa_passed:
                         break
-                    elif attempt < max_retries:
+                    if attempt < max_retries:
                         # Feed QA feedback back as context and retry previous step
                         prev_step = self._prev_step(pipe["skills"], skill_name)
                         if prev_step:

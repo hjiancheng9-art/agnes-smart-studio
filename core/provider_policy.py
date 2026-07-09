@@ -1,7 +1,6 @@
 """ProviderPolicy — 策略路由，替代固定 fallback 链。"""
 
 
-
 def score_provider(pid: str, request: dict, circuit_states: dict[str, str]) -> float:
     """对 provider 打分，越高越优先。
 
@@ -61,8 +60,7 @@ def select_candidates(request: dict, available: list[str], circuit_states: dict[
     """返回排序后的 provider 候选列表（最优在前）。"""
     scored = [(pid, score_provider(pid, request, circuit_states)) for pid in available]
     scored.sort(key=lambda x: -x[1])  # 按分数降序
-    candidates = [pid for pid, s in scored if s > -1]
-    return candidates
+    return [pid for pid, s in scored if s > -1]
 
 
 def explain_routing(pid: str, request: dict, circuit_states: dict[str, str]) -> list[str]:

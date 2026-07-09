@@ -121,10 +121,10 @@ from collections import Counter, defaultdict
     def test_find_symbol_definition_finds_function(self):
         from core.code_intel import CodeAnalyzer
 
-        src = '''
+        src = """
 def target_func(x, y):
     return x + y
-'''
+"""
         with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as f:
             f.write(src)
             f.flush()
@@ -385,14 +385,14 @@ class TestSymbolIndex:
         from core.code_intel import SymbolIndex
 
         idx = SymbolIndex()
-        src = '''
+        src = """
 def hello():
     pass
 
 class Greeter:
     def greet(self):
         hello()
-'''
+"""
         with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as f:
             f.write(src)
             f.flush()
@@ -782,7 +782,11 @@ class TestRAGEngine:
         from core.rag import RAGEngine
 
         engine = RAGEngine()
-        engine.index = {"documents": {"d1.py": {"tf": {"foo": 2}, "token_count": 10}}, "idf": {"foo": 2.0}, "built_at": 9999999999}
+        engine.index = {
+            "documents": {"d1.py": {"tf": {"foo": 2}, "token_count": 10}},
+            "idf": {"foo": 2.0},
+            "built_at": 9999999999,
+        }
         results = engine.search("foo", top_k=5)
         assert len(results) > 0
 

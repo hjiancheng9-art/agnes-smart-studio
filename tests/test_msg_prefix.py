@@ -1,6 +1,7 @@
 """
 TDD tests for Message Prefix System (ui/msg_prefix.py)
 """
+
 from __future__ import annotations
 
 from ui.msg_prefix import PREFIX_STYLES, MsgType, get_prefix
@@ -42,8 +43,7 @@ class TestMessagePrefix:
         assert get_prefix("", mode="compact") == ""
 
     def test_prefix_styles_exist(self):
-        for key in ["msg-user", "msg-assistant", "msg-system", "msg-error",
-                     "msg-success", "msg-thinking", "msg-info"]:
+        for key in ["msg-user", "msg-assistant", "msg-system", "msg-error", "msg-success", "msg-thinking", "msg-info"]:
             assert key in PREFIX_STYLES
 
     def test_all_prefixes_unique(self):

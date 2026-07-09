@@ -37,6 +37,7 @@ def _update_plan(
     """Update the current execution plan mid-task — add, remove, modify, or insert a step."""
     try:
         from core.plan_mode import PlanManager
+
         mgr = PlanManager()
         if action == "add":
             mgr.add_step(name=name, tool=tool, args=args or {})

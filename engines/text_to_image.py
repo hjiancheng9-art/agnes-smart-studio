@@ -22,6 +22,7 @@ class TextToImageEngine:
             return model
         try:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             active = mgr.get_active_models()
             return active.get("image", "agnes-image-2.1-flash")
@@ -122,6 +123,7 @@ class AsyncTextToImageEngine:
             return model
         try:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             return mgr.get_active_models().get("image", "agnes-image-2.1-flash")
         except Exception:

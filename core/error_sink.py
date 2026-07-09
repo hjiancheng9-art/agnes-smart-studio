@@ -130,7 +130,7 @@ class ErrorSink:
             conn.commit()
             conn.close()
         except Exception:
-            pass  # 不要因为记录错误本身再出问题
+            pass  # noqa: S110 — 不要因为记录错误本身再出问题
 
     # ── 查询 ──────────────────────────────────────────────
 

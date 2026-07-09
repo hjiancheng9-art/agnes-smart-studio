@@ -46,6 +46,7 @@ try:
     from rich.panel import Panel
     from rich.table import Table
     from rich.text import Text
+
     HAS_RICH = True
 except ImportError:
     HAS_RICH = False
@@ -53,14 +54,19 @@ except ImportError:
 # ── CRUX theme (fallback after UI removal) ────────────────────
 try:
     from core.theme import BEAST_ORDER, BEAST_PALETTE, COLORS
+
     HAS_THEME = True
 except ImportError:
     HAS_THEME = False
     BEAST_ORDER = []
     BEAST_PALETTE = {}
     COLORS = {
-        "success": "green", "error": "red", "warning": "yellow",
-        "primary": "blue", "muted": "dim white", "info": "cyan",
+        "success": "green",
+        "error": "red",
+        "warning": "yellow",
+        "primary": "blue",
+        "muted": "dim white",
+        "info": "cyan",
     }
     BEAST_ORDER = ["BAIHU", "QINGLONG", "ZHUQUE", "XUANWU", "QILIN", "TENGSHE", "YINGLONG"]
 
@@ -68,6 +74,7 @@ except ImportError:
 # ═══════════════════════════════════════════════════════════════
 # Beast Configurations
 # ═══════════════════════════════════════════════════════════════
+
 
 @dataclass
 class BeastConfig:
@@ -78,7 +85,7 @@ class BeastConfig:
     bridge_script: str = ""
     startup_args: list[str] = field(default_factory=list)
     mcp_initialize: bool = True  # whether to test via MCP initialize handshake
-    persistent: bool = False     # keep running in background
+    persistent: bool = False  # keep running in background
     timeout: int = 15
     env: dict[str, str] = field(default_factory=dict)
 
@@ -126,12 +133,13 @@ BEASTS: dict[str, BeastConfig] = {
 # Health Check Engine
 # ═══════════════════════════════════════════════════════════════
 
+
 @dataclass
 class HealthResult:
     name: str
     icon: str
-    role: str = ""      # one-line role description
-    status: str = ""    # "online", "degraded", "offline"
+    role: str = ""  # one-line role description
+    status: str = ""  # "online", "degraded", "offline"
     version: str = ""
     latency_ms: float = 0.0
     error: str = ""
@@ -146,9 +154,13 @@ def _spawn_and_initialize(cfg: BeastConfig) -> HealthResult:
         script = ROOT / cfg.bridge_script
         if not script.exists():
             return HealthResult(
-                name=cfg.name, icon=cfg.icon, role=cfg.role, status="offline",
-                version="", latency_ms=0,
-                error=f"Bridge script not found: {cfg.bridge_script}"
+                name=cfg.name,
+                icon=cfg.icon,
+                role=cfg.role,
+                status="offline",
+                version="",
+                latency_ms=0,
+                error=f"Bridge script not found: {cfg.bridge_script}",
             )
         cmd = [cfg.binary, str(script)]
     elif cfg.startup_args:
@@ -164,32 +176,48 @@ def _spawn_and_initialize(cfg: BeastConfig) -> HealthResult:
             if r.returncode == 0:
                 version_line = (r.stdout or "").split("\n")[0].strip()
                 return HealthResult(
-                    name=cfg.name, icon=cfg.icon, status="online",
-                    version=version_line[:80], latency_ms=latency, error=""
+                    name=cfg.name,
+                    icon=cfg.icon,
+                    status="online",
+                    version=version_line[:80],
+                    latency_ms=latency,
+                    error="",
                 )
             else:
                 return HealthResult(
-                    name=cfg.name, icon=cfg.icon, status="degraded",
-                    version="", latency_ms=latency,
-                    error=(r.stderr or r.stdout or "")[:120]
+                    name=cfg.name,
+                    icon=cfg.icon,
+                    status="degraded",
+                    version="",
+                    latency_ms=latency,
+                    error=(r.stderr or r.stdout or "")[:120],
                 )
         except FileNotFoundError:
             return HealthResult(
-                name=cfg.name, icon=cfg.icon, status="offline",
-                version="", latency_ms=0,
-                error=f"Binary not found: {cfg.binary}"
+                name=cfg.name,
+                icon=cfg.icon,
+                status="offline",
+                version="",
+                latency_ms=0,
+                error=f"Binary not found: {cfg.binary}",
             )
         except subprocess.TimeoutExpired:
             return HealthResult(
-                name=cfg.name, icon=cfg.icon, status="degraded",
-                version="", latency_ms=cfg.timeout * 1000,
-                error=f"Timed out after {cfg.timeout}s"
+                name=cfg.name,
+                icon=cfg.icon,
+                status="degraded",
+                version="",
+                latency_ms=cfg.timeout * 1000,
+                error=f"Timed out after {cfg.timeout}s",
             )
         except Exception as exc:
             return HealthResult(
-                name=cfg.name, icon=cfg.icon, status="offline",
-                version="", latency_ms=(time.monotonic() - t0) * 1000,
-                error=str(exc)[:120]
+                name=cfg.name,
+                icon=cfg.icon,
+                status="offline",
+                version="",
+                latency_ms=(time.monotonic() - t0) * 1000,
+                error=str(exc)[:120],
             )
 
     # MCP initialize handshake
@@ -207,16 +235,21 @@ def _spawn_and_initialize(cfg: BeastConfig) -> HealthResult:
         )
 
         # Send JSON-RPC initialize
-        init_msg = json.dumps({
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "beast-launcher", "version": "1.0.0"}
-            }
-        }) + "\n"
+        init_msg = (
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {},
+                        "clientInfo": {"name": "beast-launcher", "version": "1.0.0"},
+                    },
+                }
+            )
+            + "\n"
+        )
 
         try:
             proc.stdin.write(init_msg)
@@ -224,13 +257,17 @@ def _spawn_and_initialize(cfg: BeastConfig) -> HealthResult:
         except (BrokenPipeError, OSError):
             proc.kill()
             return HealthResult(
-                name=cfg.name, icon=cfg.icon, status="offline",
-                version="", latency_ms=(time.monotonic() - t0) * 1000,
-                error="Process died before initialize"
+                name=cfg.name,
+                icon=cfg.icon,
+                status="offline",
+                version="",
+                latency_ms=(time.monotonic() - t0) * 1000,
+                error="Process died before initialize",
             )
 
         # Read response with timeout
         import threading
+
         response_line = None
         read_error = None
 
@@ -250,16 +287,18 @@ def _spawn_and_initialize(cfg: BeastConfig) -> HealthResult:
         if reader.is_alive():
             proc.kill()
             return HealthResult(
-                name=cfg.name, icon=cfg.icon, status="degraded",
-                version="", latency_ms=latency,
-                error=f"No response within {cfg.timeout}s"
+                name=cfg.name,
+                icon=cfg.icon,
+                status="degraded",
+                version="",
+                latency_ms=latency,
+                error=f"No response within {cfg.timeout}s",
             )
 
         if read_error:
             proc.kill()
             return HealthResult(
-                name=cfg.name, icon=cfg.icon, status="offline",
-                version="", latency_ms=latency, error=read_error
+                name=cfg.name, icon=cfg.icon, status="offline", version="", latency_ms=latency, error=read_error
             )
 
         if not response_line:
@@ -272,9 +311,12 @@ def _spawn_and_initialize(cfg: BeastConfig) -> HealthResult:
                 stderr_text = "<read error>"
             proc.kill()
             return HealthResult(
-                name=cfg.name, icon=cfg.icon, status="offline",
-                version="", latency_ms=latency,
-                error=f"No response. stderr: {stderr_text[:100]}"
+                name=cfg.name,
+                icon=cfg.icon,
+                status="offline",
+                version="",
+                latency_ms=latency,
+                error=f"No response. stderr: {stderr_text[:100]}",
             )
 
         # Parse response
@@ -283,18 +325,24 @@ def _spawn_and_initialize(cfg: BeastConfig) -> HealthResult:
         except json.JSONDecodeError:
             proc.kill()
             return HealthResult(
-                name=cfg.name, icon=cfg.icon, status="degraded",
-                version="", latency_ms=latency,
-                error=f"Invalid JSON response: {response_line[:80]}"
+                name=cfg.name,
+                icon=cfg.icon,
+                status="degraded",
+                version="",
+                latency_ms=latency,
+                error=f"Invalid JSON response: {response_line[:80]}",
             )
 
         proc.kill()
 
         if "error" in resp:
             return HealthResult(
-                name=cfg.name, icon=cfg.icon, status="degraded",
-                version="", latency_ms=latency,
-                error=str(resp["error"])[:120]
+                name=cfg.name,
+                icon=cfg.icon,
+                status="degraded",
+                version="",
+                latency_ms=latency,
+                error=str(resp["error"])[:120],
             )
 
         result = resp.get("result", {})
@@ -308,31 +356,37 @@ def _spawn_and_initialize(cfg: BeastConfig) -> HealthResult:
                 version += " [tools cap]"
 
         return HealthResult(
-            name=cfg.name, icon=cfg.icon, status="online",
-            version=version, latency_ms=latency, error=""
+            name=cfg.name, icon=cfg.icon, status="online", version=version, latency_ms=latency, error=""
         )
 
     except FileNotFoundError:
         return HealthResult(
-            name=cfg.name, icon=cfg.icon, status="offline",
-            version="", latency_ms=0,
-            error=f"Binary not found: {cfg.binary}"
+            name=cfg.name,
+            icon=cfg.icon,
+            status="offline",
+            version="",
+            latency_ms=0,
+            error=f"Binary not found: {cfg.binary}",
         )
     except Exception as exc:
         return HealthResult(
-            name=cfg.name, icon=cfg.icon, status="offline",
-            version="", latency_ms=(time.monotonic() - t0) * 1000,
-            error=str(exc)[:120]
+            name=cfg.name,
+            icon=cfg.icon,
+            status="offline",
+            version="",
+            latency_ms=(time.monotonic() - t0) * 1000,
+            error=str(exc)[:120],
         )
     finally:
         # Ensure subprocess is always cleaned up on exception paths
-        if 'proc' in locals():
+        if "proc" in locals():
             proc.kill()
 
 
 # ═══════════════════════════════════════════════════════════════
 # Process Manager (for persistent services)
 # ═══════════════════════════════════════════════════════════════
+
 
 class ProcessManager:
     """Manages long-running MCP server processes."""
@@ -441,28 +495,33 @@ class ProcessManager:
 # ═══════════════════════════════════════════════════════════════
 
 STATUS_GLYPHS = {
-    "online":   "●",
+    "online": "●",
     "degraded": "◈",
-    "offline":  "○",
+    "offline": "○",
 }
 
 STATUS_COLORS = {
-    "online":   "#A6E3A1" if HAS_THEME else "green",
+    "online": "#A6E3A1" if HAS_THEME else "green",
     "degraded": "#FAB387" if HAS_THEME else "yellow",
-    "offline":  "#F38BA8" if HAS_THEME else "red",
+    "offline": "#F38BA8" if HAS_THEME else "red",
 }
 
 STATUS_LABELS_ZH = {
-    "online":   "● 在线",
+    "online": "● 在线",
     "degraded": "◈ 降级",
-    "offline":  "○ 离线",
+    "offline": "○ 离线",
 }
 
 BEAST_ICONS = {
-    "BAIHU":    "🐅", "QINGLONG": "🐉", "ZHUQUE": "🕊",
-    "XUANWU":   "🐢", "QILIN":    "🦄", "TENGSHE": "🐍",
+    "BAIHU": "🐅",
+    "QINGLONG": "🐉",
+    "ZHUQUE": "🕊",
+    "XUANWU": "🐢",
+    "QILIN": "🦄",
+    "TENGSHE": "🐍",
     "YINGLONG": "🪽",
 }
+
 
 def print_ascii_dashboard(results: list[HealthResult], elapsed: float) -> None:
     """Fallback ASCII dashboard when Rich is not available."""
@@ -526,8 +585,12 @@ def _render_rich_dashboard(results: list[HealthResult], elapsed: float) -> None:
 
     # ── 构建表格 ──
     table = Table(
-        title=None, show_header=True, header_style=f"bold {primary_c}",
-        expand=True, box=ROUNDED, border_style=border_c,
+        title=None,
+        show_header=True,
+        header_style=f"bold {primary_c}",
+        expand=True,
+        box=ROUNDED,
+        border_style=border_c,
         row_styles=[f"on {COLORS['surface']}" if HAS_THEME else "", ""],
     )
     table.add_column("", width=2, no_wrap=True)
@@ -591,16 +654,16 @@ def _render_rich_dashboard(results: list[HealthResult], elapsed: float) -> None:
 
     # ── 渲染 ──
     console.print()
-    console.print(Panel(
-        Align.center(
-            f"[bold {accent_c}]╔══ █ CRUX · 连通性面板 █ ══╗[/]\n"
-            f"[{muted_c}]{beast_line}[/]\n\n"
-            f"{mesh_status}"
-        ),
-        border_style=border_c,
-        box=ROUNDED,
-        padding=(1, 3),
-    ))
+    console.print(
+        Panel(
+            Align.center(
+                f"[bold {accent_c}]╔══ █ CRUX · 连通性面板 █ ══╗[/]\n[{muted_c}]{beast_line}[/]\n\n{mesh_status}"
+            ),
+            border_style=border_c,
+            box=ROUNDED,
+            padding=(1, 3),
+        )
+    )
     console.print(table)
     console.print(summary)
     console.print()
@@ -609,6 +672,7 @@ def _render_rich_dashboard(results: list[HealthResult], elapsed: float) -> None:
 # ═══════════════════════════════════════════════════════════════
 # Main Launcher
 # ═══════════════════════════════════════════════════════════════
+
 
 class MeshLauncher:
     """Orchestrates discovery, health checks, and process management."""
@@ -622,6 +686,7 @@ class MeshLauncher:
         """Discover TRM tool catalog and return summary text."""
         try:
             from core.tool_registry_mesh import get_trm
+
             trm = get_trm()
             trm.discover_all(timeout=5.0)
             self.trm_summary = trm.as_text()
@@ -680,8 +745,7 @@ class MeshLauncher:
             subprocess.Popen(
                 ["cmd", "/c", "start", "CRUX Studio", exe_path, str(crux_script), "-c"],
                 cwd=str(ROOT),
-                creationflags=subprocess.CREATE_NEW_CONSOLE
-                if sys.platform == "win32" else 0,
+                creationflags=subprocess.CREATE_NEW_CONSOLE if sys.platform == "win32" else 0,
             )
             print("  ● 主战窗口已拉起 — 进入暗夜工坊")
         except Exception as e:
@@ -709,19 +773,14 @@ TITLE_ART = r"""
 def main() -> None:
     import argparse
 
-    p = argparse.ArgumentParser(
-        description="CRUX MESH Launcher — one-click startup for all AI tools"
+    p = argparse.ArgumentParser(description="CRUX MESH Launcher — one-click startup for all AI tools")
+    p.add_argument("--start", action="store_true", help="Start persistent services (CRUX + Claude MCP serve)")
+    p.add_argument("--stop", action="store_true", help="Stop all running persistent services")
+    p.add_argument("--status", action="store_true", help="Quick connectivity check only")
+    p.add_argument("--no-check", action="store_true", help="Skip health check (start only)")
+    p.add_argument(
+        "--launch", action="store_true", help="One-click launch: health-check + start services + main window"
     )
-    p.add_argument("--start", action="store_true",
-                   help="Start persistent services (CRUX + Claude MCP serve)")
-    p.add_argument("--stop", action="store_true",
-                   help="Stop all running persistent services")
-    p.add_argument("--status", action="store_true",
-                   help="Quick connectivity check only")
-    p.add_argument("--no-check", action="store_true",
-                   help="Skip health check (start only)")
-    p.add_argument("--launch", action="store_true",
-                   help="One-click launch: health-check + start services + main window")
     args = p.parse_args()
 
     # If no flags → dashboard + interactive menu (for double-click users)

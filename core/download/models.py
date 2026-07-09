@@ -60,7 +60,7 @@ class DownloadJob:
     def speed_str(self) -> str:
         if self.speed_bps >= 1_000_000:
             return f"{self.speed_bps / 1_000_000:.1f}MB/s"
-        elif self.speed_bps >= 1_000:
+        if self.speed_bps >= 1_000:
             return f"{self.speed_bps / 1_000:.0f}KB/s"
         return f"{self.speed_bps}B/s"
 
@@ -68,13 +68,13 @@ class DownloadJob:
         pct = self.progress_pct()
         if self.status == "queued":
             return f"⏳ 排队中: {self.url[:48]}"
-        elif self.status == "running":
+        if self.status == "running":
             return f"↓ {pct:.0f}% {self.speed_str()} {self.url[:40]}"
-        elif self.status == "completed":
+        if self.status == "completed":
             return f"✓ 完成: {self.output_path or self.url[:48]}"
-        elif self.status == "failed":
+        if self.status == "failed":
             return f"✗ 失败: {self.error or self.url[:48]}"
-        elif self.status == "cancelled":
+        if self.status == "cancelled":
             return f"■ 已取消: {self.url[:48]}"
         return f"• {self.status}: {self.url[:48]}"
 

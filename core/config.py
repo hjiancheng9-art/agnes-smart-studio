@@ -115,9 +115,11 @@ __all__ = [
 
 # ── 常量 ──────────────────────────────────────────────────
 
+from core.agnes_models import CRUX_IMAGE, CRUX_IMAGE_EDIT, CRUX_TEXT, CRUX_VIDEO
+
 MODELS = {
     "text_pro": {
-        "id": "agnes-2.0-flash",
+        "id": CRUX_TEXT,
         "name": "CRUX 2.0 Flash",
         "type": "text",
         "multimodal": True,
@@ -125,14 +127,14 @@ MODELS = {
         "tools": True,
     },
     "image_hd": {
-        "id": "agnes-image-2.1-flash",
+        "id": CRUX_IMAGE,
         "name": "CRUX Image 2.1 Flash",
         "type": "image",
         "supports_img2img": True,
         "high_density": True,
     },
     "image_edit": {
-        "id": "agnes-image-2.0-flash",
+        "id": CRUX_IMAGE_EDIT,
         "name": "CRUX Image 2.0 Flash",
         "type": "image",
         "supports_img2img": True,
@@ -140,7 +142,7 @@ MODELS = {
         "requires_tags_for_i2i": True,
     },
     "video": {
-        "id": "agnes-video-v2.0",
+        "id": CRUX_VIDEO,
         "name": "CRUX Video V2.0",
         "type": "video",
         "modes": ["ti2vid", "keyframes"],
@@ -164,7 +166,7 @@ def get_crux_vision_model() -> str:
         crux = mgr.providers.get("crux", {})
         crux_key = crux.get("api_key") or os.getenv("CRUX_API_KEY") or os.getenv("AGNES_API_KEY")
         if crux_key:
-            return crux.get("models", {}).get("pro") or "agnes-2.0-flash"
+            return crux.get("models", {}).get("pro") or CRUX_TEXT
         # Fallback to Zhipu vision models (free)
         zhipu = mgr.providers.get("zhipu", {})
         zhipu_v = zhipu.get("vision_models", {})

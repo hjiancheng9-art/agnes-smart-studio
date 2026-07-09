@@ -3,17 +3,14 @@
 from __future__ import annotations
 
 import os
-import json
-import tempfile
+
 import pytest
 
-from pathlib import Path
 from core.adr_engine import (
     adr_create,
     adr_list,
-    adr_update,
     adr_mermaid,
-    ADR_DIR,
+    adr_update,
 )
 
 

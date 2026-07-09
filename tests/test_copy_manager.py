@@ -1,4 +1,5 @@
 """CopyManager 单元测试 — 基于 MessageStore"""
+
 import sys
 from pathlib import Path
 
@@ -9,6 +10,7 @@ class TestCopyManager:
     def test_sync_store(self):
         from ui.copy_manager import CopyManager
         from ui.message_store import MessageStore
+
         store = MessageStore()
         store.append("user", "q")
         store.append("assistant", "a")
@@ -18,6 +20,7 @@ class TestCopyManager:
     def test_copy_focused_last_assistant(self):
         from ui.copy_manager import CopyManager
         from ui.message_store import MessageStore
+
         store = MessageStore()
         store.append("user", "hello")
         store.append("assistant", "world")
@@ -29,6 +32,7 @@ class TestCopyManager:
     def test_copy_focused_no_messages(self):
         from ui.copy_manager import CopyManager
         from ui.message_store import MessageStore
+
         cm = CopyManager(MessageStore())
         ok, msg = cm.copy_focused()
         assert not ok
@@ -36,6 +40,7 @@ class TestCopyManager:
     def test_copy_markdown(self):
         from ui.copy_manager import CopyManager
         from ui.message_store import MessageStore
+
         store = MessageStore()
         store.append("assistant", "**bold**")
         cm = CopyManager(store)
@@ -46,6 +51,7 @@ class TestCopyManager:
     def test_copy_code_block(self):
         from ui.copy_manager import CopyManager
         from ui.message_store import MessageStore
+
         store = MessageStore()
         store.append("assistant", "```python\nx = 1\n```")
         cm = CopyManager(store)
@@ -56,6 +62,7 @@ class TestCopyManager:
     def test_copy_code_block_invalid_index(self):
         from ui.copy_manager import CopyManager
         from ui.message_store import MessageStore
+
         store = MessageStore()
         store.append("assistant", "no code here")
         cm = CopyManager(store)
@@ -65,6 +72,7 @@ class TestCopyManager:
     def test_copy_lines_range(self):
         from ui.copy_manager import CopyManager
         from ui.message_store import MessageStore
+
         store = MessageStore()
         store.append("assistant", "a\nb\nc\nd\ne")
         cm = CopyManager(store)
@@ -74,6 +82,7 @@ class TestCopyManager:
     def test_handle_command_copy_last(self):
         from ui.copy_manager import CopyManager
         from ui.message_store import MessageStore
+
         store = MessageStore()
         store.append("assistant", "final answer")
         cm = CopyManager(store)
@@ -84,6 +93,7 @@ class TestCopyManager:
     def test_handle_command_copy_last_markdown(self):
         from ui.copy_manager import CopyManager
         from ui.message_store import MessageStore
+
         store = MessageStore()
         store.append("assistant", "# title")
         cm = CopyManager(store)
@@ -94,6 +104,7 @@ class TestCopyManager:
     def test_handle_command_target_not_found(self):
         from ui.copy_manager import CopyManager
         from ui.message_store import MessageStore
+
         store = MessageStore()
         store.append("user", "hi")
         cm = CopyManager(store)
@@ -103,6 +114,7 @@ class TestCopyManager:
     def test_focus_navigation_with_copy(self):
         from ui.copy_manager import CopyManager
         from ui.message_store import MessageStore
+
         store = MessageStore()
         store.append("user", "q1")
         store.append("assistant", "a1")
@@ -117,6 +129,7 @@ class TestCopyManager:
     def test_handle_command_copy_by_index(self):
         from ui.copy_manager import CopyManager
         from ui.message_store import MessageStore
+
         store = MessageStore()
         store.append("assistant", "msg0")
         store.append("assistant", "msg1")
@@ -129,16 +142,19 @@ class TestCopyManager:
 class TestExtractCodeBlocks:
     def test_python_bash(self):
         from ui.copy_manager import extract_code_blocks
+
         blocks = extract_code_blocks("```python\nx=1\n```\n```bash\nls\n```")
         assert len(blocks) == 2
 
     def test_no_code_blocks(self):
         from ui.copy_manager import extract_code_blocks
+
         blocks = extract_code_blocks("no code here")
         assert blocks == []
 
     def test_code_block_without_lang(self):
         from ui.copy_manager import extract_code_blocks
+
         blocks = extract_code_blocks("```\njust text\n```")
         assert len(blocks) == 1
         assert blocks[0]["language"] == "text"

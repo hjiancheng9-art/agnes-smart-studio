@@ -133,8 +133,7 @@ def handle_forward_to_crux(msg):
                 with _lock:
                     PENDING_TASKS.append(task)
             return {"type": "task", "task": task}
-        else:
-            return {"type": "error", "message": f"Unknown action: {action}"}
+        return {"type": "error", "message": f"Unknown action: {action}"}
     except Exception as e:
         log(f"Forward error: {e}")
         return {"type": "error", "message": str(e)}

@@ -12,8 +12,9 @@ def render_run_detail(run: dict, width: int) -> list[tuple[str, str]]:
     """Render a single run's full details."""
     rows = []
     status = run.get("status", "unknown")
-    style = {"success": "class:run-success", "failover": "class:run-warn",
-             "error": "class:run-error"}.get(status, "class:muted")
+    style = {"success": "class:run-success", "failover": "class:run-warn", "error": "class:run-error"}.get(
+        status, "class:muted"
+    )
 
     rows.append(("class:panel-title", " RUN DETAIL\n"))
     rows.append((style, f" status:        {status}\n"))

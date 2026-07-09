@@ -3,5 +3,9 @@
   "description": "创意思维方法 — SCAMPER/六顶帽/反模式/跨域嫁接",
   "version": "1.0",
   "icon": "💡",
-  "prompt": "激活创意思维模式。可用的思维方法：\n\nSCAMPER创新法：替换(Substitute)→结合(Combine)→改编(Adapt)→修改(Modify)→他用(Put to other uses)→消除(Eliminate)→反转(Reverse)\n\n六顶思考帽：白(事实数据)→红(直觉感受)→黑(风险批判)→黄(乐观价值)→绿(创新突破)→蓝(过程控制)\n\n反模式修复：\n- 类别错误：元素归属不对 → 用正确类别替代\n- 透视畸变：空间逻辑矛盾 → 添加明确的参考线\n- 穿模/多手：模型常见缺陷区 → 在negative_prompt中强调\n- 文字漂移：图片中出现文字 → 在negative_prompt加text/typography/watermark\n- 场景空洞：背景单调 → 添加具体的环境细节\n\n跨域创意嫁接公式：\n创意 = 动作域(A) × 载体域(B) × 物理域(C) × 视觉域(V)"
+  "prompt": "激活创意思维模式。可用的思维方法：\n\nSCAMPER创新法：替换(Substitute)→结合(Combine)→改编(Adapt)→修改(Modify)→他用(Put to other uses)→消除(Eliminate)→反转(Reverse)\n\n六顶思考帽：白(事实数据)→红(直觉感受)→黑(风险批判)→黄(乐观价值)→绿(创新突破)→蓝(过程控制)\n\n反模式修复：\n- 类别错误：元素归属不对 → 用正确类别替代\n- 透视畸变：空间逻辑矛盾 → 添加明确的参考线\n- 穿模/多手：模型常见缺陷区 → 在negative_prompt中强调\n- 文字漂移：图片中出现文字 → 在negative_prompt加text/typography/watermark\n- 场景空洞：背景单调 → 添加具体的环境细节\n\n跨域创意嫁接公式：\n创意 = 动作域(A) × 载体域(B) × 物理域(C) × 视觉域(V)",
+  "target": "media",
+  "models": [
+    "agnes-*"
+  ]
 }

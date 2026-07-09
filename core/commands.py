@@ -58,19 +58,10 @@ COMMANDS: list[CommandDef] = [
         "showrun",
         "/showrun",
         "<目标>",
-        "Showrunner 全自动视频流水线（故事板→关键帧→动画→合成→音频）",
+        "视频生成管线（通过 Agnes Video API）",
         "创意生产",
         "全自动：理解创意→拆解资产→分镜→生成→质检→导出",
         handler="_chat_showrun",
-    ),
-    CommandDef(
-        "comfy",
-        "/comfy",
-        "<cmd>",
-        "ComfyUI 工作流管理 (list/run/status/connect)",
-        "创意生产",
-        "远程/本地 ComfyUI 节点式生成，list=查看工作流，run=执行，status=状态",
-        handler="_chat_comfy",
     ),
     CommandDef(
         "agnes",
@@ -97,6 +88,15 @@ COMMANDS: list[CommandDef] = [
     CommandDef(
         "help", "/help", "", "显示本帮助（/help /all 完整列表）", "对话", aliases=("all",), handler="_chat_help_inline"
     ),
+    CommandDef(
+        "theme",
+        "/theme",
+        "[polar_night|lava|jade]",
+        "切换 TUI 主题配色（不传参=查看当前主题）",
+        "对话",
+        long_desc="三套主题：极夜(深黑霓虹青蓝) / 熔岩(炭黑橙红琥珀) / 翡翠(墨绿翠青金线)",
+        handler="_chat_theme",
+    ),
     CommandDef("status", "/status", "", "系统健康状态", "对话", handler="_chat_status"),
     CommandDef(
         "vote", "/vote", "on|off", "多模型表决开关（复杂问题自动并行咨询多个AI）", "对话", handler="_chat_vote_toggle"
@@ -114,6 +114,7 @@ COMMANDS: list[CommandDef] = [
     CommandDef("agent", "/agent", "", "智能体模式（加载 tools.json 外部工具）", "对话", handler="_inline_agent"),
     CommandDef("tools", "/tools", "", "查看已注册的工具列表", "对话", handler="_inline_tools"),
     CommandDef("skill", "/skill", "<cmd>", "技能包管理 (list/load/mode/unload/create)", "对话", handler="_chat_skill"),
+    CommandDef("浏览器", "/浏览器", "", "加载浏览器操控技能 (等同于 /skill load browser-control)", "对话", handler="_chat_skill_load_browser"),
     CommandDef("clear", "/clear", "", "清空对话历史", "对话", handler="_inline_clear"),
     CommandDef("exit", "/exit", "", "退出聊天", "对话", aliases=("quit", "q")),
     # ── 任务工程 ──
@@ -243,9 +244,9 @@ SKILL_ENTRIES = [
     ("/summary", "查看指定执行摘要"),
     ("/providers", "查看 provider 健康状态"),
     ("/skill load video-pipeline", "输入理解→资产拆解→独立生成→分镜融合→质检→导出"),
-    ("/skill load showrunner", "选模型-提取帧-制片"),
+    ("/skill load showrunner", "已弃用 - 由 Agnes Video API 替代"),
     ("/skill load storyboard-director", "简报→镜头列表→图像提示→运动→音频"),
-    ("/skill load core-showrunner", "受控生产循环·诚实阻断·失败转修复"),
+    ("/skill load core-showrunner", "已弃用 - 由 Agnes 生成通道替代"),
     ("/skill list", "查看所有可用技能 (63+)"),
     ("/skill load <名称>", "加载指定技能包"),
     ("/runs", "View execution history"),

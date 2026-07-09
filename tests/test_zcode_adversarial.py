@@ -21,9 +21,7 @@ class TestSmuggle:
             if result != "hello":
                 modified_count += 1
         # Should modify at least once in 20 tries (very high probability)
-        assert modified_count > 0, (
-            "smuggle with 0.5 intensity should modify text at least sometimes"
-        )
+        assert modified_count > 0, "smuggle with 0.5 intensity should modify text at least sometimes"
 
     def test_smuggle_zero_intensity(self):
         """smuggle with intensity 0 should return original text."""
@@ -49,39 +47,33 @@ class TestModelRefusal:
 
     def test_is_model_refusal_true_cannot(self):
         """Refusal text 'I cannot provide' should be detected."""
-        assert adversarial_bypass.is_model_refusal(
-            "I cannot provide that information as it violates content policy."
-        ) is True
+        assert (
+            adversarial_bypass.is_model_refusal("I cannot provide that information as it violates content policy.")
+            is True
+        )
 
     def test_is_model_refusal_true_sorry(self):
         """Refusal text 'I'm sorry' should be detected."""
-        assert adversarial_bypass.is_model_refusal(
-            "I'm sorry, but I can't help with that request."
-        ) is True
+        assert adversarial_bypass.is_model_refusal("I'm sorry, but I can't help with that request.") is True
 
     def test_is_model_refusal_true_as_an_ai(self):
         """Refusal text 'As an AI' should be detected."""
-        assert adversarial_bypass.is_model_refusal(
-            "As an AI language model, I cannot generate that content."
-        ) is True
+        assert adversarial_bypass.is_model_refusal("As an AI language model, I cannot generate that content.") is True
 
     def test_is_model_refusal_false(self):
         """Normal helpful text should NOT be detected as refusal."""
-        assert adversarial_bypass.is_model_refusal(
-            "Here is the code you requested: print('hello world')"
-        ) is False
+        assert adversarial_bypass.is_model_refusal("Here is the code you requested: print('hello world')") is False
 
     def test_is_model_refusal_false_technical(self):
         """Technical explanation should NOT be detected as refusal."""
-        assert adversarial_bypass.is_model_refusal(
-            "The function uses a recursive algorithm with O(n log n) complexity."
-        ) is False
+        assert (
+            adversarial_bypass.is_model_refusal("The function uses a recursive algorithm with O(n log n) complexity.")
+            is False
+        )
 
     def test_is_model_refusal_chinese(self):
         """Chinese refusal should be detected."""
-        assert adversarial_bypass.is_model_refusal(
-            "我无法提供此类内容，这违反了相关政策和规定。"
-        ) is True
+        assert adversarial_bypass.is_model_refusal("我无法提供此类内容，这违反了相关政策和规定。") is True
 
 
 class TestApplyTechnique:
@@ -125,9 +117,7 @@ class TestTechniqueLevels:
     def test_technique_levels_keys(self):
         """TECHNIQUE_LEVELS should have keys 1 through 10."""
         for i in range(1, 11):
-            assert i in adversarial_bypass.TECHNIQUE_LEVELS, (
-                f"TECHNIQUE_LEVELS missing key {i}"
-            )
+            assert i in adversarial_bypass.TECHNIQUE_LEVELS, f"TECHNIQUE_LEVELS missing key {i}"
 
     def test_smuggle_preserves_length(self):
         """smuggle should preserve string length."""

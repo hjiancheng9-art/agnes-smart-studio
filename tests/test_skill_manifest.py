@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from core.skill_manifest import SkillManifest
 
 
@@ -26,5 +25,6 @@ class TestSkillManifest:
 
     def test_example_manifest(self):
         from core.skill_manifest import EXAMPLE_MANIFEST
+
         assert EXAMPLE_MANIFEST.name is not None
         assert EXAMPLE_MANIFEST.version is not None

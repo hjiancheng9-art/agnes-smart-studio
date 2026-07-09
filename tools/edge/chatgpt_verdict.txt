@@ -1,896 +1,303 @@
-下面我按“资深架构评审 + 正反方答辩”的方式来评审 CRUX Studio v5.0。我的核心判断是：CRUX 的问题不是能力不足，而是能力过剩之后缺少治理层。它已经像一个平台，但很多地方仍按工具箱方式运行。
+=== ChatGPT 诊断回复 ===
 
-【正方-为CRUX辩护】
-论点1：CRUX 的方向是对的，它不是普通 AI IDE，而是“创意生产 + 编程执行 + 工作流智能体”的融合平台
+最可能不是 palette 没定义，而是 “Style 已经建好，但没有真正覆盖 PTK 画布/容器背景”。
 
-CRUX 的战略定位很强。它没有把自己限制成“聊天助手”“代码助手”或“ComfyUI 控制台”，而是试图统一三类生产力：
+prompt_toolkit 的 Application(style=...) 只是提供样式表；颜色要通过控件、容器、FormattedText fragment 的 style/class 被引用后才会渲染。官方文档也明确说，Window 等控件接收 style 参数，父控件样式可以向子控件传播；FormattedText 里的 class:xxx 才会去匹配 Style.from_dict() 中的 xxx 规则。
+python-prompt-toolkit.readthedocs.io
+ 
+python-prompt-toolkit.readthedocs.io
 
-创意生产：图片、视频、提示词、分镜、角色、场景、风格一致性。
+根因优先级判断
+1. 根容器/空白区域没有背景样式，导致终端默认白底露出来
 
-工程生产：代码生成、调试、文件修改、工具调用、浏览器控制。
+这是最高概率。
 
-工作流生产：ComfyUI 工作流、CWIM 方法论、多智能体、技能市场、MCP、CDP。
-
-这条路线本质上是对的。未来 AI-native 工具不会只是“问答 + 代码补全”，而会变成：
-
-用户意图 → 任务规划 → 工具路由 → 多步骤执行 → 结果校验 → 自动修复 → 资产沉淀
-
-CRUX v5.0 已经具备这个方向的雏形。尤其是你提到的 CWIM 方法论 10 条原则、ComfyUI 工作流智能体、TRM 工具路由网格、技能市场、MCP、CDP，这些模块如果治理得好，可以形成非常强的平台壁垒。
-
-论点2：100+ 工具、51 技能包、多智能体不是天然问题，而是平台成熟的必要中间态
-
-反方会说“工具太多导致混乱”，但正方可以辩护：工具多本身不是错，错的是没有工具治理系统。
-
-一个 AI-native 平台如果只保留 10 个工具，短期很稳，但天花板很低。CRUX 做到 100+ 工具，说明它已经进入平台化阶段。真正的问题不是“删工具”，而是要让模型永远不直接面对 100+ 工具。
-
-正确结构应该是：
-
-用户意图
-  ↓
-任务类型识别
-  ↓
-能力域选择
-  ↓
-候选工具召回
-  ↓
-工具契约检查
-  ↓
-最小工具集执行
-  ↓
-结果校验与回滚
-
-也就是说，100+ 工具应该存在于底层能力池，而不是直接暴露给主模型选择。
-从这个角度看，CRUX 的工具数量是优势，只是现在缺少“工具操作系统”。
-
-论点3：CWIM 方法论是 CRUX 最有价值的资产之一，因为它把 ComfyUI 从“节点拼接”提升到了“工作流智能体”
-
-ComfyUI 的难点不只是生成 JSON，而是：
-
-模型兼容性；
-
-节点依赖；
-
-ControlNet / IPAdapter / LoRA / AnimateDiff 的组合约束；
-
-VRAM 限制；
-
-缺失模型自动下载；
-
-节点报错后的恢复；
-
-用户意图到工作流模板的映射。
-
-CWIM 方法论如果能真正落到 Compiler、Validator、Executor、Recovery 层，它就不是普通提示词规范，而是一个 ComfyUI 智能体操作协议。
-
-这对 CRUX 很关键。因为 ComfyUI 本身门槛高，普通用户不会搭节点。CRUX 如果能把它抽象成：
-
-用户说：做一个赛博雨夜角色一致性视频
-系统理解：角色资产 + 场景资产 + 分镜 + 图生图 + IPAdapter + AnimateDiff + LoRA + 视频合成
-系统执行：选择模板 → 补参数 → 校验模型 → 执行 → 修复
-
-那 CRUX 就不是“ComfyUI 外壳”，而是“创意工作流编译器”。
-
-论点4：deepseek-v4-pro 1M 上下文是优势，适合 CRUX 这种长链任务
-
-CRUX 的任务天然是长上下文任务，例如：
-
-用户多轮讨论风格；
-
-累积角色设定；
-
-累积工作流规则；
-
-调试大型项目；
-
-读取大量文件；
-
-长时间维护一个创意工程。
-
-1M 上下文可以显著提高连续作业能力。对 CRUX 来说，这是一个合理选择。
-
-但正方也必须承认：1M 上下文不是记忆系统，也不是状态机。
-它只能延缓信息衰减，不能从根上解决信息治理。
-
-【反方-批判CRUX】
-论点1：CRUX 当前最大问题是“能力堆叠”，不是“架构收敛”
-
-CRUX v5.0 看起来能力非常多：
-
-图片生成；
-
-视频生成；
-
-ComfyUI 智能体；
-
-100+ 工具；
-
-TRM 路由；
-
-多智能体；
-
-MCP；
-
-CDP；
-
-技能市场；
-
-51 技能包；
-
-长上下文模型。
-
-但这些能力之间是否形成了清晰闭环？这是最大疑问。
-
-现在更像是：
-
-很多工具 + 很多技能 + 很多智能体 + 很多协议
-
-而不是：
-
-清晰任务模型 + 稳定路由 + 最小执行链 + 可观测评估 + 自动修复闭环
-
-平台不是功能越多越强。平台强在：
-
-用户意图能否稳定转成任务；
-
-任务能否稳定转成工具链；
-
-工具链能否稳定执行；
-
-执行失败能否自动诊断；
-
-结果能否沉淀为下一次能力。
-
-如果这五件事没做好，100+ 工具反而会放大混乱。
-
-论点2：TRM 路由不准是系统性风险，不是单点 bug
-
-TRM 是 CRUX 的中枢。
-如果 TRM 路由不准，后面所有模块都会被拖垮。
-
-路由不准会造成：
-
-错误工具调用
-  ↓
-错误上下文注入
-  ↓
-错误智能体接管
-  ↓
-错误文件修改
-  ↓
-错误结果解释
-  ↓
-用户信任下降
-
-更严重的是，TRM 路由错误通常不是显性错误。它不会总是报错，而是会“看似执行了，但方向错了”。
-
-例如用户说：
-
-“修一下 CRUX 的 TUI 滚动问题。”
-
-错误路由可能会：
-
-调用文档分析技能，而不是代码定位；
-
-搜索 UI 设计建议，而不是实际修改文件；
-
-启动多智能体讨论，而不是进入最小修复链；
-
-调用浏览器控制，而不是读取本地代码；
-
-生成一堆方案，但不落地。
-
-这类错误非常伤害体验。用户不是要看平台“能做什么”，而是要平台“做对事情”。
-
-论点3：技能市场目前像“仓库”，不像“市场”
-
-51 个技能包听起来很多，但真正的问题是：
-
-技能是否能被正确发现、正确加载、正确组合、正确评估？
-
-如果技能市场只是一个目录，它的价值有限。
-真正的技能市场应该具备四个能力：
-
-技能发现：这个任务需要哪个技能？
-技能适配：这个技能是否适合当前上下文？
-技能组合：多个技能之间如何编排？
-技能评分：这个技能过去表现如何？
-
-如果没有这些，技能市场会变成“冷宫”：
-
-技能包很多，但模型想不起来；
-
-模型想起来，但不知道何时用；
-
-用了技能，但输入不匹配；
-
-技能执行完，结果没有沉淀；
-
-用户感觉不到技能市场的存在。
-
-CRUX 的技能市场不应该只是“可安装技能”，而应该变成“可路由能力”。
-
-论点4：长对话信息衰减不能靠 1M 上下文硬抗
-
-1M 上下文很强，但长对话里的真正问题不是“装不下”，而是“找不准”。
-
-信息衰减主要来自：
-
-早期约束被后期覆盖；
-
-临时方案和最终方案混在一起；
-
-废弃决策没有标记；
-
-用户偏好没有结构化；
-
-工程状态没有被状态机维护；
-
-关键文件修改历史没有成为可查询事实。
-
-例如用户在第 20 轮说：
-
-“采用现在在用版本的装饰。”
-
-这句话如果没有结构化，就会被长上下文稀释。模型后面可能仍然参考旧版装饰、错误截图、废弃方案。
-
-因此 CRUX 需要的不是更长上下文，而是：
-
-对话 → 结构化状态 → 决策记录 → 当前事实表 → 执行约束
-
-否则 1M 上下文只是更大的垃圾场。
-
-论点5：多智能体开销大，且容易制造“模拟协作”
-
-多智能体是 CRUX 的卖点，但也是风险点。
-
-很多系统引入多智能体之后，会出现一种假繁荣：
-
-Planner 说一遍
-Architect 说一遍
-Coder 说一遍
-Reviewer 说一遍
-Executor 再做一遍
-
-看起来专业，实际上增加了：
-
-token 成本；
--等待时间；
--状态同步成本；
--错误传播路径；
--用户认知负担。
-
-多智能体只有在以下场景才值得启用：
-
-任务存在明确角色分工；
-
-不同智能体拥有不同工具权限；
-
-输出之间存在强校验关系；
-
-有明确仲裁机制；
-
-单智能体无法可靠完成。
-
-否则，多智能体应该降级为“单智能体 + 内部阶段化流程”。
-
-CRUX 现在的问题可能不是智能体不够，而是智能体启动条件太宽。
-
-【正方反驳】
-
-反方说 CRUX 是能力堆叠，但这并不等于失败。
-平台演进一般都会经历三个阶段：
-
-阶段1：能力不足
-阶段2：能力过剩但混乱
-阶段3：能力治理后形成平台
-
-CRUX v5.0 处在第二阶段。
-这不是坏事，说明它已经越过了“功能贫乏”的阶段。
-
-真正需要做的不是砍掉大部分能力，而是建立治理层：
-
-能力池不变
-暴露面收敛
-路由层增强
-执行链缩短
-状态层结构化
-技能层可评估
-
-也就是说，CRUX 不应该从 100+ 工具退回 20 个工具，而应该让用户和主模型平时只看到 5 到 12 个“能力入口”。
-
-底层仍然保留 100+ 工具，但由 TRM、技能索引、任务编译器、工具契约系统来管理。
-
-【反方最后陈述】
-
-CRUX 的危险在于：它很容易被自己的复杂度吞掉。
-
-一个 AI-native 平台最怕出现这种局面：
-
-功能很多，但用户不知道怎么用；
-工具很多，但模型不知道选哪个；
-技能很多，但系统很少调用；
-智能体很多，但彼此互相消耗；
-上下文很长，但关键事实找不到；
-协议很多，但执行闭环不稳定。
-
-如果 CRUX 不能在 v5.0 之后快速完成“能力治理”，它会变成一个高级但不稳定的实验室系统。
-
-用户最终不会因为你有 100+ 工具而买单。
-用户只会因为一句话能稳定完成复杂任务而买单。
-
-所以反方的核心批判是：
-
-CRUX 目前不是缺能力，而是缺“把能力转化为稳定体验”的操作系统。
-
-【你的最终裁决】
-总体裁决
-
-CRUX Studio v5.0 是一个方向正确、能力充足、但治理不足的 AI-native 平台原型。
-
-它的上限很高，但当前瓶颈不是模型、不是工具数量、不是技能数量，而是：
-
-意图理解 → 路由决策 → 工具执行 → 状态维护 → 结果验收
-
-这条链路还没有被工程化到足够稳定。
-
-CRUX 现在最该做的不是继续加工具、加技能、加智能体，而是建设一个统一的：
-
-任务治理层 / Tool Capability OS / 能力操作系统
-
-核心问题 Top 3
-Top 1：TRM 路由不准，导致 100+ 工具无法转化为真实生产力
-
-这是最高优先级问题。
-
-因为所有能力都要经过路由。
-路由错了，后面再强也没用。
-
-当前症状
-用户意图模糊
-  ↓
-TRM 候选工具过多
-  ↓
-模型凭语义猜工具
-  ↓
-工具调用不稳定
-  ↓
-失败后缺少强约束恢复
-根因
-
-TRM 现在很可能是“工具选择器”，但它应该升级为“任务编译器”。
-
-工具选择器的问题是：
-
-用户说什么 → 猜一个工具
-
-任务编译器应该是：
-
-用户说什么
-  ↓
-识别任务类型
-  ↓
-生成 TaskSpec
-  ↓
-编译 PlanIR
-  ↓
-选择能力域
-  ↓
-召回候选技能/工具
-  ↓
-校验工具契约
-  ↓
-生成 ToolGraph
-  ↓
-执行与验收
-Top 2：长对话状态没有结构化，1M 上下文被当成记忆系统使用
-
-这是 CRUX 的第二大问题。
-
-长上下文只能保存信息，不能治理信息。
-
-当前风险
-旧方案、废弃方案、最终方案混杂
-用户偏好被稀释
-当前项目状态不明确
-文件修改历史缺少事实表
-模型反复问已回答问题
-模型引用过时约束
-正确方向
-
-CRUX 需要建立四层记忆结构：
-
-1. Session State：当前会话状态
-2. Project State：当前项目事实表
-3. Decision Log：关键决策记录
-4. User Preference：长期偏好与禁忌
-
-对于 CRUX 这种平台，尤其要有一个 CURRENT_STATE.md 或等价状态对象。
-
-它应该记录：
-
-JSON
-{
-  "project": "CRUX Studio",
-  "current_version": "v5.0",
-  "active_goal": "提升工具路由与技能利用率",
-  "accepted_decisions": [
-    "保留100+工具，但不直接暴露给主模型",
-    "技能市场从目录升级为可路由能力池",
-    "多智能体默认关闭，仅在高复杂任务触发"
-  ],
-  "rejected_decisions": [
-    "继续盲目增加工具",
-    "依赖1M上下文解决全部记忆问题"
-  ],
-  "current_constraints": [
-    "减少多智能体开销",
-    "提升TRM路由准确率",
-    "提高技能包调用率"
-  ],
-  "next_actions": [
-    "重构TRM为TaskSpec→PlanIR→ToolGraph",
-    "建立工具契约",
-    "建立路由评测集"
-  ]
-}
-Top 3：技能市场没有进入主执行链，导致 51 技能包沉睡
-
-技能市场如果只是“技能列表”，价值很低。
-它必须进入 TRM 的决策链。
-
-当前问题
-技能包存在
-但没有被稳定召回
-没有任务标签体系
-没有输入输出契约
-没有使用评分
-没有组合策略
-没有失败反馈
-正确方向
-
-每个技能包都应该被注册成标准能力单元：
-
-JSON
-{
-  "skill_id": "comfyui_workflow_repair",
-  "name": "ComfyUI 工作流修复",
-  "domain": "comfyui",
-  "task_types": ["workflow_debug", "node_repair", "model_missing_fix"],
-  "inputs": ["workflow_json", "error_log", "model_inventory"],
-  "outputs": ["patched_workflow", "diagnosis", "repair_report"],
-  "preconditions": [
-    "workflow_json must contain class_type",
-    "error_log should be available if repairing execution failure"
-  ],
-  "cost_level": "medium",
-  "latency_level": "medium",
-  "risk_level": "high",
-  "requires_confirmation": true,
-  "success_metrics": [
-    "workflow_validated",
-    "execution_error_resolved"
-  ]
-}
-
-技能市场必须从“插件仓库”变成“能力索引”。
-
-最优先修复项
-第一优先级：重构 TRM 为“任务编译 + 工具契约 + 路由评测”三件套
-
-这是最重要的修复项。
-
-因为它一旦做好，下面几个问题会同时改善：
-
-100+ 工具利用率低；
-
-TRM 路由不准；
-
-技能市场调用率低；
-
-多智能体乱启动；
-
-长对话中工具选择不稳定；
-
-执行失败后恢复困难。
-
-具体方案：TRM v2 能力操作系统
-1. 建立统一 TaskSpec
-
-不要让模型直接选工具。
-先让模型把用户意图转成标准任务描述。
-
-TaskSpec 示例
-JSON
-{
-  "task_id": "task_20260707_001",
-  "user_intent": "评审CRUX Studio v5.0架构并给出修复方案",
-  "task_type": "architecture_review",
-  "domain": ["system_architecture", "ai_agent_platform"],
-  "goal": "输出正反方答辩和优先级修复方案",
-  "inputs_required": [
-    "platform_description",
-    "known_issues",
-    "current_capabilities"
-  ],
-  "execution_mode": "analysis_only",
-  "risk_level": "low",
-  "requires_tools": false,
-  "requires_multi_agent": false,
-  "expected_outputs": [
-    "pros_cons_debate",
-    "top_issues",
-    "priority_fix",
-    "implementation_plan"
-  ]
-}
-
-关键点：
-先判断任务是什么，再判断需不需要工具。
-不要上来就工具召回。
-
-2. 建立 PlanIR
-
-TaskSpec 只描述任务，PlanIR 描述执行计划。
-
-JSON
-{
-  "plan_id": "plan_arch_review_001",
-  "steps": [
-    {
-      "step": 1,
-      "name": "identify_system_positioning",
-      "type": "reasoning",
-      "tool_required": false
-    },
-    {
-      "step": 2,
-      "name": "evaluate_core_bottlenecks",
-      "type": "reasoning",
-      "tool_required": false
-    },
-    {
-      "step": 3,
-      "name": "rank_top_issues",
-      "type": "reasoning",
-      "tool_required": false
-    },
-    {
-      "step": 4,
-      "name": "generate_remediation_plan",
-      "type": "writing",
-      "tool_required": false
-    }
-  ],
-  "multi_agent_required": false,
-  "estimated_tool_count": 0
-}
-
-这个例子反而说明一个关键问题：
-不是所有任务都需要工具。
-
-TRM 不能为了用工具而用工具。
-
-3. 建立工具能力注册表 Tool Manifest
-
-每个工具必须有机器可读的能力说明。
-
-JSON
-{
-  "tool_id": "browser_cdp_control",
-  "name": "CDP浏览器控制",
-  "domain": "browser_automation",
-  "task_types": [
-    "web_interaction",
-    "ui_test",
-    "page_inspection",
-    "form_operation"
-  ],
-  "inputs": {
-    "url": "string",
-    "action": "enum",
-    "selector": "string optional"
-  },
-  "outputs": {
-    "page_state": "object",
-    "screenshot": "image optional",
-    "action_result": "object"
-  },
-  "preconditions": [
-    "user task requires browser interaction",
-    "target url is available"
-  ],
-  "anti_patterns": [
-    "do not use for general architecture reasoning",
-    "do not use when static explanation is sufficient"
-  ],
-  "cost": {
-    "latency": "medium",
-    "token": "low",
-    "risk": "medium"
-  }
-}
-
-尤其要有 anti_patterns。
-工具路由不准，很多时候不是因为不知道何时用，而是不知道何时不用。
-
-4. 增加 Tool Contract Checker
-
-每次工具调用前，先检查契约。
-
-候选工具
-  ↓
-输入是否满足？
-任务类型是否匹配？
-是否有更低成本工具？
-是否需要用户确认？
-是否违反禁用场景？
-  ↓
-允许 / 拒绝 / 降级
-
-示例规则：
+你现在改了：
 
 Python
 运行
-def check_tool_contract(task_spec, tool_manifest):
-    if task_spec["task_type"] not in tool_manifest["task_types"]:
-        return "reject: task_type mismatch"
+Style.from_dict({
+    "": "fg:#E2E8F0 bg:#0B0E14",
+    ...
+})
 
-    for condition in tool_manifest["preconditions"]:
-        if not condition_satisfied(condition, task_spec):
-            return f"reject: precondition failed: {condition}"
+但这不等于“整个终端画布都刷成深色”。很多空白区域不是 FormattedText fragment，也不是带 class 的文本，它们只是 layout 中未被 Window/Container 明确绘制的区域。白底终端下，这些区域就会保持白色。
 
-    if matches_antipattern(task_spec, tool_manifest):
-        return "reject: anti-pattern matched"
+应给根级容器、主 Window、body、padding、frame、input 区域全部显式加背景：
 
-    return "allow"
+Python
+运行
+ROOT_BG = "class:app"
 
-这一步能显著减少乱调用。
+style = Style.from_dict({
+    "": "fg:#E2E8F0 bg:#0B0E14",
+    "app": "fg:#E2E8F0 bg:#0B0E14",
+    "body": "fg:#E2E8F0 bg:#0B0E14",
+    "window": "fg:#E2E8F0 bg:#0B0E14",
+    "frame": "fg:#E2E8F0 bg:#0B0E14",
+    "frame.border": "fg:#334155 bg:#0B0E14",
+})
 
-5. 把技能市场接入 TRM，而不是放在旁边
+然后在布局根部加：
 
-技能包应该和工具一样参与召回，但它是更高层能力。
+Python
+运行
+root = FloatContainer(
+    content=HSplit([...], style="class:app"),
+    floats=[],
+    style="class:app",
+)
 
-用户任务
-  ↓
-TaskSpec
-  ↓
-先召回 Skill
-  ↓
-Skill 决定需要哪些 Tools
+以及每个占空间的 Window：
 
-也就是说：
+Python
+运行
+Window(
+    content=FormattedTextControl(...),
+    style="class:app",
+)
 
-不要让 TRM 直接从 100+ 工具里选
-而是先从 51 个技能包里选能力域
-再由技能包内部选择工具
+官方 full-screen demo 也是 Application(..., style=style, full_screen=True)，但它仍然依赖各 Widget/Container 自己的 class/style 才能显示对应颜色，不是 Application 自动全局涂背景。
+GitHub
 
-推荐路由结构：
+2. 你匹配的是 FormattedText class，但真正发白的是 Container / Window / Widget class
 
-TaskSpec
-  ↓
-Skill Router
-  ↓
-Skill Plan
-  ↓
-Tool Router
-  ↓
-ToolGraph
-  ↓
-Executor
+你说已经匹配了 44 个实际使用的 FormattedText class，这只能覆盖文本片段，例如：
 
-例如：
+Python
+运行
+("class:crux.header", "CRUX Studio")
 
-用户：帮我修 CRUX TUI 滚动问题
-  ↓
-task_type = code_debug
-domain = tui / python / prompt_toolkit
-  ↓
-召回技能：
-- python_code_repair
-- tui_layout_debug
-- regression_test
-  ↓
-工具：
-- file_read
-- grep
-- patch
-- run_tests
+但 prompt_toolkit 的 TUI 不只有 FormattedText。还有：
 
-这样技能市场就活了。
+Python
+运行
+Window
+HSplit / VSplit
+Frame
+Box
+TextArea
+BufferControl
+FloatContainer
+CompletionsMenu
+Scrollbar
+SearchToolbar
 
-6. 多智能体改成“按风险触发”，默认单智能体
+这些控件有自己的 class 或 style。官方示例里就有类似：
 
-不建议默认多智能体。
+Python
+运行
+"window.border": "#888888",
+"menu-bar": "bg:#aaaaaa #888888",
+"button-bar": "bg:#aaaaff",
 
-应该设计触发条件：
+这说明 PTK 内部 Widget 会使用独立 class，而不是你自己 FormattedText 的 44 个 class。
+GitHub
 
-JSON
-{
-  "multi_agent_policy": {
-    "default": "disabled",
-    "enable_when": [
-      "task_risk_level >= high",
-      "requires_cross_domain_reasoning == true",
-      "code_change_lines_estimate > 300",
-      "architecture_decision_required == true",
-      "security_or_data_loss_risk == true"
-    ],
-    "roles": {
-      "planner": "only for high complexity tasks",
-      "executor": "only when actual file/tool actions required",
-      "reviewer": "only when modification risk is medium or high"
-    }
-  }
-}
+所以要查的不只是：
 
-普通任务：
+Python
+运行
+FormattedText([("class:xxx", text)])
 
-单智能体 + 阶段化思考
+还要全项目搜：
 
-复杂任务：
+Bash
+rg "style=|class:|Window\\(|Frame\\(|Box\\(|TextArea\\(|Label\\(|FormattedTextControl" ui core
 
-Planner → Executor → Reviewer
+特别找这些：
 
-高风险任务：
+bg:white
+bg:#ffffff
+bg:ansiwhite
+reverse
+noinherit
+ansidefault
+style=""
+style=None
+3. class 名可能“看起来匹配”，但实际 PTK 匹配规则不是你以为的
 
-Architect → Planner → Executor → Validator → Reviewer
+FormattedText 中应该是：
 
-这样能降低多智能体开销。
+Python
+运行
+("class:crux.title", "text")
 
-7. 建立路由评测集
+Style 表里应该是：
 
-TRM 不准，不能靠感觉调。
-必须有评测集。
+Python
+运行
+"crux.title": "fg:#E2E8F0 bg:#0B0E14"
 
-路由评测数据格式
-JSON
-{
-  "case_id": "route_001",
-  "user_input": "帮我检查这个ComfyUI工作流为什么报错",
-  "expected_task_type": "workflow_debug",
-  "expected_skill": "comfyui_workflow_repair",
-  "expected_tools": [
-    "workflow_parser",
-    "topology_validator",
-    "model_inventory_checker"
-  ],
-  "forbidden_tools": [
-    "browser_cdp_control",
-    "image_generation",
-    "general_web_search"
-  ],
-  "success_criteria": [
-    "does not generate image",
-    "reads workflow json first",
-    "checks missing nodes and models",
-    "returns repair plan"
-  ]
-}
+不是：
 
-至少先做 200 条核心评测：
+Python
+运行
+"class:crux.title": ...
 
-50 条代码修复
-40 条 ComfyUI 工作流
-30 条图片/视频创作
-30 条文件分析
-20 条浏览器自动化
-20 条项目架构审计
-10 条拒绝/降级/无需工具场景
+另外 dotted class 有特殊展开/组合规则。prompt_toolkit 文档说明，class:left.text.highlighted 会按 dotted class 展开并参与组合计算；复杂 class 组合的顺序也会影响最终样式。
+python-prompt-toolkit.readthedocs.io
 
-每次改 TRM，都跑评测。
+建议直接在运行时打印真实使用的 style strings：
 
-8. 建立工具调用遥测
+Python
+运行
+def after_render(app):
+    used = sorted(app.get_used_style_strings())
+    with open("ptk_used_styles.log", "w", encoding="utf-8") as f:
+        f.write("\n".join(used))
 
-每次工具调用都记录：
+app = Application(
+    layout=layout,
+    style=style,
+    full_screen=True,
+    after_render=after_render,
+)
 
-JSON
-{
-  "task_id": "task_001",
-  "task_type": "code_debug",
-  "selected_skill": "python_code_repair",
-  "selected_tools": ["file_read", "patch", "run_tests"],
-  "rejected_tools": ["browser_cdp_control"],
-  "reason": "local code repair does not require browser",
-  "success": true,
-  "user_satisfaction": "positive",
-  "latency_ms": 4200,
-  "token_cost": 12000
-}
+如果日志里出现大量你没覆盖的：
 
-没有遥测，就无法知道：
+class:frame
+class:window
+class:textarea
+class:input-field
+class:menu
+class:scrollbar
 
-哪些工具从来不用；
+那就是根因。
 
-哪些工具经常误用；
+4. 有局部 inline style 覆盖了全局背景
 
-哪些技能命中率高；
+prompt_toolkit 样式是从父到子拼接计算，后面的样式会覆盖前面的样式。官方文档说明，父级可以设置样式，子级也可以部分覆盖。
+python-prompt-toolkit.readthedocs.io
 
-哪些任务经常路由失败；
+所以即使根部有：
 
-多智能体是否真的提升质量。
+Python
+运行
+bg:#0B0E14
 
-推荐落地顺序
-第一步：收敛任务类型 taxonomy
+子控件里只要有：
 
-先定义 20 到 30 个核心任务类型。
+Python
+运行
+style="bg:#ffffff"
 
-例如：
+或：
 
-architecture_review
-code_debug
-code_edit
-file_analysis
-comfyui_workflow_build
-comfyui_workflow_debug
-image_prompt_generation
-video_storyboard_generation
-browser_automation
-web_research
-document_generation
-skill_installation
-project_planning
-test_generation
-error_recovery
+Python
+运行
+style="reverse"
 
-这是 TRM 的地基。
+或：
 
-第二步：给 100+ 工具补 Tool Manifest
+Python
+运行
+style="class:xxx noinherit"
 
-不用一次性做完。
-先覆盖最常用的 30 个工具。
+就可能把深色背景干掉。
 
-每个工具必须有：
+尤其要查 noinherit，它会让局部控件不继承父样式。
 
-tool_id
-domain
-task_types
-inputs
-outputs
-preconditions
-anti_patterns
-cost
-risk
-requires_confirmation
-第三步：把 51 技能包改造成 Skill Manifest
+5. 没有强制 full_screen=True，只渲染局部，终端剩余区域仍是白色
 
-每个技能包必须有：
+如果 Application(full_screen=False)，PTK 不会进入 alternate screen buffer，只占 layout 所需空间。官方文档说，full_screen=True 才会在 alternate screen buffer 中运行；否则应用只消耗布局需要的最小空间。
+python-prompt-toolkit.readthedocs.io
 
-skill_id
-适用任务
-输入要求
-输出格式
-内部工具链
-失败恢复策略
-评分指标
-禁用场景
-第四步：TRM 改成两级路由
-第一级：TaskSpec → Skill
-第二级：Skill → Tools
+确认这里没有被条件分支覆盖：
 
-不要让主模型直接面对 100+ 工具。
+Python
+运行
+Application(
+    layout=layout,
+    style=style,
+    full_screen=True,
+)
 
-第五步：建立 CURRENT_STATE 和 Decision Log
+如果 CRUX 有普通模式 / fallback 模式 / debug 模式，很可能你改的是 TUI v2，但实际启动的是另一个分支。
 
-长对话必须有状态层。
+6. 颜色深度被降级不是主因，但仍要固定
 
-建议 CRUX 每个项目自动维护：
+如果颜色深度太低，#0B0E14 会被映射成近似色。prompt_toolkit 支持 1-bit、4-bit、8-bit、24-bit 等色深，ColorDepth.TRUE_COLOR 才是 24-bit 真彩色。
+python-prompt-toolkit.readthedocs.io
 
-.crux/state/CURRENT_STATE.json
-.crux/state/DECISIONS.md
-.crux/state/CONSTRAINTS.md
-.crux/state/ACTIVE_TASK.md
-.crux/state/TOOL_TRACE.jsonl
+但注意：色深降级通常会变成黑/灰，不太会导致“全白”。所以它不是第一根因，只是加固项：
 
-这会显著缓解长对话信息衰减。
+Python
+运行
+from prompt_toolkit.output.color_depth import ColorDepth
 
-最终一句话裁决
+app = Application(
+    layout=layout,
+    style=style,
+    full_screen=True,
+    color_depth=ColorDepth.TRUE_COLOR,
+)
+最小验证法
 
-CRUX Studio v5.0 的核心矛盾是：
+先不要查 44 个 class，直接做一个硬编码烟雾测试：
 
-平台能力已经进入 v5，但治理架构还停留在 v3。
+Python
+运行
+from prompt_toolkit import Application
+from prompt_toolkit.layout import Layout
+from prompt_toolkit.layout.containers import Window
+from prompt_toolkit.layout.controls import FormattedTextControl
+from prompt_toolkit.styles import Style
+from prompt_toolkit.output.color_depth import ColorDepth
 
-最优先修复项不是再加工具、再加技能、再加智能体，而是：
+style = Style.from_dict({
+    "": "fg:#E2E8F0 bg:#0B0E14",
+    "app": "fg:#E2E8F0 bg:#0B0E14",
+})
 
-把 TRM 重构为 TaskSpec → Skill Router → Tool Contract → ToolGraph → Executor → Validator 的能力操作系统。
+root = Window(
+    content=FormattedTextControl([
+        ("class:app", "CRUX THEME TEST\n"),
+        ("class:app", "If this screen is dark, theme engine is OK."),
+    ]),
+    style="class:app",
+    always_hide_cursor=True,
+)
 
-只要这个修好，100+ 工具、51 技能包、CWIM、多智能体、MCP、CDP 才会真正变成平台优势。否则它们只是复杂度。
+app = Application(
+    layout=Layout(root),
+    style=style,
+    full_screen=True,
+    color_depth=ColorDepth.TRUE_COLOR,
+)
+
+app.run()
+
+判断：
+
+结果	说明
+这个测试是深色	Style.from_dict 没问题，CRUX 的布局容器/局部 style 覆盖有问题
+这个测试仍全白	终端/输出/color depth/启动路径有问题
+只有文字深色，空白白色	Window/Container 没有把背景铺满
+CRUX 白，但测试深色	实际启动没有用到 theme_v2.build_style_v2("blade")
+我给你的最终判断
+
+按你描述，“palette 已定义 + 44 个 FormattedText class 已匹配 + 空 class 兜底仍全白”，最可能根因是：
+
+你修的是文本 token 样式，不是 PTK 全屏画布样式。CRUX 的根容器、Window、Frame、TextArea、padding、空白区域没有统一 style="class:app" / bg:#0B0E14，所以白色终端默认背景一直露出来。
+
+第二可能是：
+
+实际启动路径没有走 ui/theme_v2.py → build_style_v2("blade")，而是走了旧 TUI / fallback / 纯文本模式 / 另一个 Application 实例。
+
+直接加两个诊断：
+
+Python
+运行
+print("[THEME]", type(style), "blade", id(style))
+
+和：
+
+Python
+运行
+after_render=lambda app: Path("ptk_used_styles.log").write_text(
+    "\n".join(sorted(app.get_used_style_strings())),
+    encoding="utf-8"
+)
+
+这两个基本能一次定位：到底是 Style 没进入 Application，还是 进入了但没有覆盖真实控件/空白画布。

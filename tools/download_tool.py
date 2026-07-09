@@ -40,8 +40,7 @@ def _submit_download_from_media(candidate, page_url, title):
 
 
 def _detect_kind(kind_str: str) -> DownloadKind:
-    m = {"m3u8": DownloadKind.HLS, "mp4": DownloadKind.DIRECT,
-         "dash": DownloadKind.DASH, "segment": DownloadKind.HLS}
+    m = {"m3u8": DownloadKind.HLS, "mp4": DownloadKind.DIRECT, "dash": DownloadKind.DASH, "segment": DownloadKind.HLS}
     return m.get(kind_str, DownloadKind.UNKNOWN)
 
 
@@ -94,9 +93,9 @@ def handle_download_command(text: str, width: int, append_msg, append_err, _log_
             # Pick first candidate with highest confidence
             best = max(candidates, key=lambda c: c.get("confidence", 0))
             job = _submit_download_from_media(best, item.get("page_url", ""), item.get("title", ""))
-            _log_append(("↓", "class:activity-info", f"下载已排队: {job.job_id} {best.get('url','')[:48]}"))
+            _log_append(("↓", "class:activity-info", f"下载已排队: {job.job_id} {best.get('url', '')[:48]}"))
             append_msg("info", "已提交下载\n")
-            append_msg("muted", f" URL: {best.get('url','')}\n")
+            append_msg("muted", f" URL: {best.get('url', '')}\n")
             return True
 
         # Show all pending media
@@ -127,16 +126,15 @@ def handle_download_command(text: str, width: int, append_msg, append_err, _log_
         tail = parts[2] if len(parts) > 2 else ""
         if "--name" in tail:
             nidx = tail.find("--name")
-            rest = tail[nidx + 6:].strip()
+            rest = tail[nidx + 6 :].strip()
             filename = rest.split(" ")[0].strip('"').strip("'")
 
         if "--dir" in tail:
             didx = tail.find("--dir")
-            rest = tail[didx + 5:].strip()
+            rest = tail[didx + 5 :].strip()
             output_dir = rest.split(" ")[0].strip('"').strip("'")
 
-        req = DownloadRequest(url=url, filename=filename,
-                              output_dir=output_dir or None)
+        req = DownloadRequest(url=url, filename=filename, output_dir=output_dir or None)
         manager = get_manager()
         job = manager.submit(req)
         _log_append(("↓", "class:activity-info", f"下载已排队: {job.job_id} {url[:48]}"))
