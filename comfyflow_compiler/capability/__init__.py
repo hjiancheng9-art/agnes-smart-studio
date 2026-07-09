@@ -7,6 +7,7 @@ from .snapshot import CapabilitySnapshot, probe_comfyui
 from .comfy_probe import ComfyProbe, ComfyProbeError
 from .model_index import ModelIndex
 from .node_index import NodeIndex
+from .compatibility import BlueprintCompatibilityMatcher, CompatibilityScore, NODE_FALLBACKS, MODEL_FALLBACKS
 from .errors import CapabilityError, ComfyOfflineError, MissingNodeError, MissingModelError
 
 __all__ = [
