@@ -75,4 +75,4 @@
 | `/mcp <cmd>` | MCP 服务器管理 (list/add/remove/connect/disconnect/tools) |
 
 ---
-*83 tools, 34 skills, 235 core modules, 133 test files*
+*83 tools, 34 skills, 235 core modules, 137 test files*
