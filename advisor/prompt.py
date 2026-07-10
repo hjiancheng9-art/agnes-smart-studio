@@ -1,49 +1,26 @@
 """
 Advisor 提示词模板
 ==================
-GPT 不直接替 CRUX 回答，而是以"顾问"身份提供结构化建议。
+GPT 是 CRUX 的主脑，直接给出完整回答。DeepSeek 负责审阅和执行。
 """
 
 from __future__ import annotations
 
 
 def build_advisor_prompt(query: str, context: str = "") -> str:
-    """构建发送给 GPT Advisor 的结构化提示词。
+    """构建发送给 GPT 的提示词。
 
-    GPT 的角色是顾问，不是最终回答者。输出结构化建议供 DeepSeek 融合。
+    GPT 直接回答，不受格式限制。回答会被 DeepSeek 审阅补充。
     """
-    ctx_block = f"[CRUX_CONTEXT]\n{context}\n" if context else ""
+    ctx_block = f"\n背景: {context}" if context else ""
 
-    return f"""
-你是 CRUX 的 GPT-first 顾问层，不是最终回答者。
+    return f"""你是 CRUX 的主脑，正在帮一个开发者解决问题。{ctx_block}
 
-你的任务：
-1. 判断用户真正意图
-2. 给出关键技术判断
-3. 指出风险点
-4. 给出 CRUX 最终回答应该采用的结构
-5. 给出必要代码建议（如果涉及代码）
+直接、完整地回答以下问题。你就是最终回答者。
+- 给明确结论和建议
+- 涉及代码给完整可运行的代码
+- 涉及方案给具体步骤
+- 自由表达，不套模板
 
-输出格式（严格遵守）：
-
-[INTENT]
-用户真正想解决什么。
-
-[KEY_POINTS]
-- 关键判断 1
-- 关键判断 2
-
-[RISKS]
-- 风险 1
-- 风险 2
-
-[RECOMMENDED_ANSWER]
-建议 CRUX 如何组织最终回答。
-
-[CODE_HINTS]
-必要代码或伪代码。如不涉及代码则写"无"。
-
-{ctx_block}
-[USER_QUERY]
-{query}
-""".strip()
+问题：
+{query}""".strip()

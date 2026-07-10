@@ -1,7 +1,7 @@
 """
 融合提示词构建器
 =================
-将 GPT Advisor 的建议与用户问题融合，生成发给 DeepSeek 的最终 prompt。
+GPT 主脑回答 + DeepSeek 审阅执行 = 最终输出。
 """
 
 from __future__ import annotations
@@ -14,54 +14,29 @@ def build_fusion_prompt(
     crux_context: str,
     advisor_result: AdvisorResult,
 ) -> str:
-    """构建融合了 GPT Advisor 建议的 DeepSeek prompt。
+    """构建交给 DeepSeek 的融合 prompt。
 
-    如果 GPT 可用，注入其结构化建议；否则让 DeepSeek 独立回答。
+    GPT 已给出完整回答。DeepSeek 的角色是审阅官 + 执行者。
     """
     if advisor_result.ok:
-        advisor_block = _format_advisor_ok(advisor_result)
+        gpt_block = f"[GPT 的回答]\n{advisor_result.content}"
     else:
-        advisor_block = _format_advisor_fail(advisor_result)
+        gpt_block = "[GPT 暂不可用]"
 
-    ctx_block = f"[CRUX_CONTEXT]\n{crux_context}\n" if crux_context else ""
+    ctx = f"\n项目背景: {crux_context}" if crux_context else ""
 
-    return f"""
-你是 CRUX 主控脑，底层模型是 DeepSeek。
+    return f"""你是 CRUX 的执行官。{ctx}
 
-要求：
-1. 回答用户问题
-2. 参考 GPT_ADVISOR_RESULT，但不要盲目复制
-3. 如果 GPT 建议错误，以你的判断为准
-4. 输出工程可落地的方案
-5. 代码要能直接嵌入项目
-
-{ctx_block}
-{advisor_block}
-
-[USER_QUERY]
+用户问题：
 {user_query}
 
-请给出最终回答。
-""".strip()
+{gpt_block}
 
+你的任务：
+1. 如果 GPT 已回答 → 审阅其正确性，纠正错误，补充遗漏
+2. 如果涉及代码 → 给出可直接嵌入项目的完整实现
+3. 如果需要执行操作 → 调用工具完成（读文件、编辑、运行测试等）
+4. 如果 GPT 不可用 → 独立回答
 
-def _format_advisor_ok(result: AdvisorResult) -> str:
-    """格式化成功的 Advisor 结果。"""
-    return f"""
-[GPT_ADVISOR_RESULT]
-source: {result.source}
-latency_ms: {result.latency_ms}
-
-{result.content}
-""".strip()
-
-
-def _format_advisor_fail(result: AdvisorResult) -> str:
-    """格式化失败的 Advisor 结果。"""
-    return f"""
-[GPT_ADVISOR_UNAVAILABLE]
-status: {result.status}
-error: {result.error or "未知错误"}
-
-GPT 顾问不可用。请你独立回答，并保持工程可执行性。
-""".strip()
+不要重复 GPT 已经说对的内容。只补充、纠正、执行。
+最终输出给用户的是你的审阅结果 + 执行结果。""".strip()

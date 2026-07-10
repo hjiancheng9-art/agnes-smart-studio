@@ -58,7 +58,7 @@ class TuiControlMixin:
             (
                 "→",
                 "class:activity-info",
-                f"待发送 ({control().outbox.UNDO_WINDOW_MS / 1000:.0f}s 可撤销): {self._shorten(text, 60)}",
+                f"待发送 ({control().outbox.UNDO_WINDOW_MS / 1000:.0f}s 可撤销): {self._shorten(text, 30)}",
             )
         )
 

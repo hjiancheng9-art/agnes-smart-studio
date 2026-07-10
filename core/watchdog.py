@@ -42,6 +42,30 @@ class WatchdogState:
 
 
 class Watchdog:
+    # ── P0 心跳机制: 防止误判"死亡" ──
+    _last_heartbeat: float = 0.0
+    _executor_status: str = "IDLE"  # IDLE|THINKING|TOOL_RUNNING|STREAMING|WAITING_USER
+    _HEARTBEAT_INTERVAL: float = 2.0
+    _MAX_HEARTBEAT_MISS: int = 15   # 连续30s无心跳 → 疑似死亡
+
+    @classmethod
+    def beat(cls, status: str = "") -> None:
+        """主循环每2s调用，证明执行器存活。"""
+        cls._last_heartbeat = time.time()
+        if status:
+            cls._executor_status = status
+        cls._heartbeat_miss_count = 0
+
+    @classmethod
+    def is_alive(cls) -> bool:
+        if cls._last_heartbeat == 0.0:
+            return True
+        return (time.time() - cls._last_heartbeat) < (cls._HEARTBEAT_INTERVAL * cls._MAX_HEARTBEAT_MISS)
+
+    @classmethod
+    def get_status(cls) -> str:
+        return cls._executor_status
+
     def __init__(self) -> None:
         self._state = WatchdogState()
         self._thread: threading.Thread | None = None

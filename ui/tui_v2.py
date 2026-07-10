@@ -960,9 +960,10 @@ class TuiAppV2:
                 self._activity_expanded_height if self._activity_expanded else self._activity_collapsed_height
             )
             if self._log_count()
-            else Dimension.exact(3),
+            else Dimension.exact(0),
             style="class:message-area",
             always_hide_cursor=True,
+            dont_extend_height=True,
         )
 
         # ── Activity separator ──
@@ -1650,7 +1651,7 @@ class TuiAppV2:
             (
                 "→",
                 "class:activity-info",
-                f"待发送 ({control().outbox.UNDO_WINDOW_MS // 1000}s 可 Ctrl+Z 撤销): {self._shorten(text, 60)}",
+                f"待发送 ({control().outbox.UNDO_WINDOW_MS // 1000}s 可撤销): {self._shorten(text, 30)}",
             )
         )
         self._start_pending_commit_timer()
@@ -1670,7 +1671,7 @@ class TuiAppV2:
                 return
             msg = pending[0]
             control().outbox.commit(msg.id)
-            self._log_append(("→", "class:activity-info", f"消息已发送: {self._shorten(msg.text, 60)}"))
+            self._log_append(("→", "class:activity-info", f"消息已发送: {self._shorten(msg.text, 30)}"))
             with self._state_lock:
                 self._thinking = True
                 self._streaming = True
@@ -2215,6 +2216,15 @@ class TuiAppV2:
         threading.Thread(target=_anim_loop, daemon=True).start()
 
         try:
+            # P0: 启动心跳定时器
+            from core.watchdog import Watchdog
+            def _heartbeat_tick():
+                Watchdog.beat("IDLE")
+                self._app.invalidate()
+                self._heartbeat_timer = threading.Timer(2.0, _heartbeat_tick)
+                self._heartbeat_timer.daemon = True
+                self._heartbeat_timer.start()
+            _heartbeat_tick()
             self._app.run()
         except KeyboardInterrupt:
             self._request_exit()

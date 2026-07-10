@@ -27,6 +27,8 @@ MCP_TOOL_SCENES: dict[str, str] = {
     "git_branch": "code",
     "git_diff": "code",
     # Creative 场景
+    "comfyui_submit_workflow": "comfyui",
+    "comfyui_get_workflow": "comfyui",
     "generate_image": "creative",
     "generate_video": "creative",
     "imagegen": "creative",
@@ -56,6 +58,7 @@ INTENT_TO_SCENES = {
     "review": ["code", "web"],
     "diagnose": ["code", "infra", "web"],
     "deploy": ["infra", "code"],
+    "generate": ["creative", "comfyui"],
 }
 
 

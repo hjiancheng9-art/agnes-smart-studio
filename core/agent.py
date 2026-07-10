@@ -704,6 +704,88 @@ class ModelRouter:
 
     # Model metadata now in core.provider.MODEL_REGISTRY (single source of truth)
 
+    @staticmethod
+    def _default_primary() -> str:
+        """从 models.json active provider 读 pro 模型，读不到退回 deepseek-v4-pro。"""
+        try:
+            from core.provider import get_provider_manager
+            mgr = get_provider_manager()
+            return mgr.get_model("pro") or "deepseek-v4-pro"
+        except (ImportError, OSError, RuntimeError):
+            return "deepseek-v4-pro"
+
+    @staticmethod
+    def _default_light() -> str:
+        """从 models.json active provider 读 light 模型，读不到退回 deepseek-v4-flash。"""
+        try:
+            from core.provider import get_provider_manager
+            mgr = get_provider_manager()
+            return mgr.get_model("light") or "deepseek-v4-flash"
+        except (ImportError, OSError, RuntimeError):
+            return "deepseek-v4-flash"
+
+    @staticmethod
+    def _default_pro() -> str:
+        """从 models.json active provider 读 pro 模型，读不到退回 deepseek-v4-flash。"""
+        try:
+            from core.provider import get_provider_manager
+            mgr = get_provider_manager()
+            return mgr.get_model("pro") or "deepseek-v4-flash"
+        except (ImportError, OSError, RuntimeError):
+            return "deepseek-v4-flash"
+
+    @staticmethod
+    def _default_vision() -> str:
+        """优先用 CRUX 视觉模型，其次智谱兜底。"""
+        try:
+            import os
+            from core.provider import get_provider_manager
+            mgr = get_provider_manager()
+            mgr.load()
+            crux = mgr.providers.get("crux", {})
+            crux_key = crux.get("api_key") or os.getenv("CRUX_API_KEY") or os.getenv("AGNES_API_KEY")
+            if crux_key:
+                return crux.get("models", {}).get("pro") or "agnes-2.0-flash"
+            zhipu = mgr.providers.get("zhipu", {})
+            zhipu_vmodels = zhipu.get("vision_models", {})
+            if zhipu_vmodels:
+                return zhipu_vmodels.get("pro") or zhipu_vmodels.get("light") or next(iter(zhipu_vmodels.values()))
+            return "GLM-4V-Flash"
+        except (ImportError, OSError, RuntimeError):
+            return "GLM-4V-Flash"
+
+    def _build_fallback_chain(self) -> list[str]:
+        """动态构建 fallback 链：免费优先，付费兜底。"""
+        chain: list[str] = []
+        try:
+            from core.provider import get_provider_manager
+            mgr = get_provider_manager()
+            seen: set[str] = set()
+            def _sort_key(pid):
+                p = mgr.providers.get(pid, {})
+                is_free = 0 if p.get("cost_tier") == "free" else 1
+                try:
+                    idx = mgr.fallback_priority.index(pid)
+                except ValueError:
+                    idx = 99
+                return (is_free, idx)
+            sorted_pids = sorted(mgr.fallback_priority, key=_sort_key)
+            for pid in sorted_pids:
+                provider = mgr.providers.get(pid, {})
+                models = provider.get("models", {})
+                for tier_key in ("pro", "light"):
+                    mid = models.get(tier_key, "")
+                    if mid and isinstance(mid, str) and mid not in seen:
+                        chain.append(mid)
+                        seen.add(mid)
+                for mid_val in models.values():
+                    if isinstance(mid_val, str) and mid_val not in seen:
+                        chain.append(mid_val)
+                        seen.add(mid_val)
+        except (ImportError, OSError, RuntimeError) as e:
+            logger.debug("fallback skipped: %s", e)
+        return chain or ["deepseek-v4-pro", "deepseek-v4-flash"]
+
     def __init__(self, primary: str | None = None, light: str = "", pro: str = "", vision_model: str = "") -> None:
         if primary is None:
             primary = self._default_primary()
@@ -725,7 +807,24 @@ class ModelRouter:
 
     # ── Heuristic prompt classification (auto-model) ──────────
 
-    # ── Enhanced complexity signals (HybridRouter P0) ──────────
+    # ── 工具使用暗示检测：短查询但有操作意图 → 至少 pro ──
+    _TOOL_HINT_PAT = re.compile(
+        r"打开|探测|查|搜|找|读|看|测|试|"
+        r"网页|网站|api|文档|接口|端点|endpoint|"
+        r"http|www\.|\.com|\.ai|\.io|\.dev|"
+        r"文件|目录|日志|配置|"
+        r"跑|执行|安装|部署|编译|构建|"
+        r"download|upload|fetch|curl|wget",
+        re.IGNORECASE,
+    )
+
+    @staticmethod
+    def _has_any_tool_signal(prompt: str) -> bool:
+        """检测短查询是否暗示需要工具操作。"""
+        return bool(ModelRouter._TOOL_HINT_PAT.search(prompt))
+
+
+# ── Enhanced complexity signals (HybridRouter P0) ──────────
 
     _HEAVY_PAT = re.compile(
         r"(架构|路线图|根因|多文件|全局|系统性|评审|fallback|router|"
@@ -816,8 +915,11 @@ class ModelRouter:
         if code_hits >= 1 or length >= 30:
             return "pro"
 
-        # Light: very short or pure command
+        # Light: very short or pure command → 只对明显琐碎的查询降级
         if length < 30 and not _CODE_SIGNALS.search(stripped) and not _STRONG_REASONER.search(stripped):
+            # 额外检查：有任何工具/操作暗示就升到 pro
+            if ModelRouter._has_any_tool_signal(stripped):
+                return "pro"
             return "light"
         if _LIGHT_COMMANDS.search(stripped):
             return "light"
@@ -998,104 +1100,6 @@ class ModelRouter:
             return self.primary
         # auto / unknown → 主力模型（最稳）
         return self.primary
-
-    @staticmethod
-    def _default_primary() -> str:
-        """从 models.json active provider 读 pro 模型，读不到退回 deepseek-v4-pro。"""
-        try:
-            from core.provider import get_provider_manager
-
-            mgr = get_provider_manager()
-            return mgr.get_model("pro") or "deepseek-v4-pro"
-        except (ImportError, OSError, RuntimeError):
-            return "deepseek-v4-pro"
-
-    @staticmethod
-    def _default_light() -> str:
-        """从 models.json active provider 读 light 模型，读不到退回 deepseek-v4-flash。"""
-        try:
-            from core.provider import get_provider_manager
-
-            mgr = get_provider_manager()
-            return mgr.get_model("light") or "deepseek-v4-flash"
-        except (ImportError, OSError, RuntimeError):
-            return "deepseek-v4-flash"
-
-    @staticmethod
-    def _default_pro() -> str:
-        """从 models.json active provider 读 pro 模型，读不到退回 deepseek-v4-flash。"""
-        try:
-            from core.provider import get_provider_manager
-
-            mgr = get_provider_manager()
-            return mgr.get_model("pro") or "deepseek-v4-flash"
-        except (ImportError, OSError, RuntimeError):
-            return "deepseek-v4-flash"
-
-    @staticmethod
-    def _default_vision() -> str:
-        """优先用 CRUX 视觉模型（计数/OCR/细节识别最优），其次智谱兜底。"""
-        try:
-            import os
-
-            from core.provider import get_provider_manager
-
-            mgr = get_provider_manager()
-            mgr.load()
-            # 优先 CRUX 视觉模型（检查 models.json + 环境变量）
-            crux = mgr.providers.get("crux", {})
-            crux_key = crux.get("api_key") or os.getenv("CRUX_API_KEY") or os.getenv("AGNES_API_KEY")
-            if crux_key:
-                return crux.get("models", {}).get("pro") or "agnes-2.0-flash"
-            # 其次智谱视觉模型
-            zhipu = mgr.providers.get("zhipu", {})
-            zhipu_vmodels = zhipu.get("vision_models", {})
-            if zhipu_vmodels:
-                return zhipu_vmodels.get("pro") or zhipu_vmodels.get("light") or next(iter(zhipu_vmodels.values()))
-            return "GLM-4V-Flash"
-        except (ImportError, OSError, RuntimeError):
-            return "GLM-4V-Flash"
-
-    def _build_fallback_chain(self) -> list[str]:
-        """动态构建 fallback 链：免费优先，付费兜底。
-
-        每个 provider 收集 pro + light 模型，按 cost_tier 排序。
-        """
-        chain: list[str] = []
-        try:
-            from core.provider import get_provider_manager
-
-            mgr = get_provider_manager()
-            seen: set[str] = set()
-
-            # Sort: free providers first, then by fallback priority
-            def _sort_key(pid):
-                p = mgr.providers.get(pid, {})
-                is_free = 0 if p.get("cost_tier") == "free" else 1
-                try:
-                    idx = mgr.fallback_priority.index(pid)
-                except ValueError:
-                    idx = 99
-                return (is_free, idx)
-
-            sorted_pids = sorted(mgr.fallback_priority, key=_sort_key)
-            for pid in sorted_pids:
-                provider = mgr.providers.get(pid, {})
-                models = provider.get("models", {})
-                for tier_key in ("pro", "light"):
-                    mid = models.get(tier_key, "")
-                    if mid and isinstance(mid, str) and mid not in seen:
-                        chain.append(mid)
-                        seen.add(mid)
-                for mid_val in models.values():
-                    if isinstance(mid_val, str) and mid_val not in seen:
-                        chain.append(mid_val)
-                        seen.add(mid_val)
-        except (ImportError, OSError, RuntimeError) as e:
-            logger.debug("fallback skipped: %s", e)
-
-            pass
-        return chain or ["deepseek-v4-pro", "deepseek-v4-flash"]
 
     def get_fallback(self, failed_model: str) -> str | None:
         """Get the next model in the fallback chain."""

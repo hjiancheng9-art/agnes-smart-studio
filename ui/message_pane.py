@@ -22,6 +22,7 @@ _ROLE_FORMATS = {
     "error": ("class:message-error", "✖"),
 }
 
+
 # Sentinel value: setting vertical_scroll to a very large number makes
 # ptk clamp it to the actual max, guaranteeing bottom-scroll regardless
 # of content height changes.
@@ -137,6 +138,13 @@ class _MessagePaneControl(FormattedTextControl):
 
 
 class MessagePane:
+    # ── P0 事件通道隔离 ──
+    VISIBLE_CHAT_ROLES = frozenset({"assistant", "crux", "user", "assistant_delta", "assistant_final", "info", "error", "tool_status", "system_alert"})
+    TOOL_INLINE_ROLES = frozenset({"tool_started", "tool_finished", "tool_progress", "tool_failed"})
+    HIDDEN_ROLES = frozenset({
+        "analysis", "reasoning", "chain_of_thought", "debug",
+        "tool_raw_output", "python_stdout", "internal_prompt",
+    })
     """Scrollable chat message display with auto-scroll and manual override.
 
     Behavior:
@@ -367,6 +375,24 @@ class MessagePane:
         self._window.vertical_scroll_2 = 0
         self._scroll_offset = 999999  # Bottom sentinel for virtual scrolling
 
+    # ── P0 隐藏事件处理 ──
+    def _log_hidden_event(self, role: str, text: str) -> None:
+        """内部事件只写日志，不污染聊天区"""
+        import logging
+        _log = logging.getLogger("crux.ui.hidden")
+        _log.debug("[%s] %s", role, text[:200])
+
+    def _update_tool_status(self, role: str, text: str) -> None:
+        """工具状态合并为单行动态（不占聊天空间）"""
+        if role == "tool_started":
+            self._tool_count = getattr(self, '_tool_count', 0) + 1
+            self._tool_start_time = time.time()
+            self._tool_status_line = f"⏳ {text[:80]}"
+        elif role in ("tool_finished", "tool_failed"):
+            elapsed = time.time() - getattr(self, '_tool_start_time', time.time())
+            self._tool_status_line = f"✓ 已完成 · {elapsed:.0f}s"
+        # 只在非流式时刷新状态行
+
     def _auto_scroll(self) -> None:
         if self._pinned:
             # 守卫: 确保窗口是消息面板而非输入区域
@@ -380,6 +406,13 @@ class MessagePane:
     def append_message(self, role: str, text: str) -> None:
         if not isinstance(text, str):
             text = str(text) if text is not None else ""
+        # ── P0 事件通道隔离 ──
+        if role not in self.VISIBLE_CHAT_ROLES:
+            if role in self.HIDDEN_ROLES:
+                self._log_hidden_event(role, text)
+            elif role in self.TOOL_INLINE_ROLES:
+                self._update_tool_status(role, text)
+            return
         with self._lock:
             self._end_stream()
             fmt = _ROLE_FORMATS.get(role)

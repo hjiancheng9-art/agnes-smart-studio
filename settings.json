@@ -1,5 +1,4 @@
 {
-  "api_key": "sk-REeAdNPEFoWFOEwDLUylXnmxvQPwnRyFsWXwjLxu4Govn54h",
   "base_url": "https://apihub.agnes-ai.com/v1",
   "default_image_model": "agnes-image-2.1-flash",
   "default_video_model": "agnes-video-v2.0",

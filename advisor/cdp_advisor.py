@@ -223,8 +223,21 @@ class CdpAdvisor:
 
                 # ── 文件附件上传 ──
                 if file_paths:
-                    self._upload_files(page, file_paths)
-                    time.sleep(2)  # 等待文件上传完成
+                    # 等待输入区就绪（new_chat 后页面可能还在渲染）
+                    try:
+                        page.wait_for_selector("#prompt-textarea", timeout=5000)
+                    except Exception:
+                        pass
+                    ok = self._upload_files(page, file_paths)
+                    if ok:
+                        # 等待附件真正出现在页面上
+                        time.sleep(3)
+                    else:
+                        logger.debug("文件上传可能失败，用剪贴板兜底")
+                        for fp in file_paths:
+                            if _is_image_file(fp):
+                                _paste_image_via_clipboard(page, fp)
+                                time.sleep(2)
 
                 # ── 输入并发送 ──
                 safe_fill(page, "#prompt-textarea", prompt)
@@ -274,52 +287,85 @@ class CdpAdvisor:
             )
 
     @staticmethod
-    def _upload_files(page, file_paths: list[str]) -> None:
-        """通过 CDP 上传文件到 ChatGPT 输入区。
+    def _upload_files(page, file_paths: list[str]) -> bool:
+        """通过 CDP 上传文件到 ChatGPT 输入区。返回是否成功。
 
-        策略：
-        1. 优先找隐藏的 file input 直接 set_input_files
-        2. 如果找不到，点击附件按钮触发 file chooser
+        策略（按优先级）：
+        1. 直接 set_input_files 到隐藏 file input
+        2. 点击附件按钮 + file_chooser
+        3. 剪贴板粘贴（图片文件专用）
         """
+        uploaded = False
+
         # 策略 1: 直接找 file input 上传
         for selector in _FILE_INPUT_SELECTORS:
             try:
                 inp = page.locator(selector).first
                 if inp.count() > 0:
                     inp.set_input_files(file_paths)
-                    return
+                    uploaded = True
+                    break
             except Exception:
                 continue
 
         # 策略 2: 点击附件按钮，用 file_chooser 事件
-        for selector in _ATTACH_BUTTON_SELECTORS:
-            try:
-                btn = page.locator(selector).first
-                if btn.count() > 0 and btn.is_visible(timeout=1000):
-                    with page.expect_file_chooser() as fc_info:
-                        btn.click(timeout=2000)
-                    file_chooser = fc_info.value
-                    file_chooser.set_files(file_paths)
-                    return
-            except Exception:
-                continue
+        if not uploaded:
+            for selector in _ATTACH_BUTTON_SELECTORS:
+                try:
+                    btn = page.locator(selector).first
+                    if btn.count() > 0 and btn.is_visible(timeout=1000):
+                        with page.expect_file_chooser() as fc_info:
+                            btn.click(timeout=2000)
+                        file_chooser = fc_info.value
+                        file_chooser.set_files(file_paths)
+                        uploaded = True
+                        break
+                except Exception:
+                    continue
 
-        # 策略 3: JS 直接创建 file input 并触发
-        try:
-            page.evaluate(
-                """(files) => {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.multiple = true;
-                input.style.display = 'none';
-                document.body.appendChild(input);
-                // 注意: JS 无法设置文件路径，这里只是兜底提示
-                input.click();
-                setTimeout(() => input.remove(), 100);
-            }""",
-                file_paths,
-            )
-        except Exception:
-            logger.debug("JS file input 创建失败", exc_info=True)
+        # 策略 3: 剪贴板粘贴（适用于图片文件）
+        if not uploaded:
+            for fp in file_paths:
+                if _is_image_file(fp):
+                    try:
+                        _paste_image_via_clipboard(page, fp)
+                        uploaded = True
+                    except Exception:
+                        continue
 
-        # 如果以上都失败，仍然继续（文件可能已经通过某种方式附上）
+        return uploaded
+
+
+def _is_image_file(path: str) -> bool:
+    """判断是否为图片文件。"""
+    ext = os.path.splitext(path)[1].lower()
+    return ext in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg")
+
+
+def _paste_image_via_clipboard(page, image_path: str) -> None:
+    """通过剪贴板粘贴图片到 ChatGPT 输入区（最可靠的方式）。"""
+    import io as _io
+
+    from PIL import Image
+
+    try:
+        import win32clipboard
+    except ImportError:
+        return  # 非 Windows 或未安装
+
+    img = Image.open(image_path)
+    output = _io.BytesIO()
+    img.convert("RGB").save(output, "BMP")
+    dib_data = output.getvalue()[14:]  # 跳过 BMP 文件头
+    output.close()
+
+    win32clipboard.OpenClipboard()
+    win32clipboard.EmptyClipboard()
+    win32clipboard.SetClipboardData(win32clipboard.CF_DIB, dib_data)
+    win32clipboard.CloseClipboard()
+
+    # 聚焦输入区并粘贴
+    page.click("#prompt-textarea")
+    time.sleep(0.5)
+    page.keyboard.press("Control+v")
+    time.sleep(2)  # 等待图片上传完成

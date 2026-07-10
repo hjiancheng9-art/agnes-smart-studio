@@ -55,7 +55,6 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
     image_url = args.get("image_url", "") or args.get("image", "")
     image_urls = args.get("image_urls", []) or []
     mode = args.get("mode", "")
-    gen_client = self.media_client
     if name == "generate_image":
         size = args.get("size", "1024x768")
         # seed 固定：未指定时随机生成，确保可复现
@@ -110,7 +109,8 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                 from core.cost_tracker import record_usage
                 record_usage(model="agnes-image-2.1-flash", kind="image", label="generate_image", call_count=1)
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                import logging
+                logging.getLogger('crux').debug('silent except', exc_info=True)
 
             return (f"图片已生成: {url}", side)
 
@@ -237,7 +237,6 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
             )
 
             video_id = task.get("video_id", "")
-            task_id = task.get("task_id", "")
 
             if not video_id:
                 agnes.close()
@@ -290,11 +289,15 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                 return f"[multi_agent] 工具 {tool} 不可用"
 
             result = coordinate(goal, _tool_exec)
+            tasks_done = result.get("tasks_done", 0)
+            tasks_total = result.get("tasks_total", 0)
+            tasks_failed = result.get("tasks_failed", 0)
+            elapsed = result.get("elapsed", "?")
             summary = (
-                f"多智能体协调完成: {result['tasks_done']}/{result['tasks_total']} 任务成功, 耗时 {result['elapsed']}s"
+                f"多智能体协调完成: {tasks_done}/{tasks_total} 任务成功, 耗时 {elapsed}s"
             )
-            if result["tasks_failed"]:
-                summary += f", {result['tasks_failed']} 失败"
+            if tasks_failed:
+                summary += f", {tasks_failed} 失败"
             return (summary, side)
         except (RuntimeError, OSError, ValueError) as e:
             return (f"多智能体协调失败: {e}", side)
@@ -310,9 +313,10 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
             lines = ["CRUX Self-Optimization Results", "=" * 40]
             lines.append(f"Total calls analyzed: {ge._total_calls_ever}")
             if result.get("applied"):
-                lines.append(f"\nApplied changes ({len(result['applied'])}):")
-                for change in result["applied"]:
-                    lines.append(f"  + {change['action']}: {change.get('intent', '')}/{change.get('tool', '')}")
+                applied = result.get("applied", [])
+                lines.append(f"\nApplied changes ({len(applied)}):")
+                for change in applied:
+                    lines.append(f"  + {change.get('action', '?')}: {change.get('intent', '')}/{change.get('tool', '')}")
                     if "new_order" in change:
                         lines.append(f"    -> {' > '.join(change['new_order'])}")
             if not do_apply:
@@ -320,7 +324,11 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
             if bottlenecks:
                 lines.append(f"\nBottlenecks ({len(bottlenecks)}):")
                 for b in bottlenecks[:3]:
-                    lines.append(f"  ! [{b['severity']}] {b['intent']}/{b['tool']}: {', '.join(b['reasons'])}")
+                    sev = b.get("severity", "?")
+                    intent = b.get("intent", "?")
+                    tool = b.get("tool", "?")
+                    reasons = b.get("reasons", [])
+                    lines.append(f"  ! [{sev}] {intent}/{tool}: {', '.join(reasons)}")
             if suggestions:
                 lines.append("\nSuggestions:")
                 for s in suggestions:

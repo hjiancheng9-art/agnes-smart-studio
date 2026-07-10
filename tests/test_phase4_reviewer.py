@@ -9,6 +9,15 @@ from core.result_validator import (
     ResultValidator,
     ValidationNote,
 )
+from core.reviewer_agent import (
+    DebateResult,
+    ReviewIssue,
+    ReviewReport,
+    ReviewSeverity,
+    ReviewerAgent,
+    SubTask,
+    TaskPlan,
+)
 
 # ── fixtures ────────────────────────────────────────────────────────
 
@@ -26,6 +35,24 @@ def cc():
 @pytest.fixture
 def dg():
     return DiffGuard()
+
+
+@pytest.fixture
+def reviewer():
+    from core.reviewer_agent import ReviewerAgent
+    return ReviewerAgent()
+
+
+@pytest.fixture
+def debater():
+    from core.reviewer_agent import DebateAgent
+    return DebateAgent()
+
+
+@pytest.fixture
+def decomposer():
+    from core.reviewer_agent import TaskDecomposer
+    return TaskDecomposer()
 
 
 # ── ResultValidator ─────────────────────────────────────────────────

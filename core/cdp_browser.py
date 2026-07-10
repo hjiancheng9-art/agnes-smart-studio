@@ -382,30 +382,78 @@ def _chatgpt_page(browser):
    return page
 
 
-def _wait_chatgpt_done(page, max_wait=45):
-   """轮询等 ChatGPT 生成完成"""
-   for _ in range(max_wait):
+def _get_assistant_count(page) -> int:
+   """获取当前 assistant 消息数量（用于判断是否有新回复）"""
+   try:
+       return page.locator('[data-message-author-role="assistant"]').count()
+   except Exception:
+       return 0
+
+
+def _is_generating(page) -> bool:
+   """检测 ChatGPT 是否正在生成（停止按钮可见即生成中）"""
+   for sel in ('[data-testid="stop-button"]', 'button[aria-label*="Stop"]', 'button[aria-label*="停止"]'):
        try:
-           stop_btn = page.locator('[data-testid="stop-button"]').first
-           if not stop_btn.is_visible(timeout=800):
+           btn = page.locator(sel).first
+           if btn.count() > 0 and btn.is_visible():
                return True
        except Exception:
-           return True
-       time.sleep(1)
+           continue
    return False
 
 
+def _extract_last_reply(page) -> str:
+   """从最后一条 assistant 消息中提取正文（优先取 .markdown，避免按钮文字污染）"""
+   locator = page.locator('[data-message-author-role="assistant"]')
+   count = locator.count()
+   if count == 0:
+       return ""
+   latest = locator.nth(count - 1)
+   for sel in (".markdown", '[class*="markdown"]', ".prose"):
+       try:
+           body = latest.locator(sel)
+           if body.count() > 0:
+               text = body.first.inner_text().strip()
+               if text:
+                   return text
+       except Exception:
+           continue
+   try:
+       return latest.inner_text().strip()
+   except Exception:
+       return ""
+
+
+def _wait_chatgpt_done(page, max_wait=180, stable_checks=4, poll_interval=0.7):
+   """
+   等待 ChatGPT 回复完成：
+   1. 等待停止按钮消失
+   2. 文本连续 stable_checks 次不变 → 判定完成
+   即使超时也返回 True（已有内容总比空好）
+   """
+   last_text = ""
+   stable_count = 0
+   for _ in range(int(max_wait / poll_interval)):
+       try:
+           generating = _is_generating(page)
+           text = _extract_last_reply(page)
+           if text:
+               if text == last_text:
+                   stable_count += 1
+               else:
+                   last_text = text
+                   stable_count = 0
+               if not generating and stable_count >= stable_checks:
+                   return True
+       except Exception:
+           pass
+       time.sleep(poll_interval)
+   return True  # 超时不阻塞，已有部分内容更好
+
+
 def _get_chatgpt_reply(page):
-   """读最后一条 assistant 回复"""
-   return page.evaluate("""
-       (() => {
-           const msgs = document.querySelectorAll('[data-message-author-role="assistant"]');
-           if (msgs.length) return msgs[msgs.length-1].innerText;
-           const articles = document.querySelectorAll('article');
-           if (articles.length) return articles[articles.length-1].innerText;
-           return '';
-       })()
-   """)
+   """读取最后一条 assistant 回复（Playwright locator 版，不再用 page.evaluate）"""
+   return _extract_last_reply(page)
 
 
 def ask_chatgpt(question: str, wait: bool = True) -> str:
@@ -433,6 +481,9 @@ def ask_chatgpt(question: str, wait: bool = True) -> str:
        # [Bugfix v6.2] 关闭通知 toast，防止挤占输入框
        _dismiss_notifications(page)
 
+       # 记录发送前的 assistant 消息数，只等新增的那条
+       baseline_count = _get_assistant_count(page)
+
        safe_fill(page, "#prompt-textarea", question)
        time.sleep(0.5)
        safe_click(page, "button[data-testid='send-button']")
@@ -440,7 +491,14 @@ def ask_chatgpt(question: str, wait: bool = True) -> str:
        if not wait:
            return json.dumps({"status": "sent", "question": question[:80]}, ensure_ascii=False)
 
-       _wait_chatgpt_done(page, max_wait=55)
+       # 等新的 assistant 消息出现
+       deadline = time.time() + 180
+       while time.time() < deadline:
+           if _get_assistant_count(page) > baseline_count:
+               break
+           time.sleep(0.5)
+
+       _wait_chatgpt_done(page)
        reply = _get_chatgpt_reply(page)
        return reply
 
@@ -506,10 +564,20 @@ def ask_chatgpt_with_image(text: str, image_path: str, wait: bool = True) -> str
         safe_type(page, "#prompt-textarea", text)
         time.sleep(0.5)
 
+        # 记录发送前的 assistant 消息数
+        baseline_count = _get_assistant_count(page)
+
         # 提交
         page.keyboard.press("Enter")
 
-        _wait_chatgpt_done(page, max_wait=90)
+        # 等新的 assistant 消息出现
+        deadline = time.time() + 180
+        while time.time() < deadline:
+            if _get_assistant_count(page) > baseline_count:
+                break
+            time.sleep(0.5)
+
+        _wait_chatgpt_done(page)
         reply = _get_chatgpt_reply(page)
         return reply
 
@@ -566,3 +634,28 @@ def cdp_cleanup():
        _global_state["pw"] = None
        _global_state["browser"] = None
        _global_state["refcount"] = 0
+
+
+def fetch_reply_already_generated() -> str:
+   """
+   GPT 已生成回复，直接从现有 ChatGPT 页面抓取最新 assistant 消息。
+   不发送新问题，不触发新生成。
+   适用于 CRUX 掉线后重连取回的场景。
+   """
+   with cdp_session() as browser:
+       ok, reason = _check_cdp_health(browser)
+       if not ok:
+           browser = _auto_reconnect()
+       page = _chatgpt_page(browser)
+       try:
+           page.wait_for_load_state("domcontentloaded", timeout=10_000)
+       except Exception:
+           pass
+       count = _get_assistant_count(page)
+       if count == 0:
+           return "[CDP ChatGPT] 未找到 assistant 消息，请确认 ChatGPT 页面有对话记录"
+       _wait_chatgpt_done(page, max_wait=10)
+       reply = _get_chatgpt_reply(page)
+       if not reply:
+           return "[CDP ChatGPT] 回复内容为空，可能页面未完全加载"
+       return reply

@@ -178,8 +178,8 @@ def main():
         try:
             from core.tidy_up import tidy_on_startup
             tidy_on_startup()
-        except Exception:
-            pass
+        except Exception as _e:
+            console.print(f"  [dim]tidy_on_startup skipped: {_e}[/dim]")
 
         # ── GPT-first 启动自检 ──
         if not args.gpt_first:
@@ -234,7 +234,8 @@ def _make_chat_client():
 
     try:
         return get_provider_manager().create_client()
-    except Exception:
+    except Exception as _e:
+        console.print(f"  [yellow]Provider client init failed, using default: {_e}[/yellow]")
         from core.client import CruxClient
 
         return CruxClient()
@@ -251,7 +252,6 @@ def _chat_repl():
 def _chat_tui():
     """Kimi-style TUI chat — prompt_toolkit three-zone interface."""
     import uuid
-    from pathlib import Path
 
     from core.chat import ChatSession
     from core.cli_handlers import CruxCLI
@@ -400,7 +400,8 @@ def _chat_tui():
                 if cols < csbi.dwSize.X or rows < csbi.dwSize.Y:
                     kernel32.SetConsoleScreenBufferSize(handle, _COORD(cols, rows))
         except Exception as e:
-            logger.debug("Non-critical: %s", e, exc_info=True)
+            import logging
+            logging.getLogger(__name__).debug("Non-critical: %s", e, exc_info=True)
 
     # ── Launch TUI (v2) ──
     # ── Onboarding: first-run guided workflow ──
@@ -445,7 +446,6 @@ def _chat_tui():
 def _chat_plain():
     """Plain text REPL — fallback when no TTY or TUI unavailable."""
     import uuid
-    from pathlib import Path
 
     from core.chat import ChatSession
     from core.cli_handlers import CruxCLI
@@ -489,8 +489,8 @@ def _chat_plain():
                 line = line.strip()
                 if line.startswith("- Entry:") or line.startswith("- Core:") or line.startswith("- Engines:"):
                     _rprint(f"  {line}")
-        except OSError:
-            pass
+        except OSError as _e:
+            _rprint(f"[dim]AGENTS.md unreadable: {_e}[/dim]")
     _rprint()
     _rprint("[bold]Skills:[/]")
     _print_skills_summary()
@@ -531,7 +531,7 @@ def _chat_plain_session(session, cli, wire, session_id: str = "") -> None:
             continue
         # ── GPT-first 拦截：先问 ChatGPT ──
         try:
-            from core.gpt_first import is_gpt_first, is_connected, route_via_gpt
+            from core.gpt_first import is_gpt_first, route_via_gpt
             if is_gpt_first() and line and not line.startswith("/"):
                 gpt_reply = route_via_gpt(line)
                 if gpt_reply:
