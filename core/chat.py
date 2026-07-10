@@ -177,7 +177,7 @@ class ChatSession(ChatToggleMixin):
         self.auto_model = True  # auto-select model per prompt
         self._model_router = None  # lazy init
         self._auto_tier_order = ["reasoner", "pro", "light"]  # preferred tier order
-        self.enable_thinking = False
+        self.enable_thinking = True
         self.code_mode = False
         self.mode = "chat"
         self.unlimited_tools = False

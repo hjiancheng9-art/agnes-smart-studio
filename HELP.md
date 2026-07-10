@@ -1,6 +1,6 @@
 # CRUX Studio — 命令参考 (auto-generated)
 
-共 52 个命令
+共 54 个命令
 
 ## 创意生产
 
@@ -31,6 +31,7 @@
 | `/exit` | 退出聊天 |
 | `/copy [N]` | 复制最近N条对话到剪贴板 (Ctrl+Y) |
 | `/browser` | Browser Companion 网页生成开关（8平台） |
+| `/gpt [on|off]` | GPT-first 模式：切换每次查询先问 ChatGPT（CDP 免费方案） |
 | `/palette [filter]` | Command palette — fuzzy search all commands |
 
 ## 任务工程
@@ -74,5 +75,11 @@
 | `/extend <notebook|audio|browser|list>` | 切换扩展工具集（notebook/audio/browser） |
 | `/mcp <cmd>` | MCP 服务器管理 (list/add/remove/connect/disconnect/tools) |
 
+## 工具
+
+| 命令 | 说明 |
+|------|------|
+| `/tidy [deep]` | 整理根目录临时文件到 tmp/ 子目录 |
+
 ---
-*83 tools, 34 skills, 235 core modules, 137 test files*
+*83 tools, 34 skills, 239 core modules, 137 test files*

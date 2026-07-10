@@ -717,6 +717,62 @@ class CruxCLI:
         else:
             print("  用法: /mcp <list|add|remove|connect|disconnect|tools>")
 
+    def _chat_gpt_toggle(self, args: str) -> None:
+        """GPT-first 模式开关: /gpt [on|off]"""
+        from core.gpt_first import set_gpt_first, is_gpt_first, is_connected, bootstrap, _notify
+
+        arg = args.strip().lower()
+        if arg in ("on", "1", "yes", "true", "开启"):
+            set_gpt_first(True)
+            if not is_connected():
+                _notify("检测 ChatGPT 连接...")
+                ok = bootstrap()
+                if ok:
+                    _notify("GPT-first 模式已开启，ChatGPT 已就绪")
+                else:
+                    _notify("GPT-first 已开启但 ChatGPT 暂未连接，下次查询会自动重试")
+            else:
+                _notify("GPT-first 模式已开启")
+        elif arg in ("off", "0", "no", "false", "关闭"):
+            set_gpt_first(False)
+            _notify("GPT-first 模式已关闭，将直接使用 DeepSeek")
+        else:
+            status = "🟢 已开启" if is_gpt_first() else "🔴 已关闭"
+            conn = "已连接" if is_connected() else "未连接"
+            _notify(f"GPT-first: {status}")
+            _notify(f"ChatGPT: {conn}")
+            _notify("用法: /gpt on — 开启 | /gpt off — 关闭")
+
+    def _chat_tidy(self, args: str) -> None:
+        """根目录整理: /tidy [deep|status]"""
+        from core.tidy_up import tidy_root, deep_clean, full_status
+
+        arg = args.strip().lower()
+        if arg == "status":
+            _notify("诊断项目目录整洁度...")
+            s = full_status()
+            _notify(f"  __pycache__ 目录: {s['pycache_dirs']} 个")
+            for k, v in s.items():
+                if k.startswith("crux/"):
+                    _notify(f"  .{k}: {v} 个文件")
+            for k, v in s.items():
+                if k.startswith("tmp/"):
+                    _notify(f"  {k}: {v} 个文件")
+            if s.get("missing_dirs"):
+                _notify(f"  缺失目录: {', '.join(s['missing_dirs'])}")
+            else:
+                _notify("  所有规范目录已就位")
+        elif arg == "deep":
+            _notify("深度清理中（分类 + 删除过期文件 + 清除 __pycache__ + 清理 .crux/）...")
+            result = deep_clean(older_than_days=7)
+            for line in result.summary().split("\n"):
+                _notify(line)
+        else:
+            _notify("整理根目录临时文件中...")
+            result = tidy_root()
+            for line in result.summary().split("\n"):
+                _notify(line)
+
     def _chat_audit(self, args: str) -> None:
         """Dependency security audit: /audit <pip|npm>."""
         arg = args.strip().lower()

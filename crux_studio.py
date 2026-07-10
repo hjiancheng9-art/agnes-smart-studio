@@ -150,6 +150,7 @@ def main():
     p.add_argument(
         "--methods", type=str, default=None, help="指定创意方法（逗号分隔），如：cross_domain_graft,anti_pattern"
     )
+    p.add_argument("--gpt-first", action="store_true", help="GPT-first 模式：每次查询先问 ChatGPT（CDP 免费方案）")
     args = p.parse_args()
 
     # ── 健康检查 ──
@@ -173,6 +174,22 @@ def main():
         args.video_id = _clean_video_id(args.video_id)
         _check_task(args)
     elif args.chat:
+        # ── 根目录自动整理 ──
+        try:
+            from core.tidy_up import tidy_on_startup
+            tidy_on_startup()
+        except Exception:
+            pass
+
+        # ── GPT-first 启动自检 ──
+        if not args.gpt_first:
+            # 默认打开 GPT-first（除非 --no-gpt-first）
+            from core.gpt_first import set_gpt_first
+            set_gpt_first(True)
+        from core.gpt_first import bootstrap
+        bootstrap(background=True)
+        # ──────────────────────
+
         # ── 快速启动检查（仅本地，不阻塞网络）──
         try:
             import core.startup_checks as _sc
@@ -398,6 +415,10 @@ def _chat_tui():
         from ui.tui_v2 import TuiAppV2
 
         app = TuiAppV2(session, cli, session_wire=wire, startup_banner=banner)
+
+        # ── GPT-first 状态回调：注入 StatusBar，避免 print 污染终端 ──
+        from core.gpt_first import set_status_callback
+        set_status_callback(lambda msg: app.status_bar.set_gpt_status(msg))
         app.run()
     except ImportError as e:
         print(f"TUI 模块加载失败: {e}", file=sys.stderr)
@@ -508,6 +529,18 @@ def _chat_plain_session(session, cli, wire, session_id: str = "") -> None:
         if cli.dispatch(line):
             print()
             continue
+        # ── GPT-first 拦截：先问 ChatGPT ──
+        try:
+            from core.gpt_first import is_gpt_first, is_connected, route_via_gpt
+            if is_gpt_first() and line and not line.startswith("/"):
+                gpt_reply = route_via_gpt(line)
+                if gpt_reply:
+                    # 注入 GPT 回复作为上下文给 DeepSeek
+                    line = f"[ChatGPT 回复]\n{gpt_reply[:2000]}\n\n[用户提问]\n{line}"
+                    print("\n  🤖 GPT consulted ✓")
+        except Exception:
+            pass  # GPT 失败，直接走 DeepSeek
+        # ──────────────────────────────────
         try:
             for kind, payload in session.send_stream(line):
                 if kind == "text":

@@ -330,9 +330,8 @@ class BrowserController:
 
         self._platform = PLATFORMS[platform_name]
 
-        if not self._page:
-            if not self.connect():
-                return False
+        if not self._page or not self.connect():
+            return False
 
         # 已在同一页面，跳过导航
         try:
@@ -449,7 +448,7 @@ class BrowserController:
                 try:
                     input_el.dispatch_event("input")
                 except Exception:
-                    import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                    logger.debug("dispatch_event 失败", exc_info=True)
 
             logger.info(f"已填入提示词 ({len(text)} 字符)")
             return True
@@ -642,7 +641,7 @@ class BrowserController:
             return False
         try:
             # 轻量探活 — 不发网络请求，只检查 page 对象是否还活着
-            self._page.url
+            _ = self._page.url  # 探活
             return True
         except Exception:
             self._browser = None
@@ -703,10 +702,9 @@ def send_to_ai(platform: str, prompt: str, timeout: int | None = None) -> dict:
 
     try:
         # 只在未连接时才连，已连接的复用
-        if not bc.is_connected:
-            if not bc.connect(timeout=3.0):
-                result["error"] = "无法连接到浏览器 (CDP 端口不可达且无法启动 headless)"
-                return result
+        if not bc.is_connected and not bc.connect(timeout=3.0):
+            result["error"] = "无法连接到浏览器 (CDP 端口不可达且无法启动 headless)"
+            return result
 
         # 只在平台变化时才导航，减少页面刷新
         if bc.current_platform != PLATFORMS[platform].name:

@@ -19,6 +19,7 @@ API Provider: direct API when available (faster, more stable)
 
 import contextlib
 import json
+import logging
 import os
 import subprocess
 import time
@@ -26,6 +27,8 @@ import uuid
 from pathlib import Path
 
 from core.mcp_servers._mcp_utils import run_subprocess
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "BROWSER_EXECUTOR_MAP",
@@ -247,10 +250,7 @@ def _get_browser_context(provider_id: str):
     try:
         browser = playwright.chromium.connect_over_cdp("http://127.0.0.1:9222", timeout=5000)
         # CDP 返回 Browser，需要获取或创建 BrowserContext 供调用方 new_page()
-        if browser.contexts:
-            context = browser.contexts[0]
-        else:
-            context = browser.new_context()
+        context = browser.contexts[0] if browser.contexts else browser.new_context()
         _active_playwright = playwright
         _active_browsers[provider_id] = context
         logger.info("browser_tools: connected to CDP browser for %s", provider_id)

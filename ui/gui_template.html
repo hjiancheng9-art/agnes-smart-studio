@@ -134,15 +134,18 @@ function handleEvent(msg) {
     renderState(msg.data || msg);
   } else if (type === 'message.received') {
     addMessage((msg.data||msg).role || 'assistant', (msg.data||msg).content || '');
+    setInputPhase('idle');
   } else if (type === 'message.sent') {
     if (msg.source && msg.source !== 'gui') {
       addMessage((msg.data||msg).role || 'user', (msg.data||msg).content || '');
     }
+    setInputPhase('submitting');
   } else if (type === 'system.metrics') {
     renderSystemMetrics(msg.data || msg);
   } else if (type === 'error.occurred') {
     var d = msg.data || msg;
     addMessage('error', d.message || d.error_msg || '未知错误');
+    setInputPhase('idle');
   }
 }
 
@@ -176,6 +179,8 @@ function renderSystemMetrics(data) {
 
 function addMessage(role, content) {
   if (!content) return;
+  // 去重: 连续内容相同的消息跳过
+  if (isDuplicateMessage(role, content)) return;
   var div = document.createElement('div');
   div.className = 'msg ' + (role || 'system');
   var labels = {user:'用户', assistant:'助手', system:'系统', error:'错误'};
@@ -188,7 +193,37 @@ function addMessage(role, content) {
   text = text.replace(/\*([^*]+)\*/g, '<i>$1</i>');
   div.innerHTML = '<span class="role">[' + label + ']</span>' + text;
   msgEl.appendChild(div);
-  msgEl.scrollTop = msgEl.scrollHeight;
+  // Guard: refuse to scroll input/textarea elements (防止滚动到输入框)
+  if (msgEl && msgEl.tagName !== 'INPUT' && msgEl.tagName !== 'TEXTAREA' && !msgEl.isContentEditable) {
+    msgEl.scrollTop = msgEl.scrollHeight;
+  }
+}
+
+// ── 输入写入状态机: 防止流式输出时误写入输入框 ──
+var _inputPhase = 'idle'; // idle | editing | submitting | streaming
+
+// ── 消息去重: 防止重连/重播导致重复消息 ──
+var _lastMsgHash = '';
+
+function _msgHash(role, content) {
+  return role + ':' + (typeof content === 'string' ? content.substring(0, 200) : '');
+}
+
+function isDuplicateMessage(role, content) {
+  var h = _msgHash(role, content);
+  if (h === _lastMsgHash) return true;
+  _lastMsgHash = h;
+  return false;
+}
+
+function canWriteInput(source) {
+  if (_inputPhase === 'streaming') return false;
+  if (_inputPhase === 'submitting') return false;
+  return source === 'user' || source === 'automation';
+}
+
+function setInputPhase(phase) {
+  _inputPhase = phase;
 }
 
 document.getElementById('send-btn').onclick = send;
@@ -197,16 +232,25 @@ document.getElementById('input').onkeydown = function(e) {
 };
 
 function send() {
+  // 状态守卫: streaming/submitting 期间禁止发送
+  if (!canWriteInput('user')) {
+    addMessage('system', '当前正在输出中，请等待完成');
+    return;
+  }
   var input = document.getElementById('input');
   var text = input.value.trim();
   if (!text) return;
   input.value = '';
-  if (text.startsWith('/')) { handleCmd(text); }
+  setInputPhase('submitting');
+  if (text.startsWith('/')) { handleCmd(text); setInputPhase('idle'); }
   else {
     addMessage('user', text);
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({type:'chat.input', data:{content:text, role:'user'}}));
     }
+    // 稍后由 handleEvent 收到 message.received 时切回 idle
+    // 超时保护: 10s 后强制解锁
+    setTimeout(function(){ if (_inputPhase === 'submitting') setInputPhase('idle'); }, 10000);
   }
 }
 

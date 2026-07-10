@@ -294,17 +294,23 @@ class Settings:
     reflection_interval: int = 5
 
     def __post_init__(self):
-        # CRUX_* 优先，回退 AGNES_*，最后用默认值
-        if not self.api_key:
-            self.api_key = _get_env(["CRUX_API_KEY", "AGNES_API_KEY"]) or ""
+        # 环境变量优先于 settings.json（安全：防止 API key 硬编码泄露）
+        env_key = _get_env(["CRUX_API_KEY", "AGNES_API_KEY"])
+        if env_key:
+            self.api_key = env_key
+        elif not self.api_key:
+            self.api_key = ""
         if self.base_url == "https://apihub.agnes-ai.com/v1":
             env_url = _get_env(["CRUX_BASE_URL", "AGNES_BASE_URL"])
             if env_url:
                 self.base_url = env_url
 
     def save(self, path: str = "settings.json"):
+        data = asdict(self)
+        # 不将 api_key 持久化到磁盘，防止泄露
+        data.pop("api_key", None)
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(asdict(self), f, indent=2, ensure_ascii=False)
+            json.dump(data, f, indent=2, ensure_ascii=False)
 
     @classmethod
     def load(cls, path: str = "settings.json") -> "Settings":

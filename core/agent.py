@@ -599,7 +599,15 @@ _STRONG_REASONER = re.compile(
     r"数据库\s*(?:设计|迁移|架构)|"
     r"根因|底层原因|排查|"
     r"内存\s*泄漏|OOM|死循环|"
-    r"分析\s*(?:这段|这个|代码|为什么|原因)",
+    r"分析\s*(?:这段|这个|代码|为什么|原因)|"
+    # 浏览器 / CDP / GPT 操作 — 需要完整工具链
+    r"\bgpt\b|chatgpt|cdp|ask_chatgpt|"
+    r"pw_navigate|cdp_ask|cdp_session|"
+    r"浏览器\s*(?:操作|控制|自动化|连接|打开)|"
+    r"(?:打开|启动|使用)\s*浏览器|"
+    r"(?:连[接上]|操控|打开|控制)\s*gpt|"
+    r"edge\s*cdp|playwright|"
+    r"网页\s*(?:操作|控制|自动化|打开)",
     re.IGNORECASE,
 )
 

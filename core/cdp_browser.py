@@ -10,9 +10,11 @@ CRUX 全局 CDP 浏览器控制模块
 4. CDP 连接保活 + 自动重连
 5. 全局单例复用，避免重复启动 Edge
 """
-import time, socket, subprocess, os, functools, threading, json
+import time, socket, subprocess, os, functools, threading, json, logging
 from contextlib import contextmanager
 from playwright.sync_api import sync_playwright, TimeoutError as PwTimeout
+
+logger = logging.getLogger(__name__)
 
 CDP_URL = "http://127.0.0.1:9222"
 EDGE_PATH = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
@@ -58,6 +60,42 @@ def _clear_input_buffer(page):
         }""")
     except Exception:
         pass
+
+def _dismiss_notifications(page):
+    """关闭 ChatGPT 页面的通知 toast（如"已就绪"提示），防止挤占输入框"""
+    try:
+        # 方法1: JS 暴力移除所有 toast/snackbar/notification 元素
+        page.evaluate("""() => {
+            const selectors = [
+                '[role="alert"]', '[role="status"]',
+                '[class*="snackbar"]', '[class*="toast"]', '[class*="notification"]',
+                '[data-testid*="toast"]', '[data-testid*="notification"]',
+                '[class*="Notice"]', '[class*="banner"]'
+            ];
+            selectors.forEach(sel => {
+                try {
+                    document.querySelectorAll(sel).forEach(el => {
+                        if (el.offsetHeight > 0) el.remove();
+                    });
+                } catch(e) {}
+            });
+        }""")
+        # 方法2: 点击可能的关闭按钮
+        dismiss_btns = [
+            '[aria-label="关闭"]', '[aria-label="Close"]', '[aria-label="Dismiss"]',
+            'button[class*="close"]', '[class*="close-btn"]',
+            '[data-testid="close-button"]', 'button[aria-label*="close" i]'
+        ]
+        for sel in dismiss_btns:
+            try:
+                btn = page.locator(sel).first
+                if btn.is_visible(timeout=300):
+                    btn.click(timeout=500)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
 
 def _fix_scroll(page):
     """修复滚动失效：移除遮罩层 + 恢复 wheel/keydown 事件"""
@@ -149,7 +187,7 @@ def _connect(retries=3):
            if i == retries - 1:
                # 最后一次失败：重启 CDP 再试一次
                try: pw.stop()
-               except: pass
+               except Exception: logger.debug("CDP stop failed", exc_info=True)
                time.sleep(1)
                _ensure_cdp()
                pw2 = sync_playwright().start()
@@ -392,6 +430,9 @@ def ask_chatgpt(question: str, wait: bool = True) -> str:
        # [Bugfix v6.1] 修复滚动失效
        _fix_scroll(page)
 
+       # [Bugfix v6.2] 关闭通知 toast，防止挤占输入框
+       _dismiss_notifications(page)
+
        safe_fill(page, "#prompt-textarea", question)
        time.sleep(0.5)
        safe_click(page, "button[data-testid='send-button']")
@@ -402,6 +443,75 @@ def ask_chatgpt(question: str, wait: bool = True) -> str:
        _wait_chatgpt_done(page, max_wait=55)
        reply = _get_chatgpt_reply(page)
        return reply
+
+
+def ask_chatgpt_with_image(text: str, image_path: str, wait: bool = True) -> str:
+    """
+    发送文本 + 图片到 ChatGPT 并返回回复。
+    通过剪贴板粘贴图片到 ChatGPT 输入区，配合文本一起提交。
+
+    参数:
+        text: 要发送的分析问题
+        image_path: 图片文件路径
+        wait: 是否等待回复完成
+    """
+    import os as _os
+    import io as _io
+    import win32clipboard
+    from PIL import Image
+
+    img_path = str(image_path)
+    if not _os.path.exists(img_path):
+        return f"[Image not found: {img_path}]"
+
+    # ── 将图片写入剪贴板 ──
+    try:
+        img = Image.open(img_path)
+        output = _io.BytesIO()
+        img.convert("RGB").save(output, "BMP")
+        dib_data = output.getvalue()[14:]  # 跳过 BMP 文件头
+        output.close()
+
+        win32clipboard.OpenClipboard()
+        win32clipboard.EmptyClipboard()
+        win32clipboard.SetClipboardData(win32clipboard.CF_DIB, dib_data)
+        win32clipboard.CloseClipboard()
+    except Exception as e:
+        return f"[Clipboard error: {e}]"
+
+    with cdp_session() as browser:
+        ok, reason = _check_cdp_health(browser)
+        if not ok:
+            browser = _auto_reconnect()
+
+        page = _chatgpt_page(browser)
+        time.sleep(2)
+
+        if "chatgpt.com" not in page.url:
+            page.goto("https://chatgpt.com/", timeout=NAV_TIMEOUT, wait_until="domcontentloaded")
+            time.sleep(3)
+
+        _fix_scroll(page)
+        # [Bugfix v6.2] 关闭通知 toast
+        _dismiss_notifications(page)
+        _clear_input_buffer(page)
+
+        # 聚焦输入区并粘贴图片
+        page.click("#prompt-textarea")
+        time.sleep(0.5)
+        page.keyboard.press("Control+v")
+        time.sleep(3)  # 等待图片上传完成
+
+        # 输入分析文本
+        safe_type(page, "#prompt-textarea", text)
+        time.sleep(0.5)
+
+        # 提交
+        page.keyboard.press("Enter")
+
+        _wait_chatgpt_done(page, max_wait=90)
+        reply = _get_chatgpt_reply(page)
+        return reply
 
 
 def cdp_ask_chatgpt(

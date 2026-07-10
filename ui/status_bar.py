@@ -33,6 +33,7 @@ class StatusBar:
         self._context_tokens: int = 0
         self._context_max: int = 0
         self._hint = ""
+        self._gpt_status = ""
         self._thinking = False
         self._latency: float | None = None
         self._refresh_git()
@@ -113,6 +114,10 @@ class StatusBar:
     def set_hint(self, hint: str) -> None:
         self._hint = hint
 
+    def set_gpt_status(self, status: str) -> None:
+        """GPT-first 状态：ready / connecting / offline"""
+        self._gpt_status = status
+
     def set_thinking(self, thinking: bool) -> None:
         self._thinking = thinking
 
@@ -129,7 +134,8 @@ class StatusBar:
         if cwd_str.startswith(home):
             cwd_str = "~" + cwd_str[len(home) :]
 
-        left = f"{model_str}{' thinking...' if self._thinking else ''}"
+        gpt = f" | GPT: {self._gpt_status}" if self._gpt_status else ""
+        left = f"{model_str}{' thinking...' if self._thinking else ''}{gpt}"
         mid = f" {cwd_str}"
         if self._branch:
             mid += f"  {self._branch}"

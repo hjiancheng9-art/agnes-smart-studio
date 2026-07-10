@@ -133,6 +133,10 @@ _mcp_client_*.txt
 _fail_*.txt
 test_summary.txt
 
+# === Secrets / local config (must NOT commit) ===
+settings.json
+.mcp.json
+
 # Large binaries (downloaded at runtime, not committed)
 core/resources/*.exe
 core/nsp-downloader/resources/ffmpeg.exe

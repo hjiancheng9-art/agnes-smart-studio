@@ -236,6 +236,27 @@ COMMANDS: list[CommandDef] = [
         "remove <name>：移除；connect/disconnect <name>：启停连接；tools <name>：查看工具。",
         handler="_chat_mcp",
     ),
+    # ── GPT-first ──
+    CommandDef(
+        "gpt",
+        "/gpt",
+        "[on|off]",
+        "GPT-first 模式：切换每次查询先问 ChatGPT（CDP 免费方案）",
+        "对话",
+        long_desc="无参数时显示当前状态。on 开启，off 关闭。开启后每次用户查询先发给 ChatGPT 再融合输出。",
+        handler="_chat_gpt_toggle",
+    ),
+    # ── 根目录整理 ──
+    CommandDef(
+        "tidy",
+        "/tidy",
+        "[deep]",
+        "整理根目录临时文件到 tmp/ 子目录",
+        "工具",
+        long_desc="扫描根目录，按类型自动分类移动到 tmp/cdp_fragments、tmp/gpt_outputs 等目录。"
+        "加 deep 参数会同时删除 tmp/ 下超过 7 天的旧文件。",
+        handler="_chat_tidy",
+    ),
 ]
 
 # Special skill-load entries for /help display

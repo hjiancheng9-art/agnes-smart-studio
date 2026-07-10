@@ -24,6 +24,7 @@ from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.processors import BeforeInput
 
 from ui.clipboard_image import detect_drag_images, get_clipboard_image, is_image_path
+from ui.completer import TuiCompleter
 from ui.message_pane import MessagePane
 from ui.status_bar import StatusBar
 from ui.theme import build_style
@@ -62,11 +63,13 @@ class TuiApp:
         self.message_pane = MessagePane()
         self.status_bar = StatusBar(model_fn=lambda: self.session.model, cwd=Path.cwd())
 
+        self._completer = TuiCompleter()
         self._history = InMemoryHistory()
         self.input_buffer = Buffer(
             multiline=False,
             accept_handler=self._on_accept,
             history=self._history,
+            completer=self._completer,
         )
 
         self.kb = KeyBindings()
@@ -108,7 +111,10 @@ class TuiApp:
 
         @self.kb.add("escape")
         def _(event):
-            self.input_buffer.reset()
+            # Only clear if buffer is already empty (double-Escape to clear)
+            # Single Escape: let prompt_toolkit handle IME cancellation natively
+            if not self.input_buffer.text.strip():
+                self.input_buffer.reset()
 
         @self.kb.add("c-l")
         def _(event):
@@ -186,6 +192,13 @@ class TuiApp:
         # Activity log: (icon, style_class, message) per entry
         # Persists until next user message. Always visible.
         self._activity_log: list[tuple[str, str, str]] = []
+        self._activity_max = 30  # 硬上限: 防止工具状态挤占输入区
+
+    def _trim_activity_log(self) -> None:
+        """裁剪 activity_log 到上限，丢弃最旧条目"""
+        overflow = len(self._activity_log) - self._activity_max
+        if overflow > 0:
+            self._activity_log[:] = self._activity_log[overflow:]
 
     # ── Layout ──────────────────────────────────────────────
 
@@ -194,8 +207,11 @@ class TuiApp:
         def _activity_content():
             if not self._activity_log:
                 return FormattedText([])
+            # 只渲染窗口能容纳的条目数，防止溢出到输入区
+            max_visible = 8
+            visible = self._activity_log[-max_visible:]
             pieces = []
-            for icon, style_class, msg in self._activity_log:
+            for icon, style_class, msg in visible:
                 pieces.append((style_class, f" {icon} {msg}"))
                 pieces.append(("", "\n"))
             if pieces:
@@ -354,9 +370,22 @@ class TuiApp:
     def _stream_image_response(self, image_path: str) -> None:
         """Stream vision response for an image file."""
         try:
+            # ── GPT-first 图片分析 ──
             prompt = "请详细描述这张图片的内容。如果是截图，请描述界面、文字和关键信息。"
+            try:
+                from core.gpt_first import is_gpt_first, route_with_image
+                if is_gpt_first():
+                    self._ui(self.message_pane.append_info, "🤖 正在将图片发送给 ChatGPT 分析...")
+                    gpt_reply = route_with_image("请分析这张图片的内容，描述关键信息。如果是截图请描述界面布局和异常信息。", image_path)
+                    if gpt_reply:
+                        prompt = f"[ChatGPT 图片分析]\n{gpt_reply[:2000]}\n\n[用户提问]\n{prompt}"
+                        self._ui(self.message_pane.append_info, "🤖 ChatGPT 图片分析完成 ✓")
+            except Exception:
+                pass  # GPT 失败，直接走 DeepSeek vision
+
             self._ui(self.message_pane.stream_start, "crux")
             self._activity_log.append(("●", "class:message-tool", f"视觉分析: {os.path.basename(image_path)}"))
+            self._trim_activity_log()
             for kind, payload in self.session.send_stream(prompt, image_url=image_path):
                 if kind == "text":
                     self._ui(self.message_pane.stream_append, str(payload))
@@ -381,11 +410,23 @@ class TuiApp:
 
     def _stream_response(self, user_text: str) -> None:
         try:
+            # ── GPT-first 拦截 ──
+            _enhanced_text = user_text
+            try:
+                from core.gpt_first import is_gpt_first, route_via_gpt
+                if is_gpt_first() and user_text and not user_text.startswith("/"):
+                    gpt_reply = route_via_gpt(user_text)
+                    if gpt_reply:
+                        _enhanced_text = f"[ChatGPT 回复]\n{gpt_reply[:2000]}\n\n[用户提问]\n{user_text}"
+                        self._ui(self.message_pane.append_info, "🤖 ChatGPT consulted ✓")
+            except Exception:
+                pass  # GPT 失败，直接走 DeepSeek
+
             self._ui(self.message_pane.stream_start, "crux")
             pending_tool = None  # track current tool name for status updates
             _t0 = time.monotonic()
             _first_token = False
-            for kind, payload in self.session.send_stream(user_text):
+            for kind, payload in self.session.send_stream(_enhanced_text):
                 if not _first_token and kind in ("text", "thinking"):
                     _first_token = True
                     self.status_bar.set_latency(time.monotonic() - _t0)
@@ -405,6 +446,9 @@ class TuiApp:
                             merged = merged[:117] + "..."
                         if self._activity_log and "class:message-thinking" in self._activity_log[-1][1]:
                             self._activity_log[-1] = ("●", "class:message-thinking", merged)
+                    # 额外保护: thinking buffer 不超过 10KB
+                    if len(self._thinking_buf) > 10240:
+                        self._thinking_buf = self._thinking_buf[-5120:]
                     self._thinking_buf += chunk
                     self._ui(lambda: None)
                 elif kind == "info":
@@ -496,6 +540,8 @@ class TuiApp:
                 if _force or not self._thinking or now - self._last_invalidate > 0.030:
                     self._last_invalidate = now
                     self._app.invalidate()
+                # 每帧裁剪 activity_log 防止无限增长挤占输入区
+                self._trim_activity_log()
         except Exception:
             _log.warning("TUI _ui invalidate failed", exc_info=True)
 

@@ -369,6 +369,9 @@ class MessagePane:
 
     def _auto_scroll(self) -> None:
         if self._pinned:
+            # 守卫: 确保窗口是消息面板而非输入区域
+            if not hasattr(self._window, 'vertical_scroll'):
+                return
             self._window.vertical_scroll = _SCROLL_BOTTOM
             self._window.vertical_scroll_2 = 0
 
@@ -417,6 +420,10 @@ class MessagePane:
         with self._lock:
             if force_pin:
                 self._pinned = True
+            # 强制清空任何残留缓冲区，防止跨流数据泄漏
+            self._stream_buffer = ""
+            self._stream_role = ""
+            self._stream_label = ""
             self._end_stream()
             fmt = _ROLE_FORMATS.get(role)
             sc, label = fmt if fmt else ("", role)
@@ -428,6 +435,10 @@ class MessagePane:
         from utils.unicode_safety import sanitize_text
 
         text = sanitize_text(text)
+        # 缓冲区上限保护: 单条消息超过 100KB 截断，防止异常数据撑爆
+        MAX_STREAM_LEN = 102400
+        if len(self._stream_buffer) > MAX_STREAM_LEN:
+            return  # 静默丢弃，避免撑爆输入区
         with self._lock:
             if self._stream_label:
                 self._stream_buffer += text
