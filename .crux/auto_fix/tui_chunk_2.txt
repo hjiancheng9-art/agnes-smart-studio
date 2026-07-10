@@ -1,0 +1,20 @@
+
+缺少 tui_v2.py 的生命周期测试。
+
+缺少 widgets_v2.py 的组件事件测试。
+
+缺少 theme_v2.py 的主题 token、颜色合法性、降级测试。
+
+缺少 message_pane.py 的消息追加、裁剪、Markdown/Rich 渲染、长消息保护测试。
+
+缺少 animation_gov.py 的 throttle/debounce 测试。
+
+缺少 Windows 终端兼容测试：ANSI、emoji、宽字符、颜色降级、终端尺寸。
+
+缺少异步测试：Textual worker、外部 async 任务、取消、关闭、重连。
+
+缺少快照测试：不用真实终端，也可以验证 renderable/tree/text snapshot。
+
+缺少回归测试：闪退、输入焦点丢失、滚动卡死、高频刷新打爆。
+
+C. Textual/Rich 典型风险

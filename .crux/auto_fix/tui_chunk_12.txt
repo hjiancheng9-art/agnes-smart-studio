@@ -1,0 +1,20 @@
+  app.py              # 主 App 壳
+  state.py            # TUIState 数据模型
+  layout.py           # compose/layout
+  events.py           # key/input/message events
+  commands.py         # 命令分发
+  renderers.py        # Rich/Textual render helpers
+  streaming.py        # 流式消息 backpressure
+  errors.py           # TUI 异常边界
+
+TASK: 先统计 tui_v2.py 内部函数和类，生成拆分清单
+CMD: python -c "import ast, pathlib; p=pathlib.Path('ui/tui_v2.py'); t=ast.parse(p.read_text(encoding='utf-8')); print([(type(n).__name__, n.name, n.lineno) for n in ast.walk(t) if isinstance(n,(ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))])"
+
+TASK: 创建 ui/tui_v2/ 包目录，不立即删除旧文件
+CMD: python -c "from pathlib import Path; d=Path('ui/tui_v2'); d.mkdir(parents=True, exist_ok=True); [Path(d/f).write_text('', encoding='utf-8') for f in ['__init__.py','state.py','layout.py','events.py','commands.py','renderers.py','streaming.py','errors.py'] if not Path(d/f).exists()]"
+
+TASK: 先抽离纯状态模型到 state.py，并补单测
+CMD: python -m pytest tests/tui/unit/test_tui_state.py -vv --tb=short
+
+TASK: 抽离命令分发到 commands.py，并补单测
+CMD: python -m pytest tests/tui/unit/test_tui_commands.py -vv --tb=short

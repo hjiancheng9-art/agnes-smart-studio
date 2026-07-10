@@ -1,0 +1,20 @@
+
+D. 运行时稳定性债务
+
+缺少统一 TUI 状态模型：connected / disconnected / busy / streaming / error / degraded。
+
+缺少统一异常边界：widget 异常不应导致整个 TUI 崩溃。
+
+缺少统一日志：TUI 崩溃时需要记录最后事件、最后输入、最后刷新、最后 worker 状态。
+
+缺少 backpressure：后端流式消息过快时，message pane 不能每 token 刷新一次。
+
+缺少 terminal capability detection：终端不支持颜色/动画/Unicode 时应降级。
+
+缺少 headless/fake terminal 测试模式。
+
+2. 测试计划
+P0：先测这些，避免真实终端
+模块	测试策略	重点
+theme_v2.py	纯 unit	颜色 token、主题完整性、fallback、无非法 Rich style
+animation_gov.py	纯 unit + fake clock	throttle、debounce、帧率限制、关闭后不刷新

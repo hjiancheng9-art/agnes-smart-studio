@@ -1,0 +1,20 @@
+
+import 阶段创建 App 或启动事件循环。
+
+测试中直接跑真实终端。
+
+UI 回调里做阻塞 IO。
+
+高频 refresh() / update() 无节流。
+
+set_interval() 没有取消。
+
+worker 没有正确退出。
+
+asyncio.run() 与 Textual 自己的事件循环冲突。
+
+Rich renderable 构造异常被吞掉或导致整屏崩。
+
+宽字符、emoji、中文、ANSI 控制符导致布局计算异常。
+
+Windows Terminal / legacy console 能力不一致。

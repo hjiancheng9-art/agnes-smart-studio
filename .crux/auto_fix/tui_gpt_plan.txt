@@ -1,0 +1,317 @@
+下面是 CRUX Studio TUI 子系统审计与 4 阶段修复计划。核心原则：先测试止血，不碰真实终端；再拆主界面；再治理渲染/异步/输入；最后做质量门禁。
+
+1. TUI 债务清单
+A. 架构债务
+
+ui/tui_v2.py 2197 行，明显是超级文件，可能混合了：
+
+App 生命周期
+
+布局构建
+
+输入处理
+
+消息渲染
+
+动画刷新
+
+状态管理
+
+后端通信
+
+快捷键/命令分发
+
+widgets_v2.py 926 行，组件职责可能过宽，缺少单组件契约测试。
+
+tui_app.py、tui_v2.py 可能存在入口职责重叠。
+
+message_pane.py、widgets_v2.py、theme_v2.py 可能都参与渲染，边界不清。
+
+animation_gov.py 虽小，但涉及刷新节流，是 TUI 崩溃/卡顿高风险点。
+
+clipboard_image.py 涉及系统剪贴板、图片、平台差异，不能直接在单元测试里依赖真实 OS。
+
+panels/ 和 screens/ 如果直接 import 主 App，容易导致循环依赖和测试难写。
+
+B. 测试债务
+
+38 个 TUI 文件，仅 3 个测试文件覆盖，文件级覆盖约 7.9%，严重不足。
+
+现有 77 tests 主要可能覆盖协议/心跳/consumer，不覆盖真实 UI 组件行为。
+
+缺少 tui_v2.py 的生命周期测试。
+
+缺少 widgets_v2.py 的组件事件测试。
+
+缺少 theme_v2.py 的主题 token、颜色合法性、降级测试。
+
+缺少 message_pane.py 的消息追加、裁剪、Markdown/Rich 渲染、长消息保护测试。
+
+缺少 animation_gov.py 的 throttle/debounce 测试。
+
+缺少 Windows 终端兼容测试：ANSI、emoji、宽字符、颜色降级、终端尺寸。
+
+缺少异步测试：Textual worker、外部 async 任务、取消、关闭、重连。
+
+缺少快照测试：不用真实终端，也可以验证 renderable/tree/text snapshot。
+
+缺少回归测试：闪退、输入焦点丢失、滚动卡死、高频刷新打爆。
+
+C. Textual/Rich 典型风险
+
+import 阶段创建 App 或启动事件循环。
+
+测试中直接跑真实终端。
+
+UI 回调里做阻塞 IO。
+
+高频 refresh() / update() 无节流。
+
+set_interval() 没有取消。
+
+worker 没有正确退出。
+
+asyncio.run() 与 Textual 自己的事件循环冲突。
+
+Rich renderable 构造异常被吞掉或导致整屏崩。
+
+宽字符、emoji、中文、ANSI 控制符导致布局计算异常。
+
+Windows Terminal / legacy console 能力不一致。
+
+D. 运行时稳定性债务
+
+缺少统一 TUI 状态模型：connected / disconnected / busy / streaming / error / degraded。
+
+缺少统一异常边界：widget 异常不应导致整个 TUI 崩溃。
+
+缺少统一日志：TUI 崩溃时需要记录最后事件、最后输入、最后刷新、最后 worker 状态。
+
+缺少 backpressure：后端流式消息过快时，message pane 不能每 token 刷新一次。
+
+缺少 terminal capability detection：终端不支持颜色/动画/Unicode 时应降级。
+
+缺少 headless/fake terminal 测试模式。
+
+2. 测试计划
+P0：先测这些，避免真实终端
+模块	测试策略	重点
+theme_v2.py	纯 unit	颜色 token、主题完整性、fallback、无非法 Rich style
+animation_gov.py	纯 unit + fake clock	throttle、debounce、帧率限制、关闭后不刷新
+message_pane.py	unit + snapshot	长消息、中文、Markdown、代码块、裁剪、追加、清空
+widgets_v2.py	Textual pilot/mock	InputBox、Spinner、Panel 状态、事件、禁用态
+tui_app.py	headless App test	mount、启动、关闭、异常边界
+tui_v2.py	smoke + 分层抽取后 unit	不先全测 2197 行，先做 import-safe 和 smoke
+completer.py	纯 unit	命令补全、模糊匹配、空输入、中文输入
+clipboard_image.py	mock OS/clipboard	无剪贴板、无图片、图片过大、平台差异
+terminal_splash.py	snapshot	不依赖真实终端，验证输出结构
+panels/ screens/	pilot/mock	mount、事件、状态渲染、异常保护
+3. 四阶段执行计划
+阶段1: TUI 测试止血与 Headless 基线
+
+目标：先确认所有 TUI 模块可 import、可 headless 测，不依赖真实终端。
+
+TASK: 建立 TUI 测试 marker，区分 headless/unit/snapshot/browserless
+CMD: python -c "from pathlib import Path; p=Path('pytest.ini'); s=p.read_text(encoding='utf-8') if p.exists() else '[pytest]\\n'; add='\\nmarkers =\\n tui: TUI tests\\n tui_unit: headless TUI unit tests\\n tui_snapshot: TUI render snapshot tests\\n tui_slow: slow TUI tests\\n'; p.write_text(s if 'tui_unit' in s else s+add, encoding='utf-8')"
+
+TASK: 先跑现有 TUI 测试，确认当前 77 tests 基线
+CMD: python -m pytest tests -k "tui or ui_heartbeat or protocol or consumer" -vv --tb=short
+
+TASK: 检查所有 ui 模块是否 import-safe，不允许 import 阶段启动真实 TUI
+CMD: python -c "import pkgutil, importlib, ui; mods=[m.name for m in pkgutil.walk_packages(ui.__path__, ui.__name__+'.')]; bad=[]; [bad.append(x) for x in mods if (lambda n: (importlib.import_module(n), False)[1] if False else False)(x)]; print('ui modules', len(mods))"
+
+TASK: 用 compileall 捕获语法和基础 import 问题
+CMD: python -m compileall ui tests
+
+TASK: 创建 TUI 专用测试目录
+CMD: python -c "from pathlib import Path; [Path(p).mkdir(parents=True, exist_ok=True) for p in ['tests/tui/unit','tests/tui/snapshot','tests/tui/integration','tests/tui/regression']]"
+
+TASK: 给 theme_v2.py 建立第一批纯单元测试
+CMD: python -m pytest tests/tui/unit/test_theme_v2.py -vv --tb=short
+
+TASK: 给 animation_gov.py 建立 fake clock 测试
+CMD: python -m pytest tests/tui/unit/test_animation_gov.py -vv --tb=short
+
+TASK: 建立 TUI 快速测试入口
+CMD: python -m pytest tests/tui -m "tui_unit and not tui_slow" --tb=short
+
+阶段1完成标准：
+
+ui/ 全部能 compile。
+
+TUI 测试可以不打开真实终端运行。
+
+theme_v2、animation_gov 有基础单测。
+
+现有 77 tests 仍然通过。
+
+阶段2: 覆盖纯逻辑模块和渲染模块
+
+目标：优先测不依赖真实 Textual App 的模块，把崩溃高风险的渲染逻辑固定住。
+
+TASK: 为 completer.py 增加命令补全单测
+CMD: python -m pytest tests/tui/unit/test_completer.py -vv --tb=short
+
+TASK: 为 message_pane.py 增加长消息、中文、Markdown、代码块测试
+CMD: python -m pytest tests/tui/unit/test_message_pane.py -vv --tb=short
+
+TASK: 为 message_pane.py 增加 snapshot 测试，验证 Rich renderable 输出稳定
+CMD: python -m pytest tests/tui/snapshot/test_message_pane_snapshot.py -vv --tb=short
+
+TASK: 为 terminal_splash.py 增加 snapshot 测试
+CMD: python -m pytest tests/tui/snapshot/test_terminal_splash_snapshot.py -vv --tb=short
+
+TASK: 为 clipboard_image.py 增加 mock clipboard 测试，不访问真实系统剪贴板
+CMD: python -m pytest tests/tui/unit/test_clipboard_image.py -vv --tb=short
+
+TASK: 增加 Windows/窄终端/无颜色能力降级测试
+CMD: python -m pytest tests/tui/unit/test_terminal_capabilities.py -vv --tb=short
+
+TASK: 检查渲染模块是否能处理异常字符、ANSI、emoji、中文宽字符
+CMD: python -m pytest tests/tui/regression/test_render_edge_cases.py -vv --tb=short
+
+TASK: 跑 TUI 纯逻辑测试全集
+CMD: python -m pytest tests/tui/unit tests/tui/snapshot -vv --tb=short
+
+阶段2完成标准：
+
+theme_v2.py
+
+animation_gov.py
+
+completer.py
+
+message_pane.py
+
+terminal_splash.py
+
+clipboard_image.py
+
+以上模块有基础测试覆盖。
+
+阶段3: Textual 组件与 App 生命周期测试
+
+目标：用 Textual headless/pilot 或 mock App 测组件，不依赖真实终端。
+
+TASK: 为 widgets_v2.py 的 Spinner/InputBox/Panel 建立 headless 组件测试
+CMD: python -m pytest tests/tui/integration/test_widgets_v2.py -vv --tb=short
+
+TASK: 测试 InputBox 输入、清空、禁用态、Enter 提交
+CMD: python -m pytest tests/tui/integration/test_input_box.py -vv --tb=short
+
+TASK: 测试 Spinner 启停和关闭后不再刷新
+CMD: python -m pytest tests/tui/integration/test_spinner_lifecycle.py -vv --tb=short
+
+TASK: 测试 tui_app.py headless mount/start/shutdown 生命周期
+CMD: python -m pytest tests/tui/integration/test_tui_app_lifecycle.py -vv --tb=short
+
+TASK: 为 ui/panels/ 增加 mount 与状态渲染测试
+CMD: python -m pytest tests/tui/integration/test_panels.py -vv --tb=short
+
+TASK: 为 ui/screens/ 增加 screen 切换和异常保护测试
+CMD: python -m pytest tests/tui/integration/test_screens.py -vv --tb=short
+
+TASK: 增加 worker 取消测试，确保退出 TUI 时没有悬挂任务
+CMD: python -m pytest tests/tui/regression/test_tui_worker_shutdown.py -vv --tb=short
+
+TASK: 增加高频刷新节流回归测试
+CMD: python -m pytest tests/tui/regression/test_refresh_throttle.py -vv --tb=short
+
+TASK: 增加输入焦点丢失回归测试
+CMD: python -m pytest tests/tui/regression/test_focus_recovery.py -vv --tb=short
+
+阶段3完成标准：
+
+widgets_v2.py 有组件级测试。
+
+tui_app.py 可 headless 启停。
+
+panels/screens 有最小生命周期测试。
+
+worker、refresh、focus 三类 TUI 崩溃风险有回归测试。
+
+阶段4: 拆分 tui_v2.py，建立长期质量门禁
+
+目标：处理 2197 行主界面超级文件，把状态、事件、渲染、命令分发拆出来。
+
+建议拆分方向：
+
+ui/tui_v2/
+  __init__.py
+  app.py              # 主 App 壳
+  state.py            # TUIState 数据模型
+  layout.py           # compose/layout
+  events.py           # key/input/message events
+  commands.py         # 命令分发
+  renderers.py        # Rich/Textual render helpers
+  streaming.py        # 流式消息 backpressure
+  errors.py           # TUI 异常边界
+
+TASK: 先统计 tui_v2.py 内部函数和类，生成拆分清单
+CMD: python -c "import ast, pathlib; p=pathlib.Path('ui/tui_v2.py'); t=ast.parse(p.read_text(encoding='utf-8')); print([(type(n).__name__, n.name, n.lineno) for n in ast.walk(t) if isinstance(n,(ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))])"
+
+TASK: 创建 ui/tui_v2/ 包目录，不立即删除旧文件
+CMD: python -c "from pathlib import Path; d=Path('ui/tui_v2'); d.mkdir(parents=True, exist_ok=True); [Path(d/f).write_text('', encoding='utf-8') for f in ['__init__.py','state.py','layout.py','events.py','commands.py','renderers.py','streaming.py','errors.py'] if not Path(d/f).exists()]"
+
+TASK: 先抽离纯状态模型到 state.py，并补单测
+CMD: python -m pytest tests/tui/unit/test_tui_state.py -vv --tb=short
+
+TASK: 抽离命令分发到 commands.py，并补单测
+CMD: python -m pytest tests/tui/unit/test_tui_commands.py -vv --tb=short
+
+TASK: 抽离流式消息节流到 streaming.py，并补 backpressure 测试
+CMD: python -m pytest tests/tui/unit/test_tui_streaming.py -vv --tb=short
+
+TASK: 抽离异常边界到 errors.py，确保 widget 异常不会杀死 App
+CMD: python -m pytest tests/tui/regression/test_tui_error_boundary.py -vv --tb=short
+
+TASK: 跑 TUI 全量测试
+CMD: python -m pytest tests/tui -vv --tb=short --durations=30
+
+TASK: 跑全项目测试，确认 TUI 拆分不破坏主系统
+CMD: python -m pytest tests --tb=short --durations=50
+
+TASK: 增加 TUI lint/type/compile 门禁
+CMD: python -m compileall ui tests && python -m ruff check ui tests/tui
+
+阶段4完成标准：
+
+tui_v2.py 不再继续膨胀。
+
+新逻辑进入 ui/tui_v2/ 子包。
+
+状态、命令、流式刷新、异常边界都有单测。
+
+TUI 全量测试可独立运行。
+
+不依赖真实终端。
+
+最小执行顺序
+
+先按这个顺序跑：
+
+TASK: 确认现有 TUI 测试基线
+CMD: python -m pytest tests -k "tui or ui_heartbeat or protocol or consumer" -vv --tb=short
+
+TASK: 检查 UI 代码语法
+CMD: python -m compileall ui tests
+
+TASK: 创建 TUI 测试目录
+CMD: python -c "from pathlib import Path; [Path(p).mkdir(parents=True, exist_ok=True) for p in ['tests/tui/unit','tests/tui/snapshot','tests/tui/integration','tests/tui/regression']]"
+
+TASK: 优先补 theme_v2.py 测试
+CMD: python -m pytest tests/tui/unit/test_theme_v2.py -vv --tb=short
+
+TASK: 优先补 animation_gov.py 测试
+CMD: python -m pytest tests/tui/unit/test_animation_gov.py -vv --tb=short
+
+TASK: 优先补 message_pane.py 测试
+CMD: python -m pytest tests/tui/unit/test_message_pane.py -vv --tb=short
+
+TASK: 再补 widgets_v2.py headless 组件测试
+CMD: python -m pytest tests/tui/integration/test_widgets_v2.py -vv --tb=short
+
+TASK: 最后开始拆 tui_v2.py
+CMD: python -c "import ast, pathlib; p=pathlib.Path('ui/tui_v2.py'); t=ast.parse(p.read_text(encoding='utf-8')); print([(type(n).__name__, n.name, n.lineno) for n in ast.walk(t) if isinstance(n,(ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))])"
+
+结论：不要先改 Textual 主界面。先测试 theme / animation / message / widgets，再拆 tui_v2。TUI 的稳定性关键是 headless 测试、刷新节流、worker 退出、输入焦点恢复、异常边界。

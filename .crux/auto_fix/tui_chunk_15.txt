@@ -1,0 +1,17 @@
+
+TASK: 优先补 theme_v2.py 测试
+CMD: python -m pytest tests/tui/unit/test_theme_v2.py -vv --tb=short
+
+TASK: 优先补 animation_gov.py 测试
+CMD: python -m pytest tests/tui/unit/test_animation_gov.py -vv --tb=short
+
+TASK: 优先补 message_pane.py 测试
+CMD: python -m pytest tests/tui/unit/test_message_pane.py -vv --tb=short
+
+TASK: 再补 widgets_v2.py headless 组件测试
+CMD: python -m pytest tests/tui/integration/test_widgets_v2.py -vv --tb=short
+
+TASK: 最后开始拆 tui_v2.py
+CMD: python -c "import ast, pathlib; p=pathlib.Path('ui/tui_v2.py'); t=ast.parse(p.read_text(encoding='utf-8')); print([(type(n).__name__, n.name, n.lineno) for n in ast.walk(t) if isinstance(n,(ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))])"
+
+结论：不要先改 Textual 主界面。先测试 theme / animation / message / widgets，再拆 tui_v2。TUI 的稳定性关键是 headless 测试、刷新节流、worker 退出、输入焦点恢复、异常边界。

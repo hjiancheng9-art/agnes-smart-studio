@@ -1,0 +1,1041 @@
+{
+  "files": [
+    {
+      "path": "ui\\animation_gov.py",
+      "lines": 159,
+      "classes": [
+        "class AnimType(Enum)",
+        "class AnimationGovernor"
+      ],
+      "functions": [
+        "def __init__(self, ssh_mode: bool = False)",
+        "def enabled(self) -> bool",
+        "def enabled(self, value: bool)",
+        "def streaming(self) -> bool",
+        "def streaming(self, value: bool)",
+        "def can_animate(self, anim_type: AnimType) -> bool",
+        "def start(self, anim_type: AnimType) -> bool",
+        "def stop(self, anim_type: AnimType)",
+        "def stop_all(self)",
+        "def should_frame(self) -> bool",
+        "def active_type(self) -> AnimType | None",
+        "def can_spin(self) -> bool",
+        "def can_decorate(self) -> bool",
+        "def is_active(self, anim_type: AnimType) -> bool"
+      ],
+      "imports": [
+        "from __future__ import annotations",
+        "import threading",
+        "import time",
+        "from enum import Enum, auto"
+      ]
+    },
+    {
+      "path": "ui\\clipboard_image.py",
+      "lines": 188,
+      "classes": [],
+      "functions": [
+        "def is_image_path(text: str) -> str",
+        "def detect_drag_images(text: str) -> list[str]",
+        "def get_clipboard_image() -> str | None",
+        "def _get_clipboard_image_win32() -> str | None",
+        "def _save_clipboard_dib(data: bytes) -> str | None",
+        "def _clean()",
+        "def _get_clipboard_image_macos() -> str | None",
+        "def _get_clipboard_image_linux() -> str | None"
+      ],
+      "imports": [
+        "from __future__ import annotations",
+        "import contextlib",
+        "import logging",
+        "import os",
+        "import subprocess",
+        "import sys",
+        "import tempfile",
+        "from pathlib import Path",
+        "import shlex",
+        "import win32clipboard"
+      ]
+    },
+    {
+      "path": "ui\\completer.py",
+      "lines": 176,
+      "classes": [
+        "class TuiCompleter(Completer)"
+      ],
+      "functions": [
+        "def _list_files(prefix: str) -> list[tuple[str, str, str]]",
+        "def __init__(self, history_words: list[str] | None = None)",
+        "def update_history_words(self, words: list[str])",
+        "def get_completions(self, document: Document, complete_event: CompleteEvent)"
+      ],
+      "imports": [
+        "from __future__ import annotations",
+        "from pathlib import Path",
+        "from prompt_toolkit.completion import CompleteEvent, Completer, Completion",
+        "from prompt_toolkit.document import Document"
+      ]
+    },
+    {
+      "path": "ui\\copy_manager.py",
+      "lines": 150,
+      "classes": [
+        "class CopyManager"
+      ],
+      "functions": [
+        "def extract_code_blocks(text: str) -> list[dict]",
+        "def __init__(self, message_store: MessageStore | None = None)",
+        "def sync_store(self, store: MessageStore) -> None",
+        "def copy_message(self, msg: Message | None) -> tuple[bool, str]",
+        "def copy_markdown(self, msg: Message | None) -> tuple[bool, str]",
+        "def copy_code_block(self, msg: Message | None, block_index: int = 0) -> tuple[bool, str]",
+        "def copy_lines(self, msg: Message | None, start: int, end: int) -> tuple[bool, str]",
+        "def copy_focused(self) -> tuple[bool, str]",
+        "def copy_focused_markdown(self) -> tuple[bool, str]",
+        "def get_focused_msg(self) -> Message | None",
+        "def handle_command(self, cmd: str) -> tuple[bool, str]"
+      ],
+      "imports": [
+        "from ui.input_router import FocusState, get_clipboard",
+        "from ui.message_store import Message, MessageStore",
+        "import re"
+      ]
+    },
+    {
+      "path": "ui\\dashboard.py",
+      "lines": 249,
+      "classes": [
+        "class DashboardState"
+      ],
+      "functions": [
+        "def __init__(self)",
+        "def toggle_secondary(self)",
+        "def update_secondary(self, cpu=0, mem_pct=0, mem_used=0, mem_total=8192, disk=0, processes=0, uptime=0)",
+        "def set_state(self, state: str)",
+        "def set_activity(self, tool_name: str = \"\", status: str = \"\")",
+        "def set_error(self, msg: str)",
+        "def clear_error(self)",
+        "def update_metrics(self, **kwargs)",
+        "def is_hot(self) -> bool",
+        "def state(self) -> str",
+        "def error_msg(self) -> str",
+        "def context_pct(self) -> float",
+        "def _tw() -> int",
+        "def render_dashboard(state: DashboardState | None = None, layout: LayoutConfig | None = None) -> list[tuple[str, str]]"
+      ],
+      "imports": [
+        "import time",
+        "from ui.responsive import LayoutConfig",
+        "import shutil"
+      ]
+    },
+    {
+      "path": "ui\\display.py",
+      "lines": 85,
+      "classes": [],
+      "functions": [
+        "def _view_image(path: str) -> str",
+        "def _update_plan(",
+        "def _tool_search(query: str) -> str",
+        "def _request_user_input(question: str) -> str"
+      ],
+      "imports": [
+        "from __future__ import annotations",
+        "import json",
+        "import os",
+        "import subprocess",
+        "import sys",
+        "from pathlib import Path",
+        "from core.plan_mode import PlanManager"
+      ]
+    },
+    {
+      "path": "ui\\gui_server.py",
+      "lines": 258,
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "import logging",
+        "import asyncio",
+        "import json",
+        "import os",
+        "import sys",
+        "import contextlib",
+        "from core.protocol import Event, EventType, get_bus",
+        "from core.version import get_version_info",
+        "import psutil",
+        "from core.chat import ChatSession"
+      ]
+    },
+    {
+      "path": "ui\\input_router.py",
+      "lines": 165,
+      "classes": [
+        "class InputMode(enum.Enum)",
+        "class FocusState",
+        "class ClipboardAdapter",
+        "class InputRouter"
+      ],
+      "functions": [
+        "def next(self) -> int",
+        "def prev(self) -> int",
+        "def is_focused(self, msg_index: int) -> bool",
+        "def __init__(self)",
+        "def _test(self)",
+        "def available(self) -> bool",
+        "def copy(self, text: str) -> bool",
+        "def copy_and_report(self, text: str, label: str = \"已复制\") -> tuple[bool, str]",
+        "def __init__(self)",
+        "def mode(self) -> InputMode",
+        "def set_mode(self, mode: InputMode) -> None",
+        "def on_mode_change(self, callback: Callable[[InputMode], None]) -> None",
+        "def add_handler(self, key: str, mode: InputMode, handler: Callable[[], bool]) -> None",
+        "def dispatch(self, key: str) -> bool",
+        "def remove_handlers(self, key: str) -> None",
+        "def clear(self) -> None",
+        "def get_clipboard() -> ClipboardAdapter"
+      ],
+      "imports": [
+        "import contextlib",
+        "import enum",
+        "import threading",
+        "from collections.abc import Callable",
+        "from dataclasses import dataclass",
+        "import pyperclip",
+        "import pyperclip"
+      ]
+    },
+    {
+      "path": "ui\\markdown_renderer.py",
+      "lines": 318,
+      "classes": [
+        "class PygmentsCache"
+      ],
+      "functions": [
+        "def _init_style_map()",
+        "def _pygments_token_style(ttype: Any) -> str",
+        "def __init__(self, maxsize: int = 64)",
+        "def get(self, key: str) -> list[tuple[str, str]] | None",
+        "def set(self, key: str, value: list[tuple[str, str]])",
+        "def highlight(self, code: str, lang: str = \"\") -> list[tuple[str, str]]",
+        "def _parse_code_blocks(text: str) -> list[tuple[str, str]]",
+        "def _render_inline(text: str) -> list[tuple[str, str]]",
+        "def _render_block(text: str, width: int = 80) -> list[tuple[str, str]]",
+        "def render_markdown(text: str, width: int = 80) -> list[tuple[str, str]]",
+        "def clear_cache()"
+      ],
+      "imports": [
+        "from __future__ import annotations",
+        "import re",
+        "from collections import OrderedDict",
+        "from typing import Any",
+        "from pygments.token import Token",
+        "from pygments.lexers import get_lexer_by_name, guess_lexer",
+        "from pygments.util import ClassNotFound"
+      ]
+    },
+    {
+      "path": "ui\\message_detail.py",
+      "lines": 112,
+      "classes": [
+        "class MessageDetailScreen"
+      ],
+      "functions": [
+        "def __init__(self, message_store: MessageStore, msg_index: int)",
+        "def active(self) -> bool",
+        "def on_close(self, callback)",
+        "def open(self) -> None",
+        "def close(self) -> None",
+        "def build_formatted(self) -> list",
+        "def handle_key(self, key: str) -> bool"
+      ],
+      "imports": [
+        "import contextlib",
+        "from ui.input_router import get_clipboard",
+        "from ui.message_store import MessageStore"
+      ]
+    },
+    {
+      "path": "ui\\message_pane.py",
+      "lines": 479,
+      "classes": [
+        "class _ScrollingWindow(Window)",
+        "class _MessagePaneControl(FormattedTextControl)",
+        "class MessagePane"
+      ],
+      "functions": [
+        "def __init__(self, pane, *args, **kwargs)",
+        "def _mouse_handler(self, mouse_event)",
+        "def mouse_handler(self, mouse_event)",
+        "def _scroll(self, ui_content, width, height)",
+        "def __init__(self, pane, *args, **kwargs)",
+        "def mouse_handler(self, mouse_event)",
+        "def __init__(self) -> None",
+        "def _render()",
+        "def pane(self) -> Window",
+        "def line_count(self) -> int",
+        "def _window_height(self) -> int",
+        "def _wrapped_content_height(self) -> int",
+        "def _wrapped_window_height(self) -> int",
+        "def _current_visual_row(self) -> int",
+        "def _set_scroll_to_visual_row(self, target_row: int, *, clamp: bool = True) -> None",
+        "def _sync_scroll_offset(self) -> None",
+        "def scroll_up(self, lines: int = _SCROLL_LINE) -> None",
+        "def scroll_down(self, lines: int = _SCROLL_LINE) -> None",
+        "def scroll_page_up(self) -> None",
+        "def scroll_page_down(self) -> None"
+      ],
+      "imports": [
+        "from __future__ import annotations",
+        "import threading",
+        "from prompt_toolkit.formatted_text import FormattedText",
+        "from prompt_toolkit.layout import Window",
+        "from prompt_toolkit.layout.controls import FormattedTextControl",
+        "from prompt_toolkit.layout.dimension import Dimension",
+        "from prompt_toolkit.mouse_events import MouseEventType",
+        "from prompt_toolkit.application.current import get_app",
+        "from prompt_toolkit.application.current import get_app",
+        "from prompt_toolkit.application.current import get_app"
+      ]
+    },
+    {
+      "path": "ui\\message_store.py",
+      "lines": 164,
+      "classes": [
+        "class Message",
+        "class MessageStore"
+      ],
+      "functions": [
+        "def line_count(self) -> int",
+        "def code_blocks(self) -> list[dict]",
+        "def snippet(self, max_len: int = 60) -> str",
+        "def get_lines(self, start: int = 0, end: int | None = None) -> str",
+        "def __init__(self)",
+        "def messages(self) -> list[Message]",
+        "def __len__(self) -> int",
+        "def get(self, index: int) -> Message | None",
+        "def nth(self, n: int) -> Message | None",
+        "def last_assistant(self) -> Message | None",
+        "def last_user(self) -> Message | None",
+        "def find_by_line(self, line_number: int) -> tuple[Message | None, int]",
+        "def total_lines(self) -> int",
+        "def append(self, role: str, text: str) -> Message",
+        "def start_stream(self, role: str) -> Message",
+        "def stream_chunk(self, text: str) -> Message | None",
+        "def end_stream(self) -> Message | None",
+        "def clear(self)",
+        "def as_plain_tuples(self) -> list[tuple[str, str]]"
+      ],
+      "imports": [
+        "import threading",
+        "import time",
+        "import uuid",
+        "from dataclasses import dataclass, field",
+        "import re"
+      ]
+    },
+    {
+      "path": "ui\\msg_prefix.py",
+      "lines": 147,
+      "classes": [
+        "class MsgType(Enum)",
+        "class MsgPrefix(NamedTuple)"
+      ],
+      "functions": [
+        "def get_prefix(msg_type: str, mode: str = \"compact\") -> str",
+        "def get_prefix_style_class(msg_type: str) -> str"
+      ],
+      "imports": [
+        "from enum import Enum",
+        "from typing import NamedTuple"
+      ]
+    },
+    {
+      "path": "ui\\responsive.py",
+      "lines": 301,
+      "classes": [
+        "class Breakpoint(Enum)",
+        "class LayoutConfig",
+        "class EnvironmentInfo",
+        "class LayoutManager"
+      ],
+      "functions": [
+        "def __init__(",
+        "def __init__(",
+        "def detect(cls) -> EnvironmentInfo",
+        "def __init__(self, env: EnvironmentInfo | None = None)",
+        "def env(self) -> EnvironmentInfo",
+        "def breakpoint(self) -> Breakpoint",
+        "def config(self) -> LayoutConfig",
+        "def width_to_breakpoint(width: int) -> Breakpoint",
+        "def update(self, width: int) -> LayoutConfig",
+        "def on_change(self, callback: Callable[[LayoutConfig], None])",
+        "def can_animate(self) -> bool",
+        "def theme_mode(self) -> str",
+        "def degradation_flags(self) -> dict"
+      ],
+      "imports": [
+        "from __future__ import annotations",
+        "import contextlib",
+        "from collections.abc import Callable",
+        "from enum import Enum, auto",
+        "import os"
+      ]
+    },
+    {
+      "path": "ui\\status_bar.py",
+      "lines": 173,
+      "classes": [
+        "class StatusBar"
+      ],
+      "functions": [
+        "def _term_width() -> int",
+        "def __init__(",
+        "def _refresh_git(self) -> None",
+        "def set_context(self, token_count: int, max_tokens: int) -> None",
+        "def set_model(self, model: str) -> None",
+        "def model(self) -> str",
+        "def set_hint(self, hint: str) -> None",
+        "def set_thinking(self, thinking: bool) -> None",
+        "def set_latency(self, seconds: float) -> None",
+        "def refresh(self) -> None",
+        "def render(self) -> FormattedText"
+      ],
+      "imports": [
+        "import os",
+        "import shutil",
+        "import subprocess",
+        "from collections.abc import Callable",
+        "from pathlib import Path",
+        "from prompt_toolkit.formatted_text import FormattedText",
+        "import logging",
+        "from core.methodology import get_methodology_state"
+      ]
+    },
+    {
+      "path": "ui\\terminal_splash.py",
+      "lines": 357,
+      "classes": [],
+      "functions": [
+        "def _mode_tag(label: str, color_key: str, detail: str = \"\") -> str",
+        "def build_logo_lines() -> list[str]",
+        "def build_border_line(char: str = \"═\", top: bool = True) -> str",
+        "def build_scanline() -> str",
+        "def _make_status_lamp(label: str, on: bool) -> str",
+        "def _build_info_panel(console, extra_lines: list[tuple] | None = None)",
+        "def print_splash(extra_lines: list[tuple] | None = None) -> None"
+      ],
+      "imports": [
+        "from __future__ import annotations",
+        "import shutil",
+        "from rich.style import Style",
+        "from rich.text import Text",
+        "import subprocess",
+        "import subprocess",
+        "import logging",
+        "import sys",
+        "import logging",
+        "from rich.columns import Columns"
+      ]
+    },
+    {
+      "path": "ui\\theme.py",
+      "lines": 166,
+      "classes": [],
+      "functions": [
+        "def get_active_theme() -> dict[str, str]",
+        "def set_theme(name: str) -> None",
+        "def list_themes() -> list[dict]",
+        "def build_style(theme_name: str | None = None) -> Style"
+      ],
+      "imports": [
+        "from __future__ import annotations",
+        "from prompt_toolkit.styles import Style",
+        "from ui.theme_v2 import build_style_v2, list_themes_v2"
+      ]
+    },
+    {
+      "path": "ui\\theme_v2.py",
+      "lines": 516,
+      "classes": [],
+      "functions": [
+        "def _build_palette_style(palette: dict) -> Style",
+        "def _get_mocha_base() -> Style",
+        "def _build_normal_style() -> Style",
+        "def _build_high_contrast_style() -> Style",
+        "def _build_mono_style() -> Style",
+        "def build_style_v2(mode_or_theme: str = \"blade\") -> Style",
+        "def list_themes_v2() -> list[dict]"
+      ],
+      "imports": [
+        "from __future__ import annotations",
+        "from prompt_toolkit.styles import Style  # noqa: I001",
+        "from prompt_toolkit.styles import merge_styles",
+        "from prompt_toolkit.styles import merge_styles"
+      ]
+    },
+    {
+      "path": "ui\\tui_app.py",
+      "lines": 531,
+      "classes": [
+        "class TuiApp"
+      ],
+      "functions": [
+        "def _tw() -> int",
+        "def __init__(",
+        "def _(event)",
+        "def _(event)",
+        "def _(event)",
+        "def _(event)",
+        "def _(event)",
+        "def _(event)",
+        "def _(event)",
+        "def _(event)",
+        "def _(event)",
+        "def _(event)",
+        "def _(event)",
+        "def _(event)",
+        "def _(event)",
+        "def _(event)",
+        "def _(event)",
+        "def _(event)",
+        "def _(event)",
+        "def _make_app(self) -> Application"
+      ],
+      "imports": [
+        "from __future__ import annotations",
+        "import concurrent.futures",
+        "import io",
+        "import logging",
+        "import os",
+        "import shutil",
+        "import sys",
+        "import time",
+        "import traceback",
+        "from pathlib import Path"
+      ]
+    },
+    {
+      "path": "ui\\tui_confirm_bridge.py",
+      "lines": 59,
+      "classes": [
+        "class ConfirmBridge"
+      ],
+      "functions": [
+        "def __init__(self, confirm_manager: ConfirmManager | None = None)",
+        "def resolve(self, confirm_id: str, approved: bool) -> bool",
+        "def cancel(self, confirm_id: str) -> bool",
+        "def get_pending(self) -> list[dict[str, Any]]",
+        "def auto_deny_timeout(self, confirm_id: str) -> dict[str, Any]"
+      ],
+      "imports": [
+        "from __future__ import annotations",
+        "import logging",
+        "from typing import Any",
+        "from core.confirm_manager import ConfirmManager, ConfirmResult, get_confirm_manager",
+        "import asyncio"
+      ]
+    },
+    {
+      "path": "ui\\tui_control.py",
+      "lines": 181,
+      "classes": [
+        "class CRUXApp(TuiControlMixin, ...)",
+        "class TuiControlMixin"
+      ],
+      "functions": [
+        "def _submit_with_control(self, text: str) -> None",
+        "def _start_pending_timer(self) -> None",
+        "def wait_and_commit()",
+        "def _undo_pending(self) -> bool",
+        "def _cancel_run(self) -> None",
+        "def _pause_run(self) -> None",
+        "def _resume_run(self) -> None",
+        "def _get_control_status(self) -> str",
+        "def _bind_control_keys(self, kb) -> None",
+        "def _(event)",
+        "def _(event)",
+        "def _(event)",
+        "def _(event)"
+      ],
+      "imports": [
+        "from ui.tui_control import TuiControlMixin",
+        "import threading",
+        "import time",
+        "from core.control_plane import ("
+      ]
+    },
+    {
+      "path": "ui\\tui_dispatcher.py",
+      "lines": 127,
+      "classes": [
+        "class TuiRenderer",
+        "class TuiDispatcher"
+      ],
+      "functions": [
+        "def render_message(self, run_id: str, text: str) -> None",
+        "def render_stream_start(self, run_id: str, message: str) -> None",
+        "def render_stream_end(self, run_id: str, message: str) -> None",
+        "def render_error(self, run_id: str, error: str) -> None",
+        "def render_status(self, run_id: str, status: str, phase: str, message: str) -> None",
+        "def render_confirm(self, confirm_id: str, tool: str, message: str, risk: str) -> None",
+        "def render_media(self, run_id: str, media_type: str, payload: dict) -> None",
+        "def render_info(self, run_id: str, message: str) -> None",
+        "def render_intel_analysis(self, run_id: str, payload: dict) -> None",
+        "def render_tool_start(self, run_id: str, tool: str, args: dict) -> None",
+        "def render_tool_result(self, run_id: str, tool: str, result: str) -> None",
+        "def render_final(self, run_id: str, content: str) -> None",
+        "def invalidate(self) -> None",
+        "def __init__(self, renderer: TuiRenderer)",
+        "def dispatch(self, action: dict[str, Any]) -> None",
+        "def dispatch_batch(self, actions: list[dict[str, Any]]) -> None",
+        "def _apply_stream_start(self, action: dict) -> None",
+        "def _apply_stream_end(self, action: dict) -> None",
+        "def _apply_append_text(self, action: dict) -> None",
+        "def _apply_update_status(self, action: dict) -> None"
+      ],
+      "imports": [
+        "from __future__ import annotations",
+        "from typing import Any"
+      ]
+    },
+    {
+      "path": "ui\\tui_event_reducer.py",
+      "lines": 127,
+      "classes": [
+        "class TuiEventReducer"
+      ],
+      "functions": [
+        "def __init__(self, run_store: RunStateStore)",
+        "def reduce(self, event: StreamEvent) -> dict[str, Any]",
+        "def _handle_stream_start(self, run_id: str, payload: dict) -> dict[str, Any]",
+        "def _handle_stream_end(self, run_id: str, payload: dict) -> dict[str, Any]",
+        "def _handle_status(self, run_id: str, payload: dict) -> dict[str, Any]",
+        "def _handle_text(self, run_id: str, payload: dict) -> dict[str, Any]",
+        "def _handle_info(self, run_id: str, payload: dict) -> dict[str, Any]",
+        "def _handle_confirm(self, run_id: str, payload: dict) -> dict[str, Any]",
+        "def _handle_error(self, run_id: str, payload: dict) -> dict[str, Any]",
+        "def _handle_image(self, run_id: str, payload: dict) -> dict[str, Any]",
+        "def _handle_video(self, run_id: str, payload: dict) -> dict[str, Any]",
+        "def _handle_intel_analysis(self, run_id: str, payload: dict) -> dict[str, Any]",
+        "def _handle_tool_start(self, run_id: str, payload: dict) -> dict[str, Any]",
+        "def _handle_tool_result(self, run_id: str, payload: dict) -> dict[str, Any]",
+        "def _handle_final(self, run_id: str, payload: dict) -> dict[str, Any]",
+        "def _handle_unknown(self, run_id: str, kind: str, payload: dict) -> dict[str, Any]"
+      ],
+      "imports": [
+        "from __future__ import annotations",
+        "from typing import Any",
+        "from core.stream_protocol import StreamEvent",
+        "from .tui_run_state import RunStateStore"
+      ]
+    },
+    {
+      "path": "ui\\tui_run_state.py",
+      "lines": 108,
+      "classes": [
+        "class TuiRunState",
+        "class RunStateStore"
+      ],
+      "functions": [
+        "def __post_init__(self)",
+        "def __init__(self, max_runs: int = 100)",
+        "def runs(self) -> dict[str, TuiRunState]",
+        "def get(self, run_id: str) -> TuiRunState",
+        "def update(self, run_id: str, **kwargs) -> TuiRunState",
+        "def finish(self, run_id: str, status: str = \"DONE\") -> TuiRunState",
+        "def error(self, run_id: str, error: str) -> TuiRunState",
+        "def get_active(self) -> list[TuiRunState]",
+        "def cleanup(self, max_age: float = 300) -> int",
+        "def stats(self) -> dict[str, int]"
+      ],
+      "imports": [
+        "from __future__ import annotations",
+        "import time",
+        "from dataclasses import dataclass, field",
+        "from typing import Any"
+      ]
+    },
+    {
+      "path": "ui\\tui_stream_watchdog.py",
+      "lines": 61,
+      "classes": [
+        "class StreamWatchdog"
+      ],
+      "functions": [
+        "def __init__(self, run_store: RunStateStore, dispatcher: TuiDispatcher,",
+        "def tick(self) -> list[dict[str, Any]]",
+        "def run_loop(self) -> None"
+      ],
+      "imports": [
+        "from __future__ import annotations",
+        "import logging",
+        "import time",
+        "from typing import Any",
+        "from .tui_dispatcher import TuiDispatcher",
+        "from .tui_run_state import RunStateStore"
+      ]
+    },
+    {
+      "path": "ui\\tui_v2.py",
+      "lines": 2197,
+      "classes": [
+        "class Screen",
+        "class ScreenStack",
+        "class DashboardScreen(Screen)",
+        "class IncidentLogScreen(Screen)",
+        "class RemediationScreen(Screen)",
+        "class RunReplayScreen(Screen)",
+        "class ApprovalScreen(Screen)",
+        "class TuiAppV2"
+      ],
+      "functions": [
+        "def _tw() -> int",
+        "def render(self, tw: int)",
+        "def on_enter(self, app)",
+        "def on_exit(self, app)",
+        "def handle_key(self, key: str) -> bool",
+        "def __init__(self)",
+        "def current(self)",
+        "def active(self)",
+        "def push(self, screen, app)",
+        "def pop(self, app)",
+        "def pop_all(self, app)",
+        "def __init__(self)",
+        "def on_enter(self, app)",
+        "def __pt_formatted_text__(self)",
+        "def __init__(self)",
+        "def on_enter(self, app)",
+        "def render(self, tw)",
+        "def __init__(self)",
+        "def on_enter(self, app)",
+        "def select(self, cat)"
+      ],
+      "imports": [
+        "from __future__ import annotations",
+        "import concurrent.futures",
+        "import contextlib",
+        "import io",
+        "import logging",
+        "import os",
+        "import shutil",
+        "import sys",
+        "import sys as _sys",
+        "import threading"
+      ]
+    },
+    {
+      "path": "ui\\ui_heartbeat.py",
+      "lines": 373,
+      "classes": [
+        "class UIHeartbeat",
+        "class CdpSafeExecutor",
+        "class MouseModeGuard"
+      ],
+      "functions": [
+        "def __init__(self, app: Any = None, threshold: float = FREEZE_THRESHOLD)",
+        "def is_frozen(self) -> bool",
+        "def frozen_seconds(self) -> float",
+        "def tick(self)",
+        "def start(self)",
+        "def stop(self)",
+        "def __init__(self, heartbeat: UIHeartbeat | None = None,",
+        "def stats(self) -> dict",
+        "def shutdown(self, wait: bool = True)",
+        "def __init__(self, stdout: Any | None = None)",
+        "def enable(self)",
+        "def disable(self)",
+        "def restore(self)",
+        "def protect(self)",
+        "def strip_mouse_ansi(data: str) -> str",
+        "def safe_subprocess_run(self, *args, **kwargs)",
+        "def stats(self) -> dict",
+        "def patch_signal_handler(heartbeat: UIHeartbeat)",
+        "def _handler(signum, frame)"
+      ],
+      "imports": [
+        "from __future__ import annotations",
+        "import asyncio",
+        "import concurrent.futures",
+        "import contextlib",
+        "import logging",
+        "import os",
+        "import signal",
+        "import sys",
+        "import time",
+        "from collections.abc import Callable"
+      ]
+    },
+    {
+      "path": "ui\\widgets_v2.py",
+      "lines": 926,
+      "classes": [
+        "class Spinner",
+        "class ThinkingPanel",
+        "class AnimatedBadge",
+        "class PulseDot",
+        "class BreathingLabel",
+        "class EnhancedSpinner",
+        "class EnhancedProgressBar"
+      ],
+      "functions": [
+        "def __init__(self, on_tick: Callable[[], None]) -> None",
+        "def current(self) -> str",
+        "def running(self) -> bool",
+        "def start(self) -> None",
+        "def stop(self) -> None",
+        "def _spin(self) -> None",
+        "def _vw(s: str) -> int",
+        "def _cjk_trunc(txt: str, mw: int) -> str",
+        "def panel_top(title: str, width: int, double: bool = False) -> str",
+        "def panel_bottom(width: int, double: bool = False) -> str",
+        "def panel_line(text: str, width: int, double: bool = False) -> str",
+        "def h_line(width: int, double: bool = False) -> str",
+        "def build_welcome_formatted(",
+        "def clamp_box_width(width: int, terminal_width: int = TW, x: int = 0, margin: int = 2) -> int",
+        "def sp(n)",
+        "def _vw(s: str) -> int",
+        "def _badge(sty: str, label: str, w: int = 0) -> StyleAndTextTuples",
+        "def btop(title, w)",
+        "def bbot(w)",
+        "def row_at(x, sty, txt, w)"
+      ],
+      "imports": [
+        "from __future__ import annotations",
+        "import contextlib",
+        "import threading",
+        "import time",
+        "import unicodedata",
+        "from collections.abc import Callable",
+        "from prompt_toolkit.formatted_text import FormattedText, StyleAndTextTuples",
+        "import os as _os",
+        "import shutil",
+        "from core.version import __version__ as _ver"
+      ]
+    },
+    {
+      "path": "ui\\__init__.py",
+      "lines": 9,
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "from ui.input_router import InputRouter",
+        "from ui.message_pane import MessagePane",
+        "from ui.responsive import LayoutConfig",
+        "from ui.theme_v2 import build_style_v2"
+      ]
+    },
+    {
+      "path": "ui\\panels\\incident_detail_panel.py",
+      "lines": 55,
+      "classes": [],
+      "functions": [
+        "def _shorten(text: object, limit: int = 60) -> str",
+        "def _wrap(text: object, width: int) -> str",
+        "def render_incident_detail(incident: dict, width: int) -> list[tuple[str, str]]"
+      ],
+      "imports": [
+        "import textwrap"
+      ]
+    },
+    {
+      "path": "ui\\panels\\incident_panel.py",
+      "lines": 80,
+      "classes": [],
+      "functions": [
+        "def _shorten(text: object, limit: int = 60) -> str",
+        "def load_incidents(status_filter: str | None = None) -> list[dict]",
+        "def render_incidents(incidents: list[dict], width: int, status_filter: str | None = None) -> list[tuple[str, str]]"
+      ],
+      "imports": [
+        "import json",
+        "import os",
+        "from core.incident_store import INCIDENT_DIR"
+      ]
+    },
+    {
+      "path": "ui\\panels\\provider_route_panel.py",
+      "lines": 55,
+      "classes": [],
+      "functions": [
+        "def _shorten(text: object, limit: int = 60) -> str",
+        "def render_provider_route(route: dict, width: int) -> list[tuple[str, str]]"
+      ],
+      "imports": []
+    },
+    {
+      "path": "ui\\panels\\run_detail_panel.py",
+      "lines": 45,
+      "classes": [],
+      "functions": [
+        "def _shorten(text: object, limit: int = 60) -> str",
+        "def render_run_detail(run: dict, width: int) -> list[tuple[str, str]]"
+      ],
+      "imports": []
+    },
+    {
+      "path": "ui\\panels\\run_summary_panel.py",
+      "lines": 51,
+      "classes": [],
+      "functions": [
+        "def _shorten(text: object, limit: int = 60) -> str",
+        "def _risk_style(risk: str) -> str",
+        "def render_run_summary(actions: list[dict], width: int) -> list[tuple[str, str]]"
+      ],
+      "imports": []
+    },
+    {
+      "path": "ui\\panels\\system_status_panel.py",
+      "lines": 44,
+      "classes": [],
+      "functions": [
+        "def _shorten(text: object, limit: int = 60) -> str",
+        "def render_system_status(providers: list[dict], width: int) -> list[tuple[str, str]]"
+      ],
+      "imports": []
+    },
+    {
+      "path": "ui\\panels\\__init__.py",
+      "lines": 3,
+      "classes": [],
+      "functions": [],
+      "imports": []
+    },
+    {
+      "path": "ui\\screens\\dashboard_screen.py",
+      "lines": 58,
+      "classes": [
+        "class DashboardScreen"
+      ],
+      "functions": [
+        "def __init__(self)",
+        "def refresh(self) -> None",
+        "def render(self, width: int) -> list[tuple[str, str]]",
+        "def handle_key(self, key: str) -> bool",
+        "def on_exit(self, app) -> None"
+      ],
+      "imports": [
+        "from core.remediation_executor import get_recent_actions",
+        "from ui.panels.incident_panel import load_incidents",
+        "from ui.panels.run_summary_panel import render_run_summary",
+        "from ui.panels.incident_panel import render_incidents"
+      ]
+    },
+    {
+      "path": "ui\\screens\\__init__.py",
+      "lines": 1,
+      "classes": [],
+      "functions": [],
+      "imports": []
+    }
+  ],
+  "tests": {
+    "tests/test_tui_consumer.py": {
+      "lines": 385,
+      "tests": [
+        "class TestRunStateStore",
+        "def test_get_or_create(self)",
+        "def test_update(self)",
+        "def test_finish(self)",
+        "def test_error(self)",
+        "def test_get_active(self)",
+        "def test_cleanup(self)",
+        "def test_stats(self)",
+        "def test_max_runs(self)",
+        "class TestTuiEventReducer",
+        "def test_stream_start_creates_state(self)",
+        "def test_stream_end_marks_done(self)",
+        "def test_text_produces_append(self)",
+        "def test_error_marks_state(self)",
+        "def test_confirm_produces_confirm_action(self)",
+        "def test_unknown_kind_fallsback_to_info(self)",
+        "def test_two_runs_dont_mix(self)",
+        "class TestTuiDispatcher",
+        "def test_dispatch_text(self)",
+        "def test_dispatch_confirm(self)",
+        "def test_dispatch_error(self)",
+        "def test_dispatch_batch_invalidates_once(self)",
+        "def test_unknown_action_becomes_info(self)",
+        "class TestConfirmBridge",
+        "def test_resolve_approved(self)",
+        "def test_resolve_denied(self)",
+        "def test_cancel(self)",
+        "def test_get_pending(self)",
+        "class TestStreamWatchdog",
+        "def test_timeout_detection(self)",
+        "def test_no_timeout_for_active(self)",
+        "def test_no_timeout_for_finished(self)",
+        "def test_run_loop_integrates(self)",
+        "class TestFullTuiPipeline",
+        "def test_reduce_dispatch_flow(self)",
+        "def test_unknown_events_dont_crash(self)",
+        "def test_confirm_approve_resolves_backend(self)",
+        "def test_confirm_deny(self)",
+        "def test_two_run_ids_no_crosstalk(self)"
+      ]
+    },
+    "tests/test_tui_protocol.py": {
+      "lines": 203,
+      "tests": [
+        "class TestStreamEvent",
+        "def test_from_text_tuple(self)",
+        "def test_from_dict_payload(self)",
+        "def test_unknown_kind_fallback(self)",
+        "def test_auto_run_id(self)",
+        "def test_to_status(self)",
+        "def test_normalize_event(self)",
+        "def test_normalize_raw_event(self)",
+        "class TestEventQueue",
+        "def test_push_and_pop(self)",
+        "def test_max_size(self)",
+        "class TestRunStatus",
+        "def test_all_statuses(self)",
+        "def test_status_helpers(self)",
+        "class TestConfirmManager",
+        "def test_create_request(self)",
+        "def test_respond(self)",
+        "def test_respond_twice(self)",
+        "def test_timeout(self)",
+        "def test_wait_with_response(self)",
+        "def test_cancel(self)",
+        "def test_cancel_all(self)",
+        "def test_get_pending(self)",
+        "def test_cleanup(self)",
+        "def test_to_dict(self)",
+        "def test_global_singleton(self)",
+        "class TestTuiHealthcheck",
+        "def test_quick_healthcheck(self)",
+        "def test_required_events(self)",
+        "def test_simulate_events(self)",
+        "def test_full_healthcheck(self)",
+        "class TestKnownKinds",
+        "def test_required_kinds_present(self)"
+      ]
+    },
+    "tests/self_audit/test_ui_heartbeat.py": {
+      "lines": 175,
+      "tests": [
+        "class TestUIHeartbeat",
+        "def test_heartbeat_initially_not_frozen(self)",
+        "def test_heartbeat_tick_updates_timestamp(self)",
+        "def test_heartbeat_detects_freeze(self)",
+        "def test_heartbeat_not_frozen_after_recent_tick(self)",
+        "def test_heartbeat_stop_clears_task(self)",
+        "def test_heartbeat_no_double_start(self)",
+        "class TestCdpSafeExecutor",
+        "def test_execute_quick_op(self)",
+        "def test_execute_timeout(self)",
+        "def test_execute_raises_exception(self)",
+        "def test_health_check_returns_true(self)",
+        "def test_health_check_returns_false(self)",
+        "def test_stats_tracking(self)",
+        "class TestMouseModeGuard",
+        "def test_enable_restore(self)",
+        "def test_disable(self)",
+        "def test_strip_mouse_ansi(self)",
+        "def test_strip_preserves_normal_text(self)",
+        "def test_strip_handles_empty(self)"
+      ]
+    }
+  }
+}

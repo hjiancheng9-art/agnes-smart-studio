@@ -1,0 +1,20 @@
+
+TASK: 测试 Spinner 启停和关闭后不再刷新
+CMD: python -m pytest tests/tui/integration/test_spinner_lifecycle.py -vv --tb=short
+
+TASK: 测试 tui_app.py headless mount/start/shutdown 生命周期
+CMD: python -m pytest tests/tui/integration/test_tui_app_lifecycle.py -vv --tb=short
+
+TASK: 为 ui/panels/ 增加 mount 与状态渲染测试
+CMD: python -m pytest tests/tui/integration/test_panels.py -vv --tb=short
+
+TASK: 为 ui/screens/ 增加 screen 切换和异常保护测试
+CMD: python -m pytest tests/tui/integration/test_screens.py -vv --tb=short
+
+TASK: 增加 worker 取消测试，确保退出 TUI 时没有悬挂任务
+CMD: python -m pytest tests/tui/regression/test_tui_worker_shutdown.py -vv --tb=short
+
+TASK: 增加高频刷新节流回归测试
+CMD: python -m pytest tests/tui/regression/test_refresh_throttle.py -vv --tb=short
+
+TASK: 增加输入焦点丢失回归测试

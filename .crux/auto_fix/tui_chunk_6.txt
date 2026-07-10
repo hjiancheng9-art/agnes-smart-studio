@@ -1,0 +1,20 @@
+CMD: python -c "import pkgutil, importlib, ui; mods=[m.name for m in pkgutil.walk_packages(ui.__path__, ui.__name__+'.')]; bad=[]; [bad.append(x) for x in mods if (lambda n: (importlib.import_module(n), False)[1] if False else False)(x)]; print('ui modules', len(mods))"
+
+TASK: 用 compileall 捕获语法和基础 import 问题
+CMD: python -m compileall ui tests
+
+TASK: 创建 TUI 专用测试目录
+CMD: python -c "from pathlib import Path; [Path(p).mkdir(parents=True, exist_ok=True) for p in ['tests/tui/unit','tests/tui/snapshot','tests/tui/integration','tests/tui/regression']]"
+
+TASK: 给 theme_v2.py 建立第一批纯单元测试
+CMD: python -m pytest tests/tui/unit/test_theme_v2.py -vv --tb=short
+
+TASK: 给 animation_gov.py 建立 fake clock 测试
+CMD: python -m pytest tests/tui/unit/test_animation_gov.py -vv --tb=short
+
+TASK: 建立 TUI 快速测试入口
+CMD: python -m pytest tests/tui -m "tui_unit and not tui_slow" --tb=short
+
+阶段1完成标准：
+
+ui/ 全部能 compile。
