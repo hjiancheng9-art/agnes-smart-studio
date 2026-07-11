@@ -62,6 +62,77 @@ from core.tools_defs import (  # noqa: F401
 )
 
 
+def _exec_grep(**kwargs) -> str:
+    """grep 别名 — 重定向到 search_files。"""
+    from core.file_tools import search_files
+    pattern = kwargs.get("pattern", kwargs.get("query", ""))
+    return search_files(pattern)
+
+
+def _exec_skill_load(**kwargs) -> str:
+    """模型调用 skill_load 时执行：动态加载技能到当前会话。"""
+    name = kwargs.get("name", "").strip()
+    if not name:
+        return "用法: skill_load <技能名>。"
+    from core.skills import get_manager
+    mgr = get_manager()
+    skill = mgr.load(name)
+    if skill is None:
+        available = list(mgr._available.keys())[:15]
+        return f"技能 '{name}' 未找到。可用: {', '.join(available)}"
+    return f"技能 '{name}' 已加载: {skill.description}\n{skill.prompt[:500]}"
+
+
+def _exec_skill_install(**kwargs) -> str:
+    """模型调用 skill_install 时执行：从市场安装技能。"""
+    name = kwargs.get("name", "").strip()
+    if not name:
+        return "用法: skill_install <技能名>。先用 skill_search 搜索可用技能。"
+    try:
+        from core.marketplace import get_marketplace
+        mkt = get_marketplace()
+        result = mkt.install(name)
+        if result:
+            return f"技能 '{name}' 安装成功。用 skill_load('{name}') 加载。"
+        return f"技能 '{name}' 安装失败。用 skill_search 确认名称正确。"
+    except Exception as e:
+        return f"安装失败: {e}"
+
+
+def _exec_skill_list(**kwargs) -> str:
+    """列出所有已安装技能。"""
+    from core.skills import get_manager
+    mgr = get_manager()
+    mgr.discover()
+    lines = []
+    for name in sorted(mgr._available.keys()):
+        s = mgr._available[name]
+        trigger = mgr.get_trigger(name)
+        tag = "[auto]" if trigger == "auto" else "[manual]"
+        lines.append(f"  {tag} {name}: {s.description[:80]}")
+    return f"已安装 {len(lines)} 个技能:\n" + "\n".join(lines)
+
+
+def _exec_plugin_list(**kwargs) -> str:
+    """列出 output/plugins/ 中可用插件。"""
+    import json, os
+    plugin_dir = os.path.join(os.path.dirname(__file__), "..", "output", "plugins")
+    if not os.path.exists(plugin_dir):
+        return "插件目录不存在。"
+    lines = []
+    for name in sorted(os.listdir(plugin_dir)):
+        cfg_path = os.path.join(plugin_dir, name, "plugin.json")
+        desc = ""
+        if os.path.exists(cfg_path):
+            try:
+                with open(cfg_path, encoding="utf-8") as f:
+                    desc = json.load(f).get("description", "")
+            except (OSError, json.JSONDecodeError):
+                pass
+        lines.append(f"  {name}: {desc[:100]}")
+    return f"可用插件 {len(lines)} 个:\n" + "\n".join(lines)
+
+
 class ToolRegistry:
     """工具注册表：加载配置、管理定义、执行调度"""
 
@@ -306,6 +377,91 @@ class ToolRegistry:
         for name, executor in FORMAT_EXECUTOR_MAP.items():
             self._executors[name] = executor
             self._tool_modules[name] = "core.format_tools"
+
+        # ── grep 别名 (模型常用名 → search_files) ──
+        self._definitions.append({
+            "type": "function",
+            "function": {
+                "name": "grep",
+                "description": "搜索文件内容（等同于 search_files）。用正则表达式在项目中搜索代码。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "pattern": {"type": "string", "description": "正则搜索模式"}
+                    },
+                    "required": ["pattern"]
+                }
+            }
+        })
+        self._executors["grep"] = _exec_grep
+
+        # ── 技能动态加载（常驻加载）──
+        # skill_load: 模型遇到特定领域问题时自行加载对应技能
+        self._definitions.append({
+            "type": "function",
+            "function": {
+                "name": "skill_load",
+                "description": (
+                    "加载一个专业技能到当前会话。在以下场景**必须调用**：\n"
+                    "- 用户要求调试/排查错误 → 加载 debug-master\n"
+                    "- 用户要求代码审查/review → 加载 code-review\n"
+                    "- 用户要求安全审计/加固 → 加载 security-hardening\n"
+                    "- 用户要求写复杂Python → 加载 python-expert\n"
+                    "- 用户要求写Shell脚本 → 加载 shell-master\n"
+                    "- 用户要求API设计 → 加载 api-designer\n"
+                    "- 用户要求项目全量审计 → 加载 self-audit\n"
+                    "加载后技能规则自动生效，提升该领域的输出质量。不确定时先用 skill_search 搜索。"
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "技能名称，如 tdd-workflow、code-review 等"}
+                    },
+                    "required": ["name"]
+                }
+            }
+        })
+        self._executors["skill_load"] = _exec_skill_load
+
+        # skill_install: 从市场安装技能
+        self._definitions.append({
+            "type": "function",
+            "function": {
+                "name": "skill_install",
+                "description": (
+                    "从技能市场安装新技能。先用 skill_search 搜索找到合适的技能名，"
+                    "再调用此工具安装。安装后可用 skill_load 加载到当前会话。"
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "要安装的技能名称"}
+                    },
+                    "required": ["name"]
+                }
+            }
+        })
+        self._executors["skill_install"] = _exec_skill_install
+
+        # skill_list: 列出已安装技能
+        self._definitions.append({
+            "type": "function", "function": {
+                "name": "skill_list",
+                "description": "列出所有已安装的技能及其触发模式。用于了解当前可用的技能。",
+                "parameters": {"type": "object", "properties": {}, "required": []}
+            }
+        })
+        self._executors["skill_list"] = _exec_skill_list
+
+        # plugin_list: 列出可用插件
+        self._definitions.append({
+            "type": "function", "function": {
+                "name": "plugin_list",
+                "description": "列出 output/plugins/ 中所有可用插件及描述。",
+                "parameters": {"type": "object", "properties": {}, "required": []}
+            }
+        })
+        self._executors["plugin_list"] = _exec_plugin_list
 
         # ── 运行时检查工具（常驻加载）──
         # debug_inspect: run test/script, capture traceback + frame locals on failure

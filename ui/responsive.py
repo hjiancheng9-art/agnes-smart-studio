@@ -200,7 +200,6 @@ class LayoutManager:
         self._current_config: LayoutConfig = LAYOUT_CONFIGS[Breakpoint.NORMAL]
         self._last_width: int = 120
         self._listeners: list[Callable[[LayoutConfig], None]] = []
-        self._override_theme: str | None = None
 
     @property
     def env(self) -> EnvironmentInfo:
@@ -282,11 +281,7 @@ class LayoutManager:
         """
         Determine theme mode based on environment.
         Returns: 'normal', 'high_contrast', or 'mono'
-
-        Can be overridden via /theme command (sets _override_theme).
         """
-        if hasattr(self, "_override_theme") and self._override_theme:
-            return self._override_theme
         if not self._env.has_truecolor or self._env.is_ssh:
             return "mono"
         if not self._env.unicode_support:

@@ -535,9 +535,9 @@ class ThinkingPanel:
             title = " 💭 深度思考 "
             h_rem = max(0, width - len(title) - 4)
             left_w = h_rem // 2
-            h_rem - left_w
-            top = f"┌─{title}{'─' * left_w}┐"
-            top = top[: width - 1] + "┐" if len(top) > width else top
+            right_w = h_rem - left_w
+            top = f"┌{'─' * left_w}{title}{'─' * right_w}┐"
+            top = top[:width] if len(top) > width else top
             pieces.append(("class:thinking-panel-border", top[:width] + "\n"))
 
             # ── Content lines (capped at MAX_LINES) ──

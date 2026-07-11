@@ -130,14 +130,14 @@ class StatusBar:
             cwd_str = "~" + cwd_str[len(home) :]
 
         left = f"{model_str}{' thinking...' if self._thinking else ''}"
-        mid = f" {cwd_str}"
+        mid_path = f" {cwd_str}"
+        mid_git = ""
         if self._branch:
-            mid += f"  {self._branch}"
+            mid_git += f"  {self._branch}"
             if self._diff_stats:
-                mid += f" [{self._diff_stats}]"
+                mid_git += f" [{self._diff_stats}]"
 
         right = ""
-        # ── Watchdog alerts: show recent alert count ──
         try:
             from core.watchdog import get_watchdog
             wd = get_watchdog()
@@ -150,14 +150,14 @@ class StatusBar:
         if self._latency is not None:
             right = f"ttft: {self._latency:.1f}s"
         # ── 方法论等级 ──
+        level_style = "status-bar-context"
         try:
             from core.methodology import get_methodology_state
-
             ms = get_methodology_state()
-            level_short = {0: "A", 1: "B", 2: "C", 3: "D"}.get(
-                {"micro": 0, "normal": 1, "complex": 2, "critical": 3}.get(ms.task_level.value, -1), ""
-            )
+            level_map = {"micro": "A", "normal": "B", "complex": "C", "critical": "D"}
+            level_short = level_map.get(ms.task_level.value, "")
             if level_short:
+                level_style = f"status-bar-level-{level_short.lower()}"
                 right = f"[{level_short}] " + (right if right else "")
         except (ImportError, OSError):
             pass
@@ -167,16 +167,18 @@ class StatusBar:
             right += f"ctx: {self._context_pct:.0f}%"
 
         w = _term_width()
-        # Truncate mid if content exceeds width
-        total = len(left) + len(mid) + len(right) + 2
+        mid_full = mid_path + mid_git
+        total = len(left) + len(mid_full) + len(right) + 2
         if total > w:
-            mid = mid[: max(0, w - len(left) - len(right) - 4)] + ".."
-        pad = max(1, w - len(left) - len(mid) - len(right))
+            mid_full = mid_full[: max(0, w - len(left) - len(right) - 4)] + ".."
+        pad = max(1, w - len(left) - len(mid_full) - len(right))
 
         pieces = [
             ("class:status-bar-model bold", left),
-            ("class:status-bar", mid),
-            ("class:status-bar", " " * pad),
-            ("class:status-bar-context", right),
+            ("class:status-bar-path", mid_path),
         ]
+        if mid_git:
+            pieces.append(("class:status-bar-git", mid_git))
+        pieces.append(("class:status-bar", " " * pad))
+        pieces.append((f"class:{level_style}", right))
         return FormattedText(pieces)

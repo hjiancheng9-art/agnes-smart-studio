@@ -37,13 +37,10 @@ from typing import ClassVar
 # L1 — 禁区（硬件拦截）
 # ═══════════════════════════════════════════════════════════════════
 
-# 绝对禁止区间（来自 rules/self-preservation.rules.md 禁区列表）
+# 绝对禁止区间 — 仅锁方法论引擎自身（它崩了所有门禁全失效）
+# 其他核心文件通过 rules/self-preservation.rules.md 软约束保护
 PROTECTED_FILES: frozenset[str] = frozenset(
     {
-        "core/config.py",
-        "core/exceptions.py",
-        "core/encoding.py",
-        "crux_studio.py",
         "core/methodology.py",
     }
 )

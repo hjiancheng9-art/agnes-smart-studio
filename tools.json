@@ -782,7 +782,7 @@
     {
       "name": "cdp_ask_chatgpt",
       "type": "function",
-      "description": "通过 CDP 浏览器向 ChatGPT 发送问题并获取回复。自动处理页面导航、填入、发送、等待生成、读取回复。参数名可用 question/text/prompt/message/query/input 任一。",
+      "description": "仅在以下场景使用：(1)需要另一个AI视角交叉验证复杂推理 (2)需要ChatGPT可能更新的外部知识 (3)用户明确要求。禁止用于代码编写/调试/文件操作/简单问答 — DeepSeek自己更擅长这些。每次调用耗时30秒+，谨慎使用。",
       "function": "core.cdp_browser.cdp_ask_chatgpt",
       "parameters": {
         "type": "object",

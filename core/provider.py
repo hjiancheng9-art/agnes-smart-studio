@@ -540,7 +540,14 @@ class ProviderManager:
         self.providers = cfg.get("providers", {})
         fallback_cfg = cfg.get("fallback", {})
         self.fallback_priority = fallback_cfg.get("priority", [])
-        self.state.active = cfg.get("active", "crux")
+        active = cfg.get("active", "deepseek")
+        # ── 校验: 活跃供应商必须有文本模型 ──
+        if active in self.providers:
+            pmodels = self.providers[active].get("models", {})
+            if not pmodels.get("pro") and not pmodels.get("light"):
+                logger.warning("Active provider '%s' has no text models, falling back to deepseek", active)
+                active = "deepseek"
+        self.state.active = active
 
     def save_active(self) -> str:
         """Persist current active provider to models.json."""
@@ -555,9 +562,14 @@ class ProviderManager:
             return self.state.active
 
     def set_active(self, provider_id: str):
-        """Manually switch active provider."""
-        if provider_id in self.providers:
-            self.state.active = provider_id
+        """Manually switch active provider. Refuses providers without text models."""
+        if provider_id not in self.providers:
+            return
+        pmodels = self.providers[provider_id].get("models", {})
+        if not pmodels.get("pro") and not pmodels.get("light"):
+            logger.warning("Cannot activate '%s': no text models (media-only provider)", provider_id)
+            return
+        self.state.active = provider_id
 
     def ping(self) -> bool:
         """Quick health check: probe active provider's /models endpoint. Returns True if alive."""

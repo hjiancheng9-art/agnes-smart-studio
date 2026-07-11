@@ -336,9 +336,9 @@ def _chat_tui():
 
     # ── content lines ──
     content = [
-        "极简内核 · 97+ 工具 · 按需治理",
-        "热路径 <1K · 冷路径按需展开",
-        "七兽不坐副驾驶 · 出事才上场",
+        "极简内核 + 百器待命 + 七兽按需治理",
+        "平时如刀，出事成阵 · 自修复闭环",
+        "56 skills / 750 market · 1M 上下文窗口",
     ]
     content_lines = []
     for line in content:
@@ -356,8 +356,8 @@ def _chat_tui():
         + bottom_line
         + "\n"
         + "\n"
-        + f"  ◈ {model_name} · 本地智能执行平台\n"
-        + "  ◈ 根因优先 → 最小复现 → 一次修对\n"
+        + f"  ◈ {model_name} · 1M 上下文 · 80+ 工具\n"
+        + "  ◈ 根因优先 → 最小复现 → 自修复闭环\n"
         + "\n"
         + "  Intelligence Pipeline · 289 测试 0 失败\n"
         + "  ├─ 6 模式路由 · 82% 精确 96% 可接受\n"

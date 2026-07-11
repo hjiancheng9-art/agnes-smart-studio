@@ -10,7 +10,7 @@
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--t1);height:100vh;overflow:hidden;display:flex;flex-direction:column}
 #topbar{height:48px;background:var(--srf);border-bottom:1px solid var(--brd);display:flex;align-items:center;padding:0 20px;gap:16px;flex-shrink:0;z-index:100}
 #topbar .logo{display:flex;align-items:center;gap:10px}
-#topbar .logo .icon{font-size:22px}
+#topbar .logo .icon{position:relative;display:inline-block;width:26px;height:26px;font-size:18px;line-height:26px;text-align:center}#topbar .logo .icon .b{position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;animation:beast-pulse 10.5s ease-in-out infinite}#topbar .logo .icon .b:nth-child(1){animation-delay:0s;color:#CDD6F4}#topbar .logo .icon .b:nth-child(2){animation-delay:1.5s;color:#89B4FA}#topbar .logo .icon .b:nth-child(3){animation-delay:3s;color:#F38BA8}#topbar .logo .icon .b:nth-child(4){animation-delay:4.5s;color:#A6E3A1}#topbar .logo .icon .b:nth-child(5){animation-delay:6s;color:#F9E2AF}#topbar .logo .icon .b:nth-child(6){animation-delay:7.5s;color:#CBA6F7}#topbar .logo .icon .b:nth-child(7){animation-delay:9s;color:#FAB387}@keyframes beast-pulse{0%{opacity:0;transform:scale(1);filter:drop-shadow(0 0 2px currentColor)}4%{opacity:1;transform:scale(1.22);filter:drop-shadow(0 0 12px currentColor)}10%{opacity:1;transform:scale(1.06);filter:drop-shadow(0 0 6px currentColor)}14%{opacity:0;transform:scale(1);filter:drop-shadow(0 0 2px currentColor)}100%{opacity:0;transform:scale(1);filter:drop-shadow(0 0 2px currentColor)}}
 #topbar .logo h1{font-size:16px;font-weight:700}
 #topbar .logo .ver{font-size:11px;color:var(--t3);margin-left:4px}
 #topbar .sep{flex:1}
@@ -109,7 +109,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <body>
 
 <div id="topbar">
-  <div class="logo"><span class="icon">🔥</span><h1>新烬龙<span class="ver">V2</span></h1></div>
+  <div class="logo"><span class="icon"><span class="b">虎</span><span class="b">龙</span><span class="b">雀</span><span class="b">武</span><span class="b">麟</span><span class="b">蛇</span><span class="b">翼</span></span><h1>新烬龙<span class="ver">V2</span></h1></div>
   <div class="sep"></div>
   <div class="stat"><span class="dot" id="sDot"></span><span id="sTxt">连接中...</span></div>
   <div class="stat" id="sUptime"></div>

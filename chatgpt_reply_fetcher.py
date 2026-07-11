@@ -113,28 +113,36 @@ async def extract_latest_reply(page: Page) -> str:
     if count == 0:
         return ""
 
-    latest = locator.nth(count - 1)
-
     body_selectors = (
         ".markdown",
         '[class*="markdown"]',
         '[data-message-author-role="assistant"] .prose',
     )
 
-    for selector in body_selectors:
-        body = latest.locator(selector)
+    # Iterate from the last element backwards to skip empty placeholder elements
+    # (ChatGPT creates empty assistant containers before generation starts)
+    for idx in range(count - 1, -1, -1):
+        el = locator.nth(idx)
+
+        for selector in body_selectors:
+            body = el.locator(selector)
+            try:
+                if await body.count() > 0:
+                    text = (await body.first.inner_text()).strip()
+                    if text:
+                        return text
+            except Exception:
+                continue
+
+        # Fallback: try inner_text directly
         try:
-            if await body.count() > 0:
-                text = (await body.first.inner_text()).strip()
-                if text:
-                    return text
+            text = (await el.inner_text()).strip()
+            if text:
+                return text
         except Exception:
             continue
 
-    try:
-        return (await latest.inner_text()).strip()
-    except Exception:
-        return ""
+    return ""
 
 
 async def wait_for_latest_reply(

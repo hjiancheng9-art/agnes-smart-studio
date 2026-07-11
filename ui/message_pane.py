@@ -16,11 +16,11 @@ from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.mouse_events import MouseEventType
 
 _ROLE_FORMATS = {
-    "user": ("class:message-user", "▶ You"),
-    "crux": ("class:message-crux", "◆ CRUX"),
-    "assistant": ("class:message-crux", "◆ CRUX"),
-    "info": ("class:message-info", "○"),
-    "error": ("class:message-error", "✖"),
+    "user": ("class:message-user", "You"),
+    "crux": ("class:message-crux", "CRUX"),
+    "assistant": ("class:message-crux", "CRUX"),
+    "info": ("class:message-info", " i "),
+    "error": ("class:message-error", "ERR"),
 }
 
 
@@ -393,15 +393,12 @@ class MessagePane:
         _log.debug("[%s] %s", role, text[:200])
 
     def _update_tool_status(self, role: str, text: str) -> None:
-        """工具状态合并为单行动态（不占聊天空间）"""
+        """工具状态追踪（保留计数用于未来状态栏集成）"""
         if role == "tool_started":
             self._tool_count = getattr(self, '_tool_count', 0) + 1
             self._tool_start_time = time.time()
-            self._tool_status_line = f"⏳ {text[:80]}"
         elif role in ("tool_finished", "tool_failed"):
-            elapsed = time.time() - getattr(self, '_tool_start_time', time.time())
-            self._tool_status_line = f"✓ 已完成 · {elapsed:.0f}s"
-        # 只在非流式时刷新状态行
+            self._tool_start_time = getattr(self, '_tool_start_time', time.time())
 
     def _auto_scroll(self) -> None:
         if self._pinned:

@@ -75,6 +75,58 @@ def intercept_tool(tool_name: str, args: dict) -> tuple[bool, str]:
     return True, ""
 
 
+# ── CDP ChatGPT 门控 ──────────────────────────────────
+
+def _gate_cdp_chatgpt(args: dict) -> tuple[bool, str]:
+    """CDP ChatGPT 调用前检查。返回 (blocked, reason)。"""
+    question = (
+        args.get("question") or args.get("text") or
+        args.get("prompt") or args.get("message") or
+        args.get("query") or args.get("input") or ""
+    )
+
+    # 1. 空/太短/纯重复 → 拦截
+    q_str = str(question).strip()
+    if not q_str or len(q_str) < 15:
+        return True, "CDP ChatGPT: 问题太短，DeepSeek 自己能答"
+    if len(set(q_str)) < 5:  # 纯重复字符
+        return True, "CDP ChatGPT: 无效输入"
+
+    # 2. 琐碎问题 → 拦截
+    trivial_patterns = [
+        "你好", "hello", "hi", "谢谢", "thanks", "ok", "好的",
+        "是什么", "什么意思", "怎么用",
+        "几点", "今天.*日期", "现在.*时间",
+        "什么是", "解释一下",
+    ]
+    import re
+    q_lower = str(question).lower().strip()
+    for pat in trivial_patterns:
+        if re.search(pat, q_lower) and len(q_lower) < 60:
+            return True, f"CDP ChatGPT: 简单问题 DeepSeek 自己能答"
+
+    # 3. 代码/文件操作 → 拦截（DeepSeek 更擅长）
+    code_patterns = [
+        r"(写|改|修|加|删|实现|重构).{0,10}(代码|函数|文件|模块|类)",
+        r"(bug|error|报错|出错|异常|崩溃)",
+        r"(运行|执行|测试|部署|安装|配置)",
+        r"(read_file|write_file|edit_file|search_files|git_)",
+    ]
+    for pat in code_patterns:
+        if re.search(pat, q_lower):
+            return True, "CDP ChatGPT: 代码操作 DeepSeek 自己更擅长，直接用工具"
+
+    # 4. CDP 健康预检
+    try:
+        from core.cdp_browser import _check_cdp_health
+        if not _check_cdp_health():
+            return True, "CDP ChatGPT: Edge 浏览器未连接（端口 9222 不可达）"
+    except (ImportError, TypeError, OSError):
+        pass  # CDP 模块不可用，但模型可能自己知道怎么处理
+
+    return False, ""
+
+
 # ── Hook integration ───────────────────────────────────
 
 
@@ -88,6 +140,12 @@ def register_tool_interceptor():
             allowed, reason = intercept_tool(tool_name, args)
             if not allowed:
                 return reason
+
+            # 1.5 CDP ChatGPT 门控：避免无意义调用
+            if tool_name == "cdp_ask_chatgpt":
+                blocked, reason = _gate_cdp_chatgpt(args)
+                if blocked:
+                    return reason
 
             # 2. 方法论合规检查
             try:

@@ -719,6 +719,22 @@ CORE_TOOL_NAMES: set[str] = {
     # Debug
     "debug_inspect",
     "inspect_last_error",
+    # ── 编码必备（从扩展类提升到核心，模型每请求可见）──
+    "edit_file",           # 修改已有文件
+    "patch_file",          # 结构化多文件补丁
+    "safe_rewrite_file",   # 安全重写
+    "run_test",            # 跑测试验证
+    "git_status",          # 查看仓库状态
+    "git_diff",            # 查看改动
+    "search_symbols",      # 按符号搜索
+    "find_symbol",         # 查找定义
+    "lsp_diagnostics",     # 语言服务器诊断
+    "skill_load",          # 动态加载技能
+    "skill_search",        # 搜索技能市场
+    "skill_install",       # 从市场安装技能
+    "skill_list",          # 列出已安装技能
+    "plugin_list",         # 列出可用插件
+    "grep",                # search_files 别名（模型习惯用名）
 }
 
 # 扩展分类 → 工具名集合（注意：与上面的 TOOL_CATEGORIES 展示分类不同，这里是动态展开用）

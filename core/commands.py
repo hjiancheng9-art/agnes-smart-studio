@@ -88,15 +88,6 @@ COMMANDS: list[CommandDef] = [
     CommandDef(
         "help", "/help", "", "显示本帮助（/help /all 完整列表）", "对话", aliases=("all",), handler="_chat_help_inline"
     ),
-    CommandDef(
-        "theme",
-        "/theme",
-        "[polar_night|lava|jade]",
-        "切换 TUI 主题配色（不传参=查看当前主题）",
-        "对话",
-        long_desc="三套主题：极夜(深黑霓虹青蓝) / 熔岩(炭黑橙红琥珀) / 翡翠(墨绿翠青金线)",
-        handler="_chat_theme",
-    ),
     CommandDef("status", "/status", "", "系统健康状态", "对话", handler="_chat_status"),
     CommandDef(
         "vote", "/vote", "on|off", "多模型表决开关（复杂问题自动并行咨询多个AI）", "对话", handler="_chat_vote_toggle"

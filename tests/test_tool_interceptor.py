@@ -83,9 +83,9 @@ class TestProtectedFiles:
 
 class TestMethodologyGating:
     def test_protected_core_file_blocked(self):
-        """core/config.py is in PROTECTED_FILES frozenset."""
+        """core/methodology.py is the only hard-protected file."""
         from core.methodology import methodology_pre_check
-        ok, reason = methodology_pre_check("write_file", {"path": "core/config.py"}, None)
+        ok, reason = methodology_pre_check("write_file", {"path": "core/methodology.py"}, None)
         assert not ok
 
     def test_pip_install_blocked(self):

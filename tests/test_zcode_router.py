@@ -675,11 +675,13 @@ class TestProviderManagerSetActive:
 
         mgr = ProviderManager()
         mgr.load()
-        providers = list(mgr.providers.keys())
-        if providers:
-            target = providers[0]
-            mgr.set_active(target)
-            assert mgr.state.active == target
+        # Pick a provider with text models (skip media-only like crux)
+        for pid in ["deepseek", "zhipu", "local"]:
+            if pid in mgr.providers:
+                mgr.set_active(pid)
+                assert mgr.state.active == pid
+                return
+        pytest.skip("No valid text provider found")
 
     def test_set_active_invalid(self):
         from core.provider import ProviderManager

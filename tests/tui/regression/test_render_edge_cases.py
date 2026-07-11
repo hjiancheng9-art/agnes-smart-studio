@@ -68,10 +68,10 @@ class TestRenderEdgeCases:
 class TestTerminalCapabilities:
     """Theme/animation work without terminal."""
 
-    def test_all_themes_build(self):
-        from ui.theme_v2 import PALETTES, build_style_v2
-        for name in PALETTES:
-            style = build_style_v2(name)
+    def test_all_modes_build(self):
+        from ui.theme_v2 import build_style_v2
+        for mode in ("normal", "high_contrast", "mono"):
+            style = build_style_v2(mode)
             assert style is not None
 
     def test_animation_ssh_mode(self):

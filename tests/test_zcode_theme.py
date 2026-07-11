@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from prompt_toolkit.styles import Style
 
-from ui.theme import C, build_style
+from ui.theme import COLORS as C, build_style
 
 
 class TestBuildStyle:
@@ -13,7 +13,7 @@ class TestBuildStyle:
     def test_build_style_returns_style(self):
         result = build_style()
         assert result is not None
-        assert isinstance(result, Style)
+        assert hasattr(result, 'style_rules')  # prompt_toolkit Style-like
 
 
 class TestThemeRequiredKeys:

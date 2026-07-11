@@ -94,7 +94,7 @@ def show_setup_dialog() -> bool:
     root.title("Agnes — 首次设置")
     root.geometry("520x300")
     root.resizable(False, False)
-    root.configure(bg="#1a1a2e")
+    root.configure(bg="#1E1E2E")
 
     root.update_idletasks()
     x = (root.winfo_screenwidth() - 520) // 2
@@ -120,17 +120,17 @@ def show_setup_dialog() -> bool:
     def on_skip():
         root.destroy()
 
-    tk.Label(root, text="🔑 Agnes 首次使用设置", font=("微软雅黑", 16, "bold"), fg="#e0e0e0", bg="#1a1a2e").pack(
+    tk.Label(root, text="🔑 Agnes 首次使用设置", font=("微软雅黑", 16, "bold"), fg="#e0e0e0", bg="#1E1E2E").pack(
         pady=(20, 5)
     )
-    tk.Label(root, text="请填入你的 API Key 来开始使用", font=("微软雅黑", 10), fg="#aaa", bg="#1a1a2e").pack(
+    tk.Label(root, text="请填入你的 API Key 来开始使用", font=("微软雅黑", 10), fg="#aaa", bg="#1E1E2E").pack(
         pady=(0, 15)
     )
 
-    frame = tk.Frame(root, bg="#1a1a2e")
+    frame = tk.Frame(root, bg="#1E1E2E")
     frame.pack(padx=40, fill="x")
 
-    tk.Label(frame, text="API Key *", font=("微软雅黑", 10), fg="#e0e0e0", bg="#1a1a2e", anchor="w").pack(fill="x")
+    tk.Label(frame, text="API Key *", font=("微软雅黑", 10), fg="#e0e0e0", bg="#1E1E2E", anchor="w").pack(fill="x")
     entry_key = tk.Entry(
         frame,
         font=("Consolas", 10),
@@ -143,7 +143,7 @@ def show_setup_dialog() -> bool:
     )
     entry_key.pack(fill="x", pady=(2, 10))
 
-    tk.Label(frame, text="API Base（可选）", font=("微软雅黑", 10), fg="#e0e0e0", bg="#1a1a2e", anchor="w").pack(
+    tk.Label(frame, text="API Base（可选）", font=("微软雅黑", 10), fg="#e0e0e0", bg="#1E1E2E", anchor="w").pack(
         fill="x"
     )
     entry_base = tk.Entry(
@@ -152,7 +152,7 @@ def show_setup_dialog() -> bool:
     entry_base.insert(0, "https://apihub.agnes-ai.com/v1")
     entry_base.pack(fill="x", pady=(2, 15))
 
-    btn_frame = tk.Frame(root, bg="#1a1a2e")
+    btn_frame = tk.Frame(root, bg="#1E1E2E")
     btn_frame.pack(pady=5)
 
     tk.Button(

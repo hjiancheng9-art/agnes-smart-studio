@@ -15,8 +15,8 @@
   --accent-gradient-2: linear-gradient(135deg, #6366f1, #a855f7);
 
   /* 背景系统 */
-  --bg: #0a0a0f;
-  --bg-gradient: radial-gradient(ellipse at 20% 50%, #0f0d1a 0%, #0a0a0f 70%);
+  --bg: #1E1E2E;
+  --bg-gradient: radial-gradient(ellipse at 20% 50%, #0f0d1a 0%, #1E1E2E 70%);
   --surface: rgba(26, 26, 40, 0.75);
   --surface-hover: rgba(34, 34, 54, 0.85);
   --surface-glass: rgba(26, 26, 40, 0.55);

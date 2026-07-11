@@ -463,7 +463,9 @@ class SubAgent:
                 from core.provider import get_provider_manager
 
                 model = get_provider_manager().get_model(tier if tier != "auto" else "pro")
-            except Exception:
+            except Exception as e:
+                import logging
+                logging.getLogger("crux.agent").warning("Model lookup failed for tier '%s', falling back: %s", tier, e)
                 model = "deepseek-v4-pro"  # 最终 fallback
         # tier 路由
         if tier in ("light", "pro", "heavy"):

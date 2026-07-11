@@ -1,6 +1,6 @@
 # CRUX Studio — 命令参考 (auto-generated)
 
-共 54 个命令
+共 53 个命令
 
 ## 创意生产
 
@@ -17,7 +17,6 @@
 | 命令 | 说明 |
 |------|------|
 | `/help` | 显示本帮助（/help /all 完整列表） |
-| `/theme [polar_night|lava|jade]` | 切换 TUI 主题配色（不传参=查看当前主题） |
 | `/status` | 系统健康状态 |
 | `/vote on|off` | 多模型表决开关（复杂问题自动并行咨询多个AI） |
 | `/model <别名|ID>` | 切换 AI 模型 (light/pro/deepseek/zhipu...) |
@@ -82,4 +81,4 @@
 | `/tidy [deep]` | 整理根目录临时文件到 tmp/ 子目录 |
 
 ---
-*83 tools, 34 skills, 241 core modules, 142 test files*
+*83 tools, 34 skills, 241 core modules, 145 test files*

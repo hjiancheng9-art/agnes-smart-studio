@@ -138,7 +138,7 @@ MODEL_PROVIDER_MAP = {}  # 已由 get_provider_name() 替代
 
 # tool calling 循环最大轮次（防止死循环）
 # agent 模式 / /self 命令会经 unlimited_tools 自动翻倍
-MAX_TOOL_LOOPS = 80
+MAX_TOOL_LOOPS = 160
 
 # 429/503 过载自动降级阈值：连续多少次限流/过载就强制切换供应商
 RATE_LIMIT_FALLBACK_THRESHOLD = 2
