@@ -153,10 +153,10 @@ class _PipelineToolbus:
         self._dispatch = dispatch_fn
         self._registry = tool_registry
 
-    def call(self, tool_name: str, args: dict) -> str:
-        """同步调用工具，返回结果字符串。"""
-        import json
-        result, _ = self._dispatch(tool_name, json.dumps(args))
+    async def call(self, tool_name: str, args: dict) -> str:
+        """异步调用工具（兼容 DeliberateWorkflow 的 await 调用）。"""
+        import asyncio, json
+        result, _ = await asyncio.to_thread(self._dispatch, tool_name, json.dumps(args))
         return str(result)
 
     def list_tools(self) -> list[str]:
@@ -326,6 +326,7 @@ class ChatSession(ChatToggleMixin):
         self._intel_mode: str = "BALANCED"
         self._intel_analysis: dict = {}
         self._intel_config: dict = {}
+        self._pipeline_result: dict | None = None
 
         # ── Prompt Lab: 会话级变体分配 ──
         try:
@@ -936,20 +937,23 @@ class ChatSession(ChatToggleMixin):
         # 3. Pipeline 执行: DEEP/SAFE 模式跑 Plan→Critic→Repair 工作流
         if self._intel_mode in ("DEEP", "SAFE") and not image_url:
             try:
-                import asyncio
-                # 构建 toolbus: 轻量级工具调用代理
+                import asyncio, threading
                 toolbus = _PipelineToolbus(self._dispatch_tool, self.tools)
-                pipeline_result = asyncio.run(
-                    self._intelligence_hook.execute_pipeline(
-                        user_text,
-                        context={"project": str(Path(__file__).parent.parent)},
-                        toolbus=toolbus,
-                    )
-                )
-                if pipeline_result.get("passed") is False:
-                    yield ("info", f"[Pipeline] 审查未通过: {pipeline_result.get('summary', '')[:200]}")
-                elif pipeline_result.get("summary"):
-                    yield ("info", f"[Pipeline] {pipeline_result.get('summary', '')[:200]}")
+                # 后台运行 pipeline，不阻塞主回复
+                def _run_pipeline():
+                    try:
+                        result = asyncio.run(
+                            self._intelligence_hook.execute_pipeline(
+                                user_text,
+                                context={"project": str(Path(__file__).parent.parent)},
+                                toolbus=toolbus,
+                            )
+                        )
+                        # Store result for later yield
+                        self._pipeline_result = result
+                    except Exception:
+                        pass
+                threading.Thread(target=_run_pipeline, daemon=True, name="crux-pipeline").start()
             except Exception as e:
                 logger.debug("Pipeline execution skipped: %s", e)
 
@@ -1127,6 +1131,14 @@ class ChatSession(ChatToggleMixin):
                     pass
                 if (yield from self._try_adversarial_bypass(buffer, user_text, _use_client, _use_model, tools)):
                     return  # bypass 成功，已在内部 yield 结果
+                # ── Pipeline 结果: 后台运行完成后 yield ──
+                if self._pipeline_result:
+                    pr = self._pipeline_result
+                    if pr.get("passed") is False:
+                        yield ("info", f"[Pipeline] 审查未通过: {pr.get('summary', '')[:200]}")
+                    elif pr.get("summary"):
+                        yield ("info", f"[Pipeline] {pr.get('summary', '')[:200]}")
+                    self._pipeline_result = None
                 self._trigger_reflection()
                 self._auto_remember()
                 return
@@ -1450,9 +1462,9 @@ class ChatSession(ChatToggleMixin):
             logger.debug("optional module skipped: %s", e)
 
             pass
-        # ── 自适应学习: 每 10 轮触发一次学习循环 ──
+        # ── 自适应学习: 每 5 轮触发一次学习循环 ──
         self._turn_count = getattr(self, "_turn_count", 0) + 1
-        if self._turn_count % 10 == 0:
+        if self._turn_count % 5 == 0:
             try:
                 learner = getattr(self, "_adaptive_learner", None)
                 if learner and learner._learning_enabled:

@@ -277,14 +277,22 @@ def _chat_tui():
         snapshot = ChatSession.restore_latest_snapshot()
         if snapshot and snapshot.get("messages"):
             turn = snapshot.get("turn", "?")
-            msg_count = len(snapshot["messages"])
+            msgs = snapshot["messages"]
+            msg_count = len(msgs)
             print(f"  ⚡ 检测到未完成的会话 (第 {turn} 轮, {msg_count} 条消息)")
+            # 显示最近 3 轮对话摘要
+            recent = [m for m in msgs[-6:] if m.get("role") in ("user", "assistant")]
+            for m in recent[-4:]:
+                role = "You" if m["role"] == "user" else "CRUX"
+                content = str(m.get("content", ""))[:100].replace("\n", " ")
+                print(f"    [{role}] {content}...")
             try:
                 ans = input("  是否恢复? [Y/n] ").strip().lower()
                 if ans in ("", "y", "yes"):
-                    session.messages = snapshot["messages"]
+                    session.messages = msgs
                     session.model = snapshot.get("model", session.model)
-                    print(f"  已恢复 {msg_count} 条消息，模型: {session.model}")
+                    print(f"  已恢复 {msg_count} 条消息到上下文，模型: {session.model}")
+                    print(f"  (消息已在后台，模型知道之前聊了什么，但界面不重复显示)")
             except (EOFError, KeyboardInterrupt):
                 pass
     except Exception as e:
@@ -476,14 +484,20 @@ def _chat_plain():
         snapshot = ChatSession.restore_latest_snapshot()
         if snapshot and snapshot.get("messages"):
             turn = snapshot.get("turn", "?")
-            msg_count = len(snapshot["messages"])
+            msgs = snapshot["messages"]
+            msg_count = len(msgs)
             _p(f"  ⚡ 检测到未完成的会话 (第 {turn} 轮, {msg_count} 条消息)")
+            recent = [m for m in msgs[-6:] if m.get("role") in ("user", "assistant")]
+            for m in recent[-4:]:
+                role = "You" if m["role"] == "user" else "CRUX"
+                content = str(m.get("content", ""))[:100].replace("\n", " ")
+                _p(f"    [{role}] {content}...")
             try:
                 ans = input("  是否恢复? [Y/n] ").strip().lower()
                 if ans in ("", "y", "yes"):
-                    session.messages = snapshot["messages"]
+                    session.messages = msgs
                     session.model = snapshot.get("model", session.model)
-                    _p(f"  已恢复 {msg_count} 条消息，模型: {session.model}")
+                    _p(f"  已恢复 {msg_count} 条消息到上下文，模型: {session.model}")
             except (EOFError, KeyboardInterrupt):
                 pass
     except Exception as e:

@@ -65,13 +65,14 @@ class TestSessionSnapshot:
 
 class TestPipelineToolbus:
     def test_call_dispatches(self):
+        import asyncio
         calls = []
         def dispatch(name, args_json):
             calls.append((name, args_json))
             return (f"ok: {name}", [])
 
         tb = _PipelineToolbus(dispatch, None)
-        result = tb.call("read_file", {"path": "test.py"})
+        result = asyncio.run(tb.call("read_file", {"path": "test.py"}))
         assert "ok: read_file" in result
         assert len(calls) == 1
         assert calls[0][0] == "read_file"

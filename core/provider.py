@@ -545,8 +545,15 @@ class ProviderManager:
         if active in self.providers:
             pmodels = self.providers[active].get("models", {})
             if not pmodels.get("pro") and not pmodels.get("light"):
-                logger.warning("Active provider '%s' has no text models, falling back to deepseek", active)
+                logger.info("Active provider '%s' has no text models, auto-correcting to deepseek", active)
                 active = "deepseek"
+                # 自动修正 models.json，下次不再报警
+                try:
+                    cfg["active"] = active
+                    with open(self.config_path, "w", encoding="utf-8") as f:
+                        json.dump(cfg, f, indent=2, ensure_ascii=False)
+                except (OSError, json.JSONDecodeError):
+                    pass
         self.state.active = active
 
     def save_active(self) -> str:
