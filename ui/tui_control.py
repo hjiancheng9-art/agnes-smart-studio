@@ -67,44 +67,53 @@ class TuiControlMixin:
 
     def _start_pending_timer(self) -> None:
         """启动 pending 消息自动提交定时器。"""
-        if hasattr(self, "_pending_timer") and self._pending_timer:
+        if getattr(self, "_pending_timer", None) is not None:
             return
 
         def wait_and_commit():
-            remaining = control().get_pending_timer()
-            time.sleep(remaining if remaining > 0 else 2.0)
-            # 检查是否已被撤销
-            pending = control().outbox.get_pending()
-            if pending:
-                msg = pending[0]
-                control().outbox.commit(msg.id)
-                # 提交到 TUI 的流式响应
-                self._log_append(("→", "class:activity-info", f"消息已发送: {self._shorten(msg.text, 60)}"))
-                with self._state_lock:
-                    self._thinking = True
-                    self._streaming = True
-                self._worker_thread = threading.Thread(
-                    target=self._stream_response,
-                    args=(msg.text,),
-                    daemon=True,
-                    name="stream-response",
-                )
-                self._worker_thread.start()
+            try:
+                remaining = control().get_pending_timer()
+                time.sleep(remaining if remaining > 0 else 2.0)
+                # Commit the specific pending message by ID (not pending[0]
+                # which may be a different message if user sent multiple).
+                msg_id = getattr(self, "_pending_msg_id", None)
+                if msg_id and control().outbox.get_pending():
+                    control().outbox.commit(msg_id)
+                    msg_text = getattr(self, "_pending_text", "")
+                    self._log_append(("→", "class:activity-info", f"消息已发送: {self._shorten(msg_text, 60)}"))
+                    with self._state_lock:
+                        self._thinking = True
+                        self._streaming = True
+                    # Don't clobber a live worker thread.
+                    old = getattr(self, "_worker_thread", None)
+                    if old is not None and old.is_alive():
+                        return
+                    self._worker_thread = threading.Thread(
+                        target=self._stream_response,
+                        args=(msg_text,),
+                        daemon=True,
+                        name="stream-response",
+                    )
+                    self._worker_thread.start()
+            finally:
+                # Clear the timer reference so the next message can start a new one.
+                self._pending_timer = None
 
         self._pending_timer = threading.Thread(target=wait_and_commit, daemon=True, name="pending-timer")
         self._pending_timer.start()
 
     def _undo_pending(self) -> bool:
         """撤销 pending 消息。返回是否成功撤销。"""
-        if not hasattr(self, "_pending_msg_id"):
+        msg_id = getattr(self, "_pending_msg_id", None)
+        if not msg_id:
             return False
-        if control().retract(self._pending_msg_id):
+        if control().retract(msg_id):
             self._log_append(("→", "class:activity-warn", "消息已撤销"))
-            # 从消息面板移除
-            self.message_pane.messages.pop()  # 移除最后一条用户消息
-            self._ui(self.message_pane._render)
+            # Remove the last message from the pane (user pending message).
+            self.message_pane.pop_last_message()
+            self._ui(self.message_pane._auto_scroll)
             self._pending_msg_id = None
-            self._pending_text = None
+            self._pending_text = ""
             return True
         return False
 

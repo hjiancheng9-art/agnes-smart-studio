@@ -1,6 +1,24 @@
 """ProviderPolicy — 策略路由，替代固定 fallback 链。"""
 
 
+def _get_real_budget(default: float = 100) -> float:
+    """从 cost_tracker 读取真实今日剩余预算。读取失败返回 default。"""
+    try:
+        from core.cost_tracker import get_summary
+
+        state = get_summary()
+        budget_cfg = state.get("budget") or {}
+        daily_limit = budget_cfg.get("daily")
+        if daily_limit is None:
+            return default
+        today_cost = state.get("by_day", {}).get(
+            __import__("datetime").datetime.now().strftime("%Y-%m-%d"), {}
+        ).get("cost", 0.0)
+        remaining = max(0.0, daily_limit - today_cost)
+        return remaining
+    except (ImportError, OSError, KeyError, ValueError):
+        return default
+
 def score_provider(pid: str, request: dict, circuit_states: dict[str, str]) -> float:
     """对 provider 打分，越高越优先。
 
@@ -10,7 +28,8 @@ def score_provider(pid: str, request: dict, circuit_states: dict[str, str]) -> f
     task_type = request.get("task_type", "text")
     require_code = request.get("require_code", False)
     prefer_local = request.get("prefer_local", False)
-    budget = request.get("budget_remaining", 100)
+    # 从 cost_tracker 读取真实剩余预算（fallback 到 request 中的硬编码值）
+    budget = _get_real_budget(request.get("budget_remaining", 100))
 
     # circuit breaker：OPEN 直接淘汰
     circuit = circuit_states.get(pid, "CLOSED")

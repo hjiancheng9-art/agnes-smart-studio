@@ -1,4 +1,0 @@
-每次启动：只做轻量 scan，提示可清理空间
-每周：自动 dry-run
-每月：提示执行 cleanup apply
-空间不足时：触发 emergency cleanup

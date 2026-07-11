@@ -18,9 +18,6 @@ except ImportError:
     HAS_HTTPX = False
 
     # Fallback: use urllib if httpx not available
-    import json
-    import urllib.request
-    import urllib.error
 
 
 class ComfyFlowError(Exception):
@@ -103,7 +100,8 @@ class ComfyFlowClient:
         return data
 
     def _urllib_request(self, method: str, url: str, body: dict | None = None) -> dict[str, Any]:
-        import json, urllib.request
+        import json
+        import urllib.request
 
         data = json.dumps(body).encode() if body else None
         req = urllib.request.Request(url, data=data, method=method)

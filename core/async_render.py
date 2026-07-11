@@ -44,7 +44,7 @@ class StreamingRenderer:
     def append_text(self, text: str) -> None:
         self._buf.append(text)
 
-    def _new_live(self, _style: str = ""):  # noqa: ARG002
+    def _new_live(self, _style: str = ""):
         return self  # self-live: no-op
 
     def run_side_effect(self, kind: str, payload: object) -> None:
@@ -52,19 +52,19 @@ class StreamingRenderer:
         if handler:
             handler(kind, payload)
 
-    def commit(self) -> None:  # noqa: B027
+    def commit(self) -> None:
         pass
 
-    def stop(self) -> None:  # noqa: B027
+    def stop(self) -> None:
         pass
 
 
 __all__ = [
-    "SideEffectHandler",
     "HandlerMap",
+    "SideEffectHandler",
     "default_side_effect_handlers",
-    "render_session_stream",
     "render_async_session_stream",
+    "render_session_stream",
 ]
 
 # 副作用处理器签名：(kind, payload) -> None

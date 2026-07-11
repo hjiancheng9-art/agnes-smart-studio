@@ -1,4 +1,0 @@
-for c in plan.candidates:
-            if c.protected or c.referenced:
-                continue
-            self._move_to_trash(c.path, trash_dir)

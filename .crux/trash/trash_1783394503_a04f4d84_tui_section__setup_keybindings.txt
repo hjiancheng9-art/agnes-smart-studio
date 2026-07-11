@@ -1,5 +1,0 @@
-def _setup_keybindings(self) -> KeyBindings:
-        kb = KeyBindings()
-
-        @kb.add("c-c")
-    

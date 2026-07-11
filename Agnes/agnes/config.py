@@ -1,8 +1,9 @@
 """Agnes 配置管理 — 安全存储 API Key 到用户目录"""
 
+import json
 import os
 import sys
-import json
+from contextlib import suppress
 from pathlib import Path
 
 APP_NAME = "Agnes"
@@ -31,14 +32,11 @@ def load_config() -> dict:
 
     # 1. 用户目录 config.json
     if CONFIG_FILE.exists():
-        try:
+        with suppress(json.JSONDecodeError, OSError):
             config = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            pass
 
     # 2. 环境变量覆盖
-    env_map = {"AGNES_API_KEY": "agnes_api_key", "AGNES_API_BASE": "agnes_api_base",
-               "AGNES_TIMEOUT": "agnes_timeout"}
+    env_map = {"AGNES_API_KEY": "agnes_api_key", "AGNES_API_BASE": "agnes_api_base", "AGNES_TIMEOUT": "agnes_timeout"}
     for env_key, cfg_key in env_map.items():
         if env_key in os.environ:
             config[cfg_key] = os.environ[env_key]
@@ -75,8 +73,7 @@ def _load_env_file(env_path: Path, config: dict) -> None:
 def load_env_into_os() -> None:
     """加载配置到 os.environ（供 client.py 的 os.getenv 读取）"""
     config = load_config()
-    mappings = {"agnes_api_key": "AGNES_API_KEY", "agnes_api_base": "AGNES_API_BASE",
-                "agnes_timeout": "AGNES_TIMEOUT"}
+    mappings = {"agnes_api_key": "AGNES_API_KEY", "agnes_api_base": "AGNES_API_BASE", "agnes_timeout": "AGNES_TIMEOUT"}
     for cfg_key, env_key in mappings.items():
         if config.get(cfg_key):
             os.environ.setdefault(env_key, str(config[cfg_key]))
@@ -123,34 +120,65 @@ def show_setup_dialog() -> bool:
     def on_skip():
         root.destroy()
 
-    tk.Label(root, text="🔑 Agnes 首次使用设置", font=("微软雅黑", 16, "bold"),
-             fg="#e0e0e0", bg="#1a1a2e").pack(pady=(20, 5))
-    tk.Label(root, text="请填入你的 API Key 来开始使用", font=("微软雅黑", 10),
-             fg="#aaa", bg="#1a1a2e").pack(pady=(0, 15))
+    tk.Label(root, text="🔑 Agnes 首次使用设置", font=("微软雅黑", 16, "bold"), fg="#e0e0e0", bg="#1a1a2e").pack(
+        pady=(20, 5)
+    )
+    tk.Label(root, text="请填入你的 API Key 来开始使用", font=("微软雅黑", 10), fg="#aaa", bg="#1a1a2e").pack(
+        pady=(0, 15)
+    )
 
     frame = tk.Frame(root, bg="#1a1a2e")
     frame.pack(padx=40, fill="x")
 
-    tk.Label(frame, text="API Key *", font=("微软雅黑", 10),
-             fg="#e0e0e0", bg="#1a1a2e", anchor="w").pack(fill="x")
-    entry_key = tk.Entry(frame, font=("Consolas", 10), bd=2, relief="solid", show="*",
-                         bg="#0f3460", fg="#e0e0e0", insertbackground="#e0e0e0")
+    tk.Label(frame, text="API Key *", font=("微软雅黑", 10), fg="#e0e0e0", bg="#1a1a2e", anchor="w").pack(fill="x")
+    entry_key = tk.Entry(
+        frame,
+        font=("Consolas", 10),
+        bd=2,
+        relief="solid",
+        show="*",
+        bg="#0f3460",
+        fg="#e0e0e0",
+        insertbackground="#e0e0e0",
+    )
     entry_key.pack(fill="x", pady=(2, 10))
 
-    tk.Label(frame, text="API Base（可选）", font=("微软雅黑", 10),
-             fg="#e0e0e0", bg="#1a1a2e", anchor="w").pack(fill="x")
-    entry_base = tk.Entry(frame, font=("Consolas", 10), bd=2, relief="solid",
-                          bg="#0f3460", fg="#e0e0e0", insertbackground="#e0e0e0")
+    tk.Label(frame, text="API Base（可选）", font=("微软雅黑", 10), fg="#e0e0e0", bg="#1a1a2e", anchor="w").pack(
+        fill="x"
+    )
+    entry_base = tk.Entry(
+        frame, font=("Consolas", 10), bd=2, relief="solid", bg="#0f3460", fg="#e0e0e0", insertbackground="#e0e0e0"
+    )
     entry_base.insert(0, "https://apihub.agnes-ai.com/v1")
     entry_base.pack(fill="x", pady=(2, 15))
 
     btn_frame = tk.Frame(root, bg="#1a1a2e")
     btn_frame.pack(pady=5)
 
-    tk.Button(btn_frame, text="✅ 确认", font=("微软雅黑", 10), bg="#6c63ff", fg="white",
-              command=on_ok, bd=0, padx=30, pady=5, cursor="hand2").pack(side="left", padx=5)
-    tk.Button(btn_frame, text="跳过", font=("微软雅黑", 10), bg="#333", fg="#aaa",
-              command=on_skip, bd=0, padx=20, pady=5, cursor="hand2").pack(side="left", padx=5)
+    tk.Button(
+        btn_frame,
+        text="✅ 确认",
+        font=("微软雅黑", 10),
+        bg="#6c63ff",
+        fg="white",
+        command=on_ok,
+        bd=0,
+        padx=30,
+        pady=5,
+        cursor="hand2",
+    ).pack(side="left", padx=5)
+    tk.Button(
+        btn_frame,
+        text="跳过",
+        font=("微软雅黑", 10),
+        bg="#333",
+        fg="#aaa",
+        command=on_skip,
+        bd=0,
+        padx=20,
+        pady=5,
+        cursor="hand2",
+    ).pack(side="left", padx=5)
 
     root.mainloop()
     return result[0]

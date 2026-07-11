@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import enum
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
-
+from typing import Any, Optional
 
 # ═══════════════════════════════════════════════════
 #  Enums
@@ -73,7 +73,7 @@ class ToolSpec:
     requires_github_token: bool = False
 
     # The actual callable (injected, not serialized)
-    _handler: Optional[Callable[..., ToolResult]] = field(default=None, repr=False)
+    _handler: Callable[..., ToolResult] | None = field(default=None, repr=False)
 
     def __post_init__(self):
         if self._handler is None:
@@ -88,17 +88,17 @@ class ToolResult:
     """
     success: bool
     data: Any = None
-    error: Optional[ToolError] = None
+    error: ToolError | None = None
     tool_name: str = ""
     elapsed_ms: float = 0.0
     retry_count: int = 0
 
     @classmethod
-    def ok(cls, data: Any, tool_name: str = "", elapsed_ms: float = 0.0) -> "ToolResult":
+    def ok(cls, data: Any, tool_name: str = "", elapsed_ms: float = 0.0) -> ToolResult:
         return cls(success=True, data=data, tool_name=tool_name, elapsed_ms=elapsed_ms)
 
     @classmethod
-    def fail(cls, error: "ToolError", tool_name: str = "", elapsed_ms: float = 0.0) -> "ToolResult":
+    def fail(cls, error: ToolError, tool_name: str = "", elapsed_ms: float = 0.0) -> ToolResult:
         return cls(success=False, error=error, tool_name=tool_name, elapsed_ms=elapsed_ms)
 
 
@@ -107,9 +107,9 @@ class ToolError:
     """Structured error from tool execution."""
     code: str                     # e.g. "TIMEOUT", "NETWORK", "PERMISSION_DENIED"
     message: str
-    detail: Optional[str] = None
+    detail: str | None = None
     recoverable: bool = False     # Can the caller retry?
-    original_exception: Optional[Exception] = field(default=None, repr=False)
+    original_exception: Exception | None = field(default=None, repr=False)
 
     # Standard error codes
     TIMEOUT = "TIMEOUT"

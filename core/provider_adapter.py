@@ -81,6 +81,12 @@ PROVIDER_ADAPTERS: dict[str, ProviderAdapter] = {
         thinking_response_field="reasoning_content",
         default_max_tokens=16384,
     ),
+    "local": ProviderAdapter(
+        provider_id="local",
+        thinking_param_style="none",
+        thinking_response_field="reasoning_content",
+        default_max_tokens=8192,
+    ),
 }
 
 

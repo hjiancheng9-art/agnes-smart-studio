@@ -412,8 +412,8 @@ class CircuitBreaker:
             self.failure_count += 1
             self.last_failure_time = time.time()
             if (
-                self.state == CircuitState.CLOSED
-                and self.failure_count >= self.threshold
+                (self.state == CircuitState.CLOSED
+                and self.failure_count >= self.threshold)
                 or self.state == CircuitState.HALF_OPEN
             ):
                 self._transition(CircuitState.OPEN)

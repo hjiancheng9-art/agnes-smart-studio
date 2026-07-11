@@ -27,8 +27,8 @@ from core.mcp_servers._mcp_utils import run_subprocess
 __all__ = [
     "BACKGROUND_EXECUTOR_MAP",
     "BACKGROUND_TOOL_DEFS",
-    "BackgroundTask",
     "BackgroundManager",
+    "BackgroundTask",
     "get_background_manager",
     "reset_background_manager",
 ]

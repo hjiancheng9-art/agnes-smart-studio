@@ -28,11 +28,11 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 __all__ = [
+    "ROOT",
     "ModelInfo",
     "NoProviderAvailable",
     "ProviderManager",
     "ProviderState",
-    "ROOT",
     "get_capability_info",
     "get_context_window",
     "get_max_tokens_for_model",
@@ -74,6 +74,8 @@ class ModelInfo:
     max_output_tokens: int = 8192  # API 最大输出 tokens
     cost_level: int = 1  # 0=free, 1=cheap, 2=normal, 3=expensive
     best_for: tuple[str, ...] = ()  # 最适合的任务类型
+    # 定价（美元）：text 模型 input_per_1k/output_per_1k；image/video per_call
+    pricing: dict[str, float] | None = None
 
     @property
     def model_id(self) -> str:
@@ -103,6 +105,7 @@ def _register_defaults():
             context_window=32768,
             max_output_tokens=1024,
             cost_level=0,
+            pricing={"input_per_1k": 0.0, "output_per_1k": 0.0},
         ),
         # ── CRUX AI models ──
         ModelInfo(
@@ -119,6 +122,7 @@ def _register_defaults():
             context_window=128000,
             max_output_tokens=16384,
             cost_level=1,
+            pricing={"input_per_1k": 0.003, "output_per_1k": 0.012},
         ),
         # ── CRUX 图片生成 ──
         ModelInfo(
@@ -133,6 +137,7 @@ def _register_defaults():
             context_window=0,
             max_output_tokens=0,
             cost_level=2,
+            pricing={"per_call": 0.03},
         ),
         ModelInfo(
             id="agnes-image-2.0-flash",
@@ -146,6 +151,7 @@ def _register_defaults():
             context_window=0,
             max_output_tokens=0,
             cost_level=2,
+            pricing={"per_call": 0.02},
         ),
         # ── CRUX 视频生成 ──
         ModelInfo(
@@ -160,6 +166,7 @@ def _register_defaults():
             context_window=0,
             max_output_tokens=0,
             cost_level=3,
+            pricing={"per_call": 0.35},
         ),
         # ── DeepSeek — 主要编码模型 ──
         ModelInfo(
@@ -175,6 +182,7 @@ def _register_defaults():
             context_window=1000000,
             max_output_tokens=384000,
             cost_level=2,
+            pricing={"input_per_1k": 0.002, "output_per_1k": 0.008},
         ),
         ModelInfo(
             id="deepseek-v4-flash",
@@ -189,6 +197,25 @@ def _register_defaults():
             context_window=1000000,
             max_output_tokens=384000,
             cost_level=1,
+            pricing={"input_per_1k": 0.001, "output_per_1k": 0.004},
+        ),
+        # ── Local (llama.cpp server) ──
+        # model id "local-model" is a placeholder — llama-server accepts any model id
+        # and serves whatever model was loaded with -m flag.
+        ModelInfo(
+            id="local-model",
+            name="Local Model (llama.cpp)",
+            provider_id="local",
+            provider_name="Local (llama.cpp)",
+            description="Qwen3.6-35B-A3B MoE (IQ4_NL) — 35B total / 3B active, uncensored",
+            supports_tools=True,
+            supports_thinking=True,
+            tier="pro",
+            aliases=("local", "llama", "qwen", "qwen3"),
+            context_window=32768,
+            max_output_tokens=8192,
+            cost_level=0,
+            pricing={"input_per_1k": 0.0, "output_per_1k": 0.0},
         ),
     ]
     for m in models:
@@ -302,15 +329,25 @@ def get_context_window(model_id: str) -> int:
 def get_max_tokens_for_model(model_id: str, is_tool_call: bool = False) -> int:
     """返回模型的最大输出 tokens，tool call 场景自动封顶 8192。
 
+    非 tool-call 场景：优先用 ProviderAdapter.default_max_tokens（供应商推荐值），
+    未知模型回退到 16384。
+
     未知模型：返回 16384（默认）或 8192（tool call）。
     """
     info = get_capability_info(model_id)
     if info is None:
         return max(256, 8192 if is_tool_call else 16384)
-    max_tok = info.max_output_tokens
     if is_tool_call:
-        max_tok = min(max_tok, 8192)
-    return max(256, max_tok)
+        return max(256, min(info.max_output_tokens, 8192))
+    # 非 tool-call: 使用 ProviderAdapter 的推荐值（比 ModelInfo.max_output_tokens 更保守）
+    try:
+        from core.provider_adapter import get_adapter
+        adapter = get_adapter(info.provider_id)
+        if adapter and adapter.default_max_tokens:
+            return max(256, adapter.default_max_tokens)
+    except ImportError:
+        pass
+    return max(256, min(info.max_output_tokens, 16384))
 
 
 def get_thinking_params_for_model(model_id: str) -> dict[str, Any]:
@@ -405,6 +442,10 @@ class ProviderState:
             return False
         c["probe_count"] += 1
         return True
+
+    def circuit_state(self, pid: str) -> str:
+        """返回 provider 的熔断状态（CLOSED / OPEN / HALF_OPEN）。"""
+        return self._get_circuit(pid)["state"]
 
     # ── 原健康追踪方法 ──────────────────────────────────
 
@@ -543,10 +584,25 @@ class ProviderManager:
     def active_provider(self) -> str:
         return self.state.active
 
-    def fallback(self) -> bool:
-        """Switch to next available provider. Returns True on success."""
+    def fallback(self, request: dict | None = None) -> bool:
+        """Switch to next available provider, scored by policy. Returns True on success.
+
+        When provider_policy is available, providers are ordered by score_provider()
+        (task_type, circuit state, budget, history). Falls back to simple ordering
+        if the policy module is unavailable.
+        """
         available = self.state.available(list(self.providers.keys()))
-        for pid in available:
+        if not available:
+            return False
+        # Policy-scored ordering (smarter than static fallback_priority)
+        try:
+            from core.provider_policy import select_candidates
+
+            circuit_states = {p: self.state.circuit_state(p) for p in available}
+            ordered = select_candidates(request or {"task_type": "text"}, available, circuit_states)
+        except ImportError:
+            ordered = available
+        for pid in ordered:
             if pid == self.state.active:
                 continue
             try:

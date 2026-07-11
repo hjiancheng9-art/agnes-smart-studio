@@ -125,9 +125,10 @@ CRUX 同时作为 MCP **Server**（被外部调用）和 MCP **Client**（调用
 
 ## Current State Snapshot
 
-> ⚠ 本节为快照，不作为执行真源。当前准确状态以 `/tools`、`/help`、`crux_manifest.json`、`pytest --co` 输出为准。
-- 50 commands, 97 tools, 28 local skills, 668 marketplace skills
-- Core modules: 155 .py files in core/ (含 v5.0 新增编排/智能体/可观测子系统)
+> ⚠ 本节为快照，不作为执行真源。当前准确状态以 `/tools`、`/help`、`pytest --co` 输出为准。
+- 53 commands, 78+ tools, 34 local skills
+- Core modules: 242 .py files in core/
+- Provider: DeepSeek V4 Pro (1M ctx) primary, CRUX AI (media), Zhipu (free vision), Local (llama.cpp)
 - 大文件已拆分: tools_defs.py (tools: 1691→865行), chat_toggle_mixin.py (chat: 1875→1780行)
 - brain.py: 476行 Mixin架构 (SmartBrain继承4 Mixin, AsyncSmartBrain顶层独立)
 - pyright: basic模式全量代码 0 errors, CI 接入 coverage (门禁 55%)

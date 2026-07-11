@@ -1,6 +1,7 @@
 """Tests for animation_gov.py — throttle, debounce, frame limiting."""
 import pytest
-from ui.animation_gov import AnimType, AnimationGovernor, ANIM_PRIORITY
+
+from ui.animation_gov import ANIM_PRIORITY, AnimationGovernor, AnimType
 
 
 class TestAnimType:

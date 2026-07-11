@@ -1,5 +1,0 @@
-LOW RISK:
-  342 files, 128 MB
-  - __pycache__
-  - .pytest_cache
-  - tmp files

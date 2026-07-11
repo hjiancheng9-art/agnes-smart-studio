@@ -64,13 +64,13 @@ from utils.unicode_safety import InvalidUnicodePayloadError
 __all__ = [
     "CHAT_SYSTEM_PROMPT",
     "CODE_SYSTEM_PROMPT",
-    "ChatSession",
     "MAX_TOOL_LOOPS",
-    "merge_tool_calls",
     "MODEL_ALIASES",
     "MODEL_INFO",
     "MODEL_PROVIDER_MAP",
     "TOOL_CALLING_MODELS",
+    "ChatSession",
+    "merge_tool_calls",
 ]
 
 # CHAT/CODE prompts from chat_prompt.py (single source of truth)
@@ -146,6 +146,27 @@ RATE_LIMIT_FALLBACK_THRESHOLD = 2
 MAX_RATE_LIMIT_WAIT_SECONDS = 10
 
 
+class _PipelineToolbus:
+    """轻量级工具总线 — 为 DeliberateWorkflow 提供工具调用能力。"""
+
+    def __init__(self, dispatch_fn, tool_registry):
+        self._dispatch = dispatch_fn
+        self._registry = tool_registry
+
+    def call(self, tool_name: str, args: dict) -> str:
+        """同步调用工具，返回结果字符串。"""
+        import json
+        result, _ = self._dispatch(tool_name, json.dumps(args))
+        return str(result)
+
+    def list_tools(self) -> list[str]:
+        """返回可用工具名称列表。"""
+        try:
+            return list(self._registry._executors.keys())
+        except AttributeError:
+            return []
+
+
 class ChatSession(ChatToggleMixin):
     """多轮聊天会话，维护历史 + 混合调度
 
@@ -177,6 +198,7 @@ class ChatSession(ChatToggleMixin):
         self.auto_model = True  # auto-select model per prompt
         self._model_router = None  # lazy init
         self._auto_tier_order = ["reasoner", "pro", "light"]  # preferred tier order
+        self._consecutive_skips = 0  # short-circuit: skip routing after N consecutive trivial messages
         self.enable_thinking = True
         self.code_mode = False
         self.mode = "chat"
@@ -301,6 +323,41 @@ class ChatSession(ChatToggleMixin):
 
         # ── Phase 14: Intelligence Pipeline ──
         self._intelligence_hook = IntelligenceHook()
+        self._intel_mode: str = "BALANCED"
+        self._intel_analysis: dict = {}
+        self._intel_config: dict = {}
+
+        # ── Prompt Lab: 会话级变体分配 ──
+        try:
+            from core.prompt_lab import get_prompt_lab
+            get_prompt_lab().assign_variant()
+        except ImportError:
+            pass
+
+        # ── Adaptive Learner: 初始化学习引擎 ──
+        try:
+            from core.adaptive_learner import AdaptiveLearner
+            self._adaptive_learner = AdaptiveLearner()
+        except ImportError:
+            self._adaptive_learner = None
+
+    def _record_trace_failure(self, error: str, step_name: str = "tool_execution", mode: str = "") -> None:
+        """Record a failure trace for the adaptive learner (best-effort, never raises)."""
+        try:
+            from core.intelligence_trace import TraceRecord, TraceStep, get_trace_store
+            import time
+
+            trace = TraceRecord(
+                user_request=getattr(self, "_last_user_text", "")[:500],
+                mode=mode or getattr(self, "_intel_mode", "BALANCED"),
+                status="fail",
+                steps=[TraceStep(name=step_name, status="fail", error=str(error)[:500])],
+                started_at=time.time() - 1,
+                ended_at=time.time(),
+            )
+            get_trace_store().record(trace)
+        except Exception:
+            pass  # best-effort, never crash the main flow
 
     def _get_schema_for_tool(self, name: str) -> dict | None:
         """Provide JSON Schema for a tool, used by the validator."""
@@ -394,18 +451,22 @@ class ChatSession(ChatToggleMixin):
         from core.provider import get_context_window
 
         ctx = get_context_window(self.model)
-        # 用 80% 作为压缩阈值，留 20% 给输出
-        limit = max(60000, int(ctx * 0.8))
+        # 压缩阈值：用 25% 上下文窗口（平衡上下文利用与 token 节省）。
+        # 最低 30K（保证小窗口模型也有合理缓冲），留 75% 给输出 + 工具定义 + 新消息。
+        limit = max(30000, int(ctx * 0.25))
         self._ctx_mgr = ContextManager(max_tokens=limit)
 
     @staticmethod
     def _resolve_default_model() -> str:
-        """从 active provider 派生默认模型。代码模式用 pro，聊天用 light。"""
+        """从 active provider 派生默认模型。启动用 light（快速响应），复杂任务自动升 pro。"""
         try:
             from core.provider import get_provider_manager
 
             mgr = get_provider_manager()
-            return mgr.get_model("pro") or "deepseek-v4-pro"
+            model = mgr.get_model("light")
+            if not model or model == "unknown":
+                return "deepseek-v4-flash"
+            return model
         except Exception as e:
             logger.debug("unexpected error: %s", e, exc_info=True)
 
@@ -423,15 +484,42 @@ class ChatSession(ChatToggleMixin):
     def _auto_route(self, prompt: str) -> dict | None:
         """Analyze prompt and switch model/provider if auto_model is enabled.
 
-        P0 HybridRouter: resolves tier → {provider, model} via models.json tiers
-        config, enabling cross-provider routing (deepseek for chat/code, crux for
-        vision/fallback). Switches self.client when provider changes.
+        Unified routing via core.router.route() — handles both slash commands
+        and natural language. Falls back to ModelRouter tier resolution for
+        sub-agent compatibility.
+
+        Short-circuit: if the last 3 consecutive messages were all SKIPped,
+        skip routing for this message too (avoids unnecessary overhead on
+        trivial chat flows).
 
         Returns route dict {tier, provider, model} or None if auto_model disabled.
         """
         if not self.auto_model:
             return None
 
+        # Short-circuit: after 3 consecutive SKIPs, stop routing
+        if self._consecutive_skips >= 3:
+            return None
+
+        # ── Unified router: command + NL classification in one pass ──
+        try:
+            from core.router import TaskProfile, profile_to_tier
+            from core.router import apply as _apply
+            from core.router import route as _route
+
+            decision = _route(prompt, self)
+            if decision.profile == TaskProfile.SKIP:
+                self._consecutive_skips += 1
+                return None
+            self._consecutive_skips = 0  # non-SKIP → reset counter
+            if decision.model_id:
+                _apply(decision, self)
+                tier = profile_to_tier(decision.profile)
+                return {"tier": tier, "provider": getattr(self, "_current_provider", ""), "model": self.model}
+        except Exception as e:
+            logger.debug("router.route() failed, falling back to ModelRouter: %s", e, exc_info=True)
+
+        # ── Fallback: ModelRouter tier resolution (sub-agent path) ──
         router = self.model_router
         tier = router.classify_and_track(prompt)
         route = router.resolve_route(tier)
@@ -440,7 +528,10 @@ class ChatSession(ChatToggleMixin):
         target_provider = route.get("provider", "")
 
         if not target_model or target_model == "unknown":
+            self._consecutive_skips += 1
             return {"tier": tier, "provider": "", "model": self.model}
+
+        self._consecutive_skips = 0  # non-SKIP → reset counter
 
         # Cross-provider switch if needed
         if target_provider:
@@ -465,46 +556,6 @@ class ChatSession(ChatToggleMixin):
             self.messages[0] = {"role": "system", "content": self._build_system_prompt()}
 
         return {"tier": tier, "provider": target_provider, "model": target_model}
-
-    # ── P0: Cross-provider fallback chain ──
-    _FALLBACKS: dict[str, list[tuple[str, str]]] = {
-        "heavy": [("deepseek", "deepseek-v4-flash"), ("crux", "agnes-2.0-flash")],
-        "pro": [("deepseek", "deepseek-v4-flash"), ("crux", "agnes-2.0-flash")],
-        "light": [("deepseek", "deepseek-v4-pro"), ("crux", "agnes-2.0-flash")],
-        "vision": [("zhipu", "GLM-4V-Flash")],
-        "fallback": [("deepseek", "deepseek-v4-flash")],
-    }
-
-    def _call_with_fallback(self, route: dict, messages: list, **kwargs):
-        """Execute LLM call with cross-provider fallback chain.
-
-        On failure, iterates _FALLBACKS[tier] trying each (provider, model) combo.
-        Raises last error if all fallbacks exhausted.
-        """
-        chain = [(route.get("provider", ""), route.get("model", ""))]
-        tier = route.get("tier", "pro")
-        chain += self._FALLBACKS.get(tier, [("crux", "agnes-2.0-flash")])
-
-        last_err = None
-        for provider_id, model_id in chain:
-            if not provider_id or not model_id:
-                continue
-            try:
-                from core.provider import get_provider_manager
-                mgr = get_provider_manager()
-                mgr.load()
-                client = self.client
-                # Switch client for non-current providers
-                if provider_id != getattr(self, "_current_provider", ""):
-                    pd = mgr.providers.get(provider_id, {})
-                    new_client = mgr.create_client(provider_id)
-                    if new_client:
-                        client = new_client
-                return client.chat(model=model_id, messages=messages, **kwargs)
-            except Exception as e:
-                logger.warning("fallback: %s/%s failed → next (%s)", provider_id, model_id, e)
-                last_err = e
-        raise last_err or RuntimeError("All fallbacks exhausted")
 
     @property
     def supports_tools(self) -> bool:
@@ -748,7 +799,10 @@ class ChatSession(ChatToggleMixin):
         chain: list[tuple[str, CruxClient]] = [(self.model, self.client)]
         try:
             mgr = get_provider_manager()
+            # ── 健康预检: 跳过已死的 fallback provider ──
             for pid in mgr.fallback_priority:
+                if mgr.state.is_down(pid) or not mgr.state.circuit_can_try(pid):
+                    continue
                 provider = mgr.providers.get(pid, {})
                 mid = provider.get("models", {}).get("pro")
                 if mid and mid != self.model:
@@ -797,6 +851,9 @@ class ChatSession(ChatToggleMixin):
         - tool 调度（pro）：流式累积 → 检测 tool_calls → 执行 engine → 喂回 → 二次流式
         - 纯文本：流式 yield ('text', 增量)
         """
+        # 记录用户文本（供 TraceStore 失败追踪使用）
+        self._last_user_text = user_text
+
         # 触发 CHAT_TURN_START 钩子
         try:
             from core.hooks import HookType
@@ -863,9 +920,38 @@ class ChatSession(ChatToggleMixin):
         intel_analysis = self._intelligence_hook.analyze(user_text)
         self._intel_mode = intel_analysis.get("mode", "BALANCED")
         self._intel_analysis = intel_analysis.get("summary", {})
+        self._intel_config = intel_analysis.get("config", {})
 
-        # 由调用方决定是否 yield — 这里不直接 yield
-        # 状态提示通过 get_intel_yields() 获取
+        # ── 消费 intelligence 分析结果 ──
+        # 1. Yield 状态提示（DEEP/SAFE/RESEARCH 模式）
+        for kind, text in self._intelligence_hook.get_status_yield():
+            yield (kind, text)
+
+        # 2. 根据模式调整推理参数
+        if self._intel_mode in ("DEEP", "RESEARCH", "SAFE"):
+            self.enable_thinking = True  # 深度模式强制开启思考
+        elif self._intel_mode == "FAST":
+            self.enable_thinking = False  # 快速模式关闭思考省 token
+
+        # 3. Pipeline 执行: DEEP/SAFE 模式跑 Plan→Critic→Repair 工作流
+        if self._intel_mode in ("DEEP", "SAFE") and not image_url:
+            try:
+                import asyncio
+                # 构建 toolbus: 轻量级工具调用代理
+                toolbus = _PipelineToolbus(self._dispatch_tool, self.tools)
+                pipeline_result = asyncio.run(
+                    self._intelligence_hook.execute_pipeline(
+                        user_text,
+                        context={"project": str(Path(__file__).parent.parent)},
+                        toolbus=toolbus,
+                    )
+                )
+                if pipeline_result.get("passed") is False:
+                    yield ("info", f"[Pipeline] 审查未通过: {pipeline_result.get('summary', '')[:200]}")
+                elif pipeline_result.get("summary"):
+                    yield ("info", f"[Pipeline] {pipeline_result.get('summary', '')[:200]}")
+            except Exception as e:
+                logger.debug("Pipeline execution skipped: %s", e)
 
         # Inject relevant past memories as context
         self._inject_memory(user_text)
@@ -898,16 +984,40 @@ class ChatSession(ChatToggleMixin):
                 return
 
         # Tier 1 轻量截断：对历史 messages 中超限单条做 head+tail 截断。
-        if self.ctx_mgr.needs_compression(self.messages):
+        # 触发条件：token 超阈值，或消息条数超过 40（防止大量小消息堆积
+        # 导致 token 估算偏低但请求体积膨胀）。
+        if self.ctx_mgr.needs_compression(self.messages) or len(self.messages) > 40:
             self.messages = self.ctx_mgr.compress(self.messages, self.client, self.model)
 
         tools = self.tools.get_filtered_definitions(user_text) if self.supports_tools else None
+        # Track the set of tool names the model is allowed to see. Starts with the
+        # filtered set and grows as the model calls tools, instead of jumping to the
+        # full 97-tool definition list (~14K tokens) on every subsequent loop round.
+        _active_tool_names: set[str] | None = (
+            {d["function"]["name"] for d in tools} if tools else None
+        )
 
         # ── 模型级 fallback 链（对标 Claude fallbackModel）──
         # 主对话流式调用失败时自动降级到下一个供应商/模型。
         # 只在首轮（无 tool_calls）时 fallback，避免重复 tool 副作用。
         fallback_chain = self._text_fallback_chain()
         fallback_tried = 0
+
+        # ── 预检: 活跃供应商挂了就立刻切 ──
+        try:
+            from core.provider import get_provider_manager
+            mgr = get_provider_manager()
+            active_pid = mgr.state.active
+            if mgr.state.is_down(active_pid) or not mgr.state.circuit_can_try(active_pid):
+                # 活跃供应商不可用 → 从 fallback chain 跳过第一个（当前）直接切
+                if len(fallback_chain) > 1:
+                    skip_model, skip_client = fallback_chain[0]
+                    fallback_chain = fallback_chain[1:]
+                    self.model, self.client = fallback_chain[0]
+                    yield ("info", f"当前供应商不可用，已切换至 {self.model}")
+                    self._rebuild_ctx_mgr()
+        except (ImportError, OSError) as e:
+            logger.debug("provider precheck skipped: %s", e)
 
         # tool calling 循环（有上限，防止死循环）
         # 支持 CRUX_MAX_TOOL_LOOPS 环境变量热覆盖（免重启，设了立即生效）
@@ -918,7 +1028,6 @@ class ChatSession(ChatToggleMixin):
         _executed_signatures: set[tuple[str, str]] = set()
         _executed_cache: dict[tuple[str, str], str] = {}
         _stream_error_break = False
-        _tools_expanded = False  # 工具调用后自动展开全量工具
 
         while fallback_tried < len(fallback_chain):
             _use_model, _use_client = fallback_chain[fallback_tried]
@@ -963,10 +1072,15 @@ class ChatSession(ChatToggleMixin):
                         yield ("error", f"工具执行中断: {type(e).__name__}: {e}")
                         _stream_error_break = True
                         break
-                    # 一旦模型开始调用工具，后续轮次展开全量工具定义
-                    if not _tools_expanded:
-                        tools = self.tools.definitions if self.supports_tools else None
-                        _tools_expanded = True
+                    # Grow the visible tool set with any tools the model just called,
+                    # instead of expanding to the full 97-tool list (14K tokens/round).
+                    if _active_tool_names is not None and tool_calls:
+                        for _tc in tool_calls:
+                            _fn = _tc.get("function", {}) if isinstance(_tc, dict) else {}
+                            _name = _fn.get("name")
+                            if _name:
+                                _active_tool_names.add(_name)
+                        tools = self.tools.get_definitions_for_names(_active_tool_names)
                     continue  # 进入下一轮 tool loop
 
                 # 无 tool_calls：检查是否流错误（需 fallback）还是正常收尾
@@ -1022,6 +1136,7 @@ class ChatSession(ChatToggleMixin):
         # 2. _stream_error_break=False → tool loop 溢出（模型正常工作但死循环），不 fallback
         if not _stream_error_break:
             yield ("info", f"已达到最大工具调用轮次 ({_effective_max})，已中止。请尝试简化你的请求。")
+            self._record_trace_failure(f"tool loop overflow: {_effective_max} rounds", step_name="tool_loop")
             self.messages.append({"role": "assistant", "content": buffer})
             self._record_outcome_promptlab()
             yield ("stream_end", {"run_id": _run_id, "message": "done"})
@@ -1029,6 +1144,7 @@ class ChatSession(ChatToggleMixin):
 
         # All fallback models exhausted — tell the user something went wrong.
         tried = ", ".join(m for m, _ in fallback_chain)
+        self._record_trace_failure(f"all models exhausted: {tried}", step_name="fallback_chain")
         yield ("error", f"所有模型均不可用（已尝试: {tried}），请稍后重试或 /provider 切换")
         yield ("stream_end", {"run_id": _run_id, "message": "error"})
 
@@ -1076,20 +1192,30 @@ class ChatSession(ChatToggleMixin):
             cap = get_capability(model)
             adapter = get_adapter(cap.provider_id if cap else "deepseek")
             think_field = adapter.thinking_response_field
-            if think_field in delta and delta[think_field]:
+            if delta.get(think_field):
                 yield ("thinking", delta[think_field])  # type: ignore[misc]
-            if "content" in delta and delta["content"]:
+            if delta.get("content"):
                 chunk = delta["content"]
                 buffer += chunk
                 # Don't render HTTP error bodies as assistant text.
                 if not delta.get("_error"):
                     yield ("text", chunk)  # type: ignore[misc]
-            if "tool_calls" in delta and delta["tool_calls"]:
+            if delta.get("tool_calls"):
                 tool_calls.extend(delta["tool_calls"])
             if delta.get("_finish") == "error":
                 stream_error = True
             if "_usage" in delta:
                 last_usage = delta["_usage"]
+        # ── XML tool-call fallback for local models ──
+        if not tool_calls and buffer:
+            try:
+                from core.tool_call_parser import extract_tool_calls
+                xml_tools, _ = extract_tool_calls(buffer)
+                if xml_tools:
+                    tool_calls.extend(xml_tools)
+                    logger.debug("parsed %d XML tool calls from buffer", len(xml_tools))
+            except ImportError:
+                pass
         return buffer, tool_calls, stream_error, last_usage
 
     def _append_assistant_with_tools(self, buffer: str, tool_calls: list[dict]) -> str:
@@ -1185,6 +1311,14 @@ class ChatSession(ChatToggleMixin):
 
                         tool_result, side_effects = self._dispatch_tool(fname, fargs)
 
+                        # ── 工具结果缓存: 缓存成功的只读工具结果 ──
+                        try:
+                            from core.tool_cache import CACHEABLE_TOOLS, get_tool_cache
+                            if fname in CACHEABLE_TOOLS and not str(tool_result).startswith("[错误]"):
+                                get_tool_cache().set(fname, fargs, str(tool_result))
+                        except ImportError:
+                            pass
+
                         # ── Phase 2a+b: Validate result + track history ──
                         try:
                             tvl = getattr(self, 'tvl', None)
@@ -1198,6 +1332,7 @@ class ChatSession(ChatToggleMixin):
                     except Exception as e:
                         logger.exception("工具 %s 执行异常", fname)
                         tool_result = f"[错误] 工具 {fname} 执行失败: {type(e).__name__}: {e}"
+                        self._record_trace_failure(str(e), step_name=fname)
 
                         # ── Phase 2a: Track failed execution ──
                         try:
@@ -1298,7 +1433,7 @@ class ChatSession(ChatToggleMixin):
         return False
 
     def _finalize_outcome(self, model: str, last_usage) -> None:
-        """正常收尾：成本追踪 + Prompt Lab outcome + 方法论工作流推进。"""
+        """正常收尾：成本追踪 + Prompt Lab outcome + 方法论工作流推进 + 会话快照。"""
         try:
             from core.cost_tracker import record_usage
 
@@ -1315,6 +1450,59 @@ class ChatSession(ChatToggleMixin):
             logger.debug("optional module skipped: %s", e)
 
             pass
+        # ── 自适应学习: 每 10 轮触发一次学习循环 ──
+        self._turn_count = getattr(self, "_turn_count", 0) + 1
+        if self._turn_count % 10 == 0:
+            try:
+                learner = getattr(self, "_adaptive_learner", None)
+                if learner and learner._learning_enabled:
+                    records = learner.run_learning_cycle(limit=5)
+                    if records:
+                        logger.info("Adaptive learner: %d new insights from %d traces",
+                                    len(records), len(records))
+            except Exception as e:
+                logger.debug("Adaptive learner cycle skipped: %s", e)
+
+        # ── 会话快照: 每 5 轮保存一次，崩溃可恢复 ──
+        self._maybe_snapshot()
+
+    # ── 会话快照 ────────────────────────────────────────────
+
+    _SNAPSHOT_INTERVAL = 5  # 每 N 轮保存一次
+    _SNAPSHOT_DIR = Path(__file__).resolve().parent.parent / "output" / "sessions"
+
+    def _maybe_snapshot(self) -> None:
+        """每 N 轮自动保存会话快照（best-effort，失败不影响主流程）。
+        _turn_count 由 _finalize_outcome 统一管理，此处只读取。"""
+        turn = getattr(self, "_turn_count", 0)
+        if turn % self._SNAPSHOT_INTERVAL != 0:
+            return
+        try:
+            import json
+            self._SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+            snapshot = {
+                "model": self.model,
+                "turn": turn,
+                "messages": self.messages[-50:],  # 最近 50 条
+                "saved_at": __import__("datetime").datetime.now().isoformat(),
+            }
+            path = self._SNAPSHOT_DIR / "latest.json"
+            path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
+        except (OSError, ValueError, TypeError):
+            pass  # 快照失败不影响主流程
+
+    @classmethod
+    def restore_latest_snapshot(cls) -> dict | None:
+        """启动时检查是否有未恢复的会话快照。返回 messages 列表或 None。"""
+        try:
+            import json
+            path = cls._SNAPSHOT_DIR / "latest.json"
+            if not path.exists():
+                return None
+            data = json.loads(path.read_text("utf-8"))
+            return data if data.get("messages") else None
+        except (OSError, json.JSONDecodeError, KeyError):
+            return None
 
     def _trigger_reflection(self) -> None:
         """Post-turn reflection: light model reviews output quality."""
@@ -1400,6 +1588,7 @@ class ChatSession(ChatToggleMixin):
                 else:
                     self.messages.pop()
             except Exception:
+                logger.debug("adversarial bypass cleanup failed", exc_info=True)
                 if isinstance(modified, list):
                     for _ in modified:
                         self.messages.pop()

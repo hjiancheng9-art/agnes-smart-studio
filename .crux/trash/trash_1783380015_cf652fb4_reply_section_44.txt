@@ -1,4 +1,0 @@
-MEDIUM RISK:
-  18 files, 740 MB
-  - old ComfyUI temp workflows
-  - old browser screenshots

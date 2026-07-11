@@ -1,5 +1,0 @@
-单文件 > 500MB
-总清理 > 1GB
-LoRA / safetensors / ckpt
-视频文件
-dataset 文件

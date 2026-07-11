@@ -208,7 +208,7 @@ class ClaudeCodeMCPBridge:
                     result = dispatch[name]()
                     return self._make_jsonrpc_response(req_id, result)
                 except Exception as e:
-                    return self._make_jsonrpc_error(req_id, -32603, f"Tool error: {str(e)}")
+                    return self._make_jsonrpc_error(req_id, -32603, f"Tool error: {e!s}")
             else:
                 return self._make_jsonrpc_error(req_id, -32601, f"Tool not found: {name}")
 

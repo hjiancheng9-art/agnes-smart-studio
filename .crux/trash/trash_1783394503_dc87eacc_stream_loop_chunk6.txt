@@ -1,8 +1,0 @@
-            try:
-                self.wire.record_turn("assistant", "[streamed]")
-            except Exception:
-                logger.debug("wire.record_turn failed", exc_info=True)
-
-    # ══════════════════════════════════════════════════════════════
-    #  UI helpers
-    # ══════════════════════════════════════════════════════════════

@@ -126,7 +126,7 @@ def debug_inspect(target: str, extra_args: str = "") -> str:
         pass
 
     # Determine if target is a pytest target or a plain script
-    is_pytest = "::" in target or target.startswith("tests") or target.endswith(".py") and not extra_args
+    is_pytest = "::" in target or target.startswith("tests") or (target.endswith(".py") and not extra_args)
 
     cmd = [_sys.executable]
     if is_pytest:

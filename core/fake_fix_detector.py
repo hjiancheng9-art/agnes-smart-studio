@@ -353,7 +353,7 @@ def classify_fix(
 
     if changed_files > 0 and test_passed:
         return "fix-probable"
-    if changed_files > 0 and not test_passed or changed_files == 0 and git_changed:
+    if (changed_files > 0 and not test_passed) or (changed_files == 0 and git_changed):
         return "fix-unknown"
     if changed_files == 0 and not git_changed:
         return "fix-spurious"

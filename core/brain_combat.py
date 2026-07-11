@@ -1,7 +1,7 @@
 """Brain combat module — extracted from brain.py."""
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from core.brain_data import (
     COMBAT_MOVE_INDEX,
@@ -13,9 +13,6 @@ from core.brain_data import (
     NONHUMAN_COMBAT_MOTIF,
     STORYBOARD_PROMPT,
 )
-
-if TYPE_CHECKING:
-    pass
 
 
 class SmartBrainMixin:

@@ -1,7 +1,9 @@
 """Tests for completer.py — command/file/history completion."""
-import pytest
 from unittest.mock import MagicMock
-from ui.completer import TuiCompleter, COMMANDS
+
+import pytest
+
+from ui.completer import COMMANDS, TuiCompleter
 
 
 class TestCommands:

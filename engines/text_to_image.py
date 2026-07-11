@@ -9,7 +9,7 @@ from core.client import CruxClient
 from core.config import OUTPUT_DIR
 from core.validator import validate_image_size, validate_model, validate_seed
 
-__all__ = ["TextToImageEngine", "AsyncTextToImageEngine"]
+__all__ = ["AsyncTextToImageEngine", "TextToImageEngine"]
 
 
 class TextToImageEngine:

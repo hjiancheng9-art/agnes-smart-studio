@@ -21,7 +21,7 @@ from pathlib import Path
 # 确保 import core/comfyflow_client 能找到
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.comfyflow_client import ComfyFlowClient, HAS_HTTPX
+from core.comfyflow_client import HAS_HTTPX, ComfyFlowClient
 
 
 def main():

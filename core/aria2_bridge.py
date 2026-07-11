@@ -35,7 +35,7 @@ ROOT = Path(__file__).resolve().parent.parent
 ARIA2_PATH = ROOT / "core" / "resources" / "aria2c.exe"
 DEFAULT_DIR = ROOT / "downloads"
 
-__all__ = ["Aria2Bridge", "get_bridge", "DownloadTask"]
+__all__ = ["Aria2Bridge", "DownloadTask", "get_bridge"]
 
 
 @dataclass

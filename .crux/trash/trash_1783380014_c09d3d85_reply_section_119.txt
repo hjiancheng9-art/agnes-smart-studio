@@ -1,4 +1,0 @@
-def _size(self, path: Path) -> int:
-        if path.is_file() or path.is_symlink():
-            return path.stat().st_size
-        return sum(p.stat().st_size for p in path.rglob("*") if p.is_file())

@@ -81,9 +81,9 @@ class PipelineRun:
 # ═══════════════════════════════════════════════════════════════════
 
 __all__ = [
+    "ROOT",
     "PipelineRun",
     "PipelineTemplates",
-    "ROOT",
     "Showrunner",
     "SourceKind",
     "StepKind",

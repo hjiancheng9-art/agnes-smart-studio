@@ -1,7 +1,0 @@
-def _move_to_trash(self, path: Path, trash_dir: Path):
-        rel = path.relative_to(self.root)
-        dest = trash_dir / rel
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(path), str(dest))
-5. 针对 CRUX 的特殊清理规则
-ComfyUI

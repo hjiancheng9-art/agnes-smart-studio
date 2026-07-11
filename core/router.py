@@ -26,13 +26,17 @@ if TYPE_CHECKING:
     from core.chat import ChatSession
 
 __all__ = [
-    "TaskProfile",
+    "PROFILE_TO_TIER",
+    "CostTier",
     "RouteDecision",
-    "classify",
-    "route_command",
-    "resolve",
+    "TaskProfile",
     "apply",
+    "classify",
+    "get_profile_candidates",
+    "profile_to_tier",
+    "resolve",
     "route",
+    "route_command",
 ]
 
 
@@ -48,6 +52,23 @@ class TaskProfile(Enum):
     DEEP = "deep"  # 架构 / 复杂分析（需深度推理 + 大上下文）
     CREATIVE = "creative"  # 创意生产（图 / 视频 / showrunner）
     SKIP = "skip"  # 不干预，保持当前模型
+
+
+# ── TaskProfile ↔ tier 映射 ────────────────────────────────
+
+PROFILE_TO_TIER: dict[TaskProfile, str] = {
+    TaskProfile.CHAT: "light",
+    TaskProfile.QUICK_FIX: "pro",
+    TaskProfile.CODING: "pro",
+    TaskProfile.DEEP: "heavy",
+    TaskProfile.CREATIVE: "pro",
+    TaskProfile.SKIP: "fallback",
+}
+
+
+def profile_to_tier(profile: TaskProfile) -> str:
+    """将 TaskProfile 映射为 ModelRouter tier。"""
+    return PROFILE_TO_TIER.get(profile, "pro")
 
 
 # ── 路由决策 ───────────────────────────────────────────────
@@ -125,23 +146,47 @@ _PROFILE_MODEL_built = False
 
 
 def _build_profile_models() -> dict[TaskProfile, list[str]]:
-    """从 MODEL_REGISTRY + models.json fallback.priority 动态构建画像候选模型。
+    """从 MODEL_REGISTRY + models.json 动态构建画像候选模型。
 
-    排序规则：
-    1. 按 models.json fallback.priority 供应商顺序（active 自然排第一）
-    2. 同供应商内 pro > light
-    3. 仅含 text 类型模型
+    排序规则（按优先级）：
+    1. models.json tiers 中为该 tier 配置的模型排最前（配置优先于启发式）
+    2. active provider 的模型优先于其他供应商
+    3. 再按 fallback.priority 供应商顺序
+    4. 同供应商内 pro tier > light tier
+    5. 仅含 text 类型模型
     """
     try:
-        from core.provider import MODEL_REGISTRY, get_provider_manager  # noqa: F811
+        from core.provider import MODEL_REGISTRY, get_provider_manager
 
         mgr = get_provider_manager()
         mgr.load()
         priority = list(mgr.fallback_priority)
+        active_pid = mgr.state.active
     except Exception:
         priority = ["deepseek", "zhipu", "crux"]
+        active_pid = "deepseek"
+
+    # active provider 排最前（fallback.priority 可能没有把它放在第一位）
+    if active_pid and active_pid in priority:
+        priority.remove(active_pid)
+    priority.insert(0, active_pid)
 
     provider_rank = {pid: i for i, pid in enumerate(priority)}
+
+    # ── 读取 models.json tiers 配置（用于优先候选）──
+    tiers_model: dict[str, str] = {}  # tier → model_id
+    try:
+        import json
+        from pathlib import Path
+
+        cfg_path = Path(__file__).resolve().parent.parent / "models.json"
+        cfg = json.loads(cfg_path.read_text("utf-8"))
+        for tier_name, tier_cfg in cfg.get("tiers", {}).items():
+            mid = tier_cfg.get("model", "")
+            if mid and mid in MODEL_REGISTRY:
+                tiers_model[tier_name] = mid
+    except (OSError, json.JSONDecodeError, KeyError):
+        pass
 
     text_models: list[tuple[int, int, str]] = []
     for mid, info in MODEL_REGISTRY.items():
@@ -157,12 +202,30 @@ def _build_profile_models() -> dict[TaskProfile, list[str]]:
     chat_ids = [m for m in sorted_ids if "flash" in m.lower() or "chat" in m.lower()]
     pro_ids = [m for m in sorted_ids if "pro" in m.lower() or "reasoner" in m.lower()]
 
+    def _prefer_configured(candidates: list[str], tier: str) -> list[str]:
+        """如果 models.json tiers 指定了该 tier 的模型，将其排到候选列表最前。"""
+        configured = tiers_model.get(tier, "")
+        if configured and configured in candidates:
+            # 移到最前面
+            candidates = [configured] + [m for m in candidates if m != configured]
+        return candidates
+
     return {
-        TaskProfile.CHAT: chat_ids[:3] or flash_ids[:3] or sorted_ids[:3],
-        TaskProfile.QUICK_FIX: flash_ids[:3] or sorted_ids[:3],
-        TaskProfile.CODING: (pro_ids[:2] + flash_ids[:2])[:4] or sorted_ids[:4],
-        TaskProfile.DEEP: pro_ids[:3] or sorted_ids[:3],
-        TaskProfile.CREATIVE: pro_ids[:2] or sorted_ids[:2],
+        TaskProfile.CHAT: _prefer_configured(
+            chat_ids[:3] or flash_ids[:3] or sorted_ids[:3], "light"
+        ),
+        TaskProfile.QUICK_FIX: _prefer_configured(
+            flash_ids[:3] or sorted_ids[:3], "pro"
+        ),
+        TaskProfile.CODING: _prefer_configured(
+            (pro_ids[:2] + flash_ids[:2])[:4] or sorted_ids[:4], "pro"
+        ),
+        TaskProfile.DEEP: _prefer_configured(
+            pro_ids[:3] or sorted_ids[:3], "heavy"
+        ),
+        TaskProfile.CREATIVE: _prefer_configured(
+            pro_ids[:2] or sorted_ids[:2], "pro"
+        ),
         TaskProfile.SKIP: [],
     }
 
@@ -174,6 +237,10 @@ def _get_profile_candidates(profile: TaskProfile) -> list[str]:
         _PROFILE_MODEL = _build_profile_models()
         _PROFILE_MODEL_built = True
     return _PROFILE_MODEL.get(profile, [])
+
+
+# 公开别名（供 cognitive_orchestrator 等外部模块使用）
+get_profile_candidates = _get_profile_candidates
 
 
 _PROFILE_MODEL: dict[TaskProfile, list[str]] = {}
@@ -363,10 +430,63 @@ _CODE_KEYWORDS: list[str] = [
     r"代码",
     r"编程",
     r"开发",
+    # English coding verbs
+    r"\bcreate\b",
+    r"\bwrite\b",
+    r"\bmake\b",
+    r"\bbuild\b",
+    r"\bimplement\b",
+    r"\badd\b",
+    r"\brefactor\b",
+    r"\brename\b",
+    r"\bdelete\b",
+    r"\bremove\b",
     # 注意：不含 \.py/\.js/\.ts 等扩展名——文件路径场景由文本特征分析阶段处理
     r"(?<!\w)def\s",
     r"(?<!\w)function\s",
 ]
+
+# ── ModelRouter 吸收的信号 ──────────────────────────────────
+
+# 琐碎问候语 → SKIP (保持当前模型)
+_TRIVIAL_SET: frozenset[str] = frozenset({
+    "你好", "hello", "hi", "hey", "在吗", "在不在", "谢谢", "thanks",
+    "ok", "好的", "okay", "嗯", "哦", "好", "行", "可以",
+})
+
+# Light 命令：明确的测试/格式化/lint 调用 → CHAT (light tier)
+_LIGHT_COMMANDS_RE = re.compile(
+    r"^(?:run|执行|跑)\s*(?:测试|test|smoke|check|lint)|"
+    r"^(?:format|lint|sort|organize)\s",
+    re.IGNORECASE,
+)
+
+# Heavy 模式：traceback、安全审计、架构设计等 → DEEP (heavy tier)
+_HEAVY_PAT = re.compile(
+    r"(架构|路线图|根因|多文件|全局|系统性|评审|fallback|router|"
+    r"traceback|stack\s*trace|pytest|CI|workflow|TUI|prompt_toolkit|"
+    r"security\s+(?:audit|review|assessment|hole|flaw|vulnerability)|"
+    r"threat\s+model|attack\s+(?:surface|vector|tree)|"
+    r"architecture\s+(?:design|review|decision)|"
+    r"migrat(?:e|ion)\s+(?:plan|strategy|方案)|"
+    r"重构\s*(?:跨模块|整个项目|全部|架构|系统)|"
+    r"并发|死锁|扩展|吞吐|延迟|安全审查)",
+    re.IGNORECASE,
+)
+
+# 强推理信号（安全/架构/根因/浏览器操作）→ DEEP
+_STRONG_REASONER_RE = re.compile(
+    r"security\s+(?:audit|review|assessment|hole|flaw|vulnerability)|"
+    r"threat\s+model|attack\s+(?:surface|vector|tree)|"
+    r"architecture\s+(?:design|review|decision)|"
+    r"comprehensive\s+(?:review|audit|analysis)|"
+    r"root\s+cause|diagnose\s+(?:this|the|why)|"
+    r"investigate\s+(?:this|the|why|how)|"
+    r"安全\s*(?:审计|漏洞|审查|扫描)|"
+    r"(?:全面|深度|彻底|详细)\s*(?:审查|分析|检查|方案)|"
+    r"根因|排查|内存\s*泄漏|OOM|死循环",
+    re.IGNORECASE,
+)
 
 # 文件路径正则（含 Windows 路径和 Unix 路径）
 _FILE_PATH_RE = re.compile(
@@ -386,19 +506,22 @@ _LONG_TEXT_THRESHOLD = 500
 
 
 def classify(text: str, session: ChatSession | None = None) -> TaskProfile:
-    """分析自然语言文本，返回任务画像。
+    """分析自然语言文本，返回任务画像（唯一分类器）。
 
     纯规则 + 启发式，不调 LLM，零延迟零成本。
-    匹配优先级: 会话上下文 > 关键词 > 文本特征 > 默认。
+    匹配优先级: 会话上下文 > 琐碎问候 > heavy 信号 > 关键词 > 文本特征 > 默认。
+
+    吸收了原 ModelRouter.classify_prompt() 的信号（trivial set / light commands /
+    heavy patterns / strong reasoner），消除双重分类。
     """
     if not text or not text.strip():
         return TaskProfile.SKIP
 
-    text_lower = text.lower().strip()
-    text_len = len(text)
+    stripped = text.strip()
+    text_lower = stripped.lower()
+    text_len = len(stripped)
 
     # ── 1. 会话上下文感知（最高优先级）──
-    # 已在 agent_mode / active_skill 中 → 跟随其模式，不额外分类
     if session is not None:
         if getattr(session, "agent_mode", False):
             return TaskProfile.CODING
@@ -406,12 +529,29 @@ def classify(text: str, session: ChatSession | None = None) -> TaskProfile:
             skill = session.active_skill
             if skill in ("showrunner", "comfyui-bridge"):
                 return TaskProfile.CREATIVE
-            # 其他技能按 CODING 处理
             return TaskProfile.CODING
 
-    # ── 2. 关键词匹配（按优先级从高到低）──
-    # DEEP > CREATIVE > QUICK_FIX > CODING > CHAT
+    # ── 2. 琐碎问候 → SKIP（保持当前模型）──
+    if text_len <= 20 and text_lower in _TRIVIAL_SET:
+        return TaskProfile.SKIP
 
+    # ── 3. Heavy 信号（traceback / 安全审计 / 架构设计）→ DEEP ──
+    if _HEAVY_PAT.search(stripped):
+        return TaskProfile.DEEP
+    if _STRONG_REASONER_RE.search(stripped):
+        return TaskProfile.DEEP
+    # 长上下文或多 traceback → DEEP
+    if text_len > 1800 or len(re.findall(r"```|\.py\b|Traceback|Exception", stripped)) >= 2:
+        return TaskProfile.DEEP
+    # 单条 traceback 且有一定长度 → DEEP（需要长上下文分析）
+    if "Traceback" in text and text_len > 500:
+        return TaskProfile.DEEP
+
+    # ── 4. Light 命令（run test / format / lint）→ CHAT ──
+    if _LIGHT_COMMANDS_RE.search(stripped):
+        return TaskProfile.CHAT
+
+    # ── 5. 关键词匹配（按优先级从高到低）──
     for pattern in _DEEP_KEYWORDS:
         if re.search(pattern, text_lower):
             return TaskProfile.DEEP
@@ -420,30 +560,39 @@ def classify(text: str, session: ChatSession | None = None) -> TaskProfile:
         if re.search(pattern, text_lower):
             return TaskProfile.CREATIVE
 
+    # ── 5.5 文件路径感知：文件路径 + 有实质任务 → 不降级为 quick_fix ──
+    file_paths = _FILE_PATH_RE.findall(text)
+    if file_paths:
+        has_coding_signal = any(re.search(p, text_lower) for p in _CODE_KEYWORDS)
+        has_deep_signal = any(re.search(p, text_lower) for p in _DEEP_KEYWORDS)
+        has_fix_signal = any(re.search(p, text_lower) for p in _QUICK_FIX_KEYWORDS)
+        if has_deep_signal or len(file_paths) >= 3 or text_len > _LONG_TEXT_THRESHOLD:
+            return TaskProfile.DEEP
+        if has_coding_signal:
+            return TaskProfile.CODING
+        if has_fix_signal and text_len < 80:
+            return TaskProfile.QUICK_FIX
+        if has_fix_signal:
+            # 有文件路径 + 修复关键词 + 非短查询 → 编码任务
+            return TaskProfile.CODING
+
     for pattern in _QUICK_FIX_KEYWORDS:
         if re.search(pattern, text_lower):
-            return TaskProfile.QUICK_FIX
+            # 短查询才是真正的 quick_fix，长查询大概率是正经开发任务
+            if text_len < 50:
+                return TaskProfile.QUICK_FIX
+            return TaskProfile.CODING
 
     for pattern in _CODE_KEYWORDS:
         if re.search(pattern, text_lower):
             return TaskProfile.CODING
 
-    # ── 3. 文本特征分析 ──
+    # ── 6. 文本特征分析 ──
 
-    # 含文件路径 → 代码相关（路径多 = 可能跨文件 → DEEP）
-    file_paths = _FILE_PATH_RE.findall(text)
-    if file_paths:
-        if len(file_paths) >= 3 or text_len > _LONG_TEXT_THRESHOLD:
-            return TaskProfile.DEEP
-        return TaskProfile.QUICK_FIX
-
-    # 含代码片段 → CODING
     if _CODE_BLOCK_RE.search(text):
         return TaskProfile.CODING
 
-    # 长文本（可能是需求文档/设计文档）→ DEEP
     if text_len > _LONG_TEXT_THRESHOLD:
-        # 检查是否是代码粘贴（多行 + 高缩进比）
         lines = text.split("\n")
         code_lines = sum(
             1 for line in lines if line.strip().startswith((" ", "\t", "def ", "class ", "import ", "from "))
@@ -452,11 +601,11 @@ def classify(text: str, session: ChatSession | None = None) -> TaskProfile:
             return TaskProfile.CODING
         return TaskProfile.DEEP
 
-    # ── 4. code_mode 上下文 ──
+    # ── 7. code_mode 上下文 ──
     if session is not None and getattr(session, "code_mode", False):
         return TaskProfile.CODING
 
-    # ── 5. 默认：保持当前模型 ──
+    # ── 8. 短文本默认 → SKIP（保持当前模型）──
     return TaskProfile.SKIP
 
 
@@ -501,9 +650,15 @@ def resolve(profile: TaskProfile | str, session: ChatSession | None) -> RouteDec
     if not candidates:
         return RouteDecision(profile=TaskProfile.SKIP)
 
-    # 当前模型已在候选前2 → 不切
-    if session is not None and session.model in candidates[:2]:
-        return RouteDecision(profile=profile, reason="")
+    # 当前模型判定：
+    # - 已在最佳候选 → 不切（零开销）
+    # - CHAT/QUICK_FIX 且在前 2 → 不切（flash 够用，避免抖动）
+    # - CODING/DEEP/CREATIVE 且不是最佳 → 切到最佳
+    if session is not None:
+        if session.model == candidates[0]:
+            return RouteDecision(profile=profile, reason="")
+        if profile in (TaskProfile.CHAT, TaskProfile.QUICK_FIX) and session.model in candidates[:2]:
+            return RouteDecision(profile=profile, reason="")
 
     target_model = _pick_best_model(candidates, session)
     if not target_model:

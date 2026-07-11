@@ -22,23 +22,25 @@
   python -m agnes.cli models
 """
 
-import sys
-import os
 import argparse
 import json
+import os
+import sys
 import time
-from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agnes.client import (
-    AgnesClient, AgnesConfig, AgnesError,
-    ALL_IMAGE_SIZES, IMAGE_SIZES, CHAT_MODELS, IMAGE_MODELS, VIDEO_MODELS,
+    CHAT_MODELS,
+    IMAGE_MODELS,
+    IMAGE_SIZES,
+    AgnesClient,
+    AgnesError,
 )
-
-
 from agnes.config import load_env_into_os
+
 load_env_into_os()
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -58,8 +60,7 @@ def main():
     sub = parser.add_subparsers(dest="command", help="子命令")
 
     # ── Chat ──────────────────────────────────────────
-    p = sub.add_parser("chat", help="文本对话",
-        epilog="模型: " + ", ".join(CHAT_MODELS.keys()))
+    p = sub.add_parser("chat", help="文本对话", epilog="模型: " + ", ".join(CHAT_MODELS.keys()))
     p.add_argument("prompt", nargs="?", help="输入文本（留空则进入对话模式）")
     p.add_argument("-m", "--model", default="agnes-2.0-flash", help="模型 ID")
     p.add_argument("-s", "--system", help="系统提示词")
@@ -69,18 +70,17 @@ def main():
     p.add_argument("--stream", action="store_true", help="流式输出")
 
     # ── Vision ────────────────────────────────────────
-    p = sub.add_parser("vision", help="图片对话（多模态）",
-        epilog="需要 agnes-2.0-flash 模型")
+    p = sub.add_parser("vision", help="图片对话（多模态）", epilog="需要 agnes-2.0-flash 模型")
     p.add_argument("prompt", nargs="?", help="关于图片的问题")
     p.add_argument("--image", required=True, help="图片路径或 URL")
     p.add_argument("-m", "--model", default="agnes-2.0-flash")
 
     # ── Image ─────────────────────────────────────────
-    p = sub.add_parser("image", aliases=["img"], help="生成图片",
-        epilog="常用尺寸：1024×768, 1024×1024, 768×1024, 2048×2048")
+    p = sub.add_parser(
+        "image", aliases=["img"], help="生成图片", epilog="常用尺寸：1024×768, 1024×1024, 768×1024, 2048×2048"
+    )
     p.add_argument("prompt", help="图片描述文字")
-    p.add_argument("-m", "--model", default="agnes-image-2.0-flash",
-                   choices=list(IMAGE_MODELS.keys()))
+    p.add_argument("-m", "--model", default="agnes-image-2.0-flash", choices=list(IMAGE_MODELS.keys()))
     p.add_argument("-s", "--size", default="1024x768", help="尺寸（宽×高，必须为 16 的倍数）")
     p.add_argument("-n", type=int, default=1, help="生成数量")
     p.add_argument("--save", help="保存路径")
@@ -92,8 +92,7 @@ def main():
     p = sub.add_parser("img2img", help="图生图 / 图片编辑")
     p.add_argument("prompt", help="编辑描述")
     p.add_argument("--image", required=True, nargs="+", help="参考图片路径或 URL（可多个）")
-    p.add_argument("-m", "--model", default="agnes-image-2.1-flash",
-                   choices=list(IMAGE_MODELS.keys()))
+    p.add_argument("-m", "--model", default="agnes-image-2.1-flash", choices=list(IMAGE_MODELS.keys()))
     p.add_argument("-s", "--size", default="1024x768", help="输出尺寸")
     p.add_argument("--save", help="保存路径")
 
@@ -168,9 +167,12 @@ def _dispatch(client: AgnesClient, args):
             _chat_stream(client, args)
         else:
             reply = client.chat_text(
-                args.prompt, model=args.model,
-                system=args.system, temperature=args.temp,
-                max_tokens=args.max_tokens, thinking=args.thinking,
+                args.prompt,
+                model=args.model,
+                system=args.system,
+                temperature=args.temp,
+                max_tokens=args.max_tokens,
+                thinking=args.thinking,
             )
             print(reply)
 
@@ -185,17 +187,20 @@ def _dispatch(client: AgnesClient, args):
 
     elif cmd in ("image", "img"):
         images = client.generate_image(
-            args.prompt, model=args.model, size=args.size,
-            n=args.n, response_format="b64_json" if args.b64 else "url",
+            args.prompt,
+            model=args.model,
+            size=args.size,
+            n=args.n,
+            response_format="b64_json" if args.b64 else "url",
             seed=args.seed,
         )
         for i, img in enumerate(images):
             url = img.get("url", "")
             b64 = img.get("b64_json", "")
             if args.b64 and b64:
-                print(f"  [{i+1}] base64 ({len(b64)} chars)")
+                print(f"  [{i + 1}] base64 ({len(b64)} chars)")
             elif url:
-                print(f"  [{i+1}] {url}")
+                print(f"  [{i + 1}] {url}")
                 save_path = args.save
                 if not save_path:
                     ts = time.strftime("%Y%m%d_%H%M%S")
@@ -226,14 +231,22 @@ def _dispatch(client: AgnesClient, args):
     elif cmd == "video":
         image_url = None
         if args.image:
-            image_url = args.image if args.image.startswith(("http://", "https://", "data:")) else client.image_to_base64(args.image)
+            image_url = (
+                args.image
+                if args.image.startswith(("http://", "https://", "data:"))
+                else client.image_to_base64(args.image)
+            )
 
         result = client.generate_video(
-            args.prompt, model=args.model,
+            args.prompt,
+            model=args.model,
             image_url=image_url,
-            width=args.width, height=args.height,
-            num_frames=args.frames, frame_rate=args.fps,
-            num_inference_steps=args.steps, seed=args.seed,
+            width=args.width,
+            height=args.height,
+            num_frames=args.frames,
+            frame_rate=args.fps,
+            num_inference_steps=args.steps,
+            seed=args.seed,
             negative_prompt=args.negative,
             wait=not args.no_wait,
             poll_interval=args.poll,
@@ -259,17 +272,23 @@ def _dispatch(client: AgnesClient, args):
             info = client.get_model_info(mid)
             caps = []
             if mtype == "chat":
-                if info.get("vision"): caps.append("多模态")
-                if info.get("tools"): caps.append("工具调用")
-                if info.get("thinking"): caps.append("深度思考")
-                if info.get("stream"): caps.append("流式")
-                caps.append(f"{info.get('上下文',0)//1000}K 上下文")
+                if info.get("vision"):
+                    caps.append("多模态")
+                if info.get("tools"):
+                    caps.append("工具调用")
+                if info.get("thinking"):
+                    caps.append("深度思考")
+                if info.get("stream"):
+                    caps.append("流式")
+                caps.append(f"{info.get('上下文', 0) // 1000}K 上下文")
             elif mtype == "image":
-                caps.append(f"最大{info.get('max_size','?')}")
-                if info.get("img2img"): caps.append("图生图")
+                caps.append(f"最大{info.get('max_size', '?')}")
+                if info.get("img2img"):
+                    caps.append("图生图")
             elif mtype == "video":
                 caps.append("文生视频")
-                if info.get("img2video"): caps.append("图生视频")
+                if info.get("img2video"):
+                    caps.append("图生视频")
             print(f"  {mid:<30} {mtype:<8} {', '.join(caps)}")
 
     elif cmd in ("interactive", "i", "shell"):
@@ -303,6 +322,7 @@ def _chat_loop(client: AgnesClient, args):
 def _chat_stream(client: AgnesClient, args):
     """流式输出模式。"""
     import requests
+
     body = {
         "model": args.model,
         "messages": [{"role": "user", "content": args.prompt}],
@@ -372,6 +392,7 @@ def _interactive(client: AgnesClient):
             elif act == "vision":
                 # vision --image <file> <prompt>
                 import shlex
+
                 try:
                     toks = shlex.split(rest)
                 except Exception:
@@ -390,7 +411,11 @@ def _interactive(client: AgnesClient):
                 if not img_path:
                     print("  用法：vision --image <图片文件> <问题>")
                 else:
-                    img = img_path if img_path.startswith(("http://", "https://", "data:")) else client.image_to_base64(img_path)
+                    img = (
+                        img_path
+                        if img_path.startswith(("http://", "https://", "data:"))
+                        else client.image_to_base64(img_path)
+                    )
                     if not prompt:
                         prompt = "请描述这张图片"
                     print(client.chat_with_image(prompt, img))
@@ -404,6 +429,7 @@ def _interactive(client: AgnesClient):
                         print(f"  💾 agnes_image_{ts}.png")
             elif act == "img2img":
                 import shlex
+
                 try:
                     toks = shlex.split(rest)
                 except Exception:
@@ -422,12 +448,16 @@ def _interactive(client: AgnesClient):
                 if not img_paths or not prompt:
                     print("  用法：img2img <描述文字> --image <图片文件>")
                 else:
-                    urls = [p if p.startswith(("http://","https://","data:")) else client.image_to_base64(p) for p in img_paths]
+                    urls = [
+                        p if p.startswith(("http://", "https://", "data:")) else client.image_to_base64(p)
+                        for p in img_paths
+                    ]
                     for img in client.generate_image(prompt, image_urls=urls):
                         client.download_file(img["url"], f"agnes_img2img_{int(time.time())}.png")
-                        print(f"  💾 已保存")
+                        print("  💾 已保存")
             elif act == "video":
                 import shlex
+
                 try:
                     toks = shlex.split(rest)
                 except Exception:

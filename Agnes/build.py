@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Agnes 一键构建脚本
 
 用法:
@@ -7,11 +6,11 @@
   python build.py --clean  # 清理构建缓存
 """
 
+import argparse
 import os
-import sys
 import shutil
 import subprocess
-import argparse
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).parent.resolve()

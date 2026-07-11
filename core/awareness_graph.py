@@ -24,10 +24,10 @@ from typing import Any
 
 __all__ = [
     "AwarenessGraph",
-    "Fact",
-    "Entity",
-    "SessionNode",
     "Contradiction",
+    "Entity",
+    "Fact",
+    "SessionNode",
     "get_awareness_graph",
     "rebuild_awareness_graph",
 ]

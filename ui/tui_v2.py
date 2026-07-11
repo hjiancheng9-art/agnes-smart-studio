@@ -546,7 +546,7 @@ class TuiAppV2:
     def _setup_keybindings(self) -> KeyBindings:
         kb = KeyBindings()
 
-        @kb.add("c-c")
+        # (Ctrl+C handled below at second binding)
         def _(event):
             with self._state_lock:
                 streaming = self._streaming or self._thinking
@@ -605,12 +605,15 @@ class TuiAppV2:
             self.input_buffer.reset()
             event.app.invalidate()
 
-        @kb.add("c-t")
+        @kb.add("c-m")
         def _(event):
             """Toggle secondary metrics panel (CPU/memory/disk)."""
-            if hasattr(event.app, "_dash_state"):
-                event.app._dash_state.toggle_secondary()
-                event.app.invalidate()
+            # Ctrl+M == Enter in many terminals — don't intercept when typing
+            if event.app.current_buffer is self.input_buffer:
+                event.current_buffer.validate_and_handle()
+                return
+            self._dash_state.toggle_secondary()
+            event.app.invalidate()
 
         @kb.add("f11")
         def _(event):
@@ -625,7 +628,7 @@ class TuiAppV2:
             if self._focus_mode:
                 self.message_pane._pinned = True
             app.invalidate()
-            self.message_pane._refresh()
+            self.message_pane._auto_scroll()
             if not renderer.full_screen and renderer._in_alternate_screen:
                 renderer.output.quit_alternate_screen()
                 renderer._in_alternate_screen = False
@@ -705,15 +708,13 @@ class TuiAppV2:
             self._activity_expanded = not self._activity_expanded
             event.app.invalidate()
 
-        return kb
-
         # ── Control Plane 快捷键 ──
         @kb.add("c-z")
         def _ctrl_z(event):
             """Ctrl+Z: 撤销 pending 消息。"""
             self._undo_pending()
 
-        @kb.add("c-c")
+        # (Ctrl+C handled below at second binding)
         def _ctrl_c(event):
             """Ctrl+C: 取消当前 run。"""
             with self._state_lock:
@@ -727,20 +728,19 @@ class TuiAppV2:
         @kb.add("escape")
         def _esc(event):
             """Esc: 退出详情 / 退出焦点模式 / 退出复制模式 / 暂停当前 run。"""
-            app = event.app
-            if hasattr(app, "detail_view") and app.detail_view and app.detail_view.active:
-                app.detail_view.close()
+            if self._detail_view and self._detail_view.active:
+                self._detail_view.close()
                 return
-            if hasattr(app, '_focus_mode') and app._focus_mode:
-                app._focus_mode = False
-                app.message_pane._pinned = True
-                app._ui(app._refresh_status)
-                app.invalidate()
+            if self._focus_mode:
+                self._focus_mode = False
+                self.message_pane._pinned = True
+                self._ui(self._refresh_status)
+                event.app.invalidate()
                 return
-            if hasattr(app, '_copy_mode') and app._copy_mode:
-                app._copy_mode = False
-                app._ui(app._refresh_status)
-                app.invalidate()
+            if getattr(self, '_copy_mode', False):
+                self._copy_mode = False
+                self._ui(self._refresh_status)
+                event.app.invalidate()
                 return
             if control().runs.is_running:
                 control().pause_run("用户按 Esc 暂停")
@@ -758,114 +758,123 @@ class TuiAppV2:
         # ══════════════════════════════════════════════════════════════
 
         # ── Copy / Detail / Focus 快捷键 ──
+        # 单字母快捷键：输入框聚焦时放行字符，不拦截
+        def _typing(event):
+            """True if user is typing in the input buffer — let char through."""
+            return event.app.current_buffer is self.input_buffer
+
         @kb.add("c")
         def _copy_focused(event):
             """c: 复制聚焦消息全文。"""
-            if hasattr(event.app, "detail_view") and event.app.detail_view and event.app.detail_view.active:
-                event.app.detail_view.handle_key("c")
+            if _typing(event):
+                event.current_buffer.insert_text("c")
                 return
-            ok, msg = event.app._copy_mgr.copy_focused()
-            _log = getattr(event.app, "_log_append", None)
-            if _log:
-                _log((("✓", "class:activity-done") if ok else ("✗", "class:error"), msg[:100]))
-            event.app._ui(event.app._refresh_status)
+        def _copy_focused(event):
+            """c: 复制聚焦消息全文。"""
+            if self._detail_view and self._detail_view.active:
+                self._detail_view.handle_key("c")
+                return
+            ok, msg = self._copy_mgr.copy_focused()
+            self._log_append((("✓", "class:activity-done") if ok else ("✗", "class:error"), msg[:100]))
+            self._ui(self._refresh_status)
 
         # ── Shift+C: 复制 Markdown ──
-        @kb.add("s-c")
+        @kb.add("C")
         def _copy_markdown(event):
             """Shift+C: 复制聚焦消息为 Markdown。"""
-            ok, msg = event.app._copy_mgr.copy_focused_markdown()
-            _log = getattr(event.app, "_log_append", None)
-            if _log:
-                _log((("✓", "class:activity-done") if ok else ("✗", "class:error"), msg[:100]))
-            event.app._ui(event.app._refresh_status)
+            ok, msg = self._copy_mgr.copy_focused_markdown()
+            self._log_append((("✓", "class:activity-done") if ok else ("✗", "class:error"), msg[:100]))
+            self._ui(self._refresh_status)
 
         # ── F9: 原生选择模式 ──
         @kb.add("f9")
         def _native_select(event):
             """F9: 切换原生选择模式（TUI 暂停鼠标捕获）。"""
-            event.app._native_select = not event.app._native_select
-            if event.app._native_select:
-                _log = getattr(event.app, "_log_append", None)
-                if _log:
-                    _log(("→", "class:activity-warn", "原生选择模式：TUI 暂停鼠标，按 F9 返回"))
-                    event.app._ui(event.app._refresh_status)
+            self._native_select = not self._native_select
+            if self._native_select:
+                self._log_append(("→", "class:activity-warn", "原生选择模式：TUI 暂停鼠标，按 F9 返回"))
+                self._ui(self._refresh_status)
             else:
-                _log = getattr(event.app, "_log_append", None)
-                if _log:
-                    _log(("→", "class:activity-info", "已恢复 TUI 鼠标控制"))
-                    event.app._ui(event.app._refresh_status)
+                self._log_append(("→", "class:activity-info", "已恢复 TUI 鼠标控制"))
+                self._ui(self._refresh_status)
 
         @kb.add("o")
         def _open_detail(event):
             """o: 打开消息详情视图。"""
-            idx = event.app._copy_mgr.focus.index
-            if idx < 0 or idx >= len(event.app._msg_store):
-                idx = len(event.app._msg_store) - 1
-                event.app._copy_mgr.focus.index = idx
-            event.app._detail_view = MessageDetailScreen(event.app._msg_store, idx)
-            event.app._detail_view.on_close(lambda: event.app._ui(event.app._refresh_status))
-            event.app._detail_view.open()
-            event.app._log_append(
-                ("→", "class:activity-info", f"打开详情: 消息 #{idx} ({event.app._msg_store.get(idx).snippet(40)}...)")
+            if _typing(event):
+                event.current_buffer.insert_text("o")
+                return
+            idx = self._copy_mgr.focus.index
+            if idx < 0 or idx >= len(self._msg_store):
+                idx = len(self._msg_store) - 1
+                self._copy_mgr.focus.index = idx
+            if idx < 0:
+                return  # empty store, nothing to open
+            msg = self._msg_store.get(idx)
+            self._detail_view = MessageDetailScreen(self._msg_store, idx)
+            self._detail_view.on_close(lambda: self._ui(self._refresh_status))
+            self._detail_view.open()
+            snippet = msg.snippet(40) if msg else "(empty)"
+            self._log_append(
+                ("→", "class:activity-info", f"打开详情: 消息 #{idx} ({snippet}...)")
             )
-            event.app._ui(event.app._refresh_status)
+            self._ui(self._refresh_status)
 
         @kb.add("up")
         def _focus_up(event):
-            if hasattr(event.app, "detail_view") and event.app.detail_view and event.app.detail_view.active:
-                event.app.detail_view.handle_key("up")
-                event.app._ui(event.app._refresh_status)
+            if self._detail_view and self._detail_view.active:
+                self._detail_view.handle_key("up")
+                self._ui(self._refresh_status)
                 return
             # 焦点/复制模式：消息间导航
-            in_focus = getattr(event.app, '_focus_mode', False)
-            in_copy = getattr(event.app, '_copy_mode', False)
+            in_focus = self._focus_mode
+            in_copy = getattr(self, '_copy_mode', False)
             if in_focus or in_copy:
-                msg = event.app._copy_mgr.store.get(event.app._copy_mgr.focus.prev())
+                msg = self._copy_mgr.store.get(self._copy_mgr.focus.prev())
                 if msg:
-                    event.app._log_append(("←", "class:activity-info", f"聚焦 [{msg.role}] {msg.snippet(80)}"))
-                    event.app._ui(event.app._refresh_status)
+                    self._log_append(("←", "class:activity-info", f"聚焦 [{msg.role}] {msg.snippet(80)}"))
+                    self._ui(self._refresh_status)
                     return
             # 没有特殊模式 → 消息面板滚动
-            event.app.message_pane._pinned = False
-            event.app.message_pane._scroll_up(3)
+            self.message_pane._pinned = False
+            self.message_pane.scroll_up(3)
             event.app.invalidate()
 
         @kb.add("down")
         def _focus_down(event):
-            if hasattr(event.app, "detail_view") and event.app.detail_view and event.app.detail_view.active:
-                event.app.detail_view.handle_key("down")
-                event.app._ui(event.app._refresh_status)
+            if self._detail_view and self._detail_view.active:
+                self._detail_view.handle_key("down")
+                self._ui(self._refresh_status)
                 return
             # 焦点/复制模式：消息间导航
-            in_focus = getattr(event.app, '_focus_mode', False)
-            in_copy = getattr(event.app, '_copy_mode', False)
+            in_focus = self._focus_mode
+            in_copy = getattr(self, '_copy_mode', False)
             if in_focus or in_copy:
-                msg = event.app._copy_mgr.store.get(event.app._copy_mgr.focus.next())
+                msg = self._copy_mgr.store.get(self._copy_mgr.focus.next())
                 if msg:
-                    event.app._log_append(("→", "class:activity-info", f"聚焦 [{msg.role}] {msg.snippet(80)}"))
-                    event.app._ui(event.app._refresh_status)
+                    self._log_append(("→", "class:activity-info", f"聚焦 [{msg.role}] {msg.snippet(80)}"))
+                    self._ui(self._refresh_status)
                     return
             # 没有特殊模式 → 消息面板滚动
-            event.app.message_pane._pinned = False
-            event.app.message_pane._scroll_down(3)
+            self.message_pane._pinned = False
+            self.message_pane.scroll_down(3)
             event.app.invalidate()
 
         @kb.add("tab")
         def _focus_next_code(event):
             """Tab: 在代码块之间跳转。"""
-            store = event.app._msg_store
+            store = self._msg_store
             if not store or len(store) == 0:
                 return
-            idx = event.app._copy_mgr.focus.index
+            idx = self._copy_mgr.focus.index
             if idx < 0 or idx >= len(store):
                 idx = len(store) - 1
             msg = store.get(idx)
             if msg and msg.code_blocks:
-                event.app._log_append(
+                self._log_append(
                     ("→", "class:activity-info", f"代码块: {len(msg.code_blocks)} 个 — 按 c 复制当前")
                 )
-            event.app._ui(event.app._refresh_status)
+            self._ui(self._refresh_status)
 
         return kb
 
@@ -956,11 +965,9 @@ class TuiAppV2:
 
         activity_window = Window(
             content=FormattedTextControl(_activity_content),
-            height=Dimension.exact(
+            height=lambda: (
                 self._activity_expanded_height if self._activity_expanded else self._activity_collapsed_height
-            )
-            if self._log_count()
-            else Dimension.exact(0),
+            ) if self._log_count() else 0,
             style="class:message-area",
             always_hide_cursor=True,
             dont_extend_height=True,
@@ -991,7 +998,7 @@ class TuiAppV2:
 
         input_window = Window(
             content=input_ctrl,
-            height=Dimension.exact(1),
+            height=Dimension(min=1, max=10),
             style="class:input-field",
             dont_extend_height=True,
             wrap_lines=False,
@@ -1337,7 +1344,7 @@ class TuiAppV2:
         if text == "/remediate" or text.startswith("/remediate "):
             screen = self._available_screens.get("remediate")
             if text.startswith("/remediate run "):
-                iid = text[16:].strip()
+                iid = text[15:].strip()
                 screen.run(iid) if hasattr(screen, "run") else None
                 if not self.screen_stack.active:
                     self.screen_stack.push(screen, self)
@@ -1374,7 +1381,7 @@ class TuiAppV2:
                 lines.extend(
                     f"  [{a.get('risk', '?')}] {a.get('command', '?'):40s} {a.get('status', '?')}" for a in acts
                 )
-                self.message_pane.append_info("\\n".join(lines))
+                self.message_pane.append_info("\n".join(lines))
             except Exception as e:
                 self.message_pane.append_error(f"Error: {e}")
             return True
@@ -1697,9 +1704,8 @@ class TuiAppV2:
             return False
         if control().retract(self._pending_msg_id):
             self._log_append(("→", "class:activity-warn", "消息已撤销"))
-            if self.message_pane.messages:
-                self.message_pane.messages.pop()
-                self._ui(self.message_pane._render)
+            self.message_pane.pop_last_message()
+            self._ui(self.message_pane._auto_scroll)
             self._pending_msg_id = None
             self._pending_text = ""
             return True
@@ -1776,24 +1782,6 @@ class TuiAppV2:
     def _stream_image_response(self, image_path: str) -> None:
         try:
             prompt = "请详细描述这张图片的内容。如果是截图，请描述界面、文字和关键信息。"
-            # ── GPT-first 图片分析 ──
-            try:
-                from core.gpt_first import is_gpt_first, route_with_image
-                if is_gpt_first():
-                    self._ui(self.message_pane.append_info, "🤖 正在将图片发送给 ChatGPT 分析...")
-                    gpt_reply = route_with_image(
-                        "请分析这张图片的内容，描述关键信息。如果是截图请描述界面布局和异常信息。",
-                        image_path,
-                    )
-                    if gpt_reply:
-                        prompt = (
-                            f"[ChatGPT 图片分析]\n{gpt_reply[:2000]}\n\n"
-                            f"[用户提问]\n{prompt}"
-                        )
-                        self._ui(self.message_pane.append_info, "🤖 ChatGPT 图片分析完成 ✓")
-            except Exception:
-                pass  # GPT 失败，直接走 DeepSeek vision
-
             self._ui(self.message_pane.stream_start, "crux")
             self._log_append(("●", "class:message-tool", f"视觉分析: {os.path.basename(image_path)}"))
             for kind, payload in self.session.send_stream(prompt, image_url=image_path):
@@ -1829,26 +1817,11 @@ class TuiAppV2:
 
     def _stream_response(self, user_text: str) -> None:
         try:
-            # ── GPT-first 拦截：先问 ChatGPT，再融合 DeepSeek ──
-            _enhanced_text = user_text
-            try:
-                from core.gpt_first import is_gpt_first, route_via_gpt
-                if is_gpt_first() and user_text and not user_text.startswith("/"):
-                    gpt_reply = route_via_gpt(user_text)
-                    if gpt_reply:
-                        _enhanced_text = (
-                            f"[ChatGPT 回复]\n{gpt_reply[:2000]}\n\n"
-                            f"[用户提问]\n{user_text}"
-                        )
-                        self._ui(self.message_pane.append_info, "🤖 ChatGPT consulted ✓")
-            except Exception:
-                pass  # GPT 失败，直接走 DeepSeek
-
             self._ui(self.message_pane.stream_start, "crux")
             pending_tool = None
             _t0 = time.monotonic()
             _first_token = False
-            for kind, payload in self.session.send_stream(_enhanced_text):
+            for kind, payload in self.session.send_stream(user_text):
                 if not _first_token and kind in ("text", "thinking"):
                     _first_token = True
                     self._latency = time.monotonic() - _t0  # ── 检查优先插话标记（工具边界已设置） ──
@@ -1929,8 +1902,21 @@ class TuiAppV2:
                         self._ui(self.message_pane.append_info, f"Saved: {loc}")
                         self._log_append(("✓", "class:activity-done", f"已保存: {loc}"))
                 else:
-                    # Unknown kind — log for debugging, don't silently drop
-                    logger.debug("tui.stream: unknown kind=%s, payload_type=%s", kind, type(payload).__name__)
+                    # ── Status-line events: 路由到状态栏或通知区 ──
+                    status_kinds = {
+                        "status_update", "watchdog_alert", "watchdog_warning",
+                        "system_warning", "system_error", "provider_fallback",
+                        "notice", "connection_error", "system_info",
+                        "tool_failed", "tool_started", "tool_finished", "tool_progress",
+                    }
+                    if kind in status_kinds:
+                        text = str(payload)[:120]
+                        if "error" in kind or "failed" in kind or "alert" in kind:
+                            self._ui(self.message_pane.append_error, text)
+                        else:
+                            self._ui(self.message_pane.append_info, text)
+                    else:
+                        logger.debug("tui.stream: unhandled kind=%s", kind)
             # Mark any remaining pending tool as done
             if pending_tool:
                 _last_entry = self._log_last()

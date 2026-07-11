@@ -6,20 +6,20 @@
   Video (文生视频 + 图生视频 + 轮询查询)
 """
 
+import base64
+import json
 import os
 import time
-import json
-import base64
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from dataclasses import dataclass, field
 
 import requests
-
 
 # ═══════════════════════════════════════════════════════════════
 # Config
 # ═══════════════════════════════════════════════════════════════
+
 
 @dataclass
 class AgnesConfig:
@@ -50,12 +50,20 @@ ALL_IMAGE_SIZES = [s for group in IMAGE_SIZES.values() for s in group]
 
 CHAT_MODELS = {
     "agnes-1.5-flash": {
-        "context": 512000, "max_output": 64000,
-        "stream": False, "tools": False, "thinking": False, "vision": False,
+        "context": 512000,
+        "max_output": 64000,
+        "stream": False,
+        "tools": False,
+        "thinking": False,
+        "vision": False,
     },
     "agnes-2.0-flash": {
-        "context": 512000, "max_output": 64000,
-        "stream": True, "tools": True, "thinking": True, "vision": True,
+        "context": 512000,
+        "max_output": 64000,
+        "stream": True,
+        "tools": True,
+        "thinking": True,
+        "vision": True,
     },
 }
 
@@ -85,14 +93,16 @@ def _ensure_output_dirs():
     OUTPUT_VIDEOS.mkdir(parents=True, exist_ok=True)
 
 
-
-def _load_dotenv():
+def load_dotenv():
     """加载配置（兼容旧版 — 委托给 config 模块）"""
     from agnes.config import load_env_into_os
+
     load_env_into_os()
 
+
 # Auto-load .env at import time
-_load_dotenv()
+load_dotenv()
+
 
 class AgnesError(Exception):
     """Agnes API 错误。"""
@@ -214,8 +224,11 @@ class AgnesClient:
         if stream:
             url = f"{self.config.api_base}/chat/completions"
             resp = requests.post(
-                url, json=body, headers=self._headers,
-                timeout=self.config.timeout, stream=True,
+                url,
+                json=body,
+                headers=self._headers,
+                timeout=self.config.timeout,
+                stream=True,
             )
             resp.raise_for_status()
             return self._parse_sse(resp)
@@ -225,6 +238,7 @@ class AgnesClient:
     def _parse_sse(self, resp):
         """解析 Server-Sent Events 流，逐 chunk yield delta content。"""
         import json as _json
+
         for line in resp.iter_lines():
             if not line:
                 continue
@@ -266,13 +280,15 @@ class AgnesClient:
         **kwargs,
     ) -> str:
         """多模态对话 — 带图片输入（仅 agnes-2.0-flash 支持）。"""
-        messages = [{
-            "role": "user",
-            "content": [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": image_url}},
-            ],
-        }]
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": image_url}},
+                ],
+            }
+        ]
         return self.chat(messages, model=model, **kwargs)["choices"][0]["message"]["content"]
 
     # ── Image Generation ─────────────────────────────────
@@ -347,13 +363,11 @@ class AgnesClient:
             w, h = map(int, size.split("x"))
             if w % 16 != 0 or h % 16 != 0:
                 raise ValueError(f"尺寸 {size} 不是 16 的倍数")
-        except ValueError:
+        except ValueError as err:
             valid = ", ".join(ALL_IMAGE_SIZES[:6]) + "..."
             raise AgnesError(
-                f"无效的图片尺寸： {size}\n"
-                f"  尺寸格式: WxH (宽x高)，必须为 16 的倍数\n"
-                f"  常用尺寸: {valid}"
-            )
+                f"无效的图片尺寸： {size}\n  尺寸格式: WxH (宽x高)，必须为 16 的倍数\n  常用尺寸: {valid}"
+            ) from err
 
     # ── Video Generation ─────────────────────────────────
 
@@ -361,8 +375,8 @@ class AgnesClient:
         self,
         prompt: str,
         model: str = "agnes-video-v2.0",
-        image_url: str | None = None,        # 图生视频参考图
-        mode: str | None = None,              # 生成模式
+        image_url: str | None = None,  # 图生视频参考图
+        mode: str | None = None,  # 生成模式
         width: int = 1152,
         height: int = 768,
         num_frames: int | None = None,
@@ -452,9 +466,8 @@ class AgnesClient:
 
     def get_video(self, video_id: str) -> dict:
         """通过 video_id 查询视频生成状态。"""
-        return self._request("GET",
-            f"{self.config.api_base.replace('/v1','')}/agnesapi?video_id={video_id}",
-            timeout=30
+        return self._request(
+            "GET", f"{self.config.api_base.replace('/v1', '')}/agnesapi?video_id={video_id}", timeout=30
         )
 
     # ── Models ──────────────────────────────────────────
@@ -473,7 +486,7 @@ class AgnesClient:
         seed: int | None = None,
         negative_prompt: str | None = None,
         poll_interval: int = 5,
-        on_progress = None,
+        on_progress=None,
     ) -> str:
         """生成视频 -> 等待完成 -> 下载到本地，返回保存路径。
 
@@ -526,7 +539,7 @@ class AgnesClient:
                 pass  # 刚好在超时前完成了
             else:
                 raise AgnesError(
-                    f"视频生成超时（已等待 {waited//60} 分钟）\n"
+                    f"视频生成超时（已等待 {waited // 60} 分钟）\n"
                     f"  video_id: {video_id[:40]}...\n"
                     f"  当前状态: {state} ({status.get('progress', 0)}%)\n"
                     f"  请稍后用查询工具输入 video_id 查看结果"
@@ -595,6 +608,8 @@ class AgnesClient:
     def image_to_base64(image_path: str) -> str:
         """将本地图片转为 Data URI 格式（用于图生图）。"""
         ext = Path(image_path).suffix.lower().lstrip(".")
-        mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp"}.get(ext, "image/png")
+        mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp"}.get(
+            ext, "image/png"
+        )
         data = base64.b64encode(Path(image_path).read_bytes()).decode()
         return f"data:{mime};base64,{data}"

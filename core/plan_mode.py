@@ -141,6 +141,8 @@ class PlanModeManager:
 
         Returns:
             更新后的 Plan，或 None（拒绝时）
+
+        副作用: 审批通过时自动标记 MethodologyState.plan_exists。
         """
         import datetime
 
@@ -154,6 +156,13 @@ class PlanModeManager:
                 plan.selected_option = selected_option
                 plan.approved_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
                 self._in_plan_mode = False
+
+                # ── 方法论集成: 标记 Plan 已确认 ──
+                try:
+                    from core.methodology import get_methodology_state
+                    get_methodology_state().mark_plan_confirmed()
+                except ImportError:
+                    pass
             else:
                 plan.status = PlanStatus.REJECTED
                 self._in_plan_mode = False

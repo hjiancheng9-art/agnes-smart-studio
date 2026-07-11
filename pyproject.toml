@@ -98,22 +98,35 @@ select = [
     "B",    # flake8-bugbear
     "SIM",  # flake8-simplify
     "C4",   # flake8-comprehensions
+    "TCH",  # flake8-type-checking (reduce import overhead)
+    "RUF",  # ruff-specific rules
+    "PT",   # flake8-pytest-style
 ]
 ignore = [
     "E501",   # line-length 由 formatter / line-length 配置管理
     "E402",   # module-import-not-at-top（入口文件/条件 import 较多，per-file-ignores 已覆盖）
+    "PT011",  # pytest.raises({exc}) too broad (允许宽异常匹配)
+    "RUF001",   # 中文用户可见字符串中全角标点不强制转半角
+    "RUF002",   # 中文 docstring/注释中的全角标点不强制转半角
+    "RUF003",
+    "RUF012",   # ClassVar 迁移成本高，暂时允许可变类属性默认值
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# E402: module-import-not-at-top — 入口文件、动态 sys.path 注入、测试文件允许
 "crux_studio.py" = ["E402"]
-"core/brain_data/__init__.py" = ["E402"]
-"core/comfyui_tools.py" = ["E402"]
-"core/web_api.py" = ["E402"]
-"tests/*.py" = ["E402"]
+"core/**/__init__.py" = ["E402"]
+"core/*_tools.py" = ["E402"]
+"tests/**/*.py" = ["E402"]
 
 [tool.pyright]
 # 与 ruff extend-exclude 保持一致：临时脚本/生成产物不纳入静态分析
 exclude = ["scripts/scratch", "tests/manual", "output", ".codebuddy", "**/__pycache__"]
+typeCheckingMode = "basic"
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+reportUnknownArgumentType = false
+reportUnknownVariableType = false
 
 [tool.coverage.run]
 source = ["core", "ui", "engines", "utils", "pipeline"]
@@ -125,5 +138,5 @@ skip_covered = true
 # 门禁策略：基线 55%（当前实际约 57%），留 ~2% 防抖余量。
 # 周爬坡：每 merge 一个 worktree 把门禁上调 2-3 个百分点。
 # 上游原来是 96%（与实际值脱节），CI 也没跑 --cov，等于形同虚设。
-fail_under = 55
+fail_under = 58
 

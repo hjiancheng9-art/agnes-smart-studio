@@ -10,8 +10,8 @@ from pathlib import Path
 from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = [
-    "GitWorkflow",
     "ROOT",
+    "GitWorkflow",
     "git_autocommit",
     "git_snapshot",
     "git_status",

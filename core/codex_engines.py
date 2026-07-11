@@ -9,9 +9,9 @@ from pathlib import Path
 from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = [
+    "ROOT",
     "JSRepl",
     "MCPConnector",
-    "ROOT",
     "js_eval",
     "mcp_call",
     "mcp_connect",
@@ -270,6 +270,7 @@ def pw_navigate(url: str) -> str:
     v6.1: CDP 直连（替代 subprocess），短超时 + JS 降级 + 自动重连
     """
     import json as _json
+
     from core.cdp_browser import pw_navigate as _cdp_navigate
     try:
         result = _json.loads(_cdp_navigate(url))
@@ -287,6 +288,7 @@ def pw_screenshot() -> str:
     """
     import time as _time
     from pathlib import Path as _Path
+
     from core.cdp_browser import cdp_session
 
     out_dir = _Path("output")

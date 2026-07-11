@@ -1,2 +1,0 @@
-Bash
-python -m core.cleanup_manager restore --cleanup-id cleanup-20260707-0643

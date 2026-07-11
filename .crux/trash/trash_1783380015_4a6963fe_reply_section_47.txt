@@ -1,3 +1,0 @@
-Action:
-  Move to .crux/trash/cleanup-20260707-0643/
-3. 防误删安全策略

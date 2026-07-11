@@ -13,13 +13,14 @@ import types
 
 logger = logging.getLogger(__name__)
 
-_SKILL_COMPILER_HOOK_INJECTED = False
-
 
 def inject_skill_compiler_hooks(session):
-    """Add Phase 5 skill/prompt compiler hooks to a ChatSession instance."""
-    global _SKILL_COMPILER_HOOK_INJECTED
-    if _SKILL_COMPILER_HOOK_INJECTED:
+    """Add Phase 5 skill/prompt compiler hooks to a ChatSession instance.
+
+    Injection is per-session — each ChatSession gets its own compiler hook.
+    """
+    # Per-session guard: skip if this session already has compiler hooks
+    if getattr(session, "_skill_compiler_hooked", False):
         return
 
     tvl = getattr(session, "tvl", None)
@@ -88,8 +89,8 @@ def inject_skill_compiler_hooks(session):
         else:
             session._build_system_prompt = types.MethodType(_build_system_prompt_with_compiler, session)
 
-    _SKILL_COMPILER_HOOK_INJECTED = True
-    logger.info("Phase 5 skill compiler hooks injected")
+    session._skill_compiler_hooked = True
+    logger.info("Phase 5 skill compiler hooks injected for session %s", id(session))
 
 
 def print_skill_report(session) -> str:

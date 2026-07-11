@@ -1,3 +1,0 @@
-保护 docs/config/templates 下的 JSON
-不保护 .crux/tmp 下的 JSON
-安全闸 4：删除改为 move-to-trash

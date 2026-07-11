@@ -549,9 +549,10 @@ class ThinkingPanel:
                     visual_lines.append("")
                     continue
                 # Simple wrap: chop at width boundaries
-                while len(paragraph) > width - 4:
-                    visual_lines.append(paragraph[: width - 4])
-                    paragraph = paragraph[width - 4 :]
+                inner = max(1, width - 4)
+                while len(paragraph) > inner:
+                    visual_lines.append(paragraph[:inner])
+                    paragraph = paragraph[inner:]
                 visual_lines.append(paragraph)
 
             shown = visual_lines[: self.MAX_LINES]
@@ -579,14 +580,13 @@ class ThinkingPanel:
             if not self._visible or not self._content:
                 return 0
             content = self._content
-        # Count lines after wrapping
-        content = self._content
+        inner = max(1, width - 4)
         total_lines = 0
         for paragraph in content.split("\n"):
             if not paragraph:
                 total_lines += 1
             else:
-                total_lines += max(1, -(-len(paragraph) // (width - 4)))  # ceil division
+                total_lines += max(1, -(-len(paragraph) // inner))  # ceil division
         line_count = min(total_lines, self.MAX_LINES)
         if total_lines > self.MAX_LINES:
             line_count += 1  # for the "...(+N more)" line

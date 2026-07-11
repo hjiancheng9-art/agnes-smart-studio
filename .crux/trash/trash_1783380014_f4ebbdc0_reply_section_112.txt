@@ -1,2 +1,0 @@
-trash_dir = self.root / ".crux" / "trash" / plan.cleanup_id
-        trash_dir.mkdir(parents=True, exist_ok=True)

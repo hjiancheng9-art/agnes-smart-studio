@@ -25,10 +25,10 @@ __all__ = [
     "execute_code_analyze",
     "execute_find_references",
     "execute_find_symbol",
-    "execute_search_symbols",
-    "execute_graph_neighbors",
     "execute_graph_ancestors",
     "execute_graph_descendants",
+    "execute_graph_neighbors",
+    "execute_search_symbols",
     "get_index",
     "refresh_index",
 ]

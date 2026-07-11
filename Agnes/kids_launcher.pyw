@@ -417,7 +417,7 @@ class KidsApp:
                 import traceback
                 errlog = Path(__file__).parent / "kids_error.log"
                 errlog.write_text(f"画图失败: {e}\n{traceback.format_exc()}", encoding="utf-8")
-                self.root.after(0, lambda: self._draw_error(str(e)))
+                self.root.after(0, lambda e=e: self._draw_error(str(e)))
         threading.Thread(target=task, daemon=True).start()
 
     def _draw_done(self, path):
@@ -577,7 +577,7 @@ class KidsApp:
                 import traceback
                 errlog = Path(__file__).parent / "kids_error.log"
                 errlog.write_text(f"视频失败: {e}\n{traceback.format_exc()}", encoding="utf-8")
-                self.root.after(0, lambda: self._video_error(str(e)))
+                self.root.after(0, lambda e=e: self._video_error(str(e)))
         threading.Thread(target=task, daemon=True).start()
 
     def _show_video_progress(self):
@@ -614,12 +614,8 @@ class KidsApp:
 
         # 渐变效果：多段矩形
         for x in range(0, fill_w, 3):
-            shade = min(255, 200 + int(55 * x / max(1, w)))
-            r, g, b = (78, 205, 196) if color == C["blue"] else (0, 184, 148)
-            c = f"#{r:02x}{g:02x}{b:02x}"
             self.video_progress.create_rectangle(x, 2, min(x+3, fill_w), h-2,
                                                   fill=color, outline="", width=0)
-
         # 边框
         self.video_progress.create_rectangle(0, 0, w, h, outline=C["shadow"], width=2)
 
@@ -981,7 +977,7 @@ class KidsApp:
                 self.root.after(0, lambda: self._chat_reply(
                     f"✅ 画好啦！\n\n📁 已保存到：\n{path}\n\n你可以点顶部 📂 打开文件夹查看～"))
             except Exception as e:
-                self.root.after(0, lambda: self._chat_reply(f"❌ 画画失败了...\n{e}"))
+                self.root.after(0, lambda e=e: self._chat_reply(f"❌ 画画失败了...\n{e}"))
         threading.Thread(target=task, daemon=True).start()
 
     def _chat_gen_video(self, args):
@@ -1008,7 +1004,7 @@ class KidsApp:
                 self.root.after(0, lambda: self._chat_reply(
                     f"✅ 动画做好啦！\n\n📁 已保存到：\n{path}\n\n你可以点顶部 📂 打开文件夹查看～"))
             except Exception as e:
-                self.root.after(0, lambda: self._chat_reply(f"❌ 做动画失败了...\n{e}"))
+                self.root.after(0, lambda e=e: self._chat_reply(f"❌ 做动画失败了...\n{e}"))
         threading.Thread(target=task, daemon=True).start()
 
     def _chat_reply(self, reply):

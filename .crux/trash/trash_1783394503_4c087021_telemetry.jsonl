@@ -1,2 +1,0 @@
-{"ts": 1782319795.328501, "event": "test", "tool": "test_tool", "latency": 0.1, "error": "", "provider": "test", "tokens": 0}
-{"ts": 1782324890.5981832, "event": "test", "tool": "smoke_test", "latency": 0.1, "error": "", "provider": "", "tokens": 0}

@@ -1,8 +1,0 @@
-def scan(self) -> CleanupPlan:
-        candidates = []
-        for rule_name, rule in self.policy["cleanup_rules"].items():
-            for pattern in rule["patterns"]:
-                for path in self.root.glob(pattern):
-                    candidate = self._classify(path, rule_name, rule)
-                    if candidate:
-                        candidates.append(candidate)

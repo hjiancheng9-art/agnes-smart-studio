@@ -623,6 +623,17 @@ class ToolRegistry:
             return self._definitions
         return [d for d in self._definitions if d["function"]["name"] in names]
 
+    def get_definitions_for_names(self, names: set[str]) -> list[dict]:
+        """Return definitions for a specific set of tool names.
+
+        Used by the tool-loop to send only the initially filtered tools plus any
+        tools the model has actually called, instead of expanding to the full
+        97-tool set (14K tokens) on every subsequent loop iteration.
+        """
+        if not names:
+            return []
+        return [d for d in self._definitions if d["function"]["name"] in names]
+
     @property
     def tool_names(self) -> list[str]:
         return [d["function"]["name"] for d in self._definitions]

@@ -1,5 +1,0 @@
-正式 workflow templates
-用户保存的 workflow
-带 name/version/tags 的 workflow
-被 skill manifest 引用的 workflow
-最近成功执行的 workflow hash

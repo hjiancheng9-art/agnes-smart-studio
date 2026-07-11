@@ -311,7 +311,7 @@ def _playwright_generate(
     if not provider:
         return json.dumps({"success": False, "error": f"未知 provider: {provider_id}"}, ensure_ascii=False)
 
-    pw, ctx, err = _get_browser_context(provider_id)
+    _pw, ctx, err = _get_browser_context(provider_id)
     if err:
         return json.dumps({"success": False, "error": err}, ensure_ascii=False)
     if not ctx:
@@ -705,7 +705,7 @@ def execute_browser_setup(provider: str) -> str:
         )
 
     pcfg = PROVIDER_CONFIGS[provider]
-    pw, ctx, err = _get_browser_context(provider)
+    _pw, ctx, err = _get_browser_context(provider)
     if err:
         return json.dumps({"success": False, "error": err}, ensure_ascii=False)
 

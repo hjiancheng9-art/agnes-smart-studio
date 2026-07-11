@@ -67,12 +67,20 @@ def inject_reviewer_hooks(session):
                 report = tvl.review_turn(last_user, last_assistant, tool_history)
                 if not report.passed and report.issues:
                     logger.info(f"Reviewer: {len(report.issues)} issues, score={report.score}")
-                    # If critical issues, inject warning into messages
+                    # If critical issues, inject warning into messages.
+                    # Replace any prior reviewer warning so at most one is kept —
+                    # previously these accumulated one per turn and were never cleaned.
                     if report.has_critical:
                         warning = report.to_llm_prompt()
+                        warning_marker = "[Reviewer Warning]"
+                        self.messages = [
+                            m for m in self.messages
+                            if not (m.get("role") == "system"
+                                    and str(m.get("content", "")).startswith(warning_marker))
+                        ]
                         self.messages.append({
                             "role": "system",
-                            "content": f"[Reviewer Warning]\n{warning[:500]}",
+                            "content": f"{warning_marker}\n{warning[:500]}",
                         })
                         # Set a flag for the UI to show
                         self._last_review_warning = warning[:200]

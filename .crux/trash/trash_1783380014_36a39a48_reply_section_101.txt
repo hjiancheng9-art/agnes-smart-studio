@@ -1,1 +1,0 @@
-恢复就是按 manifest 把 .crux/trash/... 移回原路径。

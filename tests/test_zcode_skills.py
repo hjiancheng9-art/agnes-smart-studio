@@ -282,11 +282,14 @@ class TestSkillOperations:
 
 class TestSkillTriggerModes:
     def test_auto_skills_prompt_no_auto_skills(self, fresh_manager):
+        """auto_skills_prompt should inject configured auto skills (e.g. caliber)."""
         fresh_manager.create_examples()
         fresh_manager.discover()
         base = "Base prompt."
         result = fresh_manager.auto_skills_prompt(base)
-        assert result == base
+        # With skill_overrides.json configured, auto skills will be injected
+        assert result != base  # Injection happened
+        assert "Skill 自动激活" in result
 
     def test_list_all_includes_all(self, fresh_manager, tmp_path):
         import json

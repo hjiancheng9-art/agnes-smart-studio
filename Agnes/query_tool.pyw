@@ -186,7 +186,7 @@ class QueryTool:
                     self.vid_out.insert(END, "❌ API 未连接")
                     return
                 import time
-                for i in range(60):  # 最多轮询 5 分钟
+                for _ in range(60):  # 最多轮询 5 分钟
                     result = self.client.get_video(vid)
                     status = result.get("internal_status", result.get("status", ""))
                     progress = result.get("progress", 0)
@@ -198,12 +198,12 @@ class QueryTool:
                     
                     if status in ("completed", "done", "succeeded"):
                         url = result.get("url", result.get("data", {}).get("url", ""))
-                        self.vid_out.insert(END, f"\n✅ 视频生成完成！")
+                        self.vid_out.insert(END, "\n✅ 视频生成完成！")
                         if url:
                             self.vid_out.insert(END, f"\n📎 {url}")
                         break
                     elif status in ("failed", "error"):
-                        self.vid_out.insert(END, f"\n❌ 生成失败")
+                        self.vid_out.insert(END, "\n❌ 生成失败")
                         break
                     
                     time.sleep(5)
@@ -249,11 +249,11 @@ class QueryTool:
                     elif tp == "image":
                         self.model_out.insert(END, f"  最大尺寸：{info.get('max_size','?')}\n")
                         if info.get("img2img"):
-                            self.model_out.insert(END, f"  支持：图生图\n")
+                            self.model_out.insert(END, "  支持：图生图\n")
                     elif tp == "video":
                         self.model_out.insert(END, f"  默认尺寸：{info.get('default_size','?')}\n")
                         if info.get("img2video"):
-                            self.model_out.insert(END, f"  支持：图生视频\n")
+                            self.model_out.insert(END, "  支持：图生视频\n")
                     self.model_out.insert(END, "\n")
             except Exception as e:
                 self.model_out.delete("1.0", END)

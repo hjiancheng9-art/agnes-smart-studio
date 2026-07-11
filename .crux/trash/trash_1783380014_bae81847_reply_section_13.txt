@@ -1,3 +1,0 @@
-可自动清理。
-先 dry-run，再 move-to-trash/quarantine，最后删除。
-T3：生成资产，大但可能有价值

@@ -110,7 +110,7 @@ class RepoMap:
         source_name = os.path.splitext(os.path.basename(source_path))[0]
         tests = []
         for path, syms in self.symbols.items():
-            if "test" in path.lower() and source_name in path or source_name in syms.test_targets:
+            if ("test" in path.lower() and source_name in path) or source_name in syms.test_targets:
                 tests.append(path)
         return tests[:10]
 

@@ -143,7 +143,10 @@ class InputRouter:
         for mode, handler in handlers:
             if mode == self._mode and handler():
                 return True
-        # 再试 NORMAL 兜底
+        # 再试 NORMAL 兜底 — 仅当前模式不是 NORMAL 时才走兜底,
+        # 否则上面的精确匹配已经试过所有 NORMAL handler 了。
+        if self._mode == InputMode.NORMAL:
+            return False
         return any(mode == InputMode.NORMAL and handler() for mode, handler in handlers)
 
     def remove_handlers(self, key: str) -> None:

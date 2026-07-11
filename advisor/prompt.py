@@ -1,26 +1,32 @@
-"""
-Advisor 提示词模板
-==================
-GPT 是 CRUX 的主脑，直接给出完整回答。DeepSeek 负责审阅和执行。
+"""Advisor prompt — asks GPT for a concrete implementation plan.
+
+GPT acts as a senior architect giving a plan with real code.
+The local model then executes the plan with tool calls.
 """
 
 from __future__ import annotations
 
 
 def build_advisor_prompt(query: str, context: str = "") -> str:
-    """构建发送给 GPT 的提示词。
+    """Build the prompt sent to GPT advisor.
 
-    GPT 直接回答，不受格式限制。回答会被 DeepSeek 审阅补充。
+    GPT is asked to provide a concrete plan (analysis + code + verification steps),
+    not just a chat answer. The local model will execute this plan with tools.
     """
-    ctx_block = f"\n背景: {context}" if context else ""
+    ctx_block = f"\n\nBackground context: {context}" if context else ""
 
-    return f"""你是 CRUX 的主脑，正在帮一个开发者解决问题。{ctx_block}
+    return f"""You are a senior software architect advising a local coding agent.
 
-直接、完整地回答以下问题。你就是最终回答者。
-- 给明确结论和建议
-- 涉及代码给完整可运行的代码
-- 涉及方案给具体步骤
-- 自由表达，不套模板
+The local agent has these tools: read_file, search_files, glob_files, edit_file, write_file, \
+run_bash, run_test, web_search, github_search. It can execute code and edit files directly.
 
-问题：
+For the request below, provide a CONCRETE implementation plan:
+1. Brief analysis of what needs to be done
+2. Specific files to read/modify/create (with paths if you can guess)
+3. Code snippets for key changes (full functions, not pseudocode)
+4. Verification steps (tests to run, commands to check)
+
+Be direct and concrete. The local agent will execute your plan with real tools.{ctx_block}
+
+Request:
 {query}""".strip()

@@ -1,7 +1,7 @@
 """Brain creative module — extracted from brain.py."""
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from core.brain_data import (
     ANTI_PATTERN_MAP,
@@ -12,9 +12,6 @@ from core.brain_data import (
     NONHUMAN_VIDEO_RULES,
     THINKING_METHOD_MAP,
 )
-
-if TYPE_CHECKING:
-    pass
 
 
 class SmartBrainMixin:

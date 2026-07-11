@@ -142,7 +142,7 @@ class FailureAnalyzer:
         failed_critic = [s for s in critic_steps if s.get("status") == "failed"]
         if failed_critic:
             diagnosis.failure_type = "critic_missed"
-            diagnosis.severity = critic_steps[0].get("output_summary", "").count("critical") > 0 and "high" or "medium"
+            diagnosis.severity = "high" if critic_steps[0].get("output_summary", "").count("critical") > 0 else "medium"
             diagnosis.root_cause = "审查发现了阻塞性问题"
             diagnosis.diagnosis = "CriticAgent 发现了必须修复的问题"
             diagnosis.confidence = 0.8

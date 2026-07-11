@@ -30,8 +30,8 @@ def _noop_cm():
 __all__ = [
     "AGENT_SYSTEM_PROMPT",
     "BUILTIN_TOOLS",
-    "CORE_TOOL_NAMES",
     "COMFYUI_TOOL_DEFS",
+    "CORE_TOOL_NAMES",
     "PIPELINE_TOOL_DEFS",
     "TOOLS_CONFIG",
     "TOOL_EXPANSION_CATEGORIES",

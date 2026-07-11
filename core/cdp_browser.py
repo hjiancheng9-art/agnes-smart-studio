@@ -10,9 +10,18 @@ CRUX 全局 CDP 浏览器控制模块
 4. CDP 连接保活 + 自动重连
 5. 全局单例复用，避免重复启动 Edge
 """
-import time, socket, subprocess, os, functools, threading, json, logging
+import contextlib
+import json
+import logging
+import os
+import socket
+import subprocess
+import threading
+import time
 from contextlib import contextmanager
-from playwright.sync_api import sync_playwright, TimeoutError as PwTimeout
+
+from playwright.sync_api import TimeoutError as PwTimeout
+from playwright.sync_api import sync_playwright
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +51,7 @@ _FIX_SCROLL_INTERVAL = 0  # 自增计数器，避免重复注入
 
 def _clear_input_buffer(page):
     """清空输入区缓冲区，防止历史消息炸出"""
-    try:
+    with contextlib.suppress(Exception):
         page.evaluate("""() => {
             const ta = document.querySelector('#prompt-textarea');
             if (!ta) return;
@@ -58,8 +67,6 @@ def _clear_input_buffer(page):
             // 清空选区
             window.getSelection()?.removeAllRanges();
         }""")
-    except Exception:
-        pass
 
 def _dismiss_notifications(page):
     """关闭 ChatGPT 页面的通知 toast（如"已就绪"提示），防止挤占输入框"""
@@ -101,7 +108,7 @@ def _fix_scroll(page):
     """修复滚动失效：移除遮罩层 + 恢复 wheel/keydown 事件"""
     global _FIX_SCROLL_INTERVAL
     _FIX_SCROLL_INTERVAL += 1
-    try:
+    with contextlib.suppress(Exception):
         page.evaluate("""(ts) => {
             // 防重复执行
             if (window.__crux_scroll_fixed && window.__crux_scroll_fixed >= ts) return;
@@ -116,8 +123,6 @@ def _fix_scroll(page):
             window.addEventListener('wheel', handler, { passive: true, once: true });
             window.__crux_scroll_fixed = ts;
         }""", _FIX_SCROLL_INTERVAL)
-    except Exception:
-        pass
 
 def _check_cdp_health(browser):
     """检测 CDP 连接是否健康，返回 (ok, reason)"""
@@ -183,11 +188,13 @@ def _connect(retries=3):
        try:
            browser = pw.chromium.connect_over_cdp(CDP_URL)
            return pw, browser
-       except Exception as e:
+       except Exception:
            if i == retries - 1:
                # 最后一次失败：重启 CDP 再试一次
-               try: pw.stop()
-               except Exception: logger.debug("CDP stop failed", exc_info=True)
+               try:
+                   pw.stop()
+               except Exception:
+                   logger.debug("CDP stop failed", exc_info=True)
                time.sleep(1)
                _ensure_cdp()
                pw2 = sync_playwright().start()
@@ -214,10 +221,8 @@ def cdp_session():
        with _lock:
            _global_state["refcount"] -= 1
            if _global_state["refcount"] <= 0:
-               try:
+               with contextlib.suppress(Exception):
                    _global_state["pw"].stop()
-               except Exception:
-                   pass
                _global_state["pw"] = None
                _global_state["browser"] = None
                _global_state["refcount"] = 0
@@ -513,8 +518,9 @@ def ask_chatgpt_with_image(text: str, image_path: str, wait: bool = True) -> str
         image_path: 图片文件路径
         wait: 是否等待回复完成
     """
-    import os as _os
     import io as _io
+    import os as _os
+
     import win32clipboard
     from PIL import Image
 
@@ -538,7 +544,7 @@ def ask_chatgpt_with_image(text: str, image_path: str, wait: bool = True) -> str
         return f"[Clipboard error: {e}]"
 
     with cdp_session() as browser:
-        ok, reason = _check_cdp_health(browser)
+        ok, _reason = _check_cdp_health(browser)
         if not ok:
             browser = _auto_reconnect()
 

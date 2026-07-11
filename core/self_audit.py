@@ -9,7 +9,7 @@ from rich.rule import Rule
 from core.constraints import PROJECT_SKIP_DIRS
 from core.pytest_runner import parse_test_summary, run_pytest_safe
 
-__all__ = ["AuditEngine", "ROOT", "audit"]
+__all__ = ["ROOT", "AuditEngine", "audit"]
 ROOT = Path(__file__).resolve().parent.parent
 
 

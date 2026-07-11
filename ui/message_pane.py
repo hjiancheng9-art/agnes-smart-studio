@@ -7,6 +7,7 @@ resetting vertical_scroll every frame (known issue in _scroll() method).
 from __future__ import annotations
 
 import threading
+import time
 
 from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.layout import Window
@@ -113,7 +114,16 @@ class _ScrollingWindow(Window):
                         self.vertical_scroll = lineno
                         self.vertical_scroll_2 = skip
                         break
-        # else: NO-OP — preserve user's manual scroll position
+
+        else:
+            # ── Bounds guard: prevent scroll drift from freezing input ──
+            # After long running, vertical_scroll can drift beyond valid content
+            # range if messages were added/removed. If out of bounds, reset to
+            # a safe position so mouse/keyboard keep working.
+            max_line = ui_content.line_count - 1 if ui_content else 0
+            if self.vertical_scroll > max_line > 0:
+                self.vertical_scroll = max_line
+                self.vertical_scroll_2 = 0
 
 
 class _MessagePaneControl(FormattedTextControl):
@@ -403,6 +413,27 @@ class MessagePane:
 
     # ── Message management ───────────────────────────────────
 
+    def pop_last_message(self) -> bool:
+        """Remove the last message block from _lines.
+
+        A message block is delimited by trailing empty spacing lines.
+        Returns True if something was removed.
+        """
+        with self._lock:
+            if not self._lines:
+                return False
+            # Remove trailing empty entries
+            while self._lines and not self._lines[-1][1].strip():
+                self._lines.pop()
+            # Remove the message entries (non-empty) until we hit another empty
+            while self._lines and self._lines[-1][1].strip():
+                self._lines.pop()
+            # Remove any remaining trailing empty entries
+            while self._lines and not self._lines[-1][1].strip():
+                self._lines.pop()
+            self._auto_scroll()
+            return True
+
     def append_message(self, role: str, text: str) -> None:
         if not isinstance(text, str):
             text = str(text) if text is not None else ""
@@ -453,10 +484,10 @@ class MessagePane:
         with self._lock:
             if force_pin:
                 self._pinned = True
-            # 强制清空任何残留缓冲区，防止跨流数据泄漏
-            self._stream_buffer = ""
-            self._stream_role = ""
-            self._stream_label = ""
+            # Flush any residual buffer first — _end_stream() checks
+            # self._stream_buffer, so it must be called BEFORE clearing.
+            # Previously the buffer was cleared first, causing _end_stream
+            # to be a no-op and losing unflushed stream data on interrupt.
             self._end_stream()
             fmt = _ROLE_FORMATS.get(role)
             sc, label = fmt if fmt else ("", role)

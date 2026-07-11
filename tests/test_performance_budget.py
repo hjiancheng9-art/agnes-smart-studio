@@ -4,10 +4,10 @@ These prevent regression where new features silently slow down critical paths.
 """
 
 import time
+
 import pytest
 
-from core.interfaces import ToolSpec, ToolCategory, ToolRisk, ToolResult, execute_tool
-
+from core.interfaces import ToolCategory, ToolSpec, execute_tool
 
 # ═══════════════════════════════════════════════════
 #  Budget: tool execution overhead

@@ -21,7 +21,7 @@ Usage:
 
 from __future__ import annotations
 
-from prompt_toolkit.styles import Style  # noqa: I001
+from prompt_toolkit.styles import Style
 
 # ══════════════════════════════════════════════════════════════
 # Four Palette Definitions (from ui/theme.py)
@@ -46,6 +46,8 @@ POLAR_NIGHT = {
     "info": "#00D4F0",
     "user": "#70C0FF",
     "crux": "#9966FF",
+    "thinking": "#B890FF",
+    "tool": "#FFB070",
     "code_bg": "#11111B",
 }
 
@@ -68,6 +70,8 @@ LAVA = {
     "info": "#FF9C60",
     "user": "#FFB080",
     "crux": "#D8A8FF",
+    "thinking": "#D0A0FF",
+    "tool": "#FFC880",
     "code_bg": "#11111B",
 }
 
@@ -90,6 +94,8 @@ JADE = {
     "info": "#18E888",
     "user": "#58D8C0",
     "crux": "#C098F0",
+    "thinking": "#B0A0E0",
+    "tool": "#E8C878",
     "code_bg": "#11111B",
 }
 
@@ -112,6 +118,8 @@ BLADE = {
     "info": "#C0A8FF",
     "user": "#B0C4F0",
     "crux": "#C0A8FF",
+    "thinking": "#A8B8FF",
+    "tool": "#FFB078",
     "code_bg": "#11111B",
 }
 
@@ -134,6 +142,8 @@ NEON_GALAXY = {
     "info": "#68C4FF",
     "user": "#FF90B0",
     "crux": "#D060FF",
+    "thinking": "#B870FF",
+    "tool": "#FFB060",
     "code_bg": "#11111B",
 }
 
@@ -176,6 +186,12 @@ def _build_palette_style(palette: dict) -> Style:
             ("header-model", f"fg:{C['crux']} bold bg:{C['surface']}"),
             ("header-sep", f"fg:{C['dim']} bg:{C['surface']}"),
             ("header-latency", f"fg:{C['muted']} bg:{C['surface']}"),
+            # ── Section headers (分区独立配色) ──
+            ("header-thinking", f"fg:{C['thinking']} bg:{C['surface']} bold"),
+            ("header-status", f"fg:{C['accent2']} bg:{C['surface']} bold"),
+            ("header-tool", f"fg:{C['tool']} bg:{C['surface']} bold"),
+            ("header-comfyui", f"fg:{C['success']} bg:{C['surface']} bold"),
+            ("header-system", f"fg:{C['crux']} bg:{C['surface']} bold"),
             ("header-error", f"fg:{C['error']} bg:{C['surface']}"),
             # ── Status bar ──
             ("status-bar", f"fg:{C['muted']} bg:{C['surface']}"),
@@ -292,6 +308,12 @@ def _build_normal_style() -> Style:
             ("input-border", "fg:#313244"),
             ("header-bar", "fg:#89b4fa bg:#181825 bold"),
             ("header-bar bold", "fg:#89b4fa bg:#181825 bold"),
+            # ── Section headers (分区独立配色) ──
+            ("header-thinking", "fg:#cba6f7 bg:#1e1e2e bold"),
+            ("header-status", "fg:#94e2d5 bg:#1e1e2e bold"),
+            ("header-tool", "fg:#fab387 bg:#1e1e2e bold"),
+            ("header-comfyui", "fg:#a6e3a1 bg:#1e1e2e bold"),
+            ("header-system", "fg:#89b4fa bg:#1e1e2e bold"),
             ("separator", "fg:#313244"),
             ("status-bar", "fg:#a6adc8 bg:#181825"),
             ("status-bar.key", "fg:#89b4fa bold"),
@@ -406,6 +428,12 @@ def _build_high_contrast_style() -> Style:
             ("msg-thinking", "bg:#222244 fg:#ccbbff italic"),
             ("msg-info", "bg:#003344 fg:#66dddd"),
             ("header-bar", "bg:#222222 fg:#ffffff bold"),
+            # ── Section headers (分区独立配色, high-contrast safe) ──
+            ("header-thinking", "bg:#222244 fg:#ccbbff bold"),
+            ("header-status", "bg:#003344 fg:#66dddd bold"),
+            ("header-tool", "bg:#442200 fg:#ffcc88 bold"),
+            ("header-comfyui", "bg:#004400 fg:#88ff88 bold"),
+            ("header-system", "bg:#222266 fg:#88ccff bold"),
             ("status-bar", "bg:#222222 fg:#ffffff"),
             ("status-bar.key", "fg:#aaaaaa bold bg:#222222"),
             ("status-bar.val", "fg:#ffffff bg:#222222"),
@@ -448,6 +476,12 @@ def _build_mono_style() -> Style:
             ("msg-info", "fg:ansicyan"),
             # chrome
             ("header-bar", "bold reverse"),
+            # ── Section headers (分区独立配色, mono-safe via ANSI) ──
+            ("header-thinking", "bold fg:ansimagenta"),
+            ("header-status", "bold fg:ansicyan"),
+            ("header-tool", "bold fg:ansiyellow"),
+            ("header-comfyui", "bold fg:ansigreen"),
+            ("header-system", "bold fg:ansiblue"),
             ("status-bar", "reverse"),
             ("status-bar.key", "bold"),
             ("status-bar.val", ""),

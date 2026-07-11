@@ -1,12 +1,12 @@
-# -*- coding: utf-8 -*-
 """Tests for AgnesConfig and environment loading."""
 import os
 import sys
+
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from agnes.client import AgnesConfig, AgnesError, _load_dotenv
+from agnes.client import AgnesConfig, AgnesError
 
 
 class TestAgnesConfig:

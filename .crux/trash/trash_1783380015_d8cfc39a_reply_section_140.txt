@@ -1,5 +1,0 @@
-/cleanup
-/cleanup scan
-/cleanup dry-run
-/cleanup apply
-/cleanup restore

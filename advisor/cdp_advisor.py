@@ -145,12 +145,16 @@ class CdpAdvisor:
         Args:
             new_chat: True 时每次开启新 ChatGPT 对话，避免上下文污染
         """
+        # 懒连接：未初始化时自动尝试 startup
         if not self._connected:
-            return AdvisorResult(
-                status="unavailable",
-                source="cdp_chatgpt",
-                error="CDP advisor 未初始化，请先调用 startup()",
-            )
+            try:
+                self.startup()
+            except Exception as e:
+                return AdvisorResult(
+                    status="unavailable",
+                    source="cdp_chatgpt",
+                    error=f"CDP 连接失败: {e}",
+                )
 
         prompt = build_advisor_prompt(query, context)
         started = time.perf_counter()

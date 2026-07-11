@@ -21,9 +21,9 @@ __all__ = [
     "on_post_tool",
     "on_pre_tool",
     "on_prompt_submit",
+    "register_code_hooks",
     "register_learning_hooks",
     "register_safety_hooks",
-    "register_code_hooks",
 ]
 logger = logging.getLogger(__name__)
 

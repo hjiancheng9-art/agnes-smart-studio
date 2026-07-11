@@ -47,7 +47,7 @@ async def http_handler(reader, writer):
     except Exception as e:
         logger.debug("Non-critical: %s", e, exc_info=True)
     finally:
-        with contextlib.suppress(BaseException):
+        with contextlib.suppress(Exception):
             writer.close()
 
 
@@ -180,9 +180,18 @@ async def message_engine():
                     continue
             try:
                 reply = ""
-                for kind, payload in session.send_stream(content):
-                    if kind == "text":
-                        reply += payload
+                # Run the synchronous send_stream generator in a thread pool
+                # so it doesn't block the asyncio event loop (heartbeat, WS, etc.).
+                loop = asyncio.get_running_loop()
+
+                def _run_stream() -> str:
+                    r = ""
+                    for kind, payload in session.send_stream(content):
+                        if kind == "text":
+                            r += payload
+                    return r
+
+                reply = await loop.run_in_executor(None, _run_stream)
                 if reply:
                     bus.publish(
                         Event(
@@ -230,8 +239,11 @@ async def main(port=9733):
         )
     )
 
-    http_server = await asyncio.start_server(http_handler, "0.0.0.0", port)
-    ws_server = await serve(ws_handler, "0.0.0.0", port + 1)
+    # Bind to localhost only — the GUI cockpit is for local use and must not
+    # be exposed to the network without authentication.
+    bind_addr = "127.0.0.1"
+    http_server = await asyncio.start_server(http_handler, bind_addr, port)
+    ws_server = await serve(ws_handler, bind_addr, port + 1)
     broadcast_task = asyncio.create_task(broadcast_loop())
     engine_task = asyncio.create_task(message_engine())
     heartbeat_task = asyncio.create_task(engine_heartbeat())

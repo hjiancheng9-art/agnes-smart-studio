@@ -128,7 +128,7 @@ def _minimal_toml_parse(path: Path) -> dict[str, Any]:
                 key = key.strip()
                 value = value.strip()
                 # String value
-                if value.startswith('"') and value.endswith('"') or value.startswith("'") and value.endswith("'"):
+                if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
                     current_section[key] = value[1:-1]
                 elif value.lower() == "true":
                     current_section[key] = True

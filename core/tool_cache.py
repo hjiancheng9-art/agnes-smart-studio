@@ -19,7 +19,7 @@ import threading
 import time
 from collections import OrderedDict
 
-__all__ = ["CACHEABLE_TOOLS", "ToolResultCache", "WRITE_TOOLS_INVALIDATE"]
+__all__ = ["CACHEABLE_TOOLS", "WRITE_TOOLS_INVALIDATE", "ToolResultCache", "get_tool_cache"]
 
 
 # ── 可缓存工具集合 ──
@@ -203,3 +203,24 @@ class ToolResultCache:
             f"hits={s['hits']}, misses={s['misses']}, "
             f"hit_rate={s['hit_rate']:.0%})"
         )
+
+    # ── 别名 ──
+    def set(self, name: str, args_json: str, result: str):
+        """put() 的别名，兼容外部调用习惯。"""
+        self.put(name, args_json, result)
+
+
+# ── 全局单例 ──
+
+_cache_singleton: ToolResultCache | None = None
+_cache_lock = threading.Lock()
+
+
+def get_tool_cache() -> ToolResultCache:
+    """返回全局 ToolResultCache 单例。"""
+    global _cache_singleton
+    if _cache_singleton is None:
+        with _cache_lock:
+            if _cache_singleton is None:
+                _cache_singleton = ToolResultCache()
+    return _cache_singleton

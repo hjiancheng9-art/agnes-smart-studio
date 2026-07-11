@@ -19,7 +19,7 @@ from typing import Any
 
 from core.config import OUTPUT_DIR
 
-__all__ = ["LOG_FILE", "MAX_BYTES", "MAX_LINES", "log_call", "load_recent", "clear_log"]
+__all__ = ["LOG_FILE", "MAX_BYTES", "MAX_LINES", "clear_log", "load_recent", "log_call"]
 
 LOG_FILE: Path = OUTPUT_DIR / "tool_calls.jsonl"
 MAX_BYTES = 5 * 1024 * 1024  # 5MB 上限，超过自动 rotate

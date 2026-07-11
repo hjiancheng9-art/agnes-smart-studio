@@ -25,7 +25,7 @@ from ui.theme_v2 import build_style_v2, list_themes_v2
 
 # ── Legacy theme name → v2 mode mapping ──
 _LEGACY_MAP: dict[str, str] = {
-    "polar_night": "mocha",
+    "polar_night": "polar_night",
     "lava": "blade",
     "jade": "normal",
     "blade": "blade",
@@ -125,7 +125,7 @@ THEMES: dict[str, dict[str, str]] = {
 }
 
 # ── Active theme tracking ──
-_active_theme_name: str = "jade"
+_active_theme_name: str = "blade"
 
 # C is the active theme dict — code uses C["bg"], C["fg"], etc.
 C: dict[str, str] = BLADE

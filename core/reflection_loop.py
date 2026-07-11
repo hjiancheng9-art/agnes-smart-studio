@@ -76,7 +76,15 @@ class ReflectionLoop:
         if not review_text or review_text.strip() == "OK":
             return
 
-        # Found issues — append correction
-        correction = f"[🔍 Review] {review_text.strip()[:300]}"
+        # Found issues — replace any prior correction so at most one is kept.
+        # Previously this appended every turn, causing N corrections to accumulate
+        # after N turns and be re-sent on every subsequent API call.
+        marker = "[🔍 Review]"
+        session.messages = [
+            m for m in session.messages
+            if not (m.get("role") == "assistant"
+                    and str(m.get("content", "")).startswith(marker))
+        ]
+        correction = f"{marker} {review_text.strip()[:300]}"
         session.messages.append({"role": "assistant", "content": correction})
         self.correction_count += 1

@@ -166,9 +166,13 @@ class EnvironmentInfo:
         # Clipboard: assume no in SSH/tmux
         has_clipboard = not (is_ssh or is_tmux)
 
-        # Unicode: assume yes unless in problematic SSH
-        lang = os.environ.get("LANG", "")
-        unicode_support = "UTF-8" in lang.upper() or "utf-8" in lang.lower()
+        # Unicode: Windows supports UTF-8 (especially with PYTHONUTF8/chcp 65001).
+        # On POSIX, check LANG for UTF-8. LANG is typically unset on Windows.
+        if os.name == "nt":
+            unicode_support = True
+        else:
+            lang = os.environ.get("LANG", "")
+            unicode_support = "UTF-8" in lang.upper() or "utf-8" in lang.lower()
 
         return cls(
             is_ssh=is_ssh,

@@ -25,9 +25,9 @@ from typing import Any
 __all__ = [
     "PIPELINES",
     "PIPELINE_RUNS_DIR",
+    "ROOT",
     "PipelineEngine",
     "PipelineState",
-    "ROOT",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent

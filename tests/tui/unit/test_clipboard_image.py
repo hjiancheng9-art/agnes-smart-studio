@@ -1,6 +1,6 @@
 """Tests for clipboard_image.py — clipboard image detection (mocked)."""
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 
 class TestClipboardImage:

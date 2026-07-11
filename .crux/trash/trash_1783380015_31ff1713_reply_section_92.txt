@@ -1,4 +1,0 @@
-tracked source file → protected
-modified file → protected
-untracked cache/tmp → cleanable
-安全闸 11：清理前生成 EventLog

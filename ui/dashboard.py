@@ -167,10 +167,10 @@ def render_dashboard(state: DashboardState | None = None, layout: LayoutConfig |
     elif state.state == "streaming":
         lines.append(("class:info", " ▶ STREAMING\n"))
     elif state.state == "thinking":
-        lines.append(("class:thinking italic", " … THINKING\n"))
+        lines.append(("class:header-thinking bold", " … THINKING\n"))
 
     # ── Key indicators (always visible, even in compact) ──
-    lines.append(("class:header-bar bold", " STATUS\n"))
+    lines.append(("class:header-status bold", " STATUS\n"))
     lines.append(sep)
 
     # Context usage — P0
@@ -199,8 +199,8 @@ def render_dashboard(state: DashboardState | None = None, layout: LayoutConfig |
 
     # Tool call chain
     if state._tool_name or state._state == "active":
-        lines.append(("\n", ""))
-        lines.append(("class:header-bar bold", " TOOL\n"))
+        lines.append(("", "\n"))
+        lines.append(("class:header-tool bold", " TOOL\n"))
         lines.append(sep)
         if state._tool_name:
             lines.append(("class:info", f"  {state._tool_name}\n"))
@@ -209,8 +209,8 @@ def render_dashboard(state: DashboardState | None = None, layout: LayoutConfig |
 
     # ComfyUI
     if state._comfyui_status != "unknown":
-        lines.append(("\n", ""))
-        lines.append(("class:header-bar bold", " COMFYUI\n"))
+        lines.append(("", "\n"))
+        lines.append(("class:header-comfyui bold", " COMFYUI\n"))
         lines.append(sep)
         status_color = "class:ok" if state._comfyui_status == "ok" else "class:error"
         lines.append((status_color, f"  {state._comfyui_status}\n"))
@@ -219,7 +219,7 @@ def render_dashboard(state: DashboardState | None = None, layout: LayoutConfig |
 
     # Error diagnostics (auto-expanded)
     if state.state == "error" and state.error_msg:
-        lines.append(("\n", ""))
+        lines.append(("", "\n"))
         lines.append(("class:error bold", " ⚠ ERROR\n"))
         lines.append(sep)
         # Show first 200 chars of error
@@ -228,8 +228,8 @@ def render_dashboard(state: DashboardState | None = None, layout: LayoutConfig |
 
     # ── Secondary metrics (collapsible, P5 per debate) ──
     if state._show_secondary:
-        lines.append(("\n", ""))
-        lines.append(("class:header-bar bold", " SYSTEM\n"))
+        lines.append(("", "\n"))
+        lines.append(("class:header-system bold", " SYSTEM\n"))
         lines.append(sep)
         cpu_c = "class:ok" if state._cpu_pct < 70 else ("class:warn" if state._cpu_pct < 90 else "class:error")
         lines.append((cpu_c, f"  CPU:     {state._cpu_pct:.0f}%\n"))

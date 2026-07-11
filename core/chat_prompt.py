@@ -21,11 +21,11 @@ _BASE_INJECTIONS: list = []
 __all__ = [
     "CHAT_SYSTEM_PROMPT",
     "CODE_SYSTEM_PROMPT",
-    "PromptCache",
     "_HOT_IDENTITY",
-    "load_cold_lore",
+    "PromptCache",
     "build_system_prompt",
     "get_cached_prompt",
+    "load_cold_lore",
     "set_cached_prompt",
 ]
 
@@ -177,16 +177,15 @@ _SPECTRUM_INJECTIONS: list[tuple[str, str, str]] = [
     ("core.marketplace", "get_marketplace", "技能市场"),
 ]
 
-# 轻量聊天注入：仅 marketplace（~186 chars），跳过 Claude DNA+R Blue（~5000 chars 编程方法论）
-# 日常聊天不需要编码纪律，省 ~1200 tokens/请求
+# 轻量聊天注入：marketplace + rules（核心规则在所有模式生效）
 _CHAT_LIGHT_INJECTIONS: list[tuple[str, str, str]] = [
     ("core.marketplace", "get_marketplace", "技能市场"),
+    ("core.rules", "get_rules", "rules injection"),
 ]
 
 _CODE_SPECTRUM_INJECTIONS: list[tuple[str, str, str]] = [
-    # Claude DNA 已从 code mode 移除 — 方法论已在 CLAUDE.md 中，无需重复注入 ~576 tokens
+    # marketplace 已从 CODE 模式移除 — 编码时不需要技能市场状态（省 ~233 tokens/请求）
     ("core.rules", "get_rules", "rules injection"),
-    ("core.marketplace", "get_marketplace", "marketplace"),
 ]
 
 # 热路径身份注入 — 极简一行，不加载七兽/金手指世界观

@@ -83,18 +83,39 @@ class MemoryBridge:
         self._data["stats"]["total_recalled"] += 1
         return results
 
+    # Marker prefix for memory system messages — used for in-place dedup.
+    _MEMORY_MARKER = "[Memory]"
+
     def inject_context(self, messages: list[dict], user_input: str) -> None:
-        """Insert relevant memories as system context before the first message."""
+        """Insert relevant memories as system context, replacing any prior memory message.
+
+        Previously this inserted a new system message every turn, causing N memory
+        messages to accumulate after N turns. Now we find and replace the existing
+        memory message in-place, keeping at most one in the history.
+        """
         memories = self.recall(user_input)
+        # Locate any existing memory message so we can replace or remove it.
+        memory_idx: int | None = None
+        for i, m in enumerate(messages):
+            if m.get("role") == "system" and str(m.get("content", "")).startswith(self._MEMORY_MARKER):
+                memory_idx = i
+                break
         if not memories:
+            # No relevant memories this turn — drop the stale one if present.
+            if memory_idx is not None:
+                messages.pop(memory_idx)
             return
-        ctx_parts = ["[Memory] Relevant past context:"]
+        ctx_parts = [f"{self._MEMORY_MARKER} Relevant past context:"]
         for m in memories[:3]:
             ctx_parts.append(f"- {m['fact']}")
         ctx = "\n".join(ctx_parts)
-        # Insert after the system prompt
-        insert_at = 1 if len(messages) > 1 and messages[0].get("role") == "system" else 0
-        messages.insert(insert_at, {"role": "system", "content": ctx})
+        if memory_idx is not None:
+            # Replace stale memory message in-place — no growth.
+            messages[memory_idx]["content"] = ctx
+        else:
+            # First time: insert right after the system prompt.
+            insert_at = 1 if len(messages) > 1 and messages[0].get("role") == "system" else 0
+            messages.insert(insert_at, {"role": "system", "content": ctx})
 
     def extract_key_facts(self, messages: list[dict]) -> list[str]:
         """Extract potential facts from the last assistant response."""

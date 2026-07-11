@@ -1,7 +1,7 @@
 """Brain aesthetics module — extracted from brain.py."""
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from core.brain_data import (
     BEAUTY_NEGATIVE_REPAIR_MAP,
@@ -14,9 +14,6 @@ from core.brain_data import (
     SWEET_SPOT_TEMPLATES,
     SWEET_SPOT_VIDEO_TEMPLATES,
 )
-
-if TYPE_CHECKING:
-    pass
 
 
 class SmartBrainMixin:

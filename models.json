@@ -19,8 +19,8 @@
       "model": "agnes-2.0-flash"
     },
     "fallback": {
-      "provider": "crux",
-      "model": "agnes-2.0-flash"
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash"
     }
   },
   "providers": {
@@ -63,13 +63,26 @@
         "light": "GLM-4V-Flash",
         "pro": "GLM-4V-Flash"
       }
+    },
+    "local": {
+      "name": "Local (llama.cpp)",
+      "base_url": "http://127.0.0.1:8080/v1",
+      "api_key": "no-key-required",
+      "auth_required": false,
+      "cost_tier": "free",
+      "models": {
+        "light": "local-model",
+        "pro": "local-model",
+        "heavy": "local-model"
+      }
     }
   },
   "fallback": {
     "enabled": true,
     "priority": [
       "deepseek",
-      "crux"
+      "crux",
+      "local"
     ]
   },
   "codebuddy_extra": {

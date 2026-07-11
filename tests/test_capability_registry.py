@@ -3,8 +3,8 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
+
 import pytest
-from unittest.mock import MagicMock, patch
 
 
 class TestCapabilityRegistryStructure:
@@ -12,7 +12,8 @@ class TestCapabilityRegistryStructure:
 
     def test_module_imports(self):
         """capability_registry module can be imported."""
-        import importlib.util, os
+        import importlib.util
+        import os
         path = os.path.join("core", "capability_registry.py")
         if not os.path.exists(path):
             pytest.skip("capability_registry.py not found")
@@ -21,7 +22,8 @@ class TestCapabilityRegistryStructure:
 
     def test_has_register_and_lookup(self):
         """capability_registry should expose register/lookup functions."""
-        import importlib.util, os
+        import importlib.util
+        import os
         path = os.path.join("core", "capability_registry.py")
         if not os.path.exists(path):
             pytest.skip("capability_registry.py not found")

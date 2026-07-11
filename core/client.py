@@ -12,7 +12,7 @@ from .config import SETTINGS
 
 logger = logging.getLogger("crux.client")
 
-__all__ = ["CruxClient", "ContentPolicyError", "http_request", "db_query"]
+__all__ = ["ContentPolicyError", "CruxClient", "db_query", "http_request"]
 
 
 def http_request(

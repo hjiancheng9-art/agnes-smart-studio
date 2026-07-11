@@ -21,12 +21,12 @@ logger = logging.getLogger("crux.agent")
 
 __all__ = [
     "COMPRESS_PROMPT",
+    "PLAN_PROMPT",
+    "SUBAGENT_PROMPT",
     "ContextManager",
     "ModelRouter",
-    "PLAN_PROMPT",
     "PlanExecutor",
     "PlanStep",
-    "SUBAGENT_PROMPT",
     "StepStatus",
     "SubAgent",
     "classify_prompt",
@@ -186,7 +186,7 @@ class ContextManager:
             "role": "system",
             "content": f"[Context Summary]\n{self._summary}",
         }
-        return system_msgs + [summary_msg] + self._truncate_messages(to_keep)
+        return [*system_msgs, summary_msg, *self._truncate_messages(to_keep)]
 
     # 单条消息 content 字符上限（超过则截断尾部，保留头部）
     _MAX_MSG_CHARS = 8000
@@ -720,7 +720,10 @@ class ModelRouter:
         try:
             from core.provider import get_provider_manager
             mgr = get_provider_manager()
-            return mgr.get_model("light") or "deepseek-v4-flash"
+            model = mgr.get_model("light")
+            if not model or model == "unknown":
+                return "deepseek-v4-flash"
+            return model
         except (ImportError, OSError, RuntimeError):
             return "deepseek-v4-flash"
 
@@ -739,6 +742,7 @@ class ModelRouter:
         """优先用 CRUX 视觉模型，其次智谱兜底。"""
         try:
             import os
+
             from core.provider import get_provider_manager
             mgr = get_provider_manager()
             mgr.load()
@@ -806,65 +810,16 @@ class ModelRouter:
         self.tier_stats: dict[str, int] = {"light": 0, "pro": 0, "heavy": 0}
 
     # ── Heuristic prompt classification (auto-model) ──────────
-
-    # ── 工具使用暗示检测：短查询但有操作意图 → 至少 pro ──
-    _TOOL_HINT_PAT = re.compile(
-        r"打开|探测|查|搜|找|读|看|测|试|"
-        r"网页|网站|api|文档|接口|端点|endpoint|"
-        r"http|www\.|\.com|\.ai|\.io|\.dev|"
-        r"文件|目录|日志|配置|"
-        r"跑|执行|安装|部署|编译|构建|"
-        r"download|upload|fetch|curl|wget",
-        re.IGNORECASE,
-    )
-
-    @staticmethod
-    def _has_any_tool_signal(prompt: str) -> bool:
-        """检测短查询是否暗示需要工具操作。"""
-        return bool(ModelRouter._TOOL_HINT_PAT.search(prompt))
-
-
-# ── Enhanced complexity signals (HybridRouter P0) ──────────
-
-    _HEAVY_PAT = re.compile(
-        r"(架构|路线图|根因|多文件|全局|系统性|评审|fallback|router|"
-        r"traceback|stack\s*trace|pytest|CI|workflow|TUI|prompt_toolkit|"
-        r"security\s+(?:audit|review|assessment|hole|flaw|vulnerability)|"
-        r"threat\s+model|attack\s+(?:surface|vector|tree)|"
-        r"architecture\s+(?:design|review|decision)|"
-        r"migrat(?:e|ion)\s+(?:plan|strategy|方案)|"
-        r"重构\s*(?:跨模块|整个项目|全部|架构|系统)|"
-        r"并发|死锁|扩展|吞吐|延迟|安全审查)",
-        re.IGNORECASE,
-    )
-
-    _TRIVIAL_SET: frozenset[str] = frozenset({
-        "你好", "hello", "hi", "hey", "在吗", "在不在", "谢谢", "thanks",
-        "ok", "好的", "okay", "嗯", "哦", "好", "行", "可以",
-    })
-
-    @staticmethod
-    def _is_trivial(prompt: str) -> bool:
-        s = prompt.strip().lower()
-        return len(s) <= 20 and s in ModelRouter._TRIVIAL_SET
-
-    @staticmethod
-    def _is_heavy(prompt: str) -> bool:
-        return (
-            len(prompt) > 1800
-            or len(re.findall(r"```|\.py\b|Traceback|Exception", prompt)) >= 2
-        )
-
-    @staticmethod
-    def _is_pro(prompt: str) -> bool:
-        return len(prompt) > 600
+    # 分类逻辑已收敛到 core.router.classify()，此处的 classify_prompt()
+    # 作为薄兼容层委托给统一路由器。仅保留 ImportError 回退的长度启发式。
 
     @staticmethod
     def classify_prompt(prompt: str, ctx: dict | None = None) -> str:
         """Classify a user prompt into model tier.
 
-        Enhanced (P0): vision input → vision tier; trivial greetings → fallback;
-        complex code/arch → heavy; moderate → pro; else → light.
+        Delegates to core.router.classify() (single source of truth), then maps
+        TaskProfile → tier via PROFILE_TO_TIER. Vision input is handled
+        as a special case before delegation.
 
         Returns one of: 'light', 'pro', 'heavy', 'vision', 'fallback'. Never raises.
         """
@@ -875,64 +830,20 @@ class ModelRouter:
         if not prompt or not isinstance(prompt, str):
             return "pro"
 
-        stripped = prompt.strip()
-        length = len(stripped)
+        try:
+            from core.router import classify as _classify
+            from core.router import profile_to_tier
 
-        # Trivial greeting / short simple question → fallback tier
-        if ModelRouter._is_trivial(prompt):
-            return "fallback"
-
-        # Light commands: explicit test/format/lint invocations → light tier
-        if _LIGHT_COMMANDS.search(stripped):
-            return "light"
-
-        # Heavy tier: HEAVY_PAT (Chinese + English complex keywords)
-        if ModelRouter._HEAVY_PAT.search(stripped):
-            return "heavy"
-
-        # Heavy tier: long context or multiple traceback/exception signals
-        if ModelRouter._is_heavy(stripped):
-            return "heavy"
-
-        # Strong reasoner regex from original (architecture, security, etc.)
-        strong_hits = _count_matches(_STRONG_REASONER, stripped)
-        if strong_hits >= 1:
-            return "heavy"
-
-        # Pro tier: moderate complexity (length > 600 chars with code signals)
-        if ModelRouter._is_pro(stripped):
-            return "pro"
-
-        moderate_hits = _count_matches(_MODERATE_REASONER, stripped)
-        if moderate_hits >= 2:
-            return "heavy"
-        if moderate_hits >= 1 and length > 400:
-            return "heavy"
-
-        code_hits = _count_matches(_CODE_SIGNALS, stripped)
-        if code_hits >= 5 and length > 300:
-            return "heavy"
-        if code_hits >= 1 or length >= 30:
-            return "pro"
-
-        # Light: very short or pure command → 只对明显琐碎的查询降级
-        if length < 30 and not _CODE_SIGNALS.search(stripped) and not _STRONG_REASONER.search(stripped):
-            # 额外检查：有任何工具/操作暗示就升到 pro
-            if ModelRouter._has_any_tool_signal(stripped):
+            profile = _classify(prompt)
+            return profile_to_tier(profile)
+        except ImportError:
+            # Fallback: simple length-based heuristic (router unavailable)
+            stripped = prompt.strip()
+            if len(stripped) > 1800:
+                return "heavy"
+            if len(stripped) > 600:
                 return "pro"
             return "light"
-        if _LIGHT_COMMANDS.search(stripped):
-            return "light"
-        if _LIGHT_SIGNALS.search(stripped) and length < 200:
-            has_code = _CODE_SIGNALS.search(stripped)
-            if has_code:
-                code_match = has_code.group()
-                if code_match in (".py", ".js", ".ts", ".go", ".rs"):
-                    has_code = False
-            if not has_code and not _MODERATE_REASONER.search(stripped):
-                return "light"
-
-        return "pro"
 
     def classify_and_track(self, prompt: str) -> str:
         """Classify prompt and update session stats. Returns tier string."""
@@ -1134,9 +1045,9 @@ class ModelRouter:
 
 
 # Module-level shortcut for backward compatibility
-def classify_prompt(prompt: str) -> str:
+def classify_prompt(prompt: str, ctx: dict | None = None) -> str:
     """Module-level shortcut for ModelRouter.classify_prompt."""
-    return ModelRouter.classify_prompt(prompt)
+    return ModelRouter.classify_prompt(prompt, ctx=ctx)
 
 
 # ======================================================================

@@ -64,11 +64,21 @@ _DEFAULT_PRICING = {
 
 
 def _get_pricing(model: str, kind: str) -> dict[str, str | float]:
-    """获取模型定价，未知模型走默认估值"""
+    """获取模型定价 — 优先从 MODEL_REGISTRY（single source of truth），其次 PRICING 兜底。"""
+    # 1. 优先查 MODEL_REGISTRY.pricing
+    try:
+        from core.provider import MODEL_REGISTRY
+
+        info = MODEL_REGISTRY.get(model)
+        if info and info.pricing:
+            return {"kind": info.model_type, **info.pricing}
+    except ImportError:
+        pass
+    # 2. 回退到本地 PRICING 表（向后兼容）
     p = PRICING.get(model)
     if p:
         return p
-    # 按名字启发式推断 kind
+    # 3. 按名字启发式推断 kind
     if "image" in model.lower():
         return {"kind": "image", **_DEFAULT_PRICING["image"]}
     if "video" in model.lower():

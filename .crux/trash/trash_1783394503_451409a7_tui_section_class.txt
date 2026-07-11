@@ -1,4 +1,0 @@
-class Screen:
-    """Base class for a TUI screen (one view mode at a time)."""
-    name: str = "screen"
-

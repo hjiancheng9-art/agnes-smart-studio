@@ -33,7 +33,6 @@ class StatusBar:
         self._context_tokens: int = 0
         self._context_max: int = 0
         self._hint = ""
-        self._gpt_status = ""
         self._thinking = False
         self._latency: float | None = None
         self._refresh_git()
@@ -44,7 +43,7 @@ class StatusBar:
                 ["git", "branch", "--show-current"],
                 capture_output=True,
                 text=True,
-                timeout=3,
+                timeout=1,
                 cwd=str(self.cwd),
             )
             self._branch = r.stdout.strip()
@@ -57,7 +56,7 @@ class StatusBar:
                     ["git", "diff", "--shortstat", "--cached"],
                     capture_output=True,
                     text=True,
-                    timeout=3,
+                    timeout=1,
                     cwd=str(self.cwd),
                 )
                 staged = r.stdout.strip()
@@ -65,7 +64,7 @@ class StatusBar:
                     ["git", "diff", "--shortstat"],
                     capture_output=True,
                     text=True,
-                    timeout=3,
+                    timeout=1,
                     cwd=str(self.cwd),
                 )
                 unstaged = r2.stdout.strip()
@@ -73,9 +72,9 @@ class StatusBar:
                 for s in (staged, unstaged):
                     for part in s.split(","):
                         part = part.strip()
-                        if "insertion" in part:
+                        if "insertion" in part.lower():
                             added += int(part.split()[0])
-                        elif "deletion" in part:
+                        elif "deletion" in part.lower():
                             deleted += int(part.split()[0])
                 parts = []
                 if added:
@@ -88,7 +87,7 @@ class StatusBar:
                     ["git", "rev-list", "--count", "--right-only", "@{u}...HEAD"],
                     capture_output=True,
                     text=True,
-                    timeout=3,
+                    timeout=1,
                     cwd=str(self.cwd),
                 )
                 ahead = r3.stdout.strip()
@@ -114,10 +113,6 @@ class StatusBar:
     def set_hint(self, hint: str) -> None:
         self._hint = hint
 
-    def set_gpt_status(self, status: str) -> None:
-        """GPT-first 状态：ready / connecting / offline"""
-        self._gpt_status = status
-
     def set_thinking(self, thinking: bool) -> None:
         self._thinking = thinking
 
@@ -134,8 +129,7 @@ class StatusBar:
         if cwd_str.startswith(home):
             cwd_str = "~" + cwd_str[len(home) :]
 
-        gpt = f" | GPT: {self._gpt_status}" if self._gpt_status else ""
-        left = f"{model_str}{' thinking...' if self._thinking else ''}{gpt}"
+        left = f"{model_str}{' thinking...' if self._thinking else ''}"
         mid = f" {cwd_str}"
         if self._branch:
             mid += f"  {self._branch}"
@@ -143,6 +137,16 @@ class StatusBar:
                 mid += f" [{self._diff_stats}]"
 
         right = ""
+        # ── Watchdog alerts: show recent alert count ──
+        try:
+            from core.watchdog import get_watchdog
+            wd = get_watchdog()
+            alerts = wd.status.alerts
+            if alerts:
+                last = alerts[-1]
+                right = f" ⚠ {last[:40]}" if "CRITICAL" in last or "failure" in last else f" ⚡ {last[:40]}"
+        except ImportError:
+            pass
         if self._latency is not None:
             right = f"ttft: {self._latency:.1f}s"
         # ── 方法论等级 ──

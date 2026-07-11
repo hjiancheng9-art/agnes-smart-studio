@@ -4,8 +4,6 @@
 import os
 import sys
 import subprocess
-import json
-import time
 import threading
 from pathlib import Path
 from tkinter import *
@@ -471,7 +469,6 @@ class AgnesLauncher:
     # ── 辅助方法 ─────────────────────────────────────
     def _open_folder(self, path: str = ""):
         """在文件管理器中打开输出目录。"""
-        import subprocess
         folder = path or str(Path(__file__).parent / "outputs")
         if os.path.exists(folder):
             subprocess.Popen(["explorer", folder])

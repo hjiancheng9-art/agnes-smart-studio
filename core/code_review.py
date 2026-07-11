@@ -17,8 +17,8 @@ from pathlib import Path
 from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = [
-    "CODE_REVIEW_TOOL_DEFS",
     "CODE_REVIEW_EXECUTOR_MAP",
+    "CODE_REVIEW_TOOL_DEFS",
     "CodeReviewer",
     "SecurityReviewer",
     "run_review",

@@ -12,7 +12,6 @@ from playwright.async_api import (
     async_playwright,
 )
 
-
 CDP_URL = "http://127.0.0.1:9222"
 
 ASSISTANT_SELECTORS = (

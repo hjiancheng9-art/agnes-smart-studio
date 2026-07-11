@@ -10,14 +10,18 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
-import time
+from collections.abc import Callable
+
 import pytest
-from typing import Any, Callable
 
 from core.interfaces import (
-    ToolCategory, ToolRisk, ToolSpec, ToolResult, ToolError, execute_tool,
+    ToolCategory,
+    ToolError,
+    ToolResult,
+    ToolRisk,
+    ToolSpec,
+    execute_tool,
 )
-
 
 # ═══════════════════════════════════════════════════════════════
 #  Contract: every tool must return ToolResult (never throw)

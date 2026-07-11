@@ -1,6 +1,6 @@
 """Auto-generated smoke test — verifies every core module imports without error.
 
-Covers all 148 core modules. Catches SyntaxError, ImportError, and circular imports.
+Covers all core modules. Catches SyntaxError, ImportError, and circular imports.
 """
 
 from __future__ import annotations
@@ -57,6 +57,6 @@ def test_module_imports(module_name: str):
 
 
 def test_module_count():
-    """Sanity check: should have ~148 core modules."""
-    assert len(ALL_MODULES) >= 140, f"Expected >=140 modules, got {len(ALL_MODULES)}"
-    assert len(ALL_MODULES) <= 200, f"Expected <=200 modules, got {len(ALL_MODULES)}"
+    """Sanity check: core module count within expected range."""
+    assert len(ALL_MODULES) >= 200, f"Expected >=200 modules, got {len(ALL_MODULES)}"
+    assert len(ALL_MODULES) <= 260, f"Expected <=260 modules, got {len(ALL_MODULES)}"

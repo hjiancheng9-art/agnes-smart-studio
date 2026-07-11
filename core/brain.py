@@ -14,7 +14,7 @@ from .brain_data import (
 )
 from .client import CruxClient
 
-__all__ = ["SmartBrain", "AsyncSmartBrain"]
+__all__ = ["AsyncSmartBrain", "SmartBrain"]
 
 
 # ── Mixin imports ──

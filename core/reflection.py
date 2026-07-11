@@ -15,14 +15,12 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 logger = logging.getLogger("crux.reflection")
 
-if TYPE_CHECKING:
-    pass
 
-__all__ = ["ReflectionEngine", "CRITIQUE_PROMPT"]
+__all__ = ["CRITIQUE_PROMPT", "ReflectionEngine"]
 
 
 # 反思 prompt：让辅助模型分析最近工具调用，给出方向性建议

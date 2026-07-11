@@ -12,12 +12,12 @@ from pathlib import Path
 
 __all__ = [
     "ROOT",
-    "audit_syntax",
     "audit_deps",
+    "audit_syntax",
     "collect_source_snippets",
-    "project_tree_data",
     "health_checks",
     "health_summary",
+    "project_tree_data",
 ]
 
 

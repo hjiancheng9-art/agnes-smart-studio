@@ -29,13 +29,13 @@ if TYPE_CHECKING:
     from core.tools import ToolRegistry
 
 __all__ = [
+    "DESTRUCTIVE_TOOLS",
     "GRADE_THRESHOLDS",
     "HIGH_RISK_TOOLS",
-    "DESTRUCTIVE_TOOLS",
-    "score_tool_static",
-    "score_tool_runtime",
-    "score_all",
     "grade_from_score",
+    "score_all",
+    "score_tool_runtime",
+    "score_tool_static",
 ]
 
 ROOT = Path(__file__).resolve().parent.parent

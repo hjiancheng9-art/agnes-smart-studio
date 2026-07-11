@@ -5,4 +5,4 @@ from ui.message_pane import MessagePane
 from ui.responsive import LayoutConfig
 from ui.theme_v2 import build_style_v2
 
-__all__ = ["MessagePane", "InputRouter", "build_style_v2", "LayoutConfig"]
+__all__ = ["InputRouter", "LayoutConfig", "MessagePane", "build_style_v2"]

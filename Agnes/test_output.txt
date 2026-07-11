@@ -1,0 +1,32 @@
+============================= test session starts =============================
+collecting ... collected 27 items
+
+tests/test_client_unit.py::TestClientInit::test_init_without_key_raises PASSED [  3%]
+tests/test_client_unit.py::TestClientInit::test_init_with_explicit_config PASSED [  7%]
+tests/test_client_unit.py::TestClientInit::test_init_sets_headers PASSED [ 11%]
+tests/test_client_unit.py::TestRequest::test_non_2xx_raises PASSED       [ 14%]
+tests/test_client_unit.py::TestRequest::test_2xx_returns_json PASSED     [ 18%]
+tests/test_client_unit.py::TestRequest::test_adds_timeout_default PASSED [ 22%]
+tests/test_client_unit.py::TestChat::test_chat_returns_response PASSED   [ 25%]
+tests/test_client_unit.py::TestChat::test_chat_text_strips PASSED        [ 29%]
+tests/test_client_unit.py::TestChat::test_chat_stream_returns_generator PASSED [ 33%]
+tests/test_client_unit.py::TestChat::test_chat_with_image PASSED         [ 37%]
+tests/test_client_unit.py::TestImageGen::test_generate_image_returns_list PASSED [ 40%]
+tests/test_client_unit.py::TestImageGen::test_generate_image_and_save PASSED [ 44%]
+tests/test_client_unit.py::TestModels::test_list_models PASSED           [ 48%]
+tests/test_client_unit.py::TestModels::test_get_model_type PASSED        [ 51%]
+tests/test_client_unit.py::TestUtils::test_download_file PASSED          [ 55%]
+tests/test_client_unit.py::TestUtils::test_image_to_base64 PASSED        [ 59%]
+tests/test_client_unit.py::TestUtils::test_validate_size_valid PASSED    [ 62%]
+tests/test_client_unit.py::TestUtils::test_validate_size_invalid PASSED  [ 66%]
+tests/test_config.py::TestAgnesConfig::test_defaults PASSED              [ 70%]
+tests/test_config.py::TestAgnesConfig::test_from_env_loads_key PASSED    [ 74%]
+tests/test_config.py::TestAgnesConfig::test_from_env_custom_base PASSED  [ 77%]
+tests/test_config.py::TestAgnesConfig::test_from_env_timeout PASSED      [ 81%]
+tests/test_config.py::TestAgnesError::test_creation PASSED               [ 85%]
+tests/test_config.py::TestAgnesError::test_with_status PASSED            [ 88%]
+tests/test_config.py::TestAgnesError::test_with_response PASSED          [ 92%]
+tests/test_config.py::TestAgnesError::test_is_exception PASSED           [ 96%]
+tests/test_config.py::TestLoadDotenv::test_loads_with_quotes PASSED      [100%]
+
+============================= 27 passed in 0.11s ==============================

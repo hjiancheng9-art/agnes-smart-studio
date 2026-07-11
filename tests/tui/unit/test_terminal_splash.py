@@ -1,6 +1,7 @@
 """Tests for terminal_splash.py — startup splash screen."""
 import pytest
-from ui.terminal_splash import print_splash, build_logo_lines, build_border_line, build_scanline
+
+from ui.terminal_splash import build_border_line, build_logo_lines, build_scanline, print_splash
 
 
 class TestSplash:

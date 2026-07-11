@@ -1,7 +1,0 @@
-.safetensors
-.ckpt
-.pt
-.pth
-.bin
-.gguf
-.onnx

@@ -1,5 +1,0 @@
-Protected skipped:
-  126 files
-  - core/**
-  - docs/**
-  - skill manifests

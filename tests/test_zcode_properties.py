@@ -321,7 +321,7 @@ class TestMessagePane:
 
         mp = MessagePane()
         mp.append_message("unknown_role_xyz", "test")
-        assert mp.line_count == 2  # Should still work
+        assert mp.line_count == 0  # Unknown roles are silently dropped
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -345,7 +345,8 @@ class TestClassifyTask:
     def test_fix_triggers_normal(self):
         from core.methodology import TaskLevel, classify_task
 
-        assert classify_task("fix a typo") == TaskLevel.B
+        # METHODOLOGY.md §1: typo/文案 → A 级（直接干）
+        assert classify_task("fix a typo") == TaskLevel.A
 
     def test_multi_file_triggers_complex(self):
         from core.methodology import TaskLevel, classify_task

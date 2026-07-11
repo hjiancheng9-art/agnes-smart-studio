@@ -3,10 +3,10 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
-import pytest
-from unittest.mock import MagicMock, patch
-from core.interfaces.tool import ToolSpec, ToolCategory, ToolRisk
 
+import pytest
+
+from core.interfaces.tool import ToolCategory, ToolRisk, ToolSpec
 
 # ═══════════════════════════════════════════════════
 #  ApprovalGate should exist and block risky tools
@@ -18,6 +18,7 @@ class TestApprovalGateExists:
     def test_module_imports(self):
         """approval_gate module can be imported or exists as file."""
         import importlib.util
+
         # Check if module file exists
         import os
         path = os.path.join("core", "approval_gate.py")

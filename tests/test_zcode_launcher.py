@@ -1,11 +1,12 @@
 """Tests for launcher.py — BeastConfig, ProcessManager, MeshLauncher, health checks."""
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 pytest.importorskip("launcher", reason="launcher module not available in this environment")
 
-from launcher import (  # noqa: E402
+from launcher import (
     BEAST_ICONS,
     BEASTS,
     PID_FILE,

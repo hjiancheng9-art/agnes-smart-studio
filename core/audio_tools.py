@@ -416,7 +416,7 @@ def execute_audio_mixdown(
 
     af = ";".join(filter_parts) + ";" + amix
 
-    cmd = ["ffmpeg", "-y"] + inputs + ["-filter_complex", af, "-map", "[outa]", "-ac", "2", "-b:a", "192k", out_path]
+    cmd = ["ffmpeg", "-y", *inputs, "-filter_complex", af, "-map", "[outa]", "-ac", "2", "-b:a", "192k", out_path]
 
     r = _run(cmd, timeout=300)
 

@@ -1,10 +1,10 @@
 """Contract tests for MCP and LSP interfaces — protocol-level testing."""
 
 import pytest
-from core.interfaces.mcp import MCPClient, MCPToolDef, MCPResult, MCPResource
-from core.interfaces.lsp import LSPClient, LSPResult, LSPDiagnostic, LSPHover, LSPCompletion
-from core.interfaces.errors import MCPError, LSPError
 
+from core.interfaces.errors import MCPError
+from core.interfaces.lsp import LSPClient, LSPCompletion, LSPDiagnostic
+from core.interfaces.mcp import MCPClient, MCPResource, MCPResult, MCPToolDef
 
 # ═══════════════════════════════════════════════════
 #  Fake MCP Client

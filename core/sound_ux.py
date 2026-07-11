@@ -21,7 +21,7 @@ from pathlib import Path
 
 from core.mcp_servers._mcp_utils import run_subprocess
 
-__all__ = ["SoundUX", "SOUND_DIR"]
+__all__ = ["SOUND_DIR", "SoundUX"]
 ROOT = Path(__file__).resolve().parent.parent
 SOUND_DIR = ROOT / "output" / "sounds"
 SOUND_DIR.mkdir(parents=True, exist_ok=True)

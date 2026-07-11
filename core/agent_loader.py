@@ -10,12 +10,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import yaml
-
-if TYPE_CHECKING:
-    pass
 
 AGENTS_DIR = Path(__file__).resolve().parent.parent / "agents"
 

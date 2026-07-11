@@ -16,6 +16,8 @@ import subprocess
 from core.mcp_servers._mcp_utils import run_subprocess
 
 __all__ = [
+    "_parse_repo_arg",
+    "_run_gh",
     "execute_github_api",
     "execute_github_browse",
     "execute_github_issue",
@@ -26,8 +28,6 @@ __all__ = [
     "execute_github_repo_view",
     "execute_github_search",
     "execute_github_write_file",
-    "_parse_repo_arg",
-    "_run_gh",
 ]
 
 

@@ -34,9 +34,9 @@ from pathlib import Path
 from typing import Any
 
 __all__ = [
+    "Outcome",
     "PromptLab",
     "Variant",
-    "Outcome",
     "get_prompt_lab",
     "reset_prompt_lab",
 ]

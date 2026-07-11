@@ -364,7 +364,7 @@ class AsyncCruxClient:
                     converted = []
                     for img in imgs:
                         if isinstance(img, str) and img.startswith("data:image/"):
-                            before, sep, b64 = img.partition(";base64,")
+                            _before, sep, b64 = img.partition(";base64,")
                             converted.append(b64 if sep else img)
                         else:
                             converted.append(img)

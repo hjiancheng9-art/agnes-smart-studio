@@ -1,2 +1,0 @@
-高风险，需要确认：
-  LoRA 中间 checkpoint：3.6GB

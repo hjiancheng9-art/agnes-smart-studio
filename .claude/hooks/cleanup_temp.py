@@ -4,7 +4,6 @@ Auto-deletes tmp*.py files from home directory and generated .txt files from pro
 Hook must never block — all errors silently caught.
 """
 
-import logging
 import os
 import sys
 import time

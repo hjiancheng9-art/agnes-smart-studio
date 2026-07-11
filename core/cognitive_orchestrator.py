@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import logging
+import os
 import re
 
 logger = logging.getLogger("crux.cognitive")
@@ -55,13 +56,14 @@ class CognitiveOrchestrator:
 
         Args:
             prompt: the user's question
-            models: list of model IDs to consult. Default: [deepseek-v4-pro, deepseek-v4-flash]
+            models: list of model IDs to consult. Default: derived from router config
+                    (DEEP profile candidates, up to 2 text models).
 
         Returns:
             {"answer": str, "confidence": str, "dissenting": str, "models_used": int}
         """
         if models is None:
-            models = ["deepseek-v4-pro", "deepseek-v4-flash"]
+            models = self._default_models()
 
         self.vote_count += 1
 
@@ -114,13 +116,73 @@ class CognitiveOrchestrator:
             "models_used": len(responses),
         }
 
+    def _default_models(self) -> list[str]:
+        """Derive deliberation models from router config (DEEP profile candidates).
+
+        Picks the first 2 available text models from the DEEP profile candidates,
+        falling back to a hardcoded safe list if config is unavailable.
+        """
+        try:
+            from core.router import TaskProfile, get_profile_candidates
+
+            candidates = get_profile_candidates(TaskProfile.DEEP)
+            if candidates:
+                # Filter to models whose providers are actually available
+                from core.provider import MODEL_REGISTRY, get_provider_manager
+
+                mgr = get_provider_manager()
+                state = mgr.state
+                available: list[str] = []
+                for mid in candidates:
+                    info = MODEL_REGISTRY.get(mid)
+                    if info is None:
+                        continue
+                    pid = info.provider_id
+                    if state.is_down(pid):
+                        continue
+                    pdata = mgr.providers.get(pid, {})
+                    key = pdata.get("api_key", "") or os.getenv(f"{pid.upper()}_API_KEY", "")
+                    auth_required = pdata.get("auth_required", True)
+                    if key or not auth_required:
+                        available.append(mid)
+                if available:
+                    return available[:2]
+        except (ImportError, OSError) as e:
+            logger.debug("router config unavailable for deliberation: %s", e)
+
+        # Safe fallback: DeepSeek family (most capable text models)
+        return ["deepseek-v4-pro", "deepseek-v4-flash"]
+
     def _call_model(self, model: str, prompt: str) -> str:
-        """Call a single model and return its text response."""
-        if self._client_factory:
+        """Call a single model and return its text response.
+
+        Uses ProviderManager to locate the correct provider and create a client
+        with the proper API key. Falls back gracefully if the provider is unavailable.
+        """
+        try:
+            from core.provider import MODEL_REGISTRY, get_provider_manager
+
+            mgr = get_provider_manager()
+            info = MODEL_REGISTRY.get(model)
+            if info is not None:
+                pid = info.provider_id
+                client = mgr.create_client(pid)
+                resp = client.chat(
+                    model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.3,
+                    max_tokens=1024,
+                )
+                choices = resp.get("choices", [{}])
+                return choices[0].get("message", {}).get("content", "") if choices else ""
+        except (ImportError, OSError, RuntimeError) as e:
+            logger.debug("model %s call via ProviderManager failed: %s", model, e)
+
+        # Last-resort fallback: try any provider that lists this model
+        try:
             from core.provider import get_provider_manager
 
             mgr = get_provider_manager()
-            # Find which provider has this model
             for pid, pdata in mgr.providers.items():
                 if model in pdata.get("models", {}).values():
                     client = mgr.create_client(pid)
@@ -132,16 +194,7 @@ class CognitiveOrchestrator:
                     )
                     choices = resp.get("choices", [{}])
                     return choices[0].get("message", {}).get("content", "") if choices else ""
-            # Fallback: try with default client
-            from core.client import CruxClient
+        except (ImportError, OSError, RuntimeError) as e:
+            logger.debug("model %s fallback call failed: %s", model, e)
 
-            resp = CruxClient().chat(
-                model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
-                max_tokens=1024,
-            )
-            choices = resp.get("choices", [{}])
-            return choices[0].get("message", {}).get("content", "") if choices else ""
-
-        return prompt  # no client factory, identity passthrough
+        return ""  # all paths exhausted, return empty

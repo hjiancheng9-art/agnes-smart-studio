@@ -19,7 +19,7 @@ from core.validator import (
     validate_video_resolution,
 )
 
-__all__ = ["VideoEngine", "VideoFuture", "AsyncVideoEngine", "AsyncVideoFuture"]
+__all__ = ["AsyncVideoEngine", "AsyncVideoFuture", "VideoEngine", "VideoFuture"]
 
 logger = logging.getLogger("crux.engines.video")
 

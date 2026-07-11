@@ -10,7 +10,7 @@ import sys
 import time
 from pathlib import Path
 
-__all__ = ["CapabilityRegistry", "ROOT", "capability_snapshot", "get_banner_counts", "logger"]
+__all__ = ["ROOT", "CapabilityRegistry", "capability_snapshot", "get_banner_counts", "logger"]
 
 logger = logging.getLogger("crux.capability")
 

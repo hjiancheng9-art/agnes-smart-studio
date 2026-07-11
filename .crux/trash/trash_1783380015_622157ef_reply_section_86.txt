@@ -1,5 +1,0 @@
-Python
-运行
-if file_path in manifest.entrypoint:
-    skip("referenced by skill manifest")
-安全闸 10：Git 状态检查

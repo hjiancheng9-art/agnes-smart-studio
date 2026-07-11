@@ -1,5 +1,7 @@
 """Send bug analysis question to ChatGPT via CDP and read reply."""
-import sys, os, time
+import os
+import sys
+import time
 
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

@@ -687,7 +687,7 @@ class ToolRegistryMesh:
             if config_path.exists():
                 data = json.loads(config_path.read_text(encoding="utf-8"))
                 routes = data.get("routes", {})
-                if intent in routes and routes[intent]:
+                if routes.get(intent):
                     persisted = routes[intent]
                     seen = set(persisted)
                     return persisted + [t for t in static_order if t not in seen]

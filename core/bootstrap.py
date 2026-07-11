@@ -58,7 +58,7 @@ def print_kimi_tree(root: Path, max_depth: int = 2) -> None:
             lines.append(f"  ... and {remaining_dirs} more directories")
             break
         name = entry.name
-        marker = "/" if not name.startswith(".") and name not in SKIP_DIRS else "/"
+        marker = "/" if entry.is_dir() else ""
         lines.append(f"  {name}{marker}")
         if max_depth > 1 and not name.startswith(".") and name not in SKIP_DIRS:
             try:

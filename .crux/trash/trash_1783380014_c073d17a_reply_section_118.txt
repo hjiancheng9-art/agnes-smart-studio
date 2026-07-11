@@ -1,5 +1,0 @@
-def _older_than(self, path: Path, days: int) -> bool:
-        if days <= 0:
-            return True
-        age_seconds = time.time() - path.stat().st_mtime
-        return age_seconds >= days * 86400

@@ -4,8 +4,8 @@ import pytest
 pytestmark = pytest.mark.unit
 
 import pytest
-from core.interfaces.execution import CodeExecutor, ExecutionConfig, ExecutionResult
 
+from core.interfaces.execution import CodeExecutor, ExecutionConfig, ExecutionResult
 
 # ═══════════════════════════════════════════════════
 #  Sandbox contract tests

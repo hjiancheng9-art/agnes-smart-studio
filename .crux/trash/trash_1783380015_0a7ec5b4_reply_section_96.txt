@@ -1,9 +1,0 @@
-JSON
-{
-  "event_type": "cleanup.applied",
-  "cleanup_id": "...",
-  "moved_to_trash": 320,
-  "skipped_protected": 126,
-  "total_bytes": 1280000000
-}
-安全闸 12：支持恢复

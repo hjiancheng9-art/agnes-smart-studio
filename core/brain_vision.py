@@ -1,7 +1,7 @@
 """Brain vision module — extracted from brain.py."""
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from core.brain_data import (
     BEAUTY_PORTRAIT_MAP,
@@ -9,9 +9,6 @@ from core.brain_data import (
     ENTITY_TYPE_MAP,
     GRAFT_TARGETS,
 )
-
-if TYPE_CHECKING:
-    pass
 
 
 class SmartBrainMixin:

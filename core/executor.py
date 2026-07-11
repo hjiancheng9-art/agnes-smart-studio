@@ -34,23 +34,23 @@ from collections.abc import Callable
 from pathlib import Path
 
 # 数据类提取到 executor_models.py（facade re-export）
-from core.executor_models import ROOT, AdjustResult, Goal, Step, Task  # noqa: F401
+from core.executor_models import ROOT, AdjustResult, Goal, Step, Task
 
 __all__ = [
     "ROOT",
-    "Step",
-    "Task",
-    "TaskExecutor",
     "AsyncTaskExecutor",
     "Goal",
     "GoalManager",
-    "quick_plan",
-    "smart_plan",
-    "execute_plan_tool",
+    "Step",
+    "Task",
+    "TaskExecutor",
     "async_execute_plan_tool",
     "create_goal_tool",
+    "execute_plan_tool",
     "get_goal_tool",
+    "quick_plan",
     "set_goal_budget_tool",
+    "smart_plan",
     "update_goal_tool",
 ]
 
@@ -1254,9 +1254,9 @@ class SelfReflection:
 
 __all__.extend(
     [
-        "SmartPlanner",
-        "SemanticVerifier",
-        "SelfReflection",
         "AdjustResult",
+        "SelfReflection",
+        "SemanticVerifier",
+        "SmartPlanner",
     ]
 )

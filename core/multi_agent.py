@@ -531,7 +531,7 @@ import time
 import uuid
 from collections.abc import Callable
 
-from core.multi_agent_models import ROOT, Agent, AgentTask  # noqa: F401
+from core.multi_agent_models import ROOT, Agent, AgentTask
 
 _current_root_trace_id = _crux_ctx.ContextVar("crux_root_trace_id", default="")
 _current_trace_id = _crux_ctx.ContextVar("crux_trace_id", default="")
@@ -548,31 +548,31 @@ def get_current_trace_id() -> str:
 
 
 __all__ = [
+    "AGENT_SWARM_TOOL_DEF",
+    "ROOT",
     "Agent",
-    "AgentTask",
     "AgentMode",
     "AgentModeResult",
-    "MultiAgentCoordinator",
-    "ROOT",
-    "SmartDecomposer",
-    "coordinate",
-    "AsyncMultiAgentCoordinator",
-    "async_coordinate",
     "AgentSwarm",
-    "AGENT_SWARM_TOOL_DEF",
+    "AgentTask",
+    "AsyncMultiAgentCoordinator",
+    "MultiAgentCoordinator",
+    "SmartDecomposer",
     "_exec_agent_swarm",
+    "ambiguity_score",
+    "async_coordinate",
+    "build_context_state",
     "compute_agent_mode",
-    "should_use_multi_agent",
+    "coordinate",
+    "failure_score",
+    "file_scope_score",
+    "get_mode_statistics",
     "keyword_score",
     "length_score",
-    "file_scope_score",
-    "failure_score",
-    "risk_score",
-    "ambiguity_score",
-    "simplicity_score",
-    "build_context_state",
     "record_agent_mode_result",
-    "get_mode_statistics",
+    "risk_score",
+    "should_use_multi_agent",
+    "simplicity_score",
 ]
 
 
@@ -580,7 +580,13 @@ __all__ = [
 
 
 class MultiAgentCoordinator:
-    """Orchestrates multiple agents to solve a complex task (threading 版)."""
+    """Orchestrates multiple agents to solve a complex task (threading 版).
+
+    .. deprecated::
+        仅保留向后兼容。``coordinate()`` 现已委托给 ``AsyncMultiAgentCoordinator``
+        （拓扑排序 + DAG 依赖感知）。新代码应直接使用 ``async_coordinate()``。
+        此类忽略 ``depends_on``，仅做 round-robin 调度。
+    """
 
     def __init__(self, tool_executor: Callable, max_workers: int = 4, model_router=None) -> None:
         self.execute_tool = tool_executor
@@ -923,7 +929,25 @@ class MultiAgentCoordinator:
 
 
 def coordinate(goal: str, tool_executor: Callable) -> dict:
-    return MultiAgentCoordinator(tool_executor).execute(goal)
+    """Sync entry point — delegates to AsyncMultiAgentCoordinator for DAG-aware scheduling.
+
+    The old sync MultiAgentCoordinator only did round-robin and ignored task
+    dependencies. This wrapper runs the async version (which does proper
+    topological scheduling) via asyncio.run(), so callers get better scheduling
+    without changing their sync API.
+    """
+    import asyncio
+
+    try:
+        asyncio.get_running_loop()
+        # Already in an event loop — run in a separate thread to avoid nested loop
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, async_coordinate(goal, tool_executor)).result()
+    except RuntimeError:
+        # No running loop — safe to use asyncio.run()
+        return asyncio.run(async_coordinate(goal, tool_executor))
 
 
 # ── asyncio 原生版（Phase 4）────────────────────────────────

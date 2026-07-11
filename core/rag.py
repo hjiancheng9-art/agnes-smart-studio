@@ -19,8 +19,8 @@ from pathlib import Path
 
 __all__ = [
     "INDEX_FILE",
-    "RAGEngine",
     "ROOT",
+    "RAGEngine",
     "index_codebase",
     "semantic_search",
 ]

@@ -297,7 +297,7 @@ class ToolCallValidator:
         return False
 
     def _get_schema(self, name: str) -> dict | None:
-        if name in self.tool_schemas and self.tool_schemas[name]:
+        if self.tool_schemas.get(name):
             return self.tool_schemas[name]
         if self.schema_provider:
             try:

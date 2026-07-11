@@ -30,6 +30,21 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
     except json.JSONDecodeError:
         args = {}
 
+    # ── 工具结果缓存: 只读工具命中直接返回 ──
+    try:
+        from core.tool_cache import CACHEABLE_TOOLS, WRITE_TOOLS_INVALIDATE, get_tool_cache
+
+        cache = get_tool_cache()
+        if name in CACHEABLE_TOOLS:
+            cached = cache.get(name, args_json)
+            if cached is not None:
+                return (cached, [])
+        # 写操作 → 清空缓存（文件可能已被修改）
+        if name in WRITE_TOOLS_INVALIDATE:
+            cache.invalidate_all()
+    except ImportError:
+        pass
+
     # ── cdp_ask_chatgpt 参数归一化（第二层防护） ──
     if name == "cdp_ask_chatgpt":
         from core.tool_call_validator import _normalize_chatgpt_args

@@ -3,35 +3,34 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
-import time
 import pytest
+
 from core.interfaces import (
     ToolCategory,
+    ToolError,
+    ToolResult,
     ToolRisk,
     ToolSpec,
-    ToolResult,
-    ToolError,
     execute_tool,
 )
 from core.interfaces.errors import (
-    CRUXError,
+    AgentError,
+    AgentLoopDetected,
+    ApprovalRequired,
     BrowserError,
     CDPDisconnected,
     CDPTimeout,
-    MCPError,
-    MCPDisconnected,
-    LSPError,
+    CRUXError,
     ExecutionError,
+    LSPError,
+    MCPDisconnected,
+    MCPError,
+    PermissionDenied,
+    RateLimited,
     SandboxViolation,
     TimeoutError,
-    PermissionDenied,
-    ApprovalRequired,
     ToolNotFound,
-    RateLimited,
-    AgentError,
-    AgentLoopDetected,
 )
-
 
 # ═══════════════════════════════════════════════════
 #  ToolSpec tests

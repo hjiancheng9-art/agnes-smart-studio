@@ -1,3 +1,0 @@
-min_age_days = rule.get("min_age_days", 0)
-        if not self._older_than(path, min_age_days):
-            return None

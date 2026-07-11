@@ -9,7 +9,7 @@ Each task has: goal, expected_outcome, scoring function.
 import time
 from pathlib import Path
 
-__all__ = ["BENCHMARKS", "EvalEngine", "ROOT", "run_evals"]
+__all__ = ["BENCHMARKS", "ROOT", "EvalEngine", "run_evals"]
 
 ROOT = Path(__file__).resolve().parent.parent
 

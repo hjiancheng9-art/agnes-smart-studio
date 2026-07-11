@@ -31,7 +31,6 @@
 | `/exit` | 退出聊天 |
 | `/copy [N]` | 复制最近N条对话到剪贴板 (Ctrl+Y) |
 | `/browser` | Browser Companion 网页生成开关（8平台） |
-| `/gpt [on|off]` | GPT-first 模式：切换每次查询先问 ChatGPT（CDP 免费方案） |
 | `/palette [filter]` | Command palette — fuzzy search all commands |
 
 ## 任务工程
@@ -73,6 +72,7 @@
 | `/cost [budget <usd>|reset]` | 查看花费统计 / 设日预算 / 清零 |
 | `/eval [json]` | 运行智能体质量基准测试 |
 | `/extend <notebook|audio|browser|list>` | 切换扩展工具集（notebook/audio/browser） |
+| `/trace [run_id|list]` | 查看执行轨迹，排查问题 |
 | `/mcp <cmd>` | MCP 服务器管理 (list/add/remove/connect/disconnect/tools) |
 
 ## 工具
@@ -82,4 +82,4 @@
 | `/tidy [deep]` | 整理根目录临时文件到 tmp/ 子目录 |
 
 ---
-*83 tools, 34 skills, 239 core modules, 137 test files*
+*83 tools, 34 skills, 241 core modules, 142 test files*

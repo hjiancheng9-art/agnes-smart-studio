@@ -11,10 +11,10 @@ from core.result_validator import (
 )
 from core.reviewer_agent import (
     DebateResult,
+    ReviewerAgent,
     ReviewIssue,
     ReviewReport,
     ReviewSeverity,
-    ReviewerAgent,
     SubTask,
     TaskPlan,
 )

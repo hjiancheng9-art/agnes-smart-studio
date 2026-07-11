@@ -56,7 +56,7 @@ class KeyVault:
 
     def migrate_from_env(self):
         """One-time migration: read API keys from env vars into vault."""
-        env_keys = ["DEEPSEEK_API_KEY", "AGNES_API_KEY", "SILICONFLOW_API_KEY"]
+        env_keys = ["DEEPSEEK_API_KEY", "AGNES_API_KEY", "CRUX_API_KEY", "ZHIPU_API_KEY"]
         migrated = 0
         for k in env_keys:
             v = os.getenv(k, "")

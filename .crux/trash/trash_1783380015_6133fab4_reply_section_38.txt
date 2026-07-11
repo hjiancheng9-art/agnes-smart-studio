@@ -1,5 +1,0 @@
-/crux cleanup scan
-/crux cleanup dry-run
-/crux cleanup apply
-/crux cleanup restore
-/crux cleanup report

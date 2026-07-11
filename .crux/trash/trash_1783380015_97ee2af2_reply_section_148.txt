@@ -1,7 +1,0 @@
-文件分类
-→ 规则匹配
-→ 安全检查
-→ dry-run
-→ move-to-trash
-→ 可恢复
-→ EventLog 审计

@@ -31,7 +31,7 @@ Operations: add_file, delete_file, update_file (with one or more hunks)
 import contextlib
 from pathlib import Path
 
-__all__ = ["PatchEngine", "PatchError", "ROOT", "apply", "rollback_last"]
+__all__ = ["ROOT", "PatchEngine", "PatchError", "apply", "rollback_last"]
 
 ROOT = Path(__file__).resolve().parent.parent
 

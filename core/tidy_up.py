@@ -12,9 +12,9 @@ from __future__ import annotations
 import os
 import shutil
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
 # ── 分类规则 ──────────────────────────────────────
 
@@ -27,8 +27,7 @@ CLASSIFY_RULES: list[tuple[Callable[[str], bool], str, str]] = [
         lambda n: any(
             n.startswith(p)
             for p in (
-                "_ask_chatgpt", "_chat_full", "_gpt_first_full",
-                "chatgpt_response", "_route_via_gpt",
+                "_ask_chatgpt", "_chat_full", "chatgpt_response",
             )
         ),
         "tmp/gpt_outputs",

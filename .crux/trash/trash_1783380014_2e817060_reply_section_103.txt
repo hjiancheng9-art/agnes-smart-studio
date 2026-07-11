@@ -1,4 +1,0 @@
-不要覆盖。
-恢复为 path.restored。
-提示用户手动合并。
-4. 推荐实现：cleanup_manager.py 骨架

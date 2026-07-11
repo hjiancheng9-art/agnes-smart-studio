@@ -235,7 +235,9 @@ def _render_inline(text: str) -> list[tuple[str, str]]:
         else:
             result.append((style, match.group(1)))
 
-        pos = abs_start + match.end()
+        # match.end() is relative to text[pos:], so advance pos by that amount.
+        # Previously used abs_start + match.end() which double-counted match.start().
+        pos = pos + match.end()
 
     return result
 

@@ -13,6 +13,8 @@ import traceback
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+logger = logging.getLogger("crux.tui")
+
 from prompt_toolkit import Application
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.formatted_text import FormattedText
@@ -370,19 +372,7 @@ class TuiApp:
     def _stream_image_response(self, image_path: str) -> None:
         """Stream vision response for an image file."""
         try:
-            # ── GPT-first 图片分析 ──
             prompt = "请详细描述这张图片的内容。如果是截图，请描述界面、文字和关键信息。"
-            try:
-                from core.gpt_first import is_gpt_first, route_with_image
-                if is_gpt_first():
-                    self._ui(self.message_pane.append_info, "🤖 正在将图片发送给 ChatGPT 分析...")
-                    gpt_reply = route_with_image("请分析这张图片的内容，描述关键信息。如果是截图请描述界面布局和异常信息。", image_path)
-                    if gpt_reply:
-                        prompt = f"[ChatGPT 图片分析]\n{gpt_reply[:2000]}\n\n[用户提问]\n{prompt}"
-                        self._ui(self.message_pane.append_info, "🤖 ChatGPT 图片分析完成 ✓")
-            except Exception:
-                pass  # GPT 失败，直接走 DeepSeek vision
-
             self._ui(self.message_pane.stream_start, "crux")
             self._activity_log.append(("●", "class:message-tool", f"视觉分析: {os.path.basename(image_path)}"))
             self._trim_activity_log()
@@ -410,23 +400,11 @@ class TuiApp:
 
     def _stream_response(self, user_text: str) -> None:
         try:
-            # ── GPT-first 拦截 ──
-            _enhanced_text = user_text
-            try:
-                from core.gpt_first import is_gpt_first, route_via_gpt
-                if is_gpt_first() and user_text and not user_text.startswith("/"):
-                    gpt_reply = route_via_gpt(user_text)
-                    if gpt_reply:
-                        _enhanced_text = f"[ChatGPT 回复]\n{gpt_reply[:2000]}\n\n[用户提问]\n{user_text}"
-                        self._ui(self.message_pane.append_info, "🤖 ChatGPT consulted ✓")
-            except Exception:
-                pass  # GPT 失败，直接走 DeepSeek
-
             self._ui(self.message_pane.stream_start, "crux")
-            pending_tool = None  # track current tool name for status updates
+            pending_tool = None
             _t0 = time.monotonic()
             _first_token = False
-            for kind, payload in self.session.send_stream(_enhanced_text):
+            for kind, payload in self.session.send_stream(user_text):
                 if not _first_token and kind in ("text", "thinking"):
                     _first_token = True
                     self.status_bar.set_latency(time.monotonic() - _t0)
@@ -503,6 +481,16 @@ class TuiApp:
                     if loc:
                         self._ui(self.message_pane.append_info, f"Saved: {loc}")
                         self._activity_log.append(("✓", "class:success", f"已保存: {loc}"))
+                else:
+                    # Status-line events → route to info/error display
+                    if kind in ("status_update", "watchdog_alert", "watchdog_warning",
+                                "system_warning", "system_error", "provider_fallback",
+                                "notice", "connection_error", "tool_failed"):
+                        text = str(payload)[:120]
+                        if "error" in kind or "failed" in kind or "alert" in kind:
+                            self._ui(self.message_pane.append_error, text)
+                        else:
+                            self._ui(self.message_pane.append_info, text)
             # Mark any remaining pending tool as done
             if pending_tool and self._activity_log:
                 last_icon, _, last_msg = self._activity_log[-1]

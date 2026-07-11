@@ -133,7 +133,7 @@ class MCPServer:
             if is_notification:
                 return None
             return self._error(req_id, e.code, e.message)
-        except (OSError, RuntimeError, ImportError, ValueError, TypeError, KeyError, AttributeError) as e:  # noqa: BLE001 — JSON-RPC 服务器必须吞运行期异常
+        except (OSError, RuntimeError, ImportError, ValueError, TypeError, KeyError, AttributeError) as e:
             import traceback
 
             tb = traceback.format_exc()
@@ -415,7 +415,7 @@ class MCPServer:
             except OSError:
                 pass  # 读失败降级到文本
         # 同时给路径+URL 文本（让三象两种消费方式都能用）
-        meta = {k: payload[k] for k in ("local_path", "url", "model", "size", "seed") if k in payload and payload[k]}
+        meta = {k: payload[k] for k in ("local_path", "url", "model", "size", "seed") if payload.get(k)}
         if meta:
             contents.append({"type": "text", "text": json.dumps(meta, ensure_ascii=False)})
         return contents
@@ -430,7 +430,7 @@ class MCPServer:
         meta = {
             k: payload[k]
             for k in ("local_path", "url", "task_id", "video_id", "model", "num_frames", "status", "progress")
-            if k in payload and payload[k]
+            if payload.get(k)
         }
         if payload.get("status") == "timeout":
             return (
@@ -504,7 +504,7 @@ def run_mcp_server(argv: list[str] | None = None) -> None:
     # 干净退出：SIGTERM / 键盘中断
     server = MCPServer(session, session.tools)
 
-    def _on_sigterm(signum, frame):  # noqa: ARG001
+    def _on_sigterm(signum, frame):
         server._log(f"received signal {signum}, shutting down")
         sys.exit(0)
 

@@ -3,12 +3,11 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
+
 import pytest
-from unittest.mock import MagicMock, patch
 
-from core.interfaces.tool import ToolSpec, ToolResult, ToolError, ToolCategory, ToolRisk, execute_tool
 from core.interfaces.errors import ToolNotFound
-
+from core.interfaces.tool import ToolCategory, ToolError, ToolResult, ToolRisk, ToolSpec, execute_tool
 
 # ═══════════════════════════════════════════════════
 #  Fake TRM for testing routing logic

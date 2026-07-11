@@ -12,5 +12,15 @@
 __version__ = "1.0.0"
 
 from agnes.client import AgnesClient, AgnesConfig, AgnesError
+from agnes.config import has_api_key, load_config, load_env_into_os, save_config, show_setup_dialog
 
-from agnes.config import load_config, save_config, has_api_key, show_setup_dialog, load_env_into_os
+__all__ = [
+    "AgnesClient",
+    "AgnesConfig",
+    "AgnesError",
+    "has_api_key",
+    "load_config",
+    "load_env_into_os",
+    "save_config",
+    "show_setup_dialog",
+]

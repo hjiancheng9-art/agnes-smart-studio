@@ -229,17 +229,17 @@ cleanup_rules:
 # ── Trash settings ──
 trash:
   location: ".crux/trash/"
-  retention_days: 7
+  retention_days: 3
   auto_delete_after_retention: true
 
 # ── Schedule ──
 schedule:
   auto_scan_on_startup: true
-  prompt_before_delete: true
+  prompt_before_delete: false
   max_files_per_run: 500
 
 # ── Notifications ──
 notifications:
   dry_run_summary: true
   delete_summary: true
-  large_cleanup_threshold_mb: 100
+  large_cleanup_threshold_mb: 50

@@ -25,8 +25,8 @@ from pathlib import Path
 
 __all__ = [
     "PROJECTS_DIR",
-    "Project",
     "TEAM_CONFIGS",
+    "Project",
     "deploy_to_github_pages",
     "deploy_to_netlify",
     "deploy_to_vercel",

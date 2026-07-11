@@ -139,18 +139,10 @@ class RulesManager:
         return list(self._rules.keys())
 
     def inject_prompt(self) -> str:
-        """将已启用的规则注入为 LLM 指令"""
+        """将已启用的规则注入为 LLM 指令。无激活规则时返回空字符串（省 token）。"""
         rules = self.active_rules
         if not rules:
-            # 默认规则：禁止只思考不回复
-            return (
-                "\n[激活规则]\n"
-                "### 用户明确要求输出时，禁止只思考不回复\n"
-                "如果用户要求生成评分/总结/答案等可验证内容，必须直接输出结果，"
-                "禁止陷入过度思考而不输出。先给结果，再补充推理。\n"
-                "### 显示层契约：输出不重复\n"
-                "禁止在 Live.stop() 后再次 console.print 全量 Markdown（会重复前缀）。"
-            )
+            return ""  # 无激活规则 → 不注入任何内容，省 ~130 tokens/请求
 
         lines = ["\n[激活规则]"]
         for r in rules:

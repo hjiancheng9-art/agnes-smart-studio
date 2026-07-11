@@ -1,9 +1,0 @@
-core/**
-ui/**
-skills/**
-docs/**
-tests/**
-methodologies/**
-*.py
-*.md
-*.json

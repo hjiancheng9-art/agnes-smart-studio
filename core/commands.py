@@ -26,8 +26,8 @@ from dataclasses import dataclass
 
 __all__ = [
     "COMMANDS",
-    "CommandDef",
     "SKILL_ENTRIES",
+    "CommandDef",
     "auto_category",
     "build_dispatch_table",
     "get_all",
@@ -227,6 +227,15 @@ COMMANDS: list[CommandDef] = [
         handler="_chat_extend",
     ),
     CommandDef(
+        "trace",
+        "/trace",
+        "[run_id|list]",
+        "查看执行轨迹，排查问题",
+        "诊断配置",
+        long_desc="list：最近 20 条轨迹；<run_id>：查看单条轨迹详情（步骤、错误）。",
+        handler="_chat_trace",
+    ),
+    CommandDef(
         "mcp",
         "/mcp",
         "<cmd>",
@@ -235,16 +244,6 @@ COMMANDS: list[CommandDef] = [
         long_desc="list：显示所有配置的服务器及连接状态；add <name> -- <cmd>：注册新服务器；"
         "remove <name>：移除；connect/disconnect <name>：启停连接；tools <name>：查看工具。",
         handler="_chat_mcp",
-    ),
-    # ── GPT-first ──
-    CommandDef(
-        "gpt",
-        "/gpt",
-        "[on|off]",
-        "GPT-first 模式：切换每次查询先问 ChatGPT（CDP 免费方案）",
-        "对话",
-        long_desc="无参数时显示当前状态。on 开启，off 关闭。开启后每次用户查询先发给 ChatGPT 再融合输出。",
-        handler="_chat_gpt_toggle",
     ),
     # ── 根目录整理 ──
     CommandDef(

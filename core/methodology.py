@@ -106,7 +106,7 @@ class TaskLevel(Enum):
     """方法论第 0 章 A/B/C/D 任务分级。
 
     A 微任务  — 单行修复/typo/小调整，跳过 Plan/TDD/Worktree，必须看 diff
-    B 普通开发 — 简短计划 + 验证，Bug 修复必须补回归测试
+    B 普通开发 — 简短计划 + 验证，Bug 修复必须遵循 检查/优化闭环 (METHODOLOGY.md §5)
     C 复杂工程 — Plan + 分阶段实现 + 测试 + Review，3+ 文件或架构变动
     D 高风险   — 必须 Spec + 风险评估 + 人工确认 + 隔离 + CI
     """
@@ -158,12 +158,54 @@ def classify_task(intent: str, files_touched: list[str] | None = None) -> TaskLe
     n_files = len(files)
     intent_lower = intent.lower()
 
-    # D 级触发
-    d_triggers = {"deploy", "release", "rollback", "migrate", "凭证", "密码", "token"}
+    # D 级触发 — METHODOLOGY.md §1: auth/payment/db/deploy → 直接升 D
+    d_triggers = {
+        "deploy",
+        "release",
+        "rollback",
+        "migrate",
+        "migration",
+        " credentials",
+        "credential",
+        "payment",
+        "database migration",
+        " auth ",
+        "authenticate",
+        "login ",
+        "sign in",
+        "signin",
+        "凭证",
+        "密码",
+        "token",
+        "鉴权",
+        "支付",
+        "数据库迁移",
+        # "auth" 不带空格会匹配"authentication"（误报），用 " auth " 确保词边界
+        # 重构认证系统 → 走 C 级（含重构意图优先）
+    }
     if any(t in intent_lower for t in d_triggers):
+        return TaskLevel.D
+    # models.json + 核心文件 → D
+    if any("models.json" in f for f in files) and n_files >= 2:
         return TaskLevel.D
     if n_files >= 5 and any(p.startswith("core/") for p in files):
         return TaskLevel.D
+
+    # A 级优先检测 — METHODOLOGY.md §1: typo/文案/解释/注释 → 直接干
+    a_triggers = {
+        "typo",
+        "comment",
+        "文案",
+        "解释",
+        "说明",
+        "trivial",
+        "doc",
+        "docstring",
+        "readme",
+        "changelog",
+    }
+    if any(t in intent_lower for t in a_triggers) and n_files <= 1:
+        return TaskLevel.A
 
     # C 级触发
     c_triggers = {"refactor", "architect", "拆", "重构", "架构", "拆分", "模块化"}
@@ -171,8 +213,12 @@ def classify_task(intent: str, files_touched: list[str] | None = None) -> TaskLe
         return TaskLevel.C
     if n_files >= 3:
         return TaskLevel.C
+    # 2 个 core 文件 + 无明确 trivial/fix 意图 → C
     if n_files >= 2 and any(f.startswith("core/") for f in files):
-        return TaskLevel.C
+        # 但如果意图明确是 bugfix/small → 降回 B
+        b_intent = {"fix", "bug", "修复", "补"}
+        if not any(t in intent_lower for t in b_intent):
+            return TaskLevel.C
 
     # B 级触发
     b_triggers = {"fix", "bug", "修复", "补", "implement", "实现", "feature", "新增", "add"}
@@ -224,14 +270,17 @@ class MethodologyState:
 
     @property
     def requires_plan(self) -> bool:
+        """C/D 级需要先写 Plan。"""
         return self.task_level in (TaskLevel.C, TaskLevel.D)
 
     @property
     def requires_test_baseline(self) -> bool:
+        """C/D 级必须先记录测试基线。"""
         return self.task_level in (TaskLevel.C, TaskLevel.D)
 
     @property
     def requires_worktree(self) -> bool:
+        """D 级必须在隔离 worktree 中操作。"""
         return self.task_level == TaskLevel.D
 
     @property
@@ -248,13 +297,16 @@ class MethodologyState:
     # ── 方法 ──
 
     def classify(self, intent: str, files: list[str]) -> None:
+        """分析意图并设定任务等级，推进到判断阶段。"""
         self.task_level = classify_task(intent, files)
         self.workflow_step = 3  # 进入"判断级别"
 
     def record_tool(self, tool_name: str) -> None:
+        """记录本次会话中使用的工具名。"""
         self.tool_call_count += 1
 
     def record_step(self) -> None:
+        """递增步骤计数器。"""
         self.step_count += 1
 
     def advance_workflow(self, event: str) -> None:
@@ -277,6 +329,21 @@ class MethodologyState:
             self.escalation_history.append((self.task_level.name, reason))
             self.task_level = new_level
         return new_level
+
+    # ── 状态标记方法（供 plan_mode / verification / git_worktree 等调用）──
+
+    def mark_plan_confirmed(self) -> None:
+        """标记 Plan 已确认（PlanModeManager.exit(approved=True) 或 /plan 审批通过时调用）。"""
+        self.plan_exists = True
+        self.advance_workflow("plan_created")
+
+    def mark_test_baseline_recorded(self) -> None:
+        """标记测试基线已记录（验证通过或测试基线建立时调用）。"""
+        self.test_baseline_recorded = True
+
+    def mark_worktree_created(self) -> None:
+        """标记隔离 Worktree 已创建（git worktree add 成功时调用）。"""
+        self.worktree_created = True
 
     def summary(self) -> str:
         """生成 /method 展示的摘要。"""
@@ -369,6 +436,31 @@ def check_agent_route(task_type: str, agent_model: str) -> tuple[bool, str]:
 # ═══════════════════════════════════════════════════════════════════
 
 
+def _get_active_tdd_phase() -> str:
+    """查询当前活跃 TDD 会话的阶段（red/green/refactor），无活跃会话返回空字符串。"""
+    try:
+        import json
+        from pathlib import Path
+
+        tdd_dir = Path(__file__).resolve().parent.parent / "output" / "tdd"
+        if not tdd_dir.exists():
+            return ""
+        sessions = sorted(tdd_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        if not sessions:
+            return ""
+        data = json.loads(sessions[0].read_text("utf-8"))
+        return data.get("phase", "")
+    except (OSError, json.JSONDecodeError, KeyError):
+        return ""
+
+
+def _is_test_file(file_path: str) -> bool:
+    """判断文件路径是否为测试文件。"""
+    import os
+    fname = os.path.basename(file_path).lower()
+    return fname.startswith("test_") or fname.endswith("_test.py") or "tests" in file_path.replace("\\", "/").split("/")
+
+
 def methodology_pre_check(tool_name: str, args: dict, state: MethodologyState | None = None) -> tuple[bool, str]:
     """工具调用前的方法论合规检查。
 
@@ -390,19 +482,38 @@ def methodology_pre_check(tool_name: str, args: dict, state: MethodologyState | 
     ):
         return False, f"依赖文件 {file_path} 不可直接修改（需人工审核新包）"
 
+    # ── TDD 门控: 红灯阶段禁止写实现代码 ──
+    if tool_name in ("write_file", "edit_file", "patch_file", "safe_rewrite_file"):
+        tdd_phase = _get_active_tdd_phase()
+        if tdd_phase == "red" and not _is_test_file(file_path):
+            return False, (
+                "TDD 红灯阶段: 禁止写实现代码。请先写测试文件（*test*.py），"
+                "运行 tdd_run_tests 确认失败（RED），再写实现。"
+            )
+
     # ── L2/L3 — 任务等级守卫 ──
     if state is None:
         return True, ""
 
     level = state.task_level
 
-    # D 级额外约束
-    if (
-        level == TaskLevel.D
-        and tool_name in ("git_add_commit", "git_push", "git_pr_create", "git_pr_merge")
-        and not state.plan_exists
-    ):
-        return False, "D 级任务: 需先确认 Plan 再提交/推送"
+    # C/D 级: 写操作 + git 操作必须确认 Plan
+    if level in (TaskLevel.C, TaskLevel.D):
+        is_write = tool_name in (
+            "write_file", "edit_file", "patch_file", "safe_rewrite_file",
+            "delete_files", "git_add_commit", "git_push", "git_pr_create",
+            "git_pr_merge", "git_tag",
+        )
+        if is_write and not state.plan_exists:
+            level_name = "C" if level == TaskLevel.C else "D"
+            return False, f"{level_name} 级任务: 需先确认 Plan 再执行 {tool_name}（使用 /plan 或规划模式）"
+
+    # D 级额外约束: 测试基线 + Worktree
+    if level == TaskLevel.D:
+        if tool_name in ("git_add_commit", "git_push", "git_pr_create", "git_pr_merge") and not state.test_baseline_recorded:
+            return False, "D 级任务: 需先记录测试基线再提交/推送（使用 /done 验证）"
+        if tool_name.startswith("git_") and not state.worktree_created:
+            return False, "D 级任务: 需在隔离 Worktree 中操作（使用 git worktree add）"
 
     return True, ""
 
@@ -415,6 +526,7 @@ _current_state: MethodologyState | None = None
 
 
 def get_methodology_state() -> MethodologyState:
+    """返回全局方法论状态单例。第一次调用时自动创建。"""
     global _current_state
     if _current_state is None:
         _current_state = MethodologyState()
@@ -422,6 +534,7 @@ def get_methodology_state() -> MethodologyState:
 
 
 def reset_methodology_state() -> None:
+    """重置全局方法论状态（新会话时调用，丢弃旧状态）。"""
     global _current_state
     _current_state = MethodologyState()
 
@@ -448,6 +561,10 @@ RED_FLAGS: dict[str, str] = {
 
 
 def detect_red_flags(text: str) -> list[str]:
+    """检查文本中是否含反模式关键词（METHODOLOGY.md §8）。
+
+    返回匹配项清单，空列表 = 无风险。
+    """
     found = []
     lower = text.lower()
     for pattern, warning in RED_FLAGS.items():
@@ -479,6 +596,11 @@ MAX_CONSECUTIVE_FAILURES = 2
 
 
 def classify_failure(error_text: str) -> tuple[str, str]:
+    """按 METHODOLOGY.md §2.1 对子 Agent 错误进行分类。
+
+    Returns:
+        (failure_type, recommended_action)
+    """
     lower = error_text.lower()
     for pattern, (ftype, action) in SUB_AGENT_FAILURE_MAP.items():
         if pattern.lower() in lower:
@@ -523,6 +645,12 @@ DONE_TRIGGERS: frozenset[str] = frozenset(
 
 
 def run_verification() -> dict[str, tuple[bool, str]]:
+    """执行 METHODOLOGY.md §5.3 定义的验证检查清单。
+
+    Returns:
+        {check_name: (passed, output)}——全部通过则所有值为 (True, "")
+    副作用: 全部通过时自动标记 test_baseline_recorded。
+    """
     results = {}
     root = Path(__file__).resolve().parent.parent
     for name, cmd in VERIFICATION_CHECKS.items():
@@ -535,4 +663,13 @@ def run_verification() -> dict[str, tuple[bool, str]]:
             results[name] = (False, "超时")
         except Exception as e:
             results[name] = (False, str(e))
+
+    # 全部通过 → 自动标记测试基线
+    if all(v[0] for v in results.values()):
+        try:
+            _current = get_methodology_state()
+            _current.mark_test_baseline_recorded()
+        except Exception:
+            pass
+
     return results
