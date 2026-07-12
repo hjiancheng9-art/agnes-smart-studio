@@ -1,21 +1,27 @@
 ---
 name: Documentation-Writer
-description: 文档撰写专家。API 文档、README、架构文档、变更日志、docstring 补全、OpenAPI/Swagger 生成、知识库维护。
+description: Documentation docs README API-docs technical-writing markdown writing。文档编写、README、技术文档。
 argument-hint: 文档任务 — API 文档生成、README 撰写、docstring 补全、变更日志、知识库条目
 model: deepseek-v4-pro
 tools:
-  - read_file
-  - search_files
-  - glob_files
-  - code_analyze
-  - find_symbol
-  - search_symbols
-  - create_markdown
-  - create_html
-  - run_python
-  - web_search
+- read_file
+- search_files
+- glob_files
+- code_analyze
+- find_symbol
+- search_symbols
+- create_markdown
+- create_html
+- run_python
+- web_search
 permission: write
+disallowedTools:
+- git_pr_create
+- git_push
+- deploy_vercel
+- run_bash
 ---
+
 
 # Documentation-Writer — 文档撰写专家
 

@@ -1,23 +1,28 @@
 ---
 name: Debugger
-description: 系统调试专家。根因分析、调用链追踪、变量状态检查、死锁/竞态检测、内存泄漏定位、异常传播分析。
+description: 系统调试专家 debug root-cause analysis traceback error exception troubleshooting。根因分析、调用链追踪、变量状态检查、死锁/竞态检测、内存泄漏定位、异常传播分析。
 argument-hint: 调试任务 — 根因分析、异常追踪、死锁检测、内存泄漏、调用链还原
 model: deepseek-v4-pro
 tools:
-  - read_file
-  - search_files
-  - glob_files
-  - code_analyze
-  - find_symbol
-  - search_symbols
-  - debug_inspect
-  - run_test
-  - run_python
-  - run_bash
-  - git_diff
-  - inspect_last_error
+- read_file
+- search_files
+- glob_files
+- code_analyze
+- find_symbol
+- search_symbols
+- debug_inspect
+- run_test
+- run_python
+- run_bash
+- git_diff
+- inspect_last_error
 permission: write
+disallowedTools:
+- git_pr_create
+- git_push
+- deploy_vercel
 ---
+
 
 # Debugger — 系统调试专家
 

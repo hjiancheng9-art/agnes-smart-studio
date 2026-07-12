@@ -37,6 +37,24 @@ __all__ = ["SKILLS_DIR", "Skill", "SkillManager", "get_manager"]
 SKILLS_DIR = Path(__file__).parent.parent / "skills"
 
 
+def _extract_prompt_text(skill: "Skill") -> str:
+    """Extract prompt text from a Skill, handling both string and array formats.
+
+    Some skills use a plain string prompt, others use an array format:
+    [{"type": "text", "content": "..."}, ...]
+    """
+    prompt = skill.prompt
+    if isinstance(prompt, str):
+        return prompt.strip()
+    if isinstance(prompt, list):
+        texts = []
+        for item in prompt:
+            if isinstance(item, dict) and item.get("type") == "text":
+                texts.append(str(item.get("content", "")))
+        return "\n".join(texts).strip()
+    return str(prompt).strip()
+
+
 class Skill:
     """单个技能"""
 
@@ -64,7 +82,12 @@ class Skill:
 
 
 class SkillManager:
-    """技能管理器：发现、加载、卸载"""
+    """技能管理器：发现、懒加载、卸载
+
+    TRAE-inspired lazy loading: 不一次性加载所有 skill 的完整 prompt。
+    先扫描 description 列表，仅当任务与某个 skill 匹配时才加载完整内容。
+    这显著减少了系统提示词中的 Token 消耗。
+    """
 
     # overrides 配置文件路径（对标 Claude 的 skillOverrides）
     OVERRIDES_FILE = Path(__file__).parent.parent / "output" / "skill_overrides.json"
@@ -75,8 +98,8 @@ class SkillManager:
         self._available: dict[str, Skill] = {}  # auto/manual 态（用户可见）
         self._all_skills: dict[str, Skill] = {}  # 全量（含 off 态，给 /skill mode 用）
         self._overrides: dict[str, str] = {}  # name -> trigger 覆盖
+        self._lazy_cache: dict[str, str] = {}  # name -> full prompt (lazy loaded)
         # 实例锁：保护 _overrides / _available / _all_skills 的读-改-写一致性
-        # （discover/set_trigger/_save_overrides 均在锁内）
         self._lock = threading.RLock()
 
     def _load_overrides(self) -> dict[str, str]:
@@ -158,7 +181,7 @@ class SkillManager:
         """拼接 base_prompt + 已加载 skill 的 prompt"""
         if not self._loaded:
             return base_prompt
-        skill_prompt = self._loaded.prompt.strip()
+        skill_prompt = _extract_prompt_text(self._loaded)
         if not skill_prompt:
             return base_prompt
         return f"{base_prompt}\n\n[Skill 激活: {self._loaded.name}]\n{skill_prompt}"
@@ -169,21 +192,100 @@ class SkillManager:
             return []
         return self._loaded.tools or []
 
-    def auto_skills_prompt(self, base_prompt: str) -> str:
-        """扫描所有 trigger=auto 的技能，注入其 prompt 到 base_prompt 末尾。
+    def match_and_load(self, task_text: str) -> list[Skill]:
+        """Lazy-load skills matching the given task description.
 
-        对标 Claude 的 auto-trigger skills（如 coding-rules）。
-        与手动 load 的 skill 共存：手动加载的技能 prompt 由 get_system_prompt 处理，
-        auto 类技能由本方法在 _build_system_prompt 末尾统一注入。
+        Scans all auto-trigger skills' descriptions; only loads the full
+        prompt for those whose description keywords appear in *task_text*.
+
+        Matching rules:
+        - English keywords: 3+ characters, matched case-insensitively as whole words
+        - Chinese keywords: 2+ characters, matched as substrings
+        - At least 25% of a skill's keywords must match for it to be loaded
+        - Skills with empty description are never auto-matched
+
+        Args:
+            task_text: The user's task description or current conversation context.
+        Returns:
+            List of matched and loaded Skill objects (prompts cached).
+        """
+        if not self._available:
+            self.discover()
+
+        task_lower = task_text.lower()
+        matched: list[Skill] = []
+
+        for skill in self._available.values():
+            if skill.trigger != Skill.TRIGGER_AUTO:
+                continue
+            if self._loaded and skill.name == self._loaded.name:
+                continue
+            if skill.name in self._lazy_cache:
+                matched.append(skill)
+                continue
+
+            desc = skill.description.lower()
+            if not desc:
+                continue
+
+            # Tokenize: split on spaces AND CJK punctuation
+            desc_clean = desc.replace(",", " ").replace("/", " ").replace("，", " ")
+            desc_clean = desc_clean.replace("、", " ").replace("。", " ").replace("；", " ")
+            all_words = desc_clean.split()
+
+            # Filter keywords: English 3+, Chinese/CJK 2+
+            keywords = []
+            for w in all_words:
+                w = w.strip("()（）[]{}\"'\n\r\t.:!!?")
+                if not w:
+                    continue
+                # CJK characters: each char is meaningful, 2+ is a valid keyword
+                has_cjk = any("一" <= c <= "鿿" or "　" <= c <= "〿" for c in w)
+                if has_cjk and len(w) >= 2:
+                    keywords.append(w)
+                elif not has_cjk and len(w) >= 3:
+                    keywords.append(w)
+
+            if not keywords:
+                continue
+
+            # Require at least 25% keyword match rate (avoid overly broad matching)
+            match_count = sum(1 for kw in keywords if kw in task_lower)
+            match_rate = match_count / len(keywords)
+            if match_rate >= 0.25:
+                self._lazy_cache[skill.name] = _extract_prompt_text(skill)
+                matched.append(skill)
+
+        return matched
+
+    def auto_skills_prompt(self, base_prompt: str, task_context: str = "") -> str:
+        """Inject auto-trigger skill prompts using lazy matching.
+
+        If *task_context* is provided, only skills whose description matches
+        the task context are loaded (TRAE-style lazy loading).  If empty,
+        falls back to loading all auto skills (backward compatible).
 
         Args:
             base_prompt: 当前 system prompt（可能已含手动 skill）
+            task_context: 用户任务描述，用于描述匹配（空 = 加载全部 auto skill）
         Returns:
             拼接 auto skills 后的完整 prompt
         """
-        # 确保 _available 已 discover（首次调用兜底）
         if not self._available:
             self.discover()
+
+        if task_context:
+            matched = self.match_and_load(task_context)
+            if not matched:
+                return base_prompt
+            parts = [base_prompt]
+            for skill in matched:
+                sp = self._lazy_cache.get(skill.name) or _extract_prompt_text(skill)
+                if sp:
+                    parts.append(f"\n\n[Skill 自动激活: {skill.name}]\n{sp}")
+            return "".join(parts)
+
+        # Fallback: load all auto skills (backward compatible, no task context)
         auto_skills = [
             s
             for s in self._available.values()
@@ -193,10 +295,14 @@ class SkillManager:
             return base_prompt
         parts = [base_prompt]
         for skill in auto_skills:
-            sp = skill.prompt.strip()
+            sp = _extract_prompt_text(skill)
             if sp:
                 parts.append(f"\n\n[Skill 自动激活: {skill.name}]\n{sp}")
         return "".join(parts)
+
+    def clear_lazy_cache(self) -> None:
+        """Clear the lazy-load cache (hot reload / test isolation)."""
+        self._lazy_cache.clear()
 
     # ── 三态控制（/skill mode 命令的后端）──
 

@@ -24,6 +24,8 @@ class AgentSpec:
     description: str = ""
     model_ids: list[str] = field(default_factory=list)
     tools_whitelist: list[str] = field(default_factory=list)
+    tools_blacklist: list[str] = field(default_factory=list)
+    mcp_servers: list[str] = field(default_factory=list)
     permission: str = "read-only"  # read-only | write | elevated
     disable_model: bool = False
     handoffs: list[dict] = field(default_factory=list)
@@ -61,6 +63,8 @@ def load_agent_spec(agent_name: str) -> AgentSpec | None:
         description=meta.get("description", ""),
         model_ids=meta.get("model", []) or [],
         tools_whitelist=meta.get("tools", []) or [],
+        tools_blacklist=meta.get("disallowedTools", []) or [],
+        mcp_servers=meta.get("mcpServers", []) or [],
         permission=meta.get("permission", "read-only"),
         disable_model=meta.get("disable-model-invocation", False),
         handoffs=meta.get("handoffs", []) or [],
@@ -163,6 +167,14 @@ def spawn_agent_from_spec(
     elif spec.permission == "read-only" and tools is not None:
         tools = _filter_readonly(tools)
 
+    # Apply tool blacklist (disallowedTools) — higher priority than whitelist
+    if tools is not None and spec.tools_blacklist:
+        tools = _exclude_tools(tools, spec.tools_blacklist)
+
+    # Apply MCP server whitelist
+    if tools is not None and spec.mcp_servers:
+        tools = _filter_mcp_servers(tools, spec.mcp_servers)
+
     # Handle disable-model agents
     if spec.disable_model:
         agent = SubAgent(None, tools=tools, model="", tier="", task_type="")
@@ -219,3 +231,194 @@ def _filter_readonly(tool_registry):
         "count_lines",
     }
     return _filter_tools(tool_registry, list(READONLY_TOOLS))
+
+
+def _exclude_tools(tool_registry, blacklist: list[str]):
+    """Return a tool_registry copy with blacklisted tools removed.
+
+    Blacklist has higher priority than whitelist — if a tool appears in
+    both, it is excluded.
+    """
+    from core.tools import ToolRegistry
+
+    filtered = ToolRegistry()
+    blacklist_set = set(blacklist)
+
+    for name, executor in getattr(tool_registry, "_executors", {}).items():
+        if name not in blacklist_set:
+            filtered._executors[name] = executor
+
+    for name, mod in getattr(tool_registry, "_tool_modules", {}).items():
+        if name not in blacklist_set:
+            filtered._tool_modules[name] = mod
+
+    for d in getattr(tool_registry, "_definitions", []):
+        fn_name = d.get("function", {}).get("name", "")
+        if fn_name not in blacklist_set:
+            filtered._definitions.append(d)
+
+    return filtered
+
+
+# ── Auto-dispatch engine ─────────────────────────────────────────────────
+
+
+def auto_route(task: str) -> str | None:
+    """Automatically select the best agent for a task by matching descriptions.
+
+    Scans all agent .agent.md files, tokenizes their descriptions, and
+    scores them against the task text. Returns the name of the best match,
+    or None if no agent matches above the threshold.
+
+    This enables TRAE-style automatic sub-agent delegation without the
+    caller needing to know which agent to use.
+
+    Args:
+        task: The user's task description.
+    Returns:
+        Agent name (e.g. "Debugger"), or None if no good match.
+    """
+    import os
+
+    best_name = None
+    best_match_count = 0
+
+    task_lower = task.lower()
+
+    for agent_file in sorted(os.listdir(AGENTS_DIR)):
+        if not agent_file.endswith(".agent.md"):
+            continue
+        spec = load_agent_spec(agent_file.removesuffix(".agent.md"))
+        if spec is None:
+            continue
+
+        desc = spec.description.lower()
+        if not desc:
+            continue
+
+        # Tokenize description into keywords
+        desc_clean = desc.replace(",", " ").replace("/", " ").replace("，", " ")
+        desc_clean = desc_clean.replace("、", " ").replace("。", " ")
+        desc_clean = desc_clean.replace("-", " ")  # Normalize hyphens
+        keywords = []
+        for w in desc_clean.split():
+            w = w.strip("()[]{}\"'.:!!?")
+            if not w:
+                continue
+            has_cjk = any("一" <= c <= "鿿" for c in w)
+            if has_cjk and len(w) >= 2:
+                keywords.append(w)
+            elif not has_cjk and len(w) >= 3:
+                keywords.append(w)
+
+        if not keywords:
+            continue
+
+        # Normalize task text for matching (hyphens -> spaces)
+        task_normalized = task_lower.replace("-", " ")
+
+        # Score: what fraction of description keywords appear in the task?
+        # For CJK: also check if individual CJK chars from keyword appear in task
+        match_count = 0
+        for kw in keywords:
+            has_cjk = any("一" <= c <= "鿿" for c in kw)
+            if has_cjk:
+                cjk_chars = [c for c in kw if "一" <= c <= "鿿"]
+                if cjk_chars:
+                    char_matches = sum(1 for c in cjk_chars if c in task_normalized)
+                    if char_matches / len(cjk_chars) >= 0.5:
+                        match_count += 1
+            elif kw in task_normalized:
+                match_count += 1
+
+        if match_count > best_match_count:
+            best_match_count = match_count
+            best_name = spec.name
+
+    # Require at least 1 keyword match
+    if best_match_count >= 1 and best_name:
+        return best_name
+    return None
+
+
+# ── Handoff / chain-of-delegation ────────────────────────────────────────
+
+
+def chain_run(
+    client,
+    task: str,
+    agent_chain: list[str],
+    tools: object | None = None,
+) -> str:
+    """Run a chain of agents, each receiving the previous agent's output.
+
+    TRAE-style handoff: the first agent runs the task, its result is passed
+    as context to the second agent, and so on. Each agent receives the
+    previous result prefixed with "[Previous agent output]".
+
+    Args:
+        client: CruxClient instance.
+        task: The original task description.
+        agent_chain: Ordered list of agent names to execute.
+        tools: Optional ToolRegistry shared across agents.
+    Returns:
+        The final agent's result string.
+    """
+    current_task = task
+    final_result = ""
+
+    for i, agent_name in enumerate(agent_chain):
+        context = current_task
+        if i > 0:
+            context = (
+                f"Previous agent ({agent_chain[i-1]}) completed. "
+                f"Their output:\n---\n{final_result}\n---\n\n"
+                f"Your task: {current_task}"
+            )
+
+        result = spawn_agent_from_spec(
+            client=client,
+            task=context,
+            agent_name=agent_name,
+            tools=tools,
+        )
+        final_result = result
+
+    return final_result
+
+
+def _filter_mcp_servers(tool_registry, server_whitelist: list[str]):
+    """Return a tool_registry copy keeping only MCP tools from listed servers.
+
+    Non-MCP tools (built-in tools) are kept as-is. Only MCP-prefixed tools
+    (``mcp__<server>__<tool>``) are filtered by the whitelist.
+    """
+    from core.tools import ToolRegistry
+
+    filtered = ToolRegistry()
+    allowed = set(server_whitelist)
+
+    for name, executor in getattr(tool_registry, "_executors", {}).items():
+        if name.startswith("mcp__"):
+            # Extract server name: "mcp__github__get_issue" → "github"
+            parts = name.split("__", 2)
+            if len(parts) >= 2 and parts[1] not in allowed:
+                continue
+        filtered._executors[name] = executor
+
+    for name, mod in getattr(tool_registry, "_tool_modules", {}).items():
+        if name.startswith("mcp__"):
+            parts = name.split("__", 2)
+            if len(parts) >= 2 and parts[1] not in allowed:
+                continue
+        filtered._tool_modules[name] = mod
+
+    for d in getattr(tool_registry, "_definitions", []):
+        fn_name = d.get("function", {}).get("name", "")
+        if fn_name.startswith("mcp__"):
+            parts = fn_name.split("__", 2)
+            if len(parts) >= 2 and parts[1] not in allowed:
+                continue
+        filtered._definitions.append(d)
+
+    return filtered

@@ -1875,17 +1875,22 @@ class TuiAppV2:
             self._ui(self._refresh_status, _force=True)
 
     def _stream_response(self, user_text: str) -> None:
-        # Stream timeout guard: detect hung generators (silence > 120s)
-        _stream_stalled = False
+        # Stream inactivity timeout: fire only after 120s with NO events
+        _last_event = time.monotonic()
+        _timeout_triggered = False
 
         def _timeout_guard():
-            nonlocal _stream_stalled
-            time.sleep(120)
-            _stream_stalled = True
-            try:
-                self._log_append(("⏱", "class:activity-warn", "Stream 超时 (120s 无响应)"))
-            except Exception:
-                pass
+            nonlocal _timeout_triggered
+            while True:
+                time.sleep(5)
+                idle = time.monotonic() - _last_event
+                if idle > 120 and not _timeout_triggered:
+                    _timeout_triggered = True
+                    try:
+                        self._log_append(("⏱", "class:activity-warn", f"Stream 超时 ({idle:.0f}s 无响应)"))
+                    except Exception:
+                        pass
+                    return
 
         _timeout_thread = threading.Thread(target=_timeout_guard, daemon=True)
         _timeout_thread.start()
@@ -1896,6 +1901,7 @@ class TuiAppV2:
             _t0 = time.monotonic()
             _first_token = False
             for kind, payload in self.session.send_stream(user_text):
+                _last_event = time.monotonic()  # reset inactivity timer
                 if not _first_token and kind in ("text", "thinking"):
                     _first_token = True
                     self._latency = time.monotonic() - _t0  # ── 检查优先插话标记（工具边界已设置） ──

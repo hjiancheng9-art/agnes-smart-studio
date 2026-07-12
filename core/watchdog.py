@@ -125,7 +125,7 @@ class Watchdog:
             if not mgr.ping():
                 self._state.provider_ok = False
                 active = mgr.active_provider
-                logger.warning("[Watchdog] %s dead, falling back", active)
+                logger.info("[Watchdog] %s dead, falling back", active)
                 if mgr.fallback():
                     self._state.provider_switches += 1
                     self._state.provider_ok = True
@@ -153,7 +153,8 @@ class Watchdog:
         except (RuntimeError, OSError, ValueError) as e:
             logger.debug("Disk check: %s", e)
 
-    def _clean_disk(self) -> int:
+    @staticmethod
+    def _clean_disk() -> int:
         if not OUTPUT_DIR.exists():
             return 0
         cutoff = time.time() - MAX_FILE_AGE_HOURS * 3600

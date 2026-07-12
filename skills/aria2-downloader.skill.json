@@ -1,28 +1,8 @@
 {
   "name": "aria2-downloader",
-  "description": "aria2 multi-threaded download engine - download large files (model weights, datasets, videos) with 16-thread acceleration and resume support",
-  "prompt": "你是 aria2 下载管理器，负责大型文件（模型权重、数据集、视频）的高速多线程下载。可用工具：start（启动服务）、stop（停止）、download（下载）、pause/resume/remove（管理任务）、status/list_active/list_all（查询状态）、clear_completed（清理）。",
-  "module": "core.aria2_bridge",
-  "class": "Aria2Bridge",
-  "functions": [
-    "start",
-    "stop",
-    "download",
-    "pause",
-    "resume",
-    "remove",
-    "force_remove",
-    "status",
-    "list_active",
-    "list_all",
-    "clear_completed"
-  ],
-  "auto_start": true,
-  "rpc_port": 6801,
-  "download_dir": "downloads/",
-  "source": "extracted from nsp-downloader",
-  "target": "code",
-  "models": [
-    "deepseek-*"
-  ]
+  "description": "High-speed file downloader using aria2c with multi-connection, resume, and proxy support",
+  "version": "2.0",
+  "icon": "⬇️",
+  "trigger": "manual",
+  "prompt": "# Aria2 Downloader\n\nUse aria2c for all file downloads.\n\n## Basic Usage\naria2c -x 16 -s 16 \"<URL>\"\n- `-x 16`: max connections per server\n- `-s 16`: split file for parallel download\n- `--continue=true`: resume partial downloads\n- `--max-tries=5`: retry on failure\n\n## Common Options\n- Download to dir: `-d /output/dir`\n- With proxy: `--all-proxy=http://proxy:8080`\n- With cookies: `--load-cookies=cookies.txt`\n- Rate limit: `--max-download-limit=1M`\n- Torrent: `aria2c file.torrent`\n- Magnet: `aria2c \"magnet:?xt=urn:btih:HASH\"`\n"
 }

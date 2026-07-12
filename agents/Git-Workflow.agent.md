@@ -1,19 +1,21 @@
 ---
 name: Git-Workflow
-description: Git 工作流专家。分支策略、commit 规范、PR 管理、冲突解决、cherry-pick/rebase、GitHub Actions 触发、release 管理。
+description: Git workflow branch commit PR merge rebase version-control git。Git工作流、分支管理、代码提交。
 argument-hint: Git 任务 — 分支管理、PR 创建、提交整理、冲突解决、release 发布、cherry-pick
 model: deepseek-v4-flash
 tools:
-  - read_file
-  - search_files
-  - glob_files
-  - git_status
-  - git_diff
-  - run_bash
-  - run_python
-  - create_markdown
+- read_file
+- search_files
+- glob_files
+- git_status
+- git_diff
+- run_bash
+- run_python
+- create_markdown
 permission: write
+disallowedTools: []
 ---
+
 
 # Git-Workflow — Git 工作流专家
 

@@ -165,7 +165,12 @@ async def run_shell_streaming(cmd: str, *, timeout: float = 60.0) -> ToolEvent:
 
         output_lines = []
         async for line in proc.stdout:
-            text = line.decode("utf-8", errors="replace").rstrip()
+            try:
+                from core.encoding_fix import fix_garbled_bytes
+                decoded, _, _ = fix_garbled_bytes(line)
+                text = decoded.rstrip()
+            except ImportError:
+                text = line.decode("utf-8", errors="replace").rstrip()
             output_lines.append(text)
             _emit(
                 ToolEvent(

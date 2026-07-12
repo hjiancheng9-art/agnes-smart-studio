@@ -1,10 +1,8 @@
 {
   "name": "code-review-autofix",
-  "description": "代码审查后自动修复常见问题",
-  "version": "1.0",
-  "prompt": "审查代码后自动应用修复：格式化、import 排序、类型注解补全。",
-  "target": "code",
-  "models": [
-    "deepseek-*"
-  ]
+  "description": "Auto-fix common issues after code review: formatting, lint, unused imports",
+  "version": "2.0",
+  "icon": "🔧",
+  "trigger": "auto",
+  "prompt": "# Code Review Auto-Fix\n\nAfter a code review identifies issues, apply fixes automatically.\n\n## Auto-Fixable\n- Unused imports -> remove them\n- Missing type annotations -> add obvious ones\n- Trailing whitespace -> strip\n- Missing newline at EOF -> add\n- Sort imports -> run isort\n- Format code -> run ruff/black\n\n## Manual Review Required (Do NOT auto-fix)\n- Logic errors\n- Security vulnerabilities\n- Architecture changes\n- API breaking changes\n- Performance optimizations\n\n## Workflow\n1. Read the review findings\n2. Classify each: auto-fixable vs needs-manual\n3. Apply all auto-fixable changes in one pass\n4. Run linter/formatter to verify\n5. Report: what was fixed, what needs manual attention\n"
 }

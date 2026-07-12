@@ -4,10 +4,43 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import shutil
 import subprocess
 from typing import Any
+
+_log = logging.getLogger("crux.mcp_utils")
+
+
+def _safe_decode(raw: bytes, source: str = "subprocess") -> str:
+    """Decode subprocess output with encoding auto-detection.
+
+    Falls back to UTF-8 with replace if recovery fails.
+    Reports encoding issues via logging.
+    """
+    if not raw:
+        return ""
+    try:
+        from core.encoding_fix import fix_garbled_bytes, report_encoding_issue
+
+        text, encoding, recovered = fix_garbled_bytes(raw)
+        if recovered:
+            _log.warning(
+                "Encoding recovered for %s: detected=%s", source, encoding
+            )
+        elif encoding != "utf-8":
+            _log.info(
+                "Non-UTF-8 encoding detected for %s: %s", source, encoding
+            )
+        issue = report_encoding_issue(text, source=source)
+        if issue:
+            _log.warning("%s", issue)
+        return text
+    except ImportError:
+        return raw.decode("utf-8", errors="replace")
+    except Exception:
+        return raw.decode("utf-8", errors="replace")
 
 # ── MCP JSON-RPC message helpers ──────────────────────────────
 
@@ -163,8 +196,8 @@ async def run_subprocess_async(
         proc.kill()
         raise subprocess.TimeoutExpired(cmd, timeout) from None
 
-    stdout = stdout_bytes.decode("utf-8", errors="replace") if stdout_bytes else ""
-    stderr = stderr_bytes.decode("utf-8", errors="replace") if stderr_bytes else ""
+    stdout = _safe_decode(stdout_bytes, "run_subprocess_async.stdout") if stdout_bytes else ""
+    stderr = _safe_decode(stderr_bytes, "run_subprocess_async.stderr") if stderr_bytes else ""
 
     if check and proc.returncode != 0:
         raise subprocess.CalledProcessError(proc.returncode or -1, cmd, output=stdout, stderr=stderr)

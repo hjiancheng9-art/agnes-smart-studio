@@ -1,8 +1,8 @@
 """Tests for theme_v2.py — single unified color scheme, accessibility modes, style building."""
 import pytest
-from prompt_toolkit.styles import Style
+from prompt_toolkit.styles.base import BaseStyle
 
-from ui.theme_v2 import COLORS, build_style_v2
+from ui.theme_v2 import BLADE as COLORS, build_style_v2
 
 REQUIRED_COLOR_KEYS = [
     "bg", "surface", "input_bg", "border",
@@ -36,15 +36,15 @@ class TestBuildStyleV2:
     @pytest.mark.parametrize("mode", ["normal", "high_contrast", "mono"])
     def test_build_all_modes(self, mode):
         style = build_style_v2(mode)
-        assert isinstance(style, Style)
+        assert isinstance(style, BaseStyle)
         assert len(style.style_rules) > 0
 
     def test_build_default_mode(self):
-        """Default (no arg) should produce a valid Style."""
+        """Default (no arg) should produce a valid BaseStyle."""
         style = build_style_v2()
-        assert isinstance(style, Style)
+        assert isinstance(style, BaseStyle)
 
     def test_unknown_mode_falls_back(self):
         """Unknown mode string should fall back to normal style."""
         style = build_style_v2("nonexistent_mode_xyz")
-        assert isinstance(style, Style)
+        assert isinstance(style, BaseStyle)

@@ -6,34 +6,37 @@ Version module — 单一版本真源 (single source of truth).
 launcher=5.0 / engine=2.0 四分五裂的历史）。
 """
 
-__version__ = "6.0.0"
+__version__ = "6.1.0"
 VERSION = __version__  # 向后兼容旧调用
 
 # ── 版本标识 ──────────────────────────────────────────
 VERSION_TAG = f"v{__version__}"
 BUILD_LABEL = "CRUX Studio"
 
-# ── v6.0 改进指标（展示于欢迎屏 / status API） ──────────
+# ── v6.1 改进指标 ──────────────────────────────────────
 V6_METRICS = {
-    "tests_total": 1659,
+    "tests_total": 1708,
     "tests_failed": 0,
-    "ruff_remaining": 177,
-    "root_files_cleaned": 178,
-    "wiki_pages": 14,
-    "test_files": 71,
-    "ci_stages": 3,
-    "ai_score_before": 8.1,
-    "ai_score_after": 8.9,
+    "new_tests_v61": 49,
+    "bugs_fixed": 30,
+    "closed_loops": 19,
+    "dead_code_removed": 3500,
+    "tmp_files_cleaned": 33,
+    "ux_improvements": 6,
+    "auto_skills": 6,
+    "root_files_cleaned": 211,
+    "test_files": 181,
 }
 
 V6_HIGHLIGHTS = [
-    "CI/CD Pipeline: lint → test → security (GitHub Actions)",
-    "测试 1659 全绿, 0 失败 (v5.0 基线 9 failures)",
-    "ruff 修复 1000+ 问题, 剩 177 手动项",
-    "根目录 178 个散文件归档清理",
-    "Wiki 知识库 14 篇: 架构/TRM/CDP/ComfyUI/Agent/测试/Onboarding",
-    "event_bus / event_log / adr_engine 测试覆盖新增",
-    "AI 三方评审评分: 8.1 → 8.9 (+0.8)",
+    "19 个闭环全部端到端激活（智能体/技能/TRM/Dashboard/错误分级）",
+    "30+ bug 修复：滚动失效/输入崩溃/并发冲突/静默消息丢弃",
+    "6 项交互打磨：工具序号/系统消息/长输出折叠/错误分级/能力说明/轮次摘要",
+    "清债 3,500 行死代码 + 33 临时文件 + 1 损坏文件",
+    "49 个新测试覆盖 ThinkingPanel/输入清洗/活动日志/错误分类",
+    "工作区感知：CRUX_WORKSPACE 环境变量 + system prompt 注入",
+    "6 个技能自动加载：caliber/code-reviewer/code-guardian/tdd/python-anti-patterns/security-hardening",
+    "全局 code-guardian 技能安装到 Claude Code",
 ]
 
 

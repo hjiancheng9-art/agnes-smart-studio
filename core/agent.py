@@ -191,7 +191,8 @@ class ContextManager:
     # 单条消息 content 字符上限（超过则截断尾部，保留头部）
     _MAX_MSG_CHARS = 8000
 
-    def _truncate_messages(self, messages: list[dict]) -> list[dict]:
+    @staticmethod
+    def _truncate_messages(messages: list[dict]) -> list[dict]:
         """截断超大单条消息，防止工具返回的大文件撑爆上下文窗口。
 
         工具结果（role=tool）常包含整个文件内容，单条可达数百万字符。
@@ -394,7 +395,8 @@ class PlanExecutor:
         )
         return r["choices"][0]["message"]["content"] or "[no output]"
 
-    def _infer_tool_args(self, step: PlanStep, context: str) -> dict:
+    @staticmethod
+    def _infer_tool_args(step: PlanStep, context: str) -> dict:
         """Try to infer tool arguments from step purpose and context."""
         # Simple heuristic: try to extract key-value pairs from purpose
         args = {}
@@ -760,7 +762,8 @@ class ModelRouter:
         except (ImportError, OSError, RuntimeError):
             return "GLM-4V-Flash"
 
-    def _build_fallback_chain(self) -> list[str]:
+    @staticmethod
+    def _build_fallback_chain() -> list[str]:
         """动态构建 fallback 链：免费优先，付费兜底。"""
         chain: list[str] = []
         try:

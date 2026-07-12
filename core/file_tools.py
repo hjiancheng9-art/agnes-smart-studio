@@ -37,7 +37,18 @@ __all__ = [
 ]
 
 
-ROOT = Path(__file__).resolve().parent.parent
+def _resolve_workspace() -> Path:
+    """Determine the workspace root: CRUX_WORKSPACE env → CWD → CRUX install dir."""
+    import os as _os
+    env = _os.environ.get("CRUX_WORKSPACE", "")
+    if env:
+        return Path(env).resolve()
+    cwd = Path.cwd().resolve()
+    crux_root = Path(__file__).resolve().parent.parent
+    # If CWD is inside CRUX root, use CWD (user might be in a subdir)
+    # If CWD is outside CRUX root, use CWD (user is in another project)
+    return cwd
+ROOT = _resolve_workspace()
 
 
 # 敏感路径阻止列表 — read_file 拒绝读取这些（防止 LLM 窃取密钥/凭证）
@@ -104,7 +115,23 @@ def read_file(path: str, offset: int = 0, limit: int = 0) -> str:
     if not p.is_file():
         return f"[错误] 文件不存在: {path}"
     try:
-        lines = p.read_text(encoding="utf-8", errors="replace").split("\n")
+        # Fast path: UTF-8 with replace
+        raw = p.read_bytes()
+        content = raw.decode("utf-8", errors="replace")
+
+        # Check for encoding issues (replacement chars or mojibake)
+        if "�" in content:
+            try:
+                from core.encoding_fix import fix_garbled_bytes, is_likely_garbled
+
+                recovered, enc, _ = fix_garbled_bytes(raw)
+                # Use recovered text if UTF-8 decoding was wrong
+                if enc != "utf-8" or is_likely_garbled(content):
+                    content = recovered
+            except ImportError:
+                pass
+
+        lines = content.split("\n")
         total = len(lines)
         if offset > 0:
             lines = lines[offset:]

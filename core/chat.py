@@ -379,7 +379,8 @@ class ChatSession(ChatToggleMixin):
         def _collect_git():
             import subprocess
 
-            cwd = str(Path(__file__).resolve().parent.parent)
+            import os as _os
+            cwd = _os.environ.get("CRUX_WORKSPACE", str(Path.cwd()))
             try:
                 r = subprocess.run(
                     ["git", "rev-parse", "--abbrev-ref", "HEAD"],

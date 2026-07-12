@@ -18,12 +18,16 @@ __all__ = [
     "HookType",
     "hook_manager",
     "logger",
+    "on_notification",
     "on_post_tool",
     "on_pre_tool",
     "on_prompt_submit",
+    "on_session_start",
+    "on_stop",
     "register_code_hooks",
     "register_learning_hooks",
     "register_safety_hooks",
+    "register_stop_guard",
 ]
 logger = logging.getLogger(__name__)
 
@@ -33,11 +37,14 @@ logger = logging.getLogger(__name__)
 class HookType(Enum):
     """Lifecycle points where hooks can fire."""
 
+    SESSION_START = "session_start"
     USER_PROMPT_SUBMIT = "user_prompt_submit"
     PRE_TOOL_USE = "pre_tool_use"
     POST_TOOL_USE = "post_tool_use"
     CHAT_TURN_START = "chat_turn_start"
     CHAT_TURN_END = "chat_turn_end"
+    STOP = "stop"
+    NOTIFICATION = "notification"
 
 
 # ── Data Structures ─────────────────────────────────────────────────────────
@@ -45,12 +52,33 @@ class HookType(Enum):
 
 @dataclass
 class HookEvent:
-    """Event passed to hook handlers. Handlers may mutate result and data."""
+    """Event passed to hook handlers. Handlers may mutate these fields.
+
+    PreToolUse-specific fields:
+        permission_decision: "allow" | "deny" | "ask" (deny > ask > allow priority)
+        permission_reason: human-readable reason for the decision
+        updated_input: if set, replaces the tool's input params entirely
+
+    Stop-specific fields:
+        stop_decision: "block" to prevent agent from stopping
+        stop_reason: when blocking, becomes the new user request for the agent
+        loop_count: how many times Stop has been blocked in this turn
+        loop_limit: max allowed Stop blocks before forced stop (default 5)
+    """
 
     hook_type: HookType
     data: dict = field(default_factory=dict)
     result: Any = None
     stop_processing: bool = False
+    # PreToolUse extension
+    permission_decision: str = "allow"
+    permission_reason: str = ""
+    updated_input: dict | None = None
+    # Stop extension
+    stop_decision: str = ""
+    stop_reason: str = ""
+    loop_count: int = 0
+    loop_limit: int = 5
 
 
 @dataclass
@@ -161,6 +189,8 @@ class HookManager:
         """Fire all hooks of the given type in priority order (highest first).
 
         Short-circuits if any handler sets stop_processing=True.
+        For PreToolUse: aggregates permission_decision (deny > ask > allow).
+        For Stop: respects loop_limit to prevent infinite blocking.
         Returns the final HookEvent with the accumulated result.
         """
         event = HookEvent(
@@ -175,14 +205,43 @@ class HookManager:
                 key=lambda h: -h.priority,
             )
 
+        # Track highest-severity decisions across all handlers
+        best_perm = "allow"
+        best_perm_reason = ""
+
         for hook in candidates:
             try:
-                event = hook.handler(event)
+                new_event = hook.handler(event)
+                # Merge permission decisions (deny > ask > allow, tracked independently)
+                if hook_type == HookType.PRE_TOOL_USE:
+                    perm = new_event.permission_decision
+                    if perm == "deny":
+                        best_perm = "deny"
+                        best_perm_reason = new_event.permission_reason or best_perm_reason
+                    elif perm == "ask" and best_perm != "deny":
+                        best_perm = "ask"
+                        best_perm_reason = new_event.permission_reason or best_perm_reason
+                    # Propagate updated_input (last non-None wins)
+                    if new_event.updated_input is not None:
+                        event.updated_input = new_event.updated_input
+                # Merge Stop decisions
+                if hook_type == HookType.STOP:
+                    if new_event.stop_decision == "block":
+                        event.stop_decision = "block"
+                        event.stop_reason = new_event.stop_reason or event.stop_reason
+                # Propagate result and stop_processing
+                event.result = new_event.result if new_event.result is not None else event.result
+                event.stop_processing = new_event.stop_processing or event.stop_processing
+                event.data = new_event.data or event.data
             except (TypeError, ValueError, RuntimeError):
                 logger.exception("Hook '%s' raised an exception", hook.name)
             if event.stop_processing:
                 logger.debug("Hook '%s' set stop_processing, short-circuiting", hook.name)
                 break
+
+        if hook_type == HookType.PRE_TOOL_USE:
+            event.permission_decision = best_perm
+            event.permission_reason = best_perm_reason or event.permission_reason
 
         return event
 
@@ -275,6 +334,39 @@ def on_post_tool(
 ) -> bool:
     """Shortcut to register a POST_TOOL_USE hook."""
     return hook_manager.register(name, HookType.POST_TOOL_USE, handler, priority)
+
+
+def on_stop(
+    name: str,
+    handler: Callable[[HookEvent], HookEvent],
+    priority: int = 0,
+) -> bool:
+    """Shortcut to register a STOP hook.
+
+    Stop hooks fire when the agent finishes its turn and is about to return
+    control.  The handler can set ``stop_decision="block"`` to force the
+    agent to continue working.  Respects ``loop_limit`` (default 5) to
+    prevent infinite loops.
+    """
+    return hook_manager.register(name, HookType.STOP, handler, priority)
+
+
+def on_session_start(
+    name: str,
+    handler: Callable[[HookEvent], HookEvent],
+    priority: int = 0,
+) -> bool:
+    """Shortcut to register a SESSION_START hook."""
+    return hook_manager.register(name, HookType.SESSION_START, handler, priority)
+
+
+def on_notification(
+    name: str,
+    handler: Callable[[HookEvent], HookEvent],
+    priority: int = 0,
+) -> bool:
+    """Shortcut to register a NOTIFICATION hook (async, non-blocking)."""
+    return hook_manager.register(name, HookType.NOTIFICATION, handler, priority)
 
 
 # ── Built-in Safety Filter ──────────────────────────────────────────────
@@ -546,3 +638,50 @@ def reset_reflection_engine() -> None:
     """重置反思引擎（供测试隔离）。"""
     global _reflection_engine
     _reflection_engine = None
+
+
+# ── Stop 守卫 Hook（Agent 结束前自动验证）─────────────────────────────
+# 对标 TRAE Stop 事件：Agent 宣布完成时触发，支持 loop_limit。
+# 默认注册为最低优先级的 Stop hook，可由用户通过 hooks.json 覆盖。
+
+
+def _stop_guard_handler(event: HookEvent) -> HookEvent:
+    """Stop 守卫：检查 Agent 输出的代码是否存在明显的语法问题。
+
+    这是一个示例性的轻量守卫。用户可替换为运行测试套件的脚本。
+    """
+    last_message = event.data.get("last_assistant_message", "")
+    if not last_message:
+        return event
+
+    # Check for common "I'm pretending to be done" patterns
+    fake_done_markers = [
+        "should be working",
+        "should be fixed",
+        "seems to work",
+        "probably fine",
+        "might work",
+        "理论上应该",
+        "应该可以了",
+        "看起来没问题",
+    ]
+    for marker in fake_done_markers:
+        if marker in last_message:
+            event.stop_decision = "block"
+            event.stop_reason = (
+                f"检测到不确定的完成声明 ('{marker}')。请运行验证命令确认修复，"
+                "或提供具体的测试通过截图/输出作为证据。"
+            )
+            break
+
+    return event
+
+
+def register_stop_guard() -> None:
+    """注册内置 Stop 守卫（最低优先级，允许用户 hook 先执行）。"""
+    hook_manager.register(
+        name="stop_guard",
+        hook_type=HookType.STOP,
+        handler=_stop_guard_handler,
+        priority=0,  # 最低优先级，先跑用户 hook
+    )

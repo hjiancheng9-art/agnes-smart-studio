@@ -1,21 +1,23 @@
 ---
 name: Orchestrator
-description: 🎯 任务编排中枢 — 接收任意复杂任务，自动拆解为子任务，匹配最佳 Agent，定义执行顺序和依赖，产出可直接执行的调度计划。CRUX Studio 的元调度层。
+description: Orchestration multi-agent coordination task-decomposition workflow parallel-execution
+  plan orchestration。任务编排、多智能体协调、工作流分解。
 argument-hint: 描述要完成的复杂任务 — 多模块重构、全链路功能开发、跨领域修复、端到端部署等
 model: deepseek-v4-pro
 tools:
-  - read_file
-  - search_files
-  - glob_files
-  - list_files
-  - code_analyze
-  - find_symbol
-  - search_symbols
-  - git_status
-  - git_diff
-  - web_search
+- read_file
+- search_files
+- glob_files
+- list_files
+- code_analyze
+- find_symbol
+- search_symbols
+- git_status
+- git_diff
+- web_search
 permission: read-only
 ---
+
 
 # Orchestrator — 任务编排中枢
 

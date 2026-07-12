@@ -167,21 +167,25 @@ class BackgroundManager:
         if task is None:
             return {"task": None, "output_preview": "", "output_truncated": False}
 
-        # Read output
+        # Read output with encoding recovery
         output_preview = ""
         output_truncated = False
         try:
             if os.path.exists(task.output_path):
-                with open(task.output_path, encoding="utf-8", errors="replace") as f:
-                    raw = f.read()
-                # Return last 4000 chars as preview
-                if len(raw) > 4000:
-                    output_preview = raw[-4000:]
+                with open(task.output_path, "rb") as f:
+                    raw_bytes = f.read()
+                try:
+                    from core.encoding_fix import fix_garbled_bytes
+                    text, _, _ = fix_garbled_bytes(raw_bytes)
+                except ImportError:
+                    text = raw_bytes.decode("utf-8", errors="replace")
+                if len(text) > 4000:
+                    output_preview = text[-4000:]
                     output_truncated = True
                 else:
-                    output_preview = raw
+                    output_preview = text
         except OSError:
-            output_preview = "[无法读取输出文件]"
+            output_preview = "[unable to read output file]"
 
         return {
             "task": task.to_dict(),

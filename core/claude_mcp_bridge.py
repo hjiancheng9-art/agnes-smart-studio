@@ -783,10 +783,17 @@ def _handle_web_fetch(params: dict) -> dict:
             if "charset=" in content_type:
                 encoding = content_type.split("charset=")[-1].split(";")[0].strip()
 
+            # Decode with encoding auto-detection for robustness.
+            # Chinese websites often declare UTF-8 but serve GBK content.
             try:
-                text = raw.decode(encoding, errors="replace")
-            except (UnicodeDecodeError, LookupError):
-                text = raw.decode("utf-8", errors="replace")
+                from core.encoding_fix import fix_garbled_bytes
+                text, used_enc, recovered = fix_garbled_bytes(raw)
+            except ImportError:
+                # encoding_fix not available, fall back to declared encoding
+                try:
+                    text = raw.decode(encoding, errors="replace")
+                except (UnicodeDecodeError, LookupError):
+                    text = raw.decode("utf-8", errors="replace")
 
             # Strip HTML tags for readability
             text = re.sub(r"<script[^>]*>.*?</script>", "", text, flags=re.DOTALL | re.IGNORECASE)

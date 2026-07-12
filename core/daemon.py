@@ -131,7 +131,15 @@ class Daemon:
             )
             win32pipe.ConnectNamedPipe(pipe, None)
             raw: bytes | str = win32file.ReadFile(pipe, 4096)[1]
-            data = raw.decode("utf-8").strip() if isinstance(raw, bytes) else raw.strip()
+            if isinstance(raw, bytes):
+                try:
+                    from core.encoding_fix import fix_garbled_bytes
+                    data, _, _ = fix_garbled_bytes(raw)
+                    data = data.strip()
+                except ImportError:
+                    data = raw.decode("utf-8", errors="replace").strip()
+            else:
+                data = raw.strip()
             resp = self._handle_command(data)
             win32file.WriteFile(pipe, resp.encode("utf-8"))
             win32file.CloseHandle(pipe)
@@ -151,7 +159,13 @@ class Daemon:
             while self._running:
                 try:
                     conn, _ = s.accept()
-                    data = conn.recv(4096).decode("utf-8").strip()
+                    raw_data = conn.recv(4096)
+                    try:
+                        from core.encoding_fix import fix_garbled_bytes
+                        data, _, _ = fix_garbled_bytes(raw_data)
+                        data = data.strip()
+                    except ImportError:
+                        data = raw_data.decode("utf-8", errors="replace").strip()
                     resp = self._handle_command(data)
                     conn.send(resp.encode("utf-8"))
                     conn.close()

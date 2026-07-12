@@ -732,6 +732,25 @@ class KidsApp:
     def _resize_chat_canvas(self, event):
         w = event.width
         self.chat_canvas.itemconfig("bubbles", width=w)
+        # 同步更新所有气泡的文本换行宽度
+        wrap_w = max(200, w - 150)
+        for bubble in self.chat_bubbles.winfo_children():
+            if not isinstance(bubble, tk.Frame):
+                continue
+            for row in bubble.winfo_children():
+                for child in row.winfo_children():
+                    if isinstance(child, tk.Frame):
+                        for widget in child.winfo_children():
+                            try:
+                                if isinstance(widget, tk.Label) and widget.cget('wraplength'):
+                                    widget.config(wraplength=wrap_w)
+                            except tk.TclError:
+                                pass
+
+    def _chat_wrap_width(self):
+        """计算聊天气泡文本换行宽度（基于当前 canvas 宽度）"""
+        w = self.chat_canvas.winfo_width()
+        return max(200, w - 150)
 
     def _add_bubble(self, emoji, name, text, color, is_bot=False):
         """添加一条聊天气泡"""
@@ -753,7 +772,7 @@ class KidsApp:
             Label(content, text=name, font=("Microsoft YaHei", 11, "bold"),
                   fg=color, bg="#F3E8FF").pack(anchor=W, padx=10, pady=(6, 0))
             msg = Label(content, text=text, font=("Microsoft YaHei", 14),
-                        fg=C["text"], bg="#F3E8FF", justify=LEFT, wraplength=450)
+                        fg=C["text"], bg="#F3E8FF", justify=LEFT, wraplength=self._chat_wrap_width())
             msg.pack(anchor=W, padx=10, pady=(2, 8))
         else:
             # 用户消息靠右
@@ -766,7 +785,7 @@ class KidsApp:
             Label(content, text=name, font=("Microsoft YaHei", 11, "bold"),
                   fg=C["blue"], bg="#E8F0FE").pack(anchor=E, padx=10, pady=(6, 0))
             msg = Label(content, text=text, font=("Microsoft YaHei", 14),
-                        fg=C["text"], bg="#E8F0FE", justify=LEFT, wraplength=450)
+                        fg=C["text"], bg="#E8F0FE", justify=LEFT, wraplength=self._chat_wrap_width())
             msg.pack(anchor=W, padx=10, pady=(2, 8))
 
             ava = Frame(row, bg=C["card"])
@@ -778,6 +797,7 @@ class KidsApp:
 
     def _chat_scroll_bottom(self):
         self.chat_canvas.update_idletasks()
+        self.chat_canvas.configure(scrollregion=self.chat_canvas.bbox("all"))
         self.chat_canvas.yview_moveto(1.0)
 
     def _remove_typing(self):

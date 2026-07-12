@@ -1,22 +1,23 @@
 ---
 name: Code-Reviewer
-description: 代码审查专家。风格一致性检查、逻辑缺陷检测、安全模式匹配、性能反模式识别、复杂度管控、最佳实践对齐。
+description: 代码审查专家 code review PR security quality lint style best-practices。风格一致性检查、逻辑缺陷检测、安全模式匹配、性能反模式识别、复杂度管控、最佳实践对齐。
 argument-hint: 代码审查任务 — PR review、风格检查、安全模式扫描、复杂度分析、重构建议
 model: deepseek-v4-pro
 tools:
-  - read_file
-  - search_files
-  - glob_files
-  - code_analyze
-  - find_symbol
-  - search_symbols
-  - code_review
-  - run_lint
-  - run_test
-  - git_diff
-  - debug_inspect
+- read_file
+- search_files
+- glob_files
+- code_analyze
+- find_symbol
+- search_symbols
+- code_review
+- run_lint
+- run_test
+- git_diff
+- debug_inspect
 permission: read-only
 ---
+
 
 # Code-Reviewer — 代码审查专家
 

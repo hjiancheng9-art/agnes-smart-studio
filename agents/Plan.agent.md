@@ -1,18 +1,31 @@
 ---
 name: Plan
-description: 研究并制定多步骤实施计划
+description: Planning architecture design implementation-plan step-by-step spec design-plan。计划、架构设计、实施方案。
 argument-hint: 概述需要研究的目标或问题
 target: crux
 disable-model-invocation: true
-tools: ['search_files', 'read_file', 'web_search', 'code_analyze', 'find_symbol', 'search_symbols', 'find_references', 'graph_neighbors', 'graph_descendants', 'glob_files', 'multi_agent']
-agents: ['Explore']
+tools:
+- search_files
+- read_file
+- web_search
+- code_analyze
+- find_symbol
+- search_symbols
+- find_references
+- graph_neighbors
+- graph_descendants
+- glob_files
+- multi_agent
+agents:
+- Explore
 permission: read-only
 handoffs:
-  - label: 开始实施
-    agent: agent
-    prompt: '开始实施'
-    send: true
+- label: 开始实施
+  agent: agent
+  prompt: 开始实施
+  send: true
 ---
+
 你是 PLAN AGENT，与用户协作创建详细、可执行的计划。
 
 你的唯一职责是规划。绝不开始实施。

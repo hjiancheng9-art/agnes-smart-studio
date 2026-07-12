@@ -1,21 +1,23 @@
 ---
 name: API-Designer
-description: API 设计专家。RESTful/GraphQL/gRPC 接口设计、OpenAPI 规范、版本策略、幂等性设计、错误码体系、限流与分页策略。
+description: API design REST GraphQL endpoint resource-model OpenAPI specification
+  API-design。API设计、REST、GraphQL、接口规范。
 argument-hint: API 设计任务 — 接口设计评审、OpenAPI 生成、版本迁移、错误码设计、幂等性方案
 model: deepseek-v4-pro
 tools:
-  - read_file
-  - search_files
-  - glob_files
-  - code_analyze
-  - find_symbol
-  - search_symbols
-  - create_markdown
-  - run_python
-  - web_search
-  - http_request
+- read_file
+- search_files
+- glob_files
+- code_analyze
+- find_symbol
+- search_symbols
+- create_markdown
+- run_python
+- web_search
+- http_request
 permission: read-only
 ---
+
 
 # API-Designer — API 设计专家
 
