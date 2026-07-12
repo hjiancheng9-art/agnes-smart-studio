@@ -10,9 +10,7 @@ import os
 import subprocess
 import sys
 from tkinter import *
-from tkinter import ttk, messagebox
-
-import tkinter as tk
+from tkinter import ttk
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -39,7 +37,7 @@ class AgnesLauncher:
         try:
             self.root.iconbitmap(default="")
         except Exception:
-            pass
+            pass  # No icon file available — non-critical
 
         # 主题
         self.theme = Theme()
@@ -68,7 +66,7 @@ class AgnesLauncher:
             try:
                 self._ctx = AppContext.create_default()
             except Exception:
-                pass
+                pass  # Fallback also failed — UI will show disconnected state
 
     def _refresh_api(self) -> None:
         self._init_api()

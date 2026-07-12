@@ -621,6 +621,14 @@ class ToolRegistryMesh:
 
         # Try GrowthEngine optimized ordering first, merge with static fallback
         candidates = self._get_optimized_candidates(intent, meta["order"])
+        # Fallback: use all tools assigned to this category by discovery
+        if not candidates:
+            candidates = [e.name for e in self._by_category.get(intent, [])]
+        # Final fallback: search for tools matching intent prefix
+        if not candidates:
+            candidates = [n for n in self._tools
+                          if n.replace("_", "").startswith(intent)
+                          or intent in n.split("_")]
         last_error = ""
         first_tool = candidates[0] if candidates else ""
 

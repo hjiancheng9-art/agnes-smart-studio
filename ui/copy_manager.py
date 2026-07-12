@@ -43,6 +43,10 @@ class CopyManager:
         if self.focus.total == 0:
             self.focus.enabled = False
 
+    def has_messages(self) -> bool:
+        """是否有可复制的消息。"""
+        return len(self.store) > 0
+
     def copy_message(self, msg: Message | None) -> tuple[bool, str]:
         if not msg or not msg.text:
             return False, "无消息可复制"

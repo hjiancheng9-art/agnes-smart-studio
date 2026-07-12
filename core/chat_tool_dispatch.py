@@ -13,6 +13,26 @@ import logging
 logger = logging.getLogger("crux.tool_dispatch")
 
 
+def _classify_tool_intent(name: str) -> str | None:
+    """Map a tool name to its TRM intent category for auto-routing.
+
+    Returns the intent (search/review/execute/think/generate) or None
+    if the tool isn't tracked by TRM or has a non-routable category.
+    """
+    try:
+        from core.tool_registry_mesh import get_trm
+
+        trm = get_trm()
+        if not trm._discovered:
+            trm.discover_all()
+        entry = trm._tools.get(name)
+        if entry and entry.category not in ("unknown", "status", "generate"):
+            return entry.category
+    except Exception:
+        pass
+    return None
+
+
 def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = False) -> tuple[str, list[tuple]]:
     """执行工具，返回 (给模型的文本, 给用户的副作用列表)。
 
@@ -284,6 +304,12 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                     local_path = result.get("local_path", "")
                     url = result.get("url", "")
                     side.append(("video", {"url": url or "", "local_path": local_path}))
+                    # ── 视频成本追踪 ──
+                    try:
+                        from core.cost_tracker import record_usage
+                        record_usage(model="agnes-video-v2.0", kind="video", label="generate_video", call_count=1)
+                    except ImportError:
+                        pass
                     return (f"视频已生成 [video_id={video_id}]: {local_path or url}", side)
                 elif result and result.get("status") in ("failed", "FAILED", "error"):
                     return (f"视频生成失败: {result.get('error', 'unknown')}", side)
@@ -440,12 +466,77 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
     if name in _GEN_TOOLS:
         return (f"[路由错误] {name} 是专用生成工具，必须由 dispatch 直接处理，不走通用执行器。请检查 _dispatch_tool_impl 的处理顺序。", [])
 
+    # ─── TRM Global Auto-Route ───────────────────────────────────────────
+    # Every bridge-tool call is intercepted by the Tool Registry Mesh.
+    # TRM classifies the intent, checks GrowthEngine learned performance
+    # data, and may redirect to a higher-performing bridge for the intent.
+    # This makes TRM a first-class global dispatch layer, not a manual tool.
+    _trm_intent = _classify_tool_intent(name)
+    if _trm_intent:
+        try:
+            from core.tool_registry_mesh import get_trm
+
+            trm = get_trm()
+            # Build kwargs from args dict for route()
+            route_kwargs: dict = {}
+            if isinstance(args, dict):
+                for k in ("query", "prompt", "target", "file", "path", "code", "text"):
+                    if k in args:
+                        route_kwargs[k] = args[k]
+                        break
+
+            route_result = trm.route(_trm_intent, **route_kwargs)
+            if route_result.tool and not route_result.error:
+                if route_result.tool != name and self.tools.has(route_result.tool):
+                    _reason = route_result.reason or "TRM GrowthEngine optimized"
+                    logger.info(
+                        "TRM auto-route: %s → %s (intent=%s, reason=%s)",
+                        name, route_result.tool, _trm_intent, _reason,
+                    )
+                    # Execute through TRM-selected tool
+                    _trm_result = self.tools.call(route_result.tool, args)
+                    _text = ""
+                    _side: list[tuple[str, str | dict]] = []
+                    if isinstance(_trm_result, dict):
+                        _text = _trm_result.get("text", "") or _trm_result.get("result", "")
+                        _side = _trm_result.get("side", [])
+                    elif isinstance(_trm_result, str):
+                        _text = _trm_result
+                    # Record for GrowthEngine
+                    _ok = bool(_text and "error" not in str(_text).lower()[:200])
+                    trm.record_call(route_result.tool, success=_ok)
+                    _side.insert(0, ("info", f"🔀 TRM 自动路由: {name} → {route_result.tool}"))
+                    return (str(_text), _side)
+
+                # Same tool — still record stats
+                trm.record_call(name, success=True)
+
+        except Exception as _trm_err:
+            logger.debug("TRM auto-route skipped: %s", _trm_err)
+            pass
+    # ─── End TRM Global Auto-Route ───────────────────────────────────────
+
     if self.tools.has(name):
         from core.constraints import LONG_RUNNING_TOOLS
 
         _LONG_RUNNING = LONG_RUNNING_TOOLS
         side: list[tuple[str, str | dict]] = []
-        if name in _LONG_RUNNING:
+        # ── Capability explanation: show what parallel agents are doing ──
+        if name == "agent_swarm":
+            _items = args.get("items", [])
+            _role = args.get("role", "implementer")
+            _count = len(_items) if isinstance(_items, list) else 0
+            if _count > 0:
+                _preview = ", ".join(str(i)[:40] for i in _items[:3])
+                if _count > 3:
+                    _preview += f" ... +{_count - 3} more"
+                side.append(("info", f"正在执行 agent_swarm: {_count} 个并行 {_role} → {_preview}"))
+            else:
+                side.append(("info", f"正在执行 agent_swarm..."))
+        elif name == "multi_agent":
+            _goal = args.get("goal", "")[:60]
+            side.append(("info", f"正在执行 multi_agent: {_goal}"))
+        elif name in _LONG_RUNNING:
             side.append(("info", f"正在执行 {name}..."))
         result = self.tools.execute(name, args)
         try:
@@ -459,6 +550,19 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                 result = post_evt.result
         except (ImportError, OSError):
             logger.debug("spectrum module not available")
-        side.append(("info", f"工具 {name} 执行完成"))
+        # ── Capability summary: show agent swarm completion summary ──
+        if name == "agent_swarm" and isinstance(result, str):
+            try:
+                _parsed = json.loads(result)
+                if isinstance(_parsed, dict):
+                    _done = sum(1 for v in _parsed.values() if isinstance(v, str) and "error" not in v.lower())
+                    _failed = len(_parsed) - _done
+                    side.append(("info", f"agent_swarm 完成: {_done}/{len(_parsed)} 成功" + (f", {_failed} 失败" if _failed else "")))
+                else:
+                    side.append(("info", f"工具 {name} 执行完成"))
+            except (json.JSONDecodeError, TypeError):
+                side.append(("info", f"工具 {name} 执行完成"))
+        else:
+            side.append(("info", f"工具 {name} 执行完成"))
         return (result, side)
     return (f"未知工具: {name}", [])

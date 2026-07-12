@@ -247,6 +247,43 @@ COMMANDS: list[CommandDef] = [
         "加 deep 参数会同时删除 tmp/ 下超过 7 天的旧文件。",
         handler="_chat_tidy",
     ),
+    # ── 智能体转换（Trae ↔ CRUX） ──
+    CommandDef(
+        "trae_convert",
+        "/trae-convert",
+        "<agent.json>",
+        "导入 trae agent → CRUX skill.json",
+        "智能体转换",
+        "将 Trae AI IDE 智能体 JSON 定义转换为 CRUX Studio 技能格式",
+        handler="_chat_trae_convert",
+    ),
+    CommandDef(
+        "trae_export",
+        "/trae-export",
+        "<skill.json> [output.json]",
+        "导出 CRUX skill → trae agent 格式",
+        "智能体转换",
+        "将现有 CRUX skill 导出为 trae 兼容的 agent 定义",
+        handler="_chat_trae_export",
+    ),
+    CommandDef(
+        "trae_batch",
+        "/trae-batch",
+        "<input_dir> [output_dir]",
+        "批量转换 trae agents → skills",
+        "智能体转换",
+        "批量转换整个目录下的 trae agent JSON 为 CRUX skills",
+        handler="_chat_trae_batch",
+    ),
+    CommandDef(
+        "trae_new",
+        "/trae-new",
+        "<name> [description]",
+        "手动创建 trae 风格 skill",
+        "智能体转换",
+        "通过命令行交互创建新 agent 并生成 skill.json",
+        handler="_chat_trae_new",
+    ),
 ]
 
 # Special skill-load entries for /help display

@@ -346,7 +346,7 @@ def _chat_tui():
     content = [
         "极简内核 + 百器待命 + 七兽按需治理",
         "平时如刀，出事成阵 · 自修复闭环",
-        "56 skills / 750 market · 1M 上下文窗口",
+        "123 skills / 769 market · 1M 上下文窗口",
     ]
     content_lines = []
     for line in content:
@@ -367,10 +367,10 @@ def _chat_tui():
         + f"  ◈ {model_name} · 1M 上下文 · 80+ 工具\n"
         + "  ◈ 根因优先 → 最小复现 → 自修复闭环\n"
         + "\n"
-        + "  Intelligence Pipeline · 289 测试 0 失败\n"
-        + "  ├─ 6 模式路由 · 82% 精确 96% 可接受\n"
-        + "  ├─ 7 专业 Runtime · 5 区 TUI 事件驱动\n"
-        + "  └─ Arena 发布门禁 · 自学习 · 灰度回滚\n"
+        + "  Agent Swarm · 并行智能体 · 自修闭环\n"
+        + "  ├─ 123 技能包 · 34 专业域 · 7 兽谱系\n"
+        + "  ├─ agent_swarm 并行编排 · PatchEngine 安全自修\n"
+        + "  └─ 4 级任务管理 · A/B/C/D · 门禁引擎\n"
         + "\n"
         + "  试试这些:\n"
         + "    /status  查看状态    /health  系统健康\n"

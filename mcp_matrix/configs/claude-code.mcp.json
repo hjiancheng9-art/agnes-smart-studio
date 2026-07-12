@@ -1,0 +1,35 @@
+{
+  "mcpServers": {
+    "codex": {
+      "command": "C:/Users/huangjiancheng/AppData/Local/Programs/Python/Python311/python.exe",
+      "args": [
+        "C:\\Users\\huangjiancheng\\agnes-smart-studio\\core\\mcp_servers\\codex_bridge.py"
+      ]
+    },
+    "kimi": {
+      "command": "C:/Users/huangjiancheng/AppData/Local/Programs/Python/Python311/python.exe",
+      "args": [
+        "C:\\Users\\huangjiancheng\\agnes-smart-studio\\core\\mcp_servers\\kimi_bridge.py"
+      ]
+    },
+    "codebuddy": {
+      "command": "C:/Users/huangjiancheng/AppData/Local/Programs/Python/Python311/python.exe",
+      "args": [
+        "C:\\Users\\huangjiancheng\\agnes-smart-studio\\core\\mcp_servers\\codebuddy_bridge.py"
+      ]
+    },
+    "zcode": {
+      "command": "C:/Users/huangjiancheng/AppData/Local/Programs/Python/Python311/python.exe",
+      "args": [
+        "C:\\Users\\huangjiancheng\\agnes-smart-studio\\core\\mcp_servers\\crux_mcp_entry.py"
+      ]
+    },
+    "crux": {
+      "command": "C:/Users/huangjiancheng/AppData/Local/Programs/Python/Python311/python.exe",
+      "args": [
+        "C:\\Users\\huangjiancheng\\agnes-smart-studio\\crux_studio.py",
+        "mcp-serve"
+      ]
+    }
+  }
+}

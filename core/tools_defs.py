@@ -734,7 +734,9 @@ CORE_TOOL_NAMES: set[str] = {
     "skill_install",       # 从市场安装技能
     "skill_list",          # 列出已安装技能
     "plugin_list",         # 列出可用插件
-    "grep",                # search_files 别名（模型习惯用名）
+    "agent_swarm",         # 并行子智能体分派
+    "grep",                # search_files 别名
+    "mcp_get_tool_description",  # ZCode 兼容（模型习惯用名）
 }
 
 # 扩展分类 → 工具名集合（注意：与上面的 TOOL_CATEGORIES 展示分类不同，这里是动态展开用）
@@ -851,6 +853,35 @@ TOOL_EXPANSION_CATEGORIES: dict[str, set[str]] = {
         "count_lines",
         "tree_dir",
     },
+    # ── 僵尸系统复活: 之前有定义但 LLM 不可见 ──
+    "tdd": {
+        "tdd_start",
+        "tdd_run_tests",
+        "tdd_cycle",
+        "tdd_status",
+    },
+    "quest": {
+        "quest_create",
+        "quest_list",
+        "quest_start",
+        "quest_complete",
+        "quest_step_complete",
+    },
+    "cicd": {
+        "pipeline_create",
+        "pipeline_run",
+        "pipeline_list",
+    },
+    "artifact": {
+        "artifact_store",
+        "artifact_list",
+        "artifact_promote",
+    },
+    "retro": {
+        "retro_create",
+        "retro_list",
+        "retro_summarize",
+    },
 }
 
 # 关键词 → 分类映射（用户输入匹配后自动展开对应分类）
@@ -881,6 +912,11 @@ for _cat, _kws in {
     "media_extended": ["speech", "语音", "transcribe", "转写", "tts", "音频"],
     "mcp": ["mcp"],
     "agent": ["agent", "swarm", "多智能体", "并行"],
+    "tdd": ["tdd", "test driven", "red green", "红绿", "测试驱动", "test first", "先写测试"],
+    "quest": ["quest", "quest", "步骤", "step by step", "分步", "依赖任务"],
+    "cicd": ["pipeline", "ci/cd", "ci", "cd", "部署流水线", "stage", "构建流水线"],
+    "artifact": ["artifact", "build", "构建产物", "promote", "发布", "dev", "staging", "prod"],
+    "retro": ["retro", "retrospective", "复盘", "sprint", "迭代", "回顾", "what went well", "改进"],
 }.items():
     for _kw in _kws:
         CATEGORY_HINTS[_kw] = _cat

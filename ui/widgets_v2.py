@@ -250,9 +250,9 @@ def build_welcome_formatted(
     _bb: StyleAndTextTuples = []
     _bb.extend(_badge(B, f" {_model} "))
     _bb.extend(_badge(P, f" {_branch} "))
-    _bb.extend(_badge(G, " 2626 tests "))
+    _bb.extend(_badge(G, " 1M context "))
     _bb.extend(_badge(T, f" v{_ver} "))
-    _bb.extend(_badge(A, " 50+ skills "))
+    _bb.extend(_badge(A, " 123 skills "))
     _bb.append((S, sp(CW - sum(len(x[1]) + 2 for x in _bb) - 2)))
     L([("", "  ")] + _bb)
     L([("", "\n")])
@@ -340,10 +340,10 @@ def build_welcome_formatted(
     ]
     _sys = [
         ("● ready", G),
-        ("Intelligence Pipeline", P),
-        ("6 模式 · 82%/96% 路由", W),
-        ("7 Runtime · 289 tests ✓", G),
-        ("Arena · 自学习 · 灰度", T),
+        ("Agent Swarm Pipeline", P),
+        ("123 skills · 769 market", W),
+        ("Parallel · PatchEngine · A/B/C/D", G),
+        ("7-Beasts · 34 Pro Domains", T),
     ]
 
     for i in range(5):
@@ -504,8 +504,11 @@ class ThinkingPanel:
     def append(self, text: str) -> None:
         """Append text to the thinking buffer. Auto-shows panel."""
         with self._lock:
-            self._content += text
-        self._visible = True
+            # Cap content to prevent memory leak on long thinking sessions
+            MAX_CONTENT = 131072  # 128KB — more than enough for thinking traces
+            if len(self._content) < MAX_CONTENT:
+                self._content += text
+            self._visible = True
 
     def clear(self) -> None:
         """Clear thinking content. Hides panel unless pinned."""
@@ -541,21 +544,29 @@ class ThinkingPanel:
             pieces.append(("class:thinking-panel-border", top[:width] + "\n"))
 
             # ── Content lines (capped at MAX_LINES) ──
+            # Only render the tail of large content to avoid OOM
             content = self._content
+            MAX_BYTES_RENDER = 65536  # 64KB — prevent OOM from huge thinking traces
+            if len(content) > MAX_BYTES_RENDER:
+                content = content[-MAX_BYTES_RENDER:]
+                # Split at first newline to avoid mid-text truncation
+                nl = content.find("\n")
+                if nl > 0:
+                    content = content[nl + 1:]
             # Split into visual lines based on width
             visual_lines: list[str] = []
+            inner = max(1, width - 4)
             for paragraph in content.split("\n"):
                 if not paragraph:
                     visual_lines.append("")
                     continue
                 # Simple wrap: chop at width boundaries
-                inner = max(1, width - 4)
                 while len(paragraph) > inner:
                     visual_lines.append(paragraph[:inner])
                     paragraph = paragraph[inner:]
                 visual_lines.append(paragraph)
 
-            shown = visual_lines[: self.MAX_LINES]
+            shown = visual_lines[-self.MAX_LINES:] if len(visual_lines) > self.MAX_LINES else visual_lines
             for line in shown:
                 line_w = len(line)
                 pad = max(0, width - line_w - 4)

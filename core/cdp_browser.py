@@ -154,30 +154,56 @@ def _auto_reconnect():
     _global_state["refcount"] = 1
     return browser
 
+def _edge_running() -> bool:
+    """检测用户是否已有 Edge 在运行（不含 CDP 端口）。"""
+    try:
+        result = subprocess.run(
+            ["tasklist", "/FI", "IMAGENAME eq msedge.exe", "/NH"],
+            capture_output=True, text=True, timeout=5,
+        )
+        return "msedge.exe" in result.stdout
+    except Exception:
+        return False  # 无法检测时假设没有运行，让后续逻辑自行处理
+
+
 def _ensure_cdp():
-   """确保 Edge CDP 端口在线"""
-   s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-   s.settimeout(1)
-   ok = s.connect_ex(("127.0.0.1", 9222)) == 0
-   s.close()
-   if ok:
-       return
-   os.makedirs(USER_DATA, exist_ok=True)
-   subprocess.Popen(
-       [EDGE_PATH, f"--user-data-dir={USER_DATA}",
-        "--remote-debugging-port=9222",
-        "--no-first-run", "--no-default-browser-check"],
-       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-   )
-   for _ in range(20):
-       time.sleep(1)
-       s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-       s.settimeout(1)
-       if s.connect_ex(("127.0.0.1", 9222)) == 0:
-           s.close()
-           return
-       s.close()
-   raise RuntimeError("CDP 启动超时（20s）")
+    """确保 Edge CDP 端口在线。
+
+    策略（按优先级）：
+    1. 9222 端口已开放 → 直接返回（用户已启动 CDP Edge）
+    2. 端口关闭 + Edge 未运行 → 用默认 profile 启动 Edge + CDP（保留用户登录态）
+    3. 端口关闭 + Edge 已在运行 → 报清晰错误，不盲启新实例
+    """
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(1)
+    ok = s.connect_ex(("127.0.0.1", 9222)) == 0
+    s.close()
+    if ok:
+        return
+
+    if _edge_running():
+        raise RuntimeError(
+            "Edge 已在运行，但未开启远程调试端口 (9222)。\n"
+            "请关闭所有 Edge 窗口后重试，CRUX 将自动以 CDP 模式启动 Edge。\n"
+            "或手动启动 Edge: msedge.exe --remote-debugging-port=9222"
+        )
+
+    # Edge 未运行 → 使用默认 profile 启动（保留用户登录态、Cookie）
+    subprocess.Popen(
+        [EDGE_PATH,
+         "--remote-debugging-port=9222",
+         "--no-first-run", "--no-default-browser-check"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    for _ in range(20):
+        time.sleep(1)
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(1)
+        if s.connect_ex(("127.0.0.1", 9222)) == 0:
+            s.close()
+            return
+        s.close()
+    raise RuntimeError("CDP 启动超时（20s）")
 
 
 def _connect(retries=3):

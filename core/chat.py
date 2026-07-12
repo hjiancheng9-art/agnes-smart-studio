@@ -594,6 +594,9 @@ class ChatSession(ChatToggleMixin):
         skill = self.skills.load(name)
         if skill:
             self.active_skill = name
+            # Skill 反馈: 记录触发加载的任务上下文
+            self._skill_loaded_for_task = getattr(self, "_last_user_text", "")
+            self._skill_loaded_at_turn = getattr(self, "_turn_count", 0)
             # Thinking only for code-heavy skills; browser/media skills don't need it
             thinking_skills = {"caliber", "debug-master"}
             self.enable_thinking = name in thinking_skills
@@ -854,6 +857,23 @@ class ChatSession(ChatToggleMixin):
         """
         # 记录用户文本（供 TraceStore 失败追踪使用）
         self._last_user_text = user_text
+        self._last_turn_had_errors = False  # 每回合重置
+
+        # ── 输入截断: 超长文本存临时文件，避免炸上下文 ──
+        _MAX_INPUT_CHARS = 4000
+        _input_len = len(user_text)
+        if _input_len > _MAX_INPUT_CHARS:
+            import tempfile
+            tmp_dir = tempfile.gettempdir()
+            tmp_path = f"{tmp_dir}/crux_input_{os.getpid()}.txt".replace("\\", "/")
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                f.write(self._last_user_text)
+            user_text = (
+                f"[大文本 {_input_len} 字符，完整内容: {tmp_path}]\n"
+                f"开头:\n{user_text[:_MAX_INPUT_CHARS // 2]}\n"
+                f"...\n结尾:\n{user_text[-_MAX_INPUT_CHARS // 4:]}"
+            )
+            yield ("info", f"输入过长({_input_len}字符)，已截断。用 read_file 读完整内容: {tmp_path}")
 
         # 触发 CHAT_TURN_START 钩子
         try:
@@ -933,6 +953,30 @@ class ChatSession(ChatToggleMixin):
             self.enable_thinking = True  # 深度模式强制开启思考
         elif self._intel_mode == "FAST":
             self.enable_thinking = False  # 快速模式关闭思考省 token
+
+        # ── Agent mode 自动评分: 复杂任务提示 LLM 使用 agent_swarm ──
+        try:
+            from core.multi_agent import compute_agent_mode
+
+            _agent_ctx = {
+                "files_touched": len(
+                    getattr(self, "_methodology_state", None)
+                    and getattr(self._methodology_state, "files_touched", None)
+                    or []
+                ),
+                "recent_failures": 0,
+            }
+            _agent_mode, _agent_score, _agent_breakdown = compute_agent_mode(user_text, _agent_ctx)
+            self._last_agent_score = _agent_score
+            self._last_agent_mode = _agent_mode.value
+            if _agent_score >= 5:
+                yield (
+                    "info",
+                    f"[智能体] 任务复杂度 {_agent_score:.1f} (mode={_agent_mode.value})"
+                    f" — 建议使用 agent_swarm 并行分派子智能体",
+                )
+        except (ImportError, OSError):
+            pass
 
         # 3. Pipeline 执行: DEEP/SAFE 模式跑 Plan→Critic→Repair 工作流
         if self._intel_mode in ("DEEP", "SAFE") and not image_url:
@@ -1356,6 +1400,26 @@ class ChatSession(ChatToggleMixin):
                             import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
                         side_effects = [("info", tool_result)]
                         metrics.increment("tool_errors")
+                        self._last_turn_had_errors = True
+                    # ── Agent mode 反馈: 记录 agent_swarm / multi_agent 执行结果 ──
+                    if fname in ("agent_swarm", "multi_agent"):
+                        try:
+                            from core.multi_agent import AgentMode, AgentModeResult, record_agent_mode_result
+
+                            _is_ok = (
+                                not str(tool_result).startswith("[错误]")
+                                and "error" not in str(tool_result).lower()[:200]
+                            )
+                            _mode = AgentMode.SWARM if fname == "agent_swarm" else AgentMode.PLAN_EXECUTE
+                            _latency = (span.end_time - span.start_time) if hasattr(span, 'end_time') else 0.0
+                            record_agent_mode_result(AgentModeResult(
+                                mode=_mode,
+                                task_type="tool_call",
+                                success=_is_ok,
+                                latency=_latency,
+                            ))
+                        except (ImportError, AttributeError):
+                            pass
                     # ── 方法论追踪: 自动记录文件操作 + 触发升级 ──
                     try:
                         from core.methodology import get_methodology_state
@@ -1474,6 +1538,61 @@ class ChatSession(ChatToggleMixin):
                                     len(records), len(records))
             except Exception as e:
                 logger.debug("Adaptive learner cycle skipped: %s", e)
+
+        # ── Agent mode 统计消费: 每 5 轮读取各模式成功率 ──
+        if self._turn_count % 5 == 0:
+            try:
+                from core.multi_agent import get_mode_statistics
+
+                _stats = get_mode_statistics()
+                if _stats:
+                    _swarm = _stats.get("swarm", {})
+                    _plan = _stats.get("plan_execute", {})
+                    _total = _swarm.get("total", 0) + _plan.get("total", 0)
+                    if _total >= 3:
+                        logger.info(
+                            "agent mode stats: swarm=%.0f%%(n=%d) plan=%.0f%%(n=%d) total=%d",
+                            _swarm.get("success_rate", 0) * 100,
+                            _swarm.get("total", 0),
+                            _plan.get("success_rate", 0) * 100,
+                            _plan.get("total", 0),
+                            _total,
+                        )
+            except (ImportError, OSError):
+                pass
+
+        # ── Skill 反馈: 评估当前技能效果 ──
+        _skill_name = getattr(self, "active_skill", "")
+        _skill_loaded_at = getattr(self, "_skill_loaded_at_turn", 0)
+        if _skill_name and _skill_loaded_at == self._turn_count - 1:
+            try:
+                from core.skills import get_manager as _gm
+
+                _sm = _gm()
+                if hasattr(_sm, "_skill_usage_log") and _sm._skill_usage_log:
+                    _last = _sm._skill_usage_log[-1]
+                    _had_tool_errors = getattr(self, "_last_turn_had_errors", False)
+                    _last["turn_completed"] = True
+                    _last["tool_errors"] = _had_tool_errors
+                    _last["task"] = getattr(self, "_skill_loaded_for_task", "")[:200]
+            except Exception:
+                pass
+
+        # ── TRM Growth Engine 自动调优: 每 20 轮优化工具路由 ──
+        if self._turn_count % 20 == 0:
+            try:
+                from core.growth_engine import get_growth_engine
+
+                _ge = get_growth_engine()
+                _changes = _ge.auto_tune(apply=True)
+                if _changes.get("applied"):
+                    logger.info(
+                        "TRM auto-tune: %d optimizations applied (%d tools reordered/demoted)",
+                        len(_changes["applied"]),
+                        _changes.get("_total_calls", 0),
+                    )
+            except (ImportError, OSError):
+                pass
 
         # ── 会话快照: 每 5 轮保存一次，崩溃可恢复 ──
         self._maybe_snapshot()

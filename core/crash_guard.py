@@ -8,7 +8,6 @@ import logging
 import sys
 import threading
 import traceback
-from datetime import datetime, timezone
 
 logger = logging.getLogger("crux.crash_guard")
 
@@ -30,15 +29,15 @@ def _record_crash(report: str) -> None:
 
     # Best-effort write to incident store
     try:
-        from core.incident_store import record_incident
+        from core.incident_store import save_incident
 
-        record_incident(
-            category="crash",
-            severity="critical",
-            summary=report.split("\n")[0][:200],
-            details={"traceback": report[:4000]},
-            timestamp=datetime.now(timezone.utc).isoformat(),
-        )
+        save_incident({
+            "primary_category": "crash",
+            "severities": {"critical": 1},
+            "total_incidents": 1,
+            "summary": report.split("\n")[0][:200],
+            "recommendation": "Check traceback for root cause",
+        })
     except Exception:
         logger.debug("Cannot write crash to incident store", exc_info=True)
 

@@ -160,7 +160,10 @@ class DashboardScreen(Screen):
         from ui.dashboard import render_dashboard
 
         try:
-            result = render_dashboard()
+            state = getattr(self, '_dash_state_ref', None)
+            layout_mgr = getattr(self, '_layout_mgr_ref', None)
+            layout = layout_mgr.config if layout_mgr else None
+            result = render_dashboard(state=state, layout=layout)
             from prompt_toolkit.formatted_text import FormattedText
 
             return FormattedText(result)
@@ -437,6 +440,14 @@ class TuiAppV2:
         # ── Core components ──
         self.message_pane = MessagePane()
         self.status_bar = StatusBar(model=session.model, cwd=Path.cwd())
+        # Mouse mode guard: auto-restore terminal mouse mode after subprocess damage
+        try:
+            from ui.ui_heartbeat import MouseModeGuard
+            self._mouse_guard = MouseModeGuard()
+            self._mouse_guard.enable()
+            self.message_pane._mouse_guard = self._mouse_guard
+        except Exception:
+            self._mouse_guard = None
         # ── Screen system ──
         self.screen_stack = ScreenStack()
         self._available_screens = {
@@ -672,6 +683,16 @@ class TuiAppV2:
             self.message_pane.scroll_up(5)
             event.app.invalidate()
 
+        @kb.add("c-l")
+        def _(event):
+            """Ctrl+L: 强制重置滚动 + 恢复鼠标模式"""
+            self.message_pane.scroll_to_bottom()
+            self.message_pane._pinned = True
+            # 恢复终端鼠标追踪
+            if hasattr(event.app.output, 'enable_mouse_support'):
+                event.app.output.enable_mouse_support()
+            event.app.invalidate()
+
         @kb.add(Keys.ScrollDown)
         def _(event):
             self.message_pane.scroll_down(5)
@@ -769,21 +790,31 @@ class TuiAppV2:
             if _typing(event):
                 event.current_buffer.insert_text("c")
                 return
-        def _copy_focused(event):
-            """c: 复制聚焦消息全文。"""
             if self._detail_view and self._detail_view.active:
                 self._detail_view.handle_key("c")
                 return
+            # 无消息时不拦截，让 'c' 正常输入
+            if not self._copy_mgr.has_messages():
+                event.current_buffer.insert_text("c")
+                return
             ok, msg = self._copy_mgr.copy_focused()
-            self._log_append((("✓", "class:activity-done") if ok else ("✗", "class:error"), msg[:100]))
+            icon, style = ("✓", "class:activity-done") if ok else ("✗", "class:error")
+            self._log_append((icon, style, msg[:100]))
             self._ui(self._refresh_status)
 
         # ── Shift+C: 复制 Markdown ──
         @kb.add("C")
         def _copy_markdown(event):
             """Shift+C: 复制聚焦消息为 Markdown。"""
+            if _typing(event):
+                event.current_buffer.insert_text("C")
+                return
+            if not self._copy_mgr.has_messages():
+                event.current_buffer.insert_text("C")
+                return
             ok, msg = self._copy_mgr.copy_focused_markdown()
-            self._log_append((("✓", "class:activity-done") if ok else ("✗", "class:error"), msg[:100]))
+            icon, style = ("✓", "class:activity-done") if ok else ("✗", "class:error")
+            self._log_append((icon, style, msg[:100]))
             self._ui(self._refresh_status)
 
         # ── F9: 原生选择模式 ──
@@ -946,20 +977,36 @@ class TuiAppV2:
 
         # ── Activity Bar ──
         def _activity_content():
-            count = self._log_count()
-            if count == 0:
+            try:
+                count = self._log_count()
+                if count == 0:
+                    return FormattedText([])
+                with self._activity_lock:
+                    max_lines = (
+                        self._activity_expanded_height if self._activity_expanded else self._activity_collapsed_height
+                    )
+                    log_snapshot = self._log_snapshot(limit=max_lines)
+                tw = _tw()
+                if tw <= 0:
+                    return FormattedText([])
+                pieces: list[tuple[str, str]] = []
+                for entry in log_snapshot:
+                    if not entry:
+                        continue
+                    if len(entry) == 3:
+                        icon, style_class, msg = entry
+                    elif len(entry) == 2:
+                        icon, msg = entry; style_class = ""
+                    else:
+                        continue
+                    text = f"{icon} {msg}".replace("\n", " ").replace("\r", " ")[: tw - 4]
+                    pieces.append((style_class, text))
+                    pieces.append(("", "\n"))
+                return FormattedText(pieces)
+            except Exception:
+                import logging
+                logging.getLogger("crux.ui").debug("activity_content render failed", exc_info=True)
                 return FormattedText([])
-            with self._activity_lock:
-                max_lines = (
-                    self._activity_expanded_height if self._activity_expanded else self._activity_collapsed_height
-                )
-                log_snapshot = self._log_snapshot(limit=max_lines)
-            tw = _tw()
-            pieces: list[tuple[str, str]] = []
-            for icon, style_class, msg in log_snapshot:
-                # Force single-line, truncate to fit
-                text = f"{icon} {msg}".replace("\n", " ").replace("\r", " ")[: tw - 4]
-                pieces.append((style_class, text))
                 pieces.append(("", "\n"))
             return FormattedText(pieces)
 
@@ -1278,8 +1325,10 @@ class TuiAppV2:
 
     def _on_accept(self, buf: Buffer) -> bool:
         try:
-            text = buf.text.strip()
+            text = buf.text
             buf.reset()
+            # ── Input sanitization: strip ANSI escapes, null bytes, control chars ──
+            text = self._sanitize_input(text)
             if not text:
                 return True
 
@@ -1565,12 +1614,8 @@ class TuiAppV2:
         # ── Copy command ──
         if text.startswith("/copy"):
             ok, msg = self._copy_mgr.handle_command(text)
-            self._log_append(
-                (
-                    ("✓", "class:activity-done") if ok else ("✗", "class:activity-fail"),
-                    msg[:120],
-                )
-            )
+            icon, style = ("✓", "class:activity-done") if ok else ("✗", "class:activity-fail")
+            self._log_append((icon, style, msg[:120]))
             return True
 
         # ── Provider health ──
@@ -1671,8 +1716,22 @@ class TuiAppV2:
     def _start_pending_commit_timer(self) -> None:
         """Pending 窗口过期后自动提交。"""
 
+        # Guard: cancel any existing timer to prevent duplicate worker threads
+        _prev_timer = getattr(self, "_pending_timer", None)
+        if _prev_timer is not None and _prev_timer.is_alive():
+            try:
+                # Mark old timer as cancelled so it becomes a no-op
+                self._pending_cancelled = True
+            except Exception:
+                pass
+
+        self._pending_cancelled = False
+
         def wait_and_commit():
             time.sleep(control().outbox.UNDO_WINDOW_MS / 1000 + 0.1)
+            # Check if this timer was cancelled (user sent another message)
+            if getattr(self, "_pending_cancelled", False):
+                return
             pending = control().outbox.get_pending()
             if not pending:
                 return
@@ -1816,9 +1875,24 @@ class TuiAppV2:
             self._ui(self._refresh_status, _force=True)
 
     def _stream_response(self, user_text: str) -> None:
+        # Stream timeout guard: detect hung generators (silence > 120s)
+        _stream_stalled = False
+
+        def _timeout_guard():
+            nonlocal _stream_stalled
+            time.sleep(120)
+            _stream_stalled = True
+            try:
+                self._log_append(("⏱", "class:activity-warn", "Stream 超时 (120s 无响应)"))
+            except Exception:
+                pass
+
+        _timeout_thread = threading.Thread(target=_timeout_guard, daemon=True)
+        _timeout_thread.start()
         try:
             self._ui(self.message_pane.stream_start, "crux")
             pending_tool = None
+            _tool_seq = 0  # running tool counter
             _t0 = time.monotonic()
             _first_token = False
             for kind, payload in self.session.send_stream(user_text):
@@ -1841,8 +1915,9 @@ class TuiAppV2:
                         continue
                     if msg.startswith("正在执行 "):
                         tool_name = msg[5:].rstrip(".")
+                        _tool_seq += 1
                         pending_tool = tool_name
-                        self._log_append(("●", "class:activity-running", f"执行 {tool_name}"))
+                        self._log_append(("●", "class:activity-running", f"#{_tool_seq} {tool_name}"))
                     elif msg.startswith("正在生成"):
                         action = msg[2:].rstrip(".")
                         pending_tool = action
@@ -1866,6 +1941,13 @@ class TuiAppV2:
                     elif "预算" in msg:
                         self._log_append(("💰", "class:activity-info", msg[:100]))
                     else:
+                        # Show uncategorized info messages (provider switches, pipeline results, etc.)
+                        _folded = len(msg) > 300
+                        if _folded:
+                            preview = msg[:280] + f"\n... [折叠 {len(msg)} 字符]"
+                            self._ui(self.message_pane.append_info, preview)
+                        else:
+                            self._ui(self.message_pane.append_info, msg)
                         self._log_append(("·", "class:activity-info", msg[:120]))
                     self._ui(lambda: None)
                 elif kind == "tool_result":
@@ -1928,8 +2010,29 @@ class TuiAppV2:
                         )
             self._ui(self.message_pane.stream_end, _force=True)
         except Exception as e:
-            self._ui(self.message_pane.append_error, str(e), _force=True)
-            self._log_append(("✗", "class:activity-fail", f"响应失败: {self._error_summary(e)}"))
+            _err_name = type(e).__name__
+            _err_msg = str(e)
+            # ── Error classification with recovery hints ──
+            _hint = ""
+            _is_critical = False
+            if "Connection" in _err_name or "ConnectError" in _err_name or "connect" in _err_msg.lower():
+                _hint = "网络连接失败 — 检查网络后重试，或切换供应商 /provider"
+            elif "Timeout" in _err_name or "timeout" in _err_msg.lower() or "timed out" in _err_msg.lower():
+                _hint = "请求超时 — 模型响应慢，可简化问题后重试"
+            elif "RateLimit" in _err_name or "429" in _err_msg or "rate" in _err_msg.lower():
+                _hint = "频率限制 — 请等待 30 秒后重试"
+            elif "Authentication" in _err_name or "401" in _err_msg or "403" in _err_msg or "key" in _err_msg.lower():
+                _hint = "认证失败 — 检查 API Key 配置"
+                _is_critical = True
+            elif "Memory" in _err_name or "context" in _err_msg.lower() or "token" in _err_msg.lower():
+                _hint = "上下文过长 — 已自动压缩，请重试或将任务拆分"
+            elif "json" in _err_msg.lower() or "JSONDecode" in _err_name:
+                _hint = "数据格式错误 — 可能是模型输出异常，请重试"
+            else:
+                _hint = "未知错误 — 请重试，如持续出现请查看日志"
+            _icon = "✗" if not _is_critical else "☠"
+            self._log_append((_icon, "class:activity-fail", f"{_err_name}: {_hint}"))
+            self._ui(self.message_pane.append_error, f"{_err_name}: {self._shorten(_err_msg, 200)}\n→ {_hint}", _force=True)
             self._ui(self.message_pane.stream_end, _force=True)
         finally:
             with self._state_lock:
@@ -1938,6 +2041,21 @@ class TuiAppV2:
             self.thinking_panel.done()
             self._spinner.stop()
             self._ui(self._refresh_status, _force=True)
+            # ── Turn summary: tools × elapsed × latency ──
+            try:
+                _elapsed = time.monotonic() - _t0
+            except (NameError, UnboundLocalError):
+                _elapsed = 0
+            _latency = getattr(self, '_latency', 0)
+            _score = getattr(self, '_last_agent_score', 0)
+            _summary_parts = [f"⏱ {_elapsed:.1f}s"]
+            if _tool_seq > 0:
+                _summary_parts.append(f"🔧 {_tool_seq} tools")
+            if _latency > 0:
+                _summary_parts.append(f"⚡ {_latency:.1f}s first token")
+            if _score >= 5:
+                _summary_parts.append(f"🧠 agent score {_score:.0f}")
+            self._log_append(("", "class:dim", " · ".join(_summary_parts)))
             # Auto-submit queued input or process priority interrupt
             _qt = None
             with self._state_lock:
@@ -1980,6 +2098,11 @@ class TuiAppV2:
 
     def _ui(self, fn, *a, _force: bool = False):
         try:
+            from core.watchdog import Watchdog
+            Watchdog.beat("TUI")
+        except Exception:
+            pass
+        try:
             if a:
                 fn(*a)
             else:
@@ -2004,6 +2127,10 @@ class TuiAppV2:
         screen = self._available_screens.get(name)
         if not screen:
             return
+        # Inject live state into DashboardScreen before render
+        if name == "dashboard" and hasattr(screen, "_dash_state_ref"):
+            screen._dash_state_ref = getattr(self, "_dash_state", None)
+            screen._layout_mgr_ref = getattr(self, "_layout_mgr", None)
         if self.screen_stack.active and self.screen_stack.current.name == name:
             self.screen_stack.pop(self)
         else:
@@ -2023,6 +2150,26 @@ class TuiAppV2:
             self._app.invalidate()
 
     # ── Text utilities ──
+
+    @staticmethod
+    def _sanitize_input(text: str) -> str:
+        """Strip ANSI escape sequences, null bytes, and other dangerous control chars.
+
+        Engineer error messages (compiler output, tracebacks, build logs) frequently
+        contain terminal escape codes that corrupt prompt_toolkit rendering and crash
+        the TUI. This is a safety gate at the input boundary.
+        """
+        import re
+
+        # Strip ANSI escape sequences (CSI, OSC, etc.)
+        text = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", text)
+        text = re.sub(r"\x1b\].*?\x07", "", text)  # OSC sequences
+        # Strip null bytes — crash json.dumps and various string operations
+        text = text.replace("\x00", "")
+        # Strip bell and other dangerous single-byte controls
+        text = text.replace("\x07", "")
+        # Strip leading/trailing whitespace AFTER sanitization
+        return text.strip()
 
     @staticmethod
     def _shorten(text: object, limit: int = 60) -> str:
@@ -2215,8 +2362,15 @@ class TuiAppV2:
         except KeyboardInterrupt:
             self._request_exit()
         except Exception as e:
-            print(f"TUI error: {e}", file=sys.stderr)
-            traceback.print_exc()
+            # Crash recovery: don't just die — log the error and try to show it
+            logger.exception("TUI app.run() crashed: %s", e)
+            try:
+                sys.stderr.write(f"\n[CRUX TUI crashed: {type(e).__name__}: {e}]\n")
+                sys.stderr.write("The launcher will restart the TUI automatically.\n")
+                sys.stderr.flush()
+            except Exception:
+                pass
+            traceback.print_exc(file=sys.stderr)
         finally:
             self._anim_running = False
             self._shutdown_resources()

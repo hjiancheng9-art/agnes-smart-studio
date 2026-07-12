@@ -1,6 +1,6 @@
 # CRUX Studio — 命令参考 (auto-generated)
 
-共 53 个命令
+共 57 个命令
 
 ## 创意生产
 
@@ -80,5 +80,14 @@
 |------|------|
 | `/tidy [deep]` | 整理根目录临时文件到 tmp/ 子目录 |
 
+## 智能体转换
+
+| 命令 | 说明 |
+|------|------|
+| `/trae-convert <agent.json>` | 导入 trae agent → CRUX skill.json |
+| `/trae-export <skill.json> [output.json]` | 导出 CRUX skill → trae agent 格式 |
+| `/trae-batch <input_dir> [output_dir]` | 批量转换 trae agents → skills |
+| `/trae-new <name> [description]` | 手动创建 trae 风格 skill |
+
 ---
-*83 tools, 34 skills, 241 core modules, 145 test files*
+*83 tools, 101 skills, 237 core modules, 149 test files*

@@ -243,16 +243,15 @@ class BrowserController:
             self._playwright = sync_playwright().start()
 
     def connect(self, timeout: float = 5.0) -> bool:
-        """连接到浏览器。优先 CDP，失败则启动新浏览器。
+        """连接到浏览器。优先 CDP，失败则启动 Edge（保留用户登录态）。
 
         Args:
-            timeout: CDP 连接超时（秒），设为 None 则直接用 headless
+            timeout: CDP 连接超时（秒）
         """
         self._ensure_playwright()
 
         # 方式1: CDP 连接已有浏览器 (带超时)
         if timeout is not None:
-            # 先快速检查端口是否可达
             import socket
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(timeout)
@@ -261,8 +260,8 @@ class BrowserController:
                 s.close()
             except Exception:
                 s.close()
-                logger.debug("CDP 端口不可达，跳过")
-                timeout = None  # 跳过 CDP
+                logger.debug("CDP 端口不可达，尝试启动 Edge")
+                timeout = None  # 跳过 CDP，走启动流程
 
         if timeout is not None:
             try:
@@ -278,25 +277,32 @@ class BrowserController:
                 logger.info(f"CDP 已连接: {self._cdp_url}")
                 return True
             except Exception as e:
-                logger.debug(f"CDP 连接失败 ({e})，启动 headless 浏览器")
+                logger.debug(f"CDP 连接失败 ({e})，尝试启动 Edge")
 
-        # 方式2: 启动新浏览器
+        # 方式2: 启动 Edge 浏览器（使用默认 profile，保留用户登录态）
         try:
-            self._browser = self._playwright.chromium.launch(headless=self._headless)
-            context = self._browser.new_context(
-                viewport={"width": 1440, "height": 900},
-                user_agent=(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0"
-                ),
+            from core.cdp_browser import _ensure_cdp, _connect as cdp_connect
+            try:
+                _ensure_cdp()
+            except RuntimeError as e:
+                logger.error(f"启动 Edge 失败: {e}")
+                return False
+            self._playwright.stop()
+            self._playwright = None
+            self._ensure_playwright()
+            self._browser = self._playwright.chromium.connect_over_cdp(
+                self._cdp_url, timeout=10000
             )
-            self._page = context.new_page()
-            self._connected_via_cdp = False
-            logger.info("已启动新浏览器")
+            contexts = self._browser.contexts
+            if contexts and contexts[0].pages:
+                self._page = contexts[0].pages[-1]
+            else:
+                self._page = contexts[0].new_page() if contexts else self._browser.new_context().new_page()
+            self._connected_via_cdp = True
+            logger.info("已启动 Edge (CDP 模式，默认 profile)")
             return True
         except Exception as e:
-            logger.error(f"启动浏览器失败: {e}")
+            logger.error(f"启动 Edge 失败: {e}")
             return False
 
     def ensure_page(self, platform_name: str | None = None) -> bool:

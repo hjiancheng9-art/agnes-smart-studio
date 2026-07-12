@@ -213,7 +213,13 @@ class TuiApp:
             max_visible = 8
             visible = self._activity_log[-max_visible:]
             pieces = []
-            for icon, style_class, msg in visible:
+            for entry in visible:
+                if len(entry) == 3:
+                    icon, style_class, msg = entry
+                elif len(entry) == 2:
+                    icon, msg = entry; style_class = ""
+                else:
+                    continue
                 pieces.append((style_class, f" {icon} {msg}"))
                 pieces.append(("", "\n"))
             if pieces:

@@ -1558,6 +1558,7 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
         "goal": goal,
         "root_trace_id": root_id,
         "elapsed_ms": int((time.time() - started) * 1000),
+        "elapsed": round(time.time() - started, 1),
         "agents": len(agents),
         "tasks_total": len(tasks),
         "tasks_done": done,
@@ -1792,7 +1793,9 @@ class AgentSwarm:
                 r = coordinator.execute(goal)
                 with self._lock:
                     results[item] = (
-                        f"done={r['tasks_done']}/{r['tasks_total']} failed={r['tasks_failed']} elapsed={r['elapsed']}s"
+                        f"done={r.get('tasks_done','?')}/{r.get('tasks_total','?')} "
+                        f"failed={r.get('tasks_failed','?')} "
+                        f"elapsed={r.get('elapsed_ms', 0) / 1000:.1f}s"
                     )
             except Exception as e:
                 with self._lock:

@@ -64,20 +64,6 @@ class _ScrollingWindow(Window):
             return None
         return super()._mouse_handler(mouse_event)
 
-    def mouse_handler(self, mouse_event):
-        """Public mouse_handler for ptk 3.x compatibility."""
-        from prompt_toolkit.application.current import get_app
-
-        if mouse_event.event_type == MouseEventType.SCROLL_UP:
-            self._mp_pane.scroll_up(lines=_SCROLL_LINE)
-            get_app().invalidate()
-            return None
-        if mouse_event.event_type == MouseEventType.SCROLL_DOWN:
-            self._mp_pane.scroll_down(lines=_SCROLL_LINE)
-            get_app().invalidate()
-            return None
-        return super().mouse_handler(mouse_event)
-
     def _scroll(self, ui_content, width, height):
         """No-op for manual scroll positions; only compute bottom when pinned.
 
@@ -85,10 +71,11 @@ class _ScrollingWindow(Window):
         forces vertical_scroll toward cursor position (0,0 for our cursorless
         FormattedTextControl), fighting every manual scroll operation.
         """
-        # ptk's _scroll_when_linewrapping always resets horizontal_scroll = 0.
-        # Since we skip the parent call, we must do it ourselves to prevent
-        # horizontal drift from affecting line rendering.
         self.horizontal_scroll = 0
+
+        # ── 如果 pinned，强制回底（修复滚动卡死）──
+        if getattr(self._mp_pane, '_pinned', False):
+            self.vertical_scroll = _SCROLL_BOTTOM
 
         if self.vertical_scroll >= _SCROLL_BOTTOM:
             # Pinned to bottom: compute actual scroll position accounting
@@ -121,8 +108,8 @@ class _ScrollingWindow(Window):
             # range if messages were added/removed. If out of bounds, reset to
             # a safe position so mouse/keyboard keep working.
             max_line = ui_content.line_count - 1 if ui_content else 0
-            if self.vertical_scroll > max_line > 0:
-                self.vertical_scroll = max_line
+            if self.vertical_scroll > max(0, max_line):
+                self.vertical_scroll = max(0, max_line)
                 self.vertical_scroll_2 = 0
 
 
@@ -517,6 +504,8 @@ class MessagePane:
             self._stream_role = ""
             self._stream_label = ""
             self._auto_scroll()
+        # 安全兜底: 仅在流结束时恢复 pin，不在每消息时强制 pin
+        # 保留 _pinned 状态让用户的手动滚动不受干扰
 
     def append_info(self, text: str) -> None:
         self.append_message("info", text)

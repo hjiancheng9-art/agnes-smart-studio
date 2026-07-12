@@ -4,7 +4,7 @@
 import os, sys, time, threading, json, subprocess, ctypes, ctypes.wintypes
 from pathlib import Path
 from tkinter import *
-from tkinter import ttk, filedialog
+from tkinter import ttk, filedialog, messagebox
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -786,6 +786,7 @@ class KidsApp:
             try:
                 self._chat_typing_id.destroy()
             except Exception:
+                # Widget may already be destroyed (e.g. window closed)
                 pass
             self._chat_typing_id = None
 
@@ -1027,7 +1028,6 @@ if __name__ == "__main__":
         err_path.write_text(f"启动失败: {e}\n\n{traceback.format_exc()}", encoding="utf-8")
         # 尝试弹窗报错
         try:
-            from tkinter import messagebox
             messagebox.showerror("启动失败", f"小画家启动失败：\n{e}\n\n错误详情已写入 kids_error.log")
         except Exception:
             pass

@@ -1314,6 +1314,59 @@ class CruxCLI:
         except ImportError as e:
             return "Module error: " + str(e)
 
+    # ── Trae Agent 转换 ─────────────────────────────────────────
+    def _chat_trae_convert(self, args: str) -> None:
+        """导入 trae agent → CRUX skill.json: /trae-convert <agent.json>"""
+        args = args.strip()
+        if not args:
+            self.io.error("用法: /trae-convert <agent.json>")
+            return
+        try:
+            from plugins.trae_agent_converter import cmd_trae_convert
+            result = cmd_trae_convert([args])
+            self.io.info(result)
+        except Exception as e:
+            self.io.error(f"转换失败: {e}")
+
+    def _chat_trae_export(self, args: str) -> None:
+        """导出 CRUX skill → trae agent 格式: /trae-export <skill.json>"""
+        parts = args.strip().split()
+        if not parts:
+            self.io.error("用法: /trae-export <skill.json> [output.json]")
+            return
+        try:
+            from plugins.trae_agent_converter import cmd_trae_export
+            result = cmd_trae_export(parts)
+            self.io.info(result)
+        except Exception as e:
+            self.io.error(f"导出失败: {e}")
+
+    def _chat_trae_batch(self, args: str) -> None:
+        """批量转换 trae agents: /trae-batch <input_dir> [output_dir]"""
+        parts = args.strip().split()
+        if not parts:
+            self.io.error("用法: /trae-batch <input_dir> [output_dir]")
+            return
+        try:
+            from plugins.trae_agent_converter import cmd_trae_batch
+            result = cmd_trae_batch(parts)
+            self.io.info(result)
+        except Exception as e:
+            self.io.error(f"批量转换失败: {e}")
+
+    def _chat_trae_new(self, args: str) -> None:
+        """手动创建 trae 风格 skill: /trae-new <name> [description]"""
+        parts = args.strip().split(maxsplit=1)
+        if not parts:
+            self.io.error("用法: /trae-new <name> [description]")
+            return
+        try:
+            from plugins.trae_agent_converter import cmd_trae_new
+            result = cmd_trae_new(parts)
+            self.io.info(result)
+        except Exception as e:
+            self.io.error(f"创建失败: {e}")
+
     def _cmd_regression(self, args):
         """Run policy regression tests."""
         try:

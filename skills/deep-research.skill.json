@@ -1,0 +1,11 @@
+{
+  "name": "deep-research",
+  "description": "结构化深度调研工作流，支持大纲生成、并行搜索、报告输出",
+  "version": "1.0.0",
+  "author": "CodeBuddy",
+  "icon": "",
+  "category": "",
+  "prompt": "# Deep Research — 结构化深度调研工作流\n\n基于 [Deep-Research-skills](https://github.com/Weizhena/Deep-Research-skills) 项目，提供人机协作的结构化调研能力。\n\n## 核心命令\n\n| 命令 | 说明 |\n|------|------|\n| `/research <topic>` | 初步调研，生成 outline.yaml + fields.yaml |\n| `/research-deep` | 并行深度搜索，逐项收集数据 |\n| `/research-report` | 汇总生成 Markdown 报告 |\n| `/research-add-items` | 追加调研条目 |\n| `/research-add-fields` | 追加调研字段 |\n\n## 工作流程\n\n```\n/research \"AI Agent 2025\"\n    ↓ 生成大纲（items + fields）\n    ↓ 用户确认/修改\n/research-deep\n    ↓ 并行 web-search-agent 逐项搜索\n    ↓ 结果写入 results/\n/research-report\n    ↓ 汇总为 report.md\n```\n\n## 适用场景\n\n- **学术调研**：论文综述、Benchmark 对比\n- **技术选型**：框架评估、工具对比\n- **市场调研**：竞品分析、行业趋势\n- **尽职调查**：公司研究、投资分析\n\n## 目录结构\n\n```\ndeep-research/\n├── research/SKILL.md          # /research 命令（中文版）\n├── research-deep/SKILL.md     # /research-deep 命令\n├── research-report/SKILL.md   # /research-report 命令\n├── research-add-items/SKILL.md\n├── research-add-fields/SKILL.md\n├── research-en/               # 英文版本\n│   ├── research/SKILL.md\n│   ├── research-deep/SKILL.md\n│   ├── research-report/SKILL.md\n│   ├── research-add-items/SKILL.md\n│   └── research-add-fields/SKILL.md\n└── agents/                    # 搜索代理\n    ├── web-search-agent.md\n    └── web-search-modules/    # 搜索策略模块\n```\n\n## 输出示例\n\n```\n{topic_slug}/\n├── outline.yaml    # 调研条目 + 执行配置\n├── fields.yaml     # 字段定义\n├── results/        # 逐项搜索结果\n│   ├── item_1.yaml\n│   ├── item_2.yaml\n│   └── ...\n└── report.md       # 最终报告\n```\n\n## 致谢\n\n- 作者：[Weizhena](https://github.com/Weizhena)\n- 灵感：RhinoInsight — Improving Deep Research through Control Mechanisms for Model Behavior and Context",
+  "source": "codebuddy",
+  "tags": []
+}

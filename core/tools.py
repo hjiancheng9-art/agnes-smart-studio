@@ -76,6 +76,17 @@ def _exec_skill_load(**kwargs) -> str:
         return "用法: skill_load <技能名>。"
     from core.skills import get_manager
     mgr = get_manager()
+    # Skill 反馈: 记录加载事件供后续效果评估
+    try:
+        if not hasattr(mgr, "_skill_usage_log"):
+            mgr._skill_usage_log = []
+        import time as _time
+        mgr._skill_usage_log.append({
+            "skill": name,
+            "timestamp": _time.time(),
+        })
+    except Exception:
+        pass
     skill = mgr.load(name)
     if skill is None:
         available = list(mgr._available.keys())[:15]
@@ -131,6 +142,14 @@ def _exec_plugin_list(**kwargs) -> str:
                 pass
         lines.append(f"  {name}: {desc[:100]}")
     return f"可用插件 {len(lines)} 个:\n" + "\n".join(lines)
+
+
+def _exec_mcp_get_tool_description(**kwargs) -> str:
+    """模拟 mcp_get_tool_description — 返回 CRUX 可用工具列表。"""
+    from core.tools import get_registry
+    r = get_registry(); r.load()
+    tools = sorted(r._executors.keys())
+    return f"CRUX 可用工具 ({len(tools)} 个):\n" + "\n".join(f"  {t}" for t in tools[:80])
 
 
 class ToolRegistry:
@@ -318,7 +337,7 @@ class ToolRegistry:
         self._definitions.extend(RETRO_TOOL_DEFS)
         for name, executor in RETRO_EXECUTOR_MAP.items():
             self._executors[name] = executor
-            self._tool_modules[name] = "core.plan_mode"
+            self._tool_modules[name] = "core.retro_engine"
 
         # ── Agent Swarm 工具（常驻加载）──
         from core.multi_agent import AGENT_SWARM_TOOL_DEF, _exec_agent_swarm
@@ -462,6 +481,18 @@ class ToolRegistry:
             }
         })
         self._executors["plugin_list"] = _exec_plugin_list
+
+        # mcp_get_tool_description: 兼容 ZCode 习惯，返回工具列表
+        self._definitions.append({
+            "type": "function", "function": {
+                "name": "mcp_get_tool_description",
+                "description": "列出所有可用工具的请求描述。",
+                "parameters": {"type": "object", "properties": {
+                    "tool_requests": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}}
+                }, "required": []}
+            }
+        })
+        self._executors["mcp_get_tool_description"] = _exec_mcp_get_tool_description
 
         # ── 运行时检查工具（常驻加载）──
         # debug_inspect: run test/script, capture traceback + frame locals on failure

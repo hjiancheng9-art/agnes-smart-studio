@@ -1,0 +1,18 @@
+# === MCP MATRIX: Append to ~/.codex/config.toml ===
+
+
+[mcp_servers.claude-code]
+command = "C:/Users/huangjiancheng/AppData/Local/Programs/Python/Python311/python.exe"
+args = ["C:/Users/huangjiancheng/agnes-smart-studio/core/mcp_servers/claude_code_bridge.py"]
+
+[mcp_servers.kimi]
+command = "C:/Users/huangjiancheng/AppData/Local/Programs/Python/Python311/python.exe"
+args = ["C:/Users/huangjiancheng/agnes-smart-studio/core/mcp_servers/kimi_bridge.py"]
+
+[mcp_servers.codebuddy]
+command = "C:/Users/huangjiancheng/AppData/Local/Programs/Python/Python311/python.exe"
+args = ["C:/Users/huangjiancheng/agnes-smart-studio/core/mcp_servers/codebuddy_bridge.py"]
+
+[mcp_servers.zcode]
+command = "C:/Users/huangjiancheng/AppData/Local/Programs/Python/Python311/python.exe"
+args = ["C:/Users/huangjiancheng/agnes-smart-studio/core/mcp_servers/crux_mcp_entry.py"]
