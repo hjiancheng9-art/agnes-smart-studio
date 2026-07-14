@@ -565,17 +565,7 @@ class TuiAppV2:
 
         kb = load_mouse_bindings()
 
-        @kb.add("c-c")
-        def _(event):
-            with self._state_lock:
-                streaming = self._streaming or self._thinking
-            if streaming:
-                self._cancel_current_response()
-                self._log_append(("\u25a0", "class:activity-warn", "已请求中断当前响应"))
-                event.app.invalidate()
-                return
-            self._log_append(("\u2022", "class:activity-info", "按 Ctrl+Q 退出 CRUX"))
-            event.app.invalidate()
+        # ⚠️ c-c 绑定见下方 _ctrl_c()，此处不重复绑定。
 
         @kb.add("c-q")
         def _(event):
@@ -603,13 +593,6 @@ class TuiAppV2:
         @kb.add("escape", "escape")  # Double-Escape: clear input (avoids Alt+Enter conflict)
         def _(event):
             self.input_buffer.reset()
-            event.app.invalidate()
-
-        @kb.add("c-l")
-        def _(event):
-            self.message_pane.clear()
-            self._log_clear()
-            self.thinking_panel.clear()
             event.app.invalidate()
 
         @kb.add("c-t")
@@ -688,7 +671,10 @@ class TuiAppV2:
 
         @kb.add("c-l")
         def _(event):
-            """Ctrl+L: 强制重置滚动 + 恢复鼠标模式"""
+            """Ctrl+L: 清屏 + 强制重置滚动 + 恢复鼠标模式"""
+            self.message_pane.clear()
+            self._log_clear()
+            self.thinking_panel.clear()
             self.message_pane.scroll_to_bottom()
             self.message_pane._pinned = True
             # 恢复终端鼠标追踪

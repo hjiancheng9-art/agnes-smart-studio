@@ -223,3 +223,105 @@ class TestPersistence_NoneGuardInScroll:
         assert "vertical_scroll" in source or "ui_content" in source, (
             "The guard comment explaining WHY the None check exists seems to have been removed."
         )
+
+
+# ═══════════════════════════════════════════════════════
+# 持久性回归测试 — c-c / c-l 重复绑定防护
+# ═══════════════════════════════════════════════════════
+
+class TestPersistence_NoDuplicateCtrlC:
+    """确保 ui/tui_v2.py 中 c-c 按键绑定只有一个（_ctrl_c 版）。
+    历史 bug: c-c 绑定了两次，第一个匿名版本被第二个 _ctrl_c() 覆盖，变成死代码。
+    """
+
+    TUI_PATH = "ui/tui_v2.py"
+
+    def test_only_one_ctrl_c_binding(self):
+        with open(self.TUI_PATH, encoding="utf-8") as f:
+            source = f.read()
+        tree = ast.parse(source)
+
+        c_c_bindings = []
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for dec in node.decorator_list:
+                    if isinstance(dec, ast.Call):
+                        if isinstance(dec.func, ast.Attribute) and dec.func.attr == "add":
+                            if dec.args:
+                                first_arg = ast.literal_eval(dec.args[0]) if isinstance(dec.args[0], ast.Constant) else None
+                                if first_arg == "c-c":
+                                    c_c_bindings.append((node.lineno, node.name))
+
+        assert len(c_c_bindings) == 1, (
+            f"Found {len(c_c_bindings)} @kb.add('c-c') bindings: {c_c_bindings}. "
+            f"Only the _ctrl_c version should exist. "
+            f"Adding a second binding will create dead code."
+        )
+        assert c_c_bindings[0][1] == "_ctrl_c", (
+            f"c-c is bound to {c_c_bindings[0][1]}() instead of _ctrl_c(). "
+            f"The proper handler must be _ctrl_c() which handles both streaming and idle states."
+        )
+
+    def test_ctrl_c_comment_warns_no_duplicate(self):
+        with open(self.TUI_PATH, encoding="utf-8") as f:
+            source = f.read()
+        assert "c-c 绑定见下方 _ctrl_c" in source or "_ctrl_c" in source, (
+            "The comment that warns against adding a second c-c binding has been removed."
+        )
+
+
+class TestPersistence_NoDuplicateCtrlL:
+    """确保 ui/tui_v2.py 中 c-l 按键绑定只有一个（合并版：清屏+重置滚动）。
+    历史 bug: c-l 绑定了两次，第一个清屏版被第二个滚动重置版覆盖，清屏功能丢失。
+    """
+
+    TUI_PATH = "ui/tui_v2.py"
+
+    def test_only_one_ctrl_l_binding(self):
+        with open(self.TUI_PATH, encoding="utf-8") as f:
+            source = f.read()
+        tree = ast.parse(source)
+
+        c_l_bindings = []
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for dec in node.decorator_list:
+                    if isinstance(dec, ast.Call):
+                        if isinstance(dec.func, ast.Attribute) and dec.func.attr == "add":
+                            if dec.args:
+                                first_arg = ast.literal_eval(dec.args[0]) if isinstance(dec.args[0], ast.Constant) else None
+                                if first_arg == "c-l":
+                                    c_l_bindings.append(node.lineno)
+
+        assert len(c_l_bindings) == 1, (
+            f"Found {len(c_l_bindings)} @kb.add('c-l') bindings at lines {c_l_bindings}. "
+            f"Only one merged handler (clear + scroll reset) should exist."
+        )
+
+    def test_ctrl_l_handler_clears_and_resets(self):
+        """验证 c-l 处理函数同时包含 clear 和 scroll_to_bottom。"""
+        with open(self.TUI_PATH, encoding="utf-8") as f:
+            source = f.read()
+
+        # Find the c-l handler body
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for dec in node.decorator_list:
+                    if isinstance(dec, ast.Call):
+                        if isinstance(dec.func, ast.Attribute) and dec.func.attr == "add":
+                            if dec.args:
+                                first_arg = ast.literal_eval(dec.args[0]) if isinstance(dec.args[0], ast.Constant) else None
+                                if first_arg == "c-l":
+                                    # Get the function body source
+                                    body_lines = source.splitlines()
+                                    func_source = "\n".join(body_lines[node.lineno-1:node.end_lineno])
+                                    assert "clear()" in func_source, (
+                                        "c-l handler lost clear() — clear-screen functionality was dropped."
+                                    )
+                                    assert "scroll_to_bottom" in func_source, (
+                                        "c-l handler lost scroll_to_bottom() — scroll reset was dropped."
+                                    )
+                                    return
+
+        assert False, "Could not find c-l handler in tui_v2.py"
