@@ -135,22 +135,22 @@ class TuiApp:
             event.app.renderer.reset(leave_alternate_screen=not renderer.full_screen)
             event.app.invalidate()
 
-        @self.kb.add("pageup")
+        @self.kb.add("pageup", eager=True)
         def _(event):
             self.message_pane.scroll_page_up()
             event.app.invalidate()
 
-        @self.kb.add("pagedown")
+        @self.kb.add("pagedown", eager=True)
         def _(event):
             self.message_pane.scroll_page_down()
             event.app.invalidate()
 
-        @self.kb.add("home")
+        @self.kb.add("home", eager=True)
         def _(event):
             self.message_pane.scroll_to_top()
             event.app.invalidate()
 
-        @self.kb.add("end")
+        @self.kb.add("end", eager=True)
         def _(event):
             self.message_pane.scroll_to_bottom()
             event.app.invalidate()

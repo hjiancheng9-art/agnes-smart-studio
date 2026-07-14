@@ -1,5 +1,8 @@
 @echo off
 title CRUX Studio
+
+:: Save user's original working directory before cd
+set "CRUX_WORKSPACE=%CD%"
 cd /d "%~dp0"
 
 :: Clear stale bytecode
@@ -10,7 +13,13 @@ set "PY=C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\python.e
 if not exist "%PY%" for %%e in (python3 python py) do (where %%e >nul 2>&1 && set "PY=%%e" && goto :run)
 if not exist "%PY%" echo Python not found & pause & exit /b 1
 :run
-%PY% crux_studio.py -c %*
+:: Default to chat mode only when no subcommand is given;
+:: otherwise pass args through so 'crux serve' / 'crux gen' work.
+if "%~1"=="" (
+    %PY% crux_studio.py -c
+) else (
+    %PY% crux_studio.py %*
+)
 if errorlevel 1 (
     echo.
     echo === CRASH DETECTED ===

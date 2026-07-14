@@ -49,8 +49,8 @@ class TestStreamStart:
         pane = MessagePane()
         pane.stream_start("crux")
         # Buffer should start with "[CRUX] "
-        assert "[◆ CRUX]" in pane._stream_buffer
-        assert pane._stream_label == "◆ CRUX"
+        assert "[CRUX]" in pane._stream_buffer
+        assert pane._stream_label == "CRUX"
         assert pane.line_count == 1  # stream buffer counts as 1
 
 

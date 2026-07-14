@@ -370,16 +370,24 @@ def build_system_prompt(
 
     base = template.format(provider_name=provider_name, model_name=model)
     # ── Workspace context: tell the LLM which project it operates on ──
+    from core.workspace_guard import get_crux_root, resolve_workspace
     import os as _os
-    _ws = _os.environ.get("CRUX_WORKSPACE", str(Path.cwd()))
-    _ws_display = _ws
-    _home = str(Path.home())
-    if _ws_display.startswith(_home):
-        _ws_display = "~" + _ws_display[len(_home):]
+    _ws = str(resolve_workspace())
+    _crux_root = str(get_crux_root())
+    # Detect how the workspace was resolved for transparency
+    _ws_source = "当前工作目录"
+    if _os.environ.get("CRUX_WORKSPACE"):
+        _ws_source = f"由启动脚本捕获的原始目录 (CRUX_WORKSPACE={_os.environ['CRUX_WORKSPACE']})"
     base += (
-        f'\n\n## 工作目录\n你当前的工作目录是: `{_ws_display}`\n'
+        f'\n\n## 工作目录\n'
+        f'你当前的工作目录（完整绝对路径）: `{_ws}`\n'
+        f'路径来源: {_ws_source}\n'
         f'所有文件操作（读、写、搜索、git）都基于此目录。\n'
         f'用户说的"这个项目""当前目录"即指此目录。\n'
+        f'\n**CRUX 自身安装路径**（完整绝对路径）: `{_crux_root}`\n'
+        f'这是 CRUX 工具自身的代码和配置文件所在目录。\n'
+        f'回答路径相关问题时，必须使用上述完整绝对路径，不得用 ~ 简写或猜测用户名。\n'
+        f'当用户问"你在哪个文件夹打开的"，回答工作目录的完整路径，并说明路径来源。\n'
     )
     base += (
         "\n\n## 私人工具声明\n"

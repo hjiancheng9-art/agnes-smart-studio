@@ -41,7 +41,7 @@ class TestSessionSnapshot:
         snap_dir.mkdir()
         ChatSession._SNAPSHOT_DIR = snap_dir
         (snap_dir / "latest.json").write_text(
-            json.dumps({"model": "pro", "turn": 3, "messages": [{"role": "user", "content": "hi"}]})
+            json.dumps({"model": "pro", "turn": 3, "messages": [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}]})
         )
         result = ChatSession.restore_latest_snapshot()
         assert result is not None

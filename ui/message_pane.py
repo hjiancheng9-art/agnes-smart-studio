@@ -74,7 +74,7 @@ class _ScrollingWindow(Window):
         self.horizontal_scroll = 0
 
         # ── 如果 pinned，强制回底（修复滚动卡死）──
-        if getattr(self._mp_pane, '_pinned', False):
+        if getattr(self._mp_pane, "_pinned", False):
             self.vertical_scroll = _SCROLL_BOTTOM
 
         if self.vertical_scroll >= _SCROLL_BOTTOM:
@@ -103,13 +103,13 @@ class _ScrollingWindow(Window):
                         break
 
         else:
-            # ── Bounds guard: prevent scroll drift from freezing input ──
-            # After long running, vertical_scroll can drift beyond valid content
-            # range if messages were added/removed. If out of bounds, reset to
-            # a safe position so mouse/keyboard keep working.
+            # ── Manual scroll: preserve position, clamp out-of-bounds only ──
             max_line = ui_content.line_count - 1 if ui_content else 0
             if self.vertical_scroll > max(0, max_line):
                 self.vertical_scroll = max(0, max_line)
+                self.vertical_scroll_2 = 0
+            elif self.vertical_scroll < 0:
+                self.vertical_scroll = 0
                 self.vertical_scroll_2 = 0
 
 
@@ -122,6 +122,12 @@ class _MessagePaneControl(FormattedTextControl):
 
     def mouse_handler(self, mouse_event):
         from prompt_toolkit.application.current import get_app
+
+        # Restore mouse mode if it was lost (e.g. by subprocess output).
+        # This is a safety net: the heartbeat timer also restores periodically,
+        # but this catches the case right when a mouse event arrives.
+        if hasattr(self._mp_pane, "_mouse_guard") and self._mp_pane._mouse_guard:
+            self._mp_pane._mouse_guard.restore()
 
         if mouse_event.event_type == MouseEventType.SCROLL_UP:
             self._mp_pane.scroll_up(lines=_SCROLL_LINE)
@@ -136,12 +142,31 @@ class _MessagePaneControl(FormattedTextControl):
 
 class MessagePane:
     # ── P0 事件通道隔离 ──
-    VISIBLE_CHAT_ROLES = frozenset({"assistant", "crux", "user", "assistant_delta", "assistant_final", "info", "error", "tool_status", "system_alert"})
+    VISIBLE_CHAT_ROLES = frozenset(
+        {
+            "assistant",
+            "crux",
+            "user",
+            "assistant_delta",
+            "assistant_final",
+            "info",
+            "error",
+            "tool_status",
+            "system_alert",
+        }
+    )
     TOOL_INLINE_ROLES = frozenset({"tool_started", "tool_finished", "tool_progress", "tool_failed"})
-    HIDDEN_ROLES = frozenset({
-        "analysis", "reasoning", "chain_of_thought", "debug",
-        "tool_raw_output", "python_stdout", "internal_prompt",
-    })
+    HIDDEN_ROLES = frozenset(
+        {
+            "analysis",
+            "reasoning",
+            "chain_of_thought",
+            "debug",
+            "tool_raw_output",
+            "python_stdout",
+            "internal_prompt",
+        }
+    )
     """Scrollable chat message display with auto-scroll and manual override.
 
     Behavior:
@@ -166,7 +191,7 @@ class MessagePane:
         # (wrapped line index), but _render used it to slice _lines (raw entries),
         # causing a scale mismatch that made scrolling appear broken visually.
         # Fix: threshold = max int, let ptk native scroll handle all rendering.
-        self._virtual_scroll_threshold = 10 ** 9
+        self._virtual_scroll_threshold = 10**9
         self._visible_range = (0, 0)
         self._scroll_offset = 0
         self._virtual_buffer = 20
@@ -376,21 +401,22 @@ class MessagePane:
     def _log_hidden_event(self, role: str, text: str) -> None:
         """内部事件只写日志，不污染聊天区"""
         import logging
+
         _log = logging.getLogger("crux.ui.hidden")
         _log.debug("[%s] %s", role, text[:200])
 
     def _update_tool_status(self, role: str, text: str) -> None:
         """工具状态追踪（保留计数用于未来状态栏集成）"""
         if role == "tool_started":
-            self._tool_count = getattr(self, '_tool_count', 0) + 1
+            self._tool_count = getattr(self, "_tool_count", 0) + 1
             self._tool_start_time = time.time()
         elif role in ("tool_finished", "tool_failed"):
-            self._tool_start_time = getattr(self, '_tool_start_time', time.time())
+            self._tool_start_time = getattr(self, "_tool_start_time", time.time())
 
     def _auto_scroll(self) -> None:
         if self._pinned:
             # 守卫: 确保窗口是消息面板而非输入区域
-            if not hasattr(self._window, 'vertical_scroll'):
+            if not hasattr(self._window, "vertical_scroll"):
                 return
             self._window.vertical_scroll = _SCROLL_BOTTOM
             self._window.vertical_scroll_2 = 0

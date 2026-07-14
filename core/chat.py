@@ -867,8 +867,10 @@ class ChatSession(ChatToggleMixin):
             import tempfile
             tmp_dir = tempfile.gettempdir()
             tmp_path = f"{tmp_dir}/crux_input_{os.getpid()}.txt".replace("\\", "/")
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                f.write(self._last_user_text)
+            import atexit
+            with open(tmp_path, "w", encoding="utf-8") as f_tmp:
+                f_tmp.write(self._last_user_text)
+            atexit.register(lambda p=tmp_path: os.path.exists(p) and os.remove(p))
             user_text = (
                 f"[大文本 {_input_len} 字符，完整内容: {tmp_path}]\n"
                 f"开头:\n{user_text[:_MAX_INPUT_CHARS // 2]}\n"
@@ -1623,15 +1625,107 @@ class ChatSession(ChatToggleMixin):
         except (OSError, ValueError, TypeError):
             pass  # 快照失败不影响主流程
 
+    @staticmethod
+    def sanitize_messages(messages: list[dict]) -> list[dict]:
+        """Strip trailing incomplete tool-call sequences from restored messages.
+
+        API requirement: every assistant message with ``tool_calls`` must be
+        immediately followed by one tool-role message per call.  If a session
+        crashes mid-call the restored snapshot may contain:
+        - An assistant with tool_calls but no following tool results
+        - Consecutive assistant messages both carrying tool_calls
+        - Assistant with N tool_calls but < N tool results
+
+        This function replays the sequence from the start and truncates at the
+        first invalid message, guaranteeing a clean API boundary.
+        """
+        if not messages:
+            return messages
+
+        sanitized: list[dict] = []
+        pending_tool_ids: set[str] = set()
+
+        for msg in messages:
+            role = msg.get("role", "")
+
+            if role == "system":
+                sanitized.append(msg)
+                continue
+
+            if role == "user":
+                # User message while tool calls are pending → invalid,
+                # truncate here (the incomplete sequence ends before this user msg)
+                if pending_tool_ids:
+                    break
+                sanitized.append(msg)
+                continue
+
+            if role == "assistant":
+                tool_calls = msg.get("tool_calls")
+                if tool_calls:
+                    # Assistant with tool_calls while previous tool_calls still
+                    # pending → consecutive assistant tool_calls → invalid
+                    if pending_tool_ids:
+                        break
+                    sanitized.append(msg)
+                    pending_tool_ids = {tc["id"] for tc in tool_calls if tc.get("id")}
+                else:
+                    # Regular assistant message (text response) — always valid
+                    sanitized.append(msg)
+                continue
+
+            if role == "tool":
+                tc_id = msg.get("tool_call_id", "")
+                if tc_id and tc_id in pending_tool_ids:
+                    sanitized.append(msg)
+                    pending_tool_ids.discard(tc_id)
+                else:
+                    # Tool result for unknown / already-consumed call id → invalid
+                    break
+                continue
+
+            # Unknown role — keep conservatively
+            sanitized.append(msg)
+
+        # If we ended with pending tool calls, strip back to before the
+        # incomplete assistant message
+        if pending_tool_ids:
+            # Find the last assistant with tool_calls and strip everything from
+            # the user message that triggered it
+            while sanitized:
+                last = sanitized[-1]
+                if last.get("role") == "assistant" and last.get("tool_calls"):
+                    sanitized.pop()
+                    # Remove the triggering user message too
+                    if sanitized and sanitized[-1].get("role") == "user":
+                        sanitized.pop()
+                    break
+                sanitized.pop()
+
+        return sanitized
+
     @classmethod
     def restore_latest_snapshot(cls) -> dict | None:
         """启动时检查是否有未恢复的会话快照。返回 messages 列表或 None。"""
         try:
-            import json
+            import json, os
             path = cls._SNAPSHOT_DIR / "latest.json"
             if not path.exists():
                 return None
             data = json.loads(path.read_text("utf-8"))
+            if data.get("messages"):
+                data["messages"] = cls.sanitize_messages(data["messages"])
+                if not data["messages"]:
+                    os.remove(path)
+                    return None
+                # Discard snapshots with no assistant messages —
+                # user-only content (e.g. pasted crash logs) is not a session
+                has_assistant = any(
+                    m.get("role") == "assistant" for m in data["messages"]
+                )
+                if not has_assistant:
+                    os.remove(path)
+                    return None
             return data if data.get("messages") else None
         except (OSError, json.JSONDecodeError, KeyError):
             return None

@@ -43,7 +43,11 @@ _MOJIBAKE_SIGNATURES: frozenset[str] = frozenset(
     "瀵煎叆瀵煎嚭閿欒鍖呮墽琛屽櫒鎻掍欢鍔犺浇鏍煎紡鍖栬В鏋?娴佸紡澶勭悊鏍稿績"
 )
 
-# High-confidence subset for fast pre-scan
+# High-confidence subset for fast pre-scan.
+# NOTE: keep this set TINY and only include characters that virtually never
+# appear in valid Chinese text.  Any character here that also occurs in
+# normal Chinese will cause false-positive mojibake alerts on every
+# subprocess invocation, flooding the activity log.
 _MOJIBAKE_FAST: frozenset[str] = frozenset(
     "鍥閸鐢纴鏉悆殑掑曠姽娲嬫兜鍙"
 )
@@ -561,7 +565,12 @@ def report_encoding_issue(
         issues.append(f"{replacement_count} replacement char(s) (U+FFFD)")
 
     hits = scan_mojibake(text)
-    if hits:
+    # Only report mojibake when the signal is strong enough:
+    # - many hits standalone (>=10), or
+    # - moderate hits (>=3) WITH replacement chars present
+    # A single CJK character that happens to be in the signature set
+    # (e.g. 兜 U+515C) in normal Chinese output is NOT mojibake.
+    if len(hits) >= 10 or (len(hits) >= 3 and replacement_count > 0):
         chars_shown = [h[1] for h in hits[:5]]
         more = f" +{len(hits) - 5} more" if len(hits) > 5 else ""
         issues.append(

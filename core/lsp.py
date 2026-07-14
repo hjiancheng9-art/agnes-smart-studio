@@ -12,6 +12,7 @@ Supports Python, JavaScript, TypeScript, Go, and Rust.
 Communicates with language servers over JSON-RPC 2.0 using stdio transport.
 """
 
+import atexit as _atexit
 import contextlib
 import json
 import os
@@ -773,6 +774,7 @@ def get_lsp_client() -> LSPClient:
         with _client_lock:
             if _lsp_client is None:
                 _lsp_client = LSPClient()
+                _atexit.register(_lsp_client.stop_all)
     return _lsp_client
 
 

@@ -160,8 +160,8 @@ class DashboardScreen(Screen):
         from ui.dashboard import render_dashboard
 
         try:
-            state = getattr(self, '_dash_state_ref', None)
-            layout_mgr = getattr(self, '_layout_mgr_ref', None)
+            state = getattr(self, "_dash_state_ref", None)
+            layout_mgr = getattr(self, "_layout_mgr_ref", None)
             layout = layout_mgr.config if layout_mgr else None
             result = render_dashboard(state=state, layout=layout)
             from prompt_toolkit.formatted_text import FormattedText
@@ -394,10 +394,12 @@ class TuiAppV2:
         *,
         session_wire=None,
         startup_banner: str = "",
+        cwd: Path | None = None,
     ) -> None:
         self.session = session
         self.cli = cli
         self.wire = session_wire
+        self.cwd = cwd or Path.cwd()
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
         self._thinking = False
         self._streaming = False
@@ -439,10 +441,11 @@ class TuiAppV2:
 
         # ── Core components ──
         self.message_pane = MessagePane()
-        self.status_bar = StatusBar(model=session.model, cwd=Path.cwd())
+        self.status_bar = StatusBar(model=session.model, cwd=self.cwd)
         # Mouse mode guard: auto-restore terminal mouse mode after subprocess damage
         try:
             from ui.ui_heartbeat import MouseModeGuard
+
             self._mouse_guard = MouseModeGuard()
             self._mouse_guard.enable()
             self.message_pane._mouse_guard = self._mouse_guard
@@ -515,7 +518,7 @@ class TuiAppV2:
     def _setup_welcome(self) -> None:
         """Configure the welcome screen as the message pane's empty state."""
         model_name = self.session.model
-        cwd = str(Path.cwd())
+        cwd = str(self.cwd)
         branch = ""
         try:
             import subprocess
@@ -555,9 +558,14 @@ class TuiAppV2:
     # ══════════════════════════════════════════════════════════════
 
     def _setup_keybindings(self) -> KeyBindings:
-        kb = KeyBindings()
+        # Load built-in mouse bindings (Vt100MouseEvent/WindowsMouseEvent dispatch).
+        # Without this, mouse scroll/click events arrive as Keys.Vt100MouseEvent
+        # but have no handler → silently dropped.
+        from prompt_toolkit.key_binding.bindings.mouse import load_mouse_bindings
 
-        # (Ctrl+C handled below at second binding)
+        kb = load_mouse_bindings()
+
+        @kb.add("c-c")
         def _(event):
             with self._state_lock:
                 streaming = self._streaming or self._thinking
@@ -646,10 +654,6 @@ class TuiAppV2:
             event.app.renderer.reset(leave_alternate_screen=not renderer.full_screen)
             event.app.invalidate()
 
-        def _(event):
-            self.message_pane.scroll_page_up()
-            event.app.invalidate()
-
         @kb.add("pagedown")
         def _(event):
             self.message_pane.scroll_page_down()
@@ -689,7 +693,7 @@ class TuiAppV2:
             self.message_pane.scroll_to_bottom()
             self.message_pane._pinned = True
             # 恢复终端鼠标追踪
-            if hasattr(event.app.output, 'enable_mouse_support'):
+            if hasattr(event.app.output, "enable_mouse_support"):
                 event.app.output.enable_mouse_support()
             event.app.invalidate()
 
@@ -735,7 +739,7 @@ class TuiAppV2:
             """Ctrl+Z: 撤销 pending 消息。"""
             self._undo_pending()
 
-        # (Ctrl+C handled below at second binding)
+        @kb.add("c-c")
         def _ctrl_c(event):
             """Ctrl+C: 取消当前 run。"""
             with self._state_lock:
@@ -758,7 +762,7 @@ class TuiAppV2:
                 self._ui(self._refresh_status)
                 event.app.invalidate()
                 return
-            if getattr(self, '_copy_mode', False):
+            if getattr(self, "_copy_mode", False):
                 self._copy_mode = False
                 self._ui(self._refresh_status)
                 event.app.invalidate()
@@ -846,9 +850,7 @@ class TuiAppV2:
             self._detail_view.on_close(lambda: self._ui(self._refresh_status))
             self._detail_view.open()
             snippet = msg.snippet(40) if msg else "(empty)"
-            self._log_append(
-                ("→", "class:activity-info", f"打开详情: 消息 #{idx} ({snippet}...)")
-            )
+            self._log_append(("→", "class:activity-info", f"打开详情: 消息 #{idx} ({snippet}...)"))
             self._ui(self._refresh_status)
 
         @kb.add("up")
@@ -859,7 +861,7 @@ class TuiAppV2:
                 return
             # 焦点/复制模式：消息间导航
             in_focus = self._focus_mode
-            in_copy = getattr(self, '_copy_mode', False)
+            in_copy = getattr(self, "_copy_mode", False)
             if in_focus or in_copy:
                 msg = self._copy_mgr.store.get(self._copy_mgr.focus.prev())
                 if msg:
@@ -879,7 +881,7 @@ class TuiAppV2:
                 return
             # 焦点/复制模式：消息间导航
             in_focus = self._focus_mode
-            in_copy = getattr(self, '_copy_mode', False)
+            in_copy = getattr(self, "_copy_mode", False)
             if in_focus or in_copy:
                 msg = self._copy_mgr.store.get(self._copy_mgr.focus.next())
                 if msg:
@@ -902,9 +904,7 @@ class TuiAppV2:
                 idx = len(store) - 1
             msg = store.get(idx)
             if msg and msg.code_blocks:
-                self._log_append(
-                    ("→", "class:activity-info", f"代码块: {len(msg.code_blocks)} 个 — 按 c 复制当前")
-                )
+                self._log_append(("→", "class:activity-info", f"代码块: {len(msg.code_blocks)} 个 — 按 c 复制当前"))
             self._ui(self._refresh_status)
 
         return kb
@@ -996,7 +996,8 @@ class TuiAppV2:
                     if len(entry) == 3:
                         icon, style_class, msg = entry
                     elif len(entry) == 2:
-                        icon, msg = entry; style_class = ""
+                        icon, msg = entry
+                        style_class = ""
                     else:
                         continue
                     text = f"{icon} {msg}".replace("\n", " ").replace("\r", " ")[: tw - 4]
@@ -1005,6 +1006,7 @@ class TuiAppV2:
                 return FormattedText(pieces)
             except Exception:
                 import logging
+
                 logging.getLogger("crux.ui").debug("activity_content render failed", exc_info=True)
                 return FormattedText([])
                 pieces.append(("", "\n"))
@@ -1013,8 +1015,10 @@ class TuiAppV2:
         activity_window = Window(
             content=FormattedTextControl(_activity_content),
             height=lambda: (
-                self._activity_expanded_height if self._activity_expanded else self._activity_collapsed_height
-            ) if self._log_count() else 0,
+                (self._activity_expanded_height if self._activity_expanded else self._activity_collapsed_height)
+                if self._log_count()
+                else 0
+            ),
             style="class:message-area",
             always_hide_cursor=True,
             dont_extend_height=True,
@@ -1165,7 +1169,7 @@ class TuiAppV2:
         status_dot = ("class:status-bar-beast-qilin", "◉") if self._thinking else ("class:status-bar-beast-xuanwu", "●")
 
         model_str = self.session.model or "CRUX"
-        cwd_str = str(Path.cwd())
+        cwd_str = str(self.cwd)
         home = os.path.expanduser("~")
         if cwd_str.startswith(home):
             cwd_str = "~" + cwd_str[len(home) :]
@@ -1948,9 +1952,9 @@ class TuiAppV2:
                         self._log_append(("💰", "class:activity-info", msg[:100]))
                     else:
                         # Show uncategorized info messages (provider switches, pipeline results, etc.)
-                        _folded = len(msg) > 300
+                        _folded = len(msg) > 2000
                         if _folded:
-                            preview = msg[:280] + f"\n... [折叠 {len(msg)} 字符]"
+                            preview = msg[:1980] + f"\n... [折叠 {len(msg)} 字符]"
                             self._ui(self.message_pane.append_info, preview)
                         else:
                             self._ui(self.message_pane.append_info, msg)
@@ -1992,10 +1996,19 @@ class TuiAppV2:
                 else:
                     # ── Status-line events: 路由到状态栏或通知区 ──
                     status_kinds = {
-                        "status_update", "watchdog_alert", "watchdog_warning",
-                        "system_warning", "system_error", "provider_fallback",
-                        "notice", "connection_error", "system_info",
-                        "tool_failed", "tool_started", "tool_finished", "tool_progress",
+                        "status_update",
+                        "watchdog_alert",
+                        "watchdog_warning",
+                        "system_warning",
+                        "system_error",
+                        "provider_fallback",
+                        "notice",
+                        "connection_error",
+                        "system_info",
+                        "tool_failed",
+                        "tool_started",
+                        "tool_finished",
+                        "tool_progress",
                     }
                     if kind in status_kinds:
                         text = str(payload)[:120]
@@ -2038,7 +2051,9 @@ class TuiAppV2:
                 _hint = "未知错误 — 请重试，如持续出现请查看日志"
             _icon = "✗" if not _is_critical else "☠"
             self._log_append((_icon, "class:activity-fail", f"{_err_name}: {_hint}"))
-            self._ui(self.message_pane.append_error, f"{_err_name}: {self._shorten(_err_msg, 200)}\n→ {_hint}", _force=True)
+            self._ui(
+                self.message_pane.append_error, f"{_err_name}: {self._shorten(_err_msg, 200)}\n→ {_hint}", _force=True
+            )
             self._ui(self.message_pane.stream_end, _force=True)
         finally:
             with self._state_lock:
@@ -2052,12 +2067,12 @@ class TuiAppV2:
                 _elapsed = time.monotonic() - _t0
             except (NameError, UnboundLocalError):
                 _elapsed = 0
-            _latency = getattr(self, '_latency', 0)
-            _score = getattr(self, '_last_agent_score', 0)
+            _latency = getattr(self, "_latency", 0)
+            _score = getattr(self, "_last_agent_score", 0)
             _summary_parts = [f"⏱ {_elapsed:.1f}s"]
             if _tool_seq > 0:
                 _summary_parts.append(f"🔧 {_tool_seq} tools")
-            if _latency > 0:
+            if _latency is not None and _latency > 0:
                 _summary_parts.append(f"⚡ {_latency:.1f}s first token")
             if _score >= 5:
                 _summary_parts.append(f"🧠 agent score {_score:.0f}")
@@ -2105,6 +2120,7 @@ class TuiAppV2:
     def _ui(self, fn, *a, _force: bool = False):
         try:
             from core.watchdog import Watchdog
+
             Watchdog.beat("TUI")
         except Exception:
             pass
@@ -2290,16 +2306,26 @@ class TuiAppV2:
         with contextlib.suppress(Exception):
             self.thinking_panel.done()
 
-        # Shut down browser / playwright bridges gracefully
+        # ── Shut down CDP browser (Edge + Playwright) ──
+        with contextlib.suppress(Exception):
+            from core.cdp_browser import cdp_cleanup
+
+            cdp_cleanup()
+
+        # ── Disconnect BrowserController (AI platform adapters) ──
+        with contextlib.suppress(Exception):
+            from core.browser_control import browser_control
+
+            bc = browser_control()
+            if bc.is_connected:
+                bc.disconnect()
+
+        # ── Shut down browser bridges attached as attributes ──
         for attr in (
             "_browser_bridge",
             "browser_bridge",
             "_playwright_bridge",
             "playwright_bridge",
-            "_browser",
-            "browser",
-            "_playwright",
-            "playwright",
         ):
             obj = getattr(self, attr, None)
             if obj is None:
@@ -2357,12 +2383,19 @@ class TuiAppV2:
         try:
             # P0: 启动心跳定时器
             from core.watchdog import Watchdog
+
             def _heartbeat_tick():
                 Watchdog.beat("IDLE")
+                # P0: restore terminal mouse mode on every tick.
+                # Subprocess output / external commands can emit ANSI sequences
+                # (\033[?1000l etc.) that disable mouse tracking, breaking scroll.
+                if self._mouse_guard is not None:
+                    self._mouse_guard.restore()
                 self._app.invalidate()
                 self._heartbeat_timer = threading.Timer(2.0, _heartbeat_tick)
                 self._heartbeat_timer.daemon = True
                 self._heartbeat_timer.start()
+
             _heartbeat_tick()
             self._app.run()
         except KeyboardInterrupt:

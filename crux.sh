@@ -4,6 +4,8 @@
 #  首次运行自动安装依赖，之后直接启动。
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 set -e
+# Save user's original working directory before cd
+export CRUX_WORKSPACE="$PWD"
 cd "$(dirname "$0")"
 
 G='\033[92m'; Y='\033[93m'; R='\033[91m'; D='\033[2m'; X='\033[0m'

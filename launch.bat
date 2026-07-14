@@ -4,6 +4,8 @@ set PYTHONUTF8=1
 set PYTHONIOENCODING=utf-8
 title CRUX STUDIO — 暗夜工坊
 
+:: Save user's original working directory before cd
+set "CRUX_WORKSPACE=%CD%"
 cd /d "%~dp0"
 set "PY=C:\Users\huangjiancheng\AppData\Local\Programs\Python\Python311\python.exe"
 if not exist "%PY%" for %%e in (python3 python py) do (where %%e >nul 2>&1 && set "PY=%%e" && goto :run)

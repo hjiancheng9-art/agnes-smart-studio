@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import atexit as _atexit
 import json
 import os
 import subprocess
@@ -332,6 +333,7 @@ def get_background_manager() -> BackgroundManager:
         with _bg_lock:
             if _bg_manager is None:
                 _bg_manager = BackgroundManager()
+                _atexit.register(_bg_manager.shutdown)
     return _bg_manager
 
 

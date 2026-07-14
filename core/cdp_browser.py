@@ -10,10 +10,12 @@ CRUX 全局 CDP 浏览器控制模块
 4. CDP 连接保活 + 自动重连
 5. 全局单例复用，避免重复启动 Edge
 """
+import atexit as _atexit
 import contextlib
 import json
 import logging
 import os
+import signal
 import socket
 import subprocess
 import threading
@@ -38,7 +40,7 @@ LONG_TIMEOUT = 45000   # ms — ChatGPT 生成等待
 
 # 全局单例
 _lock = threading.Lock()
-_global_state = {"pw": None, "browser": None, "refcount": 0}
+_global_state = {"pw": None, "browser": None, "refcount": 0, "edge_proc": None}
 
 
 
@@ -189,7 +191,7 @@ def _ensure_cdp():
         )
 
     # Edge 未运行 → 使用默认 profile 启动（保留用户登录态、Cookie）
-    subprocess.Popen(
+    _global_state["edge_proc"] = subprocess.Popen(
         [EDGE_PATH,
          "--remote-debugging-port=9222",
          "--no-first-run", "--no-default-browser-check"],
@@ -655,7 +657,7 @@ def cdp_ask_chatgpt(
 
 
 def cdp_cleanup():
-   """强制清理全局 CDP 连接"""
+   """强制清理全局 CDP 连接和 Edge 浏览器进程"""
    global _global_state
    with _lock:
        if _global_state["pw"]:
@@ -666,6 +668,22 @@ def cdp_cleanup():
        _global_state["pw"] = None
        _global_state["browser"] = None
        _global_state["refcount"] = 0
+       # Terminate the Edge CDP browser process
+       edge_proc = _global_state.get("edge_proc")
+       if edge_proc and edge_proc.poll() is None:
+           try:
+               edge_proc.terminate()
+               try:
+                   edge_proc.wait(timeout=5)
+               except subprocess.TimeoutExpired:
+                   edge_proc.kill()
+           except (OSError, subprocess.SubprocessError):
+               pass
+       _global_state["edge_proc"] = None
+
+
+# Register cleanup on normal interpreter exit
+_atexit.register(cdp_cleanup)
 
 
 def fetch_reply_already_generated() -> str:

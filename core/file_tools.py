@@ -66,34 +66,57 @@ _READ_BLOCKLIST = [
     "**/settings.local.json",
 ]
 
+# 危险系统路径阻止写入 — 防止 LLM 修改系统文件
+_WRITE_BLOCKLIST = [
+    # Windows system
+    "C:\\Windows\\*",
+    "C:\\Windows\\System32\\*",
+    "C:\\Program Files\\*",
+    "C:\\Program Files (x86)\\*",
+    # Unix system
+    "/etc/*",
+    "/usr/*",
+    "/boot/*",
+    "/sys/*",
+    "/proc/*",
+    "/dev/*",
+    "/bin/*",
+    "/sbin/*",
+    "/lib/*",
+    # CRUX internal (protect core runtime)
+    "**/__pycache__/*",
+]
+
 
 def _safe_path(path: str, *, read_only: bool = False) -> Path:
-    """Resolve path and enforce it stays within project root.
+    """Resolve path and enforce safety boundaries.
 
-    Symlink-safe: resolves both the path and ROOT to real paths (no symlinks)
-    before checking containment. Prevents symlink-based sandbox escapes
-    (e.g. a symlink inside the project pointing to /etc).
+    Symlink-safe: resolves the path to real paths (no symlinks) before
+    checking. Prevents symlink-based escapes.
 
-    Args:
-        path: File path to validate.
-        read_only: If True, only resolve/normalize without enforcing project root
-                   containment (for read_file/list_files). Write operations must
-                   stay within project root.
+    Read operations: blocked from sensitive credential files.
+    Write operations: blocked from system directories, allowed anywhere
+    else (user home, other projects, Desktop, etc.).
     """
+    from fnmatch import fnmatch
     p = Path(path).expanduser().resolve()
-    if read_only:
-        # 敏感文件阻止 — read_file 不应泄露密钥
-        from fnmatch import fnmatch
+    p_str = str(p)
 
-        p_str = str(p)
-        for blocked in _READ_BLOCKLIST:
-            if fnmatch(p_str, blocked):
-                raise ValueError(f"Access denied to sensitive path: {path}")
+    # Sensitive credential files — never readable
+    for blocked in _READ_BLOCKLIST:
+        if fnmatch(p_str, blocked):
+            raise ValueError(f"Access denied to sensitive path: {path}")
+
+    if read_only:
         return p
-    root_real = ROOT.resolve()
-    # resolve() already eliminates symlinks; compare real paths
-    if root_real not in p.parents and p != root_real:
-        raise ValueError(f"路径超出项目根目录: {path}")
+
+    # Write operations: block system paths, allow everything else
+    for blocked in _WRITE_BLOCKLIST:
+        if fnmatch(p_str, blocked):
+            raise ValueError(
+                f"Write denied to system path: {path}\n"
+                f"  Matched block rule: {blocked}"
+            )
     return p
 
 

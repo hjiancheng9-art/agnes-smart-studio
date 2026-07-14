@@ -16,6 +16,7 @@ RPC: JSON-RPC over HTTP, port 6801 (避免和 nsp-downloader 的 6800 冲突)
 
 from __future__ import annotations
 
+import atexit as _atexit
 import contextlib
 import json
 import logging
@@ -117,7 +118,7 @@ class Aria2Bridge:
             session_dir = os.path.dirname(self._session_file)
             os.makedirs(session_dir, exist_ok=True)
             if not os.path.exists(self._session_file):
-                with open(self._session_file, "w") as f:
+                with open(self._session_file, "w", encoding="utf-8") as f:
                     f.write("")
 
             args = [
@@ -344,4 +345,5 @@ def get_bridge() -> Aria2Bridge:
     """获取全局 Aria2Bridge 单例（延迟初始化）。"""
     if Aria2Bridge._instance is None:
         Aria2Bridge._instance = Aria2Bridge()
+        _atexit.register(Aria2Bridge._instance.stop)
     return Aria2Bridge._instance

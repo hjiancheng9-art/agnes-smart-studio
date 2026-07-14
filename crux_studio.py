@@ -86,6 +86,7 @@ def main():
         "gen": lambda rest: ["-q", *rest],  # crux gen "猫" → -q "猫"
         "image": lambda rest: ["-q", *rest],  # 别名
         "video": lambda rest: ["-q", *rest, "-v"],  # crux video "海边" → -q "海边" -v
+        "serve": lambda rest: ["--serve", *rest],  # crux serve → --serve
         "chat": lambda rest: ["-c", *rest],
         "pipeline": lambda rest: ["-q" if rest else "", "-p", *rest] if rest else ["-p", *rest],
         "query": lambda rest: ["--video-id", *rest],  # crux query <id> → --video-id <id>
@@ -137,6 +138,9 @@ def main():
 
     p = argparse.ArgumentParser(description="CRUX Studio — code/create/deploy")
     p.add_argument("--check", action="store_true", help="启动前运行健康检查并退出")
+    p.add_argument("--serve", action="store_true", help="启动 OpenAI 兼容 API 网关")
+    p.add_argument("--host", type=str, default="127.0.0.1", help="网关监听地址 (配合 --serve, 默认 127.0.0.1)")
+    p.add_argument("--port", type=int, default=8000, help="网关监听端口 (配合 --serve, 默认 8000)")
     p.add_argument("-c", "--chat", action="store_true", help="进入 CRUX 编程助手（支持 /制片 切换视频模式）")
     p.add_argument("-q", "--quick", type=str, help="快速模式描述")
     p.add_argument("-v", "--video", action="store_true", help="生成视频")
@@ -210,6 +214,9 @@ def main():
 
         # Launch chat
         _chat_repl()
+    elif args.serve:
+        from core.gateway.server import run_server
+        run_server(host=args.host, port=args.port)
     elif args.quick:
         _quick(args)
     else:
@@ -433,7 +440,7 @@ def _chat_tui():
     try:
         from ui.tui_v2 import TuiAppV2
 
-        app = TuiAppV2(session, cli, session_wire=wire, startup_banner=banner)
+        app = TuiAppV2(session, cli, session_wire=wire, startup_banner=banner, cwd=cwd)
         app.run()
     except ImportError as e:
         print(f"TUI 模块加载失败: {e}", file=sys.stderr)

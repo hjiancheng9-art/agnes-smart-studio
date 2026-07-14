@@ -1,0 +1,17 @@
+{
+  "suite_name": "CRUX Core Capabilities (subset)",
+  "timestamp": 1784057500.1412988,
+  "overall_score": 0.0,
+  "pass_rate": 0.0,
+  "score_delta": 0.0,
+  "dimensions": [
+    {
+      "name": "qa",
+      "pass_rate": 0.0,
+      "avg_score": 0.0,
+      "total_tasks": 1,
+      "passed": 0,
+      "weight": 0.1
+    }
+  ]
+}

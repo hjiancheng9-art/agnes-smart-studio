@@ -39,7 +39,9 @@ ALWAYS_DANGEROUS = [
     r">\s*/dev/",
     r"mkfs\.",
     r"dd\s+if=",
-    r"curl.*\|\s*(ba)?sh",
+    r"curl.*\|\s*(/.*)?(ba)?sh",
+    r"curl.*\|\s*(sudo\s+)?(/.*)?(ba)?sh",
+    r"curl.*\|\s*\.\s+/dev/stdin",
     r"wget.*\|\s*(ba)?sh",
     r":\(\)\s*\{\s*:\|:&\s*\}\s*;:",  # fork bomb
     r"\bformat\s+[A-Za-z]:",
@@ -94,6 +96,7 @@ def _build_allowed_roots() -> list[Path]:
             str(ROOT / "output"),
             str(ROOT / "tmp"),
             os.getcwd(),  # ← 关键修复：CWD 自动信任
+            str(Path.home()),  # ← 用户主目录，覆盖所有用户项目
             tempfile.gettempdir(),  # ← 跨平台临时目录（替代硬编码 /tmp）
         ]
     return [_normalize_path(Path(r)) for r in raw]

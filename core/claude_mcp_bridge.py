@@ -967,6 +967,17 @@ class ClaudeMcpBridge:
     # ── MCP methods ──────────────────────────────────────────
 
     def _initialize(self, _params: dict) -> dict:
+        # Capture workspace roots from the MCP client (IDE)
+        roots = _params.get("roots", [])
+        if roots:
+            import os as _os
+            _mcp_roots = []
+            for r in roots:
+                uri = r.get("uri", "") if isinstance(r, dict) else str(r)
+                if uri:
+                    _mcp_roots.append(uri)
+            if _mcp_roots:
+                _os.environ["CRUX_MCP_ROOTS"] = "\n".join(_mcp_roots)
         return {
             "protocolVersion": MCP_PROTOCOL_VERSION,
             "capabilities": {"tools": {"listChanged": False}},
