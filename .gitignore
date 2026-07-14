@@ -149,3 +149,5 @@ output/videos/
 *.mp4
 *.exe
 .DS_Store
+.ruff_cache/
+/data/
