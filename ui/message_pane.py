@@ -104,7 +104,11 @@ class _ScrollingWindow(Window):
 
         else:
             # ── Manual scroll: preserve position, clamp out-of-bounds only ──
-            max_line = ui_content.line_count - 1 if ui_content else 0
+            if ui_content is None:
+                # ⚠️ ui_content=None 时 max_line=0，会钳制 vertical_scroll=0。
+                # 每次渲染周期都会把用户的滚动位置弹回顶部。不要删这个 guard。
+                return  # Cannot clamp without content info; keep current position
+            max_line = ui_content.line_count - 1
             if self.vertical_scroll > max(0, max_line):
                 self.vertical_scroll = max(0, max_line)
                 self.vertical_scroll_2 = 0

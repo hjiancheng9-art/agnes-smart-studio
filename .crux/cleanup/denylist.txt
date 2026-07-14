@@ -1,5 +1,0 @@
-# Denylist — 强制清理，即使在 protected 路径内也要删除
-# 每行一个 glob 模式或注释
-
-# 示例（当前为空，按需添加）:
-# core/__pycache__/**

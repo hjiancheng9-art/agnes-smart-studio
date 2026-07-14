@@ -654,11 +654,6 @@ class TuiAppV2:
             event.app.renderer.reset(leave_alternate_screen=not renderer.full_screen)
             event.app.invalidate()
 
-        @kb.add("pagedown")
-        def _(event):
-            self.message_pane.scroll_page_down()
-            event.app.invalidate()
-
         # Note: plain Home/End are consumed by the multiline Buffer for cursor
         # movement. Use Ctrl+Home / Ctrl+End to jump to top/bottom instead.
 
@@ -677,6 +672,10 @@ class TuiAppV2:
             self.message_pane.scroll_page_up()
             event.app.invalidate()
 
+        # ⚠️ 只绑定一个 pagedown（eager=True），不要加非 eager 版本。
+        # 非 eager 绑定会在输入处理阶段吞掉事件，导致 eager 版本收不到按键。
+        # 此修复已被不同会话回滚数十次——每次都是因为有人补了第二个 @kb.add("pagedown")。
+        # 如果你觉得"应该有两个绑定"，读这段注释再走。
         @kb.add("pagedown", eager=True)
         def _(event):
             self.message_pane.scroll_page_down()
