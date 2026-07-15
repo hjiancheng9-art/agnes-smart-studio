@@ -1,9 +1,0 @@
-Given that your Style.from_dict and class mappings are correct, the most likely root causes for an all-white background are:
-
-Missing the style kwarg: You built the style object but forgot to actually pass it to your application instance.
-
-Fix: Ensure you have Application(layout=..., style=your_style) or prompt(..., style=your_style).
-
-Missing the True Color flag (if using Hex codes): If your style dictionary uses hex codes (e.g., #ffffff), prompt_toolkit needs to be explicitly told to render them, otherwise it degrades or breaks the background rendering.
-
-Fix: Pass color_depth=ColorDepth.TRUE_COLOR to your `Application

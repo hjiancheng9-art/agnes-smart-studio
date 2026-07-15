@@ -152,3 +152,6 @@ output/videos/
 .DS_Store
 .ruff_cache/
 /data/
+
+# Edge/CDP model-debate experiment artifacts (moved to tmp/gpt_outputs/)
+tools/edge/*.txt
