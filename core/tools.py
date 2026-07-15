@@ -186,6 +186,16 @@ def _build_shell_strategies(cmd: str, sys_module) -> list[tuple[str, str]]:
     if not any(c in cmd for c in ('"', "'", "&&", "||", "|", ">", "<", ";")):
         strategies.append(("raw_no_shell", cmd))
 
+    # 策略 5：Windows 上 POSIX 命令 → PowerShell 转换
+    if is_win:
+        cmd_name = cmd.strip().split()[0].lower() if cmd.strip() else ""
+        if cmd_name in _POSIX_TO_POWERSHELL:
+            try:
+                pwsh_cmd = _POSIX_TO_POWERSHELL[cmd_name](cmd)
+                strategies.append(("powershell_fallback", pwsh_cmd))
+            except Exception:
+                pass  # 转换失败静默跳过
+
     # 去重
     seen = set()
     unique = []
@@ -199,25 +209,112 @@ def _build_shell_strategies(cmd: str, sys_module) -> list[tuple[str, str]]:
 def _diagnose_shell_failure(cmd: str, errors: list[str], sys_module) -> str:
     """诊断 shell 执行失败原因，给出可操作的修复建议。"""
     import shutil
+    import re as _re
     is_win = sys_module.platform == "win32"
     has_bash = bool(shutil.which("bash"))
+    has_pwsh = bool(shutil.which("powershell"))
 
     suggestions = []
     if is_win and has_bash:
         suggestions.append("Windows + Git Bash 环境: bash -c 嵌套可能导致转义问题，已自动尝试剥离")
     if is_win and not has_bash:
-        suggestions.append("Windows 无 bash: 请使用 cmd 兼容语法（如 dir 而非 ls）")
+        suggestions.append("Windows 无 bash: 请使用 cmd 兼容语法（如 dir 而非 ls，type 而非 cat）")
     if any("TimeoutExpired" in e or "超时" in e for e in errors):
         suggestions.append("命令超时: 考虑拆分任务、增加 timeout 参数，或使用 run_in_background=true")
-    if any("not found" in e.lower() or "not recognized" in e.lower() for e in errors):
-        suggestions.append("命令未找到: 检查工具是否已安装或在 PATH 中")
     if any("Permission" in e or "denied" in e.lower() for e in errors):
         suggestions.append("权限不足: 需要管理员权限或调整文件权限")
+
+    # ── POSIX → Windows 命令映射 ──
+    if is_win and any("not found" in e.lower() or "not recognized" in e.lower() for e in errors):
+        # 提取命令名（去掉参数和路径）
+        cmd_name = cmd.strip().split()[0] if cmd.strip() else ""
+        win_alt = _POSIX_TO_WINDOWS.get(cmd_name.lower())
+        if win_alt:
+            suggestions.append(
+                f"'{cmd_name}' 是 Linux 命令，Windows 等价: {win_alt}"
+            )
+            if has_pwsh and cmd_name.lower() in _POSIX_TO_POWERSHELL:
+                pwsh_cmd = _POSIX_TO_POWERSHELL[cmd_name.lower()](cmd)
+                suggestions.append(f"PowerShell 替代: {pwsh_cmd}")
+        else:
+            suggestions.append(
+                "命令未找到: 检查工具是否已安装或在 PATH 中"
+                + ("（提示: 你正在 Windows 上，ls→dir, cat→type, grep→findstr）" if is_win else "")
+            )
+    elif not is_win and any("not found" in e.lower() or "not recognized" in e.lower() for e in errors):
+        suggestions.append("命令未找到: 检查工具是否已安装或在 PATH 中")
 
     if not suggestions:
         suggestions.append("未知原因: 请检查命令语法和参数是否正确")
 
     return "💡 修复建议:\n" + "\n".join(f"  → {s}" for s in suggestions)
+
+
+def _safe_decode(raw: bytes) -> str:
+    """安全解码子进程输出：尝试 UTF-8 → GBK → Latin-1 回退。
+    
+    Windows cmd.exe 输出可能为系统 ANSI 编码（如 GBK/CP936），
+    UTF-8 解码会损坏中文字符。逐编码尝试确保诊断关键词可匹配。
+    """
+    for enc in ("utf-8", "gbk", "cp936", "gb2312", "latin-1"):
+        try:
+            return raw.decode(enc)
+        except (UnicodeDecodeError, LookupError):
+            continue
+    return raw.decode("utf-8", errors="replace")
+
+
+# ── POSIX → Windows 命令映射表 ──
+_POSIX_TO_WINDOWS: dict[str, str] = {
+    "ls": "dir",
+    "cat": "type",
+    "grep": "findstr",
+    "head": "more /p (或 PowerShell: Get-Content | Select -First N)",
+    "tail": "more +N (或 PowerShell: Get-Content | Select -Last N)",
+    "cp": "copy",
+    "mv": "move",
+    "rm": "del /f",
+    "touch": "type nul >",
+    "wc": "find /c",
+    "chmod": "icacls",
+    "clear": "cls",
+    "pwd": "cd",
+    "whoami": "whoami",
+    "which": "where",
+    "uname": "ver",
+    "sudo": "runas",
+    "nohup": "start /b",
+    "kill": "taskkill /f /pid",
+    "ps": "tasklist",
+    "top": "taskmgr",
+    "df": "wmic logicaldisk get size,freespace,caption",
+    "du": "dir /s",
+    "ln": "mklink",
+    "sort": "sort",
+    "uniq": "PowerShell: ... | Get-Unique",
+    "cut": "PowerShell: ($line -split '\\t')[N]",
+    "sed": "PowerShell: (Get-Content f) -replace 'old','new'",
+    "awk": "PowerShell: ($line -split ' ')[N]",
+    "tr": "PowerShell: $s -replace 'a','b'",
+    "xargs": "PowerShell: ... | ForEach-Object { cmd $_ }",
+    "tee": "PowerShell: ... | Tee-Object -FilePath out.txt",
+    "watch": "PowerShell: while ($true) { cmd; Start-Sleep 1 }",
+    "ssh": "ssh",
+    "scp": "scp",
+}
+
+_POSIX_TO_POWERSHELL: dict = {
+    "head": lambda cmd: f"powershell -Command \"Get-Content {cmd[5:].strip()} | Select-Object -First 10\""
+        if len(cmd.split()) > 1 else "powershell -Command \"$input | Select-Object -First 10\"",
+    "tail": lambda cmd: f"powershell -Command \"Get-Content {cmd[5:].strip()} | Select-Object -Last 10\""
+        if len(cmd.split()) > 1 else "powershell -Command \"$input | Select-Object -Last 10\"",
+    "grep": lambda cmd: cmd.replace("grep", "findstr", 1)
+        if cmd.startswith("grep") else cmd,
+    "cat": lambda cmd: cmd.replace("cat", "type", 1)
+        if cmd.startswith("cat") else cmd,
+    "wc": lambda cmd: f"powershell -Command \"{cmd.replace('wc', 'Measure-Object', 1)}\""
+        if cmd.startswith("wc") else cmd,
+}
 
 
 class ToolRegistry:
@@ -782,18 +879,26 @@ class ToolRegistry:
             errors = []
             for strategy_label, strategy_cmd in strategies:
                 try:
-                    r = _sp.run(
+                    # 用 Popen + communicate 替代 run(capture_output=True)
+                    # capture_output 内部用后台线程读管道，高并发下 _readerthread 会崩溃
+                    proc = _sp.Popen(
                         strategy_cmd,
                         shell=True,
-                        capture_output=True,
-                        text=True,
-                        encoding="utf-8",
-                        errors="replace",
-                        timeout=_timeout,
+                        stdout=_sp.PIPE,
+                        stderr=_sp.PIPE,
                     )
-                    output = r.stdout.strip() or r.stderr.strip() or f"[exit: {r.returncode}]"
-                    if r.returncode == 0:
-                        # 成功！如果走了降级策略，记录自愈日志
+                    try:
+                        _raw_stdout, _raw_stderr = proc.communicate(timeout=_timeout)
+                        _rc = proc.returncode
+                    except _sp.TimeoutExpired:
+                        proc.kill()
+                        proc.communicate()
+                        raise
+                    # 多编码尝试解码（Windows cmd.exe 输出可能是 GBK）
+                    _stdout = _safe_decode(_raw_stdout) if _raw_stdout else ""
+                    _stderr = _safe_decode(_raw_stderr) if _raw_stderr else ""
+                    output = _stdout.strip() or _stderr.strip() or f"[exit: {_rc}]"
+                    if _rc == 0:
                         if strategy_label != "primary":
                             try:
                                 import logging
@@ -804,8 +909,34 @@ class ToolRegistry:
                             except Exception:
                                 pass
                         return output
-                    # 非零退出码但非致命 → 记录并尝试下一个策略
-                    errors.append(f"[{strategy_label}] exit={r.returncode}: {r.stderr.strip()[:200] or r.stdout.strip()[:200]}")
+                    # 非零退出码：区分 shell 级错误 vs 应用级错误
+                    # 核心原则：有实质输出且不像 shell 报错 → 应用层结果，直接返回
+                    # 无输出或输出像 shell 报错 → 尝试下一个策略
+                    _has_output = bool(_stdout.strip() or _stderr.strip())
+                    _stderr_lower = _stderr.lower()
+                    _SHELL_EXIT_CODES = {9009}  # Windows: 命令未找到
+                    _SHELL_ERR_KEYWORDS = (
+                        "not recognized", "command not found",
+                        "no such file", "cannot find", "could not find",
+                        "the syntax of the command is incorrect",
+                    )
+                    # 中文 Windows 错误消息编码检测：用原始字节
+                    _has_chinese_err = (
+                        b"\xb2\xbb\xca\xc7" in (_raw_stderr or b"")  # "不是" GBK
+                        or b"\xc4\xda\xb2\xbf" in (_raw_stderr or b"")  # "内部" GBK
+                        or b"\xcd\xe2\xb2\xbf" in (_raw_stderr or b"")  # "外部" GBK
+                    )
+                    _looks_like_shell_err = (
+                        _rc in _SHELL_EXIT_CODES
+                        or _has_chinese_err
+                        or any(p in _stderr_lower for p in _SHELL_ERR_KEYWORDS)
+                    )
+                    if not _has_output or _looks_like_shell_err:
+                        # shell 级错误或无输出 → 尝试下一个策略
+                        errors.append(f"[{strategy_label}] exit={_rc}: {_stderr.strip()[:200] or _stdout.strip()[:200] or '(no output)'}")
+                    else:
+                        # 应用层有实际输出（pytest/编译器等），直接返回
+                        return output
                 except _sp.TimeoutExpired:
                     errors.append(f"[{strategy_label}] 超时 ({_timeout}s)")
                 except _sp.SubprocessError as e:

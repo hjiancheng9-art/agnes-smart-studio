@@ -229,7 +229,29 @@ def _build_retry_strategies(tool_name: str, args: dict, error: str, _sys) -> lis
         # 策略2: 去掉 POSIX 单引号 (Windows)
         if _sys.platform == "win32" and "'" in cmd:
             strategies.append(("strip_quotes", {**args, "command": cmd.replace("'", "")}))
-        # 策略3: 如果是路径命令，尝试加 .exe 后缀
+        # 策略3: POSIX 命令 → Windows 等价命令
+        if _sys.platform == "win32":
+            _cmd_name = cmd.strip().split()[0].lower() if cmd.strip() else ""
+            _POSIX_MAP = {
+                "head": lambda c: _re.sub(r'^head\s+', 'more /p ', c) if c.startswith("head") else c,
+                "tail": lambda c: _re.sub(r'^tail\s+', 'more +99999 ', c) if c.startswith("tail") else c,
+                "grep": lambda c: _re.sub(r'^grep\s+', 'findstr ', c) if c.startswith("grep") else c,
+                "cat": lambda c: _re.sub(r'^cat\s+', 'type ', c) if c.startswith("cat") else c,
+                "ls": lambda c: _re.sub(r'^ls\b', 'dir', c) if c.startswith("ls") else c,
+                "cp": lambda c: _re.sub(r'^cp\s+', 'copy ', c) if c.startswith("cp") else c,
+                "mv": lambda c: _re.sub(r'^mv\s+', 'move ', c) if c.startswith("mv") else c,
+                "rm": lambda c: _re.sub(r'^rm\s+', 'del /f ', c) if c.startswith("rm") else c,
+                "touch": lambda c: _re.sub(r'^touch\s+', 'type nul > ', c) if c.startswith("touch") else c,
+                "wc": lambda c: _re.sub(r'^wc\s+(.+)', r'find /c "\0" \1', c) if c.startswith("wc") else c,
+            }
+            if _cmd_name in _POSIX_MAP:
+                try:
+                    converted = _POSIX_MAP[_cmd_name](cmd)
+                    if converted != cmd:
+                        strategies.append(("posix_to_win", {**args, "command": converted}))
+                except Exception:
+                    pass
+        # 策略4: 如果是路径命令，尝试加 .exe 后缀
         if "/" in cmd or "\\" in cmd:
             import os as _os
             _ext = _os.path.splitext(cmd.split()[0] if " " in cmd else cmd)[1]
