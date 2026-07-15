@@ -753,29 +753,10 @@ class ChatSession(ChatToggleMixin):
 
     @staticmethod
     def _classify_vision_complexity(text: str) -> tuple[str, int]:
-        """视觉任务复杂度启发式分类（零 LLM 消耗，对标 Claude vision tier）。
+        """Classify vision request complexity. See core.chat_routing."""
+        from core.chat_routing import classify_vision_complexity
 
-        Returns:
-            ("light"|"complex", max_tokens)
-        - light: OCR/描述/简单问答 → max_tokens=2048（快省）
-        - complex: 计数/读代码/图表推理/对比/几何/多步分析 → max_tokens=4096
-        """
-        # 复杂视觉任务关键词（中文 + 英文）
-        _COMPLEX_RE = re.compile(
-            r"(数一数|多少个|计数|count|how many)|"
-            r"(代码|code|函数|function|class |import |def )|"
-            r"(图表|graph|chart|柱状|饼图|折线|scatter|bar chart)|"
-            r"(对比|区别|差异|difference|compare|diff)|"
-            r"(计算|算一算|calculate|compute|面积|周长|角度)|"
-            r"(推理|推断|infer|deduce|逻辑|logical)|"
-            r"(流程|flowchart|架构|architecture|拓扑|topology)|"
-            r"(详细分析|深入|逐步|step.by.step|explain in detail)|"
-            r"(公式|equation|math|数学)",
-            re.IGNORECASE,
-        )
-        if _COMPLEX_RE.search(text):
-            return ("complex", 4096)
-        return ("light", 2048)
+        return classify_vision_complexity(text)
 
     def _text_fallback_chain(self) -> list[tuple[str, CruxClient]]:
         """构建主对话 fallback 链（模型 + client 对）。
@@ -825,14 +806,10 @@ class ChatSession(ChatToggleMixin):
         return chain
 
     def _is_stream_error(self, buffer: str) -> bool:
-        """检测流式输出是否因网络/API 错误而中断。
+        """Whether a streamed buffer is a transport/API error. See core.chat_routing."""
+        from core.chat_routing import is_stream_error
 
-        用明确的错误标记前缀匹配，避免用户对话中恰好包含这些字符串时误触发。
-        只有在 buffer 非空且以错误标记开头时才判定为流错误。
-        """
-        if not buffer:
-            return False
-        return buffer.startswith("[流中断") or buffer.startswith("[HTTP ")
+        return is_stream_error(buffer)
 
     def send_stream(self, user_text: str, image_url: str | None = None):
         """发送用户消息，流式 yield (kind, payload) 元组。
