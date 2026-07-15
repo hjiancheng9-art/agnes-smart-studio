@@ -1720,129 +1720,28 @@ class ChatSession(ChatToggleMixin):
     _SNAPSHOT_DIR = Path(__file__).resolve().parent.parent / "output" / "sessions"
 
     def _maybe_snapshot(self) -> None:
-        """每 N 轮自动保存会话快照（best-effort，失败不影响主流程）。
-        _turn_count 由 _finalize_outcome 统一管理，此处只读取。"""
+        """Snapshot every N turns (best-effort). Delegates to core.chat_history.
+        _turn_count is managed by _finalize_outcome; read-only here."""
         turn = getattr(self, "_turn_count", 0)
         if turn % self._SNAPSHOT_INTERVAL != 0:
             return
-        try:
-            import json
-            self._SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
-            snapshot = {
-                "model": self.model,
-                "turn": turn,
-                "messages": self.messages[-50:],  # 最近 50 条
-                "saved_at": __import__("datetime").datetime.now().isoformat(),
-            }
-            path = self._SNAPSHOT_DIR / "latest.json"
-            path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
-        except (OSError, ValueError, TypeError):
-            pass  # 快照失败不影响主流程
+        from core.chat_history import save_snapshot
+
+        save_snapshot(self._SNAPSHOT_DIR, self.model, turn, self.messages)
 
     @staticmethod
     def sanitize_messages(messages: list[dict]) -> list[dict]:
-        """Strip trailing incomplete tool-call sequences from restored messages.
+        """Strip trailing incomplete tool-call sequences. See core.chat_history."""
+        from core.chat_history import sanitize_messages as _sanitize
 
-        API requirement: every assistant message with ``tool_calls`` must be
-        immediately followed by one tool-role message per call.  If a session
-        crashes mid-call the restored snapshot may contain:
-        - An assistant with tool_calls but no following tool results
-        - Consecutive assistant messages both carrying tool_calls
-        - Assistant with N tool_calls but < N tool results
-
-        This function replays the sequence from the start and truncates at the
-        first invalid message, guaranteeing a clean API boundary.
-        """
-        if not messages:
-            return messages
-
-        sanitized: list[dict] = []
-        pending_tool_ids: set[str] = set()
-
-        for msg in messages:
-            role = msg.get("role", "")
-
-            if role == "system":
-                sanitized.append(msg)
-                continue
-
-            if role == "user":
-                # User message while tool calls are pending → invalid,
-                # truncate here (the incomplete sequence ends before this user msg)
-                if pending_tool_ids:
-                    break
-                sanitized.append(msg)
-                continue
-
-            if role == "assistant":
-                tool_calls = msg.get("tool_calls")
-                if tool_calls:
-                    # Assistant with tool_calls while previous tool_calls still
-                    # pending → consecutive assistant tool_calls → invalid
-                    if pending_tool_ids:
-                        break
-                    sanitized.append(msg)
-                    pending_tool_ids = {tc["id"] for tc in tool_calls if tc.get("id")}
-                else:
-                    # Regular assistant message (text response) — always valid
-                    sanitized.append(msg)
-                continue
-
-            if role == "tool":
-                tc_id = msg.get("tool_call_id", "")
-                if tc_id and tc_id in pending_tool_ids:
-                    sanitized.append(msg)
-                    pending_tool_ids.discard(tc_id)
-                else:
-                    # Tool result for unknown / already-consumed call id → invalid
-                    break
-                continue
-
-            # Unknown role — keep conservatively
-            sanitized.append(msg)
-
-        # If we ended with pending tool calls, strip back to before the
-        # incomplete assistant message
-        if pending_tool_ids:
-            # Find the last assistant with tool_calls and strip everything from
-            # the user message that triggered it
-            while sanitized:
-                last = sanitized[-1]
-                if last.get("role") == "assistant" and last.get("tool_calls"):
-                    sanitized.pop()
-                    # Remove the triggering user message too
-                    if sanitized and sanitized[-1].get("role") == "user":
-                        sanitized.pop()
-                    break
-                sanitized.pop()
-
-        return sanitized
+        return _sanitize(messages)
 
     @classmethod
     def restore_latest_snapshot(cls) -> dict | None:
-        """启动时检查是否有未恢复的会话快照。返回 messages 列表或 None。"""
-        try:
-            import json, os
-            path = cls._SNAPSHOT_DIR / "latest.json"
-            if not path.exists():
-                return None
-            data = json.loads(path.read_text("utf-8"))
-            if data.get("messages"):
-                data["messages"] = cls.sanitize_messages(data["messages"])
-                if not data["messages"]:
-                    os.remove(path)
-                    return None
-                # Discard snapshots with no assistant messages —
-                # user-only content (e.g. pasted crash logs) is not a session
-                has_assistant = any(
-                    m.get("role") == "assistant" for m in data["messages"]
-                )
-                if not has_assistant:
-                    os.remove(path)
-                    return None
-            return data if data.get("messages") else None
-        except (OSError, json.JSONDecodeError, KeyError):
-            return None
+        """Load an unrestored session snapshot, if any. See core.chat_history."""
+        from core.chat_history import restore_latest_snapshot as _restore
+
+        return _restore(cls._SNAPSHOT_DIR)
 
     def _trigger_reflection(self) -> None:
         """Post-turn reflection: light model reviews output quality."""
