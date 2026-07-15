@@ -106,6 +106,35 @@ class CompiledSkillSet:
 # ═══════════════════════════════════════════════════════════════════
 
 
+def _normalize_prompt(prompt) -> str:
+    """Flatten a skill 'prompt' field into a plain string.
+
+    Skills may declare 'prompt' as:
+      - a plain string
+      - a list of strings
+      - a list of blocks like {"type": "text", "content": "..."}
+      - a dict with a 'content'/'text' field
+    Anything else is best-effort stringified. Never raises.
+    """
+    if prompt is None:
+        return ""
+    if isinstance(prompt, str):
+        return prompt
+
+    def _block_to_str(block) -> str:
+        if isinstance(block, str):
+            return block
+        if isinstance(block, dict):
+            return str(block.get("content") or block.get("text") or "")
+        return str(block)
+
+    if isinstance(prompt, list):
+        return "\n\n".join(_block_to_str(b) for b in prompt if b is not None)
+    if isinstance(prompt, dict):
+        return _block_to_str(prompt)
+    return str(prompt)
+
+
 def _estimate_tokens(text: str) -> int:
     """Rough token estimate: ~1 token per 4 chars for English, ~1.5 for Chinese."""
     # Count CJK characters
@@ -182,7 +211,7 @@ class SkillCompiler:
 
         name = data.get("name", file_path.stem)
         description = data.get("description", "")
-        prompt_text = data.get("prompt", "")
+        prompt_text = _normalize_prompt(data.get("prompt", ""))
         target_str = data.get("target", "general")
         always_load = data.get("always_load", False)
         models = data.get("models", [])
@@ -415,22 +444,8 @@ class PromptCompiler:
                 category="skill",
             ))
 
-        # 3. Task-matched skills
-        if target != TaskTarget.UNKNOWN:
-            for cs in sorted(self.skills.by_target(target), key=lambda x: -x.priority):
-                if cs.always_load:
-                    continue  # Already added
-                if result.total_tokens + cs.prompt_tokens > token_budget:
-                    break
-                result.add(PromptSection(
-                    name=cs.name,
-                    content=cs.prompt,
-                    priority=7,
-                    tokens=cs.prompt_tokens,
-                    category="skill",
-                ))
-
-        # 4. Active / explicitly loaded skills
+        # 3. Active / explicitly loaded skills (explicit intent outranks
+        #    inferred task matching, so reserve budget for these first).
         for name in (active_skills or []):
             cs = self.skills.get(name)
             if cs and cs.name not in [s.name for s in result.sections]:
@@ -439,6 +454,23 @@ class PromptCompiler:
                 # Check conflicts
                 if any(cf in [s.name for s in result.sections] for cf in cs.conflicts_with):
                     continue  # Skip conflicting skill
+                result.add(PromptSection(
+                    name=cs.name,
+                    content=cs.prompt,
+                    priority=7,
+                    tokens=cs.prompt_tokens,
+                    category="skill",
+                ))
+
+        # 4. Task-matched skills (auto-loaded by inferred target)
+        if target != TaskTarget.UNKNOWN:
+            for cs in sorted(self.skills.by_target(target), key=lambda x: -x.priority):
+                if cs.always_load:
+                    continue  # Already added
+                if cs.name in [s.name for s in result.sections]:
+                    continue  # Already added as an active skill
+                if result.total_tokens + cs.prompt_tokens > token_budget:
+                    break
                 result.add(PromptSection(
                     name=cs.name,
                     content=cs.prompt,

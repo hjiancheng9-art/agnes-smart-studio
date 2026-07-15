@@ -114,7 +114,9 @@ class TestToolDefinitions:
         assert names == expected
 
     def test_comfyui_tool_defs(self):
-        from core.tools import COMFYUI_TOOL_DEFS
+        # COMFYUI_TOOL_DEFS lives in core.tools_defs; ComfyUI is no longer
+        # auto-loaded but its defs remain for opt-in registration.
+        from core.tools_defs import COMFYUI_TOOL_DEFS
 
         assert isinstance(COMFYUI_TOOL_DEFS, list)
         assert len(COMFYUI_TOOL_DEFS) > 0
@@ -336,9 +338,14 @@ class TestToolRegistryLoad:
         fresh_registry.load(pipeline=True)
         assert fresh_registry.has("extract_video_keyframes")
 
-    def test_load_comfyui(self, fresh_registry):
-        fresh_registry.load(comfyui=True)
-        assert fresh_registry.has("comfyui_status")
+    def test_load_comfyui(self):
+        # ComfyUI was removed from the registry loader (load() no longer accepts
+        # comfyui=). The tool definitions still exist in tools_defs for opt-in
+        # registration, so assert the defs are intact instead of loading them.
+        from core.tools_defs import COMFYUI_TOOL_DEFS
+
+        names = {d["function"]["name"] for d in COMFYUI_TOOL_DEFS}
+        assert "comfyui_status" in names
 
     def test_load_with_audio(self, fresh_registry):
         fresh_registry.load(audio=True)

@@ -15,6 +15,7 @@ __all__ = [
     "js_eval",
     "mcp_call",
     "mcp_connect",
+    "transcribe_audio",
     "pw_click",
     "pw_close",
     "pw_fill",
@@ -344,3 +345,75 @@ def pw_js(code: str) -> str:
 def pw_close() -> str:
     """Close browser (no-op — each call is stateless)."""
     return "浏览器会话已关闭。"
+
+
+# =====================================================================
+# transcribe_audio -- speech-to-text with graceful backend cascade
+# =====================================================================
+
+
+def transcribe_audio(audio_path: str) -> str:
+    """Transcribe an audio file to text.
+
+    Backend cascade (first available wins):
+      1. faster-whisper (local, fast)
+      2. openai-whisper (local)
+      3. OpenAI Whisper API (needs OPENAI_API_KEY)
+
+    Returns transcribed text, or an actionable ``[error]`` message when no
+    backend is usable. Never raises.
+    """
+    import importlib.util
+
+    p = Path(audio_path)
+    if not p.is_file():
+        return f"[error] audio file not found: {audio_path}"
+
+    # 1) faster-whisper (local)
+    if importlib.util.find_spec("faster_whisper") is not None:
+        try:
+            from faster_whisper import WhisperModel  # type: ignore
+
+            model = WhisperModel("base", device="cpu", compute_type="int8")
+            segments, _info = model.transcribe(str(p))
+            text = "".join(seg.text for seg in segments).strip()
+            return text or "[warn] transcription produced empty text"
+        except Exception as e:  # pragma: no cover - depends on optional backend
+            last_err = f"faster-whisper: {type(e).__name__}: {e}"
+        else:
+            last_err = ""
+    else:
+        last_err = ""
+
+    # 2) openai-whisper (local)
+    if importlib.util.find_spec("whisper") is not None:
+        try:
+            import whisper  # type: ignore
+
+            model = whisper.load_model("base")
+            result = model.transcribe(str(p))
+            text = (result.get("text") or "").strip()
+            return text or "[warn] transcription produced empty text"
+        except Exception as e:  # pragma: no cover - depends on optional backend
+            last_err = f"openai-whisper: {type(e).__name__}: {e}"
+
+    # 3) OpenAI Whisper API
+    if importlib.util.find_spec("openai") is not None and os.environ.get("OPENAI_API_KEY"):
+        try:
+            from openai import OpenAI  # type: ignore
+
+            client = OpenAI()
+            with open(p, "rb") as fh:
+                resp = client.audio.transcriptions.create(model="whisper-1", file=fh)
+            text = getattr(resp, "text", "") or ""
+            return text.strip() or "[warn] transcription produced empty text"
+        except Exception as e:  # pragma: no cover - depends on network/key
+            last_err = f"openai-api: {type(e).__name__}: {e}"
+
+    detail = f" (last backend error: {last_err})" if last_err else ""
+    return (
+        "[error] no usable transcription backend."
+        " Install one of: `pip install faster-whisper` (recommended) or"
+        " `pip install openai-whisper`, or set OPENAI_API_KEY to use the"
+        f" OpenAI Whisper API.{detail}"
+    )
