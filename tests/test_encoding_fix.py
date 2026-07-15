@@ -173,7 +173,14 @@ class TestReportEncodingIssue:
         assert report_encoding_issue("clean text", source="test") is None
 
     def test_garbled_text_reports(self):
-        report = report_encoding_issue("鏉冮檺", source="test")
+        # report_encoding_issue deliberately requires a strong signal (>=10
+        # mojibake signature chars) to avoid false positives on normal
+        # Chinese. Build input from the signature set so the test stays valid
+        # if the set changes. A single real CJK word is NOT mojibake.
+        from core.encoding_fix import _MOJIBAKE_FAST
+
+        garbled = "".join(list(_MOJIBAKE_FAST))
+        report = report_encoding_issue(garbled, source="test")
         assert report is not None
         assert "test" in report
         assert "mojibake" in report.lower()

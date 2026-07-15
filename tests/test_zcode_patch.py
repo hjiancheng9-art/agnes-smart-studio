@@ -299,9 +299,9 @@ class TestPatchPathValidation:
         assert resolved == (tmp_path / "sub" / "file.py").resolve()
 
     def test_path_outside_root_raises(self, tmp_path):
-        from core.patch import PatchEngine
+        from core.patch import PatchEngine, PatchError
 
         pe = PatchEngine(root=tmp_path)
-        with pytest.raises((PermissionError, ValueError, RuntimeError)):
+        with pytest.raises((PermissionError, ValueError, RuntimeError, PatchError)):
             # Try to access a path clearly outside root
             pe._resolve_path(str(tmp_path / ".." / ".." / "etc" / "passwd"))

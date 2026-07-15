@@ -20,11 +20,10 @@ import contextlib
 class TestIsProtectedFile:
     """Path protection must block all variants of protected files."""
 
+    # Whole-file hard protection (PROTECTED_FILES). Symbol-level protection
+    # for config/exceptions/encoding/crux_studio lives in PROTECTED_SYMBOLS and
+    # is validated separately.
     PROTECTED = [
-        "core/config.py",
-        "core/exceptions.py",
-        "core/encoding.py",
-        "crux_studio.py",
         "core/methodology.py",
     ]
 
@@ -51,33 +50,33 @@ class TestIsProtectedFile:
     def test_case_insensitive(self):
         from core.methodology import is_protected_file
 
-        assert is_protected_file("CORE/CONFIG.PY")
-        assert is_protected_file("Core/Config.py")
+        assert is_protected_file("CORE/METHODOLOGY.PY")
+        assert is_protected_file("Core/Methodology.py")
 
     def test_double_slash_normalized(self):
         from core.methodology import is_protected_file
 
-        assert is_protected_file("core//config.py")
+        assert is_protected_file("core//methodology.py")
 
     def test_unicode_homoglyph_blocked(self):
         from core.methodology import is_protected_file
 
-        assert is_protected_file("core/c\u043enfig.py")  # Cyrillic 'o'
+        assert is_protected_file("core/meth\u043edology.py")  # Cyrillic 'o'
 
     def test_zero_width_stripped(self):
         from core.methodology import is_protected_file
 
-        assert is_protected_file("core/config.py\u200b")  # zero-width space
+        assert is_protected_file("core/methodology.py\u200b")  # zero-width space
 
     def test_null_byte_stripped(self):
         from core.methodology import is_protected_file
 
-        assert is_protected_file("core/config\x00.py")
+        assert is_protected_file("core/methodology\x00.py")
 
     def test_dot_segment_normalized(self):
         from core.methodology import is_protected_file
 
-        assert is_protected_file("core/../core/config.py")
+        assert is_protected_file("core/../core/methodology.py")
 
     def test_traversal_not_false_positive(self):
         from core.methodology import is_protected_file

@@ -93,26 +93,29 @@ class TestMethodologyGating:
         ok, reason = methodology_pre_check("pip_install", {"package": "requests"}, None)
         assert not ok
 
-    def test_normal_write_allowed(self):
-        from core.methodology import methodology_pre_check
-        ok, reason = methodology_pre_check("write_file", {"path": "my_module.py"}, None)
+    def test_normal_write_allowed(self, monkeypatch):
+        import core.methodology as m
+        monkeypatch.setattr(m, "_get_active_tdd_phase", lambda: "")
+        ok, reason = m.methodology_pre_check("write_file", {"path": "my_module.py"}, None)
         assert ok
 
-    def test_c_level_blocks_write_without_plan(self):
-        from core.methodology import MethodologyState, TaskLevel, methodology_pre_check
-        state = MethodologyState()
-        state.task_level = TaskLevel.C
+    def test_c_level_blocks_write_without_plan(self, monkeypatch):
+        import core.methodology as m
+        monkeypatch.setattr(m, "_get_active_tdd_phase", lambda: "")
+        state = m.MethodologyState()
+        state.task_level = m.TaskLevel.C
         state.plan_exists = False
-        ok, reason = methodology_pre_check("write_file", {"path": "test.py"}, state)
+        ok, reason = m.methodology_pre_check("write_file", {"path": "impl.py"}, state)
         assert not ok
         assert "Plan" in reason
 
-    def test_c_level_allows_write_with_plan(self):
-        from core.methodology import MethodologyState, TaskLevel, methodology_pre_check
-        state = MethodologyState()
-        state.task_level = TaskLevel.C
+    def test_c_level_allows_write_with_plan(self, monkeypatch):
+        import core.methodology as m
+        monkeypatch.setattr(m, "_get_active_tdd_phase", lambda: "")
+        state = m.MethodologyState()
+        state.task_level = m.TaskLevel.C
         state.plan_exists = True
-        ok, reason = methodology_pre_check("write_file", {"path": "test.py"}, state)
+        ok, reason = m.methodology_pre_check("write_file", {"path": "impl.py"}, state)
         assert ok
 
     def test_d_level_requires_worktree(self):

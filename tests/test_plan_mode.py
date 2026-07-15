@@ -16,13 +16,17 @@ class TestPlanModeManagerIdle:
 
     def test_initially_idle(self, pmm):
         assert not pmm.in_plan_mode
-        assert pmm.get_status() == PlanStatus.IDLE
+        status = pmm.get_status()
+        assert status["in_plan_mode"] is False
+        assert status["plan"] is None
 
     def test_current_plan_none_when_idle(self, pmm):
         assert pmm.current_plan is None
 
     def test_get_status_idle(self, pmm):
-        assert pmm.get_status() == PlanStatus.IDLE
+        status = pmm.get_status()
+        assert isinstance(status, dict)
+        assert status["in_plan_mode"] is False
 
     def test_tool_all_allowed_when_idle(self, pmm):
         for tool in ["write_file", "run_bash", "edit_file", "read_file"]:
@@ -36,10 +40,11 @@ class TestPlanModeManagerEnter:
         pmm.enter("简单测试")
         assert pmm.in_plan_mode
 
-    def test_enter_returns_dict(self, pmm):
+    def test_enter_returns_plan(self, pmm):
         result = pmm.enter("任务")
-        assert isinstance(result, dict)
-        assert "plan" in result
+        # enter() returns the generated Plan object.
+        assert isinstance(result, Plan)
+        assert result.goal == "任务"
 
     def test_enter_plan_has_goal(self, pmm):
         pmm.enter("重构认证模块")
@@ -61,7 +66,8 @@ class TestPlanModeManagerEnter:
     def test_enter_status_waiting_approval(self, pmm):
         pmm.enter("任务")
         status = pmm.get_status()
-        assert status in (PlanStatus.WAITING_APPROVAL, PlanStatus.PLANNING)
+        assert status["in_plan_mode"] is True
+        assert status["plan"] is not None
 
     def test_enter_empty_goal(self, pmm):
         pmm.enter("")

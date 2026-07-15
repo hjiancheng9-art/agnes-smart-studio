@@ -282,8 +282,19 @@ class TestEscapeReset:
                 break
         assert handler is not None, "standalone escape binding not found"
 
+        # Current UX: single Escape only clears when the buffer is already empty
+        # (double-Escape to clear). On non-empty input, Escape is a no-op so
+        # prompt_toolkit can handle IME cancellation natively.
+        mock_event = MagicMock()
+
+        # Non-empty buffer: reset must NOT be called.
         app.input_buffer.text = "some text"
         app.input_buffer.reset = MagicMock()
-        mock_event = MagicMock()
+        handler(mock_event)
+        app.input_buffer.reset.assert_not_called()
+
+        # Empty buffer: reset IS called (idempotent clear).
+        app.input_buffer.text = ""
+        app.input_buffer.reset = MagicMock()
         handler(mock_event)
         app.input_buffer.reset.assert_called_once()
