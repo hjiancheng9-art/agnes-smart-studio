@@ -239,7 +239,20 @@ def build_welcome_formatted(
         return sum(2 if unicodedata.east_asian_width(c) in ("W", "F") else 1 for c in s)
 
     # ── Title ──
-    L([(Y, "  CRUX Studio"), (M, f"  v{_ver}"), (M, "  ·  "), (W, "平时如刀，出事成阵"), (M, "  ·  "), (T, "本地智能执行平台"), (M, "  ·  "), (G, "● ready")])
+    L(
+        [
+            (Y, "  CRUX Studio"),
+            (M, f"  v{_ver}"),
+            (M, "  ·  "),
+            (W, "工程搭档"),
+            (M, "  ·  "),
+            (B, "DeepSeek V4 Pro"),
+            (M, "  ·  "),
+            (T, "1M上下文"),
+            (M, "  ·  "),
+            (G, "● ready"),
+        ]
+    )
     L([("", "\n")])
 
     # ── Badge bar ──
@@ -252,7 +265,7 @@ def build_welcome_formatted(
     _bb.extend(_badge(P, f" {_branch} "))
     _bb.extend(_badge(G, " 1M context "))
     _bb.extend(_badge(T, f" v{_ver} "))
-    _bb.extend(_badge(A, " 123 skills "))
+    _bb.extend(_badge(A, " 34 skills · 121 pkgs "))
     _bb.append((S, sp(CW - sum(len(x[1]) + 2 for x in _bb) - 2)))
     L([("", "  ")] + _bb)
     L([("", "\n")])
@@ -340,10 +353,10 @@ def build_welcome_formatted(
     ]
     _sys = [
         ("● ready", G),
-        ("Agent Swarm Pipeline", P),
-        ("123 skills · 769 market", W),
-        ("Parallel · PatchEngine · A/B/C/D", G),
-        ("7-Beasts · 34 Pro Domains", T),
+        ("Agent Swarm 并行执行", P),
+        ("34 loaded · 121 pkgs · 767 market", W),
+        ("理解意图→推理→执行→验证", G),
+        ("34 专业技能 · 3695 tests ✓", T),
     ]
 
     for i in range(5):
@@ -389,14 +402,14 @@ def build_welcome_formatted(
         return (sty, "│" + " " * lp + txt + " " * rp + "│")
 
     _wel = [
-        (S, btop("Welcome", wl_w)),
+        (S, btop("CRUX Studio", wl_w)),
         _wbox_row(S, "", wl_w),
-        _wbox_row(Y, "CRUX SYSTEM ONLINE", wl_w),
+        _wbox_row(Y, "工程搭档 · 能读能写能跑代码 · 自我纠错", wl_w),
         _wbox_row(S, "", wl_w),
         _wbox_row(W, "平时如刀，出事成阵", wl_w),
-        _wbox_row(W, "本地智能执行平台 · Agent OS", wl_w),
-        _wbox_row(G, "v6.0 · Router 82% · 2626 tests ✓ · Arena ready", wl_w),
-        _wbox_row(A, "AI Score: 8.5 · 7专业 Runtime · 自学习闭环", wl_w),
+        _wbox_row(W, "理解意图 → 深度推理 → 自主执行 → 验证闭环", wl_w),
+        _wbox_row(G, f"v{_ver} · 3695 tests ✓ · 0 failures · 自修复", wl_w),
+        _wbox_row(A, "Agent Swarm · 自修改 · A/B/C/D 任务分级", wl_w),
         _wbox_row(S, "", wl_w),
         (S, bbot(wl_w)),
     ]
@@ -552,7 +565,7 @@ class ThinkingPanel:
                 # Split at first newline to avoid mid-text truncation
                 nl = content.find("\n")
                 if nl > 0:
-                    content = content[nl + 1:]
+                    content = content[nl + 1 :]
             # Split into visual lines based on width
             visual_lines: list[str] = []
             inner = max(1, width - 4)
@@ -566,7 +579,7 @@ class ThinkingPanel:
                     paragraph = paragraph[inner:]
                 visual_lines.append(paragraph)
 
-            shown = visual_lines[-self.MAX_LINES:] if len(visual_lines) > self.MAX_LINES else visual_lines
+            shown = visual_lines[-self.MAX_LINES :] if len(visual_lines) > self.MAX_LINES else visual_lines
             for line in shown:
                 line_w = len(line)
                 pad = max(0, width - line_w - 4)

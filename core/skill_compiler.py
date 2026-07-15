@@ -294,10 +294,18 @@ class SkillCompiler:
                     if cs.always_load and other.always_load:
                         issues.append(f"CONFLICT: '{name}' and '{conflict_name}' are both always_load and conflict!")
 
-        # Check long prompts
+        # Check long prompts — tiered to avoid noise:
+        #   < 5000:  normal documentation volume, silent (most official-converted
+        #            skills like docx/xlsx/pptx legitimately live here)
+        #   5000-10000: notable, worth a heads-up but not alarming
+        #   > 10000: genuinely large, splitting is strongly advised
+        # The old flat 2000 threshold flagged 16+ healthy skills as "LARGE", drowning
+        # out the few that actually warrant attention.
         for name, cs in skill_set.skills.items():
-            if cs.prompt_tokens > 2000:
+            if cs.prompt_tokens > 10000:
                 issues.append(f"LARGE: '{name}' is {cs.prompt_tokens} tokens — consider splitting")
+            elif cs.prompt_tokens > 5000:
+                issues.append(f"HEFTY: '{name}' is {cs.prompt_tokens} tokens — review if needed")
 
         # Check missing deps
         for name, cs in skill_set.skills.items():

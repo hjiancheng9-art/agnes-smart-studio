@@ -2,58 +2,62 @@
 
 Verifies that all hooks are properly injected into ChatSession
 without breaking existing functionality.
+
+After P1 refactor (hook wiring externalized to core/chat_hooks_setup.py),
+these tests check the *wiring chain*: chat.py calls ``wire_session_hooks``
+and chat_hooks_setup.py contains the actual hook markers.
 """
 
 import py_compile
 
 
+def _read(path: str) -> str:
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
 class TestChatSyntax:
-    """Phase hooks don't break syntax."""
+    """Phase hooks don't break syntax and are properly wired."""
 
     def test_chat_py_compiles(self):
         py_compile.compile("core/chat.py", doraise=True)
 
-    def test_chat_py_has_validation_layer(self):
-        with open("core/chat.py", encoding="utf-8") as f:
-            content = f.read()
-        assert "from core.tool_validation_integration import" in content
-        assert "self.tvl" in content
+    def test_chat_hooks_setup_compiles(self):
+        py_compile.compile("core/chat_hooks_setup.py", doraise=True)
 
-    def test_chat_py_has_p8_flag(self):
-        with open("core/chat.py", encoding="utf-8") as f:
-            content = f.read()
-        assert "_p8_policy_hooked" in content
+    def test_chat_py_calls_wire_session_hooks(self):
+        """chat.py must delegate to wire_session_hooks (refactor P1)."""
+        content = _read("core/chat.py")
+        assert "from core.chat_hooks_setup import wire_session_hooks" in content
+        assert "wire_session_hooks(self)" in content
 
-    def test_chat_py_has_p9_flag(self):
-        with open("core/chat.py", encoding="utf-8") as f:
-            content = f.read()
-        assert "_p9_project_hooked" in content
+    def test_hooks_setup_has_validation_layer(self):
+        hooks = _read("core/chat_hooks_setup.py")
+        assert "from core.tool_validation_integration import ValidationLayer" in hooks
+        assert "session.tvl" in hooks
 
-    def test_chat_py_has_p10_flag(self):
-        with open("core/chat.py", encoding="utf-8") as f:
-            content = f.read()
-        assert "_p10_trace_hooked" in content
+    def test_hooks_setup_has_p8_flag(self):
+        assert "_p8_policy_hooked" in _read("core/chat_hooks_setup.py")
 
-    def test_chat_py_has_p11_flag(self):
-        with open("core/chat.py", encoding="utf-8") as f:
-            content = f.read()
-        assert "_p11_failure_learning_hooked" in content
+    def test_hooks_setup_has_p9_flag(self):
+        assert "_p9_project_hooked" in _read("core/chat_hooks_setup.py")
 
-    def test_chat_py_has_p12_flag(self):
-        with open("core/chat.py", encoding="utf-8") as f:
-            content = f.read()
-        assert "_p12_benchmark_hooked" in content
+    def test_hooks_setup_has_p10_flag(self):
+        assert "_p10_trace_hooked" in _read("core/chat_hooks_setup.py")
 
-    def test_chat_py_has_p13_flag(self):
-        with open("core/chat.py", encoding="utf-8") as f:
-            content = f.read()
-        assert "_p13_field_arena_hooked" in content
+    def test_hooks_setup_has_p11_flag(self):
+        assert "_p11_failure_learning_hooked" in _read("core/chat_hooks_setup.py")
+
+    def test_hooks_setup_has_p12_flag(self):
+        assert "_p12_benchmark_hooked" in _read("core/chat_hooks_setup.py")
+
+    def test_hooks_setup_has_p13_flag(self):
+        assert "_p13_field_arena_hooked" in _read("core/chat_hooks_setup.py")
 
     def test_chat_imports_cleanly(self):
         """Importing chat module doesn't crash at syntax level."""
         import ast
-        with open("core/chat.py", encoding="utf-8") as f:
-            tree = ast.parse(f.read())
+        tree = ast.parse(_read("core/chat.py"))
         # Just verify it parses — will find classes, functions etc
         classes = [n.name for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
         assert "ChatSession" in classes

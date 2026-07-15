@@ -188,7 +188,7 @@ class CruxCLI:
     def _chat_status(self, args: str) -> None:
         """Show real-time system health."""
         s = self.session
-        print("\n  ◆ CRUX Studio v6.0.0  状态面板")
+        print("\n  ◆ CRUX Studio v6.1.0  状态面板")
         print(f"  模型:{s.model}  代码:{'✓' if s.code_mode else '✗'}  智能体:{'✓' if s.agent_mode else '✗'}")
         print(
             f"  技能:{s.active_skill or '无'}  工具:{len(s.tools.tool_names) if hasattr(s.tools, 'tool_names') else '?'}"

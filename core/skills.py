@@ -651,7 +651,7 @@ def resolve_skill_executor(tool_name: str, tool_def: dict | None = None):
 
         def _exec(**kw):
             path = kw.get("path", "tests/")
-            r = run_subprocess(["python", "-m", "pytest", path, "-q", "--tb=short"], timeout=120)
+            r = run_subprocess(["python", "-m", "pytest", path, "-q", "--tb=short"], timeout=600)
             return r.stdout or r.stderr or "[pytest done]"
 
         return _exec

@@ -342,7 +342,7 @@ def _chat_tui():
     INNER_W = TARGET_BOX_W - 4  # strip "  ╔…╗" frame (2 leading spaces + corners)
 
     # ── top: ═══ text ═══ centred ──
-    tag = f" CRUX Studio v{__version__} · 平时如刀，出事成阵 · 本地智能执行平台 "
+    tag = f" CRUX Studio v{__version__} · 极简 · 百器 · 七兽 · Multi-Agent "
     tag_w = _vwidth(tag)
     pad_total = max(0, INNER_W - tag_w)
     left = pad_total // 2
@@ -351,9 +351,8 @@ def _chat_tui():
 
     # ── content lines ──
     content = [
-        "极简内核 + 百器待命 + 七兽按需治理",
-        "平时如刀，出事成阵 · 自修复闭环",
-        "123 skills / 769 market · 1M 上下文窗口",
+        "121 skills / 767 market · 1M 上下文 · 自修复闭环",
+        "Agent Swarm 并行执行 · 平时如刀，出事成阵",
     ]
     content_lines = []
     for line in content:
@@ -371,11 +370,11 @@ def _chat_tui():
         + bottom_line
         + "\n"
         + "\n"
-        + f"  ◈ {model_name} · 1M 上下文 · 80+ 工具\n"
+        + f"  ◈ {model_name} · 1M 上下文 · 45+ 内置工具\n"
         + "  ◈ 根因优先 → 最小复现 → 自修复闭环\n"
         + "\n"
         + "  Agent Swarm · 并行智能体 · 自修闭环\n"
-        + "  ├─ 123 技能包 · 34 专业域 · 7 兽谱系\n"
+        + "  ├─ 121 技能包 · 34 专业智能体 · 7 兽谱系\n"
         + "  ├─ agent_swarm 并行编排 · PatchEngine 安全自修\n"
         + "  └─ 4 级任务管理 · A/B/C/D · 门禁引擎\n"
         + "\n"

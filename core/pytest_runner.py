@@ -47,7 +47,7 @@ def in_pytest() -> bool:
 def run_pytest_safe(
     test_target: str = "tests/",
     extra_args: list[str] | None = None,
-    timeout: int = 30,
+    timeout: int = 600,
     cwd: str | Path | None = None,
 ) -> subprocess.CompletedProcess:
     """运行 pytest，**在 pytest 内运行时自动短路**以防止递归 fork。
@@ -55,7 +55,7 @@ def run_pytest_safe(
     Args:
         test_target: 要跑的测试目标，默认整个 ``tests/``。
         extra_args: 额外的 pytest 参数（如 ``["-v", "--tb=short"]``）。
-        timeout: 子进程超时秒数。
+        timeout: 子进程超时秒数，默认 600（10 分钟，足以覆盖 3700+ 全量用例）。
         cwd: 子进程工作目录；None 则用当前进程 cwd。
 
     Returns:
@@ -139,8 +139,9 @@ def debug_inspect(target: str, extra_args: str = "") -> str:
 
     import subprocess as _sp
 
+    _DBG_TIMEOUT = 600  # 10 min — debug_inspect can be slow on large test suites
     try:
-        r = _sp.run(cmd, capture_output=True, text=True, timeout=120, cwd=str(Path(__file__).resolve().parent.parent))
+        r = _sp.run(cmd, capture_output=True, text=True, timeout=_DBG_TIMEOUT, cwd=str(Path(__file__).resolve().parent.parent))
         output = r.stdout + "\n" + r.stderr
 
         if r.returncode == 0:
@@ -178,6 +179,6 @@ def debug_inspect(target: str, extra_args: str = "") -> str:
             indent=2,
         )
     except _sp.TimeoutExpired:
-        return _json.dumps({"status": "timeout", "error": "Execution timed out after 120s"}, ensure_ascii=False)
+        return _json.dumps({"status": "timeout", "error": f"Execution timed out after {_DBG_TIMEOUT}s"}, ensure_ascii=False)
     except Exception as e:
         return _json.dumps({"status": "error", "error": str(e), "traceback": _tb.format_exc()}, ensure_ascii=False)

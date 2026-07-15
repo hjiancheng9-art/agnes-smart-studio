@@ -114,11 +114,11 @@ def welcome_text(model_name: str = "CRUX") -> str:
     suggestions = get_suggestions()
 
     lines = [
-        "Welcome to CRUX Studio v6.0!",
+        "Welcome to CRUX Studio v6.1.0!",
         "",
         f"  Engine:  {model_name}  ·  1M context",
-        "  Tools:   85+  ·  Skills: 56 installed / 750 in market",
-        "  Arch:    极简内核 + 百器待命 + 七兽按需治理",
+        "  Tools:   45+ built-in  ·  Skills: 121 installed / 767 in market",
+        "  Arch:    极简内核 · 百器待命 · 七兽按需 · Multi-Agent",
         "",
         "  Quick start — try one of these:",
         "",

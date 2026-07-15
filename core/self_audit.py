@@ -162,7 +162,7 @@ class AuditEngine:
         # 经 run_pytest_safe 统一封装：在 pytest 内运行时自动短路，
         # 避免自检时 spawn 子 pytest 跑完整 tests/ 造成无限递归 fork。
         try:
-            r = run_pytest_safe(test_target="tests/", timeout=30, cwd=self.root)
+            r = run_pytest_safe(test_target="tests/", timeout=600, cwd=self.root)
             out = (r.stdout or "") + (r.stderr or "")
             passed, failed = parse_test_summary(out)
             if "skipped (running inside pytest)" in out:

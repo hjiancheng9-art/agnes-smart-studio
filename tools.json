@@ -184,10 +184,15 @@
           "type": "string",
           "description": "测试路径，默认 tests/",
           "required": false
+        },
+        "timeout": {
+          "type": "number",
+          "description": "超时秒数，默认 600（10 分钟）。全量跑设大些，单文件可缩小。",
+          "required": false
         }
       },
       "category": "exec",
-      "timeout": 300
+      "timeout": 1800
     },
     {
       "name": "web_fetch",

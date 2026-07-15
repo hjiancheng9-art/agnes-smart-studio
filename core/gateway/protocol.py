@@ -14,7 +14,7 @@ import time
 import uuid
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ── Request models ──────────────────────────────────────
@@ -74,9 +74,7 @@ class ChatCompletionRequest(BaseModel):
     seed: int | None = None
     user: str | None = None
 
-    class Config:
-        populate_by_name = True
-        extra = "ignore"
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
 
 # ── Response models (non-streaming) ─────────────────────

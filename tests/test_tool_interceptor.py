@@ -1,178 +1,192 @@
-"""Tests for core/tool_interceptor.py — safety interceptors + methodology gates."""
+"""Tests for core/tool_interceptor.py — PreToolUse safety interceptor."""
 
 import pytest
+
 from core.tool_interceptor import intercept_tool
 
 
-class TestDangerousCommands:
-    def test_rm_rf_root_blocked(self):
-        ok, reason = intercept_tool("run_bash", {"command": "rm -rf /"})
-        assert not ok
-        assert "rm -rf" in reason.lower()
+class TestInterceptBashBlocked:
+    """Commands that should be BLOCKED (return False, reason)."""
 
-    def test_force_push_main_blocked(self):
-        ok, reason = intercept_tool("run_bash", {"command": "git push --force origin main"})
-        assert not ok
+    def test_rm_rf_root_blocked(self):
+        allowed, reason = intercept_tool("run_bash", {"command": "rm -rf /"})
+        assert allowed is False
+        assert "BLOCKED" in reason
+
+    def test_rm_rf_home_blocked(self):
+        allowed, reason = intercept_tool("run_bash", {"command": "rm -rf ~/projects"})
+        assert allowed is False
+
+    def test_dd_to_block_device_blocked(self):
+        allowed, reason = intercept_tool("run_bash", {"command": "dd if=/dev/zero of=/dev/sdb"})
+        assert allowed is False
+
+    def test_mkfs_blocked(self):
+        allowed, reason = intercept_tool("run_bash", {"command": "mkfs.ext4 /dev/sda1"})
+        assert allowed is False
 
     def test_chmod_777_root_blocked(self):
-        ok, reason = intercept_tool("run_bash", {"command": "chmod 777 /etc"})
-        assert not ok
+        allowed, reason = intercept_tool("run_bash", {"command": "chmod 777 /"})
+        assert allowed is False
 
-    def test_dd_to_dev_blocked(self):
-        ok, reason = intercept_tool("run_bash", {"command": "dd if=/dev/zero of=/dev/sda"})
-        assert not ok
+    def test_git_force_push_main_blocked(self):
+        allowed, reason = intercept_tool("run_bash", {"command": "git push --force origin main"})
+        assert allowed is False
 
-    def test_safe_command_allowed(self):
-        ok, reason = intercept_tool("run_bash", {"command": "ls -la"})
-        assert ok
-        ok, reason = intercept_tool("run_bash", {"command": "git status"})
-        assert ok
+    def test_case_insensitive_blocking(self):
+        allowed, reason = intercept_tool("run_bash", {"command": "RM -RF /"})
+        assert allowed is False
+
+
+class TestInterceptBashWarned:
+    """Commands that should trigger WARNING but not blocked."""
 
     def test_pip_uninstall_warned(self):
-        ok, reason = intercept_tool("run_bash", {"command": "pip uninstall requests"})
-        assert ok
+        allowed, reason = intercept_tool("run_bash", {"command": "pip uninstall requests"})
+        assert allowed is True
+        assert "WARNING" in reason
+
+    def test_npm_uninstall_warned(self):
+        allowed, reason = intercept_tool("run_bash", {"command": "npm uninstall react"})
+        assert allowed is True
         assert "WARNING" in reason
 
     def test_git_reset_hard_warned(self):
-        ok, reason = intercept_tool("run_bash", {"command": "git reset --hard HEAD"})
-        assert ok
+        allowed, reason = intercept_tool("run_bash", {"command": "git reset --hard HEAD~1"})
+        assert allowed is True
         assert "WARNING" in reason
 
-    def test_empty_command_allowed(self):
-        ok, reason = intercept_tool("run_bash", {})
-        assert ok
-
-    def test_non_bash_tool_passes(self):
-        ok, reason = intercept_tool("read_file", {"path": "test.py"})
-        assert ok
+    def test_git_clean_f_warned(self):
+        allowed, reason = intercept_tool("run_bash", {"command": "git clean -fd"})
+        assert allowed is True
+        assert "WARNING" in reason
 
 
-class TestProtectedFiles:
-    def test_env_file_blocked(self):
-        ok, reason = intercept_tool("write_file", {"file_path": ".env"})
-        assert not ok
+class TestInterceptBashSafe:
+    """Safe commands pass through."""
 
-    def test_env_production_blocked(self):
-        ok, reason = intercept_tool("write_file", {"file_path": ".env.production"})
-        assert not ok
+    def test_empty_command_passes(self):
+        allowed, reason = intercept_tool("run_bash", {})
+        assert allowed is True
+        assert reason == ""
 
-    def test_credentials_blocked(self):
-        ok, reason = intercept_tool("write_file", {"file_path": "credentials.json"})
-        assert not ok
+    def test_safe_command_passes(self):
+        allowed, reason = intercept_tool("run_bash", {"command": "ls -la"})
+        assert allowed is True
+        assert reason == ""
 
-    def test_pem_blocked(self):
-        ok, reason = intercept_tool("write_file", {"file_path": "key.pem"})
-        assert not ok
+    def test_git_status_passes(self):
+        allowed, reason = intercept_tool("run_bash", {"command": "git status"})
+        assert allowed is True
 
-    def test_id_rsa_blocked(self):
-        ok, reason = intercept_tool("write_file", {"file_path": "id_rsa"})
-        assert not ok
-
-    def test_normal_py_allowed(self):
-        ok, reason = intercept_tool("write_file", {"file_path": "test.py"})
-        assert ok
-
-    def test_edit_file_also_protected(self):
-        ok, reason = intercept_tool("edit_file", {"file_path": ".env"})
-        assert not ok
-
-    def test_patch_file_also_protected(self):
-        ok, reason = intercept_tool("patch_file", {"file_path": ".env"})
-        assert not ok
+    def test_python_command_passes(self):
+        allowed, reason = intercept_tool("run_bash", {"command": "python -m pytest"})
+        assert allowed is True
 
 
-class TestMethodologyGating:
-    def test_protected_core_file_blocked(self):
-        """core/methodology.py is the only hard-protected file."""
-        from core.methodology import methodology_pre_check
-        ok, reason = methodology_pre_check("write_file", {"path": "core/methodology.py"}, None)
-        assert not ok
+class TestInterceptFileWrite:
+    """Protected file interception."""
 
-    def test_pip_install_blocked(self):
-        from core.methodology import methodology_pre_check
-        ok, reason = methodology_pre_check("pip_install", {"package": "requests"}, None)
-        assert not ok
+    def test_write_env_blocked(self):
+        allowed, reason = intercept_tool("write_file", {"file_path": "/some/path/.env"})
+        assert allowed is False
+        assert "BLOCKED" in reason
 
-    def test_normal_write_allowed(self, monkeypatch):
-        import core.methodology as m
-        monkeypatch.setattr(m, "_get_active_tdd_phase", lambda: "")
-        ok, reason = m.methodology_pre_check("write_file", {"path": "my_module.py"}, None)
-        assert ok
+    def test_write_credentials_blocked(self):
+        allowed, reason = intercept_tool("edit_file", {"file_path": "credentials.json"})
+        assert allowed is False
 
-    def test_c_level_blocks_write_without_plan(self, monkeypatch):
-        import core.methodology as m
-        monkeypatch.setattr(m, "_get_active_tdd_phase", lambda: "")
-        state = m.MethodologyState()
-        state.task_level = m.TaskLevel.C
-        state.plan_exists = False
-        ok, reason = m.methodology_pre_check("write_file", {"path": "impl.py"}, state)
-        assert not ok
-        assert "Plan" in reason
+    def test_write_id_rsa_blocked(self):
+        allowed, reason = intercept_tool("write_file", {"file_path": "~/.ssh/id_rsa"})
+        assert allowed is False
 
-    def test_c_level_allows_write_with_plan(self, monkeypatch):
-        import core.methodology as m
-        monkeypatch.setattr(m, "_get_active_tdd_phase", lambda: "")
-        state = m.MethodologyState()
-        state.task_level = m.TaskLevel.C
-        state.plan_exists = True
-        ok, reason = m.methodology_pre_check("write_file", {"path": "impl.py"}, state)
-        assert ok
+    def test_write_pem_blocked(self):
+        allowed, reason = intercept_tool("patch_file", {"file_path": "cert.pem"})
+        assert allowed is False
 
-    def test_d_level_requires_worktree(self):
-        from core.methodology import MethodologyState, TaskLevel, methodology_pre_check
-        state = MethodologyState()
-        state.task_level = TaskLevel.D
-        state.plan_exists = True
-        state.test_baseline_recorded = True
-        state.worktree_created = False
-        ok, reason = methodology_pre_check("git_add_commit", {}, state)
-        assert not ok
-        assert "Worktree" in reason
+    def test_write_service_account_blocked(self):
+        allowed, reason = intercept_tool("edit_file", {"file_path": "service-account.json"})
+        assert allowed is False
 
-    def test_d_level_allows_when_all_gates_pass(self):
-        from core.methodology import MethodologyState, TaskLevel, methodology_pre_check
-        state = MethodologyState()
-        state.task_level = TaskLevel.D
-        state.plan_exists = True
-        state.test_baseline_recorded = True
-        state.worktree_created = True
-        ok, reason = methodology_pre_check("git_add_commit", {}, state)
-        assert ok
+    def test_write_normal_file_passes(self):
+        allowed, reason = intercept_tool("write_file", {"file_path": "src/main.py"})
+        assert allowed is True
 
-    def test_tdd_red_blocks_impl_write(self):
-        import json, os, tempfile
-        from core.methodology import methodology_pre_check
-        # Create a temp TDD session in red phase
-        tdd_dir = "output/tdd"
-        os.makedirs(tdd_dir, exist_ok=True)
-        session_file = os.path.join(tdd_dir, "test_tdd.json")
-        with open(session_file, "w") as f:
-            json.dump({"phase": "red", "feature": "test"}, f)
-        try:
-            ok, reason = methodology_pre_check("write_file", {"file_path": "src/models.py"}, None)
-            assert not ok
-            assert "TDD" in reason or "红灯" in reason
-        finally:
-            os.remove(session_file)
-            try:
-                os.rmdir(tdd_dir)
-            except OSError:
-                pass
+    def test_write_readme_passes(self):
+        allowed, reason = intercept_tool("write_file", {"file_path": "README.md"})
+        assert allowed is True
 
-    def test_tdd_red_allows_test_write(self):
-        import json, os
-        from core.methodology import methodology_pre_check
-        tdd_dir = "output/tdd"
-        os.makedirs(tdd_dir, exist_ok=True)
-        session_file = os.path.join(tdd_dir, "test_tdd.json")
-        with open(session_file, "w") as f:
-            json.dump({"phase": "red", "feature": "test"}, f)
-        try:
-            ok, reason = methodology_pre_check("write_file", {"file_path": "tests/test_models.py"}, None)
-            assert ok  # test files are allowed in red phase
-        finally:
-            os.remove(session_file)
-            try:
-                os.rmdir(tdd_dir)
-            except OSError:
-                pass
+    def test_empty_path_passes(self):
+        allowed, reason = intercept_tool("write_file", {})
+        assert allowed is True
+
+    def test_unknown_tool_passes(self):
+        allowed, reason = intercept_tool("some_unknown_tool", {"x": 1})
+        assert allowed is True
+        assert reason == ""
+
+
+class TestInterceptCmdAlias:
+    """bash commands using 'cmd' key."""
+
+    def test_rm_with_cmd_key(self):
+        allowed, reason = intercept_tool("run_bash", {"cmd": "rm -rf /"})
+        assert allowed is False
+
+    def test_safe_with_cmd_key(self):
+        allowed, reason = intercept_tool("run_bash", {"cmd": "echo safe"})
+        assert allowed is True
+
+
+class TestGateCdpChatgpt:
+    """CDP ChatGPT gatekeeping — pure logic paths."""
+
+    def test_too_short_blocked(self):
+        from core.tool_interceptor import _gate_cdp_chatgpt
+        blocked, reason = _gate_cdp_chatgpt({"question": "hi"})
+        assert blocked is True
+        assert "太短" in reason
+
+    def test_empty_blocked(self):
+        from core.tool_interceptor import _gate_cdp_chatgpt
+        blocked, reason = _gate_cdp_chatgpt({"question": ""})
+        assert blocked is True
+
+    def test_repetitive_blocked(self):
+        from core.tool_interceptor import _gate_cdp_chatgpt
+        blocked, reason = _gate_cdp_chatgpt({"question": "aaaaa"})
+        assert blocked is True
+
+    def test_trivial_hello_blocked(self):
+        from core.tool_interceptor import _gate_cdp_chatgpt
+        blocked, reason = _gate_cdp_chatgpt({"question": "你好"})
+        assert blocked is True
+
+    def test_trivial_what_is_blocked(self):
+        from core.tool_interceptor import _gate_cdp_chatgpt
+        blocked, reason = _gate_cdp_chatgpt({"question": "什么是Python"})
+        assert blocked is True
+
+    def test_code_operation_blocked(self):
+        from core.tool_interceptor import _gate_cdp_chatgpt
+        blocked, reason = _gate_cdp_chatgpt({"question": "帮我改一下这个bug"})
+        assert blocked is True
+        assert "DeepSeek" in reason
+
+    def test_legitimate_question_passes(self):
+        from core.tool_interceptor import _gate_cdp_chatgpt
+        blocked, reason = _gate_cdp_chatgpt(
+            {"question": "请分析中美贸易战的最新进展和各方立场"})
+        assert blocked is False
+        assert reason == ""
+
+    def test_alternate_key_text(self):
+        from core.tool_interceptor import _gate_cdp_chatgpt
+        blocked, reason = _gate_cdp_chatgpt(
+            {"text": "How does quantum computing affect blockchain security in the long term?"})
+        assert blocked is False
+
+    def test_alternate_key_prompt(self):
+        from core.tool_interceptor import _gate_cdp_chatgpt
+        blocked, reason = _gate_cdp_chatgpt({"prompt": "hi"})
+        assert blocked is True

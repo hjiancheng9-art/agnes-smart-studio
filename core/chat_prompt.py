@@ -32,7 +32,7 @@ __all__ = [
 
 # ── 模板（从 chat.py 移出，单一真源）──────────────────────
 
-CHAT_SYSTEM_PROMPT = """你是 CRUX Studio v6.0，运行在 Windows 11 桌面，由 {provider_name} ({model_name}) 驱动。
+CHAT_SYSTEM_PROMPT = """你是 CRUX Studio v6.1，运行在 Windows 11 桌面，由 {provider_name} ({model_name}) 驱动。
 
 ## 你是谁
 
@@ -130,7 +130,7 @@ permission: read-only
 
 风格：中文、深度、精准。"""
 
-CODE_SYSTEM_PROMPT = """你是 CRUX Studio v6.0 的编程引擎，由 {provider_name} ({model_name}) 驱动。
+CODE_SYSTEM_PROMPT = """你是 CRUX Studio v6.1 的编程引擎，由 {provider_name} ({model_name}) 驱动。
 
 ## 核心原则
 
@@ -238,7 +238,7 @@ _CODE_SPECTRUM_INJECTIONS: list[tuple[str, str, str]] = [
 ]
 
 # 热路径身份注入 — 极简一行，不加载七兽/金手指世界观
-_HOT_IDENTITY = "CRUX Studio v6.0.0 — 平时如刀，出事成阵"
+_HOT_IDENTITY = "CRUX Studio v6.1.0 — 平时如刀，出事成阵 · Multi-Agent 已模块化"
 
 # 冷路径叙事 — 按需加载，不自动注入
 _COLD_LORE: dict[str, tuple[str, str, str]] = {

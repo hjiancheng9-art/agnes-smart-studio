@@ -772,15 +772,16 @@ def download_file(url: str, save_path: str) -> str:
         return f"[错误] 下载失败: {e}"
 
 
-def run_test(path: str = "tests/") -> str:
-    """运行 pytest，纯 Python subprocess 列表传参。"""
+def run_test(path: str = "tests/", timeout: float = 1800) -> str:
+    """运行 pytest，纯 Python subprocess 列表传参。默认 30 分钟超时，
+    足以覆盖上千条用例的全量回归。子目录/单文件可适当缩小 timeout。"""
     import subprocess
     import sys
 
     try:
-        r = run_subprocess([sys.executable, "-m", "pytest", path, "-q", "--tb=short"], timeout=60)
+        r = run_subprocess([sys.executable, "-m", "pytest", path, "-q", "--tb=short"], timeout=timeout)
         return r.stdout.strip() or r.stderr.strip() or "(no output)"
     except subprocess.TimeoutExpired:
-        return "[错误] 测试超时"
+        return f"[错误] 测试超时 ({timeout}s)"
     except subprocess.SubprocessError as e:
         return f"[错误] 测试失败: {e}"

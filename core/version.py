@@ -15,25 +15,27 @@ BUILD_LABEL = "CRUX Studio"
 
 # ── v6.1 改进指标 ──────────────────────────────────────
 V6_METRICS = {
-    "tests_total": 1708,
+    "tests_total": 3694,
     "tests_failed": 0,
-    "new_tests_v61": 49,
-    "bugs_fixed": 30,
+    "test_files": 195,
+    "new_tests_v61": 126,
+    "bugs_fixed": 37,
     "closed_loops": 19,
-    "dead_code_removed": 3500,
+    "dead_code_removed": 4630,
     "tmp_files_cleaned": 33,
     "ux_improvements": 6,
     "auto_skills": 6,
     "root_files_cleaned": 211,
-    "test_files": 181,
 }
 
 V6_HIGHLIGHTS = [
     "19 个闭环全部端到端激活（智能体/技能/TRM/Dashboard/错误分级）",
-    "30+ bug 修复：滚动失效/输入崩溃/并发冲突/静默消息丢弃",
+    "37 bug 修复：滚动失效/输入崩溃/并发冲突/静默消息丢弃/过时哨兵测试",
+    "Multi-Agent 拆分：1,905 行上帝文件 → 4 模块 775 行（modes/decompose/swarm/core）",
+    "126 个新测试：tool_router + tool_interceptor + tool_call_parser + adaptive_learner",
+    "Pydantic V2 迁移 + Skill Compiler 智能告警分级（16 条噪音 → 3 条信号）",
     "6 项交互打磨：工具序号/系统消息/长输出折叠/错误分级/能力说明/轮次摘要",
-    "清债 3,500 行死代码 + 33 临时文件 + 1 损坏文件",
-    "49 个新测试覆盖 ThinkingPanel/输入清洗/活动日志/错误分类",
+    "清债 4,630 行死代码 + 33 临时文件 + 1 损坏文件",
     "工作区感知：CRUX_WORKSPACE 环境变量 + system prompt 注入",
     "6 个技能自动加载：caliber/code-reviewer/code-guardian/tdd/python-anti-patterns/security-hardening",
     "全局 code-guardian 技能安装到 Claude Code",

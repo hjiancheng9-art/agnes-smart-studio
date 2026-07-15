@@ -210,7 +210,7 @@ def _build_info_panel(console, extra_lines: list[tuple] | None = None):
         n_py = len(
             subprocess.run(["git", "ls-files", "*.py"], capture_output=True, text=True, timeout=2).stdout.splitlines()
         )
-        lines.append((f"  {n_py} modules  |  skills 50+743", Style(color=dim, italic=True)))
+        lines.append((f"  {n_py} modules  |  34 skills · 121 pkgs · 767 market", Style(color=dim, italic=True)))
     except Exception:
         import logging
 

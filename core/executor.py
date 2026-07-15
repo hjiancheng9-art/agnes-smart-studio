@@ -162,7 +162,7 @@ class TaskExecutor:
                 target = step.verify.split(":", 1)[1] if ":" in step.verify else "tests/"
                 from core.pytest_runner import run_pytest_safe
 
-                r = run_pytest_safe(test_target=target, timeout=30, cwd=self.root)
+                r = run_pytest_safe(test_target=target, timeout=600, cwd=self.root)
                 # 用 exit_code 判断，比字符串匹配更可靠
                 if r.returncode != 0:
                     out = r.stdout or r.stderr or ""
@@ -266,6 +266,20 @@ class AsyncTaskExecutor:
     - verify 步骤走 asyncio.to_thread（run_pytest_safe 是同步 subprocess）
     """
 
+    @staticmethod
+    def _load_tool_timeouts() -> dict[str, float]:
+        """从 tools.json 加载每个 tool 的超时配置。加载失败返回空 dict。"""
+        try:
+            import json
+            tools_path = ROOT / "tools.json"
+            if not tools_path.is_file():
+                return {}
+            data = json.loads(tools_path.read_text(encoding="utf-8"))
+            tools_list: list[dict] = data.get("tools", []) if isinstance(data, dict) else data
+            return {t["name"]: float(t["timeout"]) for t in tools_list if "timeout" in t}
+        except Exception:
+            return {}
+
     def __init__(
         self,
         tool_executor: Callable,
@@ -279,16 +293,19 @@ class AsyncTaskExecutor:
         self._is_async = inspect.iscoroutinefunction(tool_executor)
         self._lock = asyncio.Lock()  # protects _log + error count
         self._break_event = asyncio.Event()
+        # Per-tool timeout overrides loaded from tools.json
+        self._tool_timeouts: dict[str, float] = self._load_tool_timeouts()
 
-    _DEFAULT_TOOL_TIMEOUT = 120  # seconds  — prevents executor deadlock from hung tools
+    _DEFAULT_TOOL_TIMEOUT = 1800  # seconds — 30 min safety net; per-tool timeout read from tools.json
 
     async def _call_tool(self, tool: str, args: dict) -> str:
-        """调用 tool executor，自动区分同步/异步。120s 超时防死锁。"""
+        """调用 tool executor，自动区分同步/异步。优先用 tools.json 中 tool 级 timeout。"""
         try:
+            timeout = self._tool_timeouts.get(tool, self._DEFAULT_TOOL_TIMEOUT)
             coro = self.execute_tool(tool, args) if self._is_async else asyncio.to_thread(self.execute_tool(tool, args))
-            return await asyncio.wait_for(coro, timeout=self._DEFAULT_TOOL_TIMEOUT)
+            return await asyncio.wait_for(coro, timeout=timeout)
         except asyncio.TimeoutError:
-            return f"[错误] 工具 {tool} 执行超时 ({self._DEFAULT_TOOL_TIMEOUT}s)"
+            return f"[错误] 工具 {tool} 执行超时 ({timeout}s)"
 
     async def _run_step(self, step: Step, task: Task) -> None:
         """执行单个 step（含依赖检查、验证门、错误计数）。"""

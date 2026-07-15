@@ -437,7 +437,7 @@ class TaskPlanner:
         if any(k in intent_lower for k in ["提交", "commit", "git add"]):
             return TaskStep(tool="git_add_commit", input={"message": intent}, expected_output="commit")
         if any(k in intent_lower for k in ["运行测试", "测试", "run test"]):
-            return TaskStep(tool="run_test", input={}, expected_output="test results", timeout=120)
+            return TaskStep(tool="run_test", input={}, expected_output="test results", timeout=600)
 
         # 数据类
         if any(k in intent_lower for k in ["查询数据库", "sql", "query db"]):
