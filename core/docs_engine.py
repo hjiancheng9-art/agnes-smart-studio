@@ -76,8 +76,13 @@ def sync_agents_md() -> str:
     return f"AGENTS.md synced ({len(COMMANDS)} commands, {tool_count} tools, {_count_skills()} skills, {_count_core_modules()} modules)"
 
 
-def generate_help_md() -> str:
-    """Generate HELP.md command reference from live COMMANDS registry."""
+def render_help_md() -> str:
+    """Render the HELP.md command reference from the live COMMANDS registry.
+
+    Pure function: no filesystem writes, deterministic output. Category order
+    follows COMMANDS insertion order (get_by_category preserves it). Use this
+    for drift checks; use generate_help_md() to also write the file.
+    """
     from core.commands import COMMANDS, get_by_category
 
     cats = get_by_category()
@@ -93,7 +98,7 @@ def generate_help_md() -> str:
             lines.append(f"| `{name}{arg}` | {desc} |")
         lines.append("")
 
-    # Tool count
+    # Tool count from tools.json
     with open(ROOT / "tools.json", encoding="utf-8") as f:
         tools_data = json.load(f)
     tool_count = len(tools_data.get("tools", tools_data if isinstance(tools_data, list) else []))
@@ -101,9 +106,18 @@ def generate_help_md() -> str:
     lines.append(
         f"*{tool_count} tools, {_count_skills()} skills, {_count_core_modules()} core modules, {_count_tests()} test files*"
     )
+    return "\n".join(lines)
 
-    result = "\n".join(lines)
+
+def generate_help_md() -> str:
+    """Render HELP.md and write it to disk. Returns a short status string."""
+    from core.commands import COMMANDS
+
+    result = render_help_md()
     (ROOT / "HELP.md").write_text(result, encoding="utf-8")
+    with open(ROOT / "tools.json", encoding="utf-8") as f:
+        tools_data = json.load(f)
+    tool_count = len(tools_data.get("tools", tools_data if isinstance(tools_data, list) else []))
     return f"HELP.md generated ({len(COMMANDS)} commands, {tool_count} tools)"
 
 
