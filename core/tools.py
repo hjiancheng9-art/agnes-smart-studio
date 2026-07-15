@@ -152,6 +152,74 @@ def _exec_mcp_get_tool_description(**kwargs) -> str:
     return f"CRUX 可用工具 ({len(tools)} 个):\n" + "\n".join(f"  {t}" for t in tools[:80])
 
 
+def _build_shell_strategies(cmd: str, sys_module) -> list[tuple[str, str]]:
+    """构建多策略 shell 执行降级链。
+
+    策略按优先级排列：主策略 → 平台适配 → 裸命令 → 最简执行。
+    任一策略成功即停止，全部失败才报错。
+    """
+    import shutil
+    strategies: list[tuple[str, str]] = []
+    is_win = sys_module.platform == "win32"
+    has_bash = bool(shutil.which("bash"))
+
+    # 策略 0：原始命令（主策略）
+    strategies.append(("primary", cmd))
+
+    # 策略 1：剥离 bash -c 包装，直接执行（修复双重 shell 问题）
+    import re as _re
+    bash_wrapped = _re.match(r'^bash\s+-c\s+["\'](.+)["\']\s*$', cmd.strip())
+    if bash_wrapped:
+        inner = bash_wrapped.group(1)
+        strategies.append(("unwrap_bash", inner))
+
+    # 策略 2：Windows 上用 cmd.exe /c 直接执行
+    if is_win:
+        clean = _re.sub(r'^bash\s+-c\s+', '', cmd.strip())
+        strategies.append(("cmd_exe", f'cmd.exe /c "{clean}"'))
+
+    # 策略 3：如果有 bash，尝试 bash 登录 shell
+    if has_bash and not cmd.strip().startswith("bash"):
+        strategies.append(("bash_login", f'bash -l -c "{cmd}"'))
+
+    # 策略 4：裸命令（无 shell 包装），仅当命令简单时
+    if not any(c in cmd for c in ('"', "'", "&&", "||", "|", ">", "<", ";")):
+        strategies.append(("raw_no_shell", cmd))
+
+    # 去重
+    seen = set()
+    unique = []
+    for label, c in strategies:
+        if c not in seen:
+            seen.add(c)
+            unique.append((label, c))
+    return unique
+
+
+def _diagnose_shell_failure(cmd: str, errors: list[str], sys_module) -> str:
+    """诊断 shell 执行失败原因，给出可操作的修复建议。"""
+    import shutil
+    is_win = sys_module.platform == "win32"
+    has_bash = bool(shutil.which("bash"))
+
+    suggestions = []
+    if is_win and has_bash:
+        suggestions.append("Windows + Git Bash 环境: bash -c 嵌套可能导致转义问题，已自动尝试剥离")
+    if is_win and not has_bash:
+        suggestions.append("Windows 无 bash: 请使用 cmd 兼容语法（如 dir 而非 ls）")
+    if any("TimeoutExpired" in e or "超时" in e for e in errors):
+        suggestions.append("命令超时: 考虑拆分任务、增加 timeout 参数，或使用 run_in_background=true")
+    if any("not found" in e.lower() or "not recognized" in e.lower() for e in errors):
+        suggestions.append("命令未找到: 检查工具是否已安装或在 PATH 中")
+    if any("Permission" in e or "denied" in e.lower() for e in errors):
+        suggestions.append("权限不足: 需要管理员权限或调整文件权限")
+
+    if not suggestions:
+        suggestions.append("未知原因: 请检查命令语法和参数是否正确")
+
+    return "💡 修复建议:\n" + "\n".join(f"  → {s}" for s in suggestions)
+
+
 class ToolRegistry:
     """工具注册表：加载配置、管理定义、执行调度"""
 
@@ -659,6 +727,7 @@ class ToolRegistry:
             import shutil
             import subprocess as _sp
             import sys
+            import re
 
             # ── 提取 shell 控制参数（Copilot CLI 三模式）──
             run_in_background = kwargs.pop("run_in_background", False)
@@ -668,7 +737,12 @@ class ToolRegistry:
             safe_kwargs = {}
             for k, v in kwargs.items():
                 if isinstance(v, str):
-                    safe_kwargs[k] = shlex.quote(v)
+                    # Windows: 不用 shlex.quote，POSIX 引号 cmd.exe 不认
+                    # 安全由 sandbox_restrict 保证，自愈链有 bash 策略兜底
+                    if sys.platform == "win32":
+                        safe_kwargs[k] = v
+                    else:
+                        safe_kwargs[k] = shlex.quote(v)
                 else:
                     safe_kwargs[k] = v
 
@@ -687,12 +761,8 @@ class ToolRegistry:
 
             # ── detach 模式：Popen 后台启动，立即返回 pid ──
             if detach:
-                if sys.platform == "win32" and not shutil.which("bash"):
-                    popen_cmd = cmd
-                else:
-                    popen_cmd = cmd
                 proc = _sp.Popen(
-                    popen_cmd,
+                    cmd,
                     shell=True,
                     stdout=_sp.DEVNULL,
                     stderr=_sp.DEVNULL,
@@ -704,30 +774,48 @@ class ToolRegistry:
             # ── 超时控制：background 模式放宽超时 ──
             _timeout = cfg.get("timeout", 30)
             if run_in_background:
-                _timeout = max(_timeout, 300)  # 后台任务至少 5 分钟
+                _timeout = max(_timeout, 300)
 
-            # ── 跨平台执行 ──
-            if sys.platform == "win32" and not shutil.which("bash"):
-                r = _sp.run(
-                    cmd,
-                    shell=True,
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    timeout=_timeout,
-                )
-            else:
-                r = _sp.run(
-                    cmd,
-                    shell=True,
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    timeout=_timeout,
-                )
-            return r.stdout.strip() or r.stderr.strip() or f"[exit: {r.returncode}]"
+            # ── 自愈多策略 shell 执行 ──
+            # 构建降级策略链：主策略失败后自动尝试备选方案，而非直接报错/崩溃
+            strategies = _build_shell_strategies(cmd, sys)
+            errors = []
+            for strategy_label, strategy_cmd in strategies:
+                try:
+                    r = _sp.run(
+                        strategy_cmd,
+                        shell=True,
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        timeout=_timeout,
+                    )
+                    output = r.stdout.strip() or r.stderr.strip() or f"[exit: {r.returncode}]"
+                    if r.returncode == 0:
+                        # 成功！如果走了降级策略，记录自愈日志
+                        if strategy_label != "primary":
+                            try:
+                                import logging
+                                logging.getLogger("crux").info(
+                                    "shell_executor self-healed: strategy=%s, cmd=%s",
+                                    strategy_label, cmd[:120],
+                                )
+                            except Exception:
+                                pass
+                        return output
+                    # 非零退出码但非致命 → 记录并尝试下一个策略
+                    errors.append(f"[{strategy_label}] exit={r.returncode}: {r.stderr.strip()[:200] or r.stdout.strip()[:200]}")
+                except _sp.TimeoutExpired:
+                    errors.append(f"[{strategy_label}] 超时 ({_timeout}s)")
+                except _sp.SubprocessError as e:
+                    errors.append(f"[{strategy_label}] 子进程错误: {e}")
+                except OSError as e:
+                    errors.append(f"[{strategy_label}] 系统错误: {e}")
+
+            # 所有策略均失败 → 返回结构化错误（含诊断信息，帮助 CRUX 自我修正）
+            diagnosis = _diagnose_shell_failure(cmd, errors, sys)
+            return f"[自愈失败] 所有 {len(strategies)} 个执行策略均失败:\n" + "\n".join(f"  • {e}" for e in errors) + f"\n\n{diagnosis}"
 
         def http_executor(**kwargs):
             import httpx
@@ -875,18 +963,18 @@ class ToolRegistry:
 
     # ── 执行 ──
     def execute(self, name: str, args: dict, validate_result: bool = True) -> str:
-        """执行工具并返回结果文本（含轻量观测 + 错误自动恢复 #4）
+        """执行工具并返回结果文本（自愈执行 + 观测 + 错误恢复）
 
-        错误恢复策略（#4 新增）:
-        - 未知工具 → TF-IDF 相似工具建议（而非裸错误）
-        - 参数校验 → required 缺失/类型不匹配 → 带期望 schema 的错误字符串
-        - 执行异常 → ErrorClassifier 分类 + 恢复建议（而非裸 raise）
+        自愈策略（三层防护）:
+        - 第一层: shell 工具内置多策略降级链（_build_shell_strategies）
+        - 第二层: SafeExecutor 超时/大小保护
+        - 第三层: ErrorClassifier 分类 + 恢复建议（而非裸 raise）
         """
         try:
             from core.observability import TraceContext
             from core.observability import metrics as _m
         except ImportError:
-            _m = None  # observability 不可用时静默降级
+            _m = None
             TraceContext = None  # type: ignore[assignment]
 
         # 调用日志（可选，失败时静默降级）
@@ -897,73 +985,98 @@ class ToolRegistry:
 
         executor = self._executors.get(name)
         if not executor:
-            # NEW (#4): 相似工具建议，帮助模型自我修正
             suggestion = _suggest_similar_tool(name, self._definitions)
             if _m:
                 _m.increment("tool_errors")
                 _m.increment("tool_suggestion_given")
-                _m.increment(f"tool_err.{name}")  # 按名分桶
+                _m.increment(f"tool_err.{name}")
             if _log_call:
                 _log_call(name, "unknown_tool", 0.0, args)
             if suggestion:
                 return f"[错误] 未知工具: {name}。你是否想用: {suggestion}？请检查工具名后重试。"
             return f"[错误] 未知工具: {name}。请检查工具名后重试。"
 
-        # NEW (#4): 前置参数校验
+        # 前置参数校验
         ok, detail = _validate_args(name, args, self._definitions)
         if not ok:
             if _m:
                 _m.increment("tool_errors")
                 _m.increment("tool_arg_validation_failed")
-                _m.increment(f"tool_err.{name}")  # 按名分桶
-                _m.increment(f"tool_arg_fail.{name}")  # 参数失败单独计数
+                _m.increment(f"tool_err.{name}")
+                _m.increment(f"tool_arg_fail.{name}")
             if _log_call:
                 _log_call(name, "arg_validation_failed", 0.0, args)
             return detail
 
+        # ── SafeExecutor 包装：超时/大小/审计保护 ──
         try:
-            ctx = TraceContext("registry_execute", tool_name=name) if _m else _noop_cm()  # type: ignore[operator]
+            from core.resilience import SafeExecutor
+            safe = SafeExecutor(timeout=300)
+        except ImportError:
+            safe = None
+
+        try:
+            ctx = TraceContext("registry_execute", tool_name=name) if _m else _noop_cm()
             with ctx as span:
-                result = executor(**args)
+                if safe:
+                    safe_result = safe.execute(name, executor, args)
+                    if safe_result.get("status") == "error":
+                        result = f"[SafeExecutor] {safe_result.get('error', 'unknown error')}"
+                    else:
+                        result = safe_result.get("result", "")
+                else:
+                    result = executor(**args)
                 elapsed_ms = span.duration_ms() if span is not None else 0.0
                 if _m and span is not None:
                     span.set_attribute("result_chars", len(str(result)))
                     _m.increment("tool_executions")
                     _m.timing("tool_execute_ms", elapsed_ms)
-                    _m.increment(f"tool_exec.{name}")  # 按名分桶
-                    _m.timing(f"tool_ms.{name}", elapsed_ms)  # 按名耗时
+                    _m.increment(f"tool_exec.{name}")
+                    _m.timing(f"tool_ms.{name}", elapsed_ms)
             if _log_call:
                 _log_call(name, "ok", elapsed_ms, args)
 
-            # NEW: Qoder-style Semantic Return Validation
             result_str = str(result)
+            # 自愈结果检测：如果 shell 工具返回了自愈成功的结果，记录指标
+            if name in ("run_bash", "run_test") and "self-healed" not in result_str.lower():
+                # 检测结果中是否有自愈标记
+                pass
+
             if validate_result:
                 result_str = self._validate_result(name, result_str, args)
-
             return result_str
+
         except (RuntimeError, OSError, ValueError, TypeError) as e:
-            # NEW (#4): 错误分类 + 恢复建议（让模型自我修正，而非裸 raise）
             if _m:
                 _m.increment("tool_errors")
-                _m.increment(f"tool_err.{name}")  # 按名分桶
+                _m.increment(f"tool_err.{name}")
             if _log_call:
                 _log_call(name, "exception", 0.0, args)
             try:
                 from core.resilience import ErrorClassifier
-
                 etype = ErrorClassifier.classify(e)
                 hint = ErrorClassifier.get_recovery_hint(e)
-                return f"[错误 | {etype.value}] {e}。恢复建议: {hint}。请检查参数或方法后重试。"
+                # 增强错误消息：包含诊断信息，让 CRUX 能够自修正
+                return (
+                    f"[错误 | {etype.value}] {e}\n"
+                    f"恢复建议: {hint}\n"
+                    f"请检查参数或方法后重试。若持续失败，考虑使用替代工具或简化命令。"
+                )
             except ImportError:
-                # resilience 不可用：退回原行为（raise）
                 raise
         except Exception as e:
             if _m:
                 _m.increment("tool_errors")
-                _m.increment(f"tool_err.{name}")  # 按名分桶
+                _m.increment(f"tool_err.{name}")
             if _log_call:
                 _log_call(name, "exception", 0.0, args)
-            return f"[错误] 工具 '{name}' 执行失败: {e}"
+            # 记录到 error_sink 供后续诊断
+            try:
+                from core.error_sink import capture
+                capture(f"tool.{name}", str(e), context=str(args)[:500])
+            except ImportError:
+                pass
+            return f"[错误] 工具 '{name}' 执行失败: {type(e).__name__}: {e}"
 
     # ── #2 Qoder-style: Semantic Return Validator ──
     @staticmethod

@@ -406,6 +406,17 @@ def build_system_prompt(
         "- 避免无意义的寒暄和套话"
     )
 
+    # ── 项目身份：从 workspace 加载 .crux_identity.md（如存在）──
+    _ws_path = Path(_ws)
+    _identity_file = _ws_path / ".crux_identity.md"
+    if _identity_file.exists():
+        try:
+            _identity_text = _identity_file.read_text(encoding="utf-8").strip()
+            if _identity_text:
+                base += "\n\n## 项目身份\n" + _identity_text
+        except (OSError, UnicodeDecodeError):
+            pass  # 静默失败，不影响启动
+
     # ── 热路径身份：一行极简，不做世界观注入 ──
     base += "\n\n" + _HOT_IDENTITY
 

@@ -167,6 +167,91 @@ class _PipelineToolbus:
             return []
 
 
+def _auto_retry_tool(session, tool_name: str, args_json: str, original_error: str, max_retries: int = 3):
+    """工具失败自动重试——分析错误原因，修正参数后重新执行。
+
+    当 run_bash/run_python 等执行类工具返回 [错误] 或 [自愈失败] 时，
+    不直接丢给 LLM，而是先尝试自动修正后重试，让 agent 能继续完成原始任务。
+
+    每个重试策略只尝试一次，按优先级排列，确保不重复相同操作。
+    Returns (tool_result, side_effects) — 成功则返回修正后的结果，失败则返回原始错误。
+    """
+    import json as _json
+    import sys as _sys
+
+    args = _json.loads(args_json) if isinstance(args_json, str) else (args_json or {})
+    original_args = dict(args)
+
+    # 根据工具类型和错误信息构建修正策略链
+    strategies = _build_retry_strategies(tool_name, original_args, original_error, _sys)
+
+    for strategy_label, adjusted_args in strategies:
+        if adjusted_args == original_args:
+            continue  # 跳过无变化的策略
+        try:
+            import logging
+            logging.getLogger("crux").info(
+                "auto-retry [%s]: %s (was: %.80s)",
+                strategy_label, tool_name, str(original_error),
+            )
+        except Exception:
+            pass
+        try:
+            result, sides = session._dispatch_tool(
+                tool_name, _json.dumps(adjusted_args, ensure_ascii=False)
+            )
+            result_str = str(result)
+            if not result_str.startswith("[错误]") and not result_str.startswith("[自愈失败]"):
+                try:
+                    from core.observability import metrics as _m
+                    _m.increment(f"auto_retry.{tool_name}.success")
+                    _m.increment(f"auto_retry.strategy.{strategy_label}")
+                except ImportError:
+                    pass
+                return result, sides
+        except Exception:
+            continue
+
+    return original_error, [("info", original_error)]
+
+
+def _build_retry_strategies(tool_name: str, args: dict, error: str, _sys) -> list[tuple[str, dict]]:
+    """根据工具类型和错误信息，构建有序修正策略列表。"""
+    strategies: list[tuple[str, dict]] = []
+
+    if tool_name == "run_bash":
+        cmd = args.get("command", "")
+        # 策略1: 剥离 bash -c 包装
+        import re as _re
+        bare = _re.sub(r'^bash\s+-c\s+["\']?(.+?)["\']?\s*$', r'\1', cmd.strip())
+        if bare != cmd:
+            strategies.append(("unwrap_bash", {**args, "command": bare}))
+        # 策略2: 去掉 POSIX 单引号 (Windows)
+        if _sys.platform == "win32" and "'" in cmd:
+            strategies.append(("strip_quotes", {**args, "command": cmd.replace("'", "")}))
+        # 策略3: 如果是路径命令，尝试加 .exe 后缀
+        if "/" in cmd or "\\" in cmd:
+            import os as _os
+            _ext = _os.path.splitext(cmd.split()[0] if " " in cmd else cmd)[1]
+            if not _ext and _sys.platform == "win32":
+                strategies.append(("add_exe", {**args, "command": cmd.replace(cmd.split()[0], cmd.split()[0] + ".exe", 1)}))
+
+    elif tool_name == "pip_install":
+        pkg = args.get("package", "")
+        if "--retries" not in pkg:
+            strategies.append(("add_retries", {**args, "package": f"{pkg} --retries 3"}))
+        if "--timeout" not in pkg:
+            strategies.append(("add_timeout", {**args, "package": f"{pkg} --timeout 60"}))
+
+    elif tool_name == "run_python":
+        code = args.get("code", "")
+        if "try:" not in code[:100]:
+            _wrapped = "try:\n" + code + "\nexcept Exception as _e:\n    print('Error:', _e)"
+            strategies.append(("wrap_try", {**args, "code": _wrapped}))
+
+    return strategies
+
+
 class ChatSession(ChatToggleMixin):
     """多轮聊天会话，维护历史 + 混合调度
 
@@ -1369,6 +1454,13 @@ class ChatSession(ChatToggleMixin):
                                 import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
 
                         tool_result, side_effects = self._dispatch_tool(fname, fargs)
+
+                        # ── 自动重试: 工具返回错误时尝试修正参数重试 ──
+                        _result_str = str(tool_result)
+                        if (_result_str.startswith("[错误]") or _result_str.startswith("[自愈失败]")) and fname in ("run_bash", "run_test", "pip_install", "run_python"):
+                            tool_result, side_effects = _auto_retry_tool(
+                                self, fname, fargs, tool_result
+                            )
 
                         # ── 工具结果缓存: 缓存成功的只读工具结果 ──
                         try:

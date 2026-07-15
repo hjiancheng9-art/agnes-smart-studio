@@ -27,6 +27,29 @@ logger = logging.getLogger("crux.provider")
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def _atomic_write_json(path: Path, data: Any, indent: int = 2) -> None:
+    """原子写入 JSON 文件（temp + os.replace），防止并发写入导致损坏。
+
+    写入流程: 先写临时文件 → os.replace 原子替换目标文件。
+    os.replace 在同一卷上是原子的，即使中途崩溃也不会留下半截文件。
+    """
+    import tempfile
+
+    tmp_fd, tmp_name = tempfile.mkstemp(
+        suffix=".tmp", prefix=".models_", dir=str(path.parent)
+    )
+    try:
+        with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=indent, ensure_ascii=False)
+        os.replace(tmp_name, str(path))
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+
+
 __all__ = [
     "ROOT",
     "ModelInfo",
@@ -550,20 +573,18 @@ class ProviderManager:
                 # 自动修正 models.json，下次不再报警
                 try:
                     cfg["active"] = active
-                    with open(self.config_path, "w", encoding="utf-8") as f:
-                        json.dump(cfg, f, indent=2, ensure_ascii=False)
+                    _atomic_write_json(self.config_path, cfg)
                 except (OSError, json.JSONDecodeError):
                     pass
         self.state.active = active
 
     def save_active(self) -> str:
-        """Persist current active provider to models.json."""
+        """Persist current active provider to models.json (atomic write)."""
         try:
             with open(self.config_path, encoding="utf-8") as f:
                 cfg = json.load(f)
             cfg["active"] = self.state.active
-            with open(self.config_path, "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=2, ensure_ascii=False)
+            _atomic_write_json(self.config_path, cfg)
             return self.state.active
         except (OSError, json.JSONDecodeError):
             return self.state.active

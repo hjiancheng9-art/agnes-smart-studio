@@ -1579,7 +1579,14 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
         from core.run_summary import save_run
 
         quality = assess_quality(result)
-        result.update(quality)
+        # QualityGateResult 是 dataclass，不可直接 update，需转 dict
+        try:
+            from dataclasses import asdict
+            result.update(asdict(quality))
+        except (TypeError, AttributeError):
+            # 降级：尝试手动提取字段
+            if hasattr(quality, '__dict__'):
+                result.update(quality.__dict__)
         policy = auto_recover(result)
         result.update({"policy_action": policy["action"], "policy_reason": policy["reason"]})
         retry = auto_retry_decision(result)

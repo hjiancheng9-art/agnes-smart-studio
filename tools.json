@@ -148,7 +148,7 @@
       "name": "run_bash",
       "type": "shell",
       "description": "执行任意 shell/bash 命令并返回输出。三模式：sync(默认,30s超时)、background(后台运行,完成后通知)、detach(完全分离,会话关闭后仍存活)。用于构建/部署/服务启动等。⚠ 命令会经过沙箱验证。借鉴: Copilot CLI powershell 三模式设计。",
-      "command": "bash -c \"{command}\"",
+      "command": "{command}",
       "parameters": {
         "command": {
           "type": "string",
