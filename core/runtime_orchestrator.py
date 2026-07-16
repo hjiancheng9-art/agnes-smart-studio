@@ -85,6 +85,36 @@ class OrchestrationResult:
     errors: list[OrchestrationError] = field(default_factory=list)
     plan_preview: list[dict] = field(default_factory=list)
     raw_result: dict = field(default_factory=dict)
+    error: str = ""
+
+    def to_text(self) -> str:
+        """Stable human-readable output for LLM tool responses."""
+        lines = [
+            f"Verdict: {self.verdict}",
+            f"Goal: {self.goal}",
+        ]
+        if self.grade:
+            lines.append(f"Grade: {self.grade}")
+        if self.dna:
+            lines.append(f"DNA: {self.dna}")
+        if self.steps_executed:
+            lines.append(f"Steps: {self.steps_executed} executed, {self.steps_failed} failed")
+        if self.cost_estimate_usd:
+            lines.append(f"Cost: ${self.cost_estimate_usd:.4f}")
+        if self.artifacts:
+            lines.append("Artifacts: " + ", ".join(self.artifacts))
+        if self.errors:
+            lines.append("Errors:")
+            for e in self.errors[:5]:
+                lines.append(f"  - [{e.phase}] {e.message}")
+        if self.error:
+            lines.append(f"Error: {self.error}")
+        if self.trace_id:
+            lines.append(f"Trace ID: {self.trace_id}")
+        return "\n".join(lines)
+
+    def __str__(self) -> str:
+        return self.to_text()
 
 
 @dataclass
@@ -173,10 +203,18 @@ def classify_intent(goal: str) -> tuple:  # returns (TaskComplexity, DNAProfile)
 # RuntimeOrchestrator
 # ═══════════════════════════════════════════════════════════════
 
-class _StreamStop(Exception):
-    """内部: 携带结果结束流式生成器."""
-    def __init__(self, result: OrchestrationResult):
-        self.result = result
+def drain_stream(stream) -> OrchestrationResult:
+    """Consume a generator and return its StopIteration value."""
+    while True:
+        try:
+            next(stream)
+        except StopIteration as stop:
+            result = stop.value
+            if not isinstance(result, OrchestrationResult):
+                raise RuntimeError(
+                    "execute_stream() completed without returning an OrchestrationResult"
+                )
+            return result
 
 
 class RuntimeOrchestrator:
@@ -224,7 +262,7 @@ class RuntimeOrchestrator:
         if not self._semaphore.acquire(timeout=30):
             yield self._emit(p, "error", "编排器并发已满")
             result.verdict = "fail"
-            raise _StreamStop(result)
+            return result
         try:
             with self._lock:
                 self._active_runs[trace_id] = {"goal": goal, "started_at": started_at, "grade": grade.name}
@@ -242,7 +280,7 @@ class RuntimeOrchestrator:
 
             if mode == OrchestrationMode.DRY_RUN:
                 yield from self._dry_run_phase(goal, grade, dna, p, result)
-                raise _StreamStop(result)
+                return result
 
             # ── Context ──
             yield from self._run_phase(p, "context", mode)
@@ -278,7 +316,7 @@ class RuntimeOrchestrator:
         except KeyboardInterrupt:
             result.verdict = "cancelled"
             yield self._emit(p, "warn", "用户中断")
-            raise _StreamStop(result)
+            return result
         except _StreamStop:
             raise
         except Exception as e:
@@ -286,7 +324,7 @@ class RuntimeOrchestrator:
             err = OrchestrationError(phase=p.phase, code=type(e).__name__, message=str(e)[:200])
             result.errors.append(err)
             yield self._emit(p, "error", str(e)[:120])
-            raise _StreamStop(result)
+            return result
         finally:
             with self._lock:
                 self._active_runs.pop(trace_id, None)
@@ -710,11 +748,15 @@ def get_orchestrator(**kwargs) -> RuntimeOrchestrator:
 
 def execute(goal: str, **kwargs) -> OrchestrationResult:
     try:
-        for _ in get_orchestrator().execute_stream(goal, **kwargs):
-            pass
-    except _StreamStop as e:
-        return e.result
-    return OrchestrationResult(goal=goal, verdict="fail")
+        stream = get_orchestrator().execute_stream(goal, **kwargs)
+        return drain_stream(stream)
+    except Exception:
+        logger.exception("Runtime orchestration failed for goal=%r", goal)
+        return OrchestrationResult(
+            goal=goal,
+            verdict="fail",
+            error="Runtime orchestration failed",
+        )
 
 def execute_stream(goal: str, **kwargs):
     return get_orchestrator().execute_stream(goal, **kwargs)
