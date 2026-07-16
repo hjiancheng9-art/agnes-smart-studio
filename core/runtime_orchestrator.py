@@ -315,7 +315,7 @@ class RuntimeOrchestrator:
                 try: self.callbacks.on_complete(result)
                 except Exception: pass
 
-            yield self._emit(p, "info", f"CLOSE → {result.verdict} | {result.total_duration_ms:.0f}ms | \${result.cost_estimate_usd:.4f}")
+            yield self._emit(p, "info", f"CLOSE → {result.verdict} | {result.total_duration_ms:.0f}ms | ${result.cost_estimate_usd:.4f}")
 
         except KeyboardInterrupt:
             result.verdict = "cancelled"
@@ -734,7 +734,7 @@ class OrchestrationMixin:
     def _orch_on_complete(self, result: OrchestrationResult) -> None:
         if hasattr(self, 'message_pane'):
             summary = (f"[编排完成] {result.verdict.upper()} | {result.grade}级·{result.dna} | "
-                       f"{result.steps_executed}步骤 | {result.total_duration_ms:.0f}ms | \${result.cost_estimate_usd:.4f}")
+                       f"{result.steps_executed}步骤 | {result.total_duration_ms:.0f}ms | ${result.cost_estimate_usd:.4f}")
             self.message_pane.append_message("system", summary)
 
     def orchestrate(self, goal: str, **kwargs) -> OrchestrationResult:
