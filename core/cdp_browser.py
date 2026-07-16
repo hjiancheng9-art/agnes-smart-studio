@@ -15,7 +15,6 @@ import contextlib
 import json
 import logging
 import os
-import signal
 import socket
 import subprocess
 import threading
@@ -101,9 +100,9 @@ def _dismiss_notifications(page):
                 if btn.is_visible(timeout=300):
                     btn.click(timeout=500)
             except Exception:
-                pass
+                logger.debug("Exception in cdp_browser", exc_info=True)
     except Exception:
-        pass
+        logger.debug("Exception in cdp_browser", exc_info=True)
 
 
 def _fix_scroll(page):
@@ -145,7 +144,7 @@ def _auto_reconnect():
         if _global_state["pw"]:
             _global_state["pw"].stop()
     except Exception:
-        pass
+        logger.debug("Exception in cdp_browser", exc_info=True)
     _global_state["pw"] = None
     _global_state["browser"] = None
     _global_state["refcount"] = 0
@@ -479,7 +478,7 @@ def _wait_chatgpt_done(page, max_wait=180, stable_checks=4, poll_interval=0.7):
                if not generating and stable_count >= stable_checks:
                    return True
        except Exception:
-           pass
+           logger.debug("Exception in cdp_browser", exc_info=True)
        time.sleep(poll_interval)
    return True  # 超时不阻塞，已有部分内容更好
 
@@ -497,7 +496,7 @@ def ask_chatgpt(question: str, wait: bool = True) -> str:
    """
    with cdp_session() as browser:
        # [Bugfix v6.1] 连接健康检测 + 自动重连
-       ok, reason = _check_cdp_health(browser)
+       ok, _reason = _check_cdp_health(browser)
        if not ok:
            browser = _auto_reconnect()
 
@@ -664,7 +663,7 @@ def cdp_cleanup():
            try:
                _global_state["pw"].stop()
            except Exception:
-               pass
+               logger.debug("Exception in cdp_browser", exc_info=True)
        _global_state["pw"] = None
        _global_state["browser"] = None
        _global_state["refcount"] = 0
@@ -700,7 +699,7 @@ def fetch_reply_already_generated() -> str:
        try:
            page.wait_for_load_state("domcontentloaded", timeout=10_000)
        except Exception:
-           pass
+           logger.debug("Exception in cdp_browser", exc_info=True)
        count = _get_assistant_count(page)
        if count == 0:
            return "[CDP ChatGPT] 未找到 assistant 消息，请确认 ChatGPT 页面有对话记录"

@@ -31,6 +31,10 @@ from .intelligence_policy import (
 )
 from .intelligence_trace import TraceRecord, get_trace_store
 from .intelligence_trace import TraceStep as TraceStepRecord
+import logging
+
+logger = logging.getLogger("crux").getChild("deliberate_workflow")
+
 
 
 @dataclass
@@ -138,7 +142,7 @@ class DeliberateWorkflow:
                         trace.ended_at = time.time()
                         get_trace_store().record(trace)
                     except Exception:
-                        import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                        logging.getLogger('crux').debug('silent except', exc_info=True)
                     return result
             except Exception:
                 pass  # Runtime 失败则回退到传统流程
@@ -250,7 +254,7 @@ class DeliberateWorkflow:
                 summary = self.policy_router.summary(request, context)
                 signal_scores = summary.get("signal_scores")
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                logging.getLogger('crux').debug('silent except', exc_info=True)
 
             trace = TraceRecord(
                 run_id=result.goal_id or str(uuid.uuid4())[:12],
@@ -274,7 +278,7 @@ class DeliberateWorkflow:
             trace.ended_at = time.time()
             get_trace_store().record(trace)
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            logging.getLogger('crux').debug('silent except', exc_info=True)
 
         return result
 
@@ -318,7 +322,7 @@ class DeliberateWorkflow:
                     parts.append(f"代码搜索: {len(search_result)} chars")
                     gathered["search_result"] = search_result[:1000]
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                logging.getLogger('crux').debug('silent except', exc_info=True)
 
         gathered["summary"] = "; ".join(parts) if parts else "基础上下文"
         return gathered
@@ -382,7 +386,7 @@ class DeliberateWorkflow:
             if isinstance(goal_response, dict):
                 result["goal_id"] = goal_response.get("goal_id", "")
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            logging.getLogger('crux').debug('silent except', exc_info=True)
 
         try:
             plan_response = await self.toolbus.call("execute_plan", {

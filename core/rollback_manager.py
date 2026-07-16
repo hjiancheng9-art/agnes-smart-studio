@@ -239,7 +239,7 @@ class GradualRelease:
                 data = json.loads(self.config_path.read_text())
                 return [PatchExperiment(**d) for d in data]
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            logger.debug("Exception in rollback_manager", exc_info=True)
         return []
 
     def _save(self) -> None:

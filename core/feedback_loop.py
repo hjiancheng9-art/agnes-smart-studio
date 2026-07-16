@@ -248,7 +248,7 @@ class FeedbackLoop:
                 if r.returncode == 0:
                     corrections.append("ruff check --fix applied")
             except Exception:
-                pass
+                logger.debug("Exception in feedback_loop", exc_info=True)
 
         # Run self_heal for known issues
         if "[错误]" in output or "Error:" in output:
@@ -264,7 +264,7 @@ class FeedbackLoop:
                             f"self_heal: {len(auto_fixable)} issues auto-fixed"
                         )
             except Exception:
-                pass
+                logger.debug("Exception in feedback_loop", exc_info=True)
 
         return corrections
 

@@ -8,9 +8,56 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 from typing import Any
 
 _log = logging.getLogger("crux.mcp_utils")
+
+
+def _kill_process_tree(proc) -> None:
+    """Kill a process and ALL of its descendants.
+
+    A plain proc.kill() only terminates the direct child. On Windows a
+    grandchild that inherited the stdout/stderr pipes keeps them open, so
+    communicate() blocks long past the timeout -- the root cause of the
+    "timeout freezes everything" hang. Killing the whole tree closes the
+    pipes immediately and frees the caller on time.
+    """
+    import contextlib as _ctx
+
+    try:
+        if hasattr(proc, "poll"):
+            if proc.poll() is not None:
+                return
+        elif getattr(proc, "returncode", None) is not None:
+            return
+    except Exception:
+        logger.debug("Exception in _mcp_utils", exc_info=True)
+    pid = getattr(proc, "pid", None)
+    if pid is None:
+        with _ctx.suppress(Exception):
+            proc.kill()
+        return
+    try:
+        if sys.platform == "win32":
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(pid)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        else:
+            import signal as _signal
+
+            with _ctx.suppress(ProcessLookupError, PermissionError, OSError):
+                os.killpg(os.getpgid(pid), _signal.SIGKILL)
+    except (subprocess.SubprocessError, OSError, ValueError):
+        with _ctx.suppress(Exception):
+            proc.kill()
+    finally:
+        with _ctx.suppress(Exception):
+            proc.kill()
 
 
 def _safe_decode(raw: bytes, source: str = "subprocess") -> str:
@@ -118,36 +165,86 @@ def run_subprocess(
     extra_kwargs.pop("errors", None)
 
     def _sync_worker():
-        return subprocess.run(
-            cmd,
-            capture_output=capture_output,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            input=input_data,
+        """Run the command via Popen and kill the WHOLE process tree on timeout.
+
+        subprocess.run(timeout=...) only kills the direct child, so a grandchild
+        that inherited the pipes can block communicate() far past the timeout.
+        We manage the process directly and call _kill_process_tree so the caller
+        is always freed within ~timeout seconds.
+        """
+        popen_kwargs = dict(
+            stdout=subprocess.PIPE if capture_output else None,
+            stderr=subprocess.PIPE if capture_output else None,
+            stdin=subprocess.PIPE if input_data is not None else stdin,
             env=env,
             cwd=cwd,
             shell=shell,
-            check=check,
-            stdin=stdin,
             startupinfo=startupinfo,
-            **extra_kwargs,
         )
+        # New process group / session so the whole tree can be killed at once.
+        if sys.platform == "win32":
+            popen_kwargs["creationflags"] = (
+                popen_kwargs.get("creationflags", 0)
+                | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            )
+        else:
+            popen_kwargs["start_new_session"] = True
+        popen_kwargs.update(extra_kwargs)
+
+        proc = subprocess.Popen(cmd, **popen_kwargs)
+        stdin_bytes = (
+            input_data.encode("utf-8", errors="replace")
+            if isinstance(input_data, str)
+            else input_data
+        )
+        try:
+            out_b, err_b = proc.communicate(input=stdin_bytes, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            _kill_process_tree(proc)
+            # Reap without blocking on the (now dead) pipes indefinitely.
+            try:
+                out_b, err_b = proc.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                out_b, err_b = b"", b""
+            raise subprocess.TimeoutExpired(cmd, timeout, output=out_b, stderr=err_b) from None
+
+        stdout = _safe_decode(out_b, "run_subprocess.stdout") if out_b else ""
+        stderr = _safe_decode(err_b, "run_subprocess.stderr") if err_b else ""
+        completed = subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
+        if check and proc.returncode:
+            raise subprocess.CalledProcessError(proc.returncode, cmd, stdout, stderr)
+        return completed
 
     try:
         loop = asyncio.get_running_loop()
-        if loop.is_running():
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(_sync_worker)
-                try:
-                    return future.result(timeout=timeout + 30)
-                except concurrent.futures.TimeoutError:
-                    raise subprocess.TimeoutExpired(cmd, timeout) from None
+        running = loop.is_running()
     except RuntimeError:
-        pass
+        running = False
+
+    if running:
+        import concurrent.futures
+
+        # NOTE: do NOT use `with ThreadPoolExecutor()` here. Its __exit__ calls
+        # shutdown(wait=True), which would block the event loop until a stuck
+        # worker finishes -- exactly the freeze we are fixing. Instead we submit,
+        # wait with a hard cap, and on timeout kill the tree and let the daemon
+        # pool die on its own without blocking the caller.
+        pool = concurrent.futures.ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="run_subprocess"
+        )
+        future = pool.submit(_sync_worker)
+        try:
+            # Small grace over the child timeout for kill/reap bookkeeping.
+            result = future.result(timeout=timeout + 15)
+            pool.shutdown(wait=False)
+            return result
+        except concurrent.futures.TimeoutError:
+            # Worker is wedged; abandon it (daemon threads won't block exit).
+            pool.shutdown(wait=False)
+            raise subprocess.TimeoutExpired(cmd, timeout) from None
+        except subprocess.TimeoutExpired:
+            pool.shutdown(wait=False)
+            raise
 
     return _sync_worker()
 
@@ -181,6 +278,12 @@ async def run_subprocess_async(
     stdin_arg = asyncio.subprocess.PIPE if input_data else None
     stdin_data = input_data.encode("utf-8", errors="replace") if input_data else None
 
+    _extra: dict = {}
+    if sys.platform == "win32":
+        _extra["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    else:
+        _extra["start_new_session"] = True
+
     proc = await asyncio.subprocess.create_subprocess_exec(
         *cmd,
         stdin=stdin_arg,
@@ -188,12 +291,18 @@ async def run_subprocess_async(
         stderr=asyncio.subprocess.PIPE,
         cwd=cwd,
         env=env,
+        **_extra,
     )
 
     try:
         stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(input=stdin_data), timeout=timeout)
     except asyncio.TimeoutError:
-        proc.kill()
+        import contextlib as _ctx
+
+        with _ctx.suppress(Exception):
+            await asyncio.get_running_loop().run_in_executor(None, _kill_process_tree, proc)
+        with _ctx.suppress(Exception):
+            await asyncio.wait_for(proc.wait(), timeout=5)
         raise subprocess.TimeoutExpired(cmd, timeout) from None
 
     stdout = _safe_decode(stdout_bytes, "run_subprocess_async.stdout") if stdout_bytes else ""

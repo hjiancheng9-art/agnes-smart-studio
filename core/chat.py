@@ -20,7 +20,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 import uuid
 from collections.abc import Callable
 from pathlib import Path
@@ -47,7 +46,6 @@ from core.chat_tool_helpers import normalize_tool_args as _normalize_tool_args
 from core.chat_vision import _vision_fallback
 from core.client import CruxClient
 from core.config import get_crux_vision_model
-from core.intelligence_hook import IntelligenceHook  # Intelligence Pipeline 集成
 from core.observability import TraceContext, metrics
 from core.provider import (
     get_provider_name,
@@ -56,7 +54,6 @@ from core.provider import (
 )
 from core.skills import SkillManager, get_manager
 from core.tools import AGENT_SYSTEM_PROMPT, ToolRegistry, get_registry
-from core.vision_context import VisionContext
 from engines.text_to_image import TextToImageEngine
 from engines.video import VideoEngine
 from utils.unicode_safety import InvalidUnicodePayloadError
@@ -155,7 +152,9 @@ class _PipelineToolbus:
 
     async def call(self, tool_name: str, args: dict) -> str:
         """异步调用工具（兼容 DeliberateWorkflow 的 await 调用）。"""
-        import asyncio, json
+        import asyncio
+        import json
+
         result, _ = await asyncio.to_thread(self._dispatch, tool_name, json.dumps(args))
         return str(result)
 
@@ -190,20 +189,22 @@ def _auto_retry_tool(session, tool_name: str, args_json: str, original_error: st
             continue  # 跳过无变化的策略
         try:
             import logging
+
             logging.getLogger("crux").info(
                 "auto-retry [%s]: %s (was: %.80s)",
-                strategy_label, tool_name, str(original_error),
+                strategy_label,
+                tool_name,
+                str(original_error),
             )
         except Exception:
-            pass
+            logger.debug("Exception in chat", exc_info=True)
         try:
-            result, sides = session._dispatch_tool(
-                tool_name, _json.dumps(adjusted_args, ensure_ascii=False)
-            )
+            result, sides = session._dispatch_tool(tool_name, _json.dumps(adjusted_args, ensure_ascii=False))
             result_str = str(result)
             if not result_str.startswith("[错误]") and not result_str.startswith("[自愈失败]"):
                 try:
                     from core.observability import metrics as _m
+
                     _m.increment(f"auto_retry.{tool_name}.success")
                     _m.increment(f"auto_retry.strategy.{strategy_label}")
                 except ImportError:
@@ -223,7 +224,8 @@ def _build_retry_strategies(tool_name: str, args: dict, error: str, _sys) -> lis
         cmd = args.get("command", "")
         # 策略1: 剥离 bash -c 包装
         import re as _re
-        bare = _re.sub(r'^bash\s+-c\s+["\']?(.+?)["\']?\s*$', r'\1', cmd.strip())
+
+        bare = _re.sub(r'^bash\s+-c\s+["\']?(.+?)["\']?\s*$', r"\1", cmd.strip())
         if bare != cmd:
             strategies.append(("unwrap_bash", {**args, "command": bare}))
         # 策略2: 去掉 POSIX 单引号 (Windows)
@@ -233,16 +235,16 @@ def _build_retry_strategies(tool_name: str, args: dict, error: str, _sys) -> lis
         if _sys.platform == "win32":
             _cmd_name = cmd.strip().split()[0].lower() if cmd.strip() else ""
             _POSIX_MAP = {
-                "head": lambda c: _re.sub(r'^head\s+', 'more /p ', c) if c.startswith("head") else c,
-                "tail": lambda c: _re.sub(r'^tail\s+', 'more +99999 ', c) if c.startswith("tail") else c,
-                "grep": lambda c: _re.sub(r'^grep\s+', 'findstr ', c) if c.startswith("grep") else c,
-                "cat": lambda c: _re.sub(r'^cat\s+', 'type ', c) if c.startswith("cat") else c,
-                "ls": lambda c: _re.sub(r'^ls\b', 'dir', c) if c.startswith("ls") else c,
-                "cp": lambda c: _re.sub(r'^cp\s+', 'copy ', c) if c.startswith("cp") else c,
-                "mv": lambda c: _re.sub(r'^mv\s+', 'move ', c) if c.startswith("mv") else c,
-                "rm": lambda c: _re.sub(r'^rm\s+', 'del /f ', c) if c.startswith("rm") else c,
-                "touch": lambda c: _re.sub(r'^touch\s+', 'type nul > ', c) if c.startswith("touch") else c,
-                "wc": lambda c: _re.sub(r'^wc\s+(.+)', r'find /c "\0" \1', c) if c.startswith("wc") else c,
+                "head": lambda c: _re.sub(r"^head\s+", "more /p ", c) if c.startswith("head") else c,
+                "tail": lambda c: _re.sub(r"^tail\s+", "more +99999 ", c) if c.startswith("tail") else c,
+                "grep": lambda c: _re.sub(r"^grep\s+", "findstr ", c) if c.startswith("grep") else c,
+                "cat": lambda c: _re.sub(r"^cat\s+", "type ", c) if c.startswith("cat") else c,
+                "ls": lambda c: _re.sub(r"^ls\b", "dir", c) if c.startswith("ls") else c,
+                "cp": lambda c: _re.sub(r"^cp\s+", "copy ", c) if c.startswith("cp") else c,
+                "mv": lambda c: _re.sub(r"^mv\s+", "move ", c) if c.startswith("mv") else c,
+                "rm": lambda c: _re.sub(r"^rm\s+", "del /f ", c) if c.startswith("rm") else c,
+                "touch": lambda c: _re.sub(r"^touch\s+", "type nul > ", c) if c.startswith("touch") else c,
+                "wc": lambda c: _re.sub(r"^wc\s+(.+)", r'find /c "\0" \1', c) if c.startswith("wc") else c,
             }
             if _cmd_name in _POSIX_MAP:
                 try:
@@ -250,13 +252,16 @@ def _build_retry_strategies(tool_name: str, args: dict, error: str, _sys) -> lis
                     if converted != cmd:
                         strategies.append(("posix_to_win", {**args, "command": converted}))
                 except Exception:
-                    pass
+                    logger.debug("Exception in chat", exc_info=True)
         # 策略4: 如果是路径命令，尝试加 .exe 后缀
         if "/" in cmd or "\\" in cmd:
             import os as _os
+
             _ext = _os.path.splitext(cmd.split()[0] if " " in cmd else cmd)[1]
             if not _ext and _sys.platform == "win32":
-                strategies.append(("add_exe", {**args, "command": cmd.replace(cmd.split()[0], cmd.split()[0] + ".exe", 1)}))
+                strategies.append(
+                    ("add_exe", {**args, "command": cmd.replace(cmd.split()[0], cmd.split()[0] + ".exe", 1)})
+                )
 
     elif tool_name == "pip_install":
         pkg = args.get("package", "")
@@ -330,8 +335,9 @@ class ChatSession(ChatToggleMixin):
     def _record_trace_failure(self, error: str, step_name: str = "tool_execution", mode: str = "") -> None:
         """Record a failure trace for the adaptive learner (best-effort, never raises)."""
         try:
-            from core.intelligence_trace import TraceRecord, TraceStep, get_trace_store
             import time
+
+            from core.intelligence_trace import TraceRecord, TraceStep, get_trace_store
 
             trace = TraceRecord(
                 user_request=getattr(self, "_last_user_text", "")[:500],
@@ -349,6 +355,7 @@ class ChatSession(ChatToggleMixin):
         """Provide JSON Schema for a tool, used by the validator."""
         try:
             from core.tool_router import get_tool_schema
+
             return get_tool_schema(name)
         except Exception:
             return None
@@ -362,9 +369,9 @@ class ChatSession(ChatToggleMixin):
         ctx_parts: list[str] = []
 
         def _collect_git():
+            import os as _os
             import subprocess
 
-            import os as _os
             cwd = _os.environ.get("CRUX_WORKSPACE", str(Path.cwd()))
             try:
                 r = subprocess.run(
@@ -524,11 +531,12 @@ class ChatSession(ChatToggleMixin):
         if target_provider:
             try:
                 from core.provider import get_provider_manager
+
                 mgr = get_provider_manager()
                 mgr.load()
                 current_pid = mgr.state.active
                 if target_provider != current_pid:
-                    pd = mgr.providers.get(target_provider, {})
+                    _pd = mgr.providers.get(target_provider, {})
                     new_client = mgr.create_client(target_provider)
                     if new_client:
                         self.client = new_client
@@ -827,16 +835,18 @@ class ChatSession(ChatToggleMixin):
         _input_len = len(user_text)
         if _input_len > _MAX_INPUT_CHARS:
             import tempfile
+
             tmp_dir = tempfile.gettempdir()
             tmp_path = f"{tmp_dir}/crux_input_{os.getpid()}.txt".replace("\\", "/")
             import atexit
+
             with open(tmp_path, "w", encoding="utf-8") as f_tmp:
                 f_tmp.write(self._last_user_text)
             atexit.register(lambda p=tmp_path: os.path.exists(p) and os.remove(p))
             user_text = (
                 f"[大文本 {_input_len} 字符，完整内容: {tmp_path}]\n"
-                f"开头:\n{user_text[:_MAX_INPUT_CHARS // 2]}\n"
-                f"...\n结尾:\n{user_text[-_MAX_INPUT_CHARS // 4:]}"
+                f"开头:\n{user_text[: _MAX_INPUT_CHARS // 2]}\n"
+                f"...\n结尾:\n{user_text[-_MAX_INPUT_CHARS // 4 :]}"
             )
             yield ("info", f"输入过长({_input_len}字符)，已截断。用 read_file 读完整内容: {tmp_path}")
 
@@ -925,8 +935,10 @@ class ChatSession(ChatToggleMixin):
 
             _agent_ctx = {
                 "files_touched": len(
-                    getattr(self, "_methodology_state", None)
-                    and getattr(self._methodology_state, "files_touched", None)
+                    (
+                        getattr(self, "_methodology_state", None)
+                        and getattr(self._methodology_state, "files_touched", None)
+                    )
                     or []
                 ),
                 "recent_failures": 0,
@@ -946,8 +958,11 @@ class ChatSession(ChatToggleMixin):
         # 3. Pipeline 执行: DEEP/SAFE 模式跑 Plan→Critic→Repair 工作流
         if self._intel_mode in ("DEEP", "SAFE") and not image_url:
             try:
-                import asyncio, threading
+                import asyncio
+                import threading
+
                 toolbus = _PipelineToolbus(self._dispatch_tool, self.tools)
+
                 # 后台运行 pipeline，不阻塞主回复
                 def _run_pipeline():
                     try:
@@ -961,7 +976,8 @@ class ChatSession(ChatToggleMixin):
                         # Store result for later yield
                         self._pipeline_result = result
                     except Exception:
-                        pass
+                        logger.debug("Exception in chat", exc_info=True)
+
                 threading.Thread(target=_run_pipeline, daemon=True, name="crux-pipeline").start()
             except Exception as e:
                 logger.debug("Pipeline execution skipped: %s", e)
@@ -1006,9 +1022,7 @@ class ChatSession(ChatToggleMixin):
         # Track the set of tool names the model is allowed to see. Starts with the
         # filtered set and grows as the model calls tools, instead of jumping to the
         # full 97-tool definition list (~14K tokens) on every subsequent loop round.
-        _active_tool_names: set[str] | None = (
-            {d["function"]["name"] for d in tools} if tools else None
-        )
+        _active_tool_names: set[str] | None = {d["function"]["name"] for d in tools} if tools else None
 
         # ── 模型级 fallback 链（对标 Claude fallbackModel）──
         # 主对话流式调用失败时自动降级到下一个供应商/模型。
@@ -1019,12 +1033,13 @@ class ChatSession(ChatToggleMixin):
         # ── 预检: 活跃供应商挂了就立刻切 ──
         try:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             active_pid = mgr.state.active
             if mgr.state.is_down(active_pid) or not mgr.state.circuit_can_try(active_pid):
                 # 活跃供应商不可用 → 从 fallback chain 跳过第一个（当前）直接切
                 if len(fallback_chain) > 1:
-                    skip_model, skip_client = fallback_chain[0]
+                    # skip first (current) provider
                     fallback_chain = fallback_chain[1:]
                     self.model, self.client = fallback_chain[0]
                     yield ("info", f"当前供应商不可用，已切换至 {self.model}")
@@ -1231,6 +1246,7 @@ class ChatSession(ChatToggleMixin):
         if not tool_calls and buffer:
             try:
                 from core.tool_call_parser import extract_tool_calls
+
                 xml_tools, _ = extract_tool_calls(buffer)
                 if xml_tools:
                     tool_calls.extend(xml_tools)
@@ -1267,9 +1283,10 @@ class ChatSession(ChatToggleMixin):
         from core.context_tools import compress_tool_result
 
         # ── Phase 1: Tool call validation ──
-        if getattr(self, 'tvl', None) is not None:
+        if getattr(self, "tvl", None) is not None:
             import json as _json
             import time as _time
+
             validation_issues: list[str] = []
             _merged_check = getattr(self, "_last_merged_tool_calls", merge_tool_calls(tool_calls))
             _v_start = _time.time()
@@ -1298,13 +1315,15 @@ class ChatSession(ChatToggleMixin):
                 try:
                     self.tvl.record_telemetry("tool_validation", "p1", "", _v_duration, False, error_text[:100])
                 except Exception:
-                    import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                    logging.getLogger("crux").debug("silent except", exc_info=True)
                 return False
             # Telemetry: validation passed
             try:
-                self.tvl.record_telemetry("tool_validation", "p1", "", _v_duration, True, f"{len(_merged_check)} calls OK")
+                self.tvl.record_telemetry(
+                    "tool_validation", "p1", "", _v_duration, True, f"{len(_merged_check)} calls OK"
+                )
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                logging.getLogger("crux").debug("silent except", exc_info=True)
 
         merged = getattr(self, "_last_merged_tool_calls", merge_tool_calls(tool_calls))
         for tc in merged:
@@ -1323,25 +1342,30 @@ class ChatSession(ChatToggleMixin):
                         if fname in ("write_file", "edit_file", "patch_file"):
                             try:
                                 import json as _json2
+
                                 _args2 = _json2.loads(fargs) if isinstance(fargs, str) else (fargs or {})
                                 _path2 = _args2.get("path", "")
                                 if _path2:
-                                    getattr(self, 'tvl', None) and self.tvl.snapshot_before_write(_path2)
+                                    getattr(self, "tvl", None) and self.tvl.snapshot_before_write(_path2)
                             except Exception:
-                                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                                logging.getLogger("crux").debug("silent except", exc_info=True)
 
                         tool_result, side_effects = self._dispatch_tool(fname, fargs)
 
                         # ── 自动重试: 工具返回错误时尝试修正参数重试 ──
                         _result_str = str(tool_result)
-                        if (_result_str.startswith("[错误]") or _result_str.startswith("[自愈失败]")) and fname in ("run_bash", "run_test", "pip_install", "run_python"):
-                            tool_result, side_effects = _auto_retry_tool(
-                                self, fname, fargs, tool_result
-                            )
+                        if (_result_str.startswith("[错误]") or _result_str.startswith("[自愈失败]")) and fname in (
+                            "run_bash",
+                            "run_test",
+                            "pip_install",
+                            "run_python",
+                        ):
+                            tool_result, side_effects = _auto_retry_tool(self, fname, fargs, tool_result)
 
                         # ── 工具结果缓存: 缓存成功的只读工具结果 ──
                         try:
                             from core.tool_cache import CACHEABLE_TOOLS, get_tool_cache
+
                             if fname in CACHEABLE_TOOLS and not str(tool_result).startswith("[错误]"):
                                 get_tool_cache().set(fname, fargs, str(tool_result))
                         except ImportError:
@@ -1349,14 +1373,14 @@ class ChatSession(ChatToggleMixin):
 
                         # ── Phase 2a+b: Validate result + track history ──
                         try:
-                            tvl = getattr(self, 'tvl', None)
+                            tvl = getattr(self, "tvl", None)
                             if tvl:
                                 vr = tvl.validate_result(fname, str(tool_result)[:2000], success=True)
                                 if not vr.is_valid:
                                     logger.warning(f"Result validation: {fname} -> {len(vr.notes)} issues")
                                 tvl.track_tool_use_v2(fname, fargs, str(tool_result)[:2000], success=True)
                         except Exception:
-                            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                            logging.getLogger("crux").debug("silent except", exc_info=True)
                     except Exception as e:
                         logger.exception("工具 %s 执行异常", fname)
                         tool_result = f"[错误] 工具 {fname} 执行失败: {type(e).__name__}: {e}"
@@ -1364,12 +1388,12 @@ class ChatSession(ChatToggleMixin):
 
                         # ── Phase 2a: Track failed execution ──
                         try:
-                            tvl = getattr(self, 'tvl', None)
+                            tvl = getattr(self, "tvl", None)
                             if tvl:
                                 vr = tvl.validate_result(fname, tool_result, success=False)
                                 tvl.track_tool_use_v2(fname, fargs, tool_result, success=False)
                         except Exception:
-                            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                            logging.getLogger("crux").debug("silent except", exc_info=True)
                         side_effects = [("info", tool_result)]
                         metrics.increment("tool_errors")
                         self._last_turn_had_errors = True
@@ -1383,13 +1407,15 @@ class ChatSession(ChatToggleMixin):
                                 and "error" not in str(tool_result).lower()[:200]
                             )
                             _mode = AgentMode.SWARM if fname == "agent_swarm" else AgentMode.PLAN_EXECUTE
-                            _latency = (span.end_time - span.start_time) if hasattr(span, 'end_time') else 0.0
-                            record_agent_mode_result(AgentModeResult(
-                                mode=_mode,
-                                task_type="tool_call",
-                                success=_is_ok,
-                                latency=_latency,
-                            ))
+                            _latency = (span.end_time - span.start_time) if hasattr(span, "end_time") else 0.0
+                            record_agent_mode_result(
+                                AgentModeResult(
+                                    mode=_mode,
+                                    task_type="tool_call",
+                                    success=_is_ok,
+                                    latency=_latency,
+                                )
+                            )
                         except (ImportError, AttributeError):
                             pass
                     # ── 方法论追踪: 自动记录文件操作 + 触发升级 ──
@@ -1506,8 +1532,7 @@ class ChatSession(ChatToggleMixin):
                 if learner and learner._learning_enabled:
                     records = learner.run_learning_cycle(limit=5)
                     if records:
-                        logger.info("Adaptive learner: %d new insights from %d traces",
-                                    len(records), len(records))
+                        logger.info("Adaptive learner: %d new insights from %d traces", len(records), len(records))
             except Exception as e:
                 logger.debug("Adaptive learner cycle skipped: %s", e)
 
@@ -1548,7 +1573,7 @@ class ChatSession(ChatToggleMixin):
                     _last["tool_errors"] = _had_tool_errors
                     _last["task"] = getattr(self, "_skill_loaded_for_task", "")[:200]
             except Exception:
-                pass
+                logger.debug("Exception in chat", exc_info=True)
 
         # ── TRM Growth Engine 自动调优: 每 20 轮优化工具路由 ──
         if self._turn_count % 20 == 0:
@@ -1726,7 +1751,7 @@ class ChatSession(ChatToggleMixin):
 
     def get_intel_yields(self) -> list[tuple[str, str]]:
         """V2: 获取 Intelligence 状态 yield 列表，不破坏 send_stream 协议"""
-        if not hasattr(self, '_intelligence_hook'):
+        if not hasattr(self, "_intelligence_hook"):
             return []
         return self._intelligence_hook.get_status_yield()
 

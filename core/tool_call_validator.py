@@ -293,7 +293,7 @@ class ToolCallValidator:
                     self.tool_schemas[name] = schema
                     return True
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                logger.debug("Exception in tool_call_validator", exc_info=True)
         return False
 
     def _get_schema(self, name: str) -> dict | None:
@@ -306,7 +306,7 @@ class ToolCallValidator:
                     self.tool_schemas[name] = schema
                     return schema
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                logger.debug("Exception in tool_call_validator", exc_info=True)
         return None
 
     def _validate_args_with_schema(self, call: ParsedCall, schema: dict) -> list[ValidationIssue]:

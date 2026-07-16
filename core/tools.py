@@ -65,6 +65,7 @@ from core.tools_defs import (  # noqa: F401
 def _exec_grep(**kwargs) -> str:
     """grep 别名 — 重定向到 search_files。"""
     from core.file_tools import search_files
+
     pattern = kwargs.get("pattern", kwargs.get("query", ""))
     return search_files(pattern)
 
@@ -75,18 +76,22 @@ def _exec_skill_load(**kwargs) -> str:
     if not name:
         return "用法: skill_load <技能名>。"
     from core.skills import get_manager
+
     mgr = get_manager()
     # Skill 反馈: 记录加载事件供后续效果评估
     try:
         if not hasattr(mgr, "_skill_usage_log"):
             mgr._skill_usage_log = []
         import time as _time
-        mgr._skill_usage_log.append({
-            "skill": name,
-            "timestamp": _time.time(),
-        })
+
+        mgr._skill_usage_log.append(
+            {
+                "skill": name,
+                "timestamp": _time.time(),
+            }
+        )
     except Exception:
-        pass
+        logger.debug("Exception in tools", exc_info=True)
     skill = mgr.load(name)
     if skill is None:
         available = list(mgr._available.keys())[:15]
@@ -101,6 +106,7 @@ def _exec_skill_install(**kwargs) -> str:
         return "用法: skill_install <技能名>。先用 skill_search 搜索可用技能。"
     try:
         from core.marketplace import get_marketplace
+
         mkt = get_marketplace()
         result = mkt.install(name)
         if result:
@@ -113,6 +119,7 @@ def _exec_skill_install(**kwargs) -> str:
 def _exec_skill_list(**kwargs) -> str:
     """列出所有已安装技能。"""
     from core.skills import get_manager
+
     mgr = get_manager()
     mgr.discover()
     lines = []
@@ -126,7 +133,9 @@ def _exec_skill_list(**kwargs) -> str:
 
 def _exec_plugin_list(**kwargs) -> str:
     """列出 output/plugins/ 中可用插件。"""
-    import json, os
+    import json
+    import os
+
     plugin_dir = os.path.join(os.path.dirname(__file__), "..", "output", "plugins")
     if not os.path.exists(plugin_dir):
         return "插件目录不存在。"
@@ -147,7 +156,9 @@ def _exec_plugin_list(**kwargs) -> str:
 def _exec_mcp_get_tool_description(**kwargs) -> str:
     """模拟 mcp_get_tool_description — 返回 CRUX 可用工具列表。"""
     from core.tools import get_registry
-    r = get_registry(); r.load()
+
+    r = get_registry()
+    r.load()
     tools = sorted(r._executors.keys())
     return f"CRUX 可用工具 ({len(tools)} 个):\n" + "\n".join(f"  {t}" for t in tools[:80])
 
@@ -159,6 +170,7 @@ def _build_shell_strategies(cmd: str, sys_module) -> list[tuple[str, str]]:
     任一策略成功即停止，全部失败才报错。
     """
     import shutil
+
     strategies: list[tuple[str, str]] = []
     is_win = sys_module.platform == "win32"
     has_bash = bool(shutil.which("bash"))
@@ -168,6 +180,7 @@ def _build_shell_strategies(cmd: str, sys_module) -> list[tuple[str, str]]:
 
     # 策略 1：剥离 bash -c 包装，直接执行（修复双重 shell 问题）
     import re as _re
+
     bash_wrapped = _re.match(r'^bash\s+-c\s+["\'](.+)["\']\s*$', cmd.strip())
     if bash_wrapped:
         inner = bash_wrapped.group(1)
@@ -175,7 +188,7 @@ def _build_shell_strategies(cmd: str, sys_module) -> list[tuple[str, str]]:
 
     # 策略 2：Windows 上用 cmd.exe /c 直接执行
     if is_win:
-        clean = _re.sub(r'^bash\s+-c\s+', '', cmd.strip())
+        clean = _re.sub(r"^bash\s+-c\s+", "", cmd.strip())
         strategies.append(("cmd_exe", f'cmd.exe /c "{clean}"'))
 
     # 策略 3：如果有 bash，尝试 bash 登录 shell
@@ -209,7 +222,7 @@ def _build_shell_strategies(cmd: str, sys_module) -> list[tuple[str, str]]:
 def _diagnose_shell_failure(cmd: str, errors: list[str], sys_module) -> str:
     """诊断 shell 执行失败原因，给出可操作的修复建议。"""
     import shutil
-    import re as _re
+
     is_win = sys_module.platform == "win32"
     has_bash = bool(shutil.which("bash"))
     has_pwsh = bool(shutil.which("powershell"))
@@ -230,9 +243,7 @@ def _diagnose_shell_failure(cmd: str, errors: list[str], sys_module) -> str:
         cmd_name = cmd.strip().split()[0] if cmd.strip() else ""
         win_alt = _POSIX_TO_WINDOWS.get(cmd_name.lower())
         if win_alt:
-            suggestions.append(
-                f"'{cmd_name}' 是 Linux 命令，Windows 等价: {win_alt}"
-            )
+            suggestions.append(f"'{cmd_name}' 是 Linux 命令，Windows 等价: {win_alt}")
             if has_pwsh and cmd_name.lower() in _POSIX_TO_POWERSHELL:
                 pwsh_cmd = _POSIX_TO_POWERSHELL[cmd_name.lower()](cmd)
                 suggestions.append(f"PowerShell 替代: {pwsh_cmd}")
@@ -252,7 +263,7 @@ def _diagnose_shell_failure(cmd: str, errors: list[str], sys_module) -> str:
 
 def _safe_decode(raw: bytes) -> str:
     """安全解码子进程输出：尝试 UTF-8 → GBK → Latin-1 回退。
-    
+
     Windows cmd.exe 输出可能为系统 ANSI 编码（如 GBK/CP936），
     UTF-8 解码会损坏中文字符。逐编码尝试确保诊断关键词可匹配。
     """
@@ -304,16 +315,21 @@ _POSIX_TO_WINDOWS: dict[str, str] = {
 }
 
 _POSIX_TO_POWERSHELL: dict = {
-    "head": lambda cmd: f"powershell -Command \"Get-Content {cmd[5:].strip()} | Select-Object -First 10\""
-        if len(cmd.split()) > 1 else "powershell -Command \"$input | Select-Object -First 10\"",
-    "tail": lambda cmd: f"powershell -Command \"Get-Content {cmd[5:].strip()} | Select-Object -Last 10\""
-        if len(cmd.split()) > 1 else "powershell -Command \"$input | Select-Object -Last 10\"",
-    "grep": lambda cmd: cmd.replace("grep", "findstr", 1)
-        if cmd.startswith("grep") else cmd,
-    "cat": lambda cmd: cmd.replace("cat", "type", 1)
-        if cmd.startswith("cat") else cmd,
-    "wc": lambda cmd: f"powershell -Command \"{cmd.replace('wc', 'Measure-Object', 1)}\""
-        if cmd.startswith("wc") else cmd,
+    "head": lambda cmd: (
+        f'powershell -Command "Get-Content {cmd[5:].strip()} | Select-Object -First 10"'
+        if len(cmd.split()) > 1
+        else 'powershell -Command "$input | Select-Object -First 10"'
+    ),
+    "tail": lambda cmd: (
+        f'powershell -Command "Get-Content {cmd[5:].strip()} | Select-Object -Last 10"'
+        if len(cmd.split()) > 1
+        else 'powershell -Command "$input | Select-Object -Last 10"'
+    ),
+    "grep": lambda cmd: cmd.replace("grep", "findstr", 1) if cmd.startswith("grep") else cmd,
+    "cat": lambda cmd: cmd.replace("cat", "type", 1) if cmd.startswith("cat") else cmd,
+    "wc": lambda cmd: (
+        f'powershell -Command "{cmd.replace("wc", "Measure-Object", 1)}"' if cmd.startswith("wc") else cmd
+    ),
 }
 
 
@@ -325,6 +341,7 @@ class ToolRegistry:
         self._definitions: list[dict] = []  # OpenAI function 格式
         self._executors: dict[str, Callable[..., str]] = {}  # name → 执行函数
         self._tool_modules: dict[str, str] = {}  # name → 模块路径（分类用）
+        self._tool_config: dict[str, dict] = {}  # name → tools.json 原始配置（读 timeout 等）
         self.model_router = None  # Optional ModelRouter for sub-agent dispatch
 
     # ── 加载 ──
@@ -353,6 +370,7 @@ class ToolRegistry:
         self._definitions = list(BUILTIN_TOOLS)
         self._executors.clear()
         self._tool_modules.clear()
+        self._tool_config.clear()
         # builtin 工具的模块标记
         for d in self._definitions:
             self._tool_modules[d["function"]["name"]] = _BUILTIN_MODULE
@@ -511,6 +529,33 @@ class ToolRegistry:
         self._executors["agent_swarm"] = _exec_agent_swarm
         self._tool_modules["agent_swarm"] = "core.multi_agent"
 
+        # ── Skill 管理工具（chat_tool_dispatch 处理，此处仅注册定义）──
+        self._definitions.append({
+            "type": "function",
+            "function": {
+                "name": "load_skill",
+                "description": "加载一个技能包。加载后技能的系统提示词和工具会注入当前会话。用 list_skills 查看可用技能。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "要加载的技能名称",
+                        }
+                    },
+                    "required": ["name"],
+                },
+            },
+        })
+        self._definitions.append({
+            "type": "function",
+            "function": {
+                "name": "list_skills",
+                "description": "列出所有可用技能包及其触发模式（auto=自动激活, manual=手动加载, off=已禁用）。",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        })
+
         # ── 代码审查工具（常驻加载）──
         # code_review / security_review — 借鉴 Copilot CLI /review + /security-review
         from core.code_review import CODE_REVIEW_EXECUTOR_MAP, CODE_REVIEW_TOOL_DEFS
@@ -563,100 +608,115 @@ class ToolRegistry:
             self._tool_modules[name] = "core.format_tools"
 
         # ── grep 别名 (模型常用名 → search_files) ──
-        self._definitions.append({
-            "type": "function",
-            "function": {
-                "name": "grep",
-                "description": "搜索文件内容（等同于 search_files）。用正则表达式在项目中搜索代码。",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "pattern": {"type": "string", "description": "正则搜索模式"}
+        self._definitions.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": "grep",
+                    "description": "搜索文件内容（等同于 search_files）。用正则表达式在项目中搜索代码。",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"pattern": {"type": "string", "description": "正则搜索模式"}},
+                        "required": ["pattern"],
                     },
-                    "required": ["pattern"]
-                }
+                },
             }
-        })
+        )
         self._executors["grep"] = _exec_grep
 
         # ── 技能动态加载（常驻加载）──
         # skill_load: 模型遇到特定领域问题时自行加载对应技能
-        self._definitions.append({
-            "type": "function",
-            "function": {
-                "name": "skill_load",
-                "description": (
-                    "加载一个专业技能到当前会话。在以下场景**必须调用**：\n"
-                    "- 用户要求调试/排查错误 → 加载 debug-master\n"
-                    "- 用户要求代码审查/review → 加载 code-review\n"
-                    "- 用户要求安全审计/加固 → 加载 security-hardening\n"
-                    "- 用户要求写复杂Python → 加载 python-expert\n"
-                    "- 用户要求写Shell脚本 → 加载 shell-master\n"
-                    "- 用户要求API设计 → 加载 api-designer\n"
-                    "- 用户要求项目全量审计 → 加载 self-audit\n"
-                    "加载后技能规则自动生效，提升该领域的输出质量。不确定时先用 skill_search 搜索。"
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string", "description": "技能名称，如 tdd-workflow、code-review 等"}
+        self._definitions.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": "skill_load",
+                    "description": (
+                        "加载一个专业技能到当前会话。在以下场景**必须调用**：\n"
+                        "- 用户要求调试/排查错误 → 加载 debug-master\n"
+                        "- 用户要求代码审查/review → 加载 code-review\n"
+                        "- 用户要求安全审计/加固 → 加载 security-hardening\n"
+                        "- 用户要求写复杂Python → 加载 python-expert\n"
+                        "- 用户要求写Shell脚本 → 加载 shell-master\n"
+                        "- 用户要求API设计 → 加载 api-designer\n"
+                        "- 用户要求项目全量审计 → 加载 self-audit\n"
+                        "加载后技能规则自动生效，提升该领域的输出质量。不确定时先用 skill_search 搜索。"
+                    ),
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "技能名称，如 tdd-workflow、code-review 等"}
+                        },
+                        "required": ["name"],
                     },
-                    "required": ["name"]
-                }
+                },
             }
-        })
+        )
         self._executors["skill_load"] = _exec_skill_load
 
         # skill_install: 从市场安装技能
-        self._definitions.append({
-            "type": "function",
-            "function": {
-                "name": "skill_install",
-                "description": (
-                    "从技能市场安装新技能。先用 skill_search 搜索找到合适的技能名，"
-                    "再调用此工具安装。安装后可用 skill_load 加载到当前会话。"
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string", "description": "要安装的技能名称"}
+        self._definitions.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": "skill_install",
+                    "description": (
+                        "从技能市场安装新技能。先用 skill_search 搜索找到合适的技能名，"
+                        "再调用此工具安装。安装后可用 skill_load 加载到当前会话。"
+                    ),
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"name": {"type": "string", "description": "要安装的技能名称"}},
+                        "required": ["name"],
                     },
-                    "required": ["name"]
-                }
+                },
             }
-        })
+        )
         self._executors["skill_install"] = _exec_skill_install
 
         # skill_list: 列出已安装技能
-        self._definitions.append({
-            "type": "function", "function": {
-                "name": "skill_list",
-                "description": "列出所有已安装的技能及其触发模式。用于了解当前可用的技能。",
-                "parameters": {"type": "object", "properties": {}, "required": []}
+        self._definitions.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": "skill_list",
+                    "description": "列出所有已安装的技能及其触发模式。用于了解当前可用的技能。",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
             }
-        })
+        )
         self._executors["skill_list"] = _exec_skill_list
 
         # plugin_list: 列出可用插件
-        self._definitions.append({
-            "type": "function", "function": {
-                "name": "plugin_list",
-                "description": "列出 output/plugins/ 中所有可用插件及描述。",
-                "parameters": {"type": "object", "properties": {}, "required": []}
+        self._definitions.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": "plugin_list",
+                    "description": "列出 output/plugins/ 中所有可用插件及描述。",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
             }
-        })
+        )
         self._executors["plugin_list"] = _exec_plugin_list
 
         # mcp_get_tool_description: 兼容 ZCode 习惯，返回工具列表
-        self._definitions.append({
-            "type": "function", "function": {
-                "name": "mcp_get_tool_description",
-                "description": "列出所有可用工具的请求描述。",
-                "parameters": {"type": "object", "properties": {
-                    "tool_requests": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}}
-                }, "required": []}
+        self._definitions.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": "mcp_get_tool_description",
+                    "description": "列出所有可用工具的请求描述。",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "tool_requests": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}}
+                        },
+                        "required": [],
+                    },
+                },
             }
-        })
+        )
         self._executors["mcp_get_tool_description"] = _exec_mcp_get_tool_description
 
         # ── 运行时检查工具（常驻加载）──
@@ -763,6 +823,7 @@ class ToolRegistry:
             # 注册执行器 + 记录模块路径（分类用）
             self._executors[name] = self._make_executor(name, tool_cfg)
             self._tool_modules[name] = tool_cfg.get("function", "").rsplit(".", 1)[0]
+            self._tool_config[name] = tool_cfg
 
         # ── Fast Scanner ──
         try:
@@ -821,10 +882,8 @@ class ToolRegistry:
 
         def shell_executor(**kwargs):
             import shlex
-            import shutil
             import subprocess as _sp
             import sys
-            import re
 
             # ── 提取 shell 控制参数（Copilot CLI 三模式）──
             run_in_background = kwargs.pop("run_in_background", False)
@@ -891,9 +950,23 @@ class ToolRegistry:
                         _raw_stdout, _raw_stderr = proc.communicate(timeout=_timeout)
                         _rc = proc.returncode
                     except _sp.TimeoutExpired:
-                        proc.kill()
-                        proc.communicate()
-                        raise
+                        # Kill the ENTIRE process tree, not just the shell.
+                        try:
+                            from core.mcp_servers._mcp_utils import _kill_process_tree
+
+                            _kill_process_tree(proc)
+                        except ImportError:
+                            proc.kill()
+                        # Drain pipes with a deadline (5s max).
+                        try:
+                            _raw_stdout, _raw_stderr = proc.communicate(timeout=5)
+                        except _sp.TimeoutExpired:
+                            _raw_stdout, _raw_stderr = b"", b""
+                        # Timeout is FATAL — do NOT retry other strategies.
+                        # Each strategy shares the same timeout; retrying would
+                        # compound N×120s instead of failing fast.
+                        errors.append(f"[{strategy_label}] 超时 ({_timeout}s)")
+                        break
                     # 多编码尝试解码（Windows cmd.exe 输出可能是 GBK）
                     _stdout = _safe_decode(_raw_stdout) if _raw_stdout else ""
                     _stderr = _safe_decode(_raw_stderr) if _raw_stderr else ""
@@ -902,12 +975,14 @@ class ToolRegistry:
                         if strategy_label != "primary":
                             try:
                                 import logging
+
                                 logging.getLogger("crux").info(
                                     "shell_executor self-healed: strategy=%s, cmd=%s",
-                                    strategy_label, cmd[:120],
+                                    strategy_label,
+                                    cmd[:120],
                                 )
                             except Exception:
-                                pass
+                                logger.debug("Exception in tools", exc_info=True)
                         return output
                     # 非零退出码：区分 shell 级错误 vs 应用级错误
                     # 核心原则：有实质输出且不像 shell 报错 → 应用层结果，直接返回
@@ -916,8 +991,11 @@ class ToolRegistry:
                     _stderr_lower = _stderr.lower()
                     _SHELL_EXIT_CODES = {9009}  # Windows: 命令未找到
                     _SHELL_ERR_KEYWORDS = (
-                        "not recognized", "command not found",
-                        "no such file", "cannot find", "could not find",
+                        "not recognized",
+                        "command not found",
+                        "no such file",
+                        "cannot find",
+                        "could not find",
                         "the syntax of the command is incorrect",
                     )
                     # 中文 Windows 错误消息编码检测：用原始字节
@@ -933,7 +1011,9 @@ class ToolRegistry:
                     )
                     if not _has_output or _looks_like_shell_err:
                         # shell 级错误或无输出 → 尝试下一个策略
-                        errors.append(f"[{strategy_label}] exit={_rc}: {_stderr.strip()[:200] or _stdout.strip()[:200] or '(no output)'}")
+                        errors.append(
+                            f"[{strategy_label}] exit={_rc}: {_stderr.strip()[:200] or _stdout.strip()[:200] or '(no output)'}"
+                        )
                     else:
                         # 应用层有实际输出（pytest/编译器等），直接返回
                         return output
@@ -946,7 +1026,11 @@ class ToolRegistry:
 
             # 所有策略均失败 → 返回结构化错误（含诊断信息，帮助 CRUX 自我修正）
             diagnosis = _diagnose_shell_failure(cmd, errors, sys)
-            return f"[自愈失败] 所有 {len(strategies)} 个执行策略均失败:\n" + "\n".join(f"  • {e}" for e in errors) + f"\n\n{diagnosis}"
+            return (
+                f"[自愈失败] 所有 {len(strategies)} 个执行策略均失败:\n"
+                + "\n".join(f"  • {e}" for e in errors)
+                + f"\n\n{diagnosis}"
+            )
 
         def http_executor(**kwargs):
             import httpx
@@ -1140,9 +1224,17 @@ class ToolRegistry:
             return detail
 
         # ── SafeExecutor 包装：超时/大小/审计保护 ──
+        # 硬超时预算 = 该工具在 tools.json 声明的 timeout + 余量；无声明则用默认。
+        # 保证：短工具不会占用满 300s，长任务(如 run_test=1800)也不会被 300s 误杀。
         try:
             from core.resilience import SafeExecutor
-            safe = SafeExecutor(timeout=300)
+
+            _tool_cfg = self._tool_config.get(name, {}) if hasattr(self, "_tool_config") else {}
+            _tool_to = _tool_cfg.get("timeout")
+            if not isinstance(_tool_to, (int, float)) or _tool_to <= 0:
+                _tool_to = 120  # 与多数执行类工具一致的稳妥默认
+            _safe_to = float(_tool_to) + 60.0  # 余量：容纳进程树 kill/回收
+            safe = SafeExecutor(timeout=_safe_to)
         except ImportError:
             safe = None
 
@@ -1151,8 +1243,10 @@ class ToolRegistry:
             with ctx as span:
                 if safe:
                     safe_result = safe.execute(name, executor, args)
-                    if safe_result.get("status") == "error":
-                        result = f"[SafeExecutor] {safe_result.get('error', 'unknown error')}"
+                    if not safe_result.get("success", False):
+                        _err = safe_result.get("error") or "unknown error"
+                        _hint = safe_result.get("recovery_hint") or ""
+                        result = f"[错误] {_err}" + (f"\n恢复建议: {_hint}" if _hint else "")
                     else:
                         result = safe_result.get("result", "")
                 else:
@@ -1185,6 +1279,7 @@ class ToolRegistry:
                 _log_call(name, "exception", 0.0, args)
             try:
                 from core.resilience import ErrorClassifier
+
                 etype = ErrorClassifier.classify(e)
                 hint = ErrorClassifier.get_recovery_hint(e)
                 # 增强错误消息：包含诊断信息，让 CRUX 能够自修正
@@ -1204,6 +1299,7 @@ class ToolRegistry:
             # 记录到 error_sink 供后续诊断
             try:
                 from core.error_sink import capture
+
                 capture(f"tool.{name}", str(e), context=str(args)[:500])
             except ImportError:
                 pass

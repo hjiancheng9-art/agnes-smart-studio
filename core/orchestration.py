@@ -341,7 +341,7 @@ class MasterOrchestrator:
                             if fpath not in snapshot.relevant_files:
                                 snapshot.relevant_files.append(fpath)
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                logger.debug("Exception in orchestration", exc_info=True)
 
         # Git 变更检测
         try:
@@ -351,7 +351,7 @@ class MasterOrchestrator:
                     if line.strip():
                         snapshot.recent_changes.append(line.strip()[:120])
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            logger.debug("Exception in orchestration", exc_info=True)
 
         return snapshot
 
@@ -372,7 +372,7 @@ class MasterOrchestrator:
                                 if fpath not in snapshot.relevant_files:
                                     snapshot.relevant_files.append(fpath)
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            logger.debug("Exception in orchestration", exc_info=True)
         return snapshot
 
     def _build_plan(self, goal: str, complexity: TaskComplexity, snapshot: ContextSnapshot) -> OrchestrationPlan:
@@ -466,7 +466,7 @@ class MasterOrchestrator:
                     result.review_notes = str(r)[:500]
                     result.issues.append(f"Review found issues: {result.review_notes[:200]}")
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                logger.debug("Exception in orchestration", exc_info=True)
 
         # 3. Diff 守卫: 检查无关改动
         try:
@@ -480,7 +480,7 @@ class MasterOrchestrator:
                         result.diff_clean = False
                         result.issues.append(f"Protected file modified: {protected}")
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            logger.debug("Exception in orchestration", exc_info=True)
 
         # 4. 进程残留检查
         import subprocess as _sp
@@ -491,7 +491,7 @@ class MasterOrchestrator:
             if python_count > 10:
                 result.issues.append(f"High Python process count: {python_count}")
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            logger.debug("Exception in orchestration", exc_info=True)
 
         return result
 

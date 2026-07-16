@@ -130,7 +130,7 @@ class ErrorSink:
             conn.commit()
             conn.close()
         except Exception:
-            pass
+            logger.debug("Exception in error_sink", exc_info=True)
 
     # ── 查询 ──────────────────────────────────────────────
 

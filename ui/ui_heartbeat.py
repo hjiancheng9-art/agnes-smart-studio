@@ -95,7 +95,7 @@ class UIHeartbeat:
                         try:
                             self.app.invalidate()
                         except Exception:
-                            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                            logger.debug("Exception in ui_heartbeat", exc_info=True)
             else:
                 self._last_freeze_log = 0.0
 

@@ -478,7 +478,7 @@ class EvalRunner:
                     if not r.is_valid:
                         issues_found += len(r.issues)
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                logger.debug("Exception in crux_telemetry", exc_info=True)
 
             # Check if expectation matches
             if issues_found >= turn.expected_issues:

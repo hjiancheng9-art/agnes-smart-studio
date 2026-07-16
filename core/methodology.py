@@ -667,6 +667,6 @@ def run_verification() -> dict[str, tuple[bool, str]]:
             _current = get_methodology_state()
             _current.mark_test_baseline_recorded()
         except Exception:
-            pass
+            logger.debug("Exception in methodology", exc_info=True)
 
     return results

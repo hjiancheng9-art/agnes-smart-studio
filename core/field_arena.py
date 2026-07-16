@@ -186,7 +186,7 @@ class FieldRecorder:
                     "tags": data.get("tags", []),
                 })
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                logger.debug("Exception in field_arena", exc_info=True)
         return sessions
 
 
