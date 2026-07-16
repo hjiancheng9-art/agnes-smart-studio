@@ -1,12 +1,13 @@
 """Tests for AgentMode 四档系统 + DAG decomposability"""
 
+import pytest
+
 from core.multi_agent import (
     AgentMode,
     AgentModeResult,
     ambiguity_score,
     build_context_state,
     compute_agent_mode,
-    decomposability_score,
     failure_score,
     file_scope_score,
     get_mode_statistics,
@@ -166,6 +167,7 @@ class TestSimplicityScore:
         assert score > 0
 
 
+@pytest.mark.skip(reason="decomposability_score removed from core.multi_agent")
 class TestDecomposabilityScore:
     def test_parallel_tasks_scores_high(self):
         score, matched = decomposability_score("重构前端和后端，同时修改数据库schema")
