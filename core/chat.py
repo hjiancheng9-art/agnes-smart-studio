@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("crux.chat")
 
+
 from core.agent import ContextManager
 from core.brain import SmartBrain
 from core.chat_prompt import (
@@ -41,7 +42,6 @@ from core.chat_prompt import (
 )
 from core.chat_toggle_mixin import ChatToggleMixin
 from core.chat_tool_dispatch import _dispatch_tool_impl
-import threading as _threading
 
 # Tools eligible for auto-retry on error (idempotent or safe to retry)
 _AUTO_RETRY_TOOLS = frozenset({"run_bash", "run_test", "pip_install", "run_python"})
@@ -875,6 +875,7 @@ class ChatSession(ChatToggleMixin):
                 f_tmp.write(self._last_user_text)
             self._temp_input_files.add(tmp_path)
             import atexit
+
             atexit.register(lambda p=tmp_path: os.path.exists(p) and os.remove(p))  # final safety net
             user_text = (
                 f"[大文本 {_input_len} 字符，完整内容: {tmp_path}]\n"
@@ -935,7 +936,7 @@ class ChatSession(ChatToggleMixin):
 
         # ── Unified execution plan ──
         try:
-            from core.runtime_types import plan_from_policy, ExecutionMode
+            from core.runtime_types import ExecutionMode, plan_from_policy
 
             _plan = plan_from_policy(user_text)
 
@@ -945,6 +946,7 @@ class ChatSession(ChatToggleMixin):
             # Direct orchestration bypasses the model entirely for the trigger.
             if _plan is not None and _plan.mode in (ExecutionMode.ORCHESTRATE, ExecutionMode.SWARM):
                 import time as _time
+
                 yield ("info", "【编排】自检自修 — 完整执行")
                 _result_parts = []
                 _t0 = _time.monotonic()
@@ -954,7 +956,7 @@ class ChatSession(ChatToggleMixin):
                 try:
                     _raw1, _ = self._dispatch_tool("self_heal", '{"fix":true}')
                     _result_parts.append(f"## 自愈审计\n{str(_raw1)[:2000]}")
-                    yield ("info", f"  自愈完成 ({_time.monotonic()-_t0:.1f}s)")
+                    yield ("info", f"  自愈完成 ({_time.monotonic() - _t0:.1f}s)")
                 except Exception as e:
                     _result_parts.append(f"## 自愈失败\n{str(e)[:300]}")
                     yield ("error", f"  自愈失败: {e}")
@@ -962,9 +964,9 @@ class ChatSession(ChatToggleMixin):
                 # Step 2: code_review on changed files
                 yield ("info", "[2/4] 代码审查...")
                 try:
-                    _raw2, _ = self._dispatch_tool("code_review", '{}')
+                    _raw2, _ = self._dispatch_tool("code_review", "{}")
                     _result_parts.append(f"## 代码审查\n{str(_raw2)[:1500]}")
-                    yield ("info", f"  审查完成 ({_time.monotonic()-_t0:.1f}s)")
+                    yield ("info", f"  审查完成 ({_time.monotonic() - _t0:.1f}s)")
                 except Exception as e:
                     _result_parts.append(f"## 审查失败\n{str(e)[:300]}")
 
@@ -976,18 +978,24 @@ class ChatSession(ChatToggleMixin):
                 except Exception as e:
                     _result_parts.append(f"## Lint 失败\n{str(e)[:300]}")
                 try:
-                    _raw3b, _ = self._dispatch_tool("run_format", '{}')
+                    _raw3b, _ = self._dispatch_tool("run_format", "{}")
                     _result_parts.append(f"## 格式化\n{str(_raw3b)[:500]}")
                 except Exception as e:
                     _result_parts.append(f"## 格式化失败\n{str(e)[:300]}")
-                yield ("info", f"  质量修复完成 ({_time.monotonic()-_t0:.1f}s)")
+                yield ("info", f"  质量修复完成 ({_time.monotonic() - _t0:.1f}s)")
 
                 # Step 4: summary
                 _elapsed = _time.monotonic() - _t0
-                yield ("info", f"[4/4] 自检自修完成 ({_elapsed:.1f}s)")
+                # Strip ANSI escape codes — prompt_toolkit TUI can't render them
+                import re as _re
                 _result_text = "\n\n".join(_result_parts)
-                if _result_text:
-                    yield ("text", _result_text)
+                _clean = _re.sub(r'\x1b\[[0-9;]*m', '', _result_text)
+                # Extract key numbers for the info bar
+                _lines = [l for l in _clean.split('\n') if l.strip() and not l.startswith('══')]
+                if _lines:
+                    yield ("info", f"[完成] {_elapsed:.1f}s — {'; '.join(_lines[:3])}")
+                if _clean.strip():
+                    yield ("text", _clean)
                 self.messages.append({"role": "assistant", "content": _result_text or ""})
                 self._finalize_outcome(self.model, None)
                 yield ("stream_end", {"run_id": str(uuid.uuid4())[:12], "message": "done"})
@@ -1033,6 +1041,7 @@ class ChatSession(ChatToggleMixin):
         if _use_new_runtime:
             try:
                 from runtime.engine import RuntimeEngine
+
                 _new_engine = RuntimeEngine()
                 _prepared = _new_engine.prepare_turn(old_plan=_plan)
                 if _prepared and _prepared.system_prompt:
@@ -1048,6 +1057,7 @@ class ChatSession(ChatToggleMixin):
         # Set orchestration goal context (used by trigger_orchestrate)
         try:
             from core.runtime_orchestrator import set_orchestrate_goal
+
             set_orchestrate_goal(user_text)
         except ImportError:
             pass
@@ -1511,8 +1521,13 @@ class ChatSession(ChatToggleMixin):
                         # and introduced 120s hangs in fallback paths).
                         raw = self._dispatch_tool(fname, fargs)
                         from core.runtime_result import ToolResult
+
                         normalized = ToolResult.from_raw(raw)
-                        tool_result = f"[{normalized.error_code}] {normalized.content}" if not normalized.ok else normalized.content
+                        tool_result = (
+                            f"[{normalized.error_code}] {normalized.content}"
+                            if not normalized.ok
+                            else normalized.content
+                        )
                         side_effects = list(normalized.side_effects)
 
                         # ── 自动重试: 仅对幂等/可重试工具，且错误表明可修正时才重试 ──
@@ -1946,13 +1961,13 @@ class ChatSession(ChatToggleMixin):
 ChatSession._dispatch_tool = _dispatch_tool_impl
 ChatSession._dispatch_tool_impl = _dispatch_tool_impl
 
+
 # ── Async dispatch bridge (Phase 1 tool chain refactoring) ──
 def _dispatch_tool_async(self, tool_name: str, tool_args: str | dict):
     """Async wrapper around sync _dispatch_tool_impl with timeout and ToolOutcome.
     Use this from async code paths (browser, pipelines, sub-agents).
     Existing sync callers continue to use _dispatch_tool unchanged.
     """
-    import asyncio
     import json as _json
 
     from core.tool_executor import ToolExecutor
