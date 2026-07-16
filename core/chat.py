@@ -944,6 +944,10 @@ class ChatSession(ChatToggleMixin):
             if _plan is not None and _plan.mode in (ExecutionMode.ORCHESTRATE, ExecutionMode.SWARM):
                 import time as _time
 
+                # Append user message to history (same as normal path)
+                self.messages.append({"role": "user", "content": user_text})
+                yield ("stream_start", {"run_id": str(uuid.uuid4())[:12], "message": "start"})
+
                 yield ("info", "【编排】自检自修 — 完整执行")
                 _result_parts = []
                 _t0 = _time.monotonic()
@@ -1536,7 +1540,7 @@ class ChatSession(ChatToggleMixin):
 
                         normalized = ToolResult.from_raw(raw)
                         tool_result = (
-                            f"[{normalized.error_code}] {normalized.content}"
+                            f"[错误] {normalized.content}"
                             if not normalized.ok
                             else normalized.content
                         )

@@ -77,9 +77,4 @@ def choose_policy(user_text: str) -> ExecutionPolicy:
     if orch_signals >= 2:
         return ExecutionPolicy(ExecutionMode.ORCHESTRATE, f"检测到 {orch_signals} 个编排信号")
 
-    # Complex/critical keywords
-    complex_kw = ("复杂", "多步骤", "全面", "系统化", "端到端")
-    if any(kw in t for kw in complex_kw):
-        return ExecutionPolicy(ExecutionMode.ORCHESTRATE, "任务复杂度较高")
-
     return ExecutionPolicy(ExecutionMode.DIRECT, "简单任务")

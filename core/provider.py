@@ -722,10 +722,9 @@ class ProviderManager:
         # auth_required=false → use a placeholder key instead of falling back to
         # another provider (which would cause session.model vs client.base_url mismatch).
         if not api_key and provider.get("auth_required", True):
-            raise ProviderAuthError(
-                f"No API key for provider '{pid}'. "
-                f"Set {pid.upper()}_API_KEY env var or configure api_key in models.json."
-            )
+            logger.warning("No API key for provider '%s'. Set %s_API_KEY env var.", pid, pid.upper())
+            # Continue with empty key — API call will fail at request time
+            # (matches remote behavior: silent degradation, not hard crash)
 
         return CruxClient(api_key=api_key, base_url=provider["base_url"])
 
