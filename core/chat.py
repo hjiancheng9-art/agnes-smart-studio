@@ -945,41 +945,46 @@ class ChatSession(ChatToggleMixin):
             # Direct orchestration bypasses the model entirely for the trigger.
             if _plan is not None and _plan.mode in (ExecutionMode.ORCHESTRATE, ExecutionMode.SWARM):
                 import time as _time
-                yield ("info", "【编排】启动自检自修 — 直接执行")
+                yield ("info", "【编排】自检自修 — 完整执行")
                 _result_parts = []
                 _t0 = _time.monotonic()
 
-                # Step 1: self_heal quick audit
-                yield ("info", "[1/3] self_heal 审计扫描...")
+                # Step 1: self_heal — audit + auto-fix
+                yield ("info", "[1/4] self_heal 审计 + 自动修复...")
                 try:
-                    _raw1, _sides1 = self._dispatch_tool("self_heal", '{"quick":true}')
-                    _txt1 = str(_raw1)[:2000]
-                    _result_parts.append(f"## self_heal 审计\n{_txt1}")
-                    yield ("info", f"  self_heal 完成 ({_time.monotonic()-_t0:.1f}s)")
+                    _raw1, _ = self._dispatch_tool("self_heal", '{"fix":true}')
+                    _result_parts.append(f"## 自愈审计\n{str(_raw1)[:2000]}")
+                    yield ("info", f"  自愈完成 ({_time.monotonic()-_t0:.1f}s)")
                 except Exception as e:
-                    _result_parts.append(f"## self_heal 失败\n{str(e)[:500]}")
-                    yield ("error", f"  self_heal 失败: {e}")
+                    _result_parts.append(f"## 自愈失败\n{str(e)[:300]}")
+                    yield ("error", f"  自愈失败: {e}")
 
-                # Step 2: lint + format check (fast, seconds not minutes)
-                yield ("info", "[2/3] 代码质量检查...")
+                # Step 2: code_review on changed files
+                yield ("info", "[2/4] 代码审查...")
                 try:
-                    _raw2a, _ = self._dispatch_tool("run_lint", '{}')
-                    _result_parts.append(f"## Lint 检查\n{str(_raw2a)[:1500]}")
-                    yield ("info", f"  lint 完成 ({_time.monotonic()-_t0:.1f}s)")
+                    _raw2, _ = self._dispatch_tool("code_review", '{}')
+                    _result_parts.append(f"## 代码审查\n{str(_raw2)[:1500]}")
+                    yield ("info", f"  审查完成 ({_time.monotonic()-_t0:.1f}s)")
                 except Exception as e:
-                    _result_parts.append(f"## Lint 检查失败\n{str(e)[:300]}")
+                    _result_parts.append(f"## 审查失败\n{str(e)[:300]}")
 
+                # Step 3: lint fix + format
+                yield ("info", "[3/4] 代码质量修复...")
                 try:
-                    _raw2b, _ = self._dispatch_tool("run_format", '{"check": true}')
-                    _txt2b = str(_raw2b)[:500]
-                    _result_parts.append(f"## 格式检查\n{_txt2b}")
-                    yield ("info", f"  格式检查完成 ({_time.monotonic()-_t0:.1f}s)")
+                    _raw3a, _ = self._dispatch_tool("run_lint", '{"fix":true}')
+                    _result_parts.append(f"## Lint\n{str(_raw3a)[:1000]}")
                 except Exception as e:
-                    _result_parts.append(f"## 格式检查失败\n{str(e)[:300]}")
+                    _result_parts.append(f"## Lint 失败\n{str(e)[:300]}")
+                try:
+                    _raw3b, _ = self._dispatch_tool("run_format", '{}')
+                    _result_parts.append(f"## 格式化\n{str(_raw3b)[:500]}")
+                except Exception as e:
+                    _result_parts.append(f"## 格式化失败\n{str(e)[:300]}")
+                yield ("info", f"  质量修复完成 ({_time.monotonic()-_t0:.1f}s)")
 
-                # Step 3: summary
+                # Step 4: summary
                 _elapsed = _time.monotonic() - _t0
-                yield ("info", f"[3/3] 完成 ({_elapsed:.1f}s)")
+                yield ("info", f"[4/4] 自检自修完成 ({_elapsed:.1f}s)")
                 _result_text = "\n\n".join(_result_parts)
                 if _result_text:
                     yield ("text", _result_text)

@@ -424,41 +424,32 @@ class MasterOrchestrator:
         return plan
 
     def _execute_plan(self, plan: OrchestrationPlan) -> dict:
-        """EXECUTE 阶段: 并行分派."""
+        """EXECUTE 阶段: 顺序执行（不依赖 AgentSwarm）."""
         if len(plan.tasks) == 0:
             return {"mode": "empty", "result": "no tasks"}
 
-        if len(plan.tasks) == 1:
-            # Single task: execute directly with the tool executor
-            task = plan.tasks[0]
-            desc = task.get("description", task.get("id", ""))
-            try:
-                result = self.execute_tool("execute_plan", {"goal": desc})
-                return {"mode": "single", "result": str(result)[:500], "done": 1, "failed": 0}
-            except Exception as e:
-                return {"mode": "single", "error": str(e)[:200], "done": 0, "failed": 1}
+        results = {}
+        done = 0
+        failed = 0
 
-        try:
-            from core.multi_agent_swarm import AgentSwarm
-            swarm = AgentSwarm(
-                tool_executor=self.execute_tool,
-                max_workers=plan.max_concurrency,
-                model_router=self.model_router,
-            )
-            items = [t["description"] for t in plan.tasks]
-            results = swarm.dispatch(
-                template="Complete this subtask: {{item}}",
-                items=items,
-                role="implementer",
-                max_concurrency=plan.max_concurrency,
-                review=False,  # review happens in VERIFY phase
-            )
+        for task in plan.tasks:
+            tid = task.get("id", task.get("description", ""))
+            tools = task.get("tools", [])
+            desc = task.get("description", tid)
+            task_result = ""
+            for tool_name in tools:
+                try:
+                    task_result = self.execute_tool(tool_name, {"goal": desc})
+                except Exception as e:
+                    task_result = f"[error] {e}"
+                    break
+            results[tid] = task_result
+            if task_result and not str(task_result).startswith("[error]"):
+                done += 1
+            else:
+                failed += 1
 
-            done = sum(1 for v in results.values() if isinstance(v, str) and not v.startswith("error"))
-            failed = len(results) - done
-            return {"mode": "swarm", "done": done, "failed": failed, "total": len(results)}
-        except Exception as e:
-            return {"mode": "fallback", "error": str(e)}
+        return {"mode": "sequential", "done": done, "failed": failed, "total": len(plan.tasks), "results": results}
 
     def _verify_results(self, goal: str, plan: OrchestrationPlan, exec_result: dict) -> VerificationResult:
         """VERIFY 阶段: 交叉审查 + 自检."""

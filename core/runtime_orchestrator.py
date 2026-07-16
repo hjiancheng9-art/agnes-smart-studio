@@ -519,27 +519,37 @@ class RuntimeOrchestrator:
         self, trace_id: str, goal: str, grade: TaskComplexity, dna: DNAProfile,
         executor: Callable, p: OrchestrationProgress, result: OrchestrationResult,
     ) -> Generator[OrchestrationProgress, None, None]:
+        # Sequential execution via executor function — bypass broken AgentSwarm.
+        # AgentSwarm uses daemon threads with t.join(timeout=300) that hang.
+        # Instead, execute each step one at a time using the executor directly.
         try:
             from core.multi_agent_decompose import SmartDecomposer
-            from core.multi_agent_swarm import AgentSwarm
-
             decomposer = SmartDecomposer()
             tasks = decomposer.decompose(goal, max_tasks=8)
-            steps = [t.get("description", f"Step {i+1}") for i, t in enumerate(tasks)]
-            role = self._select_agent_role(dna)
+        except (ImportError, Exception):
+            # Fallback: build a simple plan from the goal
+            tasks = [
+                {"id": "1", "description": "运行 self_heal 审计", "tool": "self_heal"},
+                {"id": "2", "description": "代码审查变更文件", "tool": "code_review"},
+                {"id": "3", "description": "运行 lint 检查和修复", "tool": "run_lint"},
+                {"id": "4", "description": "格式化代码", "tool": "run_format"},
+            ]
 
-            yield self._emit(p, "info", f"Multi-Agent: {len(steps)} 任务 · 角色 {role}")
+        steps_executed = 0
+        for i, task in enumerate(tasks):
+            desc = task.get("description", f"Step {i+1}")
+            tool = task.get("tool", task.get("tools", ["self_heal"])[0] if task.get("tools") else "self_heal")
+            yield self._emit(p, "info", f"Step {i+1}/{len(tasks)}: {desc}")
+            try:
+                exec_result = executor(tool, {"goal": desc})
+                if exec_result and "error" not in str(exec_result).lower():
+                    steps_executed += 1
+            except Exception as e:
+                logger.warning("[%s] Step %d failed: %s", trace_id, i+1, e)
 
-            swarm = AgentSwarm(execute_tool=executor, model_router=self._model_router,
-                               max_workers=min(len(steps), self.max_concurrent))
-            swarm_result = swarm.dispatch("{{item}}", steps, role=role)
-
-            result.steps_executed = len(steps)
-            result.verdict = "pass" if swarm_result and "error" not in str(swarm_result).lower() else "needs_fix"
-            yield self._emit(p, "info", f"Multi-Agent 完成: {result.steps_executed} 任务")
-        except (ImportError, Exception) as e:
-            logger.info("[%s] Multi-agent 不可用 (%s)，降级 MasterOrchestrator", trace_id, e)
-            yield from self._execute_via_master(trace_id, goal, grade, executor, p, result)
+        result.steps_executed = steps_executed
+        result.verdict = "pass" if steps_executed >= len(tasks) * 0.5 else "needs_fix"
+        yield self._emit(p, "info", f"执行完成: {steps_executed}/{len(tasks)} 步骤")
 
     def _run_master(self, trace_id: str, goal: str, executor: Callable, grade: TaskComplexity) -> dict:
         from core.orchestration import MasterOrchestrator, ExecutionBudget
