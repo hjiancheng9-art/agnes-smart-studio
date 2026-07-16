@@ -208,7 +208,7 @@ class LSPClient:
 
             try:
                 proc = subprocess.Popen(
-                    [config.command] + config.args,
+                    [config.command, *config.args],
                     stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,

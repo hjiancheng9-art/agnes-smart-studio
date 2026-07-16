@@ -57,6 +57,7 @@ INJECTION_ATTACKS = [
 
 # ── 1. PROMPT LAYER ORDERING ──
 
+
 class TestPromptLayerOrdering:
     """Prompt compilation must maintain stable layer order."""
 
@@ -81,6 +82,7 @@ class TestPromptLayerOrdering:
 
 # ── 2. VERSION CONSISTENCY ──
 
+
 class TestVersionConsistency:
     """System must not admit to being a different version."""
 
@@ -88,6 +90,7 @@ class TestVersionConsistency:
         """System prompt must contain v6.0.0."""
         # Check that the identity/config files reference v6.0.0
         import glob
+
         matches = []
         for pattern in ["*.md", "core/*.py", "config/*.json"]:
             for f in glob.glob(pattern):
@@ -103,10 +106,12 @@ class TestVersionConsistency:
         # The actual injection resistance depends on PromptCompiler + ToolCallValidator
         # Here we verify the defense mechanisms exist
         from core.tool_call_validator import ToolCallValidator
+
         assert ToolCallValidator is not None, "ToolCallValidator must exist for injection defense"
 
 
 # ── 3. PROMPT COMPILER INTEGRITY ──
+
 
 class TestPromptCompilerIntegrity:
     """PromptCompiler must handle all phases correctly."""
@@ -121,6 +126,7 @@ class TestPromptCompilerIntegrity:
 
 
 # ── 4. STRUCTURAL GUARDRAILS ──
+
 
 class TestStructuralGuardrails:
     """Design-level defenses against prompt injection."""
@@ -158,6 +164,7 @@ class TestStructuralGuardrails:
         """Self-correction must have a finite retry limit."""
         # Structural invariant check
         import glob
+
         found_limit = False
         for f in glob.glob("core/*.py"):
             content = open(f, encoding="utf-8", errors="ignore").read()

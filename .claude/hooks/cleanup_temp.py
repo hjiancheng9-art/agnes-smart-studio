@@ -26,7 +26,8 @@ def clean_tmp_py(home: str) -> int:
                     pass
     except Exception:
         import logging
-        logging.getLogger('crux').debug('silent except', exc_info=True)
+
+        logging.getLogger("crux").debug("silent except", exc_info=True)
     return count
 
 
@@ -49,7 +50,8 @@ def clean_generated_txt(root: str) -> int:
                     pass
     except Exception:
         import logging
-        logging.getLogger('crux').debug('silent except', exc_info=True)
+
+        logging.getLogger("crux").debug("silent except", exc_info=True)
     return count
 
 

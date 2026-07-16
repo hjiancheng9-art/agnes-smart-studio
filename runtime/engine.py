@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+
 @dataclass(frozen=True, slots=True)
 class PreparedTurn:
     plan: object  # accepts both old core.runtime_types.ExecutionPlan and new domain.plans.ExecutionPlan
@@ -25,18 +26,19 @@ class RuntimeEngine:
     def prepare_turn(self, old_plan=None):
         """Return PreparedTurn or None if old loop should handle everything."""
         plan = old_plan
-        if plan is None or getattr(plan, 'mode', 'direct') == "direct":
+        if plan is None or getattr(plan, "mode", "direct") == "direct":
             return None
 
         # Handle both old (core.runtime_types) and new (domain.plans) plan formats
-        tool_names = getattr(plan, 'tool_names', ()) or getattr(
-            getattr(plan, 'prompt_plan', None), 'tool_names', ()
-        ) or ()
+        tool_names = (
+            getattr(plan, "tool_names", ()) or getattr(getattr(plan, "prompt_plan", None), "tool_names", ()) or ()
+        )
 
         # Build short system prompt
         try:
-            from prompts.assembler import PromptAssembler
             from domain.plans import PromptPlan
+            from prompts.assembler import PromptAssembler
+
             assembler = PromptAssembler()
             pp = PromptPlan(task_profile="architecture", tool_names=tool_names)
             system_prompt = assembler.build(pp)

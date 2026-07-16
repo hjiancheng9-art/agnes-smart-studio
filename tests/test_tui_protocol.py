@@ -1,6 +1,7 @@
 """
 Tests for Stream Protocol, Confirm Manager, TUI Healthcheck — Phase 10
 """
+
 import asyncio
 
 from core.confirm_manager import ConfirmManager, ConfirmResult, get_confirm_manager
@@ -120,6 +121,7 @@ class TestConfirmManager:
             req = cm.create("test", "timeout test", timeout_seconds=0.1)
             result, reason = await cm.wait(req.confirm_id)
             return result, reason
+
         result, reason = asyncio.run(run())
         assert result == ConfirmResult.TIMEOUT
         assert "超时" in reason
@@ -132,6 +134,7 @@ class TestConfirmManager:
             asyncio.get_running_loop().call_later(0.1, lambda: cm.respond(req.confirm_id, True))
             result, _ = await cm.wait(req.confirm_id)
             return result
+
         result = asyncio.run(run())
         assert result == ConfirmResult.CONFIRMED
 
@@ -195,8 +198,20 @@ class TestTuiHealthcheck:
 
 class TestKnownKinds:
     def test_required_kinds_present(self):
-        required = {"text", "info", "status", "error", "confirm",
-                     "stream_start", "stream_end", "intel_analysis",
-                     "tool_start", "tool_result", "final", "image", "video"}
+        required = {
+            "text",
+            "info",
+            "status",
+            "error",
+            "confirm",
+            "stream_start",
+            "stream_end",
+            "intel_analysis",
+            "tool_start",
+            "tool_result",
+            "final",
+            "image",
+            "video",
+        }
         for kind in required:
             assert kind in KNOWN_KINDS, f"Missing kind: {kind}"

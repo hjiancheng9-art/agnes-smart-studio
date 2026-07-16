@@ -81,9 +81,9 @@ class ReflectionLoop:
         # after N turns and be re-sent on every subsequent API call.
         marker = "[🔍 Review]"
         session.messages = [
-            m for m in session.messages
-            if not (m.get("role") == "assistant"
-                    and str(m.get("content", "")).startswith(marker))
+            m
+            for m in session.messages
+            if not (m.get("role") == "assistant" and str(m.get("content", "")).startswith(marker))
         ]
         correction = f"{marker} {review_text.strip()[:300]}"
         session.messages.append({"role": "assistant", "content": correction})

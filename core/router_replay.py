@@ -27,9 +27,11 @@ logger = logging.getLogger(__name__)
 # ── 数据结构 ──
 # ════════════════════════════════════════════════
 
+
 @dataclass
 class RouteEvalCase:
     """单条路由评测样本"""
+
     id: str
     text: str
     expected_mode: str
@@ -62,6 +64,7 @@ class RouteEvalCase:
 @dataclass
 class SingleResult:
     """单条测试结果"""
+
     case_id: str
     text: str
     expected: str
@@ -77,6 +80,7 @@ class SingleResult:
 @dataclass
 class EvalReport:
     """评测报告"""
+
     total: int = 0
     passed: int = 0
     acceptable: int = 0
@@ -114,7 +118,9 @@ class EvalReport:
     @property
     def underroute_rate(self) -> float:
         """不足路由率（应复杂却给了简单）"""
-        cnt = sum(1 for r in self.results if r.expected in ("DEEP", "SAFE", "RESEARCH") and r.actual in ("FAST", "BALANCED"))
+        cnt = sum(
+            1 for r in self.results if r.expected in ("DEEP", "SAFE", "RESEARCH") and r.actual in ("FAST", "BALANCED")
+        )
         return cnt / self.total if self.total else 0.0
 
     def to_dict(self) -> dict[str, Any]:
@@ -146,6 +152,7 @@ class EvalReport:
 # ════════════════════════════════════════════════
 # ── 回放引擎 ──
 # ════════════════════════════════════════════════
+
 
 class RouterReplay:
     """路由回放引擎"""
@@ -262,44 +269,42 @@ class RouterReplay:
         lines.append("📊 Router Replay 评测报告")
         lines.append("=" * 60)
         lines.append(f"总样本:     {d['total']}")
-        lines.append(f"精确匹配:   {d['passed']} ({d['accuracy']*100:.1f}%)")
-        lines.append(f"可接受匹配: {d['acceptable']} ({d['acceptable_rate']*100:.1f}%)")
-        lines.append(f"过度路由率: {d['overroute_rate']*100:.1f}%")
-        lines.append(f"不足路由率: {d['underroute_rate']*100:.1f}%")
+        lines.append(f"精确匹配:   {d['passed']} ({d['accuracy'] * 100:.1f}%)")
+        lines.append(f"可接受匹配: {d['acceptable']} ({d['acceptable_rate'] * 100:.1f}%)")
+        lines.append(f"过度路由率: {d['overroute_rate'] * 100:.1f}%")
+        lines.append(f"不足路由率: {d['underroute_rate'] * 100:.1f}%")
         lines.append(f"耗时:       {d['duration_seconds']:.2f}s")
         lines.append("")
 
         # 混淆矩阵
         lines.append("─" * 40)
         lines.append("混淆矩阵 (期望\\实际):")
-        all_modes = sorted(set(list(d['confusion'].keys()) + [
-            v for cm in d['confusion'].values() for v in cm.keys()
-        ]))
+        all_modes = sorted(set(list(d["confusion"].keys()) + [v for cm in d["confusion"].values() for v in cm]))
         header = "{:<12}".format("期望\\实际") + "".join(f"{m:<8}" for m in all_modes)
         lines.append(header)
         for exp in all_modes:
             row = f"{exp:<12}"
             for act in all_modes:
-                cnt = d['confusion'].get(exp, {}).get(act, 0)
+                cnt = d["confusion"].get(exp, {}).get(act, 0)
                 row += f"{cnt:<8}"
             lines.append(row)
 
         # 标签分组
-        if d['by_tag']:
+        if d["by_tag"]:
             lines.append("")
             lines.append("─" * 40)
             lines.append("按标签分组:")
-            for tag, info in sorted(d['by_tag'].items()):
-                acc = info['passed'] / info['total'] * 100 if info['total'] else 0
+            for tag, info in sorted(d["by_tag"].items()):
+                acc = info["passed"] / info["total"] * 100 if info["total"] else 0
                 lines.append(f"  {tag:<15} {info['passed']}/{info['total']} ({acc:.0f}%)")
 
         # 失败详情
-        if d['failures'] and verbose:
+        if d["failures"] and verbose:
             lines.append("")
             lines.append("─" * 40)
             lines.append(f"失败详情 (前 {len(d['failures'])} 条):")
-            for f in d['failures']:
-                lines.append(f"  [{f['id']}] {f['reason']}: \"{f['text']}\"")
+            for f in d["failures"]:
+                lines.append(f'  [{f["id"]}] {f["reason"]}: "{f["text"]}"')
 
         lines.append("")
         lines.append("=" * 60)
@@ -310,6 +315,7 @@ class RouterReplay:
 # ════════════════════════════════════════════════
 # ── CLI 入口 ──
 # ════════════════════════════════════════════════
+
 
 def main(jsonl_path: str | None = None, verbose: bool = False):
     """CLI 入口"""
@@ -333,6 +339,7 @@ def main(jsonl_path: str | None = None, verbose: bool = False):
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="Router Replay — 路由评测回放")
     parser.add_argument("--jsonl", default=None, help="黄金集 JSONL 路径")
     parser.add_argument("--verbose", "-v", action="store_true", help="显示失败详情")
@@ -340,4 +347,4 @@ if __name__ == "__main__":
 
     report = main(jsonl_path=args.jsonl, verbose=args.verbose)
     if report and report.accuracy < 0.8:
-        print(f"\n⚠️ 准确率 {report.accuracy*100:.1f}% < 80%，建议优化路由")
+        print(f"\n⚠️ 准确率 {report.accuracy * 100:.1f}% < 80%，建议优化路由")

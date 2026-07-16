@@ -60,29 +60,19 @@ class TestFailureClassification:
         assert self.loop._classify_failure("should work", True, False) == FailureCategory.RETRY
 
     def test_syntax_error_is_retry(self):
-        assert self.loop._classify_failure(
-            "SyntaxError: invalid syntax", False, True
-        ) == FailureCategory.RETRY
+        assert self.loop._classify_failure("SyntaxError: invalid syntax", False, True) == FailureCategory.RETRY
 
     def test_oem_is_fatal(self):
-        assert self.loop._classify_failure(
-            "CUDA out of memory", False, True
-        ) == FailureCategory.FATAL
+        assert self.loop._classify_failure("CUDA out of memory", False, True) == FailureCategory.FATAL
 
     def test_permission_denied_is_fatal(self):
-        assert self.loop._classify_failure(
-            "permission denied: /etc/config", False, True
-        ) == FailureCategory.FATAL
+        assert self.loop._classify_failure("permission denied: /etc/config", False, True) == FailureCategory.FATAL
 
     def test_rate_limit_is_retry(self):
-        assert self.loop._classify_failure(
-            "rate limit exceeded, try again", False, True
-        ) == FailureCategory.RETRY
+        assert self.loop._classify_failure("rate limit exceeded, try again", False, True) == FailureCategory.RETRY
 
     def test_unknown_error_needs_human(self):
-        assert self.loop._classify_failure(
-            "something went wrong somewhere", False, True
-        ) == FailureCategory.NEEDS_HUMAN
+        assert self.loop._classify_failure("something went wrong somewhere", False, True) == FailureCategory.NEEDS_HUMAN
 
 
 class TestFeedbackLoopBasics:

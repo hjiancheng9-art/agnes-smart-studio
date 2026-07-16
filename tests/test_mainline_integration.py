@@ -3,6 +3,7 @@ Mainline Integration Tests — Phase 9
 ======================================
 测试主链路全路径: DeliberateWorkflow → CapabilityRuntimeRouter → Runtime.execute()
 """
+
 import asyncio
 
 import pytest
@@ -75,76 +76,92 @@ class TestDeliberateWorkflowRuntimeIntegration:
     def test_workflow_has_capability_router(self):
         """DeliberateWorkflow 应包含 capability_router"""
         wf = DeliberateWorkflow()
-        assert hasattr(wf, 'capability_router')
-        assert hasattr(wf, 'runtime_config')
+        assert hasattr(wf, "capability_router")
+        assert hasattr(wf, "runtime_config")
 
     def test_debug_runtime_called(self, workflow):
         """排查请求应走 DebugAnalyzeRuntime"""
-        result = asyncio.run(workflow.execute(
-            "排查间歇性崩溃根因，测试通过但挂了",
-            mode=IntelligenceMode.DEEP,
-        ))
+        result = asyncio.run(
+            workflow.execute(
+                "排查间歇性崩溃根因，测试通过但挂了",
+                mode=IntelligenceMode.DEEP,
+            )
+        )
         assert result.passed is True
         assert "debug_analyze" in result.summary or "Runtime" in result.summary
 
     def test_general_runtime_called(self, workflow):
         """普通请求应走 GeneralRuntime"""
-        result = asyncio.run(workflow.execute(
-            "写一个 Python 函数",
-            mode=IntelligenceMode.BALANCED,
-        ))
+        result = asyncio.run(
+            workflow.execute(
+                "写一个 Python 函数",
+                mode=IntelligenceMode.BALANCED,
+            )
+        )
         # GeneralRuntime 也会返回 success
         assert result.passed is True
 
     def test_architecture_runtime_called(self, workflow):
         """架构请求应走 ArchitectureRuntime"""
-        result = asyncio.run(workflow.execute(
-            "设计微服务拆分方案",
-            mode=IntelligenceMode.DEEP,
-        ))
+        result = asyncio.run(
+            workflow.execute(
+                "设计微服务拆分方案",
+                mode=IntelligenceMode.DEEP,
+            )
+        )
         assert result.passed is True
 
     def test_research_runtime_called(self, workflow):
         """研究请求应走 ResearchRuntime"""
-        result = asyncio.run(workflow.execute(
-            "研究最新的 RAG 技术",
-            mode=IntelligenceMode.RESEARCH,
-        ))
+        result = asyncio.run(
+            workflow.execute(
+                "研究最新的 RAG 技术",
+                mode=IntelligenceMode.RESEARCH,
+            )
+        )
         assert result.passed is True
 
     def test_creative_runtime_called(self, workflow):
         """创意请求应走 CreativeRuntime"""
-        result = asyncio.run(workflow.execute(
-            "设计一个科技感的产品首页",
-            mode=IntelligenceMode.CREATIVE,
-        ))
+        result = asyncio.run(
+            workflow.execute(
+                "设计一个科技感的产品首页",
+                mode=IntelligenceMode.CREATIVE,
+            )
+        )
         assert result.passed is True
 
     def test_runtime_config_disables_runtime(self, workflow):
         """禁用 Runtime 后应回退到 General"""
         workflow.runtime_config.disable("debug_analyze")
-        result = asyncio.run(workflow.execute(
-            "排查间歇崩溃根因",
-            mode=IntelligenceMode.DEEP,
-        ))
+        result = asyncio.run(
+            workflow.execute(
+                "排查间歇崩溃根因",
+                mode=IntelligenceMode.DEEP,
+            )
+        )
         # Disabled runtime falls through - still processes but may use general
         assert result is not None
 
     def test_master_switch_disables_all(self, workflow):
         """禁用主开关后所有 Runtime 都不应使用"""
         workflow.runtime_config.enabled = False
-        result = asyncio.run(workflow.execute(
-            "排查间歇崩溃根因",
-            mode=IntelligenceMode.DEEP,
-        ))
+        result = asyncio.run(
+            workflow.execute(
+                "排查间歇崩溃根因",
+                mode=IntelligenceMode.DEEP,
+            )
+        )
         assert result is not None
 
     def test_workflow_steps_recorded(self, workflow):
         """执行后应有步骤记录"""
-        result = asyncio.run(workflow.execute(
-            "排查崩溃问题",
-            mode=IntelligenceMode.DEEP,
-        ))
+        result = asyncio.run(
+            workflow.execute(
+                "排查崩溃问题",
+                mode=IntelligenceMode.DEEP,
+            )
+        )
         assert len(result.steps) > 0
 
     def test_runtime_disabled_still_returns(self):

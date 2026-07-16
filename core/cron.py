@@ -25,11 +25,14 @@ import random
 import threading
 import time
 import uuid
-from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING
 
 from core.config import OUTPUT_DIR
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 __all__ = [
     "CronJob",

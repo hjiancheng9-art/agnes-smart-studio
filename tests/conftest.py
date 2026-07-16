@@ -25,4 +25,5 @@ def pytest_configure(config):
 def project_root():
     """Return the project root directory."""
     from pathlib import Path
+
     return Path(__file__).resolve().parent.parent

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING
 
 from core.client import CruxClient
 from core.gateway.protocol import (
@@ -24,6 +24,9 @@ from core.gateway.protocol import (
     ModelList,
     Usage,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 # ── Known model aliases ─────────────────────────────────
 
@@ -141,15 +144,17 @@ class GatewayRunner:
         choices = []
         for i, c in enumerate(choices_raw):
             msg = c.get("message", {})
-            choices.append(Choice(
-                index=i,
-                message=ChoiceMessage(
-                    role=msg.get("role", "assistant"),
-                    content=msg.get("content"),
-                    tool_calls=msg.get("tool_calls"),
-                ),
-                finish_reason=c.get("finish_reason"),
-            ))
+            choices.append(
+                Choice(
+                    index=i,
+                    message=ChoiceMessage(
+                        role=msg.get("role", "assistant"),
+                        content=msg.get("content"),
+                        tool_calls=msg.get("tool_calls"),
+                    ),
+                    finish_reason=c.get("finish_reason"),
+                )
+            )
 
         usage = None
         if usage_raw:
@@ -168,9 +173,7 @@ class GatewayRunner:
 
     # ── Streaming ────────────────────────────────────
 
-    async def complete_stream(
-        self, req: ChatCompletionRequest
-    ) -> AsyncGenerator[str, None]:
+    async def complete_stream(self, req: ChatCompletionRequest) -> AsyncGenerator[str, None]:
         model = resolve_model(req.model)
         messages = convert_messages(req.messages)
         tools = _tools_to_dicts(req.tools)
@@ -181,17 +184,19 @@ class GatewayRunner:
         # chat_stream() yields dicts in a blocking generator. Run in executor,
         # collect all chunks, then yield SSE from async context.
         def _collect() -> list[dict]:
-            return list(self.client.chat_stream(
-                model=model,
-                messages=messages,
-                temperature=req.temperature or 0.7,
-                top_p=req.top_p,
-                max_tokens=req.max_tokens or req.max_completion_tokens,
-                stop=req.stop,
-                tools=tools,
-                tool_choice=req.tool_choice,
-                thinking=False,  # gateway defaults to standard chat
-            ))
+            return list(
+                self.client.chat_stream(
+                    model=model,
+                    messages=messages,
+                    temperature=req.temperature or 0.7,
+                    top_p=req.top_p,
+                    max_tokens=req.max_tokens or req.max_completion_tokens,
+                    stop=req.stop,
+                    tools=tools,
+                    tool_choice=req.tool_choice,
+                    thinking=False,  # gateway defaults to standard chat
+                )
+            )
 
         chunks: list[dict] = await loop.run_in_executor(None, _collect)
 
@@ -251,11 +256,13 @@ class GatewayRunner:
         final_chunk = ChatCompletionChunk(
             id=chat_id,
             model=model,
-            choices=[DeltaChoice(
-                index=idx,
-                delta=DeltaContent(),
-                finish_reason=finish_reason or "stop",
-            )],
+            choices=[
+                DeltaChoice(
+                    index=idx,
+                    delta=DeltaContent(),
+                    finish_reason=finish_reason or "stop",
+                )
+            ],
             usage=final_usage,
         )
         yield f"data: {final_chunk.model_dump_json()}\n\n"

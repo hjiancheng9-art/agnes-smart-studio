@@ -13,6 +13,7 @@ PlanGate: Plan 后校验 Who/What/Where/Why/How → 不通过回退
 from __future__ import annotations
 
 import json
+import logging
 import re
 import time
 import uuid
@@ -31,10 +32,8 @@ from .intelligence_policy import (
 )
 from .intelligence_trace import TraceRecord, get_trace_store
 from .intelligence_trace import TraceStep as TraceStepRecord
-import logging
 
 logger = logging.getLogger("crux").getChild("deliberate_workflow")
-
 
 
 @dataclass
@@ -116,13 +115,14 @@ class DeliberateWorkflow:
         if self.capability_router and self.runtime_config and self.runtime_config.enabled:
             try:
                 from .runtimes.base_runtime import RuntimeContext
+
                 rt_type, runtime = self.capability_router.select_runtime(request, mode.value)
                 if runtime and rt_type and self.runtime_config.is_runtime_enabled(runtime.name):
                     # 走专业 Runtime 快速路径
                     ctx = RuntimeContext(
                         request=request,
                         mode=mode.value,
-                        config=config.to_dict() if hasattr(config, 'to_dict') else {},
+                        config=config.to_dict() if hasattr(config, "to_dict") else {},
                     )
                     rt_result = await runtime.execute(ctx)
                     result.passed = rt_result.get("status") == "success"
@@ -142,7 +142,7 @@ class DeliberateWorkflow:
                         trace.ended_at = time.time()
                         get_trace_store().record(trace)
                     except Exception:
-                        logging.getLogger('crux').debug('silent except', exc_info=True)
+                        logging.getLogger("crux").debug("silent except", exc_info=True)
                     return result
             except Exception:
                 pass  # Runtime 失败则回退到传统流程
@@ -225,7 +225,12 @@ class DeliberateWorkflow:
 
         # ── Round 4: Repair ──
         step4 = self._make_step("repair", result)
-        if config.critic and result.critique_report and not result.critique_report.passed and not result.critique_report.blocking:
+        if (
+            config.critic
+            and result.critique_report
+            and not result.critique_report.passed
+            and not result.critique_report.blocking
+        ):
             try:
                 repair_result = await self._repair(request, result.critique_report, config)
                 step4.result = repair_result
@@ -254,7 +259,7 @@ class DeliberateWorkflow:
                 summary = self.policy_router.summary(request, context)
                 signal_scores = summary.get("signal_scores")
             except Exception:
-                logging.getLogger('crux').debug('silent except', exc_info=True)
+                logging.getLogger("crux").debug("silent except", exc_info=True)
 
             trace = TraceRecord(
                 run_id=result.goal_id or str(uuid.uuid4())[:12],
@@ -278,7 +283,7 @@ class DeliberateWorkflow:
             trace.ended_at = time.time()
             get_trace_store().record(trace)
         except Exception:
-            logging.getLogger('crux').debug('silent except', exc_info=True)
+            logging.getLogger("crux").debug("silent except", exc_info=True)
 
         return result
 
@@ -315,14 +320,14 @@ class DeliberateWorkflow:
         # 5. 如果有 toolbus，做快速代码搜索
         if self.toolbus and ctx.get("search_project"):
             try:
-                search_result = await self.toolbus.call("search_files", {
-                    "pattern": request.split()[0] if request.split() else ""
-                })
+                search_result = await self.toolbus.call(
+                    "search_files", {"pattern": request.split()[0] if request.split() else ""}
+                )
                 if isinstance(search_result, str) and len(search_result) > 20:
                     parts.append(f"代码搜索: {len(search_result)} chars")
                     gathered["search_result"] = search_result[:1000]
             except Exception:
-                logging.getLogger('crux').debug('silent except', exc_info=True)
+                logging.getLogger("crux").debug("silent except", exc_info=True)
 
         gathered["summary"] = "; ".join(parts) if parts else "基础上下文"
         return gathered
@@ -335,7 +340,7 @@ class DeliberateWorkflow:
         """Plan 质量门禁 — 检查 5W"""
         result: dict[str, Any] = {"passed": True, "reason": "", "details": {}}
         lower_plan = plan_text.lower()
-        lower_req = request.lower()
+        request.lower()
 
         # 检查每个维度
         checks = {
@@ -362,7 +367,9 @@ class DeliberateWorkflow:
     # ── Plan ──
     # ══════════════════════════════════════
 
-    async def _plan(self, request: str, config: ModeConfig, context: dict[str, Any] | None = None, retry: bool = False) -> dict[str, Any]:
+    async def _plan(
+        self, request: str, config: ModeConfig, context: dict[str, Any] | None = None, retry: bool = False
+    ) -> dict[str, Any]:
         """Plan 阶段"""
         result: dict[str, Any] = {"goal_id": "", "step_count": 0, "plan_text": ""}
         if not self.toolbus:
@@ -378,21 +385,27 @@ class DeliberateWorkflow:
             boundaries += " 请提供更具体的执行步骤，明确回答: 做什么(what)、在哪做(where)、为什么做(why)、怎么做(how)。"
 
         try:
-            goal_response = await self.toolbus.call("create_goal", {
-                "intent": request,
-                "boundaries": boundaries,
-                "max_steps": config.max_rounds * 5,
-            })
+            goal_response = await self.toolbus.call(
+                "create_goal",
+                {
+                    "intent": request,
+                    "boundaries": boundaries,
+                    "max_steps": config.max_rounds * 5,
+                },
+            )
             if isinstance(goal_response, dict):
                 result["goal_id"] = goal_response.get("goal_id", "")
         except Exception:
-            logging.getLogger('crux').debug('silent except', exc_info=True)
+            logging.getLogger("crux").debug("silent except", exc_info=True)
 
         try:
-            plan_response = await self.toolbus.call("execute_plan", {
-                "goal": request,
-                "use_llm_plan": True,
-            })
+            plan_response = await self.toolbus.call(
+                "execute_plan",
+                {
+                    "goal": request,
+                    "use_llm_plan": True,
+                },
+            )
             if isinstance(plan_response, str):
                 result["plan_text"] = plan_response[:3000]
             elif isinstance(plan_response, dict):
@@ -418,12 +431,15 @@ class DeliberateWorkflow:
         ]
 
         try:
-            swarm_result = await self.toolbus.call("agent_swarm", {
-                "template": "你是一个严格的攻击性测试者。任务: {{item}}",
-                "items": attack_tasks[:config.max_agents],
-                "role": "reviewer",
-                "max_concurrency": config.max_agents,
-            })
+            swarm_result = await self.toolbus.call(
+                "agent_swarm",
+                {
+                    "template": "你是一个严格的攻击性测试者。任务: {{item}}",
+                    "items": attack_tasks[: config.max_agents],
+                    "role": "reviewer",
+                    "max_concurrency": config.max_agents,
+                },
+            )
             if isinstance(swarm_result, str):
                 return swarm_result[:2000]
             elif isinstance(swarm_result, dict):
@@ -436,7 +452,9 @@ class DeliberateWorkflow:
     # ── Criticize ──
     # ══════════════════════════════════════
 
-    async def _criticize(self, request: str, config: ModeConfig, context: dict[str, Any] | None = None) -> CritiqueReport:
+    async def _criticize(
+        self, request: str, config: ModeConfig, context: dict[str, Any] | None = None
+    ) -> CritiqueReport:
         files: list[str] = []
         if context and "files" in context:
             files = context["files"]
@@ -469,7 +487,9 @@ class DeliberateWorkflow:
         if not self.toolbus:
             return "no_toolbus"
 
-        blocking_findings = [f for f in report.findings if f.severity in (CritiqueSeverity.CRITICAL, CritiqueSeverity.HIGH)]
+        blocking_findings = [
+            f for f in report.findings if f.severity in (CritiqueSeverity.CRITICAL, CritiqueSeverity.HIGH)
+        ]
         if not blocking_findings:
             return "nothing_to_fix"
 
@@ -488,10 +508,13 @@ class DeliberateWorkflow:
 3. 每个修复必须说明对应的问题
 """
 
-            repair_response = await self.toolbus.call("execute_plan", {
-                "goal": fix_goal,
-                "use_llm_plan": True,
-            })
+            repair_response = await self.toolbus.call(
+                "execute_plan",
+                {
+                    "goal": fix_goal,
+                    "use_llm_plan": True,
+                },
+            )
             if isinstance(repair_response, str):
                 return repair_response[:2000]
             elif isinstance(repair_response, dict):
@@ -509,12 +532,18 @@ class DeliberateWorkflow:
         if not self.toolbus:
             return result
         try:
-            verify_response = await self.toolbus.call("trm_route", {
-                "intent": "review",
-                "prompt": f"验证以下请求是否已正确完成:\n{request}\n\n确认: 1) 功能完整 2) 无副作用 3) 边界条件已处理",
-            })
+            verify_response = await self.toolbus.call(
+                "trm_route",
+                {
+                    "intent": "review",
+                    "prompt": f"验证以下请求是否已正确完成:\n{request}\n\n确认: 1) 功能完整 2) 无副作用 3) 边界条件已处理",
+                },
+            )
             if isinstance(verify_response, str):
-                has_failure = any(kw in verify_response.lower() for kw in ["失败", "错误", "未完成", "遗漏", "bug", "error", "failed", "missing"])
+                has_failure = any(
+                    kw in verify_response.lower()
+                    for kw in ["失败", "错误", "未完成", "遗漏", "bug", "error", "failed", "missing"]
+                )
                 result["passed"] = not has_failure
                 result["summary"] = verify_response[:300]
             elif isinstance(verify_response, dict):
@@ -558,7 +587,9 @@ class DeliberateWorkflow:
 
     def format_result_for_user(self, result: WorkflowResult) -> str:
         lines: list[str] = []
-        mode_icon = {"FAST": "⚡", "BALANCED": "⚖️", "DEEP": "🧠", "SAFE": "🛡️", "RESEARCH": "🔬", "CREATIVE": "🎨"}.get(result.mode, "❓")
+        mode_icon = {"FAST": "⚡", "BALANCED": "⚖️", "DEEP": "🧠", "SAFE": "🛡️", "RESEARCH": "🔬", "CREATIVE": "🎨"}.get(
+            result.mode, "❓"
+        )
         status_icon = "✅" if result.passed else "❌"
         lines.append(f"{status_icon} [{mode_icon} {result.mode}] 工作流完成\n")
 
@@ -575,7 +606,9 @@ class DeliberateWorkflow:
             c = result.critique_report
             lines.append(f"📋 **审查报告**: {c.summary}")
             for f in c.findings:
-                icon = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢", "info": "ℹ️"}.get(f.severity.value, "❓")
+                icon = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢", "info": "ℹ️"}.get(
+                    f.severity.value, "❓"
+                )
                 ev = f" | 📍 {f.evidence[:60]}" if f.evidence else ""
                 lines.append(f"  {icon} [{f.severity.value}] {f.summary[:100]}{ev}")
             lines.append("")

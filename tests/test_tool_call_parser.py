@@ -1,6 +1,5 @@
 """Tests for core/tool_call_parser.py — XML tool-call parser."""
 
-
 from core.tool_call_parser import (
     _extract_kv_pairs,
     _make_tc,
@@ -29,9 +28,7 @@ class TestParseArgs:
         assert result["key1"] == "val1"
 
     def test_html_escaped(self):
-        result = _parse_args(
-            '{"name": "read_file", &quot;path&quot;: &quot;test.py&quot;}'
-        )
+        result = _parse_args('{"name": "read_file", &quot;path&quot;: &quot;test.py&quot;}')
         assert "name" in result
 
 

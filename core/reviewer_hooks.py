@@ -74,14 +74,16 @@ def inject_reviewer_hooks(session):
                         warning = report.to_llm_prompt()
                         warning_marker = "[Reviewer Warning]"
                         self.messages = [
-                            m for m in self.messages
-                            if not (m.get("role") == "system"
-                                    and str(m.get("content", "")).startswith(warning_marker))
+                            m
+                            for m in self.messages
+                            if not (m.get("role") == "system" and str(m.get("content", "")).startswith(warning_marker))
                         ]
-                        self.messages.append({
-                            "role": "system",
-                            "content": f"{warning_marker}\n{warning[:500]}",
-                        })
+                        self.messages.append(
+                            {
+                                "role": "system",
+                                "content": f"{warning_marker}\n{warning[:500]}",
+                            }
+                        )
                         # Set a flag for the UI to show
                         self._last_review_warning = warning[:200]
 

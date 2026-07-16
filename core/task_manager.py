@@ -14,9 +14,12 @@ import threading
 import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from core.config import OUTPUT_DIR
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 __all__ = [
     "TASK_MANAGER_EXECUTOR_MAP",

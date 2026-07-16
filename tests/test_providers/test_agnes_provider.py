@@ -1,4 +1,5 @@
 """Tests for core.providers.agnes — AgnesProvider 核心方法（离线部分）"""
+
 from core.providers.agnes import (
     DEFAULT_IMAGE_MODEL,
     DEFAULT_VIDEO_MODEL,
@@ -21,6 +22,7 @@ class TestCleanVideoId:
 
     def test_litellm_wrapped(self):
         import base64
+
         inner = "litellm:custom_llm_provider:openai;model_id:agnes-video-v2.0;video_id:video_real123"
         wrapped = "video_" + base64.b64encode(inner.encode()).decode()
         assert _clean_video_id(wrapped) == "video_real123"

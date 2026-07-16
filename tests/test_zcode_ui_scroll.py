@@ -159,10 +159,12 @@ class TestPersistence_NoDuplicatePagedown:
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef):
                 for deco in node.decorator_list:
-                    if (isinstance(deco, ast.Call)
-                            and isinstance(deco.func, ast.Attribute)
-                            and deco.func.attr == "add"
-                            and deco.args):
+                    if (
+                        isinstance(deco, ast.Call)
+                        and isinstance(deco.func, ast.Attribute)
+                        and deco.func.attr == "add"
+                        and deco.args
+                    ):
                         first_arg = deco.args[0]
                         if isinstance(first_arg, ast.Constant) and first_arg.value == key:
                             kwargs = {kw.arg: kw.value for kw in deco.keywords if kw.arg}
@@ -229,6 +231,7 @@ class TestPersistence_NoneGuardInScroll:
 # 持久性回归测试 — c-c / c-l 重复绑定防护
 # ═══════════════════════════════════════════════════════
 
+
 class TestPersistence_NoDuplicateCtrlC:
     """确保 ui/tui_v2.py 中 c-c 按键绑定只有一个（_ctrl_c 版）。
     历史 bug: c-c 绑定了两次，第一个匿名版本被第二个 _ctrl_c() 覆盖，变成死代码。
@@ -248,7 +251,9 @@ class TestPersistence_NoDuplicateCtrlC:
                     if isinstance(dec, ast.Call):
                         if isinstance(dec.func, ast.Attribute) and dec.func.attr == "add":
                             if dec.args:
-                                first_arg = ast.literal_eval(dec.args[0]) if isinstance(dec.args[0], ast.Constant) else None
+                                first_arg = (
+                                    ast.literal_eval(dec.args[0]) if isinstance(dec.args[0], ast.Constant) else None
+                                )
                                 if first_arg == "c-c":
                                     c_c_bindings.append((node.lineno, node.name))
 
@@ -289,7 +294,9 @@ class TestPersistence_NoDuplicateCtrlL:
                     if isinstance(dec, ast.Call):
                         if isinstance(dec.func, ast.Attribute) and dec.func.attr == "add":
                             if dec.args:
-                                first_arg = ast.literal_eval(dec.args[0]) if isinstance(dec.args[0], ast.Constant) else None
+                                first_arg = (
+                                    ast.literal_eval(dec.args[0]) if isinstance(dec.args[0], ast.Constant) else None
+                                )
                                 if first_arg == "c-l":
                                     c_l_bindings.append(node.lineno)
 
@@ -311,11 +318,13 @@ class TestPersistence_NoDuplicateCtrlL:
                     if isinstance(dec, ast.Call):
                         if isinstance(dec.func, ast.Attribute) and dec.func.attr == "add":
                             if dec.args:
-                                first_arg = ast.literal_eval(dec.args[0]) if isinstance(dec.args[0], ast.Constant) else None
+                                first_arg = (
+                                    ast.literal_eval(dec.args[0]) if isinstance(dec.args[0], ast.Constant) else None
+                                )
                                 if first_arg == "c-l":
                                     # Get the function body source
                                     body_lines = source.splitlines()
-                                    func_source = "\n".join(body_lines[node.lineno-1:node.end_lineno])
+                                    func_source = "\n".join(body_lines[node.lineno - 1 : node.end_lineno])
                                     assert "clear()" in func_source, (
                                         "c-l handler lost clear() — clear-screen functionality was dropped."
                                     )

@@ -1,6 +1,5 @@
 """Test Phase 2: Result validation + Consistency check + Diff guard"""
 
-
 import pytest
 
 from core.result_validator import (
@@ -86,62 +85,86 @@ class TestConsistencyChecker:
         assert len(rep.issues) == 0
 
     def test_all_succeeded(self, cc):
-        rep = cc.check("Done!", [
-            {"tool_name": "read_file", "args": {}, "result": "ok", "success": True},
-        ])
+        rep = cc.check(
+            "Done!",
+            [
+                {"tool_name": "read_file", "args": {}, "result": "ok", "success": True},
+            ],
+        )
         assert rep.is_consistent
 
     def test_failed_tool_not_mentioned(self, cc):
-        rep = cc.check("Great success!", [
-            {"tool_name": "run_bash", "args": {}, "result": "FAILED", "success": False},
-        ])
+        rep = cc.check(
+            "Great success!",
+            [
+                {"tool_name": "run_bash", "args": {}, "result": "FAILED", "success": False},
+            ],
+        )
         assert not rep.is_consistent
         assert any("run_bash" in i.description for i in rep.issues)
 
     def test_all_failed(self, cc):
-        rep = cc.check("Answer", [
-            {"tool_name": "run_bash", "args": {}, "result": "err", "success": False},
-        ])
+        rep = cc.check(
+            "Answer",
+            [
+                {"tool_name": "run_bash", "args": {}, "result": "err", "success": False},
+            ],
+        )
         assert not rep.is_consistent
         assert any("critical" in i.severity for i in rep.issues)
 
     def test_short_answer_many_tools(self, cc):
-        rep = cc.check("OK", [
-            {"tool_name": "t1", "args": {}, "result": "a", "success": True},
-            {"tool_name": "t2", "args": {}, "result": "b", "success": True},
-            {"tool_name": "t3", "args": {}, "result": "c", "success": True},
-            {"tool_name": "t4", "args": {}, "result": "d", "success": True},
-        ])
+        rep = cc.check(
+            "OK",
+            [
+                {"tool_name": "t1", "args": {}, "result": "a", "success": True},
+                {"tool_name": "t2", "args": {}, "result": "b", "success": True},
+                {"tool_name": "t3", "args": {}, "result": "c", "success": True},
+                {"tool_name": "t4", "args": {}, "result": "d", "success": True},
+            ],
+        )
         assert len(rep.issues) >= 1  # minor truncation issue
 
     def test_summary_format(self, cc):
-        rep = cc.check("OK", [
-            {"tool_name": "t", "args": {}, "result": "err", "success": False},
-        ])
+        rep = cc.check(
+            "OK",
+            [
+                {"tool_name": "t", "args": {}, "result": "err", "success": False},
+            ],
+        )
         assert "inconsistenc" in rep.summary().lower()
 
     def test_write_then_read_consistent(self, cc):
         """File written then read back should be consistent."""
-        rep = cc.check("I wrote and read config.py", [
-            {"tool_name": "write_file", "args": {"path": "config.py"}, "result": "ok", "success": True},
-            {"tool_name": "read_file", "args": {"path": "config.py"}, "result": "ok", "success": True},
-        ])
+        rep = cc.check(
+            "I wrote and read config.py",
+            [
+                {"tool_name": "write_file", "args": {"path": "config.py"}, "result": "ok", "success": True},
+                {"tool_name": "read_file", "args": {"path": "config.py"}, "result": "ok", "success": True},
+            ],
+        )
         assert rep.is_consistent
 
     def test_write_then_read_inconsistent_no_write(self, cc):
         """Reading a file that was never written should flag an issue."""
-        rep = cc.check("I read config.py", [
-            {"tool_name": "read_file", "args": {"path": "config.py"}, "result": "ok", "success": True},
-        ])
+        rep = cc.check(
+            "I read config.py",
+            [
+                {"tool_name": "read_file", "args": {"path": "config.py"}, "result": "ok", "success": True},
+            ],
+        )
         # File not previously written — minor info issue
         assert isinstance(rep.is_consistent, bool)
 
     def test_multiple_failures_all_critical(self, cc):
         """All tools failed — should be critical."""
-        rep = cc.check("I tried", [
-            {"tool_name": "t1", "args": {}, "result": "err", "success": False},
-            {"tool_name": "t2", "args": {}, "result": "err", "success": False},
-        ])
+        rep = cc.check(
+            "I tried",
+            [
+                {"tool_name": "t1", "args": {}, "result": "err", "success": False},
+                {"tool_name": "t2", "args": {}, "result": "err", "success": False},
+            ],
+        )
         issues_text = str(rep.issues)
         assert "critical" in issues_text or any(i.severity == "critical" for i in rep.issues)
 
@@ -151,9 +174,12 @@ class TestConsistencyChecker:
         assert len(rep.issues) == 0
 
     def test_single_tool_success(self, cc):
-        rep = cc.check("All good", [
-            {"tool_name": "read_file", "args": {}, "result": "content", "success": True},
-        ])
+        rep = cc.check(
+            "All good",
+            [
+                {"tool_name": "read_file", "args": {}, "result": "content", "success": True},
+            ],
+        )
         assert rep.is_consistent
 
     def test_diff_guard_snapshot_before(self, dg):
@@ -248,9 +274,12 @@ class TestPhase2Integration:
         vr = rv.validate("run_bash", "error: command not found", success=False)
         assert not vr.is_valid
 
-        rep = cc.check("All done successfully!", [
-            {"tool_name": "run_bash", "args": {}, "result": "error", "success": False},
-        ])
+        rep = cc.check(
+            "All done successfully!",
+            [
+                {"tool_name": "run_bash", "args": {}, "result": "error", "success": False},
+            ],
+        )
         assert not rep.is_consistent
 
         preview = dg.preview_write("src/new.py", "code")

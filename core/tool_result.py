@@ -136,12 +136,13 @@ class ToolResult:
         不直接把 Python repr / traceback 暴露给模型。
         """
         return self.to_json(ensure_ascii=False, indent=2)
+
     def to_llm_context(self) -> str:
         """Compact single-line context for LLM consumption."""
         name = self.metadata.get("tool_name", "unknown")
         if self.success:
             return f"[OK] {name}: {self._summarize(self.data)}"
-        err = self.error.message if hasattr(self.error, 'message') else str(self.error)
+        err = self.error.message if hasattr(self.error, "message") else str(self.error)
         return f"[FAIL] {name}: {err}"
 
     def to_llm_line(self) -> str:
@@ -150,7 +151,7 @@ class ToolResult:
         status = "OK" if self.success else "FAIL"
         if self.success:
             return f"[{status}] {name}: {self._summarize(self.data)}"
-        err = self.error.message if hasattr(self.error, 'message') else str(self.error)
+        err = self.error.message if hasattr(self.error, "message") else str(self.error)
         return f"[{status}] {name}: {err}"
 
     @staticmethod
@@ -162,4 +163,3 @@ class ToolResult:
         if len(s) > max_len:
             return s[:max_len] + f"...[{len(s)} total]"
         return s
-

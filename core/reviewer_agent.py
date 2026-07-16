@@ -38,6 +38,7 @@ class ReviewSeverity(str, Enum):
 @dataclass
 class ReviewIssue:
     """A single issue found during review."""
+
     severity: ReviewSeverity
     category: str  # "factual", "completeness", "consistency", "safety", "style"
     description: str
@@ -48,6 +49,7 @@ class ReviewIssue:
 @dataclass
 class ReviewReport:
     """Full review result."""
+
     issues: list[ReviewIssue] = field(default_factory=list)
     score: int = 100  # 0-100
     summary: str = ""
@@ -204,12 +206,14 @@ class ReviewerAgent:
 
         # Check 1: Empty response
         if not response or len(response.strip()) < 5:
-            issues.append(ReviewIssue(
-                severity=ReviewSeverity.CRITICAL,
-                category="completeness",
-                description="Response is empty or too short",
-                suggestion="Provide a substantive response to the user's query",
-            ))
+            issues.append(
+                ReviewIssue(
+                    severity=ReviewSeverity.CRITICAL,
+                    category="completeness",
+                    description="Response is empty or too short",
+                    suggestion="Provide a substantive response to the user's query",
+                )
+            )
             score -= 40
             return ReviewReport(issues=issues, score=max(0, score))
 
@@ -217,22 +221,26 @@ class ReviewerAgent:
         failed_tools = [t for t in tool_results if not t.get("success", True)]
         if failed_tools and not any(t["tool_name"] in response for t in failed_tools):
             names = ", ".join(t["tool_name"] for t in failed_tools[:3])
-            issues.append(ReviewIssue(
-                severity=ReviewSeverity.MAJOR,
-                category="consistency",
-                description=f"Tool(s) {names} failed but response doesn't mention it",
-                suggestion="Acknowledge the failure and suggest alternatives",
-            ))
+            issues.append(
+                ReviewIssue(
+                    severity=ReviewSeverity.MAJOR,
+                    category="consistency",
+                    description=f"Tool(s) {names} failed but response doesn't mention it",
+                    suggestion="Acknowledge the failure and suggest alternatives",
+                )
+            )
             score -= 20
 
         # Check 3: Truncation / incomplete code
         if response.count("```") % 2 != 0:
-            issues.append(ReviewIssue(
-                severity=ReviewSeverity.MAJOR,
-                category="completeness",
-                description="Unclosed code fence — response may be truncated",
-                suggestion="Close all ``` code blocks properly",
-            ))
+            issues.append(
+                ReviewIssue(
+                    severity=ReviewSeverity.MAJOR,
+                    category="completeness",
+                    description="Unclosed code fence — response may be truncated",
+                    suggestion="Close all ``` code blocks properly",
+                )
+            )
             score -= 15
 
         # Check 4: File path hallucination
@@ -253,32 +261,38 @@ class ReviewerAgent:
             mentioned_files = re.findall(r'["\']([^"\']+\.\w+)["\']', response)
             for mf in mentioned_files:
                 if mf not in read_files and not mf.startswith("core/") and not mf.startswith("tests/"):
-                    issues.append(ReviewIssue(
-                        severity=ReviewSeverity.MINOR,
-                        category="factual",
-                        description=f"File '{mf}' mentioned but not read in tool calls",
-                        suggestion="Verify the file path before referencing it",
-                    ))
+                    issues.append(
+                        ReviewIssue(
+                            severity=ReviewSeverity.MINOR,
+                            category="factual",
+                            description=f"File '{mf}' mentioned but not read in tool calls",
+                            suggestion="Verify the file path before referencing it",
+                        )
+                    )
                     score -= 5
 
         # Check 5: Very long response without structure
         if len(response) > 3000 and "\n" not in response[:500]:
-            issues.append(ReviewIssue(
-                severity=ReviewSeverity.MINOR,
-                category="style",
-                description="Long response without line breaks — hard to read",
-                suggestion="Add paragraph breaks and structure",
-            ))
+            issues.append(
+                ReviewIssue(
+                    severity=ReviewSeverity.MINOR,
+                    category="style",
+                    description="Long response without line breaks — hard to read",
+                    suggestion="Add paragraph breaks and structure",
+                )
+            )
             score -= 5
 
         # Check 6: Missing tool results (LLM promised results but no tool call)
         if tool_results and len(response) < 50:
-            issues.append(ReviewIssue(
-                severity=ReviewSeverity.MAJOR,
-                category="completeness",
-                description=f"Response too short ({len(response)} chars) despite {len(tool_results)} tool calls",
-                suggestion="Include the tool results in the response",
-            ))
+            issues.append(
+                ReviewIssue(
+                    severity=ReviewSeverity.MAJOR,
+                    category="completeness",
+                    description=f"Response too short ({len(response)} chars) despite {len(tool_results)} tool calls",
+                    suggestion="Include the tool results in the response",
+                )
+            )
             score -= 15
 
         return ReviewReport(issues=issues, score=max(0, score))
@@ -294,10 +308,16 @@ class ReviewerAgent:
             return None
 
         try:
-            tool_summary = json.dumps([
-                {"tool": t.get("tool_name", "?"), "result": str(t.get("result", ""))[:200], "success": t.get("success")}
-                for t in (tool_results or [])[:10]
-            ])
+            tool_summary = json.dumps(
+                [
+                    {
+                        "tool": t.get("tool_name", "?"),
+                        "result": str(t.get("result", ""))[:200],
+                        "success": t.get("success"),
+                    }
+                    for t in (tool_results or [])[:10]
+                ]
+            )
 
             user_prompt = f"""## Original user query
 {query[:500]}
@@ -338,12 +358,14 @@ Review the assistant response. Format as JSON:
                     severity = ReviewSeverity(severity_str)
                 except ValueError:
                     severity = ReviewSeverity.MINOR
-                issues.append(ReviewIssue(
-                    severity=severity,
-                    category=iss.get("category", "general"),
-                    description=iss.get("description", ""),
-                    suggestion=iss.get("suggestion", ""),
-                ))
+                issues.append(
+                    ReviewIssue(
+                        severity=severity,
+                        category=iss.get("category", "general"),
+                        description=iss.get("description", ""),
+                        suggestion=iss.get("suggestion", ""),
+                    )
+                )
             return ReviewReport(
                 issues=issues,
                 score=data.get("score", 50),
@@ -376,6 +398,7 @@ Review the assistant response. Format as JSON:
 @dataclass
 class DebateResult:
     """Result of a debate/critique session."""
+
     agreement: str  # "agree", "partial", "disagree"
     concerns: list[dict] = field(default_factory=list)
     alternative: str = ""
@@ -398,10 +421,9 @@ class DebateAgent:
             return DebateResult(agreement="agree", should_revise=False)
 
         try:
-            tool_summary = json.dumps([
-                {"tool": t.get("tool_name", "?"), "success": t.get("success")}
-                for t in (tool_results or [])[:10]
-            ])
+            tool_summary = json.dumps(
+                [{"tool": t.get("tool_name", "?"), "success": t.get("success")} for t in (tool_results or [])[:10]]
+            )
             user_prompt = f"""Query: {query[:500]}
 
 Response: {response[:2000]}
@@ -447,6 +469,7 @@ Analyze this response from a skeptical perspective. Format as JSON:
 @dataclass
 class SubTask:
     """A single sub-task in a decomposed plan."""
+
     id: int
     description: str
     depends_on: list[int] = field(default_factory=list)
@@ -456,6 +479,7 @@ class SubTask:
 @dataclass
 class TaskPlan:
     """A decomposed task plan."""
+
     tasks: list[SubTask] = field(default_factory=list)
     complexity: str = "low"
     original_query: str = ""
@@ -485,7 +509,11 @@ class TaskDecomposer:
         if not self.llm_callback:
             # Fallback: simple decomposition
             return TaskPlan(
-                tasks=[SubTask(id=1, description=f"Handle: {user_query[:200]}", tools_likely_needed=["read_file", "run_python"])],
+                tasks=[
+                    SubTask(
+                        id=1, description=f"Handle: {user_query[:200]}", tools_likely_needed=["read_file", "run_python"]
+                    )
+                ],
                 complexity="unknown",
                 original_query=user_query,
             )
@@ -514,12 +542,14 @@ class TaskDecomposer:
 
             tasks = []
             for t in data.get("tasks", []):
-                tasks.append(SubTask(
-                    id=t.get("id", len(tasks) + 1),
-                    description=t.get("description", ""),
-                    depends_on=t.get("depends_on", []),
-                    tools_likely_needed=t.get("tools_likely_needed", []),
-                ))
+                tasks.append(
+                    SubTask(
+                        id=t.get("id", len(tasks) + 1),
+                        description=t.get("description", ""),
+                        depends_on=t.get("depends_on", []),
+                        tools_likely_needed=t.get("tools_likely_needed", []),
+                    )
+                )
 
             return TaskPlan(
                 tasks=tasks or [SubTask(id=1, description=f"Handle: {query[:200]}")],

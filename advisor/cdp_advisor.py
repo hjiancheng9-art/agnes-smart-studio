@@ -23,17 +23,17 @@ from advisor.base import AdvisorResult
 from advisor.prompt import build_advisor_prompt
 
 # CDP 超时常量（与 core/cdp_browser.py 保持一致）
-SHORT_TIMEOUT = 5000   # ms
-NAV_TIMEOUT = 15000    # ms
-LONG_TIMEOUT = 45000   # ms
+SHORT_TIMEOUT = 5000  # ms
+NAV_TIMEOUT = 15000  # ms
+LONG_TIMEOUT = 45000  # ms
 
 # ── 文件附件选择器 ──────────────────────────────
 
 # ChatGPT 网页端的隐藏文件 input
 _FILE_INPUT_SELECTORS = [
     'input[type="file"]',
-    '#file-upload-input',
-    'input[accept]',
+    "#file-upload-input",
+    "input[accept]",
 ]
 
 # 附件按钮选择器（用于触发文件选择对话框）
@@ -72,6 +72,7 @@ class CdpAdvisor:
             ok, _reason = _check_cdp_health(browser)
             if not ok:
                 from core.cdp_browser import _auto_reconnect
+
                 browser = _auto_reconnect()
 
             page = _chatgpt_page(browser)
@@ -231,7 +232,9 @@ class CdpAdvisor:
                     try:
                         page.wait_for_selector("#prompt-textarea", timeout=5000)
                     except Exception:
-                        import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                        import logging
+
+                        logging.getLogger("crux").debug("silent except", exc_info=True)
                     ok = self._upload_files(page, file_paths)
                     if ok:
                         # 等待附件真正出现在页面上

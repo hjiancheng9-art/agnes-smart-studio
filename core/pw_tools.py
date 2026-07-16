@@ -21,8 +21,11 @@ def _pw_run(action: str, **kwargs) -> dict:
     try:
         r = subprocess.run(
             args,
-            capture_output=True, text=True, timeout=45,
-            encoding="utf-8", cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            timeout=45,
+            encoding="utf-8",
+            cwd=str(ROOT),
         )
         for line in r.stdout.strip().split("\n"):
             try:

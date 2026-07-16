@@ -73,7 +73,7 @@ def _make_error_signature(tool: str, error_type: str, context: dict) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
-def _capture_context_snapshot(context: dict = None) -> dict:
+def _capture_context_snapshot(context: dict | None = None) -> dict:
     """捕获关键系统上下文快照，用于 stability 检测。"""
     snapshot = {}
     try:
@@ -152,7 +152,7 @@ def _is_context_stable(entry: QuarantineEntry) -> bool:
     return all(last.get(key) == prev.get(key) for key in CONTEXT_STABILITY_KEYS)
 
 
-def is_quarantined(tool: str, error_type: str, context: dict = None) -> bool:
+def is_quarantined(tool: str, error_type: str, context: dict | None = None) -> bool:
     """Check if this error pattern has been quarantined (evidence-driven backoff)."""
     # ── 先查种子策略 ──
     from core.fake_fix_seed_policy import get_seed_policy
@@ -198,7 +198,7 @@ def is_quarantined(tool: str, error_type: str, context: dict = None) -> bool:
     return entry.retry_count >= seed_max
 
 
-def record_retry(tool: str, error_type: str, context: dict = None):
+def record_retry(tool: str, error_type: str, context: dict | None = None):
     """Record a retry attempt for quarantine tracking (with context snapshot)."""
     if tool not in HIGH_RISK_TOOLS:
         return
@@ -360,7 +360,7 @@ def classify_fix(
     return "fix-unknown"
 
 
-def should_retry(tool: str, error_type: str, context: dict = None) -> dict:
+def should_retry(tool: str, error_type: str, context: dict | None = None) -> dict:
     """Decision helper: should we retry this self-heal?
 
     Returns:
@@ -416,7 +416,7 @@ def _get_backoff_level_name(level: int) -> str:
     return "permanent"
 
 
-def clear_quarantine(tool: str, error_type: str, context: dict = None) -> bool:
+def clear_quarantine(tool: str, error_type: str, context: dict | None = None) -> bool:
     """手动清除某个错误的隔离状态（用户解除）。"""
     sig = _make_error_signature(tool, error_type, context or {})
     if sig in _quarantine:

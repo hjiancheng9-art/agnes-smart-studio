@@ -1,6 +1,7 @@
 """
 Tests for Intelligence Trace — 全链路可观测/可回放
 """
+
 import time
 
 from core.intelligence_trace import TraceRecord, TraceStep, TraceStore
@@ -19,8 +20,12 @@ class TestTraceRecord:
 
     def test_to_dict(self):
         trace = TraceRecord(
-            run_id="t1", user_request="重构模块", mode="DEEP",
-            status="pass", started_at=100, ended_at=200,
+            run_id="t1",
+            user_request="重构模块",
+            mode="DEEP",
+            status="pass",
+            started_at=100,
+            ended_at=200,
         )
         trace.steps.append(TraceStep(name="plan", status="success", duration=2.5))
         d = trace.to_dict()
@@ -42,13 +47,15 @@ class TestTraceRecord:
 class TestTraceStore:
     def setup_method(self):
         import tempfile
-        self._tmp = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+
+        self._tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         self._tmp.close()
         self.store = TraceStore(db_path=self._tmp.name)
 
     def teardown_method(self):
         import os
-        if hasattr(self, '_tmp') and os.path.exists(self._tmp.name):
+
+        if hasattr(self, "_tmp") and os.path.exists(self._tmp.name):
             os.unlink(self._tmp.name)
 
     def test_record_and_get(self):
@@ -90,10 +97,8 @@ class TestTraceStore:
         assert len(deep_traces) >= 1
 
     def test_get_stats(self):
-        t1 = TraceRecord(run_id="s1", user_request="a", mode="FAST", status="pass",
-                          started_at=100, ended_at=110)
-        t2 = TraceRecord(run_id="s2", user_request="b", mode="DEEP", status="fail",
-                          started_at=200, ended_at=230)
+        t1 = TraceRecord(run_id="s1", user_request="a", mode="FAST", status="pass", started_at=100, ended_at=110)
+        t2 = TraceRecord(run_id="s2", user_request="b", mode="DEEP", status="fail", started_at=200, ended_at=230)
         self.store.record(t1)
         self.store.record(t2)
 
@@ -120,6 +125,7 @@ class TestTraceStore:
 class TestEvidenceGate:
     def setup_method(self):
         from core.evidence_gate import EvidenceGate
+
         self.gate = EvidenceGate()
 
     def test_no_evidence_fails(self):
@@ -133,7 +139,9 @@ class TestEvidenceGate:
         assert result.evidence_quality in ("strong", "medium")
 
     def test_code_block_evidence(self):
-        result = self.gate.check_text("修改如下:\n```python\ndef validate(x):\n    if x is None:\n        raise ValueError()\n    return x > 0\n```")
+        result = self.gate.check_text(
+            "修改如下:\n```python\ndef validate(x):\n    if x is None:\n        raise ValueError()\n    return x > 0\n```"
+        )
         assert result.passed is True
 
     def test_multiple_evidence(self):
@@ -151,6 +159,7 @@ class TestEvidenceGate:
 
     def test_gate_result_to_dict(self):
         from core.evidence_gate import GateResult
+
         r = GateResult(passed=False, reason="no evidence", evidence_count=0)
         d = r.to_dict()
         assert d["passed"] is False

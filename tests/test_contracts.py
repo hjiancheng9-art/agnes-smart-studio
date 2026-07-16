@@ -6,6 +6,7 @@ These test the contracts that ALL tools must fulfill:
 3. ToolError has required fields (code, message)
 4. execute_tool never throws — always returns ToolResult
 """
+
 import pytest
 
 pytestmark = pytest.mark.unit
@@ -27,6 +28,7 @@ from core.interfaces import (
 #  Contract: every tool must return ToolResult (never throw)
 # ═══════════════════════════════════════════════════════════════
 
+
 def make_any_handler() -> Callable:
     """Return a handler that returns a simple value."""
     return lambda **kw: "ok"
@@ -43,7 +45,8 @@ class TestToolContract:
     def test_execute_tool_never_throws(self):
         """execute_tool always returns ToolResult, even on crash."""
         spec = ToolSpec(
-            name="crash", description="Crashes",
+            name="crash",
+            description="Crashes",
             category=ToolCategory.UTILITY,
             _handler=lambda: 1 / 0,
         )
@@ -99,7 +102,8 @@ class TestToolContract:
     def test_elapsed_ms_is_always_set(self):
         """ToolResult.elapsed_ms is always non-negative."""
         spec = ToolSpec(
-            name="quick", description="Fast",
+            name="quick",
+            description="Fast",
             category=ToolCategory.UTILITY,
             _handler=lambda: "done",
         )
@@ -111,13 +115,15 @@ class TestToolContract:
 #  Contract: tools should be self-describing
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestToolSelfDescribing:
     """Tools should describe themselves adequately."""
 
     def test_name_is_not_empty(self):
         """Tool name must not be empty."""
         spec = ToolSpec(
-            name="x", description="Test tool",
+            name="x",
+            description="Test tool",
             category=ToolCategory.UTILITY,
             _handler=make_any_handler(),
         )
@@ -137,7 +143,8 @@ class TestToolSelfDescribing:
         """Handler must be callable."""
         fn = make_any_handler()
         spec = ToolSpec(
-            name="test", description="Test",
+            name="test",
+            description="Test",
             category=ToolCategory.UTILITY,
             _handler=fn,
         )

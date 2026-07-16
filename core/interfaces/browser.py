@@ -4,15 +4,18 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from .errors import BrowserError
+if TYPE_CHECKING:
+    from .errors import BrowserError
 
 
 @dataclass
 class BrowserConfig:
     """Configuration for browser automation."""
+
     headless: bool = True
-    browser_type: str = "chromium"     # chromium | firefox | webkit
+    browser_type: str = "chromium"  # chromium | firefox | webkit
     cdp_port: int = 9222
     viewport_width: int = 1280
     viewport_height: int = 720
@@ -22,6 +25,7 @@ class BrowserConfig:
 @dataclass
 class BrowserResult:
     """Unified result from browser operations."""
+
     success: bool
     url: str = ""
     title: str = ""

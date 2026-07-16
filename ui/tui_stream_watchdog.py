@@ -3,6 +3,7 @@ Stream Watchdog — TUI 侧超时监控
 ==================================
 解决：stream 中断但没有 stream_end，TUI 还显示 spinner。
 """
+
 from __future__ import annotations
 
 import logging
@@ -18,8 +19,7 @@ logger = logging.getLogger(__name__)
 class StreamWatchdog:
     """流式看门狗 — 检测无事件超时并自动收尾"""
 
-    def __init__(self, run_store: RunStateStore, dispatcher: TuiDispatcher,
-                 timeout_sec: float = 90.0):
+    def __init__(self, run_store: RunStateStore, dispatcher: TuiDispatcher, timeout_sec: float = 90.0):
         self.run_store = run_store
         self.dispatcher = dispatcher
         self.timeout_sec = timeout_sec

@@ -18,6 +18,7 @@ Usage:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sys
 from dataclasses import dataclass, field
@@ -71,14 +72,16 @@ class SelfEvolver:
                 continue
             body = parts[2].strip()
             if len(body) < 500:
-                weaknesses.append(Weakness(
-                    severity="high",
-                    category="agent",
-                    location=str(f.relative_to(ROOT)),
-                    description=f"Agent prompt too thin ({len(body)}B, target >500B)",
-                    suggestion="Expand with: workflow steps, rules, output format, constraints",
-                    auto_fixable=False,  # Needs creative writing
-                ))
+                weaknesses.append(
+                    Weakness(
+                        severity="high",
+                        category="agent",
+                        location=str(f.relative_to(ROOT)),
+                        description=f"Agent prompt too thin ({len(body)}B, target >500B)",
+                        suggestion="Expand with: workflow steps, rules, output format, constraints",
+                        auto_fixable=False,  # Needs creative writing
+                    )
+                )
         return weaknesses
 
     def scan_skill_stubs(self) -> list[Weakness]:
@@ -90,19 +93,23 @@ class SelfEvolver:
             except (json.JSONDecodeError, OSError):
                 continue
             prompt = data.get("prompt", "")
-            p_len = len(prompt) if isinstance(prompt, str) else sum(
-                len(item.get("content", "")) for item in prompt if isinstance(item, dict)
+            p_len = (
+                len(prompt)
+                if isinstance(prompt, str)
+                else sum(len(item.get("content", "")) for item in prompt if isinstance(item, dict))
             )
             if p_len <= 200:
                 name = data.get("name", f.stem)
-                weaknesses.append(Weakness(
-                    severity="high" if p_len < 50 else "medium",
-                    category="skill",
-                    location=str(f.relative_to(ROOT)),
-                    description=f"Skill '{name}' is a stub ({p_len}B)",
-                    suggestion="Fill with actual content or delete if redundant",
-                    auto_fixable=False,
-                ))
+                weaknesses.append(
+                    Weakness(
+                        severity="high" if p_len < 50 else "medium",
+                        category="skill",
+                        location=str(f.relative_to(ROOT)),
+                        description=f"Skill '{name}' is a stub ({p_len}B)",
+                        suggestion="Fill with actual content or delete if redundant",
+                        auto_fixable=False,
+                    )
+                )
         return weaknesses
 
     def scan_auto_trigger_gaps(self) -> list[Weakness]:
@@ -110,17 +117,26 @@ class SelfEvolver:
         overrides_file = OUTPUT_DIR / "skill_overrides.json"
         overrides = {}
         if overrides_file.exists():
-            try:
+            with contextlib.suppress(json.JSONDecodeError, OSError):
                 overrides = json.loads(overrides_file.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
-                pass
 
         # Skills that should likely be auto-trigger based on their content
         auto_candidates = {
-            "coding-rules", "code-guardian", "security-hardening", "tdd",
-            "caliber", "code-reviewer", "python-anti-patterns",
-            "fix", "webapp-testing", "frontend-design", "fullstack-dev",
-            "frontend-dev", "pr-creator", "find-skills", "skill-creator",
+            "coding-rules",
+            "code-guardian",
+            "security-hardening",
+            "tdd",
+            "caliber",
+            "code-reviewer",
+            "python-anti-patterns",
+            "fix",
+            "webapp-testing",
+            "frontend-design",
+            "fullstack-dev",
+            "frontend-dev",
+            "pr-creator",
+            "find-skills",
+            "skill-creator",
         }
 
         missing = []
@@ -132,15 +148,17 @@ class SelfEvolver:
                 missing.append(name)
 
         if missing:
-            return [Weakness(
-                severity="medium",
-                category="skill",
-                location="output/skill_overrides.json",
-                description=f"{len(missing)} high-value skills missing auto-trigger: {', '.join(missing[:8])}",
-                suggestion="Add to skill_overrides.json with trigger=auto for lazy loading",
-                auto_fixable=True,
-                fix_template="auto_trigger",
-            )]
+            return [
+                Weakness(
+                    severity="medium",
+                    category="skill",
+                    location="output/skill_overrides.json",
+                    description=f"{len(missing)} high-value skills missing auto-trigger: {', '.join(missing[:8])}",
+                    suggestion="Add to skill_overrides.json with trigger=auto for lazy loading",
+                    auto_fixable=True,
+                    fix_template="auto_trigger",
+                )
+            ]
         return []
 
     def scan_disallowed_tools_gaps(self) -> list[Weakness]:
@@ -168,15 +186,17 @@ class SelfEvolver:
                 # Skip agents that legitimately need full access
                 if name in ("DevOps-Deployer", "Git-Workflow"):
                     continue
-                weaknesses.append(Weakness(
-                    severity="medium",
-                    category="agent",
-                    location=str(f.relative_to(ROOT)),
-                    description=f"Write agent '{name}' has no disallowedTools",
-                    suggestion="Add disallowedTools: [git_pr_create, git_push] for safety",
-                    auto_fixable=True,
-                    fix_template="disallowed_tools",
-                ))
+                weaknesses.append(
+                    Weakness(
+                        severity="medium",
+                        category="agent",
+                        location=str(f.relative_to(ROOT)),
+                        description=f"Write agent '{name}' has no disallowedTools",
+                        suggestion="Add disallowedTools: [git_pr_create, git_push] for safety",
+                        auto_fixable=True,
+                        fix_template="disallowed_tools",
+                    )
+                )
         return weaknesses
 
     def scan_monolingual_descriptions(self) -> list[Weakness]:
@@ -203,19 +223,20 @@ class SelfEvolver:
             has_english = any(c.isascii() and c.isalpha() for c in desc)
 
             if has_chinese and not has_english:
-                weaknesses.append(Weakness(
-                    severity="low",
-                    category="agent",
-                    location=str(f.relative_to(ROOT)),
-                    description=f"Agent '{name}' description is Chinese-only (no English keywords)",
-                    suggestion="Add English keywords for better auto-routing with bilingual tasks",
-                    auto_fixable=False,  # Needs human to choose right keywords
-                ))
+                weaknesses.append(
+                    Weakness(
+                        severity="low",
+                        category="agent",
+                        location=str(f.relative_to(ROOT)),
+                        description=f"Agent '{name}' description is Chinese-only (no English keywords)",
+                        suggestion="Add English keywords for better auto-routing with bilingual tasks",
+                        auto_fixable=False,  # Needs human to choose right keywords
+                    )
+                )
         return weaknesses
 
     def scan_missing_tests(self) -> list[Weakness]:
         """Detect new/changed core modules without corresponding tests."""
-        weaknesses = []
         core_modules = set()
         test_modules = set()
 
@@ -244,14 +265,16 @@ class SelfEvolver:
                         untested.append(mod)
 
         if untested:
-            return [Weakness(
-                severity="medium",
-                category="test",
-                location="tests/",
-                description=f"Core modules without tests: {', '.join(untested[:8])}",
-                suggestion=f"Create tests/test_{untested[0]}.py with basic coverage",
-                auto_fixable=False,
-            )]
+            return [
+                Weakness(
+                    severity="medium",
+                    category="test",
+                    location="tests/",
+                    description=f"Core modules without tests: {', '.join(untested[:8])}",
+                    suggestion=f"Create tests/test_{untested[0]}.py with basic coverage",
+                    auto_fixable=False,
+                )
+            ]
         return []
 
     # ═══════════════════════════════════════════════════════════
@@ -273,9 +296,9 @@ class SelfEvolver:
                 results = scanner()
                 all_weaknesses.extend(results)
             except Exception as e:
-                all_weaknesses.append(Weakness(
-                    "low", "scanner", scanner.__name__, f"Scanner failed: {e}", "Fix scanner", False
-                ))
+                all_weaknesses.append(
+                    Weakness("low", "scanner", scanner.__name__, f"Scanner failed: {e}", "Fix scanner", False)
+                )
         self.report.weaknesses = all_weaknesses
         return all_weaknesses
 
@@ -313,10 +336,21 @@ class SelfEvolver:
             overrides = json.loads(overrides_file.read_text(encoding="utf-8"))
 
         auto_candidates = {
-            "coding-rules", "code-guardian", "security-hardening", "tdd",
-            "caliber", "code-reviewer", "python-anti-patterns",
-            "fix", "webapp-testing", "frontend-design", "fullstack-dev",
-            "frontend-dev", "pr-creator", "find-skills", "skill-creator",
+            "coding-rules",
+            "code-guardian",
+            "security-hardening",
+            "tdd",
+            "caliber",
+            "code-reviewer",
+            "python-anti-patterns",
+            "fix",
+            "webapp-testing",
+            "frontend-design",
+            "fullstack-dev",
+            "frontend-dev",
+            "pr-creator",
+            "find-skills",
+            "skill-creator",
         }
 
         changed = False

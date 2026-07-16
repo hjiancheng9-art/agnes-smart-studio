@@ -36,7 +36,7 @@ __all__ = [
 
 def _run_git(args: list[str], cwd: str = "") -> dict:
     """Run a git command and return structured result."""
-    cmd = ["git"] + args
+    cmd = ["git", *args]
     try:
         r = run_subprocess(cmd, cwd=cwd or None, timeout=30)
         return {
@@ -55,7 +55,7 @@ def _run_git(args: list[str], cwd: str = "") -> dict:
 
 def _run_gh(args: list[str], cwd: str = "") -> dict:
     """Run a gh CLI command."""
-    cmd = ["gh"] + args
+    cmd = ["gh", *args]
     try:
         r = run_subprocess(cmd, cwd=cwd or None, timeout=30)
         return {

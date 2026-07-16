@@ -29,7 +29,10 @@ import ctypes
 import locale
 import re
 import sys
-from collections.abc import Callable
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # ── Mojibake signature characters ──────────────────────────────────────────
 # Characters that virtually never appear in valid Chinese text.
@@ -48,9 +51,7 @@ _MOJIBAKE_SIGNATURES: frozenset[str] = frozenset(
 # appear in valid Chinese text.  Any character here that also occurs in
 # normal Chinese will cause false-positive mojibake alerts on every
 # subprocess invocation, flooding the activity log.
-_MOJIBAKE_FAST: frozenset[str] = frozenset(
-    "鍥閸鐢纴鏉悆殑掑曠姽娲嬫兜鍙"
-)
+_MOJIBAKE_FAST: frozenset[str] = frozenset("鍥閸鐢纴鏉悆殑掑曠姽娲嬫兜鍙")
 
 # ── System locale detection ──────────────────────────────────────────────
 
@@ -111,29 +112,28 @@ def _detect_system_locale() -> bool:
 _SIMPLIFIED_ENCODINGS: list[str] = ["gbk", "gb2312", "gb18030", "cp936"]
 _TRADITIONAL_ENCODINGS: list[str] = ["big5", "big5hkscs", "cp950"]
 _OTHER_ENCODINGS: list[str] = [
-    "latin-1", "cp1252", "shift-jis", "euc-kr", "cp932", "cp949",
+    "latin-1",
+    "cp1252",
+    "shift-jis",
+    "euc-kr",
+    "cp932",
+    "cp949",
 ]
 
 if _detect_system_locale():
-    _FALLBACK_ENCODINGS: list[str] = (
-        _SIMPLIFIED_ENCODINGS + _TRADITIONAL_ENCODINGS + _OTHER_ENCODINGS
-    )
+    _FALLBACK_ENCODINGS: list[str] = _SIMPLIFIED_ENCODINGS + _TRADITIONAL_ENCODINGS + _OTHER_ENCODINGS
 else:
-    _FALLBACK_ENCODINGS: list[str] = (
-        _TRADITIONAL_ENCODINGS + _SIMPLIFIED_ENCODINGS + _OTHER_ENCODINGS
-    )
+    _FALLBACK_ENCODINGS: list[str] = _TRADITIONAL_ENCODINGS + _SIMPLIFIED_ENCODINGS + _OTHER_ENCODINGS
 
 # ── Character range utilities ─────────────────────────────────────────────
 
 _SIMPLIFIED_CJK_START = 0x4E00  # 一
-_SIMPLIFIED_CJK_END = 0x9FFF    # 鿿
-_CJK_EXT_A_START = 0x3400       # 㐀
-_CJK_EXT_A_END = 0x4DBF         # 䶿
+_SIMPLIFIED_CJK_END = 0x9FFF  # 鿿
+_CJK_EXT_A_START = 0x3400  # 㐀
+_CJK_EXT_A_END = 0x4DBF  # 䶿
 
 
-def _count_chars_in_ranges(
-    text: str, ranges: list[tuple[int, int]]
-) -> int:
+def _count_chars_in_ranges(text: str, ranges: list[tuple[int, int]]) -> int:
     """Count characters in *text* that fall within the given Unicode ranges."""
     count = 0
     for ch in text:
@@ -164,12 +164,12 @@ def _simplified_cjk_count(text: str) -> int:
 # Regex: matches likely-valid characters in CJK text
 _VALID_CHAR = re.compile(
     r"[\x00-\x7f"
-    r"　-〿"     # CJK punctuation
-    r"一-鿿"     # CJK Unified
-    r"㐀-䶿"     # CJK Ext A
-    r"＀-￯"     # Fullwidth
-    r" -⁯"     # General punctuation
-    r"豈-﫿"     # CJK Compat
+    r"　-〿"  # CJK punctuation
+    r"一-鿿"  # CJK Unified
+    r"㐀-䶿"  # CJK Ext A
+    r"＀-￯"  # Fullwidth
+    r" -⁯"  # General punctuation
+    r"豈-﫿"  # CJK Compat
     r"]"
 )
 
@@ -297,7 +297,11 @@ def _detect_with_charset_lib(raw: bytes) -> str | None:
     is_simplified = _detect_system_locale()
 
     if is_simplified and detected_lower in (
-        "big5", "big5hkscs", "cp950", "cp949", "euc-kr",
+        "big5",
+        "big5hkscs",
+        "cp950",
+        "cp949",
+        "euc-kr",
     ):
         # On simplified Chinese systems, Big5/CP949 often misdetect GBK text.
         # Verify: if GBK also produces valid output, prefer it.
@@ -364,9 +368,7 @@ def detect_and_decode(
     return _best_encoding_decode(raw, preferred)
 
 
-def _best_encoding_decode(
-    raw: bytes, preferred: str
-) -> tuple[str, str, bool]:
+def _best_encoding_decode(raw: bytes, preferred: str) -> tuple[str, str, bool]:
     """Try fallback encodings, return best by heuristic scoring."""
     text_replaced = raw.decode(preferred, errors="replace")
     replacement_count = text_replaced.count("�")
@@ -573,9 +575,7 @@ def report_encoding_issue(
     if len(hits) >= 10 or (len(hits) >= 3 and replacement_count > 0):
         chars_shown = [h[1] for h in hits[:5]]
         more = f" +{len(hits) - 5} more" if len(hits) > 5 else ""
-        issues.append(
-            f"{len(hits)} mojibake signature(s): {', '.join(chars_shown)}{more}"
-        )
+        issues.append(f"{len(hits)} mojibake signature(s): {', '.join(chars_shown)}{more}")
 
     if is_likely_double_encoded(text):
         issues.append("likely double-encoded (UTF-8 → Latin-1 → UTF-8)")

@@ -65,7 +65,14 @@ PENDING_TASKS = deque(maxlen=50)
 PENDING_MEDIA = deque(maxlen=200)
 _lock = threading.Lock()
 
-BRIDGE_HTTP = "http://127.0.0.1:4366"
+BRIDGE_HTTP = (
+    os.environ.get(
+        "BROWSER_COMPANION_BRIDGE_HTTP",
+        "http://127.0.0.1:4366",
+    )
+    .strip()
+    .rstrip("/")
+)
 OUTPUT_DIR = Path.home() / "Downloads" / "CRUX"
 
 

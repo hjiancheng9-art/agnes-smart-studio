@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
+from pathlib import Path
 
-ROOT = __import__("pathlib").Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent
 
 
 @dataclass

@@ -298,7 +298,7 @@ class EventLog:
                 rows = conn.execute(
                     f"""SELECT * FROM event_log WHERE {where}
                     ORDER BY timestamp DESC LIMIT ?""",
-                    params + [limit],
+                    [*params, limit],
                 ).fetchall()
                 return [dict(r) for r in rows]
         except Exception as e:

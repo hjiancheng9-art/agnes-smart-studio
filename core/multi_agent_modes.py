@@ -7,6 +7,7 @@ coordinator classes — safe to import standalone.
 
 from __future__ import annotations
 
+import time as _time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -56,7 +57,7 @@ class AgentModeResult:
     success: bool
     latency: float
     user_correction: bool = False
-    timestamp: float = field(default_factory=lambda: __import__("time", fromlist=["time"]).time())
+    timestamp: float = field(default_factory=lambda: _time.time())
 
 
 # ─── Weighted trigger keywords ───
@@ -487,5 +488,3 @@ def get_mode_statistics() -> dict[str, dict[str, Any]]:
         s["avg_latency"] = round(s["total_latency"] / n, 3) if n > 0 else 0.0
 
     return stats
-
-

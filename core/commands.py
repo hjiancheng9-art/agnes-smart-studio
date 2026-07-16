@@ -105,7 +105,14 @@ COMMANDS: list[CommandDef] = [
     CommandDef("agent", "/agent", "", "智能体模式（加载 tools.json 外部工具）", "对话", handler="_inline_agent"),
     CommandDef("tools", "/tools", "", "查看已注册的工具列表", "对话", handler="_inline_tools"),
     CommandDef("skill", "/skill", "<cmd>", "技能包管理 (list/load/mode/unload/create)", "对话", handler="_chat_skill"),
-    CommandDef("浏览器", "/浏览器", "", "加载浏览器操控技能 (等同于 /skill load browser-control)", "对话", handler="_chat_skill_load_browser"),
+    CommandDef(
+        "浏览器",
+        "/浏览器",
+        "",
+        "加载浏览器操控技能 (等同于 /skill load browser-control)",
+        "对话",
+        handler="_chat_skill_load_browser",
+    ),
     CommandDef("clear", "/clear", "", "清空对话历史", "对话", handler="_inline_clear"),
     CommandDef("exit", "/exit", "", "退出聊天", "对话", aliases=("quit", "q")),
     # ── 任务工程 ──

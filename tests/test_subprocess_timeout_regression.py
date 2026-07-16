@@ -40,9 +40,7 @@ def test_run_subprocess_simple_timeout_is_prompt():
 def test_run_subprocess_grandchild_pipe_does_not_hang():
     """The exact bug: a grandchild inherits the pipes and sleeps 60s."""
     code = (
-        "import subprocess,sys,time;"
-        "subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)']);"
-        "time.sleep(60)"
+        "import subprocess,sys,time;subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)']);time.sleep(60)"
     )
     t0 = time.time()
     with pytest.raises(subprocess.TimeoutExpired):
@@ -54,9 +52,7 @@ def test_run_subprocess_grandchild_pipe_does_not_hang():
 
 def test_run_subprocess_inside_running_loop_does_not_hang():
     code = (
-        "import subprocess,sys,time;"
-        "subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)']);"
-        "time.sleep(60)"
+        "import subprocess,sys,time;subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)']);time.sleep(60)"
     )
 
     async def _main():
@@ -73,9 +69,7 @@ def test_async_runner_timeout_is_prompt():
     async def _main():
         t0 = time.time()
         with pytest.raises(subprocess.TimeoutExpired):
-            await run_subprocess_async(
-                [sys.executable, "-c", "import time;time.sleep(30)"], timeout=2
-            )
+            await run_subprocess_async([sys.executable, "-c", "import time;time.sleep(30)"], timeout=2)
         return time.time() - t0
 
     elapsed = asyncio.run(_main())

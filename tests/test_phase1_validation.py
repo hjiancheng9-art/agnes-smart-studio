@@ -14,7 +14,11 @@ def validator():
     """Create a ToolCallValidator with known tools."""
     schema = lambda n: {
         "read_file": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]},
-        "write_file": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}}, "required": ["path", "content"]},
+        "write_file": {
+            "type": "object",
+            "properties": {"path": {"type": "string"}, "content": {"type": "string"}},
+            "required": ["path", "content"],
+        },
         "run_bash": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]},
     }.get(n)
     return ToolCallValidator(schema_provider=schema, known_tools={"read_file", "write_file", "run_bash"})
@@ -97,7 +101,7 @@ class TestValidatorValid:
         assert "path" in r.tool_calls[0]["arguments"]
 
     def test_mixed_content(self, validator):
-        text = "Here is my answer.\n\n<invoke name=\"read_file\"><param name=\"path\" value=\"x.py\"/></invoke>\n\nDone."
+        text = 'Here is my answer.\n\n<invoke name="read_file"><param name="path" value="x.py"/></invoke>\n\nDone.'
         r = validator.validate_llm_output(text)
         assert r.is_valid
         assert len(r.tool_calls) == 1

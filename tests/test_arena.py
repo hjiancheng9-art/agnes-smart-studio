@@ -1,6 +1,7 @@
 """
 Tests for Benchmark Arena — Phase 7
 """
+
 import os
 import tempfile
 
@@ -113,7 +114,7 @@ class TestArenaGate:
 
 class TestReportStore:
     def setup_method(self):
-        self.tmp = tempfile.NamedTemporaryFile(suffix='.jsonl', delete=False)
+        self.tmp = tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False)
         self.tmp.close()
         self.store = ReportStore(db_path=self.tmp.name)
 
@@ -150,9 +151,10 @@ class TestPatchRunner:
 
     def test_apply_signal_adjustment(self):
         patch = ArenaPatch(
-            patch={"type": "signal_weight_adjust", "target_signals": [
-                {"signal": "has_code", "action": "increase", "delta": 1.0}
-            ]},
+            patch={
+                "type": "signal_weight_adjust",
+                "target_signals": [{"signal": "has_code", "action": "increase", "delta": 1.0}],
+            },
             description="调整 has_code 权重",
         )
         result = self.runner.apply_patch(patch)
@@ -161,9 +163,10 @@ class TestPatchRunner:
 
     def test_rollback(self):
         patch = ArenaPatch(
-            patch={"type": "signal_weight_adjust", "target_signals": [
-                {"signal": "has_code", "action": "increase", "delta": 2.0}
-            ]},
+            patch={
+                "type": "signal_weight_adjust",
+                "target_signals": [{"signal": "has_code", "action": "increase", "delta": 2.0}],
+            },
             description="测试回滚",
         )
         self.runner.apply_patch(patch)

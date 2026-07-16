@@ -32,9 +32,12 @@ import contextlib
 import json
 import threading
 import time
-from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from enum import Enum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # ── Event Types ────────────────────────────────────────────
 
@@ -271,7 +274,7 @@ def emit_state(**kwargs):
         emit(EventType.DASHBOARD_UPDATE, bus.latest_state.to_dict())
 
 
-def update_and_emit(event_type: EventType, data: dict, state_updates: dict = None):
+def update_and_emit(event_type: EventType, data: dict, state_updates: dict | None = None):
     """Update state and emit event atomically."""
     bus = get_bus()
     if state_updates:

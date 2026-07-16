@@ -64,7 +64,11 @@ def test_convert_system_and_user():
 
 def test_convert_preserves_name_and_tool_calls():
     msgs = [
-        Message(role="assistant", content="", tool_calls=[{"id": "1", "type": "function", "function": {"name": "f", "arguments": "{}"}}]),
+        Message(
+            role="assistant",
+            content="",
+            tool_calls=[{"id": "1", "type": "function", "function": {"name": "f", "arguments": "{}"}}],
+        ),
         Message(role="tool", content="result", tool_call_id="1", name="f"),
     ]
     result = convert_messages(msgs)
@@ -104,11 +108,13 @@ class TestNonStreaming:
     def test_basic_completion(self, runner, mock_client):
         mock_client.chat.return_value = {
             "id": "test-123",
-            "choices": [{
-                "index": 0,
-                "message": {"role": "assistant", "content": "Hello!"},
-                "finish_reason": "stop",
-            }],
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": "Hello!"},
+                    "finish_reason": "stop",
+                }
+            ],
             "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
         }
 
@@ -128,23 +134,37 @@ class TestNonStreaming:
     def test_completion_with_tools(self, runner, mock_client):
         mock_client.chat.return_value = {
             "id": "test-456",
-            "choices": [{
-                "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [{"id": "1", "type": "function", "function": {"name": "get_weather", "arguments": '{"city":"Paris"}'}}],
-                },
-                "finish_reason": "tool_calls",
-            }],
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "1",
+                                "type": "function",
+                                "function": {"name": "get_weather", "arguments": '{"city":"Paris"}'},
+                            }
+                        ],
+                    },
+                    "finish_reason": "tool_calls",
+                }
+            ],
             "usage": {"prompt_tokens": 20, "completion_tokens": 15, "total_tokens": 35},
         }
 
         from core.gateway.protocol import Tool, ToolFunction
+
         req = ChatCompletionRequest(
             model="gpt-4o",
             messages=[Message(role="user", content="Weather in Paris?")],
-            tools=[Tool(type="function", function=ToolFunction(name="get_weather", description="Get weather", parameters={"type": "object"}))],
+            tools=[
+                Tool(
+                    type="function",
+                    function=ToolFunction(name="get_weather", description="Get weather", parameters={"type": "object"}),
+                )
+            ],
         )
 
         resp = runner.complete(req)
@@ -177,6 +197,7 @@ class TestNonStreaming:
 @pytest.fixture
 def app():
     from core.gateway.server import create_app
+
     return create_app()
 
 
@@ -210,15 +231,18 @@ class TestHttpEndpoints:
 
     def test_chat_default_model(self, http):
         """Verify the endpoint accepts a minimal valid request.
-        
+
         This test hits the live API and may time out if the API is unavailable.
         In CI we'd mock the client, but for now this serves as a smoke test.
         """
-        r = http.post("/v1/chat/completions", json={
-            "model": "gpt-4o-mini",
-            "messages": [{"role": "user", "content": "Say hi"}],
-            "max_tokens": 10,
-        })
+        r = http.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gpt-4o-mini",
+                "messages": [{"role": "user", "content": "Say hi"}],
+                "max_tokens": 10,
+            },
+        )
         # Either 200 (success) or 500 (API down), both are acceptable
         # as long as the gateway itself is routing correctly
         assert r.status_code in (200, 500, 502, 504), f"Unexpected status: {r.status_code}"

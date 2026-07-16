@@ -1,4 +1,5 @@
 """Tests for capability_registry — tool registration and discovery."""
+
 import pytest
 
 pytestmark = pytest.mark.unit
@@ -14,6 +15,7 @@ class TestCapabilityRegistryStructure:
         """capability_registry module can be imported."""
         import importlib.util
         import os
+
         path = os.path.join("core", "capability_registry.py")
         if not os.path.exists(path):
             pytest.skip("capability_registry.py not found")
@@ -24,11 +26,13 @@ class TestCapabilityRegistryStructure:
         """capability_registry should expose register/lookup functions."""
         import importlib.util
         import os
+
         path = os.path.join("core", "capability_registry.py")
         if not os.path.exists(path):
             pytest.skip("capability_registry.py not found")
 
         import importlib
+
         spec = importlib.util.spec_from_file_location("capability_registry", path)
         mod = importlib.util.module_from_spec(spec)
         # Don't actually load it (may have side effects), just check the file
@@ -37,6 +41,7 @@ class TestCapabilityRegistryStructure:
     def test_capability_registry_referenced(self):
         """capability_registry module exists as a Python file."""
         import os
+
         path = os.path.join("core", "capability_registry.py")
         assert os.path.exists(path), f"{path} should exist"
 
@@ -44,6 +49,7 @@ class TestCapabilityRegistryStructure:
 # ═══════════════════════════════════════════════════
 #  Fake capability registry for contract testing
 # ═══════════════════════════════════════════════════
+
 
 class FakeCapabilityRegistry:
     """Fake capability registry for unit testing."""

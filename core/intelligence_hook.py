@@ -109,8 +109,12 @@ class IntelligenceHook:
 
     def _build_mode_hint(self, mode: str, profile: dict[str, Any], config: dict[str, Any]) -> str:
         icons = {
-            "FAST": "⚡", "BALANCED": "⚖️", "DEEP": "🧠",
-            "SAFE": "🛡️", "RESEARCH": "🔬", "CREATIVE": "🎨",
+            "FAST": "⚡",
+            "BALANCED": "⚖️",
+            "DEEP": "🧠",
+            "SAFE": "🛡️",
+            "RESEARCH": "🔬",
+            "CREATIVE": "🎨",
         }
         explanations = {
             "FAST": "快速回答（零开销）",
@@ -139,8 +143,9 @@ class IntelligenceHook:
 
     # ── Pipeline 执行 ──
 
-    async def execute_pipeline(self, user_text: str, context: dict[str, Any] | None = None,
-                               toolbus: Any = None) -> dict[str, Any]:
+    async def execute_pipeline(
+        self, user_text: str, context: dict[str, Any] | None = None, toolbus: Any = None
+    ) -> dict[str, Any]:
         """执行 DEEP/SAFE/RESEARCH pipeline"""
         from .deliberate_workflow import DeliberateWorkflow
 

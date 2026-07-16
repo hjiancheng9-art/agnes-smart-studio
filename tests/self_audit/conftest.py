@@ -15,9 +15,11 @@ from core.tool_call_validator import ToolCallValidator
 
 # ── Trace structures ──
 
+
 @dataclass
 class AuditTrace:
     """Single audit test trace — captured for every test."""
+
     trace_id: str = ""
     version: str = "6.0.0"
     suite: str = ""
@@ -41,13 +43,18 @@ class AuditTrace:
 
 # ── Schema provider fixture ──
 
+
 @pytest.fixture(scope="session")
 def tool_schema_provider():
     """Provide JSON schemas for all known tools via lookup."""
     # Simplified: return a basic schema for common tools
     schemas = {
         "read_file": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]},
-        "write_file": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}}, "required": ["path", "content"]},
+        "write_file": {
+            "type": "object",
+            "properties": {"path": {"type": "string"}, "content": {"type": "string"}},
+            "required": ["path", "content"],
+        },
         "search_files": {"type": "object", "properties": {"pattern": {"type": "string"}}, "required": ["pattern"]},
         "web_search": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]},
         "web_fetch": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]},
@@ -55,15 +62,26 @@ def tool_schema_provider():
         "run_bash": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]},
         "generate_image": {"type": "object", "properties": {"prompt": {"type": "string"}}, "required": ["prompt"]},
     }
+
     def provider(name: str):
         return schemas.get(name)
+
     return provider
 
 
 @pytest.fixture
 def validator(tool_schema_provider):
     """Default ToolCallValidator instance for testing."""
-    known = {"read_file", "write_file", "search_files", "web_search", "web_fetch", "run_python", "run_bash", "generate_image"}
+    known = {
+        "read_file",
+        "write_file",
+        "search_files",
+        "web_search",
+        "web_fetch",
+        "run_python",
+        "run_bash",
+        "generate_image",
+    }
     return ToolCallValidator(
         schema_provider=tool_schema_provider,
         coerce_scalar_values=True,
@@ -91,7 +109,10 @@ BAD_XML_CASES = [
     # 8. Empty invoke
     ("empty_invoke", "<invoke></invoke>"),
     # 9. Multiple invokes
-    ("multi", "<invoke name='read_file'><param name='path' value='a' /></invoke><invoke name='write_file'><param name='path' value='b' /></invoke>"),
+    (
+        "multi",
+        "<invoke name='read_file'><param name='path' value='a' /></invoke><invoke name='write_file'><param name='path' value='b' /></invoke>",
+    ),
 ]
 
 # ── Tool call test cases ──
@@ -121,15 +142,18 @@ VALID_TOOL_CASES = [
 @dataclass
 class MockToolResult:
     """Simulates a tool execution result."""
+
     success: bool
     data: Any = None
     error: str | None = None
     hints: list = field(default_factory=list)
-    metadata: dict = field(default_factory=lambda: {
-        "tool_name": "",
-        "duration_ms": 0,
-        "trace_id": str(uuid.uuid4()),
-    })
+    metadata: dict = field(
+        default_factory=lambda: {
+            "tool_name": "",
+            "duration_ms": 0,
+            "trace_id": str(uuid.uuid4()),
+        }
+    )
 
     def to_dict(self) -> dict:
         return {
@@ -142,6 +166,7 @@ class MockToolResult:
 
 
 # ── Audit runner helper ──
+
 
 class AuditRunner:
     """Orchestrates audit tests, collects traces, produces summary report."""
@@ -196,7 +221,8 @@ class AuditRunner:
         ]
         for t in self.traces:
             status = "✅" if t.assertions["failed"] == 0 else "❌"
-            lines.append(f"  {status} {t.suite}::{t.test_name}  "
-                         f"(P:{t.assertions['passed']}/F:{t.assertions['failed']})")
+            lines.append(
+                f"  {status} {t.suite}::{t.test_name}  (P:{t.assertions['passed']}/F:{t.assertions['failed']})"
+            )
         lines.append("=" * 60)
         return "\n".join(lines)

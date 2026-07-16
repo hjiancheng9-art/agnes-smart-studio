@@ -217,7 +217,8 @@ class TuiApp:
                 if len(entry) == 3:
                     icon, style_class, msg = entry
                 elif len(entry) == 2:
-                    icon, msg = entry; style_class = ""
+                    icon, msg = entry
+                    style_class = ""
                 else:
                     continue
                 pieces.append((style_class, f" {icon} {msg}"))
@@ -489,9 +490,17 @@ class TuiApp:
                         self._activity_log.append(("✓", "class:success", f"已保存: {loc}"))
                 else:
                     # Status-line events → route to info/error display
-                    if kind in ("status_update", "watchdog_alert", "watchdog_warning",
-                                "system_warning", "system_error", "provider_fallback",
-                                "notice", "connection_error", "tool_failed"):
+                    if kind in (
+                        "status_update",
+                        "watchdog_alert",
+                        "watchdog_warning",
+                        "system_warning",
+                        "system_error",
+                        "provider_fallback",
+                        "notice",
+                        "connection_error",
+                        "tool_failed",
+                    ):
                         text = str(payload)[:120]
                         if "error" in kind or "failed" in kind or "alert" in kind:
                             self._ui(self.message_pane.append_error, text)

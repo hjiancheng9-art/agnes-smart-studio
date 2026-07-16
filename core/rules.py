@@ -102,6 +102,7 @@ class Rule:
                         val = stripped.split(":", 1)[1].strip()
                         if val.startswith("[") and val.endswith("]"):
                             import json
+
                             try:
                                 globs = json.loads(val)
                             except json.JSONDecodeError:
@@ -212,9 +213,7 @@ class RulesManager:
             if name not in self._active:
                 self._active.append(name)
 
-    def get_active_for_context(
-        self, task_text: str = "", files: list[str] | None = None
-    ) -> list[Rule]:
+    def get_active_for_context(self, task_text: str = "", files: list[str] | None = None) -> list[Rule]:
         """Get rules active for the current context, respecting activation mode.
 
         - always:    always included
@@ -299,6 +298,7 @@ class RulesManager:
             frontmatter_lines.append(f"mode: {mode}")
         if globs:
             import json
+
             frontmatter_lines.append(f"globs: {json.dumps(globs)}")
         frontmatter = "\n".join(frontmatter_lines)
 

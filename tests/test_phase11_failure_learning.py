@@ -196,17 +196,20 @@ class TestFailureLearningLoop:
 class TestIntegration:
     def test_validation_layer_import(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         assert hasattr(vl, "learning_loop")
 
     def test_capture_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         s = vl.capture_failure("tool_execution_failed", user_message="test", actual_outcome="error")
         assert s.category == "tool_execution_failed"
 
     def test_analyze_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         s = vl.capture_failure("tool_validation_blocked", user_message="test")
         result = vl.analyze_failure(s)
@@ -214,6 +217,7 @@ class TestIntegration:
 
     def test_export_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         s = vl.capture_failure("test", user_message="export test")
         path = vl.export_failure(s)
@@ -223,6 +227,7 @@ class TestIntegration:
 
     def test_full_pipeline_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         s = vl.run_failure_pipeline(
             category="consistency_issue",
@@ -234,16 +239,19 @@ class TestIntegration:
 
     def test_stats_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         stats = vl.learning_stats
         assert isinstance(stats, LearningStats)
 
     def test_report_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         report = vl.failure_report
         assert len(report) > 0
 
     def test_chat_p11_flag(self):
         import py_compile
+
         py_compile.compile("core/chat.py", doraise=True)

@@ -32,7 +32,9 @@ def retro_create(
         "what_could_improve": what_could_improve or [],
         "action_items": action_items or [],
     }
-    (RETRO_DIR / f"{retro['id']}.json").write_text(json.dumps(retro, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+    (RETRO_DIR / f"{retro['id']}.json").write_text(
+        json.dumps(retro, indent=2, ensure_ascii=False, default=str), encoding="utf-8"
+    )
     return retro
 
 

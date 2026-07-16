@@ -4,14 +4,16 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from .errors import MCPError
+if TYPE_CHECKING:
+    from .errors import MCPError
 
 
 @dataclass
 class MCPToolDef:
     """Definition of an MCP tool."""
+
     name: str
     description: str
     input_schema: dict[str, Any] = field(default_factory=dict)
@@ -20,6 +22,7 @@ class MCPToolDef:
 @dataclass
 class MCPResource:
     """An MCP resource."""
+
     uri: str
     name: str
     description: str = ""
@@ -29,6 +32,7 @@ class MCPResource:
 @dataclass
 class MCPResult:
     """Unified result from MCP operations."""
+
     success: bool
     data: Any = None
     error: MCPError | None = None

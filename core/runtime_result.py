@@ -5,13 +5,14 @@ P0 Runtime Kernel: single result protocol consumed by chat.py, provider.py, and 
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
 @dataclass(slots=True)
 class ToolResult:
     """Normalized tool execution result. All dispatch paths must produce this."""
+
     ok: bool
     content: str = ""
     error_code: str | None = None
@@ -48,8 +49,10 @@ class ToolResult:
 
 # ── Provider-level error classification ──
 
+
 class StreamError(RuntimeError):
     """Provider stream failure with retry semantics."""
+
     retryable: bool = False
 
 
@@ -63,4 +66,5 @@ class StreamFirstTokenTimeout(StreamError):
 
 class ProviderPermanentError(StreamError):
     """Non-retryable: auth failure, model not found, billing, etc."""
+
     retryable = False

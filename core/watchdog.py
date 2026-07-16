@@ -58,7 +58,7 @@ class Watchdog:
     _last_heartbeat: float = 0.0
     _executor_status: str = "IDLE"  # IDLE|THINKING|TOOL_RUNNING|STREAMING|WAITING_USER
     _HEARTBEAT_INTERVAL: float = 2.0
-    _MAX_HEARTBEAT_MISS: int = 15   # 连续30s无心跳 → 疑似死亡
+    _MAX_HEARTBEAT_MISS: int = 15  # 连续30s无心跳 → 疑似死亡
 
     @classmethod
     def beat(cls, status: str = "") -> None:
@@ -197,6 +197,7 @@ class Watchdog:
         # 1. models.json 可解析
         try:
             import json
+
             cfg_path = ROOT / "models.json"
             if not cfg_path.exists():
                 issues.append("models.json missing")

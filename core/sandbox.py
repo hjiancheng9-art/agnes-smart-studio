@@ -107,18 +107,22 @@ _STATIC_ALLOWED_ROOTS = _build_allowed_roots()
 
 
 def _current_allowed_roots() -> list[Path]:
-    """返回当前生效的允许根列表。
+    """返回当前生效的允许根列表（每次构建新列表，不修改静态配置）。
 
     CWD 可能随会话变化（用户在 REPL 里 cd），所以每次校验都重新拿 os.getcwd()。
     环境变量覆盖模式下不追加 CWD（用户已显式锁定信任域）。
     """
     if os.environ.get("CRUX_ALLOWED_ROOTS", ""):
-        return _STATIC_ALLOWED_ROOTS  # 锁定模式，不变
-    # 非锁定模式：动态追加当前 CWD（去重）
-    cwd = _normalize_path(Path.cwd())
-    if cwd not in _STATIC_ALLOWED_ROOTS:
-        return _STATIC_ALLOWED_ROOTS + [cwd]
-    return _STATIC_ALLOWED_ROOTS
+        return list(_STATIC_ALLOWED_ROOTS)  # 锁定模式，返回副本
+    # 非锁定模式：构建包含当前 CWD 的新列表（不污染静态配置）
+    roots = list(_STATIC_ALLOWED_ROOTS)
+    try:
+        cwd = _normalize_path(Path.cwd())
+    except OSError:
+        return roots  # CWD 不可用（如目录已被删除）
+    if cwd not in roots:
+        roots.append(cwd)
+    return roots
 
 
 # ── Command tokenizer ───────────────────────────────────────

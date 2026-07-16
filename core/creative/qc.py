@@ -17,8 +17,9 @@ logger = logging.getLogger("crux.qc")
 @dataclass
 class QCResult:
     """QC 评估结果"""
+
     passed: bool = False
-    score: int = 0              # 0-100
+    score: int = 0  # 0-100
     issues: list[str] = field(default_factory=list)
     suggestions: list[str] = field(default_factory=list)
     raw_analysis: str = ""
@@ -27,7 +28,7 @@ class QCResult:
 class FrameQC:
     """
     首帧质量检查器。
-    
+
     使用 Agnes 2.0 Flash 对生成的首帧图片做图像理解评分。
     如果分数低于阈值，不入视频生成阶段。
     """
@@ -39,11 +40,11 @@ class FrameQC:
     def check(self, image_url: str, shot_description: str) -> QCResult:
         """
         检查首帧质量。
-        
+
         Args:
             image_url: 首帧图片 URL
             shot_description: 镜头描述（用于对比意图）
-            
+
         Returns:
             QCResult
         """
@@ -63,8 +64,7 @@ class FrameQC:
                 result.passed = True
                 logger.info("首帧 QC 通过: score=%d/%d", score, self.threshold)
             else:
-                logger.warning("首帧 QC 未通过: score=%d/%d, issues=%s",
-                               score, self.threshold, result.issues)
+                logger.warning("首帧 QC 未通过: score=%d/%d, issues=%s", score, self.threshold, result.issues)
 
         except Exception as e:
             logger.error("首帧 QC 执行失败: %s", e)
@@ -130,7 +130,8 @@ class FrameQC:
     def _extract_score(self, analysis: str) -> int:
         """从分析文本中提取分数"""
         import re
-        match = re.search(r'总分[：:]\s*(\d+)', analysis)
+
+        match = re.search(r"总分[：:]\s*(\d+)", analysis)
         if match:
             return min(100, max(0, int(match.group(1))))
         return 50
@@ -138,7 +139,8 @@ class FrameQC:
     def _extract_issues(self, analysis: str) -> list[str]:
         """提取问题列表"""
         import re
-        match = re.search(r'问题[：:]\s*(.+)', analysis, re.DOTALL)
+
+        match = re.search(r"问题[：:]\s*(.+)", analysis, re.DOTALL)
         if match:
             text = match.group(1)
             # 找到"建议"或"改进"等关键词截断
@@ -152,7 +154,8 @@ class FrameQC:
     def _extract_suggestions(self, analysis: str) -> list[str]:
         """提取建议列表"""
         import re
-        match = re.search(r'建议[：:]\s*(.+)', analysis, re.DOTALL)
+
+        match = re.search(r"建议[：:]\s*(.+)", analysis, re.DOTALL)
         if match:
             text = match.group(1)
             return [i.strip() for i in text.split(",") if i.strip()]
@@ -162,18 +165,18 @@ class FrameQC:
 class VideoQC:
     """
     视频质量检查器。
-    
+
     完成后检查：时长、动作一致性、是否崩坏。
     """
 
     def check(self, video_url: str, contract) -> QCResult:
         """
         检查视频质量。
-        
+
         Args:
             video_url: 视频 URL（供后续 AI 分析使用）
             contract: 对应的 ShotContract
-            
+
         Returns:
             QCResult
         """
@@ -181,7 +184,7 @@ class VideoQC:
 
         # 时长检查
         if contract.num_frames and contract.frame_rate:
-            expected_duration = contract.num_frames / contract.frame_rate
+            contract.num_frames / contract.frame_rate
             # 注: 实际时长需从 API 返回获取，这里标记
             result.score = 70  # 默认分数
 

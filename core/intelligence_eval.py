@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class EvalCase:
     """端到端评测样本"""
+
     id: str
     request: str
     expected_outcome: str
@@ -53,14 +54,15 @@ class EvalCase:
 @dataclass
 class EvalResult:
     """单条评测结果"""
+
     case_id: str
     request: str
-    outcome_match: bool = False        # 结果是否符合预期
-    evidence_quality: str = "none"     # none / weak / medium / strong
-    step_completeness: float = 0.0     # 0.0 - 1.0
-    has_recovery: bool = False         # 失败步骤是否回退/修复
+    outcome_match: bool = False  # 结果是否符合预期
+    evidence_quality: str = "none"  # none / weak / medium / strong
+    step_completeness: float = 0.0  # 0.0 - 1.0
+    has_recovery: bool = False  # 失败步骤是否回退/修复
     total_duration: float = 0.0
-    score: float = 0.0                 # 综合评分 0-100
+    score: float = 0.0  # 综合评分 0-100
     details: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -79,6 +81,7 @@ class EvalResult:
 @dataclass
 class EvalReport:
     """评测报告"""
+
     total: int = 0
     results: list[EvalResult] = field(default_factory=list)
     start_time: float = 0.0
@@ -121,8 +124,7 @@ class EvalReport:
 class IntelligenceEval:
     """端到端智能评测引擎"""
 
-    def __init__(self, trace_store: TraceStore | None = None,
-                 evidence_gate: EvidenceGate | None = None):
+    def __init__(self, trace_store: TraceStore | None = None, evidence_gate: EvidenceGate | None = None):
         self.trace_store = trace_store or TraceStore()
         self.evidence_gate = evidence_gate or EvidenceGate()
 
@@ -223,8 +225,9 @@ class IntelligenceEval:
                 result = self.evaluate_trace(matched_trace, case)
             else:
                 # 无轨迹 — 只能评分 0
-                result = EvalResult(case_id=case.id, request=case.request,
-                                    score=20, details={"error": "no_trace_found"})
+                result = EvalResult(
+                    case_id=case.id, request=case.request, score=20, details={"error": "no_trace_found"}
+                )
 
             report.results.append(result)
 
@@ -246,11 +249,13 @@ class IntelligenceEval:
         lines.append("")
         lines.append("─" * 40)
         lines.append("各样本评分:")
-        for r in d['results']:
-            icon = "✅" if r['score'] >= 70 else "❌"
-            lines.append(f"  {icon} [{r['case_id']}] {r['score']:5.1f}分 | "
-                         f"结果={r['outcome_match']} 证据={r['evidence_quality']} "
-                         f"步骤={r['step_completeness']:.0%}")
+        for r in d["results"]:
+            icon = "✅" if r["score"] >= 70 else "❌"
+            lines.append(
+                f"  {icon} [{r['case_id']}] {r['score']:5.1f}分 | "
+                f"结果={r['outcome_match']} 证据={r['evidence_quality']} "
+                f"步骤={r['step_completeness']:.0%}"
+            )
         lines.append("")
         lines.append("=" * 60)
         return "\n".join(lines)
@@ -279,6 +284,7 @@ def main(jsonl_path: str | None = None, verbose: bool = False):
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="Intelligence Eval — 端到端评测")
     parser.add_argument("--jsonl", default=None)
     parser.add_argument("--verbose", "-v", action="store_true")

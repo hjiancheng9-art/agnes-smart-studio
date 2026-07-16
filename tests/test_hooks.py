@@ -15,16 +15,19 @@ def _make_stop_guard():
         if not last_message:
             return event
         fake_done_markers = [
-            "should be working", "should be fixed", "seems to work",
-            "probably fine", "might work",
-            "理论上应该", "应该可以了", "看起来没问题",
+            "should be working",
+            "should be fixed",
+            "seems to work",
+            "probably fine",
+            "might work",
+            "理论上应该",
+            "应该可以了",
+            "看起来没问题",
         ]
         for marker in fake_done_markers:
             if marker in last_message:
                 event.stop_decision = "block"
-                event.stop_reason = (
-                    f"检测到不确定的完成声明 ('{marker}')。请运行验证命令确认修复。"
-                )
+                event.stop_reason = f"检测到不确定的完成声明 ('{marker}')。请运行验证命令确认修复。"
                 break
         return event
 
@@ -131,9 +134,14 @@ class TestHookTypeEnum:
     def test_all_types_present(self):
         types = {t.value for t in HookType}
         expected = {
-            "session_start", "user_prompt_submit", "pre_tool_use",
-            "post_tool_use", "chat_turn_start", "chat_turn_end",
-            "stop", "notification",
+            "session_start",
+            "user_prompt_submit",
+            "pre_tool_use",
+            "post_tool_use",
+            "chat_turn_start",
+            "chat_turn_end",
+            "stop",
+            "notification",
         }
         assert types == expected
 
@@ -175,36 +183,28 @@ class TestStopEvent:
         # Register on this local hm, not the global one
         hm.register("stop_guard", HookType.STOP, _make_stop_guard(), priority=0)
 
-        event = hm.fire(HookType.STOP, data={
-            "last_assistant_message": "bug修复完成，应该可以了"
-        })
+        event = hm.fire(HookType.STOP, data={"last_assistant_message": "bug修复完成，应该可以了"})
         assert event.stop_decision == "block"
 
     def test_stop_guard_passes_clean(self):
         hm = HookManager()
         hm.register("stop_guard", HookType.STOP, _make_stop_guard(), priority=0)
 
-        event = hm.fire(HookType.STOP, data={
-            "last_assistant_message": "pytest 5 passed 0 failed, lint clean"
-        })
+        event = hm.fire(HookType.STOP, data={"last_assistant_message": "pytest 5 passed 0 failed, lint clean"})
         assert event.stop_decision == ""
 
     def test_stop_guard_blocks_english_uncertain(self):
         hm = HookManager()
         hm.register("stop_guard", HookType.STOP, _make_stop_guard(), priority=0)
 
-        event = hm.fire(HookType.STOP, data={
-            "last_assistant_message": "The bug seems to work now"
-        })
+        event = hm.fire(HookType.STOP, data={"last_assistant_message": "The bug seems to work now"})
         assert event.stop_decision == "block"
 
     def test_stop_guard_empty_message(self):
         hm = HookManager()
         hm.register("stop_guard", HookType.STOP, _make_stop_guard(), priority=0)
 
-        event = hm.fire(HookType.STOP, data={
-            "last_assistant_message": ""
-        })
+        event = hm.fire(HookType.STOP, data={"last_assistant_message": ""})
         assert event.stop_decision == ""
 
     def test_stop_loop_count_respected(self):
@@ -279,10 +279,9 @@ class TestPreToolUsePermissions:
             return event
 
         hm.register("mod", HookType.PRE_TOOL_USE, modifier)
-        event = hm.fire(HookType.PRE_TOOL_USE, data={
-            "tool_name": "Write",
-            "args": {"path": "bad.py", "content": "bad content"}
-        })
+        event = hm.fire(
+            HookType.PRE_TOOL_USE, data={"tool_name": "Write", "args": {"path": "bad.py", "content": "bad content"}}
+        )
         assert event.updated_input is not None
         assert event.updated_input["path"] == "fixed.py"
 
@@ -316,10 +315,9 @@ class TestPreToolUsePermissions:
             return event
 
         hm.register("encoding_guard", HookType.PRE_TOOL_USE, encoding_guard, 90)
-        event = hm.fire(HookType.PRE_TOOL_USE, data={
-            "tool_name": "write_file",
-            "args": {"content": "some text with � garble"}
-        })
+        event = hm.fire(
+            HookType.PRE_TOOL_USE, data={"tool_name": "write_file", "args": {"content": "some text with � garble"}}
+        )
         assert event.permission_decision == "ask"
 
 

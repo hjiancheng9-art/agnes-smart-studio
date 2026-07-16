@@ -1,4 +1,5 @@
 """Tests for ui/status_bar.py — rendering, truncation, edge cases."""
+
 from ui.status_bar import StatusBar
 
 
@@ -12,7 +13,7 @@ class TestStatusBarBasics:
 
     def test_model_in_output(self):
         r = StatusBar(model_fn=None, cwd="~/test", model="deepseek-v4-pro").render()
-        text = ' '.join(t[1] for t in r if isinstance(t, tuple) and len(t) > 1)
+        text = " ".join(t[1] for t in r if isinstance(t, tuple) and len(t) > 1)
         assert "deepseek" in text.lower() or "v4" in text.lower()
 
     def test_set_thinking(self):
@@ -32,14 +33,19 @@ class TestStatusBarBasics:
         # model_fn callable takes priority; pass model directly
         sb = StatusBar(model_fn=None, cwd="~/test", model="flash-model")
         r = sb.render()
-        text = ' '.join(t[1] for t in r if isinstance(t, tuple) and len(t) > 1)
+        text = " ".join(t[1] for t in r if isinstance(t, tuple) and len(t) > 1)
         assert "flash" in text.lower()
 
 
 class TestEdgeCases:
-    def test_empty_model(self): assert _make_bar("").render() is not None
-    def test_long_model(self): assert _make_bar("a" * 100).render() is not None
-    def test_unicode_model(self): assert _make_bar("测试模型").render() is not None
+    def test_empty_model(self):
+        assert _make_bar("").render() is not None
+
+    def test_long_model(self):
+        assert _make_bar("a" * 100).render() is not None
+
+    def test_unicode_model(self):
+        assert _make_bar("测试模型").render() is not None
 
     def test_concurrent_sets(self):
         sb = _make_bar()

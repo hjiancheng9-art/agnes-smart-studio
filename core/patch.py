@@ -252,7 +252,7 @@ class PatchEngine:
                 context_block = [ctx_text]
             elif ctx_text and ctx_lines:
                 # Line-number header included text, prepend to context block
-                context_block = [ctx_text] + ctx_lines
+                context_block = [ctx_text, *ctx_lines]
             elif ctx_lines:
                 # Multi-line context only (no header text)
                 context_block = ctx_lines

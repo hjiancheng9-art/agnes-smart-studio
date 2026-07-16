@@ -157,7 +157,7 @@ class MCPConnector:
             if env:
                 proc_env.update(env)
             proc = subprocess.Popen(
-                [command] + args,
+                [command, *args],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -227,11 +227,10 @@ def mcp_call(server_name: str, tool_name: str, args_json: str = "{}") -> str:
 # =====================================================================
 
 
-
-
 # ═══════════════════════════════════════════════════════════════
 # Subprocess bridge — solves sync_playwright + asyncio conflicts
 # ═══════════════════════════════════════════════════════════════
+
 
 def _pw_run(action: str, **kwargs) -> dict:
     """Run a Playwright action in a clean subprocess via pw_worker.py."""
@@ -250,8 +249,12 @@ def _pw_run(action: str, **kwargs) -> dict:
     try:
         r = _subprocess.run(
             args,
-            capture_output=True, text=True, timeout=45,
-            encoding="utf-8", cwd=str(ROOT), env=env,
+            capture_output=True,
+            text=True,
+            timeout=45,
+            encoding="utf-8",
+            cwd=str(ROOT),
+            env=env,
         )
         for line in r.stdout.strip().split("\n"):
             try:
@@ -273,6 +276,7 @@ def pw_navigate(url: str) -> str:
     import json as _json
 
     from core.cdp_browser import pw_navigate as _cdp_navigate
+
     try:
         result = _json.loads(_cdp_navigate(url))
         if result.get("success"):
@@ -314,6 +318,7 @@ def pw_click(selector: str) -> str:
     v6.1: 短超时 + JS 降级
     """
     from core.cdp_browser import cdp_session, safe_click
+
     try:
         with cdp_session() as browser:
             for ctx in browser.contexts:

@@ -7,6 +7,7 @@ Prints JSON result to stdout.
 
 import json
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -49,7 +50,7 @@ def main():
                 result["title"] = page.title()
 
             elif action == "screenshot":
-                path = kwargs.get("path", str(OUTPUT / f"browser_{__import__('time').time():.0f}.png"))
+                path = kwargs.get("path", str(OUTPUT / f"browser_{time.time():.0f}.png"))
                 # Navigate first if url given
                 if "url" in kwargs:
                     page.goto(kwargs["url"], timeout=30000)

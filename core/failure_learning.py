@@ -21,10 +21,13 @@ import logging
 import os
 import time
 import uuid
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +105,7 @@ class FailureSample:
       fix_verified: whether the fix was verified
       exported: whether this was added to regression set
     """
+
     id: str = ""
     category: str = ""
     severity: str = "medium"
@@ -169,7 +173,7 @@ class TraceExtractor:
 
         # Take the failure + up to 3 preceding decisions
         start = max(0, idx - 3)
-        relevant = decisions[start:idx + 1]
+        relevant = decisions[start : idx + 1]
 
         lines = ["[Minimal Reproduction Trace]"]
         for d in relevant:
@@ -251,12 +255,10 @@ class RootCauseAnalyzer:
                 "LLM may need explicit instructions to only reference files from tool results."
             ),
             FailureCategory.UNCLOSED_FENCE: (
-                "Increase token limit or enable context compression. "
-                "The response was likely truncated mid-output."
+                "Increase token limit or enable context compression. The response was likely truncated mid-output."
             ),
             FailureCategory.DIFF_GUARD_BLOCKED: (
-                "DiffGuard prevented a potentially harmful write. "
-                "Review the change manually if intended."
+                "DiffGuard prevented a potentially harmful write. Review the change manually if intended."
             ),
         }
         return suggestions.get(FailureCategory(cat), "Review the failure context manually.")
@@ -281,6 +283,7 @@ class RootCauseAnalyzer:
             result = llm_callback("You are a failure analysis expert.", prompt)
             # Parse JSON
             import re
+
             m = re.search(r"\{.*\}", result, re.DOTALL)
             if m:
                 data = json.loads(m.group())
@@ -331,10 +334,7 @@ class FixVerifier:
             return False
 
         # Check 3: After output is non-empty
-        if not after_output.strip():
-            return False
-
-        return True
+        return after_output.strip()
 
     def diff(self, before: str, after: str) -> str:
         """Generate a diff between before and after outputs."""
@@ -393,13 +393,17 @@ class RegressionExporter:
                 try:
                     with open(fpath, encoding="utf-8") as f:
                         data = json.load(f)
-                    cases.append({
-                        "id": data.get("id", fname),
-                        "category": data.get("category", "?"),
-                        "severity": data.get("severity", "?"),
-                        "date": datetime.fromtimestamp(data.get("timestamp", 0)).isoformat() if data.get("timestamp") else "?",
-                        "user_message": (data.get("user_message", "") or "")[:80],
-                    })
+                    cases.append(
+                        {
+                            "id": data.get("id", fname),
+                            "category": data.get("category", "?"),
+                            "severity": data.get("severity", "?"),
+                            "date": datetime.fromtimestamp(data.get("timestamp", 0)).isoformat()
+                            if data.get("timestamp")
+                            else "?",
+                            "user_message": (data.get("user_message", "") or "")[:80],
+                        }
+                    )
                 except Exception:
                     logger.debug("Exception in failure_learning", exc_info=True)
         return cases
@@ -419,12 +423,14 @@ class RegressionExporter:
                     description=f"Regression: {data.get('category', '?')}",
                     tags=["regression", data.get("category", "?")],
                 )
-                session.turns.append(EvalTurn(
-                    user=data.get("user_message", ""),
-                    assistant=data.get("assistant_response", ""),
-                    tool_results=data.get("tool_results", []),
-                    expected_issues=1,
-                ))
+                session.turns.append(
+                    EvalTurn(
+                        user=data.get("user_message", ""),
+                        assistant=data.get("assistant_response", ""),
+                        tool_results=data.get("tool_results", []),
+                        expected_issues=1,
+                    )
+                )
                 sessions.append(session)
             except Exception:
                 logger.debug("Exception in failure_learning", exc_info=True)
@@ -439,6 +445,7 @@ class RegressionExporter:
 @dataclass
 class LearningStats:
     """Statistics for the failure learning loop."""
+
     total_failures: int = 0
     analyzed: int = 0
     verified_fixes: int = 0

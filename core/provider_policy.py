@@ -11,13 +11,14 @@ def _get_real_budget(default: float = 100) -> float:
         daily_limit = budget_cfg.get("daily")
         if daily_limit is None:
             return default
-        today_cost = state.get("by_day", {}).get(
-            __import__("datetime").datetime.now().strftime("%Y-%m-%d"), {}
-        ).get("cost", 0.0)
+        today_cost = (
+            state.get("by_day", {}).get(__import__("datetime").datetime.now().strftime("%Y-%m-%d"), {}).get("cost", 0.0)
+        )
         remaining = max(0.0, daily_limit - today_cost)
         return remaining
     except (ImportError, OSError, KeyError, ValueError):
         return default
+
 
 def score_provider(pid: str, request: dict, circuit_states: dict[str, str]) -> float:
     """对 provider 打分，越高越优先。

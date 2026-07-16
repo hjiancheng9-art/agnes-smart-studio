@@ -3,6 +3,7 @@ TUI Run State Store — 每个 run_id 独立状态管理
 ================================================
 解决：状态栏不归位、多个 run_id 并发串台、stream_end 后消息没 close。
 """
+
 from __future__ import annotations
 
 import time
@@ -13,6 +14,7 @@ from typing import Any
 @dataclass
 class TuiRunState:
     """单个会话的运行状态"""
+
     run_id: str
     status: str = "STARTED"
     phase: str = ""
@@ -92,10 +94,7 @@ class RunStateStore:
     def cleanup(self, max_age: float = 300) -> int:
         """清理过期非活跃 run"""
         now = time.time()
-        to_remove = [
-            rid for rid, s in self._runs.items()
-            if not s.is_streaming and now - s.last_event_at > max_age
-        ]
+        to_remove = [rid for rid, s in self._runs.items() if not s.is_streaming and now - s.last_event_at > max_age]
         for rid in to_remove:
             del self._runs[rid]
         return len(to_remove)

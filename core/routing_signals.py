@@ -15,8 +15,9 @@ from dataclasses import dataclass, field
 @dataclass
 class RouteSignal:
     """单个路由信号"""
-    name: str                          # 信号名称
-    weight: float = 1.0                # 权重
+
+    name: str  # 信号名称
+    weight: float = 1.0  # 权重
     votes: dict[str, float] = field(default_factory=dict)  # {mode: score}
     description: str = ""
 
@@ -29,21 +30,23 @@ SignalFn = Callable[[str, dict], float]  # (text, context) → value 0.0~1.0
 # ── 信号集合 ──
 # ════════════════════════════════════════════════
 
+
 def signal_has_code(text: str, ctx: dict) -> float:
     """是否包含代码相关关键词"""
     score = 0.0
     if re.search(r"```\w*\n|def |class |import |\.py\b|\.js\b|\.ts\b|\.go\b|\.rs\b|\.java\b", text):
         score = max(score, 0.8)
-    if re.search(r"函数|方法|类\s|接口|模块|实现|编写|代码|脚本|func |const |let |var |async |await |export|lambda|API|库|包|依赖", text):
+    if re.search(
+        r"函数|方法|类\s|接口|模块|实现|编写|代码|脚本|func |const |let |var |async |await |export|lambda|API|库|包|依赖",
+        text,
+    ):
         score = max(score, 0.6)
     if re.search(r"写一个|写个|实现.*功能|编写.*代码|改成|修改.*代码", text):
         score = max(score, 0.4)
     # 特定技术栈关键词
-    if re.search(r"requests|httpx|flask|django|react|vue|spring|sql|orm|jwt|oauth|graphql",
-                 text.lower()):
+    if re.search(r"requests|httpx|flask|django|react|vue|spring|sql|orm|jwt|oauth|graphql", text.lower()):
         score = max(score, 0.5)
-    if re.search(r"rag|llm|gpt|向量|embedding|微服务|docker|k8s|kubernetes|aws|gcp|azure",
-                 text.lower()):
+    if re.search(r"rag|llm|gpt|向量|embedding|微服务|docker|k8s|kubernetes|aws|gcp|azure", text.lower()):
         score = max(score, 0.5)
     return score
 
@@ -70,7 +73,9 @@ def signal_is_architecture(text: str, ctx: dict) -> float:
     if re.search(r"拆分|迁移|重写|改造|升级|替换", text):
         score = max(score, 0.6)
     # 小范围重构（函数/方法级别）→ 降低架构分
-    if score > 0.4 and re.search(r"重构.*函数|重构.*方法|重构.*变量|重构.*参数|refactor.*func|refactor.*method", text.lower()):
+    if score > 0.4 and re.search(
+        r"重构.*函数|重构.*方法|重构.*变量|重构.*参数|refactor.*func|refactor.*method", text.lower()
+    ):
         score *= 0.4
     return score
 
@@ -134,10 +139,31 @@ def signal_is_creative(text: str, ctx: dict) -> float:
         score *= 0.3
     # 如果有架构/规划/技术方案关键词，降低创意分
     if score > 0.3:
-        tech_patterns = ["方案", "架构", "数据库", "系统", "模块", "机制", "平台",
-                         "引擎", "框架", "协议", "接口", "服务", "中间件",
-                         "plan", "architecture", "system", "module", "schema",
-                         "platform", "engine", "framework", "protocol", "service"]
+        tech_patterns = [
+            "方案",
+            "架构",
+            "数据库",
+            "系统",
+            "模块",
+            "机制",
+            "平台",
+            "引擎",
+            "框架",
+            "协议",
+            "接口",
+            "服务",
+            "中间件",
+            "plan",
+            "architecture",
+            "system",
+            "module",
+            "schema",
+            "platform",
+            "engine",
+            "framework",
+            "protocol",
+            "service",
+        ]
         tech_hits = sum(1 for p in tech_patterns if p in text.lower())
         if tech_hits >= 2:
             score *= 0.3
@@ -198,9 +224,27 @@ def signal_is_simple_chat(text: str, ctx: dict) -> float:
     """是否简单聊天"""
     score = 0.0
     # 短文本，无代码，无特殊要求 — 但需要有聊天关键词
-    chat_keywords = ["你好", "hi", "hello", "hey", "早", "晚上好", "谢谢", "感谢",
-                     "ok", "好的", "明白", "再见", "拜拜", "晚安",
-                     "今天.*天气", "星期几", "几点了", "你叫什么", "你是谁"]
+    chat_keywords = [
+        "你好",
+        "hi",
+        "hello",
+        "hey",
+        "早",
+        "晚上好",
+        "谢谢",
+        "感谢",
+        "ok",
+        "好的",
+        "明白",
+        "再见",
+        "拜拜",
+        "晚安",
+        "今天.*天气",
+        "星期几",
+        "几点了",
+        "你叫什么",
+        "你是谁",
+    ]
     has_chat_keyword = any(re.search(k, text.lower()) for k in chat_keywords)
 
     if has_chat_keyword and len(text) < 15:
@@ -234,9 +278,23 @@ def signal_is_ambiguous(text: str, ctx: dict) -> float:
 def signal_needs_web_search(text: str, ctx: dict) -> float:
     """是否需要联网搜索"""
     score = 0.0
-    web_markers = ["最新的", "当前的", "最近", "2024", "2025", "2026",
-                   "latest", "current", "news", "update", "release",
-                   "version", "compare", "vs ", "alternative"]
+    web_markers = [
+        "最新的",
+        "当前的",
+        "最近",
+        "2024",
+        "2025",
+        "2026",
+        "latest",
+        "current",
+        "news",
+        "update",
+        "release",
+        "version",
+        "compare",
+        "vs ",
+        "alternative",
+    ]
     for m in web_markers:
         if m in text.lower():
             score = max(score, 0.4)
@@ -311,9 +369,11 @@ def signal_has_shell_ops(text: str, ctx: dict) -> float:
 
 # ── 信号注册表 ──
 
+
 @dataclass
 class SignalEntry:
     """信号条目"""
+
     fn: SignalFn
     weight: float
     votes: dict[str, float]  # {mode: score}
@@ -327,18 +387,29 @@ SIGNAL_REGISTRY: list[SignalEntry] = [
     SignalEntry(signal_is_architecture, 4.0, {"DEEP": 1.0, "BALANCED": 0.2, "FAST": -1.0}, name="is_architecture"),
     SignalEntry(signal_has_security_risk, 5.0, {"SAFE": 1.0, "DEEP": 0.5, "FAST": -1.0}, name="has_security_risk"),
     SignalEntry(signal_has_destructive_ops, 4.0, {"SAFE": 1.0, "DEEP": 0.3, "FAST": -1.0}, name="has_destructive_ops"),
-    SignalEntry(signal_is_research, 3.5, {"RESEARCH": 1.0, "DEEP": 0.4, "BALANCED": 0.3, "FAST": -0.5}, name="is_research"),
+    SignalEntry(
+        signal_is_research, 3.5, {"RESEARCH": 1.0, "DEEP": 0.4, "BALANCED": 0.3, "FAST": -0.5}, name="is_research"
+    ),
     SignalEntry(signal_is_creative, 2.5, {"CREATIVE": 1.0, "BALANCED": 0.3, "DEEP": -0.3}, name="is_creative"),
     SignalEntry(signal_has_debug_symptom, 3.0, {"BALANCED": 0.7, "DEEP": 0.3, "FAST": -0.3}, name="has_debug_symptom"),
-    SignalEntry(signal_is_deep_investigation, 4.0, {"DEEP": 1.0, "BALANCED": 0.2, "FAST": -1.0}, name="is_deep_investigation"),
+    SignalEntry(
+        signal_is_deep_investigation, 4.0, {"DEEP": 1.0, "BALANCED": 0.2, "FAST": -1.0}, name="is_deep_investigation"
+    ),
     SignalEntry(signal_has_file_ops, 2.0, {"BALANCED": 0.5, "DEEP": 0.7}, name="has_file_ops"),
     SignalEntry(signal_is_simple_chat, 3.0, {"FAST": 1.0, "BALANCED": -0.5, "DEEP": -1.0}, name="is_simple_chat"),
     SignalEntry(signal_is_simple_lookup, 2.0, {"FAST": 1.0, "BALANCED": -0.2, "DEEP": -0.5}, name="is_simple_lookup"),
     SignalEntry(signal_is_ambiguous, 1.5, {"BALANCED": 0.3, "DEEP": 0.4, "FAST": 0.2}, name="is_ambiguous"),
     SignalEntry(signal_needs_web_search, 2.0, {"RESEARCH": 0.8, "BALANCED": 0.3}, name="needs_web_search"),
     SignalEntry(signal_is_test_task, 2.0, {"BALANCED": 0.5, "DEEP": 0.6}, name="is_test_task"),
-    SignalEntry(signal_is_rapid_prototype, 1.5, {"FAST": 0.4, "BALANCED": 0.6, "DEEP": -0.3}, name="is_rapid_prototype"),
-    SignalEntry(signal_has_planning_indicators, 2.5, {"DEEP": 0.8, "RESEARCH": 0.5, "FAST": -0.5}, name="has_planning_indicators"),
+    SignalEntry(
+        signal_is_rapid_prototype, 1.5, {"FAST": 0.4, "BALANCED": 0.6, "DEEP": -0.3}, name="is_rapid_prototype"
+    ),
+    SignalEntry(
+        signal_has_planning_indicators,
+        2.5,
+        {"DEEP": 0.8, "RESEARCH": 0.5, "FAST": -0.5},
+        name="has_planning_indicators",
+    ),
     SignalEntry(signal_is_bug_fix, 2.0, {"BALANCED": 0.6, "DEEP": 0.4, "FAST": 0.2}, name="is_bug_fix"),
     SignalEntry(signal_is_code_review, 2.0, {"BALANCED": 0.5, "DEEP": 0.3}, name="is_code_review"),
     SignalEntry(signal_has_shell_ops, 2.0, {"BALANCED": 0.5, "SAFE": 0.5}, name="has_shell_ops"),

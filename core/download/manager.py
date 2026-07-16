@@ -5,8 +5,8 @@ from __future__ import annotations
 import os
 import threading
 import time
-from collections.abc import Callable
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from core.download.config import load_config
 from core.download.engines.aria2_engine import Aria2Config, Aria2Engine
@@ -19,6 +19,9 @@ from core.download.models import (
     new_job_id,
 )
 from core.error_sink import catch
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 DEFAULT_DIR = os.path.expanduser("~/Downloads/CRUX")
 

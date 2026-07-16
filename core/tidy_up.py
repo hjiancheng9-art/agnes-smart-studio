@@ -12,9 +12,12 @@ from __future__ import annotations
 import os
 import shutil
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # ── 分类规则 ──────────────────────────────────────
 
@@ -27,7 +30,9 @@ CLASSIFY_RULES: list[tuple[Callable[[str], bool], str, str]] = [
         lambda n: any(
             n.startswith(p)
             for p in (
-                "_ask_chatgpt", "_chat_full", "chatgpt_response",
+                "_ask_chatgpt",
+                "_chat_full",
+                "chatgpt_response",
             )
         ),
         "tmp/gpt_outputs",
@@ -35,17 +40,13 @@ CLASSIFY_RULES: list[tuple[Callable[[str], bool], str, str]] = [
     ),
     # CRUX / TUI 片段
     (
-        lambda n: any(
-            n.startswith(p) for p in ("_crux_", "_tui_", "_tui")
-        ),
+        lambda n: any(n.startswith(p) for p in ("_crux_", "_tui_", "_tui")),
         "tmp/scraps",
         "CRUX/TUI 代码片段",
     ),
     # 流式传输调试
     (
-        lambda n: any(
-            n.startswith(p) for p in ("_send_", "_stream_")
-        ),
+        lambda n: any(n.startswith(p) for p in ("_send_", "_stream_")),
         "tmp/scraps",
         "流式调试碎片",
     ),
@@ -57,10 +58,7 @@ CLASSIFY_RULES: list[tuple[Callable[[str], bool], str, str]] = [
     ),
     # 自动化修复/脚本
     (
-        lambda n: any(
-            n.startswith(p)
-            for p in ("auto_fix", "run_auto", "run_smoke")
-        ),
+        lambda n: any(n.startswith(p) for p in ("auto_fix", "run_auto", "run_smoke")),
         "tmp/job_logs",
         "自动化任务脚本",
     ),
@@ -113,6 +111,7 @@ class TidyResult:
 
 
 # ── 公开 API ──────────────────────────────────────
+
 
 def tidy_root(
     root: str | Path | None = None,
@@ -273,9 +272,14 @@ def full_status(root: str | Path | None = None) -> dict:
 
     required = [
         "browser_sessions",
-        "tmp/cdp_fragments", "tmp/gpt_outputs", "tmp/diagnostics",
-        "tmp/job_logs", "tmp/workflows", "tmp/scraps",
-        "output/images", "output/videos",
+        "tmp/cdp_fragments",
+        "tmp/gpt_outputs",
+        "tmp/diagnostics",
+        "tmp/job_logs",
+        "tmp/workflows",
+        "tmp/scraps",
+        "output/images",
+        "output/videos",
     ]
     status["missing_dirs"] = [d for d in required if not (root / d).is_dir()]
 
@@ -285,16 +289,37 @@ def full_status(root: str | Path | None = None) -> dict:
 # ── 内部 ──────────────────────────────────────────
 
 # 项目核心文件（不移动）
-_PROJECT_FILES = frozenset({
-    "crux_studio.py", "models.json", ".env", ".env.example",
-    "requirements.txt", "pyproject.toml", "AGENTS.md", "AGENTS_REF.md",
-    "README.md", "LICENSE", "CHANGELOG.md", "METHODOLOGY.md",
-    "CLAUDE.md", "HELP.md", "settings.json", "tools.json",
-    ".editorconfig", ".gitignore", ".pre-commit-config.yaml",
-    ".mcp.json", "pyright_baseline.json", "crux.ico",
-    "crux.bat", "crux.sh", "launch.bat", "launch.sh",
-    "mcp_vision_server.py",
-})
+_PROJECT_FILES = frozenset(
+    {
+        "crux_studio.py",
+        "models.json",
+        ".env",
+        ".env.example",
+        "requirements.txt",
+        "pyproject.toml",
+        "AGENTS.md",
+        "AGENTS_REF.md",
+        "README.md",
+        "LICENSE",
+        "CHANGELOG.md",
+        "METHODOLOGY.md",
+        "CLAUDE.md",
+        "HELP.md",
+        "settings.json",
+        "tools.json",
+        ".editorconfig",
+        ".gitignore",
+        ".pre-commit-config.yaml",
+        ".mcp.json",
+        "pyright_baseline.json",
+        "crux.ico",
+        "crux.bat",
+        "crux.sh",
+        "launch.bat",
+        "launch.sh",
+        "mcp_vision_server.py",
+    }
+)
 
 
 def _is_project_file(fname: str) -> bool:
@@ -306,9 +331,19 @@ def _looks_like_temp(fname: str) -> bool:
     """启发式判断是否像临时文件"""
     name_lower = fname.lower()
     indicators = [
-        "_cdp_", "_crux_", "_tui_", "_gpt_", "_ask_", "_chat_",
-        "_route_", "_send_", "_stream_", "tmp_", "temp_",
-        "chatgpt_response", "benchmark",
+        "_cdp_",
+        "_crux_",
+        "_tui_",
+        "_gpt_",
+        "_ask_",
+        "_chat_",
+        "_route_",
+        "_send_",
+        "_stream_",
+        "tmp_",
+        "temp_",
+        "chatgpt_response",
+        "benchmark",
     ]
     return any(ind in name_lower for ind in indicators)
 
@@ -447,7 +482,7 @@ def _clean_crux_dir(root: Path, older_than_days: int, dry_run: bool) -> list[str
 def _remove_empty_dirs(root: Path, dry_run: bool) -> None:
     """删除项目中的空目录（跳过 .git, node_modules 等）。"""
     skip_dirs = {".git", "node_modules", ".venv", "venv", "__pycache__"}
-    for dirpath, dirnames, filenames in os.walk(str(root), topdown=False):
+    for dirpath, _dirnames, _filenames in os.walk(str(root), topdown=False):
         if dirpath == str(root):
             continue
         # 跳过保护目录
@@ -455,9 +490,8 @@ def _remove_empty_dirs(root: Path, dry_run: bool) -> None:
         if any(p in skip_dirs for p in parts):
             continue
         try:
-            if not os.listdir(dirpath):
-                if not dry_run:
-                    os.rmdir(dirpath)
+            if not os.listdir(dirpath) and not dry_run:
+                os.rmdir(dirpath)
         except OSError:
             pass
 

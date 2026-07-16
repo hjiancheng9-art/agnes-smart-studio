@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class GateResult:
     """门禁检查结果"""
+
     passed: bool
     reason: str = ""
     evidence_count: int = 0
@@ -49,14 +50,14 @@ class EvidenceGate:
 
     # ── 高质量证据模式 ──
     HIGH_QUALITY_PATTERNS = [
-        r"\w+\.\w+:\d+",           # file.py:42
-        r"src/[\w/.]+:\d+",        # src/auth/handler.py:42
-        r"第\s*\d+\s*行",          # 第 42 行
-        r"line\s*\d+",             # line 42
-        r"`[\w/.]+\.\w+`",         # `src/auth.py`
-        r"```[\s\S]{10,}```",      # 代码块（至少10字符）
-        r"test.*pass|测试.*通过",   # 测试通过
-        r"exit.*code.*0",          # exit code 0
+        r"\w+\.\w+:\d+",  # file.py:42
+        r"src/[\w/.]+:\d+",  # src/auth/handler.py:42
+        r"第\s*\d+\s*行",  # 第 42 行
+        r"line\s*\d+",  # line 42
+        r"`[\w/.]+\.\w+`",  # `src/auth.py`
+        r"```[\s\S]{10,}```",  # 代码块（至少10字符）
+        r"test.*pass|测试.*通过",  # 测试通过
+        r"exit.*code.*0",  # exit code 0
     ]
 
     # ── 弱证据模式（泛泛引用） ──
@@ -72,8 +73,7 @@ class EvidenceGate:
         evidence = self._extract_evidence(answer)
         return self._evaluate_evidence(evidence, answer, question)
 
-    def check_evidence_list(self, evidence_list: list[str], question: str = "",
-                            answer: str = "") -> GateResult:
+    def check_evidence_list(self, evidence_list: list[str], question: str = "", answer: str = "") -> GateResult:
         """检查显式提供的证据列表"""
         return self._evaluate_evidence(evidence_list, answer, question)
 
@@ -90,7 +90,7 @@ class EvidenceGate:
                     evidence.append(cleaned)
 
         # 2. 找文件名 + 行号组合
-        file_line = re.findall(r'([\w/]+\.\w+):(\d+)', text)
+        file_line = re.findall(r"([\w/]+\.\w+):(\d+)", text)
         for f, ln in file_line:
             ref = f"{f}:{ln}"
             if ref not in evidence:
@@ -98,8 +98,7 @@ class EvidenceGate:
 
         return evidence
 
-    def _evaluate_evidence(self, evidence: list[str], answer: str,
-                           question: str) -> GateResult:
+    def _evaluate_evidence(self, evidence: list[str], answer: str, question: str) -> GateResult:
         """评估证据"""
         if not evidence:
             return GateResult(
@@ -153,6 +152,7 @@ class EvidenceGate:
 
 
 # ── 快捷检查函数 ──
+
 
 def check_answer(text: str) -> dict[str, Any]:
     """快捷检查答案文本"""

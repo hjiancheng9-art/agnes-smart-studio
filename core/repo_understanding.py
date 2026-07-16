@@ -29,10 +29,23 @@ logger = logging.getLogger(__name__)
 # ── Config ──────────────────────────────────────────────────────
 
 DEFAULT_EXCLUDES = {
-    "__pycache__", ".git", ".crux", ".claude", ".codebuddy",
-    "node_modules", ".venv", "venv", "env", ".env",
-    ".pytest_cache", ".mypy_cache",
-    "*.pyc", "*.pyo", "*.egg-info", "dist", "build",
+    "__pycache__",
+    ".git",
+    ".crux",
+    ".claude",
+    ".codebuddy",
+    "node_modules",
+    ".venv",
+    "venv",
+    "env",
+    ".env",
+    ".pytest_cache",
+    ".mypy_cache",
+    "*.pyc",
+    "*.pyo",
+    "*.egg-info",
+    "dist",
+    "build",
 }
 
 
@@ -44,6 +57,7 @@ DEFAULT_EXCLUDES = {
 @dataclass
 class FileEntry:
     """A single file in the project index."""
+
     path: str
     relative_path: str
     size: int
@@ -60,6 +74,7 @@ class FileEntry:
 @dataclass
 class SymbolEntry:
     """A symbol defined somewhere in the repo."""
+
     name: str
     kind: str  # "class", "function", "variable"
     file_path: str
@@ -71,6 +86,7 @@ class SymbolEntry:
 @dataclass
 class RepoIndexSnapshot:
     """A point-in-time snapshot of the repo index."""
+
     files: dict[str, FileEntry] = field(default_factory=dict)
     symbols: dict[str, list[SymbolEntry]] = field(default_factory=dict)
     total_files: int = 0
@@ -147,22 +163,32 @@ class RepoIndex:
                     key = cls.lower()
                     if key not in snapshot.symbols:
                         snapshot.symbols[key] = []
-                    snapshot.symbols[key].append(SymbolEntry(
-                        name=cls, kind="class",
-                        file_path=entry.path, line=0,
-                    ))
+                    snapshot.symbols[key].append(
+                        SymbolEntry(
+                            name=cls,
+                            kind="class",
+                            file_path=entry.path,
+                            line=0,
+                        )
+                    )
                 for fn in entry.functions:
                     key = fn.lower()
                     if key not in snapshot.symbols:
                         snapshot.symbols[key] = []
-                    snapshot.symbols[key].append(SymbolEntry(
-                        name=fn, kind="function",
-                        file_path=entry.path, line=0,
-                    ))
+                    snapshot.symbols[key].append(
+                        SymbolEntry(
+                            name=fn,
+                            kind="function",
+                            file_path=entry.path,
+                            line=0,
+                        )
+                    )
 
         snapshot.build_time_ms = (time.time() - start) * 1000
         self._last_snapshot = snapshot
-        logger.info(f"Indexed {snapshot.total_files} files ({snapshot.total_lines} lines) in {snapshot.build_time_ms:.0f}ms")
+        logger.info(
+            f"Indexed {snapshot.total_files} files ({snapshot.total_lines} lines) in {snapshot.build_time_ms:.0f}ms"
+        )
         return snapshot
 
     def incremental(self) -> RepoIndexSnapshot | None:
@@ -208,10 +234,7 @@ class RepoIndex:
 
                 # Update symbols for this file
                 for key in list(snapshot.symbols.keys()):
-                    snapshot.symbols[key] = [
-                        s for s in snapshot.symbols[key]
-                        if s.file_path != entry.path
-                    ]
+                    snapshot.symbols[key] = [s for s in snapshot.symbols[key] if s.file_path != entry.path]
                     if not snapshot.symbols[key]:
                         del snapshot.symbols[key]
 
@@ -219,28 +242,33 @@ class RepoIndex:
                     key = cls.lower()
                     if key not in snapshot.symbols:
                         snapshot.symbols[key] = []
-                    snapshot.symbols[key].append(SymbolEntry(
-                        name=cls, kind="class",
-                        file_path=entry.path, line=0,
-                    ))
+                    snapshot.symbols[key].append(
+                        SymbolEntry(
+                            name=cls,
+                            kind="class",
+                            file_path=entry.path,
+                            line=0,
+                        )
+                    )
                 for fn in entry.functions:
                     key = fn.lower()
                     if key not in snapshot.symbols:
                         snapshot.symbols[key] = []
-                    snapshot.symbols[key].append(SymbolEntry(
-                        name=fn, kind="function",
-                        file_path=entry.path, line=0,
-                    ))
+                    snapshot.symbols[key].append(
+                        SymbolEntry(
+                            name=fn,
+                            kind="function",
+                            file_path=entry.path,
+                            line=0,
+                        )
+                    )
             else:
                 # File deleted
                 del snapshot.files[str(rel)]
                 snapshot.total_files -= 1
                 if old_entry:
                     for key in list(snapshot.symbols.keys()):
-                        snapshot.symbols[key] = [
-                            s for s in snapshot.symbols[key]
-                            if s.file_path != str(rel)
-                        ]
+                        snapshot.symbols[key] = [s for s in snapshot.symbols[key] if s.file_path != str(rel)]
                         if not snapshot.symbols[key]:
                             del snapshot.symbols[key]
 
@@ -253,11 +281,7 @@ class RepoIndex:
             if part in self.excludes:
                 return True
         ext = rel.suffix
-        if ext not in (".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".rs", ".md",
-                       ".json", ".yaml", ".yml", ".toml", ".cfg", ".ini",
-                       ".html", ".css", ".scss", ".sql", ".rb", ".java"):
-            return True
-        return False
+        return ext not in (".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".rs", ".md", ".json", ".yaml", ".yml", ".toml", ".cfg", ".ini", ".html", ".css", ".scss", ".sql", ".rb", ".java")
 
     def _index_file(self, filepath: Path, rel: Path) -> FileEntry | None:
         try:
@@ -311,7 +335,7 @@ class RepoIndex:
         for m in re.finditer(r'(?:import|require)\s*\(?\s*["\']([^"\']+)["\']', text):
             entry.imports.append(m.group(1))
         # Exports
-        for m in re.finditer(r'(?:export\s+(?:default\s+)?)?(?:class|function|const|let|var)\s+(\w+)', text):
+        for m in re.finditer(r"(?:export\s+(?:default\s+)?)?(?:class|function|const|let|var)\s+(\w+)", text):
             name = m.group(1)
             if "class" in m.group():
                 entry.classes.append(name)
@@ -320,7 +344,7 @@ class RepoIndex:
 
     def _parse_simple(self, text: str, entry: FileEntry):
         """Simple parsing for Go/Rust."""
-        for m in re.finditer(r'(?:func|fn|type|struct|impl)\s+(\w+)', text):
+        for m in re.finditer(r"(?:func|fn|type|struct|impl)\s+(\w+)", text):
             entry.functions.append(m.group(1))
         for m in re.finditer(r'(?:import\s*\(?)\s*["\']([^"\']+)["\']', text):
             entry.imports.append(m.group(1))
@@ -339,7 +363,11 @@ class RepoIndex:
         q = query.lower()
         results = []
         for f in self._last_snapshot.files.values():
-            if q in f.relative_path.lower() or any(q in c.lower() for c in f.classes) or any(q in fn.lower() for fn in f.functions):
+            if (
+                q in f.relative_path.lower()
+                or any(q in c.lower() for c in f.classes)
+                or any(q in fn.lower() for fn in f.functions)
+            ):
                 results.append(f)
         return sorted(results, key=lambda x: x.lines)[:max_results]
 
@@ -376,8 +404,8 @@ class RepoIndex:
         if all_symbols:
             lines.append("\n   Key symbols:")
             for name, entries in all_symbols:
-                types = set(e.kind for e in entries)
-                files_shown = set(e.file_path.split(os.sep)[-1] for e in entries[:3])
+                types = {e.kind for e in entries}
+                files_shown = {e.file_path.split(os.sep)[-1] for e in entries[:3]}
                 lines.append(f"     {name} ({', '.join(types)}) — {', '.join(files_shown)}")
 
         return "\n".join(lines)
@@ -397,9 +425,10 @@ class RepoIndex:
 @dataclass
 class Edge:
     """A directed edge in the repo graph."""
+
     source: str  # file path
     target: str  # file path or symbol
-    kind: str    # "import", "call", "inherit", "reference"
+    kind: str  # "import", "call", "inherit", "reference"
 
 
 @dataclass
@@ -411,6 +440,7 @@ class RepoGraph:
     - Which files define which symbols
     - Which files call which functions
     """
+
     nodes: set[str] = field(default_factory=set)
     edges: list[Edge] = field(default_factory=list)
     _adjacency: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
@@ -434,10 +464,13 @@ class RepoGraph:
                 if symbol_key in snapshot.symbols:
                     for sym in snapshot.symbols[symbol_key]:
                         if sym.file_path != path:
-                            graph.edges.append(Edge(
-                                source=path, target=sym.file_path,
-                                kind="reference",
-                            ))
+                            graph.edges.append(
+                                Edge(
+                                    source=path,
+                                    target=sym.file_path,
+                                    kind="reference",
+                                )
+                            )
                             graph._adjacency[path].add(sym.file_path)
 
         return graph
@@ -535,6 +568,7 @@ class ProjectContextPack:
 
     Composed by the ProjectOS from RepoIndex + RepoGraph.
     """
+
     project_name: str = ""
     summary: str = ""
     file_count: int = 0
@@ -615,9 +649,7 @@ class ProjectOS:
 
         if matched_file:
             entry = snap.files[matched_file]
-            pack.active_file_context = (
-                f"   Active: {matched_file} ({entry.lines} lines, {len(entry.classes)} classes, {len(entry.functions)} functions)"
-            )
+            pack.active_file_context = f"   Active: {matched_file} ({entry.lines} lines, {len(entry.classes)} classes, {len(entry.functions)} functions)"
             if self.graph:
                 pack.dependency_context = self.graph.summary(matched_file)
 

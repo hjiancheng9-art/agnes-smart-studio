@@ -27,8 +27,10 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from types import ModuleType
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from types import ModuleType
 
 logger = logging.getLogger("crux.plugins")
 

@@ -3,6 +3,7 @@ General Runtime — 通用兜底运行时
 =================================
 保留当前 DeliberateWorkflow 全部逻辑，作为默认 Fallback。
 """
+
 from __future__ import annotations
 
 import logging
@@ -43,7 +44,7 @@ class GeneralRuntime(BaseRuntime):
         # Plan
         if self._plan_fn:
             try:
-                plan_result = await self._plan_fn(ctx.request)
+                await self._plan_fn(ctx.request)
                 result["steps"].append({"name": "plan", "status": "success"})
             except Exception as e:
                 result["steps"].append({"name": "plan", "status": "failed", "error": str(e)})

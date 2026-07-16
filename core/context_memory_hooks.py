@@ -38,13 +38,15 @@ def inject_context_hooks(session):
                 total = sum(len(str(m.get("content", ""))) for m in getattr(self, "messages", []))
                 # Inject context memory
                 enhanced = tvl.inject_context_into_prompt(
-                    base, current_tokens=total // 4  # rough char->token estimate
+                    base,
+                    current_tokens=total // 4,  # rough char->token estimate
                 )
                 return enhanced
             return base
 
         # Bind the method
         import types
+
         session._build_system_prompt = types.MethodType(_build_system_prompt_with_context, session)
 
     _CONTEXT_HOOK_INJECTED = True

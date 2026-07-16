@@ -21,12 +21,24 @@ from core.field_arena import (
 @pytest.fixture
 def sample_session():
     s = FieldSession(id="field-001", source="manual", created_at=time.time())
-    s.turns.append(FieldTurn(user_message="Read auth.py", assistant_response="Here is auth.py content...",
-                              tool_calls=[{"name": "read_file", "arguments": {"path": "auth.py"}}],
-                              duration_ms=150.0, success=True))
-    s.turns.append(FieldTurn(user_message="Fix the login bug", assistant_response="Fixed! Changed line 42.",
-                              tool_calls=[{"name": "edit_file", "arguments": {"path": "auth.py"}}],
-                              duration_ms=200.0, success=True))
+    s.turns.append(
+        FieldTurn(
+            user_message="Read auth.py",
+            assistant_response="Here is auth.py content...",
+            tool_calls=[{"name": "read_file", "arguments": {"path": "auth.py"}}],
+            duration_ms=150.0,
+            success=True,
+        )
+    )
+    s.turns.append(
+        FieldTurn(
+            user_message="Fix the login bug",
+            assistant_response="Fixed! Changed line 42.",
+            tool_calls=[{"name": "edit_file", "arguments": {"path": "auth.py"}}],
+            duration_ms=200.0,
+            success=True,
+        )
+    )
     return s
 
 
@@ -181,11 +193,13 @@ class TestFieldArena:
 class TestIntegration:
     def test_validation_layer_has_field_arena(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         assert hasattr(vl, "_field_arena")
 
     def test_record_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         session = FieldSession(id="vl-test", source="manual")
         session.turns.append(FieldTurn(user_message="hi", assistant_response="hello"))
@@ -195,6 +209,7 @@ class TestIntegration:
 
     def test_field_evaluate_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         tr = TaskResult(task_id="t1", category="qa", difficulty="easy", success=True, response="ok", score=90.0)
         br = BenchmarkResult(suite_name="test", total_tasks=1, passed=1, failed=0, task_results=[tr])
@@ -203,6 +218,7 @@ class TestIntegration:
 
     def test_release_gate_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         bs = BenchmarkScorecard(suite_name="t", overall_score=85.0, pass_rate=80.0)
         sc = FieldScorecard(benchmark_scorecard=bs, overall_field_pass_rate=80.0, overall_score=82.0)
@@ -211,6 +227,7 @@ class TestIntegration:
 
     def test_ab_compare_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         t1 = TaskResult(task_id="t1", category="qa", difficulty="easy", success=True, response="a", score=70.0)
         t2 = TaskResult(task_id="t1", category="qa", difficulty="easy", success=True, response="b", score=90.0)
@@ -221,6 +238,7 @@ class TestIntegration:
 
     def test_chat_p13_flag(self):
         import py_compile
+
         py_compile.compile("core/chat.py", doraise=True)
 
     def test_field_session_empty_turns(self):
@@ -259,6 +277,7 @@ class TestIntegration:
 
     def test_arena_compare_with_dims(self):
         from core.benchmark.scorer import DimensionScore
+
         bs_before = BenchmarkScorecard(suite_name="t", overall_score=70.0, pass_rate=65.0)
         bs_before.dimensions = [DimensionScore(name="code_gen", pass_rate=60.0, avg_score=65.0)]
         bs_after = BenchmarkScorecard(suite_name="t", overall_score=85.0, pass_rate=80.0)
@@ -274,6 +293,7 @@ class TestIntegration:
 
     def test_field_scorecard_replay_result(self, sample_session):
         from core.field_arena import FieldReplayRunner
+
         runner = FieldReplayRunner()
         replay_result = runner.replay_session(sample_session)
         bs = BenchmarkScorecard(suite_name="t", overall_score=80.0, pass_rate=75.0)

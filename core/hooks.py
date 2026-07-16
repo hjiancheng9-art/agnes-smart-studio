@@ -225,10 +225,9 @@ class HookManager:
                     if new_event.updated_input is not None:
                         event.updated_input = new_event.updated_input
                 # Merge Stop decisions
-                if hook_type == HookType.STOP:
-                    if new_event.stop_decision == "block":
-                        event.stop_decision = "block"
-                        event.stop_reason = new_event.stop_reason or event.stop_reason
+                if hook_type == HookType.STOP and new_event.stop_decision == "block":
+                    event.stop_decision = "block"
+                    event.stop_reason = new_event.stop_reason or event.stop_reason
                 # Propagate result and stop_processing
                 event.result = new_event.result if new_event.result is not None else event.result
                 event.stop_processing = new_event.stop_processing or event.stop_processing
@@ -669,8 +668,7 @@ def _stop_guard_handler(event: HookEvent) -> HookEvent:
         if marker in last_message:
             event.stop_decision = "block"
             event.stop_reason = (
-                f"检测到不确定的完成声明 ('{marker}')。请运行验证命令确认修复，"
-                "或提供具体的测试通过截图/输出作为证据。"
+                f"检测到不确定的完成声明 ('{marker}')。请运行验证命令确认修复，或提供具体的测试通过截图/输出作为证据。"
             )
             break
 

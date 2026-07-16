@@ -467,6 +467,7 @@ class SubAgent:
                 model = get_provider_manager().get_model(tier if tier != "auto" else "pro")
             except Exception as e:
                 import logging
+
                 logging.getLogger("crux.agent").warning("Model lookup failed for tier '%s', falling back: %s", tier, e)
                 model = "deepseek-v4-pro"  # 最终 fallback
         # tier 路由
@@ -496,7 +497,11 @@ class SubAgent:
         if self.tools and self.tools.definitions:
             tool_defs = self.tools.definitions
 
-        for _round_num in range(self.max_rounds):
+        round_limit = min(max(1, int(self.max_rounds)), 20)
+        tool_only_count = 0
+        last_tool_sig = ""
+
+        for _round_num in range(round_limit):
             # Auto-compress if needed
             self.history = self.context_mgr.auto_compress_if_needed(self.history, self.client)
 
@@ -515,9 +520,27 @@ class SubAgent:
 
             # Check if model wants to call tools
             tool_calls = msg.get("tool_calls", [])
+            content = msg.get("content", "") or ""
+
             if not tool_calls:
-                # No tool calls - return the text response
-                return msg.get("content", "")
+                return content
+
+            # Guard: detect stalled tool loops (same calls, same results)
+            tc_sig = json.dumps(
+                [
+                    (tc.get("function", {}).get("name", ""), tc.get("function", {}).get("arguments", ""))
+                    for tc in tool_calls
+                ],
+                sort_keys=True,
+                default=str,
+            )
+            if tc_sig == last_tool_sig:
+                tool_only_count += 1
+            else:
+                last_tool_sig = tc_sig
+                tool_only_count = 1
+            if tool_only_count > 6:
+                return f"[SubAgent stalled] repeated same tool calls {tool_only_count} times"
 
             # Execute each tool call
             for tc in tool_calls:
@@ -529,6 +552,10 @@ class SubAgent:
                     tool_args = json.loads(tool_args_str) if isinstance(tool_args_str, str) else tool_args_str
                 except json.JSONDecodeError:
                     tool_args = {}
+
+                # Resolve tool name aliases (centralized in ToolRegistry)
+                if self.tools:
+                    tool_name = self.tools.resolve_name(tool_name)
 
                 # Execute tool
                 if self.tools and self.tools.has(tool_name):
@@ -713,6 +740,7 @@ class ModelRouter:
         """从 models.json active provider 读 pro 模型，读不到退回 deepseek-v4-pro。"""
         try:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             return mgr.get_model("pro") or "deepseek-v4-pro"
         except (ImportError, OSError, RuntimeError):
@@ -723,6 +751,7 @@ class ModelRouter:
         """从 models.json active provider 读 light 模型，读不到退回 deepseek-v4-flash。"""
         try:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             model = mgr.get_model("light")
             if not model or model == "unknown":
@@ -736,6 +765,7 @@ class ModelRouter:
         """从 models.json active provider 读 pro 模型，读不到退回 deepseek-v4-flash。"""
         try:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             return mgr.get_model("pro") or "deepseek-v4-flash"
         except (ImportError, OSError, RuntimeError):
@@ -748,6 +778,7 @@ class ModelRouter:
             import os
 
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             mgr.load()
             crux = mgr.providers.get("crux", {})
@@ -768,8 +799,10 @@ class ModelRouter:
         chain: list[str] = []
         try:
             from core.provider import get_provider_manager
+
             mgr = get_provider_manager()
             seen: set[str] = set()
+
             def _sort_key(pid):
                 p = mgr.providers.get(pid, {})
                 is_free = 0 if p.get("cost_tier") == "free" else 1
@@ -778,6 +811,7 @@ class ModelRouter:
                 except ValueError:
                     idx = 99
                 return (is_free, idx)
+
             sorted_pids = sorted(mgr.fallback_priority, key=_sort_key)
             for pid in sorted_pids:
                 provider = mgr.providers.get(pid, {})

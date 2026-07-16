@@ -32,18 +32,47 @@ def is_crux_self(path: Path) -> bool:
 
 
 _PROJECT_MARKERS = (
-    ".git", ".crux_memory", "pyproject.toml", "package.json",
-    "Cargo.toml", "go.mod", "Makefile", "CMakeLists.txt",
-    "setup.py", "setup.cfg", "pytest.ini", ".env",
+    ".git",
+    ".crux_memory",
+    "pyproject.toml",
+    "package.json",
+    "Cargo.toml",
+    "go.mod",
+    "Makefile",
+    "CMakeLists.txt",
+    "setup.py",
+    "setup.cfg",
+    "pytest.ini",
+    ".env",
 )
 
-_SKIP_PATH_PARTS = frozenset({
-    "Windows", "System32", "system32", "Python", "Python311",
-    "Python312", "Python313", "Python314", "Program Files",
-    "Program Files (x86)", "nodejs", "AppData", "WinSxS",
-    "Microsoft", "Local", "Roaming", "kimi-code", ".codex",
-    "chocolatey", "ffmpeg", ".local", "bin", "Scripts",
-})
+_SKIP_PATH_PARTS = frozenset(
+    {
+        "Windows",
+        "System32",
+        "system32",
+        "Python",
+        "Python311",
+        "Python312",
+        "Python313",
+        "Python314",
+        "Program Files",
+        "Program Files (x86)",
+        "nodejs",
+        "AppData",
+        "WinSxS",
+        "Microsoft",
+        "Local",
+        "Roaming",
+        "kimi-code",
+        ".codex",
+        "chocolatey",
+        "ffmpeg",
+        ".local",
+        "bin",
+        "Scripts",
+    }
+)
 
 
 def _is_valid_project_dir(p: Path) -> bool:
@@ -71,6 +100,7 @@ def _detect_parent_project() -> Path | None:
     # Strategy 1: psutil (most reliable, gets actual cwd)
     try:
         import psutil
+
         proc = psutil.Process()
         for _ in range(6):
             parent = proc.parent()
@@ -112,12 +142,13 @@ def _detect_via_powershell() -> Path | None:
 
     for _ in range(5):
         ps_cmd = (
-            f"Get-CimInstance Win32_Process -Filter \"ProcessId={pid}\" | "
-            f"Select-Object ParentProcessId | ConvertTo-Json"
+            f'Get-CimInstance Win32_Process -Filter "ProcessId={pid}" | Select-Object ParentProcessId | ConvertTo-Json'
         )
         result = subprocess.run(
             ["powershell", "-NoProfile", "-Command", ps_cmd],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         # subprocess.run may return None for stdout when the process is killed
         # on timeout (esp. PowerShell); guard against AttributeError.
@@ -132,12 +163,14 @@ def _detect_via_powershell() -> Path | None:
             break
         # Get parent command line
         pp_cmd = (
-            f"Get-CimInstance Win32_Process -Filter \"ProcessId={parent_pid}\" | "
+            f'Get-CimInstance Win32_Process -Filter "ProcessId={parent_pid}" | '
             f"Select-Object CommandLine | ConvertTo-Json"
         )
         pp_result = subprocess.run(
             ["powershell", "-NoProfile", "-Command", pp_cmd],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if pp_result.returncode == 0 and (pp_result.stdout or "").strip():
             try:
@@ -193,6 +226,7 @@ def resolve_workspace(cli_workspace: str | None = None) -> Path:
 
     # 2.5. MCP roots (set by IDE during initialize handshake)
     import sys as _sys
+
     mcp_roots = os.environ.get("CRUX_MCP_ROOTS", "")
     if mcp_roots:
         for root_uri in mcp_roots.split("\n"):
@@ -203,6 +237,7 @@ def resolve_workspace(cli_workspace: str | None = None) -> Path:
             path_str = root_uri
             if root_uri.startswith("file://"):
                 from urllib.parse import unquote, urlparse
+
                 parsed = urlparse(root_uri)
                 path_str = unquote(parsed.path)
                 if _sys.platform == "win32" and path_str.startswith("/"):
@@ -246,10 +281,7 @@ class WorkspaceGuard:
 
         # 拒绝写入 CRUX 自身目录
         if str(target).startswith(str(crux_root)):
-            raise RuntimeError(
-                f"\u274c 拒绝写入 CRUX 自身目录: {target}\n"
-                f"   请使用 --workspace 指定目标项目路径"
-            )
+            raise RuntimeError(f"\u274c 拒绝写入 CRUX 自身目录: {target}\n   请使用 --workspace 指定目标项目路径")
 
         return target
 

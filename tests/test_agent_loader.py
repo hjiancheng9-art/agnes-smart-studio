@@ -160,8 +160,15 @@ class TestToolFiltering:
     def test_filter_readonly_excludes_write(self):
         """Read-only filter should exclude Write/Edit/Bash tools."""
         readonly_tools = {
-            "Read", "Glob", "Grep", "WebSearch", "WebFetch",
-            "search_files", "glob_files", "list_files", "read_file",
+            "Read",
+            "Glob",
+            "Grep",
+            "WebSearch",
+            "WebFetch",
+            "search_files",
+            "glob_files",
+            "list_files",
+            "read_file",
         }
         assert "Write" not in readonly_tools
         assert "Edit" not in readonly_tools

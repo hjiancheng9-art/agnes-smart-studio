@@ -145,7 +145,7 @@ class ComplexityAnalyzer:
     ]
 
     @classmethod
-    def analyze(cls, intent: str, context: dict = None) -> tuple[TaskComplexity, ExecutionStrategy]:
+    def analyze(cls, intent: str, context: dict | None = None) -> tuple[TaskComplexity, ExecutionStrategy]:
         intent_lower = intent.lower()
         intent_len = len(intent)
 
@@ -382,7 +382,7 @@ class TaskPlanner:
     def __init__(self, contract_registry: ContractRegistry):
         self.contracts = contract_registry
 
-    def plan(self, intent: str, context: dict = None) -> TaskPlan:
+    def plan(self, intent: str, context: dict | None = None) -> TaskPlan:
         context = context or {}
 
         # 1. 分析复杂度
@@ -582,7 +582,7 @@ class TaskGovernor:
         self.planner = TaskPlanner(self.contracts)
         self.executor = TaskExecutor(self.contracts)
 
-    def plan(self, intent: str, context: dict = None) -> TaskPlan:
+    def plan(self, intent: str, context: dict | None = None) -> TaskPlan:
         """解析意图为任务计划"""
         return self.planner.plan(intent, context)
 

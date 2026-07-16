@@ -1,4 +1,5 @@
 """Tests for Tool Registry Mesh (TRM) — routing accuracy and fallback."""
+
 import pytest
 
 pytestmark = pytest.mark.unit
@@ -12,6 +13,7 @@ from core.interfaces.tool import ToolCategory, ToolError, ToolResult, ToolRisk, 
 # ═══════════════════════════════════════════════════
 #  Fake TRM for testing routing logic
 # ═══════════════════════════════════════════════════
+
 
 class FakeTRM:
     """Fake Tool Registry Mesh for testing routing decisions."""
@@ -39,12 +41,11 @@ class FakeTRM:
             spec = self.route(intent, **kwargs)
             return execute_tool(spec, **kwargs)
         except ToolNotFound as e:
-            return ToolResult.fail(
-                ToolError(ToolError.TOOL_NOT_FOUND, str(e))
-            )
+            return ToolResult.fail(ToolError(ToolError.TOOL_NOT_FOUND, str(e)))
 
 
 # ═══════════════════════════════════════════════════
+
 
 class TestTRMRouting:
     """TRM should route intents to correct tools."""
@@ -52,22 +53,31 @@ class TestTRMRouting:
     @pytest.fixture
     def trm(self):
         trm = FakeTRM()
-        trm.register(ToolSpec(
-            name="search_code", description="Search code",
-            category=ToolCategory.SEARCH,
-            _handler=lambda query: f"found: {query}",
-        ))
-        trm.register(ToolSpec(
-            name="run_python", description="Run Python",
-            category=ToolCategory.EXECUTE,
-            risk=ToolRisk.SHELL,
-            _handler=lambda code: f"ran: {code[:20]}",
-        ))
-        trm.register(ToolSpec(
-            name="review_code", description="Review code",
-            category=ToolCategory.REVIEW,
-            _handler=lambda files: "approved",
-        ))
+        trm.register(
+            ToolSpec(
+                name="search_code",
+                description="Search code",
+                category=ToolCategory.SEARCH,
+                _handler=lambda query: f"found: {query}",
+            )
+        )
+        trm.register(
+            ToolSpec(
+                name="run_python",
+                description="Run Python",
+                category=ToolCategory.EXECUTE,
+                risk=ToolRisk.SHELL,
+                _handler=lambda code: f"ran: {code[:20]}",
+            )
+        )
+        trm.register(
+            ToolSpec(
+                name="review_code",
+                description="Review code",
+                category=ToolCategory.REVIEW,
+                _handler=lambda files: "approved",
+            )
+        )
         return trm
 
     def test_route_search(self, trm):
@@ -106,16 +116,22 @@ class TestTRMFallback:
     def test_multiple_same_category(self):
         """When multiple tools match, first registered wins."""
         trm = FakeTRM()
-        trm.register(ToolSpec(
-            name="search_a", description="Search A",
-            category=ToolCategory.SEARCH,
-            _handler=lambda q: "A",
-        ))
-        trm.register(ToolSpec(
-            name="search_b", description="Search B",
-            category=ToolCategory.SEARCH,
-            _handler=lambda q: "B",
-        ))
+        trm.register(
+            ToolSpec(
+                name="search_a",
+                description="Search A",
+                category=ToolCategory.SEARCH,
+                _handler=lambda q: "A",
+            )
+        )
+        trm.register(
+            ToolSpec(
+                name="search_b",
+                description="Search B",
+                category=ToolCategory.SEARCH,
+                _handler=lambda q: "B",
+            )
+        )
         spec = trm.route("search")
         assert spec.name == "search_a"  # First registered
 

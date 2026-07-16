@@ -82,11 +82,13 @@ class TestDaemonWebSocket:
         import asyncio
 
         import websockets
+
         async def doit():
             async with websockets.connect(self.ws_url, open_timeout=5) as ws:
                 await ws.send(json.dumps(payload))
                 resp = await asyncio.wait_for(ws.recv(), timeout=5)
                 return json.loads(resp)
+
         return asyncio.run(doit())
 
     def test_port(self):
@@ -110,23 +112,28 @@ class TestDaemonWebSocket:
         import asyncio
 
         import websockets
+
         async def doit():
             async with websockets.connect(self.ws_url, open_timeout=5) as ws:
                 await ws.send("{{{bad")
                 r = await asyncio.wait_for(ws.recv(), timeout=5)
                 assert json.loads(r)["ok"] is False
+
         asyncio.run(doit())
 
     def test_concurrent(self):
         import asyncio
 
         import websockets
+
         async def client():
             async with websockets.connect(self.ws_url, open_timeout=5) as ws:
                 await ws.send(json.dumps({"cmd": "status"}))
                 r = await asyncio.wait_for(ws.recv(), timeout=5)
                 return json.loads(r)
+
         async def main():
             a, b = await asyncio.gather(client(), client())
             assert "pid" in a and "pid" in b
+
         asyncio.run(main())

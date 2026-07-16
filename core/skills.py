@@ -98,6 +98,7 @@ class SkillManager:
         self._loaded: Skill | None = None
         self._available: dict[str, Skill] = {}  # auto/manual 态（用户可见）
         self._all_skills: dict[str, Skill] = {}  # 全量（含 off 态，给 /skill mode 用）
+        self._discovery_done: bool = False  # 缓存标记：discover 是否已执行
         self._overrides: dict[str, str] = {}  # name -> trigger 覆盖
         self._lazy_cache: dict[str, str] = {}  # name -> full prompt (lazy loaded)
         # 实例锁：保护 _overrides / _available / _all_skills 的读-改-写一致性
@@ -120,8 +121,8 @@ class SkillManager:
             pass
         return {}
 
-    def discover(self) -> dict[str, Skill]:
-        """扫描 skills/ 目录，发现所有可用技能
+    def discover(self, *, force: bool = False) -> dict[str, Skill]:
+        """扫描 skills/ 目录，发现所有可用技能（首次后缓存，force=True 强制刷新）。
 
         应用 trigger 三态：
         - off: 不加入 _available（完全隐藏）
@@ -131,7 +132,15 @@ class SkillManager:
         同时维护 _all_skills（全量，含 off 态），供 /skill mode 列举。
         """
         with self._lock:
+            if self._discovery_done and not force:
+                return dict(self._available)
+            self._discovery_done = True
             return self._discover_inner()
+
+    def invalidate_discovery_cache(self) -> None:
+        """清除发现缓存，下次 discover() 将重新扫描。技能安装/卸载后调用。"""
+        with self._lock:
+            self._discovery_done = False
 
     def _discover_inner(self) -> dict[str, Skill]:
         """discover 的实际实现（必须在 _lock 内调用）。"""

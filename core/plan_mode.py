@@ -160,6 +160,7 @@ class PlanModeManager:
                 # ── 方法论集成: 标记 Plan 已确认 ──
                 try:
                     from core.methodology import get_methodology_state
+
                     get_methodology_state().mark_plan_confirmed()
                 except ImportError:
                     pass

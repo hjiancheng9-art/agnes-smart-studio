@@ -14,8 +14,10 @@ import logging
 import os
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from core.benchmark.runner import BenchmarkResult
+if TYPE_CHECKING:
+    from core.benchmark.runner import BenchmarkResult
 
 logger = logging.getLogger(__name__)
 

@@ -214,7 +214,7 @@ class TaskSpecBuilder:
         "整个项目",
     ]
 
-    def build(self, intent: str, context: dict = None) -> TaskSpec:
+    def build(self, intent: str, context: dict | None = None) -> TaskSpec:
         """解析意图为 TaskSpec"""
         context = context or {}
         intent_lower = intent.lower()

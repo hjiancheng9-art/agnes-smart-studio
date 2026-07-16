@@ -10,6 +10,7 @@ from core.interfaces.mcp import MCPClient, MCPResource, MCPResult, MCPToolDef
 #  Fake MCP Client
 # ═══════════════════════════════════════════════════
 
+
 class FakeMCPClient(MCPClient):
     """Fake MCP client for unit testing — no real server needed."""
 
@@ -20,7 +21,8 @@ class FakeMCPClient(MCPClient):
 
     def add_tool(self, name: str, description: str = "", input_schema: dict | None = None):
         self._tools[name] = MCPToolDef(
-            name=name, description=description,
+            name=name,
+            description=description,
             input_schema=input_schema or {},
         )
 
@@ -102,6 +104,7 @@ class TestFakeMCPClient:
 #  Fake LSP Client
 # ═══════════════════════════════════════════════════
 
+
 class FakeLSPClient(LSPClient):
     """Fake LSP client for unit testing — no real language server needed."""
 
@@ -162,8 +165,10 @@ class TestFakeLSPClient:
     @pytest.mark.asyncio
     async def test_diagnostics_with_data(self, lsp):
         diag = LSPDiagnostic(
-            range=None, message="unused import os",
-            severity=2, code="F401",
+            range=None,
+            message="unused import os",
+            severity=2,
+            code="F401",
         )
         lsp.set_diagnostics("/tmp/test.py", [diag])
         diags = await lsp.diagnostics("/tmp/test.py")

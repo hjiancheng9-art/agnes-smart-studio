@@ -24,16 +24,16 @@ def recorder():
 @pytest.fixture
 def sample_session():
     record = SessionRecord(session_id="test-session-1", start_time=time.time() - 10)
-    record.record("policy", "Selected DEEP mode", "Complex engineering task",
-                  alternatives=["fast", "balanced"], outcome="deep")
+    record.record(
+        "policy", "Selected DEEP mode", "Complex engineering task", alternatives=["fast", "balanced"], outcome="deep"
+    )
     record.record("tool_validation", "read_file", "Valid: path param OK", outcome="pass", duration_ms=5.0)
     record.record("tool_execution", "read_file('auth.py')", "Read file", outcome="success", duration_ms=12.0)
-    record.record("tool_validation", "write_file", "Blocked: missing content param",
-                  outcome="block", duration_ms=3.0)
-    record.record("reviewer", "Review step 2", "Found unclosed code fence",
-                  outcome="issues_found", duration_ms=50.0)
-    record.record("tool_execution", "edit_file('auth.py')", "Self-correction after review",
-                  outcome="success", duration_ms=30.0)
+    record.record("tool_validation", "write_file", "Blocked: missing content param", outcome="block", duration_ms=3.0)
+    record.record("reviewer", "Review step 2", "Found unclosed code fence", outcome="issues_found", duration_ms=50.0)
+    record.record(
+        "tool_execution", "edit_file('auth.py')", "Self-correction after review", outcome="success", duration_ms=30.0
+    )
     record.close()
     return record
 
@@ -45,8 +45,9 @@ class TestDecisionRecord:
         assert dr.decision == "do_x"
 
     def test_to_dict(self):
-        dr = DecisionRecord(category="policy", decision="DEEP", reason="complexity",
-                           outcome="selected", duration_ms=5.0)
+        dr = DecisionRecord(
+            category="policy", decision="DEEP", reason="complexity", outcome="selected", duration_ms=5.0
+        )
         d = dr.to_dict()
         assert d["category"] == "policy"
         assert d["duration_ms"] == 5.0
@@ -112,6 +113,7 @@ class TestDecisionRecorder:
         path = str(tmp_path / "sessions.json")
         recorder.save(path)
         import os
+
         assert os.path.exists(path)
 
         r2 = DecisionRecorder()
@@ -211,11 +213,13 @@ class TestIntegration:
 
     def test_validation_layer_integration(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         assert hasattr(vl, "decision_recorder")
 
     def test_start_and_close_trace(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         session = vl.start_trace_session("integration-test")
         assert session.session_id == "integration-test"
@@ -224,6 +228,7 @@ class TestIntegration:
 
     def test_inspect_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         vl.start_trace_session("test-2")
         vl.record_decision("policy", "BALANCED", "default")
@@ -233,6 +238,7 @@ class TestIntegration:
 
     def test_replay_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         vl.start_trace_session("test-3")
         vl.record_decision("policy", "FAST", "simple")
@@ -242,4 +248,5 @@ class TestIntegration:
 
     def test_chat_p10_flag(self):
         import py_compile
+
         py_compile.compile("core/chat.py", doraise=True)

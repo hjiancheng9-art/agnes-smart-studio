@@ -1,9 +1,10 @@
 """Unified error types — single Failure protocol consumed by all subsystems."""
+
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Mapping
 
 
 class FailureKind(StrEnum):

@@ -31,13 +31,15 @@ def _record_crash(report: str) -> None:
     try:
         from core.incident_store import save_incident
 
-        save_incident({
-            "primary_category": "crash",
-            "severities": {"critical": 1},
-            "total_incidents": 1,
-            "summary": report.split("\n")[0][:200],
-            "recommendation": "Check traceback for root cause",
-        })
+        save_incident(
+            {
+                "primary_category": "crash",
+                "severities": {"critical": 1},
+                "total_incidents": 1,
+                "summary": report.split("\n")[0][:200],
+                "recommendation": "Check traceback for root cause",
+            }
+        )
     except Exception:
         logger.debug("Cannot write crash to incident store", exc_info=True)
 

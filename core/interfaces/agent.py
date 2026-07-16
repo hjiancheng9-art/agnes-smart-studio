@@ -3,17 +3,20 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from .errors import AgentError
-from .tool import ToolResult, ToolSpec
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+    from .errors import AgentError
+    from .tool import ToolResult, ToolSpec
 
 
 @dataclass
 class AgentConfig:
     """Configuration for any CRUX agent."""
+
     name: str
     role: str
     max_steps: int = 20
@@ -25,6 +28,7 @@ class AgentConfig:
 @dataclass
 class AgentResult:
     """Unified result from agent execution."""
+
     success: bool
     output: Any = None
     steps_taken: int = 0

@@ -30,7 +30,6 @@ import logging
 import threading
 import time
 import uuid
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
@@ -44,12 +43,12 @@ logger = logging.getLogger("crux.orchestration")
 class Phase(Enum):
     """编排阶段 — 严格顺序，不可跳跃."""
 
-    GATE = auto()     # 意图分类 + 模型路由
+    GATE = auto()  # 意图分类 + 模型路由
     CONTEXT = auto()  # 强制上下文收集
-    PLAN = auto()     # 任务分解 + 依赖图
+    PLAN = auto()  # 任务分解 + 依赖图
     EXECUTE = auto()  # 并行执行
-    VERIFY = auto()   # 交叉审查 + 自检
-    CLOSE = auto()    # 资源回收 + 记忆沉淀
+    VERIFY = auto()  # 交叉审查 + 自检
+    CLOSE = auto()  # 资源回收 + 记忆沉淀
 
 
 PHASE_ORDER = (Phase.GATE, Phase.CONTEXT, Phase.PLAN, Phase.EXECUTE, Phase.VERIFY, Phase.CLOSE)
@@ -57,7 +56,12 @@ PHASE_ORDER = (Phase.GATE, Phase.CONTEXT, Phase.PLAN, Phase.EXECUTE, Phase.VERIF
 
 # TaskComplexity and classify_task are the canonical implementations in
 # core/task_complexity.py.  We re-export for backward compatibility.
-from core.task_complexity import TaskComplexity, classify_task  # noqa: F401
+from typing import TYPE_CHECKING
+
+from core.task_complexity import TaskComplexity, classify_task
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 MODEL_TIER_FOR_COMPLEXITY: dict[TaskComplexity, str] = {
     TaskComplexity.TRIVIAL: "light",
@@ -77,6 +81,7 @@ def classify_complexity(user_text: str) -> TaskComplexity:
 # Context: mandatory pre-action reconnaissance
 # ═══════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class ContextSnapshot:
     """执行前的代码上下文快照 — 必须收集才能通过 CONTEXT 门禁."""
@@ -90,10 +95,18 @@ class ContextSnapshot:
 
 
 CONTEXT_MIN_FILES = 1  # 至少要读了 1 个文件才能过门禁
-CONTEXT_TOOLS = frozenset({
-    "read_file", "search_files", "glob_files", "list_files",
-    "find_symbol", "find_references", "git_diff", "git_log",
-})
+CONTEXT_TOOLS = frozenset(
+    {
+        "read_file",
+        "search_files",
+        "glob_files",
+        "list_files",
+        "find_symbol",
+        "find_references",
+        "git_diff",
+        "git_log",
+    }
+)
 
 
 def context_is_sufficient(snapshot: ContextSnapshot) -> bool:
@@ -104,6 +117,7 @@ def context_is_sufficient(snapshot: ContextSnapshot) -> bool:
 # ═══════════════════════════════════════════════════════════════════
 # Plan: task decomposition with dependency DAG
 # ═══════════════════════════════════════════════════════════════════
+
 
 @dataclass
 class OrchestrationPlan:
@@ -125,13 +139,14 @@ class OrchestrationPlan:
 # Execute: parallel dispatch with file isolation + timeout budget
 # ═══════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class ExecutionBudget:
     """单次编排的执行预算."""
 
-    total_timeout_s: float = 600.0     # 总超时
+    total_timeout_s: float = 600.0  # 总超时
     per_task_timeout_s: float = 180.0  # 单任务超时
-    max_retries: int = 2               # 单任务最大重试
+    max_retries: int = 2  # 单任务最大重试
     max_consecutive_failures: int = 3  # 连续失败熔断阈值
 
 
@@ -177,6 +192,7 @@ class FileIsolationGuard:
 # ═══════════════════════════════════════════════════════════════════
 # Verify: cross-review + self-check + diff guard
 # ═══════════════════════════════════════════════════════════════════
+
 
 @dataclass
 class VerificationResult:
@@ -239,7 +255,9 @@ class MasterOrchestrator:
             try:
                 self.phase_callback(phase_name, action, details)
             except Exception:
-                pass
+                import logging
+
+                logging.getLogger("crux").debug("silent except", exc_info=True)
 
     def run(self, goal: str) -> dict:
         """主入口: 完整编排一个目标从 Gate 到 Close."""
@@ -286,9 +304,8 @@ class MasterOrchestrator:
             # 高风险操作 → 人工确认门禁
             if plan.needs_human_confirm:
                 result["confirm_required"] = True
-                result["confirm_message"] = (
-                    f"高风险操作 (complexity={complexity.name})。涉及: "
-                    + ", ".join(snapshot.risk_areas[:3] or ["未知风险"])
+                result["confirm_message"] = f"高风险操作 (complexity={complexity.name})。涉及: " + ", ".join(
+                    snapshot.risk_areas[:3] or ["未知风险"]
                 )
                 self._notify_phase("plan", "pause", {"reason": "human_confirm_required"})
                 return result  # 暂停，等待确认后调用 resume()
@@ -298,7 +315,11 @@ class MasterOrchestrator:
             self._notify_phase("execute", "start", {"tasks": len(plan.tasks)})
             exec_result = self._execute_plan(plan)
             result["execution"] = exec_result
-            self._notify_phase("execute", "done", {"completed": exec_result.get("completed", 0), "failed": exec_result.get("failed", 0)})
+            self._notify_phase(
+                "execute",
+                "done",
+                {"completed": exec_result.get("completed", 0), "failed": exec_result.get("failed", 0)},
+            )
 
             # Phase 5: VERIFY — 交叉审查
             self._phase = Phase.VERIFY
@@ -359,12 +380,17 @@ class MasterOrchestrator:
         """注入上下文探索任务 — 当 CONTEXT 不足时."""
         try:
             from core.multi_agent_decompose import SmartDecomposer
+
             decomposer = SmartDecomposer(model_router=self.model_router)
             # 强制只生成 explorer 任务
             tasks = decomposer.decompose(f"Explore the codebase to understand: {goal}")
             for task in tasks:
                 if not task.depends_on:
-                    r = self.execute_tool(task.tool_sequence[0]["tool"], task.tool_sequence[0]["args"]) if task.tool_sequence else ""
+                    r = (
+                        self.execute_tool(task.tool_sequence[0]["tool"], task.tool_sequence[0]["args"])
+                        if task.tool_sequence
+                        else ""
+                    )
                     if r:
                         for line in str(r).split("\n")[:5]:
                             if ":" in line and not line.startswith(" "):
@@ -387,6 +413,7 @@ class MasterOrchestrator:
 
         try:
             from core.multi_agent_decompose import SmartDecomposer
+
             decomposer = SmartDecomposer(model_router=self.model_router)
             tasks = decomposer.decompose(goal)
 
@@ -411,9 +438,27 @@ class MasterOrchestrator:
             _gl = goal.lower()
             if "自检" in _gl or "自修" in _gl or "self heal" in _gl or "audit" in _gl:
                 plan.tasks = [
-                    {"id": "1", "description": "运行 self_heal 审计扫描", "tier": "pro", "tools": ["self_heal"], "depends_on": []},
-                    {"id": "2", "description": "审查发现的问题并生成修复方案", "tier": "pro", "tools": ["code_review"], "depends_on": ["1"]},
-                    {"id": "3", "description": "运行测试验证", "tier": "pro", "tools": ["run_test"], "depends_on": ["2"]},
+                    {
+                        "id": "1",
+                        "description": "运行 self_heal 审计扫描",
+                        "tier": "pro",
+                        "tools": ["self_heal"],
+                        "depends_on": [],
+                    },
+                    {
+                        "id": "2",
+                        "description": "审查发现的问题并生成修复方案",
+                        "tier": "pro",
+                        "tools": ["code_review"],
+                        "depends_on": ["1"],
+                    },
+                    {
+                        "id": "3",
+                        "description": "运行测试验证",
+                        "tier": "pro",
+                        "tools": ["run_test"],
+                        "depends_on": ["2"],
+                    },
                 ]
                 plan.max_concurrency = 1
                 plan.needs_review = True
@@ -496,9 +541,14 @@ class MasterOrchestrator:
 
         # 4. 进程残留检查
         import subprocess as _sp
+
         try:
-            r = _sp.run(["tasklist", "/FI", "IMAGENAME eq python.exe", "/FO", "CSV", "/NH"],
-                       capture_output=True, text=True, timeout=5)
+            r = _sp.run(
+                ["tasklist", "/FI", "IMAGENAME eq python.exe", "/FO", "CSV", "/NH"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
             python_count = len([l for l in r.stdout.strip().split("\n") if l.strip()])
             if python_count > 10:
                 result.issues.append(f"High Python process count: {python_count}")
@@ -517,7 +567,9 @@ class MasterOrchestrator:
         # Cleanup file isolation locks
         self.file_guard.release_all(self._run_id)
 
-        logger.info("[%s] CLOSE: elapsed=%.1fs result=%s", self._run_id, elapsed, "ok" if "error" not in result else "error")
+        logger.info(
+            "[%s] CLOSE: elapsed=%.1fs result=%s", self._run_id, elapsed, "ok" if "error" not in result else "error"
+        )
         return result
 
 
@@ -543,7 +595,7 @@ def get_orchestrator(tool_executor=None, model_router=None) -> MasterOrchestrato
 
 
 # run_orchestrate removed — use tools.json "orchestrate" → core.runtime_orchestrator.execute_tool
-def run_orchestrate(goal: str = "", mode: str = "auto", **kwargs) -> str:  # noqa: ARG001
+def run_orchestrate(goal: str = "", mode: str = "auto", **kwargs) -> str:
     """Backward-compat wrapper — delegates to canonical ``orchestrate`` tool.
 
     Deprecated: use ``core.runtime_orchestrator.execute_tool()`` directly.
@@ -551,8 +603,7 @@ def run_orchestrate(goal: str = "", mode: str = "auto", **kwargs) -> str:  # noq
     import warnings
 
     warnings.warn(
-        "core.orchestration.run_orchestrate() is deprecated; "
-        "use core.runtime_orchestrator.execute_tool().",
+        "core.orchestration.run_orchestrate() is deprecated; use core.runtime_orchestrator.execute_tool().",
         DeprecationWarning,
         stacklevel=2,
     )

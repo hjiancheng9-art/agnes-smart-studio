@@ -327,7 +327,7 @@ def _resolve_path(raw: str) -> Path:
 def _run_git(args: list[str], cwd: str = "") -> dict:
     """Run a git command, return {success, stdout, stderr, returncode}."""
     try:
-        r = run_subprocess(["git"] + args, cwd=cwd or str(ROOT), timeout=30)
+        r = run_subprocess(["git", *args], cwd=cwd or str(ROOT), timeout=30)
         return {
             "success": r.returncode == 0,
             "stdout": r.stdout.strip(),
@@ -787,7 +787,8 @@ def _handle_web_fetch(params: dict) -> dict:
             # Chinese websites often declare UTF-8 but serve GBK content.
             try:
                 from core.encoding_fix import fix_garbled_bytes
-                text, used_enc, recovered = fix_garbled_bytes(raw)
+
+                text, _used_enc, _recovered = fix_garbled_bytes(raw)
             except ImportError:
                 # encoding_fix not available, fall back to declared encoding
                 try:
@@ -971,6 +972,7 @@ class ClaudeMcpBridge:
         roots = _params.get("roots", [])
         if roots:
             import os as _os
+
             _mcp_roots = []
             for r in roots:
                 uri = r.get("uri", "") if isinstance(r, dict) else str(r)

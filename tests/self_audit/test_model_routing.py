@@ -42,6 +42,7 @@ def _load_models_config():
 
 # ── 1. CLASSIFY PROMPT ──
 
+
 class TestClassifyPrompt:
     """classify_prompt() must map inputs to correct tiers."""
 
@@ -50,14 +51,14 @@ class TestClassifyPrompt:
     def test_classify_to_correct_tier(self, name, text, expected_tier):
         """Each input type gets the right tier."""
         from core.model_router import classify_prompt
+
         tier = classify_prompt(text)
-        assert tier == expected_tier, (
-            f"'{name}': expected tier={expected_tier}, got {tier}"
-        )
+        assert tier == expected_tier, f"'{name}': expected tier={expected_tier}, got {tier}"
 
     def test_classify_image_tool_not_routed_as_chat(self):
         """generate_image/video should be routed (not fail)."""
         from core.model_router import classify_prompt
+
         image_text = "画一张赛博朋克风格的猫"
         tier = classify_prompt(image_text)
         # At minimum, must return a valid tier
@@ -65,6 +66,7 @@ class TestClassifyPrompt:
 
 
 # ── 2. RESOLVE MODEL ──
+
 
 class TestResolveModel:
     """resolve_model() returns valid model_id for the active provider."""
@@ -74,6 +76,7 @@ class TestResolveModel:
     def test_resolve_model_returns_string(self, tier):
         """Each tier must resolve to a non-empty string model_id."""
         from core.model_router import ModelRouter
+
         router = ModelRouter()
         model_id = router.resolve_model(tier)
         assert isinstance(model_id, str), f"Expected str, got {type(model_id)}"
@@ -81,6 +84,7 @@ class TestResolveModel:
 
 
 # ── 3. CONFIG AUDIT ──
+
 
 class TestConfigAudit:
     """Audit models.json for common misconfigurations."""
@@ -93,12 +97,14 @@ class TestConfigAudit:
             tiers = provider.get("tiers", {})
             values = list(tiers.values())
             if len(values) >= 2 and len(set(values)) == 1:
-                issues.append({
-                    "level": "warning",
-                    "provider": provider_name,
-                    "issue": "all_tiers_map_to_same_model",
-                    "model": values[0],
-                })
+                issues.append(
+                    {
+                        "level": "warning",
+                        "provider": provider_name,
+                        "issue": "all_tiers_map_to_same_model",
+                        "model": values[0],
+                    }
+                )
         return issues
 
     def test_config_file_exists(self):
@@ -106,7 +112,9 @@ class TestConfigAudit:
         config = _load_models_config()
         assert config is not None, "models.json not found in any standard path"
 
-    def test_config_has_providers(self,):
+    def test_config_has_providers(
+        self,
+    ):
         """models.json must have providers section."""
         config = _load_models_config()
         if config is None:
@@ -121,10 +129,7 @@ class TestConfigAudit:
             pytest.skip("models.json not found")
         issues = self.audit_models_json(config)
         if issues:
-            msg = "\n".join(
-                f"  ⚠ {i['provider']}: {i['issue']} -> {i['model']}"
-                for i in issues
-            )
+            msg = "\n".join(f"  ⚠ {i['provider']}: {i['issue']} -> {i['model']}" for i in issues)
             pytest.fail(f"Config issues found:\n{msg}")
 
     def test_config_has_active_provider(self):
@@ -133,11 +138,17 @@ class TestConfigAudit:
         if config is None:
             pytest.skip("models.json not found")
         # Support both naming conventions
-        active = config.get("active_provider") or config.get("default_chat_provider") or config.get("default_provider") or config.get("active_strategy")
+        active = (
+            config.get("active_provider")
+            or config.get("default_chat_provider")
+            or config.get("default_provider")
+            or config.get("active_strategy")
+        )
         assert active is not None, "No active/default provider or strategy specified in models.json"
 
 
 # ── 4. ROUTE INTEGRITY ──
+
 
 class TestRouteIntegrity:
     """Full route chain: text → tier → model_id → provider."""
@@ -146,6 +157,7 @@ class TestRouteIntegrity:
         """Full pipeline: classify → resolve → model_id belongs to active provider."""
         # This is a structural test — verifies the chain doesn't break
         from core.model_router import ModelRouter
+
         router = ModelRouter()
         for tier in ["light", "pro", "heavy"]:
             model_id = router.resolve_model(tier)

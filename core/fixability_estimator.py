@@ -84,7 +84,7 @@ class StaticSeedFilter:
             self._seed_policy = get_seed_policy()
         return self._seed_policy
 
-    def evaluate(self, tool: str, error_type: str, context: dict = None) -> FixabilityResult | None:
+    def evaluate(self, tool: str, error_type: str, context: dict | None = None) -> FixabilityResult | None:
         """L0 评估。如果匹配到规则，直接返回裁决；不匹配则返回 None。"""
         decision = self.seed_policy.classify(tool, error_type, context or {})
 
@@ -394,7 +394,7 @@ class LLMAnalyzer:
         self.max_tokens = max_tokens
         self._prompt_template = LLM_FIXABILITY_PROMPT
 
-    def evaluate(self, tool: str, error_type: str, context: dict = None) -> FixabilityResult:
+    def evaluate(self, tool: str, error_type: str, context: dict | None = None) -> FixabilityResult:
         """LLM 分析（需要外部 LLM 调用支持）。"""
         ctx = context or {}
 
@@ -461,7 +461,7 @@ class FixabilityEstimator:
         self.l1_registry = get_probe_registry()
         self.l2 = LLMAnalyzer()
 
-    def estimate(self, tool: str, error_type: str, context: dict = None) -> FixabilityResult:
+    def estimate(self, tool: str, error_type: str, context: dict | None = None) -> FixabilityResult:
         """评估错误的可修复性。"""
         ctx = context or {}
 
@@ -486,7 +486,7 @@ class FixabilityEstimator:
         l2_result.source = "L2:LLM(fallback)"
         return l2_result
 
-    def should_attempt_fix(self, tool: str, error_type: str, context: dict = None) -> tuple[bool, FixabilityResult]:
+    def should_attempt_fix(self, tool: str, error_type: str, context: dict | None = None) -> tuple[bool, FixabilityResult]:
         """简便方法：是否应该尝试修复？"""
         result = self.estimate(tool, error_type, context)
         can_fix = result.score >= 0.5 and result.action_hint in ("retry", "diagnose")
@@ -504,6 +504,6 @@ def get_estimator() -> FixabilityEstimator:
     return _estimator
 
 
-def estimate_fixability(tool: str, error_type: str, context: dict = None) -> FixabilityResult:
+def estimate_fixability(tool: str, error_type: str, context: dict | None = None) -> FixabilityResult:
     """快捷函数：评估错误的可修复性。"""
     return get_estimator().estimate(tool, error_type, context)

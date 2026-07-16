@@ -94,8 +94,8 @@ class CostTier(Enum):
 
 
 _COST_TIER_FILTER: dict[CostTier, set[str]] = {
-    CostTier.SAVE: {"deepseek-v4-flash"},
-    CostTier.BALANCED: {"deepseek-v4-flash", "deepseek-v4-pro"},
+    CostTier.SAVE: {"light"},
+    CostTier.BALANCED: {"light", "pro"},
     CostTier.BEST: set(),
 }
 
@@ -111,7 +111,7 @@ def get_cost_tier() -> CostTier:
     return _user_cost_tier
 
 
-_LIGHT_BUT_FREE: set[str] = {"deepseek-v4-flash"}
+_LIGHT_BUT_FREE: set[str] = {"light"}
 
 
 def _model_cost_tier(model_id: str) -> str:
@@ -211,21 +211,11 @@ def _build_profile_models() -> dict[TaskProfile, list[str]]:
         return candidates
 
     return {
-        TaskProfile.CHAT: _prefer_configured(
-            chat_ids[:3] or flash_ids[:3] or sorted_ids[:3], "light"
-        ),
-        TaskProfile.QUICK_FIX: _prefer_configured(
-            flash_ids[:3] or sorted_ids[:3], "pro"
-        ),
-        TaskProfile.CODING: _prefer_configured(
-            (pro_ids[:2] + flash_ids[:2])[:4] or sorted_ids[:4], "pro"
-        ),
-        TaskProfile.DEEP: _prefer_configured(
-            pro_ids[:3] or sorted_ids[:3], "heavy"
-        ),
-        TaskProfile.CREATIVE: _prefer_configured(
-            pro_ids[:2] or sorted_ids[:2], "pro"
-        ),
+        TaskProfile.CHAT: _prefer_configured(chat_ids[:3] or flash_ids[:3] or sorted_ids[:3], "light"),
+        TaskProfile.QUICK_FIX: _prefer_configured(flash_ids[:3] or sorted_ids[:3], "pro"),
+        TaskProfile.CODING: _prefer_configured((pro_ids[:2] + flash_ids[:2])[:4] or sorted_ids[:4], "pro"),
+        TaskProfile.DEEP: _prefer_configured(pro_ids[:3] or sorted_ids[:3], "heavy"),
+        TaskProfile.CREATIVE: _prefer_configured(pro_ids[:2] or sorted_ids[:2], "pro"),
         TaskProfile.SKIP: [],
     }
 
@@ -326,9 +316,9 @@ def _detect_provider(model_id: str, mgr: Any | None = None) -> str:
 # key: 命令名, value: (TaskProfile, 推荐模型 ID, 理由)
 # None model = 保持当前模型不切（如 showrun 已由 handler 自己设好）
 COMMAND_ROUTE_MAP: dict[str, tuple[TaskProfile, str | None, str]] = {
-    "plan": (TaskProfile.DEEP, "deepseek-v4-pro", "深度推理任务 → 切至 DeepSeek（1M 上下文）"),
-    "sub": (TaskProfile.DEEP, "deepseek-v4-pro", "子智能体需要强推理 → 切至 DeepSeek"),
-    "refactor": (TaskProfile.DEEP, "deepseek-v4-pro", "跨文件重构需要大上下文 → 切至 DeepSeek"),
+    "plan": (TaskProfile.DEEP, "pro", "深度推理任务 → 切至 DeepSeek（1M 上下文）"),
+    "sub": (TaskProfile.DEEP, "pro", "子智能体需要强推理 → 切至 DeepSeek"),
+    "refactor": (TaskProfile.DEEP, "pro", "跨文件重构需要大上下文 → 切至 DeepSeek"),
     "team": (TaskProfile.DEEP, None, "多智能体协调 → 保持当前模型"),
     "showrun": (TaskProfile.CREATIVE, None, "创意流水线 → 保持当前模型"),
     "self": (TaskProfile.CODING, None, "自诊断 → 保持当前模型"),
@@ -449,10 +439,26 @@ _CODE_KEYWORDS: list[str] = [
 # ── ModelRouter 吸收的信号 ──────────────────────────────────
 
 # 琐碎问候语 → SKIP (保持当前模型)
-_TRIVIAL_SET: frozenset[str] = frozenset({
-    "你好", "hello", "hi", "hey", "在吗", "在不在", "谢谢", "thanks",
-    "ok", "好的", "okay", "嗯", "哦", "好", "行", "可以",
-})
+_TRIVIAL_SET: frozenset[str] = frozenset(
+    {
+        "你好",
+        "hello",
+        "hi",
+        "hey",
+        "在吗",
+        "在不在",
+        "谢谢",
+        "thanks",
+        "ok",
+        "好的",
+        "okay",
+        "嗯",
+        "哦",
+        "好",
+        "行",
+        "可以",
+    }
+)
 
 # Light 命令：明确的测试/格式化/lint 调用 → CHAT (light tier)
 _LIGHT_COMMANDS_RE = re.compile(

@@ -4,10 +4,13 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
-from core.intelligence.policy import ExecutionPolicy
 from core.intelligence.profiles import load_profile
 from core.intelligence.signals import SignalExtractor, TaskSignals
+
+if TYPE_CHECKING:
+    from core.intelligence.policy import ExecutionPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -91,11 +94,7 @@ class IntelligencePolicyRouter:
             return load_profile("debug")
 
         # DEEP: complex engineering or architecture tasks
-        if (
-            s.estimated_task_complexity >= 0.5
-            or s.requires_architecture_reasoning
-            or s.requires_multi_step
-        ):
+        if s.estimated_task_complexity >= 0.5 or s.requires_architecture_reasoning or s.requires_multi_step:
             return load_profile("deep")
 
         # FAST: simple, no tools needed

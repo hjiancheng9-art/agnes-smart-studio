@@ -1,6 +1,5 @@
 """Test Phase 2: Result validation + Consistency check + Diff guard"""
 
-
 import pytest
 
 from core.result_validator import (
@@ -40,18 +39,21 @@ def dg():
 @pytest.fixture
 def reviewer():
     from core.reviewer_agent import ReviewerAgent
+
     return ReviewerAgent()
 
 
 @pytest.fixture
 def debater():
     from core.reviewer_agent import DebateAgent
+
     return DebateAgent()
 
 
 @pytest.fixture
 def decomposer():
     from core.reviewer_agent import TaskDecomposer
+
     return TaskDecomposer()
 
 
@@ -113,46 +115,69 @@ class TestConsistencyChecker:
         assert len(rep.issues) == 0
 
     def test_all_succeeded(self, cc):
-        rep = cc.check("Done!", [
-            {"tool_name": "read_file", "args": {}, "result": "ok", "success": True},
-        ])
+        rep = cc.check(
+            "Done!",
+            [
+                {"tool_name": "read_file", "args": {}, "result": "ok", "success": True},
+            ],
+        )
         assert rep.is_consistent
 
     def test_failed_tool_not_mentioned(self, cc):
-        rep = cc.check("Great success!", [
-            {"tool_name": "run_bash", "args": {}, "result": "FAILED", "success": False},
-        ])
+        rep = cc.check(
+            "Great success!",
+            [
+                {"tool_name": "run_bash", "args": {}, "result": "FAILED", "success": False},
+            ],
+        )
         assert not rep.is_consistent
         assert any("run_bash" in i.description for i in rep.issues)
 
     def test_all_failed(self, cc):
-        rep = cc.check("Answer", [
-            {"tool_name": "run_bash", "args": {}, "result": "err", "success": False},
-        ])
+        rep = cc.check(
+            "Answer",
+            [
+                {"tool_name": "run_bash", "args": {}, "result": "err", "success": False},
+            ],
+        )
         assert not rep.is_consistent
         assert any("critical" in i.severity for i in rep.issues)
 
     def test_short_answer_many_tools(self, cc):
-        rep = cc.check("OK", [
-            {"tool_name": "t1", "args": {}, "result": "a", "success": True},
-            {"tool_name": "t2", "args": {}, "result": "b", "success": True},
-            {"tool_name": "t3", "args": {}, "result": "c", "success": True},
-            {"tool_name": "t4", "args": {}, "result": "d", "success": True},
-        ])
+        rep = cc.check(
+            "OK",
+            [
+                {"tool_name": "t1", "args": {}, "result": "a", "success": True},
+                {"tool_name": "t2", "args": {}, "result": "b", "success": True},
+                {"tool_name": "t3", "args": {}, "result": "c", "success": True},
+                {"tool_name": "t4", "args": {}, "result": "d", "success": True},
+            ],
+        )
         # Short answer after many tools triggers minor issue
         assert len(rep.issues) >= 1
 
     def test_summary_format(self, cc):
-        rep = cc.check("OK", [
-            {"tool_name": "t", "args": {}, "result": "err", "success": False},
-        ])
+        rep = cc.check(
+            "OK",
+            [
+                {"tool_name": "t", "args": {}, "result": "err", "success": False},
+            ],
+        )
         assert "inconsistenc" in rep.summary().lower()
 
     def test_write_then_read_file_tracking(self, cc):
-        rep = cc.check("I wrote config.py and read it back", [
-            {"tool_name": "write_file", "args": {"path": "config.py", "content": "x"}, "result": "", "success": True},
-            {"tool_name": "read_file", "args": {"path": "config.py"}, "result": "x", "success": True},
-        ])
+        rep = cc.check(
+            "I wrote config.py and read it back",
+            [
+                {
+                    "tool_name": "write_file",
+                    "args": {"path": "config.py", "content": "x"},
+                    "result": "",
+                    "success": True,
+                },
+                {"tool_name": "read_file", "args": {"path": "config.py"}, "result": "x", "success": True},
+            ],
+        )
         # Should be consistent — file was written then read
         assert rep.is_consistent
 
@@ -259,8 +284,13 @@ class TestEdgeCases:
     # ── New P4 coverage ───────────────────────────────────────
 
     def test_review_issue_fields(self):
-        iss = ReviewIssue(severity=ReviewSeverity.MAJOR, category="factual",
-                          description="bad", suggestion="fix", location="/src/main.py")
+        iss = ReviewIssue(
+            severity=ReviewSeverity.MAJOR,
+            category="factual",
+            description="bad",
+            suggestion="fix",
+            location="/src/main.py",
+        )
         assert iss.suggestion == "fix"
         assert iss.location == "/src/main.py"
 
@@ -269,8 +299,11 @@ class TestEdgeCases:
         assert rep.to_llm_prompt() == ""
 
     def test_review_report_to_llm_prompt_with_issues(self):
-        issues = [ReviewIssue(severity=ReviewSeverity.CRITICAL, category="safety",
-                              description="dangerous code", suggestion="remove")]
+        issues = [
+            ReviewIssue(
+                severity=ReviewSeverity.CRITICAL, category="safety", description="dangerous code", suggestion="remove"
+            )
+        ]
         rep = ReviewReport(issues=issues, score=30, passed=False)
         prompt = rep.to_llm_prompt()
         assert "dangerous code" in prompt
@@ -285,6 +318,7 @@ class TestEdgeCases:
     def test_reviewer_with_llm_callback(self):
         def fake_llm(sys_prompt, user_prompt, messages):
             return '{"issues": [{"severity": "major", "category": "factual", "description": "Wrong answer", "suggestion": "Correct it"}], "score": 50}'
+
         rev = ReviewerAgent(llm_callback=fake_llm)
         rep = rev.review("What is 2+2?", "5", [])
         # Should have the LLM-found issue plus any rule-based issues
@@ -309,9 +343,13 @@ class TestEdgeCases:
         assert 1 in st.depends_on
 
     def test_task_plan_with_deps_text(self):
-        plan = TaskPlan(tasks=[
-            SubTask(id=1, description="Read file"),
-            SubTask(id=2, description="Edit file", depends_on=[1]),
-        ], complexity="medium", original_query="fix bug")
+        plan = TaskPlan(
+            tasks=[
+                SubTask(id=1, description="Read file"),
+                SubTask(id=2, description="Edit file", depends_on=[1]),
+            ],
+            complexity="medium",
+            original_query="fix bug",
+        )
         txt = plan.text
         assert "after: 1" in txt or "Read file" in txt

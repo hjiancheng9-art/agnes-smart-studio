@@ -53,7 +53,9 @@ class PromptAssembler:
 
         # Mode instruction
         if "orchestrate" in plan.tool_names:
-            parts.append("\n[Orchestration] Use `orchestrate` tool for multi-stage tasks. Do NOT manually step through stages.")
+            parts.append(
+                "\n[Orchestration] Use `orchestrate` tool for multi-stage tasks. Do NOT manually step through stages."
+            )
         if "agent_swarm" in plan.tool_names:
             parts.append("\n[Swarm] Use `agent_swarm` to fan out independent sub-tasks to parallel agents.")
 

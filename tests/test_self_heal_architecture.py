@@ -44,7 +44,7 @@ class TestBuildShellStrategies:
         if sys.platform == "win32":
             assert "cmd_exe" in labels, f"Windows 应有 cmd_exe: {labels}"
             cmds = [c for l, c in strats if l == "cmd_exe"]
-            assert any('cmd.exe' in c for c in cmds)
+            assert any("cmd.exe" in c for c in cmds)
 
     def test_simple_command_raw(self):
         """简单命令应有 raw_no_shell 策略"""
@@ -63,6 +63,7 @@ class TestBuildShellStrategies:
     def test_bash_login_when_bash_available(self):
         """有 bash 时不重复 bash -c 前缀"""
         import shutil
+
         has_bash = shutil.which("bash")
         strats = _build_shell_strategies("echo hello", sys)
         labels = [l for l, _ in strats]
@@ -95,9 +96,7 @@ class TestDiagnoseShellFailure:
 
     def test_not_found_diagnosis(self):
         """命令未找到应诊断"""
-        diag = _diagnose_shell_failure(
-            "nonexistent", ["[primary] not found: nonexistent"], sys
-        )
+        diag = _diagnose_shell_failure("nonexistent", ["[primary] not found: nonexistent"], sys)
         assert "未找到" in diag or "not found" in diag.lower()
 
     def test_permission_diagnosis(self):
@@ -108,6 +107,7 @@ class TestDiagnoseShellFailure:
     def test_windows_bash_hint(self):
         """Windows + bash 环境应有提示"""
         import shutil
+
         has_bash = shutil.which("bash")
         diag = _diagnose_shell_failure("bash -c 'ls'", ["[primary] exit=1: error"], sys)
         if sys.platform == "win32" and has_bash:
@@ -121,11 +121,15 @@ class TestDiagnoseShellFailure:
 
     def test_all_errors_listed(self):
         """所有错误策略都应出现在诊断中"""
-        diag = _diagnose_shell_failure("cmd", [
-            "[primary] 超时 (30s)",
-            "[unwrap_bash] 子进程错误: boom",
-            "[cmd_exe] Permission denied",
-        ], sys)
+        diag = _diagnose_shell_failure(
+            "cmd",
+            [
+                "[primary] 超时 (30s)",
+                "[unwrap_bash] 子进程错误: boom",
+                "[cmd_exe] Permission denied",
+            ],
+            sys,
+        )
         # 至少有一个诊断条件命中
         assert len(diag) > 50
 
@@ -139,6 +143,7 @@ from core.chat import _auto_retry_tool, _build_retry_strategies
 
 class MockDispatchSession:
     """模拟 ChatSession._dispatch_tool"""
+
     def __init__(self, success_on_unwrap=True):
         self.success_on_unwrap = success_on_unwrap
         self.calls = []
@@ -252,7 +257,8 @@ class TestAutoRetryTool:
         """重试一次成功应返回成功结果"""
         s = MockDispatchSession(success_on_unwrap=True)
         result, sides = _auto_retry_tool(
-            s, "run_bash",
+            s,
+            "run_bash",
             '{"command": "bash -c echo hello"}',
             "[错误] bash related error",
         )
@@ -262,7 +268,8 @@ class TestAutoRetryTool:
         """全部失败应返回原始错误"""
         s = MockDispatchSession(success_on_unwrap=False)  # unwrap 也失败
         result, sides = _auto_retry_tool(
-            s, "run_bash",
+            s,
+            "run_bash",
             '{"command": "bash -c x"}',
             "[错误] original error",
         )
@@ -272,7 +279,8 @@ class TestAutoRetryTool:
         """无可用策略直接返回原始错误"""
         s = MockDispatchSession()
         result, sides = _auto_retry_tool(
-            s, "unknown_tool",
+            s,
+            "unknown_tool",
             '{"arg": "val"}',
             "[错误] something",
         )
@@ -282,7 +290,8 @@ class TestAutoRetryTool:
         """正常结果不触发重试"""
         s = MockDispatchSession()
         result, sides = _auto_retry_tool(
-            s, "run_bash",
+            s,
+            "run_bash",
             '{"command": "echo ok"}',
             "hello world",
         )
@@ -290,14 +299,18 @@ class TestAutoRetryTool:
 
     def test_exception_during_retry_recovery(self):
         """重试中异常被捕获但无更多策略时返回原始错误"""
+
         class CrashSession:
             def __init__(self):
                 self.n = 0
+
             def _dispatch_tool(self, name, args_json):
                 self.n += 1
                 raise RuntimeError("boom")
+
         result, sides = _auto_retry_tool(
-            CrashSession(), "run_bash",
+            CrashSession(),
+            "run_bash",
             '{"command": "bash -c echo hello"}',
             "[错误] original",
         )
@@ -306,18 +319,22 @@ class TestAutoRetryTool:
 
     def test_exception_then_success(self):
         """一个策略异常后下一个策略成功"""
+
         class CrashThenOk:
             def __init__(self):
                 self.n = 0
+
             def _dispatch_tool(self, name, args_json):
                 self.n += 1
                 args = json.loads(args_json)
                 if self.n == 1:
                     raise RuntimeError("boom")
                 return f"recovered: {args.get('command', '')}", [("info", "")]
+
         # bash -c 'cmd' 在 Windows 上生成 unwrap_bash + strip_quotes 两个策略
         result, sides = _auto_retry_tool(
-            CrashThenOk(), "run_bash",
+            CrashThenOk(),
+            "run_bash",
             '{"command": "bash -c \'echo hello\'"}',
             "[错误] original",
         )
@@ -394,10 +411,12 @@ class TestQualityGateResultAsdict:
 
     def test_asdict_works(self):
         """dataclass asdict 可用"""
+
         @dataclass
         class FakeQuality:
             verdict: str = "pass"
             composite_score: float = 8.5
+
         d = asdict(FakeQuality())
         assert d["verdict"] == "pass"
         assert d["composite_score"] == 8.5
@@ -405,10 +424,12 @@ class TestQualityGateResultAsdict:
     def test_dict_update_with_asdict(self):
         """模拟 multi_agent.py 修复后的行为"""
         result = {"tasks_done": 5, "tasks_total": 10}
+
         @dataclass
         class FakeQuality:
             verdict: str = "pass"
             composite_score: float = 8.0
+
         quality = FakeQuality()
         try:
             result.update(asdict(quality))

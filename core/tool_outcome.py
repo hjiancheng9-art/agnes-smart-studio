@@ -34,6 +34,7 @@ class RecoveryAction(str, Enum):
 @dataclass
 class ToolFailure:
     """Structured error info. Carries enough context for the chat loop to decide next action."""
+
     code: str
     message: str
     recovery: RecoveryAction = RecoveryAction.NONE
@@ -44,6 +45,7 @@ class ToolFailure:
 @dataclass
 class ToolOutcome:
     """Unified result of a single tool execution attempt."""
+
     status: ToolStatus
     value: str = ""  # tool result text (for model consumption)
     failure: ToolFailure | None = None
@@ -62,14 +64,21 @@ class ToolOutcome:
         return o
 
     @classmethod
-    def failure_of(cls, code: str, message: str, tool_name: str = "",
-                   recovery: RecoveryAction = RecoveryAction.NONE,
-                   side_effect_certain: bool = True) -> ToolOutcome:
+    def failure_of(
+        cls,
+        code: str,
+        message: str,
+        tool_name: str = "",
+        recovery: RecoveryAction = RecoveryAction.NONE,
+        side_effect_certain: bool = True,
+    ) -> ToolOutcome:
         o = cls(
             status=ToolStatus.FAILED,
             tool_name=tool_name,
             failure=ToolFailure(
-                code=code, message=message, recovery=recovery,
+                code=code,
+                message=message,
+                recovery=recovery,
                 side_effect_certain=side_effect_certain,
             ),
         )
@@ -82,7 +91,8 @@ class ToolOutcome:
             status=ToolStatus.TIMED_OUT,
             tool_name=tool_name,
             failure=ToolFailure(
-                code="tool.timeout", message=message or "Tool timed out",
+                code="tool.timeout",
+                message=message or "Tool timed out",
                 recovery=RecoveryAction.RETRY_AFTER_DELAY,
             ),
         )
@@ -102,7 +112,8 @@ class ToolOutcome:
             status=ToolStatus.UNKNOWN,
             tool_name=tool_name,
             failure=ToolFailure(
-                code="tool.unknown_outcome", message=message,
+                code="tool.unknown_outcome",
+                message=message,
                 recovery=RecoveryAction.RECONCILE_SIDE_EFFECT,
                 side_effect_certain=False,
             ),

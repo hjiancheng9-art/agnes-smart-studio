@@ -115,7 +115,7 @@ class CruxClient:
         self._http = httpx.Client(
             base_url=self.base_url,
             headers={"Authorization": f"Bearer {self.api_key}"},
-            timeout=httpx.Timeout(timeout, connect=10.0),
+            timeout=httpx.Timeout(timeout, connect=10.0, read=120.0, write=30.0),
             http2=True,
             limits=httpx.Limits(max_keepalive_connections=20, max_connections=100, keepalive_expiry=30.0),
         )
@@ -400,7 +400,7 @@ class CruxClient:
                     "POST",
                     "/chat/completions",
                     json=body,
-                    timeout=httpx.Timeout(timeout, connect=10.0),
+                    timeout=httpx.Timeout(timeout, connect=10.0, read=120.0, write=30.0),
                 ) as resp:
                     # 错误状态码：连接仍活着，在此消费错误体后再决定重试/返回。
                     # 不能用 raise_for_status() + except 读 e.response.text —— 流式
@@ -409,8 +409,8 @@ class CruxClient:
                         status = resp.status_code
                         err_detail = ""
                         try:
-                            resp.read()  # 同步消费错误响应体（连接未关闭，安全）
-                            body_text = resp.text[:500]
+                            body_bytes = resp.read()  # consume error body once
+                            body_text = body_bytes.decode("utf-8", errors="replace")[:500]
                             if body_text:
                                 err_detail = f" - {body_text}"
                         except (OSError, ValueError, httpx.HTTPError):
@@ -573,7 +573,7 @@ class CruxClient:
                     converted = []
                     for img in imgs:
                         if isinstance(img, str) and img.startswith("data:image/"):
-                            before, sep, b64 = img.partition(";base64,")
+                            _before, sep, b64 = img.partition(";base64,")
                             converted.append(b64 if sep else img)
                         else:
                             converted.append(img)

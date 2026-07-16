@@ -140,6 +140,7 @@ class StatusBar:
         right = ""
         try:
             from core.watchdog import get_watchdog
+
             wd = get_watchdog()
             alerts = wd.status.alerts
             if alerts:
@@ -153,6 +154,7 @@ class StatusBar:
         level_style = "status-bar-context"
         try:
             from core.methodology import get_methodology_state
+
             ms = get_methodology_state()
             level_map = {"micro": "A", "normal": "B", "complex": "C", "critical": "D"}
             level_short = level_map.get(ms.task_level.value, "")

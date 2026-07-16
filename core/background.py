@@ -177,6 +177,7 @@ class BackgroundManager:
                     raw_bytes = f.read()
                 try:
                     from core.encoding_fix import fix_garbled_bytes
+
                     text, _, _ = fix_garbled_bytes(raw_bytes)
                 except ImportError:
                     text = raw_bytes.decode("utf-8", errors="replace")

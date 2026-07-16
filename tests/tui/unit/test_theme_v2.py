@@ -1,4 +1,5 @@
 """Tests for theme_v2.py — single unified color scheme, accessibility modes, style building."""
+
 import pytest
 from prompt_toolkit.styles.base import BaseStyle
 
@@ -6,11 +7,23 @@ from ui.theme_v2 import BLADE as COLORS
 from ui.theme_v2 import build_style_v2
 
 REQUIRED_COLOR_KEYS = [
-    "bg", "surface", "input_bg", "border",
-    "primary", "secondary", "muted", "dim",
-    "accent", "accent2",
-    "error", "warning", "success", "info",
-    "user", "crux", "code_bg",
+    "bg",
+    "surface",
+    "input_bg",
+    "border",
+    "primary",
+    "secondary",
+    "muted",
+    "dim",
+    "accent",
+    "accent2",
+    "error",
+    "warning",
+    "success",
+    "info",
+    "user",
+    "crux",
+    "code_bg",
 ]
 
 

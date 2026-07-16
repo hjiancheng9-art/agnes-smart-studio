@@ -4,7 +4,7 @@
 Three subsystems:
 
 1. TelemetryTracker — event recording, phase hit rates, timing, aggregation
-2. FeatureConfig — per-phase on/off switches with task-target awareness  
+2. FeatureConfig — per-phase on/off switches with task-target awareness
 3. EvalRunner — replay recorded conversations for regression testing
 
 Design: all data in-memory by default, optional JSON export.
@@ -50,6 +50,7 @@ class TelemetryEvent(str, Enum):
 @dataclass
 class TelemetryRecord:
     """A single telemetry event record."""
+
     event: str
     phase: str = ""
     tool_name: str = ""
@@ -73,6 +74,7 @@ class TelemetryRecord:
 @dataclass
 class PhaseStats:
     """Aggregated stats for a single phase."""
+
     total_calls: int = 0
     passed: int = 0
     blocked: int = 0
@@ -136,7 +138,7 @@ class TelemetryTracker:
 
         # Prune if over limit
         if len(self.records) > self.max_records:
-            self.records = self.records[-self.max_records:]
+            self.records = self.records[-self.max_records :]
 
         return rec
 
@@ -177,19 +179,23 @@ class TelemetryTracker:
         """Human-readable summary report."""
         phases = self.summary()
         lines = [
-            f"📊 Telemetry Report — {len(self.records)} events, {time.time()-self._start_time:.0f}s uptime",
+            f"📊 Telemetry Report — {len(self.records)} events, {time.time() - self._start_time:.0f}s uptime",
             "",
         ]
         # Phase summary
         lines.append(f"  {'Phase':12s} {'Calls':8s} {'Blocked':10s} {'Block%':8s} {'Avg(ms)':10s}")
-        lines.append(f"  {'-'*12} {'-'*8} {'-'*10} {'-'*8} {'-'*10}")
+        lines.append(f"  {'-' * 12} {'-' * 8} {'-' * 10} {'-' * 8} {'-' * 10}")
         for phase, ps in sorted(phases.items()):
-            lines.append(f"  {phase:12s} {ps.total_calls:8d} {ps.blocked:10d} {ps.block_rate:7.1f}% {ps.avg_duration_ms:9.1f}")
+            lines.append(
+                f"  {phase:12s} {ps.total_calls:8d} {ps.blocked:10d} {ps.block_rate:7.1f}% {ps.avg_duration_ms:9.1f}"
+            )
         lines.append("")
         # Recent events
         lines.append("  Recent events:")
         for rec in self.records[-5:]:
-            lines.append(f"    [{rec.event:30s}] {rec.tool_name:20s} {'OK' if rec.success else 'BLOCKED'} {rec.duration_ms:6.1f}ms")
+            lines.append(
+                f"    [{rec.event:30s}] {rec.tool_name:20s} {'OK' if rec.success else 'BLOCKED'} {rec.duration_ms:6.1f}ms"
+            )
         return "\n".join(lines)
 
     def export(self, path: str = "telemetry.json") -> str:
@@ -285,10 +291,12 @@ class FeatureConfig:
 
     # Per-target overrides
     # If a phase is in disabled_for_targets, it won't run for that target
-    disabled_for_targets: dict[str, list[str]] = field(default_factory=lambda: {
-        "reviewer": ["general"],  # skip reviewer for simple chat
-        "debate": ["general", "code"],  # only for complex media tasks
-    })
+    disabled_for_targets: dict[str, list[str]] = field(
+        default_factory=lambda: {
+            "reviewer": ["general"],  # skip reviewer for simple chat
+            "debate": ["general", "code"],  # only for complex media tasks
+        }
+    )
 
     def is_enabled(self, phase_key: str, task_target: str = "general") -> bool:
         """Check if a phase is enabled for a given task target.
@@ -314,10 +322,7 @@ class FeatureConfig:
 
         # Check per-target override
         disabled = self.disabled_for_targets.get(phase_key, [])
-        if task_target in disabled:
-            return False
-
-        return True
+        return task_target not in disabled
 
     def disable_all(self):
         """Disable all phases (for testing)."""
@@ -332,11 +337,7 @@ class FeatureConfig:
                 setattr(self, attr, True)
 
     def to_dict(self) -> dict:
-        return {
-            attr: getattr(self, attr)
-            for attr in dir(self)
-            if attr.startswith("p") and not attr.startswith("__")
-        }
+        return {attr: getattr(self, attr) for attr in dir(self) if attr.startswith("p") and not attr.startswith("__")}
 
 
 # Default global config
@@ -356,6 +357,7 @@ def get_config() -> FeatureConfig:
 @dataclass
 class EvalTurn:
     """A single turn in a recorded conversation."""
+
     user: str = ""
     assistant: str = ""
     tool_calls: list[dict] = field(default_factory=list)
@@ -366,6 +368,7 @@ class EvalTurn:
 @dataclass
 class EvalSession:
     """A recorded conversation session for regression testing."""
+
     id: str = ""
     description: str = ""
     created_at: float = 0.0
@@ -379,9 +382,13 @@ class EvalSession:
             "created_at": self.created_at,
             "tags": self.tags,
             "turns": [
-                {"user": t.user[:500], "assistant": t.assistant[:500],
-                 "tool_calls": t.tool_calls[:5], "tool_results": t.tool_results[:5],
-                 "expected_issues": t.expected_issues}
+                {
+                    "user": t.user[:500],
+                    "assistant": t.assistant[:500],
+                    "tool_calls": t.tool_calls[:5],
+                    "tool_results": t.tool_results[:5],
+                    "expected_issues": t.expected_issues,
+                }
                 for t in self.turns
             ],
         }
@@ -390,6 +397,7 @@ class EvalSession:
 @dataclass
 class EvalResult:
     """Result of running an evaluation session."""
+
     session_id: str = ""
     passed: int = 0
     failed: int = 0
@@ -443,13 +451,15 @@ class EvalRunner:
                 tags=s.get("tags", []),
             )
             for t in s.get("turns", []):
-                session.turns.append(EvalTurn(
-                    user=t.get("user", ""),
-                    assistant=t.get("assistant", ""),
-                    tool_calls=t.get("tool_calls", []),
-                    tool_results=t.get("tool_results", []),
-                    expected_issues=t.get("expected_issues", 0),
-                ))
+                session.turns.append(
+                    EvalTurn(
+                        user=t.get("user", ""),
+                        assistant=t.get("assistant", ""),
+                        tool_calls=t.get("tool_calls", []),
+                        tool_results=t.get("tool_results", []),
+                        expected_issues=t.get("expected_issues", 0),
+                    )
+                )
             self.sessions.append(session)
         return self.sessions
 
@@ -471,7 +481,9 @@ class EvalRunner:
             issues_found = 0
             try:
                 from core.tool_call_validator import ToolCallValidator
-                schema_p = lambda n: None
+
+                def schema_p(n):
+                    return None
                 v = ToolCallValidator(schema_provider=schema_p)
                 for tc in turn.tool_calls:
                     r = v.validate_llm_output(tc.get("raw_xml", str(tc)))
@@ -485,11 +497,13 @@ class EvalRunner:
                 result.passed += 1
             else:
                 result.failed += 1
-                result.details.append({
-                    "user": turn.user[:100],
-                    "expected": turn.expected_issues,
-                    "found": issues_found,
-                })
+                result.details.append(
+                    {
+                        "user": turn.user[:100],
+                        "expected": turn.expected_issues,
+                        "found": issues_found,
+                    }
+                )
 
         return result
 

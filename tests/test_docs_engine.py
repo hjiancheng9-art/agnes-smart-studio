@@ -73,8 +73,7 @@ class TestDocsEngine:
 
         rendered = render_help_md()
         assert _command_section(committed.stdout) == _command_section(rendered), (
-            "Committed HELP.md is out of sync with COMMANDS. Regenerate with "
-            "generate_help_md() and commit HELP.md."
+            "Committed HELP.md is out of sync with COMMANDS. Regenerate with generate_help_md() and commit HELP.md."
         )
 
     def test_sync_agents_md(self):

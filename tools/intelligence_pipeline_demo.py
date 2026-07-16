@@ -29,11 +29,14 @@ async def main():
     requests = [
         ("简单问候", "你好"),
         ("写函数", "帮我写一个 Python 函数，计算斐波那契数列"),
-        ("重构架构", """帮我把用户认证模块从 session 改为 JWT。
+        (
+            "重构架构",
+            """帮我把用户认证模块从 session 改为 JWT。
 首先，分析现有的认证流程。
 然后，设计新的 JWT 方案。
 接着，迁移所有相关代码。
-最后，写单元测试验证。"""),
+最后，写单元测试验证。""",
+        ),
         ("安全删除", "帮我删除所有用户的密码记录并重置数据库"),
         ("研究LLM", "研究一下最新的 RAG 技术和向量数据库选型"),
         ("UI设计", "帮我设计一个现代化、简约风格的产品落地页"),
@@ -49,10 +52,8 @@ async def main():
         profile = router.analyze(req)
 
         print(f"   🎯 路由: {mode.value}")
-        print(f"   📊 复杂度: {profile.complexity} 代码: {profile.has_code} "
-              f"多步: {profile.has_multi_step}")
-        print(f"   🛡️ 安全: {profile.security_risk} 破坏: {profile.destructive_risk} "
-              f"创意: {profile.creative_load}")
+        print(f"   📊 复杂度: {profile.complexity} 代码: {profile.has_code} 多步: {profile.has_multi_step}")
+        print(f"   🛡️ 安全: {profile.security_risk} 破坏: {profile.destructive_risk} 创意: {profile.creative_load}")
         print(f"   🔬 研究: {profile.needs_research} 置信度: {profile.confidence:.2f}")
 
     # ── 工作流演示 ──
@@ -73,6 +74,7 @@ async def main():
         ("verify", "success", "所有检查通过"),
     ]
     import time
+
     for name, status, result in mock_steps:
         step = wf_result.steps.__class__(name=name, status=status, result=result)
         step.started_at = time.time() - 1
@@ -81,20 +83,24 @@ async def main():
 
     # 添加模拟审查报告
     report = CritiqueReport(target="认证模块JWT迁移")
-    report.findings.append(CritiqueFinding(
-        category=CritiqueCategory.SECURITY,
-        severity=CritiqueSeverity.HIGH,
-        summary="JWT secret 不应硬编码",
-        location="auth/jwt_handler.py:12",
-        suggestion="从环境变量读取 JWT_SECRET",
-    ))
-    report.findings.append(CritiqueFinding(
-        category=CritiqueCategory.LOGIC,
-        severity=CritiqueSeverity.MEDIUM,
-        summary="token 过期后没有 refresh 机制",
-        location="auth/token.py:45",
-        suggestion="添加 refresh_token 端点",
-    ))
+    report.findings.append(
+        CritiqueFinding(
+            category=CritiqueCategory.SECURITY,
+            severity=CritiqueSeverity.HIGH,
+            summary="JWT secret 不应硬编码",
+            location="auth/jwt_handler.py:12",
+            suggestion="从环境变量读取 JWT_SECRET",
+        )
+    )
+    report.findings.append(
+        CritiqueFinding(
+            category=CritiqueCategory.LOGIC,
+            severity=CritiqueSeverity.MEDIUM,
+            summary="token 过期后没有 refresh 机制",
+            location="auth/token.py:45",
+            suggestion="添加 refresh_token 端点",
+        )
+    )
     wf_result.critique_report = report
     wf_result.summary = "所有 2 个 high 问题已修复，审查通过"
 

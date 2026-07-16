@@ -16,22 +16,22 @@
 
 from __future__ import annotations
 
-import json
 import logging
+
 
 # Internal signal to stop consuming a generator stream early.
 # Must NOT be a StopIteration subclass — PEP 479 would wrap it in RuntimeError.
 class _StreamStop(Exception):
     pass
-import os
+
+
 import threading
 import time
 import uuid
-from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger("crux.orchestrator")
 ROOT = Path(__file__).parent.parent
@@ -42,35 +42,64 @@ ROOT = Path(__file__).parent.parent
 # ═══════════════════════════════════════════════════════════════
 
 # TaskComplexity is now the canonical classifier — imported from core.task_complexity
-from core.task_complexity import TaskClassification, TaskComplexity, classify_task  # noqa: E402
+from core.task_complexity import TaskComplexity, classify_task
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Generator
+
 
 class DNAProfile(Enum):
-    CRUX = "crux"; CLAUDE = "claude"; CODEBUDDY = "codebuddy"
-    CODEX = "codex"; KIMI = "kimi"; ZCODE = "zcode"
+    CRUX = "crux"
+    CLAUDE = "claude"
+    CODEBUDDY = "codebuddy"
+    CODEX = "codex"
+    KIMI = "kimi"
+    ZCODE = "zcode"
+
 
 class BeastRole(Enum):
-    BAIHU = "baihu"; XUANWU = "xuanwu"; QINGLONG = "qinglong"
-    ZHUQUE = "zhuque"; QILIN = "qilin"; TENGSHE = "tengshe"; YINGLONG = "yinglong"
+    BAIHU = "baihu"
+    XUANWU = "xuanwu"
+    QINGLONG = "qinglong"
+    ZHUQUE = "zhuque"
+    QILIN = "qilin"
+    TENGSHE = "tengshe"
+    YINGLONG = "yinglong"
+
 
 class OrchestrationMode(Enum):
-    AUTO = "auto"; FULL = "full"; FAST = "fast"; DRY_RUN = "dry_run"
+    AUTO = "auto"
+    FULL = "full"
+    FAST = "fast"
+    DRY_RUN = "dry_run"
 
 
 # ═══════════════════════════════════════════════════════════════
 # Data Models
 # ═══════════════════════════════════════════════════════════════
 
+
 @dataclass
 class OrchestrationError:
-    phase: str = ""; step: int = 0; code: str = "UNKNOWN"
-    message: str = ""; recoverable: bool = True; suggestion: str = ""
+    phase: str = ""
+    step: int = 0
+    code: str = "UNKNOWN"
+    message: str = ""
+    recoverable: bool = True
+    suggestion: str = ""
 
 
 @dataclass
 class OrchestrationProgress:
-    trace_id: str = ""; phase: str = ""; phase_index: int = 0
-    total_phases: int = 6; step: int = 0; total_steps: int = 0
-    message: str = ""; level: str = "info"; beast: str = ""
+    trace_id: str = ""
+    phase: str = ""
+    phase_index: int = 0
+    total_phases: int = 6
+    step: int = 0
+    total_steps: int = 0
+    message: str = ""
+    level: str = "info"
+    beast: str = ""
     elapsed_ms: float = 0.0
 
     def to_tui(self) -> tuple[str, str]:
@@ -80,11 +109,19 @@ class OrchestrationProgress:
 
 @dataclass
 class OrchestrationResult:
-    trace_id: str = ""; goal: str = ""; grade: str = "B"; dna: str = "crux"
-    mode: str = "auto"; verdict: str = "unknown"; model_tier: str = ""
-    complexity: str = ""; phases_completed: list[str] = field(default_factory=list)
-    steps_executed: int = 0; steps_failed: int = 0
-    total_duration_ms: float = 0.0; cost_estimate_usd: float = 0.0
+    trace_id: str = ""
+    goal: str = ""
+    grade: str = "B"
+    dna: str = "crux"
+    mode: str = "auto"
+    verdict: str = "unknown"
+    model_tier: str = ""
+    complexity: str = ""
+    phases_completed: list[str] = field(default_factory=list)
+    steps_executed: int = 0
+    steps_failed: int = 0
+    total_duration_ms: float = 0.0
+    cost_estimate_usd: float = 0.0
     recovery_attempts: int = 0
     artifacts: list[str] = field(default_factory=list)
     errors: list[OrchestrationError] = field(default_factory=list)
@@ -139,12 +176,24 @@ class OrchestrationCallbacks:
 # ═══════════════════════════════════════════════════════════════
 
 _DNA_PATTERNS: dict[str, DNAProfile] = {
-    "架构": DNAProfile.CLAUDE, "architecture": DNAProfile.CLAUDE, "设计": DNAProfile.CLAUDE, "design": DNAProfile.CLAUDE,
-    "实现": DNAProfile.CODEBUDDY, "implement": DNAProfile.CODEBUDDY,
-    "审查": DNAProfile.CODEX, "review": DNAProfile.CODEX, "审计": DNAProfile.CODEX, "audit": DNAProfile.CODEX,
-    "修复": DNAProfile.CRUX, "fix": DNAProfile.CRUX, "重构": DNAProfile.CRUX, "refactor": DNAProfile.CRUX,
-    "推理": DNAProfile.KIMI, "analyze": DNAProfile.KIMI,
-    "工具": DNAProfile.ZCODE, "tool": DNAProfile.ZCODE,
+    "架构": DNAProfile.CLAUDE,
+    "architecture": DNAProfile.CLAUDE,
+    "设计": DNAProfile.CLAUDE,
+    "design": DNAProfile.CLAUDE,
+    "实现": DNAProfile.CODEBUDDY,
+    "implement": DNAProfile.CODEBUDDY,
+    "审查": DNAProfile.CODEX,
+    "review": DNAProfile.CODEX,
+    "审计": DNAProfile.CODEX,
+    "audit": DNAProfile.CODEX,
+    "修复": DNAProfile.CRUX,
+    "fix": DNAProfile.CRUX,
+    "重构": DNAProfile.CRUX,
+    "refactor": DNAProfile.CRUX,
+    "推理": DNAProfile.KIMI,
+    "analyze": DNAProfile.KIMI,
+    "工具": DNAProfile.ZCODE,
+    "tool": DNAProfile.ZCODE,
 }
 
 _PHASE_BEASTS: dict[str, list[BeastRole]] = {
@@ -169,8 +218,10 @@ _BEAST_MSGS: dict[BeastRole, str] = {
 }
 
 _MODE_SKIP: dict[OrchestrationMode, set[str]] = {
-    OrchestrationMode.AUTO: set(), OrchestrationMode.FULL: set(),
-    OrchestrationMode.FAST: {"context", "verify"}, OrchestrationMode.DRY_RUN: {"execute", "verify", "close"},
+    OrchestrationMode.AUTO: set(),
+    OrchestrationMode.FULL: set(),
+    OrchestrationMode.FAST: {"context", "verify"},
+    OrchestrationMode.DRY_RUN: {"execute", "verify", "close"},
 }
 
 _COMPLEXITY_DEFAULT_MODE: dict[TaskComplexity, OrchestrationMode] = {
@@ -183,9 +234,13 @@ _COMPLEXITY_DEFAULT_MODE: dict[TaskComplexity, OrchestrationMode] = {
 
 # Agent 角色映射 — 从 agents/*.agent.md 动态加载，这里是 fallback
 _FALLBACK_AGENT_ROLES: dict[str, str] = {
-    "implementer": "Implementer", "architect": "Architecture-Documenter",
-    "reviewer": "Code-Reviewer", "debugger": "Debugger", "tester": "Implementer-Test",
-    "refactor": "Implementer-Refactor", "security": "Security-Auditor",
+    "implementer": "Implementer",
+    "architect": "Architecture-Documenter",
+    "reviewer": "Code-Reviewer",
+    "debugger": "Debugger",
+    "tester": "Implementer-Test",
+    "refactor": "Implementer-Refactor",
+    "security": "Security-Auditor",
 }
 
 
@@ -208,6 +263,7 @@ def classify_intent(goal: str) -> tuple:  # returns (TaskComplexity, DNAProfile)
 # RuntimeOrchestrator
 # ═══════════════════════════════════════════════════════════════
 
+
 def drain_stream(stream) -> OrchestrationResult:
     """Consume a generator and return its StopIteration value."""
     while True:
@@ -225,17 +281,25 @@ class RuntimeOrchestrator:
     """CRUX 量身定制 · 全能力编排器."""
 
     def __init__(
-        self, tool_executor: Callable | None = None, model_router: Callable | None = None,
-        *, mode: OrchestrationMode | str = OrchestrationMode.AUTO,
+        self,
+        tool_executor: Callable | None = None,
+        model_router: Callable | None = None,
+        *,
+        mode: OrchestrationMode | str = OrchestrationMode.AUTO,
         callbacks: OrchestrationCallbacks | None = None,
-        max_recovery: int = 3, max_concurrent: int = 8,
-        skills: list[str] | None = None, cost_budget_usd: float = 5.0,
+        max_recovery: int = 3,
+        max_concurrent: int = 8,
+        skills: list[str] | None = None,
+        cost_budget_usd: float = 5.0,
     ) -> None:
-        self._tool_executor = tool_executor; self._model_router = model_router
+        self._tool_executor = tool_executor
+        self._model_router = model_router
         self.mode = mode if isinstance(mode, OrchestrationMode) else OrchestrationMode(mode)
         self.callbacks = callbacks or OrchestrationCallbacks()
-        self.max_recovery = max_recovery; self.max_concurrent = max_concurrent
-        self.skills = skills or []; self.cost_budget_usd = cost_budget_usd
+        self.max_recovery = max_recovery
+        self.max_concurrent = max_concurrent
+        self.skills = skills or []
+        self.cost_budget_usd = cost_budget_usd
         self._lock = threading.Lock()
         self._semaphore = threading.BoundedSemaphore(max_concurrent)
         self._active_runs: dict[str, dict] = {}
@@ -249,7 +313,6 @@ class RuntimeOrchestrator:
 
     def execute(self, goal: str, **overrides) -> OrchestrationResult:
         """同步执行 — 通过 execute_stream 统一路径."""
-        result = None
         for _ in self.execute_stream(goal, **overrides):
             pass
         raise RuntimeError("execute_stream should have raised _StreamStop")
@@ -312,10 +375,18 @@ class RuntimeOrchestrator:
 
             self._emit_event("orchestration:complete", result)
             if self.callbacks.on_complete:
-                try: self.callbacks.on_complete(result)
-                except Exception: pass
+                try:
+                    self.callbacks.on_complete(result)
+                except Exception:
+                    import logging
 
-            yield self._emit(p, "info", f"CLOSE → {result.verdict} | {result.total_duration_ms:.0f}ms | ${result.cost_estimate_usd:.4f}")
+                    logging.getLogger("crux").debug("silent except", exc_info=True)
+
+            yield self._emit(
+                p,
+                "info",
+                f"CLOSE → {result.verdict} | {result.total_duration_ms:.0f}ms | ${result.cost_estimate_usd:.4f}",
+            )
 
         except KeyboardInterrupt:
             result.verdict = "cancelled"
@@ -357,8 +428,10 @@ class RuntimeOrchestrator:
 
     def active_runs(self) -> list[dict]:
         with self._lock:
-            return [{"trace_id": tid, "goal": i["goal"][:60], "elapsed_ms": (time.monotonic() - i["started_at"]) * 1000}
-                    for tid, i in self._active_runs.items()]
+            return [
+                {"trace_id": tid, "goal": i["goal"][:60], "elapsed_ms": (time.monotonic() - i["started_at"]) * 1000}
+                for tid, i in self._active_runs.items()
+            ]
 
     def paused_runs(self) -> list[dict]:
         with self._lock:
@@ -380,6 +453,7 @@ class RuntimeOrchestrator:
         # 1. 七兽
         try:
             from core.beast_wiring import wire_all
+
             wire_all()
             caps["beasts"] = "七兽已接线"
         except Exception as e:
@@ -388,6 +462,7 @@ class RuntimeOrchestrator:
         # 2. 插件
         try:
             from core.plugin_system import PluginManager
+
             pm = PluginManager()
             pm.load_all()
             caps["plugins"] = f"{len(getattr(pm, '_loaded', []))} 插件"
@@ -397,6 +472,7 @@ class RuntimeOrchestrator:
         # 3. 技能
         try:
             from core.skills import get_manager
+
             mgr = get_manager()
             for s in self.skills:
                 mgr.load(s)
@@ -429,33 +505,37 @@ class RuntimeOrchestrator:
         if not agents_dir.exists():
             return
         import re
+
         for f in agents_dir.glob("*.agent.md"):
             try:
                 content = f.read_text(encoding="utf-8")
-                name_match = re.search(r'^name:\s*(.+)$', content, re.MULTILINE)
-                role_match = re.search(r'^role:\s*(.+)$', content, re.MULTILINE)
+                name_match = re.search(r"^name:\s*(.+)$", content, re.MULTILINE)
+                role_match = re.search(r"^role:\s*(.+)$", content, re.MULTILINE)
                 if name_match:
                     name = name_match.group(1).strip().lower().replace(" ", "-")
                     role = role_match.group(1).strip().lower() if role_match else name
                     self._agent_roles[name] = name_match.group(1).strip()
                     self._agent_roles[role] = name_match.group(1).strip()
             except Exception:
-                pass
+                import logging
+
+                logging.getLogger("crux").debug("silent except", exc_info=True)
 
     def _load_model_pricing(self) -> None:
         """从 models.json 和 provider 获取实际定价."""
         try:
             # 默认定价 ($/1M tokens, 转为 $/1K)
             defaults = {
-                "deepseek": 0.00028,   # deepseek-v4: $0.28/M input
+                "deepseek": 0.00028,  # deepseek-v4: $0.28/M input
                 "crux": 0.0005,
-                "zhipu": 0.0,          # free tier
-                "claude": 0.003,       # claude sonnet: $3/M
-                "openai": 0.002,       # gpt-4o-mini: $2/M
+                "zhipu": 0.0,  # free tier
+                "claude": 0.003,  # claude sonnet: $3/M
+                "openai": 0.002,  # gpt-4o-mini: $2/M
             }
             # 尝试从 provider 获取实际配置
             try:
                 from core.config import SETTINGS
+
                 provider = SETTINGS.get("default_chat_provider", "deepseek")
                 # 按 10K tokens/step 估算
                 self._model_pricing["default"] = defaults.get(provider, 0.001)
@@ -467,9 +547,12 @@ class RuntimeOrchestrator:
     def _select_agent_role(self, dna: DNAProfile) -> str:
         """根据 DNA 选择 Agent 角色 — 使用实际加载的 Agent 定义."""
         role_map = {
-            DNAProfile.CRUX: "implementer", DNAProfile.CLAUDE: "architect",
-            DNAProfile.CODEBUDDY: "implementer", DNAProfile.CODEX: "reviewer",
-            DNAProfile.KIMI: "debugger", DNAProfile.ZCODE: "implementer-refactor",
+            DNAProfile.CRUX: "implementer",
+            DNAProfile.CLAUDE: "architect",
+            DNAProfile.CODEBUDDY: "implementer",
+            DNAProfile.CODEX: "reviewer",
+            DNAProfile.KIMI: "debugger",
+            DNAProfile.ZCODE: "implementer-refactor",
         }
         role_key = role_map.get(dna, "implementer")
         return self._agent_roles.get(role_key, _FALLBACK_AGENT_ROLES.get(role_key, role_key))
@@ -487,10 +570,13 @@ class RuntimeOrchestrator:
         if mode == OrchestrationMode.DRY_RUN:
             try:
                 from core.multi_agent_decompose import SmartDecomposer
+
                 decomposer = SmartDecomposer()
                 tasks = decomposer.decompose(goal, max_tasks=8)
-                result.plan_preview = [{"step": i + 1, "action": t.get("description", f"Step {i+1}"),
-                                         "tool": t.get("tool", "auto")} for i, t in enumerate(tasks)]
+                result.plan_preview = [
+                    {"step": i + 1, "action": t.get("description", f"Step {i + 1}"), "tool": t.get("tool", "auto")}
+                    for i, t in enumerate(tasks)
+                ]
             except Exception:
                 result.plan_preview = [{"step": 1, "action": goal, "tool": "auto"}]
             result.verdict = "dry_run"
@@ -507,8 +593,13 @@ class RuntimeOrchestrator:
         return result
 
     def _execute_via_master(
-        self, trace_id: str, goal: str, grade: TaskComplexity,
-        executor: Callable, p: OrchestrationProgress, result: OrchestrationResult,
+        self,
+        trace_id: str,
+        goal: str,
+        grade: TaskComplexity,
+        executor: Callable,
+        p: OrchestrationProgress,
+        result: OrchestrationResult,
     ) -> Generator[OrchestrationProgress, None, None]:
         raw = self._run_master(trace_id, goal, executor, grade)
         self._parse_raw_result(raw, result)
@@ -516,14 +607,21 @@ class RuntimeOrchestrator:
         yield self._emit(p, "info", f"执行完成: {result.steps_executed} 步骤")
 
     def _execute_multi_agent(
-        self, trace_id: str, goal: str, grade: TaskComplexity, dna: DNAProfile,
-        executor: Callable, p: OrchestrationProgress, result: OrchestrationResult,
+        self,
+        trace_id: str,
+        goal: str,
+        grade: TaskComplexity,
+        dna: DNAProfile,
+        executor: Callable,
+        p: OrchestrationProgress,
+        result: OrchestrationResult,
     ) -> Generator[OrchestrationProgress, None, None]:
         # Sequential execution via executor function — bypass broken AgentSwarm.
         # AgentSwarm uses daemon threads with t.join(timeout=300) that hang.
         # Instead, execute each step one at a time using the executor directly.
         try:
             from core.multi_agent_decompose import SmartDecomposer
+
             decomposer = SmartDecomposer()
             tasks = decomposer.decompose(goal, max_tasks=8)
         except (ImportError, Exception):
@@ -537,38 +635,51 @@ class RuntimeOrchestrator:
 
         steps_executed = 0
         for i, task in enumerate(tasks):
-            desc = task.get("description", f"Step {i+1}")
+            desc = task.get("description", f"Step {i + 1}")
             tool = task.get("tool", task.get("tools", ["self_heal"])[0] if task.get("tools") else "self_heal")
-            yield self._emit(p, "info", f"Step {i+1}/{len(tasks)}: {desc}")
+            yield self._emit(p, "info", f"Step {i + 1}/{len(tasks)}: {desc}")
             try:
                 exec_result = executor(tool, {"goal": desc})
                 if exec_result and "error" not in str(exec_result).lower():
                     steps_executed += 1
             except Exception as e:
-                logger.warning("[%s] Step %d failed: %s", trace_id, i+1, e)
+                logger.warning("[%s] Step %d failed: %s", trace_id, i + 1, e)
 
         result.steps_executed = steps_executed
         result.verdict = "pass" if steps_executed >= len(tasks) * 0.5 else "needs_fix"
         yield self._emit(p, "info", f"执行完成: {steps_executed}/{len(tasks)} 步骤")
 
     def _run_master(self, trace_id: str, goal: str, executor: Callable, grade: TaskComplexity) -> dict:
-        from core.orchestration import MasterOrchestrator, ExecutionBudget
+        from core.orchestration import ExecutionBudget, MasterOrchestrator
 
         def _on_phase(phase: str, action: str, details: dict | None) -> None:
             if self.callbacks.on_phase_start and action == "start":
-                try: self.callbacks.on_phase_start(phase, str(details or ""))
-                except Exception: pass
+                try:
+                    self.callbacks.on_phase_start(phase, str(details or ""))
+                except Exception:
+                    import logging
+
+                    logging.getLogger("crux").debug("silent except", exc_info=True)
             if self.callbacks.on_phase_done and action == "done":
-                try: self.callbacks.on_phase_done(phase, 0)
-                except Exception: pass
-            self._emit_event(f"orchestration:phase:{action}", {"trace_id": trace_id, "phase": phase, "details": details})
+                try:
+                    self.callbacks.on_phase_done(phase, 0)
+                except Exception:
+                    import logging
+
+                    logging.getLogger("crux").debug("silent except", exc_info=True)
+            self._emit_event(
+                f"orchestration:phase:{action}", {"trace_id": trace_id, "phase": phase, "details": details}
+            )
 
         budget = ExecutionBudget(
-            total_timeout_s=600.0, per_task_timeout_s=180.0,
-            max_retries=2 if grade != TaskComplexity.CRITICAL else 0, max_consecutive_failures=3,
+            total_timeout_s=600.0,
+            per_task_timeout_s=180.0,
+            max_retries=2 if grade != TaskComplexity.CRITICAL else 0,
+            max_consecutive_failures=3,
         )
-        orch = MasterOrchestrator(tool_executor=executor, model_router=self._model_router,
-                                   budget=budget, phase_callback=_on_phase)
+        orch = MasterOrchestrator(
+            tool_executor=executor, model_router=self._model_router, budget=budget, phase_callback=_on_phase
+        )
         return orch.run(goal)
 
     def _build_executor(self, trace_id: str) -> Callable:
@@ -576,10 +687,13 @@ class RuntimeOrchestrator:
         plugin_tools = {}
         try:
             from core.plugin_system import PluginManager
-            for name, handler in getattr(PluginManager(), '_tool_handlers', {}).items():
+
+            for name, handler in getattr(PluginManager(), "_tool_handlers", {}).items():
                 plugin_tools[name] = handler
         except Exception:
-            pass
+            import logging
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
 
         # 技能上下文 — 注入到工具调用的 kwargs
         skill_ctx = {}
@@ -589,45 +703,67 @@ class RuntimeOrchestrator:
         def _exec(name: str, args: dict) -> str:
             args_with_skills = {**args, **skill_ctx}
             if name in plugin_tools:
-                try: return str(plugin_tools[name](**args_with_skills))
-                except Exception as e: return f"[插件错误] {name}: {e}"
+                try:
+                    return str(plugin_tools[name](**args_with_skills))
+                except Exception as e:
+                    return f"[插件错误] {name}: {e}"
             try:
                 from core.tool_registry_mesh import ToolRegistryMesh
+
                 trm = ToolRegistryMesh()
                 trm.discover_all()
                 if name in trm._function_map:
                     r = trm._call_tool(name, args_with_skills)
-                    if r is not None: return str(r)
-            except Exception: pass
+                    if r is not None:
+                        return str(r)
+            except Exception:
+                import logging
+
+                logging.getLogger("crux").debug("silent except", exc_info=True)
             try:
                 from core.tools import get_registry
+
                 registry = get_registry()
                 if name in registry._executors:
                     return str(registry._executors[name](**args_with_skills))
-            except Exception: pass
+            except Exception:
+                import logging
+
+                logging.getLogger("crux").debug("silent except", exc_info=True)
             return f"[错误] 工具不可用: {name}"
+
         return _exec
 
     # ── Internal: Helpers ───────────────────────────────────
 
     def _resolve_params(self, goal: str, overrides: dict) -> tuple[TaskComplexity, DNAProfile, OrchestrationMode]:
-        grade = overrides.get("grade"); dna_p = overrides.get("dna_profile") or overrides.get("dna")
+        grade = overrides.get("grade")
+        dna_p = overrides.get("dna_profile") or overrides.get("dna")
         mode = overrides.get("mode") or overrides.get("mode_override") or self.mode
         if isinstance(grade, str):
-            try: grade = TaskComplexity[grade]
-            except (KeyError, TypeError): grade = None
+            try:
+                grade = TaskComplexity[grade]
+            except (KeyError, TypeError):
+                grade = None
         if isinstance(dna_p, str):
-            try: dna_p = DNAProfile(dna_p)
-            except ValueError: dna_p = None
+            try:
+                dna_p = DNAProfile(dna_p)
+            except ValueError:
+                dna_p = None
         if isinstance(mode, str):
-            try: mode = OrchestrationMode(mode)
-            except ValueError: mode = self.mode
+            try:
+                mode = OrchestrationMode(mode)
+            except ValueError:
+                mode = self.mode
         classification = classify_task(goal)
         auto_grade = classification.complexity
         auto_dna = _resolve_dna(goal)
-        if grade is None: grade = auto_grade
-        if dna_p is None: dna_p = auto_dna
-        if not isinstance(mode, OrchestrationMode): mode = self.mode
+        if grade is None:
+            grade = auto_grade
+        if dna_p is None:
+            dna_p = auto_dna
+        if not isinstance(mode, OrchestrationMode):
+            mode = self.mode
         if mode == OrchestrationMode.AUTO:
             mode = _COMPLEXITY_DEFAULT_MODE.get(grade, OrchestrationMode.AUTO)
         return grade, dna_p, mode
@@ -635,23 +771,30 @@ class RuntimeOrchestrator:
     def _should_skip(self, phase: str, mode: OrchestrationMode) -> bool:
         return phase in _MODE_SKIP.get(mode, set())
 
-    def _run_phase(self, p: OrchestrationProgress, phase: str, mode: OrchestrationMode) -> Generator[OrchestrationProgress, None, None]:
-        p.phase = phase; p.phase_index = _PHASE_INDEX.get(phase, 0)
+    def _run_phase(
+        self, p: OrchestrationProgress, phase: str, mode: OrchestrationMode
+    ) -> Generator[OrchestrationProgress, None, None]:
+        p.phase = phase
+        p.phase_index = _PHASE_INDEX.get(phase, 0)
         if self._should_skip(phase, mode):
             yield self._emit(p, "info", f"{phase.upper()} → 跳过")
         else:
             yield self._emit(p, "info", f"{phase.upper()} → 开始")
             yield self._emit(p, "info", f"{phase.upper()} → 完成")
 
-    def _dry_run_phase(self, goal: str, grade: TaskComplexity, dna: DNAProfile,
-                        p: OrchestrationProgress, result: OrchestrationResult) -> Generator[OrchestrationProgress, None, None]:
+    def _dry_run_phase(
+        self, goal: str, grade: TaskComplexity, dna: DNAProfile, p: OrchestrationProgress, result: OrchestrationResult
+    ) -> Generator[OrchestrationProgress, None, None]:
         yield self._emit(p, "info", f"DRY-RUN → {grade.name}级 · DNA {dna.value}")
         try:
             from core.multi_agent_decompose import SmartDecomposer
+
             decomposer = SmartDecomposer()
             tasks = decomposer.decompose(goal, max_tasks=8)
-            result.plan_preview = [{"step": i + 1, "action": t.get("description", f"Step {i+1}"),
-                                     "tool": t.get("tool", "auto")} for i, t in enumerate(tasks)]
+            result.plan_preview = [
+                {"step": i + 1, "action": t.get("description", f"Step {i + 1}"), "tool": t.get("tool", "auto")}
+                for i, t in enumerate(tasks)
+            ]
         except Exception:
             result.plan_preview = [{"step": 1, "action": goal, "tool": "auto"}]
         result.verdict = "dry_run"
@@ -659,18 +802,24 @@ class RuntimeOrchestrator:
             yield self._emit(p, "info", f"  步骤 {step['step']}: {step['action'][:80]}")
 
     def _parse_raw_result(self, raw: dict, result: OrchestrationResult) -> None:
-        result.raw_result = raw; result.model_tier = raw.get("model_tier", "")
+        result.raw_result = raw
+        result.model_tier = raw.get("model_tier", "")
         result.complexity = raw.get("complexity", "")
         if raw.get("error"):
             result.errors.append(OrchestrationError(phase="execute", code="MASTER_ERROR", message=raw["error"][:200]))
         exec_data = raw.get("execution", {})
-        result.steps_executed = exec_data.get("completed", 0); result.steps_failed = exec_data.get("failed", 0)
+        result.steps_executed = exec_data.get("completed", 0)
+        result.steps_failed = exec_data.get("failed", 0)
 
     def _compute_verdict(self, result: OrchestrationResult) -> None:
-        if result.errors: result.verdict = "needs_fix" if result.steps_executed > 0 else "fail"
-        elif result.steps_failed == 0 and result.steps_executed > 0: result.verdict = "pass"
-        elif result.steps_executed > 0: result.verdict = "needs_fix"
-        else: result.verdict = "pass"
+        if result.errors:
+            result.verdict = "needs_fix" if result.steps_executed > 0 else "fail"
+        elif result.steps_failed == 0 and result.steps_executed > 0:
+            result.verdict = "pass"
+        elif result.steps_executed > 0:
+            result.verdict = "needs_fix"
+        else:
+            result.verdict = "pass"
 
     def _estimate_cost(self, result: OrchestrationResult) -> float:
         rate = self._model_pricing.get("default", 0.001)  # $/1K tokens
@@ -680,9 +829,20 @@ class RuntimeOrchestrator:
     def _archive_replay(self, trace_id: str, goal: str, grade: str, dna: str, result: OrchestrationResult) -> None:
         try:
             from core.run_replay import save_run_replay
-            save_run_replay(trace_id, {"goal": goal, "grade": grade, "dna": dna, "verdict": result.verdict,
-                                        "cost_usd": result.cost_estimate_usd, "duration_ms": result.total_duration_ms},
-                            [{"phase": e.phase, "code": e.code, "message": e.message} for e in result.errors], [])
+
+            save_run_replay(
+                trace_id,
+                {
+                    "goal": goal,
+                    "grade": grade,
+                    "dna": dna,
+                    "verdict": result.verdict,
+                    "cost_usd": result.cost_estimate_usd,
+                    "duration_ms": result.total_duration_ms,
+                },
+                [{"phase": e.phase, "code": e.code, "message": e.message} for e in result.errors],
+                [],
+            )
             result.artifacts.append(f"output/replays/{trace_id}.json")
         except Exception as e:
             logger.debug("[%s] 复盘失败: %s", trace_id, e)
@@ -690,22 +850,36 @@ class RuntimeOrchestrator:
     def _emit_event(self, name: str, data: Any) -> None:
         try:
             from core.event_bus import bus
+
             bus.emit(name, data=data)
-        except Exception: pass
+        except Exception:
+            import logging
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
 
     def _emit(self, p: OrchestrationProgress, level: str, message: str) -> OrchestrationProgress:
-        p.level = level; p.message = message
+        p.level = level
+        p.message = message
         if self.callbacks.on_progress:
-            try: self.callbacks.on_progress(p)
-            except Exception: pass
+            try:
+                self.callbacks.on_progress(p)
+            except Exception:
+                import logging
+
+                logging.getLogger("crux").debug("silent except", exc_info=True)
         return p
 
     def _emit_beast(self, p: OrchestrationProgress, beast: BeastRole) -> OrchestrationProgress:
-        p.beast = beast.value; p.level = "beast"
+        p.beast = beast.value
+        p.level = "beast"
         p.message = _BEAST_MSGS.get(beast, str(beast))
         if self.callbacks.on_beast_activate:
-            try: self.callbacks.on_beast_activate(beast.value, p.message)
-            except Exception: pass
+            try:
+                self.callbacks.on_beast_activate(beast.value, p.message)
+            except Exception:
+                import logging
+
+                logging.getLogger("crux").debug("silent except", exc_info=True)
         return p
 
 
@@ -713,36 +887,43 @@ class RuntimeOrchestrator:
 # ChatSession Integration
 # ═══════════════════════════════════════════════════════════════
 
+
 class OrchestrationMixin:
     """混入 ChatSession — 编排器接入对话流."""
 
     def _init_orchestrator(self) -> None:
-        self._orchestrator = RuntimeOrchestrator(callbacks=OrchestrationCallbacks(
-            on_progress=self._orch_on_progress,
-            on_phase_start=self._orch_on_phase,
-            on_complete=self._orch_on_complete,
-        ))
+        self._orchestrator = RuntimeOrchestrator(
+            callbacks=OrchestrationCallbacks(
+                on_progress=self._orch_on_progress,
+                on_phase_start=self._orch_on_phase,
+                on_complete=self._orch_on_complete,
+            )
+        )
 
     def _orch_on_progress(self, event: OrchestrationProgress) -> None:
-        style, text = event.to_tui()
-        if hasattr(self, 'message_pane'):
+        _style, text = event.to_tui()
+        if hasattr(self, "message_pane"):
             self.message_pane.append_message("system", text)
 
     def _orch_on_phase(self, phase: str, message: str) -> None:
         pass
 
     def _orch_on_complete(self, result: OrchestrationResult) -> None:
-        if hasattr(self, 'message_pane'):
-            summary = (f"[编排完成] {result.verdict.upper()} | {result.grade}级·{result.dna} | "
-                       f"{result.steps_executed}步骤 | {result.total_duration_ms:.0f}ms | ${result.cost_estimate_usd:.4f}")
+        if hasattr(self, "message_pane"):
+            summary = (
+                f"[编排完成] {result.verdict.upper()} | {result.grade}级·{result.dna} | "
+                f"{result.steps_executed}步骤 | {result.total_duration_ms:.0f}ms | ${result.cost_estimate_usd:.4f}"
+            )
             self.message_pane.append_message("system", summary)
 
     def orchestrate(self, goal: str, **kwargs) -> OrchestrationResult:
-        if not hasattr(self, '_orchestrator'): self._init_orchestrator()
+        if not hasattr(self, "_orchestrator"):
+            self._init_orchestrator()
         return self._orchestrator.execute(goal, **kwargs)
 
     def orchestrate_stream(self, goal: str, **kwargs):
-        if not hasattr(self, '_orchestrator'): self._init_orchestrator()
+        if not hasattr(self, "_orchestrator"):
+            self._init_orchestrator()
         return self._orchestrator.execute_stream(goal, **kwargs)
 
 
@@ -753,12 +934,15 @@ class OrchestrationMixin:
 _instance: RuntimeOrchestrator | None = None
 _instance_lock = threading.Lock()
 
+
 def get_orchestrator(**kwargs) -> RuntimeOrchestrator:
     global _instance
     if _instance is None:
         with _instance_lock:
-            if _instance is None: _instance = RuntimeOrchestrator(**kwargs)
+            if _instance is None:
+                _instance = RuntimeOrchestrator(**kwargs)
     return _instance
+
 
 def execute(goal: str, **kwargs) -> OrchestrationResult:
     try:
@@ -772,8 +956,10 @@ def execute(goal: str, **kwargs) -> OrchestrationResult:
             error="Runtime orchestration failed",
         )
 
+
 def execute_stream(goal: str, **kwargs):
     return get_orchestrator().execute_stream(goal, **kwargs)
+
 
 def preview(goal: str, **kwargs) -> OrchestrationResult:
     return get_orchestrator().preview(goal, **kwargs)

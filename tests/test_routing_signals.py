@@ -1,5 +1,5 @@
-
 """Routing Signals — 独立信号测试"""
+
 from core.routing_signals import (
     compute_mode_scores,
     get_route_decision,

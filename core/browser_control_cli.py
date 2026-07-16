@@ -9,6 +9,7 @@ browser-control CLI — 命令行一键操控 AI 平台
     python -m core.browser_control list
     python -m core.browser_control read chatgpt
 """
+
 import argparse
 import os
 import sys

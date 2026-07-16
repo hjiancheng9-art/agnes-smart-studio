@@ -10,6 +10,7 @@ class TestActivityLog:
     def app(self):
         """Create a minimal TuiAppV2 instance for log testing."""
         from ui.tui_v2 import TuiAppV2
+
         app = object.__new__(TuiAppV2)
         app._activity_log = []
         app._activity_lock = threading.RLock()

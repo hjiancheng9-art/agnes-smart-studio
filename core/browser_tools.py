@@ -233,53 +233,17 @@ def _get_browser_context(provider_id: str):
 
     playwright = pw().start()
 
-    # ── 优先连接已有 CDP 浏览器（检查端口，不重复启动）──
-    import socket
-
-    s = socket.socket()
-    port_open = s.connect_ex(("127.0.0.1", 9222)) == 0
-    s.close()
-    if not port_open:
-        # 自动启动 Edge CDP（只启动一次）
-        import subprocess as _sp
-
-        global _active_edge_proc
-        edge_path = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-        _active_edge_proc = _sp.Popen(
-            [edge_path, "--remote-debugging-port=9222", "--no-first-run", "--no-default-browser-check", "about:blank"],
-            stdout=_sp.DEVNULL,
-            stderr=_sp.DEVNULL,
-        )
-        import time as _t
-
-        _t.sleep(4)
-
+    # Reuse shared persistent context from browser_runtime (no CDP)
     try:
-        browser = playwright.chromium.connect_over_cdp("http://127.0.0.1:9222", timeout=5000)
-        # CDP 返回 Browser，需要获取或创建 BrowserContext 供调用方 new_page()
-        context = browser.contexts[0] if browser.contexts else browser.new_context()
-        _active_playwright = playwright
-        _active_browsers[provider_id] = context
-        logger.info("browser_tools: connected to CDP browser for %s", provider_id)
-        return playwright, context, None
-    except (RuntimeError, OSError) as e:
-        logger.debug("CDP connect failed for %s (%s), launching new browser", provider_id, e)
+        from core.browser_runtime import _connect
 
-    # ── 后备：启动新浏览器（使用持久化 profile 避免每次登录）──
-    user_data_dir = SESSION_DIR / provider_id
-    user_data_dir.mkdir(parents=True, exist_ok=True)
-
-    try:
-        browser = playwright.chromium.launch_persistent_context(
-            str(user_data_dir),
-            headless=True,  # 后备浏览器静默运行，不弹窗
-            args=["--disable-blink-features=AutomationControlled"],
-        )
+        _pw, ctx = _connect()
         _active_playwright = playwright
-        _active_browsers[provider_id] = browser
-        logger.info("browser_tools: launched new browser for %s (CDP not available)", provider_id)
-        return playwright, browser, None
-    except (AttributeError, TypeError) as e:
+        _active_browsers[provider_id] = ctx
+        logger.info("browser_tools: using persistent context for %s", provider_id)
+        return _pw, ctx, None
+    except (RuntimeError, OSError, ImportError) as e:
+        logger.error("browser_tools: persistent context failed: %s", e)
         return None, None, f"浏览器启动失败: {e}"
 
 

@@ -67,15 +67,16 @@ def main():
     print("=" * 50)
     import ast
     import inspect
-    source = inspect.getsource(sys.modules['core.comfyflow_client'])
+
+    source = inspect.getsource(sys.modules["core.comfyflow_client"])
     # 只检查真正的 import 语句，忽略 docstring/注释
     tree = ast.parse(source)
     imports = []
     for node in ast.walk(tree):
         if isinstance(node, (ast.Import, ast.ImportFrom)):
-            names = [a.name if isinstance(node, ast.Import) else (node.module or '') for a in node.names]
+            names = [a.name if isinstance(node, ast.Import) else (node.module or "") for a in node.names]
             imports.extend(n for n in names if n)
-    has_direct_import = any('comfyflow_compiler' in n for n in imports)
+    has_direct_import = any("comfyflow_compiler" in n for n in imports)
     if has_direct_import:
         print(f"   ❌ 失败: 客户端 import 了 comfyflow_compiler! ({imports})")
         sys.exit(1)

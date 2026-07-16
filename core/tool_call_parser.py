@@ -11,6 +11,7 @@ Also strips XML/HTML tags from output text.
 
 from __future__ import annotations
 
+import contextlib
 import html
 import json
 import logging
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Match <function-call ...> body </function-call>
 _FC_TAG_RE = re.compile(
-    r'<function-call\b[^>]*>(.*?)</function-call>',
+    r"<function-call\b[^>]*>(.*?)</function-call>",
     re.DOTALL | re.IGNORECASE,
 )
 
@@ -33,24 +34,25 @@ _FC_SELF_CLOSE_RE = re.compile(
 )
 
 # Strip all XML-like tags AND their content from text
-_TAG_STRIP_RE = re.compile(r'<[^>]+>')
+_TAG_STRIP_RE = re.compile(r"<[^>]+>")
 # Strip <function-call>...</function-call> entirely (tags + body)
 _FC_BLOCK_RE = re.compile(
-    r'<function-call\b[^>]*>.*?</function-call>',
+    r"<function-call\b[^>]*>.*?</function-call>",
     re.DOTALL | re.IGNORECASE,
 )
 # Strip self-closing <function-call ... />
 _FC_SELF_CLOSE_STRIP_RE = re.compile(
-    r'<function-call\b[^>]*?/\s*>',
+    r"<function-call\b[^>]*?/\s*>",
     re.IGNORECASE,
 )
 # Strip <tools> blocks
 _TOOLS_BLOCK_RE = re.compile(
-    r'<tools>.*?</tools>',
+    r"<tools>.*?</tools>",
     re.DOTALL | re.IGNORECASE,
 )
 
 # ── JSON / Python literal parsing ─────────────────
+
 
 def _parse_args(raw: str) -> dict:
     """Try to parse arguments as JSON, Python literal, or key-value extraction."""
@@ -70,6 +72,7 @@ def _parse_args(raw: str) -> dict:
     # Try Python dict literal
     try:
         import ast
+
         result = ast.literal_eval(raw)
         if isinstance(result, dict):
             return result
@@ -82,7 +85,7 @@ def _parse_args(raw: str) -> dict:
 
 def _extract_kv_pairs(raw: str) -> dict:
     """Extract key-value pairs from malformed JSON using string scanning.
-    
+
     Handles: {"key1": "val1", "key2": "val2 with \"unescaped\" quotes"}
     """
     result: dict = {}
@@ -94,27 +97,25 @@ def _extract_kv_pairs(raw: str) -> dict:
         # Unquote string values
         if val.startswith('"') and val.endswith('"'):
             val = val[1:-1]
-        elif val == 'true':
+        elif val == "true":
             val = True
-        elif val == 'false':
+        elif val == "false":
             val = False
-        elif val == 'null':
+        elif val == "null":
             val = None
         else:
             try:
                 val = int(val)
             except ValueError:
-                try:
+                with contextlib.suppress(ValueError):
                     val = float(val)
-                except ValueError:
-                    pass
         result[key] = val
     return result
 
 
 def _extract_tc_from_text(text: str) -> list[tuple[str, dict]]:
     """Extract (name, arguments) pairs from text.
-    
+
     Handles malformed JSON. If arguments can't be parsed, uses raw string.
     """
     results: list[tuple[str, dict]] = []
@@ -140,14 +141,14 @@ def _extract_tc_from_text(text: str) -> list[tuple[str, dict]]:
             c = text[i]
             if esc:
                 esc = False
-            elif c == '\\':
+            elif c == "\\":
                 esc = True
             elif c == '"' and not esc:
                 in_str = not in_str
             elif not in_str:
-                if c == '{':
+                if c == "{":
                     depth += 1
-                elif c == '}':
+                elif c == "}":
                     depth -= 1
                     if depth == 0:
                         end = i + 1
@@ -164,7 +165,7 @@ def _extract_tc_from_text(text: str) -> list[tuple[str, dict]]:
     results = []
     i = 0
     while i < len(text):
-        if text[i] == '{':
+        if text[i] == "{":
             depth = 0
             in_string = False
             escape = False
@@ -173,17 +174,17 @@ def _extract_tc_from_text(text: str) -> list[tuple[str, dict]]:
                 c = text[i]
                 if escape:
                     escape = False
-                elif c == '\\':
+                elif c == "\\":
                     escape = True
                 elif c == '"' and not escape:
                     in_string = not in_string
                 elif not in_string:
-                    if c == '{':
+                    if c == "{":
                         depth += 1
-                    elif c == '}':
+                    elif c == "}":
                         depth -= 1
                         if depth == 0:
-                            results.append(text[start:i + 1])
+                            results.append(text[start : i + 1])
                             break
                 i += 1
         i += 1
@@ -191,6 +192,7 @@ def _extract_tc_from_text(text: str) -> list[tuple[str, dict]]:
 
 
 # ── Main API ──────────────────────────────────────
+
 
 def extract_tool_calls(text: str) -> tuple[list[dict], str]:
     """Extract tool calls from model text output.
@@ -206,10 +208,10 @@ def extract_tool_calls(text: str) -> tuple[list[dict], str]:
     # Format 1: <function-call>JSON</function-call>
     for match in _FC_TAG_RE.finditer(text):
         body = match.group(1).strip()
-        if body.startswith('{'):
+        if body.startswith("{"):
             data = _parse_args(body)
-            name = data.pop('name', '')
-            args = data.pop('arguments', data)  # if no 'arguments' key, use the rest
+            name = data.pop("name", "")
+            args = data.pop("arguments", data)  # if no 'arguments' key, use the rest
             if name:
                 tool_calls.append(_make_tc(call_index, name, args))
                 call_index += 1
@@ -225,25 +227,28 @@ def extract_tool_calls(text: str) -> tuple[list[dict], str]:
 
     # Format 3: raw JSON with "name" and "arguments" keys
     # Skip content inside <tools> blocks (tool definitions, not calls)
-    text_no_tools = _TOOLS_BLOCK_RE.sub('', text)
+    text_no_tools = _TOOLS_BLOCK_RE.sub("", text)
     for name, args in _extract_tc_from_text(text_no_tools):
         if name and args:
             tool_calls.append(_make_tc(call_index, name, args))
             call_index += 1
 
     # Strip all function-call blocks and XML tags from text
-    cleaned = _FC_BLOCK_RE.sub('', text)
-    cleaned = _FC_SELF_CLOSE_STRIP_RE.sub('', cleaned)
-    cleaned = _TOOLS_BLOCK_RE.sub('', cleaned)
+    cleaned = _FC_BLOCK_RE.sub("", text)
+    cleaned = _FC_SELF_CLOSE_STRIP_RE.sub("", cleaned)
+    cleaned = _TOOLS_BLOCK_RE.sub("", cleaned)
     # Strip extracted raw JSON tool call blocks
     for name, _ in _extract_tc_from_text(cleaned):
         cleaned = re.sub(
             r'\{\s*"name"\s*:\s*"' + re.escape(name) + r'".*?\n\}',
-            '', cleaned, count=1, flags=re.DOTALL,
+            "",
+            cleaned,
+            count=1,
+            flags=re.DOTALL,
         )
-    cleaned = _TAG_STRIP_RE.sub('', cleaned)
+    cleaned = _TAG_STRIP_RE.sub("", cleaned)
     # Collapse whitespace
-    cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     cleaned = cleaned.strip()
     cleaned = cleaned.strip()
 
@@ -266,4 +271,4 @@ def _make_tc(index: int, name: str, arguments: dict) -> dict:
 
 def has_xml_tool_calls(text: str) -> bool:
     """Quick check if text contains XML-format tool calls."""
-    return '<function-call' in text.lower()
+    return "<function-call" in text.lower()

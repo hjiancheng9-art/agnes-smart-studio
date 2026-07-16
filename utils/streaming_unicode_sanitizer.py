@@ -23,7 +23,7 @@ class StreamingUnicodeSanitizer:
     孤立的高位/低位代理替换为 U+FFFD。
     """
 
-    REPLACEMENT = "\uFFFD"
+    REPLACEMENT = "\ufffd"
 
     def __init__(self) -> None:
         self._pending_high: str | None = None

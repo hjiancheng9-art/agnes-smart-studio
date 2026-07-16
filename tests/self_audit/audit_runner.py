@@ -79,15 +79,17 @@ def generate_trace_report(suite_results: dict[str, dict]) -> dict:
         s = result["summary"]
         for k in total:
             total[k] += s.get(k, 0)
-        suites.append({
-            "suite": suite_name,
-            "status": "✅" if s.get("failed", 0) == 0 and s.get("errors", 0) == 0 else "❌",
-            "passed": s.get("passed", 0),
-            "failed": s.get("failed", 0),
-            "skipped": s.get("skipped", 0),
-            "errors": s.get("errors", 0),
-            "duration_seconds": result.get("duration_seconds", 0),
-        })
+        suites.append(
+            {
+                "suite": suite_name,
+                "status": "✅" if s.get("failed", 0) == 0 and s.get("errors", 0) == 0 else "❌",
+                "passed": s.get("passed", 0),
+                "failed": s.get("failed", 0),
+                "skipped": s.get("skipped", 0),
+                "errors": s.get("errors", 0),
+                "duration_seconds": result.get("duration_seconds", 0),
+            }
+        )
 
     report = {
         "trace_id": trace_id,
@@ -140,42 +142,44 @@ def print_report(report: dict):
     """Print report to console."""
     print(banner(f"Self-Audit Complete: {report['trace_id']}"))
     print(f"  Overall: {report['overall']}")
-    print(f"  Total:   {report['total']['passed']} ✅ / {report['total']['failed']} ❌ "
-          f"/ {report['total']['skipped']} ⏭️ / {report['total']['errors']} ⚠️")
+    print(
+        f"  Total:   {report['total']['passed']} ✅ / {report['total']['failed']} ❌ "
+        f"/ {report['total']['skipped']} ⏭️ / {report['total']['errors']} ⚠️"
+    )
     print()
     for suite in report["suites"]:
-        print(f"  {suite['status']} {suite['suite']:40s} "
-              f"P:{suite['passed']} F:{suite['failed']} S:{suite['skipped']} "
-              f"({suite['duration_seconds']}s)")
+        print(
+            f"  {suite['status']} {suite['suite']:40s} "
+            f"P:{suite['passed']} F:{suite['failed']} S:{suite['skipped']} "
+            f"({suite['duration_seconds']}s)"
+        )
     print()
 
 
 SUITES = {
-    "tool":        ["tests/self_audit/test_tool_call_chain.py", "-v"],
-    "routing":     ["tests/self_audit/test_model_routing.py", "-v"],
-    "injection":   ["tests/self_audit/test_prompt_injection.py", "-v"],
-    "cdp":         ["tests/self_audit/test_cdp_stability.py", "-v"],
-    "recovery":    ["tests/self_audit/test_failure_recovery.py", "-v"],
-    "all":         ["tests/self_audit/", "-v"],
-    "quick":       [
+    "tool": ["tests/self_audit/test_tool_call_chain.py", "-v"],
+    "routing": ["tests/self_audit/test_model_routing.py", "-v"],
+    "injection": ["tests/self_audit/test_prompt_injection.py", "-v"],
+    "cdp": ["tests/self_audit/test_cdp_stability.py", "-v"],
+    "recovery": ["tests/self_audit/test_failure_recovery.py", "-v"],
+    "all": ["tests/self_audit/", "-v"],
+    "quick": [
         "tests/self_audit/test_tool_call_chain.py",
         "tests/self_audit/test_model_routing.py",
         "tests/self_audit/test_prompt_injection.py",
         "tests/self_audit/test_failure_recovery.py",
         "-v",
-        "-k", "not cdp",
+        "-k",
+        "not cdp",
     ],
 }
 
 
 def main():
     parser = argparse.ArgumentParser(description="CRUX Studio Self-Audit Runner")
-    parser.add_argument("--suite", choices=list(SUITES.keys()), default="all",
-                        help="Which suite to run")
-    parser.add_argument("--quick", action="store_true",
-                        help="Quick mode: skip CDP + slow tests")
-    parser.add_argument("--verbose", "-v", action="store_true",
-                        help="Verbose output")
+    parser.add_argument("--suite", choices=list(SUITES.keys()), default="all", help="Which suite to run")
+    parser.add_argument("--quick", action="store_true", help="Quick mode: skip CDP + slow tests")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
     args = parser.parse_args()
 
     suite_name = args.suite

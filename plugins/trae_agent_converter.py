@@ -39,6 +39,7 @@ def cmd_trae_convert(args: list[str]) -> str:
 
     # 调用转换器
     from tools.trae_to_skill import trae_to_skill
+
     name = data.get("agentName", data.get("name", Path(filepath).stem))
     skill_name = name.lower().replace(" ", "-").replace("_", "-")
     out_path = SKILLS_DIR / f"{skill_name}.skill.json"
@@ -67,14 +68,10 @@ def cmd_trae_export(args: list[str]) -> str:
     out_path = args[1] if len(args) > 1 else filepath.replace(".skill.json", ".trae-agent.json")
 
     from tools.trae_to_skill import skill_to_trae
+
     trae = skill_to_trae(filepath, out_path)
 
-    return (
-        f"✅ 导出完成！\n"
-        f"   源文件: {filepath}\n"
-        f"   输出: {out_path}\n"
-        f"   Agent: {trae.get('agentName', 'unnamed')}"
-    )
+    return f"✅ 导出完成！\n   源文件: {filepath}\n   输出: {out_path}\n   Agent: {trae.get('agentName', 'unnamed')}"
 
 
 def cmd_trae_batch(args: list[str]) -> str:
@@ -89,6 +86,7 @@ def cmd_trae_batch(args: list[str]) -> str:
         return f"目录不存在: {input_dir}"
 
     from tools.trae_to_skill import batch_convert
+
     results = batch_convert(input_dir, output_dir)
 
     lines = [f"✅ 批量转换完成: {len(results)} 个"]
@@ -110,7 +108,7 @@ def cmd_trae_new(args: list[str]) -> str:
         f"准备创建 agent: {name}\n"
         f"描述: {desc}\n\n"
         f"请提供系统提示词 (prompt)，或者在命令行执行:\n"
-        f"  python tools/trae_to_skill.py import \"{name}\" \"{desc}\"\n"
+        f'  python tools/trae_to_skill.py import "{name}" "{desc}"\n'
         f"然后粘贴 prompt 内容。"
     )
 

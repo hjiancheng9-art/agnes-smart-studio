@@ -9,45 +9,87 @@ from typing import Any
 
 # Keywords that indicate different task characteristics
 _DANGER_KEYWORDS = [
-    "delete", "remove", "rm ", "rmdir", "del ", "wipe", "clear", "truncate",
-    "覆盖", "删除", "清空",
+    "delete",
+    "remove",
+    "rm ",
+    "rmdir",
+    "del ",
+    "wipe",
+    "clear",
+    "truncate",
+    "覆盖",
+    "删除",
+    "清空",
 ]
 
 _SHELL_KEYWORDS = [
-    "run ", "exec", "bash", "shell", "command", "cmd ", "terminal",
-    "执行", "运行",
+    "run ",
+    "exec",
+    "bash",
+    "shell",
+    "command",
+    "cmd ",
+    "terminal",
+    "执行",
+    "运行",
 ]
 
 _ARCH_KEYWORDS = [
-    "architecture", "design", "refactor", "restructur", "migrate",
-    "pattern", "strategy", "trade-off", "decision",
-    "架构", "设计", "重构",
+    "architecture",
+    "design",
+    "refactor",
+    "restructur",
+    "migrate",
+    "pattern",
+    "strategy",
+    "trade-off",
+    "decision",
+    "架构",
+    "设计",
+    "重构",
 ]
 
 _MULTI_STEP_KEYWORDS = [
-    "first", "then", "after that", "step", "phase", "stage",
-    "先", "然后", "之后", "步骤",
+    "first",
+    "then",
+    "after that",
+    "step",
+    "phase",
+    "stage",
+    "先",
+    "然后",
+    "之后",
+    "步骤",
 ]
 
 _FAILURE_KEYWORDS = [
-    "still not", "doesn't work", "broken", "failed", "error",
-    "不对", "不行", "炸了", "失败了", "还是不行",
+    "still not",
+    "doesn't work",
+    "broken",
+    "failed",
+    "error",
+    "不对",
+    "不行",
+    "炸了",
+    "失败了",
+    "还是不行",
 ]
 
 
 @dataclass(frozen=True)
 class TaskSignals:
     """Signals extracted from user input for policy routing."""
+
     user_message_length: int = 0
     estimated_task_complexity: float = 0.0  # 0.0 - 1.0
-    estimated_risk: float = 0.0             # 0.0 - 1.0
+    estimated_risk: float = 0.0  # 0.0 - 1.0
     requires_tools: bool = False
     requires_file_write: bool = False
     requires_shell: bool = False
     requires_multi_step: bool = False
     requires_architecture_reasoning: bool = False
-    token_pressure: float = 0.0             # 0.0 - 1.0
-    prior_failure_score: float = 0.0        # 0.0 - 1.0
+    token_pressure: float = 0.0  # 0.0 - 1.0
+    prior_failure_score: float = 0.0  # 0.0 - 1.0
     has_danger_keywords: bool = False
     has_failure_indicator: bool = False
 
@@ -95,9 +137,9 @@ class SignalExtractor:
 
         # Requires tools: any invocation-like pattern, or code blocks
         requires_tools = (
-            bool(re.search(r'<invoke\b', user_message))
-            or bool(re.search(r'read_file|write_file|run_bash|run_python|edit_file', user_message))
-            or bool(re.search(r'```(?:python|bash|js|ts|go|rust)', user_message))
+            bool(re.search(r"<invoke\b", user_message))
+            or bool(re.search(r"read_file|write_file|run_bash|run_python|edit_file", user_message))
+            or bool(re.search(r"```(?:python|bash|js|ts|go|rust)", user_message))
             or text_len > 200
         )
 
@@ -139,10 +181,14 @@ class SignalExtractor:
         token_pressure = min(current_tokens / max(max_tokens, 1), 1.0)
 
         # Prior failure score
-        prior_failure_score = min(
-            prior_failures / max(prior_total_turns, 1) * 2,
-            1.0,
-        ) if prior_total_turns > 0 else 0.0
+        prior_failure_score = (
+            min(
+                prior_failures / max(prior_total_turns, 1) * 2,
+                1.0,
+            )
+            if prior_total_turns > 0
+            else 0.0
+        )
 
         return TaskSignals(
             user_message_length=text_len,

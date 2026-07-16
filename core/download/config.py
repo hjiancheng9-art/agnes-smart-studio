@@ -14,11 +14,15 @@ CONFIG_DIR = Path.home() / ".crux" / "download"
 CONFIG_FILE = CONFIG_DIR / "config.toml"
 
 
+def _get_aria2_rpc_url() -> str:
+    return os.getenv("ARIA2_RPC_URL", "http://127.0.0.1:6800/jsonrpc").strip().rstrip("/")
+
+
 @dataclass
 class Aria2Settings:
     enabled: bool = True
     path: str = "aria2c"
-    rpc_url: str = "http://127.0.0.1:6800/jsonrpc"
+    rpc_url: str = field(default_factory=_get_aria2_rpc_url)
     rpc_secret: str | None = None
     split: int = 8
     max_connection_per_server: int = 8

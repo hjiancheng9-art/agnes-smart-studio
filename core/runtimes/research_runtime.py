@@ -8,6 +8,7 @@ Research Runtime — 研究调查运行时
 - 输出: research_summary / comparisons / recommendations
 - 步骤: 收集资料 → 交叉验证 → 结构化输出
 """
+
 from __future__ import annotations
 
 import logging
@@ -60,11 +61,17 @@ class ResearchRuntime(BaseRuntime):
     def _extract_topics(self, request: str) -> list[str]:
         topics = []
         # 提取 vs 前后的技术名
-        vs_match = re.findall(r'(\w+(?:DB|SQL|NoSQL|MQ|API)?)\s*(?:vs|对比|与.*?对比|和.*?对比|还是)\s*(\w+(?:DB|SQL|NoSQL|MQ|API)?)', request)
+        vs_match = re.findall(
+            r"(\w+(?:DB|SQL|NoSQL|MQ|API)?)\s*(?:vs|对比|与.*?对比|和.*?对比|还是)\s*(\w+(?:DB|SQL|NoSQL|MQ|API)?)",
+            request,
+        )
         for a, b in vs_match:
             topics.extend([a, b])
         # 提取技术关键词
-        techs = re.findall(r'(RAG|LLM|GPT|向量|embedding|微服务|Docker|K8S|Kubernetes|AWS|GCP|Azure|React|Vue|Angular|PostgreSQL|MySQL|MongoDB|Redis|Kafka|RabbitMQ|gRPC|REST|GraphQL)', request)
+        techs = re.findall(
+            r"(RAG|LLM|GPT|向量|embedding|微服务|Docker|K8S|Kubernetes|AWS|GCP|Azure|React|Vue|Angular|PostgreSQL|MySQL|MongoDB|Redis|Kafka|RabbitMQ|gRPC|REST|GraphQL)",
+            request,
+        )
         topics.extend(techs)
         return list(set(topics))[:5] or ["待识别技术领域"]
 

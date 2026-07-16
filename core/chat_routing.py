@@ -13,15 +13,15 @@ import re
 # Vision-complexity keyword signatures (Chinese + English). A hit means the
 # request likely needs a stronger vision model / larger token budget.
 _COMPLEX_RE = re.compile(
-        r"(数一数|多少个|计数|count|how many)|"
-        r"(代码|code|函数|function|class |import |def )|"
-        r"(图表|graph|chart|柱状|饼图|折线|scatter|bar chart)|"
-        r"(对比|区别|差异|difference|compare|diff)|"
-        r"(计算|算一算|calculate|compute|面积|周长|角度)|"
-        r"(推理|推断|infer|deduce|逻辑|logical)|"
-        r"(流程|flowchart|架构|architecture|拓扑|topology)|"
-        r"(详细分析|深入|逐步|step.by.step|explain in detail)|"
-        r"(公式|equation|math|数学)",
+    r"(数一数|多少个|计数|count|how many)|"
+    r"(代码|code|函数|function|class |import |def )|"
+    r"(图表|graph|chart|柱状|饼图|折线|scatter|bar chart)|"
+    r"(对比|区别|差异|difference|compare|diff)|"
+    r"(计算|算一算|calculate|compute|面积|周长|角度)|"
+    r"(推理|推断|infer|deduce|逻辑|logical)|"
+    r"(流程|flowchart|架构|architecture|拓扑|topology)|"
+    r"(详细分析|深入|逐步|step.by.step|explain in detail)|"
+    r"(公式|equation|math|数学)",
     re.IGNORECASE,
 )
 

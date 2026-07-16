@@ -1,4 +1,5 @@
 """Tests for terminal_splash.py — startup splash screen."""
+
 import pytest
 
 from ui.terminal_splash import build_border_line, build_logo_lines, build_scanline, print_splash
@@ -9,6 +10,7 @@ class TestSplash:
 
     def test_module_imports(self):
         import ui.terminal_splash
+
         assert ui.terminal_splash is not None
 
     def test_print_splash_no_crash(self):
@@ -35,7 +37,7 @@ class TestSplash:
         assert len(line) > 0
 
     def test_build_border_line_custom_char(self):
-        line = build_border_line(char='═')
+        line = build_border_line(char="═")
         assert isinstance(line, str)
         assert len(line) > 0
 

@@ -8,9 +8,8 @@ Phase 2: Result validation + Consistency check + Diff guard
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from core.benchmark.runner import BenchmarkResult, BenchmarkRunner, TaskResult
 from core.benchmark.scorer import (
@@ -36,7 +35,6 @@ from core.field_arena import (
     FieldSession,
     ReplaySessionResult,
 )
-from core.intelligence.policy import ExecutionPolicy
 from core.intelligence.router import IntelligencePolicyRouter
 from core.repo_understanding import ProjectContextPack, ProjectOS
 from core.result_validator import (
@@ -63,7 +61,12 @@ from core.trace_debugger import (
     TracePlayer,
     get_recorder,
 )
-from core.validation_errors import ValidationIssue
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from core.intelligence.policy import ExecutionPolicy
+    from core.validation_errors import ValidationIssue
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +74,7 @@ logger = logging.getLogger(__name__)
 def _default_schema_provider(tool_name: str) -> dict | None:
     try:
         from core.tool_router import get_tool_schema
+
         return get_tool_schema(tool_name)
     except Exception:
         return None
@@ -139,12 +143,14 @@ class ValidationLayer:
 
     def track_tool_call(self, tool_name: str, args: dict, result: str, success: bool):
         """Record a tool call for later consistency checking."""
-        self._tool_history.append({
-            "tool_name": tool_name,
-            "args": args,
-            "result": result,
-            "success": success,
-        })
+        self._tool_history.append(
+            {
+                "tool_name": tool_name,
+                "args": args,
+                "result": result,
+                "success": success,
+            }
+        )
 
     def check_consistency(self, llm_answer: str) -> ConsistencyReport:
         """Check LLM final answer against tool execution history."""
@@ -165,7 +171,9 @@ class ValidationLayer:
 
     # ── Result wrapping (unchanged from Phase 1) ───────────────
 
-    def wrap_tool_result(self, tool_name: str, raw_result: Any, error_msg: str = "", hints: list[str] | None = None) -> ToolResult:
+    def wrap_tool_result(
+        self, tool_name: str, raw_result: Any, error_msg: str = "", hints: list[str] | None = None
+    ) -> ToolResult:
         if error_msg:
             return ToolResult.fail(
                 code="TOOL_FAILED",
@@ -212,16 +220,15 @@ class ValidationLayer:
         """Inject compiled context into system prompt."""
         return self.context_memory.inject_into_system_prompt(system_prompt, current_tokens)
 
-
     # ── Phase 4: Multi-Agent collaboration ─────────────────────
 
-    def review_turn(self, user_query: str, assistant_response: str,
-                    tool_results: list[dict] | None = None) -> ReviewReport:
+    def review_turn(
+        self, user_query: str, assistant_response: str, tool_results: list[dict] | None = None
+    ) -> ReviewReport:
         """Review a conversation turn for quality issues."""
         return self.multi_agent.review_turn(user_query, assistant_response, tool_results)
 
-    def critique_turn(self, user_query: str, assistant_response: str,
-                      tool_results: list[dict] | None = None):
+    def critique_turn(self, user_query: str, assistant_response: str, tool_results: list[dict] | None = None):
         """Get a skeptical second opinion."""
         return self.multi_agent.critique_turn(user_query, assistant_response, tool_results)
 
@@ -235,7 +242,6 @@ class ValidationLayer:
         self.multi_agent.rev.llm_callback = callback
         self.multi_agent.debate.llm_callback = callback
         self.multi_agent.decomposer.llm_callback = callback
-
 
     # ── Phase 5: Skill / Prompt compiler ───────────────────────
 
@@ -283,8 +289,15 @@ class ValidationLayer:
         """Export telemetry data to JSON file."""
         return self.telemetry.export(path)
 
-    def record_telemetry(self, event: str, phase: str = "", tool_name: str = "",
-                         duration_ms: float = 0.0, success: bool = True, detail: str = ""):
+    def record_telemetry(
+        self,
+        event: str,
+        phase: str = "",
+        tool_name: str = "",
+        duration_ms: float = 0.0,
+        success: bool = True,
+        detail: str = "",
+    ):
         """Record a telemetry event (no-op if telemetry disabled)."""
         if self.config.p6_telemetry:
             self.telemetry.record(event, phase, tool_name, duration_ms, success, detail)
@@ -375,9 +388,15 @@ class ValidationLayer:
         """Start a new trace session for decision recording."""
         return self.decision_recorder.new_session(session_id, tags)
 
-    def record_decision(self, category: str, decision: str, reason: str,
-                        alternatives: list[str] | None = None, outcome: str = "",
-                        duration_ms: float = 0.0):
+    def record_decision(
+        self,
+        category: str,
+        decision: str,
+        reason: str,
+        alternatives: list[str] | None = None,
+        outcome: str = "",
+        duration_ms: float = 0.0,
+    ):
         """Record a decision point in the current trace session."""
         current = self.decision_recorder.current
         if current:
@@ -389,20 +408,14 @@ class ValidationLayer:
 
     def inspect_trace(self, session_id: str | None = None) -> DiagnosticReport:
         """Get diagnostic report for a session."""
-        if session_id:
-            record = self.decision_recorder.get(session_id)
-        else:
-            record = self.decision_recorder.current
+        record = self.decision_recorder.get(session_id) if session_id else self.decision_recorder.current
         if not record:
             return DiagnosticReport(summary="No trace data available")
         return RunInspector().inspect(record)
 
     def replay_trace(self, session_id: str | None = None) -> list[str]:
         """Replay a trace session step by step."""
-        if session_id:
-            record = self.decision_recorder.get(session_id)
-        else:
-            record = self.decision_recorder.current
+        record = self.decision_recorder.get(session_id) if session_id else self.decision_recorder.current
         if not record:
             return ["No trace data available"]
         return TracePlayer(record).play()
@@ -524,21 +537,18 @@ class ValidationLayer:
 
     def field_replay_all(self) -> list[ReplaySessionResult]:
         """Replay all recorded field sessions."""
-        return self._field_arena.replay_runner.replay_all(
-            self._field_arena._field_sessions
-        )
+        return self._field_arena.replay_runner.replay_all(self._field_arena._field_sessions)
 
-    def field_evaluate(self, benchmark_result: BenchmarkResult | None = None,
-                       field_weight: float = 0.3) -> FieldScorecard:
+    def field_evaluate(
+        self, benchmark_result: BenchmarkResult | None = None, field_weight: float = 0.3
+    ) -> FieldScorecard:
         """Run field replay + combine with benchmark scores."""
-        if benchmark_result:
-            sc = self.score_benchmark(benchmark_result)
-        else:
-            sc = None
+        sc = self.score_benchmark(benchmark_result) if benchmark_result else None
         return self._field_arena.evaluate(sc, field_weight=field_weight)
 
-    def field_release_gate(self, field_scorecard: FieldScorecard,
-                           min_bench: float = 70.0, min_field: float = 60.0) -> ReleaseGateResult:
+    def field_release_gate(
+        self, field_scorecard: FieldScorecard, min_bench: float = 70.0, min_field: float = 60.0
+    ) -> ReleaseGateResult:
         """Dual release gate: benchmark + field passes required."""
         return self._field_arena.release_gate(field_scorecard, min_bench, min_field)
 

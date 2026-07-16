@@ -66,7 +66,9 @@ class TestTaskSuite:
 class TestBenchmarkRunner:
     def test_run_task_success(self, runner):
         t = BenchmarkTask(
-            id="test_pass", category="qa", difficulty="easy",
+            id="test_pass",
+            category="qa",
+            difficulty="easy",
             prompt="What is Python?",
             expected_keywords=["programming", "language"],
             min_response_length=20,
@@ -78,7 +80,9 @@ class TestBenchmarkRunner:
 
     def test_run_task_fail_empty(self, runner):
         t = BenchmarkTask(
-            id="test_fail", category="qa", difficulty="easy",
+            id="test_fail",
+            category="qa",
+            difficulty="easy",
             prompt="Say something",
             min_response_length=50,
         )
@@ -88,7 +92,9 @@ class TestBenchmarkRunner:
 
     def test_run_task_missing_keywords(self, runner):
         t = BenchmarkTask(
-            id="test_kw", category="qa", difficulty="easy",
+            id="test_kw",
+            category="qa",
+            difficulty="easy",
             prompt="Explain git",
             expected_keywords=["commit", "branch", "merge"],
             min_response_length=20,
@@ -99,7 +105,9 @@ class TestBenchmarkRunner:
 
     def test_run_task_forbidden_keywords(self, runner):
         t = BenchmarkTask(
-            id="test_fk", category="qa", difficulty="easy",
+            id="test_fk",
+            category="qa",
+            difficulty="easy",
             prompt="Explain",
             forbidden_keywords=["badword"],
             min_response_length=20,
@@ -109,7 +117,9 @@ class TestBenchmarkRunner:
 
     def test_run_task_tool_calls(self, runner):
         t = BenchmarkTask(
-            id="test_tools", category="tool_use", difficulty="medium",
+            id="test_tools",
+            category="tool_use",
+            difficulty="medium",
             prompt="Read a file",
             expected_tools=["read_file"],
             min_response_length=20,
@@ -120,7 +130,9 @@ class TestBenchmarkRunner:
 
     def test_run_task_too_many_tools(self, runner):
         t = BenchmarkTask(
-            id="test_maxtools", category="tool_use", difficulty="medium",
+            id="test_maxtools",
+            category="tool_use",
+            difficulty="medium",
             prompt="Do stuff",
             max_tool_calls=2,
             min_response_length=20,
@@ -177,7 +189,14 @@ class TestBenchmarkResult:
 
 class TestBenchmarkScorecard:
     def test_compute(self, runner):
-        t1 = BenchmarkTask(id="c1", category="code_gen", difficulty="easy", prompt="X", expected_keywords=["def"], min_response_length=10)
+        t1 = BenchmarkTask(
+            id="c1",
+            category="code_gen",
+            difficulty="easy",
+            prompt="X",
+            expected_keywords=["def"],
+            min_response_length=10,
+        )
         t2 = BenchmarkTask(id="c2", category="debug", difficulty="easy", prompt="Y", min_response_length=10)
         r1 = runner.run_task(t1, response="def foo(): pass")
         r2 = runner.run_task(t2, response="bug fixed")
@@ -281,12 +300,14 @@ class TestBenchmarkHistory:
 class TestIntegration:
     def test_validation_layer_has_benchmark(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         assert hasattr(vl, "_bench_suite")
         assert hasattr(vl, "_bench_runner")
 
     def test_run_benchmark_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         # Run a single task
         result = vl.run_benchmark(task_ids=["qa_explain"])
@@ -294,12 +315,14 @@ class TestIntegration:
 
     def test_evaluate_task_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         tr = vl.evaluate_task("qa_explain", response="Python is a language")
         assert tr.task_id == "qa_explain"
 
     def test_evaluate_task_not_found(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         tr = vl.evaluate_task("nonexistent", response="")
         assert not tr.success
@@ -307,6 +330,7 @@ class TestIntegration:
     def test_score_benchmark_through_layer(self):
         from core.benchmark.runner import BenchmarkResult
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         tr = TaskResult(task_id="t1", category="qa", difficulty="easy", success=True, response="hello", score=90.0)
         br = BenchmarkResult(suite_name="test", total_tasks=1, passed=1, failed=0, task_results=[tr])
@@ -315,6 +339,7 @@ class TestIntegration:
 
     def test_release_evaluation_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         # Run a real task to get a proper result
         result = vl.run_benchmark(task_ids=["qa_explain"])
@@ -323,4 +348,5 @@ class TestIntegration:
 
     def test_chat_p12_flag(self):
         import py_compile
+
         py_compile.compile("core/chat.py", doraise=True)

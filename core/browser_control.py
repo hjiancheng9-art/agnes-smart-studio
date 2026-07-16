@@ -42,15 +42,18 @@ logger = logging.getLogger(__name__)
 # 平台选择器配置 — 从 browser-control.skill.json 提取
 # ============================================================
 
+
 @dataclass
 class PlatformConfig:
     """单个 AI 平台的 DOM 选择器与交互策略"""
+
     name: str
     url: str
     # 输入框选择器（按优先级排列）
     input_selectors: list[str] = field(default_factory=list)
-    # 提交方式: "enter" | "click"
-    submit_method: str = "enter"
+    # 提交方式: "enter" | "click"（click 方式需提供 submit_selector）
+    submit_method: str = "click"
+    submit_selector: str = ""
     submit_selectors: list[str] = field(default_factory=list)
     # 回复容器选择器
     response_selectors: list[str] = field(default_factory=list)
@@ -72,14 +75,15 @@ PLATFORMS: dict[str, PlatformConfig] = {
         url="https://chatgpt.com",
         input_selectors=[
             'div#prompt-textarea[contenteditable="true"]',
-            '#prompt-textarea',
+            "#prompt-textarea",
             '[data-id="root"] [contenteditable="true"]',
         ],
-        submit_method="enter",
+        submit_method="click",
+        submit_selector='[data-testid="send-button"]',
         submit_selectors=['[data-testid="send-button"]', 'button[aria-label="Send"]'],
         response_selectors=[
             '[data-message-author-role="assistant"]',
-            '.markdown',
+            ".markdown",
         ],
         wait_strategy="response_appears",
         wait_selector='[data-message-author-role="assistant"]',
@@ -93,13 +97,13 @@ PLATFORMS: dict[str, PlatformConfig] = {
         url="https://gemini.google.com",
         input_selectors=[
             '.ql-editor[contenteditable="true"]',
-            'div.ql-editor',
+            "div.ql-editor",
             'rich-textarea [contenteditable="true"]',
         ],
         submit_method="click",
-        submit_selectors=['button[aria-label="Send message"]', 'button.send-button'],
+        submit_selectors=['button[aria-label="Send message"]', "button.send-button"],
         response_selectors=[
-            '.message-content',
+            ".message-content",
             '[class*="response"]',
             '[class*="model-response"]',
         ],
@@ -114,8 +118,8 @@ PLATFORMS: dict[str, PlatformConfig] = {
         name="Kling",
         url="https://klingai.com",
         input_selectors=[
-            'textarea',
-            '.input-area textarea',
+            "textarea",
+            ".input-area textarea",
             '[class*="prompt"] textarea',
         ],
         submit_method="click",
@@ -125,7 +129,7 @@ PLATFORMS: dict[str, PlatformConfig] = {
             '[class*="generate"]',
         ],
         response_selectors=[
-            'video',
+            "video",
             '[class*="result"] video',
             '[class*="output"]',
         ],
@@ -138,8 +142,8 @@ PLATFORMS: dict[str, PlatformConfig] = {
         name="Jimeng",
         url="https://jimeng.jianying.com",
         input_selectors=[
-            'textarea',
-            '.prompt-input',
+            "textarea",
+            ".prompt-input",
             '[class*="input"] textarea',
         ],
         submit_method="click",
@@ -151,7 +155,7 @@ PLATFORMS: dict[str, PlatformConfig] = {
         response_selectors=[
             'img[class*="result"]',
             '[class*="output"] img',
-            '.generated-image',
+            ".generated-image",
         ],
         wait_strategy="element_count",
         wait_selector='img[class*="result"], [class*="output"] img',
@@ -162,8 +166,8 @@ PLATFORMS: dict[str, PlatformConfig] = {
         name="Runway",
         url="https://runwayml.com",
         input_selectors=[
-            'textarea',
-            '.prompt-field textarea',
+            "textarea",
+            ".prompt-field textarea",
             '[class*="prompt"] textarea',
         ],
         submit_method="click",
@@ -173,7 +177,7 @@ PLATFORMS: dict[str, PlatformConfig] = {
             'button[type="submit"]',
         ],
         response_selectors=[
-            'video',
+            "video",
             '[class*="output"] video',
             '[class*="result"]',
         ],
@@ -186,8 +190,8 @@ PLATFORMS: dict[str, PlatformConfig] = {
         name="Luma",
         url="https://lumalabs.ai",
         input_selectors=[
-            'textarea',
-            '.prompt-box textarea',
+            "textarea",
+            ".prompt-box textarea",
             '[class*="prompt"] textarea',
         ],
         submit_method="click",
@@ -197,7 +201,7 @@ PLATFORMS: dict[str, PlatformConfig] = {
             '[class*="generate"]',
         ],
         response_selectors=[
-            'video',
+            "video",
             'img[class*="result"]',
             '[class*="output"]',
         ],
@@ -212,23 +216,20 @@ PLATFORMS: dict[str, PlatformConfig] = {
 # BrowserController — 主控类
 # ============================================================
 
-CDP_URL = "http://127.0.0.1:9222"
 OUTPUT_DIR = "output"
 
 
 class BrowserController:
-    """Playwright CDP 浏览器主控
+    """Playwright 持久化浏览器主控
 
-    优先连接已有 CDP 浏览器，找不到则启动新的 headless 浏览器。
+    使用 launch_persistent_context 启动 Edge（保留用户登录态），不走 CDP。
     """
 
-    def __init__(self, headless: bool = False, cdp_url: str = CDP_URL):
+    def __init__(self, headless: bool = False):
         self._playwright = None
-        self._browser = None
+        self._context = None  # BrowserContext (not Browser)
         self._page = None
         self._headless = headless
-        self._cdp_url = cdp_url
-        self._connected_via_cdp = False
         self._platform: PlatformConfig | None = None
 
     def _ensure_playwright(self):
@@ -242,67 +243,32 @@ class BrowserController:
                 ) from err
             self._playwright = sync_playwright().start()
 
-    def connect(self, timeout: float = 5.0) -> bool:
-        """连接到浏览器。优先 CDP，失败则启动 Edge（保留用户登录态）。
+    def connect(self) -> bool:
+        """连接到浏览器（持久化模式，无 CDP）。
 
-        Args:
-            timeout: CDP 连接超时（秒）
+        Returns:
+            True if connected successfully.
         """
         self._ensure_playwright()
 
-        # 方式1: CDP 连接已有浏览器 (带超时)
-        if timeout is not None:
-            import socket
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(timeout)
-            try:
-                s.connect(('127.0.0.1', 9222))
-                s.close()
-            except Exception:
-                s.close()
-                logger.debug("CDP 端口不可达，尝试启动 Edge")
-                timeout = None  # 跳过 CDP，走启动流程
-
-        if timeout is not None:
-            try:
-                self._browser = self._playwright.chromium.connect_over_cdp(
-                    self._cdp_url, timeout=int(timeout * 1000)
-                )
-                contexts = self._browser.contexts
-                if contexts and contexts[0].pages:
-                    self._page = contexts[0].pages[-1]
-                else:
-                    self._page = contexts[0].new_page() if contexts else self._browser.new_context().new_page()
-                self._connected_via_cdp = True
-                logger.info(f"CDP 已连接: {self._cdp_url}")
-                return True
-            except Exception as e:
-                logger.debug(f"CDP 连接失败 ({e})，尝试启动 Edge")
-
-        # 方式2: 启动 Edge 浏览器（使用默认 profile，保留用户登录态）
         try:
-            from core.cdp_browser import _ensure_cdp
-            try:
-                _ensure_cdp()
-            except RuntimeError as e:
-                logger.error(f"启动 Edge 失败: {e}")
-                return False
+            from core.cdp_browser import _connect
+
             self._playwright.stop()
             self._playwright = None
-            self._ensure_playwright()
-            self._browser = self._playwright.chromium.connect_over_cdp(
-                self._cdp_url, timeout=10000
-            )
-            contexts = self._browser.contexts
-            if contexts and contexts[0].pages:
-                self._page = contexts[0].pages[-1]
+            pw, context = _connect()
+            self._playwright = pw
+            self._context = context
+            # 获取默认页面
+            pages = self._context.pages
+            if pages:
+                self._page = pages[-1]
             else:
-                self._page = contexts[0].new_page() if contexts else self._browser.new_context().new_page()
-            self._connected_via_cdp = True
-            logger.info("已启动 Edge (CDP 模式，默认 profile)")
+                self._page = self._context.new_page()
+            logger.info("已启动浏览器 (持久化模式)")
             return True
         except Exception as e:
-            logger.error(f"启动 Edge 失败: {e}")
+            logger.error(f"启动浏览器失败: {e}")
             return False
 
     def ensure_page(self, platform_name: str | None = None) -> bool:
@@ -348,7 +314,8 @@ class BrowserController:
                 return True
         except Exception:
             import logging
-            logging.getLogger('crux').debug('silent except', exc_info=True)
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
 
         try:
             self._page.goto(self._platform.url, wait_until="domcontentloaded", timeout=30000)
@@ -377,13 +344,14 @@ class BrowserController:
 
         # 策略2: 泛化搜索 — 任何 textarea
         try:
-            el = self._page.locator('textarea').first
+            el = self._page.locator("textarea").first
             if el.is_visible(timeout=1000):
                 logger.info("输入框已找到 (textarea fallback)")
                 return el
         except Exception:
             import logging
-            logging.getLogger('crux').debug('silent except', exc_info=True)
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
 
         # 策略3: contenteditable
         try:
@@ -393,7 +361,8 @@ class BrowserController:
                 return el
         except Exception:
             import logging
-            logging.getLogger('crux').debug('silent except', exc_info=True)
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
 
         # 策略4: role=textbox
         try:
@@ -403,7 +372,8 @@ class BrowserController:
                 return el
         except Exception:
             import logging
-            logging.getLogger('crux').debug('silent except', exc_info=True)
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
 
         logger.warning("未找到输入框")
         return None
@@ -468,20 +438,25 @@ class BrowserController:
             return False
 
         try:
-            if self._platform.submit_method == "enter":
-                self._page.keyboard.press("Enter")
-                logger.info("已提交 (Enter)")
-                return True
-            else:
+            if self._platform.submit_method == "click":
+                sel = self._platform.submit_selector
+                if sel:
+                    btn = self._page.locator(sel).first
+                    btn.wait_for(state="visible", timeout=10000)
+                    btn.click()
+                    logger.info(f"已提交 (click: {sel})")
+                    return True
+                # fallback to submit_selectors list
                 btn = self.find_submit_button()
                 if btn:
                     btn.click()
-                    logger.info("已提交 (click)")
+                    logger.info("已提交 (click via submit_selectors)")
                     return True
-                # 回退到 Enter
-                self._page.keyboard.press("Enter")
-                logger.info("已提交 (Enter fallback)")
-                return True
+
+            # fallback: Enter
+            self._page.keyboard.press("Enter")
+            logger.info("已提交 (Enter fallback)")
+            return True
         except Exception as e:
             logger.error(f"提交失败: {e}")
             return False
@@ -624,33 +599,33 @@ class BrowserController:
         return False
 
     def disconnect(self):
-        """断开 CDP 连接（不关闭用户浏览器窗口）"""
+        """断开浏览器连接（不关闭用户浏览器窗口）"""
         try:
-            if self._browser:
-                self._browser.close()
+            if self._context:
+                self._context.close()
         except Exception:
             import logging
-            logging.getLogger('crux').debug('silent except', exc_info=True)
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
         finally:
-            self._browser = None
+            self._context = None
             self._page = None
             self._platform = None
 
     def close(self):
-        """关闭浏览器（headless 模式会彻底关闭；CDP 模式只断开连接，保留用户窗口）"""
+        """关闭浏览器（headless 模式会彻底关闭；持久化模式断开连接，保留用户窗口）"""
         self.disconnect()
 
     @property
     def is_connected(self) -> bool:
         """检查是否已连接且页面可用"""
-        if self._page is None or self._browser is None:
+        if self._page is None or self._context is None:
             return False
         try:
-            # 轻量探活 — 不发网络请求，只检查 page 对象是否还活着
             _ = self._page.url  # 探活
             return True
         except Exception:
-            self._browser = None
+            self._context = None
             self._page = None
             return False
 
@@ -708,8 +683,8 @@ def send_to_ai(platform: str, prompt: str, timeout: int | None = None) -> dict:
 
     try:
         # 只在未连接时才连，已连接的复用
-        if not bc.is_connected and not bc.connect(timeout=3.0):
-            result["error"] = "无法连接到浏览器 (CDP 端口不可达且无法启动 headless)"
+        if not bc.is_connected and not bc.connect():
+            result["error"] = "无法连接到浏览器 (持久化浏览器启动失败)"
             return result
 
         # 只在平台变化时才导航，减少页面刷新
@@ -717,7 +692,11 @@ def send_to_ai(platform: str, prompt: str, timeout: int | None = None) -> dict:
             if not bc.navigate(platform):
                 result["error"] = f"无法导航到 {platform}"
                 return result
-            time.sleep(2)  # 等待页面加载
+            # Wait for input element to be ready instead of fixed sleep
+            try:
+                bc._page.wait_for_selector(bc._platform.input_selectors[0], state="visible", timeout=10000)
+            except Exception:
+                pass  # fall through — fill_prompt will detect failures
 
         if not bc.fill_prompt(prompt):
             result["error"] = "无法填入提示词 — 请检查页面是否已加载完成，重试"
@@ -759,10 +738,12 @@ def list_platforms() -> dict[str, str]:
 # 尝试注册到能力注册表
 # ============================================================
 
+
 def _register_to_capability_registry():
     """将 browser-control 注册到系统的能力注册表"""
     try:
         from core.capability_registry import CapabilityRegistry
+
         registry = CapabilityRegistry()
         registry.register(
             name="browser-control",

@@ -20,7 +20,7 @@ from __future__ import annotations
 
 
 class StreamingUnicodeSanitizer:
-    REPLACEMENT = "\uFFFD"
+    REPLACEMENT = "\ufffd"
 
     def __init__(self) -> None:
         self._pending_high: str | None = None

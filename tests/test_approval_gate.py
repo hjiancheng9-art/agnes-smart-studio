@@ -1,4 +1,5 @@
 """Tests for approval_gate — permission boundary must be enforced."""
+
 import pytest
 
 pytestmark = pytest.mark.unit
@@ -12,6 +13,7 @@ from core.interfaces.tool import ToolCategory, ToolRisk, ToolSpec
 #  ApprovalGate should exist and block risky tools
 # ═══════════════════════════════════════════════════
 
+
 class TestApprovalGateExists:
     """Verify approval_gate module is importable."""
 
@@ -21,6 +23,7 @@ class TestApprovalGateExists:
 
         # Check if module file exists
         import os
+
         path = os.path.join("core", "approval_gate.py")
         exists = os.path.exists(path)
         if exists:
@@ -32,9 +35,11 @@ class TestApprovalGateExists:
     def test_has_check_function(self):
         """approval_gate should have a check/approve mechanism."""
         import os
+
         if not os.path.exists(os.path.join("core", "approval_gate.py")):
             pytest.skip("approval_gate.py not found")
         from core import approval_gate
+
         has_check = any(
             hasattr(approval_gate, attr)
             for attr in ["check", "approve", "is_allowed", "require_approval", "ApprovalGate"]

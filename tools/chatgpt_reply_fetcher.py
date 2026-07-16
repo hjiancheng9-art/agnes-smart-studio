@@ -54,8 +54,8 @@ async def connect_chatgpt() -> ChatGPTConnection:
         await playwright.stop()
         raise RuntimeError(
             "无法连接 Edge CDP。请确认 Edge 使用以下参数启动：\n"
-            'msedge.exe --remote-debugging-port=9222 '
-            '--user-data-dir=C:\\crux-edge-profile'
+            "msedge.exe --remote-debugging-port=9222 "
+            "--user-data-dir=C:\\crux-edge-profile"
         )
 
     if not browser.contexts:
@@ -204,7 +204,9 @@ async def fetch_reply_already_generated() -> str:
             timeout=10_000,
         )
     except Exception:
-        import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+        import logging
+
+        logging.getLogger("crux").debug("silent except", exc_info=True)
 
     try:
         reply = await wait_for_latest_reply(

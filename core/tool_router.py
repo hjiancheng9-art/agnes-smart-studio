@@ -96,6 +96,7 @@ def get_tool_schema(name: str) -> dict | None:
     #       so directly use registry.schema() which checks _definitions.
     try:
         from core.tools import get_registry
+
         schema = get_registry().schema(name)
         if schema:
             return schema.get("parameters", {})

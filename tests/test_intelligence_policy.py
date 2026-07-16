@@ -28,6 +28,7 @@ from core.intelligence_policy import (
 # ── IntelligencePolicyRouter Tests ──
 # ══════════════════════════════════════════════
 
+
 class TestIntelligencePolicyRouter:
     """智能策略路由测试"""
 
@@ -189,6 +190,7 @@ class TestIntelligencePolicyRouter:
 # ── ModeConfig Tests ──
 # ══════════════════════════════════════════════
 
+
 class TestModeConfig:
     """模式配置测试"""
 
@@ -238,6 +240,7 @@ class TestModeConfig:
 # ══════════════════════════════════════════════
 # ── CriticAgent Tests ──
 # ══════════════════════════════════════════════
+
 
 class TestCriticAgent:
     """批评者代理测试"""
@@ -298,11 +301,13 @@ High: 这个性能问题需要注意
     def test_generate_fix_prompt(self):
         """修复 prompt 应包含审查发现"""
         report = CritiqueReport(target="test")
-        report.findings.append(CritiqueFinding(
-            category=CritiqueCategory.LOGIC,
-            severity=CritiqueSeverity.HIGH,
-            summary="空指针",
-        ))
+        report.findings.append(
+            CritiqueFinding(
+                category=CritiqueCategory.LOGIC,
+                severity=CritiqueSeverity.HIGH,
+                summary="空指针",
+            )
+        )
         fix_prompt = self.critic.generate_fix_prompt(report)
         assert "空指针" in fix_prompt or "high" in fix_prompt
 
@@ -316,6 +321,7 @@ High: 这个性能问题需要注意
 # ══════════════════════════════════════════════
 # ── DeliberateWorkflow Tests ──
 # ══════════════════════════════════════════════
+
 
 class TestDeliberateWorkflow:
     """深度推理工作流测试"""
@@ -332,6 +338,7 @@ class TestDeliberateWorkflow:
     def test_fast_track_returns_immediately(self):
         """fast_track 应快速返回"""
         import asyncio
+
         result = asyncio.run(self.workflow.fast_track("你好"))
         assert result.mode == "FAST"
         assert result.passed is True
@@ -353,6 +360,7 @@ class TestDeliberateWorkflow:
     def test_workflow_step_timing(self):
         """WorkflowStep 应正确计算耗时"""
         import time
+
         step = WorkflowStep(name="test")
         step.started_at = time.time() - 2.5
         step.completed_at = time.time()
@@ -378,11 +386,13 @@ class TestDeliberateWorkflow:
         """格式化结果应包含审查发现"""
         result = WorkflowResult(mode="DEEP", passed=True)
         report = CritiqueReport(target="test")
-        report.findings.append(CritiqueFinding(
-            category=CritiqueCategory.LOGIC,
-            severity=CritiqueSeverity.MEDIUM,
-            summary="潜在边界问题",
-        ))
+        report.findings.append(
+            CritiqueFinding(
+                category=CritiqueCategory.LOGIC,
+                severity=CritiqueSeverity.MEDIUM,
+                summary="潜在边界问题",
+            )
+        )
         result.critique_report = report
         formatted = self.workflow.format_result_for_user(result)
         assert "边界" in formatted or "审查" in formatted
@@ -391,32 +401,32 @@ class TestDeliberateWorkflow:
         """阻塞性审查报告判断"""
         # 不阻塞
         report1 = CritiqueReport(target="test")
-        report1.findings.append(CritiqueFinding(
-            category=CritiqueCategory.LOGIC,
-            severity=CritiqueSeverity.LOW, summary="minor"
-        ))
+        report1.findings.append(
+            CritiqueFinding(category=CritiqueCategory.LOGIC, severity=CritiqueSeverity.LOW, summary="minor")
+        )
         assert report1.blocking is False
 
         # critical 阻塞
         report2 = CritiqueReport(target="test")
-        report2.findings.append(CritiqueFinding(
-            category=CritiqueCategory.SECURITY,
-            severity=CritiqueSeverity.CRITICAL, summary="sql injection"
-        ))
+        report2.findings.append(
+            CritiqueFinding(
+                category=CritiqueCategory.SECURITY, severity=CritiqueSeverity.CRITICAL, summary="sql injection"
+            )
+        )
         assert report2.blocking is True
 
     def test_critique_report_counts(self):
         """严重级别计数"""
         report = CritiqueReport(target="test")
-        report.findings.append(CritiqueFinding(
-            category=CritiqueCategory.LOGIC, severity=CritiqueSeverity.CRITICAL, summary="1"
-        ))
-        report.findings.append(CritiqueFinding(
-            category=CritiqueCategory.LOGIC, severity=CritiqueSeverity.CRITICAL, summary="2"
-        ))
-        report.findings.append(CritiqueFinding(
-            category=CritiqueCategory.LOGIC, severity=CritiqueSeverity.HIGH, summary="3"
-        ))
+        report.findings.append(
+            CritiqueFinding(category=CritiqueCategory.LOGIC, severity=CritiqueSeverity.CRITICAL, summary="1")
+        )
+        report.findings.append(
+            CritiqueFinding(category=CritiqueCategory.LOGIC, severity=CritiqueSeverity.CRITICAL, summary="2")
+        )
+        report.findings.append(
+            CritiqueFinding(category=CritiqueCategory.LOGIC, severity=CritiqueSeverity.HIGH, summary="3")
+        )
         assert report.critical_count == 2
         assert report.high_count == 1
 
@@ -424,6 +434,7 @@ class TestDeliberateWorkflow:
 # ══════════════════════════════════════════════
 # ── Format Utilities Tests ──
 # ══════════════════════════════════════════════
+
 
 class TestFormatUtils:
     """格式化工具测试"""

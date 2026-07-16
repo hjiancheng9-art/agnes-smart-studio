@@ -1,6 +1,7 @@
 """
 Tests for Runtime Guard, Budget, Cancellation, Rollback
 """
+
 import os
 import tempfile
 import time
@@ -279,7 +280,7 @@ class TestTaskRegistry:
 
 class TestFileTransaction:
     def setup_method(self):
-        self.tmp = tempfile.NamedTemporaryFile(mode='w', delete=False)
+        self.tmp = tempfile.NamedTemporaryFile(mode="w", delete=False)
         self.tmp.write("original content")
         self.tmp.close()
 
@@ -292,7 +293,7 @@ class TestFileTransaction:
         txn.backup(self.tmp.name)
 
         # Modify file
-        with open(self.tmp.name, 'w') as f:
+        with open(self.tmp.name, "w") as f:
             f.write("modified content")
 
         txn.rollback()
@@ -315,7 +316,7 @@ class TestFileTransaction:
 
 class TestGradualRelease:
     def setup_method(self):
-        self.tmp = tempfile.NamedTemporaryFile(suffix='.json', delete=False)
+        self.tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
         self.tmp.close()
         self.release = GradualRelease(config_path=self.tmp.name)
 

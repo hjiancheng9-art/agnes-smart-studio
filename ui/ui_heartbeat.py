@@ -33,12 +33,13 @@ T = TypeVar("T")
 # ── Constants ──
 
 HEARTBEAT_INTERVAL = 0.2  # 200ms
-FREEZE_THRESHOLD = 1.0    # 1s 以上无心跳视为卡死
-CDP_OP_TIMEOUT = 10.0     # CDP 操作超时
+FREEZE_THRESHOLD = 1.0  # 1s 以上无心跳视为卡死
+CDP_OP_TIMEOUT = 10.0  # CDP 操作超时
 MOUSE_MODE_SEQ = "\033[?1000h\033[?1002h\033[?1015h\033[?1006h"
 MOUSE_MODE_OFF_SEQ = "\033[?1000l\033[?1002l\033[?1015l\033[?1006l"
 
 # ── 1. UI Heartbeat ──
+
 
 class UIHeartbeat:
     """监控主线程事件循环是否卡死。
@@ -109,8 +110,7 @@ class UIHeartbeat:
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 self._task = loop.create_task(self._beat())
-                logger.info("UIHeartbeat started (interval=%.1fs, threshold=%.1fs)",
-                           HEARTBEAT_INTERVAL, self.threshold)
+                logger.info("UIHeartbeat started (interval=%.1fs, threshold=%.1fs)", HEARTBEAT_INTERVAL, self.threshold)
         except RuntimeError:
             logger.warning("No running event loop — UIHeartbeat deferred")
 
@@ -123,6 +123,7 @@ class UIHeartbeat:
 
 
 # ── 2. CDP Safe Executor ──
+
 
 class CdpSafeExecutor:
     """将 CDP/Playwright 操作隔离到独立线程执行。
@@ -137,9 +138,9 @@ class CdpSafeExecutor:
         result = await safe_cdp.execute(lambda: page.evaluate("1+1"))
     """
 
-    def __init__(self, heartbeat: UIHeartbeat | None = None,
-                 timeout: float = CDP_OP_TIMEOUT,
-                 thread_name: str = "cdp-worker"):
+    def __init__(
+        self, heartbeat: UIHeartbeat | None = None, timeout: float = CDP_OP_TIMEOUT, thread_name: str = "cdp-worker"
+    ):
         self.heartbeat = heartbeat
         self.timeout = timeout
         self._executor = concurrent.futures.ThreadPoolExecutor(
@@ -242,6 +243,7 @@ class CdpSafeExecutor:
 
 # ── 3. Mouse Mode Guard ──
 
+
 class MouseModeGuard:
     """自动恢复 Terminal Mouse Mode。
 
@@ -317,6 +319,7 @@ class MouseModeGuard:
         用法同 subprocess.run，但 stdout/stderr 会被过滤。
         """
         import subprocess
+
         # Capture output
         kwargs["capture_output"] = True
         kwargs["text"] = True
@@ -340,6 +343,7 @@ class MouseModeGuard:
 
 # ── 4. Convenience: freeze-safe asyncio sleep ──
 
+
 async def safe_sleep(seconds: float, heartbeat: UIHeartbeat | None = None):
     """安全的 sleep，sleep 期间持续更新心跳。"""
     interval = min(seconds, 0.1)
@@ -352,6 +356,7 @@ async def safe_sleep(seconds: float, heartbeat: UIHeartbeat | None = None):
 
 
 # ── 5. Integration helper ──
+
 
 def patch_signal_handler(heartbeat: UIHeartbeat):
     """在信号处理器中打心跳。

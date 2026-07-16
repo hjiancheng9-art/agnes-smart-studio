@@ -40,14 +40,17 @@ __all__ = [
 def _resolve_workspace() -> Path:
     """Determine the workspace root: CRUX_WORKSPACE env → CWD → CRUX install dir."""
     import os as _os
+
     env = _os.environ.get("CRUX_WORKSPACE", "")
     if env:
         return Path(env).resolve()
     cwd = Path.cwd().resolve()
-    crux_root = Path(__file__).resolve().parent.parent
+    Path(__file__).resolve().parent.parent
     # If CWD is inside CRUX root, use CWD (user might be in a subdir)
     # If CWD is outside CRUX root, use CWD (user is in another project)
     return cwd
+
+
 ROOT = _resolve_workspace()
 
 
@@ -99,6 +102,7 @@ def _safe_path(path: str, *, read_only: bool = False) -> Path:
     else (user home, other projects, Desktop, etc.).
     """
     from fnmatch import fnmatch
+
     p = Path(path).expanduser().resolve()
     p_str = str(p)
 
@@ -113,10 +117,7 @@ def _safe_path(path: str, *, read_only: bool = False) -> Path:
     # Write operations: block system paths, allow everything else
     for blocked in _WRITE_BLOCKLIST:
         if fnmatch(p_str, blocked):
-            raise ValueError(
-                f"Write denied to system path: {path}\n"
-                f"  Matched block rule: {blocked}"
-            )
+            raise ValueError(f"Write denied to system path: {path}\n  Matched block rule: {blocked}")
     return p
 
 
@@ -385,7 +386,7 @@ def pip_install(package: str) -> str:
             "如需安装其他包，请手动在终端执行。"
         )
     try:
-        result = run_subprocess([sys.executable, "-m", "pip", "install"] + packages, timeout=120)
+        result = run_subprocess([sys.executable, "-m", "pip", "install", *packages], timeout=120)
         return result.stdout + result.stderr
     except subprocess.TimeoutExpired:
         return "[错误] pip install 超时"

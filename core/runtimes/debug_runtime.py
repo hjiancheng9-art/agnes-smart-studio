@@ -8,6 +8,7 @@ Debug Analyze Runtime — 调试分析运行时
 - 输出: root_cause / probes / fix_plan / verification_plan
 - 步骤: 收集症状 → 缩小范围 → 提出假设 → 验证假设 → 输出根因
 """
+
 from __future__ import annotations
 
 import logging
@@ -34,10 +35,7 @@ class DebugAnalyzeRuntime(BaseRuntime):
     def can_handle(self, request: str, mode: str) -> bool:
         """判断是否为调试类请求"""
         text = request.lower()
-        for pattern in self.DEBUG_KEYWORDS:
-            if re.search(pattern, text):
-                return True
-        return False
+        return any(re.search(pattern, text) for pattern in self.DEBUG_KEYWORDS)
 
     async def execute(self, ctx: RuntimeContext) -> dict[str, Any]:
         """执行调试分析流程"""

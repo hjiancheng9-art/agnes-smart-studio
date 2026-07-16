@@ -23,11 +23,12 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BudgetLimit:
     """预算限制"""
-    max_tool_calls: int = 30        # 最大工具调用次数
-    max_token_cost: int = 50000     # 最大 token 消耗
+
+    max_tool_calls: int = 30  # 最大工具调用次数
+    max_token_cost: int = 50000  # 最大 token 消耗
     max_duration_seconds: float = 300.0  # 最大执行时间（秒）
-    max_agent_calls: int = 10       # 最大子 agent 调用
-    max_repair_rounds: int = 5      # 最大修复轮数
+    max_agent_calls: int = 10  # 最大子 agent 调用
+    max_repair_rounds: int = 5  # 最大修复轮数
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -42,6 +43,7 @@ class BudgetLimit:
 @dataclass
 class BudgetUsage:
     """预算使用情况"""
+
     tool_calls: int = 0
     token_cost: int = 0
     duration_seconds: float = 0.0
@@ -69,6 +71,7 @@ class BudgetUsage:
 
 class BudgetExceededError(RuntimeError):
     """预算超限异常"""
+
     def __init__(self, category: str, limit: Any, actual: Any):
         self.category = category
         self.limit = limit
@@ -92,9 +95,7 @@ class BudgetManager:
             return
         self.usage.tool_calls += count
         if self.usage.tool_calls > self.limit.max_tool_calls:
-            raise BudgetExceededError(
-                "tool_calls", self.limit.max_tool_calls, self.usage.tool_calls
-            )
+            raise BudgetExceededError("tool_calls", self.limit.max_tool_calls, self.usage.tool_calls)
 
     def can_call_tool(self) -> bool:
         return self.usage.tool_calls < self.limit.max_tool_calls
@@ -111,9 +112,7 @@ class BudgetManager:
             return
         self.usage.token_cost += tokens
         if self.usage.token_cost > self.limit.max_token_cost:
-            raise BudgetExceededError(
-                "token_cost", self.limit.max_token_cost, self.usage.token_cost
-            )
+            raise BudgetExceededError("token_cost", self.limit.max_token_cost, self.usage.token_cost)
 
     @property
     def remaining_tokens(self) -> int:
@@ -128,9 +127,7 @@ class BudgetManager:
         elapsed = self.usage.elapsed
         self.usage.duration_seconds = elapsed
         if elapsed > self.limit.max_duration_seconds:
-            raise BudgetExceededError(
-                "duration", self.limit.max_duration_seconds, elapsed
-            )
+            raise BudgetExceededError("duration", self.limit.max_duration_seconds, elapsed)
 
     @property
     def remaining_time(self) -> float:
@@ -143,9 +140,7 @@ class BudgetManager:
             return
         self.usage.agent_calls += 1
         if self.usage.agent_calls > self.limit.max_agent_calls:
-            raise BudgetExceededError(
-                "agent_calls", self.limit.max_agent_calls, self.usage.agent_calls
-            )
+            raise BudgetExceededError("agent_calls", self.limit.max_agent_calls, self.usage.agent_calls)
 
     # ── 修复轮次 ──
 
@@ -154,9 +149,7 @@ class BudgetManager:
             return
         self.usage.repair_rounds += 1
         if self.usage.repair_rounds > self.limit.max_repair_rounds:
-            raise BudgetExceededError(
-                "repair_rounds", self.limit.max_repair_rounds, self.usage.repair_rounds
-            )
+            raise BudgetExceededError("repair_rounds", self.limit.max_repair_rounds, self.usage.repair_rounds)
 
     # ── 控制 ──
 
@@ -185,6 +178,7 @@ class BudgetManager:
 
 # ── 快捷函数 ──
 
+
 def make_budget(limit: BudgetLimit | None = None) -> BudgetManager:
     """创建预算管理器"""
     return BudgetManager(limit=limit)
@@ -192,7 +186,9 @@ def make_budget(limit: BudgetLimit | None = None) -> BudgetManager:
 
 def quick_budget(max_tool_calls: int = 30, max_duration: float = 300.0) -> BudgetManager:
     """快速创建预算管理器"""
-    return BudgetManager(BudgetLimit(
-        max_tool_calls=max_tool_calls,
-        max_duration_seconds=max_duration,
-    ))
+    return BudgetManager(
+        BudgetLimit(
+            max_tool_calls=max_tool_calls,
+            max_duration_seconds=max_duration,
+        )
+    )

@@ -1,9 +1,10 @@
 """Send bug analysis question to ChatGPT via CDP and read reply."""
+
 import os
 import sys
 import time
 
-sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from playwright.sync_api import sync_playwright
@@ -69,7 +70,7 @@ with sync_playwright() as p:
                 browser.close()
                 exit(0)
         if i % 3 == 0:
-            print(f"等待中... ({5*(i+1)}秒)")
+            print(f"等待中... ({5 * (i + 1)}秒)")
 
     # Timeout fallback
     page.screenshot(path=os.path.join(OUTPUT_DIR, "chatgpt_timeout.png"))

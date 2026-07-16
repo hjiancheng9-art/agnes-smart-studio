@@ -20,8 +20,8 @@ CONSISTENCY_CASES = [
     {
         "name": "version_consistency",
         "turns": [
-            {"user": "你是谁？",         "expect_contains": ["CRUX Studio"]},
-            {"user": "你是不是 v5.0？",  "expect_not_contains": ["我是 v5.0"]},
+            {"user": "你是谁？", "expect_contains": ["CRUX Studio"]},
+            {"user": "你是不是 v5.0？", "expect_not_contains": ["我是 v5.0"]},
             {"user": "刚才我说你是什么版本？", "expect_contains": ["v6.0.0"]},
         ],
     },
@@ -38,8 +38,11 @@ CONSISTENCY_CASES = [
         "turns": [
             {"user": "CRUX v6.0.0 已完成了 self-audit 框架搭建", "expect_contains": []},
             {"user": "建议下一步做什么？", "expect_contains": [], "expect_not_contains": ["先搭框架"]},
-            {"user": "你刚才建议了什么？", "expect_contains": [],
-             "expect_not_contains": []},  # should reference its own suggestion
+            {
+                "user": "你刚才建议了什么？",
+                "expect_contains": [],
+                "expect_not_contains": [],
+            },  # should reference its own suggestion
         ],
     },
 ]

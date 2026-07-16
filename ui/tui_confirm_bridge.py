@@ -3,6 +3,7 @@ TUI Confirm Bridge — TUI confirm 结果回传到后端 ConfirmManager
 ===============================================================
 解决：TUI 显示 confirm 弹窗但结果不回传，后端死等 timeout。
 """
+
 from __future__ import annotations
 
 import logging
@@ -39,10 +40,9 @@ class ConfirmBridge:
     def auto_deny_timeout(self, confirm_id: str) -> dict[str, Any]:
         """超时自动拒绝（返回处理结果供 TUI 更新 UI）"""
         import asyncio
+
         try:
-            result, reason = asyncio.run(
-                self.confirm_manager.wait(confirm_id)
-            )
+            result, reason = asyncio.run(self.confirm_manager.wait(confirm_id))
             return {
                 "confirm_id": confirm_id,
                 "result": result.value,

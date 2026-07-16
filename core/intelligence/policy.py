@@ -9,16 +9,17 @@ from typing import Any
 
 
 class RunMode(str, Enum):
-    FAST = "fast"          # Simple Q&A, no tools
+    FAST = "fast"  # Simple Q&A, no tools
     BALANCED = "balanced"  # Default chat mode
-    DEEP = "deep"          # Complex engineering / architecture
-    SAFE = "safe"          # High-risk file ops / shell
-    DEBUG = "debug"        # Replay / diagnosis / failure reproduction
+    DEEP = "deep"  # Complex engineering / architecture
+    SAFE = "safe"  # High-risk file ops / shell
+    DEBUG = "debug"  # Replay / diagnosis / failure reproduction
 
 
 @dataclass(frozen=True)
 class ExecutionPolicy:
     """Complete policy defining which intelligence modules are active."""
+
     mode: RunMode = RunMode.BALANCED
 
     # P1: Tool Validation
@@ -80,8 +81,4 @@ class ExecutionPolicy:
                 enabled.append(key.replace("enable_", ""))
             elif val is False:
                 disabled.append(key.replace("enable_", ""))
-        return (
-            f"⚡ {self.mode.value.upper()} mode\n"
-            f"   ✅ {', '.join(enabled[:10])}\n"
-            f"   ❌ {', '.join(disabled[:10])}"
-        )
+        return f"⚡ {self.mode.value.upper()} mode\n   ✅ {', '.join(enabled[:10])}\n   ❌ {', '.join(disabled[:10])}"

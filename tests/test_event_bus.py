@@ -34,8 +34,10 @@ class TestEventBusBasics:
 
     def test_off_removes_listener(self, bus):
         results = []
+
         def fn():
             results.append("fired")
+
         bus.on("test:off", fn)
         bus.off("test:off", fn)
         bus.emit("test:off")

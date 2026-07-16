@@ -1,6 +1,5 @@
 """Tests for core/tool_interceptor.py — PreToolUse safety interceptor."""
 
-
 from core.tool_interceptor import intercept_tool
 
 
@@ -142,50 +141,59 @@ class TestGateCdpChatgpt:
 
     def test_too_short_blocked(self):
         from core.tool_interceptor import _gate_cdp_chatgpt
+
         blocked, reason = _gate_cdp_chatgpt({"question": "hi"})
         assert blocked is True
         assert "太短" in reason
 
     def test_empty_blocked(self):
         from core.tool_interceptor import _gate_cdp_chatgpt
+
         blocked, reason = _gate_cdp_chatgpt({"question": ""})
         assert blocked is True
 
     def test_repetitive_blocked(self):
         from core.tool_interceptor import _gate_cdp_chatgpt
+
         blocked, reason = _gate_cdp_chatgpt({"question": "aaaaa"})
         assert blocked is True
 
     def test_trivial_hello_blocked(self):
         from core.tool_interceptor import _gate_cdp_chatgpt
+
         blocked, reason = _gate_cdp_chatgpt({"question": "你好"})
         assert blocked is True
 
     def test_trivial_what_is_blocked(self):
         from core.tool_interceptor import _gate_cdp_chatgpt
+
         blocked, reason = _gate_cdp_chatgpt({"question": "什么是Python"})
         assert blocked is True
 
     def test_code_operation_blocked(self):
         from core.tool_interceptor import _gate_cdp_chatgpt
+
         blocked, reason = _gate_cdp_chatgpt({"question": "帮我改一下这个bug"})
         assert blocked is True
         assert "DeepSeek" in reason
 
     def test_legitimate_question_passes(self):
         from core.tool_interceptor import _gate_cdp_chatgpt
-        blocked, reason = _gate_cdp_chatgpt(
-            {"question": "请分析中美贸易战的最新进展和各方立场"})
+
+        blocked, reason = _gate_cdp_chatgpt({"question": "请分析中美贸易战的最新进展和各方立场"})
         assert blocked is False
         assert reason == ""
 
     def test_alternate_key_text(self):
         from core.tool_interceptor import _gate_cdp_chatgpt
+
         blocked, reason = _gate_cdp_chatgpt(
-            {"text": "How does quantum computing affect blockchain security in the long term?"})
+            {"text": "How does quantum computing affect blockchain security in the long term?"}
+        )
         assert blocked is False
 
     def test_alternate_key_prompt(self):
         from core.tool_interceptor import _gate_cdp_chatgpt
+
         blocked, reason = _gate_cdp_chatgpt({"prompt": "hi"})
         assert blocked is True

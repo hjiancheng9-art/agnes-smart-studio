@@ -50,6 +50,7 @@ ERROR_PATTERNS = [
 @dataclass
 class ValidationNote:
     """A note/warning about a tool result, not a blocking error."""
+
     severity: str  # "info", "warning", "critical"
     message: str
     detail: str = ""
@@ -58,6 +59,7 @@ class ValidationNote:
 @dataclass
 class ValidatedResult:
     """Wraps a ToolResult with validation notes."""
+
     is_valid: bool = True
     notes: list[ValidationNote] = field(default_factory=list)
     needs_review: bool = False
@@ -92,43 +94,54 @@ class ResultValidator:
 
         # 1. Check success flag consistency
         if not success and result_text:
-            notes.append(ValidationNote(
-                severity="critical",
-                message=f"Tool '{tool_name}' failed",
-                detail=result_text[:500],
-            ))
+            notes.append(
+                ValidationNote(
+                    severity="critical",
+                    message=f"Tool '{tool_name}' failed",
+                    detail=result_text[:500],
+                )
+            )
 
         if success and not result_text:
-            notes.append(ValidationNote(
-                severity="info",
-                message=f"Tool '{tool_name}' returned empty result",
-            ))
+            notes.append(
+                ValidationNote(
+                    severity="info",
+                    message=f"Tool '{tool_name}' returned empty result",
+                )
+            )
 
         # 2. Check output size
         vr.original_length = len(result_text)
         if len(result_text) > self.MAX_OUTPUT_CHARS:
             vr.truncated = True
-            notes.append(ValidationNote(
-                severity="info",
-                message=f"Output truncated ({len(result_text)} chars > {self.MAX_OUTPUT_CHARS})",
-            ))
+            notes.append(
+                ValidationNote(
+                    severity="info",
+                    message=f"Output truncated ({len(result_text)} chars > {self.MAX_OUTPUT_CHARS})",
+                )
+            )
         line_count = result_text.count("\n")
         if line_count > self.MAX_OUTPUT_LINES:
-            notes.append(ValidationNote(
-                severity="info",
-                message=f"Output has many lines ({line_count})",
-            ))
+            notes.append(
+                ValidationNote(
+                    severity="info",
+                    message=f"Output has many lines ({line_count})",
+                )
+            )
 
         # 3. Check error patterns in output
         import re
+
         for pattern, hint in ERROR_PATTERNS:
             matches = re.findall(pattern, result_text)
             if matches:
-                notes.append(ValidationNote(
-                    severity="warning" if success else "info",
-                    message=hint,
-                    detail=f"Found {len(matches)} match(es)",
-                ))
+                notes.append(
+                    ValidationNote(
+                        severity="warning" if success else "info",
+                        message=hint,
+                        detail=f"Found {len(matches)} match(es)",
+                    )
+                )
 
         # 4. Determine overall validity
         critical_notes = [n for n in notes if n.severity == "critical"]
@@ -159,6 +172,7 @@ class ResultValidator:
 @dataclass
 class ConsistencyIssue:
     """A detected inconsistency between LLM answer and tool results."""
+
     description: str
     severity: str  # "minor", "major", "critical"
     evidence: str = ""
@@ -167,6 +181,7 @@ class ConsistencyIssue:
 @dataclass
 class ConsistencyReport:
     """Report of all consistency checks."""
+
     is_consistent: bool = True
     issues: list[ConsistencyIssue] = field(default_factory=list)
 
@@ -211,15 +226,17 @@ class ConsistencyChecker:
 
         # 1. Check for failed tools that LLM might claim succeeded
         failed_tools = [t for t in tool_history if not t.get("success", True)]
-        succeeded_tools = [t for t in tool_history if t.get("success", False)]
+        [t for t in tool_history if t.get("success", False)]
 
         for ft in failed_tools:
             # If there's only one failed tool and no succeeded ones
             if len(failed_tools) == len(tool_history):
-                issues.append(ConsistencyIssue(
-                    description=f"All tools failed (including '{ft.get('tool_name')}') — answer may be unreliable",
-                    severity="critical",
-                ))
+                issues.append(
+                    ConsistencyIssue(
+                        description=f"All tools failed (including '{ft.get('tool_name')}') — answer may be unreliable",
+                        severity="critical",
+                    )
+                )
                 break
 
         # 2. Check file write then read pattern
@@ -228,28 +245,34 @@ class ConsistencyChecker:
 
         for rf in read_files:
             if rf not in written_files and not self._file_exists(rf):
-                issues.append(ConsistencyIssue(
-                    description=f"LLM referenced '{rf}' but it was not written in this session",
-                    severity="info",
-                    evidence="File may exist from previous work",
-                ))
+                issues.append(
+                    ConsistencyIssue(
+                        description=f"LLM referenced '{rf}' but it was not written in this session",
+                        severity="info",
+                        evidence="File may exist from previous work",
+                    )
+                )
 
         # 3. Check if answer mentions errors/retries that match tool failures
         for ft in failed_tools:
             name = ft.get("tool_name", "?")
             err = str(ft.get("result", ""))[:100]
             if err and err not in llm_answer:
-                issues.append(ConsistencyIssue(
-                    description=f"Tool '{name}' failed ({err[:80]}) but LLM answer doesn't mention it",
-                    severity="major",
-                ))
+                issues.append(
+                    ConsistencyIssue(
+                        description=f"Tool '{name}' failed ({err[:80]}) but LLM answer doesn't mention it",
+                        severity="major",
+                    )
+                )
 
         # 4. Check answers that are suspiciously long or short
         if len(llm_answer) < 10 and len(tool_history) > 3:
-            issues.append(ConsistencyIssue(
-                description="Very short answer after multiple tool calls — possible truncation",
-                severity="minor",
-            ))
+            issues.append(
+                ConsistencyIssue(
+                    description="Very short answer after multiple tool calls — possible truncation",
+                    severity="minor",
+                )
+            )
 
         return ConsistencyReport(
             is_consistent=len([i for i in issues if i.severity == "critical"]) == 0,
@@ -289,6 +312,7 @@ class ConsistencyChecker:
 @dataclass
 class DiffPreview:
     """Preview of a file change."""
+
     path: str
     action: str  # "create", "modify", "delete"
     old_content: str = ""
@@ -334,13 +358,15 @@ class DiffGuard:
             except Exception:
                 logger.debug("Exception in result_validator", exc_info=True)
 
-        diff_lines = list(difflib.unified_diff(
-            old.splitlines(keepends=True),
-            new_content.splitlines(keepends=True),
-            fromfile=f"a/{path}",
-            tofile=f"b/{path}",
-            n=3,
-        ))
+        diff_lines = list(
+            difflib.unified_diff(
+                old.splitlines(keepends=True),
+                new_content.splitlines(keepends=True),
+                fromfile=f"a/{path}",
+                tofile=f"b/{path}",
+                n=3,
+            )
+        )
 
         action = "create" if not old else "modify"
         size_delta = len(new_content) - len(old)

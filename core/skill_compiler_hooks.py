@@ -59,9 +59,35 @@ def inject_skill_compiler_hooks(session):
                     if msg.get("role") == "user":
                         content = str(msg.get("content", ""))[:500].lower()
                         # Simple heuristic target detection
-                        if any(kw in content for kw in ["render", "generate", "image", "video", "picture", "draw", "create", "生图", "画"]):
+                        if any(
+                            kw in content
+                            for kw in [
+                                "render",
+                                "generate",
+                                "image",
+                                "video",
+                                "picture",
+                                "draw",
+                                "create",
+                                "生图",
+                                "画",
+                            ]
+                        ):
                             task_target = "media"
-                        elif any(kw in content for kw in ["code", "function", "class", "def ", "implement", "fix", "debug", "refactor", "写代码"]):
+                        elif any(
+                            kw in content
+                            for kw in [
+                                "code",
+                                "function",
+                                "class",
+                                "def ",
+                                "implement",
+                                "fix",
+                                "debug",
+                                "refactor",
+                                "写代码",
+                            ]
+                        ):
                             task_target = "code"
                         break
 
@@ -82,7 +108,10 @@ def inject_skill_compiler_hooks(session):
                 return base
 
         # Only replace if Phase 3 hasn't already overridden
-        if hasattr(session, "_orig_build_system_prompt") and getattr(session, "_build_system_prompt", None) is not session._orig_build_system_prompt:
+        if (
+            hasattr(session, "_orig_build_system_prompt")
+            and getattr(session, "_build_system_prompt", None) is not session._orig_build_system_prompt
+        ):
             # Phase 3 already replaced it; we chain through
             # Store the phase 3 version as original
             pass

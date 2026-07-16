@@ -5,6 +5,7 @@ from __future__ import annotations
 
 class CRUXError(Exception):
     """Base exception for all CRUX errors."""
+
     code: str = "UNKNOWN"
     recoverable: bool = False
 
@@ -17,6 +18,7 @@ class CRUXError(Exception):
 # ═══════════════════════════════════════════════════
 #  Browser / CDP errors
 # ═══════════════════════════════════════════════════
+
 
 class BrowserError(CRUXError):
     code = "BROWSER_ERROR"
@@ -40,6 +42,7 @@ class SelectorNotFound(BrowserError):
 #  MCP errors
 # ═══════════════════════════════════════════════════
 
+
 class MCPError(CRUXError):
     code = "MCP_ERROR"
 
@@ -56,6 +59,7 @@ class MCPToolNotFound(MCPError):
 # ═══════════════════════════════════════════════════
 #  LSP errors
 # ═══════════════════════════════════════════════════
+
 
 class LSPError(CRUXError):
     code = "LSP_ERROR"
@@ -74,6 +78,7 @@ class LSPSymbolNotFound(LSPError):
 #  Execution / sandbox errors
 # ═══════════════════════════════════════════════════
 
+
 class ExecutionError(CRUXError):
     code = "EXECUTION_ERROR"
 
@@ -91,6 +96,7 @@ class TimeoutError(ExecutionError):
 #  Permission / governance errors
 # ═══════════════════════════════════════════════════
 
+
 class PermissionDenied(CRUXError):
     code = "PERMISSION_DENIED"
 
@@ -102,6 +108,7 @@ class ApprovalRequired(PermissionDenied):
 # ═══════════════════════════════════════════════════
 #  Tool / registry errors
 # ═══════════════════════════════════════════════════
+
 
 class ToolError(CRUXError):
     code = "TOOL_ERROR"
@@ -123,6 +130,7 @@ class RateLimited(ToolError):
 # ═══════════════════════════════════════════════════
 #  Agent errors
 # ═══════════════════════════════════════════════════
+
 
 class AgentError(CRUXError):
     code = "AGENT_ERROR"

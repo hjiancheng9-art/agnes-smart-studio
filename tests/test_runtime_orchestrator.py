@@ -1,13 +1,22 @@
 """测试 RuntimeOrchestrator — 覆盖分类、dry-run、流式、能力集成."""
 
 import pytest
+
 from core.runtime_orchestrator import (
-    RuntimeOrchestrator, classify_intent, execute, execute_stream, preview,
-    DNAProfile, OrchestrationMode, OrchestrationCallbacks,
-    OrchestrationProgress, OrchestrationResult, OrchestrationError,
+    DNAProfile,
+    OrchestrationCallbacks,
+    OrchestrationError,
     OrchestrationMixin,
+    OrchestrationMode,
+    OrchestrationProgress,
+    OrchestrationResult,
+    RuntimeOrchestrator,
+    classify_intent,
+    execute,
+    execute_stream,
+    preview,
 )
-from core.task_complexity import TaskComplexity, classify_task
+from core.task_complexity import TaskComplexity
 
 
 class TestClassifyIntent:
@@ -57,8 +66,11 @@ class TestOrchestratorInit:
 
     def test_custom_init(self):
         orch = RuntimeOrchestrator(
-            max_recovery=5, max_concurrent=4, skills=["actor-craft"],
-            mode=OrchestrationMode.FULL, cost_budget_usd=10.0,
+            max_recovery=5,
+            max_concurrent=4,
+            skills=["actor-craft"],
+            mode=OrchestrationMode.FULL,
+            cost_budget_usd=10.0,
         )
         assert orch.max_recovery == 5
         assert orch.max_concurrent == 4
@@ -182,6 +194,6 @@ class TestDataModels:
 
 class TestOrchestrationMixin:
     def test_mixin_methods_exist(self):
-        assert hasattr(OrchestrationMixin, 'orchestrate')
-        assert hasattr(OrchestrationMixin, 'orchestrate_stream')
-        assert hasattr(OrchestrationMixin, '_init_orchestrator')
+        assert hasattr(OrchestrationMixin, "orchestrate")
+        assert hasattr(OrchestrationMixin, "orchestrate_stream")
+        assert hasattr(OrchestrationMixin, "_init_orchestrator")

@@ -2,6 +2,7 @@
 Base Runtime — 所有能力运行时的基类
 ======================================
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -42,6 +43,7 @@ class RuntimeStatus(str, Enum):
 @dataclass
 class RuntimeContext:
     """运行时上下文"""
+
     request: str
     mode: str = "BALANCED"
     runtime_type: CapabilityRuntimeType = CapabilityRuntimeType.GENERAL

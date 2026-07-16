@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class FieldTurn:
     """A single user-assistant turn recorded from a real session."""
+
     user_message: str = ""
     assistant_response: str = ""
     tool_calls: list[dict] = field(default_factory=list)
@@ -44,6 +45,7 @@ class FieldTurn:
 @dataclass
 class FieldSession:
     """A complete real-user session recording."""
+
     id: str = ""
     source: str = "manual"  # "manual", "trace", "telemetry"
     created_at: float = 0.0
@@ -118,14 +120,16 @@ class FieldRecorder:
         """Record a turn in the current session."""
         if self._current_session is None:
             self.new_session()
-        self._current_session.turns.append(FieldTurn(
-            user_message=user_message,
-            assistant_response=assistant_response,
-            tool_calls=tool_calls or [],
-            tool_results=tool_results or [],
-            duration_ms=duration_ms,
-            success=success,
-        ))
+        self._current_session.turns.append(
+            FieldTurn(
+                user_message=user_message,
+                assistant_response=assistant_response,
+                tool_calls=tool_calls or [],
+                tool_results=tool_results or [],
+                duration_ms=duration_ms,
+                success=success,
+            )
+        )
 
     def finish_session(self) -> FieldSession | None:
         """Finish and return the current session."""
@@ -156,14 +160,16 @@ class FieldRecorder:
             metadata=data.get("metadata", {}),
         )
         for td in data.get("turns", []):
-            session.turns.append(FieldTurn(
-                user_message=td.get("user_message", ""),
-                assistant_response=td.get("assistant_response", ""),
-                tool_calls=td.get("tool_calls", []),
-                tool_results=td.get("tool_results", []),
-                duration_ms=td.get("duration_ms", 0.0),
-                success=td.get("success", True),
-            ))
+            session.turns.append(
+                FieldTurn(
+                    user_message=td.get("user_message", ""),
+                    assistant_response=td.get("assistant_response", ""),
+                    tool_calls=td.get("tool_calls", []),
+                    tool_results=td.get("tool_results", []),
+                    duration_ms=td.get("duration_ms", 0.0),
+                    success=td.get("success", True),
+                )
+            )
         return session
 
     def list_sessions(self) -> list[dict]:
@@ -178,13 +184,17 @@ class FieldRecorder:
                 path = os.path.join(self.storage_dir, fname)
                 with open(path, encoding="utf-8") as f:
                     data = json.load(f)
-                sessions.append({
-                    "id": data.get("id", fname.replace(".json", "")),
-                    "source": data.get("source", "?"),
-                    "turns": data.get("total_turns", 0),
-                    "date": datetime.fromtimestamp(data.get("created_at", 0)).isoformat() if data.get("created_at") else "?",
-                    "tags": data.get("tags", []),
-                })
+                sessions.append(
+                    {
+                        "id": data.get("id", fname.replace(".json", "")),
+                        "source": data.get("source", "?"),
+                        "turns": data.get("total_turns", 0),
+                        "date": datetime.fromtimestamp(data.get("created_at", 0)).isoformat()
+                        if data.get("created_at")
+                        else "?",
+                        "tags": data.get("tags", []),
+                    }
+                )
             except Exception:
                 logger.debug("Exception in field_arena", exc_info=True)
         return sessions
@@ -202,6 +212,7 @@ LLMCallback = Callable[[str], str]
 @dataclass
 class ReplayTurnResult:
     """Result of replaying a single field turn."""
+
     turn_index: int = 0
     user_message: str = ""
     original_response: str = ""
@@ -222,6 +233,7 @@ class ReplayTurnResult:
 @dataclass
 class ReplaySessionResult:
     """Result of replaying an entire field session."""
+
     session_id: str = ""
     total_turns: int = 0
     matched_turns: int = 0
@@ -308,9 +320,7 @@ class FieldReplayRunner:
             session_result.avg_similarity += turn_result.similarity
 
         if session_result.total_turns > 0:
-            session_result.avg_similarity = round(
-                session_result.avg_similarity / session_result.total_turns, 3
-            )
+            session_result.avg_similarity = round(session_result.avg_similarity / session_result.total_turns, 3)
 
         session_result.total_duration_ms = (time.time() - start) * 1000
         return session_result
@@ -340,6 +350,7 @@ class FieldReplayRunner:
 @dataclass
 class FieldScorecard:
     """Combined scorecard from benchmark + field replay."""
+
     benchmark_scorecard: BenchmarkScorecard | None = None
     field_results: list[ReplaySessionResult] = field(default_factory=list)
     overall_field_pass_rate: float = 0.0
@@ -352,9 +363,7 @@ class FieldScorecard:
         if self.field_results:
             total_turns = sum(r.total_turns for r in self.field_results)
             matched_turns = sum(r.matched_turns for r in self.field_results)
-            self.overall_field_pass_rate = round(
-                matched_turns / max(total_turns, 1) * 100, 1
-            )
+            self.overall_field_pass_rate = round(matched_turns / max(total_turns, 1) * 100, 1)
         else:
             self.overall_field_pass_rate = 0.0
 
@@ -445,24 +454,17 @@ class FieldArena:
     ) -> ReleaseGateResult:
         """Dual release gate: benchmark + field must both pass."""
         result = ReleaseGateResult()
-        reasons = []
 
         # Benchmark check
         bench = field_scorecard.benchmark_scorecard
         if bench and bench.overall_score < min_benchmark_score:
-            result.blocks.append(
-                f"Benchmark score {bench.overall_score} < {min_benchmark_score}"
-            )
+            result.blocks.append(f"Benchmark score {bench.overall_score} < {min_benchmark_score}")
         else:
-            result.reasons.append(
-                f"Benchmark score {bench.overall_score if bench else 'N/A'} >= {min_benchmark_score}"
-            )
+            result.reasons.append(f"Benchmark score {bench.overall_score if bench else 'N/A'} >= {min_benchmark_score}")
 
         # Field check
         if field_scorecard.overall_field_pass_rate < min_field_pass_rate:
-            result.blocks.append(
-                f"Field pass rate {field_scorecard.overall_field_pass_rate}% < {min_field_pass_rate}%"
-            )
+            result.blocks.append(f"Field pass rate {field_scorecard.overall_field_pass_rate}% < {min_field_pass_rate}%")
         else:
             result.reasons.append(
                 f"Field pass rate {field_scorecard.overall_field_pass_rate}% >= {min_field_pass_rate}%"
@@ -470,9 +472,7 @@ class FieldArena:
 
         # Combined check
         if field_scorecard.overall_score < (min_benchmark_score + min_field_pass_rate) / 2:
-            result.warnings.append(
-                f"Combined score {field_scorecard.overall_score} below threshold"
-            )
+            result.warnings.append(f"Combined score {field_scorecard.overall_score} below threshold")
 
         # Decision
         if result.blocks:
@@ -493,7 +493,7 @@ class FieldArena:
         lines = [
             "📊 Field Arena A/B Comparison:",
             f"  {'Metric':30s} {'Before':12s} {'After':12s} {'Δ':10s}",
-            f"  {'-'*30} {'-'*12} {'-'*12} {'-'*10}",
+            f"  {'-' * 30} {'-' * 12} {'-' * 12} {'-' * 10}",
         ]
         metrics = [
             ("Overall Score", benchmark_before.overall_score, benchmark_after.overall_score),

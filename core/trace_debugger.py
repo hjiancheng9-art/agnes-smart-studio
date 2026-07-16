@@ -28,22 +28,23 @@ logger = logging.getLogger(__name__)
 
 
 class DecisionCategory(str, Enum):
-    POLICY = "policy"                 # P8: mode selection
+    POLICY = "policy"  # P8: mode selection
     TOOL_VALIDATION = "tool_validation"  # P1: validation result
-    TOOL_EXECUTION = "tool_execution"    # tool call success/fail
-    RESULT_CHECK = "result_check"        # P2: result validation
+    TOOL_EXECUTION = "tool_execution"  # tool call success/fail
+    RESULT_CHECK = "result_check"  # P2: result validation
     CONTEXT_COMPRESSION = "context_compression"  # P3: compression event
-    REVIEWER = "reviewer"              # P4: review outcome
-    SKILL_COMPILE = "skill_compile"    # P5: skill selection
-    TELEMETRY = "telemetry"            # P6: metrics event
-    EVAL = "eval"                      # P7: scorecard event
-    PROJECT_INDEX = "project_index"    # P9: project context
+    REVIEWER = "reviewer"  # P4: review outcome
+    SKILL_COMPILE = "skill_compile"  # P5: skill selection
+    TELEMETRY = "telemetry"  # P6: metrics event
+    EVAL = "eval"  # P7: scorecard event
+    PROJECT_INDEX = "project_index"  # P9: project context
     OTHER = "other"
 
 
 @dataclass
 class DecisionRecord:
     """A single decision point during execution."""
+
     category: str
     decision: str
     reason: str
@@ -73,6 +74,7 @@ class DecisionRecord:
 @dataclass
 class SessionRecord:
     """Full record of a single session's decisions."""
+
     session_id: str = ""
     start_time: float = 0.0
     end_time: float = 0.0
@@ -90,16 +92,18 @@ class SessionRecord:
         duration_ms: float = 0.0,
         metadata: dict | None = None,
     ):
-        self.decisions.append(DecisionRecord(
-            category=category,
-            decision=decision,
-            reason=reason,
-            alternatives=alternatives or [],
-            outcome=outcome,
-            duration_ms=duration_ms,
-            timestamp=time.time(),
-            metadata=metadata or {},
-        ))
+        self.decisions.append(
+            DecisionRecord(
+                category=category,
+                decision=decision,
+                reason=reason,
+                alternatives=alternatives or [],
+                outcome=outcome,
+                duration_ms=duration_ms,
+                timestamp=time.time(),
+                metadata=metadata or {},
+            )
+        )
 
     def close(self):
         self.end_time = time.time()
@@ -136,6 +140,7 @@ class SessionRecord:
 @dataclass
 class DiagnosticReport:
     """Human-readable report explaining what happened and why."""
+
     session_id: str = ""
     summary: str = ""
     policy_decision: str = ""
@@ -165,7 +170,7 @@ class DiagnosticReport:
             for e in self.errors[:5]:
                 lines.append(f"   - {e.get('description', '')}")
             if len(self.errors) > 5:
-                lines.append(f"   ... and {len(self.errors)-5} more")
+                lines.append(f"   ... and {len(self.errors) - 5} more")
             lines.append("")
         if self.timeline:
             lines.append("⏱ Timeline:")
@@ -198,9 +203,7 @@ class RunInspector:
         policy_decisions = record.by_category(DecisionCategory.POLICY.value)
         if policy_decisions:
             last_policy = policy_decisions[-1]
-            report.policy_decision = (
-                f"{last_policy.decision} — {last_policy.reason}"
-            )
+            report.policy_decision = f"{last_policy.decision} — {last_policy.reason}"
         else:
             report.policy_decision = "No policy routing recorded (using defaults)"
 
@@ -208,27 +211,27 @@ class RunInspector:
         tool_decisions = record.by_category(DecisionCategory.TOOL_VALIDATION.value)
         total_tools = len(tool_decisions)
         blocked = [d for d in tool_decisions if "block" in d.outcome.lower()]
-        report.tool_validation_summary = (
-            f"{total_tools} calls, {len(blocked)} blocked"
-        )
+        report.tool_validation_summary = f"{total_tools} calls, {len(blocked)} blocked"
         for b in blocked:
-            issues.append({
-                "type": "tool_blocked",
-                "description": f"Tool '{b.decision}' blocked: {b.reason}",
-            })
+            issues.append(
+                {
+                    "type": "tool_blocked",
+                    "description": f"Tool '{b.decision}' blocked: {b.reason}",
+                }
+            )
 
         # 3. Reviewer analysis
         reviewer_decisions = record.by_category(DecisionCategory.REVIEWER.value)
         if reviewer_decisions:
             issues_found = [d for d in reviewer_decisions if d.outcome == "issues_found"]
-            report.reviewer_summary = (
-                f"{len(reviewer_decisions)} reviews, {len(issues_found)} with issues"
-            )
+            report.reviewer_summary = f"{len(reviewer_decisions)} reviews, {len(issues_found)} with issues"
             for rf in issues_found[:3]:
-                issues.append({
-                    "type": "reviewer_caught",
-                    "description": rf.reason[:200],
-                })
+                issues.append(
+                    {
+                        "type": "reviewer_caught",
+                        "description": rf.reason[:200],
+                    }
+                )
         else:
             report.reviewer_summary = "Not enabled this session"
 
@@ -256,10 +259,7 @@ class RunInspector:
             recs.append(f"High tool count ({session_tool_count}) — consider TaskDecomposer")
         report.recommendations = recs
 
-        report.summary = (
-            f"{record.total_decisions} decisions in {record.duration:.0f}s. "
-            f"{len(issues)} issues detected."
-        )
+        report.summary = f"{record.total_decisions} decisions in {record.duration:.0f}s. {len(issues)} issues detected."
         return report
 
 
@@ -308,17 +308,14 @@ class TracePlayer:
 
             # Group into pages of 10
             if i % 10 == 0 and i < len(self.record.decisions):
-                lines.append(f"  --- page {i//10} ---")
+                lines.append(f"  --- page {i // 10} ---")
 
         return lines
 
     def search(self, query: str) -> list[DecisionRecord]:
         """Search decisions matching a text query."""
         q = query.lower()
-        return [
-            d for d in self.record.decisions
-            if q in d.decision.lower() or q in d.reason.lower()
-        ]
+        return [d for d in self.record.decisions if q in d.decision.lower() or q in d.reason.lower()]
 
     def summary_stats(self) -> dict:
         """Quick statistics about the session."""
@@ -409,15 +406,17 @@ class DecisionRecorder:
                 tags=sdata.get("tags", []),
             )
             for dd in sdata.get("decisions", []):
-                record.decisions.append(DecisionRecord(
-                    category=dd.get("category", ""),
-                    decision=dd.get("decision", ""),
-                    reason=dd.get("reason", ""),
-                    alternatives=dd.get("alternatives", []),
-                    outcome=dd.get("outcome", ""),
-                    duration_ms=dd.get("duration_ms", 0.0),
-                    timestamp=dd.get("timestamp", 0.0),
-                ))
+                record.decisions.append(
+                    DecisionRecord(
+                        category=dd.get("category", ""),
+                        decision=dd.get("decision", ""),
+                        reason=dd.get("reason", ""),
+                        alternatives=dd.get("alternatives", []),
+                        outcome=dd.get("outcome", ""),
+                        duration_ms=dd.get("duration_ms", 0.0),
+                        timestamp=dd.get("timestamp", 0.0),
+                    )
+                )
             self.sessions[sid] = record
 
 

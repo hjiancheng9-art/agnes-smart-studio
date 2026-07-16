@@ -77,6 +77,7 @@ class TestCircuitBreaker:
         for _ in range(3):
             ps.record_failure("test")
         import time
+
         time.sleep(0.02)
         assert ps.circuit_can_try("test") is True
         # Second try in half-open should be blocked
@@ -87,6 +88,7 @@ class TestCircuitBreaker:
         ps.mark_down("test")
         assert ps.is_down("test") is True
         import time
+
         time.sleep(0.02)
         assert ps.is_down("test") is False
 

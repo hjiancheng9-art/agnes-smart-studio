@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import logging
 from enum import IntEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)
 
@@ -133,9 +133,11 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 ROOT = Path(__file__).parent.parent
 PYTHON = os.path.expanduser(r"python")
@@ -329,13 +331,28 @@ class ToolRegistryMesh:
         # Priority ordering: safe fast tools first, dangerous/slow tools last
         _TOOL_PRIORITY = {
             # execute: safe & fast → dangerous/slow
-            "run_bash": 1, "run_python": 2, "read_file": 3, "write_file": 4,
-            "edit_file": 5, "search_files": 6, "glob_files": 7, "list_files": 8,
-            "git_status": 20, "git_diff": 21, "git_log": 22,
-            "run_test": 90, "debug_inspect": 91, "orchestrate": 92,
+            "run_bash": 1,
+            "run_python": 2,
+            "read_file": 3,
+            "write_file": 4,
+            "edit_file": 5,
+            "search_files": 6,
+            "glob_files": 7,
+            "list_files": 8,
+            "git_status": 20,
+            "git_diff": 21,
+            "git_log": 22,
+            "run_test": 90,
+            "debug_inspect": 91,
+            "orchestrate": 92,
             # search: code search first
-            "search_files": 1, "grep": 1, "glob_files": 2, "find_symbol": 3,
-            "search_symbols": 4, "web_search": 10, "web_fetch": 11,
+            "search_files": 1,
+            "grep": 1,
+            "glob_files": 2,
+            "find_symbol": 3,
+            "search_symbols": 4,
+            "web_search": 10,
+            "web_fetch": 11,
             # Default for unlisted tools
         }
         _DEFAULT_PRIORITY = 50
@@ -343,8 +360,7 @@ class ToolRegistryMesh:
         for intent_key in CATEGORY_META:
             if not CATEGORY_META[intent_key]["order"]:
                 tools_in_intent = [
-                    e.name for e in self._tools.values()
-                    if e.category == intent_key and e.source == "crux"
+                    e.name for e in self._tools.values() if e.category == intent_key and e.source == "crux"
                 ]
                 if tools_in_intent:
                     # Sort by priority (lower = preferred), then alphabetically
@@ -399,7 +415,8 @@ class ToolRegistryMesh:
                 cwd=str(ROOT),
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
             )
-            assert proc.stdin is not None and proc.stdout is not None  # guaranteed by PIPE
+            assert proc.stdin is not None
+            assert proc.stdout is not None
 
             # Initialize handshake
             init_msg = (
@@ -570,7 +587,7 @@ class ToolRegistryMesh:
         return [name for name in self._tools if self.get_category(name) == category]
 
     def suggest_tools(
-        self, intent_or_spec, max_results: int = 5, session_context: dict = None
+        self, intent_or_spec, max_results: int = 5, session_context: dict | None = None
     ) -> list[tuple[str, float]]:
         """基于意图或 TaskSpec 智能推荐工具（含加权路由升级）。"""
         candidates = []
@@ -720,9 +737,7 @@ class ToolRegistryMesh:
             candidates = [e.name for e in self._by_category.get(intent, [])]
         # Final fallback: search for tools matching intent prefix
         if not candidates:
-            candidates = [n for n in self._tools
-                          if n.replace("_", "").startswith(intent)
-                          or intent in n.split("_")]
+            candidates = [n for n in self._tools if n.replace("_", "").startswith(intent) or intent in n.split("_")]
         last_error = ""
         first_tool = candidates[0] if candidates else ""
         _MAX_TOTAL_TIME = 8.0  # max total routing time (local tools are fast)
@@ -744,6 +759,7 @@ class ToolRegistryMesh:
                 else:
                     # Middle wildcard: convert to regex-like matching
                     import re
+
                     pattern = re.escape(tool_name).replace(r"\*", ".*")
                     regex = re.compile(f"^{pattern}$")
                     matching = [n for n in self._tools if regex.match(n)]
@@ -886,6 +902,7 @@ class ToolRegistryMesh:
                 func = getattr(mod, func_name)
                 # Map common intent-level kwargs to function parameters
                 import inspect as _inspect
+
                 try:
                     sig = _inspect.signature(func)
                     param_names = set(sig.parameters.keys())
@@ -898,8 +915,11 @@ class ToolRegistryMesh:
                         effective[k] = v
                 # If required params are missing, try to fill from common aliases
                 if param_names:
-                    required = {n for n, p in sig.parameters.items()
-                               if p.default is _inspect.Parameter.empty and n not in effective}
+                    required = {
+                        n
+                        for n, p in sig.parameters.items()
+                        if p.default is _inspect.Parameter.empty and n not in effective
+                    }
                     if required and not effective:
                         # Try mapping the primary intent kwarg to the first required param
                         primary_val = kwargs.get("query") or kwargs.get("prompt") or kwargs.get("target")
@@ -934,7 +954,8 @@ class ToolRegistryMesh:
                 cwd=str(ROOT),
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
             )
-            assert proc.stdin is not None and proc.stdout is not None  # guaranteed by PIPE
+            assert proc.stdin is not None
+            assert proc.stdout is not None
 
             # Initialize first
             init_msg = (

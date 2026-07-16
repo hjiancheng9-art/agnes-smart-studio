@@ -1,7 +1,8 @@
 """Unified result types — ToolOutcome and Result for all subsystems."""
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Generic, TypeVar
 
@@ -31,7 +32,8 @@ class ToolOutcome:
     @classmethod
     def failure(cls, code: str, message: str, tool_name: str = "", retryable: bool = False) -> ToolOutcome:
         return cls(
-            status=ToolStatus.FAILURE, tool_name=tool_name,
+            status=ToolStatus.FAILURE,
+            tool_name=tool_name,
             error=Failure(code=code, kind="internal", message=message, retryable=retryable),
         )
 

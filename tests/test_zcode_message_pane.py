@@ -138,7 +138,7 @@ class TestScrollingWindowSubclass:
 
 class TestAutoScrollRespectsPinned:
     """test_auto_scroll_respects_pinned — when pinned, _pending_scroll_to_bottom set True.
-    
+
     _auto_scroll() only sets the pending flag (thread-safe design).
     _ScrollingWindow._scroll() consumes it on the render thread to set vertical_scroll.
     """

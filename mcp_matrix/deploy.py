@@ -23,10 +23,10 @@ BRIDGE_DIR = PROJECT_ROOT / "core" / "mcp_servers"
 # ── Bridge scripts ──
 BRIDGES = {
     "claude-code": BRIDGE_DIR / "claude_code_bridge.py",
-    "codex":       BRIDGE_DIR / "codex_bridge.py",
-    "kimi":        BRIDGE_DIR / "kimi_bridge.py",
-    "codebuddy":   BRIDGE_DIR / "codebuddy_bridge.py",
-    "zcode":       BRIDGE_DIR / "crux_mcp_entry.py",
+    "codex": BRIDGE_DIR / "codex_bridge.py",
+    "kimi": BRIDGE_DIR / "kimi_bridge.py",
+    "codebuddy": BRIDGE_DIR / "codebuddy_bridge.py",
+    "zcode": BRIDGE_DIR / "crux_mcp_entry.py",
 }
 
 CRUX_STUDIO = PROJECT_ROOT / "crux_studio.py"
@@ -39,15 +39,16 @@ def entry(bridge_name: str) -> dict:
 
 # ── Deployers ──
 
+
 def deploy_claude_code(dry_run=False):
     """~/.claude/.mcp.json"""
     target = HOME / ".claude" / ".mcp.json"
     config = {
         "mcpServers": {
-            "codex":     entry("codex"),
-            "kimi":      entry("kimi"),
+            "codex": entry("codex"),
+            "kimi": entry("kimi"),
             "codebuddy": entry("codebuddy"),
-            "zcode":     entry("zcode"),
+            "zcode": entry("zcode"),
             "crux": {
                 "command": PYTHON_EXE,
                 "args": [str(CRUX_STUDIO), "mcp-serve"],
@@ -63,7 +64,7 @@ def deploy_codex(dry_run=False):
     entries = []
     for name in ["claude-code", "kimi", "codebuddy", "zcode"]:
         bp = BRIDGES[name]
-        entries.append(f'\n[mcp_servers.{name}]')
+        entries.append(f"\n[mcp_servers.{name}]")
         entries.append(f'command = "{PYTHON_EXE}"')
         entries.append(f'args = ["{bp.as_posix()}"]')
 
@@ -102,6 +103,7 @@ def deploy_kimi(dry_run=False):
 
 # ── Helpers ──
 
+
 def _write_json(target, config, dry_run):
     text = json.dumps(config, indent=2, ensure_ascii=False) + "\n"
     if dry_run:
@@ -122,9 +124,10 @@ def _backup_write(target, text):
 
 # ── Main ──
 
+
 def main():
     dry_run = "--dry-run" in sys.argv
-    specific = next((a.split("=",1)[1] for a in sys.argv if a.startswith("--tool=")), None)
+    specific = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--tool=")), None)
 
     print("=" * 60)
     print("MCP Matrix: Claude Code ↔ Codex ↔ Kimi ↔ CodeBuddy ↔ ZCode")
@@ -141,9 +144,9 @@ def main():
 
     deployers = [
         ("Claude Code", deploy_claude_code),
-        ("Codex",       deploy_codex),
-        ("Kimi Code",   deploy_kimi),
-        ("CodeBuddy",   deploy_codebuddy),
+        ("Codex", deploy_codex),
+        ("Kimi Code", deploy_kimi),
+        ("CodeBuddy", deploy_codebuddy),
     ]
 
     for label, fn in deployers:

@@ -143,7 +143,7 @@ def run_test_loop(
     target: str,
     *,
     max_iterations: int = 3,
-    on_failure: callable = None,
+    on_failure: callable | None = None,
 ) -> bool:
     """Edit→test→fix loop: run test, report failures, retry up to N times.
 

@@ -1,4 +1,5 @@
 """Runtime event types — the only output from RuntimeEngine to TUI/CLI."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

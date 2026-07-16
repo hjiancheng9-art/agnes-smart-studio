@@ -45,20 +45,28 @@ def choose_policy(user_text: str) -> ExecutionPolicy:
 
     # Swarm signals: multiple independent dimensions
     swarm_signals = sum(
-        kw in t for kw in ("分别分析", "多方案", "对比", "交叉验证", "多个模块",
-                            "并行", "多角度", "同时检查", "分别检查")
+        kw in t
+        for kw in ("分别分析", "多方案", "对比", "交叉验证", "多个模块", "并行", "多角度", "同时检查", "分别检查")
     )
     # Orchestrate signals: multi-stage workflow
     orch_signals = sum(
-        kw in t for kw in ("实现", "完整方案", "修复并验证", "重构", "部署",
-                            "执行并测试", "从零搭建", "迁移", "升级")
+        kw in t for kw in ("实现", "完整方案", "修复并验证", "重构", "部署", "执行并测试", "从零搭建", "迁移", "升级")
     )
     # Self-check is a strong orchestrate signal
     _self_check = (
-        "自检" in t or "自修" in t or "审计" in t or "audit" in t
-        or "zicha" in t or "zixiu" in t or "zijian" in t
-        or "self heal" in t or "self-heal" in t or "self_heal" in t
-        or "self check" in t or "self repair" in t or "self fix" in t
+        "自检" in t
+        or "自修" in t
+        or "审计" in t
+        or "audit" in t
+        or "zicha" in t
+        or "zixiu" in t
+        or "zijian" in t
+        or "self heal" in t
+        or "self-heal" in t
+        or "self_heal" in t
+        or "self check" in t
+        or "self repair" in t
+        or "self fix" in t
     )
     if _self_check:
         return ExecutionPolicy(ExecutionMode.ORCHESTRATE, "自检/审计任务需要多阶段编排")

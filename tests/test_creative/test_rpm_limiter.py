@@ -1,4 +1,5 @@
 """Tests for core.creative.rpm_limiter — 速率限制器"""
+
 import time
 
 from core.creative.rpm_limiter import (

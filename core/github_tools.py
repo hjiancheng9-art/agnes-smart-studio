@@ -41,7 +41,7 @@ def _run_gh(args: list[str], timeout: int = 30) -> dict:
 
     补全 git_tools._run_gh 缺少的 TimeoutExpired 单独捕获。
     """
-    cmd = ["gh"] + args
+    cmd = ["gh", *args]
     try:
         r = run_subprocess(cmd, timeout=timeout)
         return {
@@ -529,7 +529,7 @@ def execute_github_api(
     if raw_input:
         # 用 --input 传入 JSON body（适合 GraphQL）
         args += ["--input", "-", "--method", "POST"]
-        r = run_subprocess(["gh"] + args, input_data=raw_input, timeout=30)
+        r = run_subprocess(["gh", *args], input_data=raw_input, timeout=30)
         result = {
             "success": r.returncode == 0,
             "stdout": r.stdout.strip() if r.stdout else "",

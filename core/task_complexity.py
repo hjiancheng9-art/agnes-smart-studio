@@ -40,38 +40,114 @@ class TaskClassification:
 # ── Keyword patterns (priority-ordered; no \b — Chinese chars need plain matching) ──
 
 _CRITICAL_PATTERNS = [
-    "production outage", "data loss", "credential leak", "security incident",
-    "remote code execution", "rce", "corruption", "rollback production",
-    "安全", "部署", "发布", "security", "deploy", "release", "migrate", "migration", "迁移",
+    "production outage",
+    "data loss",
+    "credential leak",
+    "security incident",
+    "remote code execution",
+    "rce",
+    "corruption",
+    "rollback production",
+    "安全",
+    "部署",
+    "发布",
+    "security",
+    "deploy",
+    "release",
+    "migrate",
+    "migration",
+    "迁移",
 ]
 
 _COMPLEX_PATTERNS = [
-    "architecture", "architectural", "large refactor",
-    "distributed system", "breaking change",
-    "架构", "设计", "实现", "审计", "集成", "拆分", "重构",
-    "refactor", "implement", "design", "audit", "integrate", "split",
-    "自检", "自修", "self heal", "self-heal",
+    "architecture",
+    "architectural",
+    "large refactor",
+    "distributed system",
+    "breaking change",
+    "架构",
+    "设计",
+    "实现",
+    "审计",
+    "集成",
+    "拆分",
+    "重构",
+    "refactor",
+    "implement",
+    "design",
+    "audit",
+    "integrate",
+    "split",
+    "自检",
+    "自修",
+    "self heal",
+    "self-heal",
 ]
 
 _MODERATE_PATTERNS = [
-    "failing test", "failing tests", "debug", "race condition", "deadlock",
-    "implement feature", "performance regression", "integration", "thread safety",
-    "修复", "添加", "更新", "删除", "优化",
-    "bug", "add", "update", "delete", "optimize", "tweak", "调整",
+    "failing test",
+    "failing tests",
+    "debug",
+    "race condition",
+    "deadlock",
+    "implement feature",
+    "performance regression",
+    "integration",
+    "thread safety",
+    "修复",
+    "添加",
+    "更新",
+    "删除",
+    "优化",
+    "bug",
+    "add",
+    "update",
+    "delete",
+    "optimize",
+    "tweak",
+    "调整",
 ]
 
 # Feature/module context words — when present alongside a micro-task keyword,
 # they indicate the micro-task is part of a larger feature change (MODERATE),
 # e.g. "修复登录页拼写错误" contains both "拼写" (SIMPLE) and "页" (feature ctx).
 _FEATURE_CONTEXT_PATTERNS = [
-    "page", "module", "feature", "system", "component", "screen", "view",
-    "页", "模块", "功能", "系统", "组件", "界面", "页面", "登录", "注册", "支付", "认证",
+    "page",
+    "module",
+    "feature",
+    "system",
+    "component",
+    "screen",
+    "view",
+    "页",
+    "模块",
+    "功能",
+    "系统",
+    "组件",
+    "界面",
+    "页面",
+    "登录",
+    "注册",
+    "支付",
+    "认证",
 ]
 
 _SIMPLE_PATTERNS = [
-    "typo", "spelling", "comment", "docstring", "formatting", "rename",
-    "documentation", "readme", "log", "logging",
-    "拼写", "注释", "格式化", "改名", "日志",
+    "typo",
+    "spelling",
+    "comment",
+    "docstring",
+    "formatting",
+    "rename",
+    "documentation",
+    "readme",
+    "log",
+    "logging",
+    "拼写",
+    "注释",
+    "格式化",
+    "改名",
+    "日志",
 ]
 
 _TRIVIAL_RE = re.compile(
@@ -82,10 +158,7 @@ _TRIVIAL_RE = re.compile(
 
 def _match_any(text_lower: str, keywords: list[str]) -> bool:
     """Plain substring match — works for both ASCII and CJK text."""
-    for kw in keywords:
-        if kw in text_lower:
-            return True
-    return False
+    return any(kw in text_lower for kw in keywords)
 
 
 _TRIVIAL_RE = re.compile(

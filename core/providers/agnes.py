@@ -10,13 +10,13 @@ Agnes AI Provider — 统一多模态接入层
 Usage:
     from core.providers.agnes import AgnesProvider
     provider = AgnesProvider()
-    
+
     # 文生图
     result = provider.generate_image("a cat", model="agnes-image-2.1-flash")
-    
+
     # 图生图
     result = provider.image_to_image("make it cyberpunk", image_url="https://...")
-    
+
     # 文生视频（异步）
     task = provider.create_video_task("a dog running")
     # ... 稍后
@@ -35,6 +35,7 @@ import requests
 
 logger = logging.getLogger("crux.agnes")
 
+
 # 视频 ID 清洗工具
 def _clean_video_id(raw: str) -> str:
     """清洗 litellm 包装的 video_id，提取真实 ID"""
@@ -45,21 +46,35 @@ def _clean_video_id(raw: str) -> str:
         decoded = base64.b64decode(b64_part).decode("utf-8")
         if "video_id:" in decoded:
             idx = decoded.rfind("video_id:")
-            return decoded[idx + len("video_id:"):]
+            return decoded[idx + len("video_id:") :]
     except (ValueError, UnicodeDecodeError):
         pass
     if "litellm:" in raw and ";video_id:" in raw:
         idx = raw.rfind("video_id:")
         if idx >= 0:
-            return raw[idx + len("video_id:"):]
+            return raw[idx + len("video_id:") :]
     return raw
 
+
 # 标准尺寸白名单（Agnes 支持的尺寸）
-VALID_IMAGE_SIZES = frozenset({
-    "1024x1024", "1024x768", "768x1024", "1152x768", "768x1152",
-    "1152x864", "864x1152", "1280x720", "720x1280", "1280x768",
-    "768x1280", "1080x1080", "576x1024", "1024x576",
-})
+VALID_IMAGE_SIZES = frozenset(
+    {
+        "1024x1024",
+        "1024x768",
+        "768x1024",
+        "1152x768",
+        "768x1152",
+        "1152x864",
+        "864x1152",
+        "1280x720",
+        "720x1280",
+        "1280x768",
+        "768x1280",
+        "1080x1080",
+        "576x1024",
+        "1024x576",
+    }
+)
 
 # 视频帧数必须满足 8n+1
 VALID_VIDEO_FRAMES = frozenset({81, 121, 161, 201, 241, 281, 321, 361, 401, 441})
@@ -80,6 +95,7 @@ class AgnesProvider:
 
     def __init__(self, api_key: str | None = None, base_url: str | None = None):
         from dotenv import load_dotenv
+
         load_dotenv()
 
         self.api_key = api_key or os.getenv("CRUX_API_KEY", "")
@@ -148,8 +164,8 @@ class AgnesProvider:
         size: str = DEFAULT_IMAGE_SIZE,
         seed: int | None = None,
         negative_prompt: str | None = None,
-        image_url: str | None = None,       # 图生图输入
-        image_urls: list[str] | None = None, # 多图合成输入
+        image_url: str | None = None,  # 图生图输入
+        image_urls: list[str] | None = None,  # 多图合成输入
         response_format: str | None = None,  # "url" 或 "b64_json"
         n: int = 1,
     ) -> dict:
@@ -230,7 +246,7 @@ class AgnesProvider:
         frame_rate: int = DEFAULT_FRAME_RATE,
         seed: int | None = None,
         negative_prompt: str | None = None,
-        image_url: str | None = None,        # 图生视频
+        image_url: str | None = None,  # 图生视频
         image_urls: list[str] | None = None,  # 多图/关键帧
         mode: str = "text2video",
         timeout: float = 300.0,
@@ -278,8 +294,7 @@ class AgnesProvider:
         elif image_url:
             body["image"] = image_url
 
-        logger.debug("create_video_task: model=%s size=%s frames=%d fps=%d",
-                      model, size, num_frames, frame_rate)
+        logger.debug("create_video_task: model=%s size=%s frames=%d fps=%d", model, size, num_frames, frame_rate)
 
         resp = self._client.post(f"{self.base_url}/videos", json=body, timeout=timeout)
         resp.raise_for_status()
@@ -309,6 +324,7 @@ class AgnesProvider:
         通过 CruxClient 查询，兼容 Agnes API 的 multipart response。
         """
         from core.client import CruxClient
+
         client = CruxClient()
         data = client.check_video(video_id)
 
@@ -334,13 +350,13 @@ class AgnesProvider:
     ) -> dict:
         """
         轮询等待视频生成完成，自动下载到本地。
-        
+
         Args:
             video_id: 视频 ID
             poll_interval: 轮询间隔（秒）
             max_wait: 最大等待时间
             on_progress: 进度回调 fn(status, progress, data)
-            
+
         Returns:
             {"status": ..., "url": ..., "local_path": ..., "video_id": ...}
         """
@@ -422,8 +438,10 @@ class AgnesProvider:
             # Agnes 要求宽高为 64 的倍数
             w = (w // 64) * 64
             h = (h // 64) * 64
-            if w < 64: w = 1152
-            if h < 64: h = 768
+            if w < 64:
+                w = 1152
+            if h < 64:
+                h = 768
             return f"{w}x{h}"
         except (ValueError, AttributeError):
             return DEFAULT_VIDEO_SIZE
@@ -464,8 +482,13 @@ class AgnesProvider:
         with open(image_path, "rb") as f:
             data = base64.b64encode(f.read()).decode()
         ext = Path(image_path).suffix.lstrip(".").lower()
-        mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
-                "webp": "image/webp", "gif": "image/gif"}.get(ext, "image/png")
+        mime = {
+            "png": "image/png",
+            "jpg": "image/jpeg",
+            "jpeg": "image/jpeg",
+            "webp": "image/webp",
+            "gif": "image/gif",
+        }.get(ext, "image/png")
         return f"data:{mime};base64,{data}"
 
     def close(self):

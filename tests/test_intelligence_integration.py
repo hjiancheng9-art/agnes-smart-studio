@@ -3,6 +3,7 @@ Intelligence Pipeline 集成测试
 =============================
 测试完整链路: IntelligencePolicyRouter → IntelligenceHook → ChatSession 标记
 """
+
 import pytest
 
 from core.critic_agent import CriticAgent, CritiqueCategory, CritiqueFinding, CritiqueReport, CritiqueSeverity
@@ -160,32 +161,38 @@ class TestPipelineIntegration:
         report = CritiqueReport(target="测试方案")
 
         # 添加发现
-        report.findings.append(CritiqueFinding(
-            category=CritiqueCategory.SECURITY,
-            severity=CritiqueSeverity.HIGH,
-            summary="缺少输入验证",
-            location="api/handler.py:25",
-            suggestion="添加参数校验中间件",
-        ))
-        report.findings.append(CritiqueFinding(
-            category=CritiqueCategory.PERFORMANCE,
-            severity=CritiqueSeverity.MEDIUM,
-            summary="N+1 查询问题",
-            location="db/queries.py:42",
-            suggestion="使用 JOIN 或批量查询",
-        ))
+        report.findings.append(
+            CritiqueFinding(
+                category=CritiqueCategory.SECURITY,
+                severity=CritiqueSeverity.HIGH,
+                summary="缺少输入验证",
+                location="api/handler.py:25",
+                suggestion="添加参数校验中间件",
+            )
+        )
+        report.findings.append(
+            CritiqueFinding(
+                category=CritiqueCategory.PERFORMANCE,
+                severity=CritiqueSeverity.MEDIUM,
+                summary="N+1 查询问题",
+                location="db/queries.py:42",
+                suggestion="使用 JOIN 或批量查询",
+            )
+        )
 
         assert report.blocking is False  # no critical
         assert report.high_count == 1
 
         # 添加 critical
-        report.findings.append(CritiqueFinding(
-            category=CritiqueCategory.SECURITY,
-            severity=CritiqueSeverity.CRITICAL,
-            summary="SQL 注入漏洞",
-            location="db/raw_query.py:15",
-            suggestion="使用参数化查询",
-        ))
+        report.findings.append(
+            CritiqueFinding(
+                category=CritiqueCategory.SECURITY,
+                severity=CritiqueSeverity.CRITICAL,
+                summary="SQL 注入漏洞",
+                location="db/raw_query.py:15",
+                suggestion="使用参数化查询",
+            )
+        )
 
         assert report.blocking is True  # has critical
         assert report.critical_count == 1
@@ -196,11 +203,13 @@ class TestPipelineIntegration:
         result = WorkflowResult(mode="DEEP", passed=True, goal_id="g-001", summary="审查通过，3个问题已修复")
 
         report = CritiqueReport(target="认证模块")
-        report.findings.append(CritiqueFinding(
-            category=CritiqueCategory.LOGIC,
-            severity=CritiqueSeverity.MEDIUM,
-            summary="token 续期逻辑缺失",
-        ))
+        report.findings.append(
+            CritiqueFinding(
+                category=CritiqueCategory.LOGIC,
+                severity=CritiqueSeverity.MEDIUM,
+                summary="token 续期逻辑缺失",
+            )
+        )
         result.critique_report = report
 
         formatted = wf.format_result_for_user(result)

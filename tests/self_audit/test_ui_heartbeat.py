@@ -46,6 +46,7 @@ class TestUIHeartbeat:
 
     def test_heartbeat_stop_clears_task(self):
         """stop() should set _running=False and cancel the task."""
+
         async def _run():
             h = UIHeartbeat()
             h.start()
@@ -59,6 +60,7 @@ class TestUIHeartbeat:
 
     def test_heartbeat_no_double_start(self):
         """Starting twice should not create duplicate tasks."""
+
         async def _run():
             h = UIHeartbeat()
             h.start()
@@ -76,56 +78,76 @@ class TestCdpSafeExecutor:
 
     def test_execute_quick_op(self):
         """Fast operation should return result immediately."""
+
         async def run():
             s = CdpSafeExecutor(timeout=5.0)
             result = await s.execute(lambda: 42)
             return result
+
         import asyncio
+
         result = asyncio.run(run())
         assert result == 42
 
     def test_execute_timeout(self):
         """Slow operation should raise TimeoutError."""
+
         async def run():
             s = CdpSafeExecutor(timeout=0.5)
             with pytest.raises(asyncio.TimeoutError):
                 await s.execute(lambda: time.sleep(2.0))
+
         import asyncio
+
         asyncio.run(run())
 
     def test_execute_raises_exception(self):
         """Operation that raises should propagate exception."""
+
         async def run():
             s = CdpSafeExecutor(timeout=5.0)
+
             def fail_func():
                 raise ValueError("test error")
+
             with pytest.raises(ValueError, match="test error"):
                 await s.execute(fail_func)
+
         import asyncio
+
         asyncio.run(run())
 
     def test_health_check_returns_true(self):
         """Health check should return True for working check."""
+
         async def run():
             s = CdpSafeExecutor(timeout=5.0)
             healthy = await s.health_check(lambda: True)
             assert healthy is True
+
         import asyncio
+
         asyncio.run(run())
 
     def test_health_check_returns_false(self):
         """Health check should return False for broken check."""
+
         async def run():
             s = CdpSafeExecutor(timeout=2.0)
+
             def fail_check():
                 raise RuntimeError("fail")
+
             unhealthy = await s.health_check(fail_check)
             assert unhealthy is False
+
         import asyncio
+
         asyncio.run(run())
 
     def test_stats_tracking(self):
         """Stats should track ops and failures."""
+
         async def run():
             s = CdpSafeExecutor(timeout=5.0)
             await s.execute(lambda: 1)
@@ -133,7 +155,9 @@ class TestCdpSafeExecutor:
             assert stats["total_ops"] >= 1
             assert "failures" in stats
             s.shutdown(wait=False)
+
         import asyncio
+
         asyncio.run(run())
 
 

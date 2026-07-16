@@ -25,7 +25,7 @@ class AdvisorResult:
 
     status: AdvisorStatus
     content: str = ""
-    source: str = ""          # "cdp_chatgpt" | "openai_api"
+    source: str = ""  # "cdp_chatgpt" | "openai_api"
     latency_ms: int = 0
     error: str | None = None
 
@@ -57,9 +57,7 @@ class AdvisorClient(Protocol):
         """
         ...
 
-    def ask_with_files(
-        self, query: str, file_paths: list[str], context: str = ""
-    ) -> AdvisorResult:
+    def ask_with_files(self, query: str, file_paths: list[str], context: str = "") -> AdvisorResult:
         """发送查询 + 文件附件并返回顾问结果。
 
         Args:

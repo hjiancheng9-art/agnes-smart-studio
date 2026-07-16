@@ -3,6 +3,7 @@ TUI-Backend Healthcheck — TUI/后端匹配度健康检查
 =================================================
 跑一轮最小事件环，验证所有 kind 都能被正确处理。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class HealthResult:
     """健康检查结果"""
+
     overall: str = "unknown"  # ok / degraded / failed
     passed: int = 0
     failed: int = 0
@@ -45,8 +47,15 @@ class TuiBackendHealthcheck:
     """TUI-后端健康检查"""
 
     REQUIRED_EVENTS = {
-        "text", "info", "status", "intel_analysis",
-        "confirm", "error", "stream_start", "stream_end", "final",
+        "text",
+        "info",
+        "status",
+        "intel_analysis",
+        "confirm",
+        "error",
+        "stream_start",
+        "stream_end",
+        "final",
     }
 
     # ── 模拟后端事件 ──
@@ -55,24 +64,18 @@ class TuiBackendHealthcheck:
         """模拟完整事件流"""
         run_id = f"health_{int(time.time())}"
         events = [
-            StreamEvent(run_id=run_id, kind="stream_start",
-                        payload={"message": "start"}),
-            StreamEvent(run_id=run_id, kind="status",
-                        payload={"run_id": run_id, "status": "routing",
-                                 "message": "Routing..."}),
-            StreamEvent(run_id=run_id, kind="intel_analysis",
-                        payload={"mode": "BALANCED", "pipeline": False}),
-            StreamEvent(run_id=run_id, kind="text",
-                        payload={"message": "hello world"}),
-            StreamEvent(run_id=run_id, kind="info",
-                        payload={"message": "测试步骤完成"}),
-            StreamEvent(run_id=run_id, kind="confirm",
-                        payload={"tool": "write_file", "message": "确认写入？",
-                                 "risk": "low"}),
-            StreamEvent(run_id=run_id, kind="error",
-                        payload={"message": "test error", "kind": "test_error"}),
-            StreamEvent(run_id=run_id, kind="stream_end",
-                        payload={"message": "end"}),
+            StreamEvent(run_id=run_id, kind="stream_start", payload={"message": "start"}),
+            StreamEvent(
+                run_id=run_id, kind="status", payload={"run_id": run_id, "status": "routing", "message": "Routing..."}
+            ),
+            StreamEvent(run_id=run_id, kind="intel_analysis", payload={"mode": "BALANCED", "pipeline": False}),
+            StreamEvent(run_id=run_id, kind="text", payload={"message": "hello world"}),
+            StreamEvent(run_id=run_id, kind="info", payload={"message": "测试步骤完成"}),
+            StreamEvent(
+                run_id=run_id, kind="confirm", payload={"tool": "write_file", "message": "确认写入？", "risk": "low"}
+            ),
+            StreamEvent(run_id=run_id, kind="error", payload={"message": "test error", "kind": "test_error"}),
+            StreamEvent(run_id=run_id, kind="stream_end", payload={"message": "end"}),
         ]
         return events
 
@@ -126,13 +129,9 @@ class TuiBackendHealthcheck:
 
         for kind in self.REQUIRED_EVENTS:
             try:
-                event = StreamEvent(run_id="test", kind=kind,
-                                    payload={"message": "test"})
+                StreamEvent(run_id="test", kind=kind, payload={"message": "test"})
                 normalized = normalize_event(("test", {"message": "ok"}), "test")
-                result.checks[kind] = (
-                    kind in KNOWN_KINDS
-                    and normalized.kind in KNOWN_KINDS
-                )
+                result.checks[kind] = kind in KNOWN_KINDS and normalized.kind in KNOWN_KINDS
             except Exception as e:
                 result.checks[kind] = False
                 result.errors.append(f"{kind}: {e}")

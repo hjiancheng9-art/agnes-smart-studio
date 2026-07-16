@@ -1,4 +1,5 @@
 """Tests for core.creative.qc — 质量检查（离线场景）"""
+
 from core.creative.qc import FrameQC, QCResult, VideoQC
 
 
@@ -52,8 +53,7 @@ class TestFrameQC:
     def test_scoring_threshold_pass(self, monkeypatch):
         qc = FrameQC(threshold=60)
         # Mock _analyze_frame to avoid HTTP
-        monkeypatch.setattr(qc, "_analyze_frame",
-                           lambda url, desc: "总分: 75\n问题: \n建议: 可以进入视频")
+        monkeypatch.setattr(qc, "_analyze_frame", lambda url, desc: "总分: 75\n问题: \n建议: 可以进入视频")
         r = qc.check("http://fake.url/img.png", "a cat")
         assert r.score == 75
         assert r.passed
@@ -62,6 +62,7 @@ class TestFrameQC:
 class TestVideoQC:
     def test_check_basic(self):
         from core.creative.shot_contract import ShotContract
+
         vqc = VideoQC()
         c = ShotContract(num_frames=81, frame_rate=24)
         r = vqc.check("http://fake.url/vid.mp4", c)

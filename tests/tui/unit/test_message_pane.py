@@ -1,4 +1,5 @@
 """Tests for message_pane.py — message rendering, scroll, rich content."""
+
 import pytest
 
 
@@ -8,6 +9,7 @@ class TestMessagePane:
     @pytest.fixture
     def pane(self):
         from ui.message_pane import MessagePane
+
         return MessagePane()
 
     def test_creation(self, pane):

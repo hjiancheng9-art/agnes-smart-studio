@@ -27,36 +27,36 @@ class GitWorkflow:
         self.root = root or ROOT
 
     def _run(self, *args, capture: bool = True) -> tuple[int, str, str]:
-        r = run_subprocess(["git"] + list(args), timeout=30, cwd=str(self.root))
+        r = run_subprocess(["git", *list(args)], timeout=30, cwd=str(self.root))
         return r.returncode, r.stdout.strip(), r.stderr.strip()
 
     def status(self) -> str:
-        code, out, err = self._run("status", "--short")
+        _code, out, _err = self._run("status", "--short")
         return out or "(clean)"
 
     def diff(self) -> str:
-        code, out, err = self._run("diff", "--stat")
+        _code, out, _err = self._run("diff", "--stat")
         return out or "(no changes)"
 
     def stage_all(self) -> str:
-        code, out, err = self._run("add", "-A")
+        code, _out, err = self._run("add", "-A")
         return "all changes staged" if code == 0 else f"error: {err}"
 
     def commit(self, message: str) -> str:
-        code, out, err = self._run("commit", "-m", message)
+        _code, out, err = self._run("commit", "-m", message)
         return out or err
 
     def create_branch(self, name: str) -> str:
         safe_name = name.lower().replace(" ", "-")[:50]
-        code, out, err = self._run("checkout", "-b", safe_name)
+        code, _out, err = self._run("checkout", "-b", safe_name)
         return f"branch '{safe_name}' created" if code == 0 else err
 
     def current_branch(self) -> str:
-        code, out, err = self._run("branch", "--show-current")
+        _code, out, _err = self._run("branch", "--show-current")
         return out or "unknown"
 
     def log(self, n: int = 5) -> str:
-        code, out, err = self._run("log", f"-{n}", "--oneline", "--decorate")
+        _code, out, _err = self._run("log", f"-{n}", "--oneline", "--decorate")
         return out or "(no commits)"
 
     def safe_autocommit(self, message: str) -> dict:
@@ -76,7 +76,7 @@ class GitWorkflow:
     def snapshot(self, label: str = "") -> str:
         """Quick git stash snapshot with label."""
         safe_label = label or f"auto-{int(time.time())}"
-        code, out, err = self._run("stash", "push", "-m", safe_label)
+        code, _out, err = self._run("stash", "push", "-m", safe_label)
         return f"snapshot '{safe_label}' saved" if code == 0 else err
 
     def restore_snapshot(self, label: str = "") -> str:

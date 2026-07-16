@@ -9,13 +9,16 @@ from __future__ import annotations
 
 import enum
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # ═══════════════════════════════════════════════════
 #  Enums
 # ═══════════════════════════════════════════════════
+
 
 class ToolCategory(enum.Enum):
     SEARCH = "search"
@@ -36,11 +39,12 @@ class ToolCategory(enum.Enum):
 
 class ToolRisk(enum.Enum):
     """Risk level determines if approval_gate or sandbox is required."""
-    READONLY = "readonly"        # No side effects
+
+    READONLY = "readonly"  # No side effects
     LOCAL_WRITE = "local_write"  # Writes to local filesystem
-    NETWORK = "network"          # Outbound network
-    SHELL = "shell"              # Shell execution
-    BROWSER = "browser"          # Browser automation
+    NETWORK = "network"  # Outbound network
+    SHELL = "shell"  # Shell execution
+    BROWSER = "browser"  # Browser automation
     DESTRUCTIVE = "destructive"  # Can delete data / push / deploy
 
 
@@ -48,9 +52,11 @@ class ToolRisk(enum.Enum):
 #  Core Data Classes
 # ═══════════════════════════════════════════════════
 
+
 @dataclass
 class ToolSpec:
     """Formal specification for any tool in the CRUX ecosystem."""
+
     name: str
     description: str
     category: ToolCategory
@@ -86,6 +92,7 @@ class ToolResult:
 
     All tools MUST return this. No raw exceptions, no bare strings.
     """
+
     success: bool
     data: Any = None
     error: ToolError | None = None
@@ -105,10 +112,11 @@ class ToolResult:
 @dataclass
 class ToolError:
     """Structured error from tool execution."""
-    code: str                     # e.g. "TIMEOUT", "NETWORK", "PERMISSION_DENIED"
+
+    code: str  # e.g. "TIMEOUT", "NETWORK", "PERMISSION_DENIED"
     message: str
     detail: str | None = None
-    recoverable: bool = False     # Can the caller retry?
+    recoverable: bool = False  # Can the caller retry?
     original_exception: Exception | None = field(default=None, repr=False)
 
     # Standard error codes
@@ -128,16 +136,14 @@ class ToolError:
 #  Execution wrapper
 # ═══════════════════════════════════════════════════
 
+
 def execute_tool(spec: ToolSpec, **kwargs) -> ToolResult:
     """Safe tool execution with timeout and error wrapping.
 
     Every tool call in CRUX should go through this function.
     """
     if spec._handler is None:
-        return ToolResult.fail(
-            ToolError(ToolError.INTERNAL, f"Tool '{spec.name}' has no handler"),
-            tool_name=spec.name
-        )
+        return ToolResult.fail(ToolError(ToolError.INTERNAL, f"Tool '{spec.name}' has no handler"), tool_name=spec.name)
 
     start = time.perf_counter()
     try:

@@ -4,14 +4,16 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from .errors import ExecutionError
+if TYPE_CHECKING:
+    from .errors import ExecutionError
 
 
 @dataclass
 class ExecutionConfig:
     """Configuration for any code executor."""
+
     timeout_seconds: float = 30.0
     max_memory_mb: int = 512
     allow_network: bool = False
@@ -23,6 +25,7 @@ class ExecutionConfig:
 @dataclass
 class ExecutionResult:
     """Unified result from code execution."""
+
     success: bool
     stdout: str = ""
     stderr: str = ""

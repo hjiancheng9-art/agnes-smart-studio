@@ -68,6 +68,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
     # ── cdp_ask_chatgpt 参数归一化（第二层防护） ──
     if name == "cdp_ask_chatgpt":
         from core.tool_call_validator import _normalize_chatgpt_args
+
         args = _normalize_chatgpt_args(args)
 
     # trace 上下文由 multi_agent contextvar 自动传播
@@ -94,6 +95,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
         size = args.get("size", "1024x768")
         # seed 固定：未指定时随机生成，确保可复现
         import random as _rnd
+
         seed = args.get("seed") or _rnd.randint(0, 2147483647)
         system = args.get("system")
         neg_from_args = args.get("negative_prompt")
@@ -107,7 +109,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
         if image_url and not image_urls:
             image_urls = [image_url]
 
-        side: list[tuple[str, str | dict]] = [("info", f"生成图片: {args.get('prompt','')[:50]}...")]
+        side: list[tuple[str, str | dict]] = [("info", f"生成图片: {args.get('prompt', '')[:50]}...")]
 
         try:
             prompt = args.get("prompt", "")
@@ -125,9 +127,13 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                 fp = f"[{system}] {fp}"
 
             from core.providers.agnes import AgnesProvider
+
             agnes = AgnesProvider()
             result = agnes.generate_image(
-                prompt=fp, size=size, seed=seed, negative_prompt=neg,
+                prompt=fp,
+                size=size,
+                seed=seed,
+                negative_prompt=neg,
                 image_urls=image_urls,
             )
             agnes.close()
@@ -142,10 +148,12 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
 
             try:
                 from core.cost_tracker import record_usage
+
                 record_usage(model="agnes-image-2.1-flash", kind="image", label="generate_image", call_count=1)
             except Exception:
                 import logging
-                logging.getLogger('crux').debug('silent except', exc_info=True)
+
+                logging.getLogger("crux").debug("silent except", exc_info=True)
 
             return (f"图片已生成: {url}", side)
 
@@ -155,6 +163,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
         size_str = args.get("size", "1152x768")
         num_frames = args.get("num_frames", 121)
         import random as _rnd2
+
         seed = args.get("seed") or _rnd2.randint(0, 2147483647)
         system = args.get("system")
         neg_from_args = args.get("negative_prompt")
@@ -188,6 +197,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
 
             # P1: ShotContract — 强制一镜一动作
             from core.creative.shot_contract import compile_shot, validate_single_action
+
             is_valid, val_msg = validate_single_action(prompt)
             if not is_valid:
                 return (f"视频生成被拒绝: {val_msg}\n请拆分为独立镜头，每个镜头只包含一个动作", side)
@@ -221,6 +231,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
 
             # P1: RPM 限流 — 视频 1 RPM
             from core.creative.rpm_limiter import RPMLimiter
+
             limiter = RPMLimiter()
             side.append(("info", "等待视频生成队列..."))
             acquired = limiter.wait("video", timeout=120.0)
@@ -231,6 +242,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
             if not image_url and not image_urls:
                 try:
                     from core.providers.agnes import AgnesProvider
+
                     agnes = AgnesProvider()
                     # 先生成首帧
                     frame_result = agnes.generate_image(
@@ -244,9 +256,12 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                         side.append(("info", "首帧已生成，进行 QC 检查..."))
                         # QC 检查
                         from core.creative.qc import FrameQC
+
                         qc = FrameQC(threshold=60)
                         qc_result = qc.check(frame_url, fp)
-                        side.append(("info", f"首帧 QC: {qc_result.score}/100 {'通过' if qc_result.passed else '未通过'}"))
+                        side.append(
+                            ("info", f"首帧 QC: {qc_result.score}/100 {'通过' if qc_result.passed else '未通过'}")
+                        )
                         if not qc_result.passed:
                             agnes.close()
                             issues = ", ".join(qc_result.issues[:3])
@@ -257,6 +272,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
 
             # 使用 AgnesProvider 提交视频任务
             from core.providers.agnes import AgnesProvider
+
             agnes = AgnesProvider()
 
             task = agnes.create_video_task(
@@ -281,6 +297,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
 
             # 等待完成（最多 2 分钟）
             import threading
+
             result_holder = {"result": None}
 
             def poll_worker():
@@ -307,6 +324,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                     # ── 视频成本追踪 ──
                     try:
                         from core.cost_tracker import record_usage
+
                         record_usage(model="agnes-video-v2.0", kind="video", label="generate_video", call_count=1)
                     except ImportError:
                         pass
@@ -357,9 +375,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
             tasks_total = result.get("tasks_total", 0)
             tasks_failed = result.get("tasks_failed", 0)
             elapsed = result.get("elapsed", "?")
-            summary = (
-                f"多智能体协调完成: {tasks_done}/{tasks_total} 任务成功, 耗时 {elapsed}s"
-            )
+            summary = f"多智能体协调完成: {tasks_done}/{tasks_total} 任务成功, 耗时 {elapsed}s"
             if tasks_failed:
                 summary += f", {tasks_failed} 失败"
             return (summary, side)
@@ -380,7 +396,9 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                 applied = result.get("applied", [])
                 lines.append(f"\nApplied changes ({len(applied)}):")
                 for change in applied:
-                    lines.append(f"  + {change.get('action', '?')}: {change.get('intent', '')}/{change.get('tool', '')}")
+                    lines.append(
+                        f"  + {change.get('action', '?')}: {change.get('intent', '')}/{change.get('tool', '')}"
+                    )
                     if "new_order" in change:
                         lines.append(f"    -> {' > '.join(change['new_order'])}")
             if not do_apply:
@@ -487,7 +505,10 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
     # P0: Generation tool guard — image/video must NEVER fall through to chat executor
     _GEN_TOOLS = frozenset({"generate_image", "generate_video"})
     if name in _GEN_TOOLS:
-        return (f"[路由错误] {name} 是专用生成工具，必须由 dispatch 直接处理，不走通用执行器。请检查 _dispatch_tool_impl 的处理顺序。", [])
+        return (
+            f"[路由错误] {name} 是专用生成工具，必须由 dispatch 直接处理，不走通用执行器。请检查 _dispatch_tool_impl 的处理顺序。",
+            [],
+        )
 
     # ─── TRM Global Auto-Route ───────────────────────────────────────────
     # Every bridge-tool call is intercepted by the Tool Registry Mesh.
@@ -514,7 +535,10 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                     _reason = route_result.reason or "TRM GrowthEngine optimized"
                     logger.info(
                         "TRM auto-route: %s → %s (intent=%s, reason=%s)",
-                        name, route_result.tool, _trm_intent, _reason,
+                        name,
+                        route_result.tool,
+                        _trm_intent,
+                        _reason,
                     )
                     # Execute through TRM-selected tool
                     _trm_result = self.tools.call(route_result.tool, args)
@@ -580,7 +604,12 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                 if isinstance(_parsed, dict):
                     _done = sum(1 for v in _parsed.values() if isinstance(v, str) and "error" not in v.lower())
                     _failed = len(_parsed) - _done
-                    side.append(("info", f"agent_swarm 完成: {_done}/{len(_parsed)} 成功" + (f", {_failed} 失败" if _failed else "")))
+                    side.append(
+                        (
+                            "info",
+                            f"agent_swarm 完成: {_done}/{len(_parsed)} 成功" + (f", {_failed} 失败" if _failed else ""),
+                        )
+                    )
                 else:
                     side.append(("info", f"工具 {name} 执行完成"))
             except (json.JSONDecodeError, TypeError):

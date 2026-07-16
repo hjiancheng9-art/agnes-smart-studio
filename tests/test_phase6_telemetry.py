@@ -111,6 +111,7 @@ class TestTelemetryTracker:
         result = tracker.export(path)
         assert result == path
         import os
+
         assert os.path.exists(path)
 
     def test_max_records(self):
@@ -120,7 +121,9 @@ class TestTelemetryTracker:
         assert t.total_events == 5  # only last 5
 
     def test_to_dict(self):
-        rec = TelemetryRecord(event="test", phase="p1", tool_name="tool", duration_ms=12.5, success=True, detail="detail")
+        rec = TelemetryRecord(
+            event="test", phase="p1", tool_name="tool", duration_ms=12.5, success=True, detail="detail"
+        )
         d = rec.to_dict()
         assert d["event"] == "test"
         assert d["duration_ms"] == 12.5
@@ -217,6 +220,7 @@ class TestEvalRunner:
         path = str(tmp_path / "eval.json")
         eval_runner.save(path)
         import os
+
         assert os.path.exists(path)
 
         # Load into fresh runner
@@ -252,18 +256,21 @@ class TestEvalRunner:
 class TestIntegration:
     def test_tracker_in_validation_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         assert hasattr(vl, "telemetry")
         assert hasattr(vl, "config")
 
     def test_record_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         vl.record_telemetry("test_event", "p6", "test_tool", 10.0, True, "ok")
         assert vl.telemetry.total_events >= 1
 
     def test_telemetry_report_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         vl.record_telemetry("a", "p1", success=True)
         vl.record_telemetry("b", "p1", success=False)
@@ -272,12 +279,14 @@ class TestIntegration:
 
     def test_feature_check_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         assert vl.is_feature_enabled("p4", "media")
         assert not vl.is_feature_enabled("reviewer", "general")
 
     def test_set_config_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         vl.set_config(p4_reviewer=False)
         assert not vl.config.p4_reviewer
@@ -285,6 +294,7 @@ class TestIntegration:
 
     def test_chatpy_has_p6_flag(self):
         import py_compile
+
         py_compile.compile("core/chat.py", doraise=True)
 
 

@@ -24,16 +24,16 @@ import re
 
 # Broader than router.py's _FILE_PATH_RE — includes image, doc, and code extensions
 _FILE_PATH_RE = re.compile(
-    r'(?:'
+    r"(?:"
     r'[A-Za-z]:[\\/][^\s:?*"<>|]+'
     r'|[~/][^\s:?*"<>|]+'
-    r')'
-    r'\.(?:py|js|ts|tsx|jsx|md|json|yaml|yml|toml|cfg|ini|sh|bat|ps1|'
-    r'txt|csv|xml|html|css|scss|less|'
-    r'c|cpp|cc|h|hpp|java|go|rs|rb|php|swift|kt|scala|lua|r|'
-    r'png|jpg|jpeg|gif|webp|bmp|svg|ico|tiff|'
-    r'pdf|doc|docx|xls|xlsx|ppt|pptx|zip|tar|gz|rar|7z|'
-    r'mp4|mov|avi|mkv|webm|flv|wmv|m4v|mpg|mpeg|3gp)',
+    r")"
+    r"\.(?:py|js|ts|tsx|jsx|md|json|yaml|yml|toml|cfg|ini|sh|bat|ps1|"
+    r"txt|csv|xml|html|css|scss|less|"
+    r"c|cpp|cc|h|hpp|java|go|rs|rb|php|swift|kt|scala|lua|r|"
+    r"png|jpg|jpeg|gif|webp|bmp|svg|ico|tiff|"
+    r"pdf|doc|docx|xls|xlsx|ppt|pptx|zip|tar|gz|rar|7z|"
+    r"mp4|mov|avi|mkv|webm|flv|wmv|m4v|mpg|mpeg|3gp)",
     re.IGNORECASE,
 )
 
@@ -147,10 +147,7 @@ def build_execution_context(user_query: str, gpt_plan: str, file_paths: list[str
         file_list = "\n".join(f"  - {p}" for p in file_paths)
         file_hint = f"\n[GPT 已分析的文件]\n{file_list}\n"
 
-    return (
-        f"{_EXECUTE_PREFIX}{gpt_plan}{_EXECUTE_SUFFIX}{file_hint}"
-        f"\n[用户原始请求]\n{user_query}"
-    )
+    return f"{_EXECUTE_PREFIX}{gpt_plan}{_EXECUTE_SUFFIX}{file_hint}\n[用户原始请求]\n{user_query}"
 
 
 def should_consult_gpt(profile_str: str) -> bool:

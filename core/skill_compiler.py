@@ -56,6 +56,7 @@ _TARGET_ALIASES = {
 @dataclass
 class CompiledSkill:
     """A pre-processed, compiled skill ready for prompt injection."""
+
     name: str
     description: str
     prompt: str
@@ -70,6 +71,7 @@ class CompiledSkill:
     file_path: str = ""
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+
     @property
     def is_valid(self) -> bool:
         return len(self.errors) == 0
@@ -78,6 +80,7 @@ class CompiledSkill:
 @dataclass
 class CompiledSkillSet:
     """A set of compiled skills, ready for injection."""
+
     skills: dict[str, CompiledSkill] = field(default_factory=dict)
 
     @property
@@ -89,7 +92,9 @@ class CompiledSkillSet:
         return sum(s.prompt_tokens for s in self.skills.values())
 
     def by_target(self, target: TaskTarget) -> list[CompiledSkill]:
-        return [s for s in self.skills.values() if s.target == target or target in _TARGET_ALIASES.get(s.target.value, [])]
+        return [
+            s for s in self.skills.values() if s.target == target or target in _TARGET_ALIASES.get(s.target.value, [])
+        ]
 
     def always_load(self) -> list[CompiledSkill]:
         return sorted(
@@ -138,7 +143,7 @@ def _normalize_prompt(prompt) -> str:
 def _estimate_tokens(text: str) -> int:
     """Rough token estimate: ~1 token per 4 chars for English, ~1.5 for Chinese."""
     # Count CJK characters
-    cjk = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+    cjk = sum(1 for c in text if "\u4e00" <= c <= "\u9fff")
     ascii_chars = len(text) - cjk
     return ascii_chars // 4 + cjk // 2 + 1
 
@@ -232,7 +237,7 @@ class SkillCompiler:
         tokens = _estimate_tokens(prompt_text)
 
         # Extract keywords from name + description
-        keywords = re.findall(r'[a-zA-Z_]\w+', name + " " + description[:200])
+        keywords = re.findall(r"[a-zA-Z_]\w+", name + " " + description[:200])
 
         # Compress prompt: remove excess whitespace
         compressed = self._compress_prompt(prompt_text)
@@ -355,6 +360,7 @@ class SkillCompiler:
 @dataclass
 class PromptSection:
     """A section of the assembled system prompt."""
+
     name: str
     content: str
     priority: int = 5
@@ -365,6 +371,7 @@ class PromptSection:
 @dataclass
 class CompiledPrompt:
     """The final assembled system prompt with all sections."""
+
     sections: list[PromptSection] = field(default_factory=list)
     total_tokens: int = 0
     budget_remaining: int = 0
@@ -432,29 +439,33 @@ class PromptCompiler:
 
         # 1. Core: existing base prompt
         if existing_prompt:
-            result.add(PromptSection(
-                name="base",
-                content=existing_prompt,
-                priority=10,
-                tokens=_estimate_tokens(existing_prompt),
-                category="core",
-            ))
+            result.add(
+                PromptSection(
+                    name="base",
+                    content=existing_prompt,
+                    priority=10,
+                    tokens=_estimate_tokens(existing_prompt),
+                    category="core",
+                )
+            )
 
         # 2. Always-load skills (highest priority among skills)
         for cs in self.skills.always_load():
             if result.total_tokens + cs.prompt_tokens > token_budget:
                 break
-            result.add(PromptSection(
-                name=cs.name,
-                content=cs.prompt,
-                priority=8,
-                tokens=cs.prompt_tokens,
-                category="skill",
-            ))
+            result.add(
+                PromptSection(
+                    name=cs.name,
+                    content=cs.prompt,
+                    priority=8,
+                    tokens=cs.prompt_tokens,
+                    category="skill",
+                )
+            )
 
         # 3. Active / explicitly loaded skills (explicit intent outranks
         #    inferred task matching, so reserve budget for these first).
-        for name in (active_skills or []):
+        for name in active_skills or []:
             cs = self.skills.get(name)
             if cs and cs.name not in [s.name for s in result.sections]:
                 if result.total_tokens + cs.prompt_tokens > token_budget:
@@ -462,13 +473,15 @@ class PromptCompiler:
                 # Check conflicts
                 if any(cf in [s.name for s in result.sections] for cf in cs.conflicts_with):
                     continue  # Skip conflicting skill
-                result.add(PromptSection(
-                    name=cs.name,
-                    content=cs.prompt,
-                    priority=7,
-                    tokens=cs.prompt_tokens,
-                    category="skill",
-                ))
+                result.add(
+                    PromptSection(
+                        name=cs.name,
+                        content=cs.prompt,
+                        priority=7,
+                        tokens=cs.prompt_tokens,
+                        category="skill",
+                    )
+                )
 
         # 4. Task-matched skills (auto-loaded by inferred target)
         if target != TaskTarget.UNKNOWN:
@@ -479,25 +492,29 @@ class PromptCompiler:
                     continue  # Already added as an active skill
                 if result.total_tokens + cs.prompt_tokens > token_budget:
                     break
-                result.add(PromptSection(
-                    name=cs.name,
-                    content=cs.prompt,
-                    priority=6,
-                    tokens=cs.prompt_tokens,
-                    category="skill",
-                ))
+                result.add(
+                    PromptSection(
+                        name=cs.name,
+                        content=cs.prompt,
+                        priority=6,
+                        tokens=cs.prompt_tokens,
+                        category="skill",
+                    )
+                )
 
         # 5. Context memory (from Phase 3)
         if context_memory and result.total_tokens < token_budget:
             mem_tokens = _estimate_tokens(context_memory)
             if result.total_tokens + mem_tokens <= token_budget:
-                result.add(PromptSection(
-                    name="context_memory",
-                    content=context_memory,
-                    priority=4,
-                    tokens=mem_tokens,
-                    category="context",
-                ))
+                result.add(
+                    PromptSection(
+                        name="context_memory",
+                        content=context_memory,
+                        priority=4,
+                        tokens=mem_tokens,
+                        category="context",
+                    )
+                )
 
         # Update remaining budget
         result.budget_remaining = max(0, token_budget - result.total_tokens)

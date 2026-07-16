@@ -6,8 +6,9 @@ fallback chain, budget warnings, and methodology classification.
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 # ── Helpers ──────────────────────────────────────────────────
 

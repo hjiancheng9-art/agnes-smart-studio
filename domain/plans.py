@@ -1,4 +1,5 @@
 """Execution plan and routing types — one immutable plan per turn."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

@@ -21,11 +21,13 @@ import json
 import logging
 import os
 import uuid
-from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from core.client import CruxClient
     from core.cognitive_orchestrator import CognitiveOrchestrator
     from core.memory_bridge import MemoryBridge
     from core.reflection_loop import ReflectionLoop
@@ -49,7 +51,6 @@ _AUTO_RETRY_TOOLS = frozenset({"run_bash", "run_test", "pip_install", "run_pytho
 from core.chat_tool_helpers import merge_tool_calls, sanitize_tool_call_history
 from core.chat_tool_helpers import normalize_tool_args as _normalize_tool_args
 from core.chat_vision import _vision_fallback
-from core.client import CruxClient
 from core.config import get_crux_vision_model
 from core.observability import TraceContext, metrics
 from core.provider import (
@@ -1086,8 +1087,7 @@ class ChatSession(ChatToggleMixin):
 
         # ── 消费 intelligence 分析结果 ──
         # 1. Yield 状态提示（DEEP/SAFE/RESEARCH 模式）
-        for kind, text in self._intelligence_hook.get_status_yield():
-            yield (kind, text)
+        yield from self._intelligence_hook.get_status_yield()
 
         # 2. 根据模式调整推理参数
         if self._intel_mode in ("DEEP", "RESEARCH", "SAFE"):

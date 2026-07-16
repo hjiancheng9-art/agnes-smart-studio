@@ -266,8 +266,9 @@ class TestContextCompiler:
 
     def test_record_turn(self, compiler):
         compiler.set_current_task("Fix auth")  # set task first to populate WM
-        compiler.record_turn("Read auth.py", "OK, reading",
-                             tool_calls=[{"name": "read_file", "arguments": {"path": "auth.py"}}])
+        compiler.record_turn(
+            "Read auth.py", "OK, reading", tool_calls=[{"name": "read_file", "arguments": {"path": "auth.py"}}]
+        )
         assert compiler._total_turns == 1
         # track_tool_use is called internally by record_turn
         ctx = compiler.compile()
@@ -352,7 +353,15 @@ class TestModels:
         assert not item.expired
 
     def test_episode_fields(self):
-        ep = Episode(index=1, summary="summary", turn_count=3, tools_used=["a"], key_files=["f.py"], outcome="ok", timestamp=time.time())
+        ep = Episode(
+            index=1,
+            summary="summary",
+            turn_count=3,
+            tools_used=["a"],
+            key_files=["f.py"],
+            outcome="ok",
+            timestamp=time.time(),
+        )
         assert ep.index == 1
         assert ep.turn_count == 3
 

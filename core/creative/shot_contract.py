@@ -29,22 +29,69 @@ ACTION_SPLITTERS = re.compile(
     re.UNICODE | re.IGNORECASE,
 )
 
-CAMERA_MOTIONS = frozenset({
-    "推", "拉", "摇", "移", "跟", "升", "降",
-    "dolly", "track", "pan", "tilt", "crane", "aerial",
-    "推近", "拉远", "上摇", "下摇", "横移", "跟拍",
-    "dolly in", "dolly out", "track left", "track right",
-    "pan left", "pan right", "tilt up", "tilt down",
-    "crane up", "crane down", "aerial shot", "drone shot",
-    "稳定", "固定", "手持", "斯坦尼康",
-    "static", "handheld", "steadicam", "locked off",
-})
+CAMERA_MOTIONS = frozenset(
+    {
+        "推",
+        "拉",
+        "摇",
+        "移",
+        "跟",
+        "升",
+        "降",
+        "dolly",
+        "track",
+        "pan",
+        "tilt",
+        "crane",
+        "aerial",
+        "推近",
+        "拉远",
+        "上摇",
+        "下摇",
+        "横移",
+        "跟拍",
+        "dolly in",
+        "dolly out",
+        "track left",
+        "track right",
+        "pan left",
+        "pan right",
+        "tilt up",
+        "tilt down",
+        "crane up",
+        "crane down",
+        "aerial shot",
+        "drone shot",
+        "稳定",
+        "固定",
+        "手持",
+        "斯坦尼康",
+        "static",
+        "handheld",
+        "steadicam",
+        "locked off",
+    }
+)
 
-VALID_STYLES = frozenset({
-    "cinematic", "realistic", "anime", "watercolor", "cyberpunk",
-    "fantasy", "oil painting", "3d render", "pixel art",
-    "水墨", "油画", "赛博朋克", "科幻", "写实", "卡通",
-})
+VALID_STYLES = frozenset(
+    {
+        "cinematic",
+        "realistic",
+        "anime",
+        "watercolor",
+        "cyberpunk",
+        "fantasy",
+        "oil painting",
+        "3d render",
+        "pixel art",
+        "水墨",
+        "油画",
+        "赛博朋克",
+        "科幻",
+        "写实",
+        "卡通",
+    }
+)
 
 VALID_ASPECT_RATIOS = frozenset({"16:9", "9:16", "1:1", "4:3", "3:2", "21:9"})
 
@@ -54,20 +101,20 @@ class ShotContract:
     """一镜一动作的镜头合同"""
 
     shot_id: str = ""
-    prompt: str = ""                    # 原始 prompt
-    optimized_prompt: str = ""          # 结构化后的 prompt
+    prompt: str = ""  # 原始 prompt
+    optimized_prompt: str = ""  # 结构化后的 prompt
 
     # 核心要素（各必须只有一个）
-    subject: str = ""                   # 主体
-    action: str = ""                    # 动作（一个！）
-    scene: str = ""                     # 场景/环境
-    camera_motion: str = ""             # 运镜（一个！）
-    lighting: str = ""                  # 光线
-    style: str = ""                     # 风格
+    subject: str = ""  # 主体
+    action: str = ""  # 动作（一个！）
+    scene: str = ""  # 场景/环境
+    camera_motion: str = ""  # 运镜（一个！）
+    lighting: str = ""  # 光线
+    style: str = ""  # 风格
 
     # 技术参数
     aspect_ratio: str = "16:9"
-    duration_seconds: float = 3.4       # 81/24 ≈ 3.4秒
+    duration_seconds: float = 3.4  # 81/24 ≈ 3.4秒
     num_frames: int = 81
     frame_rate: int = 24
     seed: int | None = None
@@ -77,9 +124,13 @@ class ShotContract:
     image_urls: list[str] | None = None
 
     # 质量控制
-    keep_stable: list[str] = field(default_factory=lambda: [
-        "主体位置", "构图比例", "风格一致性",
-    ])
+    keep_stable: list[str] = field(
+        default_factory=lambda: [
+            "主体位置",
+            "构图比例",
+            "风格一致性",
+        ]
+    )
     negative_prompt: str = ""
 
     def to_dict(self) -> dict:
@@ -116,7 +167,7 @@ class ShotCompiler:
     def compile(cls, prompt: str, **kwargs) -> list[ShotContract]:
         """
         编译 prompt 为一个或多个 ShotContract（多动作时拆成多个）。
-        
+
         返回:
             [ShotContract, ...]  # 必有一镜
         """
@@ -127,7 +178,7 @@ class ShotCompiler:
         contracts = []
         for i, shot_prompt in enumerate(shots):
             contract = cls._extract_single(shot_prompt, **kwargs)
-            contract.shot_id = f"shot_{i+1:03d}"
+            contract.shot_id = f"shot_{i + 1:03d}"
             contracts.append(contract)
 
         if not contracts:
@@ -149,12 +200,31 @@ class ShotCompiler:
             if not part:
                 continue
             # 如果是分隔词且当前有内容，则截断
-            if ACTION_SPLITTERS.match(part) and part.strip() in [s.strip() for s in [
-                "然后", "接着", "随后", "之后", "再", "又", "最后",
-                "接下来", "紧接着", "突然", "转而",
-                "then", "and then", "after that", "next", "finally",
-                "subsequently", "followed by", "before", "while",
-            ]]:
+            if ACTION_SPLITTERS.match(part) and part.strip() in [
+                s.strip()
+                for s in [
+                    "然后",
+                    "接着",
+                    "随后",
+                    "之后",
+                    "再",
+                    "又",
+                    "最后",
+                    "接下来",
+                    "紧接着",
+                    "突然",
+                    "转而",
+                    "then",
+                    "and then",
+                    "after that",
+                    "next",
+                    "finally",
+                    "subsequently",
+                    "followed by",
+                    "before",
+                    "while",
+                ]
+            ]:
                 if buf:
                     result.append(buf)
                     buf = ""
@@ -218,12 +288,42 @@ class ShotCompiler:
 
         # 提取场景
         scene_keywords = [
-            "beach", "ocean", "mountain", "forest", "city", "street",
-            "space", "desert", "snow", "river", "lake", "garden",
-            "temple", "castle", "room", "hall", "market", "bridge",
-            "海滩", "海", "山", "森林", "城市", "街道",
-            "太空", "沙漠", "雪", "河", "湖", "花园",
-            "寺", "城堡", "房间", "大厅", "市场", "桥",
+            "beach",
+            "ocean",
+            "mountain",
+            "forest",
+            "city",
+            "street",
+            "space",
+            "desert",
+            "snow",
+            "river",
+            "lake",
+            "garden",
+            "temple",
+            "castle",
+            "room",
+            "hall",
+            "market",
+            "bridge",
+            "海滩",
+            "海",
+            "山",
+            "森林",
+            "城市",
+            "街道",
+            "太空",
+            "沙漠",
+            "雪",
+            "河",
+            "湖",
+            "花园",
+            "寺",
+            "城堡",
+            "房间",
+            "大厅",
+            "市场",
+            "桥",
         ]
         for scene in scene_keywords:
             if scene in prompt.lower():
@@ -235,18 +335,42 @@ class ShotCompiler:
             contract.scene = prompt[:30]
 
         # 取前 N 个字作为主体（简化版）
-        words = re.split(r'[,，]', prompt)
+        words = re.split(r"[,，]", prompt)
         if words:
             contract.subject = words[0].strip()[:50]
 
         # 提取动作
         action_keywords = [
-            "flying", "running", "walking", "swimming", "dancing",
-            "jumping", "sitting", "lying", "standing", "floating",
-            "driving", "riding", "climbing", "falling", "turning",
-            "飞", "跑", "走", "跳", "游", "舞",
-            "坐", "躺", "站", "浮", "开", "骑",
-            "爬升", "坠落", "转弯",
+            "flying",
+            "running",
+            "walking",
+            "swimming",
+            "dancing",
+            "jumping",
+            "sitting",
+            "lying",
+            "standing",
+            "floating",
+            "driving",
+            "riding",
+            "climbing",
+            "falling",
+            "turning",
+            "飞",
+            "跑",
+            "走",
+            "跳",
+            "游",
+            "舞",
+            "坐",
+            "躺",
+            "站",
+            "浮",
+            "开",
+            "骑",
+            "爬升",
+            "坠落",
+            "转弯",
         ]
         for action in action_keywords:
             if action in prompt.lower():
@@ -280,7 +404,7 @@ def compile_shot(prompt: str, **kwargs) -> ShotContract:
 def validate_single_action(prompt: str) -> tuple[bool, str]:
     """
     校验是否为一镜一动作。
-    
+
     返回:
         (is_valid, message)
     """

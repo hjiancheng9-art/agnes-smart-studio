@@ -45,6 +45,11 @@ PROTECTED_FILES: frozenset[str] = frozenset(
     }
 )
 
+import logging
+import subprocess as _sp
+
+logger = logging.getLogger(__name__)
+
 # 禁止区间的关键方法/属性
 PROTECTED_SYMBOLS: dict[str, frozenset[str]] = {
     "core/config.py": frozenset({"SETTINGS", "save_global_auth"}),
@@ -454,6 +459,7 @@ def _get_active_tdd_phase() -> str:
 def _is_test_file(file_path: str) -> bool:
     """判断文件路径是否为测试文件。"""
     import os
+
     fname = os.path.basename(file_path).lower()
     return fname.startswith("test_") or fname.endswith("_test.py") or "tests" in file_path.replace("\\", "/").split("/")
 
@@ -497,9 +503,16 @@ def methodology_pre_check(tool_name: str, args: dict, state: MethodologyState | 
     # C/D 级: 写操作 + git 操作必须确认 Plan
     if level in (TaskLevel.C, TaskLevel.D):
         is_write = tool_name in (
-            "write_file", "edit_file", "patch_file", "safe_rewrite_file",
-            "delete_files", "git_add_commit", "git_push", "git_pr_create",
-            "git_pr_merge", "git_tag",
+            "write_file",
+            "edit_file",
+            "patch_file",
+            "safe_rewrite_file",
+            "delete_files",
+            "git_add_commit",
+            "git_push",
+            "git_pr_create",
+            "git_pr_merge",
+            "git_tag",
         )
         if is_write and not state.plan_exists:
             level_name = "C" if level == TaskLevel.C else "D"
@@ -507,7 +520,10 @@ def methodology_pre_check(tool_name: str, args: dict, state: MethodologyState | 
 
     # D 级额外约束: 测试基线 + Worktree
     if level == TaskLevel.D:
-        if tool_name in ("git_add_commit", "git_push", "git_pr_create", "git_pr_merge") and not state.test_baseline_recorded:
+        if (
+            tool_name in ("git_add_commit", "git_push", "git_pr_create", "git_pr_merge")
+            and not state.test_baseline_recorded
+        ):
             return False, "D 级任务: 需先记录测试基线再提交/推送（使用 /done 验证）"
         if tool_name.startswith("git_") and not state.worktree_created:
             return False, "D 级任务: 需在隔离 Worktree 中操作（使用 git worktree add）"
@@ -609,7 +625,6 @@ def classify_failure(error_text: str) -> tuple[str, str]:
 # /done 命令 — 完成前验证 (AGENTS.md)
 # ═══════════════════════════════════════════════════════════════════
 
-import subprocess as _sp
 
 VERIFICATION_CHECKS: dict[str, str] = {
     "pytest": "python -m pytest tests/ --tb=short -q",

@@ -3,6 +3,7 @@ Confirm Manager — TUI confirm 超时/取消/默认策略
 =================================================
 解决 confirm 弹窗不响应导致 agent 死等问题。
 """
+
 import asyncio
 import logging
 import time
@@ -24,6 +25,7 @@ class ConfirmResult(str, Enum):
 @dataclass
 class ConfirmRequest:
     """确认请求"""
+
     tool: str
     message: str
     confirm_id: str = ""
@@ -70,15 +72,20 @@ class ConfirmRequest:
 class ConfirmManager:
     """确认管理器 — 超时自动降级，防止死等"""
 
-    def __init__(self, default_timeout: float = 30.0,
-                 default_action: str = "deny"):
+    def __init__(self, default_timeout: float = 30.0, default_action: str = "deny"):
         self.default_timeout = default_timeout
         self.default_action = default_action
         self._pending: dict[str, ConfirmRequest] = {}
 
-    def create(self, tool: str, message: str, detail: str = "",
-               risk: str = "medium", timeout_seconds: float | None = None,
-               default_action: str | None = None) -> ConfirmRequest:
+    def create(
+        self,
+        tool: str,
+        message: str,
+        detail: str = "",
+        risk: str = "medium",
+        timeout_seconds: float | None = None,
+        default_action: str | None = None,
+    ) -> ConfirmRequest:
         """创建确认请求"""
         req = ConfirmRequest(
             tool=tool,
@@ -96,8 +103,7 @@ class ConfirmManager:
         self._pending[req.confirm_id] = req
         return req
 
-    async def wait(self, confirm_id: str,
-                   on_timeout: str | None = None) -> tuple[ConfirmResult, str]:
+    async def wait(self, confirm_id: str, on_timeout: str | None = None) -> tuple[ConfirmResult, str]:
         """等待确认结果，带超时自动降级
 
         Returns:
@@ -166,10 +172,7 @@ class ConfirmManager:
     def cleanup(self, max_age: float = 300) -> int:
         """清理过期确认"""
         now = time.time()
-        to_remove = [
-            cid for cid, r in self._pending.items()
-            if r.is_resolved and now - r.responded_at > max_age
-        ]
+        to_remove = [cid for cid, r in self._pending.items() if r.is_resolved and now - r.responded_at > max_age]
         for cid in to_remove:
             del self._pending[cid]
         return len(to_remove)

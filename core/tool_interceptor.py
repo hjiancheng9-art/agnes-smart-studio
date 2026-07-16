@@ -77,12 +77,17 @@ def intercept_tool(tool_name: str, args: dict) -> tuple[bool, str]:
 
 # ── CDP ChatGPT 门控 ──────────────────────────────────
 
+
 def _gate_cdp_chatgpt(args: dict) -> tuple[bool, str]:
     """CDP ChatGPT 调用前检查。返回 (blocked, reason)。"""
     question = (
-        args.get("question") or args.get("text") or
-        args.get("prompt") or args.get("message") or
-        args.get("query") or args.get("input") or ""
+        args.get("question")
+        or args.get("text")
+        or args.get("prompt")
+        or args.get("message")
+        or args.get("query")
+        or args.get("input")
+        or ""
     )
 
     # 1. 空/太短/纯重复 → 拦截
@@ -94,12 +99,24 @@ def _gate_cdp_chatgpt(args: dict) -> tuple[bool, str]:
 
     # 2. 琐碎问题 → 拦截
     trivial_patterns = [
-        "你好", "hello", "hi", "谢谢", "thanks", "ok", "好的",
-        "是什么", "什么意思", "怎么用",
-        "几点", "今天.*日期", "现在.*时间",
-        "什么是", "解释一下",
+        "你好",
+        "hello",
+        "hi",
+        "谢谢",
+        "thanks",
+        "ok",
+        "好的",
+        "是什么",
+        "什么意思",
+        "怎么用",
+        "几点",
+        "今天.*日期",
+        "现在.*时间",
+        "什么是",
+        "解释一下",
     ]
     import re
+
     q_lower = str(question).lower().strip()
     for pat in trivial_patterns:
         if re.search(pat, q_lower) and len(q_lower) < 60:
@@ -116,13 +133,14 @@ def _gate_cdp_chatgpt(args: dict) -> tuple[bool, str]:
         if re.search(pat, q_lower):
             return True, "CDP ChatGPT: 代码操作 DeepSeek 自己更擅长，直接用工具"
 
-    # 4. CDP 健康预检
+    # 4. 浏览器健康预检（使用公开 API，不访问私有状态）
     try:
-        from core.cdp_browser import _check_cdp_health
-        if not _check_cdp_health():
-            return True, "CDP ChatGPT: Edge 浏览器未连接（端口 9222 不可达）"
-    except (ImportError, TypeError, OSError):
-        pass  # CDP 模块不可用，但模型可能自己知道怎么处理
+        from core.cdp_browser import is_connected
+
+        if not is_connected():
+            pass  # browser 未连接，但不拦截 — 让调用方自行决定
+    except (ImportError, RuntimeError):
+        pass
 
     return False, ""
 

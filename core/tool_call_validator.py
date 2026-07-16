@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from core.validation_errors import ValidationCode, ValidationIssue
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +26,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ParsedCall:
     """A single parsed tool call from LLM output."""
+
     name: str
     arguments: dict[str, Any] = field(default_factory=dict)
     raw_xml: str = ""
@@ -35,6 +38,7 @@ class ParsedCall:
 @dataclass
 class ValidationResult:
     """Result of validating an LLM output containing tool calls."""
+
     is_valid: bool = True
     tool_calls: list[dict] = field(default_factory=list)
     issues: list[ValidationIssue] = field(default_factory=list)
@@ -125,12 +129,14 @@ class ToolCallValidator:
         if not self._has_tool(name):
             available = list(self.tool_schemas.keys())
             hint = f"Available: {available[:10]}" if available else "No tools registered"
-            issues.append(ValidationIssue(
-                code=ValidationCode.UNKNOWN_TOOL,
-                message=f"Unknown tool: '{name}'",
-                tool_name=name,
-                hint=hint,
-            ))
+            issues.append(
+                ValidationIssue(
+                    code=ValidationCode.UNKNOWN_TOOL,
+                    message=f"Unknown tool: '{name}'",
+                    tool_name=name,
+                    hint=hint,
+                )
+            )
             return issues
 
         # ── 参数归一化：cdp_ask_chatgpt 接受 question/text/prompt/message/query/input ──
@@ -140,10 +146,12 @@ class ToolCallValidator:
         # Validate against schema
         schema = self._get_schema(name)
         if schema:
-            issues.extend(self._validate_args_with_schema(
-                ParsedCall(name=name, arguments=args),
-                schema,
-            ))
+            issues.extend(
+                self._validate_args_with_schema(
+                    ParsedCall(name=name, arguments=args),
+                    schema,
+                )
+            )
 
         return issues
 
@@ -162,11 +170,13 @@ class ToolCallValidator:
         if len(result.issues) > 15:
             lines.append(f"  ... and {len(result.issues) - 15} more issues")
 
-        lines.extend([
-            "",
-            "Please output corrected <invoke> tags with valid parameters.",
-            "Do NOT repeat the previous incorrect call.",
-        ])
+        lines.extend(
+            [
+                "",
+                "Please output corrected <invoke> tags with valid parameters.",
+                "Do NOT repeat the previous incorrect call.",
+            ]
+        )
         return "\n".join(lines)
 
     # ── XML extraction ──────────────────────────────────────────────
@@ -174,8 +184,8 @@ class ToolCallValidator:
     def _strip_markdown_fences(self, text: str) -> str:
         """Remove ```xml ... ``` or ``` ... ``` fences."""
         return re.sub(
-            r'```(?:xml|json)?\s*\n?(.*?)\n?```',
-            r'\1',
+            r"```(?:xml|json)?\s*\n?(.*?)\n?```",
+            r"\1",
             text,
             flags=re.DOTALL,
         ).strip()
@@ -183,26 +193,27 @@ class ToolCallValidator:
     def _extract_invoke_tags(self, text: str) -> list[str]:
         """Extract all <invoke ...>...</invoke> or <invoke ... /> blocks."""
         # Self-closing tags
-        pattern1 = r'<invoke\b[^>]*/>'
+        pattern1 = r"<invoke\b[^>]*/>"
         matches1 = re.findall(pattern1, text, re.DOTALL)
         if matches1:
             return matches1
         # Full blocks
-        pattern2 = r'<invoke\b[^>]*>.*?</invoke>'
+        pattern2 = r"<invoke\b[^>]*>.*?</invoke>"
         matches2 = re.findall(pattern2, text, re.DOTALL)
         if matches2:
             return matches2
         # Fallback: extract anything between <invoke and </invoke
-        start_tags = [m.start() for m in re.finditer(r'<invoke\b', text)]
+        start_tags = [m.start() for m in re.finditer(r"<invoke\b", text)]
         results = []
         for start in start_tags:
             end = text.find("</invoke>", start)
             if end >= 0:
-                results.append(text[start:end + len("</invoke>")])
+                results.append(text[start : end + len("</invoke>")])
         return results
 
     def _parse_invoke_tags(
-        self, tags: list[str],
+        self,
+        tags: list[str],
     ) -> tuple[list[ParsedCall], list[ValidationIssue]]:
         """Parse invoke tags into ParsedCall objects."""
         calls: list[ParsedCall] = []
@@ -211,11 +222,13 @@ class ToolCallValidator:
         for tag in tags:
             name = self._extract_attr(tag, "name")
             if not name:
-                issues.append(ValidationIssue(
-                    code=ValidationCode.INVALID_INVOKE,
-                    message="Missing 'name' attribute in <invoke>",
-                    hint="Format: <invoke name=\"tool_name\">...</invoke>",
-                ))
+                issues.append(
+                    ValidationIssue(
+                        code=ValidationCode.INVALID_INVOKE,
+                        message="Missing 'name' attribute in <invoke>",
+                        hint='Format: <invoke name="tool_name">...</invoke>',
+                    )
+                )
                 continue
 
             # Extract params
@@ -269,12 +282,14 @@ class ToolCallValidator:
         if not self._has_tool(call.name):
             available = list(self.tool_schemas.keys())
             hint = f"Available: {available[:10]}" if available else "No tools registered"
-            issues.append(ValidationIssue(
-                code=ValidationCode.UNKNOWN_TOOL,
-                message=f"Unknown tool: '{call.name}'",
-                tool_name=call.name,
-                hint=hint,
-            ))
+            issues.append(
+                ValidationIssue(
+                    code=ValidationCode.UNKNOWN_TOOL,
+                    message=f"Unknown tool: '{call.name}'",
+                    tool_name=call.name,
+                    hint=hint,
+                )
+            )
             return issues
 
         schema = self._get_schema(call.name)
@@ -317,12 +332,14 @@ class ToolCallValidator:
         # Check required params
         for r in schema.get("required", []):
             if r not in params:
-                issues.append(ValidationIssue(
-                    code=ValidationCode.SCHEMA_MISSING_REQUIRED,
-                    message=f"Missing required parameter: '{r}' for {call.name}",
-                    tool_name=call.name,
-                    hint=f"Add param name=\"{r}\" value=\"...\" to <invoke name=\"{call.name}\">",
-                ))
+                issues.append(
+                    ValidationIssue(
+                        code=ValidationCode.SCHEMA_MISSING_REQUIRED,
+                        message=f"Missing required parameter: '{r}' for {call.name}",
+                        tool_name=call.name,
+                        hint=f'Add param name="{r}" value="..." to <invoke name="{call.name}">',
+                    )
+                )
 
         # Check param types
         properties = schema.get("properties", {})
@@ -331,33 +348,41 @@ class ToolCallValidator:
             expected_type = prop.get("type", "string")
 
             if expected_type == "integer" and not isinstance(pval, int):
-                issues.append(ValidationIssue(
-                    code=ValidationCode.SCHEMA_TYPE_MISMATCH,
-                    message=f"Parameter '{pname}' should be integer, got {type(pval).__name__}",
-                    tool_name=call.name,
-                    hint=f"Set value=\"{pval}\" as numeric",
-                ))
+                issues.append(
+                    ValidationIssue(
+                        code=ValidationCode.SCHEMA_TYPE_MISMATCH,
+                        message=f"Parameter '{pname}' should be integer, got {type(pval).__name__}",
+                        tool_name=call.name,
+                        hint=f'Set value="{pval}" as numeric',
+                    )
+                )
             elif expected_type == "number" and not isinstance(pval, (int, float)):
-                issues.append(ValidationIssue(
-                    code=ValidationCode.SCHEMA_TYPE_MISMATCH,
-                    message=f"Parameter '{pname}' should be number, got {type(pval).__name__}",
-                    tool_name=call.name,
-                ))
+                issues.append(
+                    ValidationIssue(
+                        code=ValidationCode.SCHEMA_TYPE_MISMATCH,
+                        message=f"Parameter '{pname}' should be number, got {type(pval).__name__}",
+                        tool_name=call.name,
+                    )
+                )
             elif expected_type == "array" and not isinstance(pval, (list, tuple)):
-                issues.append(ValidationIssue(
-                    code=ValidationCode.SCHEMA_TYPE_MISMATCH,
-                    message=f"Parameter '{pname}' should be array",
-                    tool_name=call.name,
-                ))
+                issues.append(
+                    ValidationIssue(
+                        code=ValidationCode.SCHEMA_TYPE_MISMATCH,
+                        message=f"Parameter '{pname}' should be array",
+                        tool_name=call.name,
+                    )
+                )
 
             # Check enum
             enum_vals = prop.get("enum")
             if enum_vals and pval not in enum_vals:
-                issues.append(ValidationIssue(
-                    code=ValidationCode.SCHEMA_VALIDATION_ERROR,
-                    message=f"Parameter '{pname}' value '{pval}' not in allowed: {enum_vals}",
-                    tool_name=call.name,
-                ))
+                issues.append(
+                    ValidationIssue(
+                        code=ValidationCode.SCHEMA_VALIDATION_ERROR,
+                        message=f"Parameter '{pname}' value '{pval}' not in allowed: {enum_vals}",
+                        tool_name=call.name,
+                    )
+                )
 
         return issues
 

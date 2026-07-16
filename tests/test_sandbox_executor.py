@@ -1,4 +1,5 @@
 """Tests for sandbox — execution safety boundary."""
+
 import pytest
 
 pytestmark = pytest.mark.unit
@@ -10,6 +11,7 @@ from core.interfaces.execution import CodeExecutor, ExecutionConfig, ExecutionRe
 # ═══════════════════════════════════════════════════
 #  Sandbox contract tests
 # ═══════════════════════════════════════════════════
+
 
 class FakeExecutor(CodeExecutor):
     """Fake executor for testing — no real code execution."""

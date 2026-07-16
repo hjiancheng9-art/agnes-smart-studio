@@ -57,6 +57,7 @@ class TestChatSyntax:
     def test_chat_imports_cleanly(self):
         """Importing chat module doesn't crash at syntax level."""
         import ast
+
         tree = ast.parse(_read("core/chat.py"))
         # Just verify it parses — will find classes, functions etc
         classes = [n.name for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
@@ -68,11 +69,13 @@ class TestTvlIntegration:
 
     def test_validation_layer_imports(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         assert vl is not None
 
     def test_validation_layer_has_all_phases(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
 
         # P1
@@ -117,12 +120,14 @@ class TestTvlIntegration:
 
     def test_p1_validation_works(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         issues = vl.validate_tool_call("read_file", {"path": "test.txt"})
         assert isinstance(issues, list)
 
     def test_p4_multi_agent_accessible(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         assert vl.multi_agent is not None
         rep = vl.multi_agent.review_turn("Hello", "Hi!", [])
@@ -130,12 +135,14 @@ class TestTvlIntegration:
 
     def test_p8_policy_routes(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         policy = vl.route_policy("Hello")
         assert policy.mode in ("fast", "balanced")
 
     def test_p10_trace_recording(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         session = vl.start_trace_session("integ-test-session")
         assert session.session_id == "integ-test-session"
@@ -144,6 +151,7 @@ class TestTvlIntegration:
 
     def test_p11_capture_and_analyze(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         s = vl.capture_failure("tool_validation_blocked", user_message="test")
         result = vl.analyze_failure(s)
@@ -151,11 +159,13 @@ class TestTvlIntegration:
 
     def test_p12_benchmark_accessible(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         assert vl.benchmark_suite.total >= 15
 
     def test_p13_field_arena_accessible(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         assert vl._field_arena is not None
 
@@ -166,12 +176,14 @@ class TestAllPhasesNonBreaking:
     def test_validation_layer_init_safe(self):
         for _ in range(5):
             from core.tool_validation_integration import ValidationLayer
+
             vl = ValidationLayer()
             assert vl is not None
 
     def test_chain_p1_p8_p10(self):
         """P1 validate → P8 route → P10 record — all work together."""
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
 
         # Start trace (P10)
@@ -186,7 +198,6 @@ class TestAllPhasesNonBreaking:
         assert isinstance(issues, list)
 
         # Record decision (P10)
-        vl.record_decision("tool_validation", "read_file",
-                           f"Validated: {len(issues)} issues", outcome="pass")
+        vl.record_decision("tool_validation", "read_file", f"Validated: {len(issues)} issues", outcome="pass")
 
         vl.close_trace_session()

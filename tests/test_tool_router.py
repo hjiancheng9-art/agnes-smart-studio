@@ -20,25 +20,33 @@ class TestRegisterAndList:
     def test_register_internal_adds_handler(self):
         def my_handler(**kw):
             return {"ok": True, **kw}
+
         register_internal("test_handler_1", my_handler)
         # _internal_tools are runtime handlers, not in tools.json listing.
         # Verify by calling the tool instead.
         from core.tool_router import call_tool
+
         result = asyncio.run(call_tool("test_handler_1", {"x": 1}))
         assert result["success"] is True
         assert result["result"] == {"ok": True, "x": 1}
 
     def test_register_mcp_tools_counts_correctly(self):
-        n = register_mcp_tools("test_server", [
-            {"name": "tool_a", "description": "A"},
-            {"name": "tool_b", "description": "B", "inputSchema": {"type": "object"}},
-        ])
+        n = register_mcp_tools(
+            "test_server",
+            [
+                {"name": "tool_a", "description": "A"},
+                {"name": "tool_b", "description": "B", "inputSchema": {"type": "object"}},
+            ],
+        )
         assert n == 2
 
     def test_register_mcp_tools_appear_in_list(self):
-        register_mcp_tools("srv", [
-            {"name": "echo", "description": "Echoes input"},
-        ])
+        register_mcp_tools(
+            "srv",
+            [
+                {"name": "echo", "description": "Echoes input"},
+            ],
+        )
         tools = list_all_tools()
         mcp_tools = [t for t in tools if t.get("source") == "mcp" and t["name"] == "mcp.srv.echo"]
         assert len(mcp_tools) == 1
@@ -117,11 +125,16 @@ class TestGetToolSchema:
         assert schema is None or schema == {}
 
     def test_get_schema_for_mcp_tool(self):
-        register_mcp_tools("schema_srv", [{
-            "name": "schema_test",
-            "description": "T",
-            "parameters": {"type": "object", "properties": {"x": {"type": "string"}}},
-        }])
+        register_mcp_tools(
+            "schema_srv",
+            [
+                {
+                    "name": "schema_test",
+                    "description": "T",
+                    "parameters": {"type": "object", "properties": {"x": {"type": "string"}}},
+                }
+            ],
+        )
         schema = get_tool_schema("mcp.schema_srv.schema_test")
         assert schema is not None
         assert "type" in schema

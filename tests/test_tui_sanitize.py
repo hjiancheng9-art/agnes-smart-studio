@@ -7,6 +7,7 @@ class TestSanitizeInput:
     @pytest.fixture
     def sanitize(self):
         from ui.tui_v2 import TuiAppV2
+
         return TuiAppV2._sanitize_input
 
     def test_ansi_colors_stripped(self, sanitize):
@@ -63,6 +64,7 @@ class TestShorten:
     @pytest.fixture
     def shorten(self):
         from ui.tui_v2 import TuiAppV2
+
         return TuiAppV2._shorten
 
     def test_short_text(self, shorten):

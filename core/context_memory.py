@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BudgetStatus:
     """Current budget status snapshot."""
+
     used: int = 0
     total: int = 0
     pct: float = 0.0
@@ -81,14 +82,14 @@ class TokenBudgetTracker:
             self._peak_usage = current_tokens
 
         if pct >= self.critical_at:
-            status.warnings.append(f"CRITICAL: {pct*100:.0f}% budget used — forcing compression")
+            status.warnings.append(f"CRITICAL: {pct * 100:.0f}% budget used — forcing compression")
             status.should_compress = True
         elif pct >= self.alert_at:
-            status.warnings.append(f"ALERT: {pct*100:.0f}% budget used — consider reducing context")
+            status.warnings.append(f"ALERT: {pct * 100:.0f}% budget used — consider reducing context")
             status.should_compress = True
             status.should_alert_user = True
         elif pct >= self.warn_at:
-            status.warnings.append(f"WARN: {pct*100:.0f}% budget used")
+            status.warnings.append(f"WARN: {pct * 100:.0f}% budget used")
             status.should_compress = True
 
         return status
@@ -123,6 +124,7 @@ class TokenBudgetTracker:
 @dataclass
 class MemoryItem:
     """A single working memory item."""
+
     key: str
     value: str
     priority: int = 0  # higher = more important
@@ -177,7 +179,7 @@ class WorkingMemory:
 
     def prune(self):
         """Remove expired and lowest-priority items if over limit."""
-        now = time.time()
+        time.time()
         # Remove expired
         expired = [k for k, v in self._items.items() if v.expired]
         for k in expired:
@@ -221,6 +223,7 @@ class WorkingMemory:
 @dataclass
 class Episode:
     """A compressed summary of a conversation segment."""
+
     index: int
     summary: str
     turn_count: int
@@ -304,8 +307,10 @@ class EpisodicMemory:
         return self.all_episodes_text()
 
     def to_dict(self) -> list[dict]:
-        return [{"index": e.index, "summary": e.summary, "tools": e.tools_used,
-                 "files": e.key_files, "outcome": e.outcome} for e in self.episodes]
+        return [
+            {"index": e.index, "summary": e.summary, "tools": e.tools_used, "files": e.key_files, "outcome": e.outcome}
+            for e in self.episodes
+        ]
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -316,6 +321,7 @@ class EpisodicMemory:
 @dataclass
 class Fact:
     """A persistent fact extracted from conversation."""
+
     key: str
     value: str
     source: str = ""  # e.g. "read_file", "user_said"
@@ -371,7 +377,7 @@ class SemanticMemory:
         if len(self._facts) <= self.max_facts:
             return
         sorted_facts = sorted(self._facts.items(), key=lambda x: x[1].confidence)
-        to_remove = sorted_facts[:len(sorted_facts) - self.max_facts]
+        to_remove = sorted_facts[: len(sorted_facts) - self.max_facts]
         for k, _ in to_remove:
             del self._facts[k]
 
@@ -389,8 +395,7 @@ class SemanticMemory:
         return "\n".join(lines)
 
     def to_dict(self) -> dict:
-        return {k: {"value": v.value, "confidence": v.confidence, "tags": v.tags}
-                for k, v in self._facts.items()}
+        return {k: {"value": v.value, "confidence": v.confidence, "tags": v.tags} for k, v in self._facts.items()}
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -401,6 +406,7 @@ class SemanticMemory:
 @dataclass
 class CompiledContext:
     """The assembled context from all memory tiers."""
+
     working_memory: str = ""
     episodic_memory: str = ""
     semantic_memory: str = ""
@@ -484,7 +490,7 @@ class ContextCompiler:
         if self.episodic and self._total_turns % self.episodic.summarize_every == 0:
             outcome = "in_progress"
             self.episodic.add(
-                turns=self._turn_buffer[-self.episodic.summarize_every*2:],
+                turns=self._turn_buffer[-self.episodic.summarize_every * 2 :],
                 tools_used=list(self._tools_this_segment),
                 key_files=list(self._files_this_segment),
                 outcome=outcome,

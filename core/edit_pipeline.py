@@ -10,10 +10,13 @@ from __future__ import annotations
 
 import difflib
 import logging
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger("crux.edit_pipeline")
 
@@ -78,7 +81,7 @@ class EditPlan:
                 lines.append(f"    {p.description}")
             diff_lines = p.diff.split("\n")
             if len(diff_lines) > max_lines:
-                diff_lines = diff_lines[:max_lines] + [f"... ({len(diff_lines) - max_lines} more lines)"]
+                diff_lines = [*diff_lines[:max_lines], f"... ({len(diff_lines) - max_lines} more lines)"]
             for dl in diff_lines:
                 lines.append(f"    {dl}")
         return "\n".join(lines)

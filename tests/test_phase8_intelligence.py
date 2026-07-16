@@ -247,12 +247,14 @@ class TestRouter:
 class TestIntegration:
     def test_router_in_validation_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         assert hasattr(vl, "policy_router")
         assert hasattr(vl, "_current_policy")
 
     def test_route_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         policy = vl.route_policy("What is Python?")
         assert policy is not None
@@ -260,6 +262,7 @@ class TestIntegration:
 
     def test_force_mode_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         policy = vl.force_mode("deep")
         assert policy.mode == RunMode.DEEP
@@ -267,6 +270,7 @@ class TestIntegration:
 
     def test_explain_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         vl.route_policy("Hello")
         explanation = vl.explain_policy()
@@ -274,4 +278,5 @@ class TestIntegration:
 
     def test_chat_p8_flag(self):
         import py_compile
+
         py_compile.compile("core/chat.py", doraise=True)

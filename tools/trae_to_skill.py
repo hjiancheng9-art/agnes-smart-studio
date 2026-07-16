@@ -30,10 +30,10 @@ TRAE_TO_CRUX_MAP = {
     "agentName": "name",
     "agentDescription": "description",
     "agentPrompt": None,  # 特殊处理 → prompt[0].content
-    "agentIcon": None,    # 特殊处理 → metadata.icon
-    "agentTools": None,   # → requirements 或 metadata.tools
-    "mcpTools": None,     # → requirements.mcp_servers
-    "builtinTools": None, # → requirements.builtin_tools
+    "agentIcon": None,  # 特殊处理 → metadata.icon
+    "agentTools": None,  # → requirements 或 metadata.tools
+    "mcpTools": None,  # → requirements.mcp_servers
+    "builtinTools": None,  # → requirements.builtin_tools
     "agentConfig": None,  # → models + configuration
 }
 
@@ -51,18 +51,16 @@ def parse_trae_config(config: dict) -> tuple:
 def trae_to_skill(trae_data: dict, output_path: str | None = None) -> dict:
     """
     将 trae agent JSON 转换为 CRUX skill.json 格式
-    
+
     参数:
         trae_data: trae agent 字典
         output_path: 可选，写入路径
-    
+
     返回:
         skill_dict: CRUX skill.json 字典
     """
     name = trae_data.get("agentName", trae_data.get("name", "unnamed-agent"))
-    description = trae_data.get(
-        "agentDescription", trae_data.get("description", "")
-    )
+    description = trae_data.get("agentDescription", trae_data.get("description", ""))
     prompt_text = trae_data.get("agentPrompt", trae_data.get("prompt", ""))
     icon = trae_data.get("agentIcon", "")
 
@@ -184,8 +182,8 @@ def batch_convert(input_dir: str, output_dir: str = "skills") -> list:
 
 def _to_skill_name(name: str) -> str:
     """将 agent 名称转为 skill 文件名友好格式"""
-    name = re.sub(r'[^\w\s-]', '', name)
-    name = re.sub(r'[-\s]+', '-', name.strip().lower())
+    name = re.sub(r"[^\w\s-]", "", name)
+    name = re.sub(r"[-\s]+", "-", name.strip().lower())
     return name or "unnamed-agent"
 
 

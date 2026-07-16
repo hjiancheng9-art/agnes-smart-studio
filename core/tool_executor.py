@@ -31,6 +31,7 @@ SHORT_TIMEOUT = 10.0
 @dataclass
 class ToolSpec:
     """Metadata for a single tool — drives executor behavior."""
+
     name: str
     timeout_s: float = DEFAULT_TIMEOUT
     idempotent: bool = False
@@ -39,13 +40,13 @@ class ToolSpec:
     @classmethod
     def for_tool(cls, name: str) -> ToolSpec:
         """Heuristic defaults per tool category. Override in tools.json later."""
-        if any(k in name for k in ('browser', 'cdp', 'pw_', 'chatgpt', 'gemini')):
+        if any(k in name for k in ("browser", "cdp", "pw_", "chatgpt", "gemini")):
             return cls(name=name, timeout_s=BROWSER_TIMEOUT, slow=True)
-        if any(k in name for k in ('generate_video', 'generate_image', 'transcribe')):
+        if any(k in name for k in ("generate_video", "generate_image", "transcribe")):
             return cls(name=name, timeout_s=180.0, slow=True)
-        if any(k in name for k in ('run_test', 'execute_plan', 'orchestrate')):
+        if any(k in name for k in ("run_test", "execute_plan", "orchestrate")):
             return cls(name=name, timeout_s=300.0, slow=True)
-        if any(k in name for k in ('git_', 'github_')):
+        if any(k in name for k in ("git_", "github_")):
             return cls(name=name, timeout_s=30.0)
         return cls(name=name, timeout_s=DEFAULT_TIMEOUT)
 
@@ -79,6 +80,7 @@ class ToolExecutor:
         """
         try:
             from core.tool_specs import get_spec
+
             spec = get_spec(tool_name)
         except ImportError:
             spec = ToolSpec.for_tool(tool_name)
@@ -90,9 +92,7 @@ class ToolExecutor:
 
         async def _run():
             try:
-                result_str, side_effects = await asyncio.to_thread(
-                    self._dispatch, tool_name, args_json
-                )
+                result_str, side_effects = await asyncio.to_thread(self._dispatch, tool_name, args_json)
                 return result_str, side_effects
             except asyncio.CancelledError:
                 raise
@@ -107,15 +107,15 @@ class ToolExecutor:
                 task.cancel()
                 return ToolOutcome.cancelled(tool_name)
 
-            result_str, _side_effects = await asyncio.wait_for(
-                task, timeout=effective_timeout
-            )
+            result_str, _side_effects = await asyncio.wait_for(task, timeout=effective_timeout)
 
             # Detect error patterns from old string-based protocol
             if isinstance(result_str, str):
                 if result_str.startswith("[错误]") or result_str.startswith("[自愈失败]"):
                     outcome = ToolOutcome.failure_of(
-                        "tool.error", result_str, tool_name,
+                        "tool.error",
+                        result_str,
+                        tool_name,
                         recovery=RecoveryAction.NONE,
                     )
                 elif result_str.startswith("[超时]"):
@@ -141,7 +141,9 @@ class ToolExecutor:
 
         except Exception as exc:
             return ToolOutcome.failure_of(
-                "tool.exception", str(exc), tool_name,
+                "tool.exception",
+                str(exc),
+                tool_name,
                 recovery=RecoveryAction.NONE,
             )
 

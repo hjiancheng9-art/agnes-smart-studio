@@ -192,7 +192,7 @@ class SessionTracker:
             updates["completed_at"] = time.time()
 
         set_clause = ", ".join(f"{k}=?" for k in updates)
-        values = list(updates.values()) + [todo_id]
+        values = [*list(updates.values()), todo_id]
         with self._get_conn() as conn:
             cur = conn.execute(f"UPDATE todos SET {set_clause} WHERE id=?", values)
             return cur.rowcount > 0

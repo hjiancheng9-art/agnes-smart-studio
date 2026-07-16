@@ -76,11 +76,14 @@ def _recover_text_from_bytes(raw: bytes, source: str = "subprocess") -> str:
         if recovered:
             _logger.warning(
                 "Encoding recovered for %s: detected=%s, recovered=True",
-                source, encoding,
+                source,
+                encoding,
             )
         elif encoding != "utf-8":
             _logger.info(
-                "Non-UTF-8 encoding detected for %s: %s", source, encoding,
+                "Non-UTF-8 encoding detected for %s: %s",
+                source,
+                encoding,
             )
 
         # Report any remaining issues (mojibake, replacement chars)
@@ -115,9 +118,9 @@ def _patch_subprocess_run():
         # If caller explicitly provides stdout/stderr pipes, don't intercept
         stdout_arg = kwargs.get("stdout")
         stderr_arg = kwargs.get("stderr")
-        has_explicit_pipes = (
-            stdout_arg is not None and stdout_arg != subprocess.PIPE
-        ) or (stderr_arg is not None and stderr_arg != subprocess.PIPE)
+        has_explicit_pipes = (stdout_arg is not None and stdout_arg != subprocess.PIPE) or (
+            stderr_arg is not None and stderr_arg != subprocess.PIPE
+        )
 
         if not wants_text and not capture:
             return _ORIG_RUN(*args, **kwargs)
@@ -143,12 +146,8 @@ def _patch_subprocess_run():
             stdout_raw = result.stdout
             stderr_raw = result.stderr
 
-            result.stdout = _recover_text_from_bytes(
-                stdout_raw or b"", "subprocess.stdout"
-            )
-            result.stderr = _recover_text_from_bytes(
-                stderr_raw or b"", "subprocess.stderr"
-            )
+            result.stdout = _recover_text_from_bytes(stdout_raw or b"", "subprocess.stdout")
+            result.stderr = _recover_text_from_bytes(stderr_raw or b"", "subprocess.stderr")
 
             # Attach raw bytes for callers that need them
             result.stdout_raw = stdout_raw

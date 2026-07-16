@@ -149,16 +149,16 @@ def main():
         skills_to_process = [s for s in skills_to_process if s not in existing]
         print(f"Already have {len(existing)} skills, need to download {len(skills_to_process)}")
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Converting {len(skills_to_process)} anthropics skills to CRUX format")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     success = 0
     failed = 0
     skipped = 0
 
     for name in skills_to_process:
-        print(f"  [{success+failed+skipped+1}/{len(skills_to_process)}] {name}...", end=" ")
+        print(f"  [{success + failed + skipped + 1}/{len(skills_to_process)}] {name}...", end=" ")
 
         text = download_skill(name)
         if text is None:
@@ -189,9 +189,9 @@ def main():
             print(f"WRITE ERROR: {e}")
             failed += 1
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Done: {success} success, {failed} failed, {skipped} skipped")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
 
 if __name__ == "__main__":

@@ -9,10 +9,10 @@ RPM Limiter — 速率限制队列
 
 Usage:
     limiter = RPMLimiter()
-    
+
     with limiter.limit("video"):
         result = agnes.create_video_task(...)
-    
+
     # 或异步等待
     await limiter.wait("video")
     result = agnes.create_video_task(...)
@@ -31,6 +31,7 @@ logger = logging.getLogger("crux.rpm_limiter")
 @dataclass
 class RateBucket:
     """速率桶 — 记录每个类别的请求时间戳"""
+
     max_rpm: int = 1
     timestamps: list[float] = field(default_factory=list)
     lock: threading.Lock = field(default_factory=threading.Lock)
@@ -38,11 +39,11 @@ class RateBucket:
     def acquire(self, block: bool = True, timeout: float = 60.0) -> bool:
         """
         尝试获取一个请求 slot。
-        
+
         Args:
             block: 是否阻塞等待
             timeout: 最大等待秒数
-            
+
         Returns:
             是否获取成功
         """
@@ -124,10 +125,7 @@ class RPMLimiter:
 
     def get_config(self) -> dict:
         """获取当前配置"""
-        return {
-            cat: bucket.max_rpm
-            for cat, bucket in self._buckets.items()
-        }
+        return {cat: bucket.max_rpm for cat, bucket in self._buckets.items()}
 
     def get_stats(self) -> dict:
         """获取统计信息"""
@@ -136,11 +134,11 @@ class RPMLimiter:
     def wait(self, category: str, timeout: float = 60.0) -> bool:
         """
         等待直到可以执行请求。
-        
+
         Args:
             category: 类别 (video/image/text/agent)
             timeout: 超时秒数
-            
+
         Returns:
             是否在超时前获取到 slot
         """
@@ -178,9 +176,12 @@ limiter = RPMLimiter()
 
 def rate_limit(category: str = "video"):
     """装饰器: 自动限流"""
+
     def decorator(func):
         def wrapper(*args, **kwargs):
             limiter.wait(category)
             return func(*args, **kwargs)
+
         return wrapper
+
     return decorator

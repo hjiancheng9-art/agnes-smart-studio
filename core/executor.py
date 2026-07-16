@@ -30,11 +30,14 @@ import threading
 import time
 
 logger = logging.getLogger("crux.executor")
-from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 # 数据类提取到 executor_models.py（facade re-export）
 from core.executor_models import ROOT, AdjustResult, Goal, Step, Task
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 __all__ = [
     "ROOT",
@@ -271,6 +274,7 @@ class AsyncTaskExecutor:
         """从 tools.json 加载每个 tool 的超时配置。加载失败返回空 dict。"""
         try:
             import json
+
             tools_path = ROOT / "tools.json"
             if not tools_path.is_file():
                 return {}

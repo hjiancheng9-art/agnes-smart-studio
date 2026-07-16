@@ -33,6 +33,7 @@ def _atomic_write_json(path: Path, data: Any, indent: int = 2) -> None:
 
     写入流程: 先写临时文件 → os.replace 原子替换目标文件。
     os.replace 在同一卷上是原子的，即使中途崩溃也不会留下半截文件。
+    Windows 上若目标文件被占用（杀软/编辑器），重试最多 6 次（指数退避）。
     """
     import tempfile
 
@@ -40,11 +41,22 @@ def _atomic_write_json(path: Path, data: Any, indent: int = 2) -> None:
     try:
         with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=indent, ensure_ascii=False)
-        os.replace(tmp_name, str(path))
-    except Exception:
+            f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
+        delay = 0.02
+        for attempt in range(6):
+            try:
+                os.replace(tmp_name, str(path))
+                return
+            except PermissionError:
+                if attempt == 5:
+                    raise OSError(f"Could not atomically replace {path}. Another process may have the file open.") from None
+                time.sleep(delay)
+                delay *= 2
+    finally:
         with contextlib.suppress(OSError):
             os.unlink(tmp_name)
-        raise
 
 
 __all__ = [
@@ -649,7 +661,7 @@ class ProviderManager:
                 self.state.active = pid
                 self.save_active()
                 return True
-            except NoProviderAvailable:
+            except (NoProviderAvailable, ProviderAuthError):
                 continue
         return False
 
@@ -693,21 +705,10 @@ class ProviderManager:
         # auth_required=false → use a placeholder key instead of falling back to
         # another provider (which would cause session.model vs client.base_url mismatch).
         if not api_key and provider.get("auth_required", True):
-            fallback = self._first_available(exclude={pid})
-            if fallback:
-                import logging
-
-                try:
-                    from core.provider_history import record_call
-
-                    record_call(pid, "", False, 0, "fallback to " + fallback)
-                except ImportError:
-                    pass
-                logging.getLogger("crux").info(
-                    "provider fallback: %s -> %s (depth=%d, trace=%s)", pid, fallback, _depth + 1, root_trace_id
-                )
-                return self.create_client(fallback, _depth=_depth + 1, root_trace_id=root_trace_id)
-            raise NoProviderAvailable(f"No API key for provider '{pid}'")
+            raise ProviderAuthError(
+                f"No API key for provider '{pid}'. "
+                f"Set {pid.upper()}_API_KEY env var or configure api_key in models.json."
+            )
 
         return CruxClient(api_key=api_key, base_url=provider["base_url"])
 
@@ -735,7 +736,7 @@ class ProviderManager:
                 self.state.active = pid
                 # 不永久保存——failover 是临时的，下次启动仍用用户首选
                 return client, pid
-            except NoProviderAvailable:
+            except (NoProviderAvailable, ProviderAuthError):
                 continue
 
         return None, None
@@ -766,6 +767,10 @@ class ProviderManager:
         """Get the model ID for the active provider."""
         provider = self.providers.get(self.state.active, {})
         return provider.get("models", {}).get(tier, "unknown")
+
+
+class ProviderAuthError(Exception):
+    """Provider authentication failed — missing or invalid API key."""
 
 
 class NoProviderAvailable(Exception):

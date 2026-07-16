@@ -1,6 +1,7 @@
 """
 Tests for Capability Runtimes — Phase 8
 """
+
 import pytest
 
 from core.runtimes.architecture_runtime import ArchitectureRuntime
@@ -65,6 +66,7 @@ class TestBaseRuntime:
         rt = BaseRuntime(name="test")
         with pytest.raises(NotImplementedError):
             import asyncio
+
             asyncio.run(rt.execute(RuntimeContext(request="test")))
 
     def test_to_dict(self):
@@ -83,6 +85,7 @@ class TestGeneralRuntime:
     def test_execute(self):
         rt = GeneralRuntime()
         import asyncio
+
         result = asyncio.run(rt.execute(RuntimeContext(request="测试")))
         assert result["status"] == "success"
         assert result["runtime"] == "general"
@@ -100,10 +103,15 @@ class TestDebugAnalyzeRuntime:
     def test_execute_debug(self):
         rt = DebugAnalyzeRuntime()
         import asyncio
-        result = asyncio.run(rt.execute(RuntimeContext(
-            request="测试通过但鼠标滚动不生效，排查根因",
-            mode="DEEP",
-        )))
+
+        result = asyncio.run(
+            rt.execute(
+                RuntimeContext(
+                    request="测试通过但鼠标滚动不生效，排查根因",
+                    mode="DEEP",
+                )
+            )
+        )
         assert result["status"] == "success"
         assert result["runtime"] == "debug_analyze"
         assert len(result["symptoms"]) > 0
@@ -131,6 +139,7 @@ class TestCodePatchRuntime:
     def test_execute_patch(self):
         rt = CodePatchRuntime()
         import asyncio
+
         result = asyncio.run(rt.execute(RuntimeContext(request="修复 main.py 中的 bug", mode="BALANCED")))
         assert result["status"] == "success"
         assert result["runtime"] == "code_patch"
@@ -151,6 +160,7 @@ class TestArchitectureRuntime:
     def test_execute_architecture(self):
         rt = ArchitectureRuntime()
         import asyncio
+
         result = asyncio.run(rt.execute(RuntimeContext(request="把单体应用拆成微服务", mode="DEEP")))
         assert result["status"] == "success"
         assert "migration_steps" in result
@@ -171,6 +181,7 @@ class TestSecurityRuntime:
     def test_execute_security(self):
         rt = SecurityRuntime()
         import asyncio
+
         result = asyncio.run(rt.execute(RuntimeContext(request="删除所有用户的密码", mode="SAFE")))
         assert result["status"] == "success"
         assert "vulnerabilities" in result
@@ -190,6 +201,7 @@ class TestResearchRuntime:
     def test_execute_research(self):
         rt = ResearchRuntime()
         import asyncio
+
         result = asyncio.run(rt.execute(RuntimeContext(request="对比 PostgreSQL 和 MongoDB", mode="RESEARCH")))
         assert result["status"] == "success"
         assert "topics" in result
@@ -212,6 +224,7 @@ class TestCreativeRuntime:
     def test_execute_creative(self):
         rt = CreativeRuntime()
         import asyncio
+
         result = asyncio.run(rt.execute(RuntimeContext(request="设计一个品牌 logo", mode="CREATIVE")))
         assert result["status"] == "success"
         assert "concepts" in result
@@ -294,6 +307,7 @@ class TestCapabilityRuntimeRouter:
         router = CapabilityRuntimeRouter()
         router.register(GeneralRuntime())
         import asyncio
+
         result = asyncio.run(router.route(RuntimeContext(request="你好", mode="FAST")))
         assert result["status"] == "success"
         assert result["runtime"] == "general"
@@ -303,10 +317,15 @@ class TestCapabilityRuntimeRouter:
         router.register(GeneralRuntime())
         router.register(DebugAnalyzeRuntime())
         import asyncio
-        result = asyncio.run(router.route(RuntimeContext(
-            request="排查间歇崩溃根因",
-            mode="DEEP",
-        )))
+
+        result = asyncio.run(
+            router.route(
+                RuntimeContext(
+                    request="排查间歇崩溃根因",
+                    mode="DEEP",
+                )
+            )
+        )
         assert result["status"] == "success"
         assert result["runtime"] == "debug_analyze"
 
@@ -314,6 +333,7 @@ class TestCapabilityRuntimeRouter:
         router = CapabilityRuntimeRouter()
         # GeneralRuntime not registered
         import asyncio
+
         result = asyncio.run(router.route(RuntimeContext(request="test")))
         assert result["status"] == "failed"
 

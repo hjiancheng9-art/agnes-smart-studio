@@ -13,27 +13,30 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
 
 class CircuitState(str, Enum):
-    CLOSED = "closed"       # 正常
-    OPEN = "open"           # 熔断
+    CLOSED = "closed"  # 正常
+    OPEN = "open"  # 熔断
     HALF_OPEN = "half_open"  # 半开（尝试恢复）
 
 
 @dataclass
 class CircuitBreaker:
     """熔断器"""
+
     name: str
-    failure_threshold: int = 3       # 连续失败 N 次熔断
-    recovery_timeout: float = 30.0   # 冷却时间（秒）
-    half_open_max_retries: int = 2   # 半开状态下最多尝试次数
+    failure_threshold: int = 3  # 连续失败 N 次熔断
+    recovery_timeout: float = 30.0  # 冷却时间（秒）
+    half_open_max_retries: int = 2  # 半开状态下最多尝试次数
 
     state: CircuitState = CircuitState.CLOSED
     failure_count: int = 0
@@ -121,15 +124,17 @@ class CircuitBreaker:
             "total_failures": self.total_failures,
             "total_successes": self.total_successes,
             "success_rate": self.total_successes / (self.total_successes + self.total_failures) * 100
-            if (self.total_successes + self.total_failures) > 0 else 100.0,
+            if (self.total_successes + self.total_failures) > 0
+            else 100.0,
         }
 
 
 @dataclass
 class RateLimiter:
     """限流器 — 滑动窗口"""
+
     name: str
-    max_calls: int = 10       # 窗口内最大调用次数
+    max_calls: int = 10  # 窗口内最大调用次数
     window_seconds: float = 60.0  # 窗口时间（秒）
 
     _calls: list[float] = field(default_factory=list)
@@ -143,8 +148,7 @@ class RateLimiter:
         if len(self._calls) >= self.max_calls:
             wait = self._calls[0] + self.window_seconds - now
             raise RuntimeError(
-                f"RateLimiter '{self.name}' 限流 "
-                f"({self.max_calls} 次/{self.window_seconds:.0f}s)，请等待 {wait:.0f}s"
+                f"RateLimiter '{self.name}' 限流 ({self.max_calls} 次/{self.window_seconds:.0f}s)，请等待 {wait:.0f}s"
             )
 
         self._calls.append(now)
@@ -171,6 +175,7 @@ class RateLimiter:
 @dataclass
 class GuardConfig:
     """运行时守护配置"""
+
     circuit_breaker_enabled: bool = True
     rate_limiter_enabled: bool = True
     health_check_enabled: bool = True

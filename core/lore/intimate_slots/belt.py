@@ -14,9 +14,11 @@ import contextlib
 import logging
 import time
 from collections import deque
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger("crux.belt")
 

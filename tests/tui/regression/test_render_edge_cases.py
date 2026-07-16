@@ -1,4 +1,5 @@
 """Regression tests for TUI render edge cases — emoji, ANSI, wide chars."""
+
 import pytest
 
 
@@ -8,6 +9,7 @@ class TestRenderEdgeCases:
     @pytest.fixture
     def pane(self):
         from ui.message_pane import MessagePane
+
         return MessagePane()
 
     def test_zwj_emoji(self, pane):
@@ -70,18 +72,21 @@ class TestTerminalCapabilities:
 
     def test_all_modes_build(self):
         from ui.theme_v2 import build_style_v2
+
         for mode in ("normal", "high_contrast", "mono"):
             style = build_style_v2(mode)
             assert style is not None
 
     def test_animation_ssh_mode(self):
         from ui.animation_gov import AnimationGovernor
+
         gov = AnimationGovernor()
         result = gov.can_spin()
         assert isinstance(result, bool)
 
     def test_animation_no_terminal(self):
         from ui.animation_gov import AnimationGovernor, AnimType
+
         gov = AnimationGovernor()
         for _ in range(100):
             gov.can_animate(AnimType.SPINNER)

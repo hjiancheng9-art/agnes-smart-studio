@@ -1,4 +1,5 @@
 """测试：Playwright 启动 Edge → ChatGPT → 发送并读取回复"""
+
 import time
 
 from playwright.sync_api import sync_playwright
@@ -26,7 +27,7 @@ el = None
 for s in [
     'div#prompt-textarea[contenteditable="true"]',
     '[contenteditable="true"]',
-    'textarea',
+    "textarea",
 ]:
     try:
         e = page.locator(s).first
@@ -64,6 +65,8 @@ for i in range(90):
                 print("测试成功！")
                 exit(0)
     except:
-        import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+        import logging
+
+        logging.getLogger("crux").debug("silent except", exc_info=True)
 
 print("等待超时")

@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TraceStep:
     """轨迹中的单步"""
+
     name: str
     status: str = "pending"
     duration: float = 0.0
@@ -55,6 +56,7 @@ class TraceStep:
 @dataclass
 class TraceRecord:
     """完整轨迹记录"""
+
     user_request: str
     mode: str
     run_id: str = ""
@@ -202,8 +204,7 @@ class TraceStore:
         except Exception:
             return None
 
-    def query(self, status: str | None = None, mode: str | None = None,
-              limit: int = 50) -> list[dict[str, Any]]:
+    def query(self, status: str | None = None, mode: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
         """查询轨迹"""
         try:
             conn = self._connect()
@@ -232,15 +233,14 @@ class TraceStore:
         try:
             conn = self._connect()
             total = conn.execute("SELECT COUNT(*) as c FROM intelligence_traces").fetchone()["c"]
-            passed = conn.execute(
-                "SELECT COUNT(*) as c FROM intelligence_traces WHERE status = 'pass'"
-            ).fetchone()["c"]
-            failed = conn.execute(
-                "SELECT COUNT(*) as c FROM intelligence_traces WHERE status = 'fail'"
-            ).fetchone()["c"]
-            avg_duration = conn.execute(
-                "SELECT AVG(total_duration) as avg FROM intelligence_traces WHERE total_duration > 0"
-            ).fetchone()["avg"] or 0
+            passed = conn.execute("SELECT COUNT(*) as c FROM intelligence_traces WHERE status = 'pass'").fetchone()["c"]
+            failed = conn.execute("SELECT COUNT(*) as c FROM intelligence_traces WHERE status = 'fail'").fetchone()["c"]
+            avg_duration = (
+                conn.execute(
+                    "SELECT AVG(total_duration) as avg FROM intelligence_traces WHERE total_duration > 0"
+                ).fetchone()["avg"]
+                or 0
+            )
             conn.close()
             return {
                 "total": total,

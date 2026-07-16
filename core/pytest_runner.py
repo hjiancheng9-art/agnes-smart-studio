@@ -141,7 +141,9 @@ def debug_inspect(target: str, extra_args: str = "") -> str:
 
     _DBG_TIMEOUT = 600  # 10 min — debug_inspect can be slow on large test suites
     try:
-        r = _sp.run(cmd, capture_output=True, text=True, timeout=_DBG_TIMEOUT, cwd=str(Path(__file__).resolve().parent.parent))
+        r = _sp.run(
+            cmd, capture_output=True, text=True, timeout=_DBG_TIMEOUT, cwd=str(Path(__file__).resolve().parent.parent)
+        )
         output = r.stdout + "\n" + r.stderr
 
         if r.returncode == 0:
@@ -179,6 +181,8 @@ def debug_inspect(target: str, extra_args: str = "") -> str:
             indent=2,
         )
     except _sp.TimeoutExpired:
-        return _json.dumps({"status": "timeout", "error": f"Execution timed out after {_DBG_TIMEOUT}s"}, ensure_ascii=False)
+        return _json.dumps(
+            {"status": "timeout", "error": f"Execution timed out after {_DBG_TIMEOUT}s"}, ensure_ascii=False
+        )
     except Exception as e:
         return _json.dumps({"status": "error", "error": str(e), "traceback": _tb.format_exc()}, ensure_ascii=False)

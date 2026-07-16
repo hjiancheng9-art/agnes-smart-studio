@@ -49,33 +49,7 @@
       "model_aliases": {
         "ds3": "deepseek-v4-flash",
         "ds-chat": "deepseek-v4-flash",
-        "ds-reasoner": "deepseek-v4-pro",
-        "claude": "claude-opus-4-8-20250514",
-        "opus": "claude-opus-4-8-20250514",
-        "opus4.8": "claude-opus-4-8-20250514"
-      }
-    },
-    "anthropic": {
-      "name": "Anthropic Claude",
-      "base_url": "https://api.anthropic.com/v1",
-      "api_key": "",
-      "auth_scheme": "x-api-key",
-      "api_version": "2023-06-01",
-      "models": {
-        "pro": "claude-opus-4-8-20250514",
-        "heavy": "claude-opus-4-8-20250514",
-        "light": "claude-sonnet-4-20250514",
-        "reasoner": "claude-opus-4-8-20250514"
-      },
-      "model_aliases": {
-        "opus": "claude-opus-4-8-20250514",
-        "opus4.8": "claude-opus-4-8-20250514",
-        "sonnet": "claude-sonnet-4-20250514",
-        "claude": "claude-opus-4-8-20250514"
-      },
-      "thinking": {
-        "enabled": true,
-        "budget_tokens": 16000
+        "ds-reasoner": "deepseek-v4-pro"
       }
     },
     "zhipu": {
@@ -83,6 +57,9 @@
       "base_url": "https://open.bigmodel.cn/api/paas/v4",
       "api_key": "",
       "cost_tier": "free",
+      "capabilities": [
+        "vision"
+      ],
       "models": {},
       "model_aliases": {},
       "vision_models": {
@@ -93,6 +70,7 @@
     "local": {
       "name": "Local (llama.cpp)",
       "base_url": "http://127.0.0.1:8080/v1",
+      "base_url_env": "CRUX_LOCAL_BASE_URL",
       "api_key": "no-key-required",
       "auth_required": false,
       "cost_tier": "free",
@@ -107,7 +85,6 @@
     "enabled": true,
     "priority": [
       "deepseek",
-      "anthropic",
       "crux"
     ]
   },

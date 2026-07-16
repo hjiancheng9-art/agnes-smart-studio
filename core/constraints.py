@@ -12,17 +12,17 @@
 import re
 
 __all__ = [
+    "CONFIRMABLE_TOOLS",
+    "DANGEROUS_ARGS_PATTERN",
     # SECURITY
     "HIGH_RISK_TOOLS",
-    "DANGEROUS_ARGS_PATTERN",
-    "is_tool_high_risk",
+    "LONG_RUNNING_TOOLS",
     # DISK
     "PROJECT_SKIP_DIRS",
+    "READONLY_TOOLS",
     # TOOL
     "WRITE_TOOLS",
-    "LONG_RUNNING_TOOLS",
-    "READONLY_TOOLS",
-    "CONFIRMABLE_TOOLS",
+    "is_tool_high_risk",
 ]
 
 # ═══════════════════════════════════════════════════════════════════
@@ -40,7 +40,9 @@ HIGH_RISK_TOOLS = frozenset(
 )
 
 DANGEROUS_ARGS_PATTERN = re.compile(
-    r"\b(rm\s+-|del\s+[/-]|erase\s+[/-]|drop\s+(table|database)|truncate\s+(table|database)|format\s+[A-Za-z]:|mkfs\.)",
+    r"\b(rm\s+-|rd\s+/[sq]|rmdir\s+/[sq]|del\s+/[fsq]|erase\s+[/-]|"
+    r"drop\s+(table|database)|truncate\s+(table|database)|"
+    r"format\s+[A-Za-z]:|format\.com\s+[A-Za-z]:|diskpart|mkfs\.)",
     re.IGNORECASE,
 )
 

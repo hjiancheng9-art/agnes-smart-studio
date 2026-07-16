@@ -80,6 +80,7 @@ class TestRuleFromFile:
             assert r.mode == MODE_ALWAYS
         finally:
             import shutil
+
             shutil.rmtree(d, ignore_errors=True)
 
     def test_globs_frontmatter(self):
@@ -117,6 +118,7 @@ class TestRulesManagerModes:
 
     def teardown_method(self):
         import shutil
+
         if self.rm._dir.exists():
             shutil.rmtree(self.rm._dir, ignore_errors=True)
 

@@ -200,34 +200,40 @@ class TestProjectOS:
 class TestIntegration:
     def test_validation_layer_integration(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         assert hasattr(vl, "project_os")
         assert hasattr(vl, "ensure_project_index")
 
     def test_get_project_context(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         pack = vl.get_project_context()
         assert pack.file_count > 0
 
     def test_search_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         results = vl.search_project("chat")
         assert len(results) >= 1
 
     def test_find_symbol_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         symbols = vl.find_symbol("ValidationLayer")
         assert len(symbols) >= 1
 
     def test_change_impact_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
+
         vl = ValidationLayer()
         impact = vl.analyze_change_impact("core/repo_understanding.py")
         assert "Change Impact" in impact
 
     def test_chat_p9_flag(self):
         import py_compile
+
         py_compile.compile("core/chat.py", doraise=True)

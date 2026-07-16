@@ -9,6 +9,7 @@ class TestThinkingPanel:
     @pytest.fixture
     def panel(self):
         from ui.widgets_v2 import ThinkingPanel
+
         return ThinkingPanel()
 
     def test_initial_state(self, panel):
@@ -46,6 +47,7 @@ class TestThinkingPanel:
 
     def test_append_visible_race(self, panel):
         """append() sets _visible inside lock, not outside."""
+
         def racer():
             for _ in range(50):
                 panel.append("x")

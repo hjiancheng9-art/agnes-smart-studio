@@ -87,16 +87,6 @@ PROVIDER_ADAPTERS: dict[str, ProviderAdapter] = {
         thinking_response_field="reasoning_content",
         default_max_tokens=8192,
     ),
-    "anthropic": ProviderAdapter(
-        provider_id="anthropic",
-        sse_data_prefix="data: ",
-        thinking_param_style="thinking",
-        thinking_response_field="thinking",
-        auth_scheme="x-api-key",
-        chat_path="/v1/messages",
-        default_max_tokens=16384,
-        default_temperature=1.0,
-    ),
 }
 
 

@@ -1,6 +1,7 @@
 """
 Tests for Adaptive Learner — Phase 5 自适应学习
 """
+
 from core.adaptive_learner import AdaptiveLearner, FailureAnalyzer, PolicyAdapter
 from core.learning_store import LearningRecord, LearningStore
 
@@ -38,19 +39,24 @@ class TestLearningRecord:
 class TestLearningStore:
     def setup_method(self):
         import tempfile
-        self._tmp = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+
+        self._tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         self._tmp.close()
         self.store = LearningStore(db_path=self._tmp.name)
 
     def teardown_method(self):
         import os
-        if hasattr(self, '_tmp') and os.path.exists(self._tmp.name):
+
+        if hasattr(self, "_tmp") and os.path.exists(self._tmp.name):
             os.unlink(self._tmp.name)
 
     def test_record_and_get(self):
         r = LearningRecord(
-            episode_id="e1", failure_type="route_mismatch",
-            request="test", routed_mode="FAST", expected_mode="DEEP",
+            episode_id="e1",
+            failure_type="route_mismatch",
+            request="test",
+            routed_mode="FAST",
+            expected_mode="DEEP",
         )
         pid = self.store.record(r)
         assert pid == "e1"
@@ -209,7 +215,8 @@ class TestPolicyAdapter:
 class TestAdaptiveLearner:
     def setup_method(self):
         import tempfile
-        self._tmp = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+
+        self._tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         self._tmp.close()
         self.learner = AdaptiveLearner(
             learning_store=LearningStore(db_path=self._tmp.name),
@@ -217,7 +224,8 @@ class TestAdaptiveLearner:
 
     def teardown_method(self):
         import os
-        if hasattr(self, '_tmp') and os.path.exists(self._tmp.name):
+
+        if hasattr(self, "_tmp") and os.path.exists(self._tmp.name):
             os.unlink(self._tmp.name)
 
     def test_learn_from_trace_with_mismatch(self):
@@ -234,8 +242,7 @@ class TestAdaptiveLearner:
 
     def test_learning_disabled(self):
         self.learner.disable_learning()
-        trace = {"run_id": "l2", "mode": "FAST", "status": "fail",
-                 "user_request": "test", "steps": []}
+        trace = {"run_id": "l2", "mode": "FAST", "status": "fail", "user_request": "test", "steps": []}
         record = self.learner.learn_from_trace(trace, expected_mode="DEEP")
         assert record is None
 
@@ -247,15 +254,25 @@ class TestAdaptiveLearner:
         assert self.learner.learning_enabled is True
 
     def test_get_summary(self):
-        trace = {"run_id": "l3", "mode": "BALANCED", "status": "fail",
-                 "user_request": "test", "steps": [{"name": "plan", "status": "failed"}]}
+        trace = {
+            "run_id": "l3",
+            "mode": "BALANCED",
+            "status": "fail",
+            "user_request": "test",
+            "steps": [{"name": "plan", "status": "failed"}],
+        }
         self.learner.learn_from_trace(trace, expected_mode="DEEP")
         summary = self.learner.get_summary()
         assert summary.total_episodes >= 1
 
     def test_clear(self):
-        trace = {"run_id": "l4", "mode": "FAST", "status": "fail",
-                 "user_request": "test", "steps": [{"name": "plan", "status": "failed"}]}
+        trace = {
+            "run_id": "l4",
+            "mode": "FAST",
+            "status": "fail",
+            "user_request": "test",
+            "steps": [{"name": "plan", "status": "failed"}],
+        }
         self.learner.learn_from_trace(trace, expected_mode="DEEP")
         self.learner.clear()
         assert self.learner.get_summary().total_episodes == 0

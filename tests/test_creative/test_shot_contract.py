@@ -1,4 +1,5 @@
 """Tests for core.creative.shot_contract — 镜头合同编译器"""
+
 from core.creative.shot_contract import (
     ShotCompiler,
     ShotContract,

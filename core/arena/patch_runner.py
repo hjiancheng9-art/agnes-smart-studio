@@ -8,13 +8,14 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
-from typing import Any
-
-from .schemas import ArenaPatch
+from typing import TYPE_CHECKING, Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.routing_signals import SIGNAL_REGISTRY
+
+if TYPE_CHECKING:
+    from .schemas import ArenaPatch
 
 logger = logging.getLogger(__name__)
 

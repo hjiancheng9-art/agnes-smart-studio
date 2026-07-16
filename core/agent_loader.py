@@ -369,7 +369,7 @@ def chain_run(
         context = current_task
         if i > 0:
             context = (
-                f"Previous agent ({agent_chain[i-1]}) completed. "
+                f"Previous agent ({agent_chain[i - 1]}) completed. "
                 f"Their output:\n---\n{final_result}\n---\n\n"
                 f"Your task: {current_task}"
             )

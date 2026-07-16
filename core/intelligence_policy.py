@@ -26,6 +26,7 @@ from .routing_signals import (
 
 class IntelligenceMode(str, Enum):
     """智能执行模式"""
+
     FAST = "FAST"
     BALANCED = "BALANCED"
     DEEP = "DEEP"
@@ -37,6 +38,7 @@ class IntelligenceMode(str, Enum):
 @dataclass
 class RiskProfile:
     """请求的风险评估结果 (保持向后兼容)"""
+
     complexity: int = 0
     security_risk: int = 0
     destructive_risk: int = 0
@@ -51,9 +53,12 @@ class RiskProfile:
 
     def score(self) -> int:
         return (
-            self.complexity * 3 + self.security_risk * 4
-            + self.destructive_risk * 5 + self.creative_load * 2
-            + int(self.has_multi_step) * 3 + int(self.needs_research) * 4
+            self.complexity * 3
+            + self.security_risk * 4
+            + self.destructive_risk * 5
+            + self.creative_load * 2
+            + int(self.has_multi_step) * 3
+            + int(self.needs_research) * 4
             + int(self.is_ambiguous) * 2
         )
 
@@ -61,6 +66,7 @@ class RiskProfile:
 @dataclass
 class ModeConfig:
     """模式配置 (保持向后兼容)"""
+
     planner: bool = False
     critic: bool = False
     multi_agent: bool = False
@@ -95,44 +101,90 @@ class ModeConfig:
 # ── 模式配置表 ──
 MODE_CONFIGS: dict[IntelligenceMode, ModeConfig] = {
     IntelligenceMode.FAST: ModeConfig(
-        planner=False, critic=False, multi_agent=False,
-        web_search="never", allow_write=False, allow_shell=False,
-        tests_required=False, approval_required=False,
-        max_rounds=1, max_agents=0, min_confidence=0.0,
+        planner=False,
+        critic=False,
+        multi_agent=False,
+        web_search="never",
+        allow_write=False,
+        allow_shell=False,
+        tests_required=False,
+        approval_required=False,
+        max_rounds=1,
+        max_agents=0,
+        min_confidence=0.0,
     ),
     IntelligenceMode.BALANCED: ModeConfig(
-        planner=True, critic=False, multi_agent=False,
-        web_search="auto", allow_write=True, allow_shell=False,
-        tests_required=False, approval_required=False,
-        max_rounds=1, max_agents=1, min_confidence=0.3,
+        planner=True,
+        critic=False,
+        multi_agent=False,
+        web_search="auto",
+        allow_write=True,
+        allow_shell=False,
+        tests_required=False,
+        approval_required=False,
+        max_rounds=1,
+        max_agents=1,
+        min_confidence=0.3,
     ),
     IntelligenceMode.DEEP: ModeConfig(
-        planner=True, critic=True, multi_agent=True,
-        web_search="auto", allow_write=True, allow_shell=False,
-        tests_required=True, approval_required=False,
-        max_rounds=4, max_agents=4, min_confidence=0.7,
-        review_type="code", goal_mode=True,
+        planner=True,
+        critic=True,
+        multi_agent=True,
+        web_search="auto",
+        allow_write=True,
+        allow_shell=False,
+        tests_required=True,
+        approval_required=False,
+        max_rounds=4,
+        max_agents=4,
+        min_confidence=0.7,
+        review_type="code",
+        goal_mode=True,
     ),
     IntelligenceMode.SAFE: ModeConfig(
-        planner=True, critic=True, multi_agent=True,
-        web_search="auto", allow_write=True, allow_shell=False,
-        tests_required=True, approval_required=True,
-        max_rounds=5, max_agents=6, min_confidence=0.8,
-        review_type="security", goal_mode=True,
+        planner=True,
+        critic=True,
+        multi_agent=True,
+        web_search="auto",
+        allow_write=True,
+        allow_shell=False,
+        tests_required=True,
+        approval_required=True,
+        max_rounds=5,
+        max_agents=6,
+        min_confidence=0.8,
+        review_type="security",
+        goal_mode=True,
     ),
     IntelligenceMode.RESEARCH: ModeConfig(
-        planner=True, critic=True, multi_agent=True,
-        web_search="always", allow_write=False, allow_shell=False,
-        tests_required=False, approval_required=False,
-        max_rounds=5, max_agents=4, min_confidence=0.6,
-        review_type="", goal_mode=True,
+        planner=True,
+        critic=True,
+        multi_agent=True,
+        web_search="always",
+        allow_write=False,
+        allow_shell=False,
+        tests_required=False,
+        approval_required=False,
+        max_rounds=5,
+        max_agents=4,
+        min_confidence=0.6,
+        review_type="",
+        goal_mode=True,
     ),
     IntelligenceMode.CREATIVE: ModeConfig(
-        planner=True, critic=True, multi_agent=True,
-        web_search="never", allow_write=True, allow_shell=False,
-        tests_required=False, approval_required=False,
-        max_rounds=3, max_agents=3, min_confidence=0.4,
-        review_type="", goal_mode=False,
+        planner=True,
+        critic=True,
+        multi_agent=True,
+        web_search="never",
+        allow_write=True,
+        allow_shell=False,
+        tests_required=False,
+        approval_required=False,
+        max_rounds=3,
+        max_agents=3,
+        min_confidence=0.4,
+        review_type="",
+        goal_mode=False,
     ),
 }
 
@@ -199,11 +251,14 @@ class IntelligencePolicyRouter:
         profile.has_file_ops = signal_has_file_ops(text, ctx) > 0.3
         profile.is_ambiguous = signal_is_ambiguous(text, ctx) > 0.3
         profile.has_shell = signal_has_shell_ops(text, ctx) > 0.3
-        profile.complexity = min(5, int(
-            signal_has_code(text, ctx) * 2
-            + signal_has_multi_step(text, ctx) * 2
-            + (1 if profile.needs_research else 0)
-        ))
+        profile.complexity = min(
+            5,
+            int(
+                signal_has_code(text, ctx) * 2
+                + signal_has_multi_step(text, ctx) * 2
+                + (1 if profile.needs_research else 0)
+            ),
+        )
 
         # 上下文增强
         if context:
@@ -217,7 +272,6 @@ class IntelligencePolicyRouter:
     def route(self, request: str, context: dict[str, Any] | None = None) -> IntelligenceMode:
         """V2 路由决策: 硬规则 → 信号评分 → 置信度门禁"""
         text = request.lower()
-        ctx = context or {}
 
         # ── Layer 1: 硬规则 ──
         for pat in self.HARD_SAFE_PATTERNS:

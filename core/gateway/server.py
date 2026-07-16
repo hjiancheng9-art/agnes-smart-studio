@@ -11,17 +11,20 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from core.gateway.protocol import (
-    ChatCompletionRequest,
-    ChatCompletionResponse,
-)
 from core.gateway.runner import AVAILABLE_MODELS, GatewayRunner, list_models
+
+if TYPE_CHECKING:
+    from core.gateway.protocol import (
+        ChatCompletionRequest,
+        ChatCompletionResponse,
+    )
 
 logger = logging.getLogger("crux.gateway")
 
@@ -101,7 +104,7 @@ def create_app(runner: GatewayRunner | None = None) -> FastAPI:
                 return resp
             except Exception as e:
                 logger.exception("Chat completion failed")
-                raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=500, detail=str(e)) from e
 
     return app
 

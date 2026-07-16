@@ -1,6 +1,7 @@
 """
 Tests for TUI Consumer — RunStateStore / EventReducer / Dispatcher / ConfirmBridge / Watchdog
 """
+
 import time
 
 import pytest
@@ -75,25 +76,51 @@ class TestRunStateStore:
 
 class FakeRenderer(TuiRenderer):
     """假渲染器 — 记录收到的 action"""
+
     def __init__(self):
         self.actions = []
 
     def _log(self, **kw):
         self.actions.append(kw)
 
-    def render_message(self, run_id, text): self._log(type="message", run_id=run_id, text=text)
-    def render_stream_start(self, run_id, message): self._log(type="stream_start", run_id=run_id)
-    def render_stream_end(self, run_id, message): self._log(type="stream_end", run_id=run_id)
-    def render_error(self, run_id, error): self._log(type="error", run_id=run_id, error=error)
-    def render_status(self, run_id, status, phase, message): self._log(type="status", run_id=run_id, status=status)
-    def render_confirm(self, confirm_id, tool, message, risk): self._log(type="confirm", confirm_id=confirm_id)
-    def render_info(self, run_id, message): self._log(type="info", run_id=run_id)
-    def render_media(self, run_id, media_type, payload): self._log(type="media", run_id=run_id)
-    def render_intel_analysis(self, run_id, payload): self._log(type="intel", run_id=run_id)
-    def render_tool_start(self, run_id, tool, args): self._log(type="tool_start", run_id=run_id)
-    def render_tool_result(self, run_id, tool, result): self._log(type="tool_result", run_id=run_id)
-    def render_final(self, run_id, content): self._log(type="final", run_id=run_id)
-    def invalidate(self): self._log(type="invalidate")
+    def render_message(self, run_id, text):
+        self._log(type="message", run_id=run_id, text=text)
+
+    def render_stream_start(self, run_id, message):
+        self._log(type="stream_start", run_id=run_id)
+
+    def render_stream_end(self, run_id, message):
+        self._log(type="stream_end", run_id=run_id)
+
+    def render_error(self, run_id, error):
+        self._log(type="error", run_id=run_id, error=error)
+
+    def render_status(self, run_id, status, phase, message):
+        self._log(type="status", run_id=run_id, status=status)
+
+    def render_confirm(self, confirm_id, tool, message, risk):
+        self._log(type="confirm", confirm_id=confirm_id)
+
+    def render_info(self, run_id, message):
+        self._log(type="info", run_id=run_id)
+
+    def render_media(self, run_id, media_type, payload):
+        self._log(type="media", run_id=run_id)
+
+    def render_intel_analysis(self, run_id, payload):
+        self._log(type="intel", run_id=run_id)
+
+    def render_tool_start(self, run_id, tool, args):
+        self._log(type="tool_start", run_id=run_id)
+
+    def render_tool_result(self, run_id, tool, result):
+        self._log(type="tool_result", run_id=run_id)
+
+    def render_final(self, run_id, content):
+        self._log(type="final", run_id=run_id)
+
+    def invalidate(self):
+        self._log(type="invalidate")
 
 
 class TestTuiEventReducer:
@@ -133,8 +160,9 @@ class TestTuiEventReducer:
         assert state.is_streaming is False
 
     def test_confirm_produces_confirm_action(self):
-        event = StreamEvent(run_id="r1", kind="confirm",
-                            payload={"confirm_id": "c1", "tool": "write", "message": "ok?", "risk": "low"})
+        event = StreamEvent(
+            run_id="r1", kind="confirm", payload={"confirm_id": "c1", "tool": "write", "message": "ok?", "risk": "low"}
+        )
         action = self.reducer.reduce(event)
         assert action["type"] == "confirm"
         assert action["confirm_id"] == "c1"
@@ -182,11 +210,13 @@ class TestTuiDispatcher:
     def test_dispatch_batch_invalidates_once(self):
         renderer = FakeRenderer()
         dispatcher = TuiDispatcher(renderer)
-        dispatcher.dispatch_batch([
-            {"type": "append_text", "run_id": "r1", "text": "a"},
-            {"type": "append_text", "run_id": "r1", "text": "b"},
-            {"type": "stream_end", "run_id": "r1"},
-        ])
+        dispatcher.dispatch_batch(
+            [
+                {"type": "append_text", "run_id": "r1", "text": "a"},
+                {"type": "append_text", "run_id": "r1", "text": "b"},
+                {"type": "stream_end", "run_id": "r1"},
+            ]
+        )
         invalidates = [a for a in renderer.actions if a["type"] == "invalidate"]
         assert len(invalidates) == 1
 
@@ -200,6 +230,7 @@ class TestTuiDispatcher:
 class TestConfirmBridge:
     def test_resolve_approved(self):
         from core.confirm_manager import ConfirmManager
+
         cm = ConfirmManager()
         bridge = ConfirmBridge(cm)
         req = cm.create("write", "ok?")
@@ -208,6 +239,7 @@ class TestConfirmBridge:
 
     def test_resolve_denied(self):
         from core.confirm_manager import ConfirmManager
+
         cm = ConfirmManager()
         bridge = ConfirmBridge(cm)
         req = cm.create("write", "ok?")
@@ -216,6 +248,7 @@ class TestConfirmBridge:
 
     def test_cancel(self):
         from core.confirm_manager import ConfirmManager
+
         cm = ConfirmManager()
         bridge = ConfirmBridge(cm)
         req = cm.create("write", "ok?")
@@ -224,6 +257,7 @@ class TestConfirmBridge:
 
     def test_get_pending(self):
         from core.confirm_manager import ConfirmManager
+
         cm = ConfirmManager()
         bridge = ConfirmBridge(cm)
         cm.create("write", "ok?")
@@ -297,7 +331,11 @@ class TestFullTuiPipeline:
             StreamEvent(run_id="t1", kind="stream_start", payload={"run_id": "t1"}),
             StreamEvent(run_id="t1", kind="text", payload={"run_id": "t1", "message": "hello"}),
             StreamEvent(run_id="t1", kind="status", payload={"run_id": "t1", "status": "running", "phase": "plan"}),
-            StreamEvent(run_id="t1", kind="confirm", payload={"run_id": "t1", "confirm_id": "c1", "tool": "write", "message": "ok?"}),
+            StreamEvent(
+                run_id="t1",
+                kind="confirm",
+                payload={"run_id": "t1", "confirm_id": "c1", "tool": "write", "message": "ok?"},
+            ),
             StreamEvent(run_id="t1", kind="stream_end", payload={"run_id": "t1"}),
         ]
 
@@ -337,6 +375,7 @@ class TestFullTuiPipeline:
 
     def test_confirm_approve_resolves_backend(self):
         from core.confirm_manager import ConfirmManager
+
         cm = ConfirmManager()
         bridge = ConfirmBridge(cm)
 
@@ -350,6 +389,7 @@ class TestFullTuiPipeline:
 
     def test_confirm_deny(self):
         from core.confirm_manager import ConfirmManager
+
         cm = ConfirmManager()
         bridge = ConfirmBridge(cm)
 

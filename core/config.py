@@ -92,8 +92,28 @@ def save_global_auth(api_key: str, base_url: str | None = None) -> Path:
     return AUTH_FILE
 
 
-load_dotenv(override=True)
-_load_global_auth()
+# Module-level init for backward compatibility.
+# New code should call initialize_config() explicitly from entry points.
+_load_done = False
+
+
+def initialize_config(*, force: bool = False) -> None:
+    """Idempotent config initializer. Safe to call multiple times.
+    Call from CLI/GUI/server entry points before using any config-dependent features.
+    """
+    global _load_done
+    if _load_done and not force:
+        return
+    load_dotenv(override=True)
+    _load_global_auth()
+    _load_done = True
+
+
+# Legacy auto-init: kept for backward compatibility with modules that import
+# config.py before entry points run. Will be removed in a future refactor.
+_load_dotenv_and_auth_run_once = True
+if _load_dotenv_and_auth_run_once:
+    initialize_config()
 
 __all__ = [
     "AGNES_HOME",

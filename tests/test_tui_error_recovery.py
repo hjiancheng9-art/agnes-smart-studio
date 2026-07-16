@@ -9,6 +9,7 @@ class TestErrorClassification:
     @pytest.fixture
     def classify(self):
         """Extract the error classification logic from _stream_response."""
+
         def _classify(err):
             err_name = type(err).__name__
             err_msg = str(err)
@@ -28,6 +29,7 @@ class TestErrorClassification:
             else:
                 hint = "unknown"
             return hint
+
         return _classify
 
     def test_connection_error(self, classify):
@@ -40,11 +42,13 @@ class TestErrorClassification:
     def test_rate_limit(self, classify):
         class Fake429(Exception):
             pass
+
         assert classify(Fake429("HTTP 429 Too Many Requests")) == "ratelimit"
 
     def test_auth_error(self, classify):
         class AuthError(Exception):
             pass
+
         assert classify(AuthError("Invalid API key")) == "auth"
         # 401/403 in the message
         assert classify(RuntimeError("Got 401 Unauthorized")) == "auth"
@@ -55,6 +59,7 @@ class TestErrorClassification:
 
     def test_json_decode(self, classify):
         from json import JSONDecodeError
+
         assert classify(JSONDecodeError("Expecting value", "", 0)) == "json"
 
     def test_unknown_error(self, classify):
@@ -78,6 +83,7 @@ class TestTurnSummary:
             if agent_score >= 5:
                 parts.append(f"agent score {agent_score:.0f}")
             return " · ".join(parts)
+
         return _build
 
     def test_basic_summary(self, build_summary):

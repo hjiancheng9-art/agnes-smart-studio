@@ -2149,7 +2149,7 @@ class TuiAppV2:
                 if _force or not thinking or now - last > 0.030:
                     self._last_invalidate = now
                     # Thread-safe: use call_soon_threadsafe for worker-thread calls
-                    if hasattr(app, 'call_soon_threadsafe'):
+                    if hasattr(app, "call_soon_threadsafe"):
                         app.call_soon_threadsafe(app.invalidate)
                     else:
                         app.invalidate()
@@ -2414,7 +2414,7 @@ class TuiAppV2:
                     self._mouse_guard.restore()
                 # Thread-safe invalidate (heartbeat runs on Timer thread)
                 _app = self._app
-                if _app is not None and hasattr(_app, 'call_soon_threadsafe'):
+                if _app is not None and hasattr(_app, "call_soon_threadsafe"):
                     _app.call_soon_threadsafe(_app.invalidate)
                 elif _app is not None:
                     _app.invalidate()

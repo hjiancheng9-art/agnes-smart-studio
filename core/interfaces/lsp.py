@@ -4,21 +4,24 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from .errors import LSPError
+if TYPE_CHECKING:
+    from .errors import LSPError
 
 
 @dataclass
 class LSPPosition:
     """Position in a source file."""
-    line: int       # 0-based
+
+    line: int  # 0-based
     character: int  # 0-based
 
 
 @dataclass
 class LSPRange:
     """Range in a source file."""
+
     start: LSPPosition
     end: LSPPosition
 
@@ -26,6 +29,7 @@ class LSPRange:
 @dataclass
 class LSPLocation:
     """Location in a source file."""
+
     uri: str
     range: LSPRange
 
@@ -33,6 +37,7 @@ class LSPLocation:
 @dataclass
 class LSPDiagnostic:
     """A diagnostic (error, warning, hint) from LSP."""
+
     range: LSPRange
     message: str
     severity: int  # 1=Error, 2=Warning, 3=Info, 4=Hint
@@ -42,6 +47,7 @@ class LSPDiagnostic:
 @dataclass
 class LSPHover:
     """Hover information."""
+
     contents: str
     range: LSPRange | None = None
 
@@ -49,6 +55,7 @@ class LSPHover:
 @dataclass
 class LSPCompletion:
     """Completion item."""
+
     label: str
     detail: str = ""
     documentation: str = ""
@@ -58,6 +65,7 @@ class LSPCompletion:
 @dataclass
 class LSPResult:
     """Unified result from LSP operations."""
+
     success: bool
     data: Any = None
     error: LSPError | None = None

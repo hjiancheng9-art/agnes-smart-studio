@@ -44,6 +44,7 @@ def browser_screenshot(url: str, output: str = "") -> str:
     # Check if we're inside an asyncio event loop — sync_playwright will crash.
     # Fall back to subprocess isolation to avoid the conflict.
     import asyncio as _asyncio
+
     try:
         _asyncio.get_running_loop()
         _in_event_loop = True
@@ -67,7 +68,10 @@ def browser_screenshot(url: str, output: str = "") -> str:
         )
         result = subprocess.run(
             [sys.executable, "-c", _script, url, str(out_path)],
-            capture_output=True, text=True, timeout=45, encoding="utf-8",
+            capture_output=True,
+            text=True,
+            timeout=45,
+            encoding="utf-8",
             cwd=str(ROOT),
         )
         if result.returncode != 0:

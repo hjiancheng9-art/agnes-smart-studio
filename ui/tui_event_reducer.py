@@ -4,6 +4,7 @@ TUI Event Reducer — 事件 → UI 状态变化
 把 StreamEvent 转成 UI action（reduce 模式）。
 让 renderer 只处理 action，不直接碰业务状态。
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -68,7 +69,7 @@ class TuiEventReducer:
         }
 
     def _handle_text(self, run_id: str, payload: dict) -> dict[str, Any]:
-        self.run_store.update(run_id, last_event_at=__import__('time').time())
+        self.run_store.update(run_id, last_event_at=__import__("time").time())
         return {
             "type": "append_text",
             "run_id": run_id,
@@ -113,14 +114,29 @@ class TuiEventReducer:
 
     def _handle_tool_start(self, run_id: str, payload: dict) -> dict[str, Any]:
         self.run_store.update(run_id, phase="tool_running")
-        return {"type": "tool_start", "run_id": run_id, "tool": payload.get("tool", ""), "args": payload.get("args", {})}
+        return {
+            "type": "tool_start",
+            "run_id": run_id,
+            "tool": payload.get("tool", ""),
+            "args": payload.get("args", {}),
+        }
 
     def _handle_tool_result(self, run_id: str, payload: dict) -> dict[str, Any]:
-        return {"type": "tool_result", "run_id": run_id, "tool": payload.get("tool", ""), "result": payload.get("result", "")}
+        return {
+            "type": "tool_result",
+            "run_id": run_id,
+            "tool": payload.get("tool", ""),
+            "result": payload.get("result", ""),
+        }
 
     def _handle_final(self, run_id: str, payload: dict) -> dict[str, Any]:
         self.run_store.finish(run_id)
-        return {"type": "final", "run_id": run_id, "content": payload.get("content", ""), "state": self.run_store.get(run_id)}
+        return {
+            "type": "final",
+            "run_id": run_id,
+            "content": payload.get("content", ""),
+            "state": self.run_store.get(run_id),
+        }
 
     def _handle_unknown(self, run_id: str, kind: str, payload: dict) -> dict[str, Any]:
         return {"type": "info", "run_id": run_id, "message": f"[{kind}] {payload.get('message', str(payload)[:100])}"}

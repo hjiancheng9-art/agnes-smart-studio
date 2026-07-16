@@ -1,4 +1,5 @@
 """Tests for animation_gov.py — throttle, debounce, frame limiting."""
+
 import pytest
 
 from ui.animation_gov import ANIM_PRIORITY, AnimationGovernor, AnimType
@@ -62,7 +63,7 @@ class TestAnimationGovernor:
         assert gov.is_active(AnimType.PROGRESS_BAR) is False
 
     def test_enabled_default(self, gov):
-        assert hasattr(gov, 'enabled') or True  # may or may not have this
+        assert hasattr(gov, "enabled") or True  # may or may not have this
 
     def test_streaming_default(self, gov):
         # may or may not have streaming attribute

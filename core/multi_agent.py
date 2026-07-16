@@ -30,17 +30,14 @@ AsyncChatSession 可直接 await ``execute``）。同步版仍标记 EXPERIMENTA
     判断标准见 should_use_multi_agent()。
 """
 
-
 import logging
 
 from core.multi_agent_modes import (
-    _agent_mode_history,
     AgentMode,
     AgentModeResult,
     ambiguity_score,
     build_context_state,
     compute_agent_mode,
-    decomposability_score,
     failure_score,
     file_scope_score,
     get_mode_statistics,
@@ -763,5 +760,3 @@ from core.multi_agent_swarm import (
     AgentSwarm,
     _exec_agent_swarm,
 )
-
-

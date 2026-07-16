@@ -48,23 +48,28 @@ class EventKind(str, Enum):
 
 
 # ── 可见白名单 ──
-VISIBLE_CHAT_EVENTS = frozenset({
-    EventKind.USER_MESSAGE,
-    EventKind.ASSISTANT_DELTA,
-    EventKind.ASSISTANT_FINAL,
-})
+VISIBLE_CHAT_EVENTS = frozenset(
+    {
+        EventKind.USER_MESSAGE,
+        EventKind.ASSISTANT_DELTA,
+        EventKind.ASSISTANT_FINAL,
+    }
+)
 
-TOOL_INLINE_EVENTS = frozenset({
-    EventKind.TOOL_STARTED,
-    EventKind.TOOL_PROGRESS,
-    EventKind.TOOL_FINISHED,
-    EventKind.TOOL_FAILED,
-})
+TOOL_INLINE_EVENTS = frozenset(
+    {
+        EventKind.TOOL_STARTED,
+        EventKind.TOOL_PROGRESS,
+        EventKind.TOOL_FINISHED,
+        EventKind.TOOL_FAILED,
+    }
+)
 
 
 @dataclass(slots=True)
 class UiEvent:
     """结构化 UI 事件"""
+
     kind: EventKind
     text: str = ""
     message_id: str = "default"
@@ -79,20 +84,15 @@ class UiEvent:
 class UiSink(Protocol):
     """UI 输出端口 — 事件消费者实现此接口"""
 
-    def append_user_message(self, text: str) -> None:
-        ...
+    def append_user_message(self, text: str) -> None: ...
 
-    def append_assistant_delta(self, message_id: str, text: str) -> None:
-        ...
+    def append_assistant_delta(self, message_id: str, text: str) -> None: ...
 
-    def append_assistant_final(self, message_id: str, text: str) -> None:
-        ...
+    def append_assistant_final(self, message_id: str, text: str) -> None: ...
 
-    def update_tool_status(self, text: str) -> None:
-        ...
+    def update_tool_status(self, text: str) -> None: ...
 
-    def show_notice(self, text: str, *, error: bool = False) -> None:
-        ...
+    def show_notice(self, text: str, *, error: bool = False) -> None: ...
 
 
 class StreamingUnicodeSanitizer:
@@ -106,7 +106,7 @@ class StreamingUnicodeSanitizer:
     4. JSON 流被错误拆分。
     """
 
-    REPLACEMENT = "\uFFFD"
+    REPLACEMENT = "\ufffd"
 
     def __init__(self) -> None:
         self._pending_high: str | None = None
@@ -139,11 +139,7 @@ class StreamingUnicodeSanitizer:
             if self._pending_high is not None:
                 if self._is_low_surrogate(code):
                     # 完整的 surrogate pair
-                    output.append(
-                        self._join_surrogate_pair(
-                            ord(self._pending_high), code
-                        )
-                    )
+                    output.append(self._join_surrogate_pair(ord(self._pending_high), code))
                     self.repaired_count += 1
                 else:
                     # 前一个 high surrogate 无法配对 → 用替换字符

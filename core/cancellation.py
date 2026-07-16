@@ -34,6 +34,7 @@ class TaskStatus(str, Enum):
 
 class CancelledError(RuntimeError):
     """任务被取消异常"""
+
     def __init__(self, task_id: str, reason: str = ""):
         self.task_id = task_id
         self.reason = reason
@@ -43,6 +44,7 @@ class CancelledError(RuntimeError):
 @dataclass
 class CancellationToken:
     """取消令牌 — 任务定期检查"""
+
     cancelled: bool = False
     reason: str = ""
 
@@ -66,6 +68,7 @@ class CancellationToken:
 @dataclass
 class TaskInfo:
     """任务信息"""
+
     task_id: str
     name: str
     status: TaskStatus = TaskStatus.PENDING
@@ -152,7 +155,8 @@ class TaskRegistry:
         """清理过期任务"""
         now = time.time()
         to_remove = [
-            tid for tid, t in self._tasks.items()
+            tid
+            for tid, t in self._tasks.items()
             if t.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED)
             and now - t.ended_at > max_age
         ]
@@ -169,6 +173,7 @@ class TaskRegistry:
 
 
 # ── 任务执行器 ──
+
 
 def run_cancellable(name: str, fn: Callable, *args, **kwargs) -> Any:
     """在取消令牌下运行同步函数"""

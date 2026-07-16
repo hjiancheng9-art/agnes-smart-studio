@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class FileBackup:
     """文件备份记录"""
+
     file_path: str
     backup_path: str
     original_hash: str
@@ -68,12 +69,14 @@ class FileTransaction:
         # 复制备份
         shutil.copy2(str(path), str(backup_path))
 
-        self._backups.append(FileBackup(
-            file_path=str(path),
-            backup_path=str(backup_path),
-            original_hash=file_hash,
-            size=len(content),
-        ))
+        self._backups.append(
+            FileBackup(
+                file_path=str(path),
+                backup_path=str(backup_path),
+                original_hash=file_hash,
+                size=len(content),
+            )
+        )
         return True
 
     def commit(self) -> list[FileBackup]:
@@ -141,12 +144,14 @@ class RollbackManager:
         if not txn:
             return False
         backups = txn.commit()
-        self._history.append({
-            "txn_id": txn_id,
-            "action": "commit",
-            "files": [b.file_path for b in backups],
-            "timestamp": time.time(),
-        })
+        self._history.append(
+            {
+                "txn_id": txn_id,
+                "action": "commit",
+                "files": [b.file_path for b in backups],
+                "timestamp": time.time(),
+            }
+        )
         del self._transactions[txn_id]
         return True
 
@@ -156,12 +161,14 @@ class RollbackManager:
         if not txn:
             return False
         restored = txn.rollback()
-        self._history.append({
-            "txn_id": txn_id,
-            "action": "rollback",
-            "files": [b.file_path for b in restored],
-            "timestamp": time.time(),
-        })
+        self._history.append(
+            {
+                "txn_id": txn_id,
+                "action": "rollback",
+                "files": [b.file_path for b in restored],
+                "timestamp": time.time(),
+            }
+        )
         del self._transactions[txn_id]
         return True
 
@@ -196,6 +203,7 @@ class RollbackManager:
 @dataclass
 class PatchExperiment:
     """学习补丁实验"""
+
     patch_id: str
     patch: dict[str, Any]
     description: str
@@ -244,16 +252,19 @@ class GradualRelease:
 
     def _save(self) -> None:
         try:
-            data = [{
-                "patch_id": e.patch_id,
-                "patch": e.patch,
-                "description": e.description,
-                "status": e.status,
-                "test_count": e.test_count,
-                "success_count": e.success_count,
-                "failure_count": e.failure_count,
-                "created_at": e.created_at,
-            } for e in self._experiments]
+            data = [
+                {
+                    "patch_id": e.patch_id,
+                    "patch": e.patch,
+                    "description": e.description,
+                    "status": e.status,
+                    "test_count": e.test_count,
+                    "success_count": e.success_count,
+                    "failure_count": e.failure_count,
+                    "created_at": e.created_at,
+                }
+                for e in self._experiments
+            ]
             self.config_path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
         except Exception as e:
             logger.warning(f"GradualRelease 保存失败: {e}")

@@ -14,10 +14,12 @@ from __future__ import annotations
 
 import json
 import threading
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from core.config import OUTPUT_DIR
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 __all__ = ["LOG_FILE", "MAX_BYTES", "MAX_LINES", "clear_log", "load_recent", "log_call"]
 

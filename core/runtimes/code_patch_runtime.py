@@ -8,6 +8,7 @@ Code Patch Runtime — 代码修复运行时
 - 输出: patches / changed_files / test_results
 - 步骤: 定位问题 → 生成补丁 → 验证不破坏现有测试
 """
+
 from __future__ import annotations
 
 import logging
@@ -36,9 +37,7 @@ class CodePatchRuntime(BaseRuntime):
         for pattern in self.PATCH_KEYWORDS:
             if re.search(pattern, text):
                 # 排除架构级任务
-                if re.search(r"架构|重构.*系统|大规模|跨\s*\d+\s*个文件", text):
-                    return False
-                return True
+                return not re.search(r"架构|重构.*系统|大规模|跨\s*\d+\s*个文件", text)
         return False
 
     async def execute(self, ctx: RuntimeContext) -> dict[str, Any]:
@@ -64,22 +63,26 @@ class CodePatchRuntime(BaseRuntime):
 
     def _extract_files(self, request: str) -> list[str]:
         """从请求中提取文件名"""
-        files = re.findall(r'[\w/]+\.\w+', request)
+        files = re.findall(r"[\w/]+\.\w+", request)
         return files[:5]
 
     def _generate_patches(self, request: str, files: list[str]) -> list[dict[str, str]]:
         """生成补丁方案"""
         patches = []
         for f in files:
-            patches.append({
-                "file": f,
-                "type": "modify",
-                "description": f"修复 {f} 中的问题",
-            })
+            patches.append(
+                {
+                    "file": f,
+                    "type": "modify",
+                    "description": f"修复 {f} 中的问题",
+                }
+            )
         if not patches:
-            patches.append({
-                "file": "unknown",
-                "type": "inspect",
-                "description": "需要进一步定位问题文件",
-            })
+            patches.append(
+                {
+                    "file": "unknown",
+                    "type": "inspect",
+                    "description": "需要进一步定位问题文件",
+                }
+            )
         return patches

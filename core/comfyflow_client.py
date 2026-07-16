@@ -13,6 +13,7 @@ from typing import Any
 
 try:
     import httpx as _httpx
+
     HAS_HTTPX = True
 except ImportError:
     HAS_HTTPX = False
@@ -22,6 +23,7 @@ except ImportError:
 
 class ComfyFlowError(Exception):
     """ComfyFlow API 调用异常"""
+
     pass
 
 
@@ -36,9 +38,7 @@ class ComfyFlowClient:
     """
 
     def __init__(self, base_url: str | None = None, timeout: int = 60):
-        self.base_url = (base_url or os.environ.get(
-            "COMFYFLOW_API_URL", "http://127.0.0.1:8080"
-        )).rstrip("/")
+        self.base_url = (base_url or os.environ.get("COMFYFLOW_API_URL", "http://127.0.0.1:8080")).rstrip("/")
         self.timeout = timeout
 
     # ── health ──────────────────────────────────────────

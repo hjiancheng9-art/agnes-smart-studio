@@ -168,7 +168,7 @@ class RepoMap:
                 for alias in node.names:
                     syms.imports.append(alias.name)
             elif isinstance(node, ast.ImportFrom) and node.module:
-                    syms.imports.append(node.module)
+                syms.imports.append(node.module)
 
         # Detect test file → source file mapping
         if "test" in rel.lower():

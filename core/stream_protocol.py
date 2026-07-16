@@ -3,6 +3,7 @@ Stream Protocol — 统一事件协议 + RunStatus 生命周期状态机
 ==========================================================
 确保 TUI 和后端之间的事件格式一致、状态可追踪。
 """
+
 from __future__ import annotations
 
 import time
@@ -14,6 +15,7 @@ from typing import Any
 
 class RunStatus(str, Enum):
     """任务生命周期状态"""
+
     STARTED = "started"
     ROUTING = "routing"
     RUNNING = "running"
@@ -28,15 +30,26 @@ class RunStatus(str, Enum):
 
 
 KNOWN_KINDS = {
-    "text", "info", "status", "image", "video", "confirm",
-    "error", "intel_analysis", "tool_start", "tool_result",
-    "stream_start", "stream_end", "final",
+    "text",
+    "info",
+    "status",
+    "image",
+    "video",
+    "confirm",
+    "error",
+    "intel_analysis",
+    "tool_start",
+    "tool_result",
+    "stream_start",
+    "stream_end",
+    "final",
 }
 
 
 @dataclass
 class StreamEvent:
     """标准化事件"""
+
     run_id: str
     kind: str
     payload: dict[str, Any]
@@ -123,8 +136,8 @@ class EventQueue:
 
 # ── 后端侧 helper ──
 
-def make_status_event(run_id: str, status: RunStatus, message: str = "",
-                      extra: dict[str, Any] | None = None) -> tuple:
+
+def make_status_event(run_id: str, status: RunStatus, message: str = "", extra: dict[str, Any] | None = None) -> tuple:
     """生成带生命周期的 status yield"""
     payload: dict[str, Any] = {
         "run_id": run_id,
@@ -137,8 +150,7 @@ def make_status_event(run_id: str, status: RunStatus, message: str = "",
     return ("status", payload)
 
 
-def make_error_event(run_id: str, error: str, kind: str = "error",
-                     extra: dict[str, Any] | None = None) -> tuple:
+def make_error_event(run_id: str, error: str, kind: str = "error", extra: dict[str, Any] | None = None) -> tuple:
     """生成标准错误 yield"""
     payload: dict[str, Any] = {
         "run_id": run_id,

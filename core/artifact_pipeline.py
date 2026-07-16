@@ -31,7 +31,9 @@ def artifact_store(build_id: str, files: list[str], metadata: dict | None = None
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dest)
             record["files"][src.name] = str(dest)
-    (ARTIFACTS_DIR / f"{build_id}.json").write_text(json.dumps(record, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+    (ARTIFACTS_DIR / f"{build_id}.json").write_text(
+        json.dumps(record, indent=2, ensure_ascii=False, default=str), encoding="utf-8"
+    )
     return record
 
 

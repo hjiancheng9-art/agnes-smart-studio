@@ -1,4 +1,5 @@
 """Tests for completer.py — command/file/history completion."""
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -61,4 +62,4 @@ class TestTuiCompleter:
         results = list(completer.get_completions(mock_doc, "a"))
         if results:
             for r in results:
-                assert hasattr(r, 'text')
+                assert hasattr(r, "text")

@@ -27,16 +27,21 @@ import pytest
 # Note: _tool_exec is a local function inside _dispatch_tool_impl, not a module attr.
 # We test at the dispatch boundary with permission checks.
 
+
 class TestFailureRecovery:
     """Every failure must produce a structured, recoverable error."""
 
-    @pytest.mark.parametrize("name,tool_name,args,error_pattern", [
-        ("bad_tool", "foo_bar_baz", "{}", "unknown"),
-        ("empty_name", "", "{}", "invalid"),
-    ])
+    @pytest.mark.parametrize(
+        "name,tool_name,args,error_pattern",
+        [
+            ("bad_tool", "foo_bar_baz", "{}", "unknown"),
+            ("empty_name", "", "{}", "invalid"),
+        ],
+    )
     def test_unknown_tool_returns_error_not_crash(self, name, tool_name, args, error_pattern):
         """Unknown tool should not crash — dispatch should handle gracefully."""
         from core.chat_tool_dispatch import _dispatch_tool_impl
+
         mock_self = MagicMock()
         mock_self.adversarial_mode = False
         mock_self.permission_check = MagicMock(return_value=False)
@@ -51,14 +56,13 @@ class TestFailureRecovery:
     def test_dispatch_with_invalid_json_args(self):
         """Invalid JSON args should not crash dispatch."""
         from core.chat_tool_dispatch import _dispatch_tool_impl
+
         mock_self = MagicMock()
         mock_self.adversarial_mode = False
         mock_self.permission_check = MagicMock(return_value=False)
 
         try:
-            result = _dispatch_tool_impl(
-                mock_self, name="read_file", args_json="not valid json"
-            )
+            result = _dispatch_tool_impl(mock_self, name="read_file", args_json="not valid json")
             assert result is not None
         except Exception as e:
             pytest.fail(f"Dispatch raised instead of returning error: {e}")
@@ -69,8 +73,9 @@ class TestFailureRecovery:
         with open("core/chat_tool_dispatch.py", encoding="utf-8") as f:
             source = f.read()
         # Must have try/except wrapping tool execution
-        assert "try" in source and "except" in source, \
+        assert "try" in source and "except" in source, (
             "chat_tool_dispatch.py lacks try/except — single failure could crash main loop"
+        )
 
     def test_error_response_has_repair_hint(self):
         """Error responses should include hints on how to fix."""
@@ -85,14 +90,13 @@ class TestFailureRecovery:
     def test_permission_denied_is_wrapped(self):
         """Permission denied must not crash."""
         from core.chat_tool_dispatch import _dispatch_tool_impl
+
         mock_self = MagicMock()
         mock_self.adversarial_mode = False
         mock_self.permission_check = MagicMock(return_value=False)
 
         try:
-            result = _dispatch_tool_impl(
-                mock_self, name="read_file", args_json='{"path": "/etc/passwd"}'
-            )
+            result = _dispatch_tool_impl(mock_self, name="read_file", args_json='{"path": "/etc/passwd"}')
             assert result is not None
         except Exception as e:
             pytest.fail(f"Permission error raised instead of handled: {e}")
@@ -100,14 +104,13 @@ class TestFailureRecovery:
     def test_timeout_is_wrapped(self):
         """Timeout must be handled gracefully."""
         from core.chat_tool_dispatch import _dispatch_tool_impl
+
         mock_self = MagicMock()
         mock_self.adversarial_mode = False
         mock_self.permission_check = MagicMock(return_value=False)
 
         try:
-            result = _dispatch_tool_impl(
-                mock_self, name="web_search", args_json='{"query": "test"}'
-            )
+            result = _dispatch_tool_impl(mock_self, name="web_search", args_json='{"query": "test"}')
             assert result is not None
         except Exception:
             # Timeout exceptions from real tools are caught at outer level
@@ -116,12 +119,14 @@ class TestFailureRecovery:
 
 # ── Recovery limit test ──
 
+
 class TestRecoveryLimits:
     """Self-correction must have finite limits — no infinite loops."""
 
     def test_retry_has_max_limit(self):
         """There must be a max retry count for self-correction."""
         import glob
+
         found = False
         for f in glob.glob("core/*.py"):
             content = open(f, encoding="utf-8", errors="ignore").read()
@@ -134,6 +139,7 @@ class TestRecoveryLimits:
         """After 3 failures, system should degrade gracefully, not loop forever."""
         # Verify the codebase has a 3-strike pattern
         import glob
+
         for f in glob.glob("core/*.py"):
             content = open(f, encoding="utf-8", errors="ignore").read()
             if "3" in content and ("retry" in content or "attempt" in content):

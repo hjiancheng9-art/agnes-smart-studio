@@ -31,6 +31,7 @@ SCHEMA_VERSION = "crux.daemon.v1"
 @dataclass
 class StartupEvent:
     """Single timed event in the startup sequence."""
+
     name: str
     elapsed_ms: float
 
@@ -38,6 +39,7 @@ class StartupEvent:
 @dataclass
 class StartupDiagnostics:
     """Records timing of daemon startup sequence — saved to JSON for post-mortem."""
+
     pid: int = 0
     started_at: float = 0.0
     events: list | None = None
@@ -124,8 +126,11 @@ class Daemon:
         signal.signal(signal.SIGINT, lambda *_: self.stop())
         signal.signal(signal.SIGTERM, lambda *_: self.stop())
         self.startup.mark("daemon_ready")
-        logger.info("[Daemon] PID %d active (startup %dms)",
-                     self.state.pid, self.startup.events[-1].elapsed_ms if self.startup.events else 0)
+        logger.info(
+            "[Daemon] PID %d active (startup %dms)",
+            self.state.pid,
+            self.startup.events[-1].elapsed_ms if self.startup.events else 0,
+        )
         if background:
             self._thread = threading.Thread(target=self._serve, daemon=True, name="crux-daemon")
             self._thread.start()
@@ -180,6 +185,7 @@ class Daemon:
             if isinstance(raw, bytes):
                 try:
                     from core.encoding_fix import fix_garbled_bytes
+
                     data, _, _ = fix_garbled_bytes(raw)
                     data = data.strip()
                 except ImportError:
@@ -208,6 +214,7 @@ class Daemon:
                     raw_data = conn.recv(4096)
                     try:
                         from core.encoding_fix import fix_garbled_bytes
+
                         data, _, _ = fix_garbled_bytes(raw_data)
                         data = data.strip()
                     except ImportError:
@@ -230,9 +237,8 @@ class Daemon:
         """Launch WebSocket server in a daemon thread if websockets is available."""
         try:
             import websockets  # noqa: F401
-            self._ws_thread = threading.Thread(
-                target=self._serve_websocket, daemon=True, name="crux-ws"
-            )
+
+            self._ws_thread = threading.Thread(target=self._serve_websocket, daemon=True, name="crux-ws")
             self._ws_thread.start()
         except ImportError:
             logger.debug("[Daemon] websockets not available — skipping WS channel")
@@ -245,7 +251,7 @@ class Daemon:
 
     def _serve_websocket(self) -> None:
         """WebSocket server — alongside named pipe for push-capable IPC.
-        
+
         Port is written to output/daemon/ws_port.txt for discovery.
         Protocol: JSON {cmd: str, ...} → same response as named pipe.
         """
@@ -272,10 +278,8 @@ class Daemon:
                 sock = server.sockets[0]
                 port = sock.getsockname()[1]
                 self._ws_port = port
-                try:
+                with contextlib.suppress(OSError):
                     WS_PORT_FILE.write_text(str(port), encoding="utf-8")
-                except OSError:
-                    pass
                 logger.info("[Daemon] WS channel on 127.0.0.1:%d", port)
                 # Keep running until _ws_port is reset to 0
                 while self._ws_port == port and self._running:
@@ -316,7 +320,9 @@ class Daemon:
 
     def _save_startup_log(self) -> None:
         with contextlib.suppress(OSError):
-            STARTUP_LOG_FILE.write_text(json.dumps(self.startup.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+            STARTUP_LOG_FILE.write_text(
+                json.dumps(self.startup.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
+            )
 
     @property
     def is_running(self) -> bool:

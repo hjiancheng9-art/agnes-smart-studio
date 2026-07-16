@@ -131,30 +131,30 @@ class SecurityError(CruxError):
 
 
 __all__ = [
-    # Base
-    "CruxError",
-    # Infrastructure
-    "ConfigError",
-    "ProviderError",
-    "NetworkError",
-    "EncodingError",
-    # Tools & Engines
-    "ToolError",
-    "ToolTimeoutError",
-    "EngineError",
-    "GenerationError",
     # Agent & Chat
     "AgentError",
-    "SessionError",
-    "MessageError",
     # Self-* subsystems
     "AuditError",
+    # Infrastructure
+    "ConfigError",
+    # Base
+    "CruxError",
+    "EncodingError",
+    "EngineError",
     "EvolutionError",
     "FixError",
-    # Skill & Marketplace
-    "SkillError",
+    "GenerationError",
     "MarketplaceError",
+    "MessageError",
+    "NetworkError",
+    "ProviderError",
     # Sandbox & Security
     "SandboxError",
     "SecurityError",
+    "SessionError",
+    # Skill & Marketplace
+    "SkillError",
+    # Tools & Engines
+    "ToolError",
+    "ToolTimeoutError",
 ]

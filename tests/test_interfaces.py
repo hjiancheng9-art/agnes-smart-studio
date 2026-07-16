@@ -1,4 +1,5 @@
 """Tests for unified interfaces — unit level, no I/O, no browser."""
+
 import pytest
 
 pytestmark = pytest.mark.unit
@@ -35,6 +36,7 @@ from core.interfaces.errors import (
 # ═══════════════════════════════════════════════════
 #  ToolSpec tests
 # ═══════════════════════════════════════════════════
+
 
 class TestToolSpec:
     """ToolSpec validates and describes tools."""
@@ -96,6 +98,7 @@ class TestToolSpec:
 #  ToolResult tests
 # ═══════════════════════════════════════════════════
 
+
 class TestToolResult:
     """ToolResult unifies success and failure."""
 
@@ -126,6 +129,7 @@ class TestToolResult:
 #  ToolError tests
 # ═══════════════════════════════════════════════════
 
+
 class TestToolError:
     """ToolError provides structured error info."""
 
@@ -155,6 +159,7 @@ class TestToolError:
 # ═══════════════════════════════════════════════════
 #  execute_tool tests
 # ═══════════════════════════════════════════════════
+
 
 class TestExecuteTool:
     """execute_tool wraps tool calls with error handling."""
@@ -202,6 +207,7 @@ class TestExecuteTool:
 # ═══════════════════════════════════════════════════
 #  CRUXError hierarchy tests
 # ═══════════════════════════════════════════════════
+
 
 class TestErrorHierarchy:
     """Error hierarchy covers all domains."""

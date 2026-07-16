@@ -5,6 +5,7 @@ TUI Dispatcher — 按 action 类型分发到 5 个渲染区
 
 TUI 对接时只需要实现这 5 个 renderer 接口，不用管事件协议。
 """
+
 from __future__ import annotations
 
 from typing import Any

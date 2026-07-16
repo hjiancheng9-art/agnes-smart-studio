@@ -18,6 +18,7 @@ from core.multi_agent_models import ROOT, Agent, AgentTask  # noqa: F401  # re-e
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
     from core.multi_agent import MultiAgentCoordinator
 
 logger = logging.getLogger("crux.multi_agent")
@@ -84,6 +85,7 @@ class AgentSwarm:
                 return
             try:
                 from core.multi_agent import MultiAgentCoordinator
+
                 goal = template.replace("{{item}}", item)
                 coordinator = MultiAgentCoordinator(
                     tool_executor=self.execute_tool,
@@ -156,6 +158,7 @@ class AgentSwarm:
 
         try:
             from core.multi_agent import MultiAgentCoordinator
+
             coordinator = MultiAgentCoordinator(
                 tool_executor=self.execute_tool,
                 max_workers=1,

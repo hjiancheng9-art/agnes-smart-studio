@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RouteRecord:
     """单条路由记录"""
+
     request: str
     routed_mode: str
     expected_mode: str | None = None  # 用户纠正后的模式
@@ -125,32 +126,38 @@ class PolicyMemory:
         tags: list[str] | None = None,
     ) -> int:
         """快捷记录路由"""
-        return self.record(RouteRecord(
-            request=request,
-            routed_mode=routed_mode,
-            signal_scores=signal_scores,
-            latency=latency,
-            tags=tags,
-        ))
+        return self.record(
+            RouteRecord(
+                request=request,
+                routed_mode=routed_mode,
+                signal_scores=signal_scores,
+                latency=latency,
+                tags=tags,
+            )
+        )
 
     def record_correction(self, request: str, routed_mode: str, expected_mode: str) -> int:
         """记录用户纠正"""
-        return self.record(RouteRecord(
-            request=request,
-            routed_mode=routed_mode,
-            expected_mode=expected_mode,
-            user_corrected=True,
-            success=False,
-            tags=["user_correction"],
-        ))
+        return self.record(
+            RouteRecord(
+                request=request,
+                routed_mode=routed_mode,
+                expected_mode=expected_mode,
+                user_corrected=True,
+                success=False,
+                tags=["user_correction"],
+            )
+        )
 
     def record_success(self, request: str, routed_mode: str) -> int:
         """记录路由成功"""
-        return self.record(RouteRecord(
-            request=request,
-            routed_mode=routed_mode,
-            success=True,
-        ))
+        return self.record(
+            RouteRecord(
+                request=request,
+                routed_mode=routed_mode,
+                success=True,
+            )
+        )
 
     # ── 读取 ──
 

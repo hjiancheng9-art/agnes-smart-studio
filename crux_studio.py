@@ -186,6 +186,7 @@ def main():
         # ── 根目录自动整理 ──
         try:
             from core.tidy_up import tidy_on_startup
+
             tidy_on_startup()
         except Exception as _e:
             console.print(f"  [dim]tidy_on_startup skipped: {_e}[/dim]")
@@ -216,6 +217,7 @@ def main():
         _chat_repl()
     elif args.serve:
         from core.gateway.server import run_server
+
         run_server(host=args.host, port=args.port)
     elif args.quick:
         _quick(args)
@@ -425,6 +427,7 @@ def _chat_tui():
                     kernel32.SetConsoleScreenBufferSize(handle, _COORD(cols, rows))
         except Exception as e:
             import logging
+
             logging.getLogger(__name__).debug("Non-critical: %s", e, exc_info=True)
 
     # ── Launch TUI (v2) ──

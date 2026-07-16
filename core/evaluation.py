@@ -62,6 +62,7 @@ class EventType(str, Enum):
 @dataclass
 class TraceEvent:
     """A single event in a session trace."""
+
     type: str
     timestamp: float = 0.0
     duration_ms: float = 0.0
@@ -79,6 +80,7 @@ class TraceEvent:
 @dataclass
 class SessionTrace:
     """Full trace of a conversation session."""
+
     session_id: str = ""
     start_time: float = 0.0
     end_time: float = 0.0
@@ -87,12 +89,14 @@ class SessionTrace:
     metadata: dict = field(default_factory=dict)
 
     def record(self, event_type: str, duration_ms: float = 0.0, data: dict | None = None):
-        self.events.append(TraceEvent(
-            type=event_type,
-            timestamp=time.time(),
-            duration_ms=duration_ms,
-            data=data or {},
-        ))
+        self.events.append(
+            TraceEvent(
+                type=event_type,
+                timestamp=time.time(),
+                duration_ms=duration_ms,
+                data=data or {},
+            )
+        )
 
     def close(self):
         self.end_time = time.time()
@@ -137,12 +141,14 @@ class SessionTrace:
             metadata=data.get("metadata", {}),
         )
         for e in data.get("events", []):
-            trace.events.append(TraceEvent(
-                type=e.get("type", ""),
-                timestamp=e.get("timestamp", 0.0),
-                duration_ms=e.get("duration_ms", 0.0),
-                data=e.get("data", {}),
-            ))
+            trace.events.append(
+                TraceEvent(
+                    type=e.get("type", ""),
+                    timestamp=e.get("timestamp", 0.0),
+                    duration_ms=e.get("duration_ms", 0.0),
+                    data=e.get("data", {}),
+                )
+            )
         return trace
 
 
@@ -154,6 +160,7 @@ class SessionTrace:
 @dataclass
 class Scorecard:
     """Evaluation results with all KPIs."""
+
     task_success_rate: float = 0.0
     tool_call_valid_rate: float = 0.0
     self_correction_recovery_rate: float = 0.0
@@ -220,15 +227,15 @@ class Scorecard:
         lines = [
             f"📊 Scorecard ({self.total_sessions} sessions, overall: {self.overall_score}/100)",
             f"  {'KPI':35s} {'Value':12s} {'Weight':8s}",
-            f"  {'-'*35} {'-'*12} {'-'*8}",
+            f"  {'-' * 35} {'-' * 12} {'-' * 8}",
         ]
         items = [
-            ("Task Success Rate", f"{self.task_success_rate*100:.0f}%", 0.25),
-            ("Tool Call Valid Rate", f"{self.tool_call_valid_rate*100:.0f}%", 0.15),
-            ("Self-Correction Recovery", f"{self.self_correction_recovery_rate*100:.0f}%", 0.10),
-            ("Reviewer Catch Rate", f"{self.reviewer_catch_rate*100:.1f}%", 0.05),
-            ("Diff Guard Block Rate", f"{self.diff_guard_block_rate*100:.1f}%", 0.05),
-            ("Compression Loss Rate", f"{self.context_compression_loss_rate*100:.1f}%", 0.05),
+            ("Task Success Rate", f"{self.task_success_rate * 100:.0f}%", 0.25),
+            ("Tool Call Valid Rate", f"{self.tool_call_valid_rate * 100:.0f}%", 0.15),
+            ("Self-Correction Recovery", f"{self.self_correction_recovery_rate * 100:.0f}%", 0.10),
+            ("Reviewer Catch Rate", f"{self.reviewer_catch_rate * 100:.1f}%", 0.05),
+            ("Diff Guard Block Rate", f"{self.diff_guard_block_rate * 100:.1f}%", 0.05),
+            ("Compression Loss Rate", f"{self.context_compression_loss_rate * 100:.1f}%", 0.05),
             ("Avg Tool Calls/Task", f"{self.avg_tool_calls_per_task:.1f}", 0.10),
             ("Avg Retries/Task", f"{self.avg_retries_per_task:.1f}", 0.10),
             ("Time to 1st Action", f"{self.time_to_first_valid_action:.1f}s", 0.10),
@@ -390,6 +397,7 @@ class BehavioralGrader:
 @dataclass
 class EvalResult:
     """Result of evaluating a single session."""
+
     session_id: str = ""
     score: float = 0.0
     deterministic: dict = field(default_factory=dict)
@@ -441,8 +449,8 @@ class EvalEngine:
         total_blocks = sum(r.deterministic.get("blocked_calls", 0) for r in self._results)
         total_retries = sum(r.deterministic.get("retries", 0) for r in self._results)
         total_recoveries = sum(r.behavioral.get("recoveries", 0) for r in self._results)
-        total_consistent_issues = sum(r.behavioral.get("consistency_issues", 0) for r in self._results)
-        total_user_msgs = sum(1 for t in traces for e in t.events if e.type == EventType.USER_MESSAGE)
+        sum(r.behavioral.get("consistency_issues", 0) for r in self._results)
+        sum(1 for t in traces for e in t.events if e.type == EventType.USER_MESSAGE)
 
         sc.tool_call_valid_rate = total_valid / max(total_tool_calls, 1)
         sc.self_correction_recovery_rate = total_recoveries / max(total_blocks, 1)
@@ -450,23 +458,15 @@ class EvalEngine:
         sc.avg_retries_per_task = total_retries / max(len(traces), 1)
 
         # Count reviewer catches and diff guards from traces
-        total_reviewer_issues = sum(
-            1 for t in traces for e in t.events if e.type == EventType.REVIEWER_ISSUE
-        )
-        total_reviewer_runs = sum(
-            1 for t in traces for e in t.events if e.type == EventType.REVIEWER_RUN
-        )
+        total_reviewer_issues = sum(1 for t in traces for e in t.events if e.type == EventType.REVIEWER_ISSUE)
+        total_reviewer_runs = sum(1 for t in traces for e in t.events if e.type == EventType.REVIEWER_RUN)
         sc.reviewer_catch_rate = total_reviewer_issues / max(total_reviewer_runs, 1)
 
-        total_diff_blocks = sum(
-            1 for t in traces for e in t.events if e.type == EventType.DIFF_GUARD
-        )
+        total_diff_blocks = sum(1 for t in traces for e in t.events if e.type == EventType.DIFF_GUARD)
         sc.diff_guard_block_rate = total_diff_blocks / max(total_tool_calls, 1)
 
         # Task success rate: sessions with no critical errors
-        failed_sessions = sum(
-            1 for r in self._results if r.score < 50
-        )
+        failed_sessions = sum(1 for r in self._results if r.score < 50)
         sc.task_success_rate = 1 - (failed_sessions / max(len(traces), 1))
 
         sc.compute_overall()
@@ -475,7 +475,9 @@ class EvalEngine:
     def results_summary(self) -> str:
         lines = [f"📋 Session Results ({len(self._results)} sessions):"]
         for r in self._results:
-            lines.append(f"  {r.session_id:20s} score={r.score:5.1f}  tools={r.deterministic.get('total_calls',0)}  retries={r.deterministic.get('retries',0)}")
+            lines.append(
+                f"  {r.session_id:20s} score={r.score:5.1f}  tools={r.deterministic.get('total_calls', 0)}  retries={r.deterministic.get('retries', 0)}"
+            )
         return "\n".join(lines)
 
 
@@ -487,6 +489,7 @@ class EvalEngine:
 @dataclass
 class RegressionDiff:
     """Difference between two evaluations."""
+
     score_diff: float = 0.0
     regressions: list[str] = field(default_factory=list)
     improvements: list[str] = field(default_factory=list)
@@ -533,12 +536,11 @@ class RegressionGuard:
             val_after = metrics_after.get(key, val_before)
             delta = val_after - val_before
 
-            if isinstance(delta, (int, float)):
-                if abs(delta) > threshold:
-                    if delta < 0:
-                        diff.regressions.append(f"{key}: {val_before} → {val_after} ({delta:+.2f})")
-                    else:
-                        diff.improvements.append(f"{key}: {val_before} → {val_after} ({delta:+.2f})")
+            if isinstance(delta, (int, float)) and abs(delta) > threshold:
+                if delta < 0:
+                    diff.regressions.append(f"{key}: {val_before} → {val_after} ({delta:+.2f})")
+                else:
+                    diff.improvements.append(f"{key}: {val_before} → {val_after} ({delta:+.2f})")
 
         return diff
 
@@ -551,6 +553,7 @@ class RegressionGuard:
 @dataclass
 class EvalWorkspace:
     """Manages session traces on disk and runs evaluations."""
+
     traces_dir: str = ".crux/traces"
 
     def __post_init__(self):
@@ -579,12 +582,14 @@ class EvalWorkspace:
             if f.endswith(".json"):
                 try:
                     t = SessionTrace.load(os.path.join(self.traces_dir, f))
-                    traces.append({
-                        "id": t.session_id,
-                        "date": datetime.fromtimestamp(t.start_time).isoformat() if t.start_time else "?",
-                        "events": t.event_count,
-                        "duration": round(t.duration, 1),
-                    })
+                    traces.append(
+                        {
+                            "id": t.session_id,
+                            "date": datetime.fromtimestamp(t.start_time).isoformat() if t.start_time else "?",
+                            "events": t.event_count,
+                            "duration": round(t.duration, 1),
+                        }
+                    )
                 except Exception:
                     logger.debug("Exception in evaluation", exc_info=True)
         return traces
