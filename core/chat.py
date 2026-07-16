@@ -1129,12 +1129,18 @@ class ChatSession(ChatToggleMixin):
                                 toolbus=toolbus,
                             )
                         )
-                        # Store result for later yield
                         self._pipeline_result = result
                     except Exception:
                         logger.debug("Exception in chat", exc_info=True)
 
-                threading.Thread(target=_run_pipeline, daemon=True, name="crux-pipeline").start()
+                # Track pipeline threads — join old ones to prevent accumulation
+                if not hasattr(self, "_pipeline_threads"):
+                    self._pipeline_threads = []
+                # Clean up finished threads
+                self._pipeline_threads = [t for t in self._pipeline_threads if t.is_alive()]
+                t = threading.Thread(target=_run_pipeline, daemon=True, name="crux-pipeline")
+                self._pipeline_threads.append(t)
+                t.start()
             except Exception as e:
                 logger.debug("Pipeline execution skipped: %s", e)
 

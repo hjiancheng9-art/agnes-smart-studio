@@ -29,6 +29,10 @@ class RoutingState:
 
     def select(self, provider: str, model: str, *, pin: bool = False) -> None:
         """Set active provider and model for this session."""
+        if not provider or not isinstance(provider, str):
+            raise ValueError(f"Invalid provider: {provider!r}")
+        if not model or not isinstance(model, str):
+            raise ValueError(f"Invalid model: {model!r}")
         self.active_provider = provider
         self.active_model = model
         if pin:

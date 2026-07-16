@@ -567,7 +567,8 @@ class ProviderManager:
             with open(self.config_path, encoding="utf-8") as f:
                 cfg = json.load(f)
         except (json.JSONDecodeError, OSError) as e:
-            logger.warning("models.json corrupted (%s), using defaults", e)
+            logger.warning("models.json corrupted (%s), using built-in defaults", e)
+            self._apply_builtin_defaults()
             return
 
         self.providers = cfg.get("providers", {})
@@ -587,6 +588,20 @@ class ProviderManager:
                 except (OSError, json.JSONDecodeError):
                     pass
         self.state.active = active
+
+    def _apply_builtin_defaults(self) -> None:
+        """Fallback when models.json is missing/corrupted: use hardcoded DeepSeek."""
+        key = os.environ.get("DEEPSEEK_API_KEY", "")
+        self.providers = {
+            "deepseek": {
+                "api_key": key,
+                "base_url": "https://api.deepseek.com/v1",
+                "models": {"pro": "deepseek-v4-pro", "light": "deepseek-v4-flash"},
+            }
+        }
+        self.fallback_priority = ["deepseek"]
+        if key:
+            self.state.active = "deepseek"
 
     def save_active(self) -> str:
         """Persist current active provider to models.json (atomic write)."""
