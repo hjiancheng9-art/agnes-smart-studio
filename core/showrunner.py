@@ -15,6 +15,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -505,22 +506,32 @@ def list_pipeline_templates():
         "novel_chapter": "Novel chapter: expand->write->illustrate->polish->export",
     }
 
+    @property
+    def COMFYUI_AGENT_URL(self) -> str:
+        """ComfyUI agent URL — resolved per-call to support runtime env changes."""
+        return os.environ.get("COMFYUI_AGENT_URL", "http://127.0.0.1:5000").strip().rstrip("/")
 
     # ═══════════════════════════════════════════════
     #  ComfyUI Agent 桥接 (V4 集成)
     # ═══════════════════════════════════════════════
 
     async def _comfyui_bridge(self, prompt: str, mode: str = "image", style: str = "cinematic") -> dict:
-        """通过 ComfyUI Agent Orchestrator 生成"""
-        try:
+        """通过 ComfyUI Agent Orchestrator 生成（异步，不阻塞事件循环）"""
+        import asyncio
+
+        def _post_sync():
             import requests
-            agent_url = os.environ.get("COMFYUI_AGENT_URL", "http://127.0.0.1:5000")
+
             resp = requests.post(
-                f"{agent_url}/produce/quick",
+                f"{self.COMFYUI_AGENT_URL}/produce/quick",
                 json={"prompt": prompt, "style": style},
                 timeout=120,
             )
-            data = resp.json()
+            resp.raise_for_status()
+            return resp.json()
+
+        try:
+            data = await asyncio.to_thread(_post_sync)
             if data.get("success"):
                 return {
                     "source": "comfyui",
@@ -532,29 +543,41 @@ def list_pipeline_templates():
             return {"source": "comfyui", "error": str(e), "fallback": "direct"}
 
     async def produce_shot_plan(self, plan: dict) -> dict:
-        """提交完整 ShotPlan 到 ComfyUI Agent"""
-        try:
+        """提交完整 ShotPlan 到 ComfyUI Agent（异步，不阻塞事件循环）"""
+        import asyncio
+
+        def _post_sync():
             import requests
-            agent_url = os.environ.get("COMFYUI_AGENT_URL", "http://127.0.0.1:5000")
+
             resp = requests.post(
-                f"{agent_url}/produce",
+                f"{self.COMFYUI_AGENT_URL}/produce",
                 json=plan,
                 timeout=300,
             )
+            resp.raise_for_status()
             return resp.json()
+
+        try:
+            return await asyncio.to_thread(_post_sync)
         except Exception as e:
             return {"success": False, "error": str(e)}
 
     async def design_character(self, name: str, description: str = "", archetype: str = "") -> dict:
-        """通过 Actor-craft 设计角色"""
-        try:
+        """通过 Actor-craft 设计角色（异步，不阻塞事件循环）"""
+        import asyncio
+
+        def _post_sync():
             import requests
-            agent_url = os.environ.get("COMFYUI_AGENT_URL", "http://127.0.0.1:5000")
+
             resp = requests.post(
-                f"{agent_url}/actor/design",
+                f"{self.COMFYUI_AGENT_URL}/actor/design",
                 json={"name": name, "description": description, "archetype": archetype},
                 timeout=30,
             )
+            resp.raise_for_status()
             return resp.json()
+
+        try:
+            return await asyncio.to_thread(_post_sync)
         except Exception as e:
             return {"success": False, "error": str(e)}

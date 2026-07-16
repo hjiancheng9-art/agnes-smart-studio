@@ -14,6 +14,10 @@ V2 核心升级: Evidence-based Critic
 
 from __future__ import annotations
 
+import logging
+
+logger = logging.getLogger("crux.critic_agent")
+
 import json
 import re
 from dataclasses import dataclass, field
@@ -45,14 +49,15 @@ class CritiqueCategory(str, Enum):
 @dataclass
 class CritiqueFinding:
     """单条审查发现 — evidence 为必填字段"""
+
     category: CritiqueCategory
     severity: CritiqueSeverity
-    summary: str                       # 一句话描述
-    evidence: str = ""                 # 【V2 必填】具体证据（代码行/日志/plan_step/文件位置）
-    detail: str = ""                   # 详细说明
-    location: str = ""                 # 代码位置/文件/行号
-    suggestion: str = ""               # 修复建议
-    source: str = "self_critic"        # 审查来源
+    summary: str  # 一句话描述
+    evidence: str = ""  # 【V2 必填】具体证据（代码行/日志/plan_step/文件位置）
+    detail: str = ""  # 详细说明
+    location: str = ""  # 代码位置/文件/行号
+    suggestion: str = ""  # 修复建议
+    source: str = "self_critic"  # 审查来源
 
     def __post_init__(self):
         """V2: 校验 evidence"""
@@ -83,6 +88,7 @@ class CritiqueFinding:
 @dataclass
 class CritiqueReport:
     """审查报告 — V2: 只保留有效 finding"""
+
     target: str
     findings: list[CritiqueFinding] = field(default_factory=list)
     passed: bool = True
@@ -188,7 +194,7 @@ V2 审查规则 (必须遵守):
             if start >= 0:
                 end = response.rfind("]")
                 if end > start:
-                    json_str = response[start:end + 1]
+                    json_str = response[start : end + 1]
                     items = json.loads(json_str)
                     for item in items:
                         finding = self._parse_json_item(item)
@@ -230,10 +236,14 @@ V2 审查规则 (必须遵守):
         current: CritiqueFinding | None = None
 
         severity_map = {
-            "critical": CritiqueSeverity.CRITICAL, "严重": CritiqueSeverity.CRITICAL,
-            "high": CritiqueSeverity.HIGH, "高": CritiqueSeverity.HIGH,
-            "medium": CritiqueSeverity.MEDIUM, "中": CritiqueSeverity.MEDIUM,
-            "low": CritiqueSeverity.LOW, "低": CritiqueSeverity.LOW,
+            "critical": CritiqueSeverity.CRITICAL,
+            "严重": CritiqueSeverity.CRITICAL,
+            "high": CritiqueSeverity.HIGH,
+            "高": CritiqueSeverity.HIGH,
+            "medium": CritiqueSeverity.MEDIUM,
+            "中": CritiqueSeverity.MEDIUM,
+            "low": CritiqueSeverity.LOW,
+            "低": CritiqueSeverity.LOW,
             "info": CritiqueSeverity.INFO,
         }
 
@@ -355,10 +365,7 @@ V2 审查规则 (必须遵守):
         if "self_critic" in review_types and self.toolbus:
             critic_prompt = self.build_critic_prompt(target, context)
             try:
-                response = await self.toolbus.call(
-                    "trm_route",
-                    {"intent": "think", "prompt": critic_prompt}
-                )
+                response = await self.toolbus.call("trm_route", {"intent": "think", "prompt": critic_prompt})
                 if isinstance(response, str) and len(response) > 50:
                     all_findings.extend(self.parse_critic_response(response))
             except Exception:
@@ -407,8 +414,10 @@ def format_findings_table(findings: list[CritiqueFinding]) -> str:
     lines = ["| 严重级别 | 类别 | 摘要 | 证据 | 位置 |", "|---------|------|------|------|------|"]
     for f in findings:
         severity_icon = {
-            CritiqueSeverity.CRITICAL: "🔴", CritiqueSeverity.HIGH: "🟠",
-            CritiqueSeverity.MEDIUM: "🟡", CritiqueSeverity.LOW: "🟢",
+            CritiqueSeverity.CRITICAL: "🔴",
+            CritiqueSeverity.HIGH: "🟠",
+            CritiqueSeverity.MEDIUM: "🟡",
+            CritiqueSeverity.LOW: "🟢",
             CritiqueSeverity.INFO: "ℹ️",
         }.get(f.severity, "")
         lines.append(

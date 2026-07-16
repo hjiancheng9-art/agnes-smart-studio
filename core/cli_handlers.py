@@ -377,6 +377,7 @@ class CruxCLI:
         # ── 方法论集成: 规划完成后标记 Plan 已确认 ──
         try:
             from core.methodology import get_methodology_state
+
             get_methodology_state().mark_plan_confirmed()
         except ImportError:
             pass
@@ -726,6 +727,8 @@ class CruxCLI:
     def _chat_tidy(self, args: str) -> None:
         """根目录整理: /tidy [deep|status]"""
         from core.tidy_up import deep_clean, full_status, tidy_root
+
+        _notify = print  # CLI output sink for tidy operations
 
         arg = args.strip().lower()
         if arg == "status":
@@ -1323,6 +1326,7 @@ class CruxCLI:
             return
         try:
             from plugins.trae_agent_converter import cmd_trae_convert
+
             result = cmd_trae_convert([args])
             self.io.info(result)
         except Exception as e:
@@ -1336,6 +1340,7 @@ class CruxCLI:
             return
         try:
             from plugins.trae_agent_converter import cmd_trae_export
+
             result = cmd_trae_export(parts)
             self.io.info(result)
         except Exception as e:
@@ -1349,6 +1354,7 @@ class CruxCLI:
             return
         try:
             from plugins.trae_agent_converter import cmd_trae_batch
+
             result = cmd_trae_batch(parts)
             self.io.info(result)
         except Exception as e:
@@ -1362,6 +1368,7 @@ class CruxCLI:
             return
         try:
             from plugins.trae_agent_converter import cmd_trae_new
+
             result = cmd_trae_new(parts)
             self.io.info(result)
         except Exception as e:
@@ -1370,15 +1377,17 @@ class CruxCLI:
     def _chat_orchestrate(self, args: str) -> None:
         """全能力编排: /orchestrate <任务描述> [--preview]"""
         import re
-        preview_mode = bool(re.search(r'--preview|--dry-run|-p', args))
-        goal = re.sub(r'--preview|--dry-run|-p', '', args).strip()
+
+        preview_mode = bool(re.search(r"--preview|--dry-run|-p", args))
+        goal = re.sub(r"--preview|--dry-run|-p", "", args).strip()
 
         if not goal:
             self.io.error("用法: /orchestrate <任务描述> [--preview]")
             return
 
         try:
-            from core.runtime_orchestrator import execute, execute_stream, preview as orch_preview
+            from core.runtime_orchestrator import execute_stream
+            from core.runtime_orchestrator import preview as orch_preview
 
             if preview_mode:
                 result = orch_preview(goal)
@@ -1391,7 +1400,7 @@ class CruxCLI:
             # 流式执行
             self.io.info(f"🚀 启动编排: {goal[:60]}...")
             for event in execute_stream(goal):
-                style, text = event.to_tui()
+                _style, _text = event.to_tui()
                 if event.beast:
                     self.io.info(f"  [{event.beast}] {event.message}")
             self.io.info("✅ 编排完成")

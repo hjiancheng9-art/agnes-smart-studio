@@ -8,6 +8,8 @@ import logging
 import os
 import shutil
 import subprocess
+
+logger = logging.getLogger("crux.mcp_utils")
 import sys
 from typing import Any
 
@@ -73,13 +75,9 @@ def _safe_decode(raw: bytes, source: str = "subprocess") -> str:
 
         text, encoding, recovered = fix_garbled_bytes(raw)
         if recovered:
-            _log.warning(
-                "Encoding recovered for %s: detected=%s", source, encoding
-            )
+            _log.warning("Encoding recovered for %s: detected=%s", source, encoding)
         elif encoding != "utf-8":
-            _log.info(
-                "Non-UTF-8 encoding detected for %s: %s", source, encoding
-            )
+            _log.info("Non-UTF-8 encoding detected for %s: %s", source, encoding)
         issue = report_encoding_issue(text, source=source)
         if issue:
             _log.warning("%s", issue)
@@ -88,6 +86,7 @@ def _safe_decode(raw: bytes, source: str = "subprocess") -> str:
         return raw.decode("utf-8", errors="replace")
     except Exception:
         return raw.decode("utf-8", errors="replace")
+
 
 # ── MCP JSON-RPC message helpers ──────────────────────────────
 
@@ -172,31 +171,26 @@ def run_subprocess(
         We manage the process directly and call _kill_process_tree so the caller
         is always freed within ~timeout seconds.
         """
-        popen_kwargs = dict(
-            stdout=subprocess.PIPE if capture_output else None,
-            stderr=subprocess.PIPE if capture_output else None,
-            stdin=subprocess.PIPE if input_data is not None else stdin,
-            env=env,
-            cwd=cwd,
-            shell=shell,
-            startupinfo=startupinfo,
-        )
+        popen_kwargs = {
+            "stdout": subprocess.PIPE if capture_output else None,
+            "stderr": subprocess.PIPE if capture_output else None,
+            "stdin": subprocess.PIPE if input_data is not None else stdin,
+            "env": env,
+            "cwd": cwd,
+            "shell": shell,
+            "startupinfo": startupinfo,
+        }
         # New process group / session so the whole tree can be killed at once.
         if sys.platform == "win32":
-            popen_kwargs["creationflags"] = (
-                popen_kwargs.get("creationflags", 0)
-                | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            popen_kwargs["creationflags"] = popen_kwargs.get("creationflags", 0) | getattr(
+                subprocess, "CREATE_NEW_PROCESS_GROUP", 0
             )
         else:
             popen_kwargs["start_new_session"] = True
         popen_kwargs.update(extra_kwargs)
 
         proc = subprocess.Popen(cmd, **popen_kwargs)
-        stdin_bytes = (
-            input_data.encode("utf-8", errors="replace")
-            if isinstance(input_data, str)
-            else input_data
-        )
+        stdin_bytes = input_data.encode("utf-8", errors="replace") if isinstance(input_data, str) else input_data
         try:
             out_b, err_b = proc.communicate(input=stdin_bytes, timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -229,9 +223,7 @@ def run_subprocess(
         # worker finishes -- exactly the freeze we are fixing. Instead we submit,
         # wait with a hard cap, and on timeout kill the tree and let the daemon
         # pool die on its own without blocking the caller.
-        pool = concurrent.futures.ThreadPoolExecutor(
-            max_workers=1, thread_name_prefix="run_subprocess"
-        )
+        pool = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="run_subprocess")
         future = pool.submit(_sync_worker)
         try:
             # Small grace over the child timeout for kill/reap bookkeeping.
