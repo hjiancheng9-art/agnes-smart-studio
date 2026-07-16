@@ -721,3 +721,8 @@ def execute_stream(goal: str, **kwargs):
 
 def preview(goal: str, **kwargs) -> OrchestrationResult:
     return get_orchestrator().preview(goal, **kwargs)
+
+
+def execute_tool(goal: str, **kwargs) -> str:
+    """Model-facing orchestration tool contract — always returns readable text."""
+    return str(execute(goal, **kwargs))

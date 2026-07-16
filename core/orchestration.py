@@ -565,33 +565,18 @@ ORCHESTRATE_TOOL_DEF: dict = {
 
 
 def run_orchestrate(goal: str = "", mode: str = "auto", **kwargs) -> str:  # noqa: ARG001
-    """执行编排引擎 — 工具入口.
+    """Backward-compat wrapper — delegates to canonical ``orchestrate`` tool.
 
-    从 ToolRegistry 获取真实 executor，创建编排器并运行。
+    Deprecated: use ``core.runtime_orchestrator.execute_tool()`` directly.
     """
-    import json as _json
+    import warnings
 
-    if not goal:
-        return "[错误] run_orchestrate 需要 goal 参数"
+    warnings.warn(
+        "core.orchestration.run_orchestrate() is deprecated; "
+        "use core.runtime_orchestrator.execute_tool().",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    from core.runtime_orchestrator import execute_tool
 
-    try:
-        from core.tools import get_registry
-        registry = get_registry()
-
-        def _tool_exec(name: str, args: dict) -> str:
-            if registry.has(name):
-                return registry.execute(name, args)
-            return f"[orchestrate] 工具 {name} 不可用"
-
-        orch = MasterOrchestrator(
-            tool_executor=_tool_exec,
-            model_router=getattr(registry, "model_router", None),
-        )
-        orch._mode = mode
-        result = orch.run(goal)
-
-        return _json.dumps(result, ensure_ascii=False, indent=2, default=str)
-    except Exception as e:
-        import logging
-        logging.getLogger("crux.orchestration").exception("run_orchestrate failed")
-        return _json.dumps({"error": f"{type(e).__name__}: {e}"}, ensure_ascii=False)
+    return execute_tool(goal, **kwargs)

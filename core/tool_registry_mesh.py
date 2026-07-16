@@ -21,6 +21,8 @@ import logging
 from enum import IntEnum
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 
 # ─── 工具分层（ChatGPT 评审建议） ───
 class ToolTier(IntEnum):
@@ -258,12 +260,101 @@ class ToolRegistryMesh:
         self._tier_scores: dict[str, float] = {}  # tool_name → historical success rate
         self._route_stats: dict[str, dict] = {}  # tool_name → {calls, successes, failures}
         self._callbacks: dict[str, Callable] = {}  # tool_name → async callable
+        self._function_map: dict[str, str] = {}  # tool_name → "module.func" import path
         self._discovered = False
 
     # ── Discovery ──────────────────────────────────────────
 
+    # ── Category mapping: tools.json category → TRM intent ──
+    _CATEGORY_TO_INTENT: dict[str, str] = {
+        "search": "search",
+        "fs": "search",
+        "review": "review",
+        "code_intel": "review",
+        "exec": "execute",
+        "file": "execute",
+        "git": "execute",
+        "deploy": "execute",
+        "package": "execute",
+        "reasoning": "think",
+        "skill": "think",
+        "media": "generate",
+        "creative": "generate",
+        "diagnostic": "status",
+        "github": "execute",
+        "web": "search",
+        "net": "search",
+        "document": "execute",
+        "browser": "execute",
+        "utility": "execute",
+        "orchestrate": "execute",
+    }
+
+    def _load_tools_json(self) -> int:
+        """Load tools from tools.json and register in TRM."""
+        tools_json = ROOT / "tools.json"
+        if not tools_json.exists():
+            return 0
+        try:
+            data = json.loads(tools_json.read_text(encoding="utf-8"))
+            tools_list = data.get("tools", [])
+        except (json.JSONDecodeError, OSError, ValueError) as e:
+            logger.warning("TRM: failed to load tools.json: %s", e)
+            return 0
+
+        count = 0
+        for t in tools_list:
+            name = t.get("name", "")
+            if not name:
+                continue
+            # Map tools.json category → TRM intent
+            cat = t.get("category", "unknown")
+            intent = self._CATEGORY_TO_INTENT.get(cat, "unknown")
+            entry = ToolEntry(
+                name=name,
+                description=t.get("description", ""),
+                source="crux",
+                category=intent,
+                input_schema=t.get("parameters", {}),
+            )
+            self._register(entry)
+            # Store function import path for _call_tool (Python-type tools only)
+            func_path = t.get("function", "")
+            tool_type = t.get("type", "python")
+            if func_path and tool_type == "python":
+                self._function_map[name] = func_path
+            count += 1
+
+        # Auto-populate CATEGORY_META routing orders from discovered tools
+        # Priority ordering: safe fast tools first, dangerous/slow tools last
+        _TOOL_PRIORITY = {
+            # execute: safe & fast → dangerous/slow
+            "run_bash": 1, "run_python": 2, "read_file": 3, "write_file": 4,
+            "edit_file": 5, "search_files": 6, "glob_files": 7, "list_files": 8,
+            "git_status": 20, "git_diff": 21, "git_log": 22,
+            "run_test": 90, "debug_inspect": 91, "orchestrate": 92,
+            # search: code search first
+            "search_files": 1, "grep": 1, "glob_files": 2, "find_symbol": 3,
+            "search_symbols": 4, "web_search": 10, "web_fetch": 11,
+            # Default for unlisted tools
+        }
+        _DEFAULT_PRIORITY = 50
+
+        for intent_key in CATEGORY_META:
+            if not CATEGORY_META[intent_key]["order"]:
+                tools_in_intent = [
+                    e.name for e in self._tools.values()
+                    if e.category == intent_key and e.source == "crux"
+                ]
+                if tools_in_intent:
+                    # Sort by priority (lower = preferred), then alphabetically
+                    tools_in_intent.sort(key=lambda n: (_TOOL_PRIORITY.get(n, _DEFAULT_PRIORITY), n))
+                    CATEGORY_META[intent_key]["order"] = tools_in_intent
+
+        return count
+
     def discover_all(self, timeout: float = 30.0) -> int:
-        """Scan all bridges + CRUX builtins. Returns tool count."""
+        """Scan all bridges + CRUX builtins + tools.json. Returns tool count."""
         self._tools.clear()
 
         # 1. Register CRUX builtins
@@ -276,6 +367,9 @@ class ToolRegistryMesh:
                 input_schema=t.get("input_schema", {}),  # pyright: ignore[reportArgumentType]
             )
             self._register(entry)
+
+        # 1.5. Load local tools from tools.json
+        self._load_tools_json()
 
         # 2. Discover from each bridge via MCP initialize + tools/list
         for bridge_id, cfg in BRIDGES.items():
@@ -631,12 +725,28 @@ class ToolRegistryMesh:
                           or intent in n.split("_")]
         last_error = ""
         first_tool = candidates[0] if candidates else ""
+        _MAX_TOTAL_TIME = 8.0  # max total routing time (local tools are fast)
+        _route_start = time.monotonic()
 
         for tool_name in candidates:
-            # Support wildcard matching
+            if time.monotonic() - _route_start > _MAX_TOTAL_TIME:
+                last_error = "routing time budget exceeded"
+                break
+
+            # Support wildcard matching (*_status, search_*, etc.)
             if "*" in tool_name:
-                prefix = tool_name.replace("*", "")
-                matching = [n for n in self._tools if n.startswith(prefix)]
+                if tool_name.startswith("*"):
+                    suffix = tool_name[1:]
+                    matching = [n for n in self._tools if n.endswith(suffix)]
+                elif tool_name.endswith("*"):
+                    prefix = tool_name[:-1]
+                    matching = [n for n in self._tools if n.startswith(prefix)]
+                else:
+                    # Middle wildcard: convert to regex-like matching
+                    import re
+                    pattern = re.escape(tool_name).replace(r"\*", ".*")
+                    regex = re.compile(f"^{pattern}$")
+                    matching = [n for n in self._tools if regex.match(n)]
                 if not matching:
                     continue
                 tool_name = matching[0]
@@ -648,7 +758,7 @@ class ToolRegistryMesh:
             t0 = time.monotonic()
             result = self._call_tool(tool_name, kwargs)
             latency = (time.monotonic() - t0) * 1000
-            success = result is not None and "error" not in str(result).lower()
+            success = result is not None and not self._is_error_result(str(result))
 
             # Record to GrowthEngine for adaptive learning
             try:
@@ -677,6 +787,26 @@ class ToolRegistryMesh:
             fallback_used=False,
             latency_ms=0,
         )
+
+    @staticmethod
+    def _is_error_result(result_str: str) -> bool:
+        """检测工具返回是否为错误 — 基于 CRUX 错误前缀而非子串匹配."""
+        if not result_str:
+            return True
+        # CRUX 工具错误前缀
+        error_prefixes = ["[错误]", "[自愈失败]", "[已弃用]"]
+        for prefix in error_prefixes:
+            if result_str.startswith(prefix):
+                return True
+        # JSON 错误响应
+        if result_str.strip().startswith("{"):
+            try:
+                data = json.loads(result_str)
+                if isinstance(data, dict) and data.get("error"):
+                    return True
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return False
 
     @staticmethod
     def _get_optimized_candidates(intent: str, static_order: list[str]) -> list[str]:
@@ -722,8 +852,15 @@ class ToolRegistryMesh:
         return list(static_order)
 
     def _call_tool(self, name: str, kwargs: dict) -> Any:
-        """Call a tool by name. Returns result or None."""
-        # Check callback registry first (for CRUX builtins)
+        """Call a tool by name. Returns result or None.
+
+        Priority:
+          1. Registered callback
+          2. CRUX local function (imported from tools.json function path)
+          3. Bridge subprocess (for external tools)
+          4. Cache lookup
+        """
+        # 1. Check callback registry first
         cb = self._callbacks.get(name)
         if cb is not None:
             try:
@@ -731,7 +868,7 @@ class ToolRegistryMesh:
             except Exception:
                 return None
 
-        # Check cache
+        # 2. Check cache
         cache_key = f"{name}:{json.dumps(kwargs, sort_keys=True, default=str)}"
         cached = self._cache.get(cache_key)
         if cached is not None:
@@ -740,7 +877,42 @@ class ToolRegistryMesh:
                 return val
             del self._cache[cache_key]
 
-        # For bridge tools, build a bridge call (subprocess)
+        # 3. CRUX local tool: import and call the function
+        func_path = self._function_map.get(name)
+        if func_path:
+            try:
+                mod_path, func_name = func_path.rsplit(".", 1)
+                mod = __import__(mod_path, fromlist=[func_name])
+                func = getattr(mod, func_name)
+                # Map common intent-level kwargs to function parameters
+                import inspect as _inspect
+                try:
+                    sig = _inspect.signature(func)
+                    param_names = set(sig.parameters.keys())
+                except (ValueError, TypeError):
+                    param_names = set()
+                # Build effective kwargs: keep matching, map aliases for missing
+                effective = {}
+                for k, v in kwargs.items():
+                    if k in param_names:
+                        effective[k] = v
+                # If required params are missing, try to fill from common aliases
+                if param_names:
+                    required = {n for n, p in sig.parameters.items()
+                               if p.default is _inspect.Parameter.empty and n not in effective}
+                    if required and not effective:
+                        # Try mapping the primary intent kwarg to the first required param
+                        primary_val = kwargs.get("query") or kwargs.get("prompt") or kwargs.get("target")
+                        if primary_val is not None:
+                            for req in sorted(required):
+                                effective[req] = primary_val
+                                break
+                return func(**effective)
+            except Exception as e:
+                logger.debug("TRM: _call_tool failed for %s: %s", name, e)
+                return None
+
+        # 4. For bridge tools, build a bridge call (subprocess)
         source = (self._tools.get(name) or ToolEntry(name=name, description="", source="?", category="?")).source
         bridge_cfg = BRIDGES.get(source)
         if bridge_cfg is None:
