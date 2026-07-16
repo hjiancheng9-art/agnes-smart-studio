@@ -988,10 +988,11 @@ class ChatSession(ChatToggleMixin):
                 _elapsed = _time.monotonic() - _t0
                 # Strip ANSI escape codes — prompt_toolkit TUI can't render them
                 import re as _re
+
                 _result_text = "\n\n".join(_result_parts)
-                _clean = _re.sub(r'\x1b\[[0-9;]*m', '', _result_text)
+                _clean = _re.sub(r"\x1b\[[0-9;]*m", "", _result_text)
                 # Extract key numbers for the info bar
-                _lines = [l for l in _clean.split('\n') if l.strip() and not l.startswith('══')]
+                _lines = [l for l in _clean.split("\n") if l.strip() and not l.startswith("══")]
                 if _lines:
                     yield ("info", f"[完成] {_elapsed:.1f}s — {'; '.join(_lines[:3])}")
                 if _clean.strip():
@@ -1188,6 +1189,17 @@ class ChatSession(ChatToggleMixin):
         # filtered set and grows as the model calls tools, instead of jumping to the
         # full 97-tool definition list (~14K tokens) on every subsequent loop round.
         _active_tool_names: set[str] | None = {d["function"]["name"] for d in tools} if tools else None
+
+        # ── DeepSeek thinking-mode guard ──
+        # When tools are available AND the model is a DeepSeek reasoning model,
+        # disable thinking. DeepSeek's thinking-block completes but the model
+        # stops producing tool calls — causing a 122s stream timeout. Pure text
+        # responses (no tools) are not affected and keep thinking enabled.
+        if tools and self.enable_thinking and "deepseek" in self.model:
+            from core.provider import get_capability_info
+            _info = get_capability_info(self.model)
+            if _info and _info.supports_thinking:
+                self.enable_thinking = False
 
         # ── 模型级 fallback 链（对标 Claude fallbackModel）──
         # 主对话流式调用失败时自动降级到下一个供应商/模型。
