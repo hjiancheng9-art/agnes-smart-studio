@@ -55,6 +55,7 @@ from core.chat_vision import _vision_fallback
 from core.config import get_crux_vision_model
 from core.observability import TraceContext, metrics
 from core.provider import (
+    get_provider_manager,
     get_provider_name,
     get_tool_calling_models,
     get_vision_models,
@@ -96,8 +97,6 @@ def _build_model_aliases() -> dict[str, str]:
     "light" → active 供应商的 light 模型, "pro" → pro 模型。
     """
     try:
-        from core.provider import get_provider_manager
-
         mgr = get_provider_manager()
         mgr.load()
         pmap = mgr.get_active_models()
@@ -485,8 +484,6 @@ class ChatSession(ChatToggleMixin):
     def _resolve_default_model() -> str:
         """从 active provider 派生默认模型。启动用 light（快速响应），复杂任务自动升 pro。"""
         try:
-            from core.provider import get_provider_manager
-
             mgr = get_provider_manager()
             model = mgr.get_model("light")
             if not model or model == "unknown":
@@ -561,8 +558,6 @@ class ChatSession(ChatToggleMixin):
         # Cross-provider switch if needed
         if target_provider:
             try:
-                from core.provider import get_provider_manager
-
                 mgr = get_provider_manager()
                 mgr.load()
                 current_pid = mgr.state.active
@@ -804,8 +799,6 @@ class ChatSession(ChatToggleMixin):
         对标 Claude 的 fallbackModel 数组：主模型挂了自动降级到备选。
         同供应商不同模型（如 deepseek-v4-pro → deepseek-v4-flash）也作为备选。
         """
-        from core.provider import get_provider_manager
-
         chain: list[tuple[str, CruxClient]] = [(self.model, self.client)]
         try:
             mgr = get_provider_manager()
@@ -1206,8 +1199,6 @@ class ChatSession(ChatToggleMixin):
 
         # ── 预检: 活跃供应商挂了就立刻切 ──
         try:
-            from core.provider import get_provider_manager
-
             mgr = get_provider_manager()
             active_pid = mgr.state.active
             if mgr.state.is_down(active_pid) or not mgr.state.circuit_can_try(active_pid):
@@ -1291,8 +1282,6 @@ class ChatSession(ChatToggleMixin):
                     if _loop == 0 and fallback_tried < len(fallback_chain):
                         # 通知 ProviderManager 标记当前供应商为 down
                         try:
-                            from core.provider import get_provider_manager
-
                             mgr = get_provider_manager()
                             # 先尝试自动 failover（handle_failure 会选一个可用 provider）
                             new_client, new_pid = mgr.handle_failure(mgr.state.active, 500)
