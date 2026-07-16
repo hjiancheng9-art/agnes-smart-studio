@@ -119,7 +119,9 @@ def _detect_via_powershell() -> Path | None:
             ["powershell", "-NoProfile", "-Command", ps_cmd],
             capture_output=True, text=True, timeout=5,
         )
-        if result.returncode != 0 or not result.stdout.strip():
+        # subprocess.run may return None for stdout when the process is killed
+        # on timeout (esp. PowerShell); guard against AttributeError.
+        if result.returncode != 0 or not (result.stdout or "").strip():
             break
         try:
             proc = _json.loads(result.stdout)
@@ -137,7 +139,7 @@ def _detect_via_powershell() -> Path | None:
             ["powershell", "-NoProfile", "-Command", pp_cmd],
             capture_output=True, text=True, timeout=5,
         )
-        if pp_result.returncode == 0 and pp_result.stdout.strip():
+        if pp_result.returncode == 0 and (pp_result.stdout or "").strip():
             try:
                 parent = _json.loads(pp_result.stdout)
             except _json.JSONDecodeError:

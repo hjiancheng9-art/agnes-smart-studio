@@ -345,7 +345,12 @@ class ChatSession(ChatToggleMixin):
 
     def __del__(self) -> None:
         """Cleanup temp files on garbage collection (fallback to atexit)."""
-        self._cleanup_temp_input_files()
+        try:
+            self._cleanup_temp_input_files()
+        except Exception:
+            # Interpreter may be shutting down (sys.meta_path is None);
+            # atexit handler is the real safety net, __del__ is best-effort.
+            pass
 
     def _cleanup_temp_input_files(self) -> None:
         """Remove all tracked long-input temp files. Safe to call multiple times."""
