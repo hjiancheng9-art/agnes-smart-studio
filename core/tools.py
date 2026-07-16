@@ -16,10 +16,13 @@
 
 import importlib
 import json
+import logging
 import threading
 from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 TOOLS_CONFIG = Path(__file__).parent.parent / "tools.json"
 
@@ -114,6 +117,27 @@ def _exec_skill_install(**kwargs) -> str:
         return f"技能 '{name}' 安装失败。用 skill_search 确认名称正确。"
     except Exception as e:
         return f"安装失败: {e}"
+
+
+# ── Stable tool wrappers for tools.json entries that need canonical paths ──
+
+
+def view_image(**kwargs) -> str:
+    """Stable tool entry point for displaying an image.
+    Wraps ui.display._view_image to avoid fragile private-path references in tools.json.
+    """
+    from ui.display import _view_image
+
+    return _view_image(**kwargs)
+
+
+def update_plan(**kwargs) -> str:
+    """Stable tool entry point for updating the displayed plan.
+    Wraps ui.display._update_plan to avoid fragile private-path references in tools.json.
+    """
+    from ui.display import _update_plan
+
+    return _update_plan(**kwargs)
 
 
 def _exec_skill_list(**kwargs) -> str:
@@ -336,6 +360,21 @@ _POSIX_TO_POWERSHELL: dict = {
 class ToolRegistry:
     """工具注册表：加载配置、管理定义、执行调度"""
 
+    # Tool aliases: LLMs use shorthand names; map to registered canonical names
+    ALIASES: dict[str, str] = {
+        "bash": "run_bash",
+        "shell": "run_bash",
+        "terminal": "run_bash",
+        "cmd": "run_bash",
+        "sh": "run_bash",
+        "python": "run_python",
+        "orchestrator": "orchestrate",
+        "orchestration": "orchestrate",
+        "run": "run_bash",
+        "execute": "run_bash",
+        "exec": "run_bash",
+    }
+
     def __init__(self, config_path: Path | None = None) -> None:
         self._config_path = config_path or TOOLS_CONFIG
         self._definitions: list[dict] = []  # OpenAI function 格式
@@ -343,6 +382,10 @@ class ToolRegistry:
         self._tool_modules: dict[str, str] = {}  # name → 模块路径（分类用）
         self._tool_config: dict[str, dict] = {}  # name → tools.json 原始配置（读 timeout 等）
         self.model_router = None  # Optional ModelRouter for sub-agent dispatch
+
+    def resolve_name(self, raw_name: str) -> str:
+        """Resolve tool name aliases. LLMs often use 'bash' instead of 'run_bash'."""
+        return self.ALIASES.get(raw_name.strip().lower(), raw_name)
 
     # ── 加载 ──
     def load(
@@ -530,31 +573,35 @@ class ToolRegistry:
         self._tool_modules["agent_swarm"] = "core.multi_agent"
 
         # ── Skill 管理工具（chat_tool_dispatch 处理，此处仅注册定义）──
-        self._definitions.append({
-            "type": "function",
-            "function": {
-                "name": "load_skill",
-                "description": "加载一个技能包。加载后技能的系统提示词和工具会注入当前会话。用 list_skills 查看可用技能。",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "name": {
-                            "type": "string",
-                            "description": "要加载的技能名称",
-                        }
+        self._definitions.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": "load_skill",
+                    "description": "加载一个技能包。加载后技能的系统提示词和工具会注入当前会话。用 list_skills 查看可用技能。",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "要加载的技能名称",
+                            }
+                        },
+                        "required": ["name"],
                     },
-                    "required": ["name"],
                 },
-            },
-        })
-        self._definitions.append({
-            "type": "function",
-            "function": {
-                "name": "list_skills",
-                "description": "列出所有可用技能包及其触发模式（auto=自动激活, manual=手动加载, off=已禁用）。",
-                "parameters": {"type": "object", "properties": {}},
-            },
-        })
+            }
+        )
+        self._definitions.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": "list_skills",
+                    "description": "列出所有可用技能包及其触发模式（auto=自动激活, manual=手动加载, off=已禁用）。",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        )
 
         # ── 代码审查工具（常驻加载）──
         # code_review / security_review — 借鉴 Copilot CLI /review + /security-review
@@ -1067,7 +1114,7 @@ class ToolRegistry:
 
         if t == "http":
             return http_executor
-        if t == "python":
+        if t in ("python", "function"):
             return python_executor
         return shell_executor
 
@@ -1384,9 +1431,20 @@ def _exec_self_heal(fix: bool = False, quick: bool = False) -> str:
         healer.scan_config_drift()
     else:
         healer.run_all_scans()
+
     if fix:
+        # 1. Narrow fix: replace bare except:pass with logging
         healer.fix_silent_exceptions()
-    return healer.report()
+        # 2. Broad fix: ruff check --fix (auto-fix lint issues)
+        qf = healer.quick_fix()
+        # 3. Re-scan to show post-fix state (clear duplicates)
+        healer.findings.clear()
+        healer.run_all_scans()
+
+    parts = [healer.report()]
+    if fix:
+        parts.append(f"Auto-fix applied: ruff={qf.get('ruff_fixed', 0)} patches={qf.get('patches', 0)}")
+    return "\n".join(parts)
 
 
 def get_registry(config_path: Path | None = None) -> ToolRegistry:
