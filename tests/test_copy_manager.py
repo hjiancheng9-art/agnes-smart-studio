@@ -34,7 +34,7 @@ class TestCopyManager:
         from ui.message_store import MessageStore
 
         cm = CopyManager(MessageStore())
-        ok, msg = cm.copy_focused()
+        ok, _msg = cm.copy_focused()
         assert not ok
 
     def test_copy_markdown(self):
@@ -55,8 +55,8 @@ class TestCopyManager:
         store = MessageStore()
         store.append("assistant", "```python\nx = 1\n```")
         cm = CopyManager(store)
-        ok, msg = cm.copy_focused()
-        ok2, msg2 = cm.handle_command("/copy code 0")
+        _ok, _msg = cm.copy_focused()
+        ok2, _msg2 = cm.handle_command("/copy code 0")
         assert ok2
 
     def test_copy_code_block_invalid_index(self):
@@ -66,7 +66,7 @@ class TestCopyManager:
         store = MessageStore()
         store.append("assistant", "no code here")
         cm = CopyManager(store)
-        ok, msg = cm.handle_command("/copy code 5")
+        ok, _msg = cm.handle_command("/copy code 5")
         assert not ok
 
     def test_copy_lines_range(self):
@@ -108,7 +108,7 @@ class TestCopyManager:
         store = MessageStore()
         store.append("user", "hi")
         cm = CopyManager(store)
-        ok, msg = cm.handle_command("/copy 99")
+        ok, _msg = cm.handle_command("/copy 99")
         assert not ok
 
     def test_focus_navigation_with_copy(self):

@@ -118,7 +118,7 @@ class TestMessageStore:
 
         store = MessageStore()
         store.append("user", "hi")
-        msg, offset = store.find_by_line(100)
+        msg, _offset = store.find_by_line(100)
         assert msg is None
 
     def test_total_lines(self):

@@ -336,8 +336,6 @@ class ToolRegistryMesh:
             "read_file": 3,
             "write_file": 4,
             "edit_file": 5,
-            "search_files": 6,
-            "glob_files": 7,
             "list_files": 8,
             "git_status": 20,
             "git_diff": 21,

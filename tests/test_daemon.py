@@ -25,7 +25,8 @@ class TestStartupDiagnostics:
         sd = StartupDiagnostics()
         sd.mark("a")
         d = sd.to_dict()
-        assert "pid" in d and "events" in d
+        assert "pid" in d
+        assert "events" in d
         assert d["events"][0]["name"] == "a"
 
 
@@ -134,6 +135,7 @@ class TestDaemonWebSocket:
 
         async def main():
             a, b = await asyncio.gather(client(), client())
-            assert "pid" in a and "pid" in b
+            assert "pid" in a
+            assert "pid" in b
 
         asyncio.run(main())

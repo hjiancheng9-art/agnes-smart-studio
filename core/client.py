@@ -550,7 +550,7 @@ class CruxClient:
             # data URI 格式需剥离前缀，否则 API 解析 base64 长度不对
             if isinstance(image, str) and image.startswith("data:image/"):
                 # 提取 data:image/png;base64,XXXXXX 中的 XXXXXX 部分
-                before, sep, b64_data = image.partition(";base64,")
+                _before, sep, b64_data = image.partition(";base64,")
                 if sep:  # 仅当 ;base64, 分隔符存在时才剥离，防止空字符串
                     image = b64_data
             body["image"] = image
@@ -566,7 +566,7 @@ class CruxClient:
                 imgs = extra_body["image"]
                 if isinstance(imgs, str):
                     if imgs.startswith("data:image/"):
-                        before, sep, b64 = imgs.partition(";base64,")
+                        _before, sep, b64 = imgs.partition(";base64,")
                         if sep:
                             extra_body = {**extra_body, "image": b64}
                 elif isinstance(imgs, list):

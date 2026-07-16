@@ -13,9 +13,12 @@ import contextlib
 import threading
 import time
 import unicodedata
-from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from prompt_toolkit.formatted_text import FormattedText, StyleAndTextTuples
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # ══════════════════════════════════════════════════════════════════
 #  Spinner — animated braille spinner
@@ -267,7 +270,7 @@ def build_welcome_formatted(
     _bb.extend(_badge(T, f" v{_ver} "))
     _bb.extend(_badge(A, " 34 skills · 121 pkgs "))
     _bb.append((S, sp(CW - sum(len(x[1]) + 2 for x in _bb) - 2)))
-    L([("", "  ")] + _bb)
+    L([("", "  "), *_bb])
     L([("", "\n")])
     L([(S, "  " + "─" * (CW - 2))])
     L([("", "\n\n")])
@@ -326,8 +329,8 @@ def build_welcome_formatted(
         [(S, btop("Commands", col_w)), ("", "  "), (S, btop("Workspace", col_w)), ("", "  "), (S, btop("System", c3_w))]
     )
     L(
-        [(("", "  "))]
-        + [
+        [
+            ("", "  "),
             (S, btop("Commands", col_w)),
             ("", "  "),
             (S, btop("Workspace", col_w)),

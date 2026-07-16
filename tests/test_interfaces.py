@@ -80,7 +80,7 @@ class TestToolSpec:
 
     def test_category_values(self):
         """All categories are valid enum values."""
-        categories = set(c.value for c in ToolCategory)
+        categories = {c.value for c in ToolCategory}
         assert "search" in categories
         assert "execute" in categories
         assert "browser" in categories

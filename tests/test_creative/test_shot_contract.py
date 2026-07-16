@@ -22,15 +22,15 @@ class TestValidateSingleAction:
         assert "2 个动作" in msg
 
     def test_single_en(self):
-        valid, msg = validate_single_action("a cat walking slowly")
+        valid, _msg = validate_single_action("a cat walking slowly")
         assert valid
 
     def test_multi_en_rejected(self):
-        valid, msg = validate_single_action("a cat walking and then jumping and then flying")
+        valid, _msg = validate_single_action("a cat walking and then jumping and then flying")
         assert not valid
 
     def test_no_action_defaults_to_still(self):
-        valid, msg = validate_single_action("赛博朋克城市的夜景")
+        valid, _msg = validate_single_action("赛博朋克城市的夜景")
         assert valid
 
 

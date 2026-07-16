@@ -399,7 +399,7 @@ class TestToolValidation:
                 },
             }
         ]
-        ok, detail = _validate_args("test_tool", {"name": "hello"}, definitions)
+        ok, _detail = _validate_args("test_tool", {"name": "hello"}, definitions)
         assert ok is True
 
     def test_validate_args_type_mismatch(self):
@@ -426,7 +426,7 @@ class TestToolValidation:
     def test_validate_args_no_schema_passes(self):
         from core.tools import _validate_args
 
-        ok, detail = _validate_args("unknown", {"a": 1}, [])
+        ok, _detail = _validate_args("unknown", {"a": 1}, [])
         assert ok is True
 
     def test_suggest_similar_tool(self):

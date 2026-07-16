@@ -34,7 +34,7 @@ class TestCapabilityRegistryStructure:
         import importlib
 
         spec = importlib.util.spec_from_file_location("capability_registry", path)
-        mod = importlib.util.module_from_spec(spec)
+        importlib.util.module_from_spec(spec)
         # Don't actually load it (may have side effects), just check the file
         assert spec is not None
 

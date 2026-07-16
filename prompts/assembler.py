@@ -11,7 +11,10 @@ Target: 3-6K tokens for most tasks (vs current 21K).
 
 from __future__ import annotations
 
-from domain.plans import PromptPlan
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from domain.plans import PromptPlan
 
 # ── Core prompt — always included, minimal identity + protocol ──
 

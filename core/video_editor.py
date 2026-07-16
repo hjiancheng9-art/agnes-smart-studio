@@ -646,9 +646,33 @@ def execute_render_final(
                 amix = "[bgm]anull[outa]"
 
             af = ";".join(filter_parts) + ";" + amix
-            cmd = (
-                ["ffmpeg", "-y", "-i", concat_video, *audio_inputs, "-filter_complex", af, "-map", "0:v:0", "-map", "[outa]", "-c:v", "libx264", "-crf", "18", "-preset", "medium", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", out_path]
-            )
+            cmd = [
+                "ffmpeg",
+                "-y",
+                "-i",
+                concat_video,
+                *audio_inputs,
+                "-filter_complex",
+                af,
+                "-map",
+                "0:v:0",
+                "-map",
+                "[outa]",
+                "-c:v",
+                "libx264",
+                "-crf",
+                "18",
+                "-preset",
+                "medium",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-shortest",
+                "-movflags",
+                "+faststart",
+                out_path,
+            ]
         else:
             cmd = [
                 "ffmpeg",

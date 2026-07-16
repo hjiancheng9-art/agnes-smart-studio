@@ -61,7 +61,8 @@ class TestTextToImageEngine:
 
         engine = TextToImageEngine(mock_sync_client)
         model = engine._get_model()
-        assert isinstance(model, str) and len(model) > 0
+        assert isinstance(model, str)
+        assert len(model) > 0
 
     def test_get_model_returns_explicit(self, mock_sync_client):
         from engines.text_to_image import TextToImageEngine
@@ -136,7 +137,8 @@ class TestImageToImageEngine:
 
         engine = ImageToImageEngine(mock_sync_client)
         model = engine._get_model()
-        assert isinstance(model, str) and len(model) > 0
+        assert isinstance(model, str)
+        assert len(model) > 0
 
 
 class TestAsyncImageToImageEngine:
@@ -251,7 +253,8 @@ class TestVideoEngine:
 
         engine = VideoEngine(mock_sync_client)
         model = engine._get_model()
-        assert isinstance(model, str) and len(model) > 0
+        assert isinstance(model, str)
+        assert len(model) > 0
 
 
 class TestAsyncVideoFuture:
@@ -350,7 +353,8 @@ class TestVideoParamsValidation:
     def test_video_resolution_fallback(self):
         # Non-preset resolution → matches closest
         w, h = validate_video_resolution(1920, 1080)
-        assert w > 0 and h > 0  # Must return something valid
+        assert w > 0
+        assert h > 0
 
 
 # ═══════════════════════════════════════════════════════════════════════

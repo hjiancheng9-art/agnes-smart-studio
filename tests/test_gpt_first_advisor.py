@@ -169,7 +169,7 @@ class TestPlanExecutor:
         assert "run_test" in ctx
 
     @pytest.mark.parametrize(
-        "tier,expected",
+        ("tier", "expected"),
         [
             ("deep", True),
             ("coding", True),
@@ -246,7 +246,7 @@ class TestExtractFilePaths:
         for ext in ("mov", "avi", "mkv", "webm"):
             f = tmp_path / f"clip.{ext}"
             f.write_bytes(b"x")
-        glob_str = str(tmp_path / "clip.*")
+        str(tmp_path / "clip.*")
         # Test each format individually
         for ext in ("mov", "avi", "mkv", "webm"):
             f = tmp_path / f"clip.{ext}"

@@ -127,7 +127,7 @@ def _save_clipboard_dib(data: bytes) -> str | None:
 
         img = Image.open(io.BytesIO(bmp_data))
         # Save as compressed JPEG to temp
-        tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False, prefix="crux_clip_")  # noqa: SIM115
+        tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False, prefix="crux_clip_")
         tmp_path = tmp.name
         img.convert("RGB").save(tmp, format="JPEG", quality=85, optimize=True)
         tmp.close()
@@ -152,7 +152,7 @@ def _save_clipboard_dib(data: bytes) -> str | None:
 def _get_clipboard_image_macos() -> str | None:
     """macOS: use pngpaste to get clipboard image."""
     try:
-        tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False, prefix="crux_clip_")  # noqa: SIM115
+        tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False, prefix="crux_clip_")
         tmp.close()
         r = subprocess.run(
             ["pngpaste", tmp.name],
@@ -178,7 +178,7 @@ def _get_clipboard_image_linux() -> str | None:
             timeout=5,
         )
         if r.returncode == 0 and len(r.stdout) > 100:
-            tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False, prefix="crux_clip_")  # noqa: SIM115
+            tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False, prefix="crux_clip_")
             tmp.write(r.stdout)
             tmp.close()
             return tmp.name

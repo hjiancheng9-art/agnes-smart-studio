@@ -23,7 +23,7 @@ class TestClassifyIntent:
     """Backward-compat classify_intent uses unified classifier under the hood."""
 
     def test_micro_task(self):
-        g, d = classify_intent("添加注释")
+        g, _d = classify_intent("添加注释")
         assert g in (TaskComplexity.SIMPLE, TaskComplexity.TRIVIAL)
 
     def test_normal_fix(self):
@@ -32,23 +32,23 @@ class TestClassifyIntent:
         assert d == DNAProfile.CRUX
 
     def test_complex_refactor(self):
-        g, d = classify_intent("重构支付模块")
+        g, _d = classify_intent("重构支付模块")
         assert g == TaskComplexity.COMPLEX
 
     def test_critical_architecture(self):
-        g, d = classify_intent("设计微服务架构迁移方案")
+        g, _d = classify_intent("设计微服务架构迁移方案")
         assert g >= TaskComplexity.COMPLEX
 
     def test_normal_update(self):
-        g, d = classify_intent("更新用户配置")
+        g, _d = classify_intent("更新用户配置")
         assert g == TaskComplexity.MODERATE
 
     def test_implement_codebuddy(self):
-        g, d = classify_intent("实现用户认证模块")
+        g, _d = classify_intent("实现用户认证模块")
         assert g == TaskComplexity.COMPLEX
 
     def test_audit_codex(self):
-        g, d = classify_intent("安全审计代码")
+        g, _d = classify_intent("安全审计代码")
         assert g >= TaskComplexity.COMPLEX
 
     def test_unknown_goal(self):

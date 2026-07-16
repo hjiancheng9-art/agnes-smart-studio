@@ -333,4 +333,4 @@ class TestPersistence_NoDuplicateCtrlL:
                                     )
                                     return
 
-        assert False, "Could not find c-l handler in tui_v2.py"
+        raise AssertionError("Could not find c-l handler in tui_v2.py")

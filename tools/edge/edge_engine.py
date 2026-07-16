@@ -85,7 +85,7 @@ class EdgeEngine:
         except PwTimeout:
             return {"url": url, "title": "(超时)", "status": "timeout"}
 
-    async def screenshot(self, path: str = None):
+    async def screenshot(self, path: str | None = None):
         """截图"""
         await self._ensure_page()
         if not path:

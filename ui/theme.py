@@ -5,10 +5,13 @@ Maintains backward-compatible API while all real theming logic lives in ui/theme
 
 from __future__ import annotations
 
-from prompt_toolkit.styles import Style
+from typing import TYPE_CHECKING
 
 from ui.theme_v2 import BLADE as COLORS
 from ui.theme_v2 import build_style_v2
+
+if TYPE_CHECKING:
+    from prompt_toolkit.styles import Style
 
 
 def get_active_theme() -> dict[str, str]:

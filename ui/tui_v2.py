@@ -35,7 +35,6 @@ from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.history import InMemoryHistory
-from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout import HSplit, Layout, Window
 from prompt_toolkit.layout.containers import ConditionalContainer
@@ -76,6 +75,8 @@ except ImportError:
     _get_methodology_state = None  # type: ignore[assignment]
 
 if TYPE_CHECKING:
+    from prompt_toolkit.key_binding import KeyBindings
+
     from core.chat import ChatSession
     from core.cli_handlers import CruxCLI
 

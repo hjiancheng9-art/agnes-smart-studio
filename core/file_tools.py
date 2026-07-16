@@ -45,7 +45,7 @@ def _resolve_workspace() -> Path:
     if env:
         return Path(env).resolve()
     cwd = Path.cwd().resolve()
-    Path(__file__).resolve().parent.parent
+    _ = Path(__file__).resolve().parent.parent  # CRUX root; reserved for future use
     # If CWD is inside CRUX root, use CWD (user might be in a subdir)
     # If CWD is outside CRUX root, use CWD (user is in another project)
     return cwd

@@ -45,7 +45,5 @@ class TestRoutingState:
         assert state.can_fallback("crux") is False
 
     def test_can_fallback_cross_provider_allowed(self):
-        state = RoutingState(
-            active_provider="deepseek", allow_cross_provider_fallback=True
-        )
+        state = RoutingState(active_provider="deepseek", allow_cross_provider_fallback=True)
         assert state.can_fallback("crux") is True

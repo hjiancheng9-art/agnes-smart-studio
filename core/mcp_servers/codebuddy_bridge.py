@@ -20,7 +20,7 @@ _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
-from core.error_sink import catch  # noqa: E402
+from core.error_sink import catch
 
 # ── ANSI cleanup ──
 

@@ -417,7 +417,7 @@ def record_comparison(
     if prompts and winner_idx < len(prompts):
         winner_prompt = prompts[winner_idx]
         if winner_prompt:
-            try:  # noqa: SIM105 — 回灌失败不影响主流程
+            try:
                 # 视为满分样本（对比胜出 ≈ 5/5）
                 record_prompt_pair(
                     user_prompt=winner_prompt,
@@ -756,7 +756,7 @@ def get_user_context() -> str:
         for c in corrections:
             parts.append(f"  不要: {c['what_happened'][:80]}")
             parts.append(f"  应该: {c['what_should_happen'][:80]}")
-    return "\n".join(["[用户记忆]"] + parts) if parts else ""
+    return "\n".join(["[用户记忆]", *parts]) if parts else ""
 
 
 def record_tool_learning(tool_name: str, failure: str, fix: str):

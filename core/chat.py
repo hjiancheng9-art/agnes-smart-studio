@@ -1193,12 +1193,14 @@ class ChatSession(ChatToggleMixin):
         _active_tool_names: set[str] | None = {d["function"]["name"] for d in tools} if tools else None
 
         # ── DeepSeek thinking-mode guard ──
-        # When tools are available AND the model is a DeepSeek reasoning model,
-        # disable thinking. DeepSeek's thinking-block completes but the model
-        # stops producing tool calls — causing a 122s stream timeout. Pure text
-        # responses (no tools) are not affected and keep thinking enabled.
-        if tools and self.enable_thinking and "deepseek" in self.model:
+        # Only for orchestrate/swarm tasks: DeepSeek's thinking-block completes
+        # but the model stops producing tool calls (122s timeout). For normal
+        # tool-calling tasks (code gen, file ops, etc.), thinking stays ON for
+        # maximum response quality.
+        _is_orchestrate = _plan is not None and _plan.mode in ("orchestrate", "swarm")
+        if _is_orchestrate and tools and self.enable_thinking and "deepseek" in self.model:
             from core.provider import get_capability_info
+
             _info = get_capability_info(self.model)
             if _info and _info.supports_thinking:
                 self.enable_thinking = False

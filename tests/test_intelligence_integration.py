@@ -157,7 +157,7 @@ class TestPipelineIntegration:
 
     def test_critic_review_flow(self):
         """CriticAgent 审查流程"""
-        critic = CriticAgent()
+        CriticAgent()
         report = CritiqueReport(target="测试方案")
 
         # 添加发现
@@ -230,9 +230,9 @@ class TestPipelineIntegration:
             ("删除所有用户的敏感数据", IntelligenceMode.SAFE),
         ]
 
-        for text, expected in test_cases:
+        for text, _expected in test_cases:
             result = hook.analyze(text)
-            mode = result["mode"]
+            result["mode"]
 
         # 至少验证 hook 正确处理了所有模式
         stats = hook.get_stats()

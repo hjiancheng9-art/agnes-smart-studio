@@ -90,7 +90,7 @@ class TestExtractToolCalls:
 
     def test_format2_self_closing(self):
         text = '<function-call name="search" arguments="{&quot;pattern&quot;:&quot;TODO&quot;}" />'
-        tcs, cleaned = extract_tool_calls(text)
+        tcs, _cleaned = extract_tool_calls(text)
         assert len(tcs) == 1
         assert tcs[0]["function"]["name"] == "search"
 
@@ -101,13 +101,13 @@ class TestExtractToolCalls:
 
     def test_xml_tags_stripped(self):
         text = "<div>Hello</div> <span>World</span>"
-        tcs, cleaned = extract_tool_calls(text)
+        _tcs, cleaned = extract_tool_calls(text)
         assert "<div>" not in cleaned
         assert "Hello" in cleaned
 
     def test_tools_block_stripped(self):
         text = '<tools><tool name="x">desc</tool></tools> some text'
-        tcs, cleaned = extract_tool_calls(text)
+        _tcs, cleaned = extract_tool_calls(text)
         assert "<tools>" not in cleaned
         assert "some text" in cleaned
 
@@ -116,10 +116,10 @@ class TestExtractToolCalls:
             '<function-call>{"name": "read_file", "path": "a.py"}</function-call>\n'
             '<function-call>{"name": "search", "pattern": "TODO"}</function-call>'
         )
-        tcs, cleaned = extract_tool_calls(text)
+        tcs, _cleaned = extract_tool_calls(text)
         assert len(tcs) == 2
 
     def test_cleaned_whitespace(self):
         text = "hello\n\n\n\nworld"
-        tcs, cleaned = extract_tool_calls(text)
+        _tcs, cleaned = extract_tool_calls(text)
         assert cleaned.count("\n") <= 2

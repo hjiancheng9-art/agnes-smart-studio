@@ -134,5 +134,5 @@ class TestScoreComputation:
         assert top[0][0] in ("FAST", "BALANCED")
 
     def test_get_route_decision(self):
-        mode, scores = get_route_decision("重构微服务架构")
+        mode, _scores = get_route_decision("重构微服务架构")
         assert mode in ("DEEP", "BALANCED", "RESEARCH")

@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from .tui_dispatcher import TuiDispatcher
-from .tui_run_state import RunStateStore
+if TYPE_CHECKING:
+    from .tui_dispatcher import TuiDispatcher
+    from .tui_run_state import RunStateStore
 
 logger = logging.getLogger(__name__)
 

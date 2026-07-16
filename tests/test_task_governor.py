@@ -29,12 +29,12 @@ class TestComplexityAnalyzer:
 
     def test_analyze_complex(self):
         analyzer = ComplexityAnalyzer()
-        complexity, strategy = analyzer.analyze("重构整个认证模块，跨 5 个文件")
+        complexity, _strategy = analyzer.analyze("重构整个认证模块，跨 5 个文件")
         assert complexity in TaskComplexity
 
     def test_analyze_empty(self):
         analyzer = ComplexityAnalyzer()
-        complexity, strategy = analyzer.analyze("")
+        complexity, _strategy = analyzer.analyze("")
         assert complexity in TaskComplexity
 
 

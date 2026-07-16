@@ -12,27 +12,27 @@ class TestInterceptBashBlocked:
         assert "BLOCKED" in reason
 
     def test_rm_rf_home_blocked(self):
-        allowed, reason = intercept_tool("run_bash", {"command": "rm -rf ~/projects"})
+        allowed, _reason = intercept_tool("run_bash", {"command": "rm -rf ~/projects"})
         assert allowed is False
 
     def test_dd_to_block_device_blocked(self):
-        allowed, reason = intercept_tool("run_bash", {"command": "dd if=/dev/zero of=/dev/sdb"})
+        allowed, _reason = intercept_tool("run_bash", {"command": "dd if=/dev/zero of=/dev/sdb"})
         assert allowed is False
 
     def test_mkfs_blocked(self):
-        allowed, reason = intercept_tool("run_bash", {"command": "mkfs.ext4 /dev/sda1"})
+        allowed, _reason = intercept_tool("run_bash", {"command": "mkfs.ext4 /dev/sda1"})
         assert allowed is False
 
     def test_chmod_777_root_blocked(self):
-        allowed, reason = intercept_tool("run_bash", {"command": "chmod 777 /"})
+        allowed, _reason = intercept_tool("run_bash", {"command": "chmod 777 /"})
         assert allowed is False
 
     def test_git_force_push_main_blocked(self):
-        allowed, reason = intercept_tool("run_bash", {"command": "git push --force origin main"})
+        allowed, _reason = intercept_tool("run_bash", {"command": "git push --force origin main"})
         assert allowed is False
 
     def test_case_insensitive_blocking(self):
-        allowed, reason = intercept_tool("run_bash", {"command": "RM -RF /"})
+        allowed, _reason = intercept_tool("run_bash", {"command": "RM -RF /"})
         assert allowed is False
 
 
@@ -74,11 +74,11 @@ class TestInterceptBashSafe:
         assert reason == ""
 
     def test_git_status_passes(self):
-        allowed, reason = intercept_tool("run_bash", {"command": "git status"})
+        allowed, _reason = intercept_tool("run_bash", {"command": "git status"})
         assert allowed is True
 
     def test_python_command_passes(self):
-        allowed, reason = intercept_tool("run_bash", {"command": "python -m pytest"})
+        allowed, _reason = intercept_tool("run_bash", {"command": "python -m pytest"})
         assert allowed is True
 
 
@@ -91,31 +91,31 @@ class TestInterceptFileWrite:
         assert "BLOCKED" in reason
 
     def test_write_credentials_blocked(self):
-        allowed, reason = intercept_tool("edit_file", {"file_path": "credentials.json"})
+        allowed, _reason = intercept_tool("edit_file", {"file_path": "credentials.json"})
         assert allowed is False
 
     def test_write_id_rsa_blocked(self):
-        allowed, reason = intercept_tool("write_file", {"file_path": "~/.ssh/id_rsa"})
+        allowed, _reason = intercept_tool("write_file", {"file_path": "~/.ssh/id_rsa"})
         assert allowed is False
 
     def test_write_pem_blocked(self):
-        allowed, reason = intercept_tool("patch_file", {"file_path": "cert.pem"})
+        allowed, _reason = intercept_tool("patch_file", {"file_path": "cert.pem"})
         assert allowed is False
 
     def test_write_service_account_blocked(self):
-        allowed, reason = intercept_tool("edit_file", {"file_path": "service-account.json"})
+        allowed, _reason = intercept_tool("edit_file", {"file_path": "service-account.json"})
         assert allowed is False
 
     def test_write_normal_file_passes(self):
-        allowed, reason = intercept_tool("write_file", {"file_path": "src/main.py"})
+        allowed, _reason = intercept_tool("write_file", {"file_path": "src/main.py"})
         assert allowed is True
 
     def test_write_readme_passes(self):
-        allowed, reason = intercept_tool("write_file", {"file_path": "README.md"})
+        allowed, _reason = intercept_tool("write_file", {"file_path": "README.md"})
         assert allowed is True
 
     def test_empty_path_passes(self):
-        allowed, reason = intercept_tool("write_file", {})
+        allowed, _reason = intercept_tool("write_file", {})
         assert allowed is True
 
     def test_unknown_tool_passes(self):
@@ -128,11 +128,11 @@ class TestInterceptCmdAlias:
     """bash commands using 'cmd' key."""
 
     def test_rm_with_cmd_key(self):
-        allowed, reason = intercept_tool("run_bash", {"cmd": "rm -rf /"})
+        allowed, _reason = intercept_tool("run_bash", {"cmd": "rm -rf /"})
         assert allowed is False
 
     def test_safe_with_cmd_key(self):
-        allowed, reason = intercept_tool("run_bash", {"cmd": "echo safe"})
+        allowed, _reason = intercept_tool("run_bash", {"cmd": "echo safe"})
         assert allowed is True
 
 
@@ -149,25 +149,25 @@ class TestGateCdpChatgpt:
     def test_empty_blocked(self):
         from core.tool_interceptor import _gate_cdp_chatgpt
 
-        blocked, reason = _gate_cdp_chatgpt({"question": ""})
+        blocked, _reason = _gate_cdp_chatgpt({"question": ""})
         assert blocked is True
 
     def test_repetitive_blocked(self):
         from core.tool_interceptor import _gate_cdp_chatgpt
 
-        blocked, reason = _gate_cdp_chatgpt({"question": "aaaaa"})
+        blocked, _reason = _gate_cdp_chatgpt({"question": "aaaaa"})
         assert blocked is True
 
     def test_trivial_hello_blocked(self):
         from core.tool_interceptor import _gate_cdp_chatgpt
 
-        blocked, reason = _gate_cdp_chatgpt({"question": "你好"})
+        blocked, _reason = _gate_cdp_chatgpt({"question": "你好"})
         assert blocked is True
 
     def test_trivial_what_is_blocked(self):
         from core.tool_interceptor import _gate_cdp_chatgpt
 
-        blocked, reason = _gate_cdp_chatgpt({"question": "什么是Python"})
+        blocked, _reason = _gate_cdp_chatgpt({"question": "什么是Python"})
         assert blocked is True
 
     def test_code_operation_blocked(self):
@@ -187,7 +187,7 @@ class TestGateCdpChatgpt:
     def test_alternate_key_text(self):
         from core.tool_interceptor import _gate_cdp_chatgpt
 
-        blocked, reason = _gate_cdp_chatgpt(
+        blocked, _reason = _gate_cdp_chatgpt(
             {"text": "How does quantum computing affect blockchain security in the long term?"}
         )
         assert blocked is False
@@ -195,5 +195,5 @@ class TestGateCdpChatgpt:
     def test_alternate_key_prompt(self):
         from core.tool_interceptor import _gate_cdp_chatgpt
 
-        blocked, reason = _gate_cdp_chatgpt({"prompt": "hi"})
+        blocked, _reason = _gate_cdp_chatgpt({"prompt": "hi"})
         assert blocked is True

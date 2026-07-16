@@ -297,7 +297,6 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
 
             # 等待完成 — synchronous, result always consumed
             # (was daemon thread with join(2s) mismatched to max_wait(120s) — bug)
-            import time
 
             try:
                 video_result = agnes.wait_for_video(
@@ -317,6 +316,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                 side.append(("video", {"url": url or "", "local_path": local_path}))
                 try:
                     from core.cost_tracker import record_usage
+
                     record_usage(model="agnes-video-v2.0", kind="video", label="generate_video", call_count=1)
                 except ImportError:
                     pass

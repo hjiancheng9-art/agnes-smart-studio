@@ -82,7 +82,7 @@ class TestTelemetryTracker:
         assert ps.block_rate == 66.7  # 2/3 blocked
 
     def test_duration_recording(self, tracker):
-        with tracker.record_duration("tool_validation", phase="p1", tool_name="test") as ctx:
+        with tracker.record_duration("tool_validation", phase="p1", tool_name="test"):
             time.sleep(0.01)
         assert tracker.total_events == 1
         rec = tracker.records[0]

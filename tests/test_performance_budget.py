@@ -72,7 +72,7 @@ class TestTestCollectionSpeed:
         import subprocess
 
         start = time.perf_counter()
-        r = subprocess.run(
+        subprocess.run(
             ["python", "-m", "pytest", "tests/", "--co", "-q", "-m", "unit", "--ignore=tests/manual"],
             capture_output=True,
             text=True,

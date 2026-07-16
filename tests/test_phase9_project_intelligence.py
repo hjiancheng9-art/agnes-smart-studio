@@ -22,50 +22,50 @@ def repo_index():
 
 class TestRepoIndex:
     def test_build(self, repo_index):
-        idx, snap = repo_index
+        _idx, snap = repo_index
         assert snap.total_files > 0
         assert snap.total_lines > 0
         assert snap.build_time_ms > 0
 
     def test_finds_python_files(self, repo_index):
-        idx, snap = repo_index
+        _idx, snap = repo_index
         py_files = [f for f in snap.files.values() if f.extension == ".py"]
         assert len(py_files) > 10
 
     def test_parses_imports(self, repo_index):
-        idx, snap = repo_index
+        _idx, snap = repo_index
         # Check that at least some files have imports parsed
         with_imports = [f for f in snap.files.values() if f.imports]
         assert len(with_imports) > 5
 
     def test_parses_classes(self, repo_index):
-        idx, snap = repo_index
+        _idx, snap = repo_index
         with_classes = [f for f in snap.files.values() if f.classes]
         assert len(with_classes) > 3
 
     def test_parses_functions(self, repo_index):
-        idx, snap = repo_index
+        _idx, snap = repo_index
         with_funcs = [f for f in snap.files.values() if f.functions]
         assert len(with_funcs) > 5
 
     def test_find_symbol(self, repo_index):
-        idx, snap = repo_index
+        idx, _snap = repo_index
         symbols = idx.find_symbol("RepoIndex")
         assert len(symbols) >= 1
         assert any(s.kind == "class" for s in symbols)
 
     def test_find_symbol_case_insensitive(self, repo_index):
-        idx, snap = repo_index
+        idx, _snap = repo_index
         symbols = idx.find_symbol("repoindex")
         assert len(symbols) >= 1
 
     def test_find_files_matching(self, repo_index):
-        idx, snap = repo_index
+        idx, _snap = repo_index
         files = idx.find_files_matching("chat", max_results=5)
         assert len(files) >= 1
 
     def test_find_files_by_class(self, repo_index):
-        idx, snap = repo_index
+        idx, _snap = repo_index
         files = idx.find_files_matching("RepoIndex", max_results=5)
         assert len(files) >= 1
 
@@ -77,12 +77,12 @@ class TestRepoIndex:
         assert str(snap.total_files) in summary
 
     def test_context_for_llm(self, repo_index):
-        idx, snap = repo_index
+        idx, _snap = repo_index
         ctx = idx.context_for_llm()
         assert len(ctx) > 100
 
     def test_to_dict(self, repo_index):
-        idx, snap = repo_index
+        _idx, snap = repo_index
         d = snap.to_dict()
         assert d["total_files"] > 0
         assert "symbol_count" in d
@@ -90,11 +90,11 @@ class TestRepoIndex:
     def test_excludes_directories(self):
         idx = RepoIndex(root=".", excludes={"__pycache__"})
         snap = idx.build()
-        pycache_files = [f for f in snap.files.keys() if "__pycache__" in f]
+        pycache_files = [f for f in snap.files if "__pycache__" in f]
         assert len(pycache_files) == 0
 
     def test_incremental_no_changes(self, repo_index):
-        idx, snap = repo_index
+        idx, _snap = repo_index
         result = idx.incremental()
         # May be None if no changes
         assert result is None or isinstance(result, RepoIndexSnapshot)
@@ -107,26 +107,26 @@ class TestRepoIndex:
 
 class TestRepoGraph:
     def test_build_from_index(self, repo_index):
-        idx, snap = repo_index
+        _idx, snap = repo_index
         graph = RepoGraph.from_index(snap)
         assert len(graph.nodes) > 0
 
     def test_dependencies_of(self, repo_index):
-        idx, snap = repo_index
+        _idx, snap = repo_index
         graph = RepoGraph.from_index(snap)
         # Check a known file
         deps = graph.dependencies_of("core/repo_understanding.py")
         assert isinstance(deps, set)
 
     def test_dependents_of(self, repo_index):
-        idx, snap = repo_index
+        _idx, snap = repo_index
         graph = RepoGraph.from_index(snap)
         # Common dependency
         deps = graph.dependents_of("core/repo_understanding.py")
         assert isinstance(deps, set)
 
     def test_summary(self, repo_index):
-        idx, snap = repo_index
+        _idx, snap = repo_index
         graph = RepoGraph.from_index(snap)
         summary = graph.summary("core/repo_understanding.py")
         assert "Dependencies" in summary

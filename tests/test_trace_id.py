@@ -39,7 +39,7 @@ class TestTraceId:
         assert len(root_ids) == 1
         log_roots = [e.get("root_trace_id") for e in coord._log if "root_trace_id" in e]
         assert len(log_roots) > 0
-        assert log_roots[0] == list(root_ids)[0]
+        assert log_roots[0] == next(iter(root_ids))
 
     def test_contextvar_propagation_during_execute(self):
         """contextvar 在工具执行时正确设置 trace_id 和 root_trace_id."""

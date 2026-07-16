@@ -50,4 +50,5 @@ def test_pytest_runner():
     from core.pytest_runner import parse_test_summary
 
     p, f = parse_test_summary("3 passed in 0.10s")
-    assert p == 3 and f == 0
+    assert p == 3
+    assert f == 0

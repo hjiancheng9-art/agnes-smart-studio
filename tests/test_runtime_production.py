@@ -2,6 +2,7 @@
 Tests for Runtime Guard, Budget, Cancellation, Rollback
 """
 
+import contextlib
 import os
 import tempfile
 import time
@@ -29,10 +30,8 @@ class TestCircuitBreaker:
             raise ValueError("fail")
 
         for _ in range(2):
-            try:
+            with contextlib.suppress(ValueError):
                 cb.call(fail)
-            except ValueError:
-                pass
 
         assert cb.state == CircuitState.OPEN
         assert cb.failure_count == 2
@@ -47,10 +46,8 @@ class TestCircuitBreaker:
         def succeed():
             return "ok"
 
-        try:
+        with contextlib.suppress(ValueError):
             cb.call(fail)
-        except ValueError:
-            pass
         assert cb.state == CircuitState.OPEN
 
         time.sleep(0.15)
@@ -62,10 +59,8 @@ class TestCircuitBreaker:
 
     def test_reset(self):
         cb = CircuitBreaker(name="test", failure_threshold=1)
-        try:
+        with contextlib.suppress(ValueError):
             cb.call(lambda: (_ for _ in ()).throw(ValueError("fail")))
-        except ValueError:
-            pass
         assert cb.state == CircuitState.OPEN
         cb.reset()
         assert cb.state == CircuitState.CLOSED
@@ -75,10 +70,8 @@ class TestCircuitBreaker:
         cb = CircuitBreaker(name="test")
         cb.call(lambda: None)
         cb.call(lambda: None)
-        try:
+        with contextlib.suppress(ValueError):
             cb.call(lambda: (_ for _ in ()).throw(ValueError("fail")))
-        except ValueError:
-            pass
         s = cb.stats()
         assert s["total_successes"] == 2
         assert s["total_failures"] == 1

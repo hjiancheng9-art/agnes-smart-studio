@@ -7,11 +7,12 @@ TUI Event Reducer — 事件 → UI 状态变化
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from core.stream_protocol import StreamEvent
+if TYPE_CHECKING:
+    from core.stream_protocol import StreamEvent
 
-from .tui_run_state import RunStateStore
+    from .tui_run_state import RunStateStore
 
 
 class TuiEventReducer:

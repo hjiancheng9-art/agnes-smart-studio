@@ -193,7 +193,8 @@ class TestSendStreamFallback:
         session = ChatSession(client)
         chain = session._text_fallback_chain()
         for model, client_obj in chain:
-            assert isinstance(model, str) and len(model) > 0
+            assert isinstance(model, str)
+            assert len(model) > 0
             assert client_obj is not None
 
 

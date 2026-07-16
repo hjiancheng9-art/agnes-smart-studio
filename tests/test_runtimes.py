@@ -250,7 +250,7 @@ class TestCapabilityRuntimeRouter:
     def test_select_general(self):
         router = CapabilityRuntimeRouter()
         router.register(GeneralRuntime())
-        rt_type, runtime = router.select_runtime("你好", "FAST")
+        rt_type, _runtime = router.select_runtime("你好", "FAST")
         assert rt_type == CapabilityRuntimeType.GENERAL
 
     def test_select_debug(self):
@@ -266,35 +266,35 @@ class TestCapabilityRuntimeRouter:
         router.register(GeneralRuntime())
         router.register(DebugAnalyzeRuntime())
         # Even without specifying DEEP mode, debug keywords should trigger
-        rt_type, runtime = router.select_runtime("error: crash detected", "BALANCED")
+        _rt_type, runtime = router.select_runtime("error: crash detected", "BALANCED")
         assert isinstance(runtime, DebugAnalyzeRuntime)
 
     def test_select_code_patch(self):
         router = CapabilityRuntimeRouter()
         router.register(GeneralRuntime())
         router.register(CodePatchRuntime())
-        rt_type, runtime = router.select_runtime("修复一个空指针", "DEEP")
+        _rt_type, runtime = router.select_runtime("修复一个空指针", "DEEP")
         assert isinstance(runtime, CodePatchRuntime)
 
     def test_select_architecture(self):
         router = CapabilityRuntimeRouter()
         router.register(GeneralRuntime())
         router.register(ArchitectureRuntime())
-        rt_type, runtime = router.select_runtime("设计微服务架构方案", "DEEP")
+        _rt_type, runtime = router.select_runtime("设计微服务架构方案", "DEEP")
         assert isinstance(runtime, ArchitectureRuntime)
 
     def test_select_security_by_mode(self):
         router = CapabilityRuntimeRouter()
         router.register(GeneralRuntime())
         router.register(SecurityRuntime())
-        rt_type, runtime = router.select_runtime("任何内容", "SAFE")
+        _rt_type, runtime = router.select_runtime("任何内容", "SAFE")
         assert isinstance(runtime, SecurityRuntime)
 
     def test_select_research_by_mode(self):
         router = CapabilityRuntimeRouter()
         router.register(GeneralRuntime())
         router.register(ResearchRuntime())
-        rt_type, runtime = router.select_runtime("研究技术", "RESEARCH")
+        _rt_type, runtime = router.select_runtime("研究技术", "RESEARCH")
         assert isinstance(runtime, ResearchRuntime)
 
     def test_list_runtimes(self):

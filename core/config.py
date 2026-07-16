@@ -341,6 +341,7 @@ class Settings:
                     data = json.load(f)
             except (json.JSONDecodeError, OSError) as e:
                 import logging
+
                 logging.getLogger("crux").warning("settings.json corrupted (%s), using defaults", e)
                 return cls()
             # 合并策略：JSON 值为 None 时回退到环境变量默认值

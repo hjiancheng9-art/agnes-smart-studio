@@ -18,7 +18,7 @@ class TestParseTestSummary:
 
     def test_parses_errors(self):
         output = "10 passed, 3 errors in 0.50s"
-        p, f = parse_test_summary(output)
+        p, _f = parse_test_summary(output)
         assert p == 10
 
     def test_empty(self):
@@ -30,11 +30,11 @@ class TestParseTestSummary:
         assert (p, f) == (0, 0)
 
     def test_partial_numbers(self):
-        p, f = parse_test_summary("1 failed")
+        _p, f = parse_test_summary("1 failed")
         assert f >= 1
 
     def test_zero_passed(self):
-        p, f = parse_test_summary("0 passed")
+        p, _f = parse_test_summary("0 passed")
         assert p == 0
 
 

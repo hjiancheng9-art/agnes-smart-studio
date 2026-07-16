@@ -480,16 +480,14 @@ class MasterOrchestrator:
         for task in plan.tasks:
             tid = task.get("id", task.get("description", ""))
             tools = task.get("tools", [])
-            desc = task.get("description", tid)
+            task.get("description", tid)
             task_result = ""
             for tool_name in tools:
                 # Build correct args per tool
-                if tool_name == "self_heal":
-                    args = {"fix": True}
-                elif tool_name == "run_lint":
+                if tool_name == "self_heal" or tool_name == "run_lint":
                     args = {"fix": True}
                 elif tool_name == "run_test":
-                    args = {"path": "tests/", "extra_args": "-m \"not slow\" -q"}
+                    args = {"path": "tests/", "extra_args": '-m "not slow" -q'}
                 else:
                     args = {}
                 try:

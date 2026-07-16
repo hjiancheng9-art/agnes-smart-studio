@@ -486,7 +486,9 @@ class FixabilityEstimator:
         l2_result.source = "L2:LLM(fallback)"
         return l2_result
 
-    def should_attempt_fix(self, tool: str, error_type: str, context: dict | None = None) -> tuple[bool, FixabilityResult]:
+    def should_attempt_fix(
+        self, tool: str, error_type: str, context: dict | None = None
+    ) -> tuple[bool, FixabilityResult]:
         """简便方法：是否应该尝试修复？"""
         result = self.estimate(tool, error_type, context)
         can_fix = result.score >= 0.5 and result.action_hint in ("retry", "diagnose")

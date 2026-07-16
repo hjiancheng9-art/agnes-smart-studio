@@ -20,12 +20,13 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install ruff pyright -r requirements.txt
-      - name: Ruff lint
+      - name: Ruff lint (hard gate)
         run: ruff check --output-format=github . --exclude ${{ env.RUFF_EXCLUDE }}
-      - name: Ruff format check
+      - name: Ruff format check (hard gate)
         run: ruff format --check . --exclude ${{ env.RUFF_EXCLUDE }}
-      - name: Pyright type check (core only)
-        run: pyright core/ || true
+      - name: Pyright type check (advisory)
+        continue-on-error: true
+        run: pyright core/
 
   test:
     name: Tests
@@ -36,13 +37,27 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install -r requirements.txt
-      - name: Run basic tests
+      - run: pip install pytest-timeout -r requirements.txt
+      - name: Unit tests (hard gate)
         run: |
-          python -m pytest tests/ -v --tb=short -q --ignore=tests/test_agent_mode.py -x --timeout=30 2>&1 || true
-      - name: Coverage (core only)
+          python -m pytest tests/ -v --tb=short -q \
+            --ignore=tests/self_audit \
+            --ignore=tests/manual \
+            --ignore=tests/test_agent_mode.py \
+            -m "not slow and not browser and not network and not mcp and not lsp and not github and not e2e" \
+            --timeout=20 \
+            -p no:xdist
+      - name: Coverage (core only, advisory)
+        continue-on-error: true
         run: |
-          python -m pytest tests/ --cov=core --cov-report=term --cov-report=xml --tb=short -q -x --timeout=30 2>&1 || true
+          python -m pytest tests/ --cov=core --cov-report=term --cov-report=xml \
+            --tb=short -q \
+            --ignore=tests/self_audit \
+            --ignore=tests/manual \
+            --ignore=tests/test_agent_mode.py \
+            -m "not slow and not browser and not network and not mcp and not lsp and not github and not e2e" \
+            --timeout=20 \
+            -p no:xdist
 
   security:
     name: Security Scan
@@ -53,5 +68,6 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install bandit
-      - name: Bandit security check
-        run: bandit -r core/ tools/ -f json -o bandit_report.json --skip B101,B311 || true
+      - name: Bandit security check (advisory)
+        continue-on-error: true
+        run: bandit -r core/ tools/ -f json -o bandit_report.json --skip B101,B311

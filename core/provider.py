@@ -51,7 +51,9 @@ def _atomic_write_json(path: Path, data: Any, indent: int = 2) -> None:
                 return
             except PermissionError:
                 if attempt == 5:
-                    raise OSError(f"Could not atomically replace {path}. Another process may have the file open.") from None
+                    raise OSError(
+                        f"Could not atomically replace {path}. Another process may have the file open."
+                    ) from None
                 time.sleep(delay)
                 delay *= 2
     finally:

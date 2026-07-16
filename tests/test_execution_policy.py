@@ -36,4 +36,3 @@ class TestExecutionPolicy:
         policy = ExecutionPolicy(ExecutionMode.ORCHESTRATE, "test reason")
         assert policy.mode == ExecutionMode.ORCHESTRATE
         assert policy.reason == "test reason"
-

@@ -281,7 +281,28 @@ class RepoIndex:
             if part in self.excludes:
                 return True
         ext = rel.suffix
-        return ext not in (".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".rs", ".md", ".json", ".yaml", ".yml", ".toml", ".cfg", ".ini", ".html", ".css", ".scss", ".sql", ".rb", ".java")
+        return ext not in (
+            ".py",
+            ".js",
+            ".ts",
+            ".jsx",
+            ".tsx",
+            ".go",
+            ".rs",
+            ".md",
+            ".json",
+            ".yaml",
+            ".yml",
+            ".toml",
+            ".cfg",
+            ".ini",
+            ".html",
+            ".css",
+            ".scss",
+            ".sql",
+            ".rb",
+            ".java",
+        )
 
     def _index_file(self, filepath: Path, rel: Path) -> FileEntry | None:
         try:

@@ -110,6 +110,14 @@ ignore = [
     "RUF002",   # 中文 docstring/注释中的全角标点不强制转半角
     "RUF003",
     "RUF012",   # ClassVar 迁移成本高，暂时允许可变类属性默认值
+    "SIM102",   # 合 if 为一句是风格偏好，不阻塞 CI
+    "SIM105",   # contextlib.suppress 风格偏好
+    "SIM115",   # 非关键路径文件句柄管理偏好
+    "PT017",    # pytest.raises 中无 assert 是风格问题
+    "PT018",    # except 块中 assert 是测试常见模式
+    "PT012",    # pytest.raises 内多个 assert 是风格问题
+    "E741",     # 模糊变量名 (l, O, I) 是风格偏好
+    "B017",     # pytest.raises(Exception) 在测试中合理
 ]
 
 [tool.ruff.lint.per-file-ignores]

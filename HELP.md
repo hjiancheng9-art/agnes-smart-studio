@@ -91,4 +91,4 @@
 | `/trae-new <name> [description]` | 手动创建 trae 风格 skill |
 
 ---
-*86 tools, 97 skills, 257 core modules, 164 test files*
+*86 tools, 97 skills, 257 core modules, 168 test files*

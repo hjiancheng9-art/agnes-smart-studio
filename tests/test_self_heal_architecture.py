@@ -27,13 +27,13 @@ class TestBuildShellStrategies:
         strats = _build_shell_strategies('bash -c "ls -la"', sys)
         labels = [l for l, _ in strats]
         assert "unwrap_bash" in labels
-        unwrapped = [c for l, c in strats if l == "unwrap_bash"][0]
+        unwrapped = next(c for l, c in strats if l == "unwrap_bash")
         assert unwrapped == "ls -la"
 
     def test_unwrap_bash_single_quotes(self):
         """bash -c 单引号包装"""
         strats = _build_shell_strategies("bash -c 'echo hello'", sys)
-        unwrapped = [c for l, c in strats if l == "unwrap_bash"][0]
+        unwrapped = next(c for l, c in strats if l == "unwrap_bash")
         assert "echo hello" in unwrapped
         assert "bash" not in unwrapped
 
@@ -49,7 +49,7 @@ class TestBuildShellStrategies:
     def test_simple_command_raw(self):
         """简单命令应有 raw_no_shell 策略"""
         strats = _build_shell_strategies("echo hello", sys)
-        labels = [l for l, _ in strats]
+        [l for l, _ in strats]
         # echo 不含特殊字符，应跳过 raw_no_shell? 不，echo hello 不含引号等
         # 实际上简单命令不含特殊字符会生成 raw_no_shell
         pass  # 策略存在性已在上面的测试中验证
@@ -194,7 +194,7 @@ class TestBuildRetryStrategies:
         )
         labels = [l for l, _ in strats]
         assert "add_retries" in labels
-        modified = [a for l, a in strats if l == "add_retries"][0]
+        modified = next(a for l, a in strats if l == "add_retries")
         assert "--retries 3" in modified["package"]
 
     def test_pip_install_timeout(self):
@@ -218,7 +218,7 @@ class TestBuildRetryStrategies:
         )
         labels = [l for l, _ in strats]
         assert "wrap_try" in labels
-        modified = [a for l, a in strats if l == "wrap_try"][0]
+        modified = next(a for l, a in strats if l == "wrap_try")
         assert "try:" in modified["code"]
 
     def test_run_python_skip_when_has_try(self):
@@ -256,7 +256,7 @@ class TestAutoRetryTool:
     def test_success_on_first_retry(self):
         """重试一次成功应返回成功结果"""
         s = MockDispatchSession(success_on_unwrap=True)
-        result, sides = _auto_retry_tool(
+        result, _sides = _auto_retry_tool(
             s,
             "run_bash",
             '{"command": "bash -c echo hello"}',
@@ -267,7 +267,7 @@ class TestAutoRetryTool:
     def test_all_retries_fail(self):
         """全部失败应返回原始错误"""
         s = MockDispatchSession(success_on_unwrap=False)  # unwrap 也失败
-        result, sides = _auto_retry_tool(
+        result, _sides = _auto_retry_tool(
             s,
             "run_bash",
             '{"command": "bash -c x"}',
@@ -278,7 +278,7 @@ class TestAutoRetryTool:
     def test_no_strategy_no_retry(self):
         """无可用策略直接返回原始错误"""
         s = MockDispatchSession()
-        result, sides = _auto_retry_tool(
+        result, _sides = _auto_retry_tool(
             s,
             "unknown_tool",
             '{"arg": "val"}',
@@ -289,7 +289,7 @@ class TestAutoRetryTool:
     def test_normal_result_passthrough(self):
         """正常结果不触发重试"""
         s = MockDispatchSession()
-        result, sides = _auto_retry_tool(
+        result, _sides = _auto_retry_tool(
             s,
             "run_bash",
             '{"command": "echo ok"}',
@@ -308,7 +308,7 @@ class TestAutoRetryTool:
                 self.n += 1
                 raise RuntimeError("boom")
 
-        result, sides = _auto_retry_tool(
+        result, _sides = _auto_retry_tool(
             CrashSession(),
             "run_bash",
             '{"command": "bash -c echo hello"}',
@@ -332,7 +332,7 @@ class TestAutoRetryTool:
                 return f"recovered: {args.get('command', '')}", [("info", "")]
 
         # bash -c 'cmd' 在 Windows 上生成 unwrap_bash + strip_quotes 两个策略
-        result, sides = _auto_retry_tool(
+        result, _sides = _auto_retry_tool(
             CrashThenOk(),
             "run_bash",
             '{"command": "bash -c \'echo hello\'"}',

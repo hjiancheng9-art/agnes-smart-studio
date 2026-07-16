@@ -44,7 +44,7 @@ def cmd_trae_convert(args: list[str]) -> str:
     skill_name = name.lower().replace(" ", "-").replace("_", "-")
     out_path = SKILLS_DIR / f"{skill_name}.skill.json"
 
-    skill = trae_to_skill(data, str(out_path))
+    trae_to_skill(data, str(out_path))
 
     return (
         f"✅ 转换完成！\n"

@@ -44,7 +44,7 @@ class TestSpecializedErrors:
     """子类异常测试"""
 
     @pytest.mark.parametrize(
-        "exc_cls,msg",
+        ("exc_cls", "msg"),
         [
             (ConfigError, "配置缺失"),
             (ProviderError, "API 密钥无效"),

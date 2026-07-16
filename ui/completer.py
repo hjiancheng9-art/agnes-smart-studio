@@ -28,9 +28,12 @@ Behavior:
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from prompt_toolkit.completion import CompleteEvent, Completer, Completion
-from prompt_toolkit.document import Document
+
+if TYPE_CHECKING:
+    from prompt_toolkit.document import Document
 
 # ── Slash commands (per debate: max 8) ────────────────────
 

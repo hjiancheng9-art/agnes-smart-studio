@@ -70,7 +70,6 @@ class TestContextConsistency:
 
     def test_version_identity_file(self):
         """Version identity must be consistent across all config files."""
-        version = "6.0.0"
         mismatches = []
         for path in Path(".").glob("*.md"):
             content = path.read_text(encoding="utf-8", errors="ignore")

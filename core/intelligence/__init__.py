@@ -7,9 +7,9 @@ from core.intelligence.signals import SignalExtractor, TaskSignals
 
 __all__ = [
     "ExecutionPolicy",
-    "RunMode",
-    "load_profile",
     "IntelligencePolicyRouter",
+    "RunMode",
     "SignalExtractor",
     "TaskSignals",
+    "load_profile",
 ]

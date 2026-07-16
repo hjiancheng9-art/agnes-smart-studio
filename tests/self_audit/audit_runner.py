@@ -9,6 +9,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import subprocess
 import sys
@@ -27,7 +28,7 @@ def banner(text: str) -> str:
 
 def run_pytest(args: list[str]) -> dict:
     """Run pytest and capture results."""
-    cmd = [sys.executable, "-m", "pytest"] + args
+    cmd = [sys.executable, "-m", "pytest", *args]
     start = time.time()
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
     duration = time.time() - start
@@ -40,25 +41,17 @@ def run_pytest(args: list[str]) -> dict:
             for p in parts:
                 p = p.strip()
                 if "passed" in p:
-                    try:
+                    with contextlib.suppress(ValueError):
                         summary["passed"] = int(p.split()[0])
-                    except ValueError:
-                        pass
                 elif "failed" in p:
-                    try:
+                    with contextlib.suppress(ValueError):
                         summary["failed"] = int(p.split()[0])
-                    except ValueError:
-                        pass
                 elif "skipped" in p:
-                    try:
+                    with contextlib.suppress(ValueError):
                         summary["skipped"] = int(p.split()[0])
-                    except ValueError:
-                        pass
                 elif "error" in p:
-                    try:
+                    with contextlib.suppress(ValueError):
                         summary["errors"] = int(p.split()[0])
-                    except ValueError:
-                        pass
 
     return {
         "summary": summary,

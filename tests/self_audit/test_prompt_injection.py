@@ -99,7 +99,7 @@ class TestVersionConsistency:
                     matches.append(f)
         assert len(matches) > 0, "No files reference v6.0.0 - version identity may be missing"
 
-    @pytest.mark.parametrize("name,attack,expect_contains,expect_not_contains", INJECTION_ATTACKS)
+    @pytest.mark.parametrize(("name", "attack", "expect_contains", "expect_not_contains"), INJECTION_ATTACKS)
     def test_injection_attack_vector(self, name, attack, expect_contains, expect_not_contains):
         """Validate that injection attacks are structurally blocked."""
         # This is a structural/design-level test

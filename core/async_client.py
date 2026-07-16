@@ -347,7 +347,7 @@ class AsyncCruxClient:
         }
         if image:
             if isinstance(image, str) and image.startswith("data:image/"):
-                before, sep, b64_data = image.partition(";base64,")
+                _before, sep, b64_data = image.partition(";base64,")
                 if sep:
                     image = b64_data
             body["image"] = image

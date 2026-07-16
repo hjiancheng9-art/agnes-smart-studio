@@ -47,7 +47,7 @@ class TestClassifyPrompt:
     """classify_prompt() must map inputs to correct tiers."""
 
     @pytest.mark.skip(reason="Need running app context")
-    @pytest.mark.parametrize("name,text,expected_tier", ROUTING_TEST_CASES)
+    @pytest.mark.parametrize(("name", "text", "expected_tier"), ROUTING_TEST_CASES)
     def test_classify_to_correct_tier(self, name, text, expected_tier):
         """Each input type gets the right tier."""
         from core.model_router import classify_prompt

@@ -173,7 +173,7 @@ def batch_convert(input_dir: str, output_dir: str = "skills") -> list:
                 continue
 
         out_file = output_path / f"{_to_skill_name(data.get('agentName', data.get('name', f.stem)))}.skill.json"
-        skill = trae_to_skill(data, str(out_file))
+        trae_to_skill(data, str(out_file))
         results.append((f.name, str(out_file), "ok"))
         print(f"  ✓ {f.name} → {out_file.name}")
 

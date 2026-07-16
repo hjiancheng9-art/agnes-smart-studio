@@ -124,7 +124,7 @@ Here you go:"""
 class TestBadXmlHandling:
     """Must return structured errors, not crash."""
 
-    @pytest.mark.parametrize("case_name,bad_xml", BAD_XML_CASES)
+    @pytest.mark.parametrize(("case_name", "bad_xml"), BAD_XML_CASES)
     def test_bad_xml_does_not_crash(self, validator, case_name, bad_xml):
         """Every bad XML case must not raise unhandled exception."""
         try:
@@ -133,7 +133,7 @@ class TestBadXmlHandling:
         except Exception as e:
             pytest.fail(f"validator.validate_llm_output raised for '{case_name}': {e}")
 
-    @pytest.mark.parametrize("case_name,bad_xml", BAD_XML_CASES)
+    @pytest.mark.parametrize(("case_name", "bad_xml"), BAD_XML_CASES)
     def test_bad_xml_has_error_info(self, validator, case_name, bad_xml):
         """Bad XML should include error details."""
         try:

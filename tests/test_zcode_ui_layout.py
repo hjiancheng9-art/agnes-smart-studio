@@ -243,7 +243,7 @@ class TestStatusBarRendersModelAndCwd:
         fragments = list(result._formatted_text if hasattr(result, "_formatted_text") else result.__iter__())
         # First fragment should contain the model name
         assert len(fragments) > 0
-        first_style, first_text = fragments[0]
+        _first_style, first_text = fragments[0]
         assert "deepseek-v4-pro" in first_text
 
     def test_status_bar_renders_model_and_cwd(self):

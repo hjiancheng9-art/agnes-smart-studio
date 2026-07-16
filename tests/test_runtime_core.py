@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
-
 from core.runtime_types import ExecutionMode, ExecutionPlan, plan_from_policy
 
 
@@ -76,6 +74,7 @@ class TestToolExecutor:
 
         executor = ToolExecutor(fake_dispatch)
         import asyncio
+
         result = asyncio.run(executor.execute("run_bash", {"command": "echo hi"}))
         assert "run_bash" in calls
         assert result is not None

@@ -12,15 +12,18 @@ from core.validation_errors import ValidationCode, ValidationError, ValidationIs
 @pytest.fixture
 def validator():
     """Create a ToolCallValidator with known tools."""
-    schema = lambda n: {
-        "read_file": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]},
-        "write_file": {
-            "type": "object",
-            "properties": {"path": {"type": "string"}, "content": {"type": "string"}},
-            "required": ["path", "content"],
-        },
-        "run_bash": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]},
-    }.get(n)
+
+    def schema(n):
+        return {
+            "read_file": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]},
+            "write_file": {
+                "type": "object",
+                "properties": {"path": {"type": "string"}, "content": {"type": "string"}},
+                "required": ["path", "content"],
+            },
+            "run_bash": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]},
+        }.get(n)
+
     return ToolCallValidator(schema_provider=schema, known_tools={"read_file", "write_file", "run_bash"})
 
 

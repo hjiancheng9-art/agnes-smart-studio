@@ -329,7 +329,7 @@ class TestEdgeCases:
         """Ensure duplicate issues are removed."""
         rep = reviewer.review("Hi", "Hello", [])
         # Running twice shouldn't double issues
-        count1 = len(rep.issues)
+        len(rep.issues)
         rep2 = reviewer.review("Hi", "Hello", [])
         # both should be clean
         assert rep2.score >= 80

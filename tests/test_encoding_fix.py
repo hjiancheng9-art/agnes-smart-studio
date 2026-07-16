@@ -62,7 +62,7 @@ class TestDetectAndDecode:
 
     def test_gbk_auto_detection(self):
         original = "权限不足，请检查路径是否正确"
-        text, enc, had_errors = detect_and_decode(original.encode("gbk"))
+        text, enc, _had_errors = detect_and_decode(original.encode("gbk"))
         assert text == original
         assert enc in ("gbk", "gb2312", "gb18030", "cp936")
 
@@ -73,15 +73,15 @@ class TestDetectAndDecode:
         assert enc in ("gbk", "gb2312", "gb18030", "cp936")
 
     def test_empty_bytes(self):
-        text, enc, had_errors = detect_and_decode(b"")
+        text, _enc, had_errors = detect_and_decode(b"")
         assert text == ""
         assert not had_errors
 
     def test_ascii_only(self):
-        text, enc, had_errors = detect_and_decode(b"hello world 123")
+        text, enc, _had_errors = detect_and_decode(b"hello world 123")
         assert text == "hello world 123"
         assert enc in ("utf-8", "gbk")  # ASCII is valid in any encoding
-        assert not had_errors or True
+        assert True
 
     def test_detected_encoding_not_utf8(self):
         original = "文件已损坏，请重新下载"
@@ -98,7 +98,7 @@ class TestDetectAndDecode:
 class TestFixGarbledBytes:
     def test_gbk_bytes_recovery(self):
         original = "权限不足，请检查路径是否正确"
-        text, enc, recovered = fix_garbled_bytes(original.encode("gbk"))
+        text, enc, _recovered = fix_garbled_bytes(original.encode("gbk"))
         assert text == original
         assert enc in ("gbk", "gb2312", "gb18030", "cp936")
 
@@ -110,7 +110,7 @@ class TestFixGarbledBytes:
         assert not recovered
 
     def test_empty(self):
-        text, enc, recovered = fix_garbled_bytes(b"")
+        text, enc, _recovered = fix_garbled_bytes(b"")
         assert text == ""
         assert enc == "utf-8"
 
@@ -125,7 +125,7 @@ class TestFixGarbled:
         assert text == "这是正常文本"
 
     def test_empty_unchanged(self):
-        text, fixed = fix_garbled("")
+        _text, fixed = fix_garbled("")
         assert not fixed
 
     def test_double_encoded_recovery(self):
@@ -198,7 +198,7 @@ class TestSafeReadText:
             f.write("Hello UTF-8 中文".encode())
             fname = f.name
         try:
-            text, issue = safe_read_text(fname)
+            text, _issue = safe_read_text(fname)
             assert "Hello UTF-8" in text
             assert "中文" in text
         finally:
@@ -209,7 +209,7 @@ class TestSafeReadText:
             f.write("这是GBK编码的文件内容".encode("gbk"))
             fname = f.name
         try:
-            text, issue = safe_read_text(fname)
+            text, _issue = safe_read_text(fname)
             assert "这是GBK编码的文件内容" in text
         finally:
             os.unlink(fname)

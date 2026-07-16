@@ -484,6 +484,7 @@ class EvalRunner:
 
                 def schema_p(n):
                     return None
+
                 v = ToolCallValidator(schema_provider=schema_p)
                 for tc in turn.tool_calls:
                     r = v.validate_llm_output(tc.get("raw_xml", str(tc)))

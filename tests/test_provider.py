@@ -45,7 +45,7 @@ class TestMaxTokens:
 
     def test_text_uses_adapter_default(self):
         tok = get_max_tokens_for_model("deepseek-v4-pro", is_tool_call=False)
-        assert tok == 8192  # ProviderAdapter.default_max_tokens
+        assert tok == 16384  # ProviderAdapter.default_max_tokens (doubled from 8192 in 356e519)
 
     def test_unknown_model(self):
         tok = get_max_tokens_for_model("unknown-model", is_tool_call=False)
@@ -116,9 +116,11 @@ class TestProviderManager:
     def test_get_model(self):
         mgr = get_provider_manager()
         pro = mgr.get_model("pro")
-        assert pro and pro != "unknown"
+        assert pro
+        assert pro != "unknown"
         light = mgr.get_model("light")
-        assert light and light != "unknown"
+        assert light
+        assert light != "unknown"
 
     def test_set_active(self):
         mgr = get_provider_manager()

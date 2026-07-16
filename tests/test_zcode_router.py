@@ -3,6 +3,8 @@
 TDD style: every test is self-contained, uses plain assert, no fixtures/marks.
 """
 
+import pytest
+
 # ── Module 1: core/router.py ────────────────────────────────────────
 
 
@@ -861,7 +863,7 @@ class TestProviderManagerFirstAvailable:
         mgr.load()
         providers_set = set(mgr.providers.keys())
         if providers_set:
-            first = list(providers_set)[0]
+            first = next(iter(providers_set))
             result = mgr._first_available(exclude={first})
             # Should not crash
             assert result is None or isinstance(result, str)

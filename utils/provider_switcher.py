@@ -1,5 +1,6 @@
 """Provider switcher -- update models.json AND sync .env for subprocess."""
 
+import contextlib
 import json
 import os
 import tempfile
@@ -19,10 +20,8 @@ def _atomic_write_text(path: Path, text: str) -> None:
             f.write(text)
         os.replace(tmp_name, str(path))
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_name)
-        except OSError:
-            pass
         raise
 
 

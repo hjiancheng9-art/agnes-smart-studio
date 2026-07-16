@@ -169,7 +169,7 @@ class TestCdpStability:
         """Repeated attach/detach should not degrade."""
         from playwright.async_api import async_playwright
 
-        for i in range(10):
+        for _i in range(10):
             async with async_playwright() as p:
                 browser = await p.chromium.connect_over_cdp(CDP_URL)
                 assert browser is not None
@@ -209,7 +209,7 @@ class TestCdpErrorResilience:
             async def try_connect():
                 async with async_playwright() as p:
                     try:
-                        browser = await p.chromium.connect_over_cdp("http://127.0.0.1:19999", timeout=3000)
+                        await p.chromium.connect_over_cdp("http://127.0.0.1:19999", timeout=3000)
                         return {"success": True}
                     except Exception as e:
                         return {"success": False, "error": str(e), "error_type": type(e).__name__}
@@ -233,7 +233,7 @@ class TestCdpErrorResilience:
             async def try_bad_url():
                 async with async_playwright() as p:
                     try:
-                        browser = await p.chromium.connect_over_cdp("not-a-valid-url", timeout=2000)
+                        await p.chromium.connect_over_cdp("not-a-valid-url", timeout=2000)
                         return {"success": True}
                     except Exception as e:
                         return {"success": False, "error": str(e)}

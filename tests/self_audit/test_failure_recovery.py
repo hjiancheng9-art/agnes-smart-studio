@@ -32,7 +32,7 @@ class TestFailureRecovery:
     """Every failure must produce a structured, recoverable error."""
 
     @pytest.mark.parametrize(
-        "name,tool_name,args,error_pattern",
+        ("name", "tool_name", "args", "error_pattern"),
         [
             ("bad_tool", "foo_bar_baz", "{}", "unknown"),
             ("empty_name", "", "{}", "invalid"),

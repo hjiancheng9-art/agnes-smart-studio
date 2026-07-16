@@ -35,7 +35,7 @@ for s in [
             el = e
             print(f"输入框: {s}")
             break
-    except:
+    except Exception:
         continue
 if not el:
     print("找不到输入框")
@@ -49,7 +49,7 @@ page.keyboard.press("Enter")
 print("已提交，等待回复...")
 
 # 轮询
-for i in range(90):
+for _i in range(90):
     time.sleep(2)
     try:
         rs = page.locator('[data-message-author-role="assistant"]').all()
@@ -64,7 +64,7 @@ for i in range(90):
                 print("=" * 40)
                 print("测试成功！")
                 exit(0)
-    except:
+    except Exception:
         import logging
 
         logging.getLogger("crux").debug("silent except", exc_info=True)

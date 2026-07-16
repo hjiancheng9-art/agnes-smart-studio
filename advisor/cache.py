@@ -10,8 +10,10 @@ from __future__ import annotations
 import hashlib
 import time
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from advisor.base import AdvisorResult
+if TYPE_CHECKING:
+    from advisor.base import AdvisorResult
 
 
 @dataclass

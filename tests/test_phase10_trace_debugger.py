@@ -78,7 +78,7 @@ class TestSessionRecord:
 
 class TestDecisionRecorder:
     def test_new_session(self, recorder):
-        s = recorder.new_session("my-session")
+        recorder.new_session("my-session")
         assert recorder.current is not None
         assert recorder.current.session_id == "my-session"
 

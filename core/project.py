@@ -330,7 +330,7 @@ def deploy_to_github_pages(project_path: str) -> str:
     """
     import subprocess as _sp
 
-    try:  # noqa: SIM105 — 构建失败容错，继续 Step 2
+    try:
         # Step 1: 尝试构建
         _sp.run(["npm", "run", "build"], cwd=project_path, capture_output=True, text=True, timeout=60)
     except (subprocess.SubprocessError, OSError):

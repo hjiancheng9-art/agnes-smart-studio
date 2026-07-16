@@ -17,8 +17,11 @@ Core principle: message area width ALWAYS prioritized.
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Callable
 from enum import Enum, auto
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class Breakpoint(Enum):

@@ -56,7 +56,7 @@ async def connect_chatgpt() -> ChatGPTConnection:
             "无法连接 Edge CDP。请确认 Edge 使用以下参数启动：\n"
             "msedge.exe --remote-debugging-port=9222 "
             "--user-data-dir=C:\\crux-edge-profile"
-        )
+        ) from None
 
     if not browser.contexts:
         await playwright.stop()
@@ -252,7 +252,7 @@ async def main() -> None:
         print("\n=================================\n")
     except Exception as exc:
         print(f"取回失败：{exc}")
-        raise SystemExit(1)
+        raise SystemExit(1) from exc
 
 
 if __name__ == "__main__":

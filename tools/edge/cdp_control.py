@@ -143,7 +143,7 @@ def find_send_button(page) -> dict:
 
 
 def cmd_status():
-    p, browser, page = get_page()
+    p, _browser, page = get_page()
     if not page:
         print("❌ 没有打开的标签页")
     else:
@@ -157,7 +157,7 @@ def cmd_status():
 
 
 def cmd_send(text):
-    p, browser, page = get_page()
+    p, _browser, page = get_page()
     if not page:
         print("❌ 无页面")
         p.stop()
@@ -200,7 +200,7 @@ def cmd_send(text):
 
 
 def cmd_read(lines=20):
-    p, browser, page = get_page()
+    p, _browser, page = get_page()
     if not page:
         print("❌ 无页面")
         p.stop()
@@ -230,7 +230,7 @@ def cmd_read(lines=20):
 
 
 def cmd_screenshot(path="edge_screenshot.png"):
-    p, browser, page = get_page()
+    p, _browser, page = get_page()
     if page:
         page.screenshot(path=path)
         print(f"✅ 截图保存: {path}")
