@@ -108,7 +108,10 @@ def _make_side_by_side(
     """
     from PIL import Image, ImageDraw, ImageFont
 
-    imgs = [Image.open(p).convert("RGB") for p in paths]
+    imgs = []
+    for p in paths:
+        with Image.open(p) as f:
+            imgs.append(f.convert("RGB"))
     n = len(imgs)
     # 统一到最小高度
     min_h = min(im.size[1] for im in imgs)
@@ -219,8 +222,10 @@ def _make_diff(paths: list[str], amplify: int = 3, threshold: int = 0) -> tuple[
     """
     from PIL import Image, ImageChops, ImageOps
 
-    a = Image.open(paths[0]).convert("RGB")
-    b = Image.open(paths[1]).convert("RGB")
+    with Image.open(paths[0]) as f:
+        a = f.convert("RGB")
+    with Image.open(paths[1]) as f:
+        b = f.convert("RGB")
     # 统一尺寸（最小交集，避免单边缩放错位）
     w = min(a.size[0], b.size[0])
     h = min(a.size[1], b.size[1])

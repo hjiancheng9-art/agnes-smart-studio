@@ -45,7 +45,7 @@ def adr_create(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
-    (ADR_DIR / f"ADR-{num:04d}.json").write_text(json.dumps(adr, indent=2, ensure_ascii=False), encoding="utf-8")
+    (ADR_DIR / f"ADR-{num:04d}.json").write_text(json.dumps(adr, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
     # Also generate markdown
     _adr_to_markdown(adr)
     return adr
@@ -105,7 +105,7 @@ def adr_update(
         adr["consequences"] = consequences
     adr["updated_at"] = datetime.now(timezone.utc).isoformat()
 
-    path.write_text(json.dumps(adr, indent=2, ensure_ascii=False), encoding="utf-8")
+    path.write_text(json.dumps(adr, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
     _adr_to_markdown(adr)
     return adr
 

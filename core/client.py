@@ -356,7 +356,7 @@ class CruxClient:
         max_tokens: int = 4096,
         tools: list[dict] | None = None,
         tool_choice: str | dict = "auto",
-        timeout: float = 120.0,
+        timeout: float = 300.0,
         frequency_penalty: float = 0.0,
         presence_penalty: float = 0.0,
         **kwargs,
@@ -462,6 +462,11 @@ class CruxClient:
                             out["_usage"] = usage
                         if out:
                             yield out
+                        # Break on finish_reason instead of dead-waiting for [DONE].
+                        # Some API deployments omit the [DONE] sentinel entirely,
+                        # causing the stream to hang until httpx read timeout fires.
+                        if finish:
+                            break
                     return  # 正常完成，不触发错误
             except (
                 httpx.ConnectError,

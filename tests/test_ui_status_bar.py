@@ -1,5 +1,4 @@
 """Tests for ui/status_bar.py — rendering, truncation, edge cases."""
-import pytest
 from ui.status_bar import StatusBar
 
 

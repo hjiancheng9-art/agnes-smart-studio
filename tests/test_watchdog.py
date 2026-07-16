@@ -1,9 +1,14 @@
 """Tests for core/watchdog.py — five-line health checks, alerts, state."""
 
 import time
+
 import pytest
+
 from core.watchdog import (
-    Watchdog, WatchdogState, get_watchdog, reset_watchdog,
+    Watchdog,
+    WatchdogState,
+    get_watchdog,
+    reset_watchdog,
 )
 
 

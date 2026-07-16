@@ -25,6 +25,7 @@ Skill 文件格式 (JSON):
     /skill unload               → 卸载当前技能
 """
 
+import contextlib
 import json
 import threading
 from pathlib import Path
@@ -166,6 +167,12 @@ class SkillManager:
     def available_names(self) -> list[str]:
         return list(self._available.keys())
 
+    def list_available(self) -> list[str]:
+        """返回可用技能名称列表（兼容旧 API）。"""
+        if not self._available:
+            self.discover()
+        return list(self._available.keys())
+
     def load(self, name: str) -> Skill | None:
         """加载指定技能，返回技能对象"""
         self.discover()
@@ -236,14 +243,12 @@ class SkillManager:
             # Filter keywords: English 3+, Chinese/CJK 2+
             keywords = []
             for w in all_words:
-                w = w.strip("()（）[]{}\"'\n\r\t.:!!?")
+                w = w.strip("()（）[]{}\"'\n\r\t.:!?")
                 if not w:
                     continue
                 # CJK characters: each char is meaningful, 2+ is a valid keyword
                 has_cjk = any("一" <= c <= "鿿" or "　" <= c <= "〿" for c in w)
-                if has_cjk and len(w) >= 2:
-                    keywords.append(w)
-                elif not has_cjk and len(w) >= 3:
+                if (has_cjk and len(w) >= 2) or (not has_cjk and len(w) >= 3):
                     keywords.append(w)
 
             if not keywords:
@@ -639,11 +644,20 @@ def resolve_skill_executor(tool_name: str, tool_def: dict | None = None):
     if tool_name in ("run_python", "python"):
 
         def _exec(**kw):
+            import os as _os
+
             code = kw.get("code", "")
-            with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8") as f:
-                f.write(code)
-            r = run_subprocess(["python", f.name], timeout=30)
-            return r.stdout or r.stderr or "[no output]"
+            tmp_path = None
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8") as f:
+                    f.write(code)
+                    tmp_path = f.name
+                r = run_subprocess(["python", tmp_path], timeout=30)
+                return r.stdout or r.stderr or "[no output]"
+            finally:
+                if tmp_path:
+                    with contextlib.suppress(OSError):
+                        _os.unlink(tmp_path)
 
         return _exec
 

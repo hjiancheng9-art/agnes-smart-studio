@@ -1,7 +1,6 @@
 """Tests for the CRUX Gateway — OpenAI-compatible HTTP API."""
 
-import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,18 +14,15 @@ from core.gateway.protocol import (
     DeltaChoice,
     DeltaContent,
     Message,
-    ModelInfo,
     ModelList,
     Usage,
 )
 from core.gateway.runner import (
-    AVAILABLE_MODELS,
     GatewayRunner,
     convert_messages,
     list_models,
     resolve_model,
 )
-
 
 # ── Model resolution ────────────────────────────────────
 

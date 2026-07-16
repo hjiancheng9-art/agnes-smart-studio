@@ -250,8 +250,8 @@ class Daemon:
         Protocol: JSON {cmd: str, ...} → same response as named pipe.
         """
         import asyncio
+
         import websockets
-        import socket as sock_module
 
         WS_PORT_FILE = DAEMON_DIR / "ws_port.txt"
 

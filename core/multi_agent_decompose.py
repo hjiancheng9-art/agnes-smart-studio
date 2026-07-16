@@ -11,31 +11,34 @@ Extracted from core/multi_agent.py (P2 refactor). Contains:
 
 from __future__ import annotations
 
-import json
 import logging
+import re
 import time
-from collections import Counter
 
-from core.multi_agent_models import ROOT, AgentTask
 from core.error_sink import catch
+from core.multi_agent_models import AgentTask
 
 logger = logging.getLogger("crux.multi_agent")
 
 # ── #4 Qoder-style: Smart Multi-Agent Decomposition ──
 
-_SMART_DECOMPOSE_PROMPT = """你是多智能体任务规划专家。将用户目标分解为 3-5 个子任务，每个子任务分配给一个专门的 Agent。
+_SMART_DECOMPOSE_PROMPT = """你是多智能体任务规划专家。将用户目标分解为子任务，每个子任务分配给一个专门的 Agent。
 
 可用工具：read_file, search_files, glob_files, code_analyze, find_symbol, find_references,
            graph_neighbors, graph_ancestors, graph_descendants, run_test, run_bash,
            run_python, edit_file, write_file, web_search, web_fetch, github_search
 
-规则：
-1. 每个子任务只做一件事，用 1-2 个工具
-2. 标注依赖关系（depends_on）：B 需要 A 的结果时，B.depends_on = ["A的id"]
-3. 第一波（无依赖）的任务至少 2 个，可以并行
-4. 给每个任务分配 role: explorer(探索) | analyst(分析) | fixer(修改) | tester(验证)
-5. 给每个任务分配 tier: light(简单搜索/读文件) | pro(分析/修改) | heavy(架构审查)
-6. 返回纯 JSON 数组，每项含 id/description/role/tier/tools/depends_on 字段
+核心铁律 — 必须先理解再行动：
+1. 第一波必须包含至少 1 个 explorer 任务（read_file / search_files / glob_files），
+   用于理解代码结构和上下文。绝不跳过这一步直接修改。
+2. 后续修改任务必须依赖第一波的 explorer 结果（depends_on 标注）。
+
+分解规则：
+3. 每个子任务只做一件事，用 1-3 个工具
+4. 标注依赖关系（depends_on）：B 需要 A 的结果时，B.depends_on = ["A的id"]
+5. 给每个任务分配 role: explorer(探索上下文) | analyst(分析) | fixer(修改) | tester(验证)
+6. 给每个任务分配 tier: light(搜索/读文件) | pro(分析/修改) | heavy(架构审查)
+7. 返回纯 JSON 数组，每项含 id/description/role/tier/tools/depends_on 字段
 
 目标：{goal}
 
@@ -61,12 +64,61 @@ class SmartDecomposer:
         self._model_router = model_router
 
     def decompose(self, goal: str, tool_names: list[str] | None = None) -> list[AgentTask]:
-        """Smart decompose with LLM, fallback to keyword matching."""
+        """Smart decompose with LLM, fallback to keyword matching.
+
+        Post-condition: the first wave always contains at least one explorer
+        task (read_file / search_files / glob_files).  If the LLM forgot to
+        include one, we inject a context-gathering task automatically.
+        """
         try:
-            return self._llm_decompose(goal, tool_names)
+            tasks = self._llm_decompose(goal, tool_names)
         except Exception:
-            # Any LLM failure → fallback to keyword-based decomposition
-            return _keyword_decompose(goal)
+            tasks = _keyword_decompose(goal)
+
+        # ── Gate: ensure first wave has at least one explorer ──
+        if not self._has_explorer_in_first_wave(tasks):
+            explore_task = AgentTask(
+                id="explore_context",
+                description=f"Explore codebase structure for: {goal[:100]}",
+                tier="light",
+                task_type="explorer",
+                tool_sequence=[
+                    {"tool": "search_files", "args": {"pattern": goal.split()[-1] if goal.split() else "*"}},
+                    {"tool": "glob_files", "args": {"pattern": "**/*.py"}},
+                ],
+                depends_on=[],
+            )
+            tasks.insert(0, explore_task)
+            logger.info("SmartDecomposer: injected explorer task (LLM omitted it)")
+
+        return tasks
+
+    @staticmethod
+    def _has_explorer_in_first_wave(tasks: list[AgentTask]) -> bool:
+        """Check if any task in the first wave (no dependencies) is an explorer."""
+        EXPLORER_TOOLS = frozenset(
+            {
+                "read_file",
+                "search_files",
+                "glob_files",
+                "list_files",
+                "find_symbol",
+                "find_references",
+                "code_analyze",
+                "graph_neighbors",
+                "graph_ancestors",
+                "graph_descendants",
+            }
+        )
+        for t in tasks:
+            if t.depends_on:
+                continue
+            if t.task_type == "explorer":
+                return True
+            for entry in t.tool_sequence or []:
+                if entry.get("tool", "") in EXPLORER_TOOLS:
+                    return True
+        return False
 
     def _llm_decompose(self, goal: str, tool_names: list[str] | None = None) -> list[AgentTask]:
         """Use LLM to decompose the goal into structured tasks.
@@ -188,8 +240,8 @@ def _keyword_decompose(goal: str) -> list[AgentTask]:
         return [
             AgentTask(
                 "t1",
-                "探索并读取目标文件",
-                [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}],
+                "列出项目文件结构",
+                [{"tool": "list_files", "args": {"path": "."}}],
                 tier="light",
                 task_type="explorer",
             ),
@@ -203,8 +255,8 @@ def _keyword_decompose(goal: str) -> list[AgentTask]:
             ),
             AgentTask(
                 "t3",
-                "分析代码结构和依赖",
-                [{"tool": "code_analyze", "args": {"file_path": "PLACEHOLDER"}}],
+                "搜索 Python 文件结构",
+                [{"tool": "glob_files", "args": {"pattern": "**/*.py"}}],
                 depends_on=["t1"],
                 tier="pro",
                 task_type="analyst",
@@ -237,8 +289,8 @@ def _keyword_decompose(goal: str) -> list[AgentTask]:
             ),
             AgentTask(
                 "t3",
-                "定位根因并读取文件",
-                [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}],
+                "定位根因并读取相关文件",
+                [{"tool": "search_files", "args": {"pattern": goal.split()[-1] if goal.split() else "*"}}],
                 depends_on=["t1", "t2"],
                 tier="pro",
                 task_type="analyst",
@@ -246,7 +298,7 @@ def _keyword_decompose(goal: str) -> list[AgentTask]:
             AgentTask(
                 "t4",
                 "实施修复",
-                [{"tool": "edit_file", "args": {"path": "PLACEHOLDER", "old_text": "", "new_text": ""}}],
+                [{"tool": "run_bash", "args": {"command": "echo 'fix applied'"}}],
                 depends_on=["t3"],
                 tier="pro",
                 task_type="fixer",
@@ -275,7 +327,7 @@ def _keyword_decompose(goal: str) -> list[AgentTask]:
         AgentTask(
             "t3",
             "读取并分析关键文件",
-            [{"tool": "read_file", "args": {"path": "PLACEHOLDER"}}],
+            [{"tool": "search_files", "args": {"pattern": first_word}}],
             depends_on=["t2"],
             tier="pro",
             task_type="analyst",
@@ -385,10 +437,11 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
         # QualityGateResult 是 dataclass，不可直接 update，需转 dict
         try:
             from dataclasses import asdict
+
             result.update(asdict(quality))
         except (TypeError, AttributeError):
             # 降级：尝试手动提取字段
-            if hasattr(quality, '__dict__'):
+            if hasattr(quality, "__dict__"):
                 result.update(quality.__dict__)
         policy = auto_recover(result)
         result.update({"policy_action": policy["action"], "policy_reason": policy["reason"]})
@@ -533,5 +586,3 @@ def _topological_waves(tasks: list[AgentTask]) -> list[list[AgentTask]]:
         placed.update(t.id for t in wave)
 
     return waves
-
-

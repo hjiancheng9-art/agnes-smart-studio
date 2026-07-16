@@ -123,7 +123,7 @@ class SessionTrace:
         """Save session trace to JSON file."""
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(self.to_dict(), f, indent=2, ensure_ascii=False)
+            json.dump(self.to_dict(), f, indent=2, ensure_ascii=False, default=str)
 
     @staticmethod
     def load(path: str) -> SessionTrace:
@@ -586,7 +586,7 @@ class EvalWorkspace:
                         "duration": round(t.duration, 1),
                     })
                 except Exception:
-                    import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                    logger.debug("Exception in evaluation", exc_info=True)
         return traces
 
     def run_eval(self, session_ids: list[str] | None = None) -> Scorecard:
@@ -604,7 +604,7 @@ class EvalWorkspace:
                     try:
                         traces.append(SessionTrace.load(os.path.join(self.traces_dir, f)))
                     except Exception:
-                        import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                        logger.debug("Exception in evaluation", exc_info=True)
 
         engine = EvalEngine()
         return engine.evaluate(traces)

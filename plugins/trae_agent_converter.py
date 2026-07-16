@@ -23,28 +23,28 @@ def cmd_trae_convert(args: list[str]) -> str:
     """导入 trae agent JSON 文件 → skill.json"""
     if not args:
         return "用法: /trae-convert <agent.json>\n从 trae agent JSON 生成 CRUX skill"
-    
+
     filepath = args[0]
     if not os.path.isfile(filepath):
         return f"文件不存在: {filepath}"
-    
+
     try:
-        with open(filepath, "r", encoding="utf-8") as f:
+        with open(filepath, encoding="utf-8") as f:
             data = json.load(f)
     except json.JSONDecodeError as e:
         return f"JSON 解析失败: {e}"
-    
+
     if isinstance(data, list):
         data = data[0]
-    
+
     # 调用转换器
     from tools.trae_to_skill import trae_to_skill
     name = data.get("agentName", data.get("name", Path(filepath).stem))
     skill_name = name.lower().replace(" ", "-").replace("_", "-")
     out_path = SKILLS_DIR / f"{skill_name}.skill.json"
-    
+
     skill = trae_to_skill(data, str(out_path))
-    
+
     return (
         f"✅ 转换完成！\n"
         f"   源文件: {filepath}\n"
@@ -59,16 +59,16 @@ def cmd_trae_export(args: list[str]) -> str:
     """导出 skill.json → trae agent 格式"""
     if not args:
         return "用法: /trae-export <skill.json>\n导出 CRUX skill 为 trae agent 格式"
-    
+
     filepath = args[0]
     if not os.path.isfile(filepath):
         return f"文件不存在: {filepath}"
-    
+
     out_path = args[1] if len(args) > 1 else filepath.replace(".skill.json", ".trae-agent.json")
-    
+
     from tools.trae_to_skill import skill_to_trae
     trae = skill_to_trae(filepath, out_path)
-    
+
     return (
         f"✅ 导出完成！\n"
         f"   源文件: {filepath}\n"
@@ -81,20 +81,20 @@ def cmd_trae_batch(args: list[str]) -> str:
     """批量转换目录下所有 JSON"""
     if not args:
         return "用法: /trae-batch <input_dir> [output_dir]\n批量转换 trae agent JSON → skill.json"
-    
+
     input_dir = args[0]
     output_dir = args[1] if len(args) > 1 else "skills"
-    
+
     if not os.path.isdir(input_dir):
         return f"目录不存在: {input_dir}"
-    
+
     from tools.trae_to_skill import batch_convert
     results = batch_convert(input_dir, output_dir)
-    
+
     lines = [f"✅ 批量转换完成: {len(results)} 个"]
     for src, dst, status in results:
         lines.append(f"   {'✓' if status == 'ok' else '✗'} {src} → {dst}")
-    
+
     return "\n".join(lines)
 
 
@@ -102,10 +102,10 @@ def cmd_trae_new(args: list[str]) -> str:
     """手动创建一个 agent 并转为 skill.json"""
     if not args:
         return "用法: /trae-new <name> [description]\n手动创建新 agent skill"
-    
+
     name = args[0]
     desc = args[1] if len(args) > 1 else f"{name} agent"
-    
+
     return (
         f"准备创建 agent: {name}\n"
         f"描述: {desc}\n\n"

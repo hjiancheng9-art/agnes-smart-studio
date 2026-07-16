@@ -5,22 +5,44 @@ Maps MCP tools/call → Kimi ACP → returns results.
 """
 
 import json
+import os
+import shutil
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-KIMI_EXE = str(Path.home() / ".kimi-code" / "bin" / "kimi.exe")
+_KIMI_BINARY: str | None = None
 
 
-def _kimi_acp(method: str, params: dict = None, timeout: int = 180) -> dict:  # pyright: ignore[reportArgumentType]
+def _resolve_kimi() -> str | None:
+    """Find kimi binary with fallback chain."""
+    global _KIMI_BINARY
+    if _KIMI_BINARY is not None:
+        return _KIMI_BINARY
+    candidates = [
+        str(Path.home() / ".kimi-code" / "bin" / "kimi.exe"),
+        shutil.which("kimi"),
+        shutil.which("kimi.exe"),
+    ]
+    for c in candidates:
+        if c and os.path.isfile(c):
+            _KIMI_BINARY = c
+            return _KIMI_BINARY
+    return None
+
+
+def _kimi_acp(method: str, params: dict | None = None, timeout: int = 180) -> dict:
     """Send a JSON-RPC request to Kimi ACP and return response."""
+    binary = _resolve_kimi()
+    if not binary:
+        return {"error": {"message": "Kimi CLI binary not found"}}
     if params is None:
         params = {}
     req = json.dumps({"jsonrpc": "2.0", "method": method, "params": params, "id": 1}) + "\n"
 
     proc = subprocess.Popen(
-        [KIMI_EXE, "acp"],
+        [binary, "acp"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -134,8 +156,27 @@ def main():
 
             if tool_name == "kimi_status":
                 try:
+                    binary = _resolve_kimi()
+                    if not binary:
+                        _send_response(
+                            {
+                                "jsonrpc": "2.0",
+                                "id": req_id,
+                                "result": {
+                                    "content": [
+                                        {
+                                            "type": "text",
+                                            "text": json.dumps(
+                                                {"status": "error", "error": "Kimi CLI binary not found"}
+                                            ),
+                                        }
+                                    ]
+                                },
+                            }
+                        )
+                        continue
                     r = subprocess.run(
-                        [KIMI_EXE, "--version"],
+                        [binary, "--version"],
                         capture_output=True,
                         text=True,
                         timeout=10,

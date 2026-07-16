@@ -58,11 +58,16 @@ class SelfHealer:
 
     # ── Scanners ──────────────────────────────────────
 
+    def _skip_path(self, path: Path) -> bool:
+        """Check if a path should be skipped during scanning."""
+        p = str(path)
+        return any(x in p for x in ("site-packages", "__pycache__", "node_modules", "tmp" + os.sep, os.sep + "tmp"))
+
     def scan_silent_exceptions(self):
         """Find bare except: pass without logging."""
         pattern_lines = ("except Exception:", "except:", "except Exception as", "except BaseException")
         for py_file in ROOT.rglob("*.py"):
-            if "site-packages" in str(py_file) or "__pycache__" in str(py_file) or "node_modules" in str(py_file):
+            if self._skip_path(py_file):
                 continue
             if "tests" in str(py_file.parent).split(os.sep):
                 continue
@@ -93,7 +98,7 @@ class SelfHealer:
     def scan_syntax(self):
         """Check all Python files for syntax errors."""
         for py_file in ROOT.rglob("*.py"):
-            if "site-packages" in str(py_file) or "__pycache__" in str(py_file) or "node_modules" in str(py_file):
+            if self._skip_path(py_file):
                 continue
             try:
                 source = py_file.read_text(encoding="utf-8")
@@ -109,6 +114,8 @@ class SelfHealer:
                         fixable=False,
                     )
                 )
+            except (ValueError, OSError) as e:
+                logger.debug("self_heal: skipped %s (%s: %s)", py_file, type(e).__name__, e)
 
     def scan_test_failures(self):
         """Run pytest --collect-only to find collection errors first, then check if tests pass."""

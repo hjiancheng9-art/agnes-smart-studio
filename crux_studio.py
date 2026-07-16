@@ -299,7 +299,7 @@ def _chat_tui():
                     session.messages = msgs
                     session.model = snapshot.get("model", session.model)
                     print(f"  已恢复 {msg_count} 条消息到上下文，模型: {session.model}")
-                    print(f"  (消息已在后台，模型知道之前聊了什么，但界面不重复显示)")
+                    print("  (消息已在后台，模型知道之前聊了什么，但界面不重复显示)")
             except (EOFError, KeyboardInterrupt):
                 pass
     except Exception as e:

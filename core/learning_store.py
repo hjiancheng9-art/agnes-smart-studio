@@ -30,15 +30,16 @@ logger = logging.getLogger(__name__)
 @dataclass
 class LearningRecord:
     """单条学习记录"""
+
     episode_id: str = ""
     trace_run_id: str = ""
-    failure_type: str = ""   # route_mismatch / plan_incomplete / critic_missed / repair_failed / verify_failed
+    failure_type: str = ""  # route_mismatch / plan_incomplete / critic_missed / repair_failed / verify_failed
     request: str = ""
     routed_mode: str = ""
     expected_mode: str = ""
-    diagnosis: str = ""       # 自然语言诊断
+    diagnosis: str = ""  # 自然语言诊断
     severity: str = "medium"  # low / medium / high / critical
-    root_cause: str = ""      # 根因一句话
+    root_cause: str = ""  # 根因一句话
     policy_patch: dict[str, Any] | None = None  # 调参建议
     applied: bool = False
     effectiveness: float = 0.0  # 0.0 ~ 1.0
@@ -70,6 +71,7 @@ class LearningRecord:
 @dataclass
 class LearningSummary:
     """学习汇总"""
+
     total_episodes: int = 0
     applied_count: int = 0
     failure_type_dist: dict[str, int] = field(default_factory=dict)
@@ -127,30 +129,32 @@ class LearningStore:
         """保存一条学习记录"""
         try:
             conn = self._get_conn()
-            conn.execute(
-                """INSERT OR REPLACE INTO learning_records
-                   (episode_id, trace_run_id, failure_type, request,
-                    routed_mode, expected_mode, diagnosis, severity,
-                    root_cause, policy_patch, applied, effectiveness, timestamp)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    record.episode_id,
-                    record.trace_run_id,
-                    record.failure_type,
-                    record.request[:500],
-                    record.routed_mode,
-                    record.expected_mode,
-                    record.diagnosis[:1000],
-                    record.severity,
-                    record.root_cause[:500],
-                    json.dumps(record.policy_patch, ensure_ascii=False) if record.policy_patch else None,
-                    int(record.applied),
-                    record.effectiveness,
-                    record.timestamp,
-                ),
-            )
-            conn.commit()
-            conn.close()
+            try:
+                conn.execute(
+                    """INSERT OR REPLACE INTO learning_records
+                       (episode_id, trace_run_id, failure_type, request,
+                        routed_mode, expected_mode, diagnosis, severity,
+                        root_cause, policy_patch, applied, effectiveness, timestamp)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        record.episode_id,
+                        record.trace_run_id,
+                        record.failure_type,
+                        record.request[:500],
+                        record.routed_mode,
+                        record.expected_mode,
+                        record.diagnosis[:1000],
+                        record.severity,
+                        record.root_cause[:500],
+                        json.dumps(record.policy_patch, ensure_ascii=False) if record.policy_patch else None,
+                        int(record.applied),
+                        record.effectiveness,
+                        record.timestamp,
+                    ),
+                )
+                conn.commit()
+            finally:
+                conn.close()
             return record.episode_id
         except Exception as e:
             logger.warning(f"LearningStore 记录失败: {e}")
@@ -160,39 +164,42 @@ class LearningStore:
         """获取单条学习记录"""
         try:
             conn = self._get_conn()
-            row = conn.execute(
-                "SELECT * FROM learning_records WHERE episode_id = ?",
-                (episode_id,),
-            ).fetchone()
-            conn.close()
+            try:
+                row = conn.execute(
+                    "SELECT * FROM learning_records WHERE episode_id = ?",
+                    (episode_id,),
+                ).fetchone()
+            finally:
+                conn.close()
             if row:
                 return self._row_to_record(row)
             return None
         except Exception:
             return None
 
-    def query(self, failure_type: str | None = None,
-              severity: str | None = None,
-              applied: bool | None = None,
-              limit: int = 50) -> list[LearningRecord]:
+    def query(
+        self, failure_type: str | None = None, severity: str | None = None, applied: bool | None = None, limit: int = 50
+    ) -> list[LearningRecord]:
         """查询学习记录"""
         try:
             conn = self._get_conn()
-            sql = "SELECT * FROM learning_records WHERE 1=1"
-            params: list[Any] = []
-            if failure_type:
-                sql += " AND failure_type = ?"
-                params.append(failure_type)
-            if severity:
-                sql += " AND severity = ?"
-                params.append(severity)
-            if applied is not None:
-                sql += " AND applied = ?"
-                params.append(int(applied))
-            sql += " ORDER BY timestamp DESC LIMIT ?"
-            params.append(limit)
-            rows = conn.execute(sql, params).fetchall()
-            conn.close()
+            try:
+                sql = "SELECT * FROM learning_records WHERE 1=1"
+                params: list[Any] = []
+                if failure_type:
+                    sql += " AND failure_type = ?"
+                    params.append(failure_type)
+                if severity:
+                    sql += " AND severity = ?"
+                    params.append(severity)
+                if applied is not None:
+                    sql += " AND applied = ?"
+                    params.append(int(applied))
+                sql += " ORDER BY timestamp DESC LIMIT ?"
+                params.append(limit)
+                rows = conn.execute(sql, params).fetchall()
+            finally:
+                conn.close()
             return [self._row_to_record(r) for r in rows]
         except Exception:
             return []
@@ -201,12 +208,14 @@ class LearningStore:
         """标记调参已应用"""
         try:
             conn = self._get_conn()
-            conn.execute(
-                "UPDATE learning_records SET applied = 1, effectiveness = ? WHERE episode_id = ?",
-                (effectiveness, episode_id),
-            )
-            conn.commit()
-            conn.close()
+            try:
+                conn.execute(
+                    "UPDATE learning_records SET applied = 1, effectiveness = ? WHERE episode_id = ?",
+                    (effectiveness, episode_id),
+                )
+                conn.commit()
+            finally:
+                conn.close()
             return True
         except Exception:
             return False
@@ -216,43 +225,47 @@ class LearningStore:
         summary = LearningSummary()
         try:
             conn = self._get_conn()
-            # Total
-            summary.total_episodes = conn.execute(
-                "SELECT COUNT(*) as c FROM learning_records"
-            ).fetchone()["c"]
-            # Applied
-            summary.applied_count = conn.execute(
-                "SELECT COUNT(*) as c FROM learning_records WHERE applied = 1"
-            ).fetchone()["c"]
-            # Failure type distribution
-            rows = conn.execute(
-                "SELECT failure_type, COUNT(*) as c FROM learning_records GROUP BY failure_type ORDER BY c DESC"
-            ).fetchall()
-            summary.failure_type_dist = {r["failure_type"]: r["c"] for r in rows if r["failure_type"]}
-            # Avg effectiveness
-            avg = conn.execute(
-                "SELECT AVG(effectiveness) as avg FROM learning_records WHERE applied = 1 AND effectiveness > 0"
-            ).fetchone()["avg"]
-            summary.avg_effectiveness = round(avg or 0.0, 3)
-            # Top root causes
-            rows = conn.execute(
-                "SELECT root_cause, COUNT(*) as c FROM learning_records WHERE root_cause != '' GROUP BY root_cause ORDER BY c DESC LIMIT 5"
-            ).fetchall()
-            summary.top_root_causes = [(r["root_cause"], r["c"]) for r in rows]
-            conn.close()
+            try:
+                # Total
+                summary.total_episodes = conn.execute("SELECT COUNT(*) as c FROM learning_records").fetchone()["c"]
+                # Applied
+                summary.applied_count = conn.execute(
+                    "SELECT COUNT(*) as c FROM learning_records WHERE applied = 1"
+                ).fetchone()["c"]
+                # Failure type distribution
+                rows = conn.execute(
+                    "SELECT failure_type, COUNT(*) as c FROM learning_records GROUP BY failure_type ORDER BY c DESC"
+                ).fetchall()
+                summary.failure_type_dist = {r["failure_type"]: r["c"] for r in rows if r["failure_type"]}
+                # Avg effectiveness
+                avg = conn.execute(
+                    "SELECT AVG(effectiveness) as avg FROM learning_records WHERE applied = 1 AND effectiveness > 0"
+                ).fetchone()["avg"]
+                summary.avg_effectiveness = round(avg or 0.0, 3)
+                # Top root causes
+                rows = conn.execute(
+                    "SELECT root_cause, COUNT(*) as c FROM learning_records WHERE root_cause != '' GROUP BY root_cause ORDER BY c DESC LIMIT 5"
+                ).fetchall()
+                summary.top_root_causes = [(r["root_cause"], r["c"]) for r in rows]
+            finally:
+                conn.close()
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            logging.getLogger("crux").debug("silent except", exc_info=True)
         return summary
 
     def clear(self) -> None:
         """清空所有记录"""
         try:
             conn = self._get_conn()
-            conn.execute("DELETE FROM learning_records")
-            conn.commit()
-            conn.close()
+            try:
+                conn.execute("DELETE FROM learning_records")
+                conn.commit()
+            finally:
+                conn.close()
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            import logging
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
 
     def _row_to_record(self, row: sqlite3.Row) -> LearningRecord:
         try:

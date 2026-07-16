@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from prompt_toolkit.styles import Style
-
-from ui.theme import COLORS as C, build_style
+from ui.theme import COLORS as C
+from ui.theme import build_style
 
 
 class TestBuildStyle:

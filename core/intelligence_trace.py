@@ -264,7 +264,7 @@ class TraceStore:
             conn.commit()
             conn.close()
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            logger.debug("Exception in intelligence_trace", exc_info=True)
 
 
 # ── 全局单例 ──

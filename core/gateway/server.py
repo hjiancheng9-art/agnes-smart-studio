@@ -12,18 +12,16 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-import uvicorn
 
 from core.gateway.protocol import (
     ChatCompletionRequest,
     ChatCompletionResponse,
-    ModelInfo,
-    ModelList,
 )
-from core.gateway.runner import GatewayRunner, AVAILABLE_MODELS, list_models
+from core.gateway.runner import AVAILABLE_MODELS, GatewayRunner, list_models
 
 logger = logging.getLogger("crux.gateway")
 

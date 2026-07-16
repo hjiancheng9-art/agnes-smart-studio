@@ -5,11 +5,9 @@ import os
 import sys
 import time
 
-import pytest
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.daemon import Daemon, DaemonState, StartupDiagnostics
+from core.daemon import Daemon, StartupDiagnostics
 
 
 class TestStartupDiagnostics:
@@ -82,6 +80,7 @@ class TestDaemonWebSocket:
 
     def _ws(self, payload: dict) -> dict:
         import asyncio
+
         import websockets
         async def doit():
             async with websockets.connect(self.ws_url, open_timeout=5) as ws:
@@ -109,6 +108,7 @@ class TestDaemonWebSocket:
 
     def test_invalid_json(self):
         import asyncio
+
         import websockets
         async def doit():
             async with websockets.connect(self.ws_url, open_timeout=5) as ws:
@@ -119,6 +119,7 @@ class TestDaemonWebSocket:
 
     def test_concurrent(self):
         import asyncio
+
         import websockets
         async def client():
             async with websockets.connect(self.ws_url, open_timeout=5) as ws:

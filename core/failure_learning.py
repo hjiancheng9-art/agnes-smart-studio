@@ -401,7 +401,7 @@ class RegressionExporter:
                         "user_message": (data.get("user_message", "") or "")[:80],
                     })
                 except Exception:
-                    import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                    logger.debug("Exception in failure_learning", exc_info=True)
         return cases
 
     def import_to_eval(self) -> list[dict]:
@@ -427,7 +427,7 @@ class RegressionExporter:
                 ))
                 sessions.append(session)
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                logger.debug("Exception in failure_learning", exc_info=True)
         return sessions
 
 

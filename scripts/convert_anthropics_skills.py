@@ -11,8 +11,8 @@ Parses YAML frontmatter + markdown body, outputs to skills/{name}.skill.json
 import json
 import os
 import sys
-import urllib.request
 import urllib.error
+import urllib.request
 
 # ── Skill list ──────────────────────────────────────────────
 ANTHROPICS_SKILLS = [
@@ -79,9 +79,7 @@ def parse_skill_md(text: str) -> tuple[str, str, dict]:
             key = key.strip()
             value = value.strip()
             # Remove quotes
-            if value.startswith('"') and value.endswith('"'):
-                value = value[1:-1]
-            elif value.startswith("'") and value.endswith("'"):
+            if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
                 value = value[1:-1]
             meta[key] = value
 

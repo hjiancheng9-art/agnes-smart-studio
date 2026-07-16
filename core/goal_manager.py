@@ -224,7 +224,7 @@ class GoalManager:
                 _fcntl_module.flock(lock_fd, _fcntl_module.LOCK_EX)
                 try:
                     tmp = self._path.with_suffix(".json.tmp")
-                    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+                    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
                     os.replace(tmp, self._path)
                 finally:
                     _fcntl_module.flock(lock_fd, _fcntl_module.LOCK_UN)

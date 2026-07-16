@@ -103,7 +103,7 @@ def _gate_cdp_chatgpt(args: dict) -> tuple[bool, str]:
     q_lower = str(question).lower().strip()
     for pat in trivial_patterns:
         if re.search(pat, q_lower) and len(q_lower) < 60:
-            return True, f"CDP ChatGPT: 简单问题 DeepSeek 自己能答"
+            return True, "CDP ChatGPT: 简单问题 DeepSeek 自己能答"
 
     # 3. 代码/文件操作 → 拦截（DeepSeek 更擅长）
     code_patterns = [

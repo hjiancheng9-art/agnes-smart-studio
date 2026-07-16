@@ -62,7 +62,7 @@ class Rule:
         self.scene = scene
 
     @staticmethod
-    def from_file(path: Path) -> "Rule":
+    def from_file(path: Path) -> Rule:
         """从 .rules.md 文件加载规则。
 
         支持 YAML frontmatter（可选）::

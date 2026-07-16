@@ -182,6 +182,7 @@ _playwright_module = None
 _active_playwright = None
 _active_browsers: dict[str, object] = {}
 _chromium_checked = False
+_active_edge_proc = None  # track Edge CDP process for cleanup
 
 
 def _get_playwright():
@@ -234,17 +235,23 @@ def _get_browser_context(provider_id: str):
 
     # ── 优先连接已有 CDP 浏览器（检查端口，不重复启动）──
     import socket
+
     s = socket.socket()
     port_open = s.connect_ex(("127.0.0.1", 9222)) == 0
     s.close()
     if not port_open:
         # 自动启动 Edge CDP（只启动一次）
         import subprocess as _sp
+
+        global _active_edge_proc
         edge_path = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-        _sp.Popen([edge_path, "--remote-debugging-port=9222",
-            "--no-first-run", "--no-default-browser-check", "about:blank"],
-            stdout=_sp.DEVNULL, stderr=_sp.DEVNULL)
+        _active_edge_proc = _sp.Popen(
+            [edge_path, "--remote-debugging-port=9222", "--no-first-run", "--no-default-browser-check", "about:blank"],
+            stdout=_sp.DEVNULL,
+            stderr=_sp.DEVNULL,
+        )
         import time as _t
+
         _t.sleep(4)
 
     try:
@@ -591,7 +598,9 @@ def _gemini_generate(prompt: str, image_path: str = "", config: dict | None = No
             ensure_ascii=False,
         )
     except (json.JSONDecodeError, TypeError, KeyError, OSError) as e:
-        return json.dumps({"success": False, "fallback": "playwright", "error": f"Gemini API 错误: {e}"}, ensure_ascii=False)
+        return json.dumps(
+            {"success": False, "fallback": "playwright", "error": f"Gemini API 错误: {e}"}, ensure_ascii=False
+        )
 
 
 # ============================================================

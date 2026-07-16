@@ -1,9 +1,7 @@
 """Tests for core/chat.py — session snapshot, routing integration, edge cases."""
 
 import json
-import os
-import pytest
-from pathlib import Path
+
 from core.chat import ChatSession, _PipelineToolbus
 
 

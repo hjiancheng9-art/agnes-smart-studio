@@ -332,7 +332,7 @@ class DiffGuard:
                     with open(path, encoding="utf-8", errors="replace") as f:
                         old = f.read()
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                logger.debug("Exception in result_validator", exc_info=True)
 
         diff_lines = list(difflib.unified_diff(
             old.splitlines(keepends=True),

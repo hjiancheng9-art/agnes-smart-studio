@@ -403,6 +403,7 @@ class TuiAppV2:
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
         self._thinking = False
         self._streaming = False
+        self._live_phase = ""  # what CRUX is doing right now (shown in status bar)
         # ── Control Plane ──
         self._pending_msg_id: str | None = None
         self._pending_text: str = ""
@@ -1150,8 +1151,17 @@ class TuiAppV2:
         tw = _tw()
 
         # ── Status: dot + model + cwd + git | context bar + latency ──
-        # Status dot color: green=idle, yellow=thinking
-        status_dot = ("class:status-bar-beast-qilin", "◉") if self._thinking else ("class:status-bar-beast-xuanwu", "●")
+        # Status dot: pulsing heartbeat when working, solid when idle
+        if self._thinking:
+            _pulse = int(time.time() * 2.5) % 4
+            _pulse_chars = ["◉", "◎", "◉", "○"]
+            status_dot = ("class:status-bar-beast-qilin", _pulse_chars[_pulse])
+            # Live phase indicator — what CRUX is doing right now
+            _phase = getattr(self, "_live_phase", "思考中")
+            _phase_str = f" {_phase}"
+        else:
+            status_dot = ("class:status-bar-beast-xuanwu", "●")
+            _phase_str = ""
 
         model_str = self.session.model or "CRUX"
         cwd_str = str(self.cwd)
@@ -1236,8 +1246,10 @@ class TuiAppV2:
         pieces: list[tuple[str, str]] = [
             (sd_style, f" {sd_char} "),
             ("class:status-bar-model", model_str),
-            ("class:status-bar-path", f"  {cwd_str}"),
         ]
+        if _phase_str:
+            pieces.append(("class:status-bar-beast-qilin", _phase_str))
+        pieces.append(("class:status-bar-path", f"  {cwd_str}"))
         if git_str:
             pieces.append(("class:status-bar-git", git_str))
 
@@ -1712,7 +1724,7 @@ class TuiAppV2:
                 # Mark old timer as cancelled so it becomes a no-op
                 self._pending_cancelled = True
             except Exception:
-                pass
+                logger.debug("Exception in tui_v2", exc_info=True)
 
         self._pending_cancelled = False
 
@@ -1878,7 +1890,16 @@ class TuiAppV2:
                     try:
                         self._log_append(("⏱", "class:activity-warn", f"Stream 超时 ({idle:.0f}s 无响应)"))
                     except Exception:
-                        pass
+                        logger.debug("Exception in tui_v2", exc_info=True)
+                    # Cancel the run so TUI exits streaming state and input recovers
+                    try:
+                        control().cancel_run("stream timeout")
+                    except Exception:
+                        logger.debug("Exception in tui_v2", exc_info=True)
+                    try:
+                        self._cancel_current_response()
+                    except Exception:
+                        logger.debug("Exception in tui_v2", exc_info=True)
                     return
 
         _timeout_thread = threading.Thread(target=_timeout_guard, daemon=True)
@@ -1893,7 +1914,8 @@ class TuiAppV2:
                 _last_event = time.monotonic()  # reset inactivity timer
                 if not _first_token and kind in ("text", "thinking"):
                     _first_token = True
-                    self._latency = time.monotonic() - _t0  # ── 检查优先插话标记（工具边界已设置） ──
+                    self._latency = time.monotonic() - _t0
+                    self._live_phase = "生成中"  # ── 检查优先插话标记（工具边界已设置） ──
                 _interrupted_flag = False
                 with self._state_lock:
                     _interrupted_flag = getattr(self, "_interrupted_by_priority", False)
@@ -1912,6 +1934,7 @@ class TuiAppV2:
                         tool_name = msg[5:].rstrip(".")
                         _tool_seq += 1
                         pending_tool = tool_name
+                        self._live_phase = f"#{_tool_seq} {tool_name}"
                         self._log_append(("●", "class:activity-running", f"#{_tool_seq} {tool_name}"))
                     elif msg.startswith("正在生成"):
                         action = msg[2:].rstrip(".")
@@ -2044,6 +2067,7 @@ class TuiAppV2:
             with self._state_lock:
                 self._streaming = False
                 self._thinking = False
+            self._live_phase = ""
             self.thinking_panel.done()
             self._spinner.stop()
             self._ui(self._refresh_status, _force=True)
@@ -2108,7 +2132,7 @@ class TuiAppV2:
 
             Watchdog.beat("TUI")
         except Exception:
-            pass
+            logger.debug("Exception in tui_v2", exc_info=True)
         try:
             if a:
                 fn(*a)
@@ -2124,7 +2148,11 @@ class TuiAppV2:
                 thinking = getattr(self, "_thinking", False)
                 if _force or not thinking or now - last > 0.030:
                     self._last_invalidate = now
-                    app.invalidate()
+                    # Thread-safe: use call_soon_threadsafe for worker-thread calls
+                    if hasattr(app, 'call_soon_threadsafe'):
+                        app.call_soon_threadsafe(app.invalidate)
+                    else:
+                        app.invalidate()
         except Exception:
             if not getattr(self, "_invalidate_failed_once", False):
                 self._invalidate_failed_once = True
@@ -2374,9 +2402,22 @@ class TuiAppV2:
                 # P0: restore terminal mouse mode on every tick.
                 # Subprocess output / external commands can emit ANSI sequences
                 # (\033[?1000l etc.) that disable mouse tracking, breaking scroll.
+                # Use prompt_toolkit's API rather than raw stdout writes to avoid
+                # conflicting with ptk's internal mouse state tracking.
+                try:
+                    _app = self._app
+                    if _app is not None and hasattr(_app.output, "enable_mouse_support"):
+                        _app.output.enable_mouse_support()
+                except Exception:
+                    logger.debug("Exception in tui_v2", exc_info=True)
                 if self._mouse_guard is not None:
                     self._mouse_guard.restore()
-                self._app.invalidate()
+                # Thread-safe invalidate (heartbeat runs on Timer thread)
+                _app = self._app
+                if _app is not None and hasattr(_app, 'call_soon_threadsafe'):
+                    _app.call_soon_threadsafe(_app.invalidate)
+                elif _app is not None:
+                    _app.invalidate()
                 self._heartbeat_timer = threading.Timer(2.0, _heartbeat_tick)
                 self._heartbeat_timer.daemon = True
                 self._heartbeat_timer.start()
@@ -2393,7 +2434,7 @@ class TuiAppV2:
                 sys.stderr.write("The launcher will restart the TUI automatically.\n")
                 sys.stderr.flush()
             except Exception:
-                pass
+                logger.debug("Exception in tui_v2", exc_info=True)
             traceback.print_exc(file=sys.stderr)
         finally:
             self._anim_running = False

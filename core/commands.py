@@ -284,6 +284,15 @@ COMMANDS: list[CommandDef] = [
         "通过命令行交互创建新 agent 并生成 skill.json",
         handler="_chat_trae_new",
     ),
+    CommandDef(
+        "orchestrate",
+        "/orchestrate",
+        "<任务描述>",
+        "全能力编排：自动A/B/C/D分级+DNA人格+七兽护航+流式执行",
+        "任务工程",
+        long_desc="六阶段流水线(GATE→CONTEXT→PLAN→EXECUTE→VERIFY→CLOSE)。自动分级，选择DNA人格，激活七兽。支持: /orchestrate --preview <任务> (仅预览计划)。",
+        handler="_chat_orchestrate",
+    ),
 ]
 
 # Special skill-load entries for /help display

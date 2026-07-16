@@ -18,10 +18,9 @@ trae_to_skill.py — Trae Agent → CRUX Skill 转换器
 
 import json
 import os
-import sys
 import re
+import sys
 from pathlib import Path
-from typing import Optional
 
 # ─── Schema 映射 ───────────────────────────────────────────────
 # trae AgentSchema (逆向自 trae.cn JS)
@@ -49,7 +48,7 @@ def parse_trae_config(config: dict) -> tuple:
     return model, {"max_tokens": max_tokens, "temperature": temperature}
 
 
-def trae_to_skill(trae_data: dict, output_path: Optional[str] = None) -> dict:
+def trae_to_skill(trae_data: dict, output_path: str | None = None) -> dict:
     """
     将 trae agent JSON 转换为 CRUX skill.json 格式
     
@@ -66,7 +65,7 @@ def trae_to_skill(trae_data: dict, output_path: Optional[str] = None) -> dict:
     )
     prompt_text = trae_data.get("agentPrompt", trae_data.get("prompt", ""))
     icon = trae_data.get("agentIcon", "")
-    
+
     # 工具列表
     tools = []
     for t in trae_data.get("agentTools", trae_data.get("tools", [])):
@@ -74,18 +73,18 @@ def trae_to_skill(trae_data: dict, output_path: Optional[str] = None) -> dict:
             tools.append(t)
         elif isinstance(t, dict):
             tools.append(t.get("name", t.get("toolName", str(t))))
-    
+
     mcp_tools = []
     for t in trae_data.get("mcpTools", trae_data.get("mcpServers", [])):
         if isinstance(t, str):
             mcp_tools.append(t)
         elif isinstance(t, dict):
             mcp_tools.append(t.get("name", t.get("serverName", str(t))))
-    
+
     # 模型配置
     agent_config = trae_data.get("agentConfig", trae_data.get("config", {}))
     model, config_details = parse_trae_config(agent_config)
-    
+
     # 构建 CRUX skill.json
     skill = {
         "name": _to_skill_name(name),
@@ -110,33 +109,33 @@ def trae_to_skill(trae_data: dict, output_path: Optional[str] = None) -> dict:
             }
         ],
     }
-    
+
     if output_path:
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(skill, f, indent=2, ensure_ascii=False)
         print(f"✓ 写入: {output_path}")
-    
+
     return skill
 
 
-def skill_to_trae(skill_path: str, output_path: Optional[str] = None) -> dict:
+def skill_to_trae(skill_path: str, output_path: str | None = None) -> dict:
     """
     反向转换：CRUX skill.json → trae agent 格式
     """
-    with open(skill_path, "r", encoding="utf-8") as f:
+    with open(skill_path, encoding="utf-8") as f:
         skill = json.load(f)
-    
+
     prompt_content = ""
     for p in skill.get("prompt", []):
         if p.get("type") == "system":
             prompt_content = p.get("content", "")
             break
-    
+
     metadata = skill.get("metadata", {})
     config = skill.get("metadata", {}).get("config", {})
     model = skill.get("models", ["deepseek-v4-flash"])[0]
-    
+
     trae_agent = {
         "agentName": metadata.get("original_name", skill.get("name", "")),
         "agentDescription": skill.get("description", ""),
@@ -151,12 +150,12 @@ def skill_to_trae(skill_path: str, output_path: Optional[str] = None) -> dict:
             "temperature": config.get("temperature", 0.7),
         },
     }
-    
+
     if output_path:
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(trae_agent, f, indent=2, ensure_ascii=False)
         print(f"✓ 写入: {output_path}")
-    
+
     return trae_agent
 
 
@@ -165,21 +164,21 @@ def batch_convert(input_dir: str, output_dir: str = "skills") -> list:
     input_path = Path(input_dir)
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
-    
+
     results = []
     for f in input_path.glob("*.json"):
-        with open(f, "r", encoding="utf-8") as fh:
+        with open(f, encoding="utf-8") as fh:
             try:
                 data = json.load(fh)
             except json.JSONDecodeError:
                 print(f"✗ 跳过无效 JSON: {f.name}")
                 continue
-        
+
         out_file = output_path / f"{_to_skill_name(data.get('agentName', data.get('name', f.stem)))}.skill.json"
         skill = trae_to_skill(data, str(out_file))
         results.append((f.name, str(out_file), "ok"))
         print(f"  ✓ {f.name} → {out_file.name}")
-    
+
     return results
 
 
@@ -210,12 +209,12 @@ def cmd_import(args: list):
     if not args:
         print("用法: python tools/trae_to_skill.py import <agent.json | agent_name>")
         return
-    
+
     target = args[0]
-    
+
     if os.path.isfile(target):
         # 从文件导入
-        with open(target, "r", encoding="utf-8") as f:
+        with open(target, encoding="utf-8") as f:
             data = json.load(f)
         # 如果是一个列表，取第一个
         if isinstance(data, list):
@@ -229,7 +228,7 @@ def cmd_import(args: list):
         name = target
         desc = input("描述: ") if len(args) < 2 else args[1]
         prompt = input("Prompt (多行，空行结束):\n") if len(args) < 3 else args[2]
-        
+
         data = {
             "agentName": name,
             "agentDescription": desc,
@@ -314,10 +313,10 @@ def main():
     if len(sys.argv) < 2:
         cmd_list_tools()
         return
-    
+
     cmd = sys.argv[1]
     args = sys.argv[2:]
-    
+
     commands = {
         "import": cmd_import,
         "export": cmd_export,
@@ -325,7 +324,7 @@ def main():
         "schema": lambda _: cmd_schema(),
         "help": lambda _: cmd_list_tools(),
     }
-    
+
     if cmd in commands:
         commands[cmd](args)
     else:

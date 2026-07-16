@@ -100,7 +100,7 @@ def get_tool_schema(name: str) -> dict | None:
         if schema:
             return schema.get("parameters", {})
     except Exception:
-        import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+        logger.debug("Exception in tool_router", exc_info=True)
     return None
 
 

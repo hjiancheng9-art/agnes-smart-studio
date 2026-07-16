@@ -290,7 +290,7 @@ V2 审查规则 (必须遵守):
                     if f.is_valid():
                         findings.append(f)
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            logger.debug("Exception in critic_agent", exc_info=True)
         return findings
 
     async def security_review_check(self, files: list[str]) -> list[CritiqueFinding]:
@@ -315,7 +315,7 @@ V2 审查规则 (必须遵守):
                     if f.is_valid():
                         findings.append(f)
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            logger.debug("Exception in critic_agent", exc_info=True)
         return findings
 
     def _parse_code_review_output(self, text: str, source: str = "code_review") -> list[CritiqueFinding]:
@@ -362,7 +362,7 @@ V2 审查规则 (必须遵守):
                 if isinstance(response, str) and len(response) > 50:
                     all_findings.extend(self.parse_critic_response(response))
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                logger.debug("Exception in critic_agent", exc_info=True)
 
         # 2. Code Review
         if "code_review" in review_types and files:

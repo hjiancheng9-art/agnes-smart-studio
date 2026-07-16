@@ -29,7 +29,7 @@ def _classify_tool_intent(name: str) -> str | None:
         if entry and entry.category not in ("unknown", "status", "generate"):
             return entry.category
     except Exception:
-        pass
+        logger.debug("Exception in chat_tool_dispatch", exc_info=True)
     return None
 
 
@@ -318,6 +318,29 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
 
         except Exception as e:
             return (f"视频生成失败: {e}", side)
+    if name == "load_skill":
+        skill_name = args.get("name", "")
+        if not skill_name:
+            return ("[错误] load_skill 需要 name 参数", [])
+        result = self.load_skill(skill_name)
+        if result:
+            side: list[tuple[str, str | dict]] = [("info", f"已加载技能: {skill_name}")]
+            return (f"技能 '{skill_name}' 已加载。{result}", side)
+        return (f"技能 '{skill_name}' 未找到。用 list_skills 查看可用技能。", [])
+    if name == "list_skills":
+        self.skills.discover()
+        names = self.skills.list_available()
+        if not names:
+            return ("未发现可用技能。", [])
+        lines = [f"可用技能 ({len(names)} 个):"]
+        for n in sorted(names):
+            skill = self.skills._available.get(n)
+            trigger = skill.trigger if skill else "?"
+            lines.append(f"  - {n} [{trigger}]")
+        active = getattr(self, "active_skill", "")
+        if active:
+            lines.append(f"\n当前激活: {active}")
+        return ("\n".join(lines), [])
     if name == "multi_agent":
         goal = args.get("goal", "")
         side: list[tuple[str, str | dict]] = [("info", f"正在启动多智能体协调: {goal}")]
@@ -532,7 +555,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                     _preview += f" ... +{_count - 3} more"
                 side.append(("info", f"正在执行 agent_swarm: {_count} 个并行 {_role} → {_preview}"))
             else:
-                side.append(("info", f"正在执行 agent_swarm..."))
+                side.append(("info", "正在执行 agent_swarm..."))
         elif name == "multi_agent":
             _goal = args.get("goal", "")[:60]
             side.append(("info", f"正在执行 multi_agent: {_goal}"))

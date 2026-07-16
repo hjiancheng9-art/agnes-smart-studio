@@ -281,7 +281,7 @@ class BrowserController:
 
         # 方式2: 启动 Edge 浏览器（使用默认 profile，保留用户登录态）
         try:
-            from core.cdp_browser import _ensure_cdp, _connect as cdp_connect
+            from core.cdp_browser import _ensure_cdp
             try:
                 _ensure_cdp()
             except RuntimeError as e:

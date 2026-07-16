@@ -80,33 +80,38 @@ def wire_session_hooks(session) -> None:
     # ── Phase 1: Tool validation + self-correction layer ──
     try:
         from core.tool_validation_integration import ValidationLayer
+
         session.tvl = ValidationLayer(
             schema_provider=session._get_schema_for_tool,
             max_retries=3,
         )
-    except Exception:
+    except Exception as e:
+        logger.warning("Tool validation layer init failed: %s", e)
         session.tvl = None
 
     # ── Phase 3: Context memory hooks ──
     try:
         from core.context_memory_hooks import inject_context_hooks
+
         inject_context_hooks(session)
     except Exception as e:
-        logger.debug("Context memory hooks init failed: %s", e)
+        logger.warning("Context memory hooks init failed: %s", e)
 
     # ── Phase 4: Reviewer agent hooks ──
     try:
         from core.reviewer_hooks import inject_reviewer_hooks
+
         inject_reviewer_hooks(session)
     except Exception as e:
-        logger.debug("Reviewer hooks init failed: %s", e)
+        logger.warning("Reviewer hooks init failed: %s", e)
 
     # ── Phase 5: Skill / Prompt compiler hooks ──
     try:
         from core.skill_compiler_hooks import inject_skill_compiler_hooks
+
         inject_skill_compiler_hooks(session)
     except Exception as e:
-        logger.debug("Skill compiler hooks init failed: %s", e)
+        logger.warning("Skill compiler hooks init failed: %s", e)
 
     # ── Phase 6: Telemetry + Config ──
     session._p6_telemetry_hooked = True
@@ -139,14 +144,15 @@ def wire_session_hooks(session) -> None:
     # ── Prompt Lab: 会话级变体分配 ──
     try:
         from core.prompt_lab import get_prompt_lab
+
         get_prompt_lab().assign_variant()
-    except ImportError:
-        pass
+    except ImportError as e:
+        logger.debug("Prompt lab not available: %s", e)
 
     # ── Adaptive Learner: 初始化学习引擎 ──
     try:
         from core.adaptive_learner import AdaptiveLearner
+
         session._adaptive_learner = AdaptiveLearner()
     except ImportError:
         session._adaptive_learner = None
-

@@ -26,7 +26,7 @@ def pipeline_create(name: str, stages: list[str] | None = None, config: dict | N
         "runs": [],
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    (PIPELINE_DIR / f"{pl['id']}.json").write_text(json.dumps(pl, indent=2, ensure_ascii=False), encoding="utf-8")
+    (PIPELINE_DIR / f"{pl['id']}.json").write_text(json.dumps(pl, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
     return pl
 
 
@@ -49,7 +49,7 @@ def pipeline_run(pipeline_id: str) -> dict:
         pl["status"] = "passed"
     pl["completed_at"] = datetime.now(timezone.utc).isoformat()
     pl["runs"].append({"timestamp": pl["started_at"], "status": pl["status"], "results": results})
-    path.write_text(json.dumps(pl, indent=2, ensure_ascii=False), encoding="utf-8")
+    path.write_text(json.dumps(pl, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
     return pl
 
 

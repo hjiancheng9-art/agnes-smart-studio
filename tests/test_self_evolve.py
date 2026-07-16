@@ -1,6 +1,6 @@
 """Tests for core/self_evolve.py — autonomous improvement engine."""
 
-from core.self_evolve import SelfEvolver, Weakness, EvolutionReport, evolve
+from core.self_evolve import EvolutionReport, SelfEvolver, Weakness, evolve
 
 
 class TestWeakness:

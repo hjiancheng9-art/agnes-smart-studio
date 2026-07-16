@@ -1,7 +1,6 @@
 """测试自愈架构: shell 降级链 + 诊断引擎 + 自动重试 + 原子写入"""
 
 import json
-import os
 import sys
 import tempfile
 from dataclasses import asdict, dataclass
@@ -9,11 +8,9 @@ from pathlib import Path
 
 import pytest
 
-
 # ═══════════════════════════════════════════════════════════════════
 # shell 降级链: _build_shell_strategies + _diagnose_shell_failure
 # ═══════════════════════════════════════════════════════════════════
-
 from core.tools import _build_shell_strategies, _diagnose_shell_failure
 
 

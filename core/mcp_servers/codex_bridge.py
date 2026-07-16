@@ -274,12 +274,15 @@ def _handle_tool_call(name: str, args: dict) -> dict:
 
         if name == "codex_review":
             target = args.get("target", "")
+            focus = args.get("focus", "all")
             timeout = args.get("timeout", 600)
             binary = _resolve_codex()
             review_args = ["--dangerously-bypass-approvals-and-sandbox", "--ephemeral", "-C", PROJECT_ROOT]
+            if focus != "all":
+                review_args = ["--focus", focus, *review_args]
             try:
                 proc = subprocess.run(
-                    [binary, "exec", "review", target] + review_args,
+                    [binary, "exec", "review", target, *review_args],
                     capture_output=True,
                     text=True,
                     timeout=timeout,

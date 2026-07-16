@@ -1,6 +1,7 @@
 """Tests for activity log (_log_append, _log_update_last, etc.) in TuiAppV2."""
 
 import threading
+
 import pytest
 
 

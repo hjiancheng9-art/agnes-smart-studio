@@ -40,6 +40,10 @@ class _ScrollingWindow(Window):
 
     Also intercepts mouse scroll events to properly update _pinned flag
     so manual scrolling doesn't get overridden by auto-scroll on new content.
+
+    Thread-safety: _scroll() runs on the main/render thread. _auto_scroll()
+    may be called from the worker thread but only sets flags — actual scroll
+    position mutation happens exclusively in _scroll().
     """
 
     def __init__(self, pane, *args, **kwargs):
@@ -50,17 +54,21 @@ class _ScrollingWindow(Window):
         """Intercept scroll events so they update _pinned via pane methods."""
         from prompt_toolkit.application.current import get_app
 
-        # Restore mouse mode if it was lost (e.g. by subprocess output)
-        if hasattr(self._mp_pane, "_mouse_guard") and self._mp_pane._mouse_guard:
-            self._mp_pane._mouse_guard.restore()
+        # Restore mouse mode via prompt_toolkit API (not raw stdout writes)
+        app = get_app()
+        try:
+            if hasattr(app.output, "enable_mouse_support"):
+                app.output.enable_mouse_support()
+        except Exception:
+            logger.debug("Exception in message_pane", exc_info=True)
 
         if mouse_event.event_type == MouseEventType.SCROLL_UP:
             self._mp_pane.scroll_up(lines=_SCROLL_LINE)
-            get_app().invalidate()
+            app.invalidate()
             return None
         if mouse_event.event_type == MouseEventType.SCROLL_DOWN:
             self._mp_pane.scroll_down(lines=_SCROLL_LINE)
-            get_app().invalidate()
+            app.invalidate()
             return None
         return super()._mouse_handler(mouse_event)
 
@@ -70,18 +78,32 @@ class _ScrollingWindow(Window):
         We do NOT call super()._scroll() because _scroll_when_linewrapping
         forces vertical_scroll toward cursor position (0,0 for our cursorless
         FormattedTextControl), fighting every manual scroll operation.
+
+        This is the SINGLE place that mutates vertical_scroll. All other
+        methods (including _auto_scroll) only set _pinned / _pending flags.
         """
         self.horizontal_scroll = 0
 
-        # ── 如果 pinned，强制回底（修复滚动卡死）──
+        # ── Consume pending scroll-to-bottom flag (set by worker thread) ──
+        if getattr(self._mp_pane, "_pending_scroll_to_bottom", False):
+            self._mp_pane._pending_scroll_to_bottom = False
+            self._mp_pane._pinned = True
+            self.vertical_scroll = _SCROLL_BOTTOM
+
+        # ── 如果 pinned，强制回底 ──
         if getattr(self._mp_pane, "_pinned", False):
             self.vertical_scroll = _SCROLL_BOTTOM
 
         if self.vertical_scroll >= _SCROLL_BOTTOM:
             # Pinned to bottom: compute actual scroll position accounting
             # for line wrapping (vertical_scroll_2 skips visual rows).
+            if ui_content is None or ui_content.line_count == 0:
+                # No content yet — keep sentinel, bottom will be computed
+                # when content arrives on the next frame.
+                self.vertical_scroll_2 = 0
+                return
             total_wrapped = 0
-            for i in range(ui_content.line_count if ui_content else 0):
+            for i in range(ui_content.line_count):
                 total_wrapped += ui_content.get_height_for_line(i, width, self.get_line_prefix)
 
             if total_wrapped <= height:
@@ -105,9 +127,9 @@ class _ScrollingWindow(Window):
         else:
             # ── Manual scroll: preserve position, clamp out-of-bounds only ──
             if ui_content is None:
-                # ⚠️ ui_content=None 时 max_line=0，会钳制 vertical_scroll=0。
-                # 每次渲染周期都会把用户的滚动位置弹回顶部。不要删这个 guard。
-                return  # Cannot clamp without content info; keep current position
+                # ⚠️ ui_content=None 时无法计算 max_line。保持当前位置，
+                # 等下次有内容时再钳制。不要删这个 guard。
+                return
             max_line = ui_content.line_count - 1
             if self.vertical_scroll > max(0, max_line):
                 self.vertical_scroll = max(0, max_line)
@@ -127,19 +149,23 @@ class _MessagePaneControl(FormattedTextControl):
     def mouse_handler(self, mouse_event):
         from prompt_toolkit.application.current import get_app
 
-        # Restore mouse mode if it was lost (e.g. by subprocess output).
-        # This is a safety net: the heartbeat timer also restores periodically,
-        # but this catches the case right when a mouse event arrives.
-        if hasattr(self._mp_pane, "_mouse_guard") and self._mp_pane._mouse_guard:
-            self._mp_pane._mouse_guard.restore()
+        # Restore mouse mode via prompt_toolkit API (not raw stdout writes).
+        # Raw ANSI writes to stdout conflict with ptk's own mouse state tracking
+        # and can leave the terminal in an inconsistent state.
+        app = get_app()
+        try:
+            if hasattr(app.output, "enable_mouse_support"):
+                app.output.enable_mouse_support()
+        except Exception:
+            logger.debug("Exception in message_pane", exc_info=True)
 
         if mouse_event.event_type == MouseEventType.SCROLL_UP:
             self._mp_pane.scroll_up(lines=_SCROLL_LINE)
-            get_app().invalidate()
+            app.invalidate()
             return None
         if mouse_event.event_type == MouseEventType.SCROLL_DOWN:
             self._mp_pane.scroll_down(lines=_SCROLL_LINE)
-            get_app().invalidate()
+            app.invalidate()
             return None
         return super().mouse_handler(mouse_event)
 
@@ -187,6 +213,7 @@ class MessagePane:
         self._stream_label = ""
         self._stream_buffer = ""
         self._pinned = True
+        self._pending_scroll_to_bottom = False
         self._empty_renderer = None  # type: ignore[assignment]
         self._empty_render_cache = None
         self._empty_render_cache_key = None
@@ -353,6 +380,7 @@ class MessagePane:
         new_row = self._current_visual_row()
         if new_row > 0:
             self._pinned = False
+            self._pending_scroll_to_bottom = False  # cancel pending auto-scroll
         self._sync_scroll_offset()
 
     def scroll_down(self, lines: int = _SCROLL_LINE) -> None:
@@ -374,6 +402,7 @@ class MessagePane:
         new_row = self._current_visual_row()
         if new_row > 0:
             self._pinned = False
+            self._pending_scroll_to_bottom = False  # cancel pending auto-scroll
         self._sync_scroll_offset()
 
     def scroll_page_down(self) -> None:
@@ -393,6 +422,7 @@ class MessagePane:
         self._window.vertical_scroll = 0
         self._window.vertical_scroll_2 = 0
         self._pinned = False
+        self._pending_scroll_to_bottom = False  # cancel pending auto-scroll
         self._scroll_offset = 0
 
     def scroll_to_bottom(self) -> None:
@@ -418,12 +448,14 @@ class MessagePane:
             self._tool_start_time = getattr(self, "_tool_start_time", time.time())
 
     def _auto_scroll(self) -> None:
+        """Signal that the view should scroll to bottom on next render.
+
+        Thread-safe: only sets flags consumed by _scroll() on the render thread.
+        Does NOT directly mutate vertical_scroll — that belongs exclusively
+        to _ScrollingWindow._scroll() to avoid worker/render data races.
+        """
         if self._pinned:
-            # 守卫: 确保窗口是消息面板而非输入区域
-            if not hasattr(self._window, "vertical_scroll"):
-                return
-            self._window.vertical_scroll = _SCROLL_BOTTOM
-            self._window.vertical_scroll_2 = 0
+            self._pending_scroll_to_bottom = True
 
     # ── Message management ───────────────────────────────────
 

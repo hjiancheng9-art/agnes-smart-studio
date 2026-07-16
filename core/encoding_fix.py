@@ -29,7 +29,7 @@ import ctypes
 import locale
 import re
 import sys
-from typing import Callable
+from collections.abc import Callable
 
 # ── Mojibake signature characters ──────────────────────────────────────────
 # Characters that virtually never appear in valid Chinese text.
@@ -495,7 +495,7 @@ def _reverse_gbk_utf8_corruption(text: str) -> str | None:
     try:
         recovered_bytes = bytearray()
         for ch in text:
-            if "�" == ch:
+            if ch == "�":
                 return None
             if ord(ch) < 128:
                 recovered_bytes.append(ord(ch))
@@ -658,7 +658,7 @@ if __name__ == "__main__":
     fixed5, was_fixed5 = fix_garbled(double)
     print(f"  fix_garbled: fixed={was_fixed5} → {fixed5!r}")
     if was_fixed5 and fixed5 == test5_original:
-        print(f"  OK - recovered correctly")
+        print("  OK - recovered correctly")
     elif was_fixed5:
         print(f"  PARTIAL - got {fixed5!r}, expected {test5_original!r}")
 

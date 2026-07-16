@@ -78,4 +78,4 @@ def set_task(session, task: str):
         try:
             tvl.set_current_task(task)
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            logger.debug("Exception in context_memory_hooks", exc_info=True)

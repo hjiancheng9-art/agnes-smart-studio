@@ -302,13 +302,11 @@ def auto_route(task: str) -> str | None:
         desc_clean = desc_clean.replace("-", " ")  # Normalize hyphens
         keywords = []
         for w in desc_clean.split():
-            w = w.strip("()[]{}\"'.:!!?")
+            w = w.strip("()[]{}'.:!?\"")
             if not w:
                 continue
             has_cjk = any("一" <= c <= "鿿" for c in w)
-            if has_cjk and len(w) >= 2:
-                keywords.append(w)
-            elif not has_cjk and len(w) >= 3:
+            if (has_cjk and len(w) >= 2) or (not has_cjk and len(w) >= 3):
                 keywords.append(w)
 
         if not keywords:

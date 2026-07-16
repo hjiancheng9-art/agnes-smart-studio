@@ -204,7 +204,7 @@ async def fetch_reply_already_generated() -> str:
             timeout=10_000,
         )
     except Exception:
-        pass
+        import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
 
     try:
         reply = await wait_for_latest_reply(

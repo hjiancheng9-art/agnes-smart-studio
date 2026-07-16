@@ -118,18 +118,18 @@ def _extract_tc_from_text(text: str) -> list[tuple[str, dict]]:
     Handles malformed JSON. If arguments can't be parsed, uses raw string.
     """
     results: list[tuple[str, dict]] = []
-    
+
     name_re = re.compile(r'"name"\s*:\s*"([^"]+)"')
     args_start_re = re.compile(r'"arguments"\s*:\s*(\{)')
-    
+
     for name_match in name_re.finditer(text):
         name = name_match.group(1)
         pos = name_match.end()
-        
+
         args_m = args_start_re.search(text, pos)
         if not args_m:
             continue
-        
+
         # Extract args JSON via brace counting (handles nested braces, strings)
         start = args_m.start(1)
         depth = 0
@@ -152,13 +152,13 @@ def _extract_tc_from_text(text: str) -> list[tuple[str, dict]]:
                     if depth == 0:
                         end = i + 1
                         break
-        
+
         if end > start:
             args_json = text[start:end]
             args = _parse_args(args_json)
             if args:
                 results.append((name, args))
-    
+
     return results
     """Extract JSON objects from text using brace counting (handles nesting)."""
     results = []

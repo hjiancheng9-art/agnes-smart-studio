@@ -79,8 +79,15 @@ def save_run(summary_dict: dict) -> str:
     """保存一次执行的摘要到 runs 目录。返回 root_trace_id。"""
     summary = RunSummary.from_dict(summary_dict)
     path = os.path.join(RUNS_DIR, f"{summary.root_trace_id}.json")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(summary.to_dict(), f, ensure_ascii=False, indent=2)
+    tmp_path = path + ".tmp"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(summary.to_dict(), f, ensure_ascii=False, indent=2, default=str)
+        os.replace(tmp_path, path)
+    except Exception:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise
     # 追加到索引
     index_path = os.path.join(RUNS_DIR, "_index.jsonl")
     with open(index_path, "a", encoding="utf-8") as f:
@@ -96,6 +103,7 @@ def save_run(summary_dict: dict) -> str:
                     "created_at": summary.created_at,
                 },
                 ensure_ascii=False,
+                default=str,
             )
             + "\n"
         )

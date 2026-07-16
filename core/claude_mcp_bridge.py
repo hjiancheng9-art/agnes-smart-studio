@@ -197,7 +197,7 @@ TOOLS = [
         "description": (
             "Execute a shell command. Uses Windows cmd.exe on Windows, bash on Unix. "
             "Commands are validated against dangerous patterns (rm -rf, fork bombs, "
-            "disk formatting, etc.). Timeout: 60s default."
+            "disk formatting, etc.). Timeout: 120s default."
         ),
         "inputSchema": {
             "type": "object",
@@ -695,7 +695,7 @@ def _handle_run_bash(params: dict) -> dict:
     if not safe:
         return _tool_error(reason)
 
-    timeout_val = min(params.get("timeout", 60), 300)
+    timeout_val = min(params.get("timeout", 120), 120)
     cwd = params.get("cwd", str(ROOT))
 
     is_windows = sys.platform == "win32"
