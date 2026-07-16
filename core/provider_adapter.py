@@ -66,7 +66,7 @@ PROVIDER_ADAPTERS: dict[str, ProviderAdapter] = {
         provider_id="deepseek",
         thinking_param_style="chat_template_kwargs",
         thinking_response_field="reasoning_content",
-        default_max_tokens=8192,
+        default_max_tokens=16384,
     ),
     "zhipu": ProviderAdapter(
         provider_id="zhipu",
