@@ -15,7 +15,12 @@ import shutil
 import subprocess
 import sys
 
-from core.error_sink import catch
+# Ensure the project root is on sys.path (same as crux_mcp_entry.py)
+_project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
+from core.error_sink import catch  # noqa: E402
 
 # ── ANSI cleanup ──
 

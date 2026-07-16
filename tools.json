@@ -192,7 +192,7 @@
         }
       },
       "category": "exec",
-      "timeout": 1800
+      "timeout": 300
     },
     {
       "name": "web_fetch",
@@ -1797,7 +1797,7 @@
         }
       },
       "category": "orchestrate",
-      "timeout": 1200
+      "timeout": 300
     }
   ]
 }
