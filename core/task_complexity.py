@@ -50,6 +50,7 @@ _COMPLEX_PATTERNS = [
     "distributed system", "breaking change",
     "架构", "设计", "实现", "审计", "集成", "拆分", "重构",
     "refactor", "implement", "design", "audit", "integrate", "split",
+    "自检", "自修", "self heal", "self-heal",
 ]
 
 _MODERATE_PATTERNS = [
