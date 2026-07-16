@@ -1330,9 +1330,27 @@ class ChatSession(ChatToggleMixin):
         kwargs = {}
         if self.enable_thinking:
             kwargs = get_thinking_params(model)
-        # When thinking is disabled, leave kwargs empty — do NOT send
-        # {"thinking":{"type":"disabled"}} because that exact payload may
-        # not be recognized by all providers and can cause a silent hang.
+        else:
+            # Build the correct "disable thinking" payload per provider.
+            # DeepSeek uses {"chat_template_kwargs":{"enable_thinking":True}},
+            # OpenAI uses {"thinking":{"type":"enabled"}}. Sending the wrong
+            # format causes a silent stream hang.
+            _enabled = get_thinking_params(model)
+            if _enabled:
+                _key = next(iter(_enabled))
+                _val = _enabled[_key]
+                if isinstance(_val, dict):
+                    _disabled_val = {}
+                    for k, v in _val.items():
+                        if isinstance(v, bool):
+                            _disabled_val[k] = not v
+                        elif isinstance(v, str) and v == "enabled":
+                            _disabled_val[k] = "disabled"
+                        else:
+                            _disabled_val[k] = v
+                    kwargs = {_key: _disabled_val}
+                else:
+                    kwargs = {_key: not _val}
         for delta in client.chat_stream(
             model=model,
             messages=sanitize_tool_call_history(self.messages),
