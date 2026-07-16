@@ -340,6 +340,7 @@ class BrowserController:
                     logger.info(f"输入框已找到: {selector}")
                     return el
             except Exception:
+                logger.debug("browser element text read failed", exc_info=True)
                 continue
 
         # 策略2: 泛化搜索 — 任何 textarea
@@ -389,6 +390,7 @@ class BrowserController:
                 if btn.is_visible(timeout=1000):
                     return btn
             except Exception:
+                logger.debug("browser element text read failed", exc_info=True)
                 continue
         return None
 
@@ -516,6 +518,7 @@ class BrowserController:
                         if len(text) > 30 and not self._has_stop_button():
                             return text
             except Exception:
+                logger.debug("browser element text read failed", exc_info=True)
                 continue
         return None
 
@@ -529,7 +532,8 @@ class BrowserController:
                 if progress.is_visible():
                     return None
             except Exception:
-                pass  # 进度条不可见 = 可能已完成
+                logger.debug("progress bar not found — may be complete", exc_info=True)
+                # 进度条不可见 = 可能已完成
 
         # 进度条消失，读取结果
         for selector in self._platform.response_selectors:
@@ -544,6 +548,7 @@ class BrowserController:
                     if src:
                         return src
             except Exception:
+                logger.debug("browser element text read failed", exc_info=True)
                 continue
         return None
 
@@ -566,6 +571,7 @@ class BrowserController:
                     if src:
                         return src
             except Exception:
+                logger.debug("browser element text read failed", exc_info=True)
                 continue
         return None
 
