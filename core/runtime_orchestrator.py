@@ -387,6 +387,7 @@ class RuntimeOrchestrator:
                 "info",
                 f"CLOSE → {result.verdict} | {result.total_duration_ms:.0f}ms | ${result.cost_estimate_usd:.4f}",
             )
+            return result
 
         except KeyboardInterrupt:
             result.verdict = "cancelled"
