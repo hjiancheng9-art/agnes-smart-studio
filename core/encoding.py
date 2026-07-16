@@ -20,7 +20,7 @@ import subprocess
 import sys
 from typing import Any
 
-__all__ = ["setup", "safe_run"]
+__all__ = ["safe_run", "setup"]
 
 _logger = logging.getLogger("crux.encoding")
 
@@ -151,8 +151,8 @@ def _patch_subprocess_run():
             )
 
             # Attach raw bytes for callers that need them
-            setattr(result, "stdout_raw", stdout_raw)
-            setattr(result, "stderr_raw", stderr_raw)
+            result.stdout_raw = stdout_raw
+            result.stderr_raw = stderr_raw
 
             return result
 

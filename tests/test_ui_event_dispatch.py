@@ -43,7 +43,6 @@ class TestEventKindDispatch:
 
     def test_critical_events_have_handlers(self):
         """Verify that critical events (watchdog, provider, system) have handlers."""
-        import re
         for tui_file in ["ui/tui_v2.py", "ui/tui_app.py"]:
             with open(tui_file, encoding="utf-8") as f:
                 content = f.read()
@@ -59,7 +58,6 @@ class TestEventKindDispatch:
 
     def test_error_events_use_append_error(self):
         """Error/failed/alert events should route to append_error."""
-        import re
         with open("ui/tui_v2.py", encoding="utf-8") as f:
             content = f.read()
 

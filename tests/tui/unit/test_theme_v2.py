@@ -2,7 +2,8 @@
 import pytest
 from prompt_toolkit.styles.base import BaseStyle
 
-from ui.theme_v2 import BLADE as COLORS, build_style_v2
+from ui.theme_v2 import BLADE as COLORS
+from ui.theme_v2 import build_style_v2
 
 REQUIRED_COLOR_KEYS = [
     "bg", "surface", "input_bg", "border",

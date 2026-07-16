@@ -1124,8 +1124,8 @@ class CruxCLI:
 
     def _chat_trace(self, args: str) -> None:
         """查看执行轨迹: /trace [run_id|list]"""
+
         from core.intelligence_trace import get_trace_store
-        import json
 
         store = get_trace_store()
         arg = args.strip()
@@ -1366,6 +1366,38 @@ class CruxCLI:
             self.io.info(result)
         except Exception as e:
             self.io.error(f"创建失败: {e}")
+
+    def _chat_orchestrate(self, args: str) -> None:
+        """全能力编排: /orchestrate <任务描述> [--preview]"""
+        import re
+        preview_mode = bool(re.search(r'--preview|--dry-run|-p', args))
+        goal = re.sub(r'--preview|--dry-run|-p', '', args).strip()
+
+        if not goal:
+            self.io.error("用法: /orchestrate <任务描述> [--preview]")
+            return
+
+        try:
+            from core.runtime_orchestrator import execute, execute_stream, preview as orch_preview
+
+            if preview_mode:
+                result = orch_preview(goal)
+                self.io.info(f"📋 Dry-Run: {result.grade}级 · DNA {result.dna}")
+                for step in result.plan_preview:
+                    self.io.info(f"  步骤 {step['step']}: {step['action'][:80]}")
+                self.io.info(f"共 {len(result.plan_preview)} 步骤 · 模式 {result.mode}")
+                return
+
+            # 流式执行
+            self.io.info(f"🚀 启动编排: {goal[:60]}...")
+            for event in execute_stream(goal):
+                style, text = event.to_tui()
+                if event.beast:
+                    self.io.info(f"  [{event.beast}] {event.message}")
+            self.io.info("✅ 编排完成")
+
+        except Exception as e:
+            self.io.error(f"编排失败: {e}")
 
     def _cmd_regression(self, args):
         """Run policy regression tests."""

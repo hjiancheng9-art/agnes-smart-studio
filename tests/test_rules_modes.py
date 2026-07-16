@@ -1,7 +1,7 @@
 """Tests for core/rules.py — activation modes & globs matching."""
 
-import tempfile
 import os
+import tempfile
 from pathlib import Path
 
 from core.rules import (
@@ -14,7 +14,6 @@ from core.rules import (
     get_rules,
     reset_rules,
 )
-
 
 # ── Rule class ────────────────────────────────────────────────────────────
 

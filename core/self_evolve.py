@@ -19,7 +19,6 @@ Usage:
 from __future__ import annotations
 
 import json
-import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -376,7 +375,7 @@ class SelfEvolver:
     def generate_report(self) -> str:
         """Generate human-readable evolution report."""
         lines = ["# Self-Evolution Report", ""]
-        lines.append(f"## Summary")
+        lines.append("## Summary")
         lines.append(f"- Weaknesses found: {len(self.report.weaknesses)}")
         lines.append(f"- Auto-fixed: {self.report.fixes_applied}")
         lines.append(f"- Fix failures: {self.report.fixes_failed}")

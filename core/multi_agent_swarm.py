@@ -9,12 +9,16 @@ Extracted from core/multi_agent.py (P2 refactor). Contains:
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import threading
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING
+
+from core.multi_agent_models import ROOT, Agent, AgentTask  # noqa: F401  # re-exported
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from core.multi_agent import MultiAgentCoordinator
 
 logger = logging.getLogger("crux.multi_agent")
 
@@ -51,6 +55,8 @@ class AgentSwarm:
         items: list[str],
         role: str = "implementer",
         max_concurrency: int | None = None,
+        *,
+        review: bool = False,
     ) -> dict:
         """使用模板并行分派 N 个同类型子智能体。
 
@@ -59,9 +65,11 @@ class AgentSwarm:
             items: 每个 item 启动一个子智能体
             role: 子智能体角色
             max_concurrency: 最大并发数，默认 min(len(items), max_workers)
+            review: 若 True，所有 worker 完成后自动派 1 个 reviewer
+                    交叉审查结果的完整性和一致性
 
         Returns:
-            dict: {item: result_str}
+            dict: {item: result_str}，如果 review 启用则额外包含 _review 键
         """
 
         concurrency = min(max_concurrency or self.max_workers, len(items))
@@ -75,8 +83,8 @@ class AgentSwarm:
                     results[item] = "error: semaphore timeout"
                 return
             try:
+                from core.multi_agent import MultiAgentCoordinator
                 goal = template.replace("{{item}}", item)
-                f"swarm_{uuid.uuid4().hex[:8]}"
                 coordinator = MultiAgentCoordinator(
                     tool_executor=self.execute_tool,
                     max_workers=1,
@@ -86,8 +94,8 @@ class AgentSwarm:
                 r = coordinator.execute(goal)
                 with self._lock:
                     results[item] = (
-                        f"done={r.get('tasks_done','?')}/{r.get('tasks_total','?')} "
-                        f"failed={r.get('tasks_failed','?')} "
+                        f"done={r.get('tasks_done', '?')}/{r.get('tasks_total', '?')} "
+                        f"failed={r.get('tasks_failed', '?')} "
                         f"elapsed={r.get('elapsed_ms', 0) / 1000:.1f}s"
                     )
             except Exception as e:
@@ -104,7 +112,64 @@ class AgentSwarm:
         for t in threads:
             t.join(timeout=300)
 
+        # ── Cross-review: verify completeness and consistency ──
+        if review and len(results) > 1:
+            review_result = self._review_results(template, items, role, results)
+            results["_review"] = review_result
+
         return results
+
+    def _review_results(self, template: str, items: list[str], role: str, results: dict[str, str]) -> str:
+        """Spawn a reviewer agent to cross-check worker results.
+
+        The reviewer checks for:
+        - Internal consistency across results
+        - Obvious errors or incomplete outputs
+        - Items that may need rework
+        """
+        error_items = {k: v for k, v in results.items() if v.startswith("error:")}
+        ok_items = {k: v for k, v in results.items() if not v.startswith("error:")}
+
+        review_prompt = (
+            f"Cross-review the following parallel {role} results.\n\n"
+            f"Template: {template}\n"
+            f"Items processed: {len(items)}\n"
+            f"Successful: {len(ok_items)}\n"
+            f"Failed: {len(error_items)}\n\n"
+        )
+        if ok_items:
+            review_prompt += "--- Successful results ---\n"
+            for item, result in list(ok_items.items())[:5]:
+                review_prompt += f"[{item}]: {result[:200]}\n"
+        if error_items:
+            review_prompt += "--- Failed items ---\n"
+            for item, result in list(error_items.items())[:5]:
+                review_prompt += f"[{item}]: {result[:200]}\n"
+
+        review_prompt += (
+            "\nYour task: check these results for consistency and completeness. "
+            "Are there any contradictions between results? "
+            "Are any results clearly incomplete or nonsensical? "
+            "Should any items be re-run? "
+            "Respond with: PASS (all good) or REWORK: <specific items to redo>"
+        )
+
+        try:
+            from core.multi_agent import MultiAgentCoordinator
+            coordinator = MultiAgentCoordinator(
+                tool_executor=self.execute_tool,
+                max_workers=1,
+                model_router=self.model_router,
+            )
+            coordinator.spawn_team(["reviewer"])
+            r = coordinator.execute(review_prompt)
+            return (
+                f"review_ok={r.get('tasks_done', '?')}/{r.get('tasks_total', '?')} "
+                f"failed={r.get('tasks_failed', '?')} "
+                f"elapsed={r.get('elapsed_ms', 0) / 1000:.1f}s"
+            )
+        except Exception as e:
+            return f"review_error: {type(e).__name__}: {e}"
 
 
 # ── Coordination entry points (backward-compatible) ──────────
@@ -119,6 +184,7 @@ def _get_coordinator(tool_executor: Callable):
         with _coordinator_lock:
             if _coordinator is None:
                 from core.multi_agent import MultiAgentCoordinator
+
                 _coordinator = MultiAgentCoordinator(tool_executor=tool_executor)
     else:
         _coordinator.execute_tool = tool_executor
@@ -158,6 +224,10 @@ AGENT_SWARM_TOOL_DEF = {
                     "type": "integer",
                     "description": "最大并发数，默认 8",
                 },
+                "review": {
+                    "type": "boolean",
+                    "description": "完成后自动派 reviewer 交叉审查结果完整性和一致性（默认 false）",
+                },
             },
             "required": ["template", "items"],
         },
@@ -182,10 +252,12 @@ def _exec_agent_swarm(**kwargs) -> str:
         tool_executor=_exec,
         model_router=getattr(registry, "model_router", None),
     )
+    do_review = kwargs.get("review", kwargs.get("cross_review", False))
     results = swarm.dispatch(
         template=kwargs["template"],
         items=kwargs["items"],
         role=kwargs.get("role", "implementer"),
         max_concurrency=kwargs.get("max_concurrency"),
+        review=bool(do_review),
     )
     return json.dumps(results, ensure_ascii=False, indent=2)

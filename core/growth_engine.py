@@ -351,7 +351,7 @@ class GrowthEngine:
             },
         }
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        config_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        config_path.write_text(json.dumps(data, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
 
     def detect_bottlenecks(self) -> list[dict]:
         """Identify performance bottlenecks in the mesh."""
@@ -427,7 +427,7 @@ class GrowthEngine:
             "saved_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "intents": {k: v.to_dict() for k, v in self.intents.items()},
         }
-        STATS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        STATS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
         self._dirty = False
         self._last_save = time.monotonic()
 

@@ -1,8 +1,7 @@
 """Tests for core/encoding_fix.py — encoding detection & garbled recovery."""
 
-import tempfile
 import os
-from pathlib import Path
+import tempfile
 
 import pytest
 
@@ -16,7 +15,6 @@ from core.encoding_fix import (
     safe_read_text,
     scan_mojibake,
 )
-
 
 # ── scan_mojibake / is_likely_garbled ────────────────────────────────────
 
@@ -50,7 +48,7 @@ class TestMojibakeDetection:
 
 class TestDetectAndDecode:
     def test_utf8_passthrough(self):
-        text, enc, had_errors = detect_and_decode("hello".encode("utf-8"))
+        text, enc, had_errors = detect_and_decode(b"hello")
         assert text == "hello"
         assert enc == "utf-8"
         assert not had_errors
@@ -197,7 +195,7 @@ class TestReportEncodingIssue:
 class TestSafeReadText:
     def test_utf8_file(self):
         with tempfile.NamedTemporaryFile(mode="wb", suffix=".txt", delete=False) as f:
-            f.write("Hello UTF-8 中文".encode("utf-8"))
+            f.write("Hello UTF-8 中文".encode())
             fname = f.name
         try:
             text, issue = safe_read_text(fname)

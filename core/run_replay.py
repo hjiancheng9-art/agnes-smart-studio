@@ -30,8 +30,16 @@ def save_run_replay(root_trace_id: str, summary: dict, log: list, tasks: list[di
         ],
     }
     path = os.path.join(REPLAY_DIR, f"{root_trace_id}.json")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(replay, f, ensure_ascii=False, indent=2)
+    # Atomic write: temp file + rename to prevent truncation on error
+    tmp_path = path + ".tmp"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(replay, f, ensure_ascii=False, indent=2, default=str)
+        os.replace(tmp_path, path)
+    except Exception:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise
     return path
 
 

@@ -12,6 +12,7 @@ Health tracking: records recent response latencies per provider to detect
 chronically slow providers and surface warnings (no auto-switch).
 """
 
+import contextlib
 import json
 import logging
 import os
@@ -35,18 +36,14 @@ def _atomic_write_json(path: Path, data: Any, indent: int = 2) -> None:
     """
     import tempfile
 
-    tmp_fd, tmp_name = tempfile.mkstemp(
-        suffix=".tmp", prefix=".models_", dir=str(path.parent)
-    )
+    tmp_fd, tmp_name = tempfile.mkstemp(suffix=".tmp", prefix=".models_", dir=str(path.parent))
     try:
         with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=indent, ensure_ascii=False)
         os.replace(tmp_name, str(path))
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_name)
-        except OSError:
-            pass
         raise
 
 
@@ -365,6 +362,7 @@ def get_max_tokens_for_model(model_id: str, is_tool_call: bool = False) -> int:
     # 非 tool-call: 使用 ProviderAdapter 的推荐值（比 ModelInfo.max_output_tokens 更保守）
     try:
         from core.provider_adapter import get_adapter
+
         adapter = get_adapter(info.provider_id)
         if adapter and adapter.default_max_tokens:
             return max(256, adapter.default_max_tokens)
@@ -612,7 +610,8 @@ class ProviderManager:
             req = urllib.request.Request(
                 f"{base.rstrip('/')}/models", headers={"Authorization": f"Bearer {api_key}"} if api_key else {}
             )
-            urllib.request.urlopen(req, timeout=5)
+            with urllib.request.urlopen(req, timeout=5):
+                pass
             return True
         except (OSError, RuntimeError, ValueError) as e:
             # ping 是 watchdog/circuit-breaker 的决策依据，记录失败原因便于排查

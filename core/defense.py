@@ -125,12 +125,12 @@ def get_circuit(tool_name: str) -> CircuitBreaker:
 
 
 _TIMEOUTS: dict[str, float] = {
-    "run_bash": 60.0,
+    "run_bash": 120.0,
     "web_fetch": 30.0,
     "web_search": 30.0,
     "generate_image": 120.0,
     "generate_video": 300.0,
-    "run_test": 120.0,
+    "run_test": 1800.0,
     "run_lint": 60.0,
     "run_format": 60.0,
 }

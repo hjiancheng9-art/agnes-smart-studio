@@ -192,7 +192,7 @@ class AsyncCruxClient:
         max_tokens: int = 4096,
         tools: list[dict] | None = None,
         tool_choice: str | dict = "auto",
-        timeout: float = 120.0,
+        timeout: float = 300.0,
         frequency_penalty: float = 0.3,
         presence_penalty: float = 0.3,
         **kwargs,
@@ -268,6 +268,11 @@ class AsyncCruxClient:
                             out["_usage"] = usage
                         if out:
                             yield out
+                        # Break on finish_reason instead of dead-waiting for [DONE].
+                        # Some API deployments omit the [DONE] sentinel entirely,
+                        # causing the stream to hang until httpx read timeout fires.
+                        if finish:
+                            break
                     return  # 成功完成，不再重试
             except (
                 httpx.ConnectError,
@@ -357,7 +362,7 @@ class AsyncCruxClient:
                 imgs = extra_body["image"]
                 if isinstance(imgs, str):
                     if imgs.startswith("data:image/"):
-                        before, sep, b64 = imgs.partition(";base64,")
+                        _before, sep, b64 = imgs.partition(";base64,")
                         if sep:
                             extra_body = {**extra_body, "image": b64}
                 elif isinstance(imgs, list):

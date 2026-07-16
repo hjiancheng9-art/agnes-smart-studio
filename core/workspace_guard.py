@@ -104,9 +104,9 @@ def _detect_via_powershell() -> Path | None:
     Parses command lines of ancestor processes looking for project paths.
     Uses _is_valid_project_dir() to filter out system/tool directories.
     """
-    import subprocess
     import json as _json
     import re as _re
+    import subprocess
 
     pid = os.getpid()
 

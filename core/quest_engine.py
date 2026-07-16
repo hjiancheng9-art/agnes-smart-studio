@@ -158,6 +158,7 @@ def quest_complete(quest_id: str, result: str | None = None) -> dict:
 
     # Auto-trigger dependent quests
     _trigger_dependents(quest_id)
+    _locks.pop(quest_id, None)
     return quest
 
 
@@ -171,6 +172,7 @@ def quest_fail(quest_id: str, error: str) -> dict:
     quest["error"] = error
     with _lock(quest_id):
         _path(quest_id).write_text(json.dumps(quest, indent=2, ensure_ascii=False), encoding="utf-8")
+    _locks.pop(quest_id, None)
     return quest
 
 
@@ -204,6 +206,7 @@ def quest_step_complete(quest_id: str, step_name: str, result: str | None = None
 
     if quest["status"] == STATUS_DONE:
         _trigger_dependents(quest_id)
+        _locks.pop(quest_id, None)
     return quest
 
 
@@ -212,6 +215,7 @@ def quest_delete(quest_id: str) -> dict:
     p = _path(quest_id)
     if p.exists():
         p.unlink()
+        _locks.pop(quest_id, None)
         return {"status": "deleted", "id": quest_id}
     return {"error": f"Quest {quest_id} not found"}
 

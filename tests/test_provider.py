@@ -1,11 +1,13 @@
 """Tests for core/provider.py — ProviderManager, circuit breaker, failover."""
 
-import pytest
 from core.provider import (
-    ProviderManager, ProviderState, NoProviderAvailable,
-    get_provider_manager, reset_provider_manager,
-    get_max_tokens_for_model, get_model_info, resolve_model_alias,
-    MODEL_REGISTRY, ModelInfo,
+    MODEL_REGISTRY,
+    ProviderState,
+    get_max_tokens_for_model,
+    get_model_info,
+    get_provider_manager,
+    reset_provider_manager,
+    resolve_model_alias,
 )
 
 

@@ -31,11 +31,12 @@ AsyncChatSession 可直接 await ``execute``）。同步版仍标记 EXPERIMENTA
 """
 
 
+import logging
+
 from core.multi_agent_modes import (
+    _agent_mode_history,
     AgentMode,
     AgentModeResult,
-    SessionContext,
-    _agent_mode_history,
     ambiguity_score,
     build_context_state,
     compute_agent_mode,
@@ -51,18 +52,12 @@ from core.multi_agent_modes import (
     simplicity_score,
 )
 
-
-import logging
-
-from core.error_sink import catch
-
 logger = logging.getLogger("crux.multi_agent")
 import asyncio
 
 # 跨模块 trace 上下文：供 cost_tracker 等下游模块读取当前 root_trace_id
 import contextvars as _crux_ctx
 import inspect
-import json
 import threading
 import time
 import uuid
@@ -760,12 +755,9 @@ from core.multi_agent_decompose import (
     _build_run_summary,
     _check_dag_deadlock,
     _decompose_goal,
-    _keyword_decompose,
     _propagate_failed_deps,
     _topological_waves,
 )
-
-
 from core.multi_agent_swarm import (
     AGENT_SWARM_TOOL_DEF,
     AgentSwarm,

@@ -1,7 +1,8 @@
 """Tests for ThinkingPanel in ui/widgets_v2.py."""
 
-import pytest
 import threading
+
+import pytest
 
 
 class TestThinkingPanel:

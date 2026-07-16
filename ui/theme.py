@@ -7,7 +7,8 @@ from __future__ import annotations
 
 from prompt_toolkit.styles import Style
 
-from ui.theme_v2 import build_style_v2, BLADE as COLORS
+from ui.theme_v2 import BLADE as COLORS
+from ui.theme_v2 import build_style_v2
 
 
 def get_active_theme() -> dict[str, str]:

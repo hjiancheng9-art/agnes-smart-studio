@@ -1,6 +1,5 @@
 """Tests for core/tool_interceptor.py — PreToolUse safety interceptor."""
 
-import pytest
 
 from core.tool_interceptor import intercept_tool
 

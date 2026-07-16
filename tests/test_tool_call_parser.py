@@ -1,13 +1,12 @@
 """Tests for core/tool_call_parser.py — XML tool-call parser."""
 
-import pytest
 
 from core.tool_call_parser import (
-    extract_tool_calls,
-    has_xml_tool_calls,
-    _parse_args,
     _extract_kv_pairs,
     _make_tc,
+    _parse_args,
+    extract_tool_calls,
+    has_xml_tool_calls,
 )
 
 

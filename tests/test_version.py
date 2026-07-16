@@ -29,7 +29,7 @@ class TestVersion:
         assert __version__ == VERSION
 
     def test_version_tag_matches_version(self):
-        assert VERSION_TAG == f"v{__version__}"
+        assert f"v{__version__}" == VERSION_TAG
 
     def test_build_label(self):
         assert BUILD_LABEL == "CRUX Studio"

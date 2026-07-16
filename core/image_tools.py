@@ -116,7 +116,8 @@ def execute_image_resize(
     from PIL import Image
 
     try:
-        img = Image.open(image_path).convert("RGB")
+        with Image.open(image_path) as f:
+            img = f.convert("RGB")
         ow, oh = img.size
         tw = width if width > 0 else ow
         th = height if height > 0 else oh
@@ -194,7 +195,8 @@ def execute_image_crop(
     from PIL import Image
 
     try:
-        img = Image.open(image_path).convert("RGB")
+        with Image.open(image_path) as f:
+            img = f.convert("RGB")
         ow, oh = img.size
 
         if ratio != "free":
@@ -280,7 +282,8 @@ def execute_image_watermark(
     from PIL import Image, ImageDraw, ImageFont
 
     try:
-        img = Image.open(image_path).convert("RGBA")
+        with Image.open(image_path) as f:
+            img = f.convert("RGBA")
         ow, oh = img.size
 
         # 字体：优先中文字体，自适应字号
@@ -398,7 +401,8 @@ def execute_image_color(
         applied = {"brightness": brightness, "contrast": contrast, "saturation": saturation}
 
     try:
-        img = Image.open(image_path).convert("RGB")
+        with Image.open(image_path) as f:
+            img = f.convert("RGB")
         if brightness != 1.0:
             img = ImageEnhance.Brightness(img).enhance(brightness)
         if contrast != 1.0:
@@ -453,7 +457,8 @@ def execute_image_convert(image_path: str, format: str = "jpg", quality: int = 9
     from PIL import Image
 
     try:
-        img = Image.open(image_path).convert("RGB")
+        with Image.open(image_path) as f:
+            img = f.convert("RGB")
         orig_size = Path(image_path).stat().st_size
         prefix = project_name or "convert"
         ext = ".jpg" if fmt == "jpg" else f".{fmt}"
@@ -521,7 +526,10 @@ def execute_image_compose(
     from PIL import Image, ImageColor
 
     try:
-        imgs = [Image.open(p).convert("RGB") for p in paths]
+        imgs = []
+        for p in paths:
+            with Image.open(p) as f:
+                imgs.append(f.convert("RGB"))
         n = len(imgs)
 
         # 统一高度（横向）或宽度（纵向）到最小的，避免错位

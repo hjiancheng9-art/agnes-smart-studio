@@ -137,22 +137,26 @@ class TestScrollingWindowSubclass:
 
 
 class TestAutoScrollRespectsPinned:
-    """test_auto_scroll_respects_pinned — when pinned, vertical_scroll set to SCROLL_BOTTOM."""
+    """test_auto_scroll_respects_pinned — when pinned, _pending_scroll_to_bottom set True.
+    
+    _auto_scroll() only sets the pending flag (thread-safe design).
+    _ScrollingWindow._scroll() consumes it on the render thread to set vertical_scroll.
+    """
 
-    def test_auto_scroll_when_pinned(self):
+    def test_auto_scroll_sets_pending_flag(self):
         pane = MessagePane()
         pane._pinned = True
-        pane._window.vertical_scroll = 0
+        pane._pending_scroll_to_bottom = False
         pane._auto_scroll()
-        assert pane._window.vertical_scroll == _SCROLL_BOTTOM
+        assert pane._pending_scroll_to_bottom is True
 
     def test_auto_scroll_when_not_pinned(self):
         pane = MessagePane()
         pane._pinned = False
-        pane._window.vertical_scroll = 5
+        pane._pending_scroll_to_bottom = False
         pane._auto_scroll()
-        # Should NOT change when not pinned
-        assert pane._window.vertical_scroll == 5
+        # Should NOT set pending flag when not pinned
+        assert pane._pending_scroll_to_bottom is False
 
 
 class TestWrappedAutoScrollToBottom:

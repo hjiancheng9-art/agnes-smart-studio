@@ -306,18 +306,45 @@ class SafeExecutor:
             "execution_time": 0,
         }
 
-        try:
-            raw_result = tool_func(**args)
+        # Hard timeout watchdog: run the tool in a daemon thread and abandon it
+        # if it exceeds self.timeout. This guarantees a single wedged tool can
+        # never freeze the whole agent, even if the tool ignores its own timeout.
+        _holder: dict[str, Any] = {}
+
+        def _runner():
+            try:
+                _holder["result"] = tool_func(**args)
+            except Exception as e:
+                _holder["error"] = e
+
+        worker = threading.Thread(target=_runner, name=f"SafeExecutor:{tool_name}", daemon=True)
+        worker.start()
+        worker.join(timeout=self.timeout)
+
+        if worker.is_alive():
+            # Tool is wedged past the timeout budget. Do not block the agent;
+            # the daemon thread is abandoned and will die with the process.
+            result["error"] = f"工具 {tool_name} 执行超时 ({self.timeout:.0f}s)，已放弃以避免卡死"
+            result["error_type"] = "timeout"
+            result["recovery_hint"] = "拆分任务、缩小范围，或改用 run_in_background/detach 模式执行长任务"
+        elif "error" in _holder:
+            e = _holder["error"]
+            error_type = ErrorClassifier.classify(e) if isinstance(e, (OSError, RuntimeError, ValueError)) else None
+            result["error"] = redact_sensitive(str(e)[:500])
+            result["error_type"] = error_type.value if error_type is not None else type(e).__name__
+            try:
+                result["recovery_hint"] = ErrorClassifier.get_recovery_hint(e)
+            except Exception:
+                result["recovery_hint"] = ""
+            result["traceback"] = redact_sensitive(
+                "".join(traceback.format_exception(type(e), e, e.__traceback__))[:1000]
+            )
+        else:
+            raw_result = _holder.get("result", "")
             if isinstance(raw_result, str) and len(raw_result) > self.max_result_size:
                 raw_result = raw_result[: self.max_result_size] + "\n[truncated]"
             result["result"] = redact_sensitive(str(raw_result))
             result["success"] = True
-        except (OSError, RuntimeError, ValueError) as e:
-            error_type = ErrorClassifier.classify(e)
-            result["error"] = redact_sensitive(str(e)[:500])
-            result["error_type"] = error_type.value
-            result["recovery_hint"] = ErrorClassifier.get_recovery_hint(e)
-            result["traceback"] = redact_sensitive(traceback.format_exc()[:1000])
 
         result["execution_time"] = round(time.time() - start_time, 3)
 
@@ -412,10 +439,8 @@ class CircuitBreaker:
             self.failure_count += 1
             self.last_failure_time = time.time()
             if (
-                (self.state == CircuitState.CLOSED
-                and self.failure_count >= self.threshold)
-                or self.state == CircuitState.HALF_OPEN
-            ):
+                self.state == CircuitState.CLOSED and self.failure_count >= self.threshold
+            ) or self.state == CircuitState.HALF_OPEN:
                 self._transition(CircuitState.OPEN)
 
     def allow_request(self) -> bool:

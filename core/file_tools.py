@@ -513,7 +513,7 @@ for _d in _DANGEROUS:
             out = (out + "\n[stderr]\n" + err).strip()
         return out or "(no output)"
     except subprocess.TimeoutExpired:
-        return "[错误] Python 执行超时 (30s)"
+        return "[错误] Python 执行超时 (30s)。可拆分任务，或写入 .py 文件后用 run_bash 分段执行。"
     except subprocess.SubprocessError as e:
         return f"[错误] Python 执行失败: {e}"
     finally:
@@ -773,13 +773,17 @@ def download_file(url: str, save_path: str) -> str:
 
 
 def run_test(path: str = "tests/", timeout: float = 1800) -> str:
-    """运行 pytest，纯 Python subprocess 列表传参。默认 30 分钟超时，
-    足以覆盖上千条用例的全量回归。子目录/单文件可适当缩小 timeout。"""
+    """运行 pytest，纯 Python subprocess 列表传参。默认 30 分钟总超时，
+    单测 120s 硬超时（pytest-timeout），防止个别测试卡死拖垮全量。
+    子目录/单文件可适当缩小 timeout。"""
     import subprocess
     import sys
 
     try:
-        r = run_subprocess([sys.executable, "-m", "pytest", path, "-q", "--tb=short"], timeout=timeout)
+        r = run_subprocess(
+            [sys.executable, "-m", "pytest", path, "-q", "--tb=short", "--timeout=120"],
+            timeout=timeout,
+        )
         return r.stdout.strip() or r.stderr.strip() or "(no output)"
     except subprocess.TimeoutExpired:
         return f"[错误] 测试超时 ({timeout}s)"

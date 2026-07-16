@@ -69,7 +69,7 @@ class CdpAdvisor:
             raise RuntimeError(f"CDP 浏览器模块不可用: {e}") from e
 
         with cdp_session() as browser:
-            ok, reason = _check_cdp_health(browser)
+            ok, _reason = _check_cdp_health(browser)
             if not ok:
                 from core.cdp_browser import _auto_reconnect
                 browser = _auto_reconnect()
@@ -231,7 +231,7 @@ class CdpAdvisor:
                     try:
                         page.wait_for_selector("#prompt-textarea", timeout=5000)
                     except Exception:
-                        pass
+                        import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
                     ok = self._upload_files(page, file_paths)
                     if ok:
                         # 等待附件真正出现在页面上

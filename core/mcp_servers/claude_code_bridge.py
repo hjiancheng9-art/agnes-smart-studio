@@ -94,7 +94,7 @@ class ClaudeCodeMCPBridge:
 
     def _run_claude(self, args: list, timeout: int = 300, work_dir: str = ".") -> dict:
         """Run claude.exe with given args."""
-        cmd = [CLAUDE_CODE_PATH] + args
+        cmd = [CLAUDE_CODE_PATH, *args]
 
         # Check binary exists
         if not os.path.isfile(CLAUDE_CODE_PATH):
@@ -106,9 +106,9 @@ class ClaudeCodeMCPBridge:
             result = run_subprocess(cmd, timeout=timeout, cwd=work_dir or os.getcwd())
             return {
                 "success": True,
-                "output": result.get("output", ""),
-                "stderr": result.get("stderr", ""),
-                "return_code": result.get("return_code"),
+                "output": result.stdout or "",
+                "stderr": result.stderr or "",
+                "return_code": result.returncode,
             }
         except Exception as e:
             return {"success": False, "error": str(e)}

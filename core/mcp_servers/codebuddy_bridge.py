@@ -59,8 +59,7 @@ def _get_version() -> str:
         if binary:
             try:
                 r = subprocess.run(
-                    f'"{binary}" --version',
-                    shell=True,
+                    [binary, "--version"],
                     capture_output=True,
                     text=True,
                     timeout=10,
@@ -104,10 +103,8 @@ def _run_codebuddy(prompt: str, timeout: int = 300) -> dict:
     if not binary:
         return {"success": False, "error": "CodeBuddy CLI not found"}
     try:
-        safe_prompt = prompt.replace('"', "'")
         proc = subprocess.run(
-            f'"{binary}" -p "{safe_prompt}"',
-            shell=True,
+            [binary, "-p", prompt],
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -276,7 +273,13 @@ def main():
                     }
                 )
         except json.JSONDecodeError:
-            pass
+            _send_response(
+                {
+                    "jsonrpc": "2.0",
+                    "id": None,
+                    "error": {"code": -32700, "message": "Parse error"},
+                }
+            )
         except EOFError:
             break
         except Exception as e:

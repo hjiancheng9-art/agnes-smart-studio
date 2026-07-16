@@ -1,6 +1,5 @@
 """Tests for ui/message_pane.py — rendering, scroll, stream buffer, edge cases."""
 
-import pytest
 from ui.message_pane import MessagePane
 
 

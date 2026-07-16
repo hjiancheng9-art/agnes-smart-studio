@@ -31,7 +31,7 @@ def artifact_store(build_id: str, files: list[str], metadata: dict | None = None
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dest)
             record["files"][src.name] = str(dest)
-    (ARTIFACTS_DIR / f"{build_id}.json").write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
+    (ARTIFACTS_DIR / f"{build_id}.json").write_text(json.dumps(record, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
     return record
 
 
@@ -62,7 +62,7 @@ def artifact_promote(artifact_id: str, stage: str) -> dict:
     art["stage"] = stage
     art["promoted_at"] = datetime.now(timezone.utc).isoformat()
     art["promoted_from"] = old_stage
-    path.write_text(json.dumps(art, indent=2, ensure_ascii=False), encoding="utf-8")
+    path.write_text(json.dumps(art, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
     return art
 
 
