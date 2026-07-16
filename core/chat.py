@@ -1330,9 +1330,9 @@ class ChatSession(ChatToggleMixin):
         kwargs = {}
         if self.enable_thinking:
             kwargs = get_thinking_params(model)
-        else:
-            # Explicitly disable thinking for DeepSeek (default is enabled)
-            kwargs = {"thinking": {"type": "disabled"}}
+        # When thinking is disabled, leave kwargs empty — do NOT send
+        # {"thinking":{"type":"disabled"}} because that exact payload may
+        # not be recognized by all providers and can cause a silent hang.
         for delta in client.chat_stream(
             model=model,
             messages=sanitize_tool_call_history(self.messages),
