@@ -199,6 +199,7 @@ def safe_run(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess:
     """
     kwargs.setdefault("capture_output", True)
     kwargs.setdefault("text", True)
+    kwargs.setdefault("timeout", 60)  # safety net: prevent hung subprocess
 
     # Strip user encoding args — we handle encoding internally
     kwargs.pop("encoding", None)

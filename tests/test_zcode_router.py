@@ -453,7 +453,7 @@ class TestProviderMaxTokens:
 
         tokens = get_max_tokens_for_model("deepseek-v4-pro")
         assert tokens > 0
-        assert tokens == 8192  # ProviderAdapter.default_max_tokens
+        assert tokens == 16384  # ProviderAdapter.default_max_tokens (doubled 2026-07)
 
     def test_get_max_tokens_for_model_flash(self):
         from core.provider import get_max_tokens_for_model

@@ -323,6 +323,7 @@ class MouseModeGuard:
         # Capture output
         kwargs["capture_output"] = True
         kwargs["text"] = True
+        kwargs.setdefault("timeout", 30)  # prevent hung subprocess
         result = subprocess.run(*args, **kwargs)
         # Filter ANSI sequences
         if result.stdout:

@@ -18,9 +18,9 @@ def _view_image(path: str) -> str:
         if sys.platform == "win32":
             os.startfile(str(p))
         elif sys.platform == "darwin":
-            subprocess.run(["open", str(p)], check=False)
+            subprocess.run(["open", str(p)], check=False, timeout=10)
         else:
-            subprocess.run(["xdg-open", str(p)], check=False)
+            subprocess.run(["xdg-open", str(p)], check=False, timeout=10)
         return json.dumps({"opened": str(p)}, ensure_ascii=False)
     except Exception as e:
         return json.dumps({"error": str(e)}, ensure_ascii=False)
