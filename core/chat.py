@@ -949,11 +949,24 @@ class ChatSession(ChatToggleMixin):
                 try:
                     from core.runtime_orchestrator import execute_stream as _orch_stream, _StreamStop
                     _progress = _orch_stream(user_text)
+                    _BEAST_MAP = {
+                        "yinglong": "应龙", "qinglong": "青龙", "qilin": "麒麟",
+                        "baihu": "白虎", "tengshe": "腾蛇", "xuanwu": "玄武",
+                    }
+                    _PHASE_NAMES = {
+                        "gate": "门禁", "plan": "规划", "execute": "执行",
+                        "verify": "验证", "close": "收尾", "review": "审查",
+                    }
                     while True:
                         try:
                             _ev = next(_progress)
-                            _kind = getattr(_ev, 'kind', 'info')
-                            yield (_kind, str(_ev))
+                            _beast = _BEAST_MAP.get(getattr(_ev, 'beast', ''), '')
+                            _phase = _PHASE_NAMES.get(getattr(_ev, 'phase', ''), getattr(_ev, 'phase', ''))
+                            _msg = getattr(_ev, 'message', '')
+                            _elapsed = getattr(_ev, 'elapsed_ms', 0)
+                            _prefix = f"[{_beast}·{_phase}]" if _beast and _phase else f"[{_phase}]"
+                            _suffix = f" ({_elapsed:.0f}ms)" if _elapsed else ""
+                            yield ("info", f"{_prefix} {_msg}{_suffix}")
                         except StopIteration as _done:
                             _result_text = str(_done.value) if _done.value else ""
                             break
