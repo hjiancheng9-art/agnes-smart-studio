@@ -960,10 +960,11 @@ class ChatSession(ChatToggleMixin):
                     _result_parts.append(f"## self_heal 失败\n{str(e)[:500]}")
                     yield ("error", f"  self_heal 失败: {e}")
 
-                # Step 2: run tests
-                yield ("info", "[2/3] 运行测试...")
+                # Step 2: run tests (fast subset only — avoid slow/network tests)
+                yield ("info", "[2/3] 运行快速测试...")
                 try:
-                    _raw2, _sides2 = self._dispatch_tool("run_test", '{}')
+                    # Only run non-slow tests on core files to keep it fast
+                    _raw2, _sides2 = self._dispatch_tool("run_test", '{"path": "tests/", "extra_args": "-m \\"not slow\\" -q --no-header"}')
                     _txt2 = str(_raw2)[:2000]
                     _result_parts.append(f"## 测试结果\n{_txt2}")
                     yield ("info", f"  测试完成 ({_time.monotonic()-_t0:.1f}s)")
