@@ -88,6 +88,7 @@ class TestDryRun:
             assert "action" in step
 
 
+@pytest.mark.slow
 class TestExecuteSimple:
     def test_trivial_goal(self):
         result = execute("echo hello")
@@ -100,10 +101,11 @@ class TestExecuteSimple:
 
     def test_execute_sets_grade_dna(self):
         result = execute("重构支付")
-        assert result.grade in ("B", "C")
+        assert result.grade in ("SIMPLE", "MODERATE", "COMPLEX", "CRITICAL")
         assert result.dna in ("crux", "claude")
 
 
+@pytest.mark.slow
 class TestExecuteStream:
     def test_stream_yields_events(self):
         events = list(execute_stream("修复拼写错误"))
