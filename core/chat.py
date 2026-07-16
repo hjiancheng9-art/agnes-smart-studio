@@ -960,6 +960,14 @@ class ChatSession(ChatToggleMixin):
         # ── 事件协议: 生成 run_id ──
         _run_id = str(uuid.uuid4())[:12]
 
+        # ── Orchestrate / swarm: disable DeepSeek thinking mode ──
+        # DeepSeek's thinking mode completes the think block but then the model
+        # stops producing tool calls or text — it goes completely silent until
+        # the stream times out (122s). Since orchestrate/swarm MUST produce a
+        # tool call (orchestrate/agent_swarm), thinking must be off so the model
+        # goes straight to action.
+        _needs_no_thinking = _plan is not None and _plan.mode in ("orchestrate", "swarm")
+
         # ── New runtime: provide short prompt for orchestrate/swarm. ──
         # ⚠ KNOWN-BROKEN (2026-07-17): the new runtime's model-stage output does not
         # reach the TUI — the bridging layer between RuntimeEngine and the legacy
@@ -1022,7 +1030,15 @@ class ChatSession(ChatToggleMixin):
             yield (kind, text)
 
         # 2. 根据模式调整推理参数
-        if self._intel_mode in ("DEEP", "RESEARCH", "SAFE"):
+        if _needs_no_thinking:
+            # ── Orchestrate/swarm: force thinking OFF ──
+            # This must come AFTER _auto_route because _auto_route may set
+            # DEEP/RESEARCH mode which overrides enable_thinking to True.
+            # For orchestrate/swarm, thinking is NEVER safe — it stalls the
+            # model between the think block and the tool call. Override
+            # whatever _auto_route decided.
+            self.enable_thinking = False
+        elif self._intel_mode in ("DEEP", "RESEARCH", "SAFE"):
             self.enable_thinking = True  # 深度模式强制开启思考
         elif self._intel_mode == "FAST":
             self.enable_thinking = False  # 快速模式关闭思考省 token
