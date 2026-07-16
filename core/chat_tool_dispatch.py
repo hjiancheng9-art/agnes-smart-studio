@@ -295,44 +295,36 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
 
             side.append(("info", f"视频任务已提交，video_id={video_id}"))
 
-            # 等待完成（最多 2 分钟）
-            import threading
+            # 等待完成 — synchronous, result always consumed
+            # (was daemon thread with join(2s) mismatched to max_wait(120s) — bug)
+            import time
 
-            result_holder = {"result": None}
-
-            def poll_worker():
-                result_holder["result"] = agnes.wait_for_video(
+            try:
+                video_result = agnes.wait_for_video(
                     video_id=video_id,
                     poll_interval=3.0,
                     max_wait=120.0,
                 )
-
-            t = threading.Thread(target=poll_worker, daemon=True)
-            t.start()
-            t.join(timeout=2.0)
+            except Exception as e:
+                agnes.close()
+                return (f"视频生成失败: {e}", side)
 
             agnes.close()
 
-            if t.is_alive():
-                return (f"视频生成中（请稍后用 video_id={video_id} 查询状态）", side)
+            if video_result and video_result.get("status") in ("completed", "SUCCESS", "done"):
+                local_path = video_result.get("local_path", "")
+                url = video_result.get("url", "")
+                side.append(("video", {"url": url or "", "local_path": local_path}))
+                try:
+                    from core.cost_tracker import record_usage
+                    record_usage(model="agnes-video-v2.0", kind="video", label="generate_video", call_count=1)
+                except ImportError:
+                    pass
+                return (f"视频已生成 [video_id={video_id}]: {local_path or url}", side)
+            elif video_result and video_result.get("status") in ("failed", "FAILED", "error"):
+                return (f"视频生成失败: {video_result.get('error', 'unknown')}", side)
             else:
-                result = result_holder["result"]
-                if result and result.get("status") in ("completed", "SUCCESS", "done"):
-                    local_path = result.get("local_path", "")
-                    url = result.get("url", "")
-                    side.append(("video", {"url": url or "", "local_path": local_path}))
-                    # ── 视频成本追踪 ──
-                    try:
-                        from core.cost_tracker import record_usage
-
-                        record_usage(model="agnes-video-v2.0", kind="video", label="generate_video", call_count=1)
-                    except ImportError:
-                        pass
-                    return (f"视频已生成 [video_id={video_id}]: {local_path or url}", side)
-                elif result and result.get("status") in ("failed", "FAILED", "error"):
-                    return (f"视频生成失败: {result.get('error', 'unknown')}", side)
-                else:
-                    return (f"视频生成中（进度 {result.get('progress', 0):.0f}%），video_id={video_id}", side)
+                return (f"视频生成中（进度 {video_result.get('progress', 0):.0f}%），video_id={video_id}", side)
 
         except Exception as e:
             return (f"视频生成失败: {e}", side)
