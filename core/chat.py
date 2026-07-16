@@ -947,7 +947,7 @@ class ChatSession(ChatToggleMixin):
                 yield ("info", "【编排】启动自主编排引擎...")
                 _result_text = ""
                 try:
-                    from core.runtime_orchestrator import execute_stream as _orch_stream
+                    from core.runtime_orchestrator import execute_stream as _orch_stream, _StreamStop
                     _progress = _orch_stream(user_text)
                     while True:
                         try:
@@ -956,6 +956,9 @@ class ChatSession(ChatToggleMixin):
                             yield (_kind, str(_ev))
                         except StopIteration as _done:
                             _result_text = str(_done.value) if _done.value else ""
+                            break
+                        except _StreamStop:
+                            # Internal signal: orchestrator finished early
                             break
                 except ImportError:
                     yield ("error", "编排模块不可用")

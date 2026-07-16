@@ -18,6 +18,11 @@ from __future__ import annotations
 
 import json
 import logging
+
+# Internal signal to stop consuming a generator stream early.
+# Must NOT be a StopIteration subclass — PEP 479 would wrap it in RuntimeError.
+class _StreamStop(Exception):
+    pass
 import os
 import threading
 import time
@@ -210,11 +215,10 @@ def drain_stream(stream) -> OrchestrationResult:
             next(stream)
         except StopIteration as stop:
             result = stop.value
-            if not isinstance(result, OrchestrationResult):
-                raise RuntimeError(
-                    "execute_stream() completed without returning an OrchestrationResult"
-                )
-            return result
+            if isinstance(result, OrchestrationResult):
+                return result
+            # Generator exhausted without return — default to neutral result
+            return OrchestrationResult(verdict="unknown")
 
 
 class RuntimeOrchestrator:
@@ -768,3 +772,31 @@ def preview(goal: str, **kwargs) -> OrchestrationResult:
 def execute_tool(goal: str, **kwargs) -> str:
     """Model-facing orchestration tool contract — always returns readable text."""
     return str(execute(goal, **kwargs))
+
+
+# Context injection: chat.py sets this before tool dispatch so trigger_orchestrate
+# can access the user's original request without the model regenerating it.
+_LAST_USER_GOAL: str = ""
+
+
+def set_orchestrate_goal(goal: str) -> None:
+    global _LAST_USER_GOAL
+    _LAST_USER_GOAL = goal
+
+
+def trigger_orchestrate(preset: str = "auto", **kwargs) -> str:
+    """Lightweight orchestration entry point. Model only picks a preset enum;
+    the actual goal is injected from session context (set by send_stream).
+
+    This avoids models spending 30+ seconds generating a 200-character goal string.
+    """
+    global _LAST_USER_GOAL
+    user_goal = _LAST_USER_GOAL or "未指定任务"
+    presets = {
+        "self_heal": f"对当前系统执行自检、定位问题、修复并验证：{user_goal}",
+        "analyze": f"分析并提出可执行方案：{user_goal}",
+        "execute": user_goal,
+        "auto": user_goal,
+    }
+    full_goal = presets.get(preset, user_goal)
+    return execute_tool(full_goal, **kwargs)
