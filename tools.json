@@ -172,8 +172,7 @@
         }
       },
       "category": "exec",
-      "timeout": 120,
-      "function": "core.sandbox.run_bash"
+      "timeout": 120
     },
     {
       "name": "run_test",
@@ -789,7 +788,7 @@
       "name": "cdp_ask_chatgpt",
       "type": "function",
       "description": "仅在以下场景使用：(1)需要另一个AI视角交叉验证复杂推理 (2)需要ChatGPT可能更新的外部知识 (3)用户明确要求。禁止用于代码编写/调试/文件操作/简单问答 — DeepSeek自己更擅长这些。每次调用耗时30秒+，谨慎使用。",
-      "function": "core.cdp_browser.cdp_ask_chatgpt",
+      "function": "core.browser_runtime.cdp_ask_chatgpt",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1127,7 +1126,7 @@
       "name": "view_image",
       "type": "python",
       "description": "Open image with system default viewer. Supports PNG, JPG, GIF, WebP, SVG.",
-      "function": "ui.display._view_image",
+      "function": "core.tools.view_image",
       "parameters": {
         "path": {
           "type": "string",
@@ -1141,7 +1140,7 @@
       "name": "update_plan",
       "type": "python",
       "description": "Update the current execution plan mid-task — add, remove, modify, or insert a step.",
-      "function": "ui.display._update_plan",
+      "function": "core.tools.update_plan",
       "parameters": {
         "action": {
           "type": "string",
@@ -1787,28 +1786,14 @@
     {
       "name": "orchestrate",
       "type": "python",
-      "description": "CRUX runtime orchestration engine: auto-evaluates task complexity (TRIVIAL/SIMPLE/MODERATE/COMPLEX/CRITICAL), selects DNA execution persona, activates seven guardian beasts, executes a six-phase pipeline (GATE→CONTEXT→PLAN→EXECUTE→VERIFY→CLOSE), with automatic self-healing on failure. For complex multi-step tasks.",
-      "function": "core.runtime_orchestrator.execute_tool",
+      "description": "Start orchestration. Choose preset mode only — do NOT expand or rewrite the task. The system auto-injects the user's original request as the goal.",
+      "function": "core.runtime_orchestrator.trigger_orchestrate",
       "parameters": {
-        "goal": {
+        "preset": {
           "type": "string",
-          "description": "Task goal description",
-          "required": true
-        },
-        "dna_profile": {
-          "type": "string",
-          "description": "Optional DNA execution persona: crux/claude/codebuddy/codex/kimi/zcode. Auto-selected by default.",
-          "required": false
-        },
-        "max_recovery": {
-          "type": "integer",
-          "description": "Max self-healing retry count, default 3",
-          "required": false
-        },
-        "max_steps": {
-          "type": "integer",
-          "description": "Max execution steps, default 30",
-          "required": false
+          "enum": ["auto", "self_heal", "analyze", "execute"],
+          "description": "auto=let system decide, self_heal=self-check+fix, analyze=research only, execute=run task directly",
+          "default": "auto"
         }
       },
       "category": "orchestrate",

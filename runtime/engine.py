@@ -1,0 +1,46 @@
+"""RuntimeEngine — turn preparation. Model flow stays in old send_stream.
+
+Per GPT fix: new engine does planning + prompt + tools.
+Old loop runs DeepSeek stream (proven, no bridge needed).
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+@dataclass(frozen=True, slots=True)
+class PreparedTurn:
+    plan: object  # accepts both old core.runtime_types.ExecutionPlan and new domain.plans.ExecutionPlan
+    system_prompt: str
+    tool_defs: tuple = ()
+
+
+class RuntimeEngine:
+    """Prepares a turn: plan + prompt + tools. Model flow stays in old send_stream."""
+
+    def __init__(self, planner=None, tool_kernel=None):
+        self._planner = planner
+        self._tools = tool_kernel
+
+    def prepare_turn(self, old_plan=None):
+        """Return PreparedTurn or None if old loop should handle everything."""
+        plan = old_plan
+        if plan is None or getattr(plan, 'mode', 'direct') == "direct":
+            return None
+
+        # Handle both old (core.runtime_types) and new (domain.plans) plan formats
+        tool_names = getattr(plan, 'tool_names', ()) or getattr(
+            getattr(plan, 'prompt_plan', None), 'tool_names', ()
+        ) or ()
+
+        # Build short system prompt
+        try:
+            from prompts.assembler import PromptAssembler
+            from domain.plans import PromptPlan
+            assembler = PromptAssembler()
+            pp = PromptPlan(task_profile="architecture", tool_names=tool_names)
+            system_prompt = assembler.build(pp)
+        except ImportError:
+            system_prompt = ""
+
+        return PreparedTurn(plan=plan, system_prompt=system_prompt, tool_defs=())

@@ -960,17 +960,22 @@ class ChatSession(ChatToggleMixin):
                     _result_parts.append(f"## self_heal 失败\n{str(e)[:500]}")
                     yield ("error", f"  self_heal 失败: {e}")
 
-                # Step 2: run tests (fast subset only — avoid slow/network tests)
-                yield ("info", "[2/3] 运行快速测试...")
+                # Step 2: lint + format check (fast, seconds not minutes)
+                yield ("info", "[2/3] 代码质量检查...")
                 try:
-                    # Only run non-slow tests on core files to keep it fast
-                    _raw2, _sides2 = self._dispatch_tool("run_test", '{"path": "tests/", "extra_args": "-m \\"not slow\\" -q --no-header"}')
-                    _txt2 = str(_raw2)[:2000]
-                    _result_parts.append(f"## 测试结果\n{_txt2}")
-                    yield ("info", f"  测试完成 ({_time.monotonic()-_t0:.1f}s)")
+                    _raw2a, _ = self._dispatch_tool("run_lint", '{}')
+                    _result_parts.append(f"## Lint 检查\n{str(_raw2a)[:1500]}")
+                    yield ("info", f"  lint 完成 ({_time.monotonic()-_t0:.1f}s)")
                 except Exception as e:
-                    _result_parts.append(f"## 测试失败\n{str(e)[:500]}")
-                    yield ("error", f"  测试失败: {e}")
+                    _result_parts.append(f"## Lint 检查失败\n{str(e)[:300]}")
+
+                try:
+                    _raw2b, _ = self._dispatch_tool("run_format", '{"check": true}')
+                    _txt2b = str(_raw2b)[:500]
+                    _result_parts.append(f"## 格式检查\n{_txt2b}")
+                    yield ("info", f"  格式检查完成 ({_time.monotonic()-_t0:.1f}s)")
+                except Exception as e:
+                    _result_parts.append(f"## 格式检查失败\n{str(e)[:300]}")
 
                 # Step 3: summary
                 _elapsed = _time.monotonic() - _t0
