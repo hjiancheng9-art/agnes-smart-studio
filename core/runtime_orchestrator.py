@@ -624,7 +624,7 @@ class RuntimeOrchestrator:
             from core.multi_agent_decompose import SmartDecomposer
 
             decomposer = SmartDecomposer()
-            tasks = decomposer.decompose(goal, max_tasks=8)
+            tasks = decomposer.decompose(goal)
         except (ImportError, Exception):
             # Fallback: build a simple plan from the goal
             tasks = [
@@ -636,11 +636,21 @@ class RuntimeOrchestrator:
 
         steps_executed = 0
         for i, task in enumerate(tasks):
-            desc = task.get("description", f"Step {i + 1}")
-            tool = task.get("tool", task.get("tools", ["self_heal"])[0] if task.get("tools") else "self_heal")
+            # task can be AgentTask (SmartDecomposer) or dict (fallback)
+            if hasattr(task, "tool_sequence") and task.tool_sequence:
+                # Use the first tool from the SmartDecomposer's tool_sequence
+                desc = task.description
+                tseq = task.tool_sequence[0]
+                tool = tseq.get("tool", "self_heal")
+                args = tseq.get("args", {})
+            else:
+                desc = task.get("description", f"Step {i + 1}")
+                tool = task.get("tool", "self_heal")
+                args = {}
+
             yield self._emit(p, "info", f"Step {i + 1}/{len(tasks)}: {desc}")
             try:
-                exec_result = executor(tool, {"goal": desc})
+                exec_result = executor(tool, args)
                 if exec_result and "error" not in str(exec_result).lower():
                     steps_executed += 1
             except Exception as e:

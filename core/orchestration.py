@@ -483,8 +483,17 @@ class MasterOrchestrator:
             desc = task.get("description", tid)
             task_result = ""
             for tool_name in tools:
+                # Build correct args per tool
+                if tool_name == "self_heal":
+                    args = {"fix": True}
+                elif tool_name == "run_lint":
+                    args = {"fix": True}
+                elif tool_name == "run_test":
+                    args = {"path": "tests/", "extra_args": "-m \"not slow\" -q"}
+                else:
+                    args = {}
                 try:
-                    task_result = self.execute_tool(tool_name, {"goal": desc})
+                    task_result = self.execute_tool(tool_name, args)
                 except Exception as e:
                     task_result = f"[error] {e}"
                     break
