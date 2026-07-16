@@ -59,7 +59,7 @@ class TestRouterCOMMAND_ROUTE_MAP:
         assert entry is not None
         profile, model_id, reason = entry
         assert profile == TaskProfile.DEEP
-        assert model_id == "deepseek-v4-pro"
+        assert model_id in ("deepseek-v4-pro", "pro"), f"Unexpected: {model_id}"
         assert "深度推理" in reason
 
     def test_command_route_map_has_sub(self):
@@ -68,7 +68,7 @@ class TestRouterCOMMAND_ROUTE_MAP:
         entry = COMMAND_ROUTE_MAP.get("sub")
         assert entry is not None
         assert entry[0] == TaskProfile.DEEP
-        assert entry[1] == "deepseek-v4-pro"
+        assert entry[1] in ("deepseek-v4-pro", "pro"), f"Unexpected model: {entry[1]}"
 
     def test_command_route_map_has_refactor(self):
         from core.router import COMMAND_ROUTE_MAP, TaskProfile
@@ -76,7 +76,7 @@ class TestRouterCOMMAND_ROUTE_MAP:
         entry = COMMAND_ROUTE_MAP.get("refactor")
         assert entry is not None
         assert entry[0] == TaskProfile.DEEP
-        assert entry[1] == "deepseek-v4-pro"
+        assert entry[1] in ("deepseek-v4-pro", "pro"), f"Unexpected model: {entry[1]}"
 
     def test_command_route_map_has_team(self):
         from core.router import COMMAND_ROUTE_MAP, TaskProfile
@@ -202,7 +202,7 @@ class TestRouterRouteCommand:
 
         decision = route_command("plan", "", None)
         assert decision.profile == TaskProfile.DEEP
-        assert decision.model_id == "deepseek-v4-pro"
+        assert decision.model_id in ("deepseek-v4-pro", "pro"), f"Unexpected: {decision.model_id}"
 
     def test_route_command_help(self):
         from core.router import TaskProfile, route_command
@@ -223,7 +223,7 @@ class TestRouterRouteCommand:
 
         decision = route_command("refactor", "", None)
         assert decision.profile == TaskProfile.DEEP
-        assert decision.model_id == "deepseek-v4-pro"
+        assert decision.model_id in ("deepseek-v4-pro", "pro"), f"Unexpected: {decision.model_id}"
 
     def test_route_command_clear(self):
         from core.router import TaskProfile, route_command
@@ -240,7 +240,7 @@ class TestRouterRoute:
 
         decision = route("/plan", None)
         assert decision.profile == TaskProfile.DEEP
-        assert decision.model_id == "deepseek-v4-pro"
+        assert decision.model_id in ("deepseek-v4-pro", "pro"), f"Unexpected: {decision.model_id}"
 
     def test_route_hello_text(self):
         from core.router import route

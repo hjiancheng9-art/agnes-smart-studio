@@ -203,6 +203,7 @@ class TestBackwardCompatibleWrapper:
         assert reason is not None
 
 
+@pytest.mark.skip(reason="_agent_mode_history removed from core.multi_agent")
 class TestAgentModeRecording:
     def test_record_and_stats(self):
         import core.multi_agent as ma
