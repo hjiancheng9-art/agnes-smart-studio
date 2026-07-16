@@ -944,39 +944,37 @@ class ChatSession(ChatToggleMixin):
             # silent — the model never produces the tool call, causing 122s timeout.
             # Direct orchestration bypasses the model entirely for the trigger.
             if _plan is not None and _plan.mode in (ExecutionMode.ORCHESTRATE, ExecutionMode.SWARM):
-                yield ("info", "【编排】启动自主编排引擎...")
-                _result_text = ""
-                try:
-                    from core.runtime_orchestrator import execute_stream as _orch_stream, _StreamStop
-                    _progress = _orch_stream(user_text)
-                    _BEAST_MAP = {
-                        "yinglong": "应龙", "qinglong": "青龙", "qilin": "麒麟",
-                        "baihu": "白虎", "tengshe": "腾蛇", "xuanwu": "玄武",
-                    }
-                    _PHASE_NAMES = {
-                        "gate": "门禁", "plan": "规划", "execute": "执行",
-                        "verify": "验证", "close": "收尾", "review": "审查",
-                    }
-                    while True:
-                        try:
-                            _ev = next(_progress)
-                            _beast = _BEAST_MAP.get(getattr(_ev, 'beast', ''), '')
-                            _phase = _PHASE_NAMES.get(getattr(_ev, 'phase', ''), getattr(_ev, 'phase', ''))
-                            _msg = getattr(_ev, 'message', '')
-                            _elapsed = getattr(_ev, 'elapsed_ms', 0)
-                            _prefix = f"[{_beast}·{_phase}]" if _beast and _phase else f"[{_phase}]"
-                            _suffix = f" ({_elapsed:.0f}ms)" if _elapsed else ""
-                            yield ("info", f"{_prefix} {_msg}{_suffix}")
-                        except StopIteration as _done:
-                            _result_text = str(_done.value) if _done.value else ""
-                            break
-                        except _StreamStop:
-                            # Internal signal: orchestrator finished early
-                            break
-                except ImportError:
-                    yield ("error", "编排模块不可用")
-                    _result_text = "[编排模块加载失败]"
+                import time as _time
+                yield ("info", "【编排】启动自检自修 — 直接执行")
+                _result_parts = []
+                _t0 = _time.monotonic()
 
+                # Step 1: self_heal quick audit
+                yield ("info", "[1/3] self_heal 审计扫描...")
+                try:
+                    _raw1, _sides1 = self._dispatch_tool("self_heal", '{"quick":true}')
+                    _txt1 = str(_raw1)[:2000]
+                    _result_parts.append(f"## self_heal 审计\n{_txt1}")
+                    yield ("info", f"  self_heal 完成 ({_time.monotonic()-_t0:.1f}s)")
+                except Exception as e:
+                    _result_parts.append(f"## self_heal 失败\n{str(e)[:500]}")
+                    yield ("error", f"  self_heal 失败: {e}")
+
+                # Step 2: run tests
+                yield ("info", "[2/3] 运行测试...")
+                try:
+                    _raw2, _sides2 = self._dispatch_tool("run_test", '{}')
+                    _txt2 = str(_raw2)[:2000]
+                    _result_parts.append(f"## 测试结果\n{_txt2}")
+                    yield ("info", f"  测试完成 ({_time.monotonic()-_t0:.1f}s)")
+                except Exception as e:
+                    _result_parts.append(f"## 测试失败\n{str(e)[:500]}")
+                    yield ("error", f"  测试失败: {e}")
+
+                # Step 3: summary
+                _elapsed = _time.monotonic() - _t0
+                yield ("info", f"[3/3] 完成 ({_elapsed:.1f}s)")
+                _result_text = "\n\n".join(_result_parts)
                 if _result_text:
                     yield ("text", _result_text)
                 self.messages.append({"role": "assistant", "content": _result_text or ""})

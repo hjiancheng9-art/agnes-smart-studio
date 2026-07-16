@@ -406,16 +406,37 @@ class MasterOrchestrator:
             plan.needs_human_confirm = complexity == TaskComplexity.CRITICAL
 
         except Exception:
-            # Fallback: 单任务直接执行
-            plan.tasks = [{"id": "direct", "description": goal, "tier": "pro", "tools": [], "depends_on": []}]
-            plan.max_concurrency = 1
+            # Fallback: build a sensible plan without SmartDecomposer.
+            # For self-check/heal tasks, produce multiple concrete steps.
+            _gl = goal.lower()
+            if "自检" in _gl or "自修" in _gl or "self heal" in _gl or "audit" in _gl:
+                plan.tasks = [
+                    {"id": "1", "description": "运行 self_heal 审计扫描", "tier": "pro", "tools": ["self_heal"], "depends_on": []},
+                    {"id": "2", "description": "审查发现的问题并生成修复方案", "tier": "pro", "tools": ["code_review"], "depends_on": ["1"]},
+                    {"id": "3", "description": "运行测试验证", "tier": "pro", "tools": ["run_test"], "depends_on": ["2"]},
+                ]
+                plan.max_concurrency = 1
+                plan.needs_review = True
+            else:
+                plan.tasks = [{"id": "direct", "description": goal, "tier": "pro", "tools": [], "depends_on": []}]
+                plan.max_concurrency = 1
 
         return plan
 
     def _execute_plan(self, plan: OrchestrationPlan) -> dict:
         """EXECUTE 阶段: 并行分派."""
-        if len(plan.tasks) <= 1:
-            return {"mode": "single", "result": "direct execution"}
+        if len(plan.tasks) == 0:
+            return {"mode": "empty", "result": "no tasks"}
+
+        if len(plan.tasks) == 1:
+            # Single task: execute directly with the tool executor
+            task = plan.tasks[0]
+            desc = task.get("description", task.get("id", ""))
+            try:
+                result = self.execute_tool("execute_plan", {"goal": desc})
+                return {"mode": "single", "result": str(result)[:500], "done": 1, "failed": 0}
+            except Exception as e:
+                return {"mode": "single", "error": str(e)[:200], "done": 0, "failed": 1}
 
         try:
             from core.multi_agent_swarm import AgentSwarm
@@ -530,40 +551,7 @@ def get_orchestrator(tool_executor=None, model_router=None) -> MasterOrchestrato
     return _orchestrator
 
 
-# ═══════════════════════════════════════════════════════════════════
-# Tool: run_orchestrate — CRUX 可调用的编排工具
-# ═══════════════════════════════════════════════════════════════════
-
-ORCHESTRATE_TOOL_DEF: dict = {
-    "type": "function",
-    "function": {
-        "name": "run_orchestrate",
-        "description": (
-            "完整编排引擎 — 对复杂目标执行 GATE→CONTEXT→PLAN→EXECUTE→VERIFY→CLOSE 六阶段闭环。"
-            "适用于多文件重构、安全审计、系统迁移等 5+ 工具的复杂任务。"
-            "自动强制上下文收集、任务分解、并行派发、交叉审查、资源回收。"
-            "与 agent_swarm/multi_agent 的区别: 编排引擎有硬件门禁(强制先读代码)、"
-            "文件隔离锁(防止并行冲突)、验证闭环(9 维自检清单)。"
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "goal": {
-                    "type": "string",
-                    "description": "要完成的复杂目标，如'审计认证模块安全性并修复发现的漏洞'",
-                },
-                "mode": {
-                    "type": "string",
-                    "enum": ["auto", "full", "fast"],
-                    "description": "编排模式: auto=自适应, full=完整六阶段, fast=跳过高复杂度步骤。默认 auto",
-                },
-            },
-            "required": ["goal"],
-        },
-    },
-}
-
-
+# run_orchestrate removed — use tools.json "orchestrate" → core.runtime_orchestrator.execute_tool
 def run_orchestrate(goal: str = "", mode: str = "auto", **kwargs) -> str:  # noqa: ARG001
     """Backward-compat wrapper — delegates to canonical ``orchestrate`` tool.
 
