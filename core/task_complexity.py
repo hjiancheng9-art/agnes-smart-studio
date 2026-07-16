@@ -59,10 +59,18 @@ _MODERATE_PATTERNS = [
     "bug", "add", "update", "delete", "optimize", "tweak", "调整",
 ]
 
+# Feature/module context words — when present alongside a micro-task keyword,
+# they indicate the micro-task is part of a larger feature change (MODERATE),
+# e.g. "修复登录页拼写错误" contains both "拼写" (SIMPLE) and "页" (feature ctx).
+_FEATURE_CONTEXT_PATTERNS = [
+    "page", "module", "feature", "system", "component", "screen", "view",
+    "页", "模块", "功能", "系统", "组件", "界面", "页面", "登录", "注册", "支付", "认证",
+]
+
 _SIMPLE_PATTERNS = [
     "typo", "spelling", "comment", "docstring", "formatting", "rename",
-    "documentation", "readme",
-    "拼写", "注释", "格式化", "改名",
+    "documentation", "readme", "log", "logging",
+    "拼写", "注释", "格式化", "改名", "日志",
 ]
 
 _TRIVIAL_RE = re.compile(
@@ -111,16 +119,31 @@ def classify_task(goal: str) -> TaskClassification:
             "Repository-wide, architectural, or multi-module scope",
         )
 
+    # A goal counts as a micro-task (SIMPLE) only when its signal is a pure
+    # micro-task keyword WITHOUT any feature/module context. If the goal also
+    # names a page/module/feature (e.g. "修复登录页拼写错误" = "拼写" SIMPLE
+    # + "登录页" feature ctx), the micro-task is part of a feature change and
+    # must be classified MODERATE.
+    _has_simple = _match_any(text_lower, _SIMPLE_PATTERNS)
+    _has_feature_ctx = _match_any(text_lower, _FEATURE_CONTEXT_PATTERNS)
+    if _has_simple and not _has_feature_ctx:
+        return TaskClassification(
+            TaskComplexity.SIMPLE,
+            "Small, locally scoped edit",
+        )
+
     if _match_any(text_lower, _MODERATE_PATTERNS):
         return TaskClassification(
             TaskComplexity.MODERATE,
             "Debugging, integration, or feature implementation",
         )
 
-    if _match_any(text_lower, _SIMPLE_PATTERNS):
+    # Micro-task word appeared but was overridden by feature context above;
+    # if no moderate signal matched, still treat as MODERATE (feature edit).
+    if _has_simple and _has_feature_ctx:
         return TaskClassification(
-            TaskComplexity.SIMPLE,
-            "Small, locally scoped edit",
+            TaskComplexity.MODERATE,
+            "Feature-scoped edit",
         )
 
     if _TRIVIAL_RE.match(text):

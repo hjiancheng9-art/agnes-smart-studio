@@ -79,7 +79,9 @@ class TestDryRun:
         result = preview("重构支付模块")
         assert result.verdict == "dry_run"
         assert len(result.plan_preview) >= 1
-        assert result.grade in ("B", "C")
+        # grade now uses TaskComplexity enum names (see commit 5d5eefd);
+        # "重构支付模块" classifies as COMPLEX.
+        assert result.grade in ("COMPLEX", "CRITICAL")
 
     def test_preview_has_steps(self):
         result = preview("实现用户认证")

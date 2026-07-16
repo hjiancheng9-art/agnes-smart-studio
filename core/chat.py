@@ -41,6 +41,11 @@ from core.chat_prompt import (
 )
 from core.chat_toggle_mixin import ChatToggleMixin
 from core.chat_tool_dispatch import _dispatch_tool_impl
+import threading as _threading
+
+# Tools eligible for auto-retry on error (idempotent or safe to retry)
+_AUTO_RETRY_TOOLS = frozenset({"run_bash", "run_test", "pip_install", "run_python"})
+
 from core.chat_tool_helpers import merge_tool_calls, sanitize_tool_call_history
 from core.chat_tool_helpers import normalize_tool_args as _normalize_tool_args
 from core.chat_vision import _vision_fallback
@@ -210,7 +215,8 @@ def _auto_retry_tool(session, tool_name: str, args_json: str, original_error: st
                 except ImportError:
                     pass
                 return result, sides
-        except Exception:
+        except (OSError, ValueError, RuntimeError):
+            logger.debug("Retry dispatch failed for %s", tool_name, exc_info=True)
             continue
 
     return original_error, [("info", original_error)]
@@ -325,12 +331,34 @@ class ChatSession(ChatToggleMixin):
         self._reflection: ReflectionLoop | None = None  # ReflectionLoop, lazy init
         self._memory: MemoryBridge | None = None  # MemoryBridge, lazy init
         self._cog: CognitiveOrchestrator | None = None  # CognitiveOrchestrator, lazy init
+        self._temp_input_files: set[str] = set()  # Track long-input temp files for cleanup
         self._vote_enabled: bool = False  # /vote toggle (off by default to save tokens)
         self.messages: list[dict] = [{"role": "system", "content": self._build_system_prompt()}]
+        # ── Session-scoped routing (extracted from global ProviderManager) ──
+        from core.routing_state import RoutingState
+
+        self.routing: RoutingState = RoutingState(active_provider="deepseek", active_model=self.model)
         # ── Hook wiring (Phase 1-14 + subsystem activation) ──
         from core.chat_hooks_setup import wire_session_hooks
 
         wire_session_hooks(self)
+
+    def __del__(self) -> None:
+        """Cleanup temp files on garbage collection (fallback to atexit)."""
+        self._cleanup_temp_input_files()
+
+    def _cleanup_temp_input_files(self) -> None:
+        """Remove all tracked long-input temp files. Safe to call multiple times."""
+        import os as _os
+
+        for fp in tuple(self._temp_input_files):
+            try:
+                if _os.path.exists(fp):
+                    _os.remove(fp)
+            except OSError:
+                pass
+            finally:
+                self._temp_input_files.discard(fp)
 
     def _record_trace_failure(self, error: str, step_name: str = "tool_execution", mode: str = "") -> None:
         """Record a failure trace for the adaptive learner (best-effort, never raises)."""
@@ -822,13 +850,13 @@ class ChatSession(ChatToggleMixin):
     def send_stream(self, user_text: str, image_url: str | None = None):
         """发送用户消息，流式 yield (kind, payload) 元组。
 
-        - 多模态（有 image_url）：走 vision_client 整块输出，与主模型供应商解耦
-        - tool 调度（pro）：流式累积 → 检测 tool_calls → 执行 engine → 喂回 → 二次流式
-        - 纯文本：流式 yield ('text', 增量)
+        Pipeline stages: accepted → plan → context → model → tools → finalize
         """
-        # 记录用户文本（供 TraceStore 失败追踪使用）
         self._last_user_text = user_text
-        self._last_turn_had_errors = False  # 每回合重置
+        self._last_turn_had_errors = False
+
+        # ── Stage 0: Accepted (must be first yield, <50ms) ──
+        yield ("info", "已收到")
 
         # ── 输入截断: 超长文本存临时文件，避免炸上下文 ──
         _MAX_INPUT_CHARS = 4000
@@ -838,11 +866,11 @@ class ChatSession(ChatToggleMixin):
 
             tmp_dir = tempfile.gettempdir()
             tmp_path = f"{tmp_dir}/crux_input_{os.getpid()}.txt".replace("\\", "/")
-            import atexit
-
             with open(tmp_path, "w", encoding="utf-8") as f_tmp:
                 f_tmp.write(self._last_user_text)
-            atexit.register(lambda p=tmp_path: os.path.exists(p) and os.remove(p))
+            self._temp_input_files.add(tmp_path)
+            import atexit
+            atexit.register(lambda p=tmp_path: os.path.exists(p) and os.remove(p))  # final safety net
             user_text = (
                 f"[大文本 {_input_len} 字符，完整内容: {tmp_path}]\n"
                 f"开头:\n{user_text[: _MAX_INPUT_CHARS // 2]}\n"
@@ -900,12 +928,77 @@ class ChatSession(ChatToggleMixin):
             user_text = f"[图片分析] {vision_raw}\n\n用户提问: {user_text}"
             # 不 return，继续走正常 LLM 流式推理
 
+        # ── Unified execution plan ──
+        try:
+            from core.runtime_types import plan_from_policy, ExecutionMode
+
+            _plan = plan_from_policy(user_text)
+            if _plan.mode != ExecutionMode.DIRECT:
+                instruction = "[执行策略] "
+                if _plan.mode == ExecutionMode.ORCHESTRATE:
+                    instruction += "请调用 `orchestrate` 工具。不要用逐步思考替代编排。"
+                elif _plan.mode == ExecutionMode.SWARM:
+                    instruction += "请调用 `agent_swarm` 并行分派子智能体。"
+                original_user = user_text
+                user_text = f"{instruction}\n\n用户任务: {original_user}"
+
+            # Auto-upgrade model for complex tasks
+            if _plan.complexity >= 3 and ("flash" in self.model or "light" in self.model):
+                pro = self.model.replace("flash", "pro").replace("light", "pro")
+                if pro != self.model:
+                    self.model = pro
+                    self.routing.select(self.routing.active_provider, pro)
+                    yield ("info", f"自动切换模型: {self.model}")
+        except ImportError:
+            _plan = None
+
+        # ── 事件协议: 生成 run_id ──
+        _run_id = str(uuid.uuid4())[:12]
+
+        # ── New runtime: provide short prompt for orchestrate/swarm. ──
+        # ⚠ KNOWN-BROKEN (2026-07-17): the new runtime's model-stage output does not
+        # reach the TUI — the bridging layer between RuntimeEngine and the legacy
+        # _consume_stream_delta sync-generator protocol breaks in different ways
+        # each attempt (see gpt_bigfix.txt history, since discarded). The code is
+        # retained because the architecture is sound, but it is DISABLED by default
+        # so orchestrate/swarm fall back to the stable legacy loop.
+        # Re-enable explicitly with:  export CRUX_ENABLE_NEW_RUNTIME=1
+        _use_new_runtime = (
+            _plan is not None
+            and _plan.mode in ("orchestrate", "swarm")
+            and os.environ.get("CRUX_ENABLE_NEW_RUNTIME", "0") == "1"
+        )
+        if _use_new_runtime:
+            try:
+                from runtime.engine import RuntimeEngine
+                _new_engine = RuntimeEngine()
+                _prepared = _new_engine.prepare_turn(old_plan=_plan)
+                if _prepared and _prepared.system_prompt:
+                    old_len = len(self.messages[0]["content"])
+                    self.messages[0]["content"] = _prepared.system_prompt
+                    yield ("info", f"系统提示词: {len(_prepared.system_prompt)} chars (旧 {old_len} chars)")
+                    # Disable thinking mode for orchestrate — it stalls between think and output
+                    self.enable_thinking = False
+            except ImportError:
+                pass  # new runtime not ready, use old prompt
+
         # ── 纯文本分支：加 user message ──
+        # Set orchestration goal context (used by trigger_orchestrate)
+        try:
+            from core.runtime_orchestrator import set_orchestrate_goal
+            set_orchestrate_goal(user_text)
+        except ImportError:
+            pass
         self.messages.append({"role": "user", "content": user_text})
 
         # ── 事件协议: 生成 run_id，yield stream_start ──
         _run_id = str(uuid.uuid4())[:12]
+        import time as _time
+
+        _turn_start = _time.monotonic()  # track turn start for heartbeat timing
         yield ("stream_start", {"run_id": _run_id, "message": "start"})
+
+        yield ("info", "【规划】分析任务 & 选择模型...")
 
         # Auto-route: classify prompt intent → dynamically switch model tier
         # (e.g. complex code → pro, simple Q&A → light, deep reasoning → reasoner)
@@ -1067,6 +1160,7 @@ class ChatSession(ChatToggleMixin):
                 _stream_error = False
                 _last_usage = None
                 # _consume_stream_delta 是生成器：yield text chunks + return (buffer, tool_calls, error, usage)
+                yield ("status", f"等待 {_use_model} 响应...")
                 try:
                     delta_result = yield from self._consume_stream_delta(
                         _use_client,
@@ -1215,6 +1309,9 @@ class ChatSession(ChatToggleMixin):
         kwargs = {}
         if self.enable_thinking:
             kwargs = get_thinking_params(model)
+        else:
+            # Explicitly disable thinking for DeepSeek (default is enabled)
+            kwargs = {"thinking": {"type": "disabled"}}
         for delta in client.chat_stream(
             model=model,
             messages=sanitize_tool_call_history(self.messages),
@@ -1291,7 +1388,7 @@ class ChatSession(ChatToggleMixin):
             _merged_check = getattr(self, "_last_merged_tool_calls", merge_tool_calls(tool_calls))
             _v_start = _time.time()
             for tc_check in _merged_check:
-                fname_c = tc_check["function"]["name"]
+                fname_c = self.tools.resolve_name(tc_check["function"]["name"])
                 fargs_raw = tc_check["function"].get("arguments", "{}")
                 if isinstance(fargs_raw, str):
                     try:
@@ -1327,7 +1424,7 @@ class ChatSession(ChatToggleMixin):
 
         merged = getattr(self, "_last_merged_tool_calls", merge_tool_calls(tool_calls))
         for tc in merged:
-            fname = tc["function"]["name"]
+            fname = self.tools.resolve_name(tc["function"]["name"])
             fargs = tc["function"].get("arguments", "{}")
             sig = (fname, _normalize_tool_args(fargs))
             # 跨轮去重：非写工具且本会话已执行过 → 复用缓存，不重复 dispatch
@@ -1350,16 +1447,21 @@ class ChatSession(ChatToggleMixin):
                             except Exception:
                                 logging.getLogger("crux").debug("silent except", exc_info=True)
 
-                        tool_result, side_effects = self._dispatch_tool(fname, fargs)
+                        # Dispatch (sync, same as HEAD — ThreadPoolExecutor timeout guard
+                        # removed because it masked fast-fail errors in mock/test environments
+                        # and introduced 120s hangs in fallback paths).
+                        raw = self._dispatch_tool(fname, fargs)
+                        from core.runtime_result import ToolResult
+                        normalized = ToolResult.from_raw(raw)
+                        tool_result = f"[{normalized.error_code}] {normalized.content}" if not normalized.ok else normalized.content
+                        side_effects = list(normalized.side_effects)
 
-                        # ── 自动重试: 工具返回错误时尝试修正参数重试 ──
+                        # ── 自动重试: 仅对幂等/可重试工具，且错误表明可修正时才重试 ──
                         _result_str = str(tool_result)
-                        if (_result_str.startswith("[错误]") or _result_str.startswith("[自愈失败]")) and fname in (
-                            "run_bash",
-                            "run_test",
-                            "pip_install",
-                            "run_python",
-                        ):
+                        _can_retry = (
+                            _result_str.startswith("[错误]") or _result_str.startswith("[自愈失败]")
+                        ) and fname in _AUTO_RETRY_TOOLS
+                        if _can_retry:
                             tool_result, side_effects = _auto_retry_tool(self, fname, fargs, tool_result)
 
                         # ── 工具结果缓存: 缓存成功的只读工具结果 ──
@@ -1784,5 +1886,23 @@ class ChatSession(ChatToggleMixin):
 
 ChatSession._dispatch_tool = _dispatch_tool_impl
 ChatSession._dispatch_tool_impl = _dispatch_tool_impl
+
+# ── Async dispatch bridge (Phase 1 tool chain refactoring) ──
+def _dispatch_tool_async(self, tool_name: str, tool_args: str | dict):
+    """Async wrapper around sync _dispatch_tool_impl with timeout and ToolOutcome.
+    Use this from async code paths (browser, pipelines, sub-agents).
+    Existing sync callers continue to use _dispatch_tool unchanged.
+    """
+    import asyncio
+    import json as _json
+
+    from core.tool_executor import ToolExecutor
+
+    args_dict = _json.loads(tool_args) if isinstance(tool_args, str) else (tool_args or {})
+    executor = ToolExecutor(self._dispatch_tool)
+    return executor.execute(tool_name, args_dict)
+
+
+ChatSession._dispatch_tool_async = _dispatch_tool_async
 
 ChatSession._vision_fallback = _vision_fallback

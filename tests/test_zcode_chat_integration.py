@@ -6,6 +6,7 @@ fallback chain, budget warnings, and methodology classification.
 
 from __future__ import annotations
 
+import pytest
 from unittest.mock import MagicMock, patch
 
 # ── Helpers ──────────────────────────────────────────────────
@@ -94,8 +95,14 @@ class TestSendStreamBasic:
         assert "What is Python" in user_msgs[0].get("content", "")
 
 
+@pytest.mark.slow
 class TestSendStreamErrors:
-    """Error handling in the stream pipeline."""
+    """Error handling in the stream pipeline.
+
+    Marked slow because these tests rely on the fallback chain reaching a real
+    API endpoint (the mock client only covers the first fallback slot). In CI
+    with network restrictions this can hang. See CRUX audit 2026-07-17.
+    """
 
     def test_stream_error_handled(self):
         from core.chat import ChatSession
