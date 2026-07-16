@@ -1,6 +1,6 @@
 # CRUX Studio — 命令参考 (auto-generated)
 
-共 57 个命令
+共 58 个命令
 
 ## 创意生产
 
@@ -46,6 +46,7 @@
 | `/commit` | 从 git diff 自动生成 commit 消息 |
 | `/changelog` | 从 git log 生成 CHANGELOG.md |
 | `/refactor <旧> <新>` | 批量重命名/替换 |
+| `/orchestrate <任务描述>` | 全能力编排：自动A/B/C/D分级+DNA人格+七兽护航+流式执行 |
 
 ## 诊断配置
 
@@ -90,4 +91,4 @@
 | `/trae-new <name> [description]` | 手动创建 trae 风格 skill |
 
 ---
-*83 tools, 99 skills, 246 core modules, 162 test files*
+*86 tools, 99 skills, 249 core modules, 164 test files*
