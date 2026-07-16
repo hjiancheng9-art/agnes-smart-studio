@@ -93,6 +93,9 @@ def _exec_skill_load(**kwargs) -> str:
                 "timestamp": _time.time(),
             }
         )
+        # Cap at 500 entries to prevent unbounded memory growth
+        if len(mgr._skill_usage_log) > 500:
+            mgr._skill_usage_log = mgr._skill_usage_log[-250:]
     except Exception:
         logger.debug("Exception in tools", exc_info=True)
     skill = mgr.load(name)
