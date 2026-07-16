@@ -1,6 +1,6 @@
 # CRUX Studio — 命令参考 (auto-generated)
 
-共 58 个命令
+共 56 个命令
 
 ## 创意生产
 

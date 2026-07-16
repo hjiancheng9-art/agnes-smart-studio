@@ -24,7 +24,7 @@ CRUX Studio v6.1.0 — 极简内核 · 百器待命 · 七兽按需 · Multi-Age
 
 > ⚠ 以下数量为快照，可能过期。当前准确数量以 `/tools`、`/help`、`pytest --co` 输出为准。
 
-- 50 Commands: auto-registered in core/commands.py (COMMANDS list), /help auto-generated
+- 56 Commands: auto-registered in core/commands.py (COMMANDS list), /help auto-generated
 - Toggle-based feature switching (非 mode 架构):
   - code_mode / agent_mode: ChatSession.toggle_code_mode() / toggle_agent_mode()
   - Skill loading: ChatSession.load_skill() / unload_skill() (showrunner / creative-pipeline)
@@ -33,9 +33,9 @@ CRUX Studio v6.1.0 — 极简内核 · 百器待命 · 七兽按需 · Multi-Age
   - 质量基准: /eval [json] 跑 EvalEngine 基准集（表格/JSON 输出）
   - 每次切换通过 _build_system_prompt() 重建 system prompt
 - Creative Generation: /generate (Agnes: text/image/video) — CRUX 生成管线入口
-- Marketplace: 696 skills (28 local + 668 marketplace), search/install/auto-discover
+- Marketplace: 97 skills in skills/ directory, search/install/auto-discover
 - Providers: CRUX AI (vision/media/fallback) / DeepSeek V4 Pro+Flash (primary chat/code, 1M ctx) / Zhipu GLM-4V-Flash (free vision)
-- 97 Tools: code editing, git (13), code intelligence (7), GitHub (10), creative generation (Agnes+runware), browser, file ops, MCP bridge (4 tools), patch, execute_plan, codex, notebook, audio — 动态统计见 /tools
+- 86 Tools: code editing, git (13), code intelligence (7), GitHub (10), creative generation (Agnes+runware), browser, file ops, MCP bridge (4 tools), patch, execute_plan, codex, notebook, audio — 动态统计见 /tools
 
 ## Rendering Contract
 - ui/tui_app.py:TuiApp._stream_response 是流式渲染网关（prompt_toolkit 全屏 TUI）
