@@ -922,7 +922,13 @@ class ChatSession(ChatToggleMixin):
             # 注册到视觉上下文（持久化图片 + 原始描述，供后续追问重查）
             self.vision_ctx.register(image_url, vision_raw)
             # 将 vision 输出作为"系统视觉情报"注入用户消息，替换原始图片 URL
-            user_text = f"[图片分析] {vision_raw}\n\n用户提问: {user_text}"
+            # Truncate to prevent context window waste (complex mode: 4096 tokens max)
+            _MAX_VISION_CHARS = 2000
+            _clean = vision_raw[: _MAX_VISION_CHARS * 2]  # ~4000 chars ≈ 1000 tokens
+            # Strip magic tokens that could confuse the downstream LLM
+            for _tok in ("<|im_end|>", "<|im_start|>", "<|user|>", "<|assistant|>", "<|system|>"):
+                _clean = _clean.replace(_tok, "")
+            user_text = f"[图片分析] {_clean}\n\n用户提问: {user_text}"
             # 不 return，继续走正常 LLM 流式推理
 
         # ── Unified execution plan ──

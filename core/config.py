@@ -186,7 +186,8 @@ def get_crux_vision_model() -> str:
         crux = mgr.providers.get("crux", {})
         crux_key = crux.get("api_key") or os.getenv("CRUX_API_KEY") or os.getenv("AGNES_API_KEY")
         if crux_key:
-            return crux.get("models", {}).get("pro") or CRUX_TEXT
+            # CRUX provider stores vision model under "vision", not "pro"
+            return crux.get("models", {}).get("vision") or crux.get("models", {}).get("pro") or CRUX_TEXT
         # Fallback to Zhipu vision models (free)
         zhipu = mgr.providers.get("zhipu", {})
         zhipu_v = zhipu.get("vision_models", {})

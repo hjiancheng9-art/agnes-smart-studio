@@ -31,36 +31,31 @@ def analyze_image(image_path: str, question: str = "描述这张图片") -> str:
     except (ValueError, OSError) as e:
         return f"(无法加载图片: {e})"
 
-    # Try Agnes first (free + stronger), Zhipu as fallback
-    for attempt in ("agnes", "zhipu"):
-        try:
-            if attempt == "agnes":
-                client, model = _get_agnes_client()
-            else:
-                client, model = _get_zhipu_client()
+    # Use provider-aware routing via model registry — unified with chat_vision
+    from core.provider import get_capability_info, get_provider_manager, get_vision_models
 
-            result = client.chat_multimodal(
+    mgr = get_provider_manager()
+    for model_id in get_vision_models():
+        info = get_capability_info(model_id)
+        if not info or not info.provider_id:
+            continue
+        try:
+            vc = mgr.create_client(info.provider_id)
+            result = vc.chat_multimodal(
                 text=question,
                 image_url=url,
-                model=model,
+                model=model_id,
                 temperature=0.3,
                 max_tokens=1024,
             )
             raw = result["choices"][0]["message"]["content"] or ""
-
-            # Detect Zhipu content rejection
-            if attempt == "zhipu":
-                rejected = any(phrase in raw for phrase in ("超出", "能力范围", "建议您尝试其他", "无法", "不支持"))
-                if rejected:
-                    continue
-
-            return raw
-
-        except (RuntimeError, OSError, ValueError, KeyError, IndexError, ImportError):
-            if attempt == "zhipu":
+            # Detect content rejection
+            rejected = any(phrase in raw for phrase in ("超出", "能力范围", "无法", "不支持"))
+            if rejected:
                 continue
-            return "(视觉模型均不可用，请稍后重试)"
-
+            return raw
+        except (RuntimeError, OSError, ValueError, KeyError, IndexError, ImportError):
+            continue
     return "(视觉模型均不可用，请稍后重试)"
 
 

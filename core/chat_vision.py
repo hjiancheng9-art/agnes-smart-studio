@@ -39,30 +39,20 @@ def _vision_fallback(self, text: str, image_url: str) -> str:
         retry_503 = 0
         while True:
             try:
-                # Use provider-aware client: route to correct API endpoint
+                # Use provider-aware client routing via model registry
+                # (replaces hardcoded prefix matching that silently broke for new providers)
                 vc = self.vision_client
-                model_lower = model_id.lower()
-                if model_lower.startswith("glm-") or model_lower.startswith("cog"):
-                    try:
-                        from core.provider import get_provider_manager
+                try:
+                    from core.provider import get_capability_info, get_provider_manager
 
-                        mgr = get_provider_manager()
-                        vc = mgr.create_client("zhipu")
-                    except (ImportError, RuntimeError, OSError) as e:
-                        last_reason = f"智谱客户端创建失败: {e}"
-                        logger.warning("zhipu client creation failed for model %s: %s", model_id, e)
-                        break  # skip this model, try next in chain
-                elif model_lower.startswith("agnes-"):
-                    # CRUX/Agnes vision models must route to CRUX API, not main client
-                    try:
-                        from core.provider import get_provider_manager
-
-                        mgr = get_provider_manager()
-                        vc = mgr.create_client("crux")
-                    except (ImportError, RuntimeError, OSError) as e:
-                        last_reason = f"CRUX客户端创建失败: {e}"
-                        logger.warning("crux client creation failed for model %s: %s", model_id, e)
-                        break
+                    mgr = get_provider_manager()
+                    info = get_capability_info(model_id)
+                    if info and info.provider_id:
+                        vc = mgr.create_client(info.provider_id)
+                except (ImportError, RuntimeError, OSError) as e:
+                    last_reason = f"Provider client creation failed for {model_id}: {e}"
+                    logger.warning("vision client creation failed for %s: %s", model_id, e)
+                    break
                 r = vc.chat_multimodal(
                     text=vision_text,
                     image_url=image_url,
