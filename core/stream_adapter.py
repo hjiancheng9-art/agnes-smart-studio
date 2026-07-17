@@ -68,7 +68,7 @@ def consume_stream(
     _thread.start()
 
     _last_data = time.monotonic()
-    while not _reader_done.is_set():
+    while not _reader_done.is_set() or not _delta_q.empty():
         try:
             _item = _delta_q.get(timeout=2.0)
             _last_data = time.monotonic()

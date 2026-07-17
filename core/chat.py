@@ -1273,64 +1273,15 @@ class ChatSession(ChatToggleMixin):
                 buffer, tool_calls = "", []
                 _stream_error = False
                 _last_usage = None
-                # _consume_stream_delta 是生成器：yield text chunks + return (buffer, tool_calls, error, usage)
-                # GPT v6.2 ModelWorker pattern: thread + queue + 30s watchdog
-                # Cancel event shared with worker — watchdog sets it to close httpx stream.
+                # _consume_stream_delta is a generator: yields text chunks, returns result tuple.
+                # stream_adapter.consume_stream() inside handles thread+queue+30s watchdog.
+                # No double-wrapping needed — single threaded layer is sufficient.
                 try:
-                    import queue as _queue
-                    import threading as _threading
-                    _delta_q: _queue.Queue = _queue.Queue()
-                    _reader_done = _threading.Event()
-                    _cancel = _threading.Event()
-                    _reader_error: list[Exception | None] = [None]
-
-                    def _run_stream():
-                        try:
-                            _gen = self._consume_stream_delta(_use_client, _use_model, tools)
-                            while not _cancel.is_set():
-                                try:
-                                    _item = next(_gen)
-                                    _delta_q.put(_item)
-                                except StopIteration as _si:
-                                    _delta_q.put(("__return__", _si.value))
-                                    break
-                            # If cancelled, close the underlying client stream
-                            if _cancel.is_set():
-                                try:
-                                    _use_client.close()
-                                except Exception:
-                                    pass
-                        except Exception as _exc:
-                            _reader_error[0] = _exc
-                        finally:
-                            _reader_done.set()
-
-                    _reader_thread = _threading.Thread(target=_run_stream, daemon=True, name="crux-stream")
-                    _reader_thread.start()
-
-                    _last_data = _time.monotonic()
-                    _delta_result = None
-                    while not _reader_done.is_set():
-                        try:
-                            _item = _delta_q.get(timeout=2.0)
-                            _last_data = _time.monotonic()
-                            if isinstance(_item, tuple) and _item[0] == "__return__":
-                                _delta_result = _item[1]
-                                break
-                            yield _item
-                        except _queue.Empty:
-                            if _time.monotonic() - _last_data > 30.0:
-                                _cancel.set()  # signal worker to close stream
-                                _reader_error[0] = RuntimeError("Stream timeout: no data for 30s")
-                                break
-                    _reader_thread.join(timeout=5)
-                    if _reader_thread.is_alive():
-                        logger.warning("Stream reader thread did not exit in 5s — abandoned as daemon")
-                    if _reader_error[0]:
-                        raise _reader_error[0]
-                    if _delta_result is None:
-                        raise RuntimeError("Stream ended without result")
-                    delta_result = _delta_result
+                    delta_result = yield from self._consume_stream_delta(
+                        _use_client,
+                        _use_model,
+                        tools,
+                    )
                 except InvalidUnicodePayloadError:
                     logger.exception(
                         "_consume_stream_delta: payload encoding error — NOT a provider failure, skipping failover"
