@@ -1411,33 +1411,17 @@ class ChatSession(ChatToggleMixin):
     _WRITE_TOOLS = WRITE_TOOLS
 
     def _consume_stream_delta(self, client: CruxClient, model: str, tools):
-        """吃一轮流式 delta，yield text chunks，return (buffer, tool_calls, stream_error, last_usage)。
-
-        本方法是纯消费者：把 chat_stream 的增量帧累积成 buffer + tool_calls，
-        并捕获最后一帧的 usage（用于计费）和 _finish="error" 标记。
-        不修改 self.messages（写入由调用方负责）。
-
-        yield from 此生成器时，返回值通过 StopIteration.value 传递。
-
-        max_tokens 自适应：纯文本 16384（覆盖长文案/脚本/分析），工具 8192，
-        """
-        buffer, tool_calls = "", []
-        stream_error = False
-        last_usage = None
-        # 从统一适配层读取模型实际能力
+        """GPT v6.2: thin wrapper. Stream I/O → stream_adapter, delta processing → DeltaProcessor."""
         from core.provider_adapter import get_max_tokens, get_thinking_params
+        from core.stream_adapter import DeltaProcessor, consume_stream
 
         max_tok = get_max_tokens(model, is_tool_call=bool(tools))
         kwargs = {}
         if self.enable_thinking:
             kwargs = get_thinking_params(model)
-        _first_token_at = None
-        import time as _time
 
-        _stream_start = _time.monotonic()
-        from core.stream_adapter import consume_stream as _consume
-
-        for delta in _consume(
+        processor = DeltaProcessor(model)
+        for delta in consume_stream(
             lambda: client.chat_stream(
                 model=model,
                 messages=sanitize_tool_call_history(self.messages),
@@ -1446,43 +1430,8 @@ class ChatSession(ChatToggleMixin):
                 **kwargs,
             )
         ):
-            # 供应商感知的 thinking token 提取
-            from core.provider_adapter import get_adapter, get_capability
-
-            cap = get_capability(model)
-            adapter = get_adapter(cap.provider_id if cap else "deepseek")
-            think_field = adapter.thinking_response_field
-            if delta.get(think_field):
-                yield ("thinking", delta[think_field])  # type: ignore[misc]
-            if delta.get("content"):
-                chunk = delta["content"]
-                if _first_token_at is None:
-                    _first_token_at = _time.monotonic()
-                    _elapsed = _first_token_at - _stream_start
-                    if _elapsed > 15.0:
-                        yield ("info", f"首 token 延迟 {_elapsed:.1f}s")
-                buffer += chunk
-                # Don't render HTTP error bodies as assistant text.
-                if not delta.get("_error"):
-                    yield ("text", chunk)  # type: ignore[misc]
-            if delta.get("tool_calls"):
-                tool_calls.extend(delta["tool_calls"])
-            if delta.get("_finish") == "error":
-                stream_error = True
-            if "_usage" in delta:
-                last_usage = delta["_usage"]
-        # ── XML tool-call fallback for local models ──
-        if not tool_calls and buffer:
-            try:
-                from core.tool_call_parser import extract_tool_calls
-
-                xml_tools, _ = extract_tool_calls(buffer)
-                if xml_tools:
-                    tool_calls.extend(xml_tools)
-                    logger.debug("parsed %d XML tool calls from buffer", len(xml_tools))
-            except ImportError:
-                pass
-        return buffer, tool_calls, stream_error, last_usage
+            yield from processor.process_delta(delta)
+        return processor.finalize()
 
     def _append_assistant_with_tools(self, buffer: str, tool_calls: list[dict]) -> str:
         """把 assistant 回复（含 tool_calls）追加到 messages。返回 buffer 供后续使用。"""
