@@ -1040,6 +1040,7 @@ class ChatSession(ChatToggleMixin):
                 yield ("stream_end", {"run_id": str(uuid.uuid4())[:12], "message": "done", "verdict": "completed"})
                 self._trigger_reflection()
                 self._auto_remember()
+                yield ("stream_end", {"run_id": _run_id, "message": "done", "verdict": "completed"})
                 return  # ── skip model call entirely ──
 
             if _plan.mode != ExecutionMode.DIRECT:
@@ -1372,6 +1373,7 @@ class ChatSession(ChatToggleMixin):
                     self._pipeline_result = None
                 self._trigger_reflection()
                 self._auto_remember()
+                yield ("stream_end", {"run_id": _run_id, "message": "done", "verdict": "completed"})
                 return
 
         # for _loop 结束：区分两种情况
