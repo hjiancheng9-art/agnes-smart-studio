@@ -582,8 +582,19 @@ def quick_plan(goal: str) -> Task:
     goal_lower = goal.lower()
     steps = []
 
+    # Pattern: audit / check (check before fix to avoid "fix bug in audit" false match)
+    if "audit" in goal_lower or "scan" in goal_lower:
+        steps = [
+            Step("1_audit", "Run self-audit", "env_check", {}),
+            Step("2_tests", "Run tests", "run_test", {}, verify="test", depends_on=["1_audit"]),
+        ]
+    # Pattern: test (check before fix to avoid "fix the tests" false match)
+    elif "test" in goal_lower:
+        steps = [
+            Step("1_test", "Run test suite", "run_test", {}, verify="test"),
+        ]
     # Pattern: fix bug
-    if "fix" in goal_lower or "bug" in goal_lower or "repair" in goal_lower:
+    elif "fix" in goal_lower or "bug" in goal_lower or "repair" in goal_lower:
         steps = [
             Step("1_read_error", "Read error log", "read_file", {"path": "output/last_error.txt"}),
             Step(
@@ -600,19 +611,6 @@ def quick_plan(goal: str) -> Task:
                 depends_on=["2_search_code"],
             ),
             Step("4_verify", "Verify syntax", "env_check", {}, verify="syntax", depends_on=["3_fix"]),
-        ]
-
-    # Pattern: audit / check
-    if "audit" in goal_lower or "check" in goal_lower or "scan" in goal_lower:
-        steps = [
-            Step("1_audit", "Run self-audit", "env_check", {}),
-            Step("2_tests", "Run tests", "run_test", {}, verify="test", depends_on=["1_audit"]),
-        ]
-
-    # Pattern: test
-    if "test" in goal_lower:
-        steps = [
-            Step("1_test", "Run test suite", "run_test", {}, verify="test"),
         ]
 
     if not steps:

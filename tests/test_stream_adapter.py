@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
-
 
 class TestStreamAdapterRace:
     """Verify stream_adapter handles fast generators (race condition fix)."""
@@ -36,6 +34,6 @@ class TestStreamAdapterRace:
             for k, p in dp.process_delta(delta):
                 events.append((k, p))
         buf, tc, err, usage = dp.finalize()
-        assert len(events) >= 1, f"No events from DeltaProcessor"
+        assert len(events) >= 1, "No events from DeltaProcessor"
         assert any(k == "text" for k, _ in events)
         assert buf == "hi"

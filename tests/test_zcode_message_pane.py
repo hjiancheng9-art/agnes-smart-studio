@@ -144,11 +144,15 @@ class TestAutoScrollRespectsPinned:
     """
 
     def test_auto_scroll_sets_pending_flag(self):
+        from unittest.mock import MagicMock
         pane = MessagePane()
+        pane._window = MagicMock()
+        pane._window.vertical_scroll = 0
         pane._pinned = True
         pane._pending_scroll_to_bottom = False
         pane._auto_scroll()
-        assert pane._pending_scroll_to_bottom is True
+        # _auto_scroll() sets vertical_scroll directly when pinned
+        assert pane._window.vertical_scroll == 999999  # _SCROLL_BOTTOM
 
     def test_auto_scroll_when_not_pinned(self):
         pane = MessagePane()

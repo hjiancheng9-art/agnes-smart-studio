@@ -81,7 +81,6 @@ class TestDetectAndDecode:
         text, enc, _had_errors = detect_and_decode(b"hello world 123")
         assert text == "hello world 123"
         assert enc in ("utf-8", "gbk")  # ASCII is valid in any encoding
-        assert True
 
     def test_detected_encoding_not_utf8(self):
         original = "文件已损坏，请重新下载"

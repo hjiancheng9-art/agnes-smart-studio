@@ -12,6 +12,7 @@ Cancellation — CRUX 任务取消机制
 from __future__ import annotations
 
 import logging
+import threading
 import time
 import uuid
 from dataclasses import dataclass
@@ -47,6 +48,7 @@ class CancellationToken:
 
     cancelled: bool = False
     reason: str = ""
+    task_id: str = ""  # set by TaskRegistry.register()
 
     def cancel(self, reason: str = "用户取消") -> None:
         self.cancelled = True
@@ -55,7 +57,7 @@ class CancellationToken:
     def check(self) -> None:
         """检查取消状态，已取消则抛异常"""
         if self.cancelled:
-            raise CancelledError("unknown", self.reason)
+            raise CancelledError(self.task_id, self.reason)
 
     def is_cancelled(self) -> bool:
         return self.cancelled
@@ -103,72 +105,82 @@ class TaskRegistry:
 
     def __init__(self):
         self._tasks: dict[str, TaskInfo] = {}
+        self._lock = threading.Lock()
 
     def register(self, name: str) -> tuple[str, CancellationToken]:
         """注册新任务，返回 (task_id, token)"""
         task_id = str(uuid.uuid4())[:12]
-        token = CancellationToken()
-        self._tasks[task_id] = TaskInfo(
-            task_id=task_id,
-            name=name,
-            status=TaskStatus.RUNNING,
-            started_at=time.time(),
-            token=token,
-        )
+        token = CancellationToken(task_id=task_id)
+        with self._lock:
+            self._tasks[task_id] = TaskInfo(
+                task_id=task_id,
+                name=name,
+                status=TaskStatus.RUNNING,
+                started_at=time.time(),
+                token=token,
+            )
         return task_id, token
 
     def complete(self, task_id: str, result: Any = None) -> None:
-        if task_id in self._tasks:
-            t = self._tasks[task_id]
-            t.status = TaskStatus.COMPLETED
-            t.ended_at = time.time()
-            t.result = result
+        with self._lock:
+            if task_id in self._tasks:
+                t = self._tasks[task_id]
+                t.status = TaskStatus.COMPLETED
+                t.ended_at = time.time()
+                t.result = result
 
     def fail(self, task_id: str, error: str) -> None:
-        if task_id in self._tasks:
-            t = self._tasks[task_id]
-            t.status = TaskStatus.FAILED
-            t.ended_at = time.time()
-            t.error = error
+        with self._lock:
+            if task_id in self._tasks:
+                t = self._tasks[task_id]
+                t.status = TaskStatus.FAILED
+                t.ended_at = time.time()
+                t.error = error
 
     def cancel(self, task_id: str, reason: str = "用户取消") -> bool:
         """取消任务"""
-        if task_id in self._tasks:
-            t = self._tasks[task_id]
-            t.status = TaskStatus.CANCELLED
-            t.ended_at = time.time()
-            if t.token:
-                t.token.cancel(reason)
-            return True
-        return False
+        with self._lock:
+            if task_id in self._tasks:
+                t = self._tasks[task_id]
+                t.status = TaskStatus.CANCELLED
+                t.ended_at = time.time()
+                if t.token:
+                    t.token.cancel(reason)
+                return True
+            return False
 
     def get(self, task_id: str) -> TaskInfo | None:
-        return self._tasks.get(task_id)
+        with self._lock:
+            return self._tasks.get(task_id)
 
     def list_active(self) -> list[TaskInfo]:
-        return [t for t in self._tasks.values() if t.status == TaskStatus.RUNNING]
+        with self._lock:
+            return [t for t in self._tasks.values() if t.status == TaskStatus.RUNNING]
 
     def list_all(self) -> list[TaskInfo]:
-        return list(self._tasks.values())
+        with self._lock:
+            return list(self._tasks.values())
 
     def cleanup(self, max_age: float = 3600) -> int:
         """清理过期任务"""
-        now = time.time()
-        to_remove = [
-            tid
-            for tid, t in self._tasks.items()
-            if t.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED)
-            and now - t.ended_at > max_age
-        ]
-        for tid in to_remove:
-            del self._tasks[tid]
-        return len(to_remove)
+        with self._lock:
+            now = time.time()
+            to_remove = [
+                tid
+                for tid, t in self._tasks.items()
+                if t.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED)
+                and now - t.ended_at > max_age
+            ]
+            for tid in to_remove:
+                del self._tasks[tid]
+            return len(to_remove)
 
     def stats(self) -> dict[str, int]:
-        counts: dict[str, int] = {}
-        for t in self._tasks.values():
-            key = t.status.value
-            counts[key] = counts.get(key, 0) + 1
+        with self._lock:
+            counts: dict[str, int] = {}
+            for t in self._tasks.values():
+                key = t.status.value
+                counts[key] = counts.get(key, 0) + 1
         return counts
 
 
@@ -210,10 +222,13 @@ async def run_cancellable_async(name: str, fn: Callable, *args, **kwargs) -> Any
 
 # ── 全局单例 ──
 _registry: TaskRegistry | None = None
+_registry_lock = threading.Lock()
 
 
 def get_registry() -> TaskRegistry:
     global _registry
     if _registry is None:
-        _registry = TaskRegistry()
+        with _registry_lock:
+            if _registry is None:
+                _registry = TaskRegistry()
     return _registry

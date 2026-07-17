@@ -116,13 +116,18 @@ if HAS_FASTAPI and app is not None:
             message = body.get("message", "")
             if not message:
                 raise _HTTPException(400, "message required")
-            session = _get_session()
-            responses = list(session.send_stream(message))
-            result: list[str] = []
-            for kind, payload in responses:
-                if kind == "text":
-                    result.append(payload)
-            return {"response": "".join(result), "turn_count": len(responses)}
+            import asyncio
+
+            def _run_sync():
+                session = _get_session()
+                responses = list(session.send_stream(message))
+                result: list[str] = []
+                for kind, payload in responses:
+                    if kind == "text":
+                        result.append(payload)
+                return {"response": "".join(result), "turn_count": len(responses)}
+
+            return await asyncio.to_thread(_run_sync)
 
         @app.post("/chat/stream")
         async def chat_stream(req: _Request):  # type: ignore[valid-type]
@@ -131,13 +136,28 @@ if HAS_FASTAPI and app is not None:
             if not message:
                 raise _HTTPException(400, "message required")
 
+            import asyncio as _asyncio
+
             async def generate():
                 session = _get_session()
-                for kind, payload in session.send_stream(message):
-                    if kind == "text":
-                        yield f"data: {json.dumps({'type': 'text', 'content': payload})}\\n\\n"
-                    elif kind in ("info", "image", "video"):
-                        yield f"data: {json.dumps({'type': kind, 'content': str(payload)[:500]})}\\n\\n"
+                # Run blocking stream in thread to avoid starving the event loop
+                q: list = []
+
+                def _run_stream():
+                    for kind, payload in session.send_stream(message):
+                        q.append((kind, payload))
+
+                _task = _asyncio.ensure_future(_asyncio.to_thread(_run_stream))
+                _idx = 0
+                while not _task.done() or _idx < len(q):
+                    await _asyncio.sleep(0.05)
+                    while _idx < len(q):
+                        kind, payload = q[_idx]
+                        _idx += 1
+                        if kind == "text":
+                            yield f"data: {json.dumps({'type': 'text', 'content': payload})}\\n\\n"
+                        elif kind in ("info", "image", "video"):
+                            yield f"data: {json.dumps({'type': kind, 'content': str(payload)[:500]})}\\n\\n"
                 yield f"data: {json.dumps({'type': 'done'})}\\n\\n"
 
             if StreamingResponse is not None:

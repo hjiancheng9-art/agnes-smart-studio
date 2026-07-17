@@ -50,6 +50,9 @@ def intercept_tool(tool_name: str, args: dict) -> tuple[bool, str]:
     # Bash command interception
     if tool_name == "run_bash":
         cmd = args.get("command", args.get("cmd", ""))
+        # Support list-form commands (subprocess list arg bypass prevention)
+        if isinstance(cmd, list):
+            cmd = " ".join(str(c) for c in cmd)
         if not cmd:
             return True, ""
 

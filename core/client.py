@@ -107,11 +107,14 @@ class CruxClient:
         api_key: str | None = None,
         base_url: str | None = None,
         timeout: float = 60.0,
+        *,
+        provider_id: str = "",
     ) -> None:
         self.api_key = api_key or SETTINGS.api_key
         self.base_url = (base_url or SETTINGS.base_url).rstrip("/")
         self.timeout = timeout
         self.max_retries = SETTINGS.max_retries
+        self.provider_id = provider_id
         self._http = httpx.Client(
             base_url=self.base_url,
             headers={"Authorization": f"Bearer {self.api_key}"},
@@ -138,7 +141,7 @@ class CruxClient:
                     "utils.unicode_safety.sanitize_payload() before sending."
                 )
 
-        retries = kwargs.pop("retries", self.max_retries)
+        retries = max(kwargs.pop("retries", self.max_retries), 1)
         last_exc = None
         for attempt in range(retries):
             try:
@@ -429,10 +432,10 @@ class CruxClient:
                         }
                         return
                     # 连接成功，开始消费流
-                    # SSE 前缀从 ProviderAdapter 读取（当前所有供应商统一为 "data: "）
-                    from core.provider_adapter import PROVIDER_ADAPTERS
+                    # SSE 前缀从 ProviderAdapter 读取，按实际 provider 解析
+                    from core.provider_adapter import get_adapter as _get_stream_adapter
 
-                    adapter = PROVIDER_ADAPTERS.get("deepseek", PROVIDER_ADAPTERS.get("generic"))
+                    adapter = _get_stream_adapter(self.provider_id or "deepseek")
                     prefix = adapter.sse_data_prefix  # pyright: ignore[reportOptionalMemberAccess]
                     done = adapter.sse_done_marker  # pyright: ignore[reportOptionalMemberAccess]
                     for line in resp.iter_lines():

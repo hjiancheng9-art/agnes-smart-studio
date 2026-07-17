@@ -115,8 +115,12 @@ class SessionTracker:
     def __init__(self, db_path: str = ""):
         self.db_path = str(db_path or DEFAULT_DB)
         self._local = threading.local()
+        self._all_conns: list[sqlite3.Connection] = []
+        self._conns_lock = threading.Lock()
         with self._get_conn() as conn:
             conn.executescript(_SCHEMA_SQL)
+        import atexit
+        atexit.register(self.close_all)
 
     @classmethod
     def get_instance(cls) -> "SessionTracker":
@@ -134,6 +138,8 @@ class SessionTracker:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA foreign_keys=ON")
             self._local.conn = conn
+            with self._conns_lock:
+                self._all_conns.append(conn)
         return self._local.conn
 
     def close(self) -> None:
@@ -141,6 +147,16 @@ class SessionTracker:
         if hasattr(self._local, "conn") and self._local.conn is not None:
             with contextlib.suppress(Exception):
                 self._local.conn.close()
+            self._local.conn = None
+
+    def close_all(self) -> None:
+        """关闭所有线程本地的数据库连接（退出时调用）。"""
+        with self._conns_lock:
+            conns, self._all_conns = self._all_conns, []
+        for conn in conns:
+            with contextlib.suppress(Exception):
+                conn.close()
+        if hasattr(self, "_local") and hasattr(self._local, "conn"):
             self._local.conn = None
 
     # ── Todos CRUD ──

@@ -90,18 +90,19 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
     prompt = args.get("prompt", "")
     image_url = args.get("image_url", "") or args.get("image", "")
     image_urls = args.get("image_urls", []) or []
+    if not isinstance(image_urls, list):
+        image_urls = [image_urls] if image_urls else []
     mode = args.get("mode", "")
     if name == "generate_image":
         size = args.get("size", "1024x768")
         # seed 固定：未指定时随机生成，确保可复现
         import random as _rnd
 
-        seed = args.get("seed") or _rnd.randint(0, 2147483647)
+        seed = args.get("seed") if args.get("seed") is not None else _rnd.randint(0, 2147483647)
         system = args.get("system")
         neg_from_args = args.get("negative_prompt")
         image_url = args.get("image_url")
         image_urls = args.get("image_urls")
-        mode = args.get("mode", "text2image")
 
         # 归一化：image_url → image_urls；冲突则报错
         if image_url and image_urls and image_url not in image_urls:
@@ -128,15 +129,14 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
 
             from core.providers.agnes import AgnesProvider
 
-            agnes = AgnesProvider()
-            result = agnes.generate_image(
-                prompt=fp,
-                size=size,
-                seed=seed,
-                negative_prompt=neg,
-                image_urls=image_urls,
-            )
-            agnes.close()
+            with AgnesProvider() as agnes:
+                result = agnes.generate_image(
+                    prompt=fp,
+                    size=size,
+                    seed=seed,
+                    negative_prompt=neg,
+                    image_urls=image_urls,
+                )
             url = result.get("url", "")
 
             if not url:
@@ -151,9 +151,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
 
                 record_usage(model="agnes-image-2.1-flash", kind="image", label="generate_image", call_count=1)
             except Exception:
-                import logging
-
-                logging.getLogger("crux").debug("silent except", exc_info=True)
+                logger.debug("cost_tracker.record_usage failed", exc_info=True)
 
             return (f"图片已生成: {url}", side)
 
@@ -164,7 +162,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
         num_frames = args.get("num_frames", 121)
         import random as _rnd2
 
-        seed = args.get("seed") or _rnd2.randint(0, 2147483647)
+        seed = args.get("seed") if args.get("seed") is not None else _rnd2.randint(0, 2147483647)
         system = args.get("system")
         neg_from_args = args.get("negative_prompt")
         image_url = args.get("image_url")
@@ -243,72 +241,63 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                 try:
                     from core.providers.agnes import AgnesProvider
 
-                    agnes = AgnesProvider()
-                    # 先生成首帧
-                    frame_result = agnes.generate_image(
-                        prompt=fp,
-                        size=size_str,
-                        seed=seed,
-                        negative_prompt=neg,
-                    )
-                    frame_url = frame_result.get("url", "")
-                    if frame_url:
-                        side.append(("info", "首帧已生成，进行 QC 检查..."))
-                        # QC 检查
-                        from core.creative.qc import FrameQC
-
-                        qc = FrameQC(threshold=60)
-                        qc_result = qc.check(frame_url, fp)
-                        side.append(
-                            ("info", f"首帧 QC: {qc_result.score}/100 {'通过' if qc_result.passed else '未通过'}")
+                    with AgnesProvider() as agnes:
+                        # 先生成首帧
+                        frame_result = agnes.generate_image(
+                            prompt=fp,
+                            size=size_str,
+                            seed=seed,
+                            negative_prompt=neg,
                         )
-                        if not qc_result.passed:
-                            agnes.close()
-                            issues = ", ".join(qc_result.issues[:3])
-                            return (f"首帧 QC 未通过 (score={qc_result.score}/100): {issues}\n请优化提示词后重试", side)
-                    agnes.close()
+                        frame_url = frame_result.get("url", "")
+                        if frame_url:
+                            side.append(("info", "首帧已生成，进行 QC 检查..."))
+                            # QC 检查
+                            from core.creative.qc import FrameQC
+
+                            qc = FrameQC(threshold=60)
+                            qc_result = qc.check(frame_url, fp)
+                            side.append(
+                                ("info", f"首帧 QC: {qc_result.score}/100 {'通过' if qc_result.passed else '未通过'}")
+                            )
+                            if not qc_result.passed:
+                                issues = ", ".join(qc_result.issues[:3])
+                                return (f"首帧 QC 未通过 (score={qc_result.score}/100): {issues}\n请优化提示词后重试", side)
                 except Exception as e:
                     logger.debug("首帧 QC 失败（不阻塞视频生成）: %s", e)
 
             # 使用 AgnesProvider 提交视频任务
             from core.providers.agnes import AgnesProvider
 
-            agnes = AgnesProvider()
-
-            task = agnes.create_video_task(
-                prompt=fp,
-                size=size_str,
-                num_frames=num_frames,
-                frame_rate=frame_rate,
-                seed=seed,
-                negative_prompt=neg,
-                image_url=image_url,
-                image_urls=image_urls,
-                mode=mode,
-            )
-
-            video_id = task.get("video_id", "")
-
-            if not video_id:
-                agnes.close()
-                return ("视频提交失败: 未获取到 video_id", side)
-
-            side.append(("info", f"视频任务已提交，video_id={video_id}"))
-
-            # 等待完成 — synchronous, result always consumed
-            # (was daemon thread with join(2s) mismatched to max_wait(120s) — bug)
-
-            try:
-                video_result = agnes.wait_for_video(
-                    video_id=video_id,
-                    poll_interval=3.0,
-                    max_wait=120.0,
+            with AgnesProvider() as agnes:
+                task = agnes.create_video_task(
+                    prompt=fp,
+                    size=size_str,
+                    num_frames=num_frames,
+                    frame_rate=frame_rate,
+                    seed=seed,
+                    negative_prompt=neg,
+                    image_url=image_url,
+                    image_urls=image_urls,
+                    mode=mode,
                 )
-            except Exception as e:
-                agnes.close()
-                return (f"视频生成失败: {e}", side)
 
-            agnes.close()
+                video_id = task.get("video_id", "")
+
+                if not video_id:
+                    return ("视频提交失败: 未获取到 video_id", side)
+
+                side.append(("info", f"视频任务已提交，video_id={video_id}"))
+
+                # 等待完成 — synchronous, result always consumed
+                try:
+                    video_result = agnes.wait_for_video(
+                        video_id=video_id,
+                        poll_interval=3.0,
+                        max_wait=120.0,
+                    )
+                except Exception as e:
+                    return (f"视频生成失败: {e}", side)
 
             if video_result and video_result.get("status") in ("completed", "SUCCESS", "done"):
                 local_path = video_result.get("local_path", "")

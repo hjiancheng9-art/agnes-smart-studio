@@ -313,8 +313,6 @@ class BrowserController:
                 logger.info(f"已在 {self._platform.name}，跳过导航")
                 return True
         except Exception:
-            import logging
-
             logging.getLogger("crux").debug("silent except", exc_info=True)
 
         try:
@@ -350,8 +348,6 @@ class BrowserController:
                 logger.info("输入框已找到 (textarea fallback)")
                 return el
         except Exception:
-            import logging
-
             logging.getLogger("crux").debug("silent except", exc_info=True)
 
         # 策略3: contenteditable
@@ -361,8 +357,6 @@ class BrowserController:
                 logger.info("输入框已找到 (contenteditable fallback)")
                 return el
         except Exception:
-            import logging
-
             logging.getLogger("crux").debug("silent except", exc_info=True)
 
         # 策略4: role=textbox
@@ -372,8 +366,6 @@ class BrowserController:
                 logger.info("输入框已找到 (role=textbox fallback)")
                 return el
         except Exception:
-            import logging
-
             logging.getLogger("crux").debug("silent except", exc_info=True)
 
         logger.warning("未找到输入框")
@@ -561,6 +553,7 @@ class BrowserController:
                 if count == 0:
                     return None
             except Exception:
+                logging.getLogger("crux").debug("browser wait_selector count failed", exc_info=True)
                 return None
 
         for selector in self._platform.response_selectors:
@@ -581,6 +574,7 @@ class BrowserController:
             btn = self._page.locator('[data-testid="stop-button"], [aria-label="Stop"]').first
             return btn.is_visible()
         except Exception:
+            logging.getLogger("crux").debug("browser stop_button check failed", exc_info=True)
             return False
 
     def new_chat(self) -> bool:
@@ -610,8 +604,6 @@ class BrowserController:
             if self._context:
                 self._context.close()
         except Exception:
-            import logging
-
             logging.getLogger("crux").debug("silent except", exc_info=True)
         finally:
             self._context = None
@@ -631,6 +623,7 @@ class BrowserController:
             _ = self._page.url  # 探活
             return True
         except Exception:
+            logging.getLogger("crux").debug("browser liveness check failed — resetting context", exc_info=True)
             self._context = None
             self._page = None
             return False
@@ -702,7 +695,7 @@ def send_to_ai(platform: str, prompt: str, timeout: int | None = None) -> dict:
             try:
                 bc._page.wait_for_selector(bc._platform.input_selectors[0], state="visible", timeout=10000)
             except Exception:
-                pass  # fall through — fill_prompt will detect failures
+                logging.getLogger("crux").debug("browser input selector wait failed — will retry fill_prompt", exc_info=True)
 
         if not bc.fill_prompt(prompt):
             result["error"] = "无法填入提示词 — 请检查页面是否已加载完成，重试"
@@ -760,7 +753,7 @@ def _register_to_capability_registry():
         )
         logger.info("browser-control 已注册到能力注册表")
     except Exception:
-        pass  # 非关键路径
+        logger.debug("browser-control registration to capability registry skipped", exc_info=True)
 
 
 _register_to_capability_registry()

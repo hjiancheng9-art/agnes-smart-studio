@@ -13,7 +13,8 @@ import logging
 import queue
 import threading
 import time
-from typing import Any, Callable, Iterator
+from collections.abc import Callable, Iterator
+from typing import Any
 
 logger = logging.getLogger("crux.stream_adapter")
 
@@ -55,10 +56,10 @@ def consume_stream(
                     break
             if _cancel.is_set():
                 try:
-                    if hasattr(stream, 'close'):
+                    if hasattr(stream, "close"):
                         stream.close()
                 except Exception:
-                    pass
+                    logging.getLogger("crux").debug("silent except", exc_info=True)
         except Exception as exc:
             _error[0] = exc
         finally:

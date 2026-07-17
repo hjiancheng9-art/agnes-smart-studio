@@ -115,22 +115,22 @@ def execute_git_branch(name: str = "", action: str = "list", base: str = "") -> 
     return json.dumps({"error": f"unknown action: {action}"})
 
 
-def execute_git_push(remote: str = "origin", branch: str = "", force: bool = False, tags: bool = False) -> str:
+def execute_git_push(remote: str = "origin", branch: str = "", force: bool = False, force_with_lease: bool = False, tags: bool = False) -> str:
     """Push commits to remote.
 
-    安全约束（P1-15）：force=True 会重写远端历史，属于不可逆操作。
+    安全约束（P1-15）：force / force_with_lease 会重写远端历史，属于不可逆操作。
     走 list 形式的 subprocess 绕过了 sandbox 字符串检测，故在此
     执行器层面二次拦截：force 必须由调用方（ChatSession._dispatch_tool
     的高风险确认机制）显式确认后才传到这里；这里若直接收到 force=True，
     返回错误字符串而非执行。
     """
-    if force:
+    if force or force_with_lease:
         return json.dumps(
             {
                 "error": "force push 需要用户确认。请通过交互确认后再执行。",
                 "needs_confirm": True,
                 "tool": "git_push",
-                "args": {"remote": remote, "branch": branch, "force": True, "tags": tags},
+                "args": {"remote": remote, "branch": branch, "force": force or force_with_lease, "tags": tags},
             },
             ensure_ascii=False,
         )
@@ -202,6 +202,8 @@ def execute_git_pr_merge(pr_number: int = 0, method: str = "squash", delete_bran
     """
     if not pr_number:
         return json.dumps({"error": "pr_number required"})
+    if method not in ("squash", "merge", "rebase"):
+        return json.dumps({"error": f"invalid merge method: {method}. Use squash, merge, or rebase."})
 
     args = ["pr", "merge", str(pr_number), f"--{method}"]
     if delete_branch:

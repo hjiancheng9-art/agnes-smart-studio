@@ -40,6 +40,41 @@ ROOT = Path(__file__).resolve().parent.parent
 # _LAST_ADDED   = {path}（撤销时删除，因为应用前不存在）
 _LAST_BACKUPS: dict[str, str] = {}
 _LAST_ADDED: set[str] = set()
+_PATCH_SNAPSHOT_DIR: Path = ROOT / "output" / "snapshots" / "patch_backups"
+
+
+def _dump_patch_snapshot(backups: dict[str, str], added: set[str]) -> None:
+    """Write patch backups to disk so rollback survives a process crash."""
+    import json as _json
+
+    try:
+        _PATCH_SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+        snapshot = {"backups": backups, "added": list(added)}
+        (_PATCH_SNAPSHOT_DIR / "last_snapshot.json").write_text(
+            _json.dumps(snapshot, ensure_ascii=False), encoding="utf-8"
+        )
+        # Also write each backed-up file to disk for safety
+        for path_str, content in backups.items():
+            safe_name = path_str.replace("/", "_").replace("\\", "_").replace(":", "")
+            (_PATCH_SNAPSHOT_DIR / f"{safe_name}.bak").write_text(content, encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _load_patch_snapshot() -> tuple[dict[str, str], set[str]]:
+    """Load patch backups from disk (survives process crash)."""
+    import json as _json
+
+    snapshot_file = _PATCH_SNAPSHOT_DIR / "last_snapshot.json"
+    if not snapshot_file.exists():
+        return {}, set()
+    try:
+        data = _json.loads(snapshot_file.read_text(encoding="utf-8"))
+        backups = data.get("backups", {})
+        added = set(data.get("added", []))
+        return backups, added
+    except (OSError, _json.JSONDecodeError):
+        return {}, set()
 
 
 class PatchError(Exception):
@@ -97,9 +132,11 @@ class PatchEngine:
         except (OSError, ValueError, RuntimeError) as e:
             self._rollback()
             return {"success": False, "error": str(e), "results": results}
-        # 成功：把本次备份提升为模块级"最近一次"快照，供 rollback_last() 使用
+        # 成功：把本次备份提升为模块级"最近一次"快照，供 rollback_last() 使用。
+        # 同时落盘到 output/snapshots/，确保进程崩溃后也能恢复。
         _LAST_BACKUPS = dict(self._backups)
         _LAST_ADDED = added_paths
+        _dump_patch_snapshot(_LAST_BACKUPS, _LAST_ADDED)
         return {"success": True, "files_modified": len(self._modified), "results": results}
 
     def _parse(self, text: str) -> list[dict]:
@@ -346,6 +383,12 @@ def rollback_last() -> dict:
     global _LAST_BACKUPS, _LAST_ADDED
     import contextlib
 
+    # 内存快照为空时，尝试从磁盘恢复（进程重启/崩溃后仍可回滚）
+    if not _LAST_BACKUPS and not _LAST_ADDED:
+        disk_backups, disk_added = _load_patch_snapshot()
+        if disk_backups or disk_added:
+            _LAST_BACKUPS = disk_backups
+            _LAST_ADDED = disk_added
     if not _LAST_BACKUPS and not _LAST_ADDED:
         return {"success": False, "reason": "nothing_to_undo", "message": "没有可撤销的 patch（快照为空）"}
 

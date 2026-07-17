@@ -100,8 +100,11 @@ class TestHookManager:
 
         hm.register("chat_start", HookType.CHAT_TURN_START, handler)
         hm.disable("chat_start")
+        hooks_after_disable = {h["name"]: h["enabled"] for h in hm.list_hooks()}
+        assert hooks_after_disable.get("chat_start") is False
         hm.enable("chat_start")
-        assert True
+        hooks_after_enable = {h["name"]: h["enabled"] for h in hm.list_hooks()}
+        assert hooks_after_enable.get("chat_start") is True
 
 
 # ── HookEvent ────────────────────────────────────────────────────────────

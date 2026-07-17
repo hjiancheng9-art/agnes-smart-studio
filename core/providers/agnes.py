@@ -493,3 +493,9 @@ class AgnesProvider:
 
     def close(self):
         self._client.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()

@@ -67,22 +67,9 @@ def safe_env_for_subprocess(extra: dict[str, str] | None = None) -> dict[str, st
     and explicitly requested keys. All other env vars (including API keys)
     are excluded to prevent leakage to child processes.
     """
-    safe_keys = {
-        "PATH",
-        "SYSTEMROOT",
-        "TEMP",
-        "TMP",
-        "HOME",
-        "USERPROFILE",
-        "USERNAME",
-        "COMSPEC",
-        "PATHEXT",
-        "LANG",
-        "LC_ALL",
-    }
     safe = {}
     for k, v in os.environ.items():
-        if k in safe_keys or k in _SECRET_ENV_VARS:
+        if k in _SECRET_ENV_VARS:
             continue  # skip secrets
         safe[k] = v
     if extra:

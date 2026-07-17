@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, field, is_dataclass
 from functools import wraps
-from typing import Any, Callable, Mapping, ParamSpec, TypeVar
-
+from typing import Any, ParamSpec, TypeVar
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -27,7 +27,7 @@ class ToolResult:
         *,
         side_effects: Any = (),
         metadata: Mapping[str, Any] | None = None,
-    ) -> "ToolResult":
+    ) -> ToolResult:
         return cls(
             ok=True,
             output=output,
@@ -45,7 +45,7 @@ class ToolResult:
         retryable: bool = False,
         side_effects: Any = (),
         metadata: Mapping[str, Any] | None = None,
-    ) -> "ToolResult":
+    ) -> ToolResult:
         return cls(
             ok=False,
             output=output,
@@ -69,10 +69,7 @@ class ToolResult:
                 if self.ok
                 else {
                     "code": self.error_code or "TOOL_ERROR",
-                    "message": (
-                        self.error_message
-                        or "tool execution failed"
-                    ),
+                    "message": (self.error_message or "tool execution failed"),
                     "retryable": self.retryable,
                 }
             ),
@@ -176,7 +173,7 @@ def ensure_tool_result(
                 *args,
                 **kwargs,
             )
-        except BaseException as exc:
+        except Exception as exc:
             return ToolResult.failure(
                 "TOOL_EXCEPTION",
                 _message(
@@ -240,11 +237,7 @@ def _normalize_tuple(
 
     if isinstance(first, bool):
         side_effects = third
-        metadata = (
-            {"legacy_extra": rest}
-            if rest
-            else {}
-        )
+        metadata = {"legacy_extra": rest} if rest else {}
 
         if first:
             return ToolResult.success(
@@ -356,11 +349,7 @@ def _normalize_mapping(
 
     raw_metadata = data.get("metadata")
 
-    metadata = (
-        dict(raw_metadata)
-        if isinstance(raw_metadata, Mapping)
-        else {}
-    )
+    metadata = dict(raw_metadata) if isinstance(raw_metadata, Mapping) else {}
 
     metadata.setdefault(
         "source_type",
@@ -375,9 +364,7 @@ def _normalize_mapping(
             )
 
     if ok_value is None:
-        ok = not bool(
-            error_message or error_code
-        )
+        ok = not bool(error_message or error_code)
     else:
         ok = bool(ok_value)
 
@@ -392,10 +379,7 @@ def _normalize_mapping(
         str(error_code or "TOOL_FAILED"),
         _message(
             tool_name,
-            _stringify(
-                error_message
-                or "tool execution failed"
-            ),
+            _stringify(error_message or "tool execution failed"),
         ),
         output="" if output is None else output,
         retryable=retryable,
@@ -448,15 +432,9 @@ def _infer_tool_name(
             return value
 
         if isinstance(value, Mapping):
-            candidate = (
-                value.get("name")
-                or value.get("tool_name")
-            )
+            candidate = value.get("name") or value.get("tool_name")
 
-            if (
-                isinstance(candidate, str)
-                and candidate
-            ):
+            if isinstance(candidate, str) and candidate:
                 return candidate
 
     return ""
@@ -466,11 +444,7 @@ def _message(
     tool_name: str,
     message: str,
 ) -> str:
-    return (
-        f"{tool_name}: {message}"
-        if tool_name
-        else message
-    )
+    return f"{tool_name}: {message}" if tool_name else message
 
 
 def _stringify(value: Any) -> str:

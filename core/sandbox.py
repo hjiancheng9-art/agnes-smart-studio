@@ -27,6 +27,7 @@ __all__ = [
     "Sandbox",
     "get_audit_trail",
     "sandbox_check",
+    "sandbox_check_list",
     "sandbox_restrict",
     "tokenize_command",
 ]
@@ -39,6 +40,7 @@ ALWAYS_DANGEROUS = [
     r">\s*/dev/",
     r"mkfs\.",
     r"dd\s+if=",
+    r"\brm\s+(?:-r\b|-rf\b|--recursive\b)\s+/",  # rm -rf / (bare root), including --recursive
     r"curl.*\|\s*(/.*)?(ba)?sh",
     r"curl.*\|\s*(sudo\s+)?(/.*)?(ba)?sh",
     r"curl.*\|\s*\.\s+/dev/stdin",
@@ -47,7 +49,8 @@ ALWAYS_DANGEROUS = [
     r"\bformat\s+[A-Za-z]:",
     r"\bdiskpart",
     r"\bcipher\s*/w",
-    r"\bpowershell.*-enc\s+[A-Za-z0-9]",
+    r"\bchmod\s+(?:-[rR]\s+)?777\s+/",  # chmod 777 / or chmod -R 777 / (bare root)
+    r"\bpowershell.*-enc(?:odedcommand)?\b",  # -enc or -EncodedCommand
     r"reg\s+delete.*/f",
 ]
 # Path-aware — blocked only when targeting external paths
@@ -246,6 +249,18 @@ class Sandbox:
 
         return True, "ok"
 
+    def validate_list(self, cmd: list[str]) -> tuple[bool, str]:
+        """Check if a list-form command (subprocess list arg) is safe.
+
+        Converts to a space-joined string for pattern matching, then delegates
+        to validate().  This closes the bypass where list-form subprocess calls
+        skipped sandbox string-pattern detection entirely.
+        """
+        if not cmd:
+            return False, "empty command"
+        cmd_str = " ".join(cmd)
+        return self.validate(cmd_str)
+
     def restrict_bash(self, command: str) -> str:
         """Wrap a command in safety restrictions if possible.
         Returns modified command or raises RuntimeError.
@@ -272,6 +287,10 @@ def _get_sandbox() -> Sandbox:
 
 def sandbox_check(command: str) -> tuple[bool, str]:
     return _get_sandbox().validate(command)
+
+
+def sandbox_check_list(cmd: list[str]) -> tuple[bool, str]:
+    return _get_sandbox().validate_list(cmd)
 
 
 def sandbox_restrict(command: str) -> str:

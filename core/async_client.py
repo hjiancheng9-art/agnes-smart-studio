@@ -62,7 +62,7 @@ class AsyncCruxClient:
                     "utils.unicode_safety.sanitize_payload() before sending."
                 )
 
-        retries = kwargs.pop("retries", self.max_retries)
+        retries = max(kwargs.pop("retries", self.max_retries), 1)
         last_exc = None
         for attempt in range(retries):
             try:
@@ -84,7 +84,7 @@ class AsyncCruxClient:
                 # 429 Too Many Requests 和 5xx 可重试，其他 4xx 不重试
                 if attempt < retries - 1 and (e.response.status_code == 429 or e.response.status_code >= 500):
                     # 429 指数退避：1s, 2s, 4s...；5xx 线性退避
-                    wait = (2**attempt) if e.response.status_code == 429 else (0.5 * (attempt + 1))
+                    wait = min(2**attempt, 30) if e.response.status_code == 429 else (0.5 * (attempt + 1))
                     await asyncio.sleep(wait)
                     last_exc = e
                     continue

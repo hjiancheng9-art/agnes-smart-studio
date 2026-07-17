@@ -4,9 +4,10 @@ import contextlib
 import queue
 import threading
 import time
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Iterator, Mapping, Protocol
+from typing import Any, Protocol
 
 
 class RuntimeEventType(str, Enum):
@@ -27,11 +28,9 @@ class RuntimeEvent:
 
 
 class ClosableStream(Protocol):
-    def __iter__(self) -> Iterator[Any]:
-        ...
+    def __iter__(self) -> Iterator[Any]: ...
 
-    def close(self) -> None:
-        ...
+    def close(self) -> None: ...
 
 
 class ModelStreamError(RuntimeError):
@@ -103,9 +102,7 @@ class ModelWorker:
                 raise ValueError(f"{field_name} must be > 0")
 
         if total_timeout < first_token_timeout:
-            raise ValueError(
-                "total_timeout cannot be shorter than first_token_timeout"
-            )
+            raise ValueError("total_timeout cannot be shorter than first_token_timeout")
 
         self.stream_factory = stream_factory
         self.first_token_timeout = first_token_timeout
@@ -141,7 +138,7 @@ class ModelWorker:
     def done(self) -> bool:
         return self.done_event.is_set()
 
-    def start(self) -> "ModelWorker":
+    def start(self) -> ModelWorker:
         with self._start_lock:
             if self._reader_thread is not None:
                 return self
@@ -186,11 +183,7 @@ class ModelWorker:
         self.start()
 
         while True:
-            if (
-                external_cancel_event is not None
-                and external_cancel_event.is_set()
-                and not self.done
-            ):
+            if external_cancel_event is not None and external_cancel_event.is_set() and not self.done:
                 self.cancel("external cancellation requested")
 
             try:
@@ -252,9 +245,7 @@ class ModelWorker:
                             False,
                         )
                     ),
-                    elapsed_seconds=self._optional_float(
-                        event.payload.get("elapsed_seconds")
-                    ),
+                    elapsed_seconds=self._optional_float(event.payload.get("elapsed_seconds")),
                 )
                 continue
 
@@ -264,11 +255,7 @@ class ModelWorker:
                 return
 
     def wait_closed(self, timeout: float | None = None) -> bool:
-        deadline = (
-            None
-            if timeout is None
-            else time.monotonic() + timeout
-        )
+        deadline = None if timeout is None else time.monotonic() + timeout
 
         for thread in (
             self._reader_thread,
@@ -319,7 +306,7 @@ class ModelWorker:
             if not self.done:
                 self._finish_success("eof")
 
-        except BaseException as exc:
+        except Exception as exc:
             if self.done:
                 return
 
@@ -358,10 +345,7 @@ class ModelWorker:
 
                 self._finish_error(
                     code="TOTAL_TIMEOUT",
-                    message=(
-                        "model stream exceeded total timeout "
-                        f"({self.total_timeout:.1f}s)"
-                    ),
+                    message=(f"model stream exceeded total timeout ({self.total_timeout:.1f}s)"),
                     retryable=True,
                     elapsed_seconds=elapsed_total,
                 )
@@ -403,9 +387,7 @@ class ModelWorker:
                 self._finish_error(
                     code="STREAM_IDLE_TIMEOUT",
                     message=(
-                        "model produced no content, reasoning, or "
-                        "tool-call delta for "
-                        f"{self.stream_idle_timeout:.1f}s"
+                        f"model produced no content, reasoning, or tool-call delta for {self.stream_idle_timeout:.1f}s"
                     ),
                     retryable=True,
                     elapsed_seconds=idle_elapsed,
@@ -498,11 +480,7 @@ class ModelWorker:
                 RuntimeEvent(
                     RuntimeEventType.DONE,
                     {
-                        "status": (
-                            "cancelled"
-                            if cancelled
-                            else "error"
-                        ),
+                        "status": ("cancelled" if cancelled else "error"),
                         "reason": code,
                         "elapsed_seconds": round(
                             elapsed_seconds,
@@ -591,9 +569,7 @@ class ModelWorker:
             if choice_map is None:
                 continue
 
-            delta = cls._to_mapping(
-                choice_map.get("delta")
-            ) or {}
+            delta = cls._to_mapping(choice_map.get("delta")) or {}
 
             for key in (
                 "content",
@@ -607,9 +583,7 @@ class ModelWorker:
             if cls._has_value(choice_map.get("text")):
                 return True
 
-            if cls._has_value(
-                choice_map.get("finish_reason")
-            ):
+            if cls._has_value(choice_map.get("finish_reason")):
                 return True
 
         return False
@@ -696,21 +670,14 @@ class ModelWorker:
             "504",
         )
 
-        return any(
-            token in name or token in message
-            for token in retryable_tokens
-        )
+        return any(token in name or token in message for token in retryable_tokens)
 
     @staticmethod
     def _optional_float(
         value: Any,
     ) -> float | None:
         try:
-            return (
-                None
-                if value is None
-                else float(value)
-            )
+            return None if value is None else float(value)
         except (TypeError, ValueError):
             return None
 
@@ -749,13 +716,9 @@ class ThreadedModelStream:
         self._closed = False
 
         if owner is not None:
-            setattr(
-                owner,
-                "_active_model_stream",
-                self,
-            )
+            owner._active_model_stream = self
 
-    def __iter__(self) -> "ThreadedModelStream":
+    def __iter__(self) -> ThreadedModelStream:
         return self
 
     def __next__(self) -> Any:
@@ -776,7 +739,7 @@ class ThreadedModelStream:
             self._clear_owner()
             raise
 
-    def __enter__(self) -> "ThreadedModelStream":
+    def __enter__(self) -> ThreadedModelStream:
         return self
 
     def __exit__(
@@ -820,11 +783,7 @@ class ThreadedModelStream:
             )
             is self
         ):
-            setattr(
-                owner,
-                "_active_model_stream",
-                None,
-            )
+            owner._active_model_stream = None
 
 
 __all__ = [

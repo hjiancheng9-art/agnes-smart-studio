@@ -10,19 +10,22 @@ class TestExportEngine:
 
     def test_asset_list(self):
         engine = ExportEngine()
-        result = engine.asset_list() if hasattr(engine, "asset_list") else []
-        assert isinstance(result, list) or result is not None
+        result = engine.asset_list()
+        assert isinstance(result, dict)
+        assert "exports" in result
 
     def test_config_snapshot(self):
         engine = ExportEngine()
-        result = engine.config_snapshot() if hasattr(engine, "config_snapshot") else {}
-        assert isinstance(result, dict) or result is not None
+        result = engine.config_snapshot()
+        assert isinstance(result, str)
+        assert result.endswith(".json")
 
     def test_conversation_to_md(self):
         engine = ExportEngine()
         msgs = [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}]
-        result = engine.conversation_to_md(msgs) if hasattr(engine, "conversation_to_md") else ""
-        assert isinstance(result, str) or result is not None
+        result = engine.conversation_to_md(msgs)
+        assert isinstance(result, str)
+        assert len(result) > 0
 
 
 class TestModuleFunctions:

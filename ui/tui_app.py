@@ -350,13 +350,19 @@ class TuiApp:
                 self.message_pane.append_info(f"Unknown command: {text}  — /help for commands")
             return True
         if self._thinking:
-            self.message_pane.append_info("Please wait — still processing previous request")
-            return True
+            # Allow override if previous request has been stuck for >120s
+            if hasattr(self, "_thinking_since") and time.monotonic() - self._thinking_since > 120:
+                self._thinking = False
+                self.message_pane.append_info("上一条请求超时，已自动恢复")
+            else:
+                self.message_pane.append_info("Please wait — still processing previous request")
+                return True
         self._activity_log.clear()
         self._thinking_buf = ""
         self.message_pane.append_message("user", text)
         self.message_pane.scroll_to_bottom()
         self._thinking = True
+        self._thinking_since = time.monotonic()
         self._ui(self._refresh_status, _force=True)
         self._executor.submit(self._stream_response, text)
         return True
@@ -514,11 +520,13 @@ class TuiApp:
             self._ui(self.message_pane.stream_end, _force=True)
             self._ui(self.message_pane.scroll_to_bottom, _force=True)
         except Exception as e:
-            self._ui(self.message_pane.append_error, str(e), _force=True)
-            self._activity_log.append(("✗", "class:message-error", f"异常: {e}"))
+            err_msg = str(e) or f"{type(e).__name__}（无详细信息）"
+            self._ui(self.message_pane.append_error, err_msg, _force=True)
+            self._activity_log.append(("✗", "class:message-error", f"异常: {err_msg}"))
             self._ui(self.message_pane.stream_end, _force=True)
         finally:
             self._thinking = False
+            self._thinking_buf = ""
             self._ui(self._refresh_status, _force=True)
         if self.wire:
             try:

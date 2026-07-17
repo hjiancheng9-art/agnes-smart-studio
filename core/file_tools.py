@@ -206,7 +206,18 @@ def write_file(path: str, content: str) -> str:
     p = _safe_path(path)
     _snapshot_if_core(p)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(content, encoding="utf-8")
+    # Atomic write: temp file + os.replace to avoid partial writes on crash
+    import tempfile as _tf
+    fd, tmp_name = _tf.mkstemp(suffix=".tmp", prefix=".crux_write_", dir=str(p.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_name, str(p))
+    finally:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_name)
     return f"Written: {p}"
 
 

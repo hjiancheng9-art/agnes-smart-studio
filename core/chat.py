@@ -432,9 +432,12 @@ class ChatSession(ChatToggleMixin):
         self.cfg.consecutive_skips = v
 
     def __del__(self) -> None:
-        """Cleanup temp files on garbage collection (fallback to atexit)."""
+        """Cleanup temp files and client on garbage collection (fallback to atexit)."""
         with contextlib.suppress(Exception):
             self._cleanup_temp_input_files()
+        with contextlib.suppress(Exception):
+            if hasattr(self, "client") and self.client is not None:
+                self.client.close()
 
     def _cleanup_temp_input_files(self) -> None:
         """Remove all tracked long-input temp files. Safe to call multiple times."""
@@ -652,6 +655,8 @@ class ChatSession(ChatToggleMixin):
                     _pd = mgr.providers.get(target_provider, {})
                     new_client = mgr.create_client(target_provider)
                     if new_client:
+                        with contextlib.suppress(Exception):
+                            self.client.close()
                         self.client = new_client
                         self._current_provider = target_provider
             except Exception as e:
@@ -1084,7 +1089,6 @@ class ChatSession(ChatToggleMixin):
                     yield ("text", _clean)
                 self.messages.append({"role": "assistant", "content": _result_text or ""})
                 self._finalize_outcome(self.model, None)
-                yield ("stream_end", {"run_id": str(uuid.uuid4())[:12], "message": "done", "verdict": "completed"})
                 self._trigger_reflection()
                 self._auto_remember()
                 return  # ── skip model call entirely ──
@@ -1149,14 +1153,15 @@ class ChatSession(ChatToggleMixin):
             pass
         self.messages.append({"role": "user", "content": user_text})
 
-        # ── 事件协议: 生成 run_id，yield stream_start ──
+        # ── 事件协议: 生成 run_id ──
         _run_id = str(uuid.uuid4())[:12]
         import time as _time
 
         _turn_start = _time.monotonic()  # track turn start for heartbeat timing
-        yield ("stream_start", {"run_id": _run_id, "message": "start"})
 
-        yield ("info", "【规划】分析任务 & 选择模型...")
+        # Only show planning for non-trivial messages (skip for simple greetings/chitchat)
+        if len(user_text) > 30 or any(kw in user_text for kw in ("修复", "实现", "重构", "设计", "审查", "分析", "部署", "优化", "测试", "fix", "implement", "refactor", "design", "review", "debug", "deploy")):
+            yield ("info", "【规划】分析任务 & 选择模型...")
 
         # Auto-route: classify prompt intent → dynamically switch model tier
         # (e.g. complex code → pro, simple Q&A → light, deep reasoning → reasoner)
@@ -1303,7 +1308,13 @@ class ChatSession(ChatToggleMixin):
 
         # tool calling 循环（有上限，防止死循环）
         # 支持 CRUX_MAX_TOOL_LOOPS 环境变量热覆盖（免重启，设了立即生效）
-        _base = int(os.environ.get("CRUX_MAX_TOOL_LOOPS", str(MAX_TOOL_LOOPS)))
+        _base = MAX_TOOL_LOOPS
+        _env_override = os.environ.get("CRUX_MAX_TOOL_LOOPS")
+        if _env_override:
+            try:
+                _base = int(_env_override)
+            except ValueError:
+                logger.warning("CRUX_MAX_TOOL_LOOPS=%r is not a valid integer, using default %d", _env_override, MAX_TOOL_LOOPS)
         _effective_max = _base * 2 if getattr(self, "unlimited_tools", False) else _base
         buffer = ""  # 循环外预绑定，保证超出最大轮次时引用安全
         # 跨轮工具去重状态（见 _run_tool_calls 的注释）
@@ -1375,7 +1386,11 @@ class ChatSession(ChatToggleMixin):
                             # 先尝试自动 failover（handle_failure 会选一个可用 provider）
                             new_client, new_pid = mgr.handle_failure(mgr.state.active, 500)
                             if new_client:
+                                # Close old client before switching to avoid httpx pool leak
+                                with contextlib.suppress(Exception):
+                                    self.client.close()
                                 self.client = new_client
+                                self._current_provider = new_pid
                                 mgr.state.record_success(new_pid)
                                 logger.info("failover: -> %s (auto)", new_pid)
                                 yield ("info", f"Provider 自动切换: {new_pid}")
@@ -1392,6 +1407,27 @@ class ChatSession(ChatToggleMixin):
                     return
 
                 # 正常收尾 — 检测是否为模型拒绝，若是则触发对抗 bypass
+                # 空响应检测：模型返回空内容时自动重试一次
+                _empty_buffer = not buffer or not buffer.strip()
+                if _empty_buffer and _loop == 0:
+                    yield ("info", "模型返回空内容，正在重试…")
+                    # 用稍高 temperature 重试，有可能唤醒模型
+                    try:
+                        retry_delta = yield from self._consume_stream_delta(
+                            _use_client, _use_model, tools, _retry_empty=True
+                        )
+                        retry_buffer, retry_tools, _, retry_usage = retry_delta
+                        if retry_buffer and retry_buffer.strip():
+                            buffer = retry_buffer
+                            if retry_usage:
+                                _last_usage = retry_usage
+                            _empty_buffer = False
+                            yield ("info", "重试成功")
+                    except Exception as e:
+                        logger.debug("empty-retry failed: %s", e)
+                if _empty_buffer:
+                    buffer = "（模型未返回内容，请重试或换一种表述）"
+                    yield ("text", buffer)
                 self._finalize_outcome(_use_model, _last_usage)
                 self.messages.append({"role": "assistant", "content": buffer})
                 # ── 红旗警示: 检测输出中的危险短语 ──
@@ -1419,7 +1455,6 @@ class ChatSession(ChatToggleMixin):
                     self._pipeline_result = None
                 self._trigger_reflection()
                 self._auto_remember()
-                yield ("stream_end", {"run_id": _run_id, "message": "done", "verdict": "completed"})
                 return
 
         # for _loop 结束：区分两种情况
@@ -1430,14 +1465,12 @@ class ChatSession(ChatToggleMixin):
             self._record_trace_failure(f"tool loop overflow: {_effective_max} rounds", step_name="tool_loop")
             self.messages.append({"role": "assistant", "content": buffer})
             self._record_outcome_promptlab()
-            yield ("stream_end", {"run_id": _run_id, "message": "done", "verdict": "completed"})
             return
 
         # All fallback models exhausted — tell the user something went wrong.
         tried = ", ".join(m for m, _ in fallback_chain)
         self._record_trace_failure(f"all models exhausted: {tried}", step_name="fallback_chain")
         yield ("error", f"所有模型均不可用（已尝试: {tried}），请稍后重试或 /provider 切换")
-        yield ("stream_end", {"run_id": _run_id, "message": "error", "verdict": "failed"})
 
     # ── send_stream 的拆分子方法（行为不变，仅降低单方法复杂度）──
     # 以下三个方法由 send_stream 调用，分别处理：吃 delta / 执行工具 / 收尾计费。
@@ -1449,7 +1482,7 @@ class ChatSession(ChatToggleMixin):
 
     _WRITE_TOOLS = WRITE_TOOLS
 
-    def _consume_stream_delta(self, client: CruxClient, model: str, tools):
+    def _consume_stream_delta(self, client: CruxClient, model: str, tools, *, _retry_empty: bool = False):
         """Direct stream iteration — simplest reliable path."""
         from core.provider_adapter import get_max_tokens, get_thinking_params
 
@@ -1457,6 +1490,9 @@ class ChatSession(ChatToggleMixin):
         kwargs = {}
         if self.enable_thinking:
             kwargs = get_thinking_params(model)
+        # 空响应重试: 提高 temperature 增加模型输出多样性
+        if _retry_empty:
+            kwargs["temperature"] = kwargs.get("temperature", 0.7) + 0.2
 
         buffer, tool_calls = "", []
         stream_error = False

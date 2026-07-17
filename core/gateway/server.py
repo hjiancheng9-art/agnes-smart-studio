@@ -54,7 +54,7 @@ def create_app(runner: GatewayRunner | None = None) -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
-        allow_credentials=True,
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -63,9 +63,11 @@ def create_app(runner: GatewayRunner | None = None) -> FastAPI:
 
     @app.get("/")
     async def root():
+        from core.version import __version__ as _gw_ver
+
         return {
             "service": "CRUX Studio OpenAI 兼容 API 网关",
-            "version": "6.0.0",
+            "version": _gw_ver,
             "endpoints": {
                 "GET /health": "健康检查",
                 "GET /v1/models": "列出可用模型",

@@ -16,14 +16,6 @@
 from __future__ import annotations
 
 import logging
-
-
-# Internal signal to stop consuming a generator stream early.
-# Must NOT be a StopIteration subclass — PEP 479 would wrap it in RuntimeError.
-class _StreamStop(Exception):
-    pass
-
-
 import threading
 import time
 import uuid
@@ -312,9 +304,7 @@ class RuntimeOrchestrator:
 
     def execute(self, goal: str, **overrides) -> OrchestrationResult:
         """同步执行 — 通过 execute_stream 统一路径."""
-        for _ in self.execute_stream(goal, **overrides):
-            pass
-        raise RuntimeError("execute_stream should have raised _StreamStop")
+        return drain_stream(self.execute_stream(goal, **overrides))
 
     def execute_stream(self, goal: str, **overrides) -> Generator[OrchestrationProgress, None, OrchestrationResult]:
         """流式执行 — 统一入口，execute() 也走此路径."""
@@ -377,7 +367,6 @@ class RuntimeOrchestrator:
                 try:
                     self.callbacks.on_complete(result)
                 except Exception:
-
                     logging.getLogger("crux").debug("silent except", exc_info=True)
 
             yield self._emit(
@@ -391,8 +380,6 @@ class RuntimeOrchestrator:
             result.verdict = "cancelled"
             yield self._emit(p, "warn", "用户中断")
             return result
-        except _StreamStop:
-            raise
         except Exception as e:
             result.verdict = "fail"
             err = OrchestrationError(phase=p.phase, code=type(e).__name__, message=str(e)[:200])
@@ -516,7 +503,6 @@ class RuntimeOrchestrator:
                     self._agent_roles[name] = name_match.group(1).strip()
                     self._agent_roles[role] = name_match.group(1).strip()
             except Exception:
-
                 logging.getLogger("crux").debug("silent except", exc_info=True)
 
     def _load_model_pricing(self) -> None:
@@ -664,13 +650,11 @@ class RuntimeOrchestrator:
                 try:
                     self.callbacks.on_phase_start(phase, str(details or ""))
                 except Exception:
-
                     logging.getLogger("crux").debug("silent except", exc_info=True)
             if self.callbacks.on_phase_done and action == "done":
                 try:
                     self.callbacks.on_phase_done(phase, 0)
                 except Exception:
-
                     logging.getLogger("crux").debug("silent except", exc_info=True)
             self._emit_event(
                 f"orchestration:phase:{action}", {"trace_id": trace_id, "phase": phase, "details": details}
@@ -696,7 +680,6 @@ class RuntimeOrchestrator:
             for name, handler in getattr(PluginManager(), "_tool_handlers", {}).items():
                 plugin_tools[name] = handler
         except Exception:
-
             logging.getLogger("crux").debug("silent except", exc_info=True)
 
         # 技能上下文 — 注入到工具调用的 kwargs
@@ -721,7 +704,6 @@ class RuntimeOrchestrator:
                     if r is not None:
                         return str(r)
             except Exception:
-
                 logging.getLogger("crux").debug("silent except", exc_info=True)
             try:
                 from core.tools import get_registry
@@ -730,7 +712,6 @@ class RuntimeOrchestrator:
                 if name in registry._executors:
                     return str(registry._executors[name](**args_with_skills))
             except Exception:
-
                 logging.getLogger("crux").debug("silent except", exc_info=True)
             return f"[错误] 工具不可用: {name}"
 
@@ -855,7 +836,6 @@ class RuntimeOrchestrator:
 
             bus.emit(name, data=data)
         except Exception:
-
             logging.getLogger("crux").debug("silent except", exc_info=True)
 
     def _emit(self, p: OrchestrationProgress, level: str, message: str) -> OrchestrationProgress:
@@ -865,7 +845,6 @@ class RuntimeOrchestrator:
             try:
                 self.callbacks.on_progress(p)
             except Exception:
-
                 logging.getLogger("crux").debug("silent except", exc_info=True)
         return p
 
@@ -877,7 +856,6 @@ class RuntimeOrchestrator:
             try:
                 self.callbacks.on_beast_activate(beast.value, p.message)
             except Exception:
-
                 logging.getLogger("crux").debug("silent except", exc_info=True)
         return p
 
@@ -995,6 +973,8 @@ def trigger_orchestrate(preset: str = "auto", **kwargs) -> str:
     }
     full_goal = presets.get(preset, user_goal)
     return execute_tool(full_goal, **kwargs)
+
+
 """CRUX Master Orchestration Engine — 白虎脊椎.
 
 将 CRUX 的 7 个 DNA 基因和 13 个金手指编排成一个完整的认知-执行-验证闭环。
@@ -1023,8 +1003,6 @@ DNA 映射：
 
 
 import threading
-import time
-import uuid
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
@@ -1053,7 +1031,7 @@ PHASE_ORDER = (Phase.GATE, Phase.CONTEXT, Phase.PLAN, Phase.EXECUTE, Phase.VERIF
 # core/task_complexity.py.  We re-export for backward compatibility.
 from typing import TYPE_CHECKING
 
-from core.task_complexity import TaskComplexity, classify_task
+from core.task_complexity import TaskComplexity
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -1250,7 +1228,6 @@ class MasterOrchestrator:
             try:
                 self.phase_callback(phase_name, action, details)
             except Exception:
-
                 logging.getLogger("crux").debug("silent except", exc_info=True)
 
     def run(self, goal: str) -> dict:

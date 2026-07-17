@@ -29,7 +29,8 @@ class TestSymbolIndex:
     def test_index_file(self):
         si = SymbolIndex()
         si.index_file("core/code_intel.py")
-        assert True
+        results = si.lookup("CodeAnalyzer")
+        assert len(results) > 0, "Expected CodeAnalyzer to be indexed from code_intel.py"
 
     def test_lookup(self):
         si = SymbolIndex()

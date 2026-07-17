@@ -360,16 +360,17 @@ def _paste_image_via_clipboard(page, image_path: str) -> None:
     except ImportError:
         return  # 非 Windows 或未安装
 
-    img = Image.open(image_path)
-    output = _io.BytesIO()
-    img.convert("RGB").save(output, "BMP")
-    dib_data = output.getvalue()[14:]  # 跳过 BMP 文件头
-    output.close()
+    with Image.open(image_path) as img:
+        output = _io.BytesIO()
+        img.convert("RGB").save(output, "BMP")
+        dib_data = output.getvalue()[14:]  # 跳过 BMP 文件头
 
     win32clipboard.OpenClipboard()
-    win32clipboard.EmptyClipboard()
-    win32clipboard.SetClipboardData(win32clipboard.CF_DIB, dib_data)
-    win32clipboard.CloseClipboard()
+    try:
+        win32clipboard.EmptyClipboard()
+        win32clipboard.SetClipboardData(win32clipboard.CF_DIB, dib_data)
+    finally:
+        win32clipboard.CloseClipboard()
 
     # 聚焦输入区并粘贴
     page.click("#prompt-textarea")

@@ -273,11 +273,13 @@ class TestRollbackLast:
         assert callable(rollback_last)
 
     def test_nothing_to_undo_when_empty(self):
-        # Simulate empty state
+        # Simulate empty state (both memory and disk)
         import core.patch as p
         from core.patch import rollback_last
 
-        with mock.patch.object(p, "_LAST_BACKUPS", {}), mock.patch.object(p, "_LAST_ADDED", set()):
+        with mock.patch.object(p, "_LAST_BACKUPS", {}), \
+             mock.patch.object(p, "_LAST_ADDED", set()), \
+             mock.patch.object(p, "_load_patch_snapshot", return_value=({}, set())):
             result = rollback_last()
             assert result["success"] is False
             assert "nothing_to_undo" in result["reason"]

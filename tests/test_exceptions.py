@@ -116,7 +116,7 @@ class TestErrorRaising:
     def test_try_except_chain(self):
         try:
             raise SandboxError("沙箱拒绝")
-        except CruxError:
-            assert True
+        except CruxError as e:
+            assert isinstance(e, SandboxError)
         except Exception:
-            pytest.fail("应被 CruxError 捕获")
+            pytest.fail("SandboxError 应被 CruxError 捕获")

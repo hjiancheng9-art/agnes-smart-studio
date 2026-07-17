@@ -42,7 +42,6 @@ class TestApiKeySafety:
         with open(".env.example", encoding="utf-8") as f:
             content = f.read()
         # Check for key patterns that look like real keys (long base64 strings)
-        import re
 
         for line in content.split("\n"):
             line = line.strip()
@@ -51,8 +50,7 @@ class TestApiKeySafety:
                 # Real API keys are typically long alphanumeric strings
                 if len(val) > 30 and val.isalnum():
                     raise AssertionError(
-                        f".env.example has real-looking value: {line[:50]}... "
-                        "Use placeholder like 'sk-your-key-here'"
+                        f".env.example has real-looking value: {line[:50]}... Use placeholder like 'sk-your-key-here'"
                     )
 
     def test_gitignore_covers_env(self):
@@ -122,6 +120,4 @@ class TestBrowserSafety:
             with open("core/browser_runtime.py", encoding="utf-8") as f:
                 content = f.read()
             for path in ("Chrome/User Data/Default", "Edge/User Data/Default"):
-                assert path not in content, (
-                    f"browser references system profile '{path}' — use isolated profile"
-                )
+                assert path not in content, f"browser references system profile '{path}' — use isolated profile"
