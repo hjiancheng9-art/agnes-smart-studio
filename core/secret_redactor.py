@@ -14,14 +14,23 @@ import os
 import re
 
 # Known env var names that contain secrets
-_SECRET_ENV_VARS = frozenset({
-    "DEEPSEEK_API_KEY", "CRUX_API_KEY", "AGNES_API_KEY", "ZHIPU_API_KEY",
-    "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY",
-    "GH_TOKEN", "GITHUB_TOKEN", "VERCEL_TOKEN",
-})
+_SECRET_ENV_VARS = frozenset(
+    {
+        "DEEPSEEK_API_KEY",
+        "CRUX_API_KEY",
+        "AGNES_API_KEY",
+        "ZHIPU_API_KEY",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GEMINI_API_KEY",
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "VERCEL_TOKEN",
+    }
+)
 
 # Patterns that look like API keys (long base64/alphanumeric strings)
-_KEY_PATTERN = re.compile(r'(sk-[a-zA-Z0-9]{20,})|([a-zA-Z0-9+/=]{40,})')
+_KEY_PATTERN = re.compile(r"(sk-[a-zA-Z0-9]{20,})|([a-zA-Z0-9+/=]{40,})")
 
 # Cache resolved keys for redaction
 _cached_keys: dict[str, str] | None = None
@@ -58,8 +67,19 @@ def safe_env_for_subprocess(extra: dict[str, str] | None = None) -> dict[str, st
     and explicitly requested keys. All other env vars (including API keys)
     are excluded to prevent leakage to child processes.
     """
-    safe_keys = {"PATH", "SYSTEMROOT", "TEMP", "TMP", "HOME", "USERPROFILE",
-                 "USERNAME", "COMSPEC", "PATHEXT", "LANG", "LC_ALL"}
+    safe_keys = {
+        "PATH",
+        "SYSTEMROOT",
+        "TEMP",
+        "TMP",
+        "HOME",
+        "USERPROFILE",
+        "USERNAME",
+        "COMSPEC",
+        "PATHEXT",
+        "LANG",
+        "LC_ALL",
+    }
     safe = {}
     for k, v in os.environ.items():
         if k in safe_keys or k in _SECRET_ENV_VARS:

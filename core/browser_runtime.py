@@ -545,16 +545,17 @@ def ask_chatgpt_with_image(text: str, image_path: str, wait: bool = True) -> str
 
     # ── 将图片写入剪贴板 ──
     try:
-        img = Image.open(img_path)
-        output = _io.BytesIO()
-        img.convert("RGB").save(output, "BMP")
-        dib_data = output.getvalue()[14:]  # 跳过 BMP 文件头
-        output.close()
+        with Image.open(img_path) as img:
+            output = _io.BytesIO()
+            img.convert("RGB").save(output, "BMP")
+            dib_data = output.getvalue()[14:]  # 跳过 BMP 文件头
 
         win32clipboard.OpenClipboard()
-        win32clipboard.EmptyClipboard()
-        win32clipboard.SetClipboardData(win32clipboard.CF_DIB, dib_data)
-        win32clipboard.CloseClipboard()
+        try:
+            win32clipboard.EmptyClipboard()
+            win32clipboard.SetClipboardData(win32clipboard.CF_DIB, dib_data)
+        finally:
+            win32clipboard.CloseClipboard()
     except Exception as e:
         return f"[Clipboard error: {e}]"
 
