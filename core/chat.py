@@ -60,6 +60,7 @@ from core.provider import (
     get_tool_calling_models,
     get_vision_models,
 )
+from core.session_config import SessionConfig
 from core.skills import SkillManager, get_manager
 from core.tools import AGENT_SYSTEM_PROMPT, ToolRegistry, get_registry
 from engines.text_to_image import TextToImageEngine
@@ -312,20 +313,9 @@ class ChatSession(ChatToggleMixin):
         self.t2i = TextToImageEngine(client)
         self.vid = VideoEngine(client)
         self.media_client = client  # unified media client for tool-calling generation
-        self.model = default_model or self._resolve_default_model()
+        self.cfg = SessionConfig(model=default_model or self._resolve_default_model())
         self._ctx_mgr: ContextManager | None = None  # lazy: built from model's actual context window
-        self.auto_model = True  # auto-select model per prompt
         self._model_router = None  # lazy init
-        self._auto_tier_order = ["reasoner", "pro", "light"]  # preferred tier order
-        self._consecutive_skips = 0  # short-circuit: skip routing after N consecutive trivial messages
-        self.enable_thinking = True
-        self.code_mode = False
-        self.mode = "chat"
-        self.unlimited_tools = False
-        self.agent_mode = False
-        self.browser_enabled = False
-        self.notebook_enabled = False
-        self.audio_enabled = False
         self.tools: ToolRegistry = get_registry()
         self.skills: SkillManager = get_manager()
         self.active_skill: str = ""
@@ -343,6 +333,56 @@ class ChatSession(ChatToggleMixin):
         from core.chat_hooks_setup import wire_session_hooks
 
         wire_session_hooks(self)
+
+    # ── Property aliases → SessionConfig (GPT v6.2: centralized state) ──
+    @property
+    def model(self): return self.cfg.model
+    @model.setter
+    def model(self, v): self.cfg.model = v
+    @property
+    def auto_model(self): return self.cfg.auto_model
+    @auto_model.setter
+    def auto_model(self, v): self.cfg.auto_model = v
+    @property
+    def enable_thinking(self): return self.cfg.enable_thinking
+    @enable_thinking.setter
+    def enable_thinking(self, v): self.cfg.enable_thinking = v
+    @property
+    def code_mode(self): return self.cfg.code_mode
+    @code_mode.setter
+    def code_mode(self, v): self.cfg.code_mode = v
+    @property
+    def mode(self): return self.cfg.mode
+    @mode.setter
+    def mode(self, v): self.cfg.mode = v
+    @property
+    def unlimited_tools(self): return self.cfg.unlimited_tools
+    @unlimited_tools.setter
+    def unlimited_tools(self, v): self.cfg.unlimited_tools = v
+    @property
+    def agent_mode(self): return self.cfg.agent_mode
+    @agent_mode.setter
+    def agent_mode(self, v): self.cfg.agent_mode = v
+    @property
+    def browser_enabled(self): return self.cfg.browser_enabled
+    @browser_enabled.setter
+    def browser_enabled(self, v): self.cfg.browser_enabled = v
+    @property
+    def notebook_enabled(self): return self.cfg.notebook_enabled
+    @notebook_enabled.setter
+    def notebook_enabled(self, v): self.cfg.notebook_enabled = v
+    @property
+    def audio_enabled(self): return self.cfg.audio_enabled
+    @audio_enabled.setter
+    def audio_enabled(self, v): self.cfg.audio_enabled = v
+    @property
+    def _auto_tier_order(self): return self.cfg.auto_tier_order
+    @_auto_tier_order.setter
+    def _auto_tier_order(self, v): self.cfg.auto_tier_order = v
+    @property
+    def _consecutive_skips(self): return self.cfg.consecutive_skips
+    @_consecutive_skips.setter
+    def _consecutive_skips(self, v): self.cfg.consecutive_skips = v
 
     def __del__(self) -> None:
         """Cleanup temp files on garbage collection (fallback to atexit)."""
