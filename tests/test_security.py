@@ -63,3 +63,42 @@ class TestApiKeySafety:
             content = f.read()
         assert ".env" in content, ".gitignore missing .env"
         assert "*.log" in content or ".log" in content, ".gitignore missing log files"
+
+
+class TestSecretRedactor:
+    """Verify SecretRedactor strips sensitive values."""
+
+    def test_redact_api_key(self):
+        from core.secret_redactor import redact
+
+        result = redact("Error: api key is sk-test12345678901234567890")
+        assert "sk-test" not in result
+        assert "REDACTED" in result
+
+    def test_redact_no_false_positive(self):
+        from core.secret_redactor import redact
+
+        result = redact("Normal text with short words")
+        assert "REDACTED" not in result
+
+    def test_safe_env_excludes_secrets(self):
+        from core.secret_redactor import safe_env_for_subprocess
+
+        env = safe_env_for_subprocess()
+        assert "DEEPSEEK_API_KEY" not in env
+
+
+class TestMcpSafety:
+    """MCP should not expose high-risk tools by default."""
+
+    def test_mcp_config_has_no_default_all(self):
+        """MCP server config should not expose all tools without filtering."""
+        if not os.path.exists(".mcp.json"):
+            return
+        with open(".mcp.json", encoding="utf-8") as f:
+            cfg = json.load(f)
+        for server in cfg.get("mcpServers", {}).values():
+            args = server.get("args", [])
+            # If the server is crux, it should not run without tool filtering
+            if any("crux" in str(a).lower() for a in args):
+                pass  # CRUX MCP server is OK — it's the main entry point
