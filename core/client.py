@@ -115,7 +115,7 @@ class CruxClient:
         self._http = httpx.Client(
             base_url=self.base_url,
             headers={"Authorization": f"Bearer {self.api_key}"},
-            timeout=httpx.Timeout(timeout, connect=10.0, read=120.0, write=30.0),
+            timeout=httpx.Timeout(timeout, connect=10.0, read=30.0, write=30.0),
             http2=True,
             limits=httpx.Limits(max_keepalive_connections=20, max_connections=100, keepalive_expiry=30.0),
         )
@@ -400,7 +400,7 @@ class CruxClient:
                     "POST",
                     "/chat/completions",
                     json=body,
-                    timeout=httpx.Timeout(timeout, connect=10.0, read=120.0, write=30.0),
+                    timeout=httpx.Timeout(timeout, connect=10.0, read=30.0, write=30.0),
                 ) as resp:
                     # 错误状态码：连接仍活着，在此消费错误体后再决定重试/返回。
                     # 不能用 raise_for_status() + except 读 e.response.text —— 流式
