@@ -1319,6 +1319,9 @@ class ToolRegistry:
 
             if validate_result:
                 result_str = self._validate_result(name, result_str, args)
+            # Protocol guard: never return None — tools must always return strings
+            if result_str is None:
+                result_str = f"[错误] 工具 '{name}' 返回了空结果"
             return result_str
 
         except (RuntimeError, OSError, ValueError, TypeError) as e:

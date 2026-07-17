@@ -1290,6 +1290,7 @@ class ChatSession(ChatToggleMixin):
                                 self.client = new_client
                                 mgr.state.record_success(new_pid)
                                 logger.info("failover: -> %s (auto)", new_pid)
+                                yield ("info", f"Provider 自动切换: {new_pid}")
                             else:
                                 # 无可用 provider，仅标记下线
                                 mgr.state.mark_down(mgr.state.active)
@@ -1526,10 +1527,7 @@ class ChatSession(ChatToggleMixin):
                         side_effects = list(normalized.side_effects)
 
                         # ── 自动重试: 仅对幂等/可重试工具，且错误表明可修正时才重试 ──
-                        _result_str = str(tool_result)
-                        _can_retry = (
-                            _result_str.startswith("[错误]") or _result_str.startswith("[自愈失败]")
-                        ) and fname in _AUTO_RETRY_TOOLS
+                        _can_retry = not normalized.ok and fname in _AUTO_RETRY_TOOLS
                         if _can_retry:
                             tool_result, side_effects = _auto_retry_tool(self, fname, fargs, tool_result)
 
@@ -1537,7 +1535,7 @@ class ChatSession(ChatToggleMixin):
                         try:
                             from core.tool_cache import CACHEABLE_TOOLS, get_tool_cache
 
-                            if fname in CACHEABLE_TOOLS and not str(tool_result).startswith("[错误]"):
+                            if fname in CACHEABLE_TOOLS and normalized.ok:
                                 get_tool_cache().set(fname, fargs, str(tool_result))
                         except ImportError:
                             pass
