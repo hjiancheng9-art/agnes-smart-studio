@@ -102,3 +102,26 @@ class TestMcpSafety:
             # If the server is crux, it should not run without tool filtering
             if any("crux" in str(a).lower() for a in args):
                 pass  # CRUX MCP server is OK — it's the main entry point
+
+
+class TestBrowserSafety:
+    """Browser automation must use isolated profiles."""
+
+    def test_browser_uses_dedicated_profile(self):
+        """Browser should specify a profile path, not rely on system default."""
+        if os.path.exists("core/browser_runtime.py"):
+            with open("core/browser_runtime.py", encoding="utf-8") as f:
+                content = f.read()
+            assert "user_data_dir" in content or "user-data-dir" in content or "profile" in content.lower(), (
+                "browser_runtime.py does not specify a user data directory"
+            )
+
+    def test_browser_no_system_profile_leak(self):
+        """Browser should NOT use system Chrome/Edge default profile paths."""
+        if os.path.exists("core/browser_runtime.py"):
+            with open("core/browser_runtime.py", encoding="utf-8") as f:
+                content = f.read()
+            for path in ("Chrome/User Data/Default", "Edge/User Data/Default"):
+                assert path not in content, (
+                    f"browser references system profile '{path}' — use isolated profile"
+                )
