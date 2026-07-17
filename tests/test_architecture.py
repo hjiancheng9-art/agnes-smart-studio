@@ -45,3 +45,17 @@ class TestArchitectureBoundaries:
             if f.endswith(".py"):
                 imps = _imports_of(f"prompts/{f}")
                 assert "runtime" not in imps, f"prompts/{f} imports runtime"
+
+    def test_domain_no_provider_imports(self):
+        """domain/ must not import provider or client infrastructure."""
+        for f in os.listdir("domain"):
+            if f.endswith(".py"):
+                imps = _imports_of(f"domain/{f}")
+                assert "provider" not in imps, f"domain/{f} imports provider"
+                assert "client" not in imps, f"domain/{f} imports client"
+
+    def test_tools_no_chat_import(self):
+        """tools.py must not import ChatSession (circular dependency risk)."""
+        if os.path.exists("core/tools.py"):
+            imps = _imports_of("core/tools.py")
+            assert "chat" not in imps, "core/tools.py imports chat (circular dep!)"

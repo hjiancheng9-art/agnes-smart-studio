@@ -1381,6 +1381,9 @@ class ChatSession(ChatToggleMixin):
         kwargs = {}
         if self.enable_thinking:
             kwargs = get_thinking_params(model)
+        _first_token_at = None
+        import time as _time
+        _stream_start = _time.monotonic()
         for delta in client.chat_stream(
             model=model,
             messages=sanitize_tool_call_history(self.messages),
@@ -1398,6 +1401,11 @@ class ChatSession(ChatToggleMixin):
                 yield ("thinking", delta[think_field])  # type: ignore[misc]
             if delta.get("content"):
                 chunk = delta["content"]
+                if _first_token_at is None:
+                    _first_token_at = _time.monotonic()
+                    _elapsed = _first_token_at - _stream_start
+                    if _elapsed > 15.0:
+                        yield ("info", f"首 token 延迟 {_elapsed:.1f}s")
                 buffer += chunk
                 # Don't render HTTP error bodies as assistant text.
                 if not delta.get("_error"):
