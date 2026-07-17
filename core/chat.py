@@ -851,9 +851,6 @@ class ChatSession(ChatToggleMixin):
         self._last_user_text = user_text
         self._last_turn_had_errors = False
 
-        # ── Stage 0: Accepted (must be first yield, <50ms) ──
-        yield ("info", "已收到")
-
         # ── 输入截断: 超长文本存临时文件，避免炸上下文 ──
         _MAX_INPUT_CHARS = 4000
         _input_len = len(user_text)
@@ -1237,7 +1234,6 @@ class ChatSession(ChatToggleMixin):
                 _stream_error = False
                 _last_usage = None
                 # _consume_stream_delta 是生成器：yield text chunks + return (buffer, tool_calls, error, usage)
-                yield ("status", f"等待 {_use_model} 响应...")
                 try:
                     delta_result = yield from self._consume_stream_delta(
                         _use_client,
