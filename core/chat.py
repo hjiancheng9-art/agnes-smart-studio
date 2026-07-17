@@ -1915,13 +1915,42 @@ class ChatSession(ChatToggleMixin):
                 # Single message: replace user message content
                 self.messages.append({"role": "user", "content": modified})
 
-            # Retry with modified prompt
+            # Retry with modified prompt — use same threaded stream pattern
             retry_buffer = ""
             try:
-                for kind, payload in self._consume_stream_delta(client, model, tools):
+                import queue as _rq
+                import threading as _rt
+                _rq_q: _rq.Queue = _rq.Queue()
+                _rq_done = _rt.Event()
+                _rq_err: list[Exception | None] = [None]
+
+                def _rq_reader():
+                    try:
+                        for k, p in self._consume_stream_delta(client, model, tools):
+                            _rq_q.put((k, p))
+                    except Exception as e:
+                        _rq_err[0] = e
+                    finally:
+                        _rq_done.set()
+
+                _rq_t = _rt.Thread(target=_rq_reader, daemon=True)
+                _rq_t.start()
+                _last_rq = time.monotonic()
+                while not _rq_done.is_set():
+                    try:
+                        kind, payload = _rq_q.get(timeout=2.0)
+                        _last_rq = time.monotonic()
+                    except _rq.Empty:
+                        if time.monotonic() - _last_rq > 30.0:
+                            _rq_err[0] = RuntimeError("Bypass stream timeout")
+                            break
+                        continue
                     if isinstance(payload, str) and kind == "text":
                         retry_buffer += payload
-                        yield ("text", payload)
+                    yield (kind, payload)
+                _rq_t.join(timeout=5)
+                if _rq_err[0]:
+                    raise _rq_err[0]
                 if retry_buffer and not is_model_refusal(retry_buffer):
                     self.messages.append({"role": "assistant", "content": retry_buffer})
                     self._finalize_outcome(model, None)
