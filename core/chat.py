@@ -997,7 +997,7 @@ class ChatSession(ChatToggleMixin):
                     yield ("text", _clean)
                 self.messages.append({"role": "assistant", "content": _result_text or ""})
                 self._finalize_outcome(self.model, None)
-                yield ("stream_end", {"run_id": str(uuid.uuid4())[:12], "message": "done"})
+                yield ("stream_end", {"run_id": str(uuid.uuid4())[:12], "message": "done", "verdict": "completed"})
                 self._trigger_reflection()
                 self._auto_remember()
                 return  # ── skip model call entirely ──
@@ -1234,7 +1234,8 @@ class ChatSession(ChatToggleMixin):
                 _stream_error = False
                 _last_usage = None
                 # _consume_stream_delta 是生成器：yield text chunks + return (buffer, tool_calls, error, usage)
-                # GPT v6.2: run stream reader in thread with timeout guard
+                # GPT v6.2 ModelWorker pattern: thread + queue + 30s watchdog
+                # This IS the canonical stream reader — no other path exists.
                 try:
                     import queue as _queue
                     import threading as _threading
@@ -1380,14 +1381,14 @@ class ChatSession(ChatToggleMixin):
             self._record_trace_failure(f"tool loop overflow: {_effective_max} rounds", step_name="tool_loop")
             self.messages.append({"role": "assistant", "content": buffer})
             self._record_outcome_promptlab()
-            yield ("stream_end", {"run_id": _run_id, "message": "done"})
+            yield ("stream_end", {"run_id": _run_id, "message": "done", "verdict": "completed"})
             return
 
         # All fallback models exhausted — tell the user something went wrong.
         tried = ", ".join(m for m, _ in fallback_chain)
         self._record_trace_failure(f"all models exhausted: {tried}", step_name="fallback_chain")
         yield ("error", f"所有模型均不可用（已尝试: {tried}），请稍后重试或 /provider 切换")
-        yield ("stream_end", {"run_id": _run_id, "message": "error"})
+        yield ("stream_end", {"run_id": _run_id, "message": "error", "verdict": "failed"})
 
     # ── send_stream 的拆分子方法（行为不变，仅降低单方法复杂度）──
     # 以下三个方法由 send_stream 调用，分别处理：吃 delta / 执行工具 / 收尾计费。
