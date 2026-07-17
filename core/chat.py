@@ -1196,19 +1196,6 @@ class ChatSession(ChatToggleMixin):
         # full 97-tool definition list (~14K tokens) on every subsequent loop round.
         _active_tool_names: set[str] | None = {d["function"]["name"] for d in tools} if tools else None
 
-        # ── DeepSeek thinking-mode guard ──
-        # DeepSeek's thinking-block completes but then the model stops producing
-        # tool calls OR text — causing a 122s stream timeout. This affects ALL
-        # tool-calling scenarios (code gen, file ops, search, etc.), not just
-        # orchestrate. Disable thinking whenever tools are available for DeepSeek.
-        # Pure text responses (tools=None) keep thinking enabled for quality.
-        if tools and self.enable_thinking and "deepseek" in self.model:
-            from core.provider import get_capability_info
-
-            _info = get_capability_info(self.model)
-            if _info and _info.supports_thinking:
-                self.enable_thinking = False
-
         # ── 模型级 fallback 链（对标 Claude fallbackModel）──
         # 主对话流式调用失败时自动降级到下一个供应商/模型。
         # 只在首轮（无 tool_calls）时 fallback，避免重复 tool 副作用。
@@ -1397,25 +1384,6 @@ class ChatSession(ChatToggleMixin):
         kwargs = {}
         if self.enable_thinking:
             kwargs = get_thinking_params(model)
-        else:
-            # Explicitly disable thinking for providers that default to ON.
-            # DeepSeek ignores absent thinking param → defaults to enabled → hang.
-            _enabled = get_thinking_params(model)
-            if _enabled:
-                _key = next(iter(_enabled))
-                _val = _enabled[_key]
-                if isinstance(_val, dict):
-                    _disabled = {}
-                    for k, v in _val.items():
-                        if isinstance(v, bool):
-                            _disabled[k] = not v
-                        elif isinstance(v, str) and v == "enabled":
-                            _disabled[k] = "disabled"
-                        else:
-                            _disabled[k] = v
-                    kwargs = {_key: _disabled}
-                else:
-                    kwargs = {_key: not _val}
         for delta in client.chat_stream(
             model=model,
             messages=sanitize_tool_call_history(self.messages),
