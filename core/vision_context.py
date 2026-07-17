@@ -86,12 +86,17 @@ class VisionContext:
             "the image",
             "the picture",
             "the photo",
+            "what color",
+            "what is",
+            "describe",
+            "how many",
+            "where is",
+            "can you see",
         ]
         for kw in keywords:
             if kw in text_lower:
                 return True
-        # 超短查询（≤3字）且图片活跃 → 很可能指图
-        return bool(len(text_lower) <= 6 and self.queries)
+        return False
 
     def reask(self, question: str, vision_caller: Callable[[str, str], str]) -> str | None:
         """按具体问题重新查询 vision 模型。
