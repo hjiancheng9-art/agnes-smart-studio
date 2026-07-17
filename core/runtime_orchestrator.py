@@ -839,25 +839,25 @@ class RuntimeOrchestrator:
             logging.getLogger("crux").debug("silent except", exc_info=True)
 
     def _emit(self, p: OrchestrationProgress, level: str, message: str) -> OrchestrationProgress:
-        p.level = level
-        p.message = message
+        # Clone to avoid mutating previously-yielded events (all share the same p)
+        from dataclasses import replace as _dc_replace
+        evt = _dc_replace(p, level=level, message=message)
         if self.callbacks.on_progress:
             try:
-                self.callbacks.on_progress(p)
+                self.callbacks.on_progress(evt)
             except Exception:
                 logging.getLogger("crux").debug("silent except", exc_info=True)
-        return p
+        return evt
 
     def _emit_beast(self, p: OrchestrationProgress, beast: BeastRole) -> OrchestrationProgress:
-        p.beast = beast.value
-        p.level = "beast"
-        p.message = _BEAST_MSGS.get(beast, str(beast))
+        from dataclasses import replace as _dc_replace
+        evt = _dc_replace(p, beast=beast.value, level="beast", message=_BEAST_MSGS.get(beast, str(beast)))
         if self.callbacks.on_beast_activate:
             try:
-                self.callbacks.on_beast_activate(beast.value, p.message)
+                self.callbacks.on_beast_activate(beast.value, evt.message)
             except Exception:
                 logging.getLogger("crux").debug("silent except", exc_info=True)
-        return p
+        return evt
 
 
 # ═══════════════════════════════════════════════════════════════
