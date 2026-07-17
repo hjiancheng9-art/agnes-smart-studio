@@ -336,53 +336,100 @@ class ChatSession(ChatToggleMixin):
 
     # ── Property aliases → SessionConfig (GPT v6.2: centralized state) ──
     @property
-    def model(self): return self.cfg.model
+    def model(self):
+        return self.cfg.model
+
     @model.setter
-    def model(self, v): self.cfg.model = v
+    def model(self, v):
+        self.cfg.model = v
+
     @property
-    def auto_model(self): return self.cfg.auto_model
+    def auto_model(self):
+        return self.cfg.auto_model
+
     @auto_model.setter
-    def auto_model(self, v): self.cfg.auto_model = v
+    def auto_model(self, v):
+        self.cfg.auto_model = v
+
     @property
-    def enable_thinking(self): return self.cfg.enable_thinking
+    def enable_thinking(self):
+        return self.cfg.enable_thinking
+
     @enable_thinking.setter
-    def enable_thinking(self, v): self.cfg.enable_thinking = v
+    def enable_thinking(self, v):
+        self.cfg.enable_thinking = v
+
     @property
-    def code_mode(self): return self.cfg.code_mode
+    def code_mode(self):
+        return self.cfg.code_mode
+
     @code_mode.setter
-    def code_mode(self, v): self.cfg.code_mode = v
+    def code_mode(self, v):
+        self.cfg.code_mode = v
+
     @property
-    def mode(self): return self.cfg.mode
+    def mode(self):
+        return self.cfg.mode
+
     @mode.setter
-    def mode(self, v): self.cfg.mode = v
+    def mode(self, v):
+        self.cfg.mode = v
+
     @property
-    def unlimited_tools(self): return self.cfg.unlimited_tools
+    def unlimited_tools(self):
+        return self.cfg.unlimited_tools
+
     @unlimited_tools.setter
-    def unlimited_tools(self, v): self.cfg.unlimited_tools = v
+    def unlimited_tools(self, v):
+        self.cfg.unlimited_tools = v
+
     @property
-    def agent_mode(self): return self.cfg.agent_mode
+    def agent_mode(self):
+        return self.cfg.agent_mode
+
     @agent_mode.setter
-    def agent_mode(self, v): self.cfg.agent_mode = v
+    def agent_mode(self, v):
+        self.cfg.agent_mode = v
+
     @property
-    def browser_enabled(self): return self.cfg.browser_enabled
+    def browser_enabled(self):
+        return self.cfg.browser_enabled
+
     @browser_enabled.setter
-    def browser_enabled(self, v): self.cfg.browser_enabled = v
+    def browser_enabled(self, v):
+        self.cfg.browser_enabled = v
+
     @property
-    def notebook_enabled(self): return self.cfg.notebook_enabled
+    def notebook_enabled(self):
+        return self.cfg.notebook_enabled
+
     @notebook_enabled.setter
-    def notebook_enabled(self, v): self.cfg.notebook_enabled = v
+    def notebook_enabled(self, v):
+        self.cfg.notebook_enabled = v
+
     @property
-    def audio_enabled(self): return self.cfg.audio_enabled
+    def audio_enabled(self):
+        return self.cfg.audio_enabled
+
     @audio_enabled.setter
-    def audio_enabled(self, v): self.cfg.audio_enabled = v
+    def audio_enabled(self, v):
+        self.cfg.audio_enabled = v
+
     @property
-    def _auto_tier_order(self): return self.cfg.auto_tier_order
+    def _auto_tier_order(self):
+        return self.cfg.auto_tier_order
+
     @_auto_tier_order.setter
-    def _auto_tier_order(self, v): self.cfg.auto_tier_order = v
+    def _auto_tier_order(self, v):
+        self.cfg.auto_tier_order = v
+
     @property
-    def _consecutive_skips(self): return self.cfg.consecutive_skips
+    def _consecutive_skips(self):
+        return self.cfg.consecutive_skips
+
     @_consecutive_skips.setter
-    def _consecutive_skips(self, v): self.cfg.consecutive_skips = v
+    def _consecutive_skips(self, v):
+        self.cfg.consecutive_skips = v
 
     def __del__(self) -> None:
         """Cleanup temp files on garbage collection (fallback to atexit)."""
@@ -1040,7 +1087,6 @@ class ChatSession(ChatToggleMixin):
                 yield ("stream_end", {"run_id": str(uuid.uuid4())[:12], "message": "done", "verdict": "completed"})
                 self._trigger_reflection()
                 self._auto_remember()
-                yield ("stream_end", {"run_id": _run_id, "message": "done", "verdict": "completed"})
                 return  # ── skip model call entirely ──
 
             if _plan.mode != ExecutionMode.DIRECT:
@@ -1866,6 +1912,7 @@ class ChatSession(ChatToggleMixin):
             try:
                 import queue as _rq
                 import threading as _rt
+
                 _rq_q: _rq.Queue = _rq.Queue()
                 _rq_done = _rt.Event()
                 _rq_err: list[Exception | None] = [None]
