@@ -1435,12 +1435,16 @@ class ChatSession(ChatToggleMixin):
         import time as _time
 
         _stream_start = _time.monotonic()
-        for delta in client.chat_stream(
-            model=model,
-            messages=sanitize_tool_call_history(self.messages),
-            tools=tools,
-            max_tokens=max_tok,
-            **kwargs,
+        from core.stream_adapter import consume_stream as _consume
+
+        for delta in _consume(
+            lambda: client.chat_stream(
+                model=model,
+                messages=sanitize_tool_call_history(self.messages),
+                tools=tools,
+                max_tokens=max_tok,
+                **kwargs,
+            )
         ):
             # 供应商感知的 thinking token 提取
             from core.provider_adapter import get_adapter, get_capability
