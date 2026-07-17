@@ -1469,6 +1469,11 @@ class ChatSession(ChatToggleMixin):
             max_tokens=max_tok,
             **kwargs,
         ):
+            # reasoning_content (DeepSeek thinking) — yield as text too
+            rc = delta.get("reasoning_content") or delta.get("think") or ""
+            if rc:
+                buffer += rc
+                yield ("text", rc)
             if delta.get("content"):
                 chunk = delta["content"]
                 buffer += chunk
