@@ -1450,27 +1450,46 @@ class ChatSession(ChatToggleMixin):
     _WRITE_TOOLS = WRITE_TOOLS
 
     def _consume_stream_delta(self, client: CruxClient, model: str, tools):
-        """GPT v6.2: thin wrapper. Stream I/O → stream_adapter, delta processing → DeltaProcessor."""
+        """Direct stream iteration — simplest reliable path."""
         from core.provider_adapter import get_max_tokens, get_thinking_params
-        from core.stream_adapter import DeltaProcessor, consume_stream
 
         max_tok = get_max_tokens(model, is_tool_call=bool(tools))
         kwargs = {}
         if self.enable_thinking:
             kwargs = get_thinking_params(model)
 
-        processor = DeltaProcessor(model)
-        for delta in consume_stream(
-            lambda: client.chat_stream(
-                model=model,
-                messages=sanitize_tool_call_history(self.messages),
-                tools=tools,
-                max_tokens=max_tok,
-                **kwargs,
-            )
+        buffer, tool_calls = "", []
+        stream_error = False
+        last_usage = None
+
+        for delta in client.chat_stream(
+            model=model,
+            messages=sanitize_tool_call_history(self.messages),
+            tools=tools,
+            max_tokens=max_tok,
+            **kwargs,
         ):
-            yield from processor.process_delta(delta)
-        return processor.finalize()
+            if delta.get("content"):
+                chunk = delta["content"]
+                buffer += chunk
+                if not delta.get("_error"):
+                    yield ("text", chunk)
+            if delta.get("tool_calls"):
+                tool_calls.extend(delta["tool_calls"])
+            if delta.get("_finish") == "error":
+                stream_error = True
+            if "_usage" in delta:
+                last_usage = delta["_usage"]
+
+        if not tool_calls and buffer:
+            try:
+                from core.tool_call_parser import extract_tool_calls
+                xml_tools, _ = extract_tool_calls(buffer)
+                if xml_tools:
+                    tool_calls.extend(xml_tools)
+            except ImportError:
+                pass
+        return buffer, tool_calls, stream_error, last_usage
 
     def _append_assistant_with_tools(self, buffer: str, tool_calls: list[dict]) -> str:
         """把 assistant 回复（含 tool_calls）追加到 messages。返回 buffer 供后续使用。"""
