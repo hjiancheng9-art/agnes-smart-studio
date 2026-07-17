@@ -378,5 +378,4 @@ def record_attempt(level: int, success: bool):
         ]
 
 
-def get_adversarial_stats() -> dict:
-    return dict(_stats)
+# get_adversarial_stats removed — dead code, never called

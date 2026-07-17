@@ -1,19 +1,14 @@
 """Tests for AgentMode 四档系统 + DAG decomposability"""
 
-import pytest
-
 from core.multi_agent import (
     AgentMode,
-    AgentModeResult,
     ambiguity_score,
     build_context_state,
     compute_agent_mode,
     failure_score,
     file_scope_score,
-    get_mode_statistics,
     keyword_score,
     length_score,
-    record_agent_mode_result,
     risk_score,
     should_use_multi_agent,
     simplicity_score,
@@ -167,21 +162,6 @@ class TestSimplicityScore:
         assert score > 0
 
 
-@pytest.mark.skip(reason="decomposability_score removed from core.multi_agent")
-class TestDecomposabilityScore:
-    def test_parallel_tasks_scores_high(self):
-        pass  # function removed; skip preserved for historical record
-
-    def test_single_task_scores_zero(self):
-        pass  # function removed; skip preserved for historical record
-
-    def test_multi_phase_task(self):
-        pass  # function removed; skip preserved for historical record
-
-    def test_cross_domain_task(self):
-        pass  # function removed; skip preserved for historical record
-
-
 class TestBackwardCompatibleWrapper:
     def test_returns_bool_and_reason(self):
         should, reason = should_use_multi_agent("重构支付模块并跨文件迁移")
@@ -197,41 +177,6 @@ class TestBackwardCompatibleWrapper:
         should, reason = should_use_multi_agent("重构架构")
         assert isinstance(should, bool)
         assert reason is not None
-
-
-@pytest.mark.skip(reason="_agent_mode_history removed from core.multi_agent")
-class TestAgentModeRecording:
-    def test_record_and_stats(self):
-        import core.multi_agent as ma
-
-        ma._agent_mode_history.clear()
-        record_agent_mode_result(
-            AgentModeResult(
-                mode=AgentMode.SWARM,
-                task_type="refactor",
-                success=True,
-                latency=4500,
-            )
-        )
-        record_agent_mode_result(
-            AgentModeResult(
-                mode=AgentMode.SINGLE,
-                task_type="fix_bug",
-                success=True,
-                latency=200,
-            )
-        )
-        record_agent_mode_result(
-            AgentModeResult(
-                mode=AgentMode.SINGLE,
-                task_type="fix_bug",
-                success=False,
-                latency=500,
-            )
-        )
-        stats = get_mode_statistics()
-        assert isinstance(stats, dict)
-        assert len(stats) >= 1
 
 
 class TestModeThresholds:

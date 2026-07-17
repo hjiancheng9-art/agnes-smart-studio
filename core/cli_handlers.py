@@ -58,7 +58,7 @@ class CruxCLI:
                 return True
 
         # ── Unknown command → let AI handle it ──
-        # TODO: could show "unknown command" or forward to AI
+        # Unknown slash command — silently return False so caller can forward to AI chat
         return False
 
     def get_commands_for_completion(self) -> list[str]:

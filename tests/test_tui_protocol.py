@@ -14,7 +14,6 @@ from core.stream_protocol import (
     make_status_event,
     normalize_event,
 )
-from core.tui_healthcheck import TuiBackendHealthcheck, quick_healthcheck
 
 
 class TestStreamEvent:
@@ -167,33 +166,6 @@ class TestConfirmManager:
     def test_global_singleton(self):
         cm = get_confirm_manager()
         assert cm is not None
-
-
-class TestTuiHealthcheck:
-    def test_quick_healthcheck(self):
-        result = quick_healthcheck()
-        assert result["overall"] in ("ok", "degraded")
-        assert result["passed"] > 0
-
-    def test_required_events(self):
-        hc = TuiBackendHealthcheck()
-        result = asyncio.run(hc.check_required_events())
-        assert result.overall in ("ok", "degraded")
-
-    def test_simulate_events(self):
-        hc = TuiBackendHealthcheck()
-        events = asyncio.run(hc._simulate_events())
-        assert len(events) >= 5
-        kinds = [e.kind for e in events]
-        assert "stream_start" in kinds
-        assert "text" in kinds
-        assert "stream_end" in kinds
-
-    def test_full_healthcheck(self):
-        hc = TuiBackendHealthcheck()
-        result = asyncio.run(hc.run())
-        assert result.overall in ("ok", "degraded")
-        assert result.duration >= 0
 
 
 class TestKnownKinds:
