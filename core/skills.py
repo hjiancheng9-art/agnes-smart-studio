@@ -299,11 +299,17 @@ class SkillManager:
                     parts.append(f"\n\n[Skill 自动激活: {skill.name}]\n{sp}")
             return "".join(parts)
 
-        # Fallback: load all auto skills (backward compatible, no task context)
+        # Fallback: load auto skills, but skip excessively large ones.
+        # Large skills (e.g. claude-api at 18K tokens) inflate the system prompt
+        # to 21K+ tokens, causing latency, cost, and tool attention dilution.
+        # Cap at 3000 chars (~750 tokens) for auto-load; large skills load on demand.
+        _MAX_AUTO_CHARS = 3000
         auto_skills = [
             s
             for s in self._available.values()
-            if s.trigger == Skill.TRIGGER_AUTO and s.name != (self._loaded.name if self._loaded else "")
+            if s.trigger == Skill.TRIGGER_AUTO
+            and s.name != (self._loaded.name if self._loaded else "")
+            and len(_extract_prompt_text(s) or "") <= _MAX_AUTO_CHARS
         ]
         if not auto_skills:
             return base_prompt
