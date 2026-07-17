@@ -1059,8 +1059,11 @@ class ToolRegistry:
                         or _has_chinese_err
                         or any(p in _stderr_lower for p in _SHELL_ERR_KEYWORDS)
                     )
-                    if not _has_output or _looks_like_shell_err:
-                        # shell 级错误或无输出 → 尝试下一个策略
+                    if _looks_like_shell_err:
+                        # Only retry for shell-level errors (command not found, syntax).
+                        # Never retry application errors (non-zero exit with actual output
+                        # like pytest failures, git merge conflicts, etc.) — retrying
+                        # would execute side-effecting commands multiple times.
                         errors.append(
                             f"[{strategy_label}] exit={_rc}: {_stderr.strip()[:200] or _stdout.strip()[:200] or '(no output)'}"
                         )

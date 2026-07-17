@@ -609,4 +609,5 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
         else:
             side.append(("info", f"工具 {name} 执行完成"))
         return (result, side)
-    return (f"未知工具: {name}", [])
+    # Protocol guard: dispatch must always return (str, list) tuple
+    return (f"[错误] 工具 '{name}' dispatch 未正确处理", [])
