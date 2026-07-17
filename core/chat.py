@@ -1197,12 +1197,12 @@ class ChatSession(ChatToggleMixin):
         _active_tool_names: set[str] | None = {d["function"]["name"] for d in tools} if tools else None
 
         # ── DeepSeek thinking-mode guard ──
-        # Only for orchestrate/swarm tasks: DeepSeek's thinking-block completes
-        # but the model stops producing tool calls (122s timeout). For normal
-        # tool-calling tasks (code gen, file ops, etc.), thinking stays ON for
-        # maximum response quality.
-        _is_orchestrate = _plan is not None and _plan.mode in ("orchestrate", "swarm")
-        if _is_orchestrate and tools and self.enable_thinking and "deepseek" in self.model:
+        # DeepSeek's thinking-block completes but then the model stops producing
+        # tool calls OR text — causing a 122s stream timeout. This affects ALL
+        # tool-calling scenarios (code gen, file ops, search, etc.), not just
+        # orchestrate. Disable thinking whenever tools are available for DeepSeek.
+        # Pure text responses (tools=None) keep thinking enabled for quality.
+        if tools and self.enable_thinking and "deepseek" in self.model:
             from core.provider import get_capability_info
 
             _info = get_capability_info(self.model)
@@ -1397,6 +1397,25 @@ class ChatSession(ChatToggleMixin):
         kwargs = {}
         if self.enable_thinking:
             kwargs = get_thinking_params(model)
+        else:
+            # Explicitly disable thinking for providers that default to ON.
+            # DeepSeek ignores absent thinking param → defaults to enabled → hang.
+            _enabled = get_thinking_params(model)
+            if _enabled:
+                _key = next(iter(_enabled))
+                _val = _enabled[_key]
+                if isinstance(_val, dict):
+                    _disabled = {}
+                    for k, v in _val.items():
+                        if isinstance(v, bool):
+                            _disabled[k] = not v
+                        elif isinstance(v, str) and v == "enabled":
+                            _disabled[k] = "disabled"
+                        else:
+                            _disabled[k] = v
+                    kwargs = {_key: _disabled}
+                else:
+                    kwargs = {_key: not _val}
         for delta in client.chat_stream(
             model=model,
             messages=sanitize_tool_call_history(self.messages),
@@ -1539,11 +1558,7 @@ class ChatSession(ChatToggleMixin):
                         from core.runtime_result import ToolResult
 
                         normalized = ToolResult.from_raw(raw)
-                        tool_result = (
-                            f"[错误] {normalized.content}"
-                            if not normalized.ok
-                            else normalized.content
-                        )
+                        tool_result = f"[错误] {normalized.content}" if not normalized.ok else normalized.content
                         side_effects = list(normalized.side_effects)
 
                         # ── 自动重试: 仅对幂等/可重试工具，且错误表明可修正时才重试 ──
