@@ -12,6 +12,7 @@ Two caches:
 from __future__ import annotations
 
 import hashlib
+import threading
 import time
 from collections import OrderedDict
 from typing import Any
@@ -105,10 +106,16 @@ class AgentCache:
 _cache: AgentCache | None = None
 
 
+_cache: AgentCache | None = None
+_cache_lock = threading.Lock()
+
+
 def get_cache() -> AgentCache:
     global _cache
     if _cache is None:
-        _cache = AgentCache()
+        with _cache_lock:
+            if _cache is None:
+                _cache = AgentCache()
     return _cache
 
 
