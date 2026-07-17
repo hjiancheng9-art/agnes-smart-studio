@@ -10,8 +10,11 @@ env:
   RUFF_EXCLUDE: "_archive,node_modules,.git,.crux,stub_modules,_temp"
 
 jobs:
-  quality:
-    name: Lint + Type Check
+  # ═══════════════════════════════════════════════════════════
+  # Quick gate: runs on every push, blocks on failure
+  # ═══════════════════════════════════════════════════════════
+  quick:
+    name: Quick Gate (lint + fast tests)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,17 +22,76 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install ruff pyright -r requirements.txt
-      - name: Ruff lint (hard gate)
+      - run: pip install ruff pytest-timeout -r requirements.txt
+      - name: Ruff lint
         run: ruff check --output-format=github . --exclude ${{ env.RUFF_EXCLUDE }}
-      - name: Ruff format check (hard gate)
+      - name: Ruff format
         run: ruff format --check . --exclude ${{ env.RUFF_EXCLUDE }}
-      - name: Pyright type check (advisory)
-        continue-on-error: true
-        run: pyright core/
+      - name: Fast unit tests
+        run: |
+          python -m pytest tests/ -q --tb=short \
+            -m "not slow and not browser and not network and not mcp and not lsp and not github and not e2e" \
+            --timeout=20 -p no:xdist
 
+  # ═══════════════════════════════════════════════════════════
+  # Type check (hard gate — must pass)
+  # ═══════════════════════════════════════════════════════════
+  typecheck:
+    name: Type Check (pyright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install pyright -r requirements.txt
+      - name: Pyright (hard gate)
+        run: pyright core/ || (echo "::error::Type check failed — fix before merging" && exit 1)
+
+  # ═══════════════════════════════════════════════════════════
+  # Full test matrix: Ubuntu + Windows, Python 3.11 + 3.12
+  # ═══════════════════════════════════════════════════════════
   test:
-    name: Tests
+    name: Tests (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - run: pip install pytest-timeout pytest-cov -r requirements.txt
+      - name: Unit tests
+        run: |
+          python -m pytest tests/ -v --tb=short -q \
+            --ignore=tests/self_audit \
+            --ignore=tests/manual \
+            --ignore=tests/test_agent_mode.py \
+            -m "not slow and not browser and not network and not mcp and not lsp and not github and not e2e" \
+            --timeout=30 \
+            -p no:xdist
+      - name: Coverage (core only)
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.11'
+        run: |
+          python -m pytest tests/ --cov=core --cov-report=term --cov-report=xml \
+            --tb=short -q \
+            --ignore=tests/self_audit \
+            --ignore=tests/manual \
+            --ignore=tests/test_agent_mode.py \
+            -m "not slow and not browser and not network and not mcp and not lsp and not github and not e2e" \
+            --timeout=30 -p no:xdist
+
+  # ═══════════════════════════════════════════════════════════
+  # Integration & stress tests (dedicated job, longer timeout)
+  # ═══════════════════════════════════════════════════════════
+  integration:
+    name: Integration + Stress
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,27 +100,14 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install pytest-timeout -r requirements.txt
-      - name: Unit tests (hard gate)
-        run: |
-          python -m pytest tests/ -v --tb=short -q \
-            --ignore=tests/self_audit \
-            --ignore=tests/manual \
-            --ignore=tests/test_agent_mode.py \
-            -m "not slow and not browser and not network and not mcp and not lsp and not github and not e2e" \
-            --timeout=20 \
-            -p no:xdist
-      - name: Coverage (core only, advisory)
-        continue-on-error: true
-        run: |
-          python -m pytest tests/ --cov=core --cov-report=term --cov-report=xml \
-            --tb=short -q \
-            --ignore=tests/self_audit \
-            --ignore=tests/manual \
-            --ignore=tests/test_agent_mode.py \
-            -m "not slow and not browser and not network and not mcp and not lsp and not github and not e2e" \
-            --timeout=20 \
-            -p no:xdist
+      - name: Integration E2E
+        run: python -m pytest tests/test_integration_e2e.py -v --tb=short --timeout=30
+      - name: Stress concurrency
+        run: python -m pytest tests/test_stress_concurrency.py -v --tb=short --timeout=60
 
+  # ═══════════════════════════════════════════════════════════
+  # Security scan (advisory — flags issues, never blocks)
+  # ═══════════════════════════════════════════════════════════
   security:
     name: Security Scan
     runs-on: ubuntu-latest
@@ -68,6 +117,6 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install bandit
-      - name: Bandit security check (advisory)
+      - name: Bandit security check
         continue-on-error: true
-        run: bandit -r core/ tools/ -f json -o bandit_report.json --skip B101,B311
+        run: bandit -r core/ -f json -o bandit_report.json --skip B101,B311

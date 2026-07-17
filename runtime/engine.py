@@ -1,7 +1,10 @@
-"""RuntimeEngine — turn preparation. Model flow stays in old send_stream.
+"""RuntimeEngine — turn preparation only (prompt enhancement).
 
-Per GPT fix: new engine does planning + prompt + tools.
-Old loop runs DeepSeek stream (proven, no bridge needed).
+The model-flow stage that previously tried to replace _consume_stream_delta
+has been removed. RuntimeEngine now only prepares a domain-aware system prompt
+for orchestrate/swarm turns. The proven legacy stream loop handles all model I/O.
+
+Opt-in via CRUX_ENABLE_NEW_RUNTIME=1 (default: off, old prompt used).
 """
 
 from __future__ import annotations

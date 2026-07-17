@@ -1027,8 +1027,12 @@ class ChatSession(ChatToggleMixin):
             _plan = plan_from_policy(user_text)
 
             # For orchestrate/swarm: trigger directly instead of asking the model
-            # to produce a tool call. DeepSeek's thinking mode completes then goes
-            # silent — the model never produces the tool call, causing 122s timeout.
+            # to produce a tool call. This is NOT a workaround — it's the correct
+            # architecture for deterministic workflows. Two reasons:
+            # 1. DeepSeek thinking mode: model completes thinking then goes silent,
+            #    never producing the tool call (122s idle timeout).
+            # 2. Even without thinking mode, asking an LLM to "call orchestrate"
+            #    adds latency + failure surface for a deterministic trigger.
             # Direct orchestration bypasses the model entirely for the trigger.
             if _plan is not None and _plan.mode in (ExecutionMode.ORCHESTRATE, ExecutionMode.SWARM):
                 import time as _time
@@ -1115,14 +1119,11 @@ class ChatSession(ChatToggleMixin):
         # ── 事件协议: 生成 run_id ──
         _run_id = str(uuid.uuid4())[:12]
 
-        # ── New runtime: provide short prompt for orchestrate/swarm. ──
-        # ⚠ KNOWN-BROKEN (2026-07-17): the new runtime's model-stage output does not
-        # reach the TUI — the bridging layer between RuntimeEngine and the legacy
-        # _consume_stream_delta sync-generator protocol breaks in different ways
-        # each attempt (see gpt_bigfix.txt history, since discarded). The code is
-        # retained because the architecture is sound, but it is DISABLED by default
-        # so orchestrate/swarm fall back to the stable legacy loop.
-        # Re-enable explicitly with:  export CRUX_ENABLE_NEW_RUNTIME=1
+        # ── Prompt enhancement: use domain/prompts assembler for orchestrate/swarm. ──
+        # RuntimeEngine now only does prompt prep — model flow stays in the legacy
+        # _consume_stream_delta loop (proven stable). The old KNOWN-BROKEN comment
+        # referred to a removed model-stage that tried to replace the full stream.
+        # Opt-in via env:  export CRUX_ENABLE_NEW_RUNTIME=1
         _use_new_runtime = (
             _plan is not None
             and _plan.mode in ("orchestrate", "swarm")
