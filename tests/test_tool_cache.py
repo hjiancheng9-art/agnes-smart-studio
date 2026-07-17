@@ -1,80 +1,96 @@
-"""Tests for core/tool_cache.py — 工具结果缓存"""
+"""Unit tests for core.tool_cache — ToolResultCache for idempotent tool results."""
+
+from __future__ import annotations
 
 import pytest
-
-from core.tool_cache import ToolResultCache
-
-
-@pytest.fixture
-def cache():
-    return ToolResultCache()
+from core.tool_cache import CACHEABLE_TOOLS, WRITE_TOOLS_INVALIDATE, ToolResultCache, get_tool_cache
 
 
 class TestToolResultCache:
-    """工具缓存全链路测试"""
+    def test_get_miss_returns_none(self):
+        cache = ToolResultCache()
+        assert cache.get("read_file", '{"path":"/x"}') is None
 
-    def test_put_and_get(self, cache):
-        cache.put("read_file", '{"path":"test.txt"}', "file_content")
-        assert cache.get("read_file", '{"path":"test.txt"}') == "file_content"
+    def test_put_and_get(self):
+        cache = ToolResultCache()
+        cache.put("read_file", '{"path":"/tmp/a.py"}', "content of a")
+        assert cache.get("read_file", '{"path":"/tmp/a.py"}') == "content of a"
 
-    def test_get_missing(self, cache):
-        assert cache.get("nonexistent", "{}") is None
+    def test_different_args_different_keys(self):
+        cache = ToolResultCache()
+        cache.put("read_file", '{"path":"/a"}', "A")
+        cache.put("read_file", '{"path":"/b"}', "B")
+        assert cache.get("read_file", '{"path":"/a"}') == "A"
+        assert cache.get("read_file", '{"path":"/b"}') == "B"
 
-    def test_put_overwrites(self, cache):
-        cache.put("tool", '{"k":"v"}', "v1")
-        cache.put("tool", '{"k":"v"}', "v2")
-        assert cache.get("tool", '{"k":"v"}') == "v2"
-
-    def test_different_args_different_cache(self, cache):
-        cache.put("tool", '{"a":1}', "ra")
-        cache.put("tool", '{"a":2}', "rb")
-        assert cache.get("tool", '{"a":1}') == "ra"
-        assert cache.get("tool", '{"a":2}') == "rb"
-
-    def test_invalidate_all(self, cache):
-        cache.put("t1", "{}", "v1")
-        cache.put("t2", "{}", "v2")
+    def test_invalidate_all_clears(self):
+        cache = ToolResultCache()
+        cache.put("read_file", '{"path":"/x"}', "data")
         cache.invalidate_all()
-        assert cache.get("t1", "{}") is None
-        assert cache.get("t2", "{}") is None
+        assert cache.get("read_file", '{"path":"/x"}') is None
 
-    def test_stats_is_dict(self, cache):
-        assert isinstance(cache.stats, dict)
+    def test_set_alias_for_put(self):
+        cache = ToolResultCache()
+        cache.set("read_file", '{"path":"/z"}', "zdata")
+        assert cache.get("read_file", '{"path":"/z"}') == "zdata"
 
-    def test_stats_has_keys(self, cache):
-        assert "size" in cache.stats
-        assert "hits" in cache.stats
-        assert "misses" in cache.stats
+    def test_cache_key_deterministic(self):
+        """Same input string always produces same cache key."""
+        cache = ToolResultCache()
+        cache.put("read_file", '{"path":"/x","max_lines":10}', "ok")
+        assert cache.get("read_file", '{"path":"/x","max_lines":10}') == "ok"
 
-    def test_stats_tracks_hits(self, cache):
-        cache.put("k", "{}", "v")
-        cache.get("k", "{}")
-        assert cache.stats["hits"] >= 1
+    def test_max_size_eviction(self):
+        cache = ToolResultCache(max_size=3)
+        for i in range(5):
+            cache.put("r", '{"i":' + str(i) + '}', str(i))
+        assert cache.get("r", '{"i":0}') is None
+        assert cache.get("r", '{"i":1}') is None
+        assert cache.get("r", '{"i":4}') == "4"
 
-    def test_stats_tracks_misses(self, cache):
-        cache.get("nope", "{}")
-        assert cache.stats["misses"] >= 1
+    def test_does_not_cache_errors(self):
+        cache = ToolResultCache()
+        cache.put("run_bash", '{"cmd":"bad"}', "[错误] command failed")
+        assert cache.get("run_bash", '{"cmd":"bad"}') is None
 
-    def test_stats_tracks_size(self, cache):
-        cache.put("a", "{}", "1")
-        cache.put("b", "{}", "2")
-        assert cache.stats["size"] >= 2
+    def test_does_not_cache_plan_mode(self):
+        cache = ToolResultCache()
+        cache.put("run_bash", '{"cmd":"x"}', "[PLAN MODE] blocked")
+        assert cache.get("run_bash", '{"cmd":"x"}') is None
 
-    def test_make_key(self, cache):
-        key = cache.make_key("read_file", '{"path":"test.txt"}')
-        assert isinstance(key, str)
+    def test_stats_property(self):
+        cache = ToolResultCache()
+        cache.put("read_file", "{}", "x")
+        cache.get("read_file", "{}")  # hit
+        cache.get("read_file", '{"y":1}')  # miss
+        s = cache.stats
+        assert s["hits"] == 1
+        assert s["misses"] == 1
+        assert s["size"] == 1
 
-    def test_put_string_result(self, cache):
-        cache.put("s", "{}", "hello")
-        assert cache.get("s", "{}") == "hello"
+    def test_repr(self):
+        cache = ToolResultCache()
+        r = repr(cache)
+        assert "ToolResultCache" in r
 
-    def test_put_int_as_str(self, cache):
-        cache.put("i", "{}", str(42))
-        assert cache.get("i", "{}") == "42"
 
-    def test_put_json_result(self, cache):
-        import json
+class TestToolCacheConstants:
+    def test_cacheable_tools_is_set(self):
+        assert isinstance(CACHEABLE_TOOLS, set)
 
-        d = json.dumps({"a": 1})
-        cache.put("d", "{}", d)
-        assert json.loads(cache.get("d", "{}")) == {"a": 1}
+    def test_write_tools_invalidate_is_set(self):
+        assert isinstance(WRITE_TOOLS_INVALIDATE, set)
+
+    def test_read_file_is_cacheable(self):
+        assert "read_file" in CACHEABLE_TOOLS
+
+    def test_write_file_triggers_invalidate(self):
+        assert "write_file" in WRITE_TOOLS_INVALIDATE
+        assert "edit_file" in WRITE_TOOLS_INVALIDATE
+
+
+class TestGetToolCache:
+    def test_singleton(self):
+        c1 = get_tool_cache()
+        c2 = get_tool_cache()
+        assert c1 is c2

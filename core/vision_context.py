@@ -93,10 +93,7 @@ class VisionContext:
             "where is",
             "can you see",
         ]
-        for kw in keywords:
-            if kw in text_lower:
-                return True
-        return False
+        return any(kw in text_lower for kw in keywords)
 
     def reask(self, question: str, vision_caller: Callable[[str, str], str]) -> str | None:
         """按具体问题重新查询 vision 模型。

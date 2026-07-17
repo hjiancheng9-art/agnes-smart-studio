@@ -13,8 +13,10 @@ import logging
 import queue
 import threading
 import time
-from collections.abc import Callable, Iterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator
 
 logger = logging.getLogger("crux.stream_adapter")
 

@@ -363,10 +363,7 @@ def _normalize_mapping(
                 item,
             )
 
-    if ok_value is None:
-        ok = not bool(error_message or error_code)
-    else:
-        ok = bool(ok_value)
+    ok = not bool(error_message or error_code) if ok_value is None else bool(ok_value)
 
     if ok:
         return ToolResult.success(

@@ -21,6 +21,7 @@ import contextlib
 import json
 import logging
 import os
+import time
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -1417,7 +1418,7 @@ class ChatSession(ChatToggleMixin):
                         retry_delta = yield from self._consume_stream_delta(
                             _use_client, _use_model, tools, _retry_empty=True
                         )
-                        retry_buffer, retry_tools, _, retry_usage = retry_delta
+                        retry_buffer, _, _, retry_usage = retry_delta
                         if retry_buffer and retry_buffer.strip():
                             buffer = retry_buffer
                             if retry_usage:
@@ -1978,14 +1979,18 @@ class ChatSession(ChatToggleMixin):
                 _rq_done = _rt.Event()
                 _rq_err: list[Exception | None] = [None]
 
-                def _rq_reader():
+                def _rq_reader(
+                    _q=_rq_q,
+                    _err=_rq_err,
+                    _done=_rq_done,
+                ):
                     try:
                         for k, p in self._consume_stream_delta(client, model, tools):
-                            _rq_q.put((k, p))
+                            _q.put((k, p))
                     except Exception as e:
-                        _rq_err[0] = e
+                        _err[0] = e
                     finally:
-                        _rq_done.set()
+                        _done.set()
 
                 _rq_t = _rt.Thread(target=_rq_reader, daemon=True)
                 _rq_t.start()
