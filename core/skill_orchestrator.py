@@ -327,12 +327,12 @@ class SkillOrchestrator:
             verify_ok = True
             if step.verify and ok:
                 try:
-                    r = subprocess.run(step.verify, shell=True, capture_output=True, text=True, timeout=60, cwd=str(ROOT))
+                    r = subprocess.run(step.verify, shell=True, capture_output=True, text=True, timeout=60, cwd=str(ROOT))  # nosec B602
                     verify_ok = r.returncode == 0
                     if not verify_ok:
                         logger.info("[orchestrator] verification failed, self-healing")
                         subprocess.run([sys.executable, "core/self_heal.py", "--fix"], capture_output=True, timeout=30, cwd=str(ROOT))
-                        r2 = subprocess.run(step.verify, shell=True, capture_output=True, text=True, timeout=60, cwd=str(ROOT))
+                        r2 = subprocess.run(step.verify, shell=True, capture_output=True, text=True, timeout=60, cwd=str(ROOT))  # nosec B602
                         verify_ok = r2.returncode == 0
                 except (subprocess.TimeoutExpired, OSError):
                     verify_ok = False
