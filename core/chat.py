@@ -329,9 +329,25 @@ def _build_retry_strategies(tool_name: str, args: dict, error: str, _sys) -> lis
 
     elif tool_name == "run_python":
         code = args.get("code", "")
+        # Strategy 1: wrap bare code in try/except
         if "try:" not in code[:100]:
             _wrapped = "try:\n" + code + "\nexcept Exception as _e:\n    print('Error:', _e)"
             strategies.append(("wrap_try", {**args, "code": _wrapped}))
+        # Strategy 2: strip leading whitespace (common copy-paste issue)
+        if code != code.lstrip():
+            strategies.append(("strip_indent", {**args, "code": code.lstrip()}))
+
+    elif tool_name == "run_test":
+        cmd = args.get("command", args.get("args", ""))
+        # Strategy 1: add --tb=short for cleaner output
+        if "--tb" not in str(cmd):
+            strategies.append(("cleaner_tb", {**args, "command": f"{cmd} --tb=short"}))
+        # Strategy 2: add timeout
+        if "--timeout" not in str(cmd):
+            strategies.append(("add_timeout", {**args, "command": f"{cmd} --timeout=120"}))
+        # Strategy 3: retry with -x (stop on first failure) to isolate
+        if "-x" not in str(cmd):
+            strategies.append(("fail_fast", {**args, "command": f"{cmd} -x"}))
 
     return strategies
 
@@ -374,6 +390,13 @@ class ChatSession(ChatToggleMixin):
         self._temp_input_files: set[str] = set()  # Track long-input temp files for cleanup
         self._vote_enabled: bool = False  # /vote toggle (off by default to save tokens)
         self.messages: list[dict] = [{"role": "system", "content": self._build_system_prompt()}]
+        # Token budget monitor — warns at 80% context usage
+        try:
+            from core.token_budget import TokenBudget
+            self._budget = TokenBudget()
+            self._budget.count(self.messages)
+        except ImportError:
+            self._budget = None
         # ── Dynamic attrs set by mixins/hooks — declared here for type checking ──
         self.vision_ctx: Any = None
         self._vision_fallback: Any = None
@@ -846,7 +869,7 @@ class ChatSession(ChatToggleMixin):
 
             pass
 
-        return build_system_prompt(
+        prompt = build_system_prompt(
             model=self.model,
             provider_name=get_provider_name(self.model),
             code_mode=self.code_mode,
@@ -857,12 +880,25 @@ class ChatSession(ChatToggleMixin):
             skills_auto_prompt_manager=self.skills.auto_skills_prompt,
             chat_light=not self.code_mode,  # 日常聊天跳过大段编程方法论
         )
+        # Inject budget warning if conversation is long
+        if self._budget and self._budget.should_warn():
+            prompt += "\n\n" + self._budget.system_prompt_footer()
+        return prompt
 
         # Prompt cache managed by chat_prompt.PromptCache (single source of truth)
 
     def reset(self):
         """清空对话历史（保留 system）"""
         self.messages = [self.messages[0]]
+        if self._budget:
+            self._budget.count(self.messages)
+
+    def _check_budget(self) -> None:
+        """Check token budget and print warning if needed."""
+        if self._budget:
+            self._budget.count(self.messages)
+            if self._budget.should_warn():
+                print(self._budget.warning(), flush=True)
 
     def _vision_model_chain(self, complexity: str = "light") -> list[str]:
         """Vision model chain — single model after zhipu removal."""
@@ -1288,6 +1324,7 @@ class ChatSession(ChatToggleMixin):
                 if result.get("dissenting") and result["dissenting"] != "none":
                     content += f"\n[dim]Dissent: {result['dissenting']}[/]"
                 self.messages.append({"role": "assistant", "content": content})
+                self._check_budget()
                 yield ("text", content)
                 return
 
@@ -1492,6 +1529,7 @@ class ChatSession(ChatToggleMixin):
             yield ("info", f"已达到最大工具调用轮次 ({_effective_max})，已中止。请尝试简化你的请求。")
             self._record_trace_failure(f"tool loop overflow: {_effective_max} rounds", step_name="tool_loop")
             self.messages.append({"role": "assistant", "content": buffer})
+            self._check_budget()
             self._record_outcome_promptlab()
             return
 
