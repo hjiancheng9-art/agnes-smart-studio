@@ -98,8 +98,9 @@ class TestADRUpdate:
 class TestADRMermaid:
     def test_mermaid_returns_string(self):
         """adr_mermaid returns a Mermaid timeline string."""
+        # Ensure at least one ADR exists (ADR_DIR is now absolute, may be empty)
+        adr_create("Test Architecture Decision", "Testing", "Use absolute paths", "Tests pass reliably")
         result = adr_mermaid()
         assert isinstance(result, str)
         assert len(result) > 0
-        # Should be valid Mermaid timeline syntax
         assert "timeline" in result.lower() or "section" in result.lower() or "title" in result.lower()

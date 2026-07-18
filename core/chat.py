@@ -398,7 +398,7 @@ class ChatSession(ChatToggleMixin):
             self._budget = TokenBudget()
             self._budget.count(self.messages)
         except Exception:
-            pass
+            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
         # ── Dynamic attrs set by mixins/hooks — declared here for type checking ──
         self.vision_ctx: Any = None
         self._vision_fallback: Any = None
@@ -415,6 +415,25 @@ class ChatSession(ChatToggleMixin):
         from core.chat_hooks_setup import wire_session_hooks
 
         wire_session_hooks(self)
+
+        # Post-init validation: ensure session is in a usable state regardless
+        # of which optional subsystems failed to initialize.
+        self._validate_init()
+
+    def _validate_init(self) -> None:
+        """Post-init sanity check.  Logs warnings for missing critical attrs."""
+        critical = {
+            "tools": "tool registry",
+            "cfg": "session config",
+            "messages": "message history",
+            "routing": "model routing state",
+        }
+        missing = []
+        for attr, label in critical.items():
+            if not hasattr(self, attr) or getattr(self, attr, None) is None:
+                missing.append(f"{attr} ({label})")
+        if missing:
+            logger.warning("ChatSession init incomplete — missing: %s", ", ".join(missing))
 
     # ── Lazy engine properties (deferred import, ~5s saved on startup) ──
 
@@ -907,7 +926,7 @@ class ChatSession(ChatToggleMixin):
             if self._budget.should_warn():
                 print(self._budget.warning(), flush=True)
         except Exception:
-            pass
+            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
 
     def _vision_model_chain(self, complexity: str = "light") -> list[str]:
         """Vision model chain — single model after zhipu removal."""
