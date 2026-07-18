@@ -8,4 +8,5 @@
 - copilot_bridge     - GitHub Copilot CLI (copilot_*)
 - qoder_bridge       - Qoder CLI (qoder_exec, qoder_review, qoder_status, qoder_plan, qoder_search)
 - codebuddy_bridge   - CodeBuddy CLI (codebuddy_exec, codebuddy_review, codebuddy_search, codebuddy_status)
+- aider_bridge       - Aider AI (aider_exec, aider_review, aider_status) [git-tracked edits]
 """
