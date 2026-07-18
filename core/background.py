@@ -339,13 +339,29 @@ def get_background_manager() -> BackgroundManager:
 
 
 def reset_background_manager() -> None:
-    """Test isolation: shutdown and reset singleton."""
+    """Test isolation: aggressive shutdown and reset singleton.
+
+    Guarantees a fresh singleton regardless of shutdown() success/failure.
+    Clears all internal state and joins worker threads.
+    """
     global _bg_manager
-    if _bg_manager is not None:
+    old = _bg_manager
+    if old is not None:
         with _bg_lock:
-            if _bg_manager is not None:
-                _bg_manager.shutdown()
-                _bg_manager = None
+            try:
+                old.shutdown()
+            except Exception:
+                pass
+            old._tasks.clear()
+            old._processes.clear()
+            for t in getattr(old, "_threads", {}).values():
+                try:
+                    if t.is_alive():
+                        t.join(timeout=1)
+                except Exception:
+                    pass
+            old._threads.clear()
+    _bg_manager = None
 
 
 # ── Tool definitions ──────────────────────────────────────────

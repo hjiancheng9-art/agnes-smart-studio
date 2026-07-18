@@ -180,7 +180,7 @@ class ResourceRegistry:
     def summary(self) -> str:
         if not self._loaded:
             self.load_all()
-        parts = [f"## CRUX Resources"]
+        parts = ["## CRUX Resources"]
         for kind in ("skill", "tool", "prompt"):
             count = len(self._resources.get(kind, []))
             parts.append(f"- {kind}s: {count}")

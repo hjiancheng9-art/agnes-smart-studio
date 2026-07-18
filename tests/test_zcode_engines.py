@@ -9,7 +9,7 @@ import pytest
 
 from core.async_client import AsyncCruxClient
 from core.client import CruxClient
-from core.validator import validate_image_size, validate_num_frames, validate_seed, validate_video_resolution
+from core.validator import ValidationError, validate_image_size, validate_num_frames, validate_seed, validate_video_resolution
 
 # ── Fixtures ──────────────────────────────────────────────────────────
 
@@ -393,8 +393,6 @@ class TestValidatorEdgeCases:
     """Edge case tests for shared validators."""
 
     def test_image_size_invalid_format(self):
-        from core.validator import ValidationError
-
         with pytest.raises(ValidationError):
             validate_image_size("not-a-size")
 
