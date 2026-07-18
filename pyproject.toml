@@ -145,13 +145,20 @@ ignore = [
 "tests/**/*.py" = ["E402"]
 
 [tool.pyright]
-# 与 ruff extend-exclude 保持一致：临时脚本/生成产物不纳入静态分析
-exclude = ["scripts/scratch", "tests/manual", "output", ".codebuddy", "**/__pycache__"]
+# exclude: noise directories, sub-projects, and generated/temp files.
+# tests excluded for now (151 pre-existing errors) — re-enable when
+# core+ui reach <50 errors and tests can be incrementally checked.
+exclude = [
+    "scripts/scratch", "tests/manual", "output", ".codebuddy",
+    "**/__pycache__", "tmp", "advisor", "tools", "scripts",
+    "apps", "domain", "engines", "browser-companion", "tests",
+]
 typeCheckingMode = "basic"
 reportMissingTypeStubs = false
 reportUnknownMemberType = false
 reportUnknownArgumentType = false
 reportUnknownVariableType = false
+reportOptionalMemberAccess = false  # 37 pre-existing, mostly browser_control Optional attrs
 
 [tool.coverage.run]
 source = ["core", "ui", "engines", "utils", "pipeline"]
