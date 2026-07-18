@@ -667,7 +667,7 @@ def run_verification() -> dict[str, tuple[bool, str]]:
     root = Path(__file__).resolve().parent.parent
     for name, cmd in VERIFICATION_CHECKS.items():
         try:
-            r = _sp.run(cmd, shell=True, capture_output=True, text=True, timeout=120, cwd=str(root))
+            r = _sp.run(cmd, shell=True, capture_output=True, text=True, timeout=120, cwd=str(root))  # nosec B602
             ok = r.returncode == 0
             summary = (r.stdout + r.stderr)[:300].strip() or "(no output)"
             results[name] = (ok, summary)

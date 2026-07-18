@@ -336,7 +336,7 @@ def _get_injections_fingerprint() -> str:
                 mtimes.append(str(int(os.path.getmtime(os.path.join(lore_dir, f)))))
     if not mtimes:
         return ""
-    return hashlib.md5("|".join(mtimes).encode()).hexdigest()[:12]
+    return hashlib.md5("|".join(mtimes).encode(), usedforsecurity=False).hexdigest()[:12]
 
 
 # ── 公共构建函数 ────────────────────────────────────────

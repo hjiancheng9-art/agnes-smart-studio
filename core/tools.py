@@ -969,7 +969,7 @@ class ToolRegistry:
             if detach:
                 proc = _sp.Popen(
                     cmd,
-                    shell=True,
+                    shell=True,  # nosec B602
                     stdout=_sp.DEVNULL,
                     stderr=_sp.DEVNULL,
                     stdin=_sp.DEVNULL,
@@ -992,7 +992,7 @@ class ToolRegistry:
                     # capture_output 内部用后台线程读管道，高并发下 _readerthread 会崩溃
                     proc = _sp.Popen(
                         strategy_cmd,
-                        shell=True,
+                        shell=True,  # nosec B602
                         stdout=_sp.PIPE,
                         stderr=_sp.PIPE,
                     )

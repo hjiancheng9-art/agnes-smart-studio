@@ -60,7 +60,7 @@ class FileTransaction:
 
         # 计算文件哈希
         content = path.read_bytes()
-        file_hash = hashlib.md5(content).hexdigest()
+        file_hash = hashlib.md5(content, usedforsecurity=False).hexdigest()
 
         # 生成备份路径
         backup_name = f"{path.name}.{str(uuid.uuid4())[:8]}.bak"

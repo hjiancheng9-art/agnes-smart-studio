@@ -250,7 +250,7 @@ async def _dispatch_internal_dynamic(name: str, args: dict) -> dict:
 
             result = subprocess.run(
                 command,
-                shell=True,
+                shell=True,  # nosec B602: intentional — tool command execution
                 capture_output=True,
                 text=True,
                 timeout=30,

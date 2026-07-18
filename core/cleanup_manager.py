@@ -574,7 +574,9 @@ class CleanupManager:
         return report
 
     def _move_to_trash(self, sf: ScannedFile) -> TrashEntry:
-        entry_id = f"trash_{int(time.time())}_{hashlib.md5(str(sf.path).encode()).hexdigest()[:8]}"
+        entry_id = (
+            f"trash_{int(time.time())}_{hashlib.md5(str(sf.path).encode(), usedforsecurity=False).hexdigest()[:8]}"
+        )
         rel = str(sf.path.relative_to(self.root)).replace("\\", "/")
         trashed_path = self.trash_dir / f"{entry_id}_{Path(rel).name}"
 

@@ -118,7 +118,7 @@ class ToolResultCache:
     @staticmethod
     def make_key(name: str, args_json: str) -> str:
         """生成确定性缓存键。"""
-        h = hashlib.md5(args_json.encode("utf-8", errors="replace")).hexdigest()[:12]
+        h = hashlib.md5(args_json.encode("utf-8", errors="replace"), usedforsecurity=False).hexdigest()[:12]
         return f"{name}:{h}"
 
     def get(self, name: str, args_json: str) -> str | None:

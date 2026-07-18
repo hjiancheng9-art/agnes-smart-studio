@@ -281,7 +281,7 @@ class BackgroundManager:
             with open(output_path, "w", encoding="utf-8", errors="replace") as output_f:
                 proc = subprocess.Popen(
                     command,
-                    shell=True,
+                    shell=True,  # nosec B602: intentional — runs user-facing background tasks
                     stdout=output_f,
                     stderr=subprocess.STDOUT,
                     cwd=cwd or os.getcwd(),
