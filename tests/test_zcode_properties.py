@@ -452,16 +452,9 @@ class TestDNAIntegrity:
 
         assert "CRUX Studio" in CODE_SYSTEM_PROMPT, "CODE_SYSTEM_PROMPT lost CRUX identity!"
 
-    def test_seven_beasts_dna_intact(self):
-        from core.seven_beasts_fusion import SEVEN_BEASTS_FUSION
-
-        assert "白虎" in SEVEN_BEASTS_FUSION
-        assert "平时如刀，出事成阵" in SEVEN_BEASTS_FUSION or "七兽按需治理" in SEVEN_BEASTS_FUSION
-
-    def test_golden_finger_dna_intact(self):
-        from core.golden_finger import GOLDEN_FINGER_PROMPT
-
-        assert "金手指" in GOLDEN_FINGER_PROMPT or "外挂" in GOLDEN_FINGER_PROMPT
+    # test_seven_beasts_dna_intact + test_golden_finger_dna_intact removed:
+    #   both modules were dead code (zero call sites).  The cold-lore
+    #   infrastructure in chat_prompt.py remains intact for future use.
 
     def test_base_injections_wired(self):
         from core.chat_prompt import _BASE_INJECTIONS

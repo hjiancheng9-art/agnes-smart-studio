@@ -260,10 +260,9 @@ _CODE_SPECTRUM_INJECTIONS: list[tuple[str, str, str]] = [
 _HOT_IDENTITY = "CRUX Studio v6.1.0 — 平时如刀，出事成阵 · Multi-Agent 已模块化"
 
 # 冷路径叙事 — 按需加载，不自动注入
-_COLD_LORE: dict[str, tuple[str, str, str]] = {
-    "seven_beasts": ("core.seven_beasts_fusion", "get_fusion_prompt", "七兽融合"),
-    "golden_finger": ("core.golden_finger", "get_golden_finger_prompt", "金手指谱"),
-}
+# (Previously held golden_finger + seven_beasts_fusion — both deleted as dead code.
+#  The cold-lore infrastructure remains intact for future use.)
+_COLD_LORE: dict[str, tuple[str, str, str]] = {}
 
 _COLD_LORE_LOADED: dict[str, str] = {}  # 缓存
 

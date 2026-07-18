@@ -218,14 +218,6 @@ def wire_all() -> bool:
     except _INIT_SAFE as e:
         logger.exception("[Beast] daemon init failed: %s", e)
 
-    # ── Skin (held by global ref) ──
-    try:
-        from core.skin import get_skin
-
-        get_skin()
-    except _INIT_SAFE as e:
-        logger.exception("[Beast] skin init failed: %s", e)
-
     # ── 神器激活 ──
     try:
         from core.artifact_activation import activate_all_artifacts
@@ -237,7 +229,6 @@ def wire_all() -> bool:
     # ── 贴身七件 ──
     try:
         from core.intimate_slots.talisman import circuit
-
         bus.on("error", lambda **kw: circuit.record_failure(kw.get("provider", "default")))
         bus.on(
             "tool:after",

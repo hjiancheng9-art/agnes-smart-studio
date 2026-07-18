@@ -259,17 +259,13 @@ def resolve_workspace(cli_workspace: str | None = None) -> Path:
     # 3. 当前工作目录
     cwd = Path.cwd().resolve()
 
-    # 如果 cwd 不是 CRUX 自身，直接返回
-    if not is_crux_self(cwd):
-        _cached_workspace = cwd
-        return cwd
-
-    # 4. cwd is CRUX own dir -- try parent-process detection, else use cwd silently
-    detected = _detect_parent_project()
-    if detected is not None:
-        print(f"  workspace auto-detected: {detected}")
-        _cached_workspace = detected
-        return detected
+    # If cwd is NOT CRUX itself, use it directly.
+    # If cwd IS CRUX (developing CRUX), still use it — the expensive
+    # parent-process detection (psutil + PowerShell fallback ~2.4s) is
+    # only needed in MCP-server mode, which is handled by --workspace
+    # flag or CRUX_WORKSPACE / CRUX_MCP_ROOTS env vars above.
+    _cached_workspace = cwd
+    return cwd
 
     _cached_workspace = cwd
     return cwd

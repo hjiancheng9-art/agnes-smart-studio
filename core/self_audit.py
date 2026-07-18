@@ -1,262 +1,67 @@
-"""Self-audit engine — comprehensive codebase scanning and issue classification."""
+"""Self-audit engine — now delegates to self_heal (single source of truth).
 
-import json
-import re
-from pathlib import Path
+Kept for backward compatibility.  Previously had ~260 lines of standalone
+scan logic that overlapped heavily with self_heal.py.  Now a thin wrapper.
+"""
 
-from rich.rule import Rule
+from __future__ import annotations
 
-from core.constraints import PROJECT_SKIP_DIRS
-from core.pytest_runner import parse_test_summary, run_pytest_safe
+from typing import Any
 
 __all__ = ["ROOT", "AuditEngine", "audit"]
-ROOT = Path(__file__).resolve().parent.parent
+
+import core.self_heal as _sh
 
 
 class AuditEngine:
-    _SKIP_DIRS = PROJECT_SKIP_DIRS
-
-    def __init__(self, root=None) -> None:
-        self.root = root or ROOT
-        self.findings = []
+    """Backward-compatible wrapper — delegates to self_heal.SelfHealer."""
+    def __init__(self, root=None):
+        self._h = _sh.SelfHealer()
 
     def scan(self):
-        self.findings = []
-        self._check_imports()
-        self._check_exceptions()
-        self._check_files()
-        self._check_config()
-        self._check_skills()
-        self._check_tests()
-        self._check_encoding()
-        self._check_git()
+        self._h.run_all_scans()
         return self._build_report()
 
-    def _add(self, **kw):
-        self.findings.append(kw)
-
-    def _check_imports(self):
-        for pyfile in sorted(self.root.rglob("*.py")):
-            if "__pycache__" in pyfile.parts:
-                continue
-            try:
-                content = pyfile.read_text(encoding="utf-8", errors="replace")
-            except (OSError, UnicodeDecodeError):
-                continue
-            for i, line in enumerate(content.splitlines(), 1):
-                s = line.strip()
-                if re.match(r"\bfrom\b.*\bimport\s+\*", s) and not s.startswith("#"):
-                    self._add(
-                        category="imports",
-                        severity="medium",
-                        title="Wildcard import in " + pyfile.name,
-                        detail="L" + str(i) + ": " + line.strip(),
-                        file=str(pyfile.relative_to(self.root)),
-                        line=i,
-                    )
-
-    def _check_exceptions(self):
-        for pyfile in sorted(self.root.rglob("*.py")):
-            if "__pycache__" in pyfile.parts:
-                continue
-            try:
-                lines = pyfile.read_text(encoding="utf-8", errors="replace").splitlines()
-            except (OSError, UnicodeDecodeError):
-                continue
-            for i, line in enumerate(lines):
-                s = line.strip()
-                if s == "except:":
-                    self._add(
-                        category="exceptions",
-                        severity="high",
-                        title="Bare except: in " + pyfile.name,
-                        detail="L" + str(i + 1) + ": " + s,
-                        file=str(pyfile.relative_to(self.root)),
-                        line=i + 1,
-                    )
-
-    def _check_files(self):
-        for f in sorted(self.root.rglob("*")):
-            if any(skip in f.parts for skip in self._SKIP_DIRS) or not f.is_file():
-                continue
-            try:
-                sz = f.stat().st_size
-            except OSError:
-                continue
-            rel = str(f.relative_to(self.root))
-            if sz == 0:
-                self._add(category="files", severity="medium", title="Empty: " + rel, file=rel)
-            elif sz > 10_000_000 and f.suffix in (".json", ".jsonl"):
-                self._add(
-                    category="files",
-                    severity="high",
-                    title="Oversized: " + rel,
-                    detail=str(round(sz / 1048576, 1)) + "MB",
-                    file=rel,
-                )
-
-    def _check_config(self):
-        mp = self.root / "models.json"
-        if mp.exists():
-            try:
-                d = json.loads(mp.read_text(encoding="utf-8"))
-                active = d.get("active", "")
-                if active not in d.get("providers", {}):
-                    self._add(
-                        category="config",
-                        severity="critical",
-                        title="Active provider not in providers list",
-                        file="models.json",
-                    )
-            except json.JSONDecodeError:
-                self._add(category="config", severity="critical", title="models.json invalid JSON", file="models.json")
-        tp = self.root / "tools.json"
-        if tp.exists():
-            try:
-                d = json.loads(tp.read_text(encoding="utf-8"))
-                for t in d.get("tools", []):
-                    if t.get("type") == "shell" and "pip install" in t.get("command", ""):
-                        self._add(
-                            category="config",
-                            severity="critical",
-                            title="Dangerous tool: " + t["name"],
-                            file="tools.json",
-                        )
-            except json.JSONDecodeError:
-                self._add(category="config", severity="critical", title="tools.json invalid JSON", file="tools.json")
-
-    def _check_skills(self):
-        sd = self.root / "skills"
-        if not sd.exists():
-            return
-        for sf in sorted(sd.glob("*.skill.json")):
-            try:
-                sz = sf.stat().st_size
-                if sz == 0:
-                    self._add(
-                        category="skills",
-                        severity="medium",
-                        title="Empty: " + sf.name,
-                        file=str(sf.relative_to(self.root)),
-                    )
-                    continue
-                data = json.loads(sf.read_text(encoding="utf-8"))
-                missing = [k for k in ("name", "description", "prompt") if k not in data or not data[k]]
-                if missing:
-                    self._add(
-                        category="skills",
-                        severity="medium",
-                        title="Invalid: " + sf.name,
-                        detail="Missing: " + str(missing),
-                        file=str(sf.relative_to(self.root)),
-                    )
-            except json.JSONDecodeError:
-                self._add(
-                    category="skills",
-                    severity="high",
-                    title="Bad JSON: " + sf.name,
-                    file=str(sf.relative_to(self.root)),
-                )
-
-    def _check_tests(self):
-        # 经 run_pytest_safe 统一封装：在 pytest 内运行时自动短路，
-        # 避免自检时 spawn 子 pytest 跑完整 tests/ 造成无限递归 fork。
-        try:
-            r = run_pytest_safe(test_target="tests/", timeout=600, cwd=self.root)
-            out = (r.stdout or "") + (r.stderr or "")
-            passed, failed = parse_test_summary(out)
-            if "skipped (running inside pytest)" in out:
-                # 守卫触发：当前就在 pytest 进程里，无法也不应递归自检。
-                return
-            if failed > 0:
-                self._add(
-                    category="tests",
-                    severity="critical",
-                    title=str(failed) + "/" + str(passed + failed) + " tests failing",
-                )
-            elif passed == 0:
-                self._add(category="tests", severity="high", title="No tests found")
-        except (OSError, ValueError) as e:
-            self._add(category="tests", severity="medium", title="Cannot run tests", detail=str(e))
-
-    def _check_encoding(self):
-        for pyfile in sorted(self.root.rglob("*.py")):
-            if "__pycache__" in pyfile.parts:
-                continue
-            try:
-                if (
-                    "chcp 65001" in pyfile.read_text(encoding="utf-8", errors="replace")
-                    and pyfile.name != "self_audit.py"
-                ):
-                    self._add(
-                        category="encoding",
-                        severity="low",
-                        title="chcp hack: " + pyfile.name,
-                        file=str(pyfile.relative_to(self.root)),
-                    )
-            except OSError:
-                pass
-
-    def _check_git(self):
-        gd = self.root / ".git"
-        if not gd.exists():
-            return
-        for name in ("COMMIT_EDITMSG", "FETCH_HEAD", "ORIG_HEAD"):
-            p = gd / name
-            if p.is_file():
-                self._add(category="git", severity="low", title="Leftover: .git/" + name, file=".git/" + name)
+    def print_report(self):
+        print(self._h.report())
 
     def _build_report(self):
-        sev = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
-        for f in self.findings:
-            s = f.get("severity", "info")
-            sev[s] = sev.get(s, 0) + 1
+        by_sev = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        findings = []
+        auto_fixable = 0
+        for f in self._h.findings:
+            by_sev[f.severity] = by_sev.get(f.severity, 0) + 1
+            findings.append({"severity": f.severity, "category": f.category, "file": f.file, "line": f.line, "msg": f.msg})
+            if f.fixable:
+                auto_fixable += 1
         return {
-            "total_findings": len(self.findings),
-            "by_severity": sev,
-            "findings": self.findings,
-            "auto_fixable": sum(1 for f in self.findings if f.get("auto_fix")),
+            "total_findings": len(self._h.findings),
+            "by_severity": by_sev,
+            "findings": findings,
+            "auto_fixable": auto_fixable,
         }
 
-    def print_report(self, report=None):
-        if report is None:
-            report = self._build_report()
-        from rich.console import Console as _RC
 
-        console = _RC()
-        COLORS = {
-            "success": "green",
-            "error": "red",
-            "warning": "yellow",
-            "primary": "blue",
-            "muted": "dim white",
-            "info": "cyan",
-        }
-
-        SEVERITY_COLORS = {
-            "critical": COLORS["error"],
-            "high": COLORS["warning"],
-            "medium": COLORS["primary"],
-            "low": COLORS["muted"],
-            "info": "",
-        }
-        console.print()
-        console.print(Rule("CRUX Self-Audit — " + str(report["total_findings"]) + " findings", style=COLORS["primary"]))
-        for s in ("critical", "high", "medium", "low"):
-            n = report["by_severity"].get(s, 0)
-            if n:
-                console.print("  [" + SEVERITY_COLORS[s] + "]" + s.upper() + ": " + str(n) + "[/]")
-        for f in report["findings"]:
-            sev = f.get("severity", "info")
-            color = SEVERITY_COLORS.get(sev, "")
-            fi = " (" + f.get("file", "") + ")" if f.get("file") else ""
-            if color:
-                console.print("  [" + color + "][" + sev.upper() + "][/] " + f["title"] + fi)
-            else:
-                console.print("  [" + sev.upper() + "] " + f["title"] + fi)
-            if f.get("detail"):
-                console.print("         " + f["detail"])
+def audit() -> dict[str, Any]:
+    """Run full audit via self_heal, return self_audit-compatible dict."""
+    h = _sh.SelfHealer()
+    h.run_all_scans()
+    by_sev: dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    findings: list[dict] = []
+    auto_fixable = 0
+    for f in h.findings:
+        sev = f.severity
+        by_sev[sev] = by_sev.get(sev, 0) + 1
+        findings.append({"severity": sev, "category": f.category, "file": f.file, "line": f.line, "msg": f.msg})
+        if f.fixable:
+            auto_fixable += 1
+    return {
+        "total_findings": len(h.findings),
+        "by_severity": by_sev,
+        "findings": findings,
+        "auto_fixable": auto_fixable,
+    }
 
 
-def audit():
-    return AuditEngine().scan()
+# Legacy export
+ROOT = _sh.ROOT

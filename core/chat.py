@@ -38,7 +38,6 @@ logger = logging.getLogger("crux.chat")
 
 
 from core.agent import ContextManager
-from core.brain import SmartBrain
 from core.chat_prompt import (
     CHAT_SYSTEM_PROMPT,
     CODE_SYSTEM_PROMPT,
@@ -48,7 +47,10 @@ from core.chat_toggle_mixin import ChatToggleMixin
 from core.chat_tool_dispatch import _dispatch_tool_impl
 
 # Tools eligible for auto-retry on error (idempotent or safe to retry)
-_AUTO_RETRY_TOOLS = frozenset({"run_bash", "run_test", "pip_install", "run_python"})
+_AUTO_RETRY_TOOLS = frozenset({
+    "run_bash", "run_test", "pip_install", "run_python",
+    "run_lint", "run_format",
+})
 
 from core.chat_tool_helpers import merge_tool_calls, sanitize_tool_call_history
 from core.chat_tool_helpers import normalize_tool_args as _normalize_tool_args
@@ -63,8 +65,6 @@ from core.provider import (
 from core.session_config import SessionConfig
 from core.skills import SkillManager, get_manager
 from core.tools import AGENT_SYSTEM_PROMPT, ToolRegistry, get_registry
-from engines.text_to_image import TextToImageEngine
-from engines.video import VideoEngine
 from utils.unicode_safety import InvalidUnicodePayloadError
 
 __all__ = [
@@ -175,12 +175,15 @@ class _PipelineToolbus:
 
 
 def _auto_retry_tool(session, tool_name: str, args_json: str, original_error: str, max_retries: int = 3):
-    """工具失败自动重试——分析错误原因，修正参数后重新执行。
+    """工具失败自动重试——先自愈修复，再修正参数重试。
 
-    当 run_bash/run_python 等执行类工具返回 [错误] 或 [自愈失败] 时，
-    不直接丢给 LLM，而是先尝试自动修正后重试，让 agent 能继续完成原始任务。
+    当 run_bash/run_test/run_python 等执行类工具返回错误时，不直接丢给
+    LLM，而是：
+      1. 先运行 self_heal --fix 自动修复已知问题
+      2. 再尝试参数级修正策略
+      3. 重试工具调用
 
-    每个重试策略只尝试一次，按优先级排列，确保不重复相同操作。
+    每个策略只尝试一次，按优先级排列，确保不重复相同操作。
     Returns (tool_result, side_effects) — 成功则返回修正后的结果，失败则返回原始错误。
     """
     import json as _json
@@ -189,7 +192,22 @@ def _auto_retry_tool(session, tool_name: str, args_json: str, original_error: st
     args = _json.loads(args_json) if isinstance(args_json, str) else (args_json or {})
     original_args = dict(args)
 
-    # 根据工具类型和错误信息构建修正策略链
+    # ── Step 0: Self-heal — auto-fix known code issues before retrying ──
+    try:
+        from core.self_heal import SelfHealer
+        healer = SelfHealer()
+        # Quick scan + fix (syntax, silent exceptions, ruff auto-fix)
+        healer.scan_syntax()
+        healer.scan_silent_exceptions()
+        fixed = healer.fix_silent_exceptions()
+        healer.quick_fix()  # ruff --fix
+        if fixed > 0:
+            _m = __import__("core.observability", fromlist=["metrics"])
+            _m.metrics.increment("auto_retry.self_heal.fixes")
+    except (ImportError, OSError):
+        pass
+
+    # ── Step 1: Parameter-level retry strategies ──
     strategies = _build_retry_strategies(tool_name, original_args, original_error, _sys)
 
     for strategy_label, adjusted_args in strategies:
@@ -310,9 +328,9 @@ class ChatSession(ChatToggleMixin):
         self.client = client
         self.vision_client = vision_client or client  # 未指定时退化为主客户端（向后兼容）
         self.vision_model = vision_model or get_crux_vision_model()
-        self.brain = SmartBrain(client)  # pyright: ignore[reportArgumentType]
-        self.t2i = TextToImageEngine(client)
-        self.vid = VideoEngine(client)
+        self._brain = None  # lazy: SmartBrain (~2.5s import, only needed for image/video gen)
+        self._t2i = None  # lazy: created on first image generation
+        self._vid = None  # lazy: created on first video generation
         self.media_client = client  # unified media client for tool-calling generation
         self.cfg = SessionConfig(model=default_model or self._resolve_default_model())
         self._ctx_mgr: ContextManager | None = None  # lazy: built from model's actual context window
@@ -342,6 +360,32 @@ class ChatSession(ChatToggleMixin):
         from core.chat_hooks_setup import wire_session_hooks
 
         wire_session_hooks(self)
+
+    # ── Lazy engine properties (deferred import, ~5s saved on startup) ──
+
+    @property
+    def brain(self):
+        """Lazy init: SmartBrain (~2.5s import, only needed for image/video gen)."""
+        if self._brain is None:
+            from core.brain import SmartBrain
+            self._brain = SmartBrain(self.media_client)
+        return self._brain
+
+    @property
+    def t2i(self):
+        """Lazy init: TextToImageEngine (~1s import, only needed for image gen)."""
+        if self._t2i is None:
+            from engines.text_to_image import TextToImageEngine
+            self._t2i = TextToImageEngine(self.media_client)
+        return self._t2i
+
+    @property
+    def vid(self):
+        """Lazy init: VideoEngine (~0.8s import, only needed for video gen)."""
+        if self._vid is None:
+            from engines.video import VideoEngine
+            self._vid = VideoEngine(self.media_client)
+        return self._vid
 
     # ── Property aliases → SessionConfig (GPT v6.2: centralized state) ──
     @property

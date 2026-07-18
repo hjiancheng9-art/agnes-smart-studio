@@ -457,13 +457,12 @@ def _build_run_summary(goal: str, tasks: list, log: list, agents: list, started:
             record_retry_attempt(root_id, "scheduled", "pending")
         save_run(result)
         try:
-            from core.incident_classifier import classify_run
-            from core.incident_store import save_incident, should_alert
+            from core.incident import classify_run, save_incident, should_alert
 
             incident = classify_run(result, log)
             result.update({"incident": incident})
             try:
-                from core.incident_playbook import auto_remediation
+                from core.incident import auto_remediation
 
                 cmds = auto_remediation(incident, root_id)
                 if cmds:

@@ -104,7 +104,7 @@ class WebhookServer:
             try:
                 self._httpd.shutdown()
             except Exception:
-                pass
+                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
             self._httpd = None
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=3)

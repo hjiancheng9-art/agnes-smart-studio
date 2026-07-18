@@ -255,6 +255,152 @@ class SelfHealer:
         except Exception:
             pass  # hooks module has its own issues, don't compound
 
+    def scan_mojibake(self):
+        """Scan all text files for mojibake (encoding corruption) characters.
+
+        Zero tolerance — any hit is a critical finding.  Excludes known
+        detection-engine files that contain signature characters by design.
+        """
+        chars = set("鍥閸鐢纴鏉悆殑掑曠")
+        exclude_files = {
+            "core/encoding_fix.py",
+            "core/pre_commit.py",
+            "core/self_heal.py",      # scanner signature chars by design
+            "tests/test_encoding_fix.py",
+        }
+        exclude_dirs = {
+            ".git", "__pycache__", "node_modules", "output",
+            ".codebuddy", ".hypothesis", "scripts/scratch", "_archive", "stub_modules",
+        }
+        exclude_prefixes = ("apps/nsp-downloader-legacy/scripts/scan-garbled",)
+        hits = 0
+        for root, dirs, files in os.walk(str(ROOT)):
+            dirs[:] = [d for d in dirs if d not in exclude_dirs]
+            for f in files:
+                if not f.endswith((".py", ".js", ".ts", ".html", ".css", ".json", ".md", ".bat", ".sh")):
+                    continue
+                abs_path = os.path.join(root, f)
+                try:
+                    rp = os.path.relpath(abs_path, str(ROOT)).replace("\\", "/")
+                except ValueError:
+                    rp = abs_path.replace("\\", "/")
+                if rp in exclude_files or any(rp.startswith(p) for p in exclude_prefixes):
+                    continue
+                try:
+                    content = open(os.path.join(root, f), encoding="utf-8").read()
+                    for ch in chars:
+                        if ch in content:
+                            self.findings.append(
+                                Finding(
+                                    "critical",
+                                    "mojibake",
+                                    rp,
+                                    0,
+                                    f"Mojibake character U+{ord(ch):04X} detected",
+                                    fixable=False,
+                                )
+                            )
+                            hits += 1
+                            break
+                except Exception:
+                    import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+        if hits == 0:
+            logger.info("self_heal: mojibake scan clean")
+
+    def scan_flaky_tests(self):
+        """Quick flaky test detection — 3 seeds, fast marker subset.
+
+        Uses the existing collect_flaky_matrix.py infrastructure.
+        Reports any consistently-failing test as a finding.
+        """
+        try:
+            import json
+
+            _ = subprocess.run(
+                [sys.executable, str(ROOT / "scripts" / "collect_flaky_matrix.py")],
+                capture_output=True,
+                text=True,
+                timeout=300,
+                cwd=str(ROOT),
+                encoding="utf-8",
+                errors="replace",
+            )
+            report_path = ROOT / "output" / "flaky_baseline.json"
+            if report_path.exists():
+                data = json.loads(report_path.read_text(encoding="utf-8"))
+                total_failures = sum(v["failures"] for v in data.values())
+                if total_failures > 0:
+                    self.findings.append(
+                        Finding(
+                            "medium" if total_failures < 30 else "high",
+                            "flaky-tests",
+                            "tests/",
+                            0,
+                            f"{total_failures} flaky test occurrences across {len(data)} seeds",
+                            fixable=False,
+                        )
+                    )
+            else:
+                self.findings.append(
+                    Finding("low", "flaky-tests", "tests/", 0, "Flaky test report not found", fixable=False)
+                )
+        except subprocess.TimeoutExpired:
+            self.findings.append(
+                Finding("low", "flaky-tests", "tests/", 0, "Flaky test scan timed out", fixable=False)
+            )
+        except Exception as e:
+            self.findings.append(
+                Finding("low", "flaky-tests", "tests/", 0, f"Flaky test scan failed: {e}", fixable=False)
+            )
+
+    def scan_global_leaks(self):
+        """Detect modules with global state modified during test execution.
+
+        Uses conftest_leak.py's LeakDetector to snapshot→compare→report.
+        Only reports modules that were actually modified (not all targets).
+        """
+        try:
+            sys.path.insert(0, str(ROOT))
+            from tests.conftest_leak import get_detector  # type: ignore[import-not-found]
+
+            detector = get_detector()
+            before = detector.snapshot()
+            # Run a subset of tests to trigger potential cross-module pollution
+            _ = subprocess.run(
+                [
+                    sys.executable, "-m", "pytest", "tests/",
+                    "-q", "--tb=line", "-p", "no:xdist",
+                    "-m", "not slow and not browser and not network",
+                    "--timeout=20",
+                    "--maxfail=50",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=120,
+                cwd=str(ROOT),
+                encoding="utf-8",
+                errors="replace",
+            )
+            after = detector.snapshot()
+            dirty = detector.compare(before, after)
+            for key in dirty:
+                self.findings.append(
+                    Finding(
+                        "low",
+                        "global-leak",
+                        key,
+                        0,
+                        f"Global state modified during test run: {key}",
+                        fixable=False,
+                    )
+                )
+            if not dirty:
+                logger.info("self_heal: global leak scan clean")
+        except Exception as e:
+            self.findings.append(
+                Finding("low", "global-leak", "tests/", 0, f"Leak scan failed: {e}", fixable=False)
+            )
+
     # ── Fixers ────────────────────────────────────────
 
     def fix_silent_exceptions(self):
@@ -295,6 +441,9 @@ class SelfHealer:
             self.scan_config_drift,
             self.scan_test_failures,
             self.scan_hook_gaps,
+            self.scan_mojibake,
+            # scan_global_leaks spawns pytest subprocess (hangs inside pytest tests)
+            # scan_flaky_tests is slow (3 seeds × full suite) — opt-in via --full
         ]:
             try:
                 scanner()

@@ -961,7 +961,7 @@ def execute_tool(goal: str, **kwargs) -> str:
         if preview_result.verdict == "pass" and preview_result.grade == "SIMPLE":
             return str(execute(goal, **kwargs))
     except Exception:
-        pass
+        import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
 
     # Complex task — launch in background with 25s timeout
     task_id = uuid.uuid4().hex[:12]

@@ -8,6 +8,7 @@ from core.tool_router import (
     find_tool,
     get_tool_router,
     get_tool_schema,
+    isolated_router_scope,
     list_all_tools,
     register_internal,
     register_mcp_tools,
@@ -17,13 +18,14 @@ from core.tool_router import (
 
 @pytest.fixture(autouse=True)
 def _clean_tool_router():
-    """Ensure global tool registries are clean before each test.
+    """Save, clear, yield, and restore global tool router state.
 
-    Setup-only — the conftest-level _reset_shared_state fixture already
-    handles reset before every test.  No teardown needed.
+    Uses isolated_router_scope() to ensure cross-module test pollution
+    (stale handlers from other modules' tests) cannot leak into this
+    module's tests, regardless of random-seed test ordering.
     """
-    reset_tool_router()
-    return
+    with isolated_router_scope():
+        yield
 
 
 class TestRegisterAndList:

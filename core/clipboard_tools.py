@@ -41,7 +41,9 @@ def _win_paste() -> str | None:
         if proc.returncode == 0:
             return proc.stdout.rstrip("\n\r")
     except Exception:
-        pass
+        import logging
+
+        logging.getLogger("crux").debug("silent except", exc_info=True)
     return None
 
 
@@ -67,7 +69,9 @@ def _linux_copy(text: str) -> bool:
             try:
                 return subprocess.run(cmd.split(), input=text, text=True, timeout=5).returncode == 0
             except Exception:
-                pass
+                import logging
+
+                logging.getLogger("crux").debug("silent except", exc_info=True)
     return False
 
 
@@ -80,7 +84,9 @@ def _linux_paste() -> str | None:
                 if proc.returncode == 0:
                     return proc.stdout.rstrip("\n\r")
             except Exception:
-                pass
+                import logging
+
+                logging.getLogger("crux").debug("silent except", exc_info=True)
     return None
 
 

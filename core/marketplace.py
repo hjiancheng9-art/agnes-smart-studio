@@ -838,23 +838,50 @@ class MarketplaceClient:
         return sorted(cats)
 
     def summary(self) -> str:
-        """市场概况（注入系统提示词）"""
-        installed = len(self.list_installed())
-        cats = self.categories()
-        cb_status = "已连接" if self.codebuddy.enabled else "未配置"
-        remote_status = "已连接" if (hasattr(self, "remote") and self.remote.enabled) else "待网络"
-        total_available = len(self.list_all())
-        lines = [
-            "## 技能市场",
-            f"- 已安装: {installed} 个技能包",
-            f"- 市场可用: {total_available} 个",
-            f"- 分类: {', '.join(cats)}",
-            f"- CodeBuddy 本地市场: {cb_status}",
-            f"- CodeBuddy 远程市场: {remote_status}",
-            "- 安装技能: /skill install <name>",
-            "- 搜索技能: /skill search <keyword>",
-        ]
-        return "\n".join(lines)
+        """市场概况（注入系统提示词）— 缓存 24h，首次调用不阻塞。"""
+        import time
+
+        if hasattr(self, "_summary_cache") and time.time() - self._summary_ts < 86400:
+            return self._summary_cache
+        # Cold start: return minimal summary immediately, populate full cache
+        # in background.  Avoids 1.2s of HTTP requests on every cold session.
+        minimal = "## 技能市场\n- 安装技能: /skill install <name>\n- 搜索技能: /skill search <keyword>"
+        self._summary_cache = minimal
+        self._summary_ts = time.time()
+        try:
+            import threading
+
+            def _populate():
+                try:
+                    installed = len(self.list_installed())
+                    cats = self.categories()
+                    cb_status = "已连接" if self.codebuddy.enabled else "未配置"
+                    remote = getattr(self, "remote", None)
+                    remote_status = "已连接" if (remote and remote.enabled) else "待网络"
+                    total_available = len(self.list_all())
+                    lines = [
+                        "## 技能市场",
+                        f"- 已安装: {installed} 个技能包",
+                        f"- 市场可用: {total_available} 个",
+                        f"- 分类: {', '.join(cats)}",
+                        f"- CodeBuddy 本地市场: {cb_status}",
+                        f"- CodeBuddy 远程市场: {remote_status}",
+                        "- 安装技能: /skill install <name>",
+                        "- 搜索技能: /skill search <keyword>",
+                    ]
+                    self._summary_cache = "\n".join(lines)
+                    self._summary_ts = time.time()
+                except Exception:
+                    import logging
+
+                    logging.getLogger("crux").debug("silent except", exc_info=True)
+
+            threading.Thread(target=_populate, daemon=True).start()
+        except Exception:
+            import logging
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
+        return minimal
 
 
 # ═══════════════════════════════════════════════════════════════

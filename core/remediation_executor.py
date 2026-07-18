@@ -199,7 +199,7 @@ def remediate_incident(
 
     Returns a list of execution results.
     """
-    from core.incident_playbook import auto_remediation
+    from core.incident import auto_remediation
 
     incident_id = incident.get("incident_id", incident.get("_id", "unknown"))
     commands = auto_remediation(incident)

@@ -29,7 +29,7 @@ def _record_crash(report: str) -> None:
 
     # Best-effort write to incident store
     try:
-        from core.incident_store import save_incident
+        from core.incident import save_incident
 
         save_incident(
             {
@@ -55,9 +55,28 @@ def _crash_handler(exc_type, exc_value, exc_tb) -> None:
     report = _format_tb(exc_type, exc_value, exc_tb)
     _record_crash(report)
 
+    # Attempt self-healing for code-level crashes
+    _attempt_self_heal(exc_type, exc_value)
+
     # Call original hook if any
     if _original_excepthook:
         _original_excepthook(exc_type, exc_value, exc_tb)
+
+
+def _attempt_self_heal(exc_type, exc_value) -> None:
+    """Best-effort self-healing on crash.  Only for code-level errors."""
+    try:
+        if exc_type in (SyntaxError, ImportError, NameError, AttributeError, TypeError):
+            from core.self_heal import SelfHealer
+            h = SelfHealer()
+            h.scan_syntax()
+            h.scan_silent_exceptions()
+            n = h.fix_silent_exceptions()
+            h.quick_fix()
+            if n > 0:
+                logger.info("crash_guard: auto-fixed %d silent exceptions", n)
+    except Exception:
+        pass  # never let self-healing compound a crash
 
 
 def _thread_crash_handler(args) -> None:

@@ -174,3 +174,32 @@ jobs:
               sys.exit(1)
           print('PASS: no mojibake detected')
           "
+
+  # ═══════════════════════════════════════════════════════════
+  # Self-Heal — auto-detect + auto-fix common issues
+  # ═══════════════════════════════════════════════════════════
+  self-heal:
+    name: Self-Heal (audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: CRUX Self-Heal audit
+        run: python core/self_heal.py --json | tee health.json
+      - name: Auto-fix silent exceptions
+        run: python core/self_heal.py --fix
+      - name: Create auto-fix PR if changes detected
+        if: success()
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "CRUX Self-Healer"
+            git config user.email "self-heal@crux.local"
+            git checkout -b auto-fix/self-heal-$(date +%Y%m%d-%H%M)
+            git add -A
+            git commit -m "fix: auto-repair — silent exception logging"
+            git push origin auto-fix/self-heal-$(date +%Y%m%d-%H%M) || true
+          fi
