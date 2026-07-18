@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import sys
 import traceback
-from typing import Any, Callable
-
+from collections.abc import Callable
+from typing import Any
 
 # ── Error classification + suggestion mapping ──────────
 
