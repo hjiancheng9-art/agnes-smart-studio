@@ -59,7 +59,7 @@ def _reset_shared_state():
     except Exception:
         pass
 
-    yield
+    return  # setup-only fixture, no teardown needed
 
 
 @pytest.fixture(scope="session")
