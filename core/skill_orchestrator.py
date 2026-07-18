@@ -45,6 +45,7 @@ class PlanStep:
     depends_on: list[str] = field(default_factory=list)
     verify: str = ""  # shell command to verify success
     risk: str = "auto"  # auto | confirm | manual
+    input_key: str = ""  # key from previous step's output to pass as input
 
     @property
     def needs_approval(self) -> bool:
@@ -56,13 +57,22 @@ class Plan:
     goal: str
     steps: list[PlanStep] = field(default_factory=list)
     mode: str = "auto"  # auto | semi | manual
+    retry: str = "stop"  # stop | skip | retry_all
 
     def to_dict(self) -> dict:
         return {
             "goal": self.goal,
             "mode": self.mode,
+            "retry": self.retry,
             "steps": [
-                {"skill": s.skill_name, "goal": s.goal, "depends_on": s.depends_on, "verify": s.verify, "risk": s.risk}
+                {
+                    "skill": s.skill_name,
+                    "goal": s.goal,
+                    "depends_on": s.depends_on,
+                    "verify": s.verify,
+                    "risk": s.risk,
+                    "input_key": s.input_key,
+                }
                 for s in self.steps
             ],
         }
@@ -94,6 +104,8 @@ class SkillOrchestrator:
     def __init__(self):
         self._skills: list[dict] | None = None
         self._scores: dict[str, int] = _load_scores()
+        self._last_goal: str = ""
+        self._step_outputs: dict[str, str] = {}
 
     # ── Search ───────────────────────────────────────────
 
@@ -293,7 +305,13 @@ class SkillOrchestrator:
                     overall_ok = False
                     continue
 
-            # Load and run the skill
+            # Load and run the skill (with data flow from previous steps)
+            self._last_goal = step.goal
+            # If this step depends on a previous step's output, inject the output
+            if step.input_key:
+                prev_output = self._step_outputs.get(step.input_key, "")
+                if prev_output:
+                    self._last_goal = f"{step.goal}\n\n[input from {step.input_key}]:\n{prev_output}"
             ok, output = self._run_skill(step.skill_name)
             duration_ms = int((time.time() - step_start) * 1000)
 
@@ -313,8 +331,17 @@ class SkillOrchestrator:
 
             step_result = {"skill": step.skill_name, "ok": ok and verify_ok, "output": output[:500], "verify_ok": verify_ok, "duration_ms": duration_ms}
             results.append(step_result)
+            # Store output for downstream steps
+            if ok:
+                self._step_outputs[step.skill_name] = output[:1000]
             if not step_result["ok"]:
+                if plan.retry == "skip":
+                    continue  # skip failed step, try next
                 overall_ok = False
+                if plan.retry == "retry_all":
+                    logger.info("[orchestrator] retry mode — restarting plan")
+                    self._step_outputs.clear()
+                    return self.execute(plan, confirm_fn=confirm_fn)
                 break
 
         total_ms = int((time.time() - start) * 1000)
@@ -323,17 +350,55 @@ class SkillOrchestrator:
         return summary
 
     def _run_skill(self, skill_name: str) -> tuple[bool, str]:
-        """Execute a skill by name. Falls back to skill_loader if available."""
-        try:
-            from core.skill_loader import load_and_run
+        """Execute a skill: load its prompt, feed goal to LLM, return result."""
+        skill_data = self._load_skill_data(skill_name)
+        if not skill_data:
+            return False, f"skill '{skill_name}' not found"
 
-            result = load_and_run(skill_name)
-            return True, str(result)[:500]
+        prompt = skill_data.get("prompt", "")
+        if not prompt:
+            return False, f"skill '{skill_name}' has no prompt"
+
+        try:
+            from core.client import CruxClient
+
+            client = CruxClient()  # reads DEEPSEEK_API_KEY from env
+            messages = [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": self._last_goal},
+            ]
+            result = client.chat(messages, model="deepseek-v4-flash", max_tokens=1024)
+            text = result.get("content", "") if isinstance(result, dict) else str(result)
+            return True, text[:500]
         except ImportError:
-            pass
+            return False, "chat client not available"
         except Exception as e:
-            return False, f"skill execution error: {e}"
-        return False, f"skill '{skill_name}' not found or not executable"
+            return False, f"skill execution failed: {type(e).__name__}: {e}"
+
+    def _load_skill_data(self, skill_name: str) -> dict | None:
+        """Load a skill's JSON definition from skills/ or skills_md/."""
+        candidates = [
+            ROOT / "skills" / f"{skill_name}.skill.json",
+            ROOT / "skills" / f"{skill_name}.json",
+            ROOT / "skills_md" / f"{skill_name}.skill.md",
+        ]
+        for path in candidates:
+            if path.exists():
+                try:
+                    if path.suffix == ".json":
+                        return json.loads(path.read_text(encoding="utf-8"))
+                    if path.suffix == ".md":
+                        text = path.read_text(encoding="utf-8", errors="replace")
+                        name = skill_name.replace("-", " ").title()
+                        for line in text.split("\n"):
+                            if line.startswith("# "):
+                                name = line[2:].strip()
+                                break
+                        desc = text.split("\n\n")[1] if "\n\n" in text else text[:200]
+                        return {"name": skill_name, "description": desc, "prompt": text}
+                except (json.JSONDecodeError, OSError):
+                    pass
+        return None
 
     # ── Learn ──────────────────────────────────────────
 
@@ -398,7 +463,7 @@ if __name__ == "__main__":
             if s.verify:
                 print(f"     verify: {s.verify}")
         if mode == "manual":
-            print(f"\n  Manual mode — plan generated. Run with --semi or default to execute.")
+            print("\n  Manual mode — plan generated. Run with --semi or default to execute.")
         else:
             result = orch.execute(plan)
             print(f"\nResult: {'OK' if result['ok'] else 'FAILED'} "
