@@ -11,7 +11,7 @@ Usage:
 from __future__ import annotations
 
 import importlib
-from collections.abc import Callable
+from collections.abc import Callable  # noqa: TC003 — used at runtime (line 19)
 from typing import Any
 
 # ── Known global state holders and their snapshot keys ──
