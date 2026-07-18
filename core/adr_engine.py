@@ -8,7 +8,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-ADR_DIR = Path("docs/adr")
+ADR_DIR = Path(__file__).resolve().parent.parent / "docs" / "adr"
 
 
 def _ensure_adr_dir() -> None:
