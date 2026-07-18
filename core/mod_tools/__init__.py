@@ -1,3 +1,4 @@
+# ruff: noqa — intentional re-export package, star imports by design
 """Tool system — 43 modules.
 
 Re-exports all public APIs from flat core/ tool modules.

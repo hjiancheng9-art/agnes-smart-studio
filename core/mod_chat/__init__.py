@@ -1,3 +1,4 @@
+# ruff: noqa — intentional re-export package, star imports by design
 """Chat & session layer — 26 modules.
 
 Re-exports all public APIs from flat core/ chat modules.

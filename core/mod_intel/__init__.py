@@ -1,3 +1,4 @@
+# ruff: noqa — intentional re-export package, star imports by design
 """Code intelligence layer — 9 modules.
 
 Re-exports all public APIs from flat core/ intel modules.

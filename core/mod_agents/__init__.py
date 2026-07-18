@@ -1,3 +1,4 @@
+# ruff: noqa — intentional re-export package, star imports by design
 """Agent layer — 13 modules.
 
 Re-exports all public APIs from flat core/ agent modules.

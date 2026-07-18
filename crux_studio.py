@@ -948,10 +948,11 @@ def _run_doctor():
         checks.append(("Git installed", False, "Install git from https://git-scm.com"))
     # pip packages
     try:
-        import httpx
-        import PIL
-        import rich
-        import yaml
+        from importlib.util import find_spec
+
+        for pkg in ("httpx", "PIL", "rich", "yaml"):
+            if find_spec(pkg) is None:
+                raise ImportError(pkg)
         checks.append(("Core dependencies", True, None))
     except ImportError as e:
         checks.append(("Core dependencies", False, f"Run: pip install -r requirements.txt ({e})"))

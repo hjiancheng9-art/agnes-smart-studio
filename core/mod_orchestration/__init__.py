@@ -1,3 +1,4 @@
+# ruff: noqa — intentional re-export package, star imports by design
 """Orchestration layer — 21 modules.
 
 Re-exports all public APIs from flat core/ orchestration modules.

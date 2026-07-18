@@ -1,3 +1,4 @@
+# ruff: noqa — intentional re-export package, star imports by design
 """Self-healing layer — 18 modules.
 
 Re-exports all public APIs from flat core/ self-heal modules.
