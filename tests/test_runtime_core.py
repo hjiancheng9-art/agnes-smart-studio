@@ -7,10 +7,8 @@ from core.runtime_types import ExecutionMode, ExecutionPlan, plan_from_policy
 
 class TestRuntimeTypes:
     def test_plan_orchestrate(self):
-        # Long explicit self-audit prompt (len > 40) — should trigger ORCHESTRATE
-        plan = plan_from_policy(
-            "请自检自修整个系统的代码质量和安全漏洞，全面审计所有核心模块并修复发现的问题，输出完整报告"
-        )
+        """Self-audit keyword + scope + action → ORCHESTRATE (semantic, not len>40)."""
+        plan = plan_from_policy("请自检整个系统的代码质量，全面审计并修复安全漏洞")
         assert plan.mode == ExecutionMode.ORCHESTRATE
         assert plan.complexity >= 3
         assert plan.use_orchestrator is True
@@ -21,11 +19,11 @@ class TestRuntimeTypes:
         assert plan.complexity <= 2
 
     def test_short_self_check_keyword_does_not_trigger_orchestrate(self):
-        """Regression: casual short mentions of 自检/自修 in chat must NOT
-        escalate to ORCHESTRATE. Only long, explicit audit prompts do.
-        Guards the len(t) > 40 threshold in execution_policy.choose_policy.
+        """Regression: casual single-keyword mentions (no scope/action)
+        must NOT escalate to ORCHESTRATE. Guards the semantic-feature
+        logic in execution_policy.choose_policy.
         """
-        for casual in ("帮我自检一下", "这个要自修吗", "audit 一下", "自检自修整个系统"):
+        for casual in ("帮我自检一下", "这个要自修吗", "audit 一下", "自修吗"):
             plan = plan_from_policy(casual)
             assert plan.mode == ExecutionMode.DIRECT, f"短 prompt 不该触发编排: {casual!r} → {plan.mode}"
 

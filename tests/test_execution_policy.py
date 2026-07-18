@@ -7,11 +7,20 @@ from core.execution_policy import ExecutionMode, ExecutionPolicy, choose_policy
 
 class TestChoosePolicy:
     def test_self_check_orchestrate(self):
-        # Long explicit self-audit prompt (len > 40) — should trigger ORCHESTRATE
-        policy = choose_policy(
-            "请自检自修整个系统的代码质量和安全漏洞，全面审计所有核心模块并修复发现的问题，输出完整报告"
-        )
+        """自检 + 范围词 + 动作词 → ORCHESTRATE (semantic feature, not len>40)."""
+        policy = choose_policy("请自检整个系统代码质量并修复漏洞")
         assert policy.mode == ExecutionMode.ORCHESTRATE
+
+    def test_self_check_short_with_scope_also_orchestrate(self):
+        """Short prompt with 自检 + scope word → still ORCHESTRATE."""
+        policy = choose_policy("审计所有核心模块")
+        assert policy.mode == ExecutionMode.ORCHESTRATE
+
+    def test_casual_self_check_no_triggers(self):
+        """Casual single-keyword mentions must NOT escalate."""
+        for casual in ("帮我自检一下", "audit 一下", "自修吗"):
+            policy = choose_policy(casual)
+            assert policy.mode == ExecutionMode.DIRECT, f"{casual!r} should be DIRECT"
 
     def test_pinyin_orchestrate(self):
         policy = choose_policy("self-heal and audit the entire codebase")

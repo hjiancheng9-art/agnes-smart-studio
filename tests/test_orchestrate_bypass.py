@@ -39,7 +39,7 @@ class TestOrchestrateBypass:
 
         _collect_stream(
             session,
-            "请自检自修整个系统的代码质量和安全漏洞，全面审计所有核心模块并修复发现的问题，输出完整报告",
+            "请自检整个系统代码质量并修复全部安全漏洞",
         )
         client.chat_stream.assert_not_called()
 
@@ -70,7 +70,7 @@ class TestOrchestrateBypass:
 
         _collect_stream(
             session,
-            "请自检自修整个系统的代码质量和安全漏洞，全面审计所有核心模块并修复发现的问题，输出完整报告",
+            "请自检整个系统代码质量并修复全部安全漏洞",
         )
         assert "self_heal" in calls, f"self_heal not dispatched: {calls}"
         assert "code_review" in calls, f"code_review not dispatched: {calls}"
