@@ -17,10 +17,13 @@ from core.tool_router import (
 
 @pytest.fixture(autouse=True)
 def _clean_tool_router():
-    """Ensure global tool registries are clean before each test."""
+    """Ensure global tool registries are clean before each test.
+
+    Setup-only — the conftest-level _reset_shared_state fixture already
+    handles reset before every test.  No teardown needed.
+    """
     reset_tool_router()
-    yield
-    reset_tool_router()
+    return
 
 
 class TestRegisterAndList:
