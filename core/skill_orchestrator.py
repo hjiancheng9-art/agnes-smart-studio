@@ -44,15 +44,28 @@ class PlanStep:
     goal: str
     depends_on: list[str] = field(default_factory=list)
     verify: str = ""  # shell command to verify success
+    risk: str = "auto"  # auto | confirm | manual
+
+    @property
+    def needs_approval(self) -> bool:
+        return self.risk in ("confirm", "manual")
 
 
 @dataclass
 class Plan:
     goal: str
     steps: list[PlanStep] = field(default_factory=list)
+    mode: str = "auto"  # auto | semi | manual
 
     def to_dict(self) -> dict:
-        return {"goal": self.goal, "steps": [{"skill": s.skill_name, "goal": s.goal, "depends_on": s.depends_on, "verify": s.verify} for s in self.steps]}
+        return {
+            "goal": self.goal,
+            "mode": self.mode,
+            "steps": [
+                {"skill": s.skill_name, "goal": s.goal, "depends_on": s.depends_on, "verify": s.verify, "risk": s.risk}
+                for s in self.steps
+            ],
+        }
 
 
 # ── Scoring engine ──────────────────────────────────────
@@ -174,24 +187,42 @@ class SkillOrchestrator:
 
     # ── Plan ────────────────────────────────────────────
 
-    def plan(self, goal: str, top_k: int = 5) -> Plan:
-        """Given a goal, search skills and compose a sequential plan."""
+    def plan(self, goal: str, top_k: int = 5, mode: str = "auto") -> Plan:
+        """Given a goal, search skills and compose a sequential plan.
+
+        Args:
+            goal: natural-language description of what to do
+            top_k: number of skills to consider
+            mode: auto (execute all) | semi (confirm writes) | manual (plan only)
+        """
         matches = self.search(goal, top_k=top_k)
         if not matches:
-            return Plan(goal=goal)
+            return Plan(goal=goal, mode=mode)
 
-        # For now, compose a linear plan from top matches.
-        # Complex dependency graphs (parallel branches, merge points)
-        # can be added when the skill system supports explicit I/O contracts.
         best = matches[0]
         rest = matches[1:3]
         steps = []
         if best.score > 0.1:
-            steps.append(PlanStep(skill_name=best.name, goal=goal, verify=self._guess_verify(best.name)))
+            risk = self._classify_risk(best.name, goal)
+            steps.append(PlanStep(skill_name=best.name, goal=goal, verify=self._guess_verify(best.name), risk=risk))
             for r in rest:
                 if r.score > 0.1:
-                    steps.append(PlanStep(skill_name=r.name, goal=f"补充: {r.description[:60]}"))
-        return Plan(goal=goal, steps=steps)
+                    steps.append(PlanStep(skill_name=r.name, goal=f"补充: {r.description[:60]}", risk="auto"))
+        return Plan(goal=goal, steps=steps, mode=mode)
+
+    def _classify_risk(self, skill_name: str, goal: str) -> str:
+        """Classify a skill step as auto/confirm/manual based on risk heuristics."""
+        name_lower = skill_name.lower()
+        goal_lower = goal.lower()
+        # High-risk patterns: deployment, database migrations, deletion, production
+        if any(w in goal_lower for w in ("deploy", "production", "prod", "delete", "drop", "truncate", "migrate", "schema")):
+            return "confirm"
+        if any(w in name_lower for w in ("deploy", "migration", "admin", "root")):
+            return "confirm"
+        # Medium-risk: file writes outside project, pip install
+        if any(w in goal_lower for w in ("install", "uninstall", "publish", "release")):
+            return "confirm"
+        return "auto"
 
     def _guess_verify(self, skill_name: str) -> str:
         """Heuristic: guess a verification command from skill name."""
@@ -212,8 +243,13 @@ class SkillOrchestrator:
 
     # ── Execute ─────────────────────────────────────────
 
-    def execute(self, plan: Plan) -> dict[str, Any]:
-        """Execute a plan step by step, with verification and self-healing."""
+    def execute(self, plan: Plan, *, confirm_fn=None) -> dict[str, Any]:
+        """Execute a plan step by step, with verification and self-healing.
+
+        Args:
+            plan: the composed plan
+            confirm_fn: optional callback(step_name, risk) → bool for approval
+        """
         import subprocess
         import sys
 
@@ -223,7 +259,31 @@ class SkillOrchestrator:
 
         for i, step in enumerate(plan.steps):
             step_start = time.time()
-            logger.info("[orchestrator] step %d/%d: %s", i + 1, len(plan.steps), step.skill_name)
+            label = f"[orchestrator] step {i+1}/{len(plan.steps)}: {step.skill_name}"
+            logger.info(label)
+
+            # ── Approval gate ──
+            if plan.mode == "manual":
+                print(f"\n  [{step.risk.upper()}] {step.skill_name}: {step.goal}")
+                print(f"     verify: {step.verify or 'none'}")
+                if confirm_fn:
+                    approved = confirm_fn(step.skill_name, step.risk)
+                else:
+                    approved = input("  Execute? [Y/n] ").strip().lower() != "n"
+                if not approved:
+                    results.append({"skill": step.skill_name, "ok": False, "error": "user declined", "duration_ms": 0})
+                    overall_ok = False
+                    continue
+            elif step.needs_approval and plan.mode == "semi":
+                print(f"\n  ⚠️  HIGH-RISK: {step.skill_name} ({step.risk})")
+                if confirm_fn:
+                    approved = confirm_fn(step.skill_name, step.risk)
+                else:
+                    approved = input("  Approve? [y/N] ").strip().lower() == "y"
+                if not approved:
+                    results.append({"skill": step.skill_name, "ok": False, "error": "approval denied", "duration_ms": 0})
+                    overall_ok = False
+                    continue
 
             # Verify preconditions
             for dep in step.depends_on:
@@ -244,8 +304,7 @@ class SkillOrchestrator:
                     r = subprocess.run(step.verify, shell=True, capture_output=True, text=True, timeout=60, cwd=str(ROOT))
                     verify_ok = r.returncode == 0
                     if not verify_ok:
-                        # Self-heal
-                        logger.info("[orchestrator] verification failed, attempting self-heal")
+                        logger.info("[orchestrator] verification failed, self-healing")
                         subprocess.run([sys.executable, "core/self_heal.py", "--fix"], capture_output=True, timeout=30, cwd=str(ROOT))
                         r2 = subprocess.run(step.verify, shell=True, capture_output=True, text=True, timeout=60, cwd=str(ROOT))
                         verify_ok = r2.returncode == 0
@@ -260,8 +319,6 @@ class SkillOrchestrator:
 
         total_ms = int((time.time() - start) * 1000)
         summary = {"goal": plan.goal, "ok": overall_ok, "steps": len(plan.steps), "passed": sum(1 for r in results if r["ok"]), "duration_ms": total_ms, "results": results}
-
-        # Learn
         self._learn(plan, results)
         return summary
 
@@ -301,10 +358,10 @@ def get_orchestrator() -> SkillOrchestrator:
     return _orchestrator
 
 
-def orchestrate(goal: str) -> dict[str, Any]:
+def orchestrate(goal: str, mode: str = "auto") -> dict[str, Any]:
     """One-shot: plan + execute + learn."""
     orch = get_orchestrator()
-    plan = orch.plan(goal)
+    plan = orch.plan(goal, mode=mode)
     if not plan.steps:
         return {"ok": False, "error": "no matching skills found", "goal": goal}
     return orch.execute(plan)
@@ -315,22 +372,36 @@ def orchestrate(goal: str) -> dict[str, Any]:
 if __name__ == "__main__":
     import sys
 
-    goal = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else "create a REST API"
-    print(f"Goal: {goal}\n")
+    args = sys.argv[1:]
+    mode = "auto"
+    if "--semi" in args:
+        mode = "semi"
+        args.remove("--semi")
+    if "--manual" in args:
+        mode = "manual"
+        args.remove("--manual")
+
+    goal = " ".join(args) if args else "create a REST API"
+    print(f"Goal: {goal}  Mode: {mode}\n")
     orch = SkillOrchestrator()
     matches = orch.search(goal)
     print("Top skills:")
     for m in matches:
         print(f"  {m.name} (score={m.score:.2f}, {m.category}) — {m.description[:80]}")
     print()
-    plan = orch.plan(goal)
+    plan = orch.plan(goal, mode=mode)
     if plan.steps:
         print("Plan:")
-        for s in plan.steps:
-            print(f"  1. {s.skill_name}: {s.goal}")
+        for i, s in enumerate(plan.steps, 1):
+            risk_icon = {"auto": "  ", "confirm": "⚠️ ", "manual": "✋"}.get(s.risk, "  ")
+            print(f"  {risk_icon}{i}. {s.skill_name}: {s.goal}")
             if s.verify:
                 print(f"     verify: {s.verify}")
-        result = orch.execute(plan)
-        print(f"\nResult: {'OK' if result['ok'] else 'FAILED'} ({result['duration_ms']}ms)")
+        if mode == "manual":
+            print(f"\n  Manual mode — plan generated. Run with --semi or default to execute.")
+        else:
+            result = orch.execute(plan)
+            print(f"\nResult: {'OK' if result['ok'] else 'FAILED'} "
+                  f"({result['passed']}/{result['steps']} passed, {result['duration_ms']}ms)")
     else:
         print("No matching skills found")
