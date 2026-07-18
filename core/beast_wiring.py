@@ -296,6 +296,26 @@ def wire_all() -> bool:
     except _INIT_SAFE as e:
         logger.exception("[Beast] sound_ux init failed: %s", e)
 
+    # ── Orchestrator events: auto-heal on failure, learning on completion ──
+    def _on_step_done(skill: str = "", ok: bool = False, **kw) -> None:
+        if not ok:
+            logger.info("[orchestrator:bus] step %s failed — triggering self-heal", skill)
+            try:
+                from core.self_heal import SelfHealer
+                h = SelfHealer()
+                h.scan_syntax()
+                h.scan_silent_exceptions()
+                h.fix_silent_exceptions()
+                h.quick_fix()
+            except _EVENT_SAFE as e:
+                logger.debug("[orchestrator:bus] self-heal failed: %s", e)
+
+    def _on_plan_done(ok: bool = False, passed: int = 0, total: int = 0, **kw) -> None:
+        logger.info("[orchestrator:bus] plan done: %s/%s %s", passed, total, "OK" if ok else "FAILED")
+
+    bus.on("orchestrator:step:done", _on_step_done)
+    bus.on("orchestrator:plan:done", _on_plan_done)
+
     _wired = True
     logger.debug("[Beast] All 5 beasts wired successfully")
     return True

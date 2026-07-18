@@ -107,6 +107,16 @@ class SkillOrchestrator:
         self._last_goal: str = ""
         self._step_outputs: dict[str, str] = {}
 
+    @staticmethod
+    def _emit(event: str, **data: Any) -> None:
+        """Emit an orchestrator event to the event bus. No-op if bus unavailable."""
+        try:
+            from core.event_bus import bus
+
+            bus.emit(event, **data)
+        except (ImportError, OSError):
+            pass
+
     # ── Search ───────────────────────────────────────────
 
     def _load_skills(self) -> list[dict]:
@@ -256,12 +266,7 @@ class SkillOrchestrator:
     # ── Execute ─────────────────────────────────────────
 
     def execute(self, plan: Plan, *, confirm_fn=None) -> dict[str, Any]:
-        """Execute a plan step by step, with verification and self-healing.
-
-        Args:
-            plan: the composed plan
-            confirm_fn: optional callback(step_name, risk) → bool for approval
-        """
+        """Execute a plan step by step, with verification and self-healing."""
         import subprocess
         import sys
 
@@ -269,10 +274,13 @@ class SkillOrchestrator:
         overall_ok = True
         start = time.time()
 
+        # Emit plan creation event
+        self._emit("orchestrator:plan:created", goal=plan.goal, steps=len(plan.steps), mode=plan.mode)
+
         for i, step in enumerate(plan.steps):
             step_start = time.time()
-            label = f"[orchestrator] step {i+1}/{len(plan.steps)}: {step.skill_name}"
-            logger.info(label)
+            self._emit("orchestrator:step:start", skill=step.skill_name, goal=step.goal, index=i + 1, total=len(plan.steps))
+            logger.info("[orchestrator] step %d/%d: %s", i + 1, len(plan.steps), step.skill_name)
 
             # ── Approval gate ──
             if plan.mode == "manual":
@@ -331,6 +339,8 @@ class SkillOrchestrator:
 
             step_result = {"skill": step.skill_name, "ok": ok and verify_ok, "output": output[:500], "verify_ok": verify_ok, "duration_ms": duration_ms}
             results.append(step_result)
+            # Emit step completion
+            self._emit("orchestrator:step:done", skill=step.skill_name, ok=step_result["ok"], verify_ok=verify_ok, duration_ms=duration_ms)
             # Store output for downstream steps
             if ok:
                 self._step_outputs[step.skill_name] = output[:1000]
@@ -347,6 +357,7 @@ class SkillOrchestrator:
         total_ms = int((time.time() - start) * 1000)
         summary = {"goal": plan.goal, "ok": overall_ok, "steps": len(plan.steps), "passed": sum(1 for r in results if r["ok"]), "duration_ms": total_ms, "results": results}
         self._learn(plan, results)
+        self._emit("orchestrator:plan:done", ok=overall_ok, passed=summary["passed"], total=summary["steps"], duration_ms=total_ms)
         return summary
 
     def _run_skill(self, skill_name: str) -> tuple[bool, str]:
