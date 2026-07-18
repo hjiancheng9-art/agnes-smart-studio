@@ -28,7 +28,7 @@ import time
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from prompt_toolkit import Application
 from prompt_toolkit.buffer import Buffer
@@ -418,12 +418,15 @@ class TuiAppV2:
         self._native_select: bool = False
         self._cancel_requested: bool = False
         self._interrupted_by_priority: bool = False
+        # ── Dynamic attrs set by mixins/hooks ──
+        self._last_route: str = ""
+        self._heartbeat_timer: Any = None  # type: ignore[assignment]
         # ── Responsive Layout & Animation Governance (per 3-platform debate) ──
         self._env = EnvironmentInfo.detect()
         self._layout_mgr = LayoutManager(env=self._env)
         # Default to blade palette on truecolor terminals
         if self._env.has_truecolor and not self._env.is_ssh:
-            self._layout_mgr._override_theme = "blade"
+            self._layout_mgr._override_theme = "blade"  # type: ignore[attr-defined]
         self._anim_gov = AnimationGovernor(ssh_mode=self._env.is_ssh)
         self._current_layout = self._layout_mgr.config
         # ── React to layout/environment changes ──

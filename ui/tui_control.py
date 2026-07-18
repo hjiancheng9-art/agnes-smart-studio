@@ -7,8 +7,11 @@
         ...
 """
 
+from __future__ import annotations
+
 import threading
 import time
+from typing import Any
 
 from core.control_plane import (
     control,
@@ -26,6 +29,17 @@ class TuiControlMixin:
     - 执行中插话走 priority queue
     - 状态栏显示 pending 倒计时
     """
+
+    # Dynamic attrs set by subclass — declared for type checking
+    message_pane: Any = None  # type: ignore[assignment]
+    _state_lock: Any = None  # type: ignore[assignment]
+    _streaming: bool = False
+    _log_append: Any = None  # type: ignore[assignment]
+    _shorten: Any = None  # type: ignore[assignment]
+    _thinking: bool = False
+    _queue_input_while_streaming: Any = None  # type: ignore[assignment]
+    _worker_thread: Any = None  # type: ignore[assignment]
+    _stream_response: Any = None  # type: ignore[assignment]
 
     # ── 消息发送改造 ──
 
