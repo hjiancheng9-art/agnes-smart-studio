@@ -17,6 +17,12 @@ from pathlib import Path
 _cached_workspace: Path | None = None
 
 
+def reset_workspace_guard() -> None:
+    """Reset the cached workspace path (for test isolation)."""
+    global _cached_workspace
+    _cached_workspace = None
+
+
 def get_crux_root() -> Path:
     """返回 CRUX 工具自身的根目录"""
     return Path(__file__).resolve().parent.parent

@@ -119,6 +119,12 @@ def get_cache() -> AgentCache:
     return _cache
 
 
+def reset_agent_cache() -> None:
+    """Reset the global agent cache (for test isolation)."""
+    global _cache
+    _cache = None
+
+
 def cached_decompose(goal: str, agent_type: str, decompose_fn) -> Any:
     """Decorator: cache decomposition results.
 

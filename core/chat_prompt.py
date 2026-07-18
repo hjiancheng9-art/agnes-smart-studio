@@ -232,6 +232,12 @@ def set_cached_prompt(key: str, prompt: str) -> None:
     _cache.set(key, prompt)
 
 
+def reset_prompt_cache() -> None:
+    """Reset the global prompt cache (for test isolation)."""
+    global _cache
+    _cache = PromptCache()
+
+
 # ── 谱系注入注册表（每项: (模块路径, 函数名, 描述)）───
 # CHAT mode: 7 useful layers (trimmed from 17 decorative spectrum layers)
 # 仅当 chat_light=False 时使用（当前无调用方走此路径）

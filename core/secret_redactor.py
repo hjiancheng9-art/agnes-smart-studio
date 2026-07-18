@@ -47,6 +47,12 @@ def _get_secret_values() -> dict[str, str]:
     return _cached_keys
 
 
+def reset_secret_redactor() -> None:
+    """Reset the cached secret keys (for test isolation)."""
+    global _cached_keys
+    _cached_keys = None
+
+
 def redact(text: str) -> str:
     """Replace known API keys with '[REDACTED]' in the given text."""
     if not text:

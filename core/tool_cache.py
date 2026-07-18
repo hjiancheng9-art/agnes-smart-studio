@@ -224,3 +224,9 @@ def get_tool_cache() -> ToolResultCache:
             if _cache_singleton is None:
                 _cache_singleton = ToolResultCache()
     return _cache_singleton
+
+
+def reset_tool_cache() -> None:
+    """Reset the global tool result cache (for test isolation)."""
+    global _cache_singleton
+    _cache_singleton = None
