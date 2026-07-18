@@ -249,7 +249,7 @@ def build_welcome_formatted(
             (M, "  ·  "),
             (W, "工程搭档"),
             (M, "  ·  "),
-            (B, "DeepSeek V4 Pro"),
+            (B, "DeepSeek V4 Flash"),
             (M, "  ·  "),
             (T, "1M上下文"),
             (M, "  ·  "),
@@ -359,7 +359,7 @@ def build_welcome_formatted(
         ("Agent Swarm 并行执行", P),
         ("34 loaded · 121 pkgs · 767 market", W),
         ("理解意图→推理→执行→验证", G),
-        ("34 专业技能 · 3695 tests ✓", T),
+        ("34 专业技能 · 3963 tests ✓", T),
     ]
 
     for i in range(5):
@@ -411,7 +411,7 @@ def build_welcome_formatted(
         _wbox_row(S, "", wl_w),
         _wbox_row(W, "平时如刀，出事成阵", wl_w),
         _wbox_row(W, "理解意图 → 深度推理 → 自主执行 → 验证闭环", wl_w),
-        _wbox_row(G, f"v{_ver} · 3695 tests ✓ · 0 failures · 自修复", wl_w),
+        _wbox_row(G, f"v{_ver} · 3963 tests ✓ · 0 failures · 自修复", wl_w),
         _wbox_row(A, "Agent Swarm · 自修改 · A/B/C/D 任务分级", wl_w),
         _wbox_row(S, "", wl_w),
         (S, bbot(wl_w)),
@@ -468,7 +468,7 @@ def build_welcome_formatted(
             (M, "Python 3.11"),
             ("", "    "),
             (M, "skills"),
-            (P, " 50+743"),
+            (P, " 34 loaded"),
         ]
     )
 
