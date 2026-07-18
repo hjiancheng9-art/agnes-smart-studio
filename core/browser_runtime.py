@@ -26,7 +26,14 @@ from playwright.sync_api import sync_playwright
 
 logger = logging.getLogger(__name__)
 
-EDGE_PATH = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+import shutil as _shutil
+
+EDGE_PATH = (
+    _shutil.which("msedge")
+    or _shutil.which("microsoft-edge")
+    or r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"  # noqa: SIM222
+    or r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+)
 USER_DATA = os.environ.get("CRUX_EDGE_PROFILE", os.path.expanduser(r"~\edge_cdp_profile"))
 SHORT_TIMEOUT = 5000  # ms
 NAV_TIMEOUT = 15000  # ms

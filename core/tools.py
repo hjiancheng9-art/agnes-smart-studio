@@ -307,7 +307,7 @@ _POSIX_TO_WINDOWS: dict[str, str] = {
     "ls": "dir",
     "cat": "type",
     "grep": "findstr",
-    "head": "more /p (或 PowerShell: Get-Content | Select -First N)",
+    "head": 'powershell -Command "Get-Content {path} | Select-Object -First {n}"',
     "tail": "more +N (或 PowerShell: Get-Content | Select -Last N)",
     "cp": "copy",
     "mv": "move",
@@ -980,7 +980,7 @@ class ToolRegistry:
             # ── 超时控制：background 模式放宽超时 ──
             _timeout = cfg.get("timeout", 30)
             if run_in_background:
-                _timeout = max(_timeout, 300)
+                _timeout = max(_timeout, 120)
 
             # ── 自愈多策略 shell 执行 ──
             # 构建降级策略链：主策略失败后自动尝试备选方案，而非直接报错/崩溃
@@ -1251,6 +1251,8 @@ class ToolRegistry:
         except ImportError:
             _log_call = None
 
+        # Resolve tool aliases (e.g. "bash" → "run_bash") before lookup
+        name = self.resolve_name(name)
         executor = self._executors.get(name)
         if not executor:
             suggestion = _suggest_similar_tool(name, self._definitions)
@@ -1284,9 +1286,9 @@ class ToolRegistry:
 
             _tool_cfg = self._tool_config.get(name, {}) if hasattr(self, "_tool_config") else {}
             _tool_to = _tool_cfg.get("timeout")
-            if not isinstance(_tool_to, (int, float)) or _tool_to <= 0:
+            if not isinstance(_tool_to, int | float) or _tool_to <= 0:
                 _tool_to = 120  # 与多数执行类工具一致的稳妥默认
-            _safe_to = float(_tool_to) + 60.0  # 余量：容纳进程树 kill/回收
+            _safe_to = float(_tool_to) + 20.0  # 余量：容纳进程树 kill/回收
             safe = SafeExecutor(timeout=_safe_to)
         except ImportError:
             safe = None

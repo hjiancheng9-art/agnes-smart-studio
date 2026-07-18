@@ -695,7 +695,9 @@ def send_to_ai(platform: str, prompt: str, timeout: int | None = None) -> dict:
             try:
                 bc._page.wait_for_selector(bc._platform.input_selectors[0], state="visible", timeout=10000)
             except Exception:
-                logging.getLogger("crux").debug("browser input selector wait failed — will retry fill_prompt", exc_info=True)
+                logging.getLogger("crux").debug(
+                    "browser input selector wait failed — will retry fill_prompt", exc_info=True
+                )
 
         if not bc.fill_prompt(prompt):
             result["error"] = "无法填入提示词 — 请检查页面是否已加载完成，重试"

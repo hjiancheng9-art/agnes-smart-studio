@@ -110,7 +110,7 @@ def main():
                     "result": {
                         "protocolVersion": "2024-11-05",
                         "capabilities": {"tools": {"listChanged": True}},
-                        "serverInfo": {"name": "kimi-mcp-bridge", "version": "0.1.0"},
+                        "serverInfo": {"name": "kimi-mcp-bridge", "version": "0.27.0"},
                     },
                 }
             )

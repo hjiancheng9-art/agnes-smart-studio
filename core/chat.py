@@ -59,7 +59,6 @@ from core.provider import (
     get_provider_manager,
     get_provider_name,
     get_tool_calling_models,
-    get_vision_models,
 )
 from core.session_config import SessionConfig
 from core.skills import SkillManager, get_manager
@@ -143,7 +142,8 @@ MODEL_PROVIDER_MAP = {}  # 已由 get_provider_name() 替代
 
 # tool calling 循环最大轮次（防止死循环）
 # agent 模式 / /self 命令会经 unlimited_tools 自动翻倍
-MAX_TOOL_LOOPS = 160
+# v6.1: reduced from 160 → 40 — 160 allowed runaway loops (50+ tools per turn)
+MAX_TOOL_LOOPS = 40
 
 # 429/503 过载自动降级阈值：连续多少次限流/过载就强制切换供应商
 RATE_LIMIT_FALLBACK_THRESHOLD = 2
@@ -595,81 +595,35 @@ class ChatSession(ChatToggleMixin):
         return self._model_router
 
     def _auto_route(self, prompt: str) -> dict | None:
-        """Analyze prompt and switch model/provider if auto_model is enabled.
-
-        Unified routing via core.router.route() — handles both slash commands
-        and natural language. Falls back to ModelRouter tier resolution for
-        sub-agent compatibility.
-
-        Short-circuit: if the last 3 consecutive messages were all SKIPped,
-        skip routing for this message too (avoids unnecessary overhead on
-        trivial chat flows).
-
-        Returns route dict {tier, provider, model} or None if auto_model disabled.
-        """
+        """Simple two-tier routing: flash for light chat, pro for real work."""
         if not self.auto_model:
             return None
 
-        # Short-circuit: after 3 consecutive SKIPs, stop routing
-        if self._consecutive_skips >= 3:
-            return None
+        # Use flash for short conversational messages, pro for real tasks
+        _is_light = len(prompt) < 120 and not any(
+            kw in prompt
+            for kw in (
+                "修复",
+                "实现",
+                "重构",
+                "设计",
+                "审查",
+                "部署",
+                "fix",
+                "implement",
+                "refactor",
+                "design",
+                "deploy",
+            )
+        )
+        target_model = "deepseek-v4-flash" if _is_light else "deepseek-v4-pro"
+        if target_model == self.model:
+            return None  # already on the right model
 
-        # ── Unified router: command + NL classification in one pass ──
-        try:
-            from core.router import TaskProfile, profile_to_tier
-            from core.router import apply as _apply
-            from core.router import route as _route
-
-            decision = _route(prompt, self)
-            if decision.profile == TaskProfile.SKIP:
-                self._consecutive_skips += 1
-                return None
-            self._consecutive_skips = 0  # non-SKIP → reset counter
-            if decision.model_id:
-                _apply(decision, self)
-                tier = profile_to_tier(decision.profile)
-                return {"tier": tier, "provider": getattr(self, "_current_provider", ""), "model": self.model}
-        except Exception as e:
-            logger.debug("router.route() failed, falling back to ModelRouter: %s", e, exc_info=True)
-
-        # ── Fallback: ModelRouter tier resolution (sub-agent path) ──
-        router = self.model_router
-        tier = router.classify_and_track(prompt)
-        route = router.resolve_route(tier)
-
-        target_model = route.get("model", "")
-        target_provider = route.get("provider", "")
-
-        if not target_model or target_model == "unknown":
-            self._consecutive_skips += 1
-            return {"tier": tier, "provider": "", "model": self.model}
-
-        self._consecutive_skips = 0  # non-SKIP → reset counter
-
-        # Cross-provider switch if needed
-        if target_provider:
-            try:
-                mgr = get_provider_manager()
-                mgr.load()
-                current_pid = mgr.state.active
-                if target_provider != current_pid:
-                    _pd = mgr.providers.get(target_provider, {})
-                    new_client = mgr.create_client(target_provider)
-                    if new_client:
-                        with contextlib.suppress(Exception):
-                            self.client.close()
-                        self.client = new_client
-                        self._current_provider = target_provider
-            except Exception as e:
-                logger.debug("cross-provider switch failed: %s", e, exc_info=True)
-
-        # Switch model if different
-        if target_model != self.model:
-            self.model = target_model
-            self._rebuild_ctx_mgr()
-            self.messages[0] = {"role": "system", "content": self._build_system_prompt()}
-
-        return {"tier": tier, "provider": target_provider, "model": target_model}
+        self.model = target_model
+        self._rebuild_ctx_mgr()
+        self.messages[0] = {"role": "system", "content": self._build_system_prompt()}
+        return {"tier": "light" if _is_light else "pro", "provider": "deepseek", "model": target_model}
 
     @property
     def supports_tools(self) -> bool:
@@ -826,57 +780,8 @@ class ChatSession(ChatToggleMixin):
         self.messages = [self.messages[0]]
 
     def _vision_model_chain(self, complexity: str = "light") -> list[str]:
-        """构建视觉模型 fallback 链（供应商优先于 tier，CRUX 质量 > 智谱）。
-
-        - CRUX (agnes): 视觉质量最优，计数/OCR/细节识别精准，优先使用
-        - 智谱 (zhipu): 免费兜底，CRUX 不可用时启用
-
-        同一供应商内按思考能力 + tier 排序。
-        self.vision_model 仅在 tier 匹配时提到链首。
-        """
-        from core.provider import get_model_info
-
-        vision_models = get_vision_models()
-        if not vision_models:
-            return [self.vision_model] if self.vision_model else []
-
-        def _info_of(mid: str):
-            info = get_model_info(mid)
-            if info is None:
-                raise KeyError(f"model {mid} not found in registry")
-            return info
-
-        # 按供应商分组：CRUX 在前，智谱在后（质量优先）
-        crux_models = [m for m in vision_models if _info_of(m).provider_id == "crux"]
-        zhipu_models = [m for m in vision_models if _info_of(m).provider_id == "zhipu"]
-        other_models = [m for m in vision_models if _info_of(m).provider_id not in ("zhipu", "crux")]
-
-        def _sort_within_provider(models: list[str], pro_first: bool) -> list[str]:
-            """组内排序：thinking 优先 → tier 次之。"""
-            thinking = [m for m in models if _info_of(m).supports_thinking]
-            no_thinking = [m for m in models if not _info_of(m).supports_thinking]
-
-            def _by_tier(ms):
-                light = [m for m in ms if _info_of(m).tier == "light"]
-                pro = [m for m in ms if _info_of(m).tier != "light"]
-                return (pro + light) if pro_first else (light + pro)
-
-            return _by_tier(thinking) + _by_tier(no_thinking)
-
-        pro_first = complexity == "complex"
-        ordered: list[str] = []
-        ordered.extend(_sort_within_provider(crux_models, pro_first))
-        ordered.extend(_sort_within_provider(zhipu_models, pro_first))
-        ordered.extend(_sort_within_provider(other_models, pro_first))
-
-        # self.vision_model 仅在 tier 匹配时提到链首（用户偏好尊重 tier 路由）
-        if self.vision_model and self.vision_model in ordered:
-            vm_tier = _info_of(self.vision_model).tier
-            target_tier = "light" if not pro_first else "pro"
-            if vm_tier == target_tier:
-                ordered.remove(self.vision_model)
-                ordered.insert(0, self.vision_model)
-        return ordered
+        """Vision model chain — single model after zhipu removal."""
+        return [self.vision_model or "agnes-2.0-flash"]
 
     @staticmethod
     def _classify_vision_complexity(text: str) -> tuple[str, int]:
@@ -1035,7 +940,10 @@ class ChatSession(ChatToggleMixin):
             # 2. Even without thinking mode, asking an LLM to "call orchestrate"
             #    adds latency + failure surface for a deterministic trigger.
             # Direct orchestration bypasses the model entirely for the trigger.
-            if _plan is not None and _plan.mode in (ExecutionMode.ORCHESTRATE, ExecutionMode.SWARM):
+            # Skip orchestration for short conversational queries — models over-trigger
+            # orchestrate for simple questions like "how many bugs do you have?"
+            _skip_orch = len(user_text) < 60 and ("?" in user_text or "？" in user_text)
+            if _plan is not None and _plan.mode in (ExecutionMode.ORCHESTRATE, ExecutionMode.SWARM) and not _skip_orch:
                 import time as _time
 
                 # Append user message to history (same as normal path)
@@ -1162,7 +1070,27 @@ class ChatSession(ChatToggleMixin):
         _turn_start = _time.monotonic()  # track turn start for heartbeat timing
 
         # Only show planning for non-trivial messages (skip for simple greetings/chitchat)
-        if len(user_text) > 30 or any(kw in user_text for kw in ("修复", "实现", "重构", "设计", "审查", "分析", "部署", "优化", "测试", "fix", "implement", "refactor", "design", "review", "debug", "deploy")):
+        if len(user_text) > 30 or any(
+            kw in user_text
+            for kw in (
+                "修复",
+                "实现",
+                "重构",
+                "设计",
+                "审查",
+                "分析",
+                "部署",
+                "优化",
+                "测试",
+                "fix",
+                "implement",
+                "refactor",
+                "design",
+                "review",
+                "debug",
+                "deploy",
+            )
+        ):
             yield ("info", "【规划】分析任务 & 选择模型...")
 
         # Auto-route: classify prompt intent → dynamically switch model tier
@@ -1182,7 +1110,10 @@ class ChatSession(ChatToggleMixin):
 
         # 2. 根据模式调整推理参数
         if self._intel_mode in ("DEEP", "RESEARCH", "SAFE"):
-            self.enable_thinking = True  # 深度模式强制开启思考
+            # DeepSeek thinking mode causes stream hang when tools are active:
+            # model completes internal reasoning then goes silent without producing
+            # content or tool_calls. Disable thinking when tool calling is supported.
+            self.enable_thinking = not self.supports_tools
         elif self._intel_mode == "FAST":
             self.enable_thinking = False  # 快速模式关闭思考省 token
 
@@ -1316,13 +1247,16 @@ class ChatSession(ChatToggleMixin):
             try:
                 _base = int(_env_override)
             except ValueError:
-                logger.warning("CRUX_MAX_TOOL_LOOPS=%r is not a valid integer, using default %d", _env_override, MAX_TOOL_LOOPS)
+                logger.warning(
+                    "CRUX_MAX_TOOL_LOOPS=%r is not a valid integer, using default %d", _env_override, MAX_TOOL_LOOPS
+                )
         _effective_max = _base * 2 if getattr(self, "unlimited_tools", False) else _base
         buffer = ""  # 循环外预绑定，保证超出最大轮次时引用安全
         # 跨轮工具去重状态（见 _run_tool_calls 的注释）
         _executed_signatures: set[tuple[str, str]] = set()
         _executed_cache: dict[tuple[str, str], str] = {}
         _stream_error_break = False
+        _test_run_count = 0  # detect fix-test-fail-fix runaway loops
 
         while fallback_tried < len(fallback_chain):
             _use_model, _use_client = fallback_chain[fallback_tried]
@@ -1366,7 +1300,7 @@ class ChatSession(ChatToggleMixin):
                     except Exception as e:
                         logger.exception("_run_tool_calls 异常")
                         yield ("error", f"工具执行中断: {type(e).__name__}: {e}")
-                        _stream_error_break = True
+                        _stream_error_break = False  # tool error, NOT a provider failure
                         break
                     # Grow the visible tool set with any tools the model just called,
                     # instead of expanding to the full 97-tool list (14K tokens/round).
@@ -1377,6 +1311,15 @@ class ChatSession(ChatToggleMixin):
                             if _name:
                                 _active_tool_names.add(_name)
                         tools = self.tools.get_definitions_for_names(_active_tool_names)
+                    # Detect fix-test-fail-fix runaway loops: break if test runner called too many times
+                    _test_tools = sum(1 for tc in tool_calls if tc.get("function", {}).get("name") == "run_test")
+                    if _test_tools:
+                        _test_run_count += _test_tools
+                    if _test_run_count > 5:
+                        yield ("info", f"测试已运行 {_test_run_count} 次，疑似死循环。已自动停止。")
+                        self.messages.append({"role": "assistant", "content": buffer})
+                        self._finalize_outcome(_use_model, _last_usage)
+                        return  # clean stop — NOT a provider failure
                     continue  # 进入下一轮 tool loop
 
                 # 无 tool_calls：检查是否流错误（需 fallback）还是正常收尾
@@ -1388,9 +1331,7 @@ class ChatSession(ChatToggleMixin):
                             # 先尝试自动 failover（handle_failure 会选一个可用 provider）
                             new_client, new_pid = mgr.handle_failure(mgr.state.active, 500)
                             if new_client:
-                                # Close old client before switching to avoid httpx pool leak
-                                with contextlib.suppress(Exception):
-                                    self.client.close()
+                                # Defer closing old client — closing mid-stream corrupts httpx state
                                 self.client = new_client
                                 self._current_provider = new_pid
                                 mgr.state.record_success(new_pid)
@@ -1527,6 +1468,7 @@ class ChatSession(ChatToggleMixin):
         if not tool_calls and buffer:
             try:
                 from core.tool_call_parser import extract_tool_calls
+
                 xml_tools, _ = extract_tool_calls(buffer)
                 if xml_tools:
                     tool_calls.extend(xml_tools)
@@ -1615,6 +1557,28 @@ class ChatSession(ChatToggleMixin):
                 # 不 yield 副作用（用户已见过一次）
                 append_tool_result = True
             else:
+                # Surface tool activity into message pane — compact one-line format
+                _desc = {
+                    "read_file": "读取",
+                    "write_file": "写入",
+                    "edit_file": "编辑",
+                    "run_bash": "执行",
+                    "run_python": "Python",
+                    "run_test": "测试",
+                    "search_files": "搜索",
+                    "search_symbols": "查符号",
+                    "git_diff": "diff",
+                    "git_status": "状态",
+                    "git_add_commit": "提交",
+                    "agent_swarm": "并行",
+                }.get(fname, fname)
+                _path = ""
+                if isinstance(fargs, dict):
+                    _path = str(fargs.get("path", fargs.get("command", "")))[:50]
+                elif isinstance(fargs, str):
+                    _path = fargs[:50]
+                _line = f"\n> {_desc} {_path}" if _path else f"\n> {_desc}"
+                yield ("text", _line + "\n")
                 with TraceContext("tool_call", tool_name=fname, call_id=tc.get("id", "")) as span:
                     try:
                         # ── Phase 2c: Diff guard snapshot before write ──

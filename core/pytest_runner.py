@@ -47,7 +47,7 @@ def in_pytest() -> bool:
 def run_pytest_safe(
     test_target: str = "tests/",
     extra_args: list[str] | None = None,
-    timeout: int = 600,
+    timeout: int = 120,
     cwd: str | Path | None = None,
 ) -> subprocess.CompletedProcess:
     """运行 pytest，**在 pytest 内运行时自动短路**以防止递归 fork。
@@ -55,7 +55,7 @@ def run_pytest_safe(
     Args:
         test_target: 要跑的测试目标，默认整个 ``tests/``。
         extra_args: 额外的 pytest 参数（如 ``["-v", "--tb=short"]``）。
-        timeout: 子进程超时秒数，默认 600（10 分钟，足以覆盖 3700+ 全量用例）。
+        timeout: 子进程超时秒数，默认 120（2 分钟，足以覆盖单文件测试）。
         cwd: 子进程工作目录；None 则用当前进程 cwd。
 
     Returns:
@@ -139,7 +139,7 @@ def debug_inspect(target: str, extra_args: str = "") -> str:
 
     import subprocess as _sp
 
-    _DBG_TIMEOUT = 600  # 10 min — debug_inspect can be slow on large test suites
+    _DBG_TIMEOUT = 120  # 2 min — individual test inspection should not need more
     try:
         r = _sp.run(
             cmd, capture_output=True, text=True, timeout=_DBG_TIMEOUT, cwd=str(Path(__file__).resolve().parent.parent)

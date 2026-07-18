@@ -120,6 +120,7 @@ class SessionTracker:
         with self._get_conn() as conn:
             conn.executescript(_SCHEMA_SQL)
         import atexit
+
         atexit.register(self.close_all)
 
     @classmethod

@@ -425,11 +425,12 @@ class CruxClient:
                             continue  # continue 先退出 with（关闭连接），再进入下一轮
                         # Yield error as metadata only — the error body is not
                         # meaningful user-facing text and should not be rendered.
-                        yield {
-                            "content": f"\n[HTTP {status}{err_detail}]",
-                            "_finish": "error",
-                            "_error": True,
-                        }
+                        _msg = f"\n[HTTP {status}]"
+                        if status == 429:
+                            _msg += " 请求过于频繁，请稍后重试"
+                        elif err_detail:
+                            _msg += f" {err_detail[:100]}"
+                        yield {"content": _msg, "_finish": "error", "_error": True}
                         return
                     # 连接成功，开始消费流
                     # SSE 前缀从 ProviderAdapter 读取，按实际 provider 解析
@@ -632,7 +633,7 @@ class CruxClient:
 
             # 进度防回退：API 偶发简化响应
             current_progress = max(
-                last_progress, raw_progress if isinstance(raw_progress, (int, float)) else last_progress
+                last_progress, raw_progress if isinstance(raw_progress, int | float) else last_progress
             )
             last_progress = current_progress
 

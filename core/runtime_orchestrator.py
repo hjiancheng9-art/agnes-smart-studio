@@ -644,7 +644,6 @@ class RuntimeOrchestrator:
         yield self._emit(p, "info", f"执行完成: {steps_executed}/{len(tasks)} 步骤")
 
     def _run_master(self, trace_id: str, goal: str, executor: Callable, grade: TaskComplexity) -> dict:
-
         def _on_phase(phase: str, action: str, details: dict | None) -> None:
             if self.callbacks.on_phase_start and action == "start":
                 try:
@@ -841,6 +840,7 @@ class RuntimeOrchestrator:
     def _emit(self, p: OrchestrationProgress, level: str, message: str) -> OrchestrationProgress:
         # Clone to avoid mutating previously-yielded events (all share the same p)
         from dataclasses import replace as _dc_replace
+
         evt = _dc_replace(p, level=level, message=message)
         if self.callbacks.on_progress:
             try:
@@ -851,6 +851,7 @@ class RuntimeOrchestrator:
 
     def _emit_beast(self, p: OrchestrationProgress, beast: BeastRole) -> OrchestrationProgress:
         from dataclasses import replace as _dc_replace
+
         evt = _dc_replace(p, beast=beast.value, level="beast", message=_BEAST_MSGS.get(beast, str(beast)))
         if self.callbacks.on_beast_activate:
             try:
@@ -942,9 +943,84 @@ def preview(goal: str, **kwargs) -> OrchestrationResult:
     return get_orchestrator().preview(goal, **kwargs)
 
 
+# Background orchestration tracking
+_background_orchestrations: dict[str, dict] = {}
+_orch_lock = threading.Lock()
+
+
 def execute_tool(goal: str, **kwargs) -> str:
-    """Model-facing orchestration tool contract — always returns readable text."""
-    return str(execute(goal, **kwargs))
+    """Model-facing orchestration tool contract — always returns readable text.
+
+    Fast path: preview first. If SIMPLE, run synchronously.
+    Complex tasks: launch in background with 25s timeout.
+    If timeout exceeded, return task ID for async retrieval.
+    """
+    # Fast path: preview quickly to detect simple tasks
+    try:
+        preview_result = preview(goal, **kwargs)
+        if preview_result.verdict == "pass" and preview_result.grade == "SIMPLE":
+            return str(execute(goal, **kwargs))
+    except Exception:
+        pass
+
+    # Complex task — launch in background with 25s timeout
+    task_id = uuid.uuid4().hex[:12]
+    result_container: list[str] = []
+
+    def _run_and_capture():
+        try:
+            result_container.append(str(execute(goal, **kwargs)))
+        except Exception as e:
+            result_container.append(f"\u274c 编排失败: {e}")
+
+    thread = threading.Thread(target=_run_and_capture, daemon=True)
+    thread.start()
+    thread.join(timeout=25)
+
+    if result_container:
+        return result_container[0]
+
+    # Timed out — register as background task and attach result-capturing watcher
+    with _orch_lock:
+        _background_orchestrations[task_id] = {
+            "status": "running",
+            "result": None,
+            "verdict": "running",
+            "goal": goal[:100],
+        }
+
+    def _watcher():
+        """Wait for original thread to finish, then capture its result into the registry."""
+        thread.join()
+        res = result_container[0] if result_container else "Unknown result"
+        with _orch_lock:
+            _background_orchestrations[task_id] = {
+                "status": "done",
+                "result": res,
+                "verdict": "done",
+            }
+
+    threading.Thread(target=_watcher, daemon=True).start()
+
+    return (
+        f"\u23f3 编排任务已启动 (ID: {task_id})\n"
+        f"目标: {goal[:120]}...\n"
+        f'大型/复杂任务正在后台运行中。使用 check_orch_status("{task_id}") 查看进度。\n'
+        f"提示: 对于 D 级任务，编排会依次执行 分级\u2192DNA\u2192七兽\u2192分解\u2192执行\u2192验证\u2192归档。"
+    )
+
+
+def check_orch_status(task_id: str) -> str:
+    """Check the status of a background orchestration task."""
+    with _orch_lock:
+        task = _background_orchestrations.get(task_id)
+    if task is None:
+        return f"\u274c 未找到任务 {task_id}"
+    if task["status"] == "running":
+        return f"\u23f3 任务 {task_id} 仍在运行中..."
+    status = task["status"]
+    result = task.get("result", "No result")
+    return f"[{task_id}] status={status}\n{str(result)[:2000]}"
 
 
 # Context injection: chat.py sets this before tool dispatch so trigger_orchestrate

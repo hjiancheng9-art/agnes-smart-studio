@@ -177,6 +177,8 @@ class SkillCompiler:
     def __init__(self, skills_dir: str = "skills"):
         self.skills_dir = Path(skills_dir)
         self.known_conflicts = dict(_KNOWN_CONFLICTS)
+        self._cached_skills: CompiledSkillSet | None = None
+        self._cached_prompt_compiler: PromptCompiler | None = None
 
     def compile_all(self) -> CompiledSkillSet:
         """Compile all skill JSON files in the skills directory."""
@@ -308,9 +310,9 @@ class SkillCompiler:
         # out the few that actually warrant attention.
         for name, cs in skill_set.skills.items():
             if cs.prompt_tokens > 10000:
-                issues.append(f"LARGE: '{name}' is {cs.prompt_tokens} tokens — consider splitting")
+                logger.debug("LARGE: '%s' is %d tokens — consider splitting", name, cs.prompt_tokens)
             elif cs.prompt_tokens > 5000:
-                issues.append(f"HEFTY: '{name}' is {cs.prompt_tokens} tokens — review if needed")
+                logger.debug("HEFTY: '%s' is %d tokens — review if needed", name, cs.prompt_tokens)
 
         # Check missing deps
         for name, cs in skill_set.skills.items():
@@ -533,11 +535,16 @@ def install_compiler(skills_dir: str = "skills") -> tuple[SkillCompiler, PromptC
         (compiler, prompt_compiler, compiled_skills)
     """
     compiler = SkillCompiler(skills_dir=skills_dir)
+    # Cache: only compile once per process (skill files don't change at runtime)
+    if compiler._cached_skills is not None:
+        return compiler, compiler._cached_prompt_compiler, compiler._cached_skills
     compiled = compiler.compile_all()
     issues = compiler.validate(compiled)
     if issues:
         for iss in issues:
-            logger.warning(f"Skill issue: {iss}")
+            logger.debug("Skill issue: %s", iss)
+    compiler._cached_skills = compiled
+    compiler._cached_prompt_compiler = PromptCompiler(compiled)
 
     prompt_compiler = PromptCompiler(compiled)
     logger.info(f"Skill compiler: {len(compiled.skills)} skills, ~{compiled.total_tokens} tokens total")

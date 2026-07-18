@@ -36,6 +36,8 @@ HIGH_RISK_TOOLS = frozenset(
         "git_pr_create",  # 创建 PR（含推送）
         "git_pr_merge",  # 合并 PR（不可逆）
         "git_tag",  # 创建/删除 tag（语义版本不可逆）
+        "orchestrate",  # 重量级编排（30s+，多阶段流水线）
+        "agent_swarm",  # 并行子智能体分派（高成本）
     }
 )
 

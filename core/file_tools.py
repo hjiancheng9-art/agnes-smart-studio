@@ -208,6 +208,7 @@ def write_file(path: str, content: str) -> str:
     p.parent.mkdir(parents=True, exist_ok=True)
     # Atomic write: temp file + os.replace to avoid partial writes on crash
     import tempfile as _tf
+
     fd, tmp_name = _tf.mkstemp(suffix=".tmp", prefix=".crux_write_", dir=str(p.parent))
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:

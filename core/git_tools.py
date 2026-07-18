@@ -115,7 +115,9 @@ def execute_git_branch(name: str = "", action: str = "list", base: str = "") -> 
     return json.dumps({"error": f"unknown action: {action}"})
 
 
-def execute_git_push(remote: str = "origin", branch: str = "", force: bool = False, force_with_lease: bool = False, tags: bool = False) -> str:
+def execute_git_push(
+    remote: str = "origin", branch: str = "", force: bool = False, force_with_lease: bool = False, tags: bool = False
+) -> str:
     """Push commits to remote.
 
     安全约束（P1-15）：force / force_with_lease 会重写远端历史，属于不可逆操作。

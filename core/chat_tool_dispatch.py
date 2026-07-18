@@ -172,7 +172,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
 
         # 互斥校验：image_url 和 image_urls 不能同时为不同值
         if image_url and image_urls and image_url not in image_urls:
-            return ("视频参数错误: image_url 和 image_urls 冲突，请只使用其中一个", side)
+            return ("视频参数错误: image_url 和 image_urls 冲突，请只使用其中一个", [("info", "视频参数冲突")])
 
         # 归一化：image_urls 只有1张图 → 降级为单图 image_url
         if image_urls and len(image_urls) == 1 and not image_url:
@@ -262,7 +262,10 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                             )
                             if not qc_result.passed:
                                 issues = ", ".join(qc_result.issues[:3])
-                                return (f"首帧 QC 未通过 (score={qc_result.score}/100): {issues}\n请优化提示词后重试", side)
+                                return (
+                                    f"首帧 QC 未通过 (score={qc_result.score}/100): {issues}\n请优化提示词后重试",
+                                    side,
+                                )
                 except Exception as e:
                     logger.debug("首帧 QC 失败（不阻塞视频生成）: %s", e)
 
@@ -522,7 +525,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                         _reason,
                     )
                     # Execute through TRM-selected tool
-                    _trm_result = self.tools.call(route_result.tool, args)
+                    _trm_result = self.tools.execute(route_result.tool, args)
                     _text = ""
                     _side: list[tuple[str, str | dict]] = []
                     if isinstance(_trm_result, dict):

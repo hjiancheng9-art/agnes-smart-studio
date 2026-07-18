@@ -128,11 +128,34 @@ def main():
         sys.exit(0)
 
     if not SETTINGS.api_key:
-        print("错误: 未设置 CRUX_API_KEY（兼容 AGNES_API_KEY）")
-        print("  解决: 运行  crux init    写入全局配置（一次配置，任意目录可用）")
-        print("  或:   在当前目录建 .env 文件，加 CRUX_API_KEY=你的key")
-        print("  或:   设系统环境变量 CRUX_API_KEY")
-        sys.exit(1)
+        print("Welcome to CRUX Studio!")
+        print("No API key found. Let's set one up.\n")
+        print("You need a DeepSeek API key (https://platform.deepseek.com/api_keys)")
+        print("or a CRUX API key.\n")
+        try:
+            key = input("Paste your API key: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nSetup cancelled. Run 'crux init' later to configure.")
+            sys.exit(0)
+        if key:
+            import json
+            import os
+
+            auth_dir = os.path.expanduser("~/.crux")
+            os.makedirs(auth_dir, exist_ok=True)
+            auth_file = os.path.join(auth_dir, "auth.json")
+            existing = {}
+            if os.path.exists(auth_file):
+                with open(auth_file) as f:
+                    existing = json.load(f)
+            existing["api_key"] = key
+            with open(auth_file, "w") as f:
+                json.dump(existing, f, indent=2)
+            SETTINGS.api_key = key
+            print("API key saved to ~/.crux/auth.json. Starting CRUX...\n")
+        else:
+            print("No key entered. Run 'crux init' later to configure.")
+            sys.exit(0)
 
     import argparse
 
@@ -344,7 +367,7 @@ def _chat_tui():
     INNER_W = TARGET_BOX_W - 4  # strip "  ╔…╗" frame (2 leading spaces + corners)
 
     # ── top: ═══ text ═══ centred ──
-    tag = f" CRUX Studio v{__version__} · 极简 · 百器 · 七兽 · Multi-Agent "
+    tag = f" CRUX Studio v{__version__} · 极简内核 · 百器待命 · 七兽按需 · Multi-Agent "
     tag_w = _vwidth(tag)
     pad_total = max(0, INNER_W - tag_w)
     left = pad_total // 2
@@ -353,8 +376,8 @@ def _chat_tui():
 
     # ── content lines ──
     content = [
-        "121 skills / 767 market · 1M 上下文 · 自修复闭环",
-        "Agent Swarm 并行执行 · 平时如刀，出事成阵",
+        "119 skills / 767 market · 1M 上下文 · DeepSeek V4 Flash",
+        "Agent Swarm 并行编排 · 平时如刀，出事成阵",
     ]
     content_lines = []
     for line in content:
@@ -372,11 +395,11 @@ def _chat_tui():
         + bottom_line
         + "\n"
         + "\n"
-        + f"  ◈ {model_name} · 1M 上下文 · 45+ 内置工具\n"
-        + "  ◈ 根因优先 → 最小复现 → 自修复闭环\n"
+        + f"  ◈ {model_name} · Windows 11 · 1M 上下文 · 自修复闭环\n"
+        + "  ◈ 根因优先 → 最小复现 → 30s 自纠错\n"
         + "\n"
         + "  Agent Swarm · 并行智能体 · 自修闭环\n"
-        + "  ├─ 121 技能包 · 34 专业智能体 · 7 兽谱系\n"
+        + "  ├─ 119 技能包 · 34 专业智能体 · 7 兽谱系\n"
         + "  ├─ agent_swarm 并行编排 · PatchEngine 安全自修\n"
         + "  └─ 4 级任务管理 · A/B/C/D · 门禁引擎\n"
         + "\n"
