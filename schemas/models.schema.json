@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "models.schema.json",
+  "title": "CRUX Models Configuration",
+  "description": "Schema for models.json — provider and model routing configuration",
+  "type": "object",
+  "required": ["active", "providers"],
+  "properties": {
+    "active": {
+      "type": "string",
+      "description": "Active provider key"
+    },
+    "fallback_priority": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Provider fallback order"
+    },
+    "providers": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["name", "base_url", "api_key", "models"],
+        "properties": {
+          "name": { "type": "string" },
+          "base_url": { "type": "string", "format": "uri" },
+          "base_url_env": { "type": "string" },
+          "api_key": { "type": "string" },
+          "auth_required": { "type": "boolean" },
+          "models": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,70 +1,27 @@
 {
-  "active_strategy": "hybrid",
-  "default_chat_provider": "deepseek",
-  "tiers": {
-    "light": {
-      "provider": "deepseek",
-      "model": "deepseek-v4-flash"
-    },
-    "pro": {
-      "provider": "deepseek",
-      "model": "deepseek-v4-pro"
-    },
-    "heavy": {
-      "provider": "deepseek",
-      "model": "deepseek-v4-pro"
-    },
-    "vision": {
-      "provider": "crux",
-      "model": "agnes-2.0-flash"
-    },
-    "fallback": {
-      "provider": "deepseek",
-      "model": "deepseek-v4-flash"
-    }
-  },
+  "active": "deepseek",
+  "fallback_priority": [
+    "deepseek",
+    "crux"
+  ],
   "providers": {
+    "deepseek": {
+      "name": "DeepSeek V4",
+      "base_url": "https://api.deepseek.com/v1",
+      "api_key": "",
+      "models": {
+        "pro": "deepseek-v4-pro",
+        "light": "deepseek-v4-flash"
+      }
+    },
     "crux": {
       "name": "CRUX AI",
       "base_url": "https://apihub.agnes-ai.com/v1",
       "api_key": "",
       "models": {
         "vision": "agnes-2.0-flash",
-        "fallback": "agnes-2.0-flash",
         "image": "agnes-image-2.1-flash",
-        "image_edit": "agnes-image-2.0-flash",
         "video": "agnes-video-v2.0"
-      }
-    },
-    "deepseek": {
-      "name": "DeepSeek V4 (1M)",
-      "base_url": "https://api.deepseek.com/v1",
-      "api_key": "",
-      "models": {
-        "pro": "deepseek-v4-pro",
-        "light": "deepseek-v4-flash",
-        "heavy": "deepseek-v4-pro",
-        "reasoner": "deepseek-v4-pro"
-      },
-      "model_aliases": {
-        "ds3": "deepseek-v4-flash",
-        "ds-chat": "deepseek-v4-flash",
-        "ds-reasoner": "deepseek-v4-pro"
-      }
-    },
-    "zhipu": {
-      "name": "Zhipu GLM (Free)",
-      "base_url": "https://open.bigmodel.cn/api/paas/v4",
-      "api_key": "",
-      "cost_tier": "free",
-      "capabilities": [
-        "vision"
-      ],
-      "models": {},
-      "model_aliases": {},
-      "vision_models": {
-        "light": "GLM-4V-Flash",
-        "pro": "GLM-4V-Flash"
       }
     },
     "local": {
@@ -73,23 +30,9 @@
       "base_url_env": "CRUX_LOCAL_BASE_URL",
       "api_key": "no-key-required",
       "auth_required": false,
-      "cost_tier": "free",
       "models": {
-        "light": "local-model",
-        "pro": "local-model",
-        "heavy": "local-model"
+        "light": "local-model"
       }
     }
-  },
-  "fallback": {
-    "enabled": true,
-    "priority": [
-      "deepseek",
-      "crux"
-    ]
-  },
-  "codebuddy_extra": {
-    "marketplace_url": "https://copilot.tencent.com/api"
-  },
-  "active": "deepseek"
+  }
 }
