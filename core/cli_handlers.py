@@ -15,7 +15,7 @@ Architecture:
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from core.commands import SKILL_ENTRIES, build_dispatch_table, get_all, get_by_category
 
@@ -30,8 +30,9 @@ class CruxCLI:
     and manages all /command routing.
     """
 
-    def __init__(self, session: ChatSession) -> None:
+    def __init__(self, session: ChatSession, io: Any = None) -> None:
         self.session = session
+        self.io = io
         self._dispatch = build_dispatch_table()
 
     # ── Public API ─────────────────────────────────────────────

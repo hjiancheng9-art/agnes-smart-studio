@@ -24,7 +24,7 @@ import os
 import time
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -326,6 +326,14 @@ class ChatSession(ChatToggleMixin):
         self._temp_input_files: set[str] = set()  # Track long-input temp files for cleanup
         self._vote_enabled: bool = False  # /vote toggle (off by default to save tokens)
         self.messages: list[dict] = [{"role": "system", "content": self._build_system_prompt()}]
+        # ── Dynamic attrs set by mixins/hooks — declared here for type checking ──
+        self.vision_ctx: Any = None
+        self._vision_fallback: Any = None
+        self._intelligence_hook: Any = None
+        self._methodology_state: Any = None
+        self.tvl: Any = None
+        self._dispatch_tool_impl: Any = None
+        self._dispatch_tool_async: Any = None
         # ── Session-scoped routing (extracted from global ProviderManager) ──
         from core.routing_state import RoutingState
 
