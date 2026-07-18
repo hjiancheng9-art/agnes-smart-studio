@@ -29,6 +29,39 @@ def pytest_configure(config):
         config.addinivalue_line("markers", marker)
 
 
+# ── Global state cleanup: prevent singleton/global pollution across test modules ──
+
+
+@pytest.fixture(autouse=True)
+def _reset_shared_state():
+    """Reset module-level globals before each test to prevent cross-test leakage.
+
+    Some core modules use module-level singletons (BackgroundManager, ToolRouter)
+    or global dicts (_internal_tools, _mcp_tools). Without cleanup between test
+    files, tests that modify these globals poison downstream tests.
+
+    This fixture clears the known global state before every single test.
+    Tests that need pre-registered state should re-register in their own fixtures.
+    """
+    # Reset tool router globals (core.tool_router)
+    try:
+        from core.tool_router import reset_tool_router
+
+        reset_tool_router()
+    except Exception:
+        pass
+
+    # Reset background manager singleton (core.background)
+    try:
+        from core.background import reset_background_manager
+
+        reset_background_manager()
+    except Exception:
+        pass
+
+    yield
+
+
 @pytest.fixture(scope="session")
 def project_root():
     """Return the project root directory."""
