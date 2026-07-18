@@ -47,7 +47,7 @@ class Backpack:
         meta = {"timestamp": ts, "label": label, "files": saved}
         (dest / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
         self._prune()
-        logger.info("[行囊] snapshot %s: %d files", name, len(saved))
+        logger.debug("[行囊] snapshot %s: %d files", name, len(saved))
         return name
 
     def list_snapshots(self) -> list[str]:
@@ -63,7 +63,7 @@ class Backpack:
             bak = src / f.replace("/", "_")
             if bak.exists():
                 shutil.copy2(bak, ROOT / f)
-        logger.info("[行囊] rolled back to %s", snapshot_name)
+        logger.debug("[行囊] rolled back to %s", snapshot_name)
         return True
 
     def _prune(self):

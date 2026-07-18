@@ -95,7 +95,7 @@ def inject_reviewer_hooks(session):
         session._trigger_reflection = types.MethodType(_trigger_reflection_with_review, session)
 
     _REVIEWER_HOOK_INJECTED = True
-    logger.info("Phase 4 reviewer hooks injected")
+    logger.debug("Phase 4 reviewer hooks injected")
 
 
 def inject_llm_callback(session, callback):

@@ -89,7 +89,7 @@ class Watchdog:
         self._stop_flag.clear()
         self._thread = threading.Thread(target=self._loop, daemon=True, name="crux-watchdog")
         self._thread.start()
-        logger.info("[Watchdog] started")
+        logger.debug("[Watchdog] started")
 
     def stop(self) -> None:
         self._stop_flag.set()

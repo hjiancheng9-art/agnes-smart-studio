@@ -136,7 +136,7 @@ class CapabilityRegistry:
             )
             count += 1
 
-        logger.info("Registered %d capabilities from tools.json", count)
+        logger.debug("Registered %d capabilities from tools.json", count)
         return count
 
     # ── check / record ────────────────────────────────────────

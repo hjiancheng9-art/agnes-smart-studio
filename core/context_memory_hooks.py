@@ -50,7 +50,7 @@ def inject_context_hooks(session):
         session._build_system_prompt = types.MethodType(_build_system_prompt_with_context, session)
 
     _CONTEXT_HOOK_INJECTED = True
-    logger.info("Phase 3 context memory hooks injected")
+    logger.debug("Phase 3 context memory hooks injected")
 
 
 def record_turn(session, user_msg: str, assistant_msg: str, tool_calls: list | None = None):

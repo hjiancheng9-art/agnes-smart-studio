@@ -166,7 +166,7 @@ class PluginManager:
 
         pi = PluginInstance(manifest=manifest, module=module, instance=instance, state="loaded")
         self._plugins[manifest.name] = pi
-        logger.info("Plugin loaded: %s v%s", manifest.name, manifest.version)
+        logger.debug("Plugin loaded: %s v%s", manifest.name, manifest.version)
         return pi
 
     def load_all(self) -> int:

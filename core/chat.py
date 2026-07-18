@@ -250,6 +250,29 @@ def _auto_retry_tool(session, tool_name: str, args_json: str, original_error: st
     return original_error, [("info", original_error)]
 
 
+def _format_tool_error(tool_name: str, raw_error: str) -> str:
+    """Wrap technical tool errors with human-readable classification and suggestions."""
+    err_lower = raw_error.lower()
+    # Classify and suggest
+    hint = ""
+    if "timeout" in err_lower or "timed out" in err_lower:
+        hint = "试试减少输入大小或拆分任务"
+    elif "permission" in err_lower or "access denied" in err_lower:
+        hint = "试试在安全目录运行，或检查文件权限"
+    elif "not found" in err_lower or "no such file" in err_lower:
+        hint = "检查文件路径是否正确，或者先创建它"
+    elif "syntax" in err_lower or "syntaxerror" in err_lower:
+        hint = "代码有语法错误，检查引号、括号是否匹配"
+    elif "import" in err_lower or "modulenotfound" in err_lower:
+        hint = "缺少依赖，试试 pip install <package>"
+    elif "connection" in err_lower or "refused" in err_lower:
+        hint = "网络连接失败，检查是否离线或服务未启动"
+    elif "api key" in err_lower or "unauthorized" in err_lower:
+        hint = "API key 未配置或已过期，运行 crux init 重新设置"
+    suggestion = f"\n💡 {hint}" if hint else ""
+    return f"[错误] {tool_name}: {raw_error[:300]}{suggestion}"
+
+
 def _build_retry_strategies(tool_name: str, args: dict, error: str, _sys) -> list[tuple[str, dict]]:
     """根据工具类型和错误信息，构建有序修正策略列表。"""
     strategies: list[tuple[str, dict]] = []
@@ -1662,7 +1685,7 @@ class ChatSession(ChatToggleMixin):
                         from core.runtime_result import ToolResult
 
                         normalized = ToolResult.from_raw(raw)
-                        tool_result = f"[错误] {normalized.content}" if not normalized.ok else normalized.content
+                        tool_result = _format_tool_error(fname, normalized.content) if not normalized.ok else normalized.content
                         side_effects = list(normalized.side_effects)
 
                         # ── 自动重试: 仅对幂等/可重试工具，且错误表明可修正时才重试 ──

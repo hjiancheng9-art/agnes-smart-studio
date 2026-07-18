@@ -119,7 +119,7 @@ def inject_skill_compiler_hooks(session):
             session._build_system_prompt = types.MethodType(_build_system_prompt_with_compiler, session)
 
     session._skill_compiler_hooked = True
-    logger.info("Phase 5 skill compiler hooks injected for session %s", id(session))
+    logger.debug("Phase 5 skill compiler hooks injected for session %s", id(session))
 
 
 def print_skill_report(session) -> str:
