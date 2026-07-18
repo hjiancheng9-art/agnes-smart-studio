@@ -17,20 +17,23 @@ from core.pipeline_dag import DAG, Node, NodeStatus
 
 # ── Fixtures ──────────────────────────────────────────────────────────
 
+# Module-level snapshot of original globals — captured at import time before
+# any test can corrupt them.  Using fixture-setup-time capture is unsafe
+# because a prior test may have already set OUTPUT_ROOT to a deleted temp dir.
+_ORIGINAL_ROOT = _pt.OUTPUT_ROOT
+_ORIGINAL_MF = _pt.MANIFEST_DIR
+
 
 @pytest.fixture(autouse=True)
 def _restore_pipeline_globals():
     """Safety net: restore OUTPUT_ROOT / MANIFEST_DIR after each test.
 
-    Captures the current values at setup time and restores after yield.
-    This protects against tests whose _run_with_temp() finally block
-    is skipped, leaving globals pointing to a deleted TemporaryDirectory.
+    Uses import-time snapshot to guarantee restoration to the real project
+    paths, not to a value that a prior test may have corrupted.
     """
-    saved_root = _pt.OUTPUT_ROOT
-    saved_mf = _pt.MANIFEST_DIR
     yield
-    _pt.OUTPUT_ROOT = saved_root
-    _pt.MANIFEST_DIR = saved_mf
+    _pt.OUTPUT_ROOT = _ORIGINAL_ROOT
+    _pt.MANIFEST_DIR = _ORIGINAL_MF
 
 
 class TestDAGCoreTypes:
