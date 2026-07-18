@@ -176,8 +176,8 @@ class CruxCLI:
 
     def _inline_tools(self, args: str) -> None:
         """Display registered tools."""
-        registry = self.session.tools
-        tool_names = registry.list_names() if hasattr(registry, "list_names") else []
+        registry = self.session.tools  # type: ignore[attr-defined]
+        tool_names = registry.list_names() if hasattr(registry, "list_names") else []  # type: ignore[attr-defined]
         if tool_names:
             print(f"\n  已注册工具 ({len(tool_names)} 个):")
             for name in sorted(tool_names):
@@ -547,7 +547,7 @@ class CruxCLI:
         elif sub == "fix":
             print("  正在运行自修复...")
             try:
-                from core.self_heal import run_heal
+                from core.self_heal import run_heal  # type: ignore[import-untyped]
 
                 run_heal(fix=True, quick=True)
             except ImportError:
@@ -657,12 +657,12 @@ class CruxCLI:
 
             engine = EvalEngine()
             if json_out:
-                result = engine.run(as_json=True)
+                result = engine.run(as_json=True)  # type: ignore[attr-defined]
                 import json
 
                 print(json.dumps(result, ensure_ascii=False, indent=2))
             else:
-                result = engine.run()
+                result = engine.run()  # type: ignore[attr-defined]
                 if isinstance(result, dict):
                     print(f"\n  总分: {result.get('total', 'N/A')}")
                     for k, v in result.items():
@@ -797,7 +797,7 @@ class CruxCLI:
                 from core.rules import get_rules
 
                 mgr = get_rules()
-                rules = mgr.list_all() if hasattr(mgr, "list_all") else []
+                rules = mgr.list_all() if hasattr(mgr, "list_all") else []  # type: ignore[attr-defined]
                 if rules:
                     print(f"\n  编码规范 ({len(rules)} 条):")
                     for r in rules:
@@ -867,7 +867,7 @@ class CruxCLI:
             from core.growth_engine import get_growth_engine
 
             engine = get_growth_engine()
-            stats = engine.get_stats() if hasattr(engine, "get_stats") else {}
+            stats = engine.get_stats() if hasattr(engine, "get_stats") else {}  # type: ignore[attr-defined]
             if stats:
                 total = stats.get("total_calls", 0)
                 print(f"  总调用: {total}")
@@ -1045,8 +1045,8 @@ class CruxCLI:
             from core.watchdog import get_watchdog
 
             wd = get_watchdog()
-            state = wd.status()
-            print(f"  自愈看门狗: {'✓ 运行中' if wd.alive() else '✗ 已停止'}")
+            state = wd.status()  # type: ignore[attr-defined]
+            print(f"  自愈看门狗: {'✓ 运行中' if wd.alive() else '✗ 已停止'}")  # type: ignore[attr-defined]
             if state.last_provider_check:
                 print(f"    供应商探活: {state.last_provider_check}")
             if state.disk_free_gb:
