@@ -1691,7 +1691,9 @@
         },
         "image_urls": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Optional multiple reference image URLs for multi-image guided generation",
           "required": false
         },
@@ -1736,7 +1738,9 @@
         },
         "image_urls": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Optional array of image URLs for multi-image video or keyframe animation",
           "required": false
         },
@@ -1791,13 +1795,554 @@
       "parameters": {
         "preset": {
           "type": "string",
-          "enum": ["auto", "self_heal", "analyze", "execute"],
+          "enum": [
+            "auto",
+            "self_heal",
+            "analyze",
+            "execute"
+          ],
           "description": "auto=let system decide, self_heal=self-check+fix, analyze=research only, execute=run task directly",
           "default": "auto"
         }
       },
       "category": "orchestrate",
       "timeout": 300
+    },
+    {
+      "name": "check_orch_status",
+      "description": "Check the status of a background orchestration task started by /orchestrate. Returns the result if completed.",
+      "function": "core.runtime_orchestrator.check_orch_status",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "The task ID returned by the orchestrate command"
+          }
+        },
+        "required": [
+          "task_id"
+        ]
+      },
+      "category": "orchestrate"
+    },
+    {
+      "name": "clipboard_copy",
+      "type": "python",
+      "description": "复制文本到系统剪贴板。支持 Windows (clip.exe)、macOS (pbcopy)、Linux (xclip/xsel)。",
+      "function": "core.clipboard_tools.clipboard_copy",
+      "parameters": {
+        "text": {
+          "type": "string",
+          "description": "要复制的文本内容",
+          "required": true
+        }
+      },
+      "category": "integration"
+    },
+    {
+      "name": "clipboard_paste",
+      "type": "python",
+      "description": "从系统剪贴板读取文本内容。支持 Windows (PowerShell Get-Clipboard)、macOS (pbpaste)、Linux (xclip/xsel)。",
+      "function": "core.clipboard_tools.clipboard_paste",
+      "parameters": {},
+      "category": "integration"
+    },
+    {
+      "name": "notify_send",
+      "type": "python",
+      "description": "发送桌面通知。Windows 使用 Toast 通知或 MessageBox 兜底，macOS 使用 osascript，Linux 使用 notify-send。",
+      "function": "core.notification_tools.notify_send",
+      "parameters": {
+        "title": {
+          "type": "string",
+          "description": "通知标题",
+          "required": true
+        },
+        "message": {
+          "type": "string",
+          "description": "通知正文内容",
+          "required": true
+        },
+        "duration": {
+          "type": "integer",
+          "description": "显示时长（秒），默认 5",
+          "required": false
+        }
+      },
+      "category": "integration"
+    },
+    {
+      "name": "pypi_search",
+      "type": "python",
+      "description": "搜索 PyPI 包注册中心，按关键词查找 Python 包。返回包名、版本、摘要和发布日期。",
+      "function": "core.package_tools.pypi_search",
+      "parameters": {
+        "query": {
+          "type": "string",
+          "description": "搜索关键词",
+          "required": true
+        },
+        "limit": {
+          "type": "integer",
+          "description": "最大结果数，默认 10",
+          "required": false
+        }
+      },
+      "category": "integration"
+    },
+    {
+      "name": "npm_search",
+      "type": "python",
+      "description": "搜索 npm 包注册中心，按关键词查找 JavaScript/Node.js 包。返回包名、版本、描述和发布者。",
+      "function": "core.package_tools.npm_search",
+      "parameters": {
+        "query": {
+          "type": "string",
+          "description": "搜索关键词",
+          "required": true
+        },
+        "limit": {
+          "type": "integer",
+          "description": "最大结果数，默认 10",
+          "required": false
+        }
+      },
+      "category": "integration"
+    },
+    {
+      "name": "pypi_info",
+      "type": "python",
+      "description": "获取指定 PyPI 包的详细信息：版本、作者、许可证、依赖、历史版本列表等。",
+      "function": "core.package_tools.pypi_info",
+      "parameters": {
+        "package": {
+          "type": "string",
+          "description": "包名（精确匹配）",
+          "required": true
+        }
+      },
+      "category": "integration"
+    },
+    {
+      "name": "npm_info",
+      "type": "python",
+      "description": "获取指定 npm 包的详细信息：版本、描述、许可证、仓库地址、关键字、历史版本等。",
+      "function": "core.package_tools.npm_info",
+      "parameters": {
+        "package": {
+          "type": "string",
+          "description": "包名（精确匹配）",
+          "required": true
+        }
+      },
+      "category": "integration"
+    },
+    {
+      "name": "ssh_exec",
+      "type": "python",
+      "description": "通过 SSH 在远程主机上执行命令。支持密钥和密码认证（密码需 sshpass）。Windows 10+ 自带 OpenSSH 客户端。",
+      "function": "core.ssh_tools.ssh_exec",
+      "parameters": {
+        "host": {
+          "type": "string",
+          "description": "远程主机名或 IP 地址",
+          "required": true
+        },
+        "command": {
+          "type": "string",
+          "description": "要执行的 Shell 命令",
+          "required": true
+        },
+        "user": {
+          "type": "string",
+          "description": "SSH 用户名（默认当前用户）",
+          "required": false
+        },
+        "port": {
+          "type": "integer",
+          "description": "SSH 端口，默认 22",
+          "required": false
+        },
+        "password": {
+          "type": "string",
+          "description": "SSH 密码（需安装 sshpass）",
+          "required": false
+        },
+        "key_file": {
+          "type": "string",
+          "description": "私钥文件路径",
+          "required": false
+        },
+        "timeout": {
+          "type": "integer",
+          "description": "超时秒数，默认 30",
+          "required": false
+        }
+      },
+      "category": "integration"
+    },
+    {
+      "name": "ssh_upload",
+      "type": "python",
+      "description": "通过 SCP 上传文件到远程主机。支持密钥和密码认证。",
+      "function": "core.ssh_tools.ssh_upload",
+      "parameters": {
+        "host": {
+          "type": "string",
+          "description": "远程主机名或 IP 地址",
+          "required": true
+        },
+        "local_path": {
+          "type": "string",
+          "description": "本地文件路径",
+          "required": true
+        },
+        "remote_path": {
+          "type": "string",
+          "description": "远程目标路径",
+          "required": true
+        },
+        "user": {
+          "type": "string",
+          "description": "SSH 用户名",
+          "required": false
+        },
+        "port": {
+          "type": "integer",
+          "description": "SSH 端口，默认 22",
+          "required": false
+        },
+        "password": {
+          "type": "string",
+          "description": "SSH 密码（需安装 sshpass）",
+          "required": false
+        },
+        "key_file": {
+          "type": "string",
+          "description": "私钥文件路径",
+          "required": false
+        }
+      },
+      "category": "integration"
+    },
+    {
+      "name": "ssh_download",
+      "type": "python",
+      "description": "通过 SCP 从远程主机下载文件。支持密钥和密码认证。",
+      "function": "core.ssh_tools.ssh_download",
+      "parameters": {
+        "host": {
+          "type": "string",
+          "description": "远程主机名或 IP 地址",
+          "required": true
+        },
+        "remote_path": {
+          "type": "string",
+          "description": "远程文件路径",
+          "required": true
+        },
+        "local_path": {
+          "type": "string",
+          "description": "本地目标路径",
+          "required": true
+        },
+        "user": {
+          "type": "string",
+          "description": "SSH 用户名",
+          "required": false
+        },
+        "port": {
+          "type": "integer",
+          "description": "SSH 端口，默认 22",
+          "required": false
+        },
+        "password": {
+          "type": "string",
+          "description": "SSH 密码（需安装 sshpass）",
+          "required": false
+        },
+        "key_file": {
+          "type": "string",
+          "description": "私钥文件路径",
+          "required": false
+        }
+      },
+      "category": "integration"
+    },
+    {
+      "name": "pg_query",
+      "type": "python",
+      "description": "在 PostgreSQL 数据库上执行 SQL 查询。默认只读模式，写操作需设置 allow_write=true。需安装 psycopg2-binary。",
+      "function": "core.sql_tools.pg_query",
+      "parameters": {
+        "host": {
+          "type": "string",
+          "description": "主机地址，默认 localhost",
+          "required": false
+        },
+        "port": {
+          "type": "integer",
+          "description": "端口，默认 5432",
+          "required": false
+        },
+        "user": {
+          "type": "string",
+          "description": "用户名，默认 postgres",
+          "required": false
+        },
+        "password": {
+          "type": "string",
+          "description": "密码",
+          "required": false
+        },
+        "database": {
+          "type": "string",
+          "description": "数据库名称，默认 postgres",
+          "required": false
+        },
+        "query": {
+          "type": "string",
+          "description": "SQL 查询语句",
+          "required": true
+        },
+        "params": {
+          "type": "string",
+          "description": "查询参数 JSON 数组，如 '[\"val1\", 42]'",
+          "required": false
+        },
+        "allow_write": {
+          "type": "boolean",
+          "description": "允许写操作 INSERT/UPDATE/DELETE/DDL，默认 false",
+          "required": false
+        }
+      },
+      "category": "integration"
+    },
+    {
+      "name": "mysql_query",
+      "type": "python",
+      "description": "在 MySQL 数据库上执行 SQL 查询。默认只读模式，写操作需设置 allow_write=true。需安装 pymysql。",
+      "function": "core.sql_tools.mysql_query",
+      "parameters": {
+        "host": {
+          "type": "string",
+          "description": "主机地址，默认 localhost",
+          "required": false
+        },
+        "port": {
+          "type": "integer",
+          "description": "端口，默认 3306",
+          "required": false
+        },
+        "user": {
+          "type": "string",
+          "description": "用户名，默认 root",
+          "required": false
+        },
+        "password": {
+          "type": "string",
+          "description": "密码",
+          "required": false
+        },
+        "database": {
+          "type": "string",
+          "description": "数据库名称（必填）",
+          "required": true
+        },
+        "query": {
+          "type": "string",
+          "description": "SQL 查询语句",
+          "required": true
+        },
+        "params": {
+          "type": "string",
+          "description": "查询参数 JSON 数组，如 '[\"val1\", 42]'",
+          "required": false
+        },
+        "allow_write": {
+          "type": "boolean",
+          "description": "允许写操作 INSERT/UPDATE/DELETE/DDL，默认 false",
+          "required": false
+        }
+      },
+      "category": "integration"
+    },
+    {
+      "name": "redis_exec",
+      "type": "python",
+      "description": "执行 Redis 命令。阻止 FLUSHALL/CONFIG/SHUTDOWN 等危险命令。需安装 redis-py。",
+      "function": "core.redis_tools.redis_exec",
+      "parameters": {
+        "command": {
+          "type": "string",
+          "description": "Redis 命令字符串，如 \"GET mykey\" 或 \"SET mykey myvalue EX 60\"",
+          "required": true
+        },
+        "host": {
+          "type": "string",
+          "description": "主机地址，默认 localhost",
+          "required": false
+        },
+        "port": {
+          "type": "integer",
+          "description": "端口，默认 6379",
+          "required": false
+        },
+        "password": {
+          "type": "string",
+          "description": "Redis 密码（可选）",
+          "required": false
+        },
+        "db": {
+          "type": "integer",
+          "description": "数据库编号，默认 0",
+          "required": false
+        }
+      },
+      "category": "integration"
+    },
+    {
+      "name": "fs_watch_start",
+      "type": "python",
+      "description": "开始监控目录中的文件变更（创建/修改/删除）。使用后台轮询方式，每 0.5 秒扫描一次。返回 watch_id 用于后续操作。",
+      "function": "core.fs_watcher.fs_watch_start",
+      "parameters": {
+        "path": {
+          "type": "string",
+          "description": "要监控的目录路径",
+          "required": true
+        },
+        "patterns": {
+          "type": "string",
+          "description": "文件匹配模式，分号分隔，如 \"*.py;*.js\"，默认 *",
+          "required": false
+        },
+        "recursive": {
+          "type": "boolean",
+          "description": "是否递归监控子目录，默认 true",
+          "required": false
+        }
+      },
+      "category": "integration"
+    },
+    {
+      "name": "fs_watch_stop",
+      "type": "python",
+      "description": "停止指定文件监控。传入 fs_watch_start 返回的 watch_id。",
+      "function": "core.fs_watcher.fs_watch_stop",
+      "parameters": {
+        "watch_id": {
+          "type": "string",
+          "description": "监控 ID（由 fs_watch_start 返回）",
+          "required": true
+        }
+      },
+      "category": "integration"
+    },
+    {
+      "name": "fs_watch_list",
+      "type": "python",
+      "description": "列出活跃的文件监控及其最近事件。不传 watch_id 列出所有监控的摘要。",
+      "function": "core.fs_watcher.fs_watch_list",
+      "parameters": {
+        "watch_id": {
+          "type": "string",
+          "description": "监控 ID（不传则列出全部）",
+          "required": false
+        }
+      },
+      "category": "integration"
+    },
+    {
+      "name": "webhook_start",
+      "type": "python",
+      "description": "启动本地 HTTP 服务器接收 Webhook。仅监听 127.0.0.1，接收 POST 请求。返回 Webhook URL。",
+      "function": "core.webhook_server.webhook_start",
+      "parameters": {
+        "port": {
+          "type": "integer",
+          "description": "监听端口，默认 8765",
+          "required": false
+        },
+        "path": {
+          "type": "string",
+          "description": "接收 Webhook 的 URL 路径，默认 /webhook",
+          "required": false
+        }
+      },
+      "category": "integration"
+    },
+    {
+      "name": "webhook_stop",
+      "type": "python",
+      "description": "停止 Webhook 服务器。",
+      "function": "core.webhook_server.webhook_stop",
+      "parameters": {},
+      "category": "integration"
+    },
+    {
+      "name": "webhook_list",
+      "type": "python",
+      "description": "列出最近收到的 Webhook 请求，含时间戳、方法、路径、请求头和正文（截断至 4KB）。",
+      "function": "core.webhook_server.webhook_list",
+      "parameters": {
+        "limit": {
+          "type": "integer",
+          "description": "返回的最大条目数，默认 20",
+          "required": false
+        }
+      },
+      "category": "integration"
+    },
+    {
+      "name": "ws_server_start",
+      "type": "python",
+      "description": "启动 WebSocket 服务器用于实时推送消息。port=0 时自动分配端口。需安装 websockets 库。",
+      "function": "core.ws_server.ws_server_start",
+      "parameters": {
+        "port": {
+          "type": "integer",
+          "description": "监听端口，默认 0（自动分配）",
+          "required": false
+        },
+        "host": {
+          "type": "string",
+          "description": "绑定地址，默认 127.0.0.1",
+          "required": false
+        }
+      },
+      "category": "integration"
+    },
+    {
+      "name": "ws_server_stop",
+      "type": "python",
+      "description": "停止 WebSocket 服务器。",
+      "function": "core.ws_server.ws_server_stop",
+      "parameters": {},
+      "category": "integration"
+    },
+    {
+      "name": "ws_server_broadcast",
+      "type": "python",
+      "description": "向所有连接的 WebSocket 客户端广播消息。消息格式为 JSON: {type: \"broadcast\", message, timestamp}。",
+      "function": "core.ws_server.ws_server_broadcast",
+      "parameters": {
+        "message": {
+          "type": "string",
+          "description": "要广播的文本消息",
+          "required": true
+        }
+      },
+      "category": "integration"
+    },
+    {
+      "name": "ws_server_status",
+      "type": "python",
+      "description": "获取 WebSocket 服务器状态：运行状态、端口、连接客户端数、运行时长。",
+      "function": "core.ws_server.ws_server_status",
+      "parameters": {},
+      "category": "integration"
     }
   ]
 }
