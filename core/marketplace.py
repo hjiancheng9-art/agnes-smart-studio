@@ -767,11 +767,26 @@ class MarketplaceClient:
         """安装技能包到本地 skills/ 目录。
 
         流程:
-          1. 在指定市场查找
+          1. 在指定市场查找（或直接下载 URL）
           2. 下载包文件
           3. 验证并保存到 skills/{name}.skill.json
           4. 注册到 SkillManager
+
+        source can be:
+          - "" (search all adapters)
+          - adapter name (e.g. "local", "codebuddy")
+          - http/https URL (downloads .crux-skill pack directly)
         """
+        # URL source: download and install directly
+        if source.startswith("http://") or source.startswith("https://"):
+            try:
+                from core.skill_pack import install as pack_install
+                result = pack_install(source)
+                return result.get("status") == "installed"
+            except ImportError:
+                pass
+            return False
+
         # 查找
         pkg = None
         for adapter in self.adapters:
