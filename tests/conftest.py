@@ -32,16 +32,14 @@ def pytest_configure(config):
 # ── Global state cleanup: prevent singleton/global pollution across test modules ──
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True, scope="module")
 def _reset_shared_state():
-    """Reset module-level globals before each test to prevent cross-test leakage.
+    """Reset module-level globals before each test module to prevent cross-module leakage.
 
-    Some core modules use module-level singletons (BackgroundManager, ToolRouter)
-    or global dicts (_internal_tools, _mcp_tools). Without cleanup between test
-    files, tests that modify these globals poison downstream tests.
-
-    This fixture clears the known global state before every single test.
-    Tests that need pre-registered state should re-register in their own fixtures.
+    Uses module scope — resets once per test file, not per test.
+    Function scope was too aggressive and caused race conditions with
+    async tests (@pytest.mark.asyncio) that register handlers and call
+    them in the same test.
     """
     # Reset tool router globals (core.tool_router)
     try:

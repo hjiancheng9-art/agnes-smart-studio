@@ -1,5 +1,5 @@
 {
-  "active": "crux",
+  "active": "deepseek",
   "fallback_priority": [
     "deepseek",
     "crux"
