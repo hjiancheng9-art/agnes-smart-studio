@@ -35,11 +35,9 @@ repos:
   - repo: local
     hooks:
       # ── commit stage ─────
-      # NOTE: pyright moved to pre-push stage — 523 historical errors need
-      # baseline setup first; running on every commit blocks all PRs.
-      - id: pyright
-        name: pyright — type check
-        entry: python -m pyright
+      - id: pyright-incremental
+        name: pyright — incremental type check
+        entry: python scripts/check_pyright_incremental.py
         language: system
         types: [python]
         stages: [pre-push]

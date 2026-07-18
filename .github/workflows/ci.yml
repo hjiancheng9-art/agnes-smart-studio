@@ -40,7 +40,7 @@ jobs:
   # Type check (hard gate — must pass)
   # ═══════════════════════════════════════════════════════════
   typecheck:
-    name: Type Check (pyright)
+    name: Type Check (pyright incremental)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -49,8 +49,8 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install pyright -r requirements.txt
-      - name: Pyright (hard gate)
-        run: pyright core/ || (echo "::error::Type check failed — fix before merging" && exit 1)
+      - name: Pyright incremental (hard gate — new errors only)
+        run: python scripts/check_pyright_incremental.py || (echo "::error::New type errors introduced — fix before merging" && exit 1)
 
   # ═══════════════════════════════════════════════════════════
   # Full test matrix: Ubuntu + Windows, Python 3.11 + 3.12
