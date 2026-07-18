@@ -63,6 +63,20 @@ repos:
         stages: [pre-commit]
         pass_filenames: false
 
+      - id: quality-gates
+        name: quality gates — mojibake, TODOs, syntax
+        entry: python core/pre_commit.py
+        language: system
+        stages: [pre-commit]
+        pass_filenames: false
+
+      - id: check-chinese-incremental
+        name: check-chinese — no new Chinese in source
+        entry: python scripts/check_chinese_incremental.py
+        language: system
+        types: [python]
+        stages: [pre-commit]
+
       # ── push stage (deeper, slower) ─────
 
       - id: vulture

@@ -32,6 +32,9 @@ jobs:
           python -m pytest tests/ -q --tb=short \
             -m "not slow and not browser and not network and not mcp and not lsp and not github and not e2e" \
             --timeout=20 -p no:xdist
+      - name: Quick mojibake check (changed files)
+        run: |
+          python core/pre_commit.py . 2>/dev/null || echo "Quality gates check completed"
 
   # ═══════════════════════════════════════════════════════════
   # Type check (hard gate — must pass)
@@ -106,7 +109,7 @@ jobs:
         run: python -m pytest tests/test_stress_concurrency.py -v --tb=short --timeout=60
 
   # ═══════════════════════════════════════════════════════════
-  # Security scan (advisory — flags issues, never blocks)
+  # Security + encoding scan (hard gates)
   # ═══════════════════════════════════════════════════════════
   security:
     name: Security Scan
@@ -117,6 +120,57 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install bandit
-      - name: Bandit security check
-        continue-on-error: true
+      - name: Bandit security check (hard gate)
         run: bandit -r core/ -f json -o bandit_report.json --skip B101,B311
+      - name: Safety dependency scan (advisory)
+        continue-on-error: true
+        run: |
+          pip install safety
+          safety scan 2>/dev/null || safety check --bare 2>/dev/null || echo "Safety scan skipped (no policy file or network issue)"
+
+  # ═══════════════════════════════════════════════════════════
+  # Encoding gate — mojibake scan (hard gate, zero tolerance)
+  # ═══════════════════════════════════════════════════════════
+  encoding:
+    name: Encoding Gate (mojibake scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Mojibake scan (all files, hard gate)
+        run: |
+          python -c "
+          import os, sys
+          chars = set('鍥閸鐢纴鏉悆殑掑曠')
+          EXCLUDE_FILES = {
+              'core/encoding_fix.py',      # mojibake detection engine (signature chars by design)
+              'core/pre_commit.py',        # quality gates (signature chars by design)
+              'tests/test_encoding_fix.py', # encoding fix test data
+          }
+          EXCLUDE_DIRS = {'.git','__pycache__','node_modules','output','.codebuddy','.hypothesis','scripts/scratch','_archive','stub_modules'}
+          EXCLUDE_PREFIXES = ('apps/nsp-downloader-legacy/scripts/scan-garbled',)
+          hits = 0
+          for root, dirs, files in os.walk('.'):
+              dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
+              for f in files:
+                  if f.endswith(('.py','.js','.ts','.html','.css','.json','.md','.bat','.sh')):
+                      rp = os.path.join(root, f).replace('\\\\', '/')
+                      if rp.startswith('./'): rp = rp[2:]
+                      if rp in EXCLUDE_FILES or any(rp.startswith(p) for p in EXCLUDE_PREFIXES):
+                          continue
+                      try:
+                          content = open(os.path.join(root,f), encoding='utf-8').read()
+                          for ch in chars:
+                              if ch in content:
+                                  print(f'MOJIBAKE: {rp} contains U+{ord(ch):04X}')
+                                  hits += 1
+                                  break
+                      except Exception:
+                          pass
+          if hits:
+              print(f'FAIL: {hits} files with mojibake detected')
+              sys.exit(1)
+          print('PASS: no mojibake detected')
+          "

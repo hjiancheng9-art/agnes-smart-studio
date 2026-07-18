@@ -1,0 +1,14 @@
+# Safety dependency vulnerability scan policy
+# CRUX Smart Studio — reviewed and accepted vulnerabilities
+#
+# Run: safety scan --policy-file .safety-policy.yml
+# Add CVEs below after manual review.
+
+version: 1
+
+security:
+  ignore-vulnerabilities:
+    # Example: CVE that has been reviewed and confirmed as non-exploitable
+    # - id: "CVE-2024-XXXX"
+    #   reason: "Reviewed — only affects path we don't use"
+    #   expires: "2026-12-31"
