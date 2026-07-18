@@ -42,6 +42,14 @@ def register_mcp_tools(server_name: str, tools: list[dict]) -> int:
     return count
 
 
+def reset_tool_router() -> None:
+    """Test isolation: clear all registered tools (internal + MCP)."""
+    _internal_tools.clear()
+    _mcp_tools.clear()
+    global _initialized
+    _initialized = False
+
+
 def list_all_tools() -> list[dict]:
     """List all available tools (internal + MCP) with metadata.
 

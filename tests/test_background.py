@@ -2,12 +2,20 @@
 
 import pytest
 
-from core.background import BackgroundManager, BackgroundTask, get_background_manager
+from core.background import BackgroundManager, BackgroundTask, get_background_manager, reset_background_manager
 
 
 @pytest.fixture
 def bm():
     return BackgroundManager()
+
+
+@pytest.fixture(autouse=True)
+def _clean_background_singleton():
+    """Ensure module-level _bg_manager singleton is reset between tests."""
+    reset_background_manager()
+    yield
+    reset_background_manager()
 
 
 class TestBackgroundTaskCreation:

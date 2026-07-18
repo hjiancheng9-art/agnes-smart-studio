@@ -3,13 +3,9 @@
 RED-GREEN: Run with `pytest tests/test_zcode_engines.py -v`
 """
 
-import sys
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.async_client import AsyncCruxClient
 from core.client import CruxClient

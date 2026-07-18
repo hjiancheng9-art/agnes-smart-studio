@@ -2,22 +2,35 @@
 
 Run: pytest tests/test_zcode_pipeline.py -v
 
-Each test is independent and self-contained. No fixtures, no shared state.
+Each test is independent and self-contained.
 """
 
 import json
 import os
-import sys
 import tempfile
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import pytest
 
-# ═══════════════════════════════════════════════════════════════════════
-# Module 1: core.pipeline_dag
-# ═══════════════════════════════════════════════════════════════════════
-
+import core.pipeline_tools as _pt
 from core.pipeline_dag import DAG, Node, NodeStatus
+
+# ── Fixtures ──────────────────────────────────────────────────────────
+
+
+@pytest.fixture(autouse=True)
+def _restore_pipeline_globals():
+    """Safety net: restore OUTPUT_ROOT / MANIFEST_DIR after each test.
+
+    Captures the current values at setup time and restores after yield.
+    This protects against tests whose _run_with_temp() finally block
+    is skipped, leaving globals pointing to a deleted TemporaryDirectory.
+    """
+    saved_root = _pt.OUTPUT_ROOT
+    saved_mf = _pt.MANIFEST_DIR
+    yield
+    _pt.OUTPUT_ROOT = saved_root
+    _pt.MANIFEST_DIR = saved_mf
 
 
 class TestDAGCoreTypes:

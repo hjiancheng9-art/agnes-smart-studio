@@ -11,7 +11,16 @@ from core.tool_router import (
     list_all_tools,
     register_internal,
     register_mcp_tools,
+    reset_tool_router,
 )
+
+
+@pytest.fixture(autouse=True)
+def _clean_tool_router():
+    """Ensure global tool registries are clean before each test."""
+    reset_tool_router()
+    yield
+    reset_tool_router()
 
 
 class TestRegisterAndList:
