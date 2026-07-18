@@ -1,7 +1,7 @@
 """Tests for core/self_audit.py — 自审计引擎"""
 
-from core.self_audit import AuditEngine, audit
 from core.pytest_runner import parse_test_summary
+from core.self_audit import AuditEngine, audit
 
 
 class TestParseTestSummary:

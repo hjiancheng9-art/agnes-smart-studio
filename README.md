@@ -1,112 +1,112 @@
-# CRUX Studio v6.1
+# CRUX Studio
 
-**AI-powered terminal coding assistant** — chat with your codebase, execute tools, review and fix bugs.
-
-Built on DeepSeek V4 with a TUI (terminal UI), CRUX reads, writes, searches, runs tests, and orchestrates multi-agent workflows — all from your terminal.
+**AI-powered terminal coding assistant** with self-healing infrastructure, MCP bridge, media generation, and multi-agent orchestration. Built on DeepSeek V4 with a terminal UI.
 
 ## Quick Start
 
 ```bash
-# Install
 pip install -e .
-
-# Set API key (interactive on first run, or use env var)
 export DEEPSEEK_API_KEY=sk-your-key-here
-
-# Launch
-crux              # interactive TUI mode
-crux chat         # chat mode
-crux gen "a cat"  # image generation
+crux              # interactive TUI
+crux chat         # chat mode with tool access
+crux gen "a cat"  # generate an image
 ```
 
-On first run without an API key, CRUX will prompt you to paste your key.
+On first run, CRUX prompts for your API key. Get one at [platform.deepseek.com](https://platform.deepseek.com/api_keys). Requires Python 3.11+.
 
-## Requirements
+## How CRUX works
 
-- Python 3.11+
-- DeepSeek API key ([get one here](https://platform.deepseek.com/api_keys))
-- Windows / macOS / Linux
+```
+You type → CRUX routes to right model (flash for simple, pro for complex)
+         → Tools execute (read/write files, run shell, search code, call APIs)
+         → Self-healing kicks in on failure (auto-fix → retry)
+         → Result comes back in terminal
+```
 
-## Core Commands
+Three modes:
+- **TUI** (`crux`): full terminal app with syntax highlighting, command palette, multi-pane layout
+- **Chat** (`crux chat`): REPL-style conversation with tool access
+- **Agent** (`crux --agent`): autonomous mode with external tools, multi-step planning
 
-| Command | Description |
-|---------|-------------|
-| `crux` | Interactive TUI (default) |
-| `crux chat` | Chat mode with tool access |
-| `crux gen "prompt"` | Generate an image |
-| `crux video "prompt"` | Generate a video |
-| `crux check` | Health check |
-| `crux init` | Configure API key |
-| `crux mcp-serve` | Start MCP server |
+## MCP Integration
 
-## Models
-
-- **deepseek-v4-flash** — default, fast and cost-effective
-- **deepseek-v4-pro** — auto-selected for complex tasks (refactoring, architecture)
-- **agnes-2.0-flash** — vision model (image understanding)
-
-CRUX auto-routes simple messages to flash and complex tasks to pro.
-
-## Key Features
-
-- **Chat with tools** — read/write files, run bash, search code, execute Python
-- **Multi-agent orchestration** — parallel agents for complex tasks (requires confirmation)
-- **Streaming TUI** — real-time thinking, tool progress, inline code display
-- **Provider failover** — automatic switching when a model is unavailable
-- **Test loop detection** — prevents fix-test-fail-fix infinite loops
-- **Vision** — image understanding via agnes-2.0-flash
-
-## Configuration
-
-### API Keys
+CRUX runs as an MCP server — connect Claude Code, Codex, or any MCP client:
 
 ```bash
-export DEEPSEEK_API_KEY=sk-xxx     # primary text model
-export CRUX_API_KEY=sk-xxx         # vision + image generation (optional)
+# Start MCP server
+crux mcp-serve
+
+# Register in Claude Code
+claude mcp add crux -- crux mcp-serve
 ```
 
-### Environment Variables
+Once connected, Claude Code can call CRUX's 190+ tools (code review, git ops, image/video generation, shell execution, web search) directly from your Claude session.
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DEEPSEEK_API_KEY` | — | DeepSeek API key (required) |
-| `CRUX_API_KEY` | — | CRUX/Agnes API key (for vision) |
-| `CRUX_MAX_TOOL_LOOPS` | 40 | Max tool call rounds per turn |
-| `CRUX_WORKSPACE` | cwd | Working directory |
+CRUX also connects to external MCP servers as a client — it auto-discovers tools from 8 bridges (Codex, Kimi, CodeBuddy, Aider, Claude Code, Qoder, ZCode, and itself).
 
-## Architecture
+## Self-Healing
+
+CRUX monitors and repairs itself:
 
 ```
-crux_studio.py          # entry point
-core/
-  chat.py               # ChatSession — multi-turn conversation engine
-  client.py             # HTTP client for DeepSeek / CRUX APIs
-  tools.py              # ToolRegistry — 86 tools (bash, file, git, search)
-  provider.py           # ProviderManager — model routing and failover
-  stream_adapter.py     # SSE stream → event protocol
-  runtime_orchestrator.py # multi-phase orchestration engine
-ui/
-  tui_app.py            # prompt_toolkit TUI application
-  message_pane.py       # scrollable chat display
-tests/
-  test_integration_e2e.py   # 20 end-to-end scenarios
-  test_stress_concurrency.py # 10 concurrency stress tests
-  test_e2e_real_api.py  # 11 real API tests
+Tool fails → classify error → self_heal --fix → retry
+Crash    → crash_guard captures → attempt auto-fix → log to incident store
+CI job   → self-heal audit → silent-exception patching + ruff auto-fix
 ```
+
+- **9 scanners**: syntax, silent exceptions, import errors, config drift, test failures, hook gaps, mojibake, global state leaks, flaky tests
+- **Auto-fix**: silent exception logging, ruff violations
+- **Recovery playbooks**: provider down, config corrupt, disk low, model error, rate limit, history corrupt
+
+## CI Pipeline
+
+7 GitHub Actions jobs on every push:
+
+| Job | What it checks |
+|-----|---------------|
+| Quick Gate | Ruff lint + format + fast unit tests |
+| Type Check | Pyright incremental (new errors only) |
+| Test Matrix | Ubuntu/Windows × Python 3.11/3.12 |
+| Integration | E2E + stress concurrency |
+| Security | Bandit (hard gate) + Safety dependency scan |
+| Encoding | Mojibake scan (zero tolerance) |
+| Self-Heal | Audit + auto-fix + PR creation |
+
+## Media Generation
+
+```bash
+# Image generation
+crux gen "sunset over mountains, oil painting style" --size 1024x768
+
+# Video generation
+crux video "a cat walking through a garden" --duration 5
+
+# Vision
+crux vision photo.jpg "what's in this image?"
+
+# Showrunner (full pipeline)
+crux showrun "3-minute product demo with voiceover"
+```
+
+Supports text-to-image, image-to-image, text-to-video, image-to-video, and keyframe animation. Uses Agnes 2.0 Flash for vision and Agnes Image 2.1 / Video 2.0 for generation.
 
 ## Development
 
 ```bash
 # Run tests
-pytest tests/ -q -m "not slow"
+pytest tests/ -q -m "not slow" --timeout=30
 
-# Run with real API
-DEEPSEEK_API_KEY=sk-xxx python output/crux_drive.py
+# Run lint
+ruff check core/ ui/
 
-# Run all tests including network
-pytest tests/ -m "network"
+# Type check
+pyright core/
+
+# Full self-audit
+python core/self_heal.py --fix
+
+# Pre-commit
+pre-commit run --all-files
 ```
 
-## License
-
-MIT
+See `HELP.md` for the full 58-command reference. Contributing: open a PR against `main`, CI must pass all 7 jobs.

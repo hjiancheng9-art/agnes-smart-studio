@@ -15,6 +15,7 @@ import core.self_heal as _sh
 
 class AuditEngine:
     """Backward-compatible wrapper — delegates to self_heal.SelfHealer."""
+
     def __init__(self, root=None):
         self._h = _sh.SelfHealer()
 
@@ -31,7 +32,9 @@ class AuditEngine:
         auto_fixable = 0
         for f in self._h.findings:
             by_sev[f.severity] = by_sev.get(f.severity, 0) + 1
-            findings.append({"severity": f.severity, "category": f.category, "file": f.file, "line": f.line, "msg": f.msg})
+            findings.append(
+                {"severity": f.severity, "category": f.category, "file": f.file, "line": f.line, "msg": f.msg}
+            )
             if f.fixable:
                 auto_fixable += 1
         return {

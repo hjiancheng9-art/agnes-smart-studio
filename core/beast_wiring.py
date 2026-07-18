@@ -229,6 +229,7 @@ def wire_all() -> bool:
     # ── 贴身七件 ──
     try:
         from core.intimate_slots.talisman import circuit
+
         bus.on("error", lambda **kw: circuit.record_failure(kw.get("provider", "default")))
         bus.on(
             "tool:after",

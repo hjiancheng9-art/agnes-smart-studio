@@ -68,6 +68,7 @@ def _attempt_self_heal(exc_type, exc_value) -> None:
     try:
         if exc_type in (SyntaxError, ImportError, NameError, AttributeError, TypeError):
             from core.self_heal import SelfHealer
+
             h = SelfHealer()
             h.scan_syntax()
             h.scan_silent_exceptions()

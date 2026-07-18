@@ -47,10 +47,16 @@ from core.chat_toggle_mixin import ChatToggleMixin
 from core.chat_tool_dispatch import _dispatch_tool_impl
 
 # Tools eligible for auto-retry on error (idempotent or safe to retry)
-_AUTO_RETRY_TOOLS = frozenset({
-    "run_bash", "run_test", "pip_install", "run_python",
-    "run_lint", "run_format",
-})
+_AUTO_RETRY_TOOLS = frozenset(
+    {
+        "run_bash",
+        "run_test",
+        "pip_install",
+        "run_python",
+        "run_lint",
+        "run_format",
+    }
+)
 
 from core.chat_tool_helpers import merge_tool_calls, sanitize_tool_call_history
 from core.chat_tool_helpers import normalize_tool_args as _normalize_tool_args
@@ -195,6 +201,7 @@ def _auto_retry_tool(session, tool_name: str, args_json: str, original_error: st
     # ── Step 0: Self-heal — auto-fix known code issues before retrying ──
     try:
         from core.self_heal import SelfHealer
+
         healer = SelfHealer()
         # Quick scan + fix (syntax, silent exceptions, ruff auto-fix)
         healer.scan_syntax()
@@ -368,6 +375,7 @@ class ChatSession(ChatToggleMixin):
         """Lazy init: SmartBrain (~2.5s import, only needed for image/video gen)."""
         if self._brain is None:
             from core.brain import SmartBrain
+
             self._brain = SmartBrain(self.media_client)
         return self._brain
 
@@ -376,6 +384,7 @@ class ChatSession(ChatToggleMixin):
         """Lazy init: TextToImageEngine (~1s import, only needed for image gen)."""
         if self._t2i is None:
             from engines.text_to_image import TextToImageEngine
+
             self._t2i = TextToImageEngine(self.media_client)
         return self._t2i
 
@@ -384,6 +393,7 @@ class ChatSession(ChatToggleMixin):
         """Lazy init: VideoEngine (~0.8s import, only needed for video gen)."""
         if self._vid is None:
             from engines.video import VideoEngine
+
             self._vid = VideoEngine(self.media_client)
         return self._vid
 

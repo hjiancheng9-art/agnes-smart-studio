@@ -265,12 +265,19 @@ class SelfHealer:
         exclude_files = {
             "core/encoding_fix.py",
             "core/pre_commit.py",
-            "core/self_heal.py",      # scanner signature chars by design
+            "core/self_heal.py",  # scanner signature chars by design
             "tests/test_encoding_fix.py",
         }
         exclude_dirs = {
-            ".git", "__pycache__", "node_modules", "output",
-            ".codebuddy", ".hypothesis", "scripts/scratch", "_archive", "stub_modules",
+            ".git",
+            "__pycache__",
+            "node_modules",
+            "output",
+            ".codebuddy",
+            ".hypothesis",
+            "scripts/scratch",
+            "_archive",
+            "stub_modules",
         }
         exclude_prefixes = ("apps/nsp-downloader-legacy/scripts/scan-garbled",)
         hits = 0
@@ -303,7 +310,9 @@ class SelfHealer:
                             hits += 1
                             break
                 except Exception:
-                    import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                    import logging
+
+                    logging.getLogger("crux").debug("silent except", exc_info=True)
         if hits == 0:
             logger.info("self_heal: mojibake scan clean")
 
@@ -345,9 +354,7 @@ class SelfHealer:
                     Finding("low", "flaky-tests", "tests/", 0, "Flaky test report not found", fixable=False)
                 )
         except subprocess.TimeoutExpired:
-            self.findings.append(
-                Finding("low", "flaky-tests", "tests/", 0, "Flaky test scan timed out", fixable=False)
-            )
+            self.findings.append(Finding("low", "flaky-tests", "tests/", 0, "Flaky test scan timed out", fixable=False))
         except Exception as e:
             self.findings.append(
                 Finding("low", "flaky-tests", "tests/", 0, f"Flaky test scan failed: {e}", fixable=False)
@@ -368,9 +375,16 @@ class SelfHealer:
             # Run a subset of tests to trigger potential cross-module pollution
             _ = subprocess.run(
                 [
-                    sys.executable, "-m", "pytest", "tests/",
-                    "-q", "--tb=line", "-p", "no:xdist",
-                    "-m", "not slow and not browser and not network",
+                    sys.executable,
+                    "-m",
+                    "pytest",
+                    "tests/",
+                    "-q",
+                    "--tb=line",
+                    "-p",
+                    "no:xdist",
+                    "-m",
+                    "not slow and not browser and not network",
                     "--timeout=20",
                     "--maxfail=50",
                 ],
@@ -397,9 +411,7 @@ class SelfHealer:
             if not dirty:
                 logger.info("self_heal: global leak scan clean")
         except Exception as e:
-            self.findings.append(
-                Finding("low", "global-leak", "tests/", 0, f"Leak scan failed: {e}", fixable=False)
-            )
+            self.findings.append(Finding("low", "global-leak", "tests/", 0, f"Leak scan failed: {e}", fixable=False))
 
     # ── Fixers ────────────────────────────────────────
 

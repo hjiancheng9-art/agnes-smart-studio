@@ -97,9 +97,15 @@ def get_recovery_ledger(incident_id: str) -> list[dict]:
 
 
 def _exec_retry_with_backoff(args: str = "") -> str:
-    """Clear retry state to allow immediate retry."""
-
-    return f"retry state cleared (args={args})"
+    """Reset retry budget for a trace, allowing immediate retry with fresh backoff window."""
+    try:
+        if args.strip():
+            from core.retry_budget import reset_ledger
+            reset_ledger(args.strip())
+            return f"[OK] retry budget reset for trace {args.strip()}"
+        return "[OK] retry state cleared (global)"
+    except Exception as e:
+        return f"[ERR] retry reset failed: {e}"
 
 
 def _exec_clear_cache(args: str = "") -> str:
@@ -115,15 +121,26 @@ def _exec_clear_cache(args: str = "") -> str:
 
 
 def _exec_switch_provider(args: str = "") -> str:
-    """Mark current provider as degraded, forcing fallback."""
-    target = args.strip() or "next_available"
-    return f"provider switch queued: {target}"
+    """Activate provider fallback — switches to next available provider."""
+    try:
+        from core.provider import get_provider_manager
+        mgr = get_provider_manager()
+        old = mgr.active_provider
+        mgr.fallback()
+        return f"[OK] switched from {old} to {mgr.active_provider}"
+    except Exception as e:
+        return f"[ERR] provider switch failed: {e}"
 
 
 def _exec_increase_timeout(args: str = "") -> str:
-    """Increase timeout for next retry."""
-    new_timeout = args.strip() or "60"
-    return f"timeout increased to {new_timeout}s"
+    """Increase global default timeout for subsequent operations."""
+    try:
+        new_timeout = int(args.strip()) if args.strip() else 60
+        import os
+        os.environ["CRUX_DEFAULT_TIMEOUT"] = str(new_timeout)
+        return f"[OK] timeout set to {new_timeout}s"
+    except ValueError:
+        return f"[ERR] invalid timeout value: {args}"
 
 
 def _exec_reset_circuit_breaker(args: str = "") -> str:
@@ -134,8 +151,21 @@ def _exec_reset_circuit_breaker(args: str = "") -> str:
 
 
 def _exec_force_local_once(args: str = "") -> str:
-    """Force local mode for one request — HIGH RISK."""
-    return f"force local once: {args or 'next_call'}"
+    """Force CRUX to use local provider for the next request only."""
+    try:
+        from core.provider import get_provider_manager
+        mgr = get_provider_manager()
+        if "local" not in mgr.providers:
+            return "[ERR] no local provider configured"
+        saved = mgr.active_provider
+        mgr.set_active("local")
+        import threading
+        def _restore():
+            mgr.set_active(saved)
+        threading.Timer(60, _restore).start()
+        return f"[OK] switched to local for 60s (was {saved})"
+    except Exception as e:
+        return f"[ERR] force local failed: {e}"
 
 
 COMMAND_HANDLERS: dict[str, Any] = {

@@ -115,6 +115,8 @@ def classify_run(summary: dict, log: list[dict]) -> dict:
         "summary": f"主要故障: {primary} (共{len(classifications)}次) high={severities.get('high', 0)} medium={severities.get('medium', 0)}",
         "recommendation": recommendation,
     }
+
+
 """Incident Playbook — 故障修复剧本，每条故障类别对应可执行的修复步骤。"""
 
 # 故障修复剧本
@@ -254,6 +256,8 @@ def auto_remediation(incident: dict, trace_id: str = "") -> list[str]:
     for cmd in pb.get("auto_commands", []):
         commands.append(cmd.replace("{trace_id}", trace_id))
     return commands
+
+
 """Incident Store — 持久化 + 趋势 + 告警门禁。"""
 
 import json

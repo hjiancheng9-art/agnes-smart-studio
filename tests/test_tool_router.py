@@ -12,7 +12,6 @@ from core.tool_router import (
     list_all_tools,
     register_internal,
     register_mcp_tools,
-    reset_tool_router,
 )
 
 
