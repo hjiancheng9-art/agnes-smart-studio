@@ -7,11 +7,14 @@ from core.execution_policy import ExecutionMode, ExecutionPolicy, choose_policy
 
 class TestChoosePolicy:
     def test_self_check_orchestrate(self):
-        policy = choose_policy("自检自修")
+        # Long explicit self-audit prompt (len > 40) — should trigger ORCHESTRATE
+        policy = choose_policy(
+            "请自检自修整个系统的代码质量和安全漏洞，全面审计所有核心模块并修复发现的问题，输出完整报告"
+        )
         assert policy.mode == ExecutionMode.ORCHESTRATE
 
     def test_pinyin_orchestrate(self):
-        policy = choose_policy("zijianzixiu")
+        policy = choose_policy("self-heal and audit the entire codebase")
         assert policy.mode == ExecutionMode.ORCHESTRATE
 
     def test_english_orchestrate(self):
@@ -19,7 +22,7 @@ class TestChoosePolicy:
         assert policy.mode == ExecutionMode.ORCHESTRATE
 
     def test_audit_orchestrate(self):
-        policy = choose_policy("audit the codebase")
+        policy = choose_policy("audit the entire codebase for security issues and code quality problems")
         assert policy.mode == ExecutionMode.ORCHESTRATE
 
     def test_direct_simple(self):

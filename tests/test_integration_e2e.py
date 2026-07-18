@@ -6,33 +6,39 @@ Verifies stream event ordering, tool dispatch correctness, and error recovery.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-
 
 # ═══════════════════════════════════════════════════════════════
 # Mock helpers
 # ═══════════════════════════════════════════════════════════════
 
+
 def _mock_chat_stream_text(text: str):
     """Return a mock chat_stream that yields a simple text response."""
+
     def _stream(*, model, messages, tools=None, max_tokens=None, **kwargs):
         yield {"content": text, "_finish": "stop"}
+
     return _stream
 
 
 def _mock_chat_stream_tool_call(tool_name: str, tool_args: dict):
     """Return a mock chat_stream that yields a tool call, then a final text."""
+
     def _stream(*, model, messages, tools=None, max_tokens=None, **kwargs):
         yield {
-            "tool_calls": [{
-                "index": 0,
-                "id": "call_001",
-                "function": {"name": tool_name, "arguments": str(tool_args)},
-            }],
+            "tool_calls": [
+                {
+                    "index": 0,
+                    "id": "call_001",
+                    "function": {"name": tool_name, "arguments": str(tool_args)},
+                }
+            ],
             "_finish": "tool_calls",
         }
+
     return _stream
 
 
@@ -45,23 +51,28 @@ def _mock_chat_stream_tool_then_text(tool_name: str, tool_args: dict, final_text
         if call_count[0] == 1:
             # First call: return tool call
             yield {
-                "tool_calls": [{
-                    "index": 0,
-                    "id": "call_001",
-                    "function": {"name": tool_name, "arguments": str(tool_args)},
-                }],
+                "tool_calls": [
+                    {
+                        "index": 0,
+                        "id": "call_001",
+                        "function": {"name": tool_name, "arguments": str(tool_args)},
+                    }
+                ],
                 "_finish": "tool_calls",
             }
         else:
             # Second call: return text
             yield {"content": final_text, "_finish": "stop"}
+
     return _stream
 
 
 def _mock_chat_stream_error(error_text: str = "[流中断: ConnectError (retries exhausted)]"):
     """Return a mock chat_stream that yields an error."""
+
     def _stream(*, model, messages, tools=None, max_tokens=None, **kwargs):
         yield {"content": error_text, "_finish": "error", "_error": True}
+
     return _stream
 
 
@@ -74,10 +85,10 @@ def _patch_chat_stream(session, stream_fn):
 # Fixtures
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.fixture
 def mock_client():
     """Create a mock CruxClient that can have chat_stream patched."""
-    from unittest.mock import MagicMock
 
     client = MagicMock()
     client.base_url = "https://mock.example.com/v1"
@@ -96,20 +107,25 @@ def chat_session(mock_client):
     session.tools._definitions = []
     session.tools._executors = {}
     # Register a dummy tool for tool call tests
-    session.tools._definitions = [{
-        "function": {
-            "name": "read_file",
-            "description": "Read a file",
-            "parameters": {"type": "object", "properties": {"path": {"type": "string"}}},
+    session.tools._definitions = [
+        {
+            "function": {
+                "name": "read_file",
+                "description": "Read a file",
+                "parameters": {"type": "object", "properties": {"path": {"type": "string"}}},
+            }
         }
-    }]
+    ]
     session.tools._executors["read_file"] = lambda **kw: f"Mock file content for {kw.get('path', 'unknown')}"
+    # Mock fallback chain to avoid real API key dependency
+    session._text_fallback_chain = lambda: [(session.model, session.client)]
     return session
 
 
 # ═══════════════════════════════════════════════════════════════
 # Tests: Stream event ordering
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestStreamEventOrdering:
     """Verify the correct sequence of stream events."""
@@ -140,7 +156,9 @@ class TestStreamEventOrdering:
         """The stream should emit info events for non-trivial tasks."""
         _patch_chat_stream(chat_session, _mock_chat_stream_text("OK"))
 
-        events = list(chat_session.send_stream("Please implement a comprehensive user authentication system with OAuth2"))
+        events = list(
+            chat_session.send_stream("Please implement a comprehensive user authentication system with OAuth2")
+        )
         kinds = [k for k, _ in events]
 
         assert "info" in kinds, f"Should have info events for complex task, got {kinds}"
@@ -152,43 +170,47 @@ class TestStreamEventOrdering:
         list(chat_session.send_stream("query"))
 
         assert chat_session.messages[0]["role"] == "system"
-        assert len(chat_session.messages) >= 2, f"Expected at least system + user + assistant, got {len(chat_session.messages)}"
+        assert len(chat_session.messages) >= 2, (
+            f"Expected at least system + user + assistant, got {len(chat_session.messages)}"
+        )
 
 
 # ═══════════════════════════════════════════════════════════════
 # Tests: Tool dispatch
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestToolDispatch:
     """Verify the tool call → dispatch → result pipeline."""
 
     def test_tool_call_dispatched(self, chat_session):
         """When the model returns a tool call, it should be dispatched."""
-        _patch_chat_stream(chat_session,
-            _mock_chat_stream_tool_then_text(
-                "read_file", {"path": "test.py"}, "File contents: hello"
-            ))
+        _patch_chat_stream(
+            chat_session, _mock_chat_stream_tool_then_text("read_file", {"path": "test.py"}, "File contents: hello")
+        )
 
         events = list(chat_session.send_stream("Read test.py"))
 
         kinds = [k for k, _ in events]
-        assert "info" in kinds, "Should have info about tool execution"
-        assert "text" in kinds, "Should have final text response"
+        # New: tool dispatch emits a dedicated 'tool_result' event (previously 'info')
+        assert "tool_result" in kinds, f"Should have tool_result event, got {kinds}"
+        assert "text" in kinds, f"Should have final text response, got {kinds}"
 
     def test_unknown_tool_yields_validation_error(self, chat_session):
         """Calling an unregistered tool should yield validation_error events."""
         # Register the tool so it passes validation but fails execution
         chat_session.tools._executors["nonexistent_tool"] = lambda **kw: "mock result"
-        chat_session.tools._definitions.append({
-            "function": {
-                "name": "nonexistent_tool",
-                "description": "A test tool",
-                "parameters": {"type": "object", "properties": {"arg": {"type": "string"}}},
+        chat_session.tools._definitions.append(
+            {
+                "function": {
+                    "name": "nonexistent_tool",
+                    "description": "A test tool",
+                    "parameters": {"type": "object", "properties": {"arg": {"type": "string"}}},
+                }
             }
-        })
+        )
 
-        _patch_chat_stream(chat_session,
-            _mock_chat_stream_tool_then_text("nonexistent_tool", {"arg": "value"}, "Done"))
+        _patch_chat_stream(chat_session, _mock_chat_stream_tool_then_text("nonexistent_tool", {"arg": "value"}, "Done"))
 
         events = list(chat_session.send_stream("Use a test tool that exists"))
         kinds = [k for k, _ in events]
@@ -211,22 +233,20 @@ class TestToolDispatch:
 
     def test_tool_call_added_to_history(self, chat_session):
         """After a tool call, the messages list should include the tool result."""
-        _patch_chat_stream(chat_session,
-            _mock_chat_stream_tool_then_text(
-                "read_file", {"path": "test.py"}, "done"
-            ))
+        _patch_chat_stream(chat_session, _mock_chat_stream_tool_then_text("read_file", {"path": "test.py"}, "done"))
 
         list(chat_session.send_stream("Read test.py"))
 
         # Check that messages include the assistant tool_call and tool result
         roles = [m.get("role") for m in chat_session.messages]
         assert "tool" in roles, f"Messages should include tool result, got roles: {roles}"
-        assert "assistant" in roles, f"Messages should include assistant tool call"
+        assert "assistant" in roles, "Messages should include assistant tool call"
 
 
 # ═══════════════════════════════════════════════════════════════
 # Tests: Error handling
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestErrorHandling:
     """Verify error recovery in the pipeline."""
@@ -257,18 +277,24 @@ class TestErrorHandling:
             call_count[0] += 1
             if call_count[0] == 1:
                 yield {
-                    "tool_calls": [{
-                        "index": 0, "id": "c1",
-                        "function": {"name": "read_file", "arguments": str({"path": "a.py"})},
-                    }],
+                    "tool_calls": [
+                        {
+                            "index": 0,
+                            "id": "c1",
+                            "function": {"name": "read_file", "arguments": str({"path": "a.py"})},
+                        }
+                    ],
                     "_finish": "tool_calls",
                 }
             elif call_count[0] == 2:
                 yield {
-                    "tool_calls": [{
-                        "index": 0, "id": "c2",
-                        "function": {"name": "read_file", "arguments": str({"path": "b.py"})},
-                    }],
+                    "tool_calls": [
+                        {
+                            "index": 0,
+                            "id": "c2",
+                            "function": {"name": "read_file", "arguments": str({"path": "b.py"})},
+                        }
+                    ],
                     "_finish": "tool_calls",
                 }
             else:
@@ -285,6 +311,7 @@ class TestErrorHandling:
 # ═══════════════════════════════════════════════════════════════
 # Tests: State consistency
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestStateConsistency:
     """Verify session state remains consistent through the pipeline."""
@@ -306,13 +333,13 @@ class TestStateConsistency:
         _patch_chat_stream(chat_session, _mock_chat_stream_text("ok"))
         list(chat_session.send_stream("test"))
 
-        assert chat_session.model == original_model, \
-            f"Model changed from {original_model} to {chat_session.model}"
+        assert chat_session.model == original_model, f"Model changed from {original_model} to {chat_session.model}"
 
 
 # ═══════════════════════════════════════════════════════════════
 # Tests: Tool result normalization
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestToolResultPipeline:
     """Verify the ToolResult normalization and error handling."""
