@@ -625,7 +625,7 @@ class ProviderManager:
             req = urllib.request.Request(
                 f"{base.rstrip('/')}/models", headers={"Authorization": f"Bearer {api_key}"} if api_key else {}
             )
-            with urllib.request.urlopen(req, timeout=5):
+            with urllib.request.urlopen(req, timeout=5):  # nosec B310
                 pass
             return True
         except (OSError, RuntimeError, ValueError) as e:

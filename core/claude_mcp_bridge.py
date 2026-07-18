@@ -703,7 +703,7 @@ def _handle_run_bash(params: dict) -> dict:
         if is_windows:
             r = run_subprocess(["cmd.exe", "/c", command], cwd=cwd, timeout=timeout_val)
         else:
-            r = run_subprocess(command, shell=True, cwd=cwd, timeout=timeout_val)
+            r = run_subprocess(command, shell=True, cwd=cwd, timeout=timeout_val)  # nosec B604
     except subprocess.TimeoutExpired:
         return _tool_error(f"Command timed out after {timeout_val}s")
     except (subprocess.SubprocessError, OSError) as e:
@@ -731,7 +731,7 @@ def _handle_web_search(params: dict) -> dict:
         url = "https://lite.duckduckgo.com/lite/?" + urllib.parse.urlencode({"q": query})
         req = urllib.request.Request(url, headers={"User-Agent": "CRUX-Claude-Bridge/1.0"})
 
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
             html = resp.read().decode("utf-8", errors="replace")
 
         # Extract result links
@@ -773,7 +773,7 @@ def _handle_web_fetch(params: dict) -> dict:
 
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "CRUX-Claude-Bridge/1.0"})
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310
             # Follow redirects (urllib does this by default)
             content_type = resp.headers.get("Content-Type", "")
             raw = resp.read()

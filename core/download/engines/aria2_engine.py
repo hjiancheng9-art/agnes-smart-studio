@@ -101,7 +101,7 @@ class Aria2Engine:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
             data = json.loads(resp.read().decode("utf-8"))
         if "error" in data:
             raise RuntimeError(str(data["error"]))

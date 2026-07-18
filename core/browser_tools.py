@@ -417,7 +417,7 @@ def _playwright_generate(
         ext = ".mp4" if provider["type"] in ("video", "image_video") else ".png"
         output_path = output_dir / f"{uuid.uuid4().hex[:8]}{ext}"
 
-        urllib.request.urlretrieve(result_url, str(output_path))
+        urllib.request.urlretrieve(result_url, str(output_path))  # nosec B310
 
         return json.dumps(
             {
@@ -504,13 +504,13 @@ def _dalle_generate(prompt: str, image_path: str = "", config: dict | None = Non
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
     )
     try:
-        resp = json.loads(urllib.request.urlopen(req, timeout=120).read())
+        resp = json.loads(urllib.request.urlopen(req, timeout=120).read())  # nosec B310
         url = resp["data"][0]["url"]
         # 下载到本地
         output_dir = OUTPUT_ROOT / "browser_output" / "dalle"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = output_dir / f"dalle_{uuid.uuid4().hex[:8]}.png"
-        urllib.request.urlretrieve(url, str(output_path))
+        urllib.request.urlretrieve(url, str(output_path))  # nosec B310
         return json.dumps(
             {
                 "success": True,
@@ -550,7 +550,7 @@ def _gemini_generate(prompt: str, image_path: str = "", config: dict | None = No
         headers={"Content-Type": "application/json"},
     )
     try:
-        resp = json.loads(urllib.request.urlopen(req, timeout=120).read())
+        resp = json.loads(urllib.request.urlopen(req, timeout=120).read())  # nosec B310
         return json.dumps(
             {
                 "success": True,

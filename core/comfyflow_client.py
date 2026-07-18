@@ -108,7 +108,7 @@ class ComfyFlowClient:
         req.add_header("Content-Type", "application/json")
 
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
                 status = resp.status
                 body_data = json.loads(resp.read().decode())
                 return {

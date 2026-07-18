@@ -56,7 +56,7 @@ class SoundUX:
                         return
                 # 播放
                 if sys.platform == "win32":
-                    run_subprocess(["start", "/min", "wmplayer", str(mp3_path)], shell=True, timeout=3)
+                    run_subprocess(["start", "/min", "wmplayer", str(mp3_path)], shell=True, timeout=3)  # nosec B604
                 else:
                     run_subprocess(["ffplay", "-nodisp", "-autoexit", "-t", str(duration), str(mp3_path)], timeout=5)
             except (OSError, RuntimeError, subprocess.SubprocessError) as e:

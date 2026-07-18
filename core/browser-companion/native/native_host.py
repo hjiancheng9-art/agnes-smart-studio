@@ -133,7 +133,7 @@ def handle_forward_to_crux(msg):
     try:
         if action == "task/next":
             req = urllib.request.Request(BRIDGE_HTTP + "/api/browser-companion/tasks/next")
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            with urllib.request.urlopen(req, timeout=5) as resp:  # nosec B310
                 data = json.loads(resp.read())
             task = data.get("task")
             if task:

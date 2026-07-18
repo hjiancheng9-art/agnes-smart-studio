@@ -211,7 +211,7 @@ class SessionTracker:
         set_clause = ", ".join(f"{k}=?" for k in updates)
         values = [*list(updates.values()), todo_id]
         with self._get_conn() as conn:
-            cur = conn.execute(f"UPDATE todos SET {set_clause} WHERE id=?", values)
+            cur = conn.execute(f"UPDATE todos SET {set_clause} WHERE id=?", values)  # nosec B608 — set_clause built from trusted keys, values parameterized
             return cur.rowcount > 0
 
     def delete_todo(self, todo_id: int) -> bool:

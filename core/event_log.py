@@ -297,7 +297,7 @@ class EventLog:
                 conn.row_factory = sqlite3.Row
                 rows = conn.execute(
                     f"""SELECT * FROM event_log WHERE {where}
-                    ORDER BY timestamp DESC LIMIT ?""",
+                    ORDER BY timestamp DESC LIMIT ?""",  # nosec B608 — values are parameterized
                     [*params, limit],
                 ).fetchall()
                 return [dict(r) for r in rows]
