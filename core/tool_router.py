@@ -50,6 +50,34 @@ def reset_tool_router() -> None:
     _initialized = False
 
 
+from contextlib import contextmanager
+
+
+@contextmanager
+def isolated_router_scope():
+    """Save→clear→yield→restore pattern for test isolation.
+
+    Usage in tests:
+        with isolated_router_scope():
+            register_internal("test_tool", handler)
+            result = call_tool("test_tool", {})
+    """
+    global _initialized
+    _save_internal = dict(_internal_tools)
+    _save_mcp = dict(_mcp_tools)
+    _save_init = _initialized
+    try:
+        _internal_tools.clear()
+        _mcp_tools.clear()
+        yield
+    finally:
+        _internal_tools.clear()
+        _internal_tools.update(_save_internal)
+        _mcp_tools.clear()
+        _mcp_tools.update(_save_mcp)
+        _initialized = _save_init
+
+
 def list_all_tools() -> list[dict]:
     """List all available tools (internal + MCP) with metadata.
 

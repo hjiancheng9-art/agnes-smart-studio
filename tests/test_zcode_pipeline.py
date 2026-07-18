@@ -14,23 +14,26 @@ import pytest
 
 import core.pipeline_tools as _pt
 from core.pipeline_dag import DAG, Node, NodeStatus
+from core.pipeline_tools import pipeline_scope
 
 # ── Fixtures ──────────────────────────────────────────────────────────
 
-# Module-level snapshot of original globals — captured at import time before
-# any test can corrupt them.  Using fixture-setup-time capture is unsafe
-# because a prior test may have already set OUTPUT_ROOT to a deleted temp dir.
+# Module-level conftest now handles pipeline globals reset via
+# reset_pipeline_globals().  Import-time snapshot used by _run_with_temp
+# to guarantee restoration to real project paths.
 _ORIGINAL_ROOT = _pt.OUTPUT_ROOT
 _ORIGINAL_MF = _pt.MANIFEST_DIR
 
 
 @pytest.fixture(autouse=True)
 def _restore_pipeline_globals():
-    """Safety net: restore OUTPUT_ROOT / MANIFEST_DIR after each test.
+    """Safety net: restore OUTPUT_ROOT / MANIFEST_DIR around each test.
 
     Uses import-time snapshot to guarantee restoration to the real project
-    paths, not to a value that a prior test may have corrupted.
+    paths, regardless of what prior tests (in any module) have done.
     """
+    _pt.OUTPUT_ROOT = _ORIGINAL_ROOT
+    _pt.MANIFEST_DIR = _ORIGINAL_MF
     yield
     _pt.OUTPUT_ROOT = _ORIGINAL_ROOT
     _pt.MANIFEST_DIR = _ORIGINAL_MF
@@ -861,19 +864,10 @@ class TestExecuteListFiles:
     """execute_list_files — project file listing."""
 
     def _run_with_temp(self, fn):
-        import core.pipeline_tools as pt
-
-        old_root = pt.OUTPUT_ROOT
-        old_mf = pt.MANIFEST_DIR
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
-            pt.OUTPUT_ROOT = td_path
-            pt.MANIFEST_DIR = td_path / "projects"
-            try:
+            with pipeline_scope(td_path):
                 return fn(td_path)
-            finally:
-                pt.OUTPUT_ROOT = old_root
-                pt.MANIFEST_DIR = old_mf
 
     def test_nonexistent_project_returns_exists_false(self):
         def _test(td):
@@ -912,19 +906,10 @@ class TestExecuteDecomposeToStoryboard:
     """execute_decompose_to_storyboard — script persistence."""
 
     def _run_with_temp(self, fn):
-        import core.pipeline_tools as pt
-
-        old_root = pt.OUTPUT_ROOT
-        old_mf = pt.MANIFEST_DIR
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
-            pt.OUTPUT_ROOT = td_path
-            pt.MANIFEST_DIR = td_path / "projects"
-            try:
+            with pipeline_scope(td_path):
                 return fn(td_path)
-            finally:
-                pt.OUTPUT_ROOT = old_root
-                pt.MANIFEST_DIR = old_mf
 
     def test_saves_script_to_manifest(self):
         def _test(td):
@@ -957,19 +942,10 @@ class TestExecuteDependencyGraph:
     """execute_dependency_graph — dependency graph inspection."""
 
     def _run_with_temp(self, fn):
-        import core.pipeline_tools as pt
-
-        old_root = pt.OUTPUT_ROOT
-        old_mf = pt.MANIFEST_DIR
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
-            pt.OUTPUT_ROOT = td_path
-            pt.MANIFEST_DIR = td_path / "projects"
-            try:
+            with pipeline_scope(td_path):
                 return fn(td_path)
-            finally:
-                pt.OUTPUT_ROOT = old_root
-                pt.MANIFEST_DIR = old_mf
 
     def test_nonexistent_project_returns_error(self):
         def _test(td):
@@ -1021,19 +997,10 @@ class TestExecuteMarkAssetOk:
     """execute_mark_asset_ok — marking assets as done."""
 
     def _run_with_temp(self, fn):
-        import core.pipeline_tools as pt
-
-        old_root = pt.OUTPUT_ROOT
-        old_mf = pt.MANIFEST_DIR
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
-            pt.OUTPUT_ROOT = td_path
-            pt.MANIFEST_DIR = td_path / "projects"
-            try:
+            with pipeline_scope(td_path):
                 return fn(td_path)
-            finally:
-                pt.OUTPUT_ROOT = old_root
-                pt.MANIFEST_DIR = old_mf
 
     def test_nonexistent_project_returns_error(self):
         def _test(td):
@@ -1091,19 +1058,10 @@ class TestExecuteRegenerateAsset:
     """execute_regenerate_asset — asset regeneration."""
 
     def _run_with_temp(self, fn):
-        import core.pipeline_tools as pt
-
-        old_root = pt.OUTPUT_ROOT
-        old_mf = pt.MANIFEST_DIR
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
-            pt.OUTPUT_ROOT = td_path
-            pt.MANIFEST_DIR = td_path / "projects"
-            try:
+            with pipeline_scope(td_path):
                 return fn(td_path)
-            finally:
-                pt.OUTPUT_ROOT = old_root
-                pt.MANIFEST_DIR = old_mf
 
     def test_nonexistent_project_returns_error(self):
         def _test(td):

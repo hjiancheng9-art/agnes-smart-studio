@@ -27,11 +27,41 @@ __all__ = [
     "execute_mark_asset_ok",
     "execute_regenerate_asset",
     "execute_save_manifest",
+    "pipeline_scope",
+    "reset_pipeline_globals",
 ]
 
 # ── 项目输出根目录 ──
 OUTPUT_ROOT = Path(__file__).parent.parent / "output"
 OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+
+
+from contextlib import contextmanager
+
+
+@contextmanager
+def pipeline_scope(temp_dir: "Path"):
+    """Temporarily redirect pipeline output to a temp directory.
+
+    Usage:
+        with pipeline_scope(temp_dir):
+            execute_decompose_to_storyboard(...)
+
+    Guarantees restoration to the real project paths even if an
+    exception occurs.  Prevents the common flaky-test pattern where
+    a prior test's temp dir is deleted before a later test uses it.
+    """
+    global OUTPUT_ROOT, MANIFEST_DIR
+    _save_root = OUTPUT_ROOT
+    _save_mf = MANIFEST_DIR
+    try:
+        OUTPUT_ROOT = temp_dir
+        MANIFEST_DIR = temp_dir / "projects"
+        yield
+    finally:
+        OUTPUT_ROOT = _save_root
+        MANIFEST_DIR = _save_mf
+
 
 # ── subprocess 安全封装（Windows GBK 编码防御）──
 
@@ -788,3 +818,15 @@ EXECUTOR_MAP = {
         asset_id=kw.get("asset_id", ""),
     ),
 }
+
+
+def reset_pipeline_globals() -> None:
+    """Reset OUTPUT_ROOT and MANIFEST_DIR to original project values.
+
+    Used by conftest to prevent cross-module test pollution where a prior
+    test module sets these globals to deleted temporary directories.
+    """
+    global OUTPUT_ROOT, MANIFEST_DIR
+    OUTPUT_ROOT = Path(__file__).parent.parent / "output"
+    OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+    MANIFEST_DIR = OUTPUT_ROOT / "projects"
