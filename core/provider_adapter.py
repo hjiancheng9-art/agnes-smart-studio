@@ -68,13 +68,6 @@ PROVIDER_ADAPTERS: dict[str, ProviderAdapter] = {
         thinking_response_field="reasoning_content",
         default_max_tokens=16384,
     ),
-    "zhipu": ProviderAdapter(
-        provider_id="zhipu",
-        sse_data_prefix="data: ",
-        thinking_param_style="chat_template_kwargs",
-        thinking_response_field="reasoning_content",
-        default_max_tokens=1024,
-    ),
     "crux": ProviderAdapter(
         provider_id="crux",
         thinking_param_style="chat_template_kwargs",

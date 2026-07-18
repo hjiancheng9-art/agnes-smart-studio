@@ -126,21 +126,6 @@ def _register_defaults():
     global MODEL_REGISTRY
 
     models = [
-        # ── 智谱免费模型（视觉优先，理解能力优于 agnes）──
-        ModelInfo(
-            id="GLM-4V-Flash",
-            name="GLM-4V-Flash (智谱视觉)",
-            provider_id="zhipu",
-            provider_name="Zhipu GLM",
-            description="智谱最新免费视觉理解，OCR/描述/场景识别（新版，替代 glm-4.6v）",
-            supports_vision=True,
-            tier="light",
-            aliases=("glm-4v", "glm-v", "zhipu-vision"),
-            context_window=32768,
-            max_output_tokens=1024,
-            cost_level=0,
-            pricing={"input_per_1k": 0.0, "output_per_1k": 0.0},
-        ),
         # ── CRUX AI models ──
         ModelInfo(
             id="agnes-2.0-flash",
@@ -268,7 +253,7 @@ def get_model_info(model_id: str) -> ModelInfo | None:
 
 
 def resolve_model_alias(name: str | None) -> str | None:
-    """将用户输入的别名（light/pro/deepseek/zhipu 等）解析为模型 ID。
+    """将用户输入的别名（light/pro/deepseek 等）解析为模型 ID。
 
     优先查 MODEL_REGISTRY 的别名，再直接查 ID 匹配，最后查 models.json。
     """
@@ -574,8 +559,9 @@ class ProviderManager:
             return
 
         self.providers = cfg.get("providers", {})
-        fallback_cfg = cfg.get("fallback", {})
-        self.fallback_priority = fallback_cfg.get("priority", [])
+        self.fallback_priority = cfg.get(
+            "fallback_priority", cfg.get("fallback", {}).get("priority", ["deepseek", "crux"])
+        )
         active = cfg.get("active", "deepseek")
         # ── 校验: 活跃供应商必须有文本模型 ──
         if active in self.providers:
@@ -722,9 +708,7 @@ class ProviderManager:
         # auth_required=false → use a placeholder key instead of falling back to
         # another provider (which would cause session.model vs client.base_url mismatch).
         if not api_key and provider.get("auth_required", True):
-            raise ProviderAuthError(
-                f"No API key for provider '{pid}'. Set {pid.upper()}_API_KEY env var."
-            )
+            raise ProviderAuthError(f"No API key for provider '{pid}'. Set {pid.upper()}_API_KEY env var.")
 
         return CruxClient(api_key=api_key, base_url=provider["base_url"], provider_id=pid)
 

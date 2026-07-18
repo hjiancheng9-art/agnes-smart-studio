@@ -175,24 +175,17 @@ CRUX_VISION_BASE_URL = "https://apihub.agnes-ai.com/v1"
 
 
 def get_crux_vision_model() -> str:
-    """Get the best available vision model — prefers CRUX (most accurate), Zhipu as fallback."""
+    """Get the best available vision model — prefers CRUX, falls back to other providers."""
     try:
         import os
 
         from core.provider import get_provider_manager
 
         mgr = get_provider_manager()
-        # Prefer CRUX vision models (best counting/OCR/detail)
         crux = mgr.providers.get("crux", {})
         crux_key = crux.get("api_key") or os.getenv("CRUX_API_KEY") or os.getenv("AGNES_API_KEY")
         if crux_key:
-            # CRUX provider stores vision model under "vision", not "pro"
             return crux.get("models", {}).get("vision") or crux.get("models", {}).get("pro") or CRUX_TEXT
-        # Fallback to Zhipu vision models (free)
-        zhipu = mgr.providers.get("zhipu", {})
-        zhipu_v = zhipu.get("vision_models", {})
-        if zhipu_v:
-            return zhipu_v.get("pro") or zhipu_v.get("light") or next(iter(zhipu_v.values()))
         # Search all providers for vision models
         for _pid, p in mgr.providers.items():
             vm = p.get("vision_models", {})

@@ -19,7 +19,6 @@ _SECRET_ENV_VARS = frozenset(
         "DEEPSEEK_API_KEY",
         "CRUX_API_KEY",
         "AGNES_API_KEY",
-        "ZHIPU_API_KEY",
         "OPENAI_API_KEY",
         "ANTHROPIC_API_KEY",
         "GEMINI_API_KEY",

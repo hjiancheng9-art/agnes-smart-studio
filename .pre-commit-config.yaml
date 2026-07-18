@@ -1,18 +1,110 @@
-# See https://pre-commit.com for more information
+# CRUX Studio — pre-commit hooks
+#
+# Install:  pre-commit install
+# Run all:  pre-commit run --all-files
+# Skip:     git commit --no-verify  (emergency only)
+#
+# Stages:
+#   commit — fast (<15s), fail immediately
+#   push   — deeper checks (<30s), fail before push
+
 repos:
+  # ── Formatter & linter (commit) ─────
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.11.0
     hooks:
       - id: ruff
         args: [--fix, --config=pyproject.toml]
+        stages: [pre-commit]
       - id: ruff-format
         args: [--config=pyproject.toml]
+        stages: [pre-commit]
 
+  # ── Security (pre-push — 263 historical High findings need triage) ─────
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.3
+    hooks:
+      - id: bandit
+        name: bandit — security scan
+        args: ["-r", "core/", "-f", "txt", "-ll", "-q"]
+        stages: [pre-push]
+        language_version: python3
+        pass_filenames: false
+
+  # ── Local hooks ─────
   - repo: local
     hooks:
+      # ── commit stage ─────
+      # NOTE: pyright moved to pre-push stage — 523 historical errors need
+      # baseline setup first; running on every commit blocks all PRs.
       - id: pyright
-        name: pyright
+        name: pyright — type check
         entry: python -m pyright
         language: system
         types: [python]
+        stages: [pre-push]
         pass_filenames: false
+
+      - id: dodgy
+        name: dodgy — no hardcoded secrets
+        entry: python -m dodgy
+        args: ["core/", "ui/"]
+        language: system
+        types: [python]
+        stages: [pre-commit]
+        pass_filenames: false
+
+      - id: check-jsonschema
+        name: check-jsonschema — validate config
+        entry: python -m check_jsonschema
+        args: ["--schemafile", "schemas/models.schema.json", "models.json"]
+        language: system
+        files: ^models\.json$
+        stages: [pre-commit]
+        pass_filenames: false
+
+      # ── push stage (deeper, slower) ─────
+
+      - id: vulture
+        name: vulture — dead code
+        entry: python -m vulture
+        args: ["core/", "ui/", "engines/", "utils/", "crux_studio.py", "--min-confidence", "80"]
+        language: system
+        types: [python]
+        stages: [pre-push]
+        pass_filenames: false
+
+      - id: interrogate
+        name: interrogate — docstring coverage
+        entry: python -m interrogate
+        args: ["core/", "ui/", "--fail-under", "64"]
+        language: system
+        types: [python]
+        stages: [pre-push]
+        pass_filenames: false
+
+      - id: radon-cc
+        name: radon — complexity check
+        entry: python -m radon
+        args: ["cc", "core/", "ui/", "--min", "C", "--total-average"]
+        language: system
+        types: [python]
+        stages: [pre-push]
+        pass_filenames: false
+
+      - id: deptry
+        name: deptry — dependency audit
+        entry: python -m deptry
+        args:
+          - "."
+          - "--known-first-party"
+          - "core,ui,engines,utils,pipeline"
+        language: system
+        types: [python]
+        stages: [pre-push]
+        pass_filenames: false
+
+# ── Note ──
+# pytest, Hypothesis, vcr — NOT in hooks (too slow for git).
+# Run manually:  pytest tests/ -p no:xdist -q
+# safety scan:   python -m safety scan  (slow, optional)
