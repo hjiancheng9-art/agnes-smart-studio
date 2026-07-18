@@ -13,6 +13,11 @@ import pytest
 # ── Helpers ──────────────────────────────────────────────────
 
 
+def _mock_fallback(session):
+    """Patch fallback chain to avoid real API key requirement."""
+    session._text_fallback_chain = lambda: [(session.model, session.client)]
+
+
 def _make_mock_client(stream_chunks=None, model="deepseek-v4-flash"):
     """Create a mock CruxClient that returns controlled stream chunks."""
     client = MagicMock()
@@ -63,6 +68,7 @@ class TestSendStreamBasic:
 
         client = _make_mock_client()
         session = ChatSession(client)
+        _mock_fallback(session)
         result = _collect_stream(session, "Hello")
         # Basic: should not crash and should have user message in history
         assert result is not None
@@ -73,6 +79,7 @@ class TestSendStreamBasic:
 
         client = _make_mock_client()
         session = ChatSession(client)
+        _mock_fallback(session)
         assert len(session.messages) >= 1
         assert session.messages[0]["role"] == "system"
 
@@ -81,6 +88,7 @@ class TestSendStreamBasic:
 
         client = _make_mock_client(stream_chunks=[])
         session = ChatSession(client)
+        _mock_fallback(session)
         result = _collect_stream(session, "test")
         # Should not crash on empty stream
         assert result is not None
@@ -90,6 +98,7 @@ class TestSendStreamBasic:
 
         client = _make_mock_client()
         session = ChatSession(client)
+        _mock_fallback(session)
         _collect_stream(session, "What is Python?")
         user_msgs = [m for m in session.messages if m.get("role") == "user"]
         assert len(user_msgs) >= 1
@@ -117,6 +126,7 @@ class TestSendStreamErrors:
 
         client.chat_stream = _error_stream
         session = ChatSession(client)
+        _mock_fallback(session)
         result = _collect_stream(session, "test")
         # Should yield an error, not crash
         assert len(result["errors"]) > 0 or result["text"] == ""
@@ -133,6 +143,7 @@ class TestSendStreamErrors:
 
         client.chat_stream = _bad_stream
         session = ChatSession(client)
+        _mock_fallback(session)
         # Should not crash on malformed response
         result = _collect_stream(session, "test")
         assert result is not None
@@ -182,6 +193,7 @@ class TestSendStreamFallback:
         client = MagicMock()
         client.base_url = "https://test.api/v1"
         session = ChatSession(client)
+        _mock_fallback(session)
         chain = session._text_fallback_chain()
         assert len(chain) > 0, "Fallback chain should not be empty"
 
@@ -191,6 +203,7 @@ class TestSendStreamFallback:
         client = MagicMock()
         client.base_url = "https://test.api/v1"
         session = ChatSession(client)
+        _mock_fallback(session)
         chain = session._text_fallback_chain()
         for model, client_obj in chain:
             assert isinstance(model, str)
@@ -206,6 +219,7 @@ class TestSendStreamMethodology:
 
         client = _make_mock_client()
         session = ChatSession(client)
+        _mock_fallback(session)
         result = _collect_stream(session, "fix bug in multiple files across the project")
         # Complex task should trigger methodology info
         # (may not always fire depending on classification logic, but shouldn't crash)
@@ -216,6 +230,7 @@ class TestSendStreamMethodology:
 
         client = _make_mock_client()
         session = ChatSession(client)
+        _mock_fallback(session)
         result = _collect_stream(session, "hello")
         # Simple greeting should not trigger methodology warnings
         methodology_infos = [i for i in result["infos"] if "方法" in i or "任务等级" in i]

@@ -277,9 +277,11 @@ class TestRollbackLast:
         import core.patch as p
         from core.patch import rollback_last
 
-        with mock.patch.object(p, "_LAST_BACKUPS", {}), \
-             mock.patch.object(p, "_LAST_ADDED", set()), \
-             mock.patch.object(p, "_load_patch_snapshot", return_value=({}, set())):
+        with (
+            mock.patch.object(p, "_LAST_BACKUPS", {}),
+            mock.patch.object(p, "_LAST_ADDED", set()),
+            mock.patch.object(p, "_load_patch_snapshot", return_value=({}, set())),
+        ):
             result = rollback_last()
             assert result["success"] is False
             assert "nothing_to_undo" in result["reason"]

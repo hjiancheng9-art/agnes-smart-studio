@@ -4,17 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import pytest
 from core.gpt_tool_result import (
     ToolResult,
     ensure_tool_result,
     normalize_tool_result,
 )
 
-
 # ═══════════════════════════════════════════════════════════════
 # ToolResult construction
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestToolResultSuccess:
     def test_success_with_string(self):
@@ -102,6 +101,7 @@ class TestToolResultIterUnpacking:
 # normalize_tool_result
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestNormalizeToolResult:
     def test_passthrough_toolresult(self):
         r = ToolResult.success("x")
@@ -143,7 +143,7 @@ class TestNormalizeToolResult:
         class FakeResult:
             ok: bool = True
             output: str = "dc"
-            side_effects: list = None  # noqa: RUF009
+            side_effects: list = None
 
         r = normalize_tool_result(FakeResult())
         assert r.ok is True
@@ -168,6 +168,7 @@ class TestNormalizeToolResult:
 # ═══════════════════════════════════════════════════════════════
 # ensure_tool_result decorator
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestEnsureToolResult:
     def test_wraps_string_return(self):

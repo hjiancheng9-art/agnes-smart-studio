@@ -33,7 +33,7 @@ class TestStreamAdapterRace:
         for delta in consume_stream(lambda: iter([{"content": "hi"}])):
             for k, p in dp.process_delta(delta):
                 events.append((k, p))
-        buf, tc, err, usage = dp.finalize()
+        buf, _tc, _err, _usage = dp.finalize()
         assert len(events) >= 1, "No events from DeltaProcessor"
         assert any(k == "text" for k, _ in events)
         assert buf == "hi"

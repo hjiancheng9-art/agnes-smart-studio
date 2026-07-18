@@ -1,0 +1,92 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, br, zstd
+      authorization:
+      - Bearer ck_frz3y9z35czk.lbSG8OzUVFpTMwDNjrB7fthN_l_FYwmjpIptiAlkYY0
+      connection:
+      - keep-alive
+      host:
+      - copilot.tencent.com
+      user-agent:
+      - python-httpx/0.28.1
+    method: HEAD
+    uri: https://copilot.tencent.com/api/plugins
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - text/plain; charset=utf-8
+      date:
+      - Sat, 18 Jul 2026 07:20:36 GMT
+      eo-cache-status:
+      - MISS
+      eo-log-uuid:
+      - '1950281967464846377'
+      server:
+      - TencentEdgeOne
+      transfer-encoding:
+      - chunked
+      x-request-id:
+      - 73d88b83-5551-4d23-973d-c2db011b02cb
+      x-waf-uuid:
+      - 51cc9c463965a631618f01dc8e2c4b7a-c7ea490c05a84f4ca7d3e4da491d9999
+    status:
+      code: 404
+      message: Not Found
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, br, zstd
+      authorization:
+      - Bearer ck_frz3y9z35czk.lbSG8OzUVFpTMwDNjrB7fthN_l_FYwmjpIptiAlkYY0
+      connection:
+      - keep-alive
+      host:
+      - copilot.tencent.com
+      user-agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://copilot.tencent.com/api/plugins
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA6pWSi0qyi+Kzy1OV7JSMjEwUQjKLy1JVfDLL1Fwyy/NS1Gq5QIAAAD//wMAZiJo
+        5CQAAAA=
+    headers:
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - text/plain; charset=utf-8
+      date:
+      - Sat, 18 Jul 2026 07:20:37 GMT
+      eo-cache-status:
+      - MISS
+      eo-log-uuid:
+      - '17839241809331301973'
+      server:
+      - TencentEdgeOne
+      transfer-encoding:
+      - chunked
+      x-request-id:
+      - 8260be86-5742-4879-a829-fecc05fae7a7
+      x-waf-uuid:
+      - 12cb7e58cfe307d2e1f30cd4dc252206-3ae45c96cd6f6debe0505dd72d3e48b7
+    status:
+      code: 404
+      message: Not Found
+version: 1

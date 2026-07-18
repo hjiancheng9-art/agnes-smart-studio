@@ -25,16 +25,14 @@ class TestDeletedFiles:
 class TestModelsConfig:
     """Verify models.json cleanup."""
 
-    def test_zhipu_key_removed(self):
-        """models.json providers.zhipu.api_key should be empty string."""
+    def test_zhipu_provider_removed(self):
+        """models.json should NOT contain zhipu provider (removed from provider config)."""
         models_path = PROJECT_ROOT / "models.json"
         assert models_path.exists(), "models.json should exist"
         with open(models_path, encoding="utf-8") as f:
             data = json.load(f)
         providers = data.get("providers", {})
-        assert "zhipu" in providers, "zhipu provider should exist in models.json"
-        api_key = providers["zhipu"].get("api_key", None)
-        assert api_key == "", f"providers.zhipu.api_key should be empty string, got: {api_key!r}"
+        assert "zhipu" not in providers, "zhipu provider should NOT exist in models.json (已经被移除)"
 
 
 class TestChatDefaults:

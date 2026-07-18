@@ -31,6 +31,7 @@ import pytest
 # 1. TaskRegistry stress (round 2 fix: added threading.Lock)
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestTaskRegistryConcurrency:
     def test_concurrent_register_complete(self):
         """Register and complete tasks from multiple threads simultaneously."""
@@ -43,7 +44,7 @@ class TestTaskRegistryConcurrency:
         def worker(uid: int):
             try:
                 for i in range(50):
-                    tid, token = registry.register(f"task-{uid}-{i}")
+                    tid, _token = registry.register(f"task-{uid}-{i}")
                     task_ids.append(tid)
                     # Simulate work
                     time.sleep(0.001)
@@ -118,6 +119,7 @@ class TestTaskRegistryConcurrency:
 # 2. Tool cache concurrency (round 4: cache thread safety)
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestToolCacheConcurrency:
     def test_concurrent_read_write(self):
         """Hammer the tool cache with concurrent reads and writes."""
@@ -170,13 +172,13 @@ class TestToolCacheConcurrency:
 # 3. Atomic file writes (round 3 fix)
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestAtomicFileWrites:
     def test_concurrent_atomic_writes(self):
         """Multiple threads writing to the same file should not corrupt it."""
         tmpdir = tempfile.mkdtemp(prefix="crux_stress_")
         target = Path(tmpdir) / "shared.json"
         errors = []
-        results = []
 
         def writer(uid: int):
             try:
@@ -211,12 +213,14 @@ class TestAtomicFileWrites:
                 pytest.fail(f"File corrupted: {e}")
         # Cleanup
         import shutil
+
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 # ═══════════════════════════════════════════════════════════════
 # 4. Provider manager concurrency
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestProviderManagerConcurrency:
     def test_concurrent_client_creation(self):
@@ -256,6 +260,7 @@ class TestProviderManagerConcurrency:
 # 5. Event bus concurrency
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestEventBusConcurrency:
     def test_concurrent_publish_subscribe(self):
         """Concurrent publish/subscribe should not lose events."""
@@ -290,6 +295,7 @@ class TestEventBusConcurrency:
 # 6. CancellationToken thread propagation
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestCancellationTokenConcurrency:
     def test_token_propagates_across_threads(self):
         """Cancel from one thread should be visible from another."""
@@ -320,14 +326,15 @@ class TestCancellationTokenConcurrency:
 # 7. Secret redactor concurrency (round 2: read-only cache)
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestSecretRedactorConcurrency:
     def test_concurrent_redact(self):
         """Redacting from multiple threads should not crash."""
         from core.secret_redactor import redact
 
-        texts = [
-            f"sk-abc123def456ghi789jklmno{u:04d}pqrstuvwxyz" for u in range(20)
-        ] + ["normal text without any secrets at all"] * 30
+        texts = [f"sk-abc123def456ghi789jklmno{u:04d}pqrstuvwxyz" for u in range(20)] + [
+            "normal text without any secrets at all"
+        ] * 30
         errors = []
 
         def redactor(batch):
@@ -340,7 +347,7 @@ class TestSecretRedactorConcurrency:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
             chunk = len(texts) // 4
-            batches = [texts[i:i+chunk] for i in range(0, len(texts), chunk)]
+            batches = [texts[i : i + chunk] for i in range(0, len(texts), chunk)]
             list(pool.map(redactor, batches))
 
         assert not errors, f"Redactor concurrency errors: {errors}"
@@ -350,15 +357,14 @@ class TestSecretRedactorConcurrency:
 # 8. ModelWorker thread safety (round 2)
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestModelWorkerConcurrency:
     def test_multiple_workers_no_crash(self):
         """Multiple ModelWorkers running simultaneously shouldn't interfere."""
-        from core.model_worker import ModelWorker, RuntimeEvent, RuntimeEventType
+        from core.model_worker import ModelWorker, RuntimeEventType
 
         def stream_factory():
-            chunks = [
-                {"choices": [{"delta": {"content": f"chunk{i}"}}]} for i in range(10)
-            ]
+            chunks = [{"choices": [{"delta": {"content": f"chunk{i}"}}]} for i in range(10)]
             chunks.append({"choices": [{"delta": {}, "finish_reason": "stop"}]})
             return iter(chunks)
 

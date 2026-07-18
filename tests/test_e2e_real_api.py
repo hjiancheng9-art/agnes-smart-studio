@@ -36,17 +36,20 @@ _HAS_CRUX_KEY = bool(os.environ.get("CRUX_API_KEY") or os.environ.get("AGNES_API
 _HAS_DS_KEY = bool(os.environ.get("DEEPSEEK_API_KEY"))
 _HAS_ANY_KEY = _HAS_CRUX_KEY or _HAS_DS_KEY
 
-needs_api_key = pytest.mark.skipif(not _HAS_ANY_KEY, reason="No API key available (set CRUX_API_KEY or DEEPSEEK_API_KEY)")
+needs_api_key = pytest.mark.skipif(
+    not _HAS_ANY_KEY, reason="No API key available (set CRUX_API_KEY or DEEPSEEK_API_KEY)"
+)
 
 
 # ═══════════════════════════════════════════════════════════════
 # Helpers
 # ═══════════════════════════════════════════════════════════════
 
+
 def _create_session(model: str = "deepseek-v4-flash"):
     """Create a ChatSession with a real client."""
-    from core.client import CruxClient
     from core.chat import ChatSession
+    from core.client import CruxClient
 
     client = CruxClient(provider_id="deepseek")
     session = ChatSession(client, default_model=model)
@@ -84,6 +87,7 @@ def _collect_stream(session, message: str, timeout: float = 120.0, *, retry_empt
 # ═══════════════════════════════════════════════════════════════
 # Tests: Basic chat
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestRealChatBasic:
     """Minimal chat tests against real API — validates end-to-end flow."""
@@ -128,6 +132,7 @@ class TestRealChatBasic:
 # Tests: Tool calling
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestRealToolCalling:
     """Validate tool dispatch with real model."""
 
@@ -143,17 +148,19 @@ class TestRealToolCalling:
         session = _create_session("deepseek-v4-flash")
 
         # Register read_file tool
-        session.tools._definitions = [{
-            "function": {
-                "name": "read_file",
-                "description": "Read a file from disk",
-                "parameters": {
-                    "type": "object",
-                    "properties": {"path": {"type": "string", "description": "File path"}},
-                    "required": ["path"],
-                },
+        session.tools._definitions = [
+            {
+                "function": {
+                    "name": "read_file",
+                    "description": "Read a file from disk",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"path": {"type": "string", "description": "File path"}},
+                        "required": ["path"],
+                    },
+                }
             }
-        }]
+        ]
         session.tools._executors["read_file"] = lambda **kw: f"Content of {kw.get('path', '?')}"
 
         events = _collect_stream(session, "What is the capital of France? Answer in one word.", timeout=60.0)
@@ -169,6 +176,7 @@ class TestRealToolCalling:
 # Tests: Provider switching
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestRealProviderFlow:
     """Validate provider lifecycle and failover."""
 
@@ -179,8 +187,9 @@ class TestRealProviderFlow:
 
         mgr = get_provider_manager()
         mgr.load()
-        assert mgr.state.active in mgr.providers, \
+        assert mgr.state.active in mgr.providers, (
             f"Active provider '{mgr.state.active}' not in {list(mgr.providers.keys())}"
+        )
 
     @needs_api_key
     def test_get_client_for_active_provider(self):
@@ -198,6 +207,7 @@ class TestRealProviderFlow:
 # ═══════════════════════════════════════════════════════════════
 # Tests: Model info / capability
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestRealModelInfo:
     """Validate model metadata and capability queries."""
@@ -230,6 +240,7 @@ class TestRealModelInfo:
 # ═══════════════════════════════════════════════════════════════
 # Tests: Stream protocol correctness
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestRealStreamProtocol:
     """Validate that stream events follow the correct protocol."""

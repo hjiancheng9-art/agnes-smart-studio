@@ -13,7 +13,7 @@ from core.provider import (
 
 class TestModelRegistry:
     def test_all_models_registered(self):
-        assert len(MODEL_REGISTRY) >= 8
+        assert len(MODEL_REGISTRY) >= 7
         assert "deepseek-v4-pro" in MODEL_REGISTRY
         assert "deepseek-v4-flash" in MODEL_REGISTRY
 

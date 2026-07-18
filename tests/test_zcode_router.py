@@ -322,10 +322,10 @@ class TestProviderModelRegistry:
 
         assert "deepseek-v4-pro" in MODEL_REGISTRY
 
-    def test_model_registry_has_glm_4v_flash(self):
+    def test_model_registry_has_agnes_vision(self):
         from core.provider import MODEL_REGISTRY
 
-        assert "GLM-4V-Flash" in MODEL_REGISTRY
+        assert "agnes-2.0-flash" in MODEL_REGISTRY
 
 
 class TestProviderResolveModelAlias:
@@ -400,21 +400,21 @@ class TestProviderToolCalling:
 
         assert model_supports_tools("deepseek-v4-pro") is True
 
-    def test_model_supports_tools_glm_4v_flash(self):
+    def test_model_supports_tools_video_model(self):
         from core.provider import model_supports_tools
 
-        # GLM-4V-Flash does NOT support tools
-        assert model_supports_tools("GLM-4V-Flash") is False
+        # Video/image generation models do NOT support tools
+        assert model_supports_tools("agnes-video-v2.0") is False
 
 
 class TestProviderVision:
     """Vision model functions."""
 
-    def test_get_vision_models_contains_glm(self):
+    def test_get_vision_models_has_agnes(self):
         from core.provider import get_vision_models
 
         models = get_vision_models()
-        assert "GLM-4V-Flash" in models
+        assert "agnes-2.0-flash" in models
 
     def test_get_vision_models_contains_agnes(self):
         from core.provider import get_vision_models
@@ -422,10 +422,10 @@ class TestProviderVision:
         models = get_vision_models()
         assert "agnes-2.0-flash" in models
 
-    def test_model_supports_vision_glm_4v_flash(self):
+    def test_model_supports_vision_agnes_flash(self):
         from core.provider import model_supports_vision
 
-        assert model_supports_vision("GLM-4V-Flash") is True
+        assert model_supports_vision("agnes-2.0-flash") is True
 
     def test_model_supports_vision_deepseek_v4_pro(self):
         from core.provider import model_supports_vision

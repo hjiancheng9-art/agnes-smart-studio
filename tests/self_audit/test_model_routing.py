@@ -139,7 +139,8 @@ class TestConfigAudit:
             pytest.skip("models.json not found")
         # Support both naming conventions
         active = (
-            config.get("active_provider")
+            config.get("active")
+            or config.get("active_provider")
             or config.get("default_chat_provider")
             or config.get("default_provider")
             or config.get("active_strategy")

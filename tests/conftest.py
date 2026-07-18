@@ -2,6 +2,14 @@
 
 import pytest
 
+# Load .env early so API key skip checks work at module import time
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(override=True)
+except ImportError:
+    pass
+
 
 def pytest_configure(config):
     """Register custom markers for test layering."""

@@ -38,7 +38,7 @@ class TestProviderContract:
     def test_provider_models_have_capability_info(self):
         from core.provider import get_capability_info
 
-        for model_id in ("deepseek-v4-flash", "deepseek-v4-pro", "GLM-4V-Flash"):
+        for model_id in ("deepseek-v4-flash", "deepseek-v4-pro", "agnes-2.0-flash"):
             info = get_capability_info(model_id)
             assert info is not None, f"No capability info for {model_id}"
             assert info.provider_id, f"No provider_id for {model_id}"

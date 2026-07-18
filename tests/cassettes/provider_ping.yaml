@@ -1,0 +1,45 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Host:
+      - api.deepseek.com
+      User-Agent:
+      - Python-urllib/3.11
+    method: GET
+    uri: https://api.deepseek.com/v1/models
+  response:
+    body:
+      string: '{"error":{"message":"Authentication Fails, Your api key: ****afbf is
+        invalid","type":"authentication_error","param":null,"code":"invalid_request_error"}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '153'
+      Content-Type:
+      - application/json
+      Date:
+      - Sat, 18 Jul 2026 07:21:06 GMT
+      EO-Cache-Status:
+      - MISS
+      EO-LOG-UUID:
+      - '6971049706586005630'
+      Server:
+      - openresty
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      X-Content-Type-Options:
+      - nosniff
+      access-control-allow-credentials:
+      - 'true'
+      vary:
+      - origin, access-control-request-method, access-control-request-headers
+      x-ds-trace-id:
+      - 4e04bf2d1245adc049e0c987033a2557
+    status:
+      code: 401
+      message: Authorization Required
+version: 1

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from core.tool_cache import CACHEABLE_TOOLS, WRITE_TOOLS_INVALIDATE, ToolResultCache, get_tool_cache
 
 
@@ -43,7 +42,7 @@ class TestToolResultCache:
     def test_max_size_eviction(self):
         cache = ToolResultCache(max_size=3)
         for i in range(5):
-            cache.put("r", '{"i":' + str(i) + '}', str(i))
+            cache.put("r", '{"i":' + str(i) + "}", str(i))
         assert cache.get("r", '{"i":0}') is None
         assert cache.get("r", '{"i":1}') is None
         assert cache.get("r", '{"i":4}') == "4"

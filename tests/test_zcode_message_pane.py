@@ -145,6 +145,7 @@ class TestAutoScrollRespectsPinned:
 
     def test_auto_scroll_sets_pending_flag(self):
         from unittest.mock import MagicMock
+
         pane = MessagePane()
         pane._window = MagicMock()
         pane._window.vertical_scroll = 0

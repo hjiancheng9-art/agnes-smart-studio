@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import pytest
+
 from core.cancellation import (
-    CancelledError,
     CancellationToken,
+    CancelledError,
     TaskInfo,
     TaskRegistry,
     TaskStatus,
@@ -13,10 +14,10 @@ from core.cancellation import (
     run_cancellable,
 )
 
-
 # ═══════════════════════════════════════════════════════════════
 # CancellationToken
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestCancellationToken:
     def test_default_not_cancelled(self):
@@ -61,6 +62,7 @@ class TestCancellationToken:
 # CancelledError
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestCancelledError:
     def test_contains_task_id_and_reason(self):
         e = CancelledError("tid", "cancelled by user")
@@ -77,6 +79,7 @@ class TestCancelledError:
 # ═══════════════════════════════════════════════════════════════
 # TaskInfo
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestTaskInfo:
     def test_default_status_pending(self):
@@ -100,6 +103,7 @@ class TestTaskInfo:
 # ═══════════════════════════════════════════════════════════════
 # TaskRegistry
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestTaskRegistry:
     def test_register_returns_id_and_token(self):
@@ -159,7 +163,7 @@ class TestTaskRegistry:
     def test_list_all_returns_all(self):
         reg = TaskRegistry()
         tid1, _ = reg.register("a")
-        tid2, _ = reg.register("b")
+        reg.register("b")  # tid2 unused
         reg.complete(tid1, "ok")
         assert len(reg.list_all()) == 2
 
@@ -187,7 +191,7 @@ class TestTaskRegistry:
     def test_stats_counts_by_status(self):
         reg = TaskRegistry()
         tid1, _ = reg.register("a")
-        tid2, _ = reg.register("b")
+        reg.register("b")  # tid2 unused
         reg.complete(tid1, "ok")
         s = reg.stats()
         assert s.get("running", 0) == 1
@@ -197,6 +201,7 @@ class TestTaskRegistry:
 # ═══════════════════════════════════════════════════════════════
 # run_cancellable
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestRunCancellable:
     def test_successful_execution(self):
@@ -238,6 +243,7 @@ class TestRunCancellable:
 # ═══════════════════════════════════════════════════════════════
 # get_registry singleton
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestGetRegistry:
     def test_returns_same_instance(self):
