@@ -343,9 +343,13 @@ class MessagePane:
         When virtual scrolling is active (>100 messages), _render uses
         _scroll_offset to decide which messages to render. Without this
         sync, scrolling past message 75 shows blank content.
+
+        Bottom sentinel must be 999999 (not 0) — _render checks
+        _scroll_offset >= 999999 to decide whether to show the tail.
+        Using 0 here would jump virtual scroll to the top of content.
         """
         vs = self._window.vertical_scroll
-        self._scroll_offset = 0 if vs >= _SCROLL_BOTTOM else vs
+        self._scroll_offset = 999999 if vs >= _SCROLL_BOTTOM else vs
 
     def scroll_up(self, lines: int = _SCROLL_LINE) -> None:
         cur = self._current_visual_row()
@@ -424,6 +428,7 @@ class MessagePane:
                 return
             self._window.vertical_scroll = _SCROLL_BOTTOM
             self._window.vertical_scroll_2 = 0
+            self._scroll_offset = 999999  # sync virtual scroll to bottom
 
     # ── Message management ───────────────────────────────────
 
@@ -516,7 +521,10 @@ class MessagePane:
         # 缓冲区上限保护: 单条消息超过 100KB 截断，防止异常数据撑爆
         MAX_STREAM_LEN = 102400
         if len(self._stream_buffer) > MAX_STREAM_LEN:
-            return  # 静默丢弃，避免撑爆输入区
+            if not getattr(self, "_truncation_warned", False):
+                self._truncation_warned = True
+                self._stream_buffer += "\n\n[... 输出超过 100KB 已截断]"
+            return  # 停止追加，避免撑爆输入区
         with self._lock:
             if self._stream_label:
                 self._stream_buffer += text

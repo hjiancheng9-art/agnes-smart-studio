@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crux-smart-studio"
-version = "5.0.0"
-description = "CRUX Studio — AI-native creative + coding platform · 75+ tools"
-requires-python = ">=3.10"
+version = "6.1.0"
+description = "CRUX Studio — AI-powered terminal coding assistant with tool access"
+requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.27",
     "rich>=13",
@@ -54,13 +54,30 @@ dev = [
     "coverage>=7.0",
     "ruff>=0.4",
     "pyright>=1.1.400",
+    "bandit>=1.7",
+    "vulture>=2.11",
+    "hypothesis>=6.100",
+    "deptry>=0.16",
+    "radon>=6.0",
+    "pytest-randomly>=3.15",
+    "dodgy>=0.2",
+    "safety>=3.2",
+    "interrogate>=1.7",
+    "check-jsonschema>=0.29",
+    "vcrpy>=6.0",
+    "pytest-vcr>=1.0",
+    "pre-commit>=3.8",
+    "syrupy>=4.6",
+    "pexpect>=4.9",
+    # mutmut: Windows 不支持，需在 WSL 中运行 (https://github.com/boxed/mutmut/issues/397)
+    # "mutmut>=3.0",
 ]
 
 [tool.pytest.ini_options]
 # 只收集 tests/ 顶层单元测试（mock，不打真实 API）。
 # tests/manual/ 是手动集成脚本（打真实 API、有自己的入口），不纳入 CI 收集。
 testpaths = ["tests"]
-norecursedirs = ["tests/manual", "scripts", "output", ".codebuddy"]
+norecursedirs = ["tests/manual", "scripts", "output", ".codebuddy", ".hypothesis"]
 markers = [
     "unit: Fast tests, no I/O, no network, no browser. Run first.",
     "integration: Tests that wire multiple modules together.",
@@ -148,3 +165,63 @@ skip_covered = true
 # 上游原来是 96%（与实际值脱节），CI 也没跑 --cov，等于形同虚设。
 fail_under = 58
 
+# ── bandit: security linting ─────
+[tool.bandit]
+exclude_dirs = ["tests", "output", ".codebuddy", "scripts"]
+skips = ["B101"]  # skip assert detection (test files excluded anyway, belt-and-suspenders)
+
+# ── vulture: dead code detection ─────
+[tool.vulture]
+exclude = ["tests/", "output/", ".codebuddy/", "scripts/"]
+min_confidence = 70
+# Whitelist patterns that vulture may mistake for dead code
+# (dynamic imports, registries, plugin hooks, etc.)
+ignore_names = ["exc_*", "_cached_keys", "handle_*", "on_*"]
+
+# ── deptry: dependency audit ─────
+# deptry is CLI-only, no pyproject.toml config section available.
+# CI invocation:
+#   deptry . \
+#     --known-first-party "core,ui,engines,utils,pipeline" \
+#     --per-rule-ignores "DEP002=pytest|pytest-cov|pytest-asyncio|coverage|ruff|pyright|bandit|vulture|hypothesis|deptry,DEP003=win32clipboard|win32file|win32pipe|pywintypes"
+# Known remaining issues (all expected):
+#   DEP001: faster_whisper,whisper,weasyprint,chardet,jieba — optional/conditional imports
+#   DEP001: query (crux_studio.py) — likely local module false positive
+#   DEP001: tui_art (widgets_v2.py) — likely local module
+#   DEP003: openai,reportlab,websockets,charset_normalizer,psutil,torch,pydantic,
+#           uvicorn,fastapi,tomli,pyperclip,pygments — directly used transitive deps
+
+# ── radon: cyclomatic complexity ─────
+# CI commands:
+#   radon cc core/ ui/ --min C --total-average    # C+ complexity
+#   radon mi core/ ui/ --min C                     # C+ maintainability
+# Threshold reference: A=1-5, B=6-10, C=11-20, D=21-30, E=31-50, F=51+
+[tool.radon]
+cc_rank = "C"           # flag functions with complexity >= C (11+)
+mi_rank = "C"           # flag files with maintainability index <= C
+exclude = ["tests/*", "output/*"]
+
+# ── pytest-randomly: randomized test order ─────
+# Automatically enabled when installed (no config needed).
+# Randomizes test + fixture order to detect hidden inter-test dependencies.
+# To run in a fixed seed (reproducible): pytest --randomly-seed=12345
+# To disable for a single run: pytest -p no:randomly
+
+# ── interrogate: docstring coverage ─────
+[tool.interrogate]
+ignore-init-module = true
+ignore-init-method = false
+ignore-module = false
+ignore-nested-functions = false
+ignore-nested-classes = true
+ignore-setters = true
+fail-under = 65                  # current: 64%, target: 65% → 80%
+# Minimal coverage now, CI gate will ratchet up over time.
+exclude = ["tests", "output", ".codebuddy", "scripts", "schemas"]
+# Long-tail lore/slot modules have low coverage by design — exclude temporarily
+whitelist-regex = []
+
+# ── check-jsonschema: validate JSON configs ─────
+# CI command:
+#   check-jsonschema --schemafile schemas/models.schema.json models.json
+# Note: tools.json schema not yet defined — add when schema evolves.

@@ -424,20 +424,19 @@ class TuiApp:
                 if kind == "text":
                     self._ui(self.message_pane.stream_append, str(payload))
                 elif kind == "thinking":
-                    # Accumulate thinking chunks into a single activity log entry
+                    # Stream thinking content to BOTH message pane (visible) and activity log (summary)
                     chunk = str(payload)
+                    self._ui(self.message_pane.stream_append, chunk)
                     if not hasattr(self, "_thinking_buf"):
                         self._thinking_buf = ""
                     if not self._thinking_buf:
                         self._activity_log.append(("●", "class:message-thinking", chunk[:120]))
                     else:
-                        # Update last entry — append new text
                         merged = self._thinking_buf + chunk
                         if len(merged) > 120:
                             merged = merged[:117] + "..."
                         if self._activity_log and "class:message-thinking" in self._activity_log[-1][1]:
                             self._activity_log[-1] = ("●", "class:message-thinking", merged)
-                    # 额外保护: thinking buffer 不超过 10KB
                     if len(self._thinking_buf) > 10240:
                         self._thinking_buf = self._thinking_buf[-5120:]
                     self._thinking_buf += chunk
@@ -488,6 +487,19 @@ class TuiApp:
                 elif kind == "error":
                     self._ui(self.message_pane.append_error, str(payload))
                     self._activity_log.append(("✗", "class:message-error", str(payload)[:120]))
+                elif kind == "validation_error":
+                    self._ui(self.message_pane.append_error, str(payload))
+                    self._activity_log.append(("⚠", "class:message-error", str(payload)[:120]))
+                elif kind == "confirm":
+                    # High-risk tool confirmation — show prominent message in main pane
+                    d = payload if isinstance(payload, dict) else {}
+                    tool = d.get("tool", "?")
+                    args = d.get("args", {})
+                    preset = args.get("preset", "")
+                    desc = f"{tool}" + (f" [{preset}]" if preset else "")
+                    self._ui(self.message_pane.stream_append, f"\n⚠️ 高风险操作需要确认: {desc}")
+                    self._ui(self.message_pane.stream_append, "\n   按 Enter 确认执行，或输入新消息取消\n")
+                    self._activity_log.append(("?", "class:message-warning", f"确认: {desc}"))
                 elif kind in ("image", "video"):
                     d = payload if isinstance(payload, dict) else {}
                     loc = d.get("local_path", "") or d.get("url", "") or d.get("video_url", "")
@@ -550,7 +562,11 @@ class TuiApp:
                 # Throttle: during streaming, skip redraws within 30ms (~30fps)
                 if _force or not self._thinking or now - self._last_invalidate > 0.030:
                     self._last_invalidate = now
-                    self._app.invalidate()
+                    # Thread-safe: marshal invalidation to main thread (prompt_toolkit requirement)
+                    if hasattr(self._app, "call_soon_threadsafe"):
+                        self._app.call_soon_threadsafe(self._app.invalidate)
+                    else:
+                        self._app.invalidate()
                 # 每帧裁剪 activity_log 防止无限增长挤占输入区
                 self._trim_activity_log()
         except Exception:
