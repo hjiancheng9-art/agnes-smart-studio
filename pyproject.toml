@@ -34,6 +34,7 @@ classifiers = [
 crux = "crux_studio:main"
 crux-chat = "crux_studio:main_chat"
 crux-query = "crux_studio:main_query"
+crux-doctor = "crux_studio:main_doctor"
 
 # 扁平多包布局：显式声明只收代码包，避免 setuptools 自动发现把
 # output/assets/skills 等非代码目录当成 Python 包（flat-layout 多包会直接报错）。

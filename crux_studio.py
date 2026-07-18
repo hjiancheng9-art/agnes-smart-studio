@@ -107,9 +107,10 @@ def main():
         print(f"CRUX Studio v{__version__}")
         sys.exit(0)
     elif len(sys.argv) >= 2 and sys.argv[1] in ("init", "login"):
-        # crux init / crux login — 写全局 ~/.crux/auth.json，对标 codex 首次引导。
-        # 不需要 API Key（这就是配置它的命令），独立处理直接退出。
         _run_init()
+        sys.exit(0)
+    elif len(sys.argv) >= 2 and sys.argv[1] in ("doctor", "health"):
+        _run_doctor()
         sys.exit(0)
     elif len(sys.argv) >= 2 and sys.argv[1] == "mcp-serve":
         # crux mcp-serve — 启动 MCP server（stdio JSON-RPC），让 CRUX 作为
@@ -914,6 +915,70 @@ def _run_init():
     print(f"  ✓ 已保存到 {path}")
     print("  ✓ 现在在任意目录敲 crux 都能用。")
     print()
+
+
+def _run_doctor():
+    """crux doctor — 系统健康诊断。"""
+    import os
+    import sys
+    from pathlib import Path
+
+    from core.version import __version__
+
+    print(f"  CRUX Studio v{__version__}")
+    print(f"  Python: {sys.version}")
+    print(f"  Platform: {sys.platform}")
+    print()
+
+    checks = []
+    # Python version
+    py_ok = sys.version_info >= (3, 11)
+    checks.append(("Python >= 3.11", py_ok, "Install Python 3.11+ from python.org"))
+    # API key
+    env_key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("CRUX_API_KEY")
+    from core.config import SETTINGS
+    config_key = SETTINGS.api_key
+    checks.append(("API key configured", bool(env_key or config_key), "Run: crux init"))
+    # Git
+    try:
+        import subprocess
+        r = subprocess.run(["git", "--version"], capture_output=True, text=True, timeout=5)
+        checks.append(("Git installed", r.returncode == 0, "Install git from https://git-scm.com"))
+    except Exception:
+        checks.append(("Git installed", False, "Install git from https://git-scm.com"))
+    # pip packages
+    try:
+        import httpx, rich, PIL, yaml
+        checks.append(("Core dependencies", True, None))
+    except ImportError as e:
+        checks.append(("Core dependencies", False, f"Run: pip install -r requirements.txt ({e})"))
+    # CRUX root
+    crux_root = Path(__file__).resolve().parent
+    checks.append(("CRUX install dir exists", crux_root.is_dir(), "Reinstall: pip install -e ."))
+    # models.json
+    checks.append(("models.json exists", (crux_root / "models.json").is_file(), "Restore from git or template"))
+    # output dir writable
+    out = crux_root / "output"
+    out_ok = out.is_dir() and os.access(out, os.W_OK) if out.exists() else out.parent.is_dir() and os.access(out.parent, os.W_OK)
+    checks.append(("Output directory writable", out_ok, "Check disk space and permissions"))
+
+    all_ok = True
+    for name, ok, fix in checks:
+        status = "PASS" if ok else "FAIL"
+        print(f"  [{status}] {name}")
+        if not ok and fix:
+            print(f"         Fix: {fix}")
+            all_ok = False
+    print()
+    if all_ok:
+        print("  All checks passed. CRUX is ready.")
+    else:
+        print("  Some checks failed. Fix the issues above and try again.")
+
+
+def main_doctor():
+    """CLI entry: crux doctor"""
+    _run_doctor()
 
 
 def main_chat():
