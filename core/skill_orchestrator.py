@@ -154,7 +154,7 @@ class SkillOrchestrator:
         """Semantic-ish search: weighted name match + description + category + history."""
         skills = self._load_skills()
         goal_lower = goal.lower()
-        goal_words = set(w for w in goal_lower.split() if len(w) > 1)
+        goal_words = {w for w in goal_lower.split() if len(w) > 1}
 
         _STOP = frozenset({"the", "a", "an", "for", "in", "of", "to", "and", "or", "is", "my", "with", "this", "that"})
         goal_terms = goal_words - _STOP
@@ -400,10 +400,10 @@ class SkillOrchestrator:
                         return json.loads(path.read_text(encoding="utf-8"))
                     if path.suffix == ".md":
                         text = path.read_text(encoding="utf-8", errors="replace")
-                        name = skill_name.replace("-", " ").title()
+                        skill_name.replace("-", " ").title()
                         for line in text.split("\n"):
                             if line.startswith("# "):
-                                name = line[2:].strip()
+                                line[2:].strip()
                                 break
                         desc = text.split("\n\n")[1] if "\n\n" in text else text[:200]
                         return {"name": skill_name, "description": desc, "prompt": text}

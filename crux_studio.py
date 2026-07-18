@@ -948,7 +948,10 @@ def _run_doctor():
         checks.append(("Git installed", False, "Install git from https://git-scm.com"))
     # pip packages
     try:
-        import httpx, rich, PIL, yaml
+        import httpx
+        import PIL
+        import rich
+        import yaml
         checks.append(("Core dependencies", True, None))
     except ImportError as e:
         checks.append(("Core dependencies", False, f"Run: pip install -r requirements.txt ({e})"))

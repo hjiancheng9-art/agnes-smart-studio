@@ -398,7 +398,7 @@ class ChatSession(ChatToggleMixin):
             self._budget = TokenBudget()
             self._budget.count(self.messages)
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            pass
         # ── Dynamic attrs set by mixins/hooks — declared here for type checking ──
         self.vision_ctx: Any = None
         self._vision_fallback: Any = None
@@ -907,7 +907,7 @@ class ChatSession(ChatToggleMixin):
             if self._budget.should_warn():
                 print(self._budget.warning(), flush=True)
         except Exception:
-            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+            pass
 
     def _vision_model_chain(self, complexity: str = "light") -> list[str]:
         """Vision model chain — single model after zhipu removal."""
