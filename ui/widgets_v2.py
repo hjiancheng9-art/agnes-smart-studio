@@ -180,6 +180,8 @@ def build_welcome_formatted(
     cwd: str = "",
     branch: str = "",
     palette: dict | None = None,
+    skills_count: int = 0,
+    plugins_count: int = 0,
 ) -> FormattedText:
     """Build welcome — responsive layout: TW-driven 3-column grid.
 
@@ -192,6 +194,12 @@ def build_welcome_formatted(
     from core.version import __version__ as _ver
 
     _model = model_name or "deepseek-v4-flash"
+    # Friendly display name for well-known models
+    _MODEL_DISPLAY = {
+        "deepseek-v4-flash": "DeepSeek V4 Flash",
+        "deepseek-v4": "DeepSeek V4",
+    }
+    _model_display = _MODEL_DISPLAY.get(_model, _model)
     _branch = branch or "main"
     _home = _os.path.expanduser("~")
     _cwd = cwd
@@ -249,9 +257,9 @@ def build_welcome_formatted(
             (M, "  ·  "),
             (W, "工程搭档"),
             (M, "  ·  "),
-            (B, "DeepSeek V4 Flash"),
+            (B, _model_display),
             (M, "  ·  "),
-            (T, "1M上下文"),
+            (T, "1M 上下文"),
             (M, "  ·  "),
             (G, "● ready"),
         ]
@@ -268,7 +276,9 @@ def build_welcome_formatted(
     _bb.extend(_badge(P, f" {_branch} "))
     _bb.extend(_badge(G, " 1M context "))
     _bb.extend(_badge(T, f" v{_ver} "))
-    _bb.extend(_badge(A, " 34 skills · 121 pkgs "))
+    _sk = skills_count or "?"
+    _pk = plugins_count or "?"
+    _bb.extend(_badge(A, f" {_sk} skills · {_pk} plugins "))
     _bb.append((S, sp(CW - sum(len(x[1]) + 2 for x in _bb) - 2)))
     L([("", "  "), *_bb])
     L([("", "\n")])
@@ -357,9 +367,9 @@ def build_welcome_formatted(
     _sys = [
         ("● ready", G),
         ("Agent Swarm 并行执行", P),
-        ("34 loaded · 121 pkgs · 767 market", W),
+        (f"{_sk} loaded · {_pk} plugins", W),
         ("理解意图→推理→执行→验证", G),
-        ("34 专业技能 · 3963 tests ✓", T),
+        (f"{_sk} 专业技能 · 0 failures ✓", T),
     ]
 
     for i in range(5):
@@ -407,13 +417,13 @@ def build_welcome_formatted(
     _wel = [
         (S, btop("CRUX Studio", wl_w)),
         _wbox_row(S, "", wl_w),
-        _wbox_row(Y, "工程搭档 · 能读能写能跑代码 · 自我纠错", wl_w),
+        _wbox_row(Y, "极简内核 · 百器待命 · 七兽按需 · Multi-Agent", wl_w),
         _wbox_row(S, "", wl_w),
         _wbox_row(W, "平时如刀，出事成阵", wl_w),
         _wbox_row(W, "理解意图 → 深度推理 → 自主执行 → 验证闭环", wl_w),
-        _wbox_row(G, f"v{_ver} · 3963 tests ✓ · 0 failures · 自修复", wl_w),
+        _wbox_row(G, f"v{_ver} · {_sk} skills · {_pk} plugins · 1M 上下文 · 自修复", wl_w),
         _wbox_row(A, "Agent Swarm · 自修改 · A/B/C/D 任务分级", wl_w),
-        _wbox_row(S, "", wl_w),
+        _wbox_row(B, f"📁 {_cwd}", wl_w),
         (S, bbot(wl_w)),
     ]
     _qs_items = [

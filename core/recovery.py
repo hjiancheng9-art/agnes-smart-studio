@@ -120,6 +120,7 @@ class RecoveryEngine:
         if "503" in el or "overloaded" in el:
             try:
                 from core.provider import get_provider_manager
+
                 mgr = get_provider_manager()
                 old = mgr.active_provider
                 mgr.fallback()
@@ -139,6 +140,7 @@ class RecoveryEngine:
         # Timeout → increase timeout for next attempt
         if "timeout" in el:
             import os
+
             old_timeout = os.environ.get("CRUX_DEFAULT_TIMEOUT", "120")
             os.environ["CRUX_DEFAULT_TIMEOUT"] = str(int(old_timeout) * 2)
             actions.append(f"Timeout increased: {old_timeout}s → {os.environ['CRUX_DEFAULT_TIMEOUT']}s")
@@ -148,14 +150,20 @@ class RecoveryEngine:
         if "rate" in el or "429" in el:
             try:
                 from core.provider import get_provider_manager
+
                 mgr = get_provider_manager()
                 mgr.state.mark_down(mgr.active_provider)
                 actions.append(f"Provider {mgr.active_provider} marked down (rate limited)")
                 did_recover = True
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                import logging
 
-        return {"success": did_recover, "message": "; ".join(actions) if actions else f"Unrecognized model error: {error_msg[:100]}"}
+                logging.getLogger("crux").debug("silent except", exc_info=True)
+
+        return {
+            "success": did_recover,
+            "message": "; ".join(actions) if actions else f"Unrecognized model error: {error_msg[:100]}",
+        }
 
     def _rate_limit(self, provider: str = "", retry_after: int = 5, **ctx) -> dict:
         """Handle rate limiting (429) — wait and try fallback provider."""

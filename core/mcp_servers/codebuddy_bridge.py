@@ -49,7 +49,9 @@ def _handle_tool_call(name: str, args: dict) -> dict:
                 available = r.returncode == 0
                 version = (r.stdout or r.stderr or "").strip()
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                import logging
+
+                logging.getLogger("crux").debug("silent except", exc_info=True)
         info = {"available": available, "binary": binary, "version": version}
         return {"content": [{"type": "text", "text": json.dumps(info, indent=2, ensure_ascii=False)}]}
     return {"content": [{"type": "text", "text": f"Unknown tool: {name}"}], "isError": True}
@@ -68,18 +70,40 @@ def main():
         method = req.get("method", "")
         params = req.get("params", {})
         if method == "initialize":
-            sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": mid, "result": {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}}, "serverInfo": {"name": "codebuddy-bridge", "version": "0.2.0"}}}, ensure_ascii=False) + "\n")
+            sys.stdout.write(
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": mid,
+                        "result": {
+                            "protocolVersion": "2024-11-05",
+                            "capabilities": {"tools": {}},
+                            "serverInfo": {"name": "codebuddy-bridge", "version": "0.2.0"},
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
         elif method == "notifications/initialized":
             pass
         elif method == "tools/list":
-            sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": mid, "result": {"tools": TOOLS}}, ensure_ascii=False) + "\n")
+            sys.stdout.write(
+                json.dumps({"jsonrpc": "2.0", "id": mid, "result": {"tools": TOOLS}}, ensure_ascii=False) + "\n"
+            )
         elif method == "tools/call":
             result = _handle_tool_call(params.get("name", ""), params.get("arguments", {}))
             sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": mid, "result": result}, ensure_ascii=False) + "\n")
         elif method == "ping":
             sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": mid, "result": {}}, ensure_ascii=False) + "\n")
         else:
-            sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": mid, "error": {"code": -32601, "message": f"Method not found: {method}"}}, ensure_ascii=False) + "\n")
+            sys.stdout.write(
+                json.dumps(
+                    {"jsonrpc": "2.0", "id": mid, "error": {"code": -32601, "message": f"Method not found: {method}"}},
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
         sys.stdout.flush()
 
 

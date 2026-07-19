@@ -747,7 +747,7 @@ class MarketplaceClient:
     @property
     def adapters(self) -> list[MarketplaceAdapter]:
         return [
-            a for a in self._adapters if not isinstance(a, (CodeBuddyAdapter, RemoteMarketplaceAdapter)) or a.enabled
+            a for a in self._adapters if not isinstance(a, CodeBuddyAdapter | RemoteMarketplaceAdapter) or a.enabled
         ]
 
     def search(self, query: str, category: str = "") -> list[SkillPackage]:
@@ -781,6 +781,7 @@ class MarketplaceClient:
         if source.startswith("http://") or source.startswith("https://"):
             try:
                 from core.skill_pack import install as pack_install
+
                 result = pack_install(source)
                 return result.get("status") == "installed"
             except ImportError:

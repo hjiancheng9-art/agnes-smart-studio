@@ -9,6 +9,26 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
+# Cache tools.json reads (4 callers, 80KB each — single cache saves 240KB of I/O)
+_tools_cache: tuple[float, int] | None = None
+
+
+def _get_tool_count() -> int:
+    """Return tool count from tools.json, cached on mtime."""
+    global _tools_cache
+    tools_path = ROOT / "tools.json"
+    try:
+        mtime = tools_path.stat().st_mtime
+    except OSError:
+        return 0
+    if _tools_cache and _tools_cache[0] == mtime:
+        return _tools_cache[1]
+    with open(tools_path, encoding="utf-8") as f:
+        tools_data = json.load(f)
+    count = len(tools_data.get("tools", tools_data if isinstance(tools_data, list) else []))
+    _tools_cache = (mtime, count)
+    return count
+
 
 def _count_tests() -> int:
     tests_dir = ROOT / "tests"
@@ -34,9 +54,7 @@ def sync_manifest() -> dict:
 
     from core.commands import COMMANDS
 
-    with open(ROOT / "tools.json", encoding="utf-8") as f:
-        tools_data = json.load(f)
-    tool_count = len(tools_data.get("tools", tools_data if isinstance(tools_data, list) else []))
+    tool_count = _get_tool_count()
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["stats"]["commands"] = len(COMMANDS)
@@ -56,9 +74,7 @@ def sync_agents_md() -> str:
     content = path.read_text(encoding="utf-8")
     from core.commands import COMMANDS
 
-    with open(ROOT / "tools.json", encoding="utf-8") as f:
-        tools_data = json.load(f)
-    tool_count = len(tools_data.get("tools", tools_data if isinstance(tools_data, list) else []))
+    tool_count = _get_tool_count()
 
     # Update snapshot section counts
     content = re.sub(
@@ -98,10 +114,8 @@ def render_help_md() -> str:
             lines.append(f"| `{name}{arg}` | {desc} |")
         lines.append("")
 
-    # Tool count from tools.json
-    with open(ROOT / "tools.json", encoding="utf-8") as f:
-        tools_data = json.load(f)
-    tool_count = len(tools_data.get("tools", tools_data if isinstance(tools_data, list) else []))
+    # Tool count from tools.json (cached)
+    tool_count = _get_tool_count()
     lines.append("---")
     lines.append(
         f"*{tool_count} tools, {_count_skills()} skills, {_count_core_modules()} core modules, {_count_tests()} test files*"
@@ -115,9 +129,7 @@ def generate_help_md() -> str:
 
     result = render_help_md()
     (ROOT / "HELP.md").write_text(result, encoding="utf-8")
-    with open(ROOT / "tools.json", encoding="utf-8") as f:
-        tools_data = json.load(f)
-    tool_count = len(tools_data.get("tools", tools_data if isinstance(tools_data, list) else []))
+    tool_count = _get_tool_count()
     return f"HELP.md generated ({len(COMMANDS)} commands, {tool_count} tools)"
 
 

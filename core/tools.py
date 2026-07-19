@@ -216,17 +216,19 @@ def _build_shell_strategies(cmd: str, sys_module) -> list[tuple[str, str]]:
     # 策略 2：Windows 上用 cmd.exe /c 直接执行
     if is_win:
         clean = _re.sub(r"^bash\s+-c\s+", "", cmd.strip())
-        strategies.append(("cmd_exe", f'cmd.exe /c "{clean}"'))
+        escaped = clean.replace('"', '\\"')
+        strategies.append(("cmd_exe", f'cmd.exe /c "{escaped}"'))
 
     # 策略 3：如果有 bash，尝试 bash 登录 shell
     if has_bash and not cmd.strip().startswith("bash"):
-        strategies.append(("bash_login", f'bash -l -c "{cmd}"'))
+        escaped = cmd.replace('"', '\\"')
+        strategies.append(("bash_login", f'bash -l -c "{escaped}"'))
 
     # 策略 4：裸命令（无 shell 包装），仅当命令简单时
     if not any(c in cmd for c in ('"', "'", "&&", "||", "|", ">", "<", ";")):
         strategies.append(("raw_no_shell", cmd))
 
-    # 策略 5：Windows 上 POSIX 命令 → PowerShell 转换
+    # 策略 5：Windows 上检测管道中的 Unix 命令 → PowerShell 转换 / bash 路由
     if is_win:
         cmd_name = cmd.strip().split()[0].lower() if cmd.strip() else ""
         if cmd_name in _POSIX_TO_POWERSHELL:
@@ -234,7 +236,16 @@ def _build_shell_strategies(cmd: str, sys_module) -> list[tuple[str, str]]:
                 pwsh_cmd = _POSIX_TO_POWERSHELL[cmd_name](cmd)
                 strategies.append(("powershell_fallback", pwsh_cmd))
             except Exception:
-                pass  # 转换失败静默跳过
+                logger.debug("POSIX-to-PowerShell translation failed for %s", cmd_name, exc_info=True)
+        # 管道中包含 Unix 命令（如 python ... | head -20），via 策略 3 bash_login
+        # 已覆盖 —— 但 bash_login 用双引号包裹，内部双引号需转义。
+        # 此处追加策略：用单引号包裹避免二次转义炸壳。
+        _unix_pipe_cmds = {"head", "tail", "grep", "wc", "sed", "awk", "sort", "uniq", "cut", "tr", "xargs"}
+        _cmd_words = set(cmd.strip().split())
+        if _unix_pipe_cmds & _cmd_words and has_bash:
+            # 单引号包裹，内部单引号转义为 '\''（bash 标准）
+            _sq_escaped = cmd.replace("'", "'\\''")
+            strategies.append(("bash_single_quote", f"bash -l -c '{_sq_escaped}'"))
 
     # 去重
     seen = set()

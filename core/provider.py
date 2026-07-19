@@ -143,6 +143,22 @@ def _register_defaults():
             cost_level=1,
             pricing={"input_per_1k": 0.003, "output_per_1k": 0.012},
         ),
+        ModelInfo(
+            id="agnes-2.5-flash",
+            name="CRUX 2.5 Flash",
+            provider_id="crux",
+            provider_name="CRUX AI",
+            description="最新旗舰，速度与智能完美平衡，视觉+tools+推理",
+            supports_tools=True,
+            supports_thinking=False,
+            supports_vision=True,
+            tier="pro",
+            aliases=("agnes25",),
+            context_window=128000,
+            max_output_tokens=16384,
+            cost_level=1,
+            pricing={"input_per_1k": 0.003, "output_per_1k": 0.012},
+        ),
         # ── CRUX 图片生成 ──
         ModelInfo(
             id="agnes-image-2.1-flash",
@@ -692,6 +708,18 @@ class ProviderManager:
         # Legacy fallback: CRUX provider also accepts AGNES_API_KEY (pre-rename)
         if not api_key and pid == "crux":
             api_key = os.getenv("AGNES_API_KEY", "")
+        # Dynamic token pool: "__AGNES_POOL__" → resolve from AgnesCode LevelDB
+        if api_key == "__AGNES_POOL__":
+            try:
+                from core.agnes_token_pool import get_pool
+
+                pool = get_pool()
+                api_key = pool.next() or ""
+                if api_key:
+                    provider["_pool_token"] = api_key
+            except Exception:
+                logger.debug("Agnes token pool unavailable, using empty key", exc_info=True)
+                api_key = ""
         # Ensure ASCII-only (httpx rejects non-ASCII headers)
         # P2-fix: errors="strict" — 拒绝非ASCII字符（如中文引号/BOM），
         # 避免 Key 被静默截断导致认证失败而不报错。
@@ -719,10 +747,34 @@ class ProviderManager:
         if failover succeeded, or (None, None) if all providers exhausted.
 
         Implements failover depth protection: max 3 cascading failovers.
+        Special case: agnes-bff token pool auto-rotates on credit/rate exhaustion.
         """
         if _depth >= 3:
             logger.warning("failover chain exceeded max depth (3), giving up")
             return None, None
+
+        # ── Token pool auto-rotation: mark bad token, grab fresh one ──
+        provider = self.providers.get(failed_provider, {})
+        if provider.get("api_key") == "__AGNES_POOL__":
+            try:
+                from core.agnes_token_pool import get_pool
+
+                pool = get_pool()
+                old_token = provider.get("_pool_token", "")
+                if old_token:
+                    pool.mark_bad(old_token)
+                new_token = pool.next()
+                if new_token and new_token != old_token:
+                    provider["_pool_token"] = new_token
+                    from core.client import CruxClient
+
+                    return CruxClient(
+                        api_key=new_token,
+                        base_url=provider["base_url"],
+                        provider_id=failed_provider,
+                    ), failed_provider
+            except Exception:
+                logger.debug("Token pool rotation failed", exc_info=True)
 
         # 熔断保护：记录失败，检查是否还有 provider 可用
         self.state.record_failure(failed_provider)

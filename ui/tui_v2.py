@@ -47,6 +47,7 @@ from prompt_toolkit.output.vt100 import Vt100_Output
 # ── Control Plane ─────────────────────────────────────────
 from core.control_plane import ControlEventType, control
 from core.protocol import emit_state
+from core.skills import get_manager as _get_skill_mgr
 
 # ── Static imports (avoid per-frame re-import) ──
 from core.version import __version__ as _CRUX_VERSION
@@ -549,11 +550,29 @@ class TuiAppV2:
                 palette = PALETTES.get(mode)
             except Exception:
                 palette = None
+            try:
+                _mgr = _get_skill_mgr()
+                _sk = len(_mgr.list_all()) if _mgr else 0
+            except Exception:
+                logger.warning("Failed to load skills count for welcome screen", exc_info=True)
+                _sk = 0
+            try:
+                _plugins_dir = Path("output/plugins")
+                _pk = (
+                    len([d for d in _plugins_dir.iterdir() if d.is_dir() and (d / "plugin.json").exists()])
+                    if _plugins_dir.exists()
+                    else 0
+                )
+            except Exception:
+                logger.warning("Failed to load plugins count for welcome screen", exc_info=True)
+                _pk = 0
             return build_welcome_formatted(
                 model_name=model_name,
                 cwd=cwd,
                 branch=branch,
                 palette=palette,
+                skills_count=_sk,
+                plugins_count=_pk,
             )
 
         self.message_pane.set_empty_renderer(_welcome_renderer)

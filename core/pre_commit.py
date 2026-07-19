@@ -14,6 +14,13 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # Mojiabke scan — dangerous characters that signal encoding corruption
 _MOJIBAKE_CHARS = set("鍥閸鐢纴鏉悆殑掑曠")
+# Known files that intentionally contain mojibake signature characters.
+_MOJIBAKE_EXCLUDE: set[str] = {
+    "core/pre_commit.py",
+    "core/self_heal.py",
+    "core/encoding_fix.py",
+    ".github/workflows/ci.yml",
+}
 
 
 def run_quality_gates(files: list[str] | None = None) -> tuple[bool, str]:
@@ -46,6 +53,8 @@ def run_quality_gates(files: list[str] | None = None) -> tuple[bool, str]:
     mojibake_hits = 0
     for f in files or []:
         if not f.endswith((".py", ".bat", ".sh", ".json", ".md")):
+            continue
+        if f in _MOJIBAKE_EXCLUDE:
             continue
         p = ROOT / f
         if not p.exists():

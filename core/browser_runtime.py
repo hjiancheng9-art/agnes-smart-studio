@@ -126,7 +126,15 @@ def _dismiss_notifications(page):
 def _fix_scroll(page):
     """修复滚动失效：移除遮罩层 + 恢复 wheel/keydown 事件"""
     global _FIX_SCROLL_INTERVAL
-    _FIX_SCROLL_INTERVAL += 1
+    import threading as _threading
+
+    _lock = getattr(_fix_scroll, "_lock", None)
+    if _lock is None:
+        _fix_scroll._lock = _threading.Lock()  # type: ignore[attr-defined]
+        _lock = _fix_scroll._lock
+    with _lock:
+        _FIX_SCROLL_INTERVAL += 1
+        ts = _FIX_SCROLL_INTERVAL
     with contextlib.suppress(Exception):
         page.evaluate(
             """(ts) => {
@@ -143,7 +151,7 @@ def _fix_scroll(page):
             window.addEventListener('wheel', handler, { passive: true, once: true });
             window.__crux_scroll_fixed = ts;
         }""",
-            _FIX_SCROLL_INTERVAL,
+            ts,
         )
 
 
@@ -164,10 +172,11 @@ def _auto_reconnect():
         if _global_state.playwright:
             _global_state.playwright.stop()
     except Exception:
-        logger.debug("Exception in cdp_browser", exc_info=True)
-    _global_state.playwright = None
-    _global_state.context = None
-    _global_state.owner_thread_id = None
+        logger.warning("playwright.stop() failed during reconnect, may leak browser process", exc_info=True)
+    finally:
+        _global_state.playwright = None
+        _global_state.context = None
+        _global_state.owner_thread_id = None
     _pw, ctx = _connect()
     return ctx
 
@@ -203,12 +212,12 @@ def _connect():
         _global_state.context = ctx
         _global_state.owner_thread_id = threading.get_ident()
         return pw, ctx
-    except Exception:
+    except Exception as e:
         try:
             pw.stop()
         except Exception:
             logger.debug("PW stop failed", exc_info=True)
-        raise RuntimeError("Browser startup failed (launch_persistent_context)") from None
+        raise RuntimeError("Browser startup failed (launch_persistent_context)") from e
 
 
 def is_connected() -> bool:
@@ -217,7 +226,8 @@ def is_connected() -> bool:
     if ctx is None:
         return False
     try:
-        _ = ctx.pages  # liveness probe
+        pages = ctx.pages  # snapshot before TOCTOU window
+        _ = pages
         return True
     except Exception:
         return False
@@ -300,7 +310,7 @@ def safe_fill(page, selector, text, retries=3):
                 page.keyboard.type(text, delay=0)
                 return True
             except Exception:
-                pass  # fall through to JS fallback
+                logger.debug("safe_fill contenteditable failed, falling back to JS fallback", exc_info=True)
 
         # 普通 textarea/input → Playwright fill
         for _i in range(retries):

@@ -92,6 +92,7 @@ def install(source: str) -> dict:
     if source.startswith(("http://", "https://")):
         try:
             import urllib.request
+
             tmp = tempfile.NamedTemporaryFile(suffix=PACK_EXT, delete=False)
             urllib.request.urlretrieve(source, tmp.name)  # nosec B310
             source = tmp.name
@@ -114,13 +115,15 @@ def install(source: str) -> dict:
             # Extract assets
             for entry in zf.namelist():
                 if entry.startswith("assets/") and not entry.endswith("/"):
-                    asset_path = SKILLS_DIR / name / entry[len("assets/"):]
+                    asset_path = SKILLS_DIR / name / entry[len("assets/") :]
                     asset_path.parent.mkdir(parents=True, exist_ok=True)
                     asset_path.write_bytes(zf.read(entry))
             # Metadata
             if "metadata.json" in zf.namelist():
                 meta = json.loads(zf.read("metadata.json"))
-                (SKILLS_DIR / f"{name}.meta.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
+                (SKILLS_DIR / f"{name}.meta.json").write_text(
+                    json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8"
+                )
         return {"name": name, "status": "installed", "path": str(dest)}
     except (zipfile.BadZipFile, json.JSONDecodeError, KeyError) as e:
         return {"name": source, "status": "error", "error": f"invalid pack: {e}"}
@@ -138,13 +141,15 @@ def list_packs(directory: str | None = None) -> list[dict]:
                 if "skill.json" in zf.namelist():
                     data = json.loads(zf.read("skill.json"))
                     meta = json.loads(zf.read("metadata.json")) if "metadata.json" in zf.namelist() else {}
-                    packs.append({
-                        "file": f.name,
-                        "name": data.get("name", f.stem),
-                        "version": meta.get("version", "1.0.0"),
-                        "author": meta.get("author", ""),
-                        "size_kb": round(f.stat().st_size / 1024, 1),
-                    })
+                    packs.append(
+                        {
+                            "file": f.name,
+                            "name": data.get("name", f.stem),
+                            "version": meta.get("version", "1.0.0"),
+                            "author": meta.get("author", ""),
+                            "size_kb": round(f.stat().st_size / 1024, 1),
+                        }
+                    )
         except (zipfile.BadZipFile, json.JSONDecodeError):
             pass
     return packs
@@ -154,6 +159,7 @@ def list_packs(directory: str | None = None) -> list[dict]:
 
 if __name__ == "__main__":
     import sys
+
     cmd = sys.argv[1] if len(sys.argv) > 1 else "help"
     if cmd == "pack" and len(sys.argv) >= 3:
         out = pack(sys.argv[2])

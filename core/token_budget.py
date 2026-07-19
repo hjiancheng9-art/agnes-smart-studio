@@ -77,12 +77,12 @@ class TokenBudget:
         """Generate a system prompt footer warning the LLM to be concise."""
         if self.should_compress():
             return (
-                f"[CRITICAL: Context window {int(self.usage_pct*100)}% full ({self.remaining:,} tokens remaining). "
+                f"[CRITICAL: Context window {int(self.usage_pct * 100)}% full ({self.remaining:,} tokens remaining). "
                 f"Respond as concisely as possible. Do not generate long code or explanations.]"
             )
         if self.should_warn():
             return (
-                f"[Note: Context window {int(self.usage_pct*100)}% used. "
+                f"[Note: Context window {int(self.usage_pct * 100)}% used. "
                 f"Consider summarizing the conversation with /compress.]"
             )
         return ""

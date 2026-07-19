@@ -196,7 +196,9 @@ class TestSingleton:
         bm2 = get_background_manager()
         assert bm1 is bm2
 
-    @pytest.mark.flaky(reason="Singleton reset race — root cause: 84 module-level singletons need ContextVar migration. See docs/flaky-tests.md.")
+    @pytest.mark.flaky(
+        reason="Singleton reset race — root cause: 84 module-level singletons need ContextVar migration. See docs/flaky-tests.md."
+    )
     def test_reset(self):
         from core.background import reset_background_manager
 

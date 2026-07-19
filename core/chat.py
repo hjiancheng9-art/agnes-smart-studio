@@ -17,7 +17,6 @@ yield 协议（send_stream）：
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import os
@@ -69,7 +68,11 @@ def _summarize_tool_output(raw: str, tool_name: str = "") -> str:
         return raw
     lines = raw.split("\n")
     # Prioritize error/fail/assert lines
-    err_lines = [l for l in lines if any(kw in l.lower() for kw in ("error", "fail", "traceback", "assert", "exception", "warning"))]
+    err_lines = [
+        l
+        for l in lines
+        if any(kw in l.lower() for kw in ("error", "fail", "traceback", "assert", "exception", "warning"))
+    ]
     if err_lines:
         head = "\n".join(lines[:5])
         errs = "\n".join(err_lines[:8])
@@ -77,6 +80,8 @@ def _summarize_tool_output(raw: str, tool_name: str = "") -> str:
     head = "\n".join(lines[:6])
     tail = "\n".join(lines[-3:]) if len(lines) > 15 else ""
     return f"{head}\n... [{len(lines) - 9} lines omitted]...\n{tail}" if tail else head
+
+
 from core.chat_vision import _vision_fallback
 from core.config import get_crux_vision_model
 from core.observability import TraceContext, metrics
@@ -165,8 +170,8 @@ MODEL_PROVIDER_MAP = {}  # 已由 get_provider_name() 替代
 
 # tool calling 循环最大轮次（防止死循环）
 # agent 模式 / /self 命令会经 unlimited_tools 自动翻倍
-# v6.1: reduced from 160 → 40 — 160 allowed runaway loops (50+ tools per turn)
-MAX_TOOL_LOOPS = 40
+# v6.1: 40 → 60 — 40 对复杂任务偏紧，160 会导致失控 (50+ tools/turn)
+MAX_TOOL_LOOPS = 60
 
 # 429/503 过载自动降级阈值：连续多少次限流/过载就强制切换供应商
 RATE_LIMIT_FALLBACK_THRESHOLD = 2
@@ -211,16 +216,21 @@ class ChatSession(ChatToggleMixin):
         self._cog: CognitiveOrchestrator | None = None  # CognitiveOrchestrator, lazy init
         self._temp_input_files: set[str] = set()  # Track long-input temp files for cleanup
         self._vote_enabled: bool = False  # /vote toggle (off by default to save tokens)
+        self._pipeline_result: dict | None = None
+        import threading as _t
+
+        self._pipeline_lock = _t.Lock()
         self.messages: list[dict] = [{"role": "system", "content": self._build_system_prompt()}]
         # Token budget monitor — warns at 80% context usage.  Silently ignores
         # all errors (tests may not have the module or may mock chat internals).
         self._budget = None
         try:
             from core.token_budget import TokenBudget
+
             self._budget = TokenBudget()
             self._budget.count(self.messages)
         except Exception:
-            logging.getLogger('crux').debug('silent except', exc_info=True)
+            logging.getLogger("crux").debug("silent except", exc_info=True)
         # ── Dynamic attrs set by mixins/hooks — declared here for type checking ──
         self.vision_ctx: Any = None
         self._vision_fallback: Any = None
@@ -385,11 +395,19 @@ class ChatSession(ChatToggleMixin):
 
     def __del__(self) -> None:
         """Cleanup temp files and client on garbage collection (fallback to atexit)."""
-        with contextlib.suppress(Exception):
+        try:
             self._cleanup_temp_input_files()
-        with contextlib.suppress(Exception):
+        except Exception:
+            import logging
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
+        try:
             if hasattr(self, "client") and self.client is not None:
                 self.client.close()
+        except Exception:
+            import logging
+
+            logging.getLogger("crux").debug("silent except", exc_info=True)
 
     def _cleanup_temp_input_files(self) -> None:
         """Remove all tracked long-input temp files. Safe to call multiple times."""
@@ -421,7 +439,7 @@ class ChatSession(ChatToggleMixin):
             )
             get_trace_store().record(trace)
         except Exception:
-            pass  # best-effort, never crash the main flow
+            logger.debug("trace record failed", exc_info=True)
 
     def _get_schema_for_tool(self, name: str) -> dict | None:
         """Provide JSON Schema for a tool, used by the validator."""
@@ -698,21 +716,42 @@ class ChatSession(ChatToggleMixin):
 
         if focused and not getattr(self, "agent_mode", False):
             # Core coding tools — always shown
-            _CORE = frozenset({
-                "read_file", "write_file", "edit_file", "patch_file",
-                "search_files", "glob_files", "list_files", "tree_dir",
-                "run_bash", "run_python", "run_test",
-                "git_add_commit", "git_status", "git_diff", "git_branch", "git_push", "git_pull",
-                "run_lint", "run_format", "code_review", "debug_inspect",
-                "web_search", "web_fetch",
-            })
+            _CORE = frozenset(
+                {
+                    "read_file",
+                    "write_file",
+                    "edit_file",
+                    "patch_file",
+                    "search_files",
+                    "glob_files",
+                    "list_files",
+                    "tree_dir",
+                    "run_bash",
+                    "run_python",
+                    "run_test",
+                    "git_add_commit",
+                    "git_status",
+                    "git_diff",
+                    "git_branch",
+                    "git_push",
+                    "git_pull",
+                    "run_lint",
+                    "run_format",
+                    "code_review",
+                    "debug_inspect",
+                    "web_search",
+                    "web_fetch",
+                }
+            )
             lines = ["\n\n## 核心工具"]
             for cat_name, tools in cats.items():
                 filtered = [t for t in tools if t in _CORE]
                 if filtered:
                     lines.append(f"- **{cat_name}**: {', '.join(filtered)}")
             total = sum(len(v) for v in cats.values())
-            lines.append(f"\n(以上为 {len(_CORE)} 个核心工具。共 {total} 个工具可用 — 使用 search_files 或直接询问获取更多)")
+            lines.append(
+                f"\n(以上为 {len(_CORE)} 个核心工具。共 {total} 个工具可用 — 使用 search_files 或直接询问获取更多)"
+            )
             return "\n".join(lines)
 
         # Full listing (agent mode)
@@ -759,6 +798,7 @@ class ChatSession(ChatToggleMixin):
         if self.code_mode:
             try:
                 from core.edit_orchestrator import repo_context
+
                 rc = repo_context()
                 if rc:
                     prompt += rc
@@ -783,7 +823,7 @@ class ChatSession(ChatToggleMixin):
             if self._budget.should_warn():
                 print(self._budget.warning(), flush=True)
         except Exception:
-            logging.getLogger('crux').debug('silent except', exc_info=True)
+            logging.getLogger("crux").debug("silent except", exc_info=True)
 
     def _vision_model_chain(self, complexity: str = "light") -> list[str]:
         """Vision model chain — single model after zhipu removal."""
@@ -1023,7 +1063,9 @@ class ChatSession(ChatToggleMixin):
 
             # Auto-upgrade model for complex tasks
             if _plan.complexity >= 3 and ("flash" in self.model or "light" in self.model):
-                pro = self.model.replace("flash", "pro").replace("light", "pro")
+                import re as _re
+
+                pro = _re.sub(r"\b(flash|light)\b", "pro", self.model)
                 if pro != self.model:
                     self.model = pro
                     self.routing.select(self.routing.active_provider, pro)
@@ -1261,21 +1303,22 @@ class ChatSession(ChatToggleMixin):
         # ── Adaptive limit: expand for plans, shrink on failures ──
         try:
             from core.skill_orchestrator import get_orchestrator
+
             orch = get_orchestrator()
             if hasattr(orch, "_last_plan") and orch._last_plan and orch._last_plan.steps:
                 plan_steps = len(orch._last_plan.steps)
                 _effective_max = max(_effective_max, plan_steps * 8)
         except (ImportError, AttributeError):
             pass
-        _consecutive_failures = 0  # shrink limit on repeated failures
+        self._consecutive_failures = 0  # adaptive: shrink limit on cascade failures
+        self._consecutive_successes = 0  # adaptive: expand limit on clean runs
+        self._effective_max = _effective_max  # shared with _run_tool_calls for adaptive limit
         buffer = ""  # 循环外预绑定，保证超出最大轮次时引用安全
         # 跨轮工具去重状态（见 _run_tool_calls 的注释）
         _executed_signatures: set[tuple[str, str]] = set()
         _executed_cache: dict[tuple[str, str], str] = {}
         _stream_error_break = False
         _test_run_count = 0  # detect fix-test-fail-fix runaway loops
-        _consecutive_failures = 0  # adaptive: shrink limit on cascade failures
-        _consecutive_successes = 0  # adaptive: expand limit on clean runs
 
         while fallback_tried < len(fallback_chain):
             _use_model, _use_client = fallback_chain[fallback_tried]
@@ -1315,6 +1358,7 @@ class ChatSession(ChatToggleMixin):
                             tool_calls,
                             _executed_signatures,
                             _executed_cache,
+                            _loop,
                         )
                     except Exception as e:
                         logger.exception("_run_tool_calls 异常")
@@ -1331,7 +1375,11 @@ class ChatSession(ChatToggleMixin):
                                 _active_tool_names.add(_name)
                         tools = self.tools.get_definitions_for_names(_active_tool_names)
                     # Detect fix-test-fail-fix runaway loops: break if test runner called too many times
-                    _test_tools = sum(1 for tc in tool_calls if tc.get("function", {}).get("name") == "run_test")
+                    _test_tools = sum(
+                        1
+                        for tc in tool_calls
+                        if isinstance(tc, dict) and tc.get("function", {}).get("name") == "run_test"
+                    )
                     if _test_tools:
                         _test_run_count += _test_tools
                     if _test_run_count > 5:
@@ -1408,13 +1456,16 @@ class ChatSession(ChatToggleMixin):
                 if (yield from self._try_adversarial_bypass(buffer, user_text, _use_client, _use_model, tools)):
                     return  # bypass 成功，已在内部 yield 结果
                 # ── Pipeline 结果: 后台运行完成后 yield ──
-                if self._pipeline_result:
-                    pr = self._pipeline_result
-                    if pr.get("passed") is False:
-                        yield ("info", f"[Pipeline] 审查未通过: {pr.get('summary', '')[:200]}")
-                    elif pr.get("summary"):
-                        yield ("info", f"[Pipeline] {pr.get('summary', '')[:200]}")
-                    self._pipeline_result = None
+                _pr = getattr(self, "_pipeline_result", None)
+                if _pr:
+                    with self._pipeline_lock:
+                        _pr = self._pipeline_result
+                        if _pr:
+                            if _pr.get("passed") is False:
+                                yield ("info", f"[Pipeline] 审查未通过: {_pr.get('summary', '')[:200]}")
+                            elif _pr.get("summary"):
+                                yield ("info", f"[Pipeline] {_pr.get('summary', '')[:200]}")
+                            self._pipeline_result = None
                 self._trigger_reflection()
                 self._auto_remember()
                 return
@@ -1509,7 +1560,7 @@ class ChatSession(ChatToggleMixin):
         self._last_merged_tool_calls = merged
         return buffer
 
-    def _run_tool_calls(self, tool_calls, executed_sigs, executed_cache):
+    def _run_tool_calls(self, tool_calls, executed_sigs, executed_cache, loop_idx=0):
         """执行并喂回一轮工具调用，yield 副作用，return True 表示应中断流。
 
         契约（输出不重复 DNA · 工具副作用层）：
@@ -1522,6 +1573,9 @@ class ChatSession(ChatToggleMixin):
             False — confirm 不再中断流（拒绝时占位已在历史中，合法）。
         """
         from core.context_tools import compress_tool_result
+
+        # ── Adaptive state shared with send_stream ──
+        _loop = loop_idx
 
         # ── Phase 1: Tool call validation ──
         if getattr(self, "tvl", None) is not None:
@@ -1728,17 +1782,17 @@ class ChatSession(ChatToggleMixin):
                 # ── Adaptive loop limit: expand on success, shrink on cascade failures ──
                 _tool_ok = not str(tool_result).startswith("[错误]") and not str(tool_result).startswith("[自愈失败]")
                 if _tool_ok:
-                    _consecutive_failures = 0
-                    _consecutive_successes += 1
-                    if _consecutive_successes > 10:
-                        _effective_max = max(_effective_max, int(_effective_max * 1.5))
-                        _consecutive_successes = 0
+                    self._consecutive_failures = 0
+                    self._consecutive_successes += 1
+                    if self._consecutive_successes > 10:
+                        self._effective_max = max(self._effective_max, int(self._effective_max * 1.5))
+                        self._consecutive_successes = 0
                 else:
-                    _consecutive_failures += 1
-                    _consecutive_successes = 0
-                    if _consecutive_failures >= 3:
-                        _effective_max = min(_effective_max, _loop + 5)
-                        yield ("info", f"连续 {_consecutive_failures} 次失败 — 剩余最多 5 次重试")
+                    self._consecutive_failures += 1
+                    self._consecutive_successes = 0
+                    if self._consecutive_failures >= 3:
+                        self._effective_max = min(self._effective_max, _loop + 5)
+                        yield ("info", f"连续 {self._consecutive_failures} 次失败 — 剩余最多 5 次重试")
                 # ── 高风险工具确认：同意即执行，拒绝则占位跳过 ──
                 is_confirm = any(k == "confirm" for k, _ in side_effects)
                 if is_confirm:

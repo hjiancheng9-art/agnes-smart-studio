@@ -25,8 +25,16 @@ _ERROR_PATTERNS: list[tuple[str, str, str | None]] = [
     ("Connection refused", "Network connection failed", "Check your internet connection and firewall settings"),
     ("ConnectionError", "Network is unreachable", "Check if you are behind a proxy or VPN"),
     ("Permission denied", "File permission error", "Check file permissions or run from a different directory"),
-    ("FileNotFoundError", "Required file not found", "Run from the project root directory, or reinstall with: pip install -e ."),
-    ("SyntaxError", "Code syntax error", "A recent code change introduced a syntax error. Run: python core/self_heal.py --fix"),
+    (
+        "FileNotFoundError",
+        "Required file not found",
+        "Run from the project root directory, or reinstall with: pip install -e .",
+    ),
+    (
+        "SyntaxError",
+        "Code syntax error",
+        "A recent code change introduced a syntax error. Run: python core/self_heal.py --fix",
+    ),
     ("ImportError", "Import failed", "Run: pip install -r requirements.txt  OR  check PYTHONPATH"),
     ("KeyboardInterrupt", "Interrupted by user", None),  # special case: no suggestion needed
     ("OutOfMemoryError", "Out of memory", "Close other applications or reduce data size"),
@@ -72,6 +80,7 @@ def friendly_exit(fn: Callable[[], Any], *, debug: bool = False) -> int:
 
 def friendly_main(fn: Callable[[list[str]], Any]) -> Callable[[], int]:
     """Decorator: wraps a main() that takes sys.argv and returns exit code."""
+
     def wrapper() -> int:
         try:
             result = fn(sys.argv[1:])
@@ -87,4 +96,5 @@ def friendly_main(fn: Callable[[list[str]], Any]) -> Callable[[], int]:
             if suggestion:
                 print(f"  Fix:   {suggestion}", file=sys.stderr)
             return 1
+
     return wrapper

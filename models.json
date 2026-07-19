@@ -24,6 +24,15 @@
         "video": "agnes-video-v2.0"
       }
     },
+    "agnes-bff": {
+      "name": "Agnes BFF (Token Pool)",
+      "base_url": "https://api-agnes-code.agnes-ai.com/v1",
+      "api_key": "__AGNES_POOL__",
+      "models": {
+        "pro": "agnes-2.5-flash",
+        "light": "agnes-2.0-flash"
+      }
+    },
     "local": {
       "name": "Local (llama.cpp)",
       "base_url": "http://127.0.0.1:8080/v1",

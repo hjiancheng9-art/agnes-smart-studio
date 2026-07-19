@@ -12,12 +12,18 @@ def _media_error(kind: str, e: Exception) -> str:
     """Classify media errors with actionable suggestions."""
     msg = str(e).lower()
     hint = ""
-    if "timeout" in msg: hint = " — 网络超时，检查 API 连接或换更小的 size"
-    elif "401" in msg or "403" in msg or "auth" in msg: hint = " — API key 未配置或已过期，运行: crux init"
-    elif "quota" in msg or "429" in msg: hint = " — API 配额不足，等待或升级套餐"
-    elif "size" in msg: hint = " — 尺寸不支持，试试 1024x768"
-    elif "model" in msg: hint = " — 模型不可用，检查 models.json 配置"
-    elif "connection" in msg or "refused" in msg: hint = " — 网络连接失败，检查是否离线"
+    if "timeout" in msg:
+        hint = " — 网络超时，检查 API 连接或换更小的 size"
+    elif "401" in msg or "403" in msg or "auth" in msg:
+        hint = " — API key 未配置或已过期，运行: crux init"
+    elif "quota" in msg or "429" in msg:
+        hint = " — API 配额不足，等待或升级套餐"
+    elif "size" in msg:
+        hint = " — 尺寸不支持，试试 1024x768"
+    elif "model" in msg:
+        hint = " — 模型不可用，检查 models.json 配置"
+    elif "connection" in msg or "refused" in msg:
+        hint = " — 网络连接失败，检查是否离线"
     return f"{kind}生成失败: {e}{hint}"
 
 

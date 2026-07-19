@@ -159,23 +159,30 @@ class CopyManager:
                 # /copy 5 → copy message at index 5
                 target = int(p)
             elif ":" in p:
-                # /copy 3:7 → copy range [3,7)
-                parts_range = p.split(":")
-                try:
-                    s, e = int(parts_range[0]), int(parts_range[1])
-                    return self.copy_range(s, e)
-                except (ValueError, IndexError):
-                    return False, f"Invalid range: {p}"
+                # /copy msg_idx:start-end → copy lines from message
+                # /copy start:end → copy message range [start, end)
+                idx_part, _, range_part = p.partition(":")
+                if "-" in range_part:
+                    # /copy 0:1-3 → copy lines 1-3 from message 0
+                    try:
+                        target = int(idx_part)
+                        s, e = range_part.split("-")
+                        line_start = int(s) - 1
+                        line_end = int(e)
+                    except (ValueError, IndexError):
+                        return False, f"Invalid line range: {p}"
+                elif range_part.isdigit():
+                    # /copy 3:7 → copy range [3,7)
+                    try:
+                        s, e = int(idx_part), int(range_part)
+                        return self.copy_range(s, e)
+                    except (ValueError, IndexError):
+                        return False, f"Invalid range: {p}"
+                else:
+                    return False, f"Invalid format: {p}"
             elif p == "code":
                 block_index = int(args[1]) if len(args) > 1 else 0
                 target = "last"
-            elif ":" in p:
-                idx_part, _, range_part = p.partition(":")
-                target = int(idx_part)
-                if "-" in range_part:
-                    s, e = range_part.split("-")
-                    line_start = int(s) - 1
-                    line_end = int(e)
             elif p.isdigit():
                 target = int(p)
 

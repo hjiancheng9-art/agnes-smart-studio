@@ -52,7 +52,7 @@ class TestPlaybooks:
             assert cat in PLAYBOOKS, f"Missing playbook for: {cat}"
 
     def test_playbooks_have_title_and_steps(self):
-        for cat, pb in PLAYBOOKS.items():
+        for _, pb in PLAYBOOKS.items():
             assert "title" in pb
             assert "steps" in pb
             assert isinstance(pb["steps"], list)
@@ -84,8 +84,24 @@ class TestIncidentStore:
         # Use a temp file
         tmp_file = os.path.join(self.tmp, "incidents.jsonl")
         with patch("core.incident.INCIDENT_FILE", tmp_file):
-            save_incident({"primary_category": "timeout", "severities": {"medium": 1}, "total_incidents": 1, "summary": "test", "recommendation": "retry"})
-            save_incident({"primary_category": "auth_error", "severities": {"high": 1}, "total_incidents": 1, "summary": "test2", "recommendation": "check key"})
+            save_incident(
+                {
+                    "primary_category": "timeout",
+                    "severities": {"medium": 1},
+                    "total_incidents": 1,
+                    "summary": "test",
+                    "recommendation": "retry",
+                }
+            )
+            save_incident(
+                {
+                    "primary_category": "auth_error",
+                    "severities": {"high": 1},
+                    "total_incidents": 1,
+                    "summary": "test2",
+                    "recommendation": "check key",
+                }
+            )
             incidents = load_incidents(limit=10)
             assert len(incidents) >= 2
 
@@ -98,7 +114,15 @@ class TestIncidentStore:
     def test_load_with_filter(self):
         tmp_file = os.path.join(self.tmp, "incidents.jsonl")
         with patch("core.incident.INCIDENT_FILE", tmp_file):
-            save_incident({"primary_category": "test", "severities": {"low": 1}, "total_incidents": 1, "summary": "open", "recommendation": ""})
+            save_incident(
+                {
+                    "primary_category": "test",
+                    "severities": {"low": 1},
+                    "total_incidents": 1,
+                    "summary": "open",
+                    "recommendation": "",
+                }
+            )
             # Add status field manually
             with open(tmp_file, "a", encoding="utf-8") as f:
                 f.write(json.dumps({"timestamp": 0, "category": "test", "status": "resolved"}) + "\n")
@@ -109,13 +133,29 @@ class TestIncidentStore:
         tmp_file = os.path.join(self.tmp, "incidents.jsonl")
         with patch("core.incident.INCIDENT_FILE", tmp_file):
             for _ in range(5):
-                save_incident({"primary_category": "timeout", "severities": {"medium": 1}, "total_incidents": 1, "summary": "test", "recommendation": "retry"})
+                save_incident(
+                    {
+                        "primary_category": "timeout",
+                        "severities": {"medium": 1},
+                        "total_incidents": 1,
+                        "summary": "test",
+                        "recommendation": "retry",
+                    }
+                )
             result = should_alert({"primary_category": "timeout"}, threshold=3)
             assert result["alert"] is True
 
     def test_trends(self):
         tmp_file = os.path.join(self.tmp, "incidents.jsonl")
         with patch("core.incident.INCIDENT_FILE", tmp_file):
-            save_incident({"primary_category": "timeout", "severities": {"medium": 1}, "total_incidents": 1, "summary": "test", "recommendation": "retry"})
+            save_incident(
+                {
+                    "primary_category": "timeout",
+                    "severities": {"medium": 1},
+                    "total_incidents": 1,
+                    "summary": "test",
+                    "recommendation": "retry",
+                }
+            )
             trends = get_incident_trends(hours=24)
             assert isinstance(trends, dict)

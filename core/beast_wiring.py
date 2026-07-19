@@ -302,6 +302,7 @@ def wire_all() -> bool:
             logger.info("[orchestrator:bus] step %s failed — triggering self-heal", skill)
             try:
                 from core.self_heal import SelfHealer
+
                 h = SelfHealer()
                 h.scan_syntax()
                 h.scan_silent_exceptions()

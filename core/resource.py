@@ -32,6 +32,7 @@ ROOT = Path(__file__).resolve().parent.parent
 @dataclass
 class Resource:
     """Base resource type."""
+
     name: str
     kind: str  # skill | tool | prompt | knowledge
     description: str = ""
@@ -100,12 +101,14 @@ class ResourceRegistry:
         md_dir = ROOT / "skills_md"
         if md_dir.is_dir():
             for f in sorted(md_dir.glob("*.skill.md")):
-                skills.append(Resource(
-                    name=f.stem.replace(".skill", ""),
-                    kind="skill",
-                    description=f.stem.replace("-", " ").title(),
-                    source="local",
-                ))
+                skills.append(
+                    Resource(
+                        name=f.stem.replace(".skill", ""),
+                        kind="skill",
+                        description=f.stem.replace("-", " ").title(),
+                        source="local",
+                    )
+                )
         self._resources["skill"] = skills
         logger.debug("Loaded %d skill resources", len(skills))
         return len(skills)
@@ -119,15 +122,17 @@ class ResourceRegistry:
                 tool_list = data.get("tools", data) if isinstance(data, dict) else data
                 for t in tool_list:
                     if isinstance(t, dict) and t.get("name"):
-                        tools.append(ToolResource(
-                            name=t["name"],
-                            kind="tool",
-                            description=t.get("description", "")[:200],
-                            function=t.get("function", ""),
-                            parameters=t.get("parameters", {}),
-                            category=t.get("category", "general"),
-                            timeout=t.get("timeout", 30),
-                        ))
+                        tools.append(
+                            ToolResource(
+                                name=t["name"],
+                                kind="tool",
+                                description=t.get("description", "")[:200],
+                                function=t.get("function", ""),
+                                parameters=t.get("parameters", {}),
+                                category=t.get("category", "general"),
+                                timeout=t.get("timeout", 30),
+                            )
+                        )
             except (json.JSONDecodeError, OSError):
                 pass
         self._resources["tool"] = tools
@@ -141,12 +146,14 @@ class ResourceRegistry:
             for f in sorted(prompts_dir.glob("*.txt")):
                 try:
                     text = f.read_text(encoding="utf-8", errors="replace")
-                    prompts.append(PromptResource(
-                        name=f.stem,
-                        kind="prompt",
-                        description=f"Prompt template: {f.stem}",
-                        text=text,
-                    ))
+                    prompts.append(
+                        PromptResource(
+                            name=f.stem,
+                            kind="prompt",
+                            description=f"Prompt template: {f.stem}",
+                            text=text,
+                        )
+                    )
                 except OSError:
                     pass
         self._resources["prompt"] = prompts

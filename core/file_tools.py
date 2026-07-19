@@ -19,6 +19,7 @@ from core.mcp_servers._mcp_utils import run_subprocess
 # ── Auto-commit helpers ──
 _AC_FN = None
 
+
 def _get_auto_commit():
     """Lazy-load auto_commit from edit_orchestrator. Returns callable or None."""
     global _AC_FN
@@ -27,22 +28,26 @@ def _get_auto_commit():
     if _AC_FN is not None:
         return _AC_FN
     import os as _os
+
     if _os.environ.get("CRUX_AUTO_COMMIT", "").strip().lower() != "true":
         _AC_FN = False
         return None
     try:
         from core.edit_orchestrator import auto_commit as _fn
+
         _AC_FN = _fn
         return _fn
     except ImportError:
         _AC_FN = False
         return None
 
+
 def _rel_path(p: Path) -> str:
     try:
         return str(p.resolve().relative_to(Path(__file__).resolve().parent.parent))
     except ValueError:
         return str(p)
+
 
 __all__ = [
     "ROOT",

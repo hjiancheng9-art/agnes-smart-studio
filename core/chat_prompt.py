@@ -271,11 +271,7 @@ def build_system_prompt(
 
     _ws = str(resolve_workspace())
     _crux_root = str(get_crux_root())
-    base += (
-        f"\n\n## 工作目录\n"
-        f"项目路径: `{_ws}`\n"
-        f"CRUX 安装路径: `{_crux_root}`\n"
-    )
+    base += f"\n\n## 工作目录\n项目路径: `{_ws}`\nCRUX 安装路径: `{_crux_root}`\n"
     # ── 项目记忆：从 workspace 加载 .crux/context.md（如存在）──
     _ws_path = Path(_ws)
     for _fname, _label in ((".crux/context.md", "项目记忆"), (".crux_identity.md", "项目身份")):

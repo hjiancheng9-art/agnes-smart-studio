@@ -99,5 +99,3 @@ class TestListPacks:
         with tempfile.TemporaryDirectory() as d:
             packs = list_packs(directory=d)
             assert packs == []
-
-

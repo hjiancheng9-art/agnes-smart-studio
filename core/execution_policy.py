@@ -58,27 +58,48 @@ def choose_policy(user_text: str) -> ExecutionPolicy:
     # triggering a full orchestration run.
     _cn_audit_kw = ("自检", "自修", "审计", "audit")
     _scope_kw = (
-        "整个", "全部", "所有", "全面", "系统", "模块", "核心", "整个项目",
-        "代码质量", "安全漏洞", "entire", "full", "all", "system", "module",
-        "codebase", "repository", "project",
+        "整个",
+        "全部",
+        "所有",
+        "全面",
+        "系统",
+        "模块",
+        "核心",
+        "整个项目",
+        "代码质量",
+        "安全漏洞",
+        "entire",
+        "full",
+        "all",
+        "system",
+        "module",
+        "codebase",
+        "repository",
+        "project",
     )
     _action_kw = (
-        "修复", "输出", "报告", "审查", "扫描", "加固", "优化",
-        "fix", "report", "output", "review", "scan", "harden", "optimize",
+        "修复",
+        "输出",
+        "报告",
+        "审查",
+        "扫描",
+        "加固",
+        "优化",
+        "fix",
+        "report",
+        "output",
+        "review",
+        "scan",
+        "harden",
+        "optimize",
     )
     _has_cn_audit = any(kw in t for kw in _cn_audit_kw)
     _has_scope = any(kw in t for kw in _scope_kw)
     _has_action = any(kw in t for kw in _action_kw)
     # Must have audit keyword + at least one of scope or action
-    _self_check = (
-        _has_cn_audit and (_has_scope or _has_action)
-    ) or (
+    _self_check = (_has_cn_audit and (_has_scope or _has_action)) or (
         # English self-heal/repair phrases are always strong signals
-        "self heal" in t
-        or "self-heal" in t
-        or "self_heal" in t
-        or "self repair" in t
-        or "self fix" in t
+        "self heal" in t or "self-heal" in t or "self_heal" in t or "self repair" in t or "self fix" in t
     )
     if _self_check:
         return ExecutionPolicy(ExecutionMode.ORCHESTRATE, "自检/审计任务需要多阶段编排")

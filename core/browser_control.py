@@ -282,7 +282,7 @@ class BrowserController:
         """
         # 已有可用页面
         if self.is_connected:
-            if platform_name and self.current_platform != PLATFORMS.get(platform_name, PlatformConfig(name="?").name):
+            if platform_name and platform_name in PLATFORMS and self.current_platform != PLATFORMS[platform_name].name:
                 return self.navigate(platform_name)
             return True
 
@@ -307,13 +307,14 @@ class BrowserController:
 
         # 已在同一页面，跳过导航
         try:
-            current_url = self._page.url
-            target_host = self._platform.url.split("://")[-1].split("/")[0]
-            if target_host in current_url:
-                logger.info(f"已在 {self._platform.name}，跳过导航")
-                return True
+            if self._page:
+                current_url = self._page.url
+                target_host = self._platform.url.split("://")[-1].split("/")[0]
+                if target_host in current_url:
+                    logger.info(f"已在 {self._platform.name}，跳过导航")
+                    return True
         except Exception:
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logger.debug("URL check failed, falling through to navigation", exc_info=True)
 
         try:
             self._page.goto(self._platform.url, wait_until="domcontentloaded", timeout=30000)
@@ -637,15 +638,20 @@ class BrowserController:
 # 便捷函数 — 一行调用
 # ============================================================
 
-# 全局单例
+# 全局单例 (thread-safe)
+import threading as _threading
+
 _browser_instance: BrowserController | None = None
+_browser_lock = _threading.Lock()
 
 
 def browser_control() -> BrowserController:
     """获取 BrowserController 单例"""
     global _browser_instance
     if _browser_instance is None or not _browser_instance.is_connected:
-        _browser_instance = BrowserController()
+        with _browser_lock:
+            if _browser_instance is None or not _browser_instance.is_connected:
+                _browser_instance = BrowserController()
     return _browser_instance
 
 

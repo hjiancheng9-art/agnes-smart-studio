@@ -18,7 +18,7 @@ class TestApiKeySafety:
         for pid, pdata in cfg.get("providers", {}).items():
             api_key = pdata.get("api_key", "")
             # Allow known placeholder values (not real API keys)
-            if api_key in ("", "no-key-required", "your-api-key", "sk-your-key-here"):
+            if api_key in ("", "no-key-required", "your-api-key", "sk-your-key-here", "__AGNES_POOL__"):
                 continue
             assert not api_key, (
                 f"models.json contains hardcoded API key for '{pid}'. "

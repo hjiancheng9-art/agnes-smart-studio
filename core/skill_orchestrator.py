@@ -240,7 +240,9 @@ class SkillOrchestrator:
         name_lower = skill_name.lower()
         goal_lower = goal.lower()
         # High-risk patterns: deployment, database migrations, deletion, production
-        if any(w in goal_lower for w in ("deploy", "production", "prod", "delete", "drop", "truncate", "migrate", "schema")):
+        if any(
+            w in goal_lower for w in ("deploy", "production", "prod", "delete", "drop", "truncate", "migrate", "schema")
+        ):
             return "confirm"
         if any(w in name_lower for w in ("deploy", "migration", "admin", "root")):
             return "confirm"
@@ -282,7 +284,9 @@ class SkillOrchestrator:
 
         for i, step in enumerate(plan.steps):
             step_start = time.time()
-            self._emit("orchestrator:step:start", skill=step.skill_name, goal=step.goal, index=i + 1, total=len(plan.steps))
+            self._emit(
+                "orchestrator:step:start", skill=step.skill_name, goal=step.goal, index=i + 1, total=len(plan.steps)
+            )
             logger.info("[orchestrator] step %d/%d: %s", i + 1, len(plan.steps), step.skill_name)
 
             # ── Approval gate ──
@@ -304,7 +308,9 @@ class SkillOrchestrator:
                 else:
                     approved = input("  Approve? [y/N] ").strip().lower() == "y"
                 if not approved:
-                    results.append({"skill": step.skill_name, "ok": False, "error": "approval denied", "duration_ms": 0})
+                    results.append(
+                        {"skill": step.skill_name, "ok": False, "error": "approval denied", "duration_ms": 0}
+                    )
                     overall_ok = False
                     continue
 
@@ -312,7 +318,9 @@ class SkillOrchestrator:
             for dep in step.depends_on:
                 prev = next((r for r in results if r["skill"] == dep), None)
                 if prev and not prev["ok"]:
-                    results.append({"skill": step.skill_name, "ok": False, "error": f"dependency {dep} failed", "duration_ms": 0})
+                    results.append(
+                        {"skill": step.skill_name, "ok": False, "error": f"dependency {dep} failed", "duration_ms": 0}
+                    )
                     overall_ok = False
                     continue
 
@@ -330,20 +338,41 @@ class SkillOrchestrator:
             verify_ok = True
             if step.verify and ok:
                 try:
-                    r = subprocess.run(step.verify, shell=True, capture_output=True, text=True, timeout=60, cwd=str(ROOT))  # nosec B602
+                    r = subprocess.run(
+                        step.verify, shell=True, capture_output=True, text=True, timeout=60, cwd=str(ROOT)
+                    )  # nosec B602
                     verify_ok = r.returncode == 0
                     if not verify_ok:
                         logger.info("[orchestrator] verification failed, self-healing")
-                        subprocess.run([sys.executable, "core/self_heal.py", "--fix"], capture_output=True, timeout=30, cwd=str(ROOT))
-                        r2 = subprocess.run(step.verify, shell=True, capture_output=True, text=True, timeout=60, cwd=str(ROOT))  # nosec B602
+                        subprocess.run(
+                            [sys.executable, "core/self_heal.py", "--fix"],
+                            capture_output=True,
+                            timeout=30,
+                            cwd=str(ROOT),
+                        )
+                        r2 = subprocess.run(
+                            step.verify, shell=True, capture_output=True, text=True, timeout=60, cwd=str(ROOT)
+                        )  # nosec B602
                         verify_ok = r2.returncode == 0
                 except (subprocess.TimeoutExpired, OSError):
                     verify_ok = False
 
-            step_result = {"skill": step.skill_name, "ok": ok and verify_ok, "output": output[:500], "verify_ok": verify_ok, "duration_ms": duration_ms}
+            step_result = {
+                "skill": step.skill_name,
+                "ok": ok and verify_ok,
+                "output": output[:500],
+                "verify_ok": verify_ok,
+                "duration_ms": duration_ms,
+            }
             results.append(step_result)
             # Emit step completion
-            self._emit("orchestrator:step:done", skill=step.skill_name, ok=step_result["ok"], verify_ok=verify_ok, duration_ms=duration_ms)
+            self._emit(
+                "orchestrator:step:done",
+                skill=step.skill_name,
+                ok=step_result["ok"],
+                verify_ok=verify_ok,
+                duration_ms=duration_ms,
+            )
             # Store output for downstream steps
             if ok:
                 self._step_outputs[step.skill_name] = output[:1000]
@@ -358,9 +387,22 @@ class SkillOrchestrator:
                 break
 
         total_ms = int((time.time() - start) * 1000)
-        summary = {"goal": plan.goal, "ok": overall_ok, "steps": len(plan.steps), "passed": sum(1 for r in results if r["ok"]), "duration_ms": total_ms, "results": results}
+        summary = {
+            "goal": plan.goal,
+            "ok": overall_ok,
+            "steps": len(plan.steps),
+            "passed": sum(1 for r in results if r["ok"]),
+            "duration_ms": total_ms,
+            "results": results,
+        }
         self._learn(plan, results)
-        self._emit("orchestrator:plan:done", ok=overall_ok, passed=summary["passed"], total=summary["steps"], duration_ms=total_ms)
+        self._emit(
+            "orchestrator:plan:done",
+            ok=overall_ok,
+            passed=summary["passed"],
+            total=summary["steps"],
+            duration_ms=total_ms,
+        )
         return summary
 
     def _run_skill(self, skill_name: str) -> tuple[bool, str]:
@@ -480,7 +522,9 @@ if __name__ == "__main__":
             print("\n  Manual mode — plan generated. Run with --semi or default to execute.")
         else:
             result = orch.execute(plan)
-            print(f"\nResult: {'OK' if result['ok'] else 'FAILED'} "
-                  f"({result['passed']}/{result['steps']} passed, {result['duration_ms']}ms)")
+            print(
+                f"\nResult: {'OK' if result['ok'] else 'FAILED'} "
+                f"({result['passed']}/{result['steps']} passed, {result['duration_ms']}ms)"
+            )
     else:
         print("No matching skills found")

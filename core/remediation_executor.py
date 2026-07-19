@@ -101,6 +101,7 @@ def _exec_retry_with_backoff(args: str = "") -> str:
     try:
         if args.strip():
             from core.retry_budget import reset_ledger
+
             reset_ledger(args.strip())
             return f"[OK] retry budget reset for trace {args.strip()}"
         return "[OK] retry state cleared (global)"
@@ -124,6 +125,7 @@ def _exec_switch_provider(args: str = "") -> str:
     """Activate provider fallback — switches to next available provider."""
     try:
         from core.provider import get_provider_manager
+
         mgr = get_provider_manager()
         old = mgr.active_provider
         mgr.fallback()
@@ -137,6 +139,7 @@ def _exec_increase_timeout(args: str = "") -> str:
     try:
         new_timeout = int(args.strip()) if args.strip() else 60
         import os
+
         os.environ["CRUX_DEFAULT_TIMEOUT"] = str(new_timeout)
         return f"[OK] timeout set to {new_timeout}s"
     except ValueError:
@@ -154,14 +157,17 @@ def _exec_force_local_once(args: str = "") -> str:
     """Force CRUX to use local provider for the next request only."""
     try:
         from core.provider import get_provider_manager
+
         mgr = get_provider_manager()
         if "local" not in mgr.providers:
             return "[ERR] no local provider configured"
         saved = mgr.active_provider
         mgr.set_active("local")
         import threading
+
         def _restore():
             mgr.set_active(saved)
+
         threading.Timer(60, _restore).start()
         return f"[OK] switched to local for 60s (was {saved})"
     except Exception as e:

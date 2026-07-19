@@ -69,9 +69,13 @@ def project_analyze() -> str:
                 orch = get_orchestrator()
                 matches = orch.search(f"{marker} development", top_k=3)
                 for m in matches:
-                    suggestions.append({"for": marker, "skill": m.name, "score": round(m.score, 3), "desc": m.description[:80]})
+                    suggestions.append(
+                        {"for": marker, "skill": m.name, "score": round(m.score, 3), "desc": m.description[:80]}
+                    )
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                import logging
+
+                logging.getLogger("crux").debug("silent except", exc_info=True)
         return json.dumps(
             {"detected": markers, "suggestions": suggestions, "hint": "Use skill_execute to run a suggested skill"},
             ensure_ascii=False,
@@ -91,7 +95,10 @@ ORCHESTRATE_TOOL_DEFS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Natural language query, e.g. 'code review' or 'fix flaky tests'"},
+                    "query": {
+                        "type": "string",
+                        "description": "Natural language query, e.g. 'code review' or 'fix flaky tests'",
+                    },
                 },
                 "required": ["query"],
             },

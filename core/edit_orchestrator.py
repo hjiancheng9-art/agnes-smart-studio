@@ -37,13 +37,19 @@ def auto_commit(filepath: str, message: str) -> str:
         rel = str(p.resolve().relative_to(ROOT.resolve())) if p.is_absolute() else filepath
         r = subprocess.run(
             ["git", "add", rel],
-            capture_output=True, text=True, timeout=10, cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=str(ROOT),
         )
         if r.returncode != 0:
             return ""
         r = subprocess.run(
             ["git", "commit", "-m", message],
-            capture_output=True, text=True, timeout=10, cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=str(ROOT),
         )
         if r.returncode == 0:
             return message
@@ -60,6 +66,7 @@ def repo_context(max_items: int = 12) -> str:
     """
     try:
         from core.repo_map import get_repo_map
+
         rm = get_repo_map()
         rm.scan()
         summary = rm.context_summary(max_items=max_items)

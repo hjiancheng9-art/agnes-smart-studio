@@ -687,7 +687,9 @@ def resolve_skill_executor(tool_name: str, tool_def: dict | None = None):
 
     _log.info("Skill tool '%s' — delegating to skill orchestrator", tool_name)
     from core.skill_orchestrator import get_orchestrator
+
     orch = get_orchestrator()
+
     def _delegate(**kw):
         goal = kw.pop("goal", kw.pop("prompt", f"Run {tool_name}"))
         skill_data = orch._load_skill_data(tool_name)
@@ -696,4 +698,5 @@ def resolve_skill_executor(tool_name: str, tool_def: dict | None = None):
             ok, output = orch._run_skill(tool_name)
             return output if ok else f"[{tool_name}] execution failed: {output}"
         return f"[{tool_name}] skill not found — use /skill install {tool_name}"
+
     return _delegate

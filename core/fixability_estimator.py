@@ -427,32 +427,62 @@ class LLMAnalyzer:
 
         # High fixability: syntax errors, import errors, simple typos
         if any(kw in error_lower for kw in ("syntax", "import", "modulenotfound", "indentation")):
-            return FixabilityResult(score=0.85, confidence=0.8, action_hint="retry",
-                                    repair_class_hint="code", reasons=["Syntax/import errors are reliably auto-fixable"],
-                                    source="L2:heuristic")
+            return FixabilityResult(
+                score=0.85,
+                confidence=0.8,
+                action_hint="retry",
+                repair_class_hint="code",
+                reasons=["Syntax/import errors are reliably auto-fixable"],
+                source="L2:heuristic",
+            )
         # Medium fixability: configuration errors
         if any(kw in error_lower for kw in ("config", "permission", "timeout", "key")):
-            return FixabilityResult(score=0.5, confidence=0.6, action_hint="diagnose",
-                                    repair_class_hint="config", reasons=["Configuration issues may need manual review"],
-                                    source="L2:heuristic")
+            return FixabilityResult(
+                score=0.5,
+                confidence=0.6,
+                action_hint="diagnose",
+                repair_class_hint="config",
+                reasons=["Configuration issues may need manual review"],
+                source="L2:heuristic",
+            )
         # Medium fixability: test failures
         if any(kw in error_lower for kw in ("assert", "test", "failed")):
-            return FixabilityResult(score=0.4, confidence=0.5, action_hint="retry",
-                                    repair_class_hint="code", reasons=["Test failures often require code changes"],
-                                    source="L2:heuristic")
+            return FixabilityResult(
+                score=0.4,
+                confidence=0.5,
+                action_hint="retry",
+                repair_class_hint="code",
+                reasons=["Test failures often require code changes"],
+                source="L2:heuristic",
+            )
         # Low fixability: resource exhaustion
         if any(kw in error_lower for kw in ("memory", "disk", "oom")):
-            return FixabilityResult(score=0.1, confidence=0.7, action_hint="escalate",
-                                    repair_class_hint="resource", reasons=["Resource exhaustion requires human intervention"],
-                                    source="L2:heuristic")
+            return FixabilityResult(
+                score=0.1,
+                confidence=0.7,
+                action_hint="escalate",
+                repair_class_hint="resource",
+                reasons=["Resource exhaustion requires human intervention"],
+                source="L2:heuristic",
+            )
         # Default: tool-specific heuristics
         if tool_lower in ("run_bash", "run_python"):
-            return FixabilityResult(score=0.5, confidence=0.4, action_hint="retry",
-                                    repair_class_hint="code", reasons=["Execution errors may be transient"],
-                                    source="L2:heuristic")
-        return FixabilityResult(score=0.3, confidence=0.3, action_hint="diagnose",
-                                repair_class_hint="unknown", reasons=["Unknown error pattern"],
-                                source="L2:heuristic")
+            return FixabilityResult(
+                score=0.5,
+                confidence=0.4,
+                action_hint="retry",
+                repair_class_hint="code",
+                reasons=["Execution errors may be transient"],
+                source="L2:heuristic",
+            )
+        return FixabilityResult(
+            score=0.3,
+            confidence=0.3,
+            action_hint="diagnose",
+            repair_class_hint="unknown",
+            reasons=["Unknown error pattern"],
+            source="L2:heuristic",
+        )
 
 
 # ── 三阶段编排器 ──────────────────────────────────────────

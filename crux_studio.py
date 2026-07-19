@@ -376,8 +376,9 @@ def _chat_tui():
     top_line = f"  ╔{'═' * left}{tag}{'═' * right}╗"
 
     # ── content lines ──
+    _msg_sk = len(list(Path("skills").glob("*.skill.json")))
     content = [
-        f"{len(list(Path('skills').glob('*.skill.json')))} skills · 767 market · 1M · DeepSeek V4 Flash",
+        f"{_msg_sk} skills · 1M context · {model_name}",
         "Agent Swarm 并行编排 · 平时如刀，出事成阵",
     ]
     content_lines = []

@@ -418,16 +418,19 @@ class CruxClient:
                                 err_detail = f" - {body_text}"
                         except (OSError, ValueError, httpx.HTTPError):
                             pass
-                        # 429 / 5xx 可重试，4xx 不重试
-                        if _attempt < _stream_retries and (status == 429 or status >= 500):
+                        # 429 / 5xx / credit-exhausted → retry (may trigger token pool rotation)
+                        _is_credit_err = "subscription_required" in err_detail or "credit" in err_detail.lower()
+                        if _attempt < _stream_retries and (status == 429 or status >= 500 or _is_credit_err):
                             wait = (2**_attempt) if status == 429 else (0.5 * (_attempt + 1))
                             time.sleep(wait)
-                            continue  # continue 先退出 with（关闭连接），再进入下一轮
+                            continue
                         # Yield error as metadata only — the error body is not
                         # meaningful user-facing text and should not be rendered.
                         _msg = f"\n[HTTP {status}]"
                         if status == 429:
                             _msg += " 请求过于频繁，请稍后重试"
+                        elif "subscription_required" in err_detail:
+                            _msg += " 积分耗尽，正在切换账号…"
                         elif err_detail:
                             _msg += f" {err_detail[:100]}"
                         yield {"content": _msg, "_finish": "error", "_error": True}
