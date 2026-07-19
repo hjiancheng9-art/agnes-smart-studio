@@ -171,7 +171,8 @@ class CUDAMemoryProbe(FixabilityProbe):
 
             if torch.cuda.is_available():
                 device = torch.cuda.current_device()
-                total_mem = torch.cuda.get_device_properties(device).total_mem // (1024**2)
+                props = torch.cuda.get_device_properties(device)
+                total_mem = (getattr(props, "total_memory", getattr(props, "total_mem", 0)) or 0) // (1024**2)
                 allocated = torch.cuda.memory_allocated(device) // (1024**2)
                 free = total_mem - allocated
 
