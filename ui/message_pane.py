@@ -265,7 +265,7 @@ class MessagePane:
             sys.stdout.write("\033[?1000h\033[?1002h\033[?1006h")  # enable mouse tracking
             sys.stdout.flush()
         except Exception:
-            pass
+            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
 
     # ── Public properties ────────────────────────────────────
 

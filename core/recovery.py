@@ -153,7 +153,7 @@ class RecoveryEngine:
                 actions.append(f"Provider {mgr.active_provider} marked down (rate limited)")
                 did_recover = True
             except Exception:
-                pass
+                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
 
         return {"success": did_recover, "message": "; ".join(actions) if actions else f"Unrecognized model error: {error_msg[:100]}"}
 

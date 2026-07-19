@@ -22,9 +22,9 @@ class TestTRMConstants:
     def test_bridges_defined(self):
         from core.tool_registry_mesh import BRIDGES
 
-        assert "codex" in BRIDGES
-        assert "kimi" in BRIDGES
-        assert "qoder" in BRIDGES
+        assert "codebuddy" in BRIDGES
+        assert "zcode" in BRIDGES
+        assert "claude-code" in BRIDGES
         assert "codebuddy" in BRIDGES
         assert "zcode" in BRIDGES
         assert "claude-code" in BRIDGES

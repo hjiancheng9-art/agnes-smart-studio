@@ -102,7 +102,7 @@ def _build_retry_strategies(tool_name: str, args: dict, error: str, sys_module=_
                     if converted != cmd:
                         strategies.append(("posix_to_win", {**args, "command": converted}))
                 except Exception:
-                    pass
+                    import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
         # Strategy 4: add .exe suffix for path commands
         if "/" in cmd or "\\" in cmd:
             _ext = _os.path.splitext(cmd.split()[0] if " " in cmd else cmd)[1]
@@ -175,7 +175,7 @@ def auto_retry_tool(session, tool_name: str, args_json: str, original_error: str
                 "auto-retry [%s]: %s (was: %.80s)", strategy_label, tool_name, str(original_error)
             )
         except Exception:
-            pass
+            import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
         try:
             result, sides = session._dispatch_tool(tool_name, _json.dumps(adjusted_args, ensure_ascii=False))
             result_str = str(result)

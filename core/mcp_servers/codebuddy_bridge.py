@@ -49,7 +49,7 @@ def _handle_tool_call(name: str, args: dict) -> dict:
                 available = r.returncode == 0
                 version = (r.stdout or r.stderr or "").strip()
             except Exception:
-                pass
+                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
         info = {"available": available, "binary": binary, "version": version}
         return {"content": [{"type": "text", "text": json.dumps(info, indent=2, ensure_ascii=False)}]}
     return {"content": [{"type": "text", "text": f"Unknown tool: {name}"}], "isError": True}

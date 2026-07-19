@@ -266,7 +266,6 @@ def build_system_prompt(
 
     base = template.format(provider_name=provider_name, model_name=model)
     # ── Workspace context: tell the LLM which project it operates on ──
-    import os as _os
 
     from core.workspace_guard import get_crux_root, resolve_workspace
 
