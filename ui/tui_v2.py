@@ -182,7 +182,7 @@ class IncidentLogScreen(Screen):
 
     def on_enter(self, app):
         try:
-            from core.incident_store import load_incidents
+            from core.incident import load_incidents
 
             self._incidents = load_incidents(limit=50)
         except Exception:
@@ -217,7 +217,7 @@ class RemediationScreen(Screen):
 
     def on_enter(self, app):
         try:
-            from core.incident_playbook import PLAYBOOKS
+            from core.incident import PLAYBOOKS
 
             self._cats = list(PLAYBOOKS.keys())
         except Exception:
@@ -226,7 +226,7 @@ class RemediationScreen(Screen):
 
     def select(self, cat):
         try:
-            from core.incident_playbook import get_playbook
+            from core.incident import get_playbook
 
             self._pb = get_playbook(cat)
         except Exception:
@@ -234,7 +234,7 @@ class RemediationScreen(Screen):
 
     def run(self, iid):
         try:
-            from core.incident_store import load_incidents
+            from core.incident import load_incidents
 
             incs = load_incidents(limit=100)
             inc = next((x for x in incs if x.get("incident_id", x.get("_id", "")) == iid), None)
