@@ -811,6 +811,17 @@ class TuiAppV2:
             self._log_append((icon, style, msg[:100]))
             self._ui(self._refresh_status)
 
+        # ── Ctrl+Shift+C: copy entire conversation ──
+        @kb.add("c-C")
+        def _copy_all(event):
+            """Ctrl+Shift+C: copy entire conversation."""
+            if _typing(event):
+                return
+            ok, msg = self._copy_mgr.copy_all()
+            icon, style = ("✓", "class:activity-done") if ok else ("✗", "class:error")
+            self._log_append((icon, style, msg[:100]))
+            self._ui(self._refresh_status)
+
         # ── F9: 原生选择模式 ──
         @kb.add("f9")
         def _native_select(event):

@@ -92,6 +92,19 @@ class CopyManager:
         msg = self.store.get(self.focus.index) if self.focus.enabled else self.store.last_assistant()
         return self.copy_markdown(msg)
 
+    def copy_all(self) -> tuple[bool, str]:
+        """Copy the entire conversation as formatted text."""
+        if not self.store._messages:
+            return False, "No messages to copy"
+        lines = []
+        for msg in self.store._messages:
+            role_label = msg.role.upper() if msg.role else "?"
+            text = msg.text.strip() if msg.text else ""
+            if text:
+                lines.append(f"## {role_label}\n\n{text}")
+        full = "\n\n---\n\n".join(lines)
+        return self.clip.copy_and_report(full, f"Copied {len(self.store._messages)} messages")
+
     def get_focused_msg(self) -> Message | None:
         return self.store.get(self.focus.index) if self.focus.enabled else self.store.last_assistant()
 
@@ -115,6 +128,8 @@ class CopyManager:
             p = args[0]
             if p == "last":
                 target = "last"
+            elif p == "all":
+                return self.copy_all()
             elif p == "code":
                 block_index = int(args[1]) if len(args) > 1 else 0
                 target = "last"
