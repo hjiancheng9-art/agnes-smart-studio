@@ -665,15 +665,41 @@ class ChatSession(ChatToggleMixin):
             return AGENT_SYSTEM_PROMPT + self._render_tool_categories()
         return self._build_system_prompt()
 
-    def _render_tool_categories(self) -> str:
-        """渲染工具分类为 system prompt 片段（分组显示，零过滤）。
+    def _render_tool_categories(self, *, focused: bool = True) -> str:
+        """Render tool categories for system prompt. Progressive disclosure.
 
-        所有工具仍全量发给 LLM API（definitions 不动），此处仅做文字分组，
-        降低 LLM 在 tool call 时的选择噪声。
+        When focused=True (default), only core tools are shown (~20 tools,
+        ~500 tokens).  All 190+ tools remain available — the LLM can discover
+        them via search_files or by asking.  This matches Claude Code's
+        progressive tool disclosure model.
+
+        When focused=False (agent mode / explicit full-list request), all
+        tools are shown.
         """
         cats = self.tools.tool_categories
         if not cats:
             return f"\n当前可用工具: {self.tools.tool_names}"
+
+        if focused and not getattr(self, "agent_mode", False):
+            # Core coding tools — always shown
+            _CORE = frozenset({
+                "read_file", "write_file", "edit_file", "patch_file",
+                "search_files", "glob_files", "list_files", "tree_dir",
+                "run_bash", "run_python", "run_test",
+                "git_add_commit", "git_status", "git_diff", "git_branch", "git_push", "git_pull",
+                "run_lint", "run_format", "code_review", "debug_inspect",
+                "web_search", "web_fetch",
+            })
+            lines = ["\n\n## 核心工具"]
+            for cat_name, tools in cats.items():
+                filtered = [t for t in tools if t in _CORE]
+                if filtered:
+                    lines.append(f"- **{cat_name}**: {', '.join(filtered)}")
+            total = sum(len(v) for v in cats.values())
+            lines.append(f"\n(以上为 {len(_CORE)} 个核心工具。共 {total} 个工具可用 — 使用 search_files 或直接询问获取更多)")
+            return "\n".join(lines)
+
+        # Full listing (agent mode)
         lines = ["\n\n## 当前可用工具（按分类）"]
         for cat_name, tools in cats.items():
             lines.append(f"- **{cat_name}**: {', '.join(tools)}")
