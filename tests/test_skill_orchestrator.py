@@ -1,15 +1,11 @@
 """Tests for core/skill_orchestrator.py — search, plan, execute, learn."""
 
-import json
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
-
-import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.skill_orchestrator import SkillMatch, Plan, PlanStep, SkillOrchestrator, get_orchestrator
+from core.skill_orchestrator import Plan, PlanStep, SkillMatch, SkillOrchestrator, get_orchestrator
 
 
 class TestSearch:

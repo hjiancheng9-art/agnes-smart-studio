@@ -181,30 +181,14 @@
     {
       "file": "c:\\Users\\huangjiancheng\\agnes-smart-studio\\core\\chat.py",
       "severity": "error",
-      "message": "Arguments for ParamSpec \"_P@to_thread\" are missing",
-      "range": {
-        "start": {
-          "line": 171,
-          "character": 60
-        },
-        "end": {
-          "line": 171,
-          "character": 69
-        }
-      },
-      "rule": "reportCallIssue"
-    },
-    {
-      "file": "c:\\Users\\huangjiancheng\\agnes-smart-studio\\core\\chat.py",
-      "severity": "error",
       "message": "No parameter named \"comfyui\"",
       "range": {
         "start": {
-          "line": 755,
+          "line": 596,
           "character": 12
         },
         "end": {
-          "line": 755,
+          "line": 596,
           "character": 19
         }
       },
@@ -216,11 +200,11 @@
       "message": "No parameter named \"comfyui\"",
       "range": {
         "start": {
-          "line": 788,
+          "line": 629,
           "character": 20
         },
         "end": {
-          "line": 788,
+          "line": 629,
           "character": 27
         }
       },
@@ -232,11 +216,11 @@
       "message": "No parameter named \"comfyui\"",
       "range": {
         "start": {
-          "line": 821,
+          "line": 662,
           "character": 12
         },
         "end": {
-          "line": 821,
+          "line": 662,
           "character": 19
         }
       },
@@ -248,11 +232,11 @@
       "message": "\"fire\" is unknown import symbol",
       "range": {
         "start": {
-          "line": 1005,
+          "line": 881,
           "character": 35
         },
         "end": {
-          "line": 1005,
+          "line": 881,
           "character": 39
         }
       },
@@ -264,11 +248,11 @@
       "message": "Argument of type \"str | None\" cannot be assigned to parameter \"pid\" of type \"str\" in function \"record_success\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
       "range": {
         "start": {
-          "line": 1467,
+          "line": 1355,
           "character": 57
         },
         "end": {
-          "line": 1467,
+          "line": 1355,
           "character": 64
         }
       },
@@ -280,11 +264,11 @@
       "message": "Expression value is unused",
       "range": {
         "start": {
-          "line": 1723,
+          "line": 1611,
           "character": 36
         },
         "end": {
-          "line": 1723,
+          "line": 1611,
           "character": 105
         }
       },
@@ -293,15 +277,15 @@
     {
       "file": "c:\\Users\\huangjiancheng\\agnes-smart-studio\\core\\chat.py",
       "severity": "error",
-      "message": "Argument of type \"str | dict[Unknown, Unknown] | Any\" cannot be assigned to parameter \"args_json\" of type \"str\" in function \"_auto_retry_tool\"\n  Type \"str | dict[Unknown, Unknown] | Any\" is not assignable to type \"str\"\n    \"dict[Unknown, Unknown]\" is not assignable to \"str\"",
+      "message": "Argument of type \"str | dict[Unknown, Unknown] | Any\" cannot be assigned to parameter \"args_json\" of type \"str\" in function \"auto_retry_tool\"\n  Type \"str | dict[Unknown, Unknown] | Any\" is not assignable to type \"str\"\n    \"dict[Unknown, Unknown]\" is not assignable to \"str\"",
       "range": {
         "start": {
-          "line": 1740,
-          "character": 86
+          "line": 1632,
+          "character": 85
         },
         "end": {
-          "line": 1740,
-          "character": 91
+          "line": 1632,
+          "character": 90
         }
       },
       "rule": "reportArgumentType"
@@ -312,11 +296,11 @@
       "message": "Argument of type \"str | dict[Unknown, Unknown] | Any\" cannot be assigned to parameter \"args_json\" of type \"str\" in function \"set\"\n  Type \"str | dict[Unknown, Unknown] | Any\" is not assignable to type \"str\"\n    \"dict[Unknown, Unknown]\" is not assignable to \"str\"",
       "range": {
         "start": {
-          "line": 1747,
+          "line": 1639,
           "character": 60
         },
         "end": {
-          "line": 1747,
+          "line": 1639,
           "character": 65
         }
       },
@@ -328,11 +312,11 @@
       "message": "Argument of type \"str | dict[Unknown, Unknown] | Any\" cannot be assigned to parameter \"s\" of type \"str | bytes | bytearray\" in function \"loads\"\n  Type \"str | dict[Unknown, Unknown] | Any\" is not assignable to type \"str | bytes | bytearray\"\n    Type \"dict[Unknown, Unknown]\" is not assignable to type \"str | bytes | bytearray\"\n      \"dict[Unknown, Unknown]\" is not assignable to \"str\"\n      \"dict[Unknown, Unknown]\" is not assignable to \"bytes\"\n      \"dict[Unknown, Unknown]\" is not assignable to \"bytearray\"",
       "range": {
         "start": {
-          "line": 1806,
+          "line": 1698,
           "character": 46
         },
         "end": {
-          "line": 1806,
+          "line": 1698,
           "character": 51
         }
       },
@@ -344,11 +328,11 @@
       "message": "Argument of type \"str | dict[Unknown, Unknown] | Any\" cannot be assigned to parameter \"s\" of type \"str | bytes | bytearray\" in function \"loads\"\n  Type \"str | dict[Unknown, Unknown] | Any\" is not assignable to type \"str | bytes | bytearray\"\n    Type \"dict[Unknown, Unknown]\" is not assignable to type \"str | bytes | bytearray\"\n      \"dict[Unknown, Unknown]\" is not assignable to \"str\"\n      \"dict[Unknown, Unknown]\" is not assignable to \"bytes\"\n      \"dict[Unknown, Unknown]\" is not assignable to \"bytearray\"",
       "range": {
         "start": {
-          "line": 1806,
+          "line": 1698,
           "character": 79
         },
         "end": {
-          "line": 1806,
+          "line": 1698,
           "character": 84
         }
       },
@@ -357,14 +341,46 @@
     {
       "file": "c:\\Users\\huangjiancheng\\agnes-smart-studio\\core\\chat.py",
       "severity": "error",
+      "message": "\"_effective_max\" is unbound",
+      "range": {
+        "start": {
+          "line": 1733,
+          "character": 65
+        },
+        "end": {
+          "line": 1733,
+          "character": 79
+        }
+      },
+      "rule": "reportUnboundVariable"
+    },
+    {
+      "file": "c:\\Users\\huangjiancheng\\agnes-smart-studio\\core\\chat.py",
+      "severity": "error",
+      "message": "\"_loop\" is not defined",
+      "range": {
+        "start": {
+          "line": 1739,
+          "character": 61
+        },
+        "end": {
+          "line": 1739,
+          "character": 66
+        }
+      },
+      "rule": "reportUndefinedVariable"
+    },
+    {
+      "file": "c:\\Users\\huangjiancheng\\agnes-smart-studio\\core\\chat.py",
+      "severity": "error",
       "message": "Cannot access attribute \"_skill_usage_log\" for class \"SkillManager\"\n  Attribute \"_skill_usage_log\" is unknown",
       "range": {
         "start": {
-          "line": 1946,
+          "line": 1852,
           "character": 60
         },
         "end": {
-          "line": 1946,
+          "line": 1852,
           "character": 76
         }
       },
@@ -376,11 +392,11 @@
       "message": "Cannot access attribute \"_skill_usage_log\" for class \"SkillManager\"\n  Attribute \"_skill_usage_log\" is unknown",
       "range": {
         "start": {
-          "line": 1947,
+          "line": 1853,
           "character": 32
         },
         "end": {
-          "line": 1947,
+          "line": 1853,
           "character": 48
         }
       },
@@ -392,11 +408,11 @@
       "message": "Cannot assign to attribute \"_dispatch_tool_impl\" for class \"type[ChatSession]\"\n  Attribute \"_dispatch_tool_impl\" is unknown",
       "range": {
         "start": {
-          "line": 2197,
+          "line": 2103,
           "character": 12
         },
         "end": {
-          "line": 2197,
+          "line": 2103,
           "character": 31
         }
       },
@@ -408,11 +424,11 @@
       "message": "Cannot assign to attribute \"_dispatch_tool_async\" for class \"type[ChatSession]\"\n  Attribute \"_dispatch_tool_async\" is unknown",
       "range": {
         "start": {
-          "line": 2215,
+          "line": 2121,
           "character": 12
         },
         "end": {
-          "line": 2215,
+          "line": 2121,
           "character": 32
         }
       },
@@ -424,11 +440,11 @@
       "message": "Cannot assign to attribute \"_vision_fallback\" for class \"type[ChatSession]\"\n  Attribute \"_vision_fallback\" is unknown",
       "range": {
         "start": {
-          "line": 2217,
+          "line": 2123,
           "character": 12
         },
         "end": {
-          "line": 2217,
+          "line": 2123,
           "character": 28
         }
       },
@@ -440,11 +456,11 @@
       "message": "Argument of type \"int | Unknown | Any | None\" cannot be assigned to parameter \"num_frames\" of type \"int\" in function \"create_video_task\"\n  Type \"int | Unknown | Any | None\" is not assignable to type \"int\"\n    \"None\" is not assignable to \"int\"",
       "range": {
         "start": {
-          "line": 278,
+          "line": 292,
           "character": 31
         },
         "end": {
-          "line": 278,
+          "line": 292,
           "character": 41
         }
       },
@@ -456,15 +472,31 @@
       "message": "Cannot access attribute \"reason\" for class \"RouteResult\"\n  Attribute \"reason\" is unknown",
       "range": {
         "start": {
-          "line": 518,
+          "line": 532,
           "character": 43
         },
         "end": {
-          "line": 518,
+          "line": 532,
           "character": 49
         }
       },
       "rule": "reportAttributeAccessIssue"
+    },
+    {
+      "file": "c:\\Users\\huangjiancheng\\agnes-smart-studio\\core\\chat_tool_retry.py",
+      "severity": "error",
+      "message": "Arguments for ParamSpec \"_P@to_thread\" are missing",
+      "range": {
+        "start": {
+          "line": 31,
+          "character": 60
+        },
+        "end": {
+          "line": 31,
+          "character": 69
+        }
+      },
+      "rule": "reportCallIssue"
     },
     {
       "file": "c:\\Users\\huangjiancheng\\agnes-smart-studio\\core\\claude_mcp_bridge.py",
@@ -1784,11 +1816,11 @@
       "message": "Parameter \"model\" is already assigned",
       "range": {
         "start": {
-          "line": 380,
+          "line": 383,
           "character": 43
         },
         "end": {
-          "line": 380,
+          "line": 383,
           "character": 48
         }
       },
@@ -2312,11 +2344,11 @@
       "message": "Import \"query\" could not be resolved",
       "range": {
         "start": {
-          "line": 996,
+          "line": 1003,
           "character": 9
         },
         "end": {
-          "line": 996,
+          "line": 1003,
           "character": 14
         }
       },
@@ -2593,70 +2625,6 @@
         }
       },
       "rule": "reportAttributeAccessIssue"
-    },
-    {
-      "file": "c:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\tui_v2.py",
-      "severity": "error",
-      "message": "Import \"core.incident_store\" could not be resolved",
-      "range": {
-        "start": {
-          "line": 184,
-          "character": 17
-        },
-        "end": {
-          "line": 184,
-          "character": 36
-        }
-      },
-      "rule": "reportMissingImports"
-    },
-    {
-      "file": "c:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\tui_v2.py",
-      "severity": "error",
-      "message": "Import \"core.incident_playbook\" could not be resolved",
-      "range": {
-        "start": {
-          "line": 219,
-          "character": 17
-        },
-        "end": {
-          "line": 219,
-          "character": 39
-        }
-      },
-      "rule": "reportMissingImports"
-    },
-    {
-      "file": "c:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\tui_v2.py",
-      "severity": "error",
-      "message": "Import \"core.incident_playbook\" could not be resolved",
-      "range": {
-        "start": {
-          "line": 228,
-          "character": 17
-        },
-        "end": {
-          "line": 228,
-          "character": 39
-        }
-      },
-      "rule": "reportMissingImports"
-    },
-    {
-      "file": "c:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\tui_v2.py",
-      "severity": "error",
-      "message": "Import \"core.incident_store\" could not be resolved",
-      "range": {
-        "start": {
-          "line": 236,
-          "character": 17
-        },
-        "end": {
-          "line": 236,
-          "character": 36
-        }
-      },
-      "rule": "reportMissingImports"
     },
     {
       "file": "c:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\tui_v2.py",

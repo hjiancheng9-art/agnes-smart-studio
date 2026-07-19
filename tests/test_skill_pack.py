@@ -1,7 +1,6 @@
 """Tests for core/skill_pack.py — pack, install, list."""
 
 import json
-import os
 import shutil
 import sys
 import tempfile
@@ -12,7 +11,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.skill_pack import install, list_packs, pack, PACK_EXT, SKILLS_DIR
+from core.skill_pack import PACK_EXT, SKILLS_DIR, install, list_packs, pack
 
 
 class TestPack:
@@ -102,4 +101,3 @@ class TestListPacks:
             assert packs == []
 
 
-import pytest

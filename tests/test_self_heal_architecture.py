@@ -138,7 +138,8 @@ class TestDiagnoseShellFailure:
 # 自动重试: _auto_retry_tool + _build_retry_strategies
 # ═══════════════════════════════════════════════════════════════════
 
-from core.chat_tool_retry import auto_retry_tool as _auto_retry_tool, _build_retry_strategies
+from core.chat_tool_retry import _build_retry_strategies
+from core.chat_tool_retry import auto_retry_tool as _auto_retry_tool
 
 
 class MockDispatchSession:
