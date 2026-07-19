@@ -16,6 +16,34 @@ import httpx
 
 from core.mcp_servers._mcp_utils import run_subprocess
 
+# ── Auto-commit helpers ──
+_AC_FN = None
+
+def _get_auto_commit():
+    """Lazy-load auto_commit from edit_orchestrator. Returns callable or None."""
+    global _AC_FN
+    if _AC_FN is False:
+        return None
+    if _AC_FN is not None:
+        return _AC_FN
+    import os as _os
+    if _os.environ.get("CRUX_AUTO_COMMIT", "").strip().lower() != "true":
+        _AC_FN = False
+        return None
+    try:
+        from core.edit_orchestrator import auto_commit as _fn
+        _AC_FN = _fn
+        return _fn
+    except ImportError:
+        _AC_FN = False
+        return None
+
+def _rel_path(p: Path) -> str:
+    try:
+        return str(p.resolve().relative_to(Path(__file__).resolve().parent.parent))
+    except ValueError:
+        return str(p)
+
 __all__ = [
     "ROOT",
     "count_lines",
@@ -219,6 +247,9 @@ def write_file(path: str, content: str) -> str:
     finally:
         with contextlib.suppress(OSError):
             os.unlink(tmp_name)
+    _ac = _get_auto_commit()
+    if _ac:
+        _ac(str(p), f"write: {_rel_path(p)}")
     return f"Written: {p}"
 
 
@@ -467,6 +498,9 @@ def edit_file(path: str, old_text: str, new_text: str) -> str:
         return f"Not found in {p}"
     result = original.replace(old_text, new_text, 1)
     p.write_text(result, encoding="utf-8")
+    _ac = _get_auto_commit()
+    if _ac:
+        _ac(str(p), f"edit: {_rel_path(p)}")
     return f"Edited: {p}"
 
 

@@ -713,6 +713,15 @@ class ChatSession(ChatToggleMixin):
                 prompt += "\n\n" + self._budget.system_prompt_footer()
         except (AttributeError, Exception):
             pass
+        # Inject repo map for code mode — LLM sees project structure
+        if self.code_mode:
+            try:
+                from core.edit_orchestrator import repo_context
+                rc = repo_context()
+                if rc:
+                    prompt += rc
+            except (ImportError, Exception):
+                pass
         return prompt
 
         # Prompt cache managed by chat_prompt.PromptCache (single source of truth)
