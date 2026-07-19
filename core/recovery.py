@@ -111,17 +111,51 @@ class RecoveryEngine:
         return {"success": True, "message": f"Disk space low (<{threshold_mb} MB) — cleaned {freed} items"}
 
     def _model_error(self, error_msg: str = "", **ctx) -> dict:
-        hints = []
+        """Handle model-level errors — classify and attempt recovery."""
         el = error_msg.lower()
-        if "503" in el:
-            hints.append("Model may be unavailable — try switching provider")
+        actions = []
+        did_recover = False
+
+        # 503/overloaded → switch provider
+        if "503" in el or "overloaded" in el:
+            try:
+                from core.provider import get_provider_manager
+                mgr = get_provider_manager()
+                old = mgr.active_provider
+                mgr.fallback()
+                new = mgr.active_provider
+                if new != old:
+                    actions.append(f"Switched from {old} to {new}")
+                    did_recover = True
+                else:
+                    actions.append("No fallback provider available")
+            except Exception as e:
+                actions.append(f"Provider switch failed: {e}")
+
+        # 401/403 → auth issue (can't auto-fix, give clear guidance)
         if "401" in el or "403" in el:
-            hints.append("Authentication failed — check API key")
+            actions.append("Authentication failed — run: crux init to reconfigure API key")
+
+        # Timeout → increase timeout for next attempt
         if "timeout" in el:
-            hints.append("Request timed out — reduce prompt size or increase timeout")
-        if "rate" in el:
-            hints.append("Rate limited — wait and retry")
-        return {"success": len(hints) > 0, "message": "; ".join(hints) or "Unknown model error"}
+            import os
+            old_timeout = os.environ.get("CRUX_DEFAULT_TIMEOUT", "120")
+            os.environ["CRUX_DEFAULT_TIMEOUT"] = str(int(old_timeout) * 2)
+            actions.append(f"Timeout increased: {old_timeout}s → {os.environ['CRUX_DEFAULT_TIMEOUT']}s")
+            did_recover = True
+
+        # Rate limit → mark provider down
+        if "rate" in el or "429" in el:
+            try:
+                from core.provider import get_provider_manager
+                mgr = get_provider_manager()
+                mgr.state.mark_down(mgr.active_provider)
+                actions.append(f"Provider {mgr.active_provider} marked down (rate limited)")
+                did_recover = True
+            except Exception:
+                pass
+
+        return {"success": did_recover, "message": "; ".join(actions) if actions else f"Unrecognized model error: {error_msg[:100]}"}
 
     def _rate_limit(self, provider: str = "", retry_after: int = 5, **ctx) -> dict:
         """Handle rate limiting (429) — wait and try fallback provider."""
