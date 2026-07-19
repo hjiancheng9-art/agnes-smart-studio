@@ -9,7 +9,13 @@ import pytest
 
 from core.async_client import AsyncCruxClient
 from core.client import CruxClient
-from core.validator import ValidationError, validate_image_size, validate_num_frames, validate_seed, validate_video_resolution
+from core.validator import (
+    ValidationError,
+    validate_image_size,
+    validate_num_frames,
+    validate_seed,
+    validate_video_resolution,
+)
 
 # ── Fixtures ──────────────────────────────────────────────────────────
 

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import atexit as _atexit
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -351,7 +352,7 @@ def reset_background_manager() -> None:
             try:
                 old.shutdown()
             except Exception:
-                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                logging.getLogger('crux').debug('silent except', exc_info=True)
             old._tasks.clear()
             old._processes.clear()
             for t in getattr(old, "_threads", {}).values():
@@ -359,7 +360,7 @@ def reset_background_manager() -> None:
                     if t.is_alive():
                         t.join(timeout=1)
                 except Exception:
-                    import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
+                    logging.getLogger('crux').debug('silent except', exc_info=True)
             old._threads.clear()
     _bg_manager = None
 

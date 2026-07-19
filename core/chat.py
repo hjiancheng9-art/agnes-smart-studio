@@ -60,6 +60,7 @@ _AUTO_RETRY_TOOLS = frozenset(
 
 from core.chat_tool_helpers import merge_tool_calls, sanitize_tool_call_history
 from core.chat_tool_helpers import normalize_tool_args as _normalize_tool_args
+from core.chat_tool_retry import _PipelineToolbus, auto_retry_tool, format_tool_error
 from core.chat_vision import _vision_fallback
 from core.config import get_crux_vision_model
 from core.observability import TraceContext, metrics
@@ -155,201 +156,6 @@ MAX_TOOL_LOOPS = 40
 RATE_LIMIT_FALLBACK_THRESHOLD = 2
 # 429/503 重试最大等待秒数上限（超过立即降级，不阻塞）
 MAX_RATE_LIMIT_WAIT_SECONDS = 10
-
-
-class _PipelineToolbus:
-    """轻量级工具总线 — 为 DeliberateWorkflow 提供工具调用能力。"""
-
-    def __init__(self, dispatch_fn, tool_registry):
-        self._dispatch = dispatch_fn
-        self._registry = tool_registry
-
-    async def call(self, tool_name: str, args: dict) -> str:
-        """异步调用工具（兼容 DeliberateWorkflow 的 await 调用）。"""
-        import asyncio
-        import json
-
-        result, _ = await asyncio.to_thread(self._dispatch, tool_name, json.dumps(args))
-        return str(result)
-
-    def list_tools(self) -> list[str]:
-        """返回可用工具名称列表。"""
-        try:
-            return list(self._registry._executors.keys())
-        except AttributeError:
-            return []
-
-
-def _auto_retry_tool(session, tool_name: str, args_json: str, original_error: str, max_retries: int = 3):
-    """工具失败自动重试——先自愈修复，再修正参数重试。
-
-    当 run_bash/run_test/run_python 等执行类工具返回错误时，不直接丢给
-    LLM，而是：
-      1. 先运行 self_heal --fix 自动修复已知问题
-      2. 再尝试参数级修正策略
-      3. 重试工具调用
-
-    每个策略只尝试一次，按优先级排列，确保不重复相同操作。
-    Returns (tool_result, side_effects) — 成功则返回修正后的结果，失败则返回原始错误。
-    """
-    import json as _json
-    import sys as _sys
-
-    args = _json.loads(args_json) if isinstance(args_json, str) else (args_json or {})
-    original_args = dict(args)
-
-    # ── Step 0: Self-heal — auto-fix known code issues before retrying ──
-    try:
-        from core.self_heal import SelfHealer
-
-        healer = SelfHealer()
-        # Quick scan + fix (syntax, silent exceptions, ruff auto-fix)
-        healer.scan_syntax()
-        healer.scan_silent_exceptions()
-        fixed = healer.fix_silent_exceptions()
-        healer.quick_fix()  # ruff --fix
-        if fixed > 0:
-            _m = __import__("core.observability", fromlist=["metrics"])
-            _m.metrics.increment("auto_retry.self_heal.fixes")
-    except (ImportError, OSError):
-        pass
-
-    # ── Step 1: Parameter-level retry strategies ──
-    strategies = _build_retry_strategies(tool_name, original_args, original_error, _sys)
-
-    for strategy_label, adjusted_args in strategies:
-        if adjusted_args == original_args:
-            continue  # 跳过无变化的策略
-        try:
-            import logging
-
-            logging.getLogger("crux").info(
-                "auto-retry [%s]: %s (was: %.80s)",
-                strategy_label,
-                tool_name,
-                str(original_error),
-            )
-        except Exception:
-            logger.debug("Exception in chat", exc_info=True)
-        try:
-            result, sides = session._dispatch_tool(tool_name, _json.dumps(adjusted_args, ensure_ascii=False))
-            result_str = str(result)
-            if not result_str.startswith("[错误]") and not result_str.startswith("[自愈失败]"):
-                try:
-                    from core.observability import metrics as _m
-
-                    _m.increment(f"auto_retry.{tool_name}.success")
-                    _m.increment(f"auto_retry.strategy.{strategy_label}")
-                except ImportError:
-                    pass
-                return result, sides
-        except (OSError, ValueError, RuntimeError):
-            logger.debug("Retry dispatch failed for %s", tool_name, exc_info=True)
-            continue
-
-    return original_error, [("info", original_error)]
-
-
-def _format_tool_error(tool_name: str, raw_error: str) -> str:
-    """Wrap technical tool errors with human-readable classification and suggestions."""
-    err_lower = raw_error.lower()
-    # Classify and suggest
-    hint = ""
-    if "timeout" in err_lower or "timed out" in err_lower:
-        hint = "试试减少输入大小或拆分任务"
-    elif "permission" in err_lower or "access denied" in err_lower:
-        hint = "试试在安全目录运行，或检查文件权限"
-    elif "not found" in err_lower or "no such file" in err_lower:
-        hint = "检查文件路径是否正确，或者先创建它"
-    elif "syntax" in err_lower or "syntaxerror" in err_lower:
-        hint = "代码有语法错误，检查引号、括号是否匹配"
-    elif "import" in err_lower or "modulenotfound" in err_lower:
-        hint = "缺少依赖，试试 pip install <package>"
-    elif "connection" in err_lower or "refused" in err_lower:
-        hint = "网络连接失败，检查是否离线或服务未启动"
-    elif "api key" in err_lower or "unauthorized" in err_lower:
-        hint = "API key 未配置或已过期，运行 crux init 重新设置"
-    suggestion = f"\n💡 {hint}" if hint else ""
-    return f"[错误] {tool_name}: {raw_error[:300]}{suggestion}"
-
-
-def _build_retry_strategies(tool_name: str, args: dict, error: str, _sys) -> list[tuple[str, dict]]:
-    """根据工具类型和错误信息，构建有序修正策略列表。"""
-    strategies: list[tuple[str, dict]] = []
-
-    if tool_name == "run_bash":
-        cmd = args.get("command", "")
-        # 策略1: 剥离 bash -c 包装
-        import re as _re
-
-        bare = _re.sub(r'^bash\s+-c\s+["\']?(.+?)["\']?\s*$', r"\1", cmd.strip())
-        if bare != cmd:
-            strategies.append(("unwrap_bash", {**args, "command": bare}))
-        # 策略2: 去掉 POSIX 单引号 (Windows)
-        if _sys.platform == "win32" and "'" in cmd:
-            strategies.append(("strip_quotes", {**args, "command": cmd.replace("'", "")}))
-        # 策略3: POSIX 命令 → Windows 等价命令
-        if _sys.platform == "win32":
-            _cmd_name = cmd.strip().split()[0].lower() if cmd.strip() else ""
-            _POSIX_MAP = {
-                "head": lambda c: _re.sub(r"^head\s+", "more /p ", c) if c.startswith("head") else c,
-                "tail": lambda c: _re.sub(r"^tail\s+", "more +99999 ", c) if c.startswith("tail") else c,
-                "grep": lambda c: _re.sub(r"^grep\s+", "findstr ", c) if c.startswith("grep") else c,
-                "cat": lambda c: _re.sub(r"^cat\s+", "type ", c) if c.startswith("cat") else c,
-                "ls": lambda c: _re.sub(r"^ls\b", "dir", c) if c.startswith("ls") else c,
-                "cp": lambda c: _re.sub(r"^cp\s+", "copy ", c) if c.startswith("cp") else c,
-                "mv": lambda c: _re.sub(r"^mv\s+", "move ", c) if c.startswith("mv") else c,
-                "rm": lambda c: _re.sub(r"^rm\s+", "del /f ", c) if c.startswith("rm") else c,
-                "touch": lambda c: _re.sub(r"^touch\s+", "type nul > ", c) if c.startswith("touch") else c,
-                "wc": lambda c: _re.sub(r"^wc\s+(.+)", r'find /c "\0" \1', c) if c.startswith("wc") else c,
-            }
-            if _cmd_name in _POSIX_MAP:
-                try:
-                    converted = _POSIX_MAP[_cmd_name](cmd)
-                    if converted != cmd:
-                        strategies.append(("posix_to_win", {**args, "command": converted}))
-                except Exception:
-                    logger.debug("Exception in chat", exc_info=True)
-        # 策略4: 如果是路径命令，尝试加 .exe 后缀
-        if "/" in cmd or "\\" in cmd:
-            import os as _os
-
-            _ext = _os.path.splitext(cmd.split()[0] if " " in cmd else cmd)[1]
-            if not _ext and _sys.platform == "win32":
-                strategies.append(
-                    ("add_exe", {**args, "command": cmd.replace(cmd.split()[0], cmd.split()[0] + ".exe", 1)})
-                )
-
-    elif tool_name == "pip_install":
-        pkg = args.get("package", "")
-        if "--retries" not in pkg:
-            strategies.append(("add_retries", {**args, "package": f"{pkg} --retries 3"}))
-        if "--timeout" not in pkg:
-            strategies.append(("add_timeout", {**args, "package": f"{pkg} --timeout 60"}))
-
-    elif tool_name == "run_python":
-        code = args.get("code", "")
-        # Strategy 1: wrap bare code in try/except
-        if "try:" not in code[:100]:
-            _wrapped = "try:\n" + code + "\nexcept Exception as _e:\n    print('Error:', _e)"
-            strategies.append(("wrap_try", {**args, "code": _wrapped}))
-        # Strategy 2: strip leading whitespace (common copy-paste issue)
-        if code != code.lstrip():
-            strategies.append(("strip_indent", {**args, "code": code.lstrip()}))
-
-    elif tool_name == "run_test":
-        cmd = args.get("command", args.get("args", ""))
-        # Strategy 1: add --tb=short for cleaner output
-        if "--tb" not in str(cmd):
-            strategies.append(("cleaner_tb", {**args, "command": f"{cmd} --tb=short"}))
-        # Strategy 2: add timeout
-        if "--timeout" not in str(cmd):
-            strategies.append(("add_timeout", {**args, "command": f"{cmd} --timeout=120"}))
-        # Strategy 3: retry with -x (stop on first failure) to isolate
-        if "-x" not in str(cmd):
-            strategies.append(("fail_fast", {**args, "command": f"{cmd} -x"}))
-
-    return strategies
 
 
 class ChatSession(ChatToggleMixin):
@@ -1751,13 +1557,13 @@ class ChatSession(ChatToggleMixin):
                         from core.runtime_result import ToolResult
 
                         normalized = ToolResult.from_raw(raw)
-                        tool_result = _format_tool_error(fname, normalized.content) if not normalized.ok else normalized.content
+                        tool_result = format_tool_error(fname, normalized.content) if not normalized.ok else normalized.content
                         side_effects = list(normalized.side_effects)
 
                         # ── 自动重试: 仅对幂等/可重试工具，且错误表明可修正时才重试 ──
                         _can_retry = not normalized.ok and fname in _AUTO_RETRY_TOOLS
                         if _can_retry:
-                            tool_result, side_effects = _auto_retry_tool(self, fname, fargs, tool_result)
+                            tool_result, side_effects = auto_retry_tool(self, fname, fargs, tool_result)
 
                         # ── 工具结果缓存: 缓存成功的只读工具结果 ──
                         try:
