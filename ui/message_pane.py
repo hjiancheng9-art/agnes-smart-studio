@@ -252,6 +252,21 @@ class MessagePane:
         # Reference to MouseModeGuard — set by TuiApp after initialization
         self._mouse_guard = None
 
+    def _restore_mouse(self) -> None:
+        """Restore terminal mouse mode if subprocess output disabled it.
+
+        Subprocess tools (run_bash) may emit raw ANSI escape sequences that
+        disable mouse reporting mode.  Without this, mouse scroll and click
+        stop working after any tool invocation.  This is a best-effort fix
+        — it sends the enable sequence directly to stdout.
+        """
+        import sys
+        try:
+            sys.stdout.write("\033[?1000h\033[?1002h\033[?1006h")  # enable mouse tracking
+            sys.stdout.flush()
+        except Exception:
+            pass
+
     # ── Public properties ────────────────────────────────────
 
     @property
@@ -454,6 +469,7 @@ class MessagePane:
             return True
 
     def append_message(self, role: str, text: str) -> None:
+        self._restore_mouse()
         if not isinstance(text, str):
             text = str(text) if text is not None else ""
         # ── P0 事件通道隔离 ──
@@ -518,6 +534,9 @@ class MessagePane:
         from utils.unicode_safety import sanitize_text
 
         text = sanitize_text(text)
+        # Restore mouse mode: subprocess output may have disabled it
+        # via raw ANSI escape sequences (known issue with run_bash tools).
+        self._restore_mouse()
         # 缓冲区上限保护: 单条消息超过 100KB 截断，防止异常数据撑爆
         MAX_STREAM_LEN = 102400
         if len(self._stream_buffer) > MAX_STREAM_LEN:
