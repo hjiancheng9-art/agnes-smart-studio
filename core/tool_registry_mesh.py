@@ -164,12 +164,6 @@ CATEGORY_META = {
 # ═══════════════════════════════════════════════════════════════
 
 BRIDGES = {
-    "codex": {
-        "script": "core/mcp_servers/codex_bridge.py",
-    },
-    "kimi": {
-        "script": "core/mcp_servers/kimi_bridge.py",
-    },
     "qoder": {
         "script": "core/mcp_servers/qoder_bridge.py",
     },
