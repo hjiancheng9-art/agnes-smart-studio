@@ -26,7 +26,6 @@ from core.error_sink import catch
       ...
 """
 
-import json
 import sys
 import time
 from dataclasses import dataclass, field
@@ -396,7 +395,7 @@ class LLMAnalyzer:
 
     def evaluate(self, tool: str, error_type: str, context: dict | None = None) -> FixabilityResult:
         """LLM 分析（需要外部 LLM 调用支持）。"""
-        ctx = context or {}
+        _ctx = context or {}  # noqa: F841 — reserved for LLM integration
 
         # 收集系统状态
         system_state = {}

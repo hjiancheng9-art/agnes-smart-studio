@@ -93,7 +93,7 @@ def install(source: str) -> dict:
         try:
             import urllib.request
             tmp = tempfile.NamedTemporaryFile(suffix=PACK_EXT, delete=False)
-            urllib.request.urlretrieve(source, tmp.name)
+            urllib.request.urlretrieve(source, tmp.name)  # nosec B310
             source = tmp.name
         except Exception as e:
             return {"name": source, "status": "error", "error": f"download failed: {e}"}
