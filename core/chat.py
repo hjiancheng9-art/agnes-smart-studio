@@ -61,6 +61,22 @@ _AUTO_RETRY_TOOLS = frozenset(
 from core.chat_tool_helpers import merge_tool_calls, sanitize_tool_call_history
 from core.chat_tool_helpers import normalize_tool_args as _normalize_tool_args
 from core.chat_tool_retry import _PipelineToolbus, auto_retry_tool, format_tool_error
+
+
+def _summarize_tool_output(raw: str, tool_name: str = "") -> str:
+    """Smart truncation for large tool outputs — keep useful info, drop noise."""
+    if not raw or len(raw) <= 2000:
+        return raw
+    lines = raw.split("\n")
+    # Prioritize error/fail/assert lines
+    err_lines = [l for l in lines if any(kw in l.lower() for kw in ("error", "fail", "traceback", "assert", "exception", "warning"))]
+    if err_lines:
+        head = "\n".join(lines[:5])
+        errs = "\n".join(err_lines[:8])
+        return f"{head}\n\n... [{len(lines)} lines, {len(err_lines)} flagged]\n\n{errs}"
+    head = "\n".join(lines[:6])
+    tail = "\n".join(lines[-3:]) if len(lines) > 15 else ""
+    return f"{head}\n... [{len(lines) - 9} lines omitted]...\n{tail}" if tail else head
 from core.chat_vision import _vision_fallback
 from core.config import get_crux_vision_model
 from core.observability import TraceContext, metrics
@@ -1604,7 +1620,11 @@ class ChatSession(ChatToggleMixin):
                         from core.runtime_result import ToolResult
 
                         normalized = ToolResult.from_raw(raw)
-                        tool_result = format_tool_error(fname, normalized.content) if not normalized.ok else normalized.content
+                        if not normalized.ok:
+                            tool_result = format_tool_error(fname, normalized.content)
+                        else:
+                            content = normalized.content
+                            tool_result = _summarize_tool_output(content, fname) if len(content) > 2000 else content
                         side_effects = list(normalized.side_effects)
 
                         # ── 自动重试: 仅对幂等/可重试工具，且错误表明可修正时才重试 ──

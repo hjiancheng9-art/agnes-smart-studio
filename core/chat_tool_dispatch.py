@@ -7,6 +7,20 @@ Injected into ChatSession at module level for circular import safety.
 
 from __future__ import annotations
 
+
+def _media_error(kind: str, e: Exception) -> str:
+    """Classify media errors with actionable suggestions."""
+    msg = str(e).lower()
+    hint = ""
+    if "timeout" in msg: hint = " — 网络超时，检查 API 连接或换更小的 size"
+    elif "401" in msg or "403" in msg or "auth" in msg: hint = " — API key 未配置或已过期，运行: crux init"
+    elif "quota" in msg or "429" in msg: hint = " — API 配额不足，等待或升级套餐"
+    elif "size" in msg: hint = " — 尺寸不支持，试试 1024x768"
+    elif "model" in msg: hint = " — 模型不可用，检查 models.json 配置"
+    elif "connection" in msg or "refused" in msg: hint = " — 网络连接失败，检查是否离线"
+    return f"{kind}生成失败: {e}{hint}"
+
+
 import json
 import logging
 
@@ -156,7 +170,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
             return (f"图片已生成: {url}", side)
 
         except Exception as e:
-            return (f"图片生成失败: {e}", side)
+            return (_media_error("图片", e), side)
     if name == "generate_video":
         size_str = args.get("size", "1152x768")
         num_frames = args.get("num_frames", 121)
@@ -300,7 +314,7 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                         max_wait=120.0,
                     )
                 except Exception as e:
-                    return (f"视频生成失败: {e}", side)
+                    return (_media_error("视频", e), side)
 
             if video_result and video_result.get("status") in ("completed", "SUCCESS", "done"):
                 local_path = video_result.get("local_path", "")
@@ -314,12 +328,12 @@ def _dispatch_tool_impl(self, name: str, args_json: str, *, confirmed: bool = Fa
                     pass
                 return (f"视频已生成 [video_id={video_id}]: {local_path or url}", side)
             elif video_result and video_result.get("status") in ("failed", "FAILED", "error"):
-                return (f"视频生成失败: {video_result.get('error', 'unknown')}", side)
+                return (f"视频生成失败: {video_result.get('error', 'unknown')} — 检查 API 配额或重试", side)
             else:
                 return (f"视频生成中（进度 {video_result.get('progress', 0):.0f}%），video_id={video_id}", side)
 
         except Exception as e:
-            return (f"视频生成失败: {e}", side)
+            return (_media_error("视频", e), side)
     if name == "load_skill":
         skill_name = args.get("name", "")
         if not skill_name:
