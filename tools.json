@@ -2343,6 +2343,60 @@
       "function": "core.ws_server.ws_server_status",
       "parameters": {},
       "category": "integration"
+    },
+    {
+      "name": "resource_search",
+      "type": "python",
+      "function": "core.orchestrate_tools.resource_search",
+      "description": "Search all available resources (skills + tools) matching a query. Use before picking a skill to execute.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Natural language query"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "category": "orchestration"
+    },
+    {
+      "name": "skill_execute",
+      "type": "python",
+      "function": "core.orchestrate_tools.skill_execute",
+      "description": "Execute a named skill against a goal. Use resource_search first to find the right skill name.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "skill_name": {
+            "type": "string",
+            "description": "Exact skill name"
+          },
+          "goal": {
+            "type": "string",
+            "description": "What to do"
+          }
+        },
+        "required": [
+          "skill_name",
+          "goal"
+        ]
+      },
+      "category": "orchestration"
+    },
+    {
+      "name": "project_analyze",
+      "type": "python",
+      "function": "core.orchestrate_tools.project_analyze",
+      "description": "Analyze the current project structure and suggest relevant skills. Call this first when entering a new project.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "category": "orchestration"
     }
   ]
 }
