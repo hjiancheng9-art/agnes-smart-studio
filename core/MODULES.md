@@ -8,6 +8,12 @@ This document is the navigation map — use it to find modules by function.
 ## TOOLS (43 modules)
 Tool registry, routing, browser automation, file/code tools, infrastructure integrations.
 
+**Design intent**: The tool layer is CRUX's hands — everything the agent can *do*.
+Tools are registered via `tools.json`, routed through `tool_router.py`, validated
+by `tool_call_validator.py`, and executed by `tool_executor.py`.  Infrastructure
+tools (clipboard, ssh, sql, webhook) are isolated integrations with minimal
+internal coupling.  Browser tools talk to Playwright/CDP, not to each other.
+
 | File | Description |
 |---|---|
 | `tools.py` | Main tool registry (ToolRegistry) |
@@ -57,6 +63,12 @@ Tool registry, routing, browser automation, file/code tools, infrastructure inte
 ## PROVIDER (18 modules)
 API clients, streaming, model routing, and fallback chains.
 
+**Design intent**: The provider layer is CRUX's brainstem — it abstracts every LLM
+backend behind a uniform interface.  `provider.py` manages API keys and switching,
+`stream_adapter.py` normalizes all streaming formats into one protocol, and
+`model_router.py` decides which model handles which request.  New providers are
+added by implementing `provider_adapter.py` patterns without touching chat logic.
+
 | File | Description |
 |---|---|
 | `provider.py` | Provider manager — load, switch, create clients |
@@ -80,6 +92,12 @@ API clients, streaming, model routing, and fallback chains.
 
 ## CHAT (26 modules)
 Conversation engine, system prompts, session management, skills, cost tracking.
+
+**Design intent**: The chat layer is CRUX's central nervous system — one conversation,
+one `ChatSession`.  Skills (`skills.py`) and session state (`session_config.py`)
+are toggle-able without restarting.  The system prompt is rebuilt on every mode
+switch via `chat_prompt.py`.  Cost tracking (`cost_tracker.py`) budgets tokens
+per session and warns before exceeding limits.
 
 | File | Description |
 |---|---|
@@ -113,6 +131,12 @@ Conversation engine, system prompts, session management, skills, cost tracking.
 ## AGENTS (13 modules)
 Single agent lifecycle + multi-agent orchestration + specialized agents.
 
+**Design intent**: The agent layer is CRUX's cortex — it decomposes complex tasks
+into parallel sub-tasks (`multi_agent_decompose.py`), fans them out to workers
+(`multi_agent_swarm.py`), and aggregates results.  Specialized agents (reviewer,
+critic, showrunner) are stateless workers instantiated per-task.  The cognitive
+orchestrator decides *whether* to use multi-agent vs. direct execution.
+
 | File | Description |
 |---|---|
 | `agent.py` | Agent — core agent class |
@@ -131,6 +155,13 @@ Single agent lifecycle + multi-agent orchestration + specialized agents.
 
 ## ORCHESTRATION (21 modules)
 Task planning, execution, pipelines, goal management.
+
+**Design intent**: The orchestration layer is CRUX's frontal lobe — it plans before
+acting.  `execution_policy.choose_policy()` classifies every user request into
+DIRECT / SKILL / ORCHESTRATE / SWARM.  `runtime_orchestrator.py` executes
+multi-phase workflows with progress reporting.  Pipelines (`pipeline_dag.py`)
+model dependencies as DAGs with retry and rollback.  Tasks have budgets and
+governors that prevent runaway execution.
 
 | File | Description |
 |---|---|
@@ -159,6 +190,12 @@ Task planning, execution, pipelines, goal management.
 ## SELF_HEAL (18 modules)
 Self-audit, auto-fix, incident response, rollback, failure learning.
 
+**Design intent**: The self-heal layer is CRUX's immune system.  `self_audit.py`
+scans the entire codebase for issues, `self_heal.py` applies fixes, and
+`rollback_orchestrator.py` undoes changes if the fix breaks things.  Incidents
+are classified, stored, and used by `failure_learning.py` to prevent recurrence.
+All repair operations are idempotent and reversible.
+
 | File | Description |
 |---|---|
 | `self_audit.py` | Comprehensive self-audit |
@@ -182,6 +219,12 @@ Self-audit, auto-fix, incident response, rollback, failure learning.
 
 ## INTEL (9 modules)
 Code intelligence: LSP, semantic search, knowledge graphs, repo understanding.
+
+**Design intent**: The intel layer is CRUX's memory and perception.  `lsp.py` gives
+real-time code navigation (go-to-def, find-refs) via the Language Server Protocol.
+`repo_understanding.py` builds a semantic map of the codebase.  `rag.py` indexes
+and retrieves relevant code snippets.  All intelligence is queryable by agents
+without loading entire files into context.
 
 | File | Description |
 |---|---|
