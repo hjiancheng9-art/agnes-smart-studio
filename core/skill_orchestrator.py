@@ -106,6 +106,7 @@ class SkillOrchestrator:
         self._scores: dict[str, int] = _load_scores()
         self._last_goal: str = ""
         self._step_outputs: dict[str, str] = {}
+        self._last_plan: Plan | None = None
 
     @staticmethod
     def _emit(event: str, **data: Any) -> None:
@@ -230,7 +231,9 @@ class SkillOrchestrator:
             for r in rest:
                 if r.score > 0.1:
                     steps.append(PlanStep(skill_name=r.name, goal=f"补充: {r.description[:60]}", risk="auto"))
-        return Plan(goal=goal, steps=steps, mode=mode)
+        plan = Plan(goal=goal, steps=steps, mode=mode)
+        self._last_plan = plan
+        return plan
 
     def _classify_risk(self, skill_name: str, goal: str) -> str:
         """Classify a skill step as auto/confirm/manual based on risk heuristics."""

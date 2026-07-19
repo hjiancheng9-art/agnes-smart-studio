@@ -1207,12 +1207,24 @@ class ChatSession(ChatToggleMixin):
                     "CRUX_MAX_TOOL_LOOPS=%r is not a valid integer, using default %d", _env_override, MAX_TOOL_LOOPS
                 )
         _effective_max = _base * 2 if getattr(self, "unlimited_tools", False) else _base
+        # ── Adaptive limit: expand for plans, shrink on failures ──
+        try:
+            from core.skill_orchestrator import get_orchestrator
+            orch = get_orchestrator()
+            if hasattr(orch, "_last_plan") and orch._last_plan and orch._last_plan.steps:
+                plan_steps = len(orch._last_plan.steps)
+                _effective_max = max(_effective_max, plan_steps * 8)
+        except (ImportError, AttributeError):
+            pass
+        _consecutive_failures = 0  # shrink limit on repeated failures
         buffer = ""  # 循环外预绑定，保证超出最大轮次时引用安全
         # 跨轮工具去重状态（见 _run_tool_calls 的注释）
         _executed_signatures: set[tuple[str, str]] = set()
         _executed_cache: dict[tuple[str, str], str] = {}
         _stream_error_break = False
         _test_run_count = 0  # detect fix-test-fail-fix runaway loops
+        _consecutive_failures = 0  # adaptive: shrink limit on cascade failures
+        _consecutive_successes = 0  # adaptive: expand limit on clean runs
 
         while fallback_tried < len(fallback_chain):
             _use_model, _use_client = fallback_chain[fallback_tried]
@@ -1658,6 +1670,20 @@ class ChatSession(ChatToggleMixin):
                         logger.debug("optional module skipped: %s", e)
 
                         pass
+                # ── Adaptive loop limit: expand on success, shrink on cascade failures ──
+                _tool_ok = not str(tool_result).startswith("[错误]") and not str(tool_result).startswith("[自愈失败]")
+                if _tool_ok:
+                    _consecutive_failures = 0
+                    _consecutive_successes += 1
+                    if _consecutive_successes > 10:
+                        _effective_max = max(_effective_max, int(_effective_max * 1.5))
+                        _consecutive_successes = 0
+                else:
+                    _consecutive_failures += 1
+                    _consecutive_successes = 0
+                    if _consecutive_failures >= 3:
+                        _effective_max = min(_effective_max, _loop + 5)
+                        yield ("info", f"连续 {_consecutive_failures} 次失败 — 剩余最多 5 次重试")
                 # ── 高风险工具确认：同意即执行，拒绝则占位跳过 ──
                 is_confirm = any(k == "confirm" for k, _ in side_effects)
                 if is_confirm:
