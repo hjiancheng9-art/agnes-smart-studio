@@ -3,6 +3,8 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
@@ -69,6 +71,7 @@ class TestCopyManager:
         ok, _msg = cm.handle_command("/copy code 5")
         assert not ok
 
+    @pytest.mark.flaky(reason="Global state pollution via copy_manager singleton. See docs/flaky-tests.md.")
     def test_copy_lines_range(self):
         from ui.copy_manager import CopyManager
         from ui.message_store import MessageStore

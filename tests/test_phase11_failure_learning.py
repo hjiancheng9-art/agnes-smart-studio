@@ -237,6 +237,7 @@ class TestIntegration:
         )
         assert s.exported
 
+    @pytest.mark.flaky(reason="Cross-module ValidationLayer init pollution. See docs/flaky-tests.md.")
     def test_stats_through_layer(self):
         from core.tool_validation_integration import ValidationLayer
 

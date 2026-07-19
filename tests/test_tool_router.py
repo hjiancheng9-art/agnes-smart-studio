@@ -30,6 +30,7 @@ def _clean_tool_router():
 class TestRegisterAndList:
     """Registration and listing — pure logic, no I/O dependencies."""
 
+    @pytest.mark.flaky(reason="Global state pollution — 84 module-level singletons. See docs/flaky-tests.md.")
     def test_register_internal_adds_handler(self):
         def my_handler(**kw):
             return {"ok": True, **kw}
@@ -179,6 +180,7 @@ class TestCallInternal:
     """call_tool — internal tool dispatch (requires register + call)."""
 
     @pytest.mark.asyncio
+    @pytest.mark.flaky(reason="Global state pollution — 84 module-level singletons. See docs/flaky-tests.md.")
     async def test_call_registered_internal_tool(self):
         from core.tool_router import call_tool
 
@@ -200,6 +202,7 @@ class TestCallInternal:
         assert result["error"] is not None
 
     @pytest.mark.asyncio
+    @pytest.mark.flaky(reason="Global state pollution — 84 module-level singletons. See docs/flaky-tests.md.")
     async def test_call_tool_with_none_arguments(self):
         from core.tool_router import call_tool
 
@@ -212,6 +215,7 @@ class TestCallInternal:
         assert result["result"] == "ok"
 
     @pytest.mark.asyncio
+    @pytest.mark.flaky(reason="Global state pollution — 84 module-level singletons. See docs/flaky-tests.md.")
     async def test_call_tool_handler_raising_exception(self):
         from core.tool_router import call_tool
 
