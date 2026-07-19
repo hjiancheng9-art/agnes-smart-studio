@@ -67,8 +67,6 @@ TOOL_CATEGORIES: dict[str, list[str]] = {
         "run_lint",
         "run_format",
         "debug_inspect",
-        "aider_exec",
-        "aider_review",
     ],
     "web": [
         "web_search",
@@ -99,7 +97,6 @@ TOOL_TIERS: dict[str, int] = {
     "task_launch": 1,
     "todo_add": 1,
     "todo_list": 1,
-    "aider_status": 1,
     # Tier 2 - 常用
     "generate_video": 2,
     "web_fetch": 2,
@@ -112,8 +109,6 @@ TOOL_TIERS: dict[str, int] = {
     "github_readme": 2,
     "view_image": 2,
     "comfyui_list_models": 2,
-    "aider_exec": 2,
-    "aider_review": 2,
     # Tier 3 - 专用
     "comfyui_submit_workflow": 3,
     "comfyui_build_custom_workflow": 3,
@@ -166,9 +161,6 @@ CATEGORY_META = {
 BRIDGES = {
     "codebuddy": {
         "script": "core/mcp_servers/codebuddy_bridge.py",
-    },
-    "aider": {
-        "script": "core/mcp_servers/aider_bridge.py",
     },
     "zcode": {
         "script": "core/mcp_servers/zcode_bridge.py",
