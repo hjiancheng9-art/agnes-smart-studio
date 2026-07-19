@@ -8,6 +8,7 @@ CRT 像素矩阵 + 双线框装饰 + 扫描线效果。
 from __future__ import annotations
 
 import shutil
+from pathlib import Path
 
 # ══════════════════════════════════════════════════════════════════
 #  像素艺术 CRUX — 11 层高 · 宽 65
@@ -210,7 +211,8 @@ def _build_info_panel(console, extra_lines: list[tuple] | None = None):
         n_py = len(
             subprocess.run(["git", "ls-files", "*.py"], capture_output=True, text=True, timeout=2).stdout.splitlines()
         )
-        lines.append((f"  {n_py} modules  |  34 skills · 121 pkgs · 767 market", Style(color=dim, italic=True)))
+        n_skills = len(list(Path("skills").glob("*.skill.json")))
+        lines.append((f"  {n_py} modules  |  {n_skills} skills · 121 pkgs · 767 market", Style(color=dim, italic=True)))
     except Exception:
         import logging
 
@@ -294,7 +296,7 @@ def print_splash(extra_lines: list[tuple] | None = None) -> None:
         (f" {version_tag} ", Style(color=_P["accent"], bold=True)),
         ("  ═══  ", Style(color=bdr_d)),
         ("\n", Style()),
-        ("      ⚡ AI · Code · Create  ⚡", Style(color=_P["dim"], italic=True)),
+        ("     ⚡ Windows 11 · DeepSeek V4 Flash · 1M  ⚡", Style(color=_P["dim"], italic=True)),
     )
 
     # ── 状态行 ──

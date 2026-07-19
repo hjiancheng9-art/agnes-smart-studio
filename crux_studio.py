@@ -377,7 +377,7 @@ def _chat_tui():
 
     # ── content lines ──
     content = [
-        "119 skills / 767 market · 1M 上下文 · DeepSeek V4 Flash",
+        f"{len(list(Path('skills').glob('*.skill.json')))} skills · 767 market · 1M · DeepSeek V4 Flash",
         "Agent Swarm 并行编排 · 平时如刀，出事成阵",
     ]
     content_lines = []
@@ -937,11 +937,13 @@ def _run_doctor():
     # API key
     env_key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("CRUX_API_KEY")
     from core.config import SETTINGS
+
     config_key = SETTINGS.api_key
     checks.append(("API key configured", bool(env_key or config_key), "Run: crux init"))
     # Git
     try:
         import subprocess
+
         r = subprocess.run(["git", "--version"], capture_output=True, text=True, timeout=5)
         checks.append(("Git installed", r.returncode == 0, "Install git from https://git-scm.com"))
     except Exception:
@@ -963,7 +965,11 @@ def _run_doctor():
     checks.append(("models.json exists", (crux_root / "models.json").is_file(), "Restore from git or template"))
     # output dir writable
     out = crux_root / "output"
-    out_ok = out.is_dir() and os.access(out, os.W_OK) if out.exists() else out.parent.is_dir() and os.access(out.parent, os.W_OK)
+    out_ok = (
+        out.is_dir() and os.access(out, os.W_OK)
+        if out.exists()
+        else out.parent.is_dir() and os.access(out.parent, os.W_OK)
+    )
     checks.append(("Output directory writable", out_ok, "Check disk space and permissions"))
 
     all_ok = True
