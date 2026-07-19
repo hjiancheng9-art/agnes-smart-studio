@@ -346,3 +346,31 @@ def should_alert(incident: dict, threshold: int = 3) -> dict:
         "threshold": threshold,
         "reason": f"{category} 在 1 小时内出现 {count} 次 (阈值 {threshold})" if count >= threshold else "",
     }
+
+
+def load_incidents(limit: int = 50, status_filter: str | None = None) -> list[dict]:
+    """Load recent incidents from the JSONL log.
+
+    Args:
+        limit: max number of incidents to return
+        status_filter: optional filter ('open', 'resolved', etc.)
+    Returns: list of incident dicts, most recent first
+    """
+    incidents = []
+    try:
+        with open(INCIDENT_FILE, encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    entry = json.loads(line)
+                    entry.setdefault("status", "open")
+                    if status_filter and entry.get("status") != status_filter:
+                        continue
+                    incidents.append(entry)
+                except (json.JSONDecodeError, KeyError):
+                    continue
+    except FileNotFoundError:
+        return []
+    incidents.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+    return incidents[:limit]
