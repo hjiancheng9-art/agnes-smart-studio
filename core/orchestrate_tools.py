@@ -71,7 +71,7 @@ def project_analyze() -> str:
                 for m in matches:
                     suggestions.append({"for": marker, "skill": m.name, "score": round(m.score, 3), "desc": m.description[:80]})
             except Exception:
-                pass
+                import logging; logging.getLogger('crux').debug('silent except', exc_info=True)
         return json.dumps(
             {"detected": markers, "suggestions": suggestions, "hint": "Use skill_execute to run a suggested skill"},
             ensure_ascii=False,
