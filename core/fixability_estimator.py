@@ -395,7 +395,7 @@ class LLMAnalyzer:
 
     def evaluate(self, tool: str, error_type: str, context: dict | None = None) -> FixabilityResult:
         """LLM 分析（需要外部 LLM 调用支持）。"""
-        _ctx = context or {}  # noqa: F841 — reserved for LLM integration
+        _ctx = context or {}  # reserved for LLM integration
 
         # 收集系统状态
         system_state = {}
