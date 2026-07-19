@@ -105,6 +105,28 @@ class CopyManager:
         full = "\n\n---\n\n".join(lines)
         return self.clip.copy_and_report(full, f"Copied {len(self.store._messages)} messages")
 
+    def copy_last_n(self, n: int) -> tuple[bool, str]:
+        """Copy the last N messages as formatted text."""
+        msgs = self.store._messages[-n:] if n < len(self.store._messages) else self.store._messages
+        return self._copy_msg_list(msgs, f"Copied last {len(msgs)} messages")
+
+    def copy_range(self, start: int, end: int) -> tuple[bool, str]:
+        """Copy messages in range [start, end) as formatted text."""
+        msgs = self.store._messages[start:end]
+        if not msgs:
+            return False, f"No messages in range {start}:{end}"
+        return self._copy_msg_list(msgs, f"Copied messages {start}-{end}")
+
+    def _copy_msg_list(self, msgs: list, label: str) -> tuple[bool, str]:
+        """Format and copy a list of messages."""
+        lines = []
+        for msg in msgs:
+            role_label = msg.role.upper() if msg.role else "?"
+            text = msg.text.strip() if msg.text else ""
+            if text:
+                lines.append(f"## {role_label}\n\n{text}")
+        return self.clip.copy_and_report("\n\n---\n\n".join(lines), label)
+
     def get_focused_msg(self) -> Message | None:
         return self.store.get(self.focus.index) if self.focus.enabled else self.store.last_assistant()
 
@@ -127,9 +149,23 @@ class CopyManager:
         if args:
             p = args[0]
             if p == "last":
+                # /copy last 5 → copy last 5 messages
+                if len(args) > 1 and args[1].isdigit():
+                    return self.copy_last_n(int(args[1]))
                 target = "last"
             elif p == "all":
                 return self.copy_all()
+            elif p.isdigit():
+                # /copy 5 → copy message at index 5
+                target = int(p)
+            elif ":" in p:
+                # /copy 3:7 → copy range [3,7)
+                parts_range = p.split(":")
+                try:
+                    s, e = int(parts_range[0]), int(parts_range[1])
+                    return self.copy_range(s, e)
+                except (ValueError, IndexError):
+                    return False, f"Invalid range: {p}"
             elif p == "code":
                 block_index = int(args[1]) if len(args) > 1 else 0
                 target = "last"
