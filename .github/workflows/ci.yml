@@ -122,11 +122,11 @@ jobs:
       - run: pip install bandit
       - name: Bandit security check (hard gate)
         run: bandit -r core/ -f json -o bandit_report.json --skip B101,B311
-      - name: Safety dependency scan (advisory)
+      - name: pip-audit dependency scan (advisory)
         continue-on-error: true
         run: |
-          pip install safety
-          safety scan 2>/dev/null || safety check --bare 2>/dev/null || echo "Safety scan skipped (no policy file or network issue)"
+          pip install pip-audit
+          pip-audit || echo "::warning::Dependency vulnerabilities found — review and update"
 
   # ═══════════════════════════════════════════════════════════
   # Encoding gate — mojibake scan (hard gate, zero tolerance)
