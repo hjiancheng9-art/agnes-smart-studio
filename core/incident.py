@@ -141,8 +141,8 @@ PLAYBOOKS = {
             "检查 provider 响应是否正常",
             "考虑增加 max_workers 提高并行度",
         ],
-        "auto_commands": [],
-        "suggested_commands": [],
+        "auto_commands": ["increase_timeout:120"],
+        "suggested_commands": ["/providers"],
     },
     "rate_limit": {
         "title": "频率限制 (Rate Limit)",
@@ -152,7 +152,7 @@ PLAYBOOKS = {
             "检查 API 配额是否用尽",
             "考虑升级套餐或切换 provider",
         ],
-        "auto_commands": [],
+        "auto_commands": ["switch_provider:", "retry_with_backoff:"],
         "suggested_commands": ["/providers"],
     },
     "auth_error": {
@@ -198,7 +198,7 @@ PLAYBOOKS = {
             "如果持续失败，切换 provider",
             "记录错误信息用于排查",
         ],
-        "auto_commands": [],
+        "auto_commands": ["switch_provider:"],
         "suggested_commands": ["/providers"],
     },
     "model_error": {
@@ -209,7 +209,7 @@ PLAYBOOKS = {
             "确认模型在当前 provider 可用",
             "尝试切换到其他模型或 provider",
         ],
-        "auto_commands": [],
+        "auto_commands": ["switch_provider:"],
         "suggested_commands": [],
     },
     "unknown": {

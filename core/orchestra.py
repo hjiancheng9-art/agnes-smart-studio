@@ -184,6 +184,7 @@ class Orchestra:
         return triggered
 
     def execute_actions(self, actions):
+        """Execute a list of action commands. Delegates unknown actions to remediation."""
         results = {}
         for action in actions:
             if action.startswith("activate:"):
@@ -192,10 +193,18 @@ class Orchestra:
                 if cap:
                     cap.enabled = True
                     results[action] = f"activated {cap_name}"
+                else:
+                    results[action] = f"capability '{cap_name}' not found"
             elif action.startswith("notify:"):
                 results[action] = action.split(":", 1)[1]
             else:
-                results[action] = "unknown action"
+                # Delegate unknown actions to remediation executor
+                try:
+                    from core.remediation_executor import execute_command
+                    result = execute_command(action, incident_id="orchestra", auto_approve_high_risk=True)
+                    results[action] = result.get("message", result.get("status", "executed"))
+                except ImportError:
+                    results[action] = f"unhandled action: {action}"
         return results
 
     # ════════════════════════════════════════════════

@@ -685,5 +685,15 @@ def resolve_skill_executor(tool_name: str, tool_def: dict | None = None):
 
         return _exec
 
-    _log.warning("Skill tool '%s' has no real executor — using deprecation stub", tool_name)
-    return lambda **kw: f"[{tool_name}] executor not implemented. Args: {list(kw.keys())}. This is a placeholder."
+    _log.info("Skill tool '%s' — delegating to skill orchestrator", tool_name)
+    from core.skill_orchestrator import get_orchestrator
+    orch = get_orchestrator()
+    def _delegate(**kw):
+        goal = kw.pop("goal", kw.pop("prompt", f"Run {tool_name}"))
+        skill_data = orch._load_skill_data(tool_name)
+        if skill_data and skill_data.get("prompt"):
+            orch._last_goal = str(goal)
+            ok, output = orch._run_skill(tool_name)
+            return output if ok else f"[{tool_name}] execution failed: {output}"
+        return f"[{tool_name}] skill not found — use /skill install {tool_name}"
+    return _delegate
