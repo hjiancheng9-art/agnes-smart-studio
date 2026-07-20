@@ -93,7 +93,17 @@ class ClipboardAdapter:
         snippet = text[:80].replace("\n", " ")
         if ok:
             return True, f"{label}: {snippet}"
-        return False, f"复制失败: {snippet}"
+        # Fallback: write to file if clipboard fails (common on Windows terminals)
+        import os
+        import tempfile
+
+        out = os.path.join(tempfile.gettempdir(), "crux_copy_output.txt")
+        try:
+            with open(out, "w", encoding="utf-8") as f:
+                f.write(text)
+            return True, f"已写入文件: {out}"
+        except OSError:
+            return False, f"复制失败: {snippet}"
 
 
 # ── 输入路由器 ────────────────────────────────────────────

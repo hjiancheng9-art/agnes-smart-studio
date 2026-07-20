@@ -106,7 +106,7 @@ class WebhookServer:
             except Exception:
                 import logging
 
-                logging.getLogger("crux").debug("silent except", exc_info=True)
+                logging.getLogger(__name__).debug("silent except", exc_info=True)
             self._httpd = None
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=3)

@@ -367,7 +367,7 @@ class RuntimeOrchestrator:
                 try:
                     self.callbacks.on_complete(result)
                 except Exception:
-                    logging.getLogger("crux").debug("silent except", exc_info=True)
+                    logging.getLogger(__name__).debug("silent except", exc_info=True)
 
             yield self._emit(
                 p,
@@ -503,7 +503,7 @@ class RuntimeOrchestrator:
                     self._agent_roles[name] = name_match.group(1).strip()
                     self._agent_roles[role] = name_match.group(1).strip()
             except Exception:
-                logging.getLogger("crux").debug("silent except", exc_info=True)
+                logging.getLogger(__name__).debug("silent except", exc_info=True)
 
     def _load_model_pricing(self) -> None:
         """从 models.json 和 provider 获取实际定价."""
@@ -649,12 +649,12 @@ class RuntimeOrchestrator:
                 try:
                     self.callbacks.on_phase_start(phase, str(details or ""))
                 except Exception:
-                    logging.getLogger("crux").debug("silent except", exc_info=True)
+                    logging.getLogger(__name__).debug("silent except", exc_info=True)
             if self.callbacks.on_phase_done and action == "done":
                 try:
                     self.callbacks.on_phase_done(phase, 0)
                 except Exception:
-                    logging.getLogger("crux").debug("silent except", exc_info=True)
+                    logging.getLogger(__name__).debug("silent except", exc_info=True)
             self._emit_event(
                 f"orchestration:phase:{action}", {"trace_id": trace_id, "phase": phase, "details": details}
             )
@@ -679,7 +679,7 @@ class RuntimeOrchestrator:
             for name, handler in getattr(PluginManager(), "_tool_handlers", {}).items():
                 plugin_tools[name] = handler
         except Exception:
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
 
         # 技能上下文 — 注入到工具调用的 kwargs
         skill_ctx = {}
@@ -703,7 +703,7 @@ class RuntimeOrchestrator:
                     if r is not None:
                         return str(r)
             except Exception:
-                logging.getLogger("crux").debug("silent except", exc_info=True)
+                logging.getLogger(__name__).debug("silent except", exc_info=True)
             try:
                 from core.tools import get_registry
 
@@ -711,7 +711,7 @@ class RuntimeOrchestrator:
                 if name in registry._executors:
                     return str(registry._executors[name](**args_with_skills))
             except Exception:
-                logging.getLogger("crux").debug("silent except", exc_info=True)
+                logging.getLogger(__name__).debug("silent except", exc_info=True)
             return f"[错误] 工具不可用: {name}"
 
         return _exec
@@ -835,7 +835,7 @@ class RuntimeOrchestrator:
 
             bus.emit(name, data=data)
         except Exception:
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
 
     def _emit(self, p: OrchestrationProgress, level: str, message: str) -> OrchestrationProgress:
         # Clone to avoid mutating previously-yielded events (all share the same p)
@@ -846,7 +846,7 @@ class RuntimeOrchestrator:
             try:
                 self.callbacks.on_progress(evt)
             except Exception:
-                logging.getLogger("crux").debug("silent except", exc_info=True)
+                logging.getLogger(__name__).debug("silent except", exc_info=True)
         return evt
 
     def _emit_beast(self, p: OrchestrationProgress, beast: BeastRole) -> OrchestrationProgress:
@@ -857,7 +857,7 @@ class RuntimeOrchestrator:
             try:
                 self.callbacks.on_beast_activate(beast.value, evt.message)
             except Exception:
-                logging.getLogger("crux").debug("silent except", exc_info=True)
+                logging.getLogger(__name__).debug("silent except", exc_info=True)
         return evt
 
 
@@ -963,7 +963,7 @@ def execute_tool(goal: str, **kwargs) -> str:
     except Exception:
         import logging
 
-        logging.getLogger("crux").debug("silent except", exc_info=True)
+        logging.getLogger(__name__).debug("silent except", exc_info=True)
 
     # Complex task — launch in background with 25s timeout
     task_id = uuid.uuid4().hex[:12]
@@ -1306,7 +1306,7 @@ class MasterOrchestrator:
             try:
                 self.phase_callback(phase_name, action, details)
             except Exception:
-                logging.getLogger("crux").debug("silent except", exc_info=True)
+                logging.getLogger(__name__).debug("silent except", exc_info=True)
 
     def run(self, goal: str) -> dict:
         """主入口: 完整编排一个目标从 Gate 到 Close."""

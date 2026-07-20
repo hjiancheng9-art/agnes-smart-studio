@@ -837,7 +837,7 @@ class ToolRegistryMesh:
         except Exception:
             import logging
 
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
 
         # 2. Try GrowthEngine live stats
         try:
@@ -851,7 +851,7 @@ class ToolRegistryMesh:
         except Exception:
             import logging
 
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
 
         # 3. Static fallback
         return list(static_order)
@@ -985,7 +985,7 @@ class ToolRegistryMesh:
                 except Exception:
                     import logging
 
-                    logging.getLogger("crux").debug("silent except", exc_info=True)
+                    logging.getLogger(__name__).debug("silent except", exc_info=True)
 
             proc.kill()
 

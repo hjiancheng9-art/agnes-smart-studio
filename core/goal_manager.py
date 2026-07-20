@@ -268,6 +268,12 @@ def get_goal_manager() -> GoalManager:
     return _goal_manager
 
 
+def reset_goal_manager() -> None:
+    """Reset the global GoalManager singleton (for test isolation)."""
+    global _goal_manager
+    _goal_manager = None
+
+
 __all__ = [
     "Goal",
     "GoalManager",

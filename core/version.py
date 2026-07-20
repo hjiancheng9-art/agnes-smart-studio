@@ -6,7 +6,7 @@ Version module — 单一版本真源 (single source of truth).
 launcher=5.0 / engine=2.0 四分五裂的历史）。
 """
 
-__version__ = "6.1.0"
+__version__ = "6.2.0"
 VERSION = __version__  # 向后兼容旧调用
 
 # ── 版本标识 ──────────────────────────────────────────

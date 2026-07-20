@@ -61,7 +61,7 @@ def consume_stream(
                     if hasattr(stream, "close"):
                         stream.close()
                 except Exception:
-                    logging.getLogger("crux").debug("silent except", exc_info=True)
+                    logging.getLogger(__name__).debug("silent except", exc_info=True)
         except Exception as exc:
             _error[0] = exc
         finally:

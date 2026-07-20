@@ -301,7 +301,7 @@ def safe_fill(page, selector, text, retries=3):
         except Exception:
             import logging
 
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
 
         if is_ce:
             try:

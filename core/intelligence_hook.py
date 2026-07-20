@@ -141,30 +141,6 @@ class IntelligenceHook:
         sep = " | " if extra_str else ""
         return f"{icon} [{mode}] {desc}{sep}{extra_str}"
 
-    # ── Pipeline 执行 ──
-
-    async def execute_pipeline(
-        self, user_text: str, context: dict[str, Any] | None = None, toolbus: Any = None
-    ) -> dict[str, Any]:
-        """执行 DEEP/SAFE/RESEARCH pipeline"""
-        from .deliberate_workflow import DeliberateWorkflow
-
-        workflow = DeliberateWorkflow(toolbus=toolbus, policy_router=self.router)
-        mode = self.route_text(user_text)
-
-        try:
-            result = await workflow.execute(request=user_text, context=context, mode=mode)
-            return result.to_dict()
-        except Exception as e:
-            logger.exception("Intelligence pipeline failed")
-            return {
-                "mode": mode.value if mode else "BALANCED",
-                "passed": False,
-                "summary": f"Pipeline 执行失败: {e}",
-                "steps": [],
-                "error": str(e),
-            }
-
     def route_text(self, user_text: str) -> IntelligenceMode:
         if not self._enabled:
             return IntelligenceMode.BALANCED

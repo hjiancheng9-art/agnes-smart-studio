@@ -797,7 +797,7 @@ class ToolRegistry:
                 "type": "function",
                 "function": {
                     "name": "self_heal",
-                    "description": "Audit and auto-fix the CRUX codebase. Scans for: silent exceptions, syntax errors, config drift, import failures, test failures. Use --fix to auto-patch fixable issues.",
+                    "description": "Audit and auto-fix the CRUX codebase. 8 fast scans by default (<5s). Use full=true for deep scan including imports and tests.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -805,9 +805,9 @@ class ToolRegistry:
                                 "type": "boolean",
                                 "description": "Auto-fix what can be safely fixed (default: audit only)",
                             },
-                            "quick": {
+                            "full": {
                                 "type": "boolean",
-                                "description": "Skip slow scans (imports, tests) for fast feedback",
+                                "description": "Run ALL scans including imports and pytest (60-600s)",
                             },
                         },
                         "required": [],
@@ -817,7 +817,7 @@ class ToolRegistry:
         )
         self._executors["self_heal"] = lambda **kw: _exec_self_heal(
             fix=bool(kw.get("fix", False)),
-            quick=bool(kw.get("quick", False)),
+            full=bool(kw.get("full", False)),
         )
         self._tool_modules["self_heal"] = "core.self_heal"
 
@@ -896,7 +896,7 @@ class ToolRegistry:
         except Exception:
             import logging
 
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
 
         # ── MCP Health Check ──
         try:
@@ -924,7 +924,7 @@ class ToolRegistry:
         except Exception:
             import logging
 
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
 
         # 去重
         seen = set()
@@ -1037,7 +1037,7 @@ class ToolRegistry:
                             try:
                                 import logging
 
-                                logging.getLogger("crux").info(
+                                logging.getLogger(__name__).info(
                                     "shell_executor self-healed: strategy=%s, cmd=%s",
                                     strategy_label,
                                     cmd[:120],
@@ -1443,16 +1443,28 @@ _registry: ToolRegistry | None = None
 _registry_lock = threading.Lock()
 
 
-def _exec_self_heal(fix: bool = False, quick: bool = False) -> str:
-    """Execute self_heal tool — audit + optionally fix the codebase."""
+def _exec_self_heal(fix: bool = False, quick: bool = False, full: bool = False) -> str:
+    """Execute self_heal tool — audit + optionally fix the codebase.
+
+    quick: 8 fast scans (syntax, exceptions, thread-safety, bare-except,
+           shell-injection, config, hooks, mojibake) — default, <5s.
+    full:  all scans including heavy ones (imports, pytest, flaky tests) — 60-600s.
+    """
     from core.self_heal import SelfHealer
 
     healer = SelfHealer()
-    if quick:
-        healer.scan_syntax()
-        healer.scan_config_drift()
-    else:
+    if full:
         healer.run_all_scans()
+    else:
+        # Default (quick): 8 fast scans, no imports/pytest — <5s
+        healer.scan_syntax()
+        healer.scan_silent_exceptions()
+        healer.scan_thread_safety()
+        healer.scan_bare_except_keyboard()
+        healer.scan_shell_injection()
+        healer.scan_config_drift()
+        healer.scan_hook_gaps()
+        healer.scan_mojibake()
 
     if fix:
         # 1. Narrow fix: replace bare except:pass with logging

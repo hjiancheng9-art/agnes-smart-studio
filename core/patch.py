@@ -417,3 +417,10 @@ def rollback_last() -> dict:
     _LAST_BACKUPS = {}
     _LAST_ADDED = set()
     return summary
+
+
+def reset_patch_state() -> None:
+    """Reset patch module-level backup state (for test isolation)."""
+    global _LAST_BACKUPS, _LAST_ADDED
+    _LAST_BACKUPS = {}
+    _LAST_ADDED = set()

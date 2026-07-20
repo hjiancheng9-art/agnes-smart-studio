@@ -268,3 +268,11 @@ def register_defense_hooks():
 
     except ImportError:
         pass
+
+
+def reset_defense_state() -> None:
+    """Reset all defense module-level state (for test isolation)."""
+    global _circuits, _file_snapshots, _operation_hashes
+    _circuits.clear()
+    _file_snapshots.clear()
+    _operation_hashes.clear()

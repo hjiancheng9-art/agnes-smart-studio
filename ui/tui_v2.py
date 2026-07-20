@@ -1638,8 +1638,10 @@ class TuiAppV2:
         # ── Copy command ──
         if text.startswith("/copy"):
             ok, msg = self._copy_mgr.handle_command(text)
-            icon, style = ("✓", "class:activity-done") if ok else ("✗", "class:activity-fail")
-            self._log_append((icon, style, msg[:120]))
+            if ok:
+                self.message_pane.append_info(msg)
+            else:
+                self.message_pane.append_error(msg)
             return True
 
         # ── Provider health ──
@@ -2058,7 +2060,9 @@ class TuiAppV2:
                         self._log_update_last(
                             ("✓", "class:activity-done", last_msg.replace("执行 ", "").replace("生成 ", ""))
                         )
+            elapsed = time.monotonic() - _t0
             self._ui(self.message_pane.stream_end, _force=True)
+            self._ui(self.message_pane.append_info, f"[完成] {elapsed:.1f}s · {_tool_seq} 个工具")
         except Exception as e:
             _err_name = type(e).__name__
             _err_msg = str(e)

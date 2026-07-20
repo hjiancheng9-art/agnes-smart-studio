@@ -1,5 +1,0 @@
-version: 1
-agent:
-  name: crux-code
-  description: Full code implementation agent for CRUX Studio
-  extend: default

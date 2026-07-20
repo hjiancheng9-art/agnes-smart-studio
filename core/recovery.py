@@ -158,7 +158,7 @@ class RecoveryEngine:
             except Exception:
                 import logging
 
-                logging.getLogger("crux").debug("silent except", exc_info=True)
+                logging.getLogger(__name__).debug("silent except", exc_info=True)
 
         return {
             "success": did_recover,

@@ -43,7 +43,7 @@ def _win_paste() -> str | None:
     except Exception:
         import logging
 
-        logging.getLogger("crux").debug("silent except", exc_info=True)
+        logging.getLogger(__name__).debug("silent except", exc_info=True)
     return None
 
 
@@ -71,7 +71,7 @@ def _linux_copy(text: str) -> bool:
             except Exception:
                 import logging
 
-                logging.getLogger("crux").debug("silent except", exc_info=True)
+                logging.getLogger(__name__).debug("silent except", exc_info=True)
     return False
 
 
@@ -86,7 +86,7 @@ def _linux_paste() -> str | None:
             except Exception:
                 import logging
 
-                logging.getLogger("crux").debug("silent except", exc_info=True)
+                logging.getLogger(__name__).debug("silent except", exc_info=True)
     return None
 
 

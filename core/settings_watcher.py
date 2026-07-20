@@ -66,7 +66,7 @@ def _watch_loop(interval: float = 2.0):
         except Exception:
             import logging
 
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
         time.sleep(interval)
 
 

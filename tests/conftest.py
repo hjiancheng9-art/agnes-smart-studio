@@ -41,14 +41,14 @@ def pytest_configure(config):
 # These resets are proven safe and reduce cross-module test pollution.
 # See commit history for failed attempts (35+ resets caused MORE failures).
 #
-# KNOWN REMAINING FLAKY TESTS (root cause: 265-module global singleton debt):
-#   tests/test_zcode_pipeline.py — 5–6 tests, OUTPUT_ROOT/MANIFEST_DIR pollution
-#     → Runs fine in isolation.  Fails in full suite when prior modules set
-#       pt.OUTPUT_ROOT to deleted temp dirs (propagated via transitive imports).
-#   tests/test_tool_router.py — 4 tests, intra-module ordering
-#   tests/test_background.py — 1 test, singleton reset race
-#   tests/test_phase11_failure_learning.py — 1 test
-#   tests/test_zcode_engines.py — 1 test, validator state
+# v6.2: Fixed all 5 flaky groups:
+#   ✅ test_background — TOCTOU race in reset_background_manager (moved inside lock)
+#   ✅ test_zcode_engines — Missing provider_manager reset (added to _RESET_CALLS)
+#   ✅ test_zcode_pipeline — Unsafe _run_with_temp → pipeline_scope() + absolute paths
+#   ✅ test_tool_router — Added reset_tool_router() call before isolated_router_scope
+#   ✅ test_phase11_failure_learning — Added reset_telemetry + reset_decision_recorder
+#
+# No known remaining flaky tests.
 
 _RESET_CALLS = [
     ("core.tool_router", "reset_tool_router"),
@@ -59,6 +59,15 @@ _RESET_CALLS = [
     ("core.workspace_guard", "reset_workspace_guard"),
     ("core.secret_redactor", "reset_secret_redactor"),
     ("core.pipeline_tools", "reset_pipeline_globals"),
+    # v6.2: 新增 reset 函数 — 消除之前遗漏的单例状态泄漏
+    ("core.defense", "reset_defense_state"),
+    ("core.fake_fix_detector", "reset_fake_fix_detector"),
+    ("core.patch", "reset_patch_state"),
+    ("core.adversarial_bypass", "reset_adversarial_bypass_stats"),
+    ("core.provider", "reset_provider_manager"),
+    ("core.crux_telemetry", "reset_telemetry"),
+    ("core.trace_debugger", "reset_decision_recorder"),
+    ("core.goal_manager", "reset_goal_manager"),
 ]
 
 

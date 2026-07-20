@@ -1,9 +1,0 @@
-version: 1
-agent:
-  name: crux-explore
-  description: Read-only code exploration agent for CRUX Studio
-  extend: default
-  exclude_tools:
-    - "kimi_cli.tools.file:WriteFile"
-    - "kimi_cli.tools.file:StrReplaceFile"
-    - "kimi_cli.tools.shell:Shell"

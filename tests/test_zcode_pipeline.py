@@ -18,11 +18,11 @@ from core.pipeline_tools import pipeline_scope
 
 # ── Fixtures ──────────────────────────────────────────────────────────
 
-# Module-level conftest now handles pipeline globals reset via
-# reset_pipeline_globals().  Import-time snapshot used by _run_with_temp
-# to guarantee restoration to real project paths.
-_ORIGINAL_ROOT = _pt.OUTPUT_ROOT
-_ORIGINAL_MF = _pt.MANIFEST_DIR
+# Use absolute paths as fallback — immune to import-time pollution from
+# other test modules that may have mutated pt.OUTPUT_ROOT before this file loads.
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_ORIGINAL_ROOT = _PROJECT_ROOT / "output"
+_ORIGINAL_MF = _PROJECT_ROOT / "output" / "projects"
 
 
 @pytest.fixture(autouse=True)
@@ -803,20 +803,11 @@ class TestExecuteSaveManifest:
     """execute_save_manifest — manifest creation."""
 
     def _run_with_temp(self, fn):
-        """Run fn with temporary OUTPUT_ROOT and MANIFEST_DIR."""
-        import core.pipeline_tools as pt
-
-        old_root = pt.OUTPUT_ROOT
-        old_mf = pt.MANIFEST_DIR
+        """Run fn with temporary OUTPUT_ROOT and MANIFEST_DIR via pipeline_scope."""
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
-            pt.OUTPUT_ROOT = td_path
-            pt.MANIFEST_DIR = td_path / "projects"
-            try:
+            with pipeline_scope(td_path):
                 return fn(td_path)
-            finally:
-                pt.OUTPUT_ROOT = old_root
-                pt.MANIFEST_DIR = old_mf
 
     def test_creates_manifest_json(self):
         def _test(td):

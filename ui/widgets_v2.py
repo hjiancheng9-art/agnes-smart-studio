@@ -255,7 +255,7 @@ def build_welcome_formatted(
             (Y, "  CRUX Studio"),
             (M, f"  v{_ver}"),
             (M, "  ·  "),
-            (W, "工程搭档"),
+            (W, "Windows 11 工程搭档"),
             (M, "  ·  "),
             (B, _model_display),
             (M, "  ·  "),
@@ -353,23 +353,23 @@ def build_welcome_formatted(
     _cmd = [
         ("/help    commands", B),
         ("/skill   marketplace", P),
-        ("/status  overview", B),
-        ("/health  diagnostics", B),
+        ("/agent   swarm dispatch", A),
         ("/image   generate", T),
+        ("/video   generate", T),
     ]
     _wsp = [
         ("/method  methodology", P),
         ("/config  settings", B),
         ("/model   switch model", P),
         ("/chat    new chat", T),
-        ("/video   generate", T),
+        ("/status  diagnostics", B),
     ]
     _sys = [
-        ("● ready", G),
-        ("Agent Swarm 并行执行", P),
-        (f"{_sk} loaded · {_pk} plugins", W),
-        ("理解意图→推理→执行→验证", G),
-        (f"{_sk} 专业技能 · 0 failures ✓", T),
+        ("DeepSeek V4 Flash 驱动", G),
+        ("Agent Swarm · Multi-Agent 并行", P),
+        (f"{_sk} skills · {_pk} plugins", W),
+        ("探索→计划→执行 三段式闭环", G),
+        (f"{_sk} 专业技能 · 0 failures", T),
     ]
 
     for i in range(5):
@@ -422,7 +422,7 @@ def build_welcome_formatted(
         _wbox_row(W, "平时如刀，出事成阵", wl_w),
         _wbox_row(W, "理解意图 → 深度推理 → 自主执行 → 验证闭环", wl_w),
         _wbox_row(G, f"v{_ver} · {_sk} skills · {_pk} plugins · 1M 上下文 · 自修复", wl_w),
-        _wbox_row(A, "Agent Swarm · 自修改 · A/B/C/D 任务分级", wl_w),
+        _wbox_row(A, "Agent Swarm · 自修改 · 技能市场 · 铁律护航", wl_w),
         _wbox_row(B, f"📁 {_cwd}", wl_w),
         (S, bbot(wl_w)),
     ]
@@ -430,8 +430,8 @@ def build_welcome_formatted(
         ("1.", "/method", "load workflow"),
         ("2.", "/model", "choose model"),
         ("3.", "/chat", "start session"),
-        ("4.", "/image", "generate img"),
-        ("5.", "/video", "generate vid"),
+        ("4.", "/skill", "marketplace"),
+        ("5.", "/agent", "swarm dispatch"),
     ]
     _qs = [(S, btop("Quick Start", qs_w))]
     for idx, cmd, desc in _qs_items:

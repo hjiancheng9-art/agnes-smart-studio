@@ -378,4 +378,17 @@ def record_attempt(level: int, success: bool):
         ]
 
 
+def reset_adversarial_bypass_stats() -> None:
+    """Reset bypass statistics (for test isolation)."""
+    _stats.clear()
+    _stats.update(
+        {
+            "total_attempts": 0,
+            "successful_bypasses": 0,
+            "technique_usage": {},
+            "avg_level_needed": 0.0,
+        }
+    )
+
+
 # get_adversarial_stats removed — dead code, never called

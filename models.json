@@ -1,8 +1,7 @@
 {
   "active": "deepseek",
   "fallback_priority": [
-    "deepseek",
-    "crux"
+    "deepseek"
   ],
   "providers": {
     "deepseek": {

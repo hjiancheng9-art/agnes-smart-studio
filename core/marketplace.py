@@ -890,13 +890,13 @@ class MarketplaceClient:
                 except Exception:
                     import logging
 
-                    logging.getLogger("crux").debug("silent except", exc_info=True)
+                    logging.getLogger(__name__).debug("silent except", exc_info=True)
 
             threading.Thread(target=_populate, daemon=True).start()
         except Exception:
             import logging
 
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
         return minimal
 
 

@@ -423,3 +423,8 @@ def clear_quarantine(tool: str, error_type: str, context: dict | None = None) ->
         del _quarantine[sig]
         return True
     return False
+
+
+def reset_fake_fix_detector() -> None:
+    """Reset quarantine state (for test isolation)."""
+    _quarantine.clear()

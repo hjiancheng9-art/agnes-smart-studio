@@ -250,7 +250,7 @@ class LearningStore:
             finally:
                 conn.close()
         except Exception:
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
         return summary
 
     def clear(self) -> None:
@@ -265,7 +265,7 @@ class LearningStore:
         except Exception:
             import logging
 
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
 
     def _row_to_record(self, row: sqlite3.Row) -> LearningRecord:
         try:

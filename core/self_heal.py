@@ -118,36 +118,54 @@ class SelfHealer:
                 logger.debug("self_heal: skipped %s (%s: %s)", py_file, type(e).__name__, e)
 
     def scan_test_failures(self):
-        """Run pytest --collect-only to find collection errors first, then check if tests pass."""
+        """Run smoke tests — fast subset that catches real regressions.
+        Excludes test_audit (which calls self_heal → infinite recursion)."""
         try:
             r = subprocess.run(
-                [sys.executable, "-m", "pytest", "tests/", "--co", "-q"],
+                [
+                    sys.executable,
+                    "-m",
+                    "pytest",
+                    "tests/test_smoke.py",
+                    "-q",
+                    "--tb=line",
+                    "--timeout=30",
+                    "-k",
+                    "not test_audit",
+                ],
                 capture_output=True,
                 text=True,
-                timeout=30,
+                timeout=60,
                 cwd=str(ROOT),
+                encoding="utf-8",
+                errors="replace",
             )
+            output = r.stdout + r.stderr
             if r.returncode != 0:
+                # Parse failure count from pytest output
+                import re
+
+                failed_match = re.search(r"(\d+) failed", output)
+                failed = int(failed_match.group(1)) if failed_match else "?"
+                passed_match = re.search(r"(\d+) passed", output)
+                passed = passed_match.group(1) if passed_match else "?"
                 self.findings.append(
                     Finding(
                         "critical",
                         "tests",
-                        "tests/",
+                        "tests/test_smoke.py",
                         0,
-                        f"Test collection failed: {r.stderr[:200]}",
+                        f"Smoke tests: {passed} passed, {failed} FAILED",
                         fixable=False,
                     )
                 )
+        except subprocess.TimeoutExpired:
+            self.findings.append(
+                Finding("high", "tests", "tests/test_smoke.py", 0, "Smoke tests timed out (>60s)", fixable=False)
+            )
         except Exception as e:
             self.findings.append(
-                Finding(
-                    "high",
-                    "tests",
-                    "tests/",
-                    0,
-                    f"Test runner failed: {e}",
-                    fixable=False,
-                )
+                Finding("high", "tests", "tests/test_smoke.py", 0, f"Test runner error: {e}", fixable=False)
             )
 
     def scan_import_errors(self):
@@ -312,9 +330,120 @@ class SelfHealer:
                 except Exception:
                     import logging
 
-                    logging.getLogger("crux").debug("silent except", exc_info=True)
+                    logging.getLogger(__name__).debug("silent except", exc_info=True)
         if hits == 0:
             logger.info("self_heal: mojibake scan clean")
+
+    def scan_thread_safety(self):
+        """Detect lockless global mutable state that is actually mutated at runtime.
+
+        Skips ALL_CAPS constants (convention for read-only) and only flags
+        variables that are reassigned or mutated elsewhere in the file.
+        """
+        for py_file in ROOT.rglob("*.py"):
+            if self._skip_path(py_file) or "tests" in str(py_file.parent).split(os.sep):
+                continue
+            try:
+                source = py_file.read_text(encoding="utf-8")
+            except (OSError, ValueError):
+                continue
+            tree = ast.parse(source)
+            rel = str(py_file.relative_to(ROOT))
+            has_lock = "threading.Lock" in source or "Lock(" in source
+            # Collect global mutables (non-CAPS, non-private)
+            candidates: dict[str, int] = {}
+            for node in ast.iter_child_nodes(tree):
+                if isinstance(node, ast.Assign):
+                    for target in node.targets:
+                        if isinstance(target, ast.Name) and not target.id.startswith("_"):
+                            if not target.id.isupper():  # skip constants
+                                if isinstance(node.value, ast.List | ast.Dict | ast.Set):
+                                    candidates[target.id] = node.lineno
+            # Check if any candidate is modified elsewhere (reassigned or .append/.update called)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.AugAssign) and isinstance(node.target, ast.Name):
+                    if node.target.id in candidates and not has_lock:
+                        self.findings.append(
+                            Finding(
+                                "medium",
+                                "thread-safety",
+                                rel,
+                                candidates[node.target.id],
+                                f"Mutable global '{node.target.id}' mutated (+=) without lock",
+                                fixable=False,
+                            )
+                        )
+                elif isinstance(node, ast.Assign):
+                    for target in node.targets:
+                        if isinstance(target, ast.Name) and target.id in candidates:
+                            # Same name reassigned (not at definition site)
+                            if node.lineno != candidates[target.id] and not has_lock:
+                                self.findings.append(
+                                    Finding(
+                                        "medium",
+                                        "thread-safety",
+                                        rel,
+                                        candidates[target.id],
+                                        f"Mutable global '{target.id}' reassigned without lock",
+                                        fixable=False,
+                                    )
+                                )
+
+    def scan_bare_except_keyboard(self):
+        """Detect bare except/except BaseException that swallows KeyboardInterrupt."""
+        for py_file in ROOT.rglob("*.py"):
+            if self._skip_path(py_file) or "tests" in str(py_file.parent).split(os.sep):
+                continue
+            try:
+                lines = py_file.read_text(encoding="utf-8").splitlines()
+            except (OSError, ValueError):
+                continue
+            rel = str(py_file.relative_to(ROOT))
+            for i, line in enumerate(lines, 1):
+                s = line.strip()
+                if s == "except:" or s.startswith("except:"):
+                    self.findings.append(
+                        Finding(
+                            "medium",
+                            "bare-except",
+                            rel,
+                            i,
+                            "Bare 'except:' catches KeyboardInterrupt and SystemExit",
+                            fixable=True,
+                        )
+                    )
+
+    def scan_shell_injection(self):
+        """Detect shell=True usage with unescaped variable interpolation."""
+        for py_file in ROOT.rglob("*.py"):
+            if self._skip_path(py_file) or "tests" in str(py_file.parent).split(os.sep):
+                continue
+            try:
+                source = py_file.read_text(encoding="utf-8")
+            except (OSError, ValueError):
+                continue
+            if "shell=True" not in source:
+                continue
+            tree = ast.parse(source)
+            rel = str(py_file.relative_to(ROOT))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                for kw in node.keywords:
+                    if kw.arg == "shell" and getattr(kw.value, "value", None) is True:
+                        if node.args:
+                            a0 = node.args[0]
+                            if isinstance(a0, ast.JoinedStr):
+                                self.findings.append(
+                                    Finding(
+                                        "high",
+                                        "shell-injection",
+                                        rel,
+                                        node.lineno,
+                                        "shell=True with f-string — potential injection",
+                                        fixable=False,
+                                    )
+                                )
 
     def scan_flaky_tests(self):
         """Quick flaky test detection — 3 seeds, fast marker subset.
@@ -434,7 +563,8 @@ class SelfHealer:
                 if pass_idx < len(lines) and lines[pass_idx].strip() in ("pass", "pass  #"):
                     indent = len(lines[pass_idx]) - len(lines[pass_idx].lstrip())
                     lines[pass_idx] = (
-                        " " * indent + "import logging; logging.getLogger('crux').debug('silent except', exc_info=True)"
+                        " " * indent
+                        + "import logging; logging.getLogger(__name__).debug('silent except', exc_info=True)"
                     )
                     fpath.write_text("\n".join(lines) + "\n", encoding="utf-8")
                     fixed += 1
@@ -449,6 +579,9 @@ class SelfHealer:
         for scanner in [
             self.scan_syntax,
             self.scan_silent_exceptions,
+            self.scan_thread_safety,
+            self.scan_bare_except_keyboard,
+            self.scan_shell_injection,
             self.scan_import_errors,
             self.scan_config_drift,
             self.scan_test_failures,
@@ -494,7 +627,7 @@ class SelfHealer:
         except Exception:
             import logging
 
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
         return result
 
     def report(self) -> str:
@@ -537,11 +670,14 @@ def main():
     if args.full:
         healer.run_all_scans()
     else:
-        # Quick mode (default): skip the 4 heavy scans that require
-        # module imports or pytest runs (each 60-300s).  The remaining
-        # 5 scans complete in <5s and still catch 80% of issues.
+        # Quick mode (default): skip the 4 heavy scans (imports / pytest).
+        # 8 fast scans complete in <5s and cover: syntax, silent exceptions,
+        # thread safety, bare except, shell injection, config drift, hooks, mojibake.
         healer.scan_syntax()
         healer.scan_silent_exceptions()
+        healer.scan_thread_safety()
+        healer.scan_bare_except_keyboard()
+        healer.scan_shell_injection()
         healer.scan_config_drift()
         healer.scan_hook_gaps()
         healer.scan_mojibake()

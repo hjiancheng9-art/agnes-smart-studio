@@ -519,3 +519,10 @@ _telemetry = TelemetryTracker()
 
 def get_telemetry() -> TelemetryTracker:
     return _telemetry
+
+
+def reset_telemetry() -> None:
+    """Reset telemetry and config singletons (for test isolation)."""
+    global GLOBAL_CONFIG, _telemetry
+    GLOBAL_CONFIG = FeatureConfig()
+    _telemetry = TelemetryTracker()

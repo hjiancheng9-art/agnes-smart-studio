@@ -1038,7 +1038,7 @@ class CruxCLI:
         except Exception:
             import logging
 
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
 
         # 3. Watchdog (白虎自愈) status
         try:
@@ -1054,7 +1054,7 @@ class CruxCLI:
         except Exception:
             import logging
 
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
 
         # 4. Observability metrics
         try:
@@ -1067,7 +1067,7 @@ class CruxCLI:
         except Exception:
             import logging
 
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
 
         # 4. Cost tracker
         try:
@@ -1079,7 +1079,7 @@ class CruxCLI:
         except Exception:
             import logging
 
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
 
         print()
 

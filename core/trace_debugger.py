@@ -426,3 +426,9 @@ _recorder = DecisionRecorder()
 
 def get_recorder() -> DecisionRecorder:
     return _recorder
+
+
+def reset_decision_recorder() -> None:
+    """Reset decision recorder singleton (for test isolation)."""
+    global _recorder
+    _recorder = DecisionRecorder()

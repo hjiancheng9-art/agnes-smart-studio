@@ -378,8 +378,8 @@ def _chat_tui():
     # ── content lines ──
     _msg_sk = len(list(Path("skills").glob("*.skill.json")))
     content = [
-        f"{_msg_sk} skills · 1M context · {model_name}",
-        "Agent Swarm 并行编排 · 平时如刀，出事成阵",
+        "由 DeepSeek V4 Flash (1M 上下文) 驱动 · Windows 11 工程搭档",
+        f"{_msg_sk} skills · 自修改 · Agent Swarm · 平时如刀，出事成阵",
     ]
     content_lines = []
     for line in content:
@@ -542,7 +542,9 @@ def _chat_plain():
 
     # ── Startup banner ──
     _rprint()
-    _rprint(f"[bold cyan]◆  CRUX Studio  v{__version__}[/] — [dim]平时如刀，出事成阵[/]")
+    _rprint(
+        f"[bold cyan]◆  CRUX Studio  v{__version__}[/] — [dim]Windows 11 工程搭档 · DeepSeek V4 Flash (1M) · 平时如刀，出事成阵[/]"
+    )
     _rprint()
     _rprint(f"[bold]Working Directory:[/] [cyan]{cwd}[/]")
     _print_kimi_tree(cwd)

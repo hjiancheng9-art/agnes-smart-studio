@@ -31,7 +31,7 @@ class ExecutionPolicy:
         """Produce a short runtime instruction injectable near user message."""
         base = f"[执行策略] mode={self.mode.value} | {self.reason}"
         if self.mode == ExecutionMode.ORCHESTRATE:
-            return f"{base}\n请先调用 `orchestrate` 工具规划执行。不要用逐步思考替代编排。"
+            return f"{base}\n请分步骤执行：先规划 → 再实现 → 最后验证。每个步骤调用对应工具，不要一次性全做完。"
         if self.mode == ExecutionMode.SWARM:
             return f"{base}\n请使用 `agent_swarm` 并行分派子智能体。"
         if self.mode == ExecutionMode.SKILL and self.selected_skill:
@@ -46,11 +46,66 @@ def choose_policy(user_text: str) -> ExecutionPolicy:
     # Swarm signals: multiple independent dimensions
     swarm_signals = sum(
         kw in t
-        for kw in ("分别分析", "多方案", "对比", "交叉验证", "多个模块", "并行", "多角度", "同时检查", "分别检查")
+        for kw in (
+            "分别分析",
+            "多方案",
+            "对比",
+            "交叉验证",
+            "多个模块",
+            "并行",
+            "多角度",
+            "同时检查",
+            "分别检查",
+            "分别",
+            "多个文件",
+            "审查并",
+            "设计差异",
+            "两个文件",
+            "这几",
+        )
     )
-    # Orchestrate signals: multi-stage workflow (need 3+ matches to trigger)
+    # Orchestrate signals: multi-stage workflow (need 2+ matches to trigger)
     orch_signals = sum(
-        kw in t for kw in ("实现", "完整方案", "修复并验证", "重构", "部署", "执行并测试", "从零搭建", "迁移", "升级")
+        kw in t
+        for kw in (
+            "实现",
+            "完整方案",
+            "修复并验证",
+            "重构",
+            "部署",
+            "执行并测试",
+            "从零搭建",
+            "迁移",
+            "升级",
+            "写一个",
+            "新建",
+            "创建",
+            "加一个",
+            "加个",
+            "改",
+            "修",
+            "跑测试",
+            "审查",
+            "跑一下",
+            "写代码",
+            "写个",
+            "生成一个",
+            "跑它",
+            "跑这个",
+            "运行测试",
+            "验证一下",
+            "跑验证",
+            "写测试",
+            "审查代码",
+            "搭一个",
+            "从零开始",
+            "创建一个",
+            "写个测试",
+            "加上测试",
+            "项目",
+            "新功能",
+            "写个脚本",
+        )
     )
     # ── Self-check: semantic feature based (not fragile char-count) ──
     # Chinese self-audit keywords only escalate to ORCHESTRATE when paired
@@ -104,10 +159,10 @@ def choose_policy(user_text: str) -> ExecutionPolicy:
     if _self_check:
         return ExecutionPolicy(ExecutionMode.ORCHESTRATE, "自检/审计任务需要多阶段编排")
 
-    if swarm_signals >= 3:
+    if swarm_signals >= 1:
         return ExecutionPolicy(ExecutionMode.SWARM, f"检测到 {swarm_signals} 个并行维度信号")
 
-    if orch_signals >= 3:
+    if orch_signals >= 2:
         return ExecutionPolicy(ExecutionMode.ORCHESTRATE, f"检测到 {orch_signals} 个编排信号")
 
     return ExecutionPolicy(ExecutionMode.DIRECT, "简单任务")

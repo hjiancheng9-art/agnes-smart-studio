@@ -17,11 +17,8 @@ yield 协议（send_stream）：
 
 from __future__ import annotations
 
-import json
 import logging
-import os
 import time
-import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -58,33 +55,9 @@ _AUTO_RETRY_TOOLS = frozenset(
 )
 
 from core.chat_tool_helpers import merge_tool_calls, sanitize_tool_call_history
-from core.chat_tool_helpers import normalize_tool_args as _normalize_tool_args
-from core.chat_tool_retry import _PipelineToolbus, auto_retry_tool, format_tool_error
-
-
-def _summarize_tool_output(raw: str, tool_name: str = "") -> str:
-    """Smart truncation for large tool outputs — keep useful info, drop noise."""
-    if not raw or len(raw) <= 2000:
-        return raw
-    lines = raw.split("\n")
-    # Prioritize error/fail/assert lines
-    err_lines = [
-        l
-        for l in lines
-        if any(kw in l.lower() for kw in ("error", "fail", "traceback", "assert", "exception", "warning"))
-    ]
-    if err_lines:
-        head = "\n".join(lines[:5])
-        errs = "\n".join(err_lines[:8])
-        return f"{head}\n\n... [{len(lines)} lines, {len(err_lines)} flagged]\n\n{errs}"
-    head = "\n".join(lines[:6])
-    tail = "\n".join(lines[-3:]) if len(lines) > 15 else ""
-    return f"{head}\n... [{len(lines) - 9} lines omitted]...\n{tail}" if tail else head
-
-
+from core.chat_tool_retry import _PipelineToolbus, auto_retry_tool, format_tool_error  # noqa: F401
 from core.chat_vision import _vision_fallback
 from core.config import get_crux_vision_model
-from core.observability import TraceContext, metrics
 from core.provider import (
     get_provider_manager,
     get_provider_name,
@@ -93,7 +66,6 @@ from core.provider import (
 from core.session_config import SessionConfig
 from core.skills import SkillManager, get_manager
 from core.tools import AGENT_SYSTEM_PROMPT, ToolRegistry, get_registry
-from utils.unicode_safety import InvalidUnicodePayloadError
 
 __all__ = [
     "CHAT_SYSTEM_PROMPT",
@@ -121,40 +93,17 @@ __all__ = [
 # 不再硬编码，跟随 active provider 自动刷新。
 
 
-def _build_model_aliases() -> dict[str, str]:
-    """从 models.json active provider 的 models 字段动态构建别名映射。
-    "light" → active 供应商的 light 模型, "pro" → pro 模型。
-    """
-    try:
-        mgr = get_provider_manager()
-        mgr.load()
-        pmap = mgr.get_active_models()
-        return {k: v for k, v in pmap.items() if k in ("light", "pro")}
-    except Exception as e:
-        logger.debug("unexpected error: %s", e, exc_info=True)
-
-        return {}
-
-
-def _build_model_info() -> dict[str, str]:
-    """从 MODEL_REGISTRY 构建模型 ID → 描述 映射。"""
-    try:
-        from core.provider import MODEL_REGISTRY
-
-        return {mid: info.description for mid, info in MODEL_REGISTRY.items() if info.description}
-    except Exception as e:
-        logger.debug("unexpected error: %s", e, exc_info=True)
-
-        return {}
+# ── 模型别名构建委托给 chat_model_helpers.py（消除重复）──
+from core.chat_model_helpers import build_model_aliases, build_model_info
 
 
 def _refresh_aliases_and_info() -> tuple[dict[str, str], dict[str, str]]:
-    """惰性初始化 MODEL_ALIASES 和 MODEL_INFO（含模块缓存）。"""
+    """惰性初始化 MODEL_ALIASES 和 MODEL_INFO（委托 chat_model_helpers）。"""
     global MODEL_ALIASES, MODEL_INFO
     if not MODEL_ALIASES:
-        MODEL_ALIASES = _build_model_aliases()
+        MODEL_ALIASES = build_model_aliases()
     if not MODEL_INFO:
-        MODEL_INFO = _build_model_info()
+        MODEL_INFO = build_model_info()
     return MODEL_ALIASES, MODEL_INFO
 
 
@@ -216,10 +165,6 @@ class ChatSession(ChatToggleMixin):
         self._cog: CognitiveOrchestrator | None = None  # CognitiveOrchestrator, lazy init
         self._temp_input_files: set[str] = set()  # Track long-input temp files for cleanup
         self._vote_enabled: bool = False  # /vote toggle (off by default to save tokens)
-        self._pipeline_result: dict | None = None
-        import threading as _t
-
-        self._pipeline_lock = _t.Lock()
         self.messages: list[dict] = [{"role": "system", "content": self._build_system_prompt()}]
         # Token budget monitor — warns at 80% context usage.  Silently ignores
         # all errors (tests may not have the module or may mock chat internals).
@@ -230,7 +175,7 @@ class ChatSession(ChatToggleMixin):
             self._budget = TokenBudget()
             self._budget.count(self.messages)
         except Exception:
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
         # ── Dynamic attrs set by mixins/hooks — declared here for type checking ──
         self.vision_ctx: Any = None
         self._vision_fallback: Any = None
@@ -400,14 +345,14 @@ class ChatSession(ChatToggleMixin):
         except Exception:
             import logging
 
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
         try:
             if hasattr(self, "client") and self.client is not None:
                 self.client.close()
         except Exception:
             import logging
 
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
 
     def _cleanup_temp_input_files(self) -> None:
         """Remove all tracked long-input temp files. Safe to call multiple times."""
@@ -823,7 +768,7 @@ class ChatSession(ChatToggleMixin):
             if self._budget.should_warn():
                 print(self._budget.warning(), flush=True)
         except Exception:
-            logging.getLogger("crux").debug("silent except", exc_info=True)
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
 
     def _vision_model_chain(self, complexity: str = "light") -> list[str]:
         """Vision model chain — single model after zhipu removal."""
@@ -891,600 +836,12 @@ class ChatSession(ChatToggleMixin):
         """发送用户消息，流式 yield (kind, payload) 元组。
 
         Pipeline stages: accepted → plan → context → model → tools → finalize
+
+        核心实现已提取至 core.chat_stream._send_stream_impl。
         """
-        self._last_user_text = user_text
-        self._last_turn_had_errors = False
+        from core.chat_stream import _send_stream_impl
 
-        # ── 输入截断: 超长文本存临时文件，避免炸上下文 ──
-        _MAX_INPUT_CHARS = 4000
-        _input_len = len(user_text)
-        if _input_len > _MAX_INPUT_CHARS:
-            import tempfile
-
-            tmp_dir = tempfile.gettempdir()
-            tmp_path = f"{tmp_dir}/crux_input_{os.getpid()}.txt".replace("\\", "/")
-            with open(tmp_path, "w", encoding="utf-8") as f_tmp:
-                f_tmp.write(self._last_user_text)
-            self._temp_input_files.add(tmp_path)
-            import atexit
-
-            atexit.register(lambda p=tmp_path: os.path.exists(p) and os.remove(p))  # final safety net
-            user_text = (
-                f"[大文本 {_input_len} 字符，完整内容: {tmp_path}]\n"
-                f"开头:\n{user_text[: _MAX_INPUT_CHARS // 2]}\n"
-                f"...\n结尾:\n{user_text[-_MAX_INPUT_CHARS // 4 :]}"
-            )
-            yield ("info", f"输入过长({_input_len}字符)，已截断。用 read_file 读完整内容: {tmp_path}")
-
-        # 触发 CHAT_TURN_START 钩子
-        try:
-            from core.hooks import HookType
-            from core.hooks import fire as _fire_hook
-
-            _fire_hook(HookType.CHAT_TURN_START, prompt=user_text)
-        except (ImportError, OSError) as e:
-            logger.debug("optional module skipped: %s", e)
-
-            pass
-
-        # #6 预算守卫：会话开始时检查今日花费，超限/接近上限仅提示不阻断
-        try:
-            from core.cost_tracker import check_budget
-
-            warning = check_budget()
-            if warning:
-                yield ("info", warning)
-        except (ImportError, OSError) as e:
-            logger.debug("cost_tracker.check_budget failed: %s: %s", type(e).__name__, e)
-        except Exception as e:
-            logger.debug("cost_tracker.check_budget unexpected error: %s: %s", type(e).__name__, e)
-
-        # ── 方法论分级：根据意图自动判定 A/B/C/D 任务等级 ──
-        try:
-            from core.methodology import get_methodology_state
-
-            state = get_methodology_state()
-            state.classify(user_text, [])
-            state.record_step()
-            if state.task_level.value in ("complex", "critical"):
-                yield ("info", f"[方法] 任务等级 {state.task_level.name} — {state.summary()}")
-        except (ImportError, OSError) as e:
-            logger.debug("optional module skipped: %s", e)
-
-            pass
-
-        # ── 多模态分支：有图片 → vision 模型理解 + LLM 推理 ──
-        if image_url:
-            try:
-                vision_raw = self._vision_fallback(user_text, image_url)
-            except Exception as e:
-                logger.exception("Vision fallback crashed unexpectedly")
-                vision_raw = f"(视觉理解异常: {type(e).__name__}: {e})"
-            # 注册到视觉上下文（持久化图片 + 原始描述，供后续追问重查）
-            self.vision_ctx.register(image_url, vision_raw)
-            # 将 vision 输出作为"系统视觉情报"注入用户消息，替换原始图片 URL
-            # Truncate to prevent context window waste (complex mode: 4096 tokens max)
-            _MAX_VISION_CHARS = 2000
-            _clean = vision_raw[: _MAX_VISION_CHARS * 2]  # ~4000 chars ≈ 1000 tokens
-            # Strip magic tokens that could confuse the downstream LLM
-            for _tok in ("<|im_end|>", "<|im_start|>", "<|user|>", "<|assistant|>", "<|system|>"):
-                _clean = _clean.replace(_tok, "")
-            user_text = f"[图片分析] {_clean}\n\n用户提问: {user_text}"
-            # 不 return，继续走正常 LLM 流式推理
-
-        # ── Unified execution plan ──
-        try:
-            from core.runtime_types import ExecutionMode, plan_from_policy
-
-            _plan = plan_from_policy(user_text)
-
-            # For orchestrate/swarm: trigger directly instead of asking the model
-            # to produce a tool call. This is NOT a workaround — it's the correct
-            # architecture for deterministic workflows. Two reasons:
-            # 1. DeepSeek thinking mode: model completes thinking then goes silent,
-            #    never producing the tool call (122s idle timeout).
-            # 2. Even without thinking mode, asking an LLM to "call orchestrate"
-            #    adds latency + failure surface for a deterministic trigger.
-            # Direct orchestration bypasses the model entirely for the trigger.
-            # Skip orchestration for short conversational queries — models over-trigger
-            # orchestrate for simple questions like "how many bugs do you have?"
-            _skip_orch = len(user_text) < 60 and ("?" in user_text or "？" in user_text)
-            if _plan is not None and _plan.mode in (ExecutionMode.ORCHESTRATE, ExecutionMode.SWARM) and not _skip_orch:
-                import time as _time
-
-                # Append user message to history (same as normal path)
-                self.messages.append({"role": "user", "content": user_text})
-                yield ("stream_start", {"run_id": str(uuid.uuid4())[:12], "message": "start"})
-
-                yield ("info", "【编排】自检自修 — 完整执行")
-                _result_parts = []
-                _t0 = _time.monotonic()
-
-                # Step 1: self_heal — audit + auto-fix
-                yield ("info", "[1/4] self_heal 审计 + 自动修复...")
-                try:
-                    _raw1, _ = self._dispatch_tool("self_heal", '{"fix":true}')
-                    _result_parts.append(f"## 自愈审计\n{str(_raw1)[:2000]}")
-                    yield ("info", f"  自愈完成 ({_time.monotonic() - _t0:.1f}s)")
-                except Exception as e:
-                    _result_parts.append(f"## 自愈失败\n{str(e)[:300]}")
-                    yield ("error", f"  自愈失败: {e}")
-
-                # Step 2: code_review on changed files
-                yield ("info", "[2/4] 代码审查...")
-                try:
-                    _raw2, _ = self._dispatch_tool("code_review", "{}")
-                    _result_parts.append(f"## 代码审查\n{str(_raw2)[:1500]}")
-                    yield ("info", f"  审查完成 ({_time.monotonic() - _t0:.1f}s)")
-                except Exception as e:
-                    _result_parts.append(f"## 审查失败\n{str(e)[:300]}")
-
-                # Step 3: lint fix + format
-                yield ("info", "[3/4] 代码质量修复...")
-                try:
-                    _raw3a, _ = self._dispatch_tool("run_lint", '{"fix":true}')
-                    _result_parts.append(f"## Lint\n{str(_raw3a)[:1000]}")
-                except Exception as e:
-                    _result_parts.append(f"## Lint 失败\n{str(e)[:300]}")
-                try:
-                    _raw3b, _ = self._dispatch_tool("run_format", "{}")
-                    _result_parts.append(f"## 格式化\n{str(_raw3b)[:500]}")
-                except Exception as e:
-                    _result_parts.append(f"## 格式化失败\n{str(e)[:300]}")
-                yield ("info", f"  质量修复完成 ({_time.monotonic() - _t0:.1f}s)")
-
-                # Step 4: summary
-                _elapsed = _time.monotonic() - _t0
-                # Strip ANSI escape codes — prompt_toolkit TUI can't render them
-                import re as _re
-
-                _result_text = "\n\n".join(_result_parts)
-                _clean = _re.sub(r"\x1b\[[0-9;]*m", "", _result_text)
-                # Extract key numbers for the info bar
-                _lines = [l for l in _clean.split("\n") if l.strip() and not l.startswith("══")]
-                if _lines:
-                    yield ("info", f"[完成] {_elapsed:.1f}s — {'; '.join(_lines[:3])}")
-                if _clean.strip():
-                    yield ("text", _clean)
-                self.messages.append({"role": "assistant", "content": _result_text or ""})
-                self._finalize_outcome(self.model, None)
-                self._trigger_reflection()
-                self._auto_remember()
-                return  # ── skip model call entirely ──
-
-            if _plan.mode != ExecutionMode.DIRECT:
-                instruction = "[执行策略] "
-                if _plan.mode == ExecutionMode.ORCHESTRATE:
-                    instruction += "请调用 `orchestrate` 工具。不要用逐步思考替代编排。"
-                elif _plan.mode == ExecutionMode.SWARM:
-                    instruction += "请调用 `agent_swarm` 并行分派子智能体。"
-                original_user = user_text
-                user_text = f"{instruction}\n\n用户任务: {original_user}"
-
-            # Auto-upgrade model for complex tasks
-            if _plan.complexity >= 3 and ("flash" in self.model or "light" in self.model):
-                import re as _re
-
-                pro = _re.sub(r"\b(flash|light)\b", "pro", self.model)
-                if pro != self.model:
-                    self.model = pro
-                    self.routing.select(self.routing.active_provider, pro)
-                    yield ("info", f"自动切换模型: {self.model}")
-        except ImportError:
-            _plan = None
-
-        # ── 事件协议: 生成 run_id ──
-        _run_id = str(uuid.uuid4())[:12]
-
-        # ── Prompt enhancement: use domain/prompts assembler for orchestrate/swarm. ──
-        # RuntimeEngine now only does prompt prep — model flow stays in the legacy
-        # _consume_stream_delta loop (proven stable). The old KNOWN-BROKEN comment
-        # referred to a removed model-stage that tried to replace the full stream.
-        # Opt-in via env:  export CRUX_ENABLE_NEW_RUNTIME=1
-        _use_new_runtime = (
-            _plan is not None
-            and _plan.mode in ("orchestrate", "swarm")
-            and os.environ.get("CRUX_ENABLE_NEW_RUNTIME", "0") == "1"
-        )
-        if _use_new_runtime:
-            try:
-                from runtime.engine import RuntimeEngine
-
-                _new_engine = RuntimeEngine()
-                _prepared = _new_engine.prepare_turn(old_plan=_plan)
-                if _prepared and _prepared.system_prompt:
-                    old_len = len(self.messages[0]["content"])
-                    self.messages[0]["content"] = _prepared.system_prompt
-                    yield ("info", f"系统提示词: {len(_prepared.system_prompt)} chars (旧 {old_len} chars)")
-                    # Disable thinking mode for orchestrate — it stalls between think and output
-                    self.enable_thinking = False
-            except ImportError:
-                pass  # new runtime not ready, use old prompt
-
-        # ── 纯文本分支：加 user message ──
-        # Set orchestration goal context (used by trigger_orchestrate)
-        try:
-            from core.runtime_orchestrator import set_orchestrate_goal
-
-            set_orchestrate_goal(user_text)
-        except ImportError:
-            pass
-        self.messages.append({"role": "user", "content": user_text})
-
-        # ── 事件协议: 生成 run_id ──
-        _run_id = str(uuid.uuid4())[:12]
-        import time as _time
-
-        _turn_start = _time.monotonic()  # track turn start for heartbeat timing
-
-        # Only show planning for non-trivial messages (skip for simple greetings/chitchat)
-        if len(user_text) > 30 or any(
-            kw in user_text
-            for kw in (
-                "修复",
-                "实现",
-                "重构",
-                "设计",
-                "审查",
-                "分析",
-                "部署",
-                "优化",
-                "测试",
-                "fix",
-                "implement",
-                "refactor",
-                "design",
-                "review",
-                "debug",
-                "deploy",
-            )
-        ):
-            yield ("info", "【规划】分析任务 & 选择模型...")
-
-        # Auto-route: classify prompt intent → dynamically switch model tier
-        # (e.g. complex code → pro, simple Q&A → light, deep reasoning → reasoner)
-        self._auto_route(user_text)
-
-        # ── Intelligence Pipeline V2: 在流前分析，不破坏 yield 协议 ──
-        # analyze() 内部捕获异常，失败自动 fallback
-        intel_analysis = self._intelligence_hook.analyze(user_text)
-        self._intel_mode = intel_analysis.get("mode", "BALANCED")
-        self._intel_analysis = intel_analysis.get("summary", {})
-        self._intel_config = intel_analysis.get("config", {})
-
-        # ── 消费 intelligence 分析结果 ──
-        # 1. Yield 状态提示（DEEP/SAFE/RESEARCH 模式）
-        yield from self._intelligence_hook.get_status_yield()
-
-        # 2. 根据模式调整推理参数
-        if self._intel_mode in ("DEEP", "RESEARCH", "SAFE"):
-            # DeepSeek thinking mode causes stream hang when tools are active:
-            # model completes internal reasoning then goes silent without producing
-            # content or tool_calls. Disable thinking when tool calling is supported.
-            self.enable_thinking = not self.supports_tools
-        elif self._intel_mode == "FAST":
-            self.enable_thinking = False  # 快速模式关闭思考省 token
-
-        # ── Agent mode 自动评分: 复杂任务提示 LLM 使用 agent_swarm ──
-        try:
-            from core.multi_agent import compute_agent_mode
-
-            _agent_ctx = {
-                "files_touched": len(
-                    (
-                        getattr(self, "_methodology_state", None)
-                        and getattr(self._methodology_state, "files_touched", None)
-                    )
-                    or []
-                ),
-                "recent_failures": 0,
-            }
-            _agent_mode, _agent_score, _agent_breakdown = compute_agent_mode(user_text, _agent_ctx)
-            self._last_agent_score = _agent_score
-            self._last_agent_mode = _agent_mode.value
-            if _agent_score >= 5:
-                yield (
-                    "info",
-                    f"[智能体] 任务复杂度 {_agent_score:.1f} (mode={_agent_mode.value})"
-                    f" — 建议使用 agent_swarm 并行分派子智能体",
-                )
-        except (ImportError, OSError):
-            pass
-
-        # 3. Pipeline 执行: DEEP/SAFE 模式跑 Plan→Critic→Repair 工作流
-        if self._intel_mode in ("DEEP", "SAFE") and not image_url:
-            try:
-                import asyncio
-                import threading
-
-                toolbus = _PipelineToolbus(self._dispatch_tool, self.tools)
-
-                # 后台运行 pipeline，不阻塞主回复
-                def _run_pipeline():
-                    try:
-                        result = asyncio.run(
-                            self._intelligence_hook.execute_pipeline(
-                                user_text,
-                                context={"project": str(Path(__file__).parent.parent)},
-                                toolbus=toolbus,
-                            )
-                        )
-                        self._pipeline_result = result
-                    except Exception:
-                        logger.debug("Exception in chat", exc_info=True)
-
-                # Track pipeline threads — join old ones to prevent accumulation
-                if not hasattr(self, "_pipeline_threads"):
-                    self._pipeline_threads = []
-                # Clean up finished threads
-                self._pipeline_threads = [t for t in self._pipeline_threads if t.is_alive()]
-                t = threading.Thread(target=_run_pipeline, daemon=True, name="crux-pipeline")
-                self._pipeline_threads.append(t)
-                t.start()
-            except Exception as e:
-                logger.debug("Pipeline execution skipped: %s", e)
-
-        # Inject relevant past memories as context
-        self._inject_memory(user_text)
-
-        # 视觉上下文：后续追问时按需重查 vision 模型
-        if not image_url and self.vision_ctx.active and self.vision_ctx.needs_lookup(user_text):
-            fresh = self.vision_ctx.reask(
-                user_text,
-                lambda t, u: self._vision_fallback(t, u),
-            )
-            if fresh:
-                # 用重查结果覆盖最后一条用户消息
-                augmented = f"[图片局部查询] {fresh}\n\n用户提问: {user_text}"
-                if self.messages and self.messages[-1]["role"] == "user":
-                    self.messages[-1]["content"] = augmented
-                else:
-                    self.messages.append({"role": "user", "content": augmented})
-
-        # Multi-model deliberation for complex questions
-        from core.cognitive_orchestrator import is_complex
-
-        if self._vote_enabled and is_complex(user_text) and not image_url:
-            result = self._deliberate(user_text)
-            if result and result.get("confidence") in ("high", "medium"):
-                content = f"{result['answer']}\n\n[{result['models_used']} models, confidence: {result['confidence']}]"
-                if result.get("dissenting") and result["dissenting"] != "none":
-                    content += f"\n[dim]Dissent: {result['dissenting']}[/]"
-                self.messages.append({"role": "assistant", "content": content})
-                self._check_budget()
-                yield ("text", content)
-                return
-
-        # Tier 1 轻量截断：对历史 messages 中超限单条做 head+tail 截断。
-        # 触发条件：token 超阈值，或消息条数超过 40（防止大量小消息堆积
-        # 导致 token 估算偏低但请求体积膨胀）。
-        if self.ctx_mgr.needs_compression(self.messages) or len(self.messages) > 40:
-            self.messages = self.ctx_mgr.compress(self.messages, self.client, self.model)
-
-        tools = self.tools.get_filtered_definitions(user_text) if self.supports_tools else None
-        # Track the set of tool names the model is allowed to see. Starts with the
-        # filtered set and grows as the model calls tools, instead of jumping to the
-        # full 97-tool definition list (~14K tokens) on every subsequent loop round.
-        _active_tool_names: set[str] | None = {d["function"]["name"] for d in tools} if tools else None
-
-        # ── 模型级 fallback 链（对标 Claude fallbackModel）──
-        # 主对话流式调用失败时自动降级到下一个供应商/模型。
-        # 只在首轮（无 tool_calls）时 fallback，避免重复 tool 副作用。
-        fallback_chain = self._text_fallback_chain()
-        fallback_tried = 0
-
-        # ── 预检: 活跃供应商挂了就立刻切 ──
-        try:
-            mgr = get_provider_manager()
-            active_pid = mgr.state.active
-            if mgr.state.is_down(active_pid) or not mgr.state.circuit_can_try(active_pid):
-                # 活跃供应商不可用 → 从 fallback chain 跳过第一个（当前）直接切
-                if len(fallback_chain) > 1:
-                    # skip first (current) provider
-                    fallback_chain = fallback_chain[1:]
-                    self.model, self.client = fallback_chain[0]
-                    yield ("info", f"当前供应商不可用，已切换至 {self.model}")
-                    self._rebuild_ctx_mgr()
-        except (ImportError, OSError) as e:
-            logger.debug("provider precheck skipped: %s", e)
-
-        # tool calling 循环（有上限，防止死循环）
-        # 支持 CRUX_MAX_TOOL_LOOPS 环境变量热覆盖（免重启，设了立即生效）
-        _base = MAX_TOOL_LOOPS
-        _env_override = os.environ.get("CRUX_MAX_TOOL_LOOPS")
-        if _env_override:
-            try:
-                _base = int(_env_override)
-            except ValueError:
-                logger.warning(
-                    "CRUX_MAX_TOOL_LOOPS=%r is not a valid integer, using default %d", _env_override, MAX_TOOL_LOOPS
-                )
-        _effective_max = _base * 2 if getattr(self, "unlimited_tools", False) else _base
-        # ── Adaptive limit: expand for plans, shrink on failures ──
-        try:
-            from core.skill_orchestrator import get_orchestrator
-
-            orch = get_orchestrator()
-            if hasattr(orch, "_last_plan") and orch._last_plan and orch._last_plan.steps:
-                plan_steps = len(orch._last_plan.steps)
-                _effective_max = max(_effective_max, plan_steps * 8)
-        except (ImportError, AttributeError):
-            pass
-        self._consecutive_failures = 0  # adaptive: shrink limit on cascade failures
-        self._consecutive_successes = 0  # adaptive: expand limit on clean runs
-        self._effective_max = _effective_max  # shared with _run_tool_calls for adaptive limit
-        buffer = ""  # 循环外预绑定，保证超出最大轮次时引用安全
-        # 跨轮工具去重状态（见 _run_tool_calls 的注释）
-        _executed_signatures: set[tuple[str, str]] = set()
-        _executed_cache: dict[tuple[str, str], str] = {}
-        _stream_error_break = False
-        _test_run_count = 0  # detect fix-test-fail-fix runaway loops
-
-        while fallback_tried < len(fallback_chain):
-            _use_model, _use_client = fallback_chain[fallback_tried]
-            fallback_tried += 1
-            _stream_error_break = False  # 标记 for 循环是否因流错误 break
-
-            for _loop in range(_effective_max):
-                buffer, tool_calls = "", []
-                _stream_error = False
-                _last_usage = None
-                # _consume_stream_delta is a generator: yields text chunks, returns result tuple.
-                # stream_adapter.consume_stream() inside handles thread+queue+30s watchdog.
-                # No double-wrapping needed — single threaded layer is sufficient.
-                try:
-                    delta_result = yield from self._consume_stream_delta(
-                        _use_client,
-                        _use_model,
-                        tools,
-                    )
-                except InvalidUnicodePayloadError:
-                    logger.exception(
-                        "_consume_stream_delta: payload encoding error — NOT a provider failure, skipping failover"
-                    )
-                    yield ("error", "请求数据含非法字符（Unicode surrogate），已跳过。请重试。")
-                    return
-                except Exception as e:
-                    logger.exception("_consume_stream_delta 异常")
-                    yield ("error", f"流式接收中断: {type(e).__name__}: {e}")
-                    _stream_error_break = True
-                    break
-                buffer, tool_calls, _stream_error, _last_usage = delta_result
-                # 收完一轮 delta：有 tool_calls → 执行并喂回，进入下一轮
-                if tool_calls:
-                    buffer = self._append_assistant_with_tools(buffer, tool_calls)
-                    try:
-                        yield from self._run_tool_calls(
-                            tool_calls,
-                            _executed_signatures,
-                            _executed_cache,
-                            _loop,
-                        )
-                    except Exception as e:
-                        logger.exception("_run_tool_calls 异常")
-                        yield ("error", f"工具执行中断: {type(e).__name__}: {e}")
-                        _stream_error_break = False  # tool error, NOT a provider failure
-                        break
-                    # Grow the visible tool set with any tools the model just called,
-                    # instead of expanding to the full 97-tool list (14K tokens/round).
-                    if _active_tool_names is not None and tool_calls:
-                        for _tc in tool_calls:
-                            _fn = _tc.get("function", {}) if isinstance(_tc, dict) else {}
-                            _name = _fn.get("name")
-                            if _name:
-                                _active_tool_names.add(_name)
-                        tools = self.tools.get_definitions_for_names(_active_tool_names)
-                    # Detect fix-test-fail-fix runaway loops: break if test runner called too many times
-                    _test_tools = sum(
-                        1
-                        for tc in tool_calls
-                        if isinstance(tc, dict) and tc.get("function", {}).get("name") == "run_test"
-                    )
-                    if _test_tools:
-                        _test_run_count += _test_tools
-                    if _test_run_count > 5:
-                        yield ("info", f"测试已运行 {_test_run_count} 次，疑似死循环。已自动停止。")
-                        self.messages.append({"role": "assistant", "content": buffer})
-                        self._finalize_outcome(_use_model, _last_usage)
-                        return  # clean stop — NOT a provider failure
-                    continue  # 进入下一轮 tool loop
-
-                # 无 tool_calls：检查是否流错误（需 fallback）还是正常收尾
-                if _stream_error or self._is_stream_error(buffer):
-                    if _loop == 0 and fallback_tried < len(fallback_chain):
-                        # 通知 ProviderManager 标记当前供应商为 down
-                        try:
-                            mgr = get_provider_manager()
-                            # 先尝试自动 failover（handle_failure 会选一个可用 provider）
-                            new_client, new_pid = mgr.handle_failure(mgr.state.active, 500)
-                            if new_client:
-                                # Defer closing old client — closing mid-stream corrupts httpx state
-                                self.client = new_client
-                                self._current_provider = new_pid
-                                mgr.state.record_success(new_pid)
-                                logger.info("failover: -> %s (auto)", new_pid)
-                                yield ("info", f"Provider 自动切换: {new_pid}")
-                            else:
-                                # 无可用 provider，仅标记下线
-                                mgr.state.mark_down(mgr.state.active)
-                        except Exception as e:
-                            logging.debug("Failed to mark provider down: %s", str(e)[:120])
-                        yield ("info", f"模型 {_use_model} 连接中断，尝试 fallback...")
-                        metrics.increment("fallback.text_model")
-                        _stream_error_break = True
-                        break  # 出 for _loop → while 继续
-                    self.messages.append({"role": "assistant", "content": buffer})
-                    return
-
-                # 正常收尾 — 检测是否为模型拒绝，若是则触发对抗 bypass
-                # 空响应检测：模型返回空内容时自动重试一次
-                _empty_buffer = not buffer or not buffer.strip()
-                if _empty_buffer and _loop == 0:
-                    yield ("info", "模型返回空内容，正在重试…")
-                    # 用稍高 temperature 重试，有可能唤醒模型
-                    try:
-                        retry_delta = yield from self._consume_stream_delta(
-                            _use_client, _use_model, tools, _retry_empty=True
-                        )
-                        retry_buffer, _, _, retry_usage = retry_delta
-                        if retry_buffer and retry_buffer.strip():
-                            buffer = retry_buffer
-                            if retry_usage:
-                                _last_usage = retry_usage
-                            _empty_buffer = False
-                            yield ("info", "重试成功")
-                    except Exception as e:
-                        logger.debug("empty-retry failed: %s", e)
-                if _empty_buffer:
-                    buffer = "（模型未返回内容，请重试或换一种表述）"
-                    yield ("text", buffer)
-                self._finalize_outcome(_use_model, _last_usage)
-                self.messages.append({"role": "assistant", "content": buffer})
-                # ── 红旗警示: 检测输出中的危险短语 ──
-                try:
-                    from core.methodology import detect_red_flags, get_methodology_state
-
-                    flags = detect_red_flags(buffer)
-                    if flags:
-                        for w in flags:
-                            yield ("info", w)
-                        get_methodology_state().advance_workflow("verified")
-                except (ImportError, OSError) as e:
-                    logger.debug("optional module skipped: %s", e)
-
-                    pass
-                if (yield from self._try_adversarial_bypass(buffer, user_text, _use_client, _use_model, tools)):
-                    return  # bypass 成功，已在内部 yield 结果
-                # ── Pipeline 结果: 后台运行完成后 yield ──
-                _pr = getattr(self, "_pipeline_result", None)
-                if _pr:
-                    with self._pipeline_lock:
-                        _pr = self._pipeline_result
-                        if _pr:
-                            if _pr.get("passed") is False:
-                                yield ("info", f"[Pipeline] 审查未通过: {_pr.get('summary', '')[:200]}")
-                            elif _pr.get("summary"):
-                                yield ("info", f"[Pipeline] {_pr.get('summary', '')[:200]}")
-                            self._pipeline_result = None
-                self._trigger_reflection()
-                self._auto_remember()
-                return
-
-        # for _loop 结束：区分两种情况
-        # 1. _stream_error_break=True → 流错误 fallback，回到 while 尝试下一档
-        # 2. _stream_error_break=False → tool loop 溢出（模型正常工作但死循环），不 fallback
-        if not _stream_error_break:
-            yield ("info", f"已达到最大工具调用轮次 ({_effective_max})，已中止。请尝试简化你的请求。")
-            self._record_trace_failure(f"tool loop overflow: {_effective_max} rounds", step_name="tool_loop")
-            self.messages.append({"role": "assistant", "content": buffer})
-            self._check_budget()
-            self._record_outcome_promptlab()
-            return
-
-        # All fallback models exhausted — tell the user something went wrong.
-        tried = ", ".join(m for m, _ in fallback_chain)
-        self._record_trace_failure(f"all models exhausted: {tried}", step_name="fallback_chain")
-        yield ("error", f"所有模型均不可用（已尝试: {tried}），请稍后重试或 /provider 切换")
+        yield from _send_stream_impl(self, user_text, image_url)
 
     # ── send_stream 的拆分子方法（行为不变，仅降低单方法复杂度）──
     # 以下三个方法由 send_stream 调用，分别处理：吃 delta / 执行工具 / 收尾计费。
@@ -1561,288 +918,13 @@ class ChatSession(ChatToggleMixin):
         return buffer
 
     def _run_tool_calls(self, tool_calls, executed_sigs, executed_cache, loop_idx=0):
-        """执行并喂回一轮工具调用，yield 副作用，return True 表示应中断流。
+        """执行并喂回一轮工具调用，yield 副作用。
 
-        契约（输出不重复 DNA · 工具副作用层）：
-        - 配合 merge_tool_calls 的单轮内去重，本方法做**跨轮**去重：
-          相同 (name, normalized_args) 的非写工具只执行一次，复用缓存。
-        - 写操作类工具（_WRITE_TOOLS）不缓存。
-        - yield 用户可见的副作用（info/image/video/confirm）。
-
-        Returns (via StopIteration.value):
-            False — confirm 不再中断流（拒绝时占位已在历史中，合法）。
+        核心实现已提取至 core.chat_stream_tools._run_tool_calls_impl。
         """
-        from core.context_tools import compress_tool_result
+        from core.chat_stream_tools import _run_tool_calls_impl
 
-        # ── Adaptive state shared with send_stream ──
-        _loop = loop_idx
-
-        # ── Phase 1: Tool call validation ──
-        if getattr(self, "tvl", None) is not None:
-            import json as _json
-            import time as _time
-
-            validation_issues: list[str] = []
-            _merged_check = getattr(self, "_last_merged_tool_calls", merge_tool_calls(tool_calls))
-            _v_start = _time.time()
-            for tc_check in _merged_check:
-                fname_c = self.tools.resolve_name(tc_check["function"]["name"])
-                fargs_raw = tc_check["function"].get("arguments", "{}")
-                if isinstance(fargs_raw, str):
-                    try:
-                        fargs_c = _json.loads(fargs_raw)
-                    except _json.JSONDecodeError:
-                        fargs_c = {}
-                else:
-                    fargs_c = fargs_raw
-                issues = self.tvl.validate_tool_call(fname_c, fargs_c)
-                if issues:
-                    for iss in issues:
-                        validation_issues.append(f"[{iss.code.value}] {iss.tool_name}: {iss.message}")
-            _v_duration = (_time.time() - _v_start) * 1000
-            if validation_issues:
-                error_text = "\\n".join(validation_issues)
-                logger.warning(f"Tool validation failed:\\n{error_text}")
-                yield ("validation_error", error_text)
-                msg = f"[ToolCall Validation Failed]\\n{error_text}\\n---\\nFix your tool calls and retry."
-                self.messages.append({"role": "tool", "content": msg, "tool_call_id": "__validation__"})
-                # Telemetry: validation blocked
-                try:
-                    self.tvl.record_telemetry("tool_validation", "p1", "", _v_duration, False, error_text[:100])
-                except Exception:
-                    logging.getLogger("crux").debug("silent except", exc_info=True)
-                return False
-            # Telemetry: validation passed
-            try:
-                self.tvl.record_telemetry(
-                    "tool_validation", "p1", "", _v_duration, True, f"{len(_merged_check)} calls OK"
-                )
-            except Exception:
-                logging.getLogger("crux").debug("silent except", exc_info=True)
-
-        merged = getattr(self, "_last_merged_tool_calls", merge_tool_calls(tool_calls))
-        for tc in merged:
-            fname = self.tools.resolve_name(tc["function"]["name"])
-            fargs = tc["function"].get("arguments", "{}")
-            sig = (fname, _normalize_tool_args(fargs))
-            # 跨轮去重：非写工具且本会话已执行过 → 复用缓存，不重复 dispatch
-            if fname not in self._WRITE_TOOLS and sig in executed_sigs:
-                tool_result = executed_cache.get(sig, "")
-                # 不 yield 副作用（用户已见过一次）
-                append_tool_result = True
-            else:
-                # Surface tool activity into message pane — compact one-line format
-                _desc = {
-                    "read_file": "读取",
-                    "write_file": "写入",
-                    "edit_file": "编辑",
-                    "run_bash": "执行",
-                    "run_python": "Python",
-                    "run_test": "测试",
-                    "search_files": "搜索",
-                    "search_symbols": "查符号",
-                    "git_diff": "diff",
-                    "git_status": "状态",
-                    "git_add_commit": "提交",
-                    "agent_swarm": "并行",
-                }.get(fname, fname)
-                _path = ""
-                if isinstance(fargs, dict):
-                    _path = str(fargs.get("path", fargs.get("command", "")))[:50]
-                elif isinstance(fargs, str):
-                    _path = fargs[:50]
-                _line = f"\n> {_desc} {_path}" if _path else f"\n> {_desc}"
-                yield ("text", _line + "\n")
-                with TraceContext("tool_call", tool_name=fname, call_id=tc.get("id", "")) as span:
-                    try:
-                        # ── Phase 2c: Diff guard snapshot before write ──
-                        if fname in ("write_file", "edit_file", "patch_file"):
-                            try:
-                                import json as _json2
-
-                                _args2 = _json2.loads(fargs) if isinstance(fargs, str) else (fargs or {})
-                                _path2 = _args2.get("path", "")
-                                if _path2:
-                                    getattr(self, "tvl", None) and self.tvl.snapshot_before_write(_path2)
-                            except Exception:
-                                logging.getLogger("crux").debug("silent except", exc_info=True)
-
-                        # Dispatch (sync, same as HEAD — ThreadPoolExecutor timeout guard
-                        # removed because it masked fast-fail errors in mock/test environments
-                        # and introduced 120s hangs in fallback paths).
-                        raw = self._dispatch_tool(fname, fargs)
-                        from core.runtime_result import ToolResult
-
-                        normalized = ToolResult.from_raw(raw)
-                        if not normalized.ok:
-                            tool_result = format_tool_error(fname, normalized.content)
-                        else:
-                            content = normalized.content
-                            tool_result = _summarize_tool_output(content, fname) if len(content) > 2000 else content
-                        side_effects = list(normalized.side_effects)
-
-                        # ── 自动重试: 仅对幂等/可重试工具，且错误表明可修正时才重试 ──
-                        _can_retry = not normalized.ok and fname in _AUTO_RETRY_TOOLS
-                        if _can_retry:
-                            tool_result, side_effects = auto_retry_tool(self, fname, fargs, tool_result)
-
-                        # ── 工具结果缓存: 缓存成功的只读工具结果 ──
-                        try:
-                            from core.tool_cache import CACHEABLE_TOOLS, get_tool_cache
-
-                            if fname in CACHEABLE_TOOLS and normalized.ok:
-                                get_tool_cache().set(fname, fargs, str(tool_result))
-                        except ImportError:
-                            pass
-
-                        # ── Phase 2a+b: Validate result + track history ──
-                        try:
-                            tvl = getattr(self, "tvl", None)
-                            if tvl:
-                                vr = tvl.validate_result(fname, str(tool_result)[:2000], success=True)
-                                if not vr.is_valid:
-                                    logger.warning(f"Result validation: {fname} -> {len(vr.notes)} issues")
-                                tvl.track_tool_use_v2(fname, fargs, str(tool_result)[:2000], success=True)
-                        except Exception:
-                            logging.getLogger("crux").debug("silent except", exc_info=True)
-                    except Exception as e:
-                        logger.exception("工具 %s 执行异常", fname)
-                        tool_result = f"[错误] 工具 {fname} 执行失败: {type(e).__name__}: {e}"
-                        self._record_trace_failure(str(e), step_name=fname)
-
-                        # ── Phase 2a: Track failed execution ──
-                        try:
-                            tvl = getattr(self, "tvl", None)
-                            if tvl:
-                                vr = tvl.validate_result(fname, tool_result, success=False)
-                                tvl.track_tool_use_v2(fname, fargs, tool_result, success=False)
-                        except Exception:
-                            logging.getLogger("crux").debug("silent except", exc_info=True)
-                        side_effects = [("info", tool_result)]
-                        metrics.increment("tool_errors")
-                        self._last_turn_had_errors = True
-                    # ── Agent mode 反馈: 记录 agent_swarm / multi_agent 执行结果 ──
-                    if fname in ("agent_swarm", "multi_agent"):
-                        try:
-                            from core.multi_agent import AgentMode, AgentModeResult, record_agent_mode_result
-
-                            _is_ok = (
-                                not str(tool_result).startswith("[错误]")
-                                and "error" not in str(tool_result).lower()[:200]
-                            )
-                            _mode = AgentMode.SWARM if fname == "agent_swarm" else AgentMode.PLAN_EXECUTE
-                            _latency = (span.end_time - span.start_time) if hasattr(span, "end_time") else 0.0
-                            record_agent_mode_result(
-                                AgentModeResult(
-                                    mode=_mode,
-                                    task_type="tool_call",
-                                    success=_is_ok,
-                                    latency=_latency,
-                                )
-                            )
-                        except (ImportError, AttributeError):
-                            pass
-                    # ── 方法论追踪: 自动记录文件操作 + 触发升级 ──
-                    try:
-                        from core.methodology import get_methodology_state
-
-                        m_state = get_methodology_state()
-                        m_state.record_tool(fname)
-                        # 追踪写入文件
-                        if fname in self._WRITE_TOOLS:
-                            path = json.loads(fargs).get("path") or json.loads(fargs).get("file_path", "")
-                            if path:
-                                m_state.files_touched.append(path)
-                                # 文件数超阈值 → 自动升级
-                                n = len(set(m_state.files_touched))
-                                if n > 3 and m_state.task_level.value in ("micro", "normal"):
-                                    m_state.escalate(f"files>{n}")
-                                elif n > 1 and m_state.task_level.value == "micro":
-                                    m_state.escalate("files>1")
-                    except (ImportError, json.JSONDecodeError, OSError):
-                        pass
-                    # Fold oversized tool results for cleaner display
-                    if isinstance(tool_result, str) and len(tool_result) > 800:
-                        preview = "\n".join(tool_result.split("\n")[:5])
-                        tool_result = f"{preview}\n... [{len(tool_result)} chars folded, result sent to model]"
-                    span.set_attribute("result_chars", len(tool_result) if isinstance(tool_result, str) else -1)
-                    metrics.increment("tool_calls")
-                    metrics.timing("tool_call_ms", span.duration_ms())
-                    # #5 Prompt Lab: 记录工具调用和错误
-                    try:
-                        from core.prompt_lab import get_prompt_lab
-
-                        get_prompt_lab().record_tool_call()
-                        if "[错误]" in str(tool_result) or "error" in str(tool_result).lower():
-                            get_prompt_lab().record_tool_error()
-                    except (ImportError, OSError) as e:
-                        logger.debug("optional module skipped: %s", e)
-
-                        pass
-                # ── Adaptive loop limit: expand on success, shrink on cascade failures ──
-                _tool_ok = not str(tool_result).startswith("[错误]") and not str(tool_result).startswith("[自愈失败]")
-                if _tool_ok:
-                    self._consecutive_failures = 0
-                    self._consecutive_successes += 1
-                    if self._consecutive_successes > 10:
-                        self._effective_max = max(self._effective_max, int(self._effective_max * 1.5))
-                        self._consecutive_successes = 0
-                else:
-                    self._consecutive_failures += 1
-                    self._consecutive_successes = 0
-                    if self._consecutive_failures >= 3:
-                        self._effective_max = min(self._effective_max, _loop + 5)
-                        yield ("info", f"连续 {self._consecutive_failures} 次失败 — 剩余最多 5 次重试")
-                # ── 高风险工具确认：同意即执行，拒绝则占位跳过 ──
-                is_confirm = any(k == "confirm" for k, _ in side_effects)
-                if is_confirm:
-                    # a. 预追加占位 tool 结果（保证消息历史始终合法）。
-                    #    后续 yield from side_effects 会触发 UI 的 Confirm.ask（同步阻塞）。
-                    #    若用户拒绝: PermissionError 从 yield from 抛出 → generator 关闭
-                    #      → 占位安全留在历史中 → 下一轮 API 不会报 orphan 错误 ✓
-                    #    若用户同意: yield from 正常返回 → 进入步骤 b
-                    placeholder = f"[高风险工具 {fname}: 等待用户确认]"
-                    self.messages.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": tc.get("id", ""),
-                            "content": placeholder,
-                        }
-                    )
-                    yield from side_effects  # ← Confirm.ask 阻塞点
-                    # b. 用户同意 → 用 confirmed=True 重新执行，跳过 confirm 检查
-                    tool_result, exec_side_effects = self._dispatch_tool(fname, fargs, confirmed=True)
-                    yield from exec_side_effects
-                    # c. 用真实结果替换占位
-                    self.messages[-1] = {
-                        "role": "tool",
-                        "tool_call_id": tc.get("id", ""),
-                        "content": compress_tool_result(tool_result, self.client, self.model),
-                    }
-                    append_tool_result = False  # 已在 confirm 分支内追加
-                else:
-                    yield from side_effects
-                    append_tool_result = True
-                # 把 tool 执行结果 yield 给 UI，实现闭环展示
-                result_text = tool_result if isinstance(tool_result, str) else str(tool_result)
-                if len(result_text) > 2000:
-                    result_text = result_text[:2000] + "\n...[folded]"
-                yield ("tool_result", {"name": fname, "result": result_text})
-                if fname not in self._WRITE_TOOLS:
-                    executed_sigs.add(sig)
-                    executed_cache[sig] = tool_result
-            # 上下文窗口防护：智能压缩（抽取→LLM→截断三级路由），
-            # 防止大文件/长输出撑爆 LLM 上下文。原始结果仍在 cache 中。
-            # confirm 分支已在上面追加 tool 结果，跳过此处追加。
-            if append_tool_result:
-                self.messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tc.get("id", ""),
-                        "content": compress_tool_result(tool_result, self.client, self.model),
-                    }
-                )
-        return False
+        yield from _run_tool_calls_impl(self, tool_calls, executed_sigs, executed_cache, loop_idx)
 
     def _finalize_outcome(self, model: str, last_usage) -> None:
         """正常收尾：成本追踪 + Prompt Lab outcome + 方法论工作流推进 + 会话快照。"""
@@ -1962,19 +1044,8 @@ class ChatSession(ChatToggleMixin):
         return _restore(cls._SNAPSHOT_DIR)
 
     def _trigger_reflection(self) -> None:
-        """Post-turn reflection: light model reviews output quality."""
-        if self._reflection is None:
-            try:
-                from core.reflection_loop import ReflectionLoop
-
-                self._reflection = ReflectionLoop()
-            except (ImportError, OSError) as e:
-                logger.debug("ReflectionLoop init failed: %s", e)
-                return
-        try:
-            self._reflection.review(self)
-        except Exception as e:
-            logger.debug("reflection review failed: %s", e)
+        """Post-turn reflection: disabled — extra API call per message, output invisible."""
+        pass
 
     def _inject_memory(self, user_input: str) -> None:
         """Inject relevant past memories as system context."""

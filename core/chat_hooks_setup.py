@@ -14,7 +14,7 @@ import logging
 from core.intelligence_hook import IntelligenceHook
 from core.vision_context import VisionContext
 
-logger = logging.getLogger("crux")
+logger = logging.getLogger(__name__)
 
 
 def wire_session_hooks(session) -> None:
