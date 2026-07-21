@@ -324,6 +324,15 @@ class CopySelectedMessage:
     pass
 
 
+@dataclass
+class ActivityLogged:
+    """A UI activity item was logged (tool start, copy, command, etc.)."""
+
+    icon: str
+    style: str
+    msg: str
+
+
 # ── Unified event type ────────────────────────────────────────────
 
 # All events that the reducer handles.  Using a flat union of dataclass
@@ -369,4 +378,5 @@ UiEvent = (
     | ExitCopyMode
     | MoveCopySelection
     | CopySelectedMessage
+    | ActivityLogged
 )

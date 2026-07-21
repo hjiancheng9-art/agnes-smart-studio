@@ -19,6 +19,7 @@ from typing import Any
 
 from .effects import Effect
 from .events import (
+    ActivityLogged,
     CancelRequested,
     ClearScreen,
     CopyFocusedMessage,
@@ -105,6 +106,10 @@ def reduce_ui(state: UiState, event: Any) -> tuple[UiState, list[Effect]]:
         effects.append(Effect.render_activity())
 
     elif isinstance(event, StreamInfo):
+        effects.append(Effect.render_activity())
+
+    elif isinstance(event, ActivityLogged):
+        state = _append_activity(state, event.icon, event.style, event.msg)
         effects.append(Effect.render_activity())
 
     elif isinstance(event, StreamError):
