@@ -244,7 +244,7 @@ def extractive_compress(
         # 失败回退截断，但记录异常类型以便排查
         import logging
 
-        _log = logging.getLogger("crux.context")
+        _log = logging.getLogger(__name__)
         _log.warning("extractive_compress failed (%s: %s), falling back to truncate", type(e).__name__, e)
         return truncate_tool_result(text, max_chars)
 
@@ -288,7 +288,7 @@ def abstractive_compress(
     except (OSError, RuntimeError, ValueError, TypeError, KeyError) as e:
         import logging
 
-        _log = logging.getLogger("crux.context")
+        _log = logging.getLogger(__name__)
         _log.warning("abstractive_compress failed (%s: %s), falling back to extractive", type(e).__name__, e)
         pass  # 静默回退
 

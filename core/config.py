@@ -193,7 +193,7 @@ def get_crux_vision_model() -> str:
                 return vm.get("light") or vm.get("pro") or next(iter(vm.values()))
         return "GLM-4V-Flash"
     except (KeyError, json.JSONDecodeError, OSError, ValueError) as e:
-        logger = logging.getLogger("crux.config")
+        logger = logging.getLogger(__name__)
         logger.debug("Vision model resolution failed (%s: %s), falling back to GLM-4V-Flash", type(e).__name__, e)
         return "GLM-4V-Flash"
 

@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from core.memory_bridge import MemoryBridge
     from core.reflection_loop import ReflectionLoop
 
-logger = logging.getLogger("crux.chat")
+logger = logging.getLogger(__name__)
 
 
 from core.agent import ContextManager
@@ -147,6 +147,7 @@ class ChatSession(ChatToggleMixin):
         vision_client: CruxClient | None = None,
         vision_model: str = "",
     ) -> None:
+        """初始化 ChatManager — 绑定 CruxClient、配置模型/视觉/工具/技能等子系统。"""
         self.client = client
         self.vision_client = vision_client or client  # 未指定时退化为主客户端（向后兼容）
         self.vision_model = vision_model or get_crux_vision_model()
@@ -244,82 +245,102 @@ class ChatSession(ChatToggleMixin):
     # ── Property aliases → SessionConfig (GPT v6.2: centralized state) ──
     @property
     def model(self):
+        """当前模型名称（getter/setter → SessionConfig）。"""
         return self.cfg.model
 
     @model.setter
     def model(self, v):
+        """设置当前模型名称。"""
         self.cfg.model = v
 
     @property
     def auto_model(self):
+        """是否启用自动模型选择。"""
         return self.cfg.auto_model
 
     @auto_model.setter
     def auto_model(self, v):
+        """设置自动模型选择开关。"""
         self.cfg.auto_model = v
 
     @property
     def enable_thinking(self):
+        """是否启用深度思考模式。"""
         return self.cfg.enable_thinking
 
     @enable_thinking.setter
     def enable_thinking(self, v):
+        """设置深度思考模式开关。"""
         self.cfg.enable_thinking = v
 
     @property
     def code_mode(self):
+        """是否启用代码模式。"""
         return self.cfg.code_mode
 
     @code_mode.setter
     def code_mode(self, v):
+        """设置代码模式开关。"""
         self.cfg.code_mode = v
 
     @property
     def mode(self):
+        """当前会话模式。"""
         return self.cfg.mode
 
     @mode.setter
     def mode(self, v):
+        """设置会话模式。"""
         self.cfg.mode = v
 
     @property
     def unlimited_tools(self):
+        """是否无限制工具调用。"""
         return self.cfg.unlimited_tools
 
     @unlimited_tools.setter
     def unlimited_tools(self, v):
+        """设置无限制工具调用开关。"""
         self.cfg.unlimited_tools = v
 
     @property
     def agent_mode(self):
+        """是否启用 Agent 模式。"""
         return self.cfg.agent_mode
 
     @agent_mode.setter
     def agent_mode(self, v):
+        """设置 Agent 模式开关。"""
         self.cfg.agent_mode = v
 
     @property
     def browser_enabled(self):
+        """浏览器控制是否启用。"""
         return self.cfg.browser_enabled
 
     @browser_enabled.setter
     def browser_enabled(self, v):
+        """设置浏览器控制开关。"""
         self.cfg.browser_enabled = v
 
     @property
     def notebook_enabled(self):
+        """Jupyter Notebook 是否启用。"""
         return self.cfg.notebook_enabled
 
     @notebook_enabled.setter
     def notebook_enabled(self, v):
+        """设置 Notebook 开关。"""
         self.cfg.notebook_enabled = v
 
     @property
     def audio_enabled(self):
+        """音频功能是否启用。"""
         return self.cfg.audio_enabled
 
     @audio_enabled.setter
     def audio_enabled(self, v):
+        """设置音频功能开关。"""
         self.cfg.audio_enabled = v
 
     @property
@@ -749,7 +770,41 @@ class ChatSession(ChatToggleMixin):
                     prompt += rc
             except (ImportError, Exception):
                 pass
+        # Inject methodology constraints — LLM sees current task level
+        prompt += self._build_methodology_hint()
         return prompt
+
+    @staticmethod
+    def _build_methodology_hint() -> str:
+        """Inject current task level and constraints into the system prompt.
+
+        Lets the LLM know BEFORE proposing tools what restrictions apply,
+        reducing confusing "blocked" tool failures.
+        """
+        try:
+            from core.methodology import TaskLevel, get_methodology_state
+
+            state = get_methodology_state()
+            level = state.task_level
+            if level == TaskLevel.A:
+                return ""  # No restrictions for micro-tasks
+
+            lines = ["\n\n## 当前任务约束 (Methodology)"]
+            lines.append(f"- 任务级别: **{level.value.upper()}**")
+
+            if state.requires_plan and not state.plan_exists:
+                lines.append("- ⚠️ 必须先写 Plan 确认后才能执行写操作")
+            if state.requires_test_baseline and not state.test_baseline_recorded:
+                lines.append("- ⚠️ 必须先记录测试基线")
+            if state.requires_worktree and not state.worktree_created:
+                lines.append("- ⚠️ 必须在隔离 worktree 中操作")
+
+            if state._tdd_phase:
+                lines.append(f"- TDD 阶段: {state._tdd_phase}")
+            lines.append(f"- 工作流: 步骤 {state.workflow_step}/7")
+            return "\n".join(lines)
+        except (ImportError, AttributeError):
+            return ""
 
         # Prompt cache managed by chat_prompt.PromptCache (single source of truth)
 
@@ -1021,13 +1076,25 @@ class ChatSession(ChatToggleMixin):
 
     def _maybe_snapshot(self) -> None:
         """Snapshot every N turns (best-effort). Delegates to core.chat_history.
-        _turn_count is managed by _finalize_outcome; read-only here."""
+        _turn_count is managed by _finalize_outcome; read-only here.
+
+        Also persists methodology state so task level, workflow step, and
+        compliance gates survive session restarts.
+        """
         turn = getattr(self, "_turn_count", 0)
         if turn % self._SNAPSHOT_INTERVAL != 0:
             return
         from core.chat_history import save_snapshot
 
         save_snapshot(self._SNAPSHOT_DIR, self.model, turn, self.messages)
+
+        # Persist methodology state alongside chat snapshots
+        try:
+            from core.methodology import save_methodology_state
+
+            save_methodology_state()
+        except ImportError:
+            pass
 
     @staticmethod
     def sanitize_messages(messages: list[dict]) -> list[dict]:

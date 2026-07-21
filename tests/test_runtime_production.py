@@ -2,6 +2,9 @@
 Tests for Runtime Guard, Budget, Cancellation, Rollback
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
 import contextlib
 import os
 import tempfile
@@ -130,7 +133,7 @@ class TestRuntimeGuard:
             cb.call(lambda: (_ for _ in ()).throw(ValueError("fail")))
             cb.call(lambda: (_ for _ in ()).throw(ValueError("fail")))
         except (ValueError, RuntimeError):
-            pass
+            logger.debug("silent except", exc_info=True)
         hc = guard.health_check()
         # Circuit breaker may not trip on ValueError alone — verify health check
         # returns a valid status dict regardless

@@ -1,0 +1,40 @@
+L10: StreamTextChunk → (multi-line)
+L14: StreamThinkingChunk → (multi-line)
+L18: StreamToolStarted → (multi-line)
+L23: StreamToolFinished → state = replace(state, stream=StreamState(status=StreamStatus.ERROR))
+L27: StreamToolError → state = replace(state, stream=StreamState(status=StreamStatus.ERROR))
+L31: StreamInfo → state = replace(state, stream=StreamState(status=StreamStatus.ERROR))
+L34: StreamError → state = replace(state, stream=StreamState(status=StreamStatus.ERROR))
+L38: StreamDone → state = replace(
+L47: StreamCancelled → state = replace(state, stream=StreamState(status=StreamStatus.IDLE))
+L52: CancelRequested → state = replace(state, focus_mode=not state.focus_mode)
+L56: SubmitInput → state = replace(state, focus_mode=not state.focus_mode)
+L60: ToggleFocusMode → state = replace(state, focus_mode=not state.focus_mode)
+L63: ToggleInteractionMode → state = replace(state, interaction=replace(state.interaction, mode=new_mode))
+L71: ToggleActivity → state = replace(state, activity=replace(state.activity, expanded=not state.activity.expanded))
+L74: ToggleThinking → state = replace(state, thinking=replace(state.thinking, pinned=not state.thinking.pinned))
+L77: ToggleDashboard → state = replace(state, screen=new_screen)
+L81: ScrollBy → (multi-line)
+L85: ScrollTo → state = replace(state, activity=ActivityState(), thinking=ThinkingState())
+L89: CopyFocusedMessage → state = replace(state, activity=ActivityState(), thinking=ThinkingState())
+L92: OpenMessageDetail → state = replace(state, activity=ActivityState(), thinking=ThinkingState())
+L95: ClearScreen → state = replace(state, activity=ActivityState(), thinking=ThinkingState())
+L99: NavigateTo → state = replace(state, screen=event.screen)
+L103: NavigateBack → state = replace(state, screen=Screen.MAIN)
+L106: ExecuteCommand → state = replace(
+L109: ExitRequested → state = replace(
+L112: ImageSubmitted → state = replace(
+L116: ResizeEvent → state = replace(
+L124: SessionUpdate → (multi-line)
+L127: SystemNotification → (multi-line)
+L130: TickEvent → state = replace(state, palette=replace(p, open=True, query="", selected=0))
+L133: KeyPressed → state = replace(state, palette=replace(p, open=True, query="", selected=0))
+L138: TogglePalette → state = replace(state, palette=replace(p, open=True, query="", selected=0))
+L145: PaletteFilter → state = replace(state, palette=replace(
+L152: PaletteMoveUp → state = replace(state, palette=replace(p, selected=max(0, p.selected - 1)))
+L155: PaletteMoveDown → state = replace(state, palette=replace(p, selected=min(max_idx, p.selected + 1)))
+L160: PaletteSelect → state = replace(state, palette=replace(p, open=False, query="", selected=0))
+L170: EnterCopyMode → state = replace(state, interaction=replace(i, mode=InteractionMode.COPY, focus_idx=event.total_messages - 1))
+L173: ExitCopyMode → state = replace(state, interaction=replace(i, mode=InteractionMode.NORMAL))
+L176: MoveCopySelection → state = replace(state, interaction=replace(i, focus_idx=new_idx))
+L181: CopySelectedMessage → return state, effects

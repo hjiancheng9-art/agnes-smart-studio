@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import time
 
-logger = logging.getLogger("crux.rollback")
+logger = logging.getLogger(__name__)
 
 # In-memory undo log (survives within session)
 _undo_log: list[dict] = []

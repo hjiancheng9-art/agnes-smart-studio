@@ -17,7 +17,7 @@ import re
 import unicodedata
 from enum import Enum
 
-logger = logging.getLogger("crux.agent")
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "COMPRESS_PROMPT",
@@ -468,7 +468,7 @@ class SubAgent:
             except Exception as e:
                 import logging
 
-                logging.getLogger("crux.agent").warning("Model lookup failed for tier '%s', falling back: %s", tier, e)
+                logging.getLogger(__name__).warning("Model lookup failed for tier '%s', falling back: %s", tier, e)
                 model = "deepseek-v4-pro"  # 最终 fallback
         # tier 路由
         if tier in ("light", "pro", "heavy"):

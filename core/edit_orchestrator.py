@@ -20,7 +20,7 @@ import os
 import subprocess
 from pathlib import Path
 
-logger = logging.getLogger("crux.edit")
+logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent.parent
 

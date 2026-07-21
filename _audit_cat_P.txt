@@ -1,0 +1,1 @@
+tests\test_v3_reducer.py:156:9: PT015 Assertion always fails, replace with `pytest.fail()`

@@ -13,7 +13,7 @@ import logging
 import time
 from pathlib import Path
 
-logger = logging.getLogger("crux.memory")
+logger = logging.getLogger(__name__)
 
 MEMORY_DIR = Path(__file__).resolve().parent.parent / ".crux_memory"
 MEMORY_FILE = MEMORY_DIR / "memory.json"

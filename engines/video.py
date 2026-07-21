@@ -106,7 +106,7 @@ def _clean_video_id(raw: str) -> str:
             idx = decoded.rfind("video_id:")
             return decoded[idx + len("video_id:") :]
     except (ValueError, UnicodeDecodeError):
-        pass
+        logger.debug("silent except", exc_info=True)
     # 如果不在 base64 里，检查明文
     if "litellm:" in raw and ";video_id:" in raw:
         idx = raw.rfind("video_id:")

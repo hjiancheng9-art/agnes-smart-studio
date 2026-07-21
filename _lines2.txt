@@ -1,0 +1,200 @@
+1:        def _palette_down(event):
+2:            if bool(getattr(self._state, "palette", None) and getattr(self._state.palette, "open", False)):
+3:                from .events import PaletteMoveDown
+4:                self._post_and_invalidate(PaletteMoveDown())
+5:
+6:        @kb.add("enter")
+7:        def _(event):
+8:            # Palette open → select item
+9:            p = getattr(self._state, "palette", None)
+10:            if p and p.open:
+11:                self._post_and_invalidate(PaletteSelect())
+12:                return
+13:            if self._state.interaction.mode == InteractionMode.COPY:
+14:                return  # Copy mode: c to copy, Esc to exit, Enter does nothing
+15:            buf = event.current_buffer
+16:            text = buf.text.strip()
+17:            buf.reset()
+18:            if not text:
+19:                return
+20:            if text in ("/q", "/quit", "/exit"):
+21:                self._app.exit()
+22:                return
+23:            # Post SubmitInput — reducer + _fx_run_stream handles the rest
+24:            self._post_and_invalidate(SubmitInput(text))
+25:
+26:        @kb.add("escape")
+27:        def _palette_close(event):
+28:            if bool(getattr(self._state, "palette", None) and getattr(self._state.palette, "open", False)):
+29:                from .events import TogglePalette
+30:                self._post_and_invalidate(TogglePalette())
+31:
+32:        @kb.add("c-home", eager=True)
+33:        def _(event):
+34:            self._post_and_invalidate(ScrollTo("top"))
+35:
+36:        @kb.add("c-end", eager=True)
+37:        def _(event):
+38:            self._post_and_invalidate(ScrollTo("bottom"))
+39:
+40:        # ── Mode toggles: direct state mutation + invalidate ──
+41:        # Bypass the event/reducer pipeline because these keys are captured
+42:        # before ptk's event loop can process them. Direct mutation is safe
+43:        # since we're on the UI thread.
+44:        @kb.add("f12", eager=True)
+45:        def _(event):
+46:            self._post_and_invalidate(ToggleFocusMode())
+47:
+48:        @kb.add("f7", eager=True)
+49:        def _(event):
+50:            self._post_and_invalidate(ToggleInteractionMode())
+51:
+52:        @kb.add("f8", eager=True)
+53:        def _(event):
+54:            self._post_and_invalidate(ToggleActivity())
+55:
+56:        @kb.add("f6", eager=True)
+57:        def _(event):
+58:            self.thinking_panel.toggle_pin()
+59:            self._app.invalidate()
+60:
+61:        # ── Copy (quick) ──
+62:        @kb.add("c")
+63:        def _(event):
+64:            if event.app.current_buffer is self.input_buffer:
+65:                event.current_buffer.insert_text("c")
+66:                return
+67:            self._post_and_invalidate(CopyFocusedMessage())
+68:
+69:        @kb.add("C")
+70:        def _(event):
+71:            if event.app.current_buffer is self.input_buffer:
+72:                event.current_buffer.insert_text("C")
+73:                return
+74:            self._post_and_invalidate(CopyFocusedMessage(as_markdown=True))
+75:
+76:        # ── Misc ──
+77:        @kb.add("c-l", eager=True)
+78:        def _(event):
+79:            self.message_pane.clear()
+80:            self.thinking_panel.clear()
+81:            self._app.invalidate()
+82:
+83:        @kb.add("escape")
+84:        def _(event):
+85:            s = self._state.screen
+86:            if s != Screen.MAIN:
+87:                self._post_and_invalidate(NavigateBack())
+88:                return
+89:            if self._state.interaction.mode == InteractionMode.COPY:
+90:                self._post_and_invalidate(ToggleInteractionMode(target=InteractionMode.NORMAL))
+91:                return
+92:            self._post_and_invalidate(CancelRequested())
+93:
+94:        @kb.add("c-v")
+95:        def _(event):
+96:            self.input_buffer.paste_from_clipboard(event.app.clipboard.get_data())
+97:
+98:        @kb.add("escape", "escape")
+99:        def _(event):
+100:            self.input_buffer.reset()
+101:
+102:        @kb.add("c-k")
+103:        def _(event):
+104:            self.input_buffer.reset()
+105:
+106:        # ── Copy mode (Ctrl+F) ──
+107:        @kb.add("f3", eager=True)
+108:        def _enter_copy(event):
+109:            if self._state.interaction.mode == InteractionMode.COPY:
+110:                self._post_and_invalidate(ExitCopyMode())
+111:                return
+112:            total = len(self._msg_store)
+113:            if total > 0:
+114:                self._post_and_invalidate(EnterCopyMode(total_messages=total))
+115:
+116:        _copy = Condition(lambda: self._state.interaction.mode == InteractionMode.COPY)
+117:
+118:        @kb.add("up", filter=_copy)
+119:        def _copy_up(event):
+120:            total = len(self._msg_store)
+121:            self._post_and_invalidate(MoveCopySelection(delta=-1, total=total))
+122:
+123:        @kb.add("down", filter=_copy)
+124:        def _copy_down(event):
+125:            total = len(self._msg_store)
+126:            self._post_and_invalidate(MoveCopySelection(delta=1, total=total))
+127:
+128:        @kb.add("c", filter=_copy)
+129:        def _copy_selected(event):
+130:            idx = self._state.interaction.focus_idx
+131:            msg = self._msg_store.get(idx)
+132:            if msg:
+133:                # Post copy effect directly
+134:                self._post_and_invalidate(CopySelectedMessage())
+135:                # Also do the actual clipboard copy now (side effect)
+136:                try:
+137:                    import pyperclip
+138:                    pyperclip.copy(msg.text)
+139:                except Exception:
+140:                    import logging; logging.getLogger(__name__).debug('silent except', exc_info=True)
+141:            self._post_and_invalidate(ExitCopyMode())
+142:
+143:        # ── Vim mode ──
+144:        _vim = Condition(lambda: self._state.interaction.mode == InteractionMode.VIM)
+145:
+146:        @kb.add("j", filter=_vim)
+147:        def _(event):
+148:            self._post_and_invalidate(ScrollBy(-3))
+149:
+150:        @kb.add("k", filter=_vim)
+151:        def _(event):
+152:            self._post_and_invalidate(ScrollBy(3))
+153:
+154:        @kb.add("g", "g", filter=_vim)
+155:        def _(event):
+156:            self._post_and_invalidate(ScrollTo("top"))
+157:
+158:        @kb.add("G", filter=_vim)
+159:        def _(event):
+160:            self._post_and_invalidate(ScrollTo("bottom"))
+161:
+162:        return kb
+163:
+164:    # ══════════════════════════════════════════════════════════════
+165:    #  Input handler
+166:    # ══════════════════════════════════════════════════════════════
+167:
+168:    def _on_input_accept(self, buf: Buffer) -> bool:
+169:        text = buf.text
+170:        buf.reset()
+171:        self._post_and_invalidate(SubmitInput(text))
+172:        return True
+173:
+174:    # ══════════════════════════════════════════════════════════════
+175:    #  Layout (prompt_toolkit as rendering backend only)
+176:    # ══════════════════════════════════════════════════════════════
+177:
+178:    def _build_app(self) -> Application:
+179:        # ── Header: left (beast + logo) | right (model + ◎ clock) ──
+180:        def _header_left():
+181:            bstyle, bicon = _BEASTS[int(time.time() / 2.0) % len(_BEASTS)]
+182:            return FormattedText([
+183:                (bstyle, f" {bicon} "),
+184:                ("class:header-logo", f"CRUX Studio v{_CRUX_VERSION}"),
+185:                ("class:header-sep", " "),
+186:            ])
+187:
+188:        def _header_right():
+189:            s = self._state
+190:            model = s.session.model or "CRUX"
+191:            now = datetime.now().strftime("%H:%M")
+192:            return FormattedText([
+193:                ("class:header-model", f" {model} "),
+194:                ("class:header-latency", ["◎", "◉", "○", "◉"][int(time.time() * 2.5) % 4] + " "),
+195:                ("class:status-bar-context", now),
+196:                ("", " "),
+197:            ])
+198:
+199:        def _header_fill():
+200:            left_vis = 2 + 2 + len(f"CRUX Studio v{_CRUX_VERSION}")

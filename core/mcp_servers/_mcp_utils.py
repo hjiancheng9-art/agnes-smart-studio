@@ -9,11 +9,11 @@ import os
 import shutil
 import subprocess
 
-logger = logging.getLogger("crux.mcp_utils")
+logger = logging.getLogger(__name__)
 import sys
 from typing import Any
 
-_log = logging.getLogger("crux.mcp_utils")
+_log = logging.getLogger(__name__)
 
 
 def _kill_process_tree(proc) -> None:

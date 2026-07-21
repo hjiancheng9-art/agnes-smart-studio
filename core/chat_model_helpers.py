@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 
-logger = logging.getLogger("crux.model_helpers")
+logger = logging.getLogger(__name__)
 
 
 def build_model_aliases() -> dict[str, str]:

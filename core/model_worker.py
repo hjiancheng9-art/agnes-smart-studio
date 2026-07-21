@@ -11,6 +11,8 @@ from typing import Any, Protocol
 
 
 class RuntimeEventType(str, Enum):
+    """运行时事件类型：CHUNK(数据块)/ERROR(错误)/DONE(完成)/WARNING(警告)。"""
+
     CHUNK = "CHUNK"
     ERROR = "ERROR"
     DONE = "DONE"
@@ -18,22 +20,31 @@ class RuntimeEventType(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class RuntimeEvent:
+    """运行时事件数据类 — 包含类型、时间戳和可选负载。"""
+
     type: RuntimeEventType
     payload: Mapping[str, Any] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
 
     @property
     def terminal(self) -> bool:
+        """是否为终止事件（ERROR 或 DONE）。"""
         return self.type is RuntimeEventType.DONE
 
 
 class ClosableStream(Protocol):
+    """可关闭流的协议基类。"""
+
     def __iter__(self) -> Iterator[Any]: ...
 
-    def close(self) -> None: ...
+    def close(self) -> None:
+        """关闭流。"""
+        ...
 
 
 class ModelStreamError(RuntimeError):
+    """模型流错误 — 包含错误码、消息和可重试标记。"""
+
     def __init__(
         self,
         *,
@@ -43,6 +54,7 @@ class ModelStreamError(RuntimeError):
         cancelled: bool = False,
         elapsed_seconds: float | None = None,
     ) -> None:
+        """初始化模型流错误 — 设置错误码、消息、可重试/取消标记。"""
         super().__init__(message)
         self.code = code
         self.message = message
@@ -51,6 +63,7 @@ class ModelStreamError(RuntimeError):
         self.elapsed_seconds = elapsed_seconds
 
     def to_payload(self) -> dict[str, Any]:
+        """将错误序列化为字典负载。"""
         payload: dict[str, Any] = {
             "code": self.code,
             "message": self.message,
@@ -92,6 +105,7 @@ class ModelWorker:
         watchdog_interval: float = 0.05,
         name: str = "crux-model",
     ) -> None:
+        """初始化模型工作线程 — 绑定流工厂、设置三个超时和事件同步原语。"""
         for field_name, value in (
             ("first_token_timeout", first_token_timeout),
             ("stream_idle_timeout", stream_idle_timeout),
@@ -132,13 +146,16 @@ class ModelWorker:
 
     @property
     def started(self) -> bool:
+        """读取线程是否已启动。"""
         return self._reader_thread is not None
 
     @property
     def done(self) -> bool:
+        """工作线程是否已完成。"""
         return self.done_event.is_set()
 
     def start(self) -> ModelWorker:
+        """启动读取线程和看门狗线程。"""
         with self._start_lock:
             if self._reader_thread is not None:
                 return self
@@ -162,6 +179,7 @@ class ModelWorker:
         return self
 
     def cancel(self, reason: str = "cancelled by user") -> bool:
+        """取消模型流 — 设置取消事件并发送错误。"""
         self.cancel_event.set()
 
         emitted = self._finish_error(
@@ -180,6 +198,7 @@ class ModelWorker:
         external_cancel_event: threading.Event | None = None,
         poll_interval: float = 0.1,
     ) -> Iterator[RuntimeEvent]:
+        """迭代运行时事件（阻塞迭代器，支持外部取消）。"""
         self.start()
 
         while True:
@@ -210,6 +229,7 @@ class ModelWorker:
         *,
         external_cancel_event: threading.Event | None = None,
     ) -> Iterator[Any]:
+        """迭代模型输出块（自动跳过 keepalive，抛出流错误）。"""
         pending_error: ModelStreamError | None = None
 
         for event in self.iter_events(
@@ -255,6 +275,7 @@ class ModelWorker:
                 return
 
     def wait_closed(self, timeout: float | None = None) -> bool:
+        """等待流关闭（最多等待 total_timeout）。"""
         deadline = None if timeout is None else time.monotonic() + timeout
 
         for thread in (
@@ -534,7 +555,7 @@ class ModelWorker:
         if isinstance(chunk, str):
             return bool(chunk)
 
-        if isinstance(chunk, (bytes, bytearray)):
+        if isinstance(chunk, bytes | bytearray):
             return bool(chunk)
 
         document = cls._to_mapping(chunk)
@@ -549,7 +570,7 @@ class ModelWorker:
 
         choices = document.get("choices")
 
-        if not isinstance(choices, (list, tuple)):
+        if not isinstance(choices, list | tuple):
             for key in (
                 "content",
                 "text",
@@ -593,16 +614,10 @@ class ModelWorker:
         if value is None:
             return False
 
-        if isinstance(
-            value,
-            (str, bytes, bytearray),
-        ):
+        if isinstance(value, str | bytes | bytearray):
             return bool(value)
 
-        if isinstance(
-            value,
-            (list, tuple, dict, set),
-        ):
+        if isinstance(value, list | tuple | dict | set):
             return bool(value)
 
         return True
@@ -702,6 +717,7 @@ class ThreadedModelStream:
         total_timeout: float = 300.0,
         name: str = "crux-model",
     ) -> None:
+        """初始化模型流封装 — 创建 ModelWorker 并绑定所有者。"""
         self.worker = ModelWorker(
             stream_factory,
             first_token_timeout=first_token_timeout,
@@ -754,12 +770,14 @@ class ThreadedModelStream:
         self,
         reason: str = "cancelled by user",
     ) -> bool:
+        """取消模型流。"""
         return self.worker.cancel(reason)
 
     def close(
         self,
         reason: str = "model stream closed",
     ) -> None:
+        """关闭模型流并清理资源。"""
         if self._closed:
             return
 

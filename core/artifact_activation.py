@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 
-logger = logging.getLogger("crux.artifacts")
+logger = logging.getLogger(__name__)
 
 
 def activate_all_artifacts():

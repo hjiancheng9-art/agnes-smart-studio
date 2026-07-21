@@ -13,7 +13,7 @@ import shutil
 import time
 from pathlib import Path
 
-logger = logging.getLogger("crux.backpack")
+logger = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parent.parent.parent
 SNAPSHOT_DIR = ROOT / "output" / "snapshots"
 SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)

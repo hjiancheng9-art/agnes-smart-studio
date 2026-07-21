@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import logging
 
-logger = logging.getLogger("crux.tool_router")
+logger = logging.getLogger(__name__)
 
 # Internal tool registry — populated at startup
 _internal_tools: dict[str, callable] = {}

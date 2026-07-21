@@ -17,7 +17,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-logger = logging.getLogger("crux.capability")
+logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent.parent
 CAPABILITY_FILE = ROOT / "output" / "capability_state.json"

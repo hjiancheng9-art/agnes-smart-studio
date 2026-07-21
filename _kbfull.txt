@@ -1,0 +1,169 @@
+1:        kb = KeyBindings()
+2:
+3:        # ── Palette modal guard ──
+4:        _palette_open = Condition(lambda: bool(getattr(self._state, "palette", None) and getattr(self._state.palette, "open", False)))
+5:
+6:        @kb.add("c-c")
+7:        def _(event):
+8:            with self._state_lock:
+9:                streaming = self._state.stream.status in (StreamStatus.THINKING, StreamStatus.STREAMING)
+10:            if streaming:
+11:                self._post_and_invalidate(CancelRequested())
+12:            else:
+13:                self._post_and_invalidate(ExitRequested())
+14:
+15:        @kb.add("c-q")
+16:        def _(event):
+17:            self._post_and_invalidate(ExitRequested())
+18:
+19:        # ── Newline ──
+20:        @kb.add("escape", "enter")
+21:        @kb.add("c-j")
+22:        def _(event):
+23:            self.input_buffer.insert_text("\n")
+24:
+25:        # ── Scroll ──
+26:        @kb.add("pageup", eager=True)
+27:        def _(event):
+28:            self.message_pane.scroll_page_up()
+29:            self._app.invalidate()
+30:
+31:        @kb.add("pagedown", eager=True)
+32:        def _(event):
+33:            self.message_pane.scroll_page_down()
+34:            self._app.invalidate()
+35:
+36:        @kb.add("c-p")
+37:        def _(event):
+38:            """Ctrl+P: Toggle command palette."""
+39:            from .events import TogglePalette
+40:            self._post_and_invalidate(TogglePalette())
+41:
+42:        # ── Palette navigation (when open) ──
+43:        @kb.add("up")
+44:        def _palette_up(event):
+45:            if bool(getattr(self._state, "palette", None) and getattr(self._state.palette, "open", False)):
+46:                from .events import PaletteMoveUp
+47:                self._post_and_invalidate(PaletteMoveUp())
+48:
+49:        @kb.add("down")
+50:        def _palette_down(event):
+51:            if bool(getattr(self._state, "palette", None) and getattr(self._state.palette, "open", False)):
+52:                from .events import PaletteMoveDown
+53:                self._post_and_invalidate(PaletteMoveDown())
+54:
+55:        @kb.add("enter")
+56:        def _(event):
+57:            # Palette open → select item
+58:            p = getattr(self._state, "palette", None)
+59:            if p and p.open:
+60:                self._post_and_invalidate(PaletteSelect())
+61:                return
+62:            if self._state.interaction.mode == InteractionMode.COPY:
+63:                return  # Copy mode: c to copy, Esc to exit, Enter does nothing
+64:            buf = event.current_buffer
+65:            text = buf.text.strip()
+66:            buf.reset()
+67:            if not text:
+68:                return
+69:            if text in ("/q", "/quit", "/exit"):
+70:                self._app.exit()
+71:                return
+72:            # Post SubmitInput — reducer + _fx_run_stream handles the rest
+73:            self._post_and_invalidate(SubmitInput(text))
+74:
+75:        @kb.add("escape")
+76:        def _palette_close(event):
+77:            if bool(getattr(self._state, "palette", None) and getattr(self._state.palette, "open", False)):
+78:                from .events import TogglePalette
+79:                self._post_and_invalidate(TogglePalette())
+80:
+81:        @kb.add("c-home", eager=True)
+82:        def _(event):
+83:            self._post_and_invalidate(ScrollTo("top"))
+84:
+85:        @kb.add("c-end", eager=True)
+86:        def _(event):
+87:            self._post_and_invalidate(ScrollTo("bottom"))
+88:
+89:        # ── Mode toggles: direct state mutation + invalidate ──
+90:        # Bypass the event/reducer pipeline because these keys are captured
+91:        # before ptk's event loop can process them. Direct mutation is safe
+92:        # since we're on the UI thread.
+93:        @kb.add("f12", eager=True)
+94:        def _(event):
+95:            self._post_and_invalidate(ToggleFocusMode())
+96:
+97:        @kb.add("f7", eager=True)
+98:        def _(event):
+99:            self._post_and_invalidate(ToggleInteractionMode())
+100:
+101:        @kb.add("f8", eager=True)
+102:        def _(event):
+103:            self._post_and_invalidate(ToggleActivity())
+104:
+105:        @kb.add("f6", eager=True)
+106:        def _(event):
+107:            self.thinking_panel.toggle_pin()
+108:            self._app.invalidate()
+109:
+110:        # ── Copy (quick) ──
+111:        @kb.add("c")
+112:        def _(event):
+113:            if event.app.current_buffer is self.input_buffer:
+114:                event.current_buffer.insert_text("c")
+115:                return
+116:            self._post_and_invalidate(CopyFocusedMessage())
+117:
+118:        @kb.add("C")
+119:        def _(event):
+120:            if event.app.current_buffer is self.input_buffer:
+121:                event.current_buffer.insert_text("C")
+122:                return
+123:            self._post_and_invalidate(CopyFocusedMessage(as_markdown=True))
+124:
+125:        # ── Misc ──
+126:        @kb.add("c-l", eager=True)
+127:        def _(event):
+128:            self.message_pane.clear()
+129:            self.thinking_panel.clear()
+130:            self._app.invalidate()
+131:
+132:        @kb.add("escape")
+133:        def _(event):
+134:            s = self._state.screen
+135:            if s != Screen.MAIN:
+136:                self._post_and_invalidate(NavigateBack())
+137:                return
+138:            if self._state.interaction.mode == InteractionMode.COPY:
+139:                self._post_and_invalidate(ToggleInteractionMode(target=InteractionMode.NORMAL))
+140:                return
+141:            self._post_and_invalidate(CancelRequested())
+142:
+143:        @kb.add("c-v")
+144:        def _(event):
+145:            self.input_buffer.paste_from_clipboard(event.app.clipboard.get_data())
+146:
+147:        @kb.add("escape", "escape")
+148:        def _(event):
+149:            self.input_buffer.reset()
+150:
+151:        @kb.add("c-k")
+152:        def _(event):
+153:            self.input_buffer.reset()
+154:
+155:        # ── Copy mode (Ctrl+F) ──
+156:        @kb.add("f3", eager=True)
+157:        def _enter_copy(event):
+158:            if self._state.interaction.mode == InteractionMode.COPY:
+159:                self._post_and_invalidate(ExitCopyMode())
+160:                return
+161:            total = len(self._msg_store)
+162:            if total > 0:
+163:                self._post_and_invalidate(EnterCopyMode(total_messages=total))
+164:
+165:        _copy = Condition(lambda: self._state.interaction.mode == InteractionMode.COPY)
+166:
+167:        @kb.add("up", filter=_copy)
+168:        def _copy_up(event):
+169:            total = len(self._msg_store)

@@ -10,7 +10,7 @@ import logging
 import os
 import re
 
-logger = logging.getLogger("crux.code_review")
+logger = logging.getLogger(__name__)
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -120,7 +120,7 @@ class PythonASTChecker(BaseRuleChecker):
         issues = []
 
         # 1. 过长的函数体 (> 200 行)
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.body:
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.body:
             end_line = node.body[-1].end_lineno or node.lineno
             length = end_line - node.lineno
             if length > 200:

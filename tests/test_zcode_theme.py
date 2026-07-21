@@ -1,9 +1,9 @@
-"""TDD RED phase — tests for ui/theme.py."""
+"""Tests for ui/theme_v2.py."""
 
 from __future__ import annotations
 
-from ui.theme import COLORS as C
-from ui.theme import build_style
+from ui.theme_v2 import BLADE as C
+from ui.theme_v2 import build_style_v2 as build_style
 
 
 class TestBuildStyle:

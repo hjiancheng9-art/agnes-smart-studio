@@ -1,0 +1,1 @@
+tests\test_studio_text_color.py:7:33: UP015 Unnecessary mode argument

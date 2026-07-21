@@ -35,7 +35,6 @@ from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.history import InMemoryHistory
-from prompt_toolkit.keys import Keys
 from prompt_toolkit.layout import HSplit, Layout, Window
 from prompt_toolkit.layout.containers import ConditionalContainer
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
@@ -56,7 +55,7 @@ from ui.clipboard_image import detect_drag_images, get_clipboard_image, is_image
 from ui.completer import TuiCompleter
 from ui.copy_manager import CopyManager
 from ui.dashboard import DashboardState
-from ui.input_router import InputRouter, get_clipboard
+from ui.input_router import InputMode, InputRouter, get_clipboard
 from ui.message_detail import MessageDetailScreen
 from ui.message_pane import MessagePane
 from ui.message_store import MessageStore
@@ -100,15 +99,19 @@ class Screen:
     name: str = "screen"
 
     def render(self, tw: int):
+        """渲染当前屏幕内容，返回 formatted text 列表。"""
         return []
 
     def on_enter(self, app):
+        """屏幕激活时由框架调用。"""
         pass
 
     def on_exit(self, app):
+        """屏幕退出时由框架调用。"""
         pass
 
     def handle_key(self, key: str) -> bool:
+        """处理按键事件，返回 True 表示已处理。"""
         return False
 
 
@@ -116,22 +119,27 @@ class ScreenStack:
     """Manages navigation between screens."""
 
     def __init__(self):
+        """初始化空屏幕栈。"""
         self._stack = []
 
     @property
     def current(self):
+        """当前栈顶屏幕，栈空返回 None。"""
         return self._stack[-1] if self._stack else None
 
     @property
     def active(self):
+        """屏幕栈是否有活跃屏幕。"""
         return len(self._stack) > 0
 
     def push(self, screen, app):
+        """压入屏幕并触发 on_enter。"""
         self._stack.append(screen)
         if app is not None:
             screen.on_enter(app)
 
     def pop(self, app):
+        """弹出栈顶屏幕并触发 on_exit。"""
         if not self._stack:
             return None
         s = self._stack.pop()
@@ -140,6 +148,7 @@ class ScreenStack:
         return s
 
     def pop_all(self, app):
+        """清空整个屏幕栈。"""
         while self._stack:
             self.pop(app)
 
@@ -150,9 +159,11 @@ class DashboardScreen(Screen):
     name = "dashboard"
 
     def __init__(self):
+        """初始化仪表盘缓存。"""
         self._cached = []
 
     def on_enter(self, app):
+        """激活时设置仪表盘状态为活跃。"""
         if app and hasattr(app, "_dash_state"):
             app._dash_state.set_state("active")
         if app:
@@ -176,12 +187,16 @@ class DashboardScreen(Screen):
 
 
 class IncidentLogScreen(Screen):
+    """事件日志查看屏幕。"""
+
     name = "incidents"
 
     def __init__(self):
+        """初始化事件列表缓存。"""
         self._incidents = []
 
     def on_enter(self, app):
+        """激活时加载最近事件记录。"""
         try:
             from core.incident import load_incidents
 
@@ -190,6 +205,7 @@ class IncidentLogScreen(Screen):
             self._incidents = []
 
     def render(self, tw):
+        """渲染事件日志表格视图。"""
         ft = []
         ft.append(("bold", f"{'=' * tw}\n"))
         ft.append(("bold class:header", "  INCIDENT LOG\n"))
@@ -209,14 +225,18 @@ class IncidentLogScreen(Screen):
 
 
 class RemediationScreen(Screen):
+    """修复操作屏幕，按分类执行 playbook。"""
+
     name = "remediate"
 
     def __init__(self):
+        """初始化修复分类和结果缓存。"""
         self._cats = []
         self._pb = None
         self._results = []
 
     def on_enter(self, app):
+        """激活时加载可用 playbook 分类。"""
         try:
             from core.incident import PLAYBOOKS
 
@@ -226,6 +246,7 @@ class RemediationScreen(Screen):
         self._results = []
 
     def select(self, cat):
+        """选择修复分类并加载对应 playbook。"""
         try:
             from core.incident import get_playbook
 
@@ -234,6 +255,7 @@ class RemediationScreen(Screen):
             self._pb = None
 
     def run(self, iid):
+        """对指定事件执行修复操作。"""
         try:
             from core.incident import load_incidents
 
@@ -249,10 +271,12 @@ class RemediationScreen(Screen):
             self._results = [{"status": "failed", "command": iid, "risk": "?", "error": str(e)}]
 
     def back(self):
+        """返回 playbook 选择界面。"""
         self._pb = None
         self._results = []
 
     def render(self, tw):
+        """渲染修复界面（分类列表 / playbook 详情 / 结果）。"""
         ft = []
         ft.append(("bold", f"{'=' * tw}\n"))
         if self._results:
@@ -293,13 +317,17 @@ class RemediationScreen(Screen):
 
 
 class RunReplayScreen(Screen):
+    """运行回放查看屏幕。"""
+
     name = "replay"
 
     def __init__(self):
+        """初始化回放记录缓存。"""
         self._records = []
         self._selected = None
 
     def on_enter(self, app):
+        """激活时加载最近运行回放记录。"""
         try:
             from core.run_replay import list_replays
 
@@ -308,6 +336,7 @@ class RunReplayScreen(Screen):
             self._records = []
 
     def select(self, rid):
+        """选择并加载指定回放详情。"""
         try:
             from core.run_replay import load_replay
 
@@ -316,9 +345,11 @@ class RunReplayScreen(Screen):
             self._selected = None
 
     def back(self):
+        """返回回放列表。"""
         self._selected = None
 
     def render(self, tw):
+        """渲染回放记录列表或详情。"""
         ft = []
         ft.append(("bold", f"{'=' * tw}\n"))
         ft.append(("bold class:header", "  RUN REPLAYS\n"))
@@ -337,12 +368,16 @@ class RunReplayScreen(Screen):
 
 
 class ApprovalScreen(Screen):
+    """操作审批确认屏幕。"""
+
     name = "approval"
 
     def __init__(self):
+        """初始化待审批项和结果缓存。"""
         self._pending = []
 
     def on_enter(self, app):
+        """激活时加载待审批操作列表。"""
         try:
             from ui.tui_v2 import _APPROVAL_PENDING
 
@@ -351,6 +386,7 @@ class ApprovalScreen(Screen):
             self._pending = []
 
     def render(self, tw):
+        """渲染审批界面（待审批列表 / 结果）。"""
         ft = []
         ft.append(("bold", f"{'=' * tw}\n"))
         ft.append(("bold class:header", "  PENDING APPROVALS\n"))
@@ -372,6 +408,7 @@ _APPROVAL_PENDING = []
 
 
 def request_approval(action, desc, risk="high"):
+    """提交审批请求并等待用户确认。"""
     _APPROVAL_PENDING.append({"action": action, "description": desc, "risk": risk, "status": "pending"})
     return False
 
@@ -398,6 +435,7 @@ class TuiAppV2:
         startup_banner: str = "",
         cwd: Path | None = None,
     ) -> None:
+        """初始化 CRUXv2 应用 — 设置七兽主题、事件循环和 UI 组件。"""
         self.session = session
         self.cli = cli
         self.wire = session_wire
@@ -447,16 +485,9 @@ class TuiAppV2:
 
         # ── Core components ──
         self.message_pane = MessagePane()
+        self.message_pane._msg_store = self._msg_store  # Bridge: keep MessageStore in sync
         self.status_bar = StatusBar(model=session.model, cwd=self.cwd)
-        # Mouse mode guard: auto-restore terminal mouse mode after subprocess damage
-        try:
-            from ui.ui_heartbeat import MouseModeGuard
-
-            self._mouse_guard = MouseModeGuard()
-            self._mouse_guard.enable()
-            self.message_pane._mouse_guard = self._mouse_guard
-        except Exception:
-            self._mouse_guard = None
+        self._mouse_guard = None  # mouse disabled — use keyboard
         # ── Screen system ──
         self.screen_stack = ScreenStack()
         self._available_screens = {
@@ -494,11 +525,13 @@ class TuiAppV2:
         # ── Input ──
         self._history = InMemoryHistory()
         self._completer = TuiCompleter()
+        from prompt_toolkit.completion import ThreadedCompleter
+
         self.input_buffer = Buffer(
             multiline=True,
             accept_handler=self._on_accept,
             history=self._history,
-            completer=self._completer,
+            completer=ThreadedCompleter(self._completer),  # Offload file I/O to thread pool
         )
 
         # ── Key bindings ──
@@ -585,9 +618,9 @@ class TuiAppV2:
         # Load built-in mouse bindings (Vt100MouseEvent/WindowsMouseEvent dispatch).
         # Without this, mouse scroll/click events arrive as Keys.Vt100MouseEvent
         # but have no handler → silently dropped.
-        from prompt_toolkit.key_binding.bindings.mouse import load_mouse_bindings
+        from prompt_toolkit.key_binding import KeyBindings
 
-        kb = load_mouse_bindings()
+        kb = KeyBindings()
 
         # ⚠️ c-c 绑定见下方 _ctrl_c()，此处不重复绑定。
 
@@ -631,34 +664,35 @@ class TuiAppV2:
             self.input_buffer.reset()
             event.app.invalidate()
 
-        @kb.add("c-m")
-        def _(event):
-            """Toggle secondary metrics panel (CPU/memory/disk)."""
-            # Ctrl+M == Enter in many terminals — don't intercept when typing
-            if event.app.current_buffer is self.input_buffer:
-                event.current_buffer.validate_and_handle()
-                return
-            self._dash_state.toggle_secondary()
-            event.app.invalidate()
+        # Ctrl+M == Enter in most terminals — removed as shortcut.
+        # Metrics panel accessible via dashboard state instead.
 
         @kb.add("f11")
         def _(event):
             pass
 
-        @kb.add("f12")
-        def _(event):
-            """Toggle focus mode: hide all chrome, show only messages."""
-            app = event.app
-            renderer = event.app.renderer
+        @kb.add("c-f")
+        def _toggle_copy_mode(event):
+            """Ctrl+F: 进入消息复制模式。↑↓ 选消息, c/C 复制, Esc 退出。"""
             self._focus_mode = not self._focus_mode
             if self._focus_mode:
+                store = self._msg_store
+                if store and len(store) > 0:
+                    self._copy_mgr.focus.index = len(store) - 1
+                    msg = store.get(self._copy_mgr.focus.index)
+                    total = len(store)
+                    self._log_append(
+                        (
+                            "→",
+                            "class:activity-info",
+                            f"📋 复制模式: ↑↓ 选消息 [{total - 1}/{total - 1}], c 纯文本, C Markdown, Esc 退出",
+                        )
+                    )
+                    if msg:
+                        self._log_append(("→", "class:activity-info", f"   [{msg.role}] {msg.snippet(100)}"))
                 self.message_pane._pinned = True
-            app.invalidate()
-            self.message_pane._auto_scroll()
-            if not renderer.full_screen and renderer._in_alternate_screen:
-                renderer.output.quit_alternate_screen()
-                renderer._in_alternate_screen = False
-            event.app.renderer.reset(leave_alternate_screen=not renderer.full_screen)
+            else:
+                self._log_append(("→", "class:activity-info", "已退出复制模式"))
             event.app.invalidate()
 
         # Note: plain Home/End are consumed by the multiline Buffer for cursor
@@ -688,27 +722,14 @@ class TuiAppV2:
             self.message_pane.scroll_page_down()
             event.app.invalidate()
 
-        @kb.add(Keys.ScrollUp)
-        def _(event):
-            self.message_pane.scroll_up(5)
-            event.app.invalidate()
-
         @kb.add("c-l")
         def _(event):
-            """Ctrl+L: 清屏 + 强制重置滚动 + 恢复鼠标模式"""
+            """Ctrl+L: 清屏 + 重置滚动"""
             self.message_pane.clear()
             self._log_clear()
             self.thinking_panel.clear()
             self.message_pane.scroll_to_bottom()
             self.message_pane._pinned = True
-            # 恢复终端鼠标追踪
-            if hasattr(event.app.output, "enable_mouse_support"):
-                event.app.output.enable_mouse_support()
-            event.app.invalidate()
-
-        @kb.add(Keys.ScrollDown)
-        def _(event):
-            self.message_pane.scroll_down(5)
             event.app.invalidate()
 
         # Alt+Up / Alt+Down: single-line scroll (plain Up/Down reserved for history)
@@ -759,6 +780,57 @@ class TuiAppV2:
             else:
                 raise KeyboardInterrupt()
 
+        # ── Vim mode (F7 toggle) ──
+        # CRITICAL: Use filter=Condition instead of eager+return.
+        # eager=True swallows the key even when the handler returns None,
+        # preventing i/j/k/g from reaching the input buffer in NORMAL mode.
+        _vim_mode = Condition(lambda: self._input_router.mode == InputMode.VIM)
+
+        @kb.add("f7")
+        def _toggle_vim(event):
+            if self._input_router.mode == InputMode.VIM:
+                self._input_router.set_mode(InputMode.NORMAL)
+            else:
+                self._input_router.set_mode(InputMode.VIM)
+            self._ui(self._refresh_status)
+            event.app.invalidate()
+
+        @kb.add("j", filter=_vim_mode)
+        def _vim_scroll_down(event):
+            self.message_pane.scroll_down(3)
+            event.app.invalidate()
+
+        @kb.add("k", filter=_vim_mode)
+        def _vim_scroll_up(event):
+            self.message_pane.scroll_up(3)
+            event.app.invalidate()
+
+        @kb.add("g", "g", filter=_vim_mode)
+        def _vim_scroll_top(event):
+            self.message_pane.scroll_to_top()
+            event.app.invalidate()
+
+        @kb.add("G", filter=_vim_mode)
+        def _vim_scroll_bottom(event):
+            self.message_pane.scroll_to_bottom()
+            event.app.invalidate()
+
+        @kb.add("c-d", filter=_vim_mode)
+        def _vim_page_down(event):
+            self.message_pane.scroll_page_down()
+            event.app.invalidate()
+
+        @kb.add("c-u", filter=_vim_mode)
+        def _vim_page_up(event):
+            self.message_pane.scroll_page_up()
+            event.app.invalidate()
+
+        @kb.add("i", filter=_vim_mode)
+        def _vim_exit_insert(event):
+            self._input_router.set_mode(InputMode.NORMAL)
+            self._ui(self._refresh_status)
+            event.app.invalidate()
+
         @kb.add("escape")
         def _esc(event):
             """Esc: 退出详情 / 退出焦点模式 / 退出复制模式 / 暂停当前 run。"""
@@ -792,42 +864,51 @@ class TuiAppV2:
         # ══════════════════════════════════════════════════════════════
 
         # ── Copy / Detail / Focus 快捷键 ──
-        # 单字母快捷键：输入框聚焦时放行字符，不拦截
+        # Single-letter shortcuts: check inside handler, re-insert char when typing
         def _typing(event):
-            """True if user is typing in the input buffer — let char through."""
             return event.app.current_buffer is self.input_buffer
 
         @kb.add("c")
         def _copy_focused(event):
-            """c: 复制聚焦消息全文。"""
+            """c: 复制消息。默认复制最后一条助手消息，Ctrl+F 模式可自选。"""
+            # Focus mode: copy the currently selected message
+            if self._focus_mode:
+                ok, msg = self._copy_mgr.copy_focused()
+                icon = "✓" if ok else "✗"
+                self._log_append((icon, "class:activity-done" if ok else "class:error", msg[:100]))
+                self._ui(self._refresh_status)
+                return
             if _typing(event):
                 event.current_buffer.insert_text("c")
                 return
-            if self._detail_view and self._detail_view.active:
-                self._detail_view.handle_key("c")
+            # Default: copy the LAST assistant message (most common case)
+            store = self._msg_store
+            msg = store.last_assistant() if store and len(store) > 0 else None
+            if msg is None:
                 return
-            # 无消息时不拦截，让 'c' 正常输入
-            if not self._copy_mgr.has_messages():
-                event.current_buffer.insert_text("c")
-                return
-            ok, msg = self._copy_mgr.copy_focused()
-            icon, style = ("✓", "class:activity-done") if ok else ("✗", "class:error")
-            self._log_append((icon, style, msg[:100]))
+            ok, result = self._copy_mgr.copy_message(msg)
+            self._log_append(("✓" if ok else "✗", "class:activity-done" if ok else "class:error", result[:100]))
             self._ui(self._refresh_status)
 
         # ── Shift+C: 复制 Markdown ──
         @kb.add("C")
         def _copy_markdown(event):
-            """Shift+C: 复制聚焦消息为 Markdown。"""
+            """Shift+C: 复制消息为 Markdown。默认最后一条助手消息。"""
+            if self._focus_mode:
+                ok, msg = self._copy_mgr.copy_focused_markdown()
+                icon = "✓" if ok else "✗"
+                self._log_append((icon, "class:activity-done" if ok else "class:error", msg[:100]))
+                self._ui(self._refresh_status)
+                return
             if _typing(event):
                 event.current_buffer.insert_text("C")
                 return
-            if not self._copy_mgr.has_messages():
-                event.current_buffer.insert_text("C")
+            store = self._msg_store
+            msg = store.last_assistant() if store and len(store) > 0 else None
+            if msg is None:
                 return
-            ok, msg = self._copy_mgr.copy_focused_markdown()
-            icon, style = ("✓", "class:activity-done") if ok else ("✗", "class:error")
-            self._log_append((icon, style, msg[:100]))
+            ok, result = self._copy_mgr.copy_markdown(msg)
+            self._log_append(("✓" if ok else "✗", "class:activity-done" if ok else "class:error", result[:100]))
             self._ui(self._refresh_status)
 
         # ── F9: 原生选择模式 ──
@@ -872,9 +953,16 @@ class TuiAppV2:
             in_focus = self._focus_mode
             in_copy = getattr(self, "_copy_mode", False)
             if in_focus or in_copy:
-                msg = self._copy_mgr.store.get(self._copy_mgr.focus.prev())
+                idx = self._copy_mgr.focus.prev()
+                msg = self._copy_mgr.store.get(idx) if idx >= 0 else None
                 if msg:
-                    self._log_append(("←", "class:activity-info", f"聚焦 [{msg.role}] {msg.snippet(80)}"))
+                    self._log_append(
+                        (
+                            "←",
+                            "class:activity-info",
+                            f"[{idx}/{len(self._msg_store) - 1}] [{msg.role}] {msg.snippet(80)}",
+                        )
+                    )
                     self._ui(self._refresh_status)
                     return
             # 没有特殊模式 → 消息面板滚动
@@ -892,9 +980,16 @@ class TuiAppV2:
             in_focus = self._focus_mode
             in_copy = getattr(self, "_copy_mode", False)
             if in_focus or in_copy:
-                msg = self._copy_mgr.store.get(self._copy_mgr.focus.next())
+                idx = self._copy_mgr.focus.next()
+                msg = self._copy_mgr.store.get(idx) if idx < len(self._msg_store) else None
                 if msg:
-                    self._log_append(("→", "class:activity-info", f"聚焦 [{msg.role}] {msg.snippet(80)}"))
+                    self._log_append(
+                        (
+                            "→",
+                            "class:activity-info",
+                            f"[{idx}/{len(self._msg_store) - 1}] [{msg.role}] {msg.snippet(80)}",
+                        )
+                    )
                     self._ui(self._refresh_status)
                     return
             # 没有特殊模式 → 消息面板滚动
@@ -1121,19 +1216,13 @@ class TuiAppV2:
             style="class:app",
         )
 
-        # ── Focus Mode: full-height message area only (F12) ──
-        focus_body = Window(
-            content=self.message_pane.pane.content,
-            always_hide_cursor=True,
-        )
-        focus_condition = Condition(lambda: self._focus_mode)
-        normal_condition = Condition(lambda: not self._focus_mode and not self.screen_stack.active)
+        # ── Layout: normal mode only (focus mode uses same layout) ──
+        normal_condition = Condition(lambda: not self.screen_stack.active)
 
         root = HSplit(
             [
                 ConditionalContainer(self._screen_window, filter=screen_mode),
                 ConditionalContainer(normal_body, filter=normal_condition),
-                ConditionalContainer(focus_body, filter=focus_condition),
             ],
             style="class:app",
         )
@@ -1754,6 +1843,7 @@ class TuiAppV2:
         self._pending_cancelled = False
 
         def wait_and_commit():
+            """延迟后提交待发送消息并启动流式响应线程。"""
             time.sleep(control().outbox.UNDO_WINDOW_MS / 1000 + 0.1)
             # Check if this timer was cancelled (user sent another message)
             if getattr(self, "_pending_cancelled", False):
@@ -2288,7 +2378,7 @@ class TuiAppV2:
                 self._dash_state._process_count = len(psutil.pids())
                 self._dash_state._uptime_hours = 0.0
             except ImportError:
-                pass
+                logger.debug("silent except", exc_info=True)
             except Exception as e:
                 logger.debug("Non-critical: %s", e, exc_info=True)
 
@@ -2378,7 +2468,7 @@ class TuiAppV2:
                 elif hasattr(obj, "shutdown"):
                     obj.shutdown()
             except (BrokenPipeError, EOFError, OSError):
-                pass
+                logger.debug("silent except", exc_info=True)
             except Exception as e:
                 logger.debug("Non-critical: %s", e, exc_info=True)
 
@@ -2386,6 +2476,7 @@ class TuiAppV2:
             self._executor.shutdown(wait=False)
 
     def run(self):
+        """启动 TUI 应用主循环，注册信号处理和 atexit 清理。"""
         # ── signal handlers for graceful Ctrl+C / kill ──
         import atexit as _atexit
         import signal as _signal
@@ -2426,19 +2517,6 @@ class TuiAppV2:
 
             def _heartbeat_tick():
                 Watchdog.beat("IDLE")
-                # P0: restore terminal mouse mode on every tick.
-                # Subprocess output / external commands can emit ANSI sequences
-                # (\033[?1000l etc.) that disable mouse tracking, breaking scroll.
-                # Use prompt_toolkit's API rather than raw stdout writes to avoid
-                # conflicting with ptk's internal mouse state tracking.
-                try:
-                    _app = self._app
-                    if _app is not None and hasattr(_app.output, "enable_mouse_support"):
-                        _app.output.enable_mouse_support()
-                except Exception:
-                    logger.debug("Exception in tui_v2", exc_info=True)
-                if self._mouse_guard is not None:
-                    self._mouse_guard.restore()
                 # Thread-safe invalidate (heartbeat runs on Timer thread)
                 _app = self._app
                 if _app is not None and hasattr(_app, "call_soon_threadsafe"):

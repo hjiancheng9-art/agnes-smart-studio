@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
     from core.multi_agent import MultiAgentCoordinator
 
-logger = logging.getLogger("crux.multi_agent")
+logger = logging.getLogger(__name__)
 
 # ── AgentSwarm: 模板化批量并行分派 ──────────────────────────
 

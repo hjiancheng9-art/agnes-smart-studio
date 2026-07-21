@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from types import ModuleType
 
-logger = logging.getLogger("crux.plugins")
+logger = logging.getLogger(__name__)
 
 PLUGIN_DIR = Path(__file__).resolve().parent.parent / "output" / "plugins"
 PLUGIN_DIR.mkdir(parents=True, exist_ok=True)

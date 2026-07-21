@@ -1,0 +1,84 @@
+{
+  "name": "crux-agent",
+  "displayName": "CRUX Agent",
+  "description": "CRUX Studio AI Agent \u2014 your TUI engineering partner, now in VS Code",
+  "version": "0.3.0",
+  "publisher": "crux-studio",
+  "icon": "media/icons/icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Chat"
+  ],
+  "activationEvents": [],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "crux.openPanel",
+        "title": "CRUX: Open Agent Panel"
+      },
+      {
+        "command": "crux.sendToAgent",
+        "title": "CRUX: Send Selection to Agent"
+      },
+      {
+        "command": "crux.resetChat",
+        "title": "CRUX: Reset Chat History"
+      },
+      {
+        "command": "crux.audit",
+        "title": "CRUX: Audit Project for Issues"
+      },
+      {
+        "command": "crux.smartCommit",
+        "title": "CRUX: Smart Commit & Push"
+      },
+      {
+        "command": "crux.cleanCode",
+        "title": "CRUX: Clean Code (remove debug prints, dead code)"
+      },
+      {
+        "command": "crux.addTests",
+        "title": "CRUX: Add Missing Tests"
+      },
+      {
+        "command": "crux.addComments",
+        "title": "CRUX: Add Chinese Docstrings"
+      },
+      {
+        "command": "crux.changelog",
+        "title": "CRUX: Generate Changelog"
+      },
+      {
+        "command": "crux.depCheck",
+        "title": "CRUX: Dependency Security Check"
+      },
+      {
+        "command": "crux.readme",
+        "title": "CRUX: Generate README"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "crux.sendToAgent",
+          "group": "navigation",
+          "when": "editorHasSelection"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "crux.openPanel",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a"
+      }
+    ]
+  },
+  "scripts": {
+    "package": "vsce package"
+  }
+}

@@ -136,8 +136,8 @@ def _run_with_inspect(cmd: list[str], cwd: str) -> str:
         "                for k, v in sorted(tb_obj.tb_frame.f_locals.items()):\n"
         "                    if k.startswith('__') and k.endswith('__'): continue\n"
         "                    try: locs[k] = repr(v)[:200]\n"
-        "                    except: locs[k] = '<repr failed>'\n"
-        "            except: pass\n"
+        "                    except Exception: locs[k] = '<repr failed>'\n"
+        "            except Exception: pass\n"
         "            tb_obj = tb_obj.tb_next\n"
         "        fi['locals'] = locs\n"
         "        frames.append(fi)\n"
@@ -147,6 +147,7 @@ def _run_with_inspect(cmd: list[str], cwd: str) -> str:
         "    print('\\n__CRUX_INSPECT__' + json.dumps(err, ensure_ascii=False) + '__CRUX_INSPECT_END__')\n"
         "    _orig_excepthook(typ, val, tb)\n"
         "sys.excepthook = _capture_hook\n"
+        "# SECURITY: exec() runs only on CRUX-owned test/script files, not untrusted input\n"
         "exec(open(sys.argv[1], 'rb').read(), {'__name__': '__main__', '__file__': sys.argv[1]})\n"
     )
     wrapper_path = Path(cwd) / "output" / "_inspect_wrapper.py"

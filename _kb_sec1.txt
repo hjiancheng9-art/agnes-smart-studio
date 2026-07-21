@@ -1,0 +1,50 @@
+1:    def _build_keybindings(self) -> KeyBindings:
+2:        kb = KeyBindings()
+3:
+4:        # ── Palette modal guard ──
+5:        _palette_open = Condition(lambda: bool(getattr(self._state, "palette", None) and getattr(self._state.palette, "open", False)))
+6:
+7:        @kb.add("c-c")
+8:        def _(event):
+9:            with self._state_lock:
+10:                streaming = self._state.stream.status in (StreamStatus.THINKING, StreamStatus.STREAMING)
+11:            if streaming:
+12:                self._post_and_invalidate(CancelRequested())
+13:            else:
+14:                self._post_and_invalidate(ExitRequested())
+15:
+16:        @kb.add("c-q")
+17:        def _(event):
+18:            self._post_and_invalidate(ExitRequested())
+19:
+20:        # ── Newline ──
+21:        @kb.add("escape", "enter")
+22:        @kb.add("c-j")
+23:        def _(event):
+24:            self.input_buffer.insert_text("\n")
+25:
+26:        # ── Scroll ──
+27:        @kb.add("pageup", eager=True)
+28:        def _(event):
+29:            self.message_pane.scroll_page_up()
+30:            self._app.invalidate()
+31:
+32:        @kb.add("pagedown", eager=True)
+33:        def _(event):
+34:            self.message_pane.scroll_page_down()
+35:            self._app.invalidate()
+36:
+37:        @kb.add("c-p")
+38:        def _(event):
+39:            """Ctrl+P: Toggle command palette."""
+40:            from .events import TogglePalette
+41:            self._post_and_invalidate(TogglePalette())
+42:
+43:        # ── Palette navigation (when open) ──
+44:        @kb.add("up")
+45:        def _palette_up(event):
+46:            if bool(getattr(self._state, "palette", None) and getattr(self._state.palette, "open", False)):
+47:                from .events import PaletteMoveUp
+48:                self._post_and_invalidate(PaletteMoveUp())
+49:
+50:        @kb.add("down")

@@ -46,33 +46,42 @@ def _add(category: str, ok: bool, msg: str):
     _results.append((category, ok, msg))
 
 
-def _check_dna_identity():
-    """Verify CRUX DNA identity is intact in prompt templates.
+def _check_core_imports():
+    """Verify all 7 CRUX DNA genes are importable and structurally intact.
 
-    Failures are logged (not printed) — DNA check is a health warning,
-    not a startup gate.  The TUI activity feed may surface a one-liner.
+    Uses the dna_genes registry (single source of truth) instead of
+    a hardcoded list of 5 arbitrary modules.
     """
     import logging
 
-    _log = logging.getLogger("crux.startup")
+    _log = logging.getLogger(__name__)
     try:
-        from core.chat_prompt import _BASE_INJECTIONS, CHAT_SYSTEM_PROMPT, CODE_SYSTEM_PROMPT
+        from core.dna_genes import verify_all_genes
 
-        if "CRUX Studio" not in CHAT_SYSTEM_PROMPT:
-            _add("dna", False, "CHAT_SYSTEM_PROMPT lost CRUX identity")
-            _log.warning("DNA: CHAT_SYSTEM_PROMPT identity missing")
+        results = verify_all_genes()
+        failed = [name for name, ok in results.items() if not ok]
+        if failed:
+            _add("dna", False, f"DNA genes missing: {', '.join(failed)}")
+            for name in failed:
+                _log.warning("DNA gene '%s' not importable", name)
             return
-        if "CRUX Studio" not in CODE_SYSTEM_PROMPT:
-            _add("dna", False, "CODE_SYSTEM_PROMPT lost CRUX identity")
-            _log.warning("DNA: CODE_SYSTEM_PROMPT identity missing")
-            return
-        # After AGENTS split: _BASE_INJECTIONS may be empty (on-demand loading).
-        # DNA identity is verified via CHAT_SYSTEM_PROMPT markers only.
-        _ = [label for _, _, label in _BASE_INJECTIONS]  # unused but validates structure
-        _add("dna", True, "DNA identity intact")
-    except Exception as e:
-        _add("dna", False, f"DNA check skipped: {type(e).__name__}")
-        _log.warning("DNA check skipped: %s", e, exc_info=True)
+        _add("dna", True, f"All 7 DNA genes verified ({len(results)}/7)")
+    except ImportError:
+        # Fallback: basic core module check
+        try:
+            checks = [
+                ("core.chat", "ChatSession"),
+                ("core.tools", "get_registry"),
+                ("core.provider", "get_provider_manager"),
+            ]
+            for mod_name, attr in checks:
+                mod = __import__(mod_name, fromlist=[attr])
+                if not hasattr(mod, attr):
+                    _add("dna", False, f"{mod_name}.{attr} missing")
+                    return
+            _add("dna", True, "Basic core imports verified (dna_genes unavailable)")
+        except Exception as e:
+            _add("dna", False, f"Import check failed: {type(e).__name__}: {e}")
 
 
 def run_all() -> list[tuple[str, bool, str]]:
@@ -83,7 +92,7 @@ def run_all() -> list[tuple[str, bool, str]]:
     _check_output_dirs()
     _check_models_config()
     _check_tools_config()
-    _check_dna_identity()
+    _check_core_imports()
     _check_api_connectivity()
     _check_provider_liveness()
     return list(_results)

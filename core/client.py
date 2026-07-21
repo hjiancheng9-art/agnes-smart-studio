@@ -10,7 +10,7 @@ import httpx
 
 from .config import SETTINGS
 
-logger = logging.getLogger("crux.client")
+logger = logging.getLogger(__name__)
 
 __all__ = ["ContentPolicyError", "CruxClient", "db_query", "http_request"]
 

@@ -54,13 +54,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import contextlib
+import re
 
-from core.bootstrap import (
-    print_kimi_tree as _print_kimi_tree,
-)
-from core.bootstrap import (
-    print_skills_summary as _print_skills_summary,
-)
 from core.bootstrap import (
     run_startup_health as _run_startup_health,
 )
@@ -69,6 +64,7 @@ from core.bootstrap import (
 from core.bootstrap import (
     safe_rich_print as _safe_rich_print,
 )
+from core.colors import ANSI as _ANSI
 from core.config import SETTINGS
 
 # Clean up stale error file from previous crashed sessions
@@ -166,6 +162,8 @@ def main():
     p.add_argument("--host", type=str, default="127.0.0.1", help="网关监听地址 (配合 --serve, 默认 127.0.0.1)")
     p.add_argument("--port", type=int, default=8000, help="网关监听端口 (配合 --serve, 默认 8000)")
     p.add_argument("-c", "--chat", action="store_true", help="进入 CRUX 编程助手（支持 /制片 切换视频模式）")
+    p.add_argument("--tui", action="store_true", help="启动 TUI 界面（默认纯文本 REPL）")
+    p.add_argument("--tui-v3", action="store_true", help="启动 TUI v3 界面（事件驱动新架构）")
     p.add_argument("-q", "--quick", type=str, help="快速模式描述")
     p.add_argument("-v", "--video", action="store_true", help="生成视频")
     p.add_argument("-p", "--pipeline", action="store_true", help="一站式流水线")
@@ -238,7 +236,10 @@ def main():
             pass
 
         # Launch chat
-        _chat_repl()
+        if getattr(args, "tui_v3", False):
+            _chat_repl_v3(args)
+        else:
+            _chat_repl(args)
     elif args.serve:
         from core.gateway.server import run_server
 
@@ -247,7 +248,10 @@ def main():
         _quick(args)
     else:
         # 默认入口：聊天
-        _chat_repl()
+        if getattr(args, "tui_v3", False):
+            _chat_repl_v3(args)
+        else:
+            _chat_repl(args)
 
 
 def _make_chat_client():
@@ -270,9 +274,9 @@ def _make_chat_client():
         return CruxClient()
 
 
-def _chat_repl():
-    """Chat REPL entry point — routes to TUI or plain text mode."""
-    if sys.stdout.isatty():
+def _chat_repl(args=None):
+    """Chat REPL entry point — plain text by default, TUI with --tui."""
+    if args and args.tui:
         _chat_tui()
     else:
         _chat_plain()
@@ -308,6 +312,22 @@ def _chat_tui():
         session = ChatSession(_make_chat_client())
         # ── 会话恢复: 检测上次崩溃前的快照 ──
         snapshot = ChatSession.restore_latest_snapshot()
+
+        # ── 方法论恢复: 保持任务等级和合规门禁跨重启 ──
+        try:
+            from core.methodology import restore_methodology_state
+
+            restored = restore_methodology_state()
+            if restored:
+                from core.methodology import get_methodology_state
+
+                ms = get_methodology_state()
+                level_names = {"micro": "A", "normal": "B", "complex": "C", "critical": "D"}
+                level_short = level_names.get(ms.task_level.value, "?")
+                print(f"  📋 已恢复方法论状态: 等级 [{level_short}] 步骤 {ms.workflow_step}/7")
+        except ImportError:
+            pass
+
         if snapshot and snapshot.get("messages"):
             turn = snapshot.get("turn", "?")
             msgs = snapshot["messages"]
@@ -365,51 +385,34 @@ def _chat_tui():
         return w
 
     TARGET_BOX_W = 50
-    INNER_W = TARGET_BOX_W - 4  # strip "  ╔…╗" frame (2 leading spaces + corners)
+    TARGET_BOX_W - 4  # strip "  ╔…╗" frame (2 leading spaces + corners)
 
-    # ── top: ═══ text ═══ centred ──
-    tag = f" CRUX Studio v{__version__} · 极简内核 · 百器待命 · 七兽按需 · Multi-Agent "
-    tag_w = _vwidth(tag)
-    pad_total = max(0, INNER_W - tag_w)
-    left = pad_total // 2
-    right = pad_total - left
-    top_line = f"  ╔{'═' * left}{tag}{'═' * right}╗"
-
-    # ── content lines ──
-    _msg_sk = len(list(Path("skills").glob("*.skill.json")))
-    content = [
-        "由 DeepSeek V4 Flash (1M 上下文) 驱动 · Windows 11 工程搭档",
-        f"{_msg_sk} skills · 自修改 · Agent Swarm · 平时如刀，出事成阵",
+    # ── top: ASCII geometric CRUX logo ──
+    geom = [
+        "           /\\          /\\            ",
+        "  +-------/  \\--------/  \\-------+   ",
+        "  |      / /\\ \\  CRUX  / /\\ \\      |",
+        "  |     / /  \\ \\      / /  \\ \\     |",
+        "  |     \\ \\  / /      \\ \\  / /     |",
+        "  |      \\ \\/ / STUDIO \\ \\/ /      |",
+        "  +-------\\  /--------\\  /-------+   ",
+        "           \\/          \\/            ",
     ]
-    content_lines = []
-    for line in content:
-        pad = INNER_W - _vwidth(f"  {line}")  # "  " prefix inside box
-        content_lines.append(f"  ║  {line}{' ' * max(0, pad)}║")
+    _msg_sk = len(list(Path("skills").glob("*.skill.json")))
 
-    # ── bottom ──
-    bottom_line = f"  ╚{'═' * INNER_W}╝"
-
-    banner = (
-        top_line
-        + "\n"
-        + "\n".join(content_lines)
-        + "\n"
-        + bottom_line
-        + "\n"
-        + "\n"
-        + f"  ◈ {model_name} · Windows 11 · 1M 上下文 · 自修复闭环\n"
-        + "  ◈ 根因优先 → 最小复现 → 30s 自纠错\n"
-        + "\n"
-        + "  Agent Swarm · 并行智能体 · 自修闭环\n"
-        + "  ├─ 119 技能包 · 34 专业智能体 · 7 兽谱系\n"
-        + "  ├─ agent_swarm 并行编排 · PatchEngine 安全自修\n"
-        + "  └─ 4 级任务管理 · A/B/C/D · 门禁引擎\n"
-        + "\n"
-        + "  试试这些:\n"
-        + "    /status  查看状态    /health  系统健康\n"
-        + "    /help    命令列表    /skill   技能市场\n"
-        + "    Ctrl+V 粘贴   Enter 发送\n"
-    )
+    banner_lines = [
+        *geom,
+        "",
+        f"v{__version__}  ·  {model_name}  ·  1M 上下文  ·  自修复闭环",
+        f"{_msg_sk} skills  ·  34 专业智能体  ·  Agent Swarm",
+        "极简内核 · 百器待命 · 七兽按需 · Multi-Agent",
+        "平时如刀，出事成阵 —— Sharp by default. A swarm when needed.",
+        "",
+        "  /ask     开始 AI 编程    /agent   选择专业智能体",
+        "  /swarm   并行编排        /skills  浏览技能",
+        "  /help    查看全部命令    Ctrl+V   粘贴  Enter  发送",
+    ]
+    banner = "\n".join(banner_lines)
     # ── Terminal height guard ──
     if shutil.get_terminal_size().lines < 10:
         print("Terminal too small (need >=10 rows). Falling back to plain text mode.")
@@ -491,8 +494,42 @@ def _chat_tui():
             wire.end_session()
 
 
+def _chat_repl_v3(args=None):
+    """Launch the v3 event-driven TUI (experimental)."""
+    cwd = resolve_workspace()
+    client = _make_chat_client()
+
+    from core.chat import ChatSession
+    from core.cli_handlers import CruxCLI
+    from core.version import __version__
+
+    session = ChatSession(client)
+    cli = CruxCLI(session)
+
+    # ── Banner ──
+    geom = [
+        "           /\\          /\\            ",
+        "  +-------/  \\--------/  \\-------+   ",
+        "  |      / /\\ \\  CRUX  / /\\ \\      |",
+        "  |     / /  \\ \\      / /  \\ \\     |",
+        "  |     \\ \\  / /      \\ \\  / /     |",
+        "  |      \\ \\/ / STUDIO \\ \\/ /      |",
+        "  +-------\\  /--------\\  /-------+   ",
+        "           \\/          \\/            ",
+    ]
+    for line in geom:
+        print(f"  {line}")
+    print(f"  CRUX Studio v{__version__}  ·  v3 event-driven TUI")
+    print()
+
+    from ui.v3.app import V3App
+
+    v3 = V3App(session=session, cli=cli, cwd=cwd)
+    v3.run()
+
+
 def _chat_plain():
-    """Plain text REPL — fallback when no TTY or TUI unavailable."""
+    """Plain text REPL."""
     import uuid
 
     from core.chat import ChatSession
@@ -533,42 +570,106 @@ def _chat_plain():
                     session.model = snapshot.get("model", session.model)
                     _p(f"  已恢复 {msg_count} 条消息到上下文，模型: {session.model}")
             except (EOFError, KeyboardInterrupt):
-                pass
+                _p("  自动跳过（非交互模式）")
     except Exception as e:
         _p(f"初始化失败: {e}", file=sys.stderr)
         sys.exit(1)
 
-    CruxCLI(session)
+    cli = CruxCLI(session)
 
     # ── Startup banner ──
-    _rprint()
-    _rprint(
-        f"[bold cyan]◆  CRUX Studio  v{__version__}[/] — [dim]Windows 11 工程搭档 · DeepSeek V4 Flash (1M) · 平时如刀，出事成阵[/]"
+    W = _ANSI.get("bright_white", "")
+    C = _ANSI.get("bright_cyan", "")
+    G = _ANSI.get("bright_green", "")
+    D = _ANSI.get("dim", "")
+    R = _ANSI.get("reset", "")
+
+    # ── Banner: ASCII geometric CRUX logo ──
+    geom = [
+        "           /\\          /\\            ",
+        "  +-------/  \\--------/  \\-------+   ",
+        "  |      / /\\ \\  CRUX  / /\\ \\      |",
+        "  |     / /  \\ \\      / /  \\ \\     |",
+        "  |     \\ \\  / /      \\ \\  / /     |",
+        "  |      \\ \\/ / STUDIO \\ \\/ /      |",
+        "  +-------\\  /--------\\  /-------+   ",
+        "           \\/          \\/            ",
+    ]
+    print()
+    for line in geom:
+        print(f"  {C}{line}{R}")
+    print()
+    print(f"  {W}CRUX Studio{R}  {C}v{__version__}{R}  ·  {G}DeepSeek V4 Pro{R}  ·  1M 上下文")
+    print(f"  {D}极简内核 · 百器待命 · 七兽按需 · Multi-Agent{R}")
+    print(f"  {D}平时如刀，出事成阵 —— Sharp by default. A swarm when needed.{R}")
+    print()
+    print(f"  {C}/ask{R}   开始 AI 编程    {C}/agent{R}  选择专业智能体")
+    print(f"  {C}/swarm{R}  并行编排        {C}/skills{R} 浏览技能")
+    print(f"  {C}/help{R}   查看全部命令    {C}Ctrl+V{R}  粘贴  {C}Enter{R}  发送")
+    print()
+
+    _chat_plain_session(session, cli, wire, session_id)
+
+
+def _md_colorize(text: str, c: dict) -> str:
+    """Apply markdown syntax highlighting with ANSI colors.
+
+    Colorizes: **bold**, *italic*, `code`, [links](url),
+    ```code blocks```, # headers, > blockquotes, - lists.
+    Base color restored after each highlight.
+    """
+    base = c.get("ai", "")
+    G = c.get("bright_green", c.get("green", ""))
+    Y = c.get("bright_yellow", c.get("yellow", ""))
+    B = c.get("bright_blue", c.get("blue", ""))
+    C = c.get("bright_cyan", c.get("cyan", ""))
+
+    # Code blocks: ``` ... ```
+    text = re.sub(
+        r"```(\w*)\n(.*?)```",
+        lambda m: f"{c['reset']}{c['bold']}{G}{m.group(2).strip()}{c['reset']}{base}",
+        text,
+        flags=re.DOTALL,
     )
-    _rprint()
-    _rprint(f"[bold]Working Directory:[/] [cyan]{cwd}[/]")
-    _print_kimi_tree(cwd)
-    _rprint()
-    agents_path = cwd / "AGENTS.md"
-    if agents_path.exists():
-        try:
-            agents_content = agents_path.read_text(encoding="utf-8")
-            first_line = agents_content.strip().split("\n")[0]
-            _rprint(f"[bold]AGENTS.md:[/] {first_line}")
-            for line in agents_content.split("\n"):
-                line = line.strip()
-                if line.startswith("- Entry:") or line.startswith("- Core:") or line.startswith("- Engines:"):
-                    _rprint(f"  {line}")
-        except OSError as _e:
-            _rprint(f"[dim]AGENTS.md unreadable: {_e}[/dim]")
-    _rprint()
-    _rprint("[bold]Skills:[/]")
-    _print_skills_summary()
-    _rprint()
-    if wire:
-        _rprint(f"[dim]Session: {session_id}[/]")
-    _rprint("[dim]Type /help for all commands, /q to quit[/]")
-    _rprint()
+    # Inline code: `code`
+    text = re.sub(
+        r"`([^`]+)`",
+        lambda m: f"{c['reset']}{c['bold']}{Y}{m.group(1)}{c['reset']}{base}",
+        text,
+    )
+    # Headers: # ## ###
+    text = re.sub(
+        r"^(#{1,3})\s+(.+)$",
+        lambda m: f"{c['reset']}{c['bold']}{C}{m.group(1)} {m.group(2)}{c['reset']}{base}",
+        text,
+        flags=re.MULTILINE,
+    )
+    # Bold: **text**
+    text = re.sub(
+        r"\*\*([^*]+)\*\*",
+        lambda m: f"{c['reset']}{c['bold']}{base}{m.group(1)}{c['reset']}{base}",
+        text,
+    )
+    # Italic: *text*
+    text = re.sub(
+        r"(?<!\*)\*([^*]+)\*(?!\*)",
+        lambda m: f"{c['reset']}{c['italic']}{base}{m.group(1)}{c['reset']}{base}",
+        text,
+    )
+    # Links: [text](url)
+    text = re.sub(
+        r"(?<!\x1b)\[([^\]]+)\]\([^)]+\)",
+        lambda m: f"{c['reset']}{c['underline']}{B}{m.group(1)}{c['reset']}{base}",
+        text,
+    )
+    # Blockquotes: > text
+    text = re.sub(
+        r"^(>\s?)(.+)$",
+        lambda m: f"{c['reset']}{c['dim']}▎ {m.group(2)}{c['reset']}{base}",
+        text,
+        flags=re.MULTILINE,
+    )
+    return text
 
 
 def _chat_plain_session(session, cli, wire, session_id: str = "") -> None:
@@ -576,12 +677,22 @@ def _chat_plain_session(session, cli, wire, session_id: str = "") -> None:
     _rprint = _safe_rich_print()
     _setup_readline_completion(cli)
 
+    # ── ANSI color check ──
+    try:
+        test = f"{_ANSI['green']}✓{_ANSI['reset']} ANSI colors enabled"
+        print(test, flush=True)
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).debug("silent except", exc_info=True)
+
     # ── 启动自愈 + 自优化 ──────────────────────────────────
     _run_startup_health()
 
     while True:
         try:
-            line = input("> ").strip()
+            # Bright green prompt + input text
+            line = input(f"{_ANSI['bright_green']}> {_ANSI['reset']}").strip()
         except (EOFError, KeyboardInterrupt):
             print()
             break
@@ -601,26 +712,36 @@ def _chat_plain_session(session, cli, wire, session_id: str = "") -> None:
             continue
         try:
             for kind, payload in session.send_stream(line):
-                if kind == "text":
-                    sys.stdout.write(payload)
-                    sys.stdout.flush()
-                elif kind == "info":
-                    _rprint(f"[dim]  {payload}[/]")
-                elif kind == "error":
-                    print(f"\n  ⚠ {payload}", file=sys.stderr)
-                elif kind in ("image", "video"):
-                    data = payload if isinstance(payload, dict) else {}
-                    local = data.get("local_path", "")
-                    url = data.get("url", data.get("video_url", ""))
-                    if local:
-                        _rprint(f"[green]  已保存: {local}[/]")
-                    elif url:
-                        _rprint(f"[green]  URL: {url}[/]")
+                try:
+                    if kind == "text":
+                        text = _md_colorize(str(payload), _ANSI)
+                        colored = f"{_ANSI['ai']}{text}{_ANSI['reset']}"
+                        sys.stdout.write(colored)
+                        sys.stdout.flush()
+                    elif kind == "info":
+                        msg = str(payload)[:200]
+                        print(f"  {_ANSI['bright_yellow']}{msg}{_ANSI['reset']}")
+                    elif kind == "error":
+                        msg = str(payload)[:200]
+                        print(f"\n  {_ANSI['bright_red']}✗ {msg}{_ANSI['reset']}", file=sys.stderr)
+                    elif kind == "tool_result":
+                        name = payload.get("name", "") if isinstance(payload, dict) else ""
+                        result = payload.get("result", str(payload)) if isinstance(payload, dict) else str(payload)
+                        print(f"  {_ANSI['bright_blue']}  {name}: {result[:120]}{_ANSI['reset']}")
+                    elif kind in ("image", "video"):
+                        data = payload if isinstance(payload, dict) else {}
+                        local = data.get("local_path", "")
+                        if local:
+                            print(f"  已保存: {local}")
+                except Exception:
+                    import logging
+
+                    logging.getLogger(__name__).debug("silent except", exc_info=True)
             if wire:
                 with contextlib.suppress(Exception):
                     wire.record_turn("assistant", "[streamed response]")
         except Exception as e:
-            _rprint(f"[red]错误: {e}[/]")
+            print(f"错误: {e}")
         print()
 
 

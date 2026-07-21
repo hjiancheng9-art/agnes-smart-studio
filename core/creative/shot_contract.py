@@ -19,7 +19,7 @@ import logging
 import re
 from dataclasses import asdict, dataclass, field
 
-logger = logging.getLogger("crux.shot_contract")
+logger = logging.getLogger(__name__)
 
 # 动作分隔词（用于检测多动作）
 ACTION_SPLITTERS = re.compile(

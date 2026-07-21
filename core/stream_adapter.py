@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
-logger = logging.getLogger("crux.stream_adapter")
+logger = logging.getLogger(__name__)
 
 DEFAULT_FIRST_TOKEN_TIMEOUT = 30.0  # TODO: wire into consume_stream() first-token watchdog
 DEFAULT_STREAM_IDLE_TIMEOUT = 30.0

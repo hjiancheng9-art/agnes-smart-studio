@@ -33,7 +33,7 @@ from pathlib import Path
 import httpx
 import requests
 
-logger = logging.getLogger("crux.agnes")
+logger = logging.getLogger(__name__)
 
 
 # 视频 ID 清洗工具

@@ -176,7 +176,7 @@ def _build_palette_style(palette: dict) -> Style:
             # ── Message area ──
             ("message-area", f"bg:{C['bg']}"),
             ("message-user", f"fg:{C['user']} bold"),
-            ("message-crux", f"fg:{C['primary']}"),
+            ("message-crux", f"fg:{C['accent']} bold"),
             ("message-info", f"fg:{C['info']} italic"),
             ("message-error", f"fg:{C['error']} bold"),
             ("message-tool", f"fg:{C['tool']} italic"),
@@ -216,7 +216,7 @@ def _build_palette_style(palette: dict) -> Style:
             ("status-bar-level-d", f"fg:{C['muted']} bg:{C['surface']}"),
             # ── Input area ──
             ("input-border", f"fg:{C['border']}"),
-            ("input-field", f"fg:{C['primary']} bg:{C['input_bg']}"),
+            ("input-field", f"fg:{C['accent']} bg:{C['input_bg']} bold"),
             ("text-area", f"fg:{C['primary']} bg:{C['input_bg']}"),
             ("text-area.prompt", f"fg:{C['accent']} bold bg:{C['input_bg']}"),
             ("text-area.cursor", f"fg:{C['input_bg']} bg:{C['accent']}"),

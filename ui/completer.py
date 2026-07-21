@@ -27,8 +27,11 @@ Behavior:
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+logger = logging.getLogger("crux.completer")
 
 from prompt_toolkit.completion import CompleteEvent, Completer, Completion
 
@@ -104,7 +107,7 @@ def _list_files(prefix: str) -> list[tuple[str, str, str]]:
             results.append((full, f"{name}/" if entry.is_dir() else name, "dir" if entry.is_dir() else "file"))
 
     except PermissionError:
-        pass
+        logger.debug("silent except", exc_info=True)
 
     return results
 

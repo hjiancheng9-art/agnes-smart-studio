@@ -25,7 +25,7 @@ import re
 import threading
 from pathlib import Path
 
-logger = logging.getLogger("crux.agnes_pool")
+logger = logging.getLogger(__name__)
 
 # LevelDB path relative to AgnesCode app data
 _AGNES_DB_DIR = os.path.expandvars(r"%APPDATA%\AgnesCode\Partitions\agnes\Local Storage\leveldb")

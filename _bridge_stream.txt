@@ -1,0 +1,11 @@
+28:    StreamDone,
+29:    StreamError,
+32:    StreamThinkingChunk,
+106:        return StreamThinkingChunk(text)
+145:        return StreamError(error_type="stream", message=text)
+184:def stream_done_event(elapsed: float = 0.0, tool_count: int = 0) -> StreamDone:
+185:    """Create a StreamDone event after the generator exhausts."""
+186:    return StreamDone(elapsed=elapsed, tool_count=tool_count)
+194:def stream_error_event(error_type: str, message: str, hint: str = "") -> StreamError:
+195:    """Create a StreamError event."""
+196:    return StreamError(error_type=error_type, message=message, hint=hint)

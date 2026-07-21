@@ -1,0 +1,4 @@
+core\runtimes\architecture_runtime.py:39:9: SIM103 Return the condition directly
+core\runtimes\code_patch_runtime.py:39:17: SIM103 Return the negated condition directly
+core\runtimes\debug_runtime.py:37:9: SIM110 Use `return any(re.search(pattern, text) for pattern in self.DEBUG_KEYWORDS)` instead of `for` loop
+ui\v3\runtime_bridge.py:170:9: SIM108 Use ternary operator `loc = payload.get("local_path", "") or payload.get("url", "") if isinstance(payload, dict) else str(payload)` instead of `if`-`else`-block

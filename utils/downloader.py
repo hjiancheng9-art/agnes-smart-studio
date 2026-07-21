@@ -1,5 +1,8 @@
 """下载管理器 - 图片/视频下载（带认证头降级重试）"""
 
+import logging
+
+logger = logging.getLogger(__name__)
 import re
 from datetime import datetime
 
@@ -47,7 +50,7 @@ def download_image(url: str, filename: str | None = None) -> str:
                 f.write(resp.content)
             return str(save_path)
     except (httpx.HTTPError, httpx.TimeoutException):
-        pass
+        logger.debug("silent except", exc_info=True)
 
     # 策略2：带认证头重试（部分私有 URL 可能需要）
     try:
@@ -57,7 +60,7 @@ def download_image(url: str, filename: str | None = None) -> str:
                 f.write(resp.content)
             return str(save_path)
     except (httpx.HTTPError, httpx.TimeoutException):
-        pass
+        logger.debug("silent except", exc_info=True)
 
     raise RuntimeError(f"图片下载失败: {url}")
 
@@ -81,7 +84,7 @@ def download_video(url: str, filename: str | None = None) -> str:
                 f.write(resp.content)
             return str(save_path)
     except (httpx.HTTPError, httpx.TimeoutException):
-        pass
+        logger.debug("silent except", exc_info=True)
 
     # 策略2：带认证头重试（部分私有 URL 可能需要）
     try:
@@ -91,6 +94,6 @@ def download_video(url: str, filename: str | None = None) -> str:
                 f.write(resp.content)
             return str(save_path)
     except (httpx.HTTPError, httpx.TimeoutException):
-        pass
+        logger.debug("silent except", exc_info=True)
 
     raise RuntimeError(f"视频下载失败: {url}")

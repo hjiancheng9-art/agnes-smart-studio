@@ -21,7 +21,7 @@ import logging
 import random
 import re
 
-logger = logging.getLogger("crux.adversarial")
+logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════
 # Level 1: Unicode smuggling — homoglyph substitution

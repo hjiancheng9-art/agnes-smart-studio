@@ -1,0 +1,53 @@
+"""CRUX Self-Healer — 白虎自愈引擎。
+
+Automated audit + fix pipeline. Run with:
+    python core/self_heal.py          # audit only
+    python core/self_heal.py --fix    # audit + auto-fix
+    python core/self_heal.py --json   # machine-readable output
+
+Detects and optionally fixes:
+  1. Silent exception swallows (except:pass without logging)
+  2. Dead imports (imported but never used in file)
+  3. Missing hook registrations (defined but never called)
+  4. Syntax errors
+  5. Test failures
+  6. Configuration drift
+"""
+
+from __future__ import annotations
+
+import ast
+import json
+import logging
+
+logger = logging.getLogger("crux.self_heal")
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+from core.pattern_matcher import PatternEngine
+
+ROOT = Path(__file__).resolve().parent.parent
+
+# ── Color helpers ──────────────────────────────────────
+G = "\033[32m"
+R = "\033[31m"
+Y = "\033[33m"
+B = "\033[34m"
+N = "\033[0m"
+
+
+class Finding:
+    def __init__(self, severity: str, category: str, file: str, line: int, msg: str, fixable: bool = False):
+        self.severity = severity  # critical / high / medium / low
+        self.category = category
+        self.file = file
+        self.line = line
+        self.msg = msg
+        self.fixable = fixable
+
+    def __repr__(self):
+        return f"[{self.severity}] {self.file}:{self.line} — {self.msg}"
+
+

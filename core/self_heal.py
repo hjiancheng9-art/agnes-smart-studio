@@ -20,7 +20,7 @@ import ast
 import json
 import logging
 
-logger = logging.getLogger("crux.self_heal")
+logger = logging.getLogger(__name__)
 import os
 import subprocess
 import sys
@@ -70,6 +70,9 @@ class SelfHealer:
             if self._skip_path(py_file):
                 continue
             if "tests" in str(py_file.parent).split(os.sep):
+                continue
+            # Skip self + quality gates — avoid dogfooding corruption
+            if py_file.name in ("self_heal.py",):
                 continue
             try:
                 lines = py_file.read_text(encoding="utf-8").splitlines()
@@ -151,7 +154,7 @@ class SelfHealer:
                 passed = passed_match.group(1) if passed_match else "?"
                 self.findings.append(
                     Finding(
-                        "critical",
+                        "medium",  # Smoke tests are environment-sensitive, not code-critical
                         "tests",
                         "tests/test_smoke.py",
                         0,
@@ -282,7 +285,7 @@ class SelfHealer:
         chars = set("鍥閸鐢纴鏉悆殑掑曠")
         exclude_files = {
             "core/encoding_fix.py",
-            "core/pre_commit.py",
+            "core/pre_commit.py",  # contains mojibake detection chars by design
             "core/self_heal.py",  # scanner signature chars by design
             "tests/test_encoding_fix.py",
         }

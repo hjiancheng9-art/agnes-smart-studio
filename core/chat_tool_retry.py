@@ -13,7 +13,7 @@ import os as _os
 import re as _re
 import sys as _sys
 
-logger = logging.getLogger("crux.tool_retry")
+logger = logging.getLogger(__name__)
 
 # ── Lightweight tool bus ──────────────────────────────────────────────
 

@@ -59,7 +59,7 @@ def execute_run_format(paths: str = "", check: bool = False) -> str:
         paths: Space-separated file/directory paths (default: all tracked Python files)
         check: If True, only check without modifying (dry-run)
     """
-    targets = [p.strip() for p in paths.split() if p.strip()] if paths.strip() else []
+    targets = [p.strip() for p in paths.split() if p.strip()] if paths and paths.strip() else []
     lang = _detect_language(targets) if targets else "python"
 
     results = []
@@ -114,7 +114,7 @@ def execute_run_lint(paths: str = "", fix: bool = False) -> str:
         paths: Space-separated file/directory paths
         fix: If True, auto-fix issues where possible
     """
-    targets = [p.strip() for p in paths.split() if p.strip()] if paths.strip() else []
+    targets = [p.strip() for p in paths.split() if p.strip()] if paths and paths.strip() else []
     lang = _detect_language(targets) if targets else "python"
 
     cwd = str(ROOT)

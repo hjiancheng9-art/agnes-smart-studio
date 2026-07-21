@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 
-logger = logging.getLogger("crux.critic_agent")
+logger = logging.getLogger(__name__)
 
 import json
 import re

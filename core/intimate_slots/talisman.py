@@ -11,7 +11,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 
-logger = logging.getLogger("crux.talisman")
+logger = logging.getLogger(__name__)
 
 
 @dataclass

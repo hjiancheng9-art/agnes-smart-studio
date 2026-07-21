@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from core.client import CruxClient
 
-logger = logging.getLogger("crux.routing")
+logger = logging.getLogger(__name__)
 
 
 def build_fallback_chain(

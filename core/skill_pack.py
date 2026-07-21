@@ -19,7 +19,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-logger = logging.getLogger("crux.skill_pack")
+logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent.parent
 SKILLS_DIR = ROOT / "skills"

@@ -30,7 +30,7 @@ def _media_error(kind: str, e: Exception) -> str:
 import json
 import logging
 
-logger = logging.getLogger("crux.tool_dispatch")
+logger = logging.getLogger(__name__)
 
 
 def _classify_tool_intent(name: str) -> str | None:

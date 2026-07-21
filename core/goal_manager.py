@@ -40,7 +40,7 @@ class Goal:
     boundaries: str = ""
     status: str = "active"  # active | paused | completed | cancelled
     max_steps: int = 20
-    max_tool_calls: int = 100
+    max_tool_calls: int = 500
     max_duration_seconds: int = 0  # 0 = unlimited
     steps_executed: int = 0
     tool_calls_made: int = 0

@@ -18,9 +18,12 @@ Markdown subset:
 
 from __future__ import annotations
 
+import logging
 import re
 from collections import OrderedDict
 from typing import Any
+
+logger = logging.getLogger("crux.markdown")
 
 # ── Pygments Token → prompt_toolkit style mapping ─────────
 
@@ -57,7 +60,7 @@ def _init_style_map():
             }
         )
     except ImportError:
-        pass
+        logger.debug("silent except", exc_info=True)
 
 
 def _pygments_token_style(ttype: Any) -> str:
@@ -298,11 +301,34 @@ def render_markdown(text: str, width: int = 80) -> list[tuple[str, str]]:
 
     for tag, content in segments:
         if tag == "code_block":
-            # Pre-formatted highlighted code fragments with code-block background
             if isinstance(content, list):
+                # Split highlighted code into display lines with line-number gutter
+                lines: list[list[tuple[str, str]]] = [[]]
                 for style, text in content:
-                    result.append((f"class:code-block {style}", text))
-            result.append(("", "\n"))
+                    while "\n" in text:
+                        idx = text.index("\n")
+                        before = text[:idx]
+                        if before:
+                            lines[-1].append((style, before))
+                        lines.append([])
+                        text = text[idx + 1 :]
+                    if text:
+                        lines[-1].append((style, text))
+                # Drop trailing empty line (caused by final \n token)
+                if lines and not lines[-1]:
+                    lines.pop()
+
+                gutter_w = max(1, len(str(len(lines))))
+                for i, line_tokens in enumerate(lines, 1):
+                    ln = str(i).rjust(gutter_w)
+                    result.append(("class:code-block fg:#555555", f" {ln} │ "))
+                    for style, text in line_tokens:
+                        result.append((f"class:code-block {style}", text))
+                    result.append(("", "\n"))
+                if not lines:
+                    for style, text in content:
+                        result.append((f"class:code-block {style}", text))
+                    result.append(("", "\n"))
         else:
             # Text content — split into blocks and render each
             blocks = content.split("\n")

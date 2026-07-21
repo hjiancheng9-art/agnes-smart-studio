@@ -15,6 +15,9 @@
 输出：output/gallery.html（单文件，内嵌 CSS+JS+缩略图 data URI，完全离线）
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
 import base64
 import webbrowser
 from datetime import datetime
@@ -214,7 +217,7 @@ def generate_gallery(filter_type: str = "all", open_browser: bool = True) -> str
                 img.save(buf, format="JPEG", quality=80)
                 thumb = f"data:image/jpeg;base64,{base64.b64encode(buf.getvalue()).decode()}"
             except (OSError, ValueError, TypeError):
-                pass
+                logger.debug("silent except", exc_info=True)
 
         thumb_attr = f'src="{thumb}"' if thumb else ""
         if not thumb_attr:

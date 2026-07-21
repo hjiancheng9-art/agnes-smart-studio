@@ -35,6 +35,8 @@ from typing import Literal
 
 
 class MessageState(enum.Enum):
+    """消息生命周期状态：草稿 → 待发送 → 已提交 / 已撤回。"""
+
     DRAFT = "draft"
     PENDING = "pending"
     COMMITTED = "committed"
@@ -46,6 +48,8 @@ class MessageState(enum.Enum):
 
 
 class RunState(enum.Enum):
+    """运行状态机：IDLE → RUNNING → PAUSED / CANCELLING → 终态。"""
+
     IDLE = "idle"
     RUNNING = "running"
     PAUSING = "pausing"
@@ -59,6 +63,8 @@ class RunState(enum.Enum):
 
 
 class ControlEventType(enum.Enum):
+    """控制事件类型：INTERRUPT(中断)/CANCEL(取消)/PAUSE(暂停)/RESUME(恢复)。"""
+
     INTERRUPT = "interrupt"  # "停一下"
     PAUSE = "pause"  # 暂停当前 run
     CANCEL = "cancel"  # 取消当前 run
@@ -91,14 +97,17 @@ class StagedMessage:
     retracted_at: float = 0.0
 
     def commit(self):
+        """提交事件到队列（按优先级排序后入队）。"""
         self.state = MessageState.COMMITTED
         self.committed_at = time.time()
 
     def consume(self):
+        """消费并移除队首事件，队列空返回 None。"""
         self.state = MessageState.CONSUMED
         self.consumed_at = time.time()
 
     def retract(self):
+        """撤回特定类型的未消费事件。"""
         self.state = MessageState.RETRACTED
         self.retracted_at = time.time()
 
@@ -143,6 +152,7 @@ class ControlQueue:
     """控制事件队列 — 优先级队列，agent 执行循环每步检查。"""
 
     def __init__(self):
+        """初始化消息暂存器，绑定输入组件和管理器引用。"""
         self._events: list[ControlEvent] = []
         self._lock = threading.Lock()
 
@@ -171,9 +181,11 @@ class ControlQueue:
             return self._events[0] if self._events else None
 
     def has_events(self) -> bool:
+        """检查队列中是否有待处理事件。"""
         return len(self._events) > 0
 
     def clear(self):
+        """清空事件队列。"""
         with self._lock:
             self._events.clear()
 
@@ -196,6 +208,7 @@ class PendingOutbox:
     UNDO_WINDOW_MS = 2000  # 2 秒
 
     def __init__(self):
+        """初始化待发送消息管理器 — 2 秒撤销窗口。"""
         self._pending: dict[str, StagedMessage] = {}
         self._lock = threading.Lock()
         self._on_commit: Callable[[StagedMessage], None] | None = None
@@ -237,6 +250,7 @@ class PendingOutbox:
             return list(self._pending.values())
 
     def has_pending(self) -> bool:
+        """检查是否有待发送消息。"""
         return len(self._pending) > 0
 
     def tick(self) -> list[StagedMessage]:
@@ -274,6 +288,7 @@ class RunStateManager:
     }
 
     def __init__(self):
+        """初始化运行状态管理器，绑定控制平面引用。"""
         self._state = RunState.IDLE
         self._run_id: str = ""
         self._lock = threading.Lock()
@@ -282,29 +297,36 @@ class RunStateManager:
 
     @property
     def state(self) -> RunState:
+        """当前运行状态（IDLE/RUNNING/PAUSED/CANCELLING）。"""
         return self._state
 
     @property
     def run_id(self) -> str:
+        """当前运行 ID。"""
         return self._run_id
 
     @property
     def is_running(self) -> bool:
+        """是否正在运行。"""
         return self._state in (RunState.RUNNING, RunState.PAUSING)
 
     @property
     def is_cancelling(self) -> bool:
+        """是否正在取消。"""
         return self._state in (RunState.CANCELLING, RunState.CANCELLED)
 
     @property
     def is_paused(self) -> bool:
+        """是否已暂停。"""
         return self._state == RunState.PAUSED
 
     @property
     def is_idle(self) -> bool:
+        """是否空闲。"""
         return self._state == RunState.IDLE
 
     def on_state_change(self, callback: Callable[[RunState, RunState], None]):
+        """注册状态变更回调。"""
         self._on_state_change = callback
 
     def on_pending_control(self, callback: Callable[[], None]):
@@ -373,6 +395,7 @@ class ToolInterruptRegistry:
     """工具可中断性注册表。"""
 
     def __init__(self):
+        """初始化工具可中断性注册表。"""
         self._tools: dict[str, ToolInterruptibility] = {}
 
     def register(self, tool: ToolInterruptibility | None = None, **kwargs):
@@ -389,6 +412,7 @@ class ToolInterruptRegistry:
         """装饰器：声明工具的可中断性。"""
 
         def decorator(func):
+            """装饰器：声明工具的可中断性模式。"""
             name = getattr(func, "__name__", str(func))
             self._tools[name] = ToolInterruptibility(tool_name=name, mode=mode)
             return func
@@ -403,6 +427,7 @@ class ControlPlane:
     """Control Plane — TUI 控制通道的总管理器。"""
 
     def __init__(self):
+        """初始化控制平面 — 组装队列/发件箱/运行状态/工具注册等子系统。"""
         self.queue = ControlQueue()
         self.outbox = PendingOutbox()
         self.runs = RunStateManager()
@@ -467,12 +492,15 @@ class ControlPlane:
     # ── 控制事件快捷方法 ──
 
     def interrupt(self, reason: str = "") -> ControlEvent:
+        """快捷方法：推送 INTERRUPT 控制事件。"""
         return self.queue.push(type=ControlEventType.INTERRUPT, payload={"reason": reason})
 
     def cancel_run(self, reason: str = "") -> ControlEvent:
+        """快捷方法：推送 CANCEL 控制事件。"""
         return self.queue.push(type=ControlEventType.CANCEL, priority=2, payload={"reason": reason})
 
     def pause_run(self, reason: str = "") -> ControlEvent:
+        """快捷方法：推送 PAUSE 控制事件。"""
         return self.queue.push(type=ControlEventType.PAUSE, payload={"reason": reason})
 
     def priority_message(self, text: str) -> ControlEvent:
@@ -528,6 +556,7 @@ _control: ControlPlane | None = None
 
 
 def get_control() -> ControlPlane:
+    """获取全局 ControlPlane 单例，不存在则创建。"""
     global _control
     if _control is None:
         _control = ControlPlane()

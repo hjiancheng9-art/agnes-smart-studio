@@ -1,10 +1,13 @@
 """Status bar — model | cwd | branch [diff] | context%."""
 
+import logging
 import os
 import shutil
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
+
+logger = logging.getLogger("crux.status_bar")
 
 from prompt_toolkit.formatted_text import FormattedText
 
@@ -147,7 +150,7 @@ class StatusBar:
                 last = alerts[-1]
                 right = f" ⚠ {last[:40]}" if "CRITICAL" in last or "failure" in last else f" ⚡ {last[:40]}"
         except ImportError:
-            pass
+            logger.debug("silent except", exc_info=True)
         if self._latency is not None:
             right = f"ttft: {self._latency:.1f}s"
         # ── 方法论等级 ──
@@ -162,7 +165,7 @@ class StatusBar:
                 level_style = f"status-bar-level-{level_short.lower()}"
                 right = f"[{level_short}] " + (right if right else "")
         except (ImportError, OSError):
-            pass
+            logger.debug("silent except", exc_info=True)
         if self._context_max > 0:
             if right:
                 right += "  "

@@ -1,5 +1,8 @@
 """Tests for core/incident.py — classifier, store, playbooks."""
 
+import logging
+
+logger = logging.getLogger(__name__)
 import json
 import os
 import sys
@@ -73,7 +76,7 @@ class TestIncidentStore:
 
             self.orig_file = INCIDENT_FILE
         except ImportError:
-            pass
+            logger.debug("silent except", exc_info=True)
 
     def teardown_method(self):
         import shutil

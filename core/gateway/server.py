@@ -26,7 +26,7 @@ if TYPE_CHECKING:
         ChatCompletionResponse,
     )
 
-logger = logging.getLogger("crux.gateway")
+logger = logging.getLogger(__name__)
 
 
 # ── App factory ─────────────────────────────────────────

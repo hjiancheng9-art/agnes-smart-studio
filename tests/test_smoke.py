@@ -52,3 +52,26 @@ def test_pytest_runner():
     p, f = parse_test_summary("3 passed in 0.10s")
     assert p == 3
     assert f == 0
+
+
+def test_self_heal_import_and_scan():
+    """Verify self-healer is importable and completes a syntax scan without crashing.
+
+    NOTE: Does NOT run scan_test_failures (would recursively invoke pytest).
+    """
+    from core.self_heal import SelfHealer
+
+    healer = SelfHealer()
+    # Run individual fast scanners — skip scan_test_failures (recursive pytest)
+    for scanner in (
+        healer.scan_syntax,
+        healer.scan_silent_exceptions,
+        healer.scan_import_errors,
+        healer.scan_config_drift,
+        healer.scan_mojibake,
+    ):
+        scanner()
+    findings = healer.findings
+    assert isinstance(findings, list)
+    critical_high = [f for f in findings if f.severity in ("critical", "high")]
+    assert len(critical_high) == 0, f"Self-heal found {len(critical_high)} critical/high issues"

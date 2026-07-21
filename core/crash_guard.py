@@ -9,7 +9,7 @@ import sys
 import threading
 import traceback
 
-logger = logging.getLogger("crux.crash_guard")
+logger = logging.getLogger(__name__)
 
 _installed = False
 _original_excepthook = None

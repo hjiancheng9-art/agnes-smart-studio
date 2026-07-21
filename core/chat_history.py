@@ -15,7 +15,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-logger = logging.getLogger("crux.chat_history")
+logger = logging.getLogger(__name__)
 
 # Default snapshot location: <repo>/output/sessions
 DEFAULT_SNAPSHOT_DIR = Path(__file__).resolve().parent.parent / "output" / "sessions"

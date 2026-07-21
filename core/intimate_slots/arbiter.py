@@ -24,7 +24,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent.parent
 STATE_FILE = ROOT / "output" / "merit_state.json"
 
-logger = logging.getLogger("crux.arbiter")
+logger = logging.getLogger(__name__)
 
 # ── Scoring constants ──────────────────────────────────────────
 MERIT_FAST_TOOL = 1.0  # tool success + latency < 500ms

@@ -1,0 +1,43 @@
+111:        state = replace(state, stream=StreamState(status=StreamStatus.ERROR))
+117:            stream=StreamState(status=StreamStatus.DONE, tool_seq=state.stream.tool_seq),
+124:        state = replace(state, stream=StreamState(status=StreamStatus.IDLE))
+137:        state = replace(state, focus_mode=not state.focus_mode)
+143:            current = state.interaction.mode
+145:        state = replace(state, interaction=replace(state.interaction, mode=new_mode))
+154:        new_screen = Screen.MAIN if state.screen == Screen.DASHBOARD else Screen.DASHBOARD
+169:        pass  # handled by view layer reading interaction.focus_idx
+180:        state = replace(state, screen=Screen.MAIN)
+217:            # Save current interaction mode, switch to palette-modal
+247:        i = state.interaction
+248:        state = replace(state, interaction=replace(i, mode=InteractionMode.COPY, focus_idx=event.total_messages - 1))
+250:        i = state.interaction
+251:        state = replace(state, interaction=replace(i, mode=InteractionMode.NORMAL))
+253:        i = state.interaction
+256:        state = replace(state, interaction=replace(i, focus_idx=new_idx))
+258:        idx = state.interaction.focus_idx
+271:    if s.status == StreamStatus.IDLE or s.status == StreamStatus.THINKING:
+275:        return replace(
+278:                status=StreamStatus.STREAMING,
+287:    return replace(
+289:        stream=replace(s, status=StreamStatus.STREAMING),
+299:    return replace(
+301:        stream=replace(s, status=StreamStatus.THINKING, started_at=started_at),
+316:                       status=StreamStatus.STREAMING),
+345:    return replace(state, activity=old.__class__(items=tuple(items), expanded=old.expanded))
+350:    return replace(
+361:    if s.status in (StreamStatus.THINKING, StreamStatus.STREAMING):
+363:        state = replace(state, stream=StreamState(status=StreamStatus.CANCELLING))
+365:    elif state.screen != Screen.MAIN:
+367:        state = replace(state, screen=Screen.MAIN)
+368:    elif state.focus_mode:
+369:        state = replace(state, focus_mode=False)
+370:    elif state.interaction.mode == InteractionMode.COPY:
+371:        state = replace(state, interaction=replace(state.interaction, mode=InteractionMode.NORMAL))
+390:    if state.stream.status in (StreamStatus.THINKING, StreamStatus.STREAMING):
+398:        stream=StreamState(status=StreamStatus.THINKING, started_at=time.monotonic()),
+418:        return replace(state, scroll=ScrollState(mode=ScrollMode.FOLLOW))
+419:    return replace(
+428:        return replace(state, scroll=ScrollState(mode=ScrollMode.FOLLOW))
+430:        return replace(state, scroll=ScrollState(mode=ScrollMode.MANUAL, offset=9999))
+455:    return replace(state, session=merged)
+462:    return replace(sc, unseen=sc.unseen + 1)

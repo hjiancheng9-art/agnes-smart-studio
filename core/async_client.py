@@ -159,7 +159,7 @@ class AsyncCruxClient:
         if has_surrogate(body):
             import logging
 
-            logging.getLogger("crux.client").warning("async_client.payload.surrogate_detected — sanitizing before send")
+            logging.getLogger(__name__).warning("async_client.payload.surrogate_detected — sanitizing before send")
         body = _sanitize_json(body)
 
         resp = await self._request_with_retry("POST", "/chat/completions", json=body)
@@ -227,7 +227,7 @@ class AsyncCruxClient:
         if has_surrogate(body):
             import logging
 
-            logging.getLogger("crux.client").warning(
+            logging.getLogger(__name__).warning(
                 "async_client.payload.surrogate_detected — sanitizing before stream send"
             )
         body = _sanitize_json(body)
@@ -422,7 +422,7 @@ class AsyncCruxClient:
             # 进度防回退：API 偶发简化响应
             current_progress = max(
                 last_progress,
-                raw_progress if isinstance(raw_progress, (int, float)) else last_progress,
+                raw_progress if isinstance(raw_progress, int | float) else last_progress,
             )
             last_progress = current_progress
 

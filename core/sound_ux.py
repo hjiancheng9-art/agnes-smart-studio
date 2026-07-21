@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SOUND_DIR = ROOT / "output" / "sounds"
 SOUND_DIR.mkdir(parents=True, exist_ok=True)
 
-logger = logging.getLogger("crux.sound_ux")
+logger = logging.getLogger(__name__)
 
 
 class SoundUX:

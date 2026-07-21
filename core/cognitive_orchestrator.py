@@ -11,7 +11,7 @@ import logging
 import os
 import re
 
-logger = logging.getLogger("crux.cognitive")
+logger = logging.getLogger(__name__)
 
 COMPARE_PROMPT = """You are a consensus builder. Below are {n} different AI responses to the same question.
 Synthesize them into ONE best answer. If they agree, state the consensus clearly.

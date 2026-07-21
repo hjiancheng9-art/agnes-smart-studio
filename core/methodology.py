@@ -45,6 +45,7 @@ PROTECTED_FILES: frozenset[str] = frozenset(
     }
 )
 
+import json
 import logging
 import subprocess as _sp
 
@@ -119,116 +120,43 @@ class TaskLevel(Enum):
     D = "critical"
 
 
-# C/D 级关键词（触发升级）
-_CD_KEYWORDS = frozenset(
-    {
-        "database",
-        "migration",
-        "schema",
-        "auth",
-        "authentication",
-        "security",
-        "api",
-        "deploy",
-        "release",
-        "refactor",
-        "architecture",
-        "拆分",
-        "重构",
-        "数据库",
-        "安全",
-        "认证",
-        "部署",
-        "架构",
-    }
-)
-
-# 敏感路径前缀
-_SENSITIVE_PATHS = frozenset({"core/config", "core/provider", "core/chat", "core/tools", "models.json"})
-
-
 def classify_task(intent: str, files_touched: list[str] | None = None) -> TaskLevel:
-    """根据用户意图和涉及文件自动判定 A/B/C/D 级。
+    """Classify task into A/B/C/D using unified keyword analysis.
 
-    规则（优先级递减）：
-        D 级 — 意图含安全/认证/部署关键词，或触及 models.json + 多个核心文件
-        C 级 — 涉及 3+ 文件或含重构/架构关键词
-        B 级 — 涉及 2 个文件或含 bug/fix
-        A 级 — 其余（单文件、单行修改）
+    Delegates to task_complexity.py's rich keyword engine (6-tier patterns
+    in both Chinese and English), then maps to the A/B/C/D system.
+    Falls back to execution_policy routing if task_complexity is unavailable.
     """
-    files = files_touched or []
-    n_files = len(files)
-    intent_lower = intent.lower()
+    # ── Primary: rich keyword classification ──
+    try:
+        from core.task_complexity import TaskComplexity
+        from core.task_complexity import classify_task as _tc
 
-    # D 级触发 — METHODOLOGY.md §1: auth/payment/db/deploy → 直接升 D
-    d_triggers = {
-        "deploy",
-        "release",
-        "rollback",
-        "migrate",
-        "migration",
-        " credentials",
-        "credential",
-        "payment",
-        "database migration",
-        " auth ",
-        "authenticate",
-        "login ",
-        "sign in",
-        "signin",
-        "凭证",
-        "密码",
-        "token",
-        "鉴权",
-        "支付",
-        "数据库迁移",
-        # "auth" 不带空格会匹配"authentication"（误报），用 " auth " 确保词边界
-        # 重构认证系统 → 走 C 级（含重构意图优先）
-    }
-    if any(t in intent_lower for t in d_triggers):
-        return TaskLevel.D
-    # models.json + 核心文件 → D
-    if any("models.json" in f for f in files) and n_files >= 2:
-        return TaskLevel.D
-    if n_files >= 5 and any(p.startswith("core/") for p in files):
-        return TaskLevel.D
+        result = _tc(intent)
+        # Map 5-tier TaskComplexity → 4-tier TaskLevel
+        _map = {
+            TaskComplexity.TRIVIAL: TaskLevel.A,
+            TaskComplexity.SIMPLE: TaskLevel.A,
+            TaskComplexity.MODERATE: TaskLevel.B,
+            TaskComplexity.COMPLEX: TaskLevel.C,
+            TaskComplexity.CRITICAL: TaskLevel.D,
+        }
+        return _map.get(result.complexity, TaskLevel.B)
+    except ImportError:
+        pass
 
-    # A 级优先检测 — METHODOLOGY.md §1: typo/文案/解释/注释 → 直接干
-    a_triggers = {
-        "typo",
-        "comment",
-        "文案",
-        "解释",
-        "说明",
-        "trivial",
-        "doc",
-        "docstring",
-        "readme",
-        "changelog",
-    }
-    if any(t in intent_lower for t in a_triggers) and n_files <= 1:
-        return TaskLevel.A
+    # ── Fallback: execution_policy routing ──
+    try:
+        from core.execution_policy import ExecutionMode, choose_policy
 
-    # C 级触发
-    c_triggers = {"refactor", "architect", "拆", "重构", "架构", "拆分", "模块化"}
-    if any(t in intent_lower for t in c_triggers):
-        return TaskLevel.C
-    if n_files >= 3:
-        return TaskLevel.C
-    # 2 个 core 文件 + 无明确 trivial/fix 意图 → C
-    if n_files >= 2 and any(f.startswith("core/") for f in files):
-        # 但如果意图明确是 bugfix/small → 降回 B
-        b_intent = {"fix", "bug", "修复", "补"}
-        if not any(t in intent_lower for t in b_intent):
+        policy = choose_policy(intent)
+        if policy.mode == ExecutionMode.SWARM:
+            return TaskLevel.D
+        elif policy.mode == ExecutionMode.ORCHESTRATE:
             return TaskLevel.C
-
-    # B 级触发
-    b_triggers = {"fix", "bug", "修复", "补", "implement", "实现", "feature", "新增", "add"}
-    if any(t in intent_lower for t in b_triggers) or n_files >= 2:
-        return TaskLevel.B
-
-    # 默认 A 级
-    return TaskLevel.A
+        return TaskLevel.B if len(intent) > 50 else TaskLevel.A
+    except ImportError:
+        return TaskLevel.A
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -255,6 +183,37 @@ class MethodologyState:
 
     # 7 步工作流状态 (METHODOLOGY.md §3)
     workflow_step: int = 1  # 1-7, 0=未开始
+
+    # ── Persistence ──
+
+    def to_dict(self) -> dict:
+        return {
+            "task_level": self.task_level.value,
+            "plan_exists": self.plan_exists,
+            "test_baseline_recorded": self.test_baseline_recorded,
+            "worktree_created": self.worktree_created,
+            "files_touched": list(self.files_touched),
+            # tdd_phase intentionally NOT persisted — TDD sessions are ephemeral
+            # and should not survive restarts (would block all writes)
+            "step_count": self.step_count,
+            "tool_call_count": self.tool_call_count,
+            "workflow_step": self.workflow_step,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> MethodologyState:
+        return cls(
+            task_level=TaskLevel(data.get("task_level", "micro")),
+            plan_exists=data.get("plan_exists", False),
+            test_baseline_recorded=data.get("test_baseline_recorded", False),
+            worktree_created=data.get("worktree_created", False),
+            files_touched=data.get("files_touched", []),
+            tdd_phase="",  # NEVER restore TDD phase — ephemeral by design
+            step_count=data.get("step_count", 0),
+            tool_call_count=data.get("tool_call_count", 0),
+            workflow_step=data.get("workflow_step", 1),
+        )
+
     workflow_steps: ClassVar[dict[int, str]] = {
         1: "明确目标",
         2: "收集上下文",
@@ -312,17 +271,21 @@ class MethodologyState:
         self.step_count += 1
 
     def advance_workflow(self, event: str) -> None:
-        """推进 7 步工作流 (METHODOLOGY.md §3)。
+        """推进 7 步工作流 (METHODOLOGY.md §3).
 
-        event: 'plan_created' | 'context_collected' | 'test_written' | 'verified' | 'cleaned'
+        event: 'context_collected' | 'plan_created' | 'test_written' | 'verified' | 'cleaned'
         """
         transitions = {
+            "context_collected": 2,
+            "level_classified": 3,  # set by classify() directly
             "plan_created": 4,
             "test_written": 5,
             "verified": 6,
             "cleaned": 7,
         }
-        self.workflow_step = transitions.get(event, self.workflow_step)
+        target = transitions.get(event)
+        if target is not None and target > self.workflow_step:
+            self.workflow_step = target
 
     def escalate(self, reason: str) -> TaskLevel:
         """按 METHODOLOGY.md §1.5 升级任务等级。返回新等级。"""
@@ -450,8 +413,15 @@ def _get_active_tdd_phase() -> str:
         sessions = sorted(tdd_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
         if not sessions:
             return ""
-        data = json.loads(sessions[0].read_text("utf-8"))
-        return data.get("phase", "")
+        # Skip completed sessions — only active (unfinished) sessions enforce the gate
+        for session_path in sessions:
+            try:
+                data = json.loads(session_path.read_text("utf-8"))
+                if not data.get("completed", False):
+                    return data.get("phase", "")
+            except (json.JSONDecodeError, KeyError):
+                continue
+        return ""
     except (OSError, json.JSONDecodeError, KeyError):
         return ""
 
@@ -471,6 +441,13 @@ def methodology_pre_check(tool_name: str, args: dict, state: MethodologyState | 
         (allowed, reason) — allowed=False 时 reason 说明拦截原因。
     """
     # ── L1 禁区 — 硬拦截（无关任务等级）──
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except (json.JSONDecodeError, ValueError):
+            args = {}
+    if not isinstance(args, dict):
+        args = {}
     file_path = args.get("path") or args.get("file_path") or args.get("target") or ""
     if (
         file_path
@@ -552,24 +529,101 @@ def reset_methodology_state() -> None:
     _current_state = MethodologyState()
 
 
+def save_methodology_state(filepath: str | None = None) -> bool:
+    """Save methodology state to disk for session persistence.
+
+    Args:
+        filepath: Target path. Defaults to output/sessions/methodology.json.
+    Returns:
+        True if saved successfully.
+    """
+    import json
+    from pathlib import Path
+
+    try:
+        if filepath is None:
+            root = Path(__file__).resolve().parent.parent
+            filepath = str(root / "output" / "sessions" / "methodology.json")
+        p = Path(filepath)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        state = get_methodology_state()
+        p.write_text(json.dumps(state.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+        return True
+    except (OSError, ValueError) as e:
+        logging.getLogger(__name__).debug("save failed: %s", e)
+        return False
+
+
+def restore_methodology_state(filepath: str | None = None) -> bool:
+    """Restore methodology state from disk.
+
+    Args:
+        filepath: Source path. Defaults to output/sessions/methodology.json.
+    Returns:
+        True if restored successfully, False if file not found or corrupt.
+    """
+    import json
+    from pathlib import Path
+
+    try:
+        if filepath is None:
+            root = Path(__file__).resolve().parent.parent
+            filepath = str(root / "output" / "sessions" / "methodology.json")
+        p = Path(filepath)
+        if not p.exists():
+            return False
+        data = json.loads(p.read_text(encoding="utf-8"))
+        global _current_state
+        restored = MethodologyState.from_dict(data)
+        _current_state = restored
+        logging.getLogger(__name__).info(
+            "Restored methodology: level=%s step=%d/%d",
+            restored.task_level.value,
+            restored.workflow_step,
+            7,
+        )
+        return True
+    except (OSError, ValueError, json.JSONDecodeError, KeyError) as e:
+        logging.getLogger(__name__).debug("restore failed: %s", e)
+        return False
+
+
 # ═══════════════════════════════════════════════════════════════════
 # 红旗警示 (AGENTS.md — 七大铁律)
 # ═══════════════════════════════════════════════════════════════════
 
 RED_FLAGS: dict[str, str] = {
+    # Chinese — overconfidence
     "这很简单": "红旗: '这很简单' → 也需要验证",
     "很简单": "红旗: '很简单' → 也需要验证",
     "应该好了": "红旗: '应该好了' → 禁止主观判断，跑测试确认",
     "应该没问题": "红旗: '应该没问题' → 跑验证命令",
     "看起来可以": "红旗: '看起来可以' → 眼见为实，跑测试",
     "理论上没问题": "红旗: '理论上没问题' → 理论≠证据，跑命令",
+    # Chinese — scope creep
     "我先改一下": "红旗: '我先改一下' → 先收集上下文再改",
     "顺便重构": "红旗: '顺便重构' → 不扩大范围",
+    "顺便改": "红旗: '顺便改' → 不扩大范围",
+    "顺手": "红旗: '顺手' → 不扩大范围，专注当前任务",
+    # Chinese — blind trust
     "子代理说完成了": "红旗: '子代理说完成了' → 报告不是证据，自己验证",
-    "-n auto": "红旗: 'pytest -n auto' → 全量测试必须限并发(-n 4)，禁止 -n auto",
+    "不需要测试": "红旗: '不需要测试' → D任务必须验证",
+    "跳过测试": "红旗: '跳过测试' → 必须验证后确认",
+    # Chinese — hallucinations
+    "配置已经改好了": "红旗: '配置已经改好了' → 确认是否真的执行了修改",
+    "已经完成了": "红旗: '已经完成了' → 确认实际产物",
+    # English
     "looks good": "Red flag: 'looks good' → verify with evidence",
     "should be fine": "Red flag: 'should be fine' → run tests",
     "theoretically": "Red flag: 'theoretically' → theory ≠ evidence",
+    "probably works": "Red flag: 'probably works' → verify",
+    "no need to test": "Red flag: 'no need to test' → always verify",
+    "trust me": "Red flag: 'trust me' → verify independently",
+    # Technical anti-patterns
+    "-n auto": "红旗: 'pytest -n auto' → 全量测试必须限并发(-n 4)，禁止 -n auto",
+    "git push -f": "红旗: 'git push -f' → 禁止强制推送",
+    "rm -rf": "红旗: 'rm -rf' → 禁止递归删除",
+    "DROP TABLE": "红旗: 'DROP TABLE' → 禁止删表操作",
 }
 
 

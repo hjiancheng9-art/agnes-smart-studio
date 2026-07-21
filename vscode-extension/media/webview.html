@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRUX Agent</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: var(--vscode-editor-background, #1e1e1e);
+  --fg: var(--vscode-editor-foreground, #d4d4d4);
+  --input-bg: var(--vscode-input-background, #3c3c3c);
+  --border: var(--vscode-panel-border, #333);
+  --accent: var(--vscode-focusBorder, #007acc);
+  --user-bg: var(--vscode-button-background, #0e639c);
+  --user-fg: var(--vscode-button-foreground, #fff);
+  --assistant-bg: var(--vscode-textBlockQuote-background, #2d2d2d);
+  --code-bg: var(--vscode-textCodeBlock-background, #1e1e1e);
+  --error-fg: #f48771;
+  --info-fg: var(--vscode-descriptionForeground, #888);
+  --font: var(--vscode-editor-font-family, 'Consolas', 'Courier New', monospace);
+  --font-size: var(--vscode-editor-font-size, 14px);
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: var(--font-size);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#header {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  user-select: none;
+  flex-shrink: 0;
+}
+#header .icon { font-size: 18px; }
+#header .clear-btn {
+  margin-left: auto;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 12px;
+  border-radius: 3px;
+}
+#header .clear-btn:hover { background: var(--input-bg); }
+
+#messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.message {
+  max-width: 100%;
+  padding: 8px 12px;
+  border-radius: 6px;
+  line-height: 1.5;
+  word-break: break-word;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.message.user {
+  align-self: flex-end;
+  background: var(--user-bg);
+  color: var(--user-fg);
+}
+
+.message.assistant {
+  align-self: flex-start;
+  background: var(--assistant-bg);
+  white-space: pre-wrap;
+}
+
+.message.info {
+  align-self: center;
+  font-size: 12px;
+  color: var(--info-fg);
+  padding: 2px 8px;
+  background: none;
+}
+
+.message.streaming { }
+.message.streaming::after {
+  content: '▌';
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+.message.streaming.done::after { content: ''; animation: none; }
+
+/* Markdown within assistant messages */
+.message.assistant h1, .message.assistant h2, .message.assistant h3 {
+  margin: 8px 0 4px;
+  font-size: 1.1em;
+}
+.message.assistant p { margin: 4px 0; }
+.message.assistant ul, .message.assistant ol { margin: 4px 0; padding-left: 20px; }
+.message.assistant li { margin: 2px 0; }
+.message.assistant blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 8px;
+  margin: 4px 0;
+  opacity: 0.8;
+}
+.message.assistant strong { font-weight: 700; color: #e0e0e0; }
+.message.assistant em { font-style: italic; }
+.message.assistant a { color: var(--accent); }
+
+.message.assistant code {
+  background: var(--code-bg);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: var(--font);
+  font-size: 0.92em;
+}
+
+/* Code blocks */
+.code-block-wrapper {
+  position: relative;
+  margin: 6px 0;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: #252526;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--info-fg);
+}
+
+.code-block-header .lang-label { text-transform: uppercase; font-weight: 600; }
+
+.code-block-header .actions {
+  display: flex;
+  gap: 4px;
+}
+
+.code-block-header .actions button {
+  background: none;
+  border: none;
+  color: var(--info-fg);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 11px;
+  border-radius: 3px;
+  font-family: var(--font);
+}
+.code-block-header .actions button:hover {
+  background: var(--input-bg);
+  color: var(--fg);
+}
+.code-block-header .actions button.applied {
+  color: #4ec9b0;
+}
+
+.code-block-wrapper pre {
+  margin: 0;
+  padding: 8px 12px;
+  background: var(--code-bg);
+  overflow-x: auto;
+  max-height: 400px;
+}
+.code-block-wrapper pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+.error-banner {
+  background: #5a1d1d;
+  color: var(--error-fg);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  align-self: flex-start;
+}
+
+/* Tool activity */
+.tool-activity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--info-fg);
+  align-self: flex-start;
+  font-family: var(--font);
+  opacity: 0.7;
+}
+.tool-activity .tool-icon { font-size: 13px; }
+.tool-activity .tool-spinner {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.tool-activity.running { opacity: 0.9; }
+.tool-activity.done { opacity: 1; color: #4ec9b0; }
+.tool-activity.failed { opacity: 1; color: var(--error-fg); }
+.tool-activity .tool-msg { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-activity .tool-check { font-weight: 700; }
+
+#quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.qa-btn {
+  background: var(--input-bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: var(--font);
+  white-space: nowrap;
+  transition: background 0.1s;
+}
+.qa-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+#input-area {
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+#input-box {
+  flex: 1;
+  background: var(--input-bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-family: var(--font);
+  font-size: var(--font-size);
+  resize: none;
+  min-height: 36px;
+  max-height: 120px;
+}
+#input-box:focus { outline: none; border-color: var(--accent); }
+
+#send-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: var(--font-size);
+}
+#send-btn:hover { opacity: 0.9; }
+#send-btn:disabled { opacity: 0.5; cursor: default; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <span class="icon">&#x1F916;</span>
+  <span>CRUX Agent v0.3.0</span>
+  <button class="clear-btn" onclick="auditProject()" title="Scan project for bugs" style="margin-right:4px">🔍 Audit</button>
+  <button class="clear-btn" onclick="clearChat()" title="Clear chat">Clear</button>
+</div>
+
+<div id="quick-actions">
+  <button class="qa-btn" onclick="quickAction('smart-commit')">🧠 提交</button>
+  <button class="qa-btn" onclick="quickAction('clean-code')">🧹 清理</button>
+  <button class="qa-btn" onclick="quickAction('add-tests')">🧪 测试</button>
+  <button class="qa-btn" onclick="quickAction('add-comments')">📝 注释</button>
+  <button class="qa-btn" onclick="quickAction('changelog')">📋 日志</button>
+  <button class="qa-btn" onclick="quickAction('dep-check')">🔐 依赖</button>
+  <button class="qa-btn" onclick="quickAction('readme')">📖 说明</button>
+</div>
+<div id="messages">
+  <div class="message assistant">
+    <strong>CRUX Studio v0.3.0</strong><br>
+    Streaming, multi-turn, context-aware. <code>Ctrl+Shift+A</code> to toggle.<br>
+    Open a file first — I'll automatically see it as context.
+  </div>
+</div>
+
+<div id="input-area">
+  <textarea id="input-box" placeholder="Ask CRUX... (open a file for context)" rows="1"></textarea>
+  <button id="send-btn" onclick="sendMessage()">Send</button>
+</div>
+
+<script>
+const vscode = acquireVsCodeApi();
+const messagesEl = document.getElementById('messages');
+const inputBox = document.getElementById('input-box');
+const sendBtn = document.getElementById('send-btn');
+let messageMap = {};       // id -> DOM element
+let streamBuffers = {};   // id -> accumulated text (for markdown at end)
+let editCounter = 0;
+
+// ── Message management ────────────────────────────────────
+
+function addMessage(role, content, id) {
+    const div = document.createElement('div');
+    div.className = 'message ' + role;
+    if (id) {
+        div.setAttribute('data-msg-id', id);
+        messageMap[id] = div;
+        if (role === 'assistant') {
+            div.classList.add('streaming');
+            streamBuffers[id] = '';
+        }
+    }
+    div.textContent = content;
+    messagesEl.appendChild(div);
+    scrollBottom();
+    return div;
+}
+
+function getOrCreateMessage(id) {
+    let div = messageMap[id];
+    if (!div) {
+        div = addMessage('assistant', '', id);
+    }
+    return div;
+}
+
+function scrollBottom() {
+    if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+// ── Markdown renderer (lightweight) ────────────────────────
+
+function renderMarkdown(element) {
+    const raw = element.getAttribute('data-raw') || element.textContent || '';
+    if (!raw.trim()) return;
+
+    let html = raw;
+
+    // Extract code blocks first
+    const codeBlocks = [];
+    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+        const idx = codeBlocks.length;
+        codeBlocks.push({ lang: lang || 'text', code: code.replace(/\n$/, '') });
+        return '\x00CODEBLOCK' + idx + '\x00';
+    });
+
+    // Inline code
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    // Bold and italic
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+    // Headers
+    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+    // Unordered lists
+    html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+
+    // Ordered lists
+    html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+
+    // Blockquotes
+    html = html.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
+
+    // Horizontal rules
+    html = html.replace(/^---$/gm, '<hr>');
+
+    // Paragraphs: wrap text blocks between double-newlines
+    html = html.replace(/\n\n/g, '</p><p>');
+
+    // Restore code blocks with wrapper
+    for (let i = 0; i < codeBlocks.length; i++) {
+        const cb = codeBlocks[i];
+        const blockId = 'edit_' + (++editCounter);
+        const wrapper = renderCodeBlock(cb.lang, cb.code, blockId);
+        html = html.replace('\x00CODEBLOCK' + i + '\x00', wrapper);
+    }
+
+    // Final paragraph wrapping
+    html = '<p>' + html + '</p>';
+    // Clean empty paragraphs
+    html = html.replace(/<p>\s*<\/p>/g, '');
+    html = html.replace(/<p><\/p>/g, '');
+
+    element.innerHTML = html;
+    element.setAttribute('data-rendered', '1');
+}
+
+function renderCodeBlock(lang, code, blockId) {
+    const escapedCode = escapeHtml(code);
+    return `
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <span class="lang-label">${escapeHtml(lang)}</span>
+    <span class="actions">
+      <button onclick="copyCode(this, '${blockId}')" title="Copy">Copy</button>
+      <button onclick="applyCode(this, '${blockId}', '${escapeAttr(lang)}')" title="Apply to file">Apply</button>
+    </span>
+  </div>
+  <pre><code id="${blockId}">${escapedCode}</code></pre>
+</div>`;
+}
+
+function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function escapeAttr(s) {
+    return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// ── Code block actions ─────────────────────────────────────
+
+function copyCode(btn, blockId) {
+    const codeEl = document.getElementById(blockId);
+    if (!codeEl) return;
+    navigator.clipboard.writeText(codeEl.textContent).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+    }).catch(() => {
+        // Fallback
+        const ta = document.createElement('textarea');
+        ta.value = codeEl.textContent;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+    });
+}
+
+function applyCode(btn, blockId, lang) {
+    const codeEl = document.getElementById(blockId);
+    if (!codeEl) return;
+    const code = codeEl.textContent;
+
+    // Try to determine file path from code block or ask
+    let filePath = '';
+    // Check if code block has a filename comment in first line
+    const firstLine = code.split('\n')[0];
+    if (firstLine && firstLine.startsWith('// File: ')) {
+        filePath = firstLine.replace('// File: ', '').trim();
+    }
+
+    if (!filePath) {
+        // Ask user for file path
+        const input = prompt('File path to apply this code to:');
+        if (!input) return;
+        filePath = input;
+    }
+
+    btn.textContent = 'Applying...';
+    vscode.postMessage({
+        command: 'applyEdit',
+        filePath: filePath,
+        content: code,
+        editId: blockId
+    });
+}
+
+// ── Tool icons ────────────────────────────────────────────
+
+function getToolIcon(tool) {
+    const icons = {
+        read_file: '📖', write_file: '✏️', edit_file: '✏️', patch_file: '🔧',
+        search_files: '🔍', glob_files: '🔍', list_files: '📂', tree_dir: '📂',
+        run_bash: '⚡', run_python: '🐍', run_test: '🧪', run_lint: '📋',
+        run_format: '✨', code_review: '👀', debug_inspect: '🐛',
+        git_add_commit: '📝', git_push: '🚀', git_status: '📊', git_diff: '📊',
+        git_branch: '🌿', web_search: '🌐', web_fetch: '🌐',
+        agent_swarm: '🤖', multi_agent: '🤖',
+    };
+    return icons[tool] || '🔧';
+}
+
+// ── Event handlers ─────────────────────────────────────────
+
+function sendMessage() {
+    const text = inputBox.value.trim();
+    if (!text) return;
+
+    vscode.postMessage({ command: 'send', text: text });
+    inputBox.value = '';
+    inputBox.style.height = 'auto';
+    sendBtn.disabled = true;
+}
+
+function auditProject() {
+    vscode.postMessage({ command: 'audit' });
+}
+
+function quickAction(action) {
+    vscode.postMessage({ command: 'quickAction', action: action });
+}
+
+function clearChat() {
+    vscode.postMessage({ command: 'clear' });
+}
+
+window.addEventListener('message', event => {
+    const msg = event.data;
+    switch (msg.command) {
+        case 'addMessage':
+            addMessage(msg.role, msg.content, msg.id);
+            break;
+
+        case 'streamChunk': {
+            if (msg.type === 'tool_start') {
+                // Show tool activity in the message flow
+                const toolDiv = document.createElement('div');
+                toolDiv.className = 'tool-activity running';
+                toolDiv.setAttribute('data-tool', msg.tool || '');
+                toolDiv.setAttribute('data-tool-msg-id', msg.id);
+                const icon = getToolIcon(msg.tool);
+                toolDiv.innerHTML = `<span class="tool-spinner"></span><span class="tool-icon">${icon}</span><span class="tool-msg">${escapeHtml(msg.message || msg.tool || '')}</span>`;
+                messagesEl.appendChild(toolDiv);
+                scrollBottom();
+            } else if (msg.type === 'tool_end') {
+                // Mark all running tool activities for this msg as done
+                if (messagesEl) {
+                    const tools = messagesEl.querySelectorAll(`.tool-activity.running[data-tool-msg-id="${msg.id}"]`);
+                    tools.forEach(t => {
+                        t.classList.remove('running');
+                        t.classList.add(msg.success === false ? 'failed' : 'done');
+                        const spinner = t.querySelector('.tool-spinner');
+                        if (spinner) {
+                            spinner.replaceWith(document.createTextNode(msg.success === false ? '✗' : '✓'));
+                        }
+                    });
+                }
+                scrollBottom();
+            } else if (msg.type === 'text') {
+                const div = getOrCreateMessage(msg.id);
+                streamBuffers[msg.id] = (streamBuffers[msg.id] || '') + msg.content;
+                div.textContent = streamBuffers[msg.id];
+            } else if (msg.type === 'error') {
+                const errDiv = document.createElement('div');
+                errDiv.className = 'error-banner';
+                errDiv.textContent = msg.content;
+                messagesEl.appendChild(errDiv);
+            } else if (msg.type === 'info') {
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'message info';
+                infoDiv.textContent = msg.content;
+                messagesEl.appendChild(infoDiv);
+            }
+            scrollBottom();
+            break;
+        }
+
+        case 'streamEnd': {
+            const div = messageMap[msg.id];
+            if (div) {
+                div.classList.add('done');
+                div.classList.remove('streaming');
+                div.setAttribute('data-raw', streamBuffers[msg.id] || div.textContent || '');
+                renderMarkdown(div);
+                delete streamBuffers[msg.id];
+            }
+            if (sendBtn) sendBtn.disabled = false;
+            if (inputBox) inputBox.focus();
+            break;
+        }
+
+        case 'editResult': {
+            const codeEl = document.getElementById(msg.id);
+            if (codeEl) {
+                const wrapper = codeEl.closest('.code-block-wrapper');
+                if (wrapper) {
+                    const applyBtn = wrapper.querySelector('.actions button:last-child');
+                    if (applyBtn) {
+                        applyBtn.textContent = msg.success ? 'Applied' : 'Failed';
+                        applyBtn.classList.toggle('applied', msg.success);
+                        setTimeout(() => {
+                            applyBtn.textContent = 'Apply';
+                            applyBtn.classList.remove('applied');
+                        }, 3000);
+                    }
+                }
+            }
+            break;
+        }
+
+        case 'clear':
+            messagesEl.innerHTML = '';
+            messageMap = {};
+            streamBuffers = {};
+            break;
+
+        case 'sendFromEditor':
+            inputBox.value = msg.text;
+            sendMessage();
+            break;
+    }
+});
+
+// Enter to send, Shift+Enter for newline
+inputBox.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+
+// Auto-resize textarea
+inputBox.addEventListener('input', () => {
+    inputBox.style.height = 'auto';
+    inputBox.style.height = Math.min(inputBox.scrollHeight, 120) + 'px';
+});
+
+// Focus input on load
+if (inputBox) inputBox.focus();
+
+// ── Global error capture ──────────────────────────────────
+window.addEventListener('error', (e) => {
+    const errDiv = document.createElement('div');
+    errDiv.className = 'error-banner';
+    errDiv.textContent = 'WEBVIEW ERROR: ' + e.message + ' | file:' + (e.filename || '?').split('/').pop() + ':' + e.lineno + ':' + e.colno + ' | ' + (e.error ? e.error.stack : 'no stack');
+    if (messagesEl) messagesEl.appendChild(errDiv);
+});
+</script>
+</body>
+</html>

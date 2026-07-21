@@ -1,5 +1,8 @@
 """Root test configuration — pytest markers and fixtures."""
 
+import logging
+
+logger = logging.getLogger(__name__)
 import pytest
 
 # Load .env early so API key skip checks work at module import time
@@ -8,7 +11,7 @@ try:
 
     load_dotenv(override=True)
 except ImportError:
-    pass
+    logger.debug("silent except", exc_info=True)
 
 
 def pytest_configure(config):
@@ -68,6 +71,7 @@ _RESET_CALLS = [
     ("core.crux_telemetry", "reset_telemetry"),
     ("core.trace_debugger", "reset_decision_recorder"),
     ("core.goal_manager", "reset_goal_manager"),
+    ("ui.input_router", "reset_clipboard"),
 ]
 
 
@@ -81,7 +85,7 @@ def _reset_shared_state():
             if reset_fn is not None:
                 reset_fn()
         except Exception:
-            pass
+            logger.debug("silent except", exc_info=True)
     return
 
 
@@ -91,3 +95,18 @@ def project_root():
     from pathlib import Path
 
     return Path(__file__).resolve().parent.parent
+
+
+@pytest.fixture(autouse=True)
+def _force_dry_run_capabilities(monkeypatch):
+    """Prevent _ensure_capabilities from blocking in test environment."""
+    try:
+        from core.runtime_orchestrator import RuntimeOrchestrator
+
+        def _noop(self, *args, **kwargs):
+            return {}
+
+        monkeypatch.setattr(RuntimeOrchestrator, "_ensure_capabilities", _noop)
+    except ImportError:
+        pass
+    return None

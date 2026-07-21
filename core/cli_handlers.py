@@ -757,6 +757,17 @@ class CruxCLI:
             for line in result.summary().split("\n"):
                 _notify(line)
 
+    def _chat_export(self, args: str) -> None:
+        """导出当前对话为 Markdown: /export"""
+        try:
+            from core.export import export_chat
+
+            msgs = self.session.messages if hasattr(self, "session") else []
+            path = export_chat(msgs, "CRUX Chat Export")
+            print(f"✅ 已导出: {path}")
+        except ImportError:
+            print("导出功能不可用")
+
     def _chat_audit(self, args: str) -> None:
         """Dependency security audit: /audit <pip|npm>."""
         arg = args.strip().lower()

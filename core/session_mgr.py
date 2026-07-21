@@ -28,7 +28,7 @@ __all__ = [
 ROOT = Path(__file__).resolve().parent.parent
 SESSIONS_DIR = ROOT / "output" / "sessions_data"
 
-logger = logging.getLogger("crux.session_mgr")
+logger = logging.getLogger(__name__)
 
 
 class SessionManager:

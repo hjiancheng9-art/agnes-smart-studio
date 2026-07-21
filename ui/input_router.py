@@ -21,6 +21,7 @@ class InputMode(enum.Enum):
     DETAIL_VIEW = "detail"  # 消息详情：独立滚动
     COPY_MODE = "copy"  # 复制模式：选择范围
     NATIVE_SELECT = "native"  # 原生选择：TUI 松开鼠标
+    VIM = "vim"  # Vim 导航模式：hjkl 滚动消息，Esc/i 退出
 
 
 # ── 聚焦状态（独立于 CopyManager） ─────────────────────────
@@ -175,3 +176,9 @@ def get_clipboard() -> ClipboardAdapter:
     if _clipboard is None:
         _clipboard = ClipboardAdapter()
     return _clipboard
+
+
+def reset_clipboard() -> None:
+    """Reset clipboard singleton (for test isolation)."""
+    global _clipboard
+    _clipboard = None

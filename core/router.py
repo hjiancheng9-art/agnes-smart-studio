@@ -284,7 +284,7 @@ def _detect_provider(model_id: str, mgr: Any | None = None) -> str:
     except (RuntimeError, ValueError, TypeError, KeyError) as e:
         import logging
 
-        logging.getLogger("crux.router").warning(
+        logging.getLogger(__name__).warning(
             "MODEL_REGISTRY lookup failed for %s (%s: %s)", model_id, type(e).__name__, e
         )
 
@@ -305,7 +305,7 @@ def _detect_provider(model_id: str, mgr: Any | None = None) -> str:
     except (RuntimeError, ValueError, TypeError, KeyError) as e:
         import logging
 
-        logging.getLogger("crux.router").warning(
+        logging.getLogger(__name__).warning(
             "models.json fallback lookup failed for %s (%s: %s)", model_id, type(e).__name__, e
         )
     return ""
@@ -715,7 +715,7 @@ def apply(decision: RouteDecision, session: ChatSession) -> None:
         # provider 加载失败 → 无法判定供应商归属，保守起见不切换 client。
         # 注意：不能继续往下走到 session.model 赋值，否则会造成
         # "model 名改了但 client 还是旧供应商" 的不一致。
-        logging.getLogger("crux.router").warning(
+        logging.getLogger(__name__).warning(
             "router model switch aborted: provider load failed (%s: %s)",
             type(e).__name__,
             e,

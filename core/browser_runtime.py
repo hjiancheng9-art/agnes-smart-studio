@@ -31,8 +31,8 @@ import shutil as _shutil
 EDGE_PATH = (
     _shutil.which("msedge")
     or _shutil.which("microsoft-edge")
-    or r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"  # noqa: SIM222
-    or r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+    or r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"  # noqa: SIM222
+    or r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"
 )
 USER_DATA = os.environ.get("CRUX_EDGE_PROFILE", os.path.expanduser(r"~\edge_cdp_profile"))
 SHORT_TIMEOUT = 5000  # ms
@@ -194,30 +194,64 @@ def _assert_browser_thread() -> None:
 
 
 def _connect():
-    """启动 Playwright 持久化浏览器（launch_persistent_context，无 CDP）。
+    """CDP-first: connect to existing browser, or launch with --remote-debugging-port.
+
+    Strategy:
+    1. Try connect_over_cdp to existing browser (reuses login state)
+    2. If unavailable, launch new persistent context with CDP port 9222
 
     Returns:
-        (Playwright, BrowserContext) tuple.
+        (Playwright, Browser) or (Playwright, BrowserContext) tuple.
     """
+    import socket as _socket
+
     pw = sync_playwright().start()
+    CDP_PORT = 9222
+
+    # Strategy 1: CDP connect to existing browser
+    s = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+    if s.connect_ex(("127.0.0.1", CDP_PORT)) == 0:
+        s.close()
+        try:
+            browser = pw.chromium.connect_over_cdp(f"http://127.0.0.1:{CDP_PORT}")
+            _global_state.playwright = pw
+            _global_state.context = None
+            _global_state.owner_thread_id = threading.get_ident()
+            logger.info("CDP connected to existing browser")
+            return pw, browser
+        except Exception:
+            logger.debug("CDP connect failed, falling back to launch", exc_info=True)
+    s.close()
+
+    # Strategy 2: Launch with CDP enabled
+    import os as _os
+
+    for _f in ["SingletonLock", "SingletonSocket", "SingletonCookie", "lockfile"]:
+        _fp = _os.path.join(USER_DATA, _f)
+        if _os.path.exists(_fp):
+            try:
+                _os.remove(_fp)
+            except OSError:
+                pass
     try:
         ctx = pw.chromium.launch_persistent_context(
             user_data_dir=USER_DATA,
             executable_path=EDGE_PATH,
             headless=False,
-            args=["--no-first-run"],
+            args=[f"--remote-debugging-port={CDP_PORT}", "--no-first-run"],
             viewport=None,
         )
         _global_state.playwright = pw
         _global_state.context = ctx
         _global_state.owner_thread_id = threading.get_ident()
+        logger.info("CDP browser launched on port %d", CDP_PORT)
         return pw, ctx
-    except Exception as e:
+    except Exception:
         try:
             pw.stop()
         except Exception:
             logger.debug("PW stop failed", exc_info=True)
-        raise RuntimeError("Browser startup failed (launch_persistent_context)") from e
+        raise
 
 
 def is_connected() -> bool:

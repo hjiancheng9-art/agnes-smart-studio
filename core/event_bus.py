@@ -65,7 +65,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-logger = logging.getLogger("crux.event_bus")
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "ERROR",

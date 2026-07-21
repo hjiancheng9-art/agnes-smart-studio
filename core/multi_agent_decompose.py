@@ -18,7 +18,7 @@ import time
 from core.error_sink import catch
 from core.multi_agent_models import AgentTask
 
-logger = logging.getLogger("crux.multi_agent")
+logger = logging.getLogger(__name__)
 
 # ── #4 Qoder-style: Smart Multi-Agent Decomposition ──
 

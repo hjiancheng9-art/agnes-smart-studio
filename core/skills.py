@@ -601,7 +601,7 @@ def resolve_skill_executor(tool_name: str, tool_def: dict | None = None):
     import os
     import tempfile
 
-    _log = logging.getLogger("crux.skills.exec")
+    _log = logging.getLogger(__name__)
 
     if tool_name in ("generate_image", "imagegen", "text_to_image", "t2i"):
 

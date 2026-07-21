@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-logger = logging.getLogger("crux.settings_watcher")
+logger = logging.getLogger(__name__)
 
 _WATCHED: dict[str, float] = {}  # path → last mtime
 _watcher_thread: threading.Thread | None = None

@@ -1,5 +1,8 @@
 """Test Phase 6: Telemetry + Feature Config + Eval Runner"""
 
+import logging
+
+logger = logging.getLogger(__name__)
 import time
 
 import pytest
@@ -94,7 +97,7 @@ class TestTelemetryTracker:
             with tracker.record_duration("tool", phase="p1"):
                 raise ValueError("test error")
         except ValueError:
-            pass
+            logger.debug("silent except", exc_info=True)
         assert tracker.total_events == 1
         assert not tracker.records[0].success
 

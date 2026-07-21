@@ -1,6 +1,6 @@
 # CRUX Studio — 命令参考 (auto-generated)
 
-共 58 个命令
+共 59 个命令
 
 ## 创意生产
 
@@ -79,6 +79,7 @@
 
 | 命令 | 说明 |
 |------|------|
+| `/export` | 导出当前对话为 Markdown |
 | `/tidy [deep]` | 整理根目录临时文件到 tmp/ 子目录 |
 
 ## 智能体转换
@@ -91,4 +92,4 @@
 | `/trae-new <name> [description]` | 手动创建 trae 风格 skill |
 
 ---
-*113 tools, 97 skills, 267 core modules, 185 test files*
+*113 tools, 97 skills, 261 core modules, 193 test files*

@@ -1,0 +1,14 @@
+32:from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
+170:        self.input_buffer = Buffer(
+514:            self.input_buffer.insert_text("\n")
+604:            if event.app.current_buffer is self.input_buffer:
+611:            if event.app.current_buffer is self.input_buffer:
+636:            self.input_buffer.paste_from_clipboard(event.app.clipboard.get_data())
+640:            self.input_buffer.reset()
+644:            self.input_buffer.reset()
+784:        input_ctrl = BufferControl(
+785:            buffer=self.input_buffer,
+789:        self.input_win = Window(content=input_ctrl, height=Dimension(min=1, max=10),
+830:            self.input_win,
+845:            layout=Layout(root, focused_element=self.input_win),
+861:            self._app.layout.focus(self.input_win)

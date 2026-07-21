@@ -23,7 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-logger = logging.getLogger("crux.showrunner")
+logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════

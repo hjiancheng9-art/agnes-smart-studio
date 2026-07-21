@@ -1,9 +1,18 @@
 """Tests for core.chat_stream_tools — tool execution loop extracted from chat.py."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from core.chat_stream_tools import _run_tool_calls_impl, _summarize_tool_output
 from core.chat_tool_helpers import merge_tool_calls
+
+
+@pytest.fixture(autouse=True)
+def _mock_methodology():
+    """Prevent methodology gate from blocking tool dispatch in unit tests."""
+    with patch("core.methodology.methodology_pre_check", return_value=(True, "")):
+        yield
 
 
 class TestSummarizeToolOutput:

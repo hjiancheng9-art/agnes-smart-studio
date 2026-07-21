@@ -6,7 +6,7 @@ import logging
 
 import httpx
 
-logger = logging.getLogger("crux.vision")
+logger = logging.getLogger(__name__)
 
 
 def _vision_fallback(self, text: str, image_url: str) -> str:

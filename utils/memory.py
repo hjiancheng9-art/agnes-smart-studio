@@ -5,6 +5,9 @@
   output/history.json  - 生成记录（含评分）
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
 import json
 import threading
 from datetime import datetime
@@ -97,13 +100,13 @@ def _safe_save_memory(data: dict):
         try:
             MEMORY_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
         except OSError:
-            pass
+            logger.debug("silent except", exc_info=True)
         finally:
             try:
                 if tmp.exists():
                     tmp.unlink()
             except OSError:
-                pass
+                logger.debug("silent except", exc_info=True)
 
 
 def load_memory() -> dict:

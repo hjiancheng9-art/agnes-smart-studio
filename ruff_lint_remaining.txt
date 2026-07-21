@@ -1,0 +1,30 @@
+core\browser_runtime.py:230:16: E701 Multiple statements on one line (colon)
+core\browser_runtime.py:231:27: E701 Multiple statements on one line (colon)
+crux_studio.py:674:9: I001 Import block is un-sorted or un-formatted
+crux_studio.py:674:23: E702 Multiple statements on one line (semicolon)
+tools\browser_ai.py:69:9: I001 Import block is un-sorted or un-formatted
+tools\browser_ai.py:69:23: E702 Multiple statements on one line (semicolon)
+tools\browser_ai.py:166:13: I001 Import block is un-sorted or un-formatted
+tools\browser_ai.py:166:27: E702 Multiple statements on one line (semicolon)
+tools\browser_ai.py:209:17: I001 Import block is un-sorted or un-formatted
+tools\browser_ai.py:209:31: E702 Multiple statements on one line (semicolon)
+tools\crux_bridge.py:124:9: I001 Import block is un-sorted or un-formatted
+tools\crux_bridge.py:124:23: E702 Multiple statements on one line (semicolon)
+ui\v3\app.py:249:13: I001 Import block is un-sorted or un-formatted
+ui\v3\app.py:249:27: E702 Multiple statements on one line (semicolon)
+ui\v3\app.py:255:17: E701 Multiple statements on one line (colon)
+ui\v3\app.py:256:17: E701 Multiple statements on one line (colon)
+ui\v3\app.py:271:13: I001 Import block is un-sorted or un-formatted
+ui\v3\app.py:271:27: E702 Multiple statements on one line (semicolon)
+ui\v3\app.py:280:13: I001 Import block is un-sorted or un-formatted
+ui\v3\app.py:280:27: E702 Multiple statements on one line (semicolon)
+ui\v3\app.py:383:17: I001 Import block is un-sorted or un-formatted
+ui\v3\app.py:383:31: E702 Multiple statements on one line (semicolon)
+ui\v3\app.py:391:16: RUF034 Useless `if`-`else` condition
+ui\v3\app.py:682:21: I001 Import block is un-sorted or un-formatted
+ui\v3\app.py:682:35: E702 Multiple statements on one line (semicolon)
+ui\v3\app.py:865:13: I001 Import block is un-sorted or un-formatted
+ui\v3\app.py:865:27: E702 Multiple statements on one line (semicolon)
+ui\v3\runtime_bridge.py:88:13: I001 Import block is un-sorted or un-formatted
+ui\v3\runtime_bridge.py:88:27: E702 Multiple statements on one line (semicolon)
+Found 29 errors.

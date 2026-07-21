@@ -25,7 +25,7 @@ from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 
-logger = logging.getLogger("crux.rpm_limiter")
+logger = logging.getLogger(__name__)
 
 
 @dataclass

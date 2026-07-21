@@ -29,7 +29,7 @@ import os
 import threading
 import time
 
-logger = logging.getLogger("crux.executor")
+logger = logging.getLogger(__name__)
 from pathlib import Path
 from typing import TYPE_CHECKING
 

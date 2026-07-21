@@ -26,7 +26,7 @@ import json
 import logging
 import os
 
-logger = logging.getLogger("crux.mcp_client")
+logger = logging.getLogger(__name__)
 import subprocess
 import sys
 import threading

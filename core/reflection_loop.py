@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from core.chat import ChatSession
 
-logger = logging.getLogger("crux.reflection")
+logger = logging.getLogger(__name__)
 
 REVIEW_PROMPT = """Review this assistant response critically. Answer ONLY in this format:
 

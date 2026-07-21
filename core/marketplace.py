@@ -61,10 +61,12 @@ class SkillPackage:
     requires: list[str] = field(default_factory=list)  # 依赖的其他技能
 
     def to_dict(self) -> dict:
+        """序列化为字典。"""
         return dict(self.__dict__.items())
 
     @classmethod
     def from_dict(cls, d: dict) -> "SkillPackage":
+        """从字典反序列化创建 SkillPackage。"""
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
 
@@ -116,10 +118,12 @@ class LocalRegistry(MarketplaceAdapter):
     """本地技能注册表 — 从 skills/ 和 skills_md/ 双目录加载"""
 
     def __init__(self) -> None:
+        """初始化本地注册表 — 从 skills_md/ 目录加载。"""
         self._md_dir = ROOT / "skills_md"
 
     @property
     def name(self) -> str:
+        """适配器名称 "local"。"""
         return "local"
 
     def _load_all(self) -> list[dict]:
@@ -214,6 +218,7 @@ class LocalRegistry(MarketplaceAdapter):
         )
 
     def search(self, query: str, category: str = "") -> list[SkillPackage]:
+        """按关键词搜索本地技能包。"""
         q = query.lower()
         results = []
         for raw in self._load_all():
@@ -225,6 +230,7 @@ class LocalRegistry(MarketplaceAdapter):
         return results
 
     def fetch(self, name: str) -> SkillPackage | None:
+        """按名称获取指定技能包。"""
         for raw in self._load_all():
             if raw.get("name") == name:
                 return self._to_package(raw)
@@ -258,6 +264,7 @@ class LocalRegistry(MarketplaceAdapter):
         raise FileNotFoundError(f"Skill {name} not found locally")
 
     def list_available(self) -> list[SkillPackage]:
+        """列出所有可安装的本地技能包。"""
         return [self._to_package(raw) for raw in self._load_all()]
 
 
@@ -294,6 +301,7 @@ class CodeBuddyAdapter(MarketplaceAdapter):
     }
 
     def __init__(self, name: str = "codebuddy", market_dir: str = "") -> None:
+        """初始化 CodeBuddy 适配器 — 扫描 .codebuddy/skills-marketplace/skills/。"""
         import os
 
         home = os.path.expanduser("~")
@@ -309,10 +317,12 @@ class CodeBuddyAdapter(MarketplaceAdapter):
 
     @property
     def name(self) -> str:
+        """适配器名称。"""
         return self._name
 
     @property
     def enabled(self) -> bool:
+        """适配器是否可用（目录存在即为可用）。"""
         return self._enabled
 
     def _load_all(self) -> dict[str, dict]:
@@ -427,6 +437,7 @@ class CodeBuddyAdapter(MarketplaceAdapter):
         )
 
     def search(self, query: str, category: str = "") -> list[SkillPackage]:
+        """在 CodeBuddy 市场中搜索技能包。"""
         q = query.lower()
         results = []
         for raw in self._load_all().values():
@@ -437,6 +448,7 @@ class CodeBuddyAdapter(MarketplaceAdapter):
         return sorted(results, key=lambda p: p.name)
 
     def fetch(self, name: str) -> SkillPackage | None:
+        """按名称从 CodeBuddy 市场获取技能包。"""
         all_skills = self._load_all()
         raw = all_skills.get(name)
         return self._to_package(raw) if raw else None
@@ -480,6 +492,7 @@ class CodeBuddyAdapter(MarketplaceAdapter):
         return dest
 
     def list_available(self) -> list[SkillPackage]:
+        """列出 CodeBuddy 市场中所有可用技能包。"""
         return [self._to_package(raw) for raw in self._load_all().values()]
 
     def check_updates(self, installed: list[str]) -> dict[str, str]:
@@ -525,6 +538,7 @@ class RemoteMarketplaceAdapter(MarketplaceAdapter):
     ]
 
     def __init__(self, name: str = "remote", registry_url: str = "", api_key: str = "") -> None:
+        """初始化远程市场适配器 — 配置注册表 URL 和 API Key。"""
         import os
 
         self._name = name
@@ -538,10 +552,12 @@ class RemoteMarketplaceAdapter(MarketplaceAdapter):
 
     @property
     def name(self) -> str:
+        """适配器名称。"""
         return self._name
 
     @property
     def enabled(self) -> bool:
+        """远程市场是否可达。"""
         if self._available is None:
             self._probe()
         return self._available or False
@@ -606,6 +622,7 @@ class RemoteMarketplaceAdapter(MarketplaceAdapter):
         return []
 
     def search(self, query: str, category: str = "") -> list[SkillPackage]:
+        """在远程市场中搜索技能包。"""
         q = query.lower()
         results = []
         for raw in self._fetch_registry():
@@ -626,6 +643,7 @@ class RemoteMarketplaceAdapter(MarketplaceAdapter):
         return results
 
     def fetch(self, name: str) -> SkillPackage | None:
+        """从远程市场按名称获取技能包。"""
         for raw in self._fetch_registry():
             if raw.get("name") == name:
                 return SkillPackage(
@@ -696,6 +714,7 @@ class RemoteMarketplaceAdapter(MarketplaceAdapter):
         }
 
     def list_available(self) -> list[SkillPackage]:
+        """列出远程市场中所有可用技能包。"""
         results = []
         for raw in self._fetch_registry():
             results.append(
@@ -721,6 +740,7 @@ class MarketplaceClient:
     """多市场技能管理客户端"""
 
     def __init__(self) -> None:
+        """初始化多市场客户端 — 聚合本地/CodeBuddy/官方/远程四个适配器。"""
         import os
 
         home = os.path.expanduser("~")
@@ -746,6 +766,7 @@ class MarketplaceClient:
 
     @property
     def adapters(self) -> list[MarketplaceAdapter]:
+        """当前启用的适配器列表。"""
         return [
             a for a in self._adapters if not isinstance(a, CodeBuddyAdapter | RemoteMarketplaceAdapter) or a.enabled
         ]
@@ -909,6 +930,7 @@ _marketplace_lock = threading.Lock()
 
 
 def get_marketplace() -> MarketplaceClient:
+    """获取全局 MarketplaceClient 单例。"""
     global _marketplace
     if _marketplace is None:
         with _marketplace_lock:

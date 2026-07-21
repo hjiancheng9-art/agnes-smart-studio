@@ -22,7 +22,7 @@ from typing import Any
 
 __all__ = ["safe_run", "setup"]
 
-_logger = logging.getLogger("crux.encoding")
+_logger = logging.getLogger(__name__)
 
 _WIN32_CONSOLE_CP_SET = False
 
@@ -32,7 +32,7 @@ _ORIG_RUN = subprocess.run
 
 
 def _setup_win32_console() -> bool:
-    """Set console code page to UTF-8 using the Windows API."""
+    """Set console code page to UTF-8 and enable ANSI/VT processing."""
     global _WIN32_CONSOLE_CP_SET
     if _WIN32_CONSOLE_CP_SET:
         return True
@@ -45,6 +45,18 @@ def _setup_win32_console() -> bool:
         kernel32 = ctypes.windll.kernel32
         kernel32.SetConsoleCP(CP_UTF8)
         kernel32.SetConsoleOutputCP(CP_UTF8)
+
+        # Enable ANSI escape code processing (colors, cursor, etc.)
+        STD_OUTPUT_HANDLE = -11
+        ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+        try:
+            handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
+            mode = ctypes.c_uint32()
+            kernel32.GetConsoleMode(handle, ctypes.byref(mode))
+            kernel32.SetConsoleMode(handle, mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+        except (OSError, AttributeError):
+            pass  # Non-console output (e.g., pipe redirect) — ANSI not needed
+
         _WIN32_CONSOLE_CP_SET = True
         return True
     except (OSError, AttributeError):

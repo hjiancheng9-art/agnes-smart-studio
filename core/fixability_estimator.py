@@ -54,6 +54,7 @@ class FixabilityResult:
     timestamp: float = field(default_factory=time.time)
 
     def to_dict(self) -> dict:
+        """序列化评估结果为字典。"""
         return {
             "score": self.score,
             "confidence": self.confidence,
@@ -72,11 +73,13 @@ class StaticSeedFilter:
     """L0：秒级字符串匹配，封装已有 seed policy。"""
 
     def __init__(self):
+        """初始化 L0 静态种子过滤器。"""
         # Lazy import to avoid circular
         self._seed_policy = None
 
     @property
     def seed_policy(self):
+        """延迟加载种子策略（避免循环导入）。"""
         if self._seed_policy is None:
             from core.fake_fix_seed_policy import get_seed_policy
 
@@ -157,11 +160,13 @@ class CUDAMemoryProbe(FixabilityProbe):
     probe_name = "cuda-memory"
 
     def can_handle(self, error_type: str, context: dict) -> bool:
+        """检查是否为 CUDA OOM 错误。"""
         return bool(
             "cuda" in error_type.lower() and ("oom" in error_type.lower() or "out of memory" in error_type.lower())
         )
 
     def estimate(self, error_type: str, context: dict) -> FixabilityResult:
+        """评估 CUDA 内存错误的可修复性 — 检查 GPU 显存使用。"""
         result = FixabilityResult(source="L1:cuda-memory")
 
         try:
@@ -220,9 +225,11 @@ class ModuleImportProbe(FixabilityProbe):
     probe_name = "module-import"
 
     def can_handle(self, error_type: str, context: dict) -> bool:
+        """检查是否为模块导入错误。"""
         return bool("modulenotfound" in error_type.lower() or "no module named" in error_type.lower())
 
     def estimate(self, error_type: str, context: dict) -> FixabilityResult:
+        """评估模块导入错误 — 检查包是否可安装。"""
         result = FixabilityResult(source="L1:module-import")
 
         # Extract module name from error
@@ -268,9 +275,11 @@ class HTTPStatusProbe(FixabilityProbe):
     probe_name = "http-status"
 
     def can_handle(self, error_type: str, context: dict) -> bool:
+        """检查是否为 HTTP 状态码错误。"""
         return bool(any(k in error_type.lower() for k in ["404", "500", "502", "503", "timeout", "timed out"]))
 
     def estimate(self, error_type: str, context: dict) -> FixabilityResult:
+        """评估 HTTP 错误的可修复性 — 根据状态码给出建议。"""
         result = FixabilityResult(source="L1:http-status")
 
         url = context.get("url", "")
@@ -312,9 +321,11 @@ class SyntaxErrorProbe(FixabilityProbe):
     probe_name = "syntax-error"
 
     def can_handle(self, error_type: str, context: dict) -> bool:
+        """检查是否为语法错误。"""
         return bool(any(k in error_type.lower() for k in ["syntaxerror", "indentationerror", "taberror"]))
 
     def estimate(self, error_type: str, context: dict) -> FixabilityResult:
+        """评估语法错误的可修复性 — 分析错误位置和类型。"""
         result = FixabilityResult(source="L1:syntax-error")
         result.score = 0.75
         result.confidence = 0.70
@@ -328,15 +339,19 @@ class Registry:
     """探针注册表。"""
 
     def __init__(self):
+        """初始化探针注册表。"""
         self._probes: list[FixabilityProbe] = []
 
     def register(self, probe: FixabilityProbe) -> None:
+        """注册一个可修复性探针。"""
         self._probes.append(probe)
 
     def all(self) -> list[FixabilityProbe]:
+        """返回所有已注册探针。"""
         return list(self._probes)
 
     def find(self, error_type: str, context: dict) -> FixabilityProbe | None:
+        """查找能处理指定错误类型的探针。"""
         for probe in self._probes:
             if probe.can_handle(error_type, context):
                 return probe
@@ -350,6 +365,7 @@ for probe_class in [CUDAMemoryProbe, ModuleImportProbe, HTTPStatusProbe, SyntaxE
 
 
 def get_probe_registry() -> Registry:
+    """获取全局探针注册表单例。"""
     return _PROBE_REGISTRY
 
 
@@ -391,6 +407,7 @@ class LLMAnalyzer:
     """L2: LLM 深度分析。用于 L0+L1 都无法给出高置信度结论的场景。"""
 
     def __init__(self, max_tokens: int = 500):
+        """初始化 L2 LLM 分析器 — 设置提示模板和最大 token 数。"""
         self.max_tokens = max_tokens
         self._prompt_template = LLM_FIXABILITY_PROMPT
 
@@ -502,6 +519,7 @@ class FixabilityEstimator:
     CONFIDENCE_THRESHOLD = 0.6
 
     def __init__(self):
+        """初始化三层可修复性评估器 — L0(种子)+L1(探针)+L2(LLM)。"""
         self.l0 = StaticSeedFilter()
         self.l1_registry = get_probe_registry()
         self.l2 = LLMAnalyzer()
@@ -545,6 +563,7 @@ _estimator: FixabilityEstimator | None = None
 
 
 def get_estimator() -> FixabilityEstimator:
+    """获取全局 FixabilityEstimator 单例。"""
     global _estimator
     if _estimator is None:
         _estimator = FixabilityEstimator()

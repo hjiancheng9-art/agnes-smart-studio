@@ -376,7 +376,7 @@ def rewrite_prompt(
         # 但记录日志便于排查策略失败原因。
         import logging
 
-        logging.getLogger("crux.bypass").warning(
+        logging.getLogger(__name__).warning(
             "rewrite_prompt strategy=%s failed (%s: %s)", strategy["name"], type(e).__name__, e
         )
         return None

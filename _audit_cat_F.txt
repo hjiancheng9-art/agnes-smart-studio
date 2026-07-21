@@ -1,0 +1,12 @@
+core\runtimes\general_runtime.py:46:17: F841 Local variable `plan_result` is assigned to but never used
+crux_repl.py:6:8: F401 `re` imported but unused
+crux_studio.py:388:5: F841 Local variable `INNER_W` is assigned to but never used
+demo_colors.py:11:7: F541 f-string without any placeholders
+tests\test_conftest_dry_run.py:1:8: F401 `pytest` imported but unused
+tests\test_studio_text_color.py:2:8: F401 `pytest` imported but unused
+tests\test_v3_reducer.py:8:5: F401 `ui.v3.state.UiState` imported but unused
+tests\test_v3_reducer.py:14:5: F401 `ui.v3.events.ExitRequested` imported but unused
+tests\test_v3_reducer.py:26:5: F401 `ui.v3.events.ToggleThinking` imported but unused
+tests\tui\snapshot\test_tui_snapshots.py:9:8: F401 `pytest` imported but unused
+ui\v3\app.py:794:13: F841 Local variable `tw` is assigned to but never used
+ui\v3\views\palette.py:23:13: F841 Local variable `name` is assigned to but never used

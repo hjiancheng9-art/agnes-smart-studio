@@ -1,0 +1,1 @@
+    assert not failures, "\n".join(failures)

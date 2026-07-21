@@ -1,0 +1,28 @@
+            "copy_to_clipboard": self._fx_copy,
+                self._ui(self._restore_focus, _force=True)
+                self._ui(self._restore_focus, _force=True)
+    def _fx_copy(self, fx: Effect) -> None:
+        _palette_open = Condition(lambda: bool(getattr(self._state, "palette", None) and getattr(self._state.palette, "open", False)))
+        def _enter_copy(event):
+        _copy = Condition(lambda: self._state.interaction.mode == InteractionMode.COPY)
+        @kb.add("up", filter=_copy)
+        def _copy_up(event):
+        @kb.add("down", filter=_copy)
+        def _copy_down(event):
+        @kb.add("c", filter=_copy)
+        def _copy_selected(event):
+        _vim = Condition(lambda: self._state.interaction.mode == InteractionMode.VIM)
+        @kb.add("j", filter=_vim)
+        @kb.add("k", filter=_vim)
+        @kb.add("g", "g", filter=_vim)
+        @kb.add("G", filter=_vim)
+        overlay_mode = Condition(lambda: self._state.screen != Screen.MAIN or bool(getattr(self._state, "palette", None) and getattr(self._state.palette, "open", False)))
+        _not_focus = Condition(lambda: not self._state.focus_mode)
+            ConditionalContainer(thinking_win, filter=_not_focus),
+            ConditionalContainer(activity, filter=_not_focus),
+            ConditionalContainer(header, filter=Condition(lambda: not self._state.focus_mode and self._state.screen == Screen.MAIN)),
+            ConditionalContainer(sep, filter=Condition(lambda: not self._state.focus_mode and self._state.screen == Screen.MAIN)),
+            ConditionalContainer(msg_area, filter=Condition(lambda: True)),  # B4 fix: always show messages
+            ConditionalContainer(input_bottom, filter=_not_focus),
+            ConditionalContainer(status, filter=_not_focus),
+    def _restore_focus(self) -> None:

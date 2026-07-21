@@ -17,7 +17,7 @@ import json
 import logging
 import sqlite3
 
-logger = logging.getLogger("crux.error_sink")
+logger = logging.getLogger(__name__)
 import traceback
 from dataclasses import dataclass
 from pathlib import Path

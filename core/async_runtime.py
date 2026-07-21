@@ -13,7 +13,7 @@ import logging
 from collections.abc import Coroutine
 from typing import Any, TypeVar
 
-logger = logging.getLogger("crux.async_runtime")
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 

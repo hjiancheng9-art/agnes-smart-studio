@@ -245,6 +245,14 @@ COMMANDS: list[CommandDef] = [
     ),
     # ── 根目录整理 ──
     CommandDef(
+        "export",
+        "/export",
+        "",
+        "导出当前对话为 Markdown",
+        "工具",
+        handler="_chat_export",
+    ),
+    CommandDef(
         "tidy",
         "/tidy",
         "[deep]",

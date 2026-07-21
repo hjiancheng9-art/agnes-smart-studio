@@ -12,7 +12,7 @@ from pathlib import Path
 
 __all__ = ["ROOT", "CapabilityRegistry", "capability_snapshot", "get_banner_counts", "logger"]
 
-logger = logging.getLogger("crux.capability")
+logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent.parent
 

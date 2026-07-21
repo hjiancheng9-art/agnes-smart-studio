@@ -13,7 +13,7 @@ import logging
 import os
 from pathlib import Path
 
-logger = logging.getLogger("crux.armor")
+logger = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parent.parent.parent
 VAULT_FILE = ROOT / "output" / "vault.enc"
 

@@ -13,7 +13,6 @@ from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.layout import Window
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.layout.dimension import Dimension
-from prompt_toolkit.mouse_events import MouseEventType
 
 _ROLE_FORMATS = {
     "user": ("class:message-user", "You"),
@@ -43,26 +42,9 @@ class _ScrollingWindow(Window):
     """
 
     def __init__(self, pane, *args, **kwargs):
+        """初始化滚动器 — 绑定所属 MessagePane 实例。"""
         super().__init__(*args, **kwargs)
         self._mp_pane = pane
-
-    def _mouse_handler(self, mouse_event):
-        """Intercept scroll events so they update _pinned via pane methods."""
-        from prompt_toolkit.application.current import get_app
-
-        # Restore mouse mode if it was lost (e.g. by subprocess output)
-        if hasattr(self._mp_pane, "_mouse_guard") and self._mp_pane._mouse_guard:
-            self._mp_pane._mouse_guard.restore()
-
-        if mouse_event.event_type == MouseEventType.SCROLL_UP:
-            self._mp_pane.scroll_up(lines=_SCROLL_LINE)
-            get_app().invalidate()
-            return None
-        if mouse_event.event_type == MouseEventType.SCROLL_DOWN:
-            self._mp_pane.scroll_down(lines=_SCROLL_LINE)
-            get_app().invalidate()
-            return None
-        return super()._mouse_handler(mouse_event)
 
     def _scroll(self, ui_content, width, height):
         """No-op for manual scroll positions; only compute bottom when pinned.
@@ -121,30 +103,14 @@ class _MessagePaneControl(FormattedTextControl):
     """FormattedTextControl subclass with mouse scroll handler."""
 
     def __init__(self, pane, *args, **kwargs):
+        """初始化键盘绑定 — 绑定滚动目标 MessagePane。"""
         self._mp_pane = pane
         super().__init__(*args, **kwargs)
 
-    def mouse_handler(self, mouse_event):
-        from prompt_toolkit.application.current import get_app
-
-        # Restore mouse mode if it was lost (e.g. by subprocess output).
-        # This is a safety net: the heartbeat timer also restores periodically,
-        # but this catches the case right when a mouse event arrives.
-        if hasattr(self._mp_pane, "_mouse_guard") and self._mp_pane._mouse_guard:
-            self._mp_pane._mouse_guard.restore()
-
-        if mouse_event.event_type == MouseEventType.SCROLL_UP:
-            self._mp_pane.scroll_up(lines=_SCROLL_LINE)
-            get_app().invalidate()
-            return None
-        if mouse_event.event_type == MouseEventType.SCROLL_DOWN:
-            self._mp_pane.scroll_down(lines=_SCROLL_LINE)
-            get_app().invalidate()
-            return None
-        return super().mouse_handler(mouse_event)
-
 
 class MessagePane:
+    """可滚动的聊天消息显示面板，支持自动滚动和手动覆盖。"""
+
     # ── P0 事件通道隔离 ──
     VISIBLE_CHAT_ROLES = frozenset(
         {
@@ -181,15 +147,17 @@ class MessagePane:
     """
 
     def __init__(self) -> None:
+        """初始化消息面板 — 创建锁/行缓存/流缓冲/窗口等。"""
         self._lock = threading.Lock()
         self._lines: list[tuple[str, str]] = []
+        self._msg_store = None  # Set by TuiAppV2 after MessageStore is created
         self._stream_role = ""
         self._stream_label = ""
         self._stream_buffer = ""
         self._pinned = True
         self._empty_renderer = None  # type: ignore[assignment]
         self._empty_render_cache = None
-        self._empty_render_cache_key = None
+        self._empty_render_cache_key = object()  # sentinel, not None
 
         # Virtual scrolling disabled — _scroll_offset tracked vertical_scroll
         # (wrapped line index), but _render used it to slice _lines (raw entries),
@@ -274,10 +242,12 @@ class MessagePane:
 
     @property
     def pane(self) -> Window:
+        """返回内部的 prompt_toolkit Window 控件。"""
         return self._window
 
     @property
     def line_count(self) -> int:
+        """当前消息总行数（含流缓冲）。"""
         return len(self._lines) + (1 if self._stream_buffer else 0)
 
     def _window_height(self) -> int:
@@ -370,6 +340,7 @@ class MessagePane:
         self._scroll_offset = 999999 if vs >= _SCROLL_BOTTOM else vs
 
     def scroll_up(self, lines: int = _SCROLL_LINE) -> None:
+        """向上滚动指定行数，自动取消底端固定。"""
         cur = self._current_visual_row()
         self._set_scroll_to_visual_row(cur - lines)
         new_row = self._current_visual_row()
@@ -378,6 +349,7 @@ class MessagePane:
         self._sync_scroll_offset()
 
     def scroll_down(self, lines: int = _SCROLL_LINE) -> None:
+        """向下滚动指定行数，到底端时重新固定。"""
         cur = self._current_visual_row()
         max_row = max(0, self._wrapped_content_height() - self._wrapped_window_height())
         target = cur + lines
@@ -390,6 +362,7 @@ class MessagePane:
         self._sync_scroll_offset()
 
     def scroll_page_up(self) -> None:
+        """向上翻页。"""
         page = max(5, int(self._wrapped_window_height() * _SCROLL_PAGE_FACTOR))
         cur = self._current_visual_row()
         self._set_scroll_to_visual_row(cur - page)
@@ -399,6 +372,7 @@ class MessagePane:
         self._sync_scroll_offset()
 
     def scroll_page_down(self) -> None:
+        """向下翻页。"""
         page = max(5, int(self._wrapped_window_height() * _SCROLL_PAGE_FACTOR))
         cur = self._current_visual_row()
         max_row = max(0, self._wrapped_content_height() - self._wrapped_window_height())
@@ -412,12 +386,14 @@ class MessagePane:
         self._sync_scroll_offset()
 
     def scroll_to_top(self) -> None:
+        """滚动到顶部。"""
         self._window.vertical_scroll = 0
         self._window.vertical_scroll_2 = 0
         self._pinned = False
         self._scroll_offset = 0
 
     def scroll_to_bottom(self) -> None:
+        """滚动到底部并重新固定。"""
         self._pinned = True
         self._window.vertical_scroll = _SCROLL_BOTTOM
         self._window.vertical_scroll_2 = 0
@@ -472,6 +448,7 @@ class MessagePane:
             return True
 
     def append_message(self, role: str, text: str) -> None:
+        """追加一条消息到面板（自动 Markdown 渲染和角色格式化）。"""
         self._restore_mouse()
         if not isinstance(text, str):
             text = str(text) if text is not None else ""
@@ -519,6 +496,7 @@ class MessagePane:
             self._auto_scroll()
 
     def stream_start(self, role: str, *, force_pin: bool = True) -> None:
+        """开始流式输出 — 初始化流角色和缓冲，自动固定到底端。"""
         with self._lock:
             if force_pin:
                 self._pinned = True
@@ -534,6 +512,7 @@ class MessagePane:
             self._stream_buffer = f"[{label}] "
 
     def stream_append(self, text: str) -> None:
+        """追加文本到当前流缓冲。"""
         from utils.unicode_safety import sanitize_text
 
         text = sanitize_text(text)
@@ -553,6 +532,7 @@ class MessagePane:
                 self._auto_scroll()
 
     def stream_end(self) -> None:
+        """结束流式输出并将缓冲提交为完整消息。"""
         with self._lock:
             self._end_stream()
 
@@ -568,9 +548,11 @@ class MessagePane:
         # 保留 _pinned 状态让用户的手动滚动不受干扰
 
     def append_info(self, text: str) -> None:
+        """追加一条 info 角色消息（快捷方法）。"""
         self.append_message("info", text)
 
     def append_error(self, text: str) -> None:
+        """追加一条 error 角色消息（快捷方法）。"""
         self.append_message("error", text)
 
     def set_empty_renderer(self, renderer) -> None:
@@ -581,14 +563,17 @@ class MessagePane:
         """
         self._empty_renderer = renderer
         self._empty_render_cache = None
+        self._empty_render_cache_key = object()  # force re-render on next call
         self._empty_render_cache_key = None
         self._empty_render_cache_key = None
 
     def invalidate_empty_cache(self) -> None:
+        """使空状态渲染缓存失效，下次 render 重新计算。"""
         self._empty_render_cache = None
         self._empty_render_cache_key = None
 
     def clear(self) -> None:
+        """清空所有消息行和流缓冲。"""
         with self._lock:
             self._end_stream()
             self._lines.clear()

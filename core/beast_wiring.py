@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 
-logger = logging.getLogger("crux.beast_wiring")
+logger = logging.getLogger(__name__)
 _wired = False
 
 # ── 事件处理器安全异常集：捕运行期错误，放行致命错误 (KeyboardInterrupt/SystemExit/MemoryError) ──
@@ -44,11 +44,14 @@ def wire_all() -> bool:
     bus.on("tool:before", xuanwu_guard)
 
     # ── 白虎：容灾自愈 ──
-    def baihu_recovery(error: Exception | None = None, tool_name: str = "", **kwargs):
+    # v6.3: 扩展为四层恢复策略 — provider failover → tool retry → self-heal → circuit break
+    def baihu_recovery(error: Exception | None = None, tool_name: str = "", tool_args: dict | None = None, **kwargs):
         if error is None:
             return
         err_type = type(error).__name__
         registry.record(tool_name, False)
+
+        # ── Layer 1: Provider failover ──
         try:
             from core.watchdog import get_watchdog
 
@@ -57,11 +60,64 @@ def wire_all() -> bool:
                 from core.provider import get_provider_manager
 
                 get_provider_manager().fallback()
+                logger.info("[Baihu:L1] Provider failover triggered by %s on %s", err_type, tool_name)
+                registry.record_incident(tool_name, "baihu_failover")
+                return
         except _EVENT_SAFE as e:
-            logger.exception("[Baihu] recovery failed for %s on %s: %s", err_type, tool_name, e)
-            registry.record_incident(tool_name, "baihu_failover_failed")
+            logger.debug("[Baihu:L1] failover skipped: %s", e)
 
-    bus.on("error", baihu_recovery)
+        # ── Layer 2: Retryable tool error classification ──
+        retryable = {"TimeoutError", "ConnectionError", "HTTPError", "RateLimitError", "BrokenPipeError"}
+        if err_type in retryable and tool_name:
+            registry.record_incident(tool_name, f"baihu_retry:{err_type}")
+            logger.warning("[Baihu:L2] Retryable error %s on %s — caller should retry", err_type, tool_name)
+            return  # Don't escalate — let the caller handle the retry
+
+        # ── Layer 3: Consecutive failure → self-heal audit ──
+        try:
+            cap = registry._caps.get(tool_name)
+            if cap and cap.failure_count >= 3:
+                logger.warning(
+                    "[Baihu:L3] %d consecutive failures on %s — triggering self-heal audit",
+                    cap.failure_count,
+                    tool_name,
+                )
+                from core.self_heal import SelfHealer
+
+                healer = SelfHealer()
+                healer.snapshot_core_files()
+                findings = healer.scan_all()
+                critical = [f for f in findings if f.severity == "critical"]
+                if critical:
+                    logger.error("[Baihu:L3] Self-heal found %d critical issues", len(critical))
+                    for f in critical:
+                        registry.record_incident(tool_name, f"self_heal:{f.category}")
+                    fixed = healer.apply_findings()
+                    if fixed:
+                        logger.info("[Baihu:L3] Auto-fixed %d issues", fixed)
+                        ok, _ = healer.verify_self_tests()
+                        if not ok:
+                            logger.error("[Baihu:L3] Tests failed after auto-fix — rolling back")
+                            healer.rollback_core_files()
+                            registry.record_incident(tool_name, "self_heal_rollback")
+                        else:
+                            registry.record_incident(tool_name, f"self_heal_fixed:{fixed}")
+        except _EVENT_SAFE as e:
+            logger.debug("[Baihu:L3] self-heal skipped: %s", e)
+
+        # ── Layer 4: Circuit breaker — mark tool as degraded ──
+        try:
+            from core.defense import get_circuit
+
+            circuit = get_circuit(tool_name)
+            tripped = circuit.record_failure()
+            if tripped:
+                registry.record_incident(tool_name, "circuit_open")
+                logger.error("[Baihu:L4] Circuit OPEN for %s", tool_name)
+        except _EVENT_SAFE:
+            pass
+
+    bus.on("tool:after", baihu_recovery)  # fires after every tool execution (success or error)
 
     # ── 朱雀：反思 ──
     def zhuque_reflect(tool_name: str = "", result: object = None, error: object = None, **kwargs):

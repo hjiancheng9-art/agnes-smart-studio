@@ -5,11 +5,10 @@
 
 from __future__ import annotations
 
-import json as _json
 import logging
 import time as _time
 
-logger = logging.getLogger("crux.chat")
+logger = logging.getLogger(__name__)
 
 from core.chat_tool_helpers import merge_tool_calls
 from core.chat_tool_helpers import normalize_tool_args as _normalize_tool_args
@@ -52,6 +51,44 @@ def _run_tool_calls_impl(self, tool_calls, executed_sigs, executed_cache, loop_i
 
     # ── Adaptive state shared with send_stream ──
     _loop = loop_idx
+
+    # ── Methodology fallback gate (defense in depth) ──
+    # The PRE_TOOL_USE hook is the primary enforcement. This is a safety net
+    # that activates if the hook registration failed silently.
+    for tc in tool_calls:
+        if not isinstance(tc, dict):
+            continue
+        fn = tc.get("function")
+        if not isinstance(fn, dict):
+            continue
+        fname = fn.get("name", "")
+        raw_args = fn.get("arguments", "{}")
+        # Normalize: LLM may return args as int/str/list, always pass as string
+        if isinstance(raw_args, str):
+            try:
+                import json as _json
+
+                args = _json.loads(raw_args)
+            except (_json.JSONDecodeError, ValueError):
+                args = raw_args
+        else:
+            args = str(raw_args) if raw_args is not None else "{}"
+        try:
+            from core.methodology import methodology_pre_check
+
+            allowed, reason = methodology_pre_check(fname, args)
+            if not allowed:
+                yield ("info", f"🚫 方法论阻止: {reason}")
+                self.messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tc.get("id", ""),
+                        "content": f"[Blocked by methodology] {reason}",
+                    }
+                )
+                return False
+        except ImportError:
+            pass  # methodology module not available — no enforcement
 
     # ── Phase 1: Tool call validation ──
     if getattr(self, "tvl", None) is not None:
@@ -232,9 +269,11 @@ def _run_tool_calls_impl(self, tool_calls, executed_sigs, executed_cache, loop_i
                 except (ImportError, _json.JSONDecodeError, OSError):
                     pass
                 # Fold oversized tool results for cleaner display
+                # ⚠️  _display is for UI only — tool_result stays intact for model & error detection
+                _display = tool_result
                 if isinstance(tool_result, str) and len(tool_result) > 800:
                     preview = "\n".join(tool_result.split("\n")[:5])
-                    tool_result = f"{preview}\n... [{len(tool_result)} chars folded, result sent to model]"
+                    _display = f"{preview}\n... [{len(tool_result)} chars folded, result sent to model]"
                 span.set_attribute("result_chars", len(tool_result) if isinstance(tool_result, str) else -1)
                 metrics.increment("tool_calls")
                 metrics.timing("tool_call_ms", span.duration_ms())
@@ -277,6 +316,7 @@ def _run_tool_calls_impl(self, tool_calls, executed_sigs, executed_cache, loop_i
                 yield from side_effects  # ← Confirm.ask 阻塞点
                 # b. 用户同意 → 用 confirmed=True 重新执行，跳过 confirm 检查
                 tool_result, exec_side_effects = self._dispatch_tool(fname, fargs, confirmed=True)
+                _display = tool_result  # 同步 display 到重执行结果
                 yield from exec_side_effects
                 # c. 用真实结果替换占位
                 self.messages[-1] = {
@@ -289,13 +329,13 @@ def _run_tool_calls_impl(self, tool_calls, executed_sigs, executed_cache, loop_i
                 yield from side_effects
                 append_tool_result = True
             # 把 tool 执行结果 yield 给 UI，实现闭环展示
-            result_text = tool_result if isinstance(tool_result, str) else str(tool_result)
-            if len(result_text) > 2000:
-                result_text = result_text[:2000] + "\n...[folded]"
-            yield ("tool_result", {"name": fname, "result": result_text})
+            _ui_text = _display if isinstance(_display, str) else str(_display)
+            if len(_ui_text) > 2000:
+                _ui_text = _ui_text[:2000] + "\n...[folded]"
+            yield ("tool_result", {"name": fname, "result": _ui_text})
             if fname not in self._WRITE_TOOLS:
                 executed_sigs.add(sig)
-                executed_cache[sig] = tool_result
+                executed_cache[sig] = tool_result  # 缓存原始完整结果
         # 上下文窗口防护：智能压缩
         if append_tool_result:
             self.messages.append(

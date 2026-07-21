@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-logger = logging.getLogger("crux.streaming_executor")
+logger = logging.getLogger(__name__)
 
 
 class ToolStatus(Enum):

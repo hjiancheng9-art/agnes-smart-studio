@@ -7,6 +7,9 @@
 - 所有公开函数签名保持不变，调用点无需改动
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
 import contextlib
 import json
 from datetime import datetime
@@ -148,7 +151,7 @@ def _migrate_legacy_if_needed():
 
                 _os.fsync(out.fileno())
             except OSError:
-                pass
+                logger.debug("silent except", exc_info=True)
         # 2. 原子 rename：tmp → jsonl（成功后 JSONL 才正式存在）
         tmp.replace(HISTORY_JSONL)
         # 3. JSONL 已就位，旧文件保留为 .bak（此步失败不影响数据完整性）
@@ -161,7 +164,7 @@ def _migrate_legacy_if_needed():
             if tmp.exists():
                 tmp.unlink()
         except OSError:
-            pass
+            logger.debug("silent except", exc_info=True)
 
 
 def _read_jsonl() -> list[dict]:
@@ -216,7 +219,7 @@ def _rewrite_jsonl(records: list[dict]):
                 if tmp.exists():
                     tmp.unlink()
             except OSError:
-                pass
+                logger.debug("silent except", exc_info=True)
 
 
 def load_history() -> list[dict]:
@@ -256,7 +259,7 @@ def add_record(
         with open(HISTORY_JSONL, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except OSError:
-        pass
+        logger.debug("silent except", exc_info=True)
     return entry
 
 

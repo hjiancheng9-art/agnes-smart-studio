@@ -49,7 +49,7 @@ from core.multi_agent_modes import (
     simplicity_score,
 )
 
-logger = logging.getLogger("crux.multi_agent")
+logger = logging.getLogger(__name__)
 import asyncio
 
 # 跨模块 trace 上下文：供 cost_tracker 等下游模块读取当前 root_trace_id

@@ -1,0 +1,9 @@
+crux_studio.py:403:20: RUF005 Consider iterable unpacking instead of concatenation
+tests\test_crux_bridge.py:15:18: RUF005 Consider iterable unpacking instead of concatenation
+tests\test_v3_reducer.py:40:12: RUF059 Unpacked variable `effects` is never used
+tests\test_v3_reducer.py:85:12: RUF059 Unpacked variable `effects` is never used
+tests\test_v3_reducer.py:99:12: RUF059 Unpacked variable `effects` is never used
+ui\v3\__init__.py:41:11: RUF022 `__all__` is not sorted
+ui\v3\app.py:389:16: RUF034 Useless `if`-`else` condition
+ui\v3\app.py:451:17: RUF005 Consider `[*list(old.items), (icon, style, msg)]` instead of concatenation
+ui\v3\reducer.py:342:13: RUF005 Consider `[*list(old.items), (icon, style, msg)]` instead of concatenation

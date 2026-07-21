@@ -11,7 +11,7 @@ QC — 首帧 & 视频质量检查
 import logging
 from dataclasses import dataclass, field
 
-logger = logging.getLogger("crux.qc")
+logger = logging.getLogger(__name__)
 
 
 @dataclass

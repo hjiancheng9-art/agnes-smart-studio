@@ -8,14 +8,23 @@ from pathlib import Path
 
 
 def safe_rich_print():
-    """Return a print function that uses Rich if available, plain print otherwise."""
+    """Return a print function that uses Rich if available, plain print otherwise.
+
+    Falls back to plain print() on ANY Rich failure — not just ImportError.
+    Windows terminals can trigger OSError (errno 22) when Rich's Win32 console
+    API calls fail on non-standard terminal emulators.
+    """
     try:
         from rich.console import Console
 
         rc = Console(highlight=False)
 
         def _rp(text: str = "", **kwargs) -> None:
-            rc.print(text, **kwargs)
+            try:
+                rc.print(text, **kwargs)
+            except Exception:
+                # Rich failed to render — fall back to plain print
+                print(text)
 
         return _rp
     except ImportError:
@@ -122,7 +131,7 @@ def run_startup_health() -> None:
     """Lightweight health check before entering REPL — silent, logs only."""
     import logging
 
-    logger = logging.getLogger("crux.bootstrap")
+    logger = logging.getLogger(__name__)
     try:
         from core.mcp_client import _mcp_client, ensure_mcp_servers
 
@@ -134,9 +143,9 @@ def run_startup_health() -> None:
             logger.info("bootstrap: MCP config reloaded (%d -> %d)", old, n)
 
         try:
-            from core.startup_checks import _check_dna_identity
+            from core.startup_checks import _check_core_imports
 
-            _check_dna_identity()
+            _check_core_imports()
         except Exception:
             logger.debug("bootstrap: DNA check skipped", exc_info=True)
 

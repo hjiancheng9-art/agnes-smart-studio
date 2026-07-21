@@ -13,7 +13,7 @@ import logging
 import time
 from pathlib import Path
 
-logger = logging.getLogger("crux.right_ring")
+logger = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parent.parent.parent
 HEALTH_FILE = ROOT / "output" / "health_state.json"
 

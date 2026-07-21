@@ -13,7 +13,7 @@ import os
 import uuid
 from pathlib import Path
 
-logger = logging.getLogger("crux.chat")
+logger = logging.getLogger(__name__)
 
 from utils.unicode_safety import InvalidUnicodePayloadError
 
@@ -72,11 +72,12 @@ def _send_stream_impl(self, user_text: str, image_url: str | None = None):
 
     # ── 方法论分级：根据意图自动判定 A/B/C/D 任务等级 ──
     try:
-        from core.methodology import get_methodology_state
+        try:
+            from core.methodology import get_methodology_state
 
-        state = get_methodology_state()
-        state.classify(user_text, [])
-        state.record_step()
+            get_methodology_state().record_step()
+        except (ImportError, OSError):
+            pass
     except (ImportError, OSError) as e:
         logger.debug("optional module skipped: %s", e)
 
@@ -103,9 +104,13 @@ def _send_stream_impl(self, user_text: str, image_url: str | None = None):
 
     # ── Unified execution plan ──
     try:
-        from core.runtime_types import ExecutionMode, plan_from_policy
+        from core.runtime_types import ExecutionMode, TaskComplexity, plan_from_policy
 
         _plan = plan_from_policy(user_text)
+
+        # Yield planning info for non-trivial tasks
+        if _plan.complexity >= TaskComplexity.STANDARD:
+            yield ("info", "【分析】任务分析中...")
 
         # For orchestrate/swarm: trigger directly instead of asking the model
         # to produce a tool call. This is NOT a workaround — it's the correct
@@ -209,8 +214,17 @@ def _send_stream_impl(self, user_text: str, image_url: str | None = None):
             # Remove previous context injection (replace last system-context if exists)
             self.messages = [m for m in self.messages if not str(m.get("content", "")).startswith("[项目状态]")]
             self.messages.insert(1, {"role": "system", "content": ctx})
+            # ── Methodology: context collected (step 2) ──
+            try:
+                from core.methodology import get_methodology_state
+
+                get_methodology_state().advance_workflow("context_collected")
+            except ImportError:
+                pass
     except Exception:
-        pass
+        import logging
+
+        logging.getLogger(__name__).debug("silent except", exc_info=True)
 
     # ── 纯文本分支：加 user message ──
     self.messages.append({"role": "user", "content": user_text})

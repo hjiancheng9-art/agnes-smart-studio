@@ -244,27 +244,77 @@ class BrowserController:
             self._playwright = sync_playwright().start()
 
     def connect(self) -> bool:
-        """连接到浏览器（持久化模式，无 CDP）。
+        """连接到浏览器。CDP 优先（复用已运行的浏览器），失败后启动新浏览器。
 
         Returns:
             True if connected successfully.
         """
         self._ensure_playwright()
 
-        try:
-            from core.cdp_browser import _connect
+        # 1) Try CDP first — connect to already-running browser on port 9222
+        import subprocess as _sp
 
-            self._playwright.stop()
-            self._playwright = None
-            pw, context = _connect()
-            self._playwright = pw
-            self._context = context
-            # 获取默认页面
+        try:
+            browser = self._playwright.chromium.connect_over_cdp("http://127.0.0.1:9222", timeout=5000)
+            self._context = browser.contexts[0] if browser.contexts else browser.new_context()
             pages = self._context.pages
             if pages:
                 self._page = pages[-1]
             else:
                 self._page = self._context.new_page()
+            logger.info("已连接浏览器 (CDP 模式，复用已有会话)")
+            return True
+        except Exception:
+            pass  # CDP failed, try launching new browser
+
+        # 2) Auto-launch Edge with CDP if no existing browser
+        try:
+            edge = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+            import os as _os
+
+            if not _os.path.exists(edge):
+                edge = r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"
+            _sp.Popen(
+                [edge, "--remote-debugging-port=9222", "--no-first-run", "--no-default-browser-check"],
+                stdout=_sp.DEVNULL,
+                stderr=_sp.DEVNULL,
+            )
+            import time as _time
+
+            _time.sleep(3)
+            browser = self._playwright.chromium.connect_over_cdp("http://127.0.0.1:9222", timeout=10000)
+            self._context = browser.contexts[0] if browser.contexts else browser.new_context()
+            pages = self._context.pages if self._context else []
+            if pages:
+                self._page = pages[-1]
+            else:
+                self._page = self._context.new_page() if self._context else None
+            logger.info("已启动 Edge + CDP 连接")
+            return True
+        except Exception:
+            pass  # Auto-launch also failed
+
+        # 3) Fallback: launch persistent context (no CDP)
+        try:
+            self._playwright.stop()
+            self._playwright = None
+            from core.browser_runtime import _connect
+
+            pw, result = _connect()
+            self._playwright = pw
+            from playwright.sync_api import Browser, BrowserContext
+
+            if isinstance(result, BrowserContext):
+                self._context = result
+                pages = list(result.pages)
+            elif isinstance(result, Browser):
+                self._context = None
+                ctx = result.contexts[0] if result.contexts else result.new_context()
+                pages = list(ctx.pages)
+            if pages:
+                self._page = pages[-1]
+            else:
+                self._page = self._context.new_page() if self._context else None
             logger.info("已启动浏览器 (持久化模式)")
             return True
         except Exception as e:

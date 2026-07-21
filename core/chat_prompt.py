@@ -12,7 +12,7 @@ from pathlib import Path
 
 from core.error_sink import catch
 
-logger = logging.getLogger("crux.chat_prompt")
+logger = logging.getLogger(__name__)
 
 # Backward compatibility: old DNA checks / tests reference this.
 # After AGENTS split + on-demand beast loading, the hot path injects
@@ -161,7 +161,7 @@ _CODE_SPECTRUM_INJECTIONS: list[tuple[str, str, str]] = [
 ]
 
 # 热路径身份注入 — 极简一行，不加载七兽/金手指世界观
-_HOT_IDENTITY = "CRUX Studio v6.1.0 — 平时如刀，出事成阵 · Multi-Agent 已模块化"
+_HOT_IDENTITY = "CRUX Studio v6.2.0 — 平时如刀，出事成阵 · Multi-Agent 已模块化"
 
 # 冷路径叙事 — 按需加载，不自动注入
 # (Previously held golden_finger + seven_beasts_fusion — both deleted as dead code.

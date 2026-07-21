@@ -1,4 +1,4 @@
-"""Hello test: verify 1+1=2."""
+"""Simple hello test: verify 1 + 1 = 2."""
 
 
 def test_one_plus_one() -> None:

@@ -10,7 +10,7 @@ import logging
 import subprocess
 from pathlib import Path
 
-logger = logging.getLogger("crux.context")
+logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -70,7 +70,9 @@ def get_project_snapshot() -> str:
         if commits:
             parts.append(f"最近提交: {'; '.join(commits[:3])}")
     except Exception:
-        pass
+        import logging
+
+        logging.getLogger(__name__).debug("silent except", exc_info=True)
 
     # ── Changed files ──
     if dirty and r2 is not None:
@@ -79,7 +81,9 @@ def get_project_snapshot() -> str:
             if changed:
                 parts.append(f"改动文件: {', '.join(changed[:10])}")
         except Exception:
-            pass
+            import logging
+
+            logging.getLogger(__name__).debug("silent except", exc_info=True)
 
     # ── Self-heal quick check ──
     try:
@@ -92,6 +96,8 @@ def get_project_snapshot() -> str:
         else:
             parts.append(f"自检: {len(h.findings)} 语法问题待修复")
     except Exception:
-        pass
+        import logging
+
+        logging.getLogger(__name__).debug("silent except", exc_info=True)
 
     return "\n".join(parts)

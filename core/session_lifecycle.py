@@ -13,7 +13,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-logger = logging.getLogger("crux.session_lifecycle")
+logger = logging.getLogger(__name__)
 
 
 class SessionPhase(enum.Enum):

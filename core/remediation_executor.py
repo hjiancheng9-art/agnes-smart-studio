@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger("crux.remediation")
+logger = logging.getLogger(__name__)
 
 # ── Risk Classification ──────────────────────────────────────────
 

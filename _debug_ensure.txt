@@ -1,0 +1,54 @@
+    def _ensure_capabilities(self, trace_id: str) -> dict:
+        now = time.monotonic()
+        if self._capabilities and (now - self._capabilities_ts) < 300:
+            return self._capabilities
+        caps = {}
+
+        # 1. 七兽
+        try:
+            from core.beast_wiring import wire_all
+
+            wire_all()
+            caps["beasts"] = "七兽已接线"
+        except Exception as e:
+            caps["beasts"] = str(e)
+
+        # 2. 插件
+        try:
+            from core.plugin_system import PluginManager
+
+            pm = PluginManager()
+            pm.load_all()
+            caps["plugins"] = f"{len(getattr(pm, '_loaded', []))} 插件"
+        except Exception as e:
+            caps["plugins"] = str(e)
+
+        # 3. 技能
+        try:
+            from core.skills import get_manager
+
+            mgr = get_manager()
+            for s in self.skills:
+                mgr.load(s)
+            caps["skills"] = f"{len(self.skills)} 技能"
+        except Exception as e:
+            caps["skills"] = str(e)
+
+        # 4. Agent 定义
+        try:
+            self._load_agent_roles()
+            caps["agents"] = f"{len(self._agent_roles)} Agent 角色"
+        except Exception as e:
+            caps["agents"] = str(e)
+
+        # 5. 模型定价
+        try:
+            self._load_model_pricing()
+            caps["pricing"] = f"{len(self._model_pricing)} providers"
+        except Exception as e:
+            caps["pricing"] = str(e)
+
+        self._capabilities = caps
+        self._capabilities_ts = now
+        logger.info("[%s] 能力激活: %s", trace_id, caps)
+        return caps

@@ -14,7 +14,7 @@ from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 
-logger = logging.getLogger("crux.left_ring")
+logger = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parent.parent.parent
 TELEM_FILE = ROOT / "output" / "telemetry.jsonl"
 MAX_RECENT = 100

@@ -35,6 +35,7 @@ class Spinner:
     """
 
     def __init__(self, on_tick: Callable[[], None]) -> None:
+        """初始化 Braille 旋转器 — 绑定 on_tick 回调。"""
         self._frame = 0
         self._running = False
         self._thread: threading.Thread | None = None
@@ -43,15 +44,18 @@ class Spinner:
 
     @property
     def current(self) -> str:
+        """当前 Braille 帧字符。"""
         with self._lock:
             return BRAILLE_FRAMES[self._frame % len(BRAILLE_FRAMES)]
 
     @property
     def running(self) -> bool:
+        """旋转器是否正在运行。"""
         with self._lock:
             return self._running
 
     def start(self) -> None:
+        """启动后台旋转线程。"""
         with self._lock:
             if self._running:
                 return
@@ -60,6 +64,7 @@ class Spinner:
         self._thread.start()
 
     def stop(self) -> None:
+        """停止旋转线程并等待退出。"""
         with self._lock:
             self._running = False
         if self._thread and self._thread.is_alive():
@@ -159,19 +164,16 @@ def h_line(width: int, double: bool = False) -> str:
 #  Welcome Screen — CRUX pixel-art welcome (FormattedText)
 # ══════════════════════════════════════════════════════════════════
 
-# Pixel art CRUX logo (from terminal_splash.py)
-CRUX_PIXEL = [
-    "  ░░████████░░    ░░████████░░    ░░██░░░░██░░    ░░██░░░░██░░  ",
-    "  ████████████    ████████████    ████████████    ████████████  ",
-    " ████░░░░░░████  ████░░░░████    ████░░░░████    ████░░░░████  ",
-    " ████░░░░░░████  ██████████      ████░░░░████    ██░░████░░██  ",
-    " ████░░░░░░████  ██████████      ████████████    ██░░░░░░░░██  ",
-    " ████░░░░░░████  ████░░████      ████████████    ██░░░░░░░░██  ",
-    " ████░░░░░░████  ████░░░████     ████░░░░████    ██░░████░░██  ",
-    " ████░░░░░░████  ████░░░░████    ████░░░░████    ██░░░░░░░░██  ",
-    "  ████████████    ████████████    ████░░░░████    ██░░░░░░░░██  ",
-    "  ░░████████░░    ░░████████░░    ░░██░░░░██░░    ░░██░░░░██░░  ",
-    "                                ",
+# ASCII geometric CRUX logo — diamond + chevron motif
+CRUX_GEOMETRIC = [
+    "           /\\          /\\            ",
+    "  +-------/  \\--------/  \\-------+   ",
+    "  |      / /\\ \\  CRUX  / /\\ \\      |",
+    "  |     / /  \\ \\      / /  \\ \\     |",
+    "  |     \\ \\  / /      \\ \\  / /     |",
+    "  |      \\ \\/ / STUDIO \\ \\/ /      |",
+    "  +-------\\  /--------\\  /-------+   ",
+    "           \\/          \\/            ",
 ]
 
 
@@ -237,12 +239,14 @@ def build_welcome_formatted(
         A = "bold fg:#FAB387"
 
     def clamp_box_width(width: int, terminal_width: int = TW, x: int = 0, margin: int = 2) -> int:
+        """根据终端宽度约束盒子宽度。"""
         return max(10, min(width, terminal_width - x - margin))
 
     lines: list[StyleAndTextTuples] = []
     L = lines.append
 
     def sp(n):
+        """生成指定宽度的空格占位符。"""
         return " " * max(0, n)
 
     def _vw(s: str) -> int:
@@ -255,7 +259,7 @@ def build_welcome_formatted(
             (Y, "  CRUX Studio"),
             (M, f"  v{_ver}"),
             (M, "  ·  "),
-            (W, "Windows 11 工程搭档"),
+            (W, "Windows 11 · 极简内核 · 百器待命"),
             (M, "  ·  "),
             (B, _model_display),
             (M, "  ·  "),
@@ -296,14 +300,17 @@ def build_welcome_formatted(
     c2_x + col_w + 2
 
     def btop(title, w):
+        """渲染盒子顶部边框（含标题）。"""
         w = clamp_box_width(max(14, w), CW)
         return f"╭─ {title} {'─' * max(0, w - _vw(title) - 5)}╮"
 
     def bbot(w):
+        """渲染盒子底部边框。"""
         w = clamp_box_width(max(4, w), CW)
         return f"╰{'─' * max(0, w - 2)}╯"
 
     def row_at(x, sty, txt, w):
+        """渲染盒子内单行内容（含左右边框）。"""
         w = clamp_box_width(max(8, w), CW, x=x)
         t = str(txt)
         # Truncate by visual width
@@ -500,6 +507,7 @@ class ThinkingPanel:
     MAX_LINES = 8  # max visible lines before truncation
 
     def __init__(self) -> None:
+        """初始化思考面板 — 最大可见行数 8。"""
         self._content: str = ""
         self._visible: bool = False
         self._pinned: bool = False
@@ -507,16 +515,19 @@ class ThinkingPanel:
 
     @property
     def visible(self) -> bool:
+        """面板是否可见。"""
         with self._lock:
             return self._visible
 
     @property
     def content(self) -> str:
+        """面板当前文本内容。"""
         with self._lock:
             return self._content
 
     @property
     def has_content(self) -> bool:
+        """面板是否有内容。"""
         with self._lock:
             return bool(self._content)
 
@@ -674,6 +685,7 @@ class AnimatedBadge:
         anim: str = "pulse",
         width: int | None = None,
     ):
+        """初始化七兽徽章 — 设置标签/颜色/图标/动画模式。"""
         self.label = label
         self.color = color
         self.icon = icon
@@ -700,6 +712,7 @@ class AnimatedBadge:
         return f"{_C.DIM}[{c}{dot}{_C.DIM}]{_C.RESET} {c}{_C.BOLD}{icon_str}{label}{_C.RESET}"
 
     def reset(self):
+        """重置动画帧索引到起始位置。"""
         self._idx = 0
 
 
@@ -726,15 +739,18 @@ class PulseDot:
     }
 
     def __init__(self, state: str = "idle"):
+        """初始化脉冲状态点 — 设置初始状态。"""
         self.state = state
         self._idx = 0
 
     @property
     def state(self) -> str:
+        """获取/设置状态并重置动画索引。"""
         return self._state
 
     @state.setter
     def state(self, value: str):
+        """设置状态值并重置动画索引。"""
         self._state = value
         self._idx = 0
 
@@ -777,6 +793,7 @@ class BreathingLabel:
     """
 
     def __init__(self, text: str, color: str = "", steps: int = 12):
+        """初始化呼吸文本 — 设置文字/颜色/渐变步数。"""
         self.text = text
         self.color = color
         self.steps = steps
@@ -802,6 +819,7 @@ class BreathingLabel:
         return self.next()
 
     def reset(self):
+        """重置到第一帧。"""
         self._idx = 0
 
 
@@ -833,6 +851,7 @@ class EnhancedSpinner:
     }
 
     def __init__(self, mode: str = "braille", interval: float = 0.1):
+        """初始化动画旋转器 — 设置模式(braille/dots/line)和帧间隔。"""
         self._mode = mode
         self._interval = interval
         self._frames = self._MODE_FRAMES.get(mode, self._MODE_FRAMES["braille"])
@@ -843,10 +862,12 @@ class EnhancedSpinner:
 
     @property
     def mode(self) -> str:
+        """获取当前动画模式。"""
         return self._mode
 
     @mode.setter
     def mode(self, value: str):
+        """设置动画模式并重置帧索引。"""
         self._mode = value
         self._frames = self._MODE_FRAMES.get(value, self._MODE_FRAMES["braille"])
         self._idx = 0
@@ -905,10 +926,12 @@ class EnhancedProgressBar:
     """
 
     def __init__(self, label: str = "", width: int = 20):
+        """初始化进度条 — 设置标签和宽度。"""
         self.label = label
         self.width = width
 
     def render(self, percent: int) -> str:
+        """渲染百分比进度条为 ANSI 字符串。"""
         from tui_art import C as _C
         from tui_art import gradient_progress_bar
 

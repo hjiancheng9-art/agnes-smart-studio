@@ -1,5 +1,8 @@
 """图片输入工具 - 支持URL/本地文件/Base64/剪贴板"""
 
+import logging
+
+logger = logging.getLogger(__name__)
 import base64
 from pathlib import Path
 
@@ -34,7 +37,7 @@ def load_image_as_url_or_data(source: str) -> str:
         if decoded[:4] in (b"\x89PNG", b"\xff\xd8\xff\xe0", b"\xff\xd8\xff\xe1", b"RIFF"):
             return f"data:image/png;base64,{source}"
     except (ValueError, TypeError, UnicodeDecodeError):
-        pass
+        logger.debug("silent except", exc_info=True)
 
     raise ValueError(f"无法识别的图片输入: {source[:50]}...")
 

@@ -1,0 +1,2101 @@
+[
+  {
+    "cell": null,
+    "code": "E701",
+    "end_location": {
+      "column": 17,
+      "row": 230
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\core\\browser_runtime.py",
+    "fix": null,
+    "location": {
+      "column": 16,
+      "row": 230
+    },
+    "message": "Multiple statements on one line (colon)",
+    "name": "multiple-statements-on-one-line-colon",
+    "noqa_row": 230,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/multiple-statements-on-one-line-colon"
+  },
+  {
+    "cell": null,
+    "code": "E701",
+    "end_location": {
+      "column": 28,
+      "row": 231
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\core\\browser_runtime.py",
+    "fix": null,
+    "location": {
+      "column": 27,
+      "row": 231
+    },
+    "message": "Multiple statements on one line (colon)",
+    "name": "multiple-statements-on-one-line-colon",
+    "noqa_row": 231,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/multiple-statements-on-one-line-colon"
+  },
+  {
+    "cell": null,
+    "code": "SIM103",
+    "end_location": {
+      "column": 21,
+      "row": 41
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\core\\runtimes\\architecture_runtime.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "return bool(mode == \"DEEP\" and re.search(r\"方案|设计|架构|迁移|拆分\", text))",
+          "end_location": {
+            "column": 21,
+            "row": 41
+          },
+          "location": {
+            "column": 9,
+            "row": 39
+          }
+        }
+      ],
+      "message": "Inline condition"
+    },
+    "location": {
+      "column": 9,
+      "row": 39
+    },
+    "message": "Return the condition directly",
+    "name": "needless-bool",
+    "noqa_row": 39,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/needless-bool"
+  },
+  {
+    "cell": null,
+    "code": "SIM103",
+    "end_location": {
+      "column": 28,
+      "row": 41
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\core\\runtimes\\code_patch_runtime.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "return not re.search(r\"架构|重构.*系统|大规模|跨\\s*\\d+\\s*个文件\", text)",
+          "end_location": {
+            "column": 28,
+            "row": 41
+          },
+          "location": {
+            "column": 17,
+            "row": 39
+          }
+        }
+      ],
+      "message": "Inline condition"
+    },
+    "location": {
+      "column": 17,
+      "row": 39
+    },
+    "message": "Return the negated condition directly",
+    "name": "needless-bool",
+    "noqa_row": 39,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/needless-bool"
+  },
+  {
+    "cell": null,
+    "code": "SIM110",
+    "end_location": {
+      "column": 21,
+      "row": 40
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\core\\runtimes\\debug_runtime.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "return any(re.search(pattern, text) for pattern in self.DEBUG_KEYWORDS)",
+          "end_location": {
+            "column": 21,
+            "row": 40
+          },
+          "location": {
+            "column": 9,
+            "row": 37
+          }
+        }
+      ],
+      "message": "Replace with `return any(re.search(pattern, text) for pattern in self.DEBUG_KEYWORDS)`"
+    },
+    "location": {
+      "column": 9,
+      "row": 37
+    },
+    "message": "Use `return any(re.search(pattern, text) for pattern in self.DEBUG_KEYWORDS)` instead of `for` loop",
+    "name": "reimplemented-builtin",
+    "noqa_row": 37,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/reimplemented-builtin"
+  },
+  {
+    "cell": null,
+    "code": "F841",
+    "end_location": {
+      "column": 28,
+      "row": 46
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\core\\runtimes\\general_runtime.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "",
+          "end_location": {
+            "column": 31,
+            "row": 46
+          },
+          "location": {
+            "column": 17,
+            "row": 46
+          }
+        }
+      ],
+      "message": "Remove assignment to unused variable `plan_result`"
+    },
+    "location": {
+      "column": 17,
+      "row": 46
+    },
+    "message": "Local variable `plan_result` is assigned to but never used",
+    "name": "unused-variable",
+    "noqa_row": 46,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unused-variable"
+  },
+  {
+    "cell": null,
+    "code": "F401",
+    "end_location": {
+      "column": 10,
+      "row": 6
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\crux_repl.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "",
+          "end_location": {
+            "column": 1,
+            "row": 7
+          },
+          "location": {
+            "column": 1,
+            "row": 6
+          }
+        }
+      ],
+      "message": "Remove unused import: `re`"
+    },
+    "location": {
+      "column": 8,
+      "row": 6
+    },
+    "message": "`re` imported but unused",
+    "name": "unused-import",
+    "noqa_row": 6,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unused-import"
+  },
+  {
+    "cell": null,
+    "code": "F811",
+    "end_location": {
+      "column": 14,
+      "row": 62
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\crux_repl.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "",
+          "end_location": {
+            "column": 1,
+            "row": 63
+          },
+          "location": {
+            "column": 1,
+            "row": 62
+          }
+        }
+      ],
+      "message": "Remove definition: `re`"
+    },
+    "location": {
+      "column": 12,
+      "row": 62
+    },
+    "message": "Redefinition of unused `re` from line 6: `re` redefined here",
+    "name": "redefined-while-unused",
+    "noqa_row": 62,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/redefined-while-unused"
+  },
+  {
+    "cell": null,
+    "code": "F841",
+    "end_location": {
+      "column": 12,
+      "row": 388
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\crux_studio.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "",
+          "end_location": {
+            "column": 15,
+            "row": 388
+          },
+          "location": {
+            "column": 5,
+            "row": 388
+          }
+        }
+      ],
+      "message": "Remove assignment to unused variable `INNER_W`"
+    },
+    "location": {
+      "column": 5,
+      "row": 388
+    },
+    "message": "Local variable `INNER_W` is assigned to but never used",
+    "name": "unused-variable",
+    "noqa_row": 388,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unused-variable"
+  },
+  {
+    "cell": null,
+    "code": "RUF005",
+    "end_location": {
+      "column": 6,
+      "row": 413
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\crux_studio.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "[*geom, \"\", f\"v{__version__}  ·  {model_name}  ·  1M 上下文  ·  自修复闭环\", f\"{_msg_sk} skills  ·  34 专业智能体  ·  Agent Swarm\", \"极简内核 · 百器待命 · 七兽按需 · Multi-Agent\", \"平时如刀，出事成阵 —— Sharp by default. A swarm when needed.\", \"\", \"  /ask     开始 AI 编程    /agent   选择专业智能体\", \"  /swarm   并行编排        /skills  浏览技能\", \"  /help    查看全部命令    Ctrl+V   粘贴  Enter  发送\"]",
+          "end_location": {
+            "column": 6,
+            "row": 413
+          },
+          "location": {
+            "column": 20,
+            "row": 403
+          }
+        }
+      ],
+      "message": "Replace with iterable unpacking"
+    },
+    "location": {
+      "column": 20,
+      "row": 403
+    },
+    "message": "Consider iterable unpacking instead of concatenation",
+    "name": "collection-literal-concatenation",
+    "noqa_row": 403,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/collection-literal-concatenation"
+  },
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 23,
+      "row": 684
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\crux_studio.py",
+    "fix": null,
+    "location": {
+      "column": 9,
+      "row": 684
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "name": "unsorted-imports",
+    "noqa_row": 684,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "E702",
+    "end_location": {
+      "column": 24,
+      "row": 684
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\crux_studio.py",
+    "fix": null,
+    "location": {
+      "column": 23,
+      "row": 684
+    },
+    "message": "Multiple statements on one line (semicolon)",
+    "name": "multiple-statements-on-one-line-semicolon",
+    "noqa_row": 684,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/multiple-statements-on-one-line-semicolon"
+  },
+  {
+    "cell": null,
+    "code": "E401",
+    "end_location": {
+      "column": 15,
+      "row": 4
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\demo_colors.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "import sys\r\nimport os",
+          "end_location": {
+            "column": 15,
+            "row": 4
+          },
+          "location": {
+            "column": 1,
+            "row": 4
+          }
+        }
+      ],
+      "message": "Split imports"
+    },
+    "location": {
+      "column": 1,
+      "row": 4
+    },
+    "message": "Multiple imports on one line",
+    "name": "multiple-imports-on-one-line",
+    "noqa_row": 4,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/multiple-imports-on-one-line"
+  },
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 15,
+      "row": 4
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\demo_colors.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "import os\r\nimport sys\r\n\r\n",
+          "end_location": {
+            "column": 1,
+            "row": 5
+          },
+          "location": {
+            "column": 1,
+            "row": 4
+          }
+        }
+      ],
+      "message": "Organize imports"
+    },
+    "location": {
+      "column": 1,
+      "row": 4
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "name": "unsorted-imports",
+    "noqa_row": 4,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "F541",
+    "end_location": {
+      "column": 34,
+      "row": 11
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\demo_colors.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "\"║   CRUX Color Demo    ║\"",
+          "end_location": {
+            "column": 34,
+            "row": 11
+          },
+          "location": {
+            "column": 7,
+            "row": 11
+          }
+        }
+      ],
+      "message": "Remove extraneous `f` prefix"
+    },
+    "location": {
+      "column": 7,
+      "row": 11
+    },
+    "message": "f-string without any placeholders",
+    "name": "f-string-missing-placeholders",
+    "noqa_row": 11,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/f-string-missing-placeholders"
+  },
+  {
+    "cell": null,
+    "code": "W293",
+    "end_location": {
+      "column": 2,
+      "row": 100
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tests\\conftest.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "",
+          "end_location": {
+            "column": 2,
+            "row": 100
+          },
+          "location": {
+            "column": 1,
+            "row": 100
+          }
+        }
+      ],
+      "message": "Remove whitespace from blank line"
+    },
+    "location": {
+      "column": 1,
+      "row": 100
+    },
+    "message": "Blank line contains whitespace",
+    "name": "blank-line-with-whitespace",
+    "noqa_row": 100,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/blank-line-with-whitespace"
+  },
+  {
+    "cell": null,
+    "code": "F401",
+    "end_location": {
+      "column": 14,
+      "row": 1
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tests\\test_conftest_dry_run.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "",
+          "end_location": {
+            "column": 1,
+            "row": 2
+          },
+          "location": {
+            "column": 1,
+            "row": 1
+          }
+        }
+      ],
+      "message": "Remove unused import: `pytest`"
+    },
+    "location": {
+      "column": 8,
+      "row": 1
+    },
+    "message": "`pytest` imported but unused",
+    "name": "unused-import",
+    "noqa_row": 1,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unused-import"
+  },
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 25,
+      "row": 7
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tests\\test_crux_bridge.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "import json\nimport os\nimport subprocess\nimport sys\nfrom pathlib import Path\n\n",
+          "end_location": {
+            "column": 1,
+            "row": 9
+          },
+          "location": {
+            "column": 1,
+            "row": 3
+          }
+        }
+      ],
+      "message": "Organize imports"
+    },
+    "location": {
+      "column": 1,
+      "row": 3
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "name": "unsorted-imports",
+    "noqa_row": 3,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "RUF005",
+    "end_location": {
+      "column": 75,
+      "row": 15
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tests\\test_crux_bridge.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "[*inputs, {\"id\": \"quit\", \"method\": \"quit\", \"params\": {}}]",
+          "end_location": {
+            "column": 75,
+            "row": 15
+          },
+          "location": {
+            "column": 18,
+            "row": 15
+          }
+        }
+      ],
+      "message": "Replace with iterable unpacking"
+    },
+    "location": {
+      "column": 18,
+      "row": 15
+    },
+    "message": "Consider iterable unpacking instead of concatenation",
+    "name": "collection-literal-concatenation",
+    "noqa_row": 15,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/collection-literal-concatenation"
+  },
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 10,
+      "row": 4
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tests\\test_md_colorize.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "import os\r\nimport sys\r\n\r\n",
+          "end_location": {
+            "column": 1,
+            "row": 5
+          },
+          "location": {
+            "column": 1,
+            "row": 3
+          }
+        }
+      ],
+      "message": "Organize imports"
+    },
+    "location": {
+      "column": 1,
+      "row": 3
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "name": "unsorted-imports",
+    "noqa_row": 3,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 10,
+      "row": 20
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tests\\test_runtime_orchestrator.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "import os\r\n\r\nimport pytest\r\n\r\nfrom core.runtime_orchestrator import (\r\n    DNAProfile,\r\n    OrchestrationCallbacks,\r\n    OrchestrationError,\r\n    OrchestrationMixin,\r\n    OrchestrationMode,\r\n    OrchestrationProgress,\r\n    OrchestrationResult,\r\n    RuntimeOrchestrator,\r\n    classify_intent,\r\n    execute,\r\n    execute_stream,\r\n    preview,\r\n)\r\nfrom core.task_complexity import TaskComplexity\r\n\r\n\r\n",
+          "end_location": {
+            "column": 1,
+            "row": 23
+          },
+          "location": {
+            "column": 1,
+            "row": 3
+          }
+        }
+      ],
+      "message": "Organize imports"
+    },
+    "location": {
+      "column": 1,
+      "row": 3
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "name": "unsorted-imports",
+    "noqa_row": 3,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "F401",
+    "end_location": {
+      "column": 14,
+      "row": 2
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tests\\test_studio_text_color.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "",
+          "end_location": {
+            "column": 1,
+            "row": 3
+          },
+          "location": {
+            "column": 1,
+            "row": 2
+          }
+        }
+      ],
+      "message": "Remove unused import: `pytest`"
+    },
+    "location": {
+      "column": 8,
+      "row": 2
+    },
+    "message": "`pytest` imported but unused",
+    "name": "unused-import",
+    "noqa_row": 2,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unused-import"
+  },
+  {
+    "cell": null,
+    "code": "UP015",
+    "end_location": {
+      "column": 36,
+      "row": 7
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tests\\test_studio_text_color.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "",
+          "end_location": {
+            "column": 36,
+            "row": 7
+          },
+          "location": {
+            "column": 31,
+            "row": 7
+          }
+        }
+      ],
+      "message": "Remove mode argument"
+    },
+    "location": {
+      "column": 33,
+      "row": 7
+    },
+    "message": "Unnecessary mode argument",
+    "name": "redundant-open-modes",
+    "noqa_row": 7,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/redundant-open-modes"
+  },
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 36,
+      "row": 28
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tests\\test_v3_reducer.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "from ui.v3.events import (\n    CancelRequested,\n    ClearScreen,\n    ExitRequested,\n    ResizeEvent,\n    ScrollBy,\n    StreamDone,\n    StreamTextChunk,\n    StreamThinkingChunk,\n    StreamToolFinished,\n    StreamToolStarted,\n    SubmitInput,\n    ToggleDashboard,\n    ToggleFocusMode,\n    ToggleInteractionMode,\n    ToggleThinking,\n)\nfrom ui.v3.reducer import reduce_ui\nfrom ui.v3.state import (\n    InteractionMode,\n    Screen,\n    ScrollMode,\n    StreamStatus,\n    UiState,\n    initial_state,\n)\n\n\n",
+          "end_location": {
+            "column": 1,
+            "row": 31
+          },
+          "location": {
+            "column": 1,
+            "row": 3
+          }
+        }
+      ],
+      "message": "Organize imports"
+    },
+    "location": {
+      "column": 1,
+      "row": 3
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "name": "unsorted-imports",
+    "noqa_row": 3,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "F401",
+    "end_location": {
+      "column": 12,
+      "row": 8
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tests\\test_v3_reducer.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "from ui.v3.state import (\n    InteractionMode,\n    ScrollMode,\n    Screen,\n    StreamStatus,\n    initial_state,\n)",
+          "end_location": {
+            "column": 2,
+            "row": 10
+          },
+          "location": {
+            "column": 1,
+            "row": 3
+          }
+        }
+      ],
+      "message": "Remove unused import: `ui.v3.state.UiState`"
+    },
+    "location": {
+      "column": 5,
+      "row": 8
+    },
+    "message": "`ui.v3.state.UiState` imported but unused",
+    "name": "unused-import",
+    "noqa_row": 8,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unused-import"
+  },
+  {
+    "cell": null,
+    "code": "F401",
+    "end_location": {
+      "column": 18,
+      "row": 14
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tests\\test_v3_reducer.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "from ui.v3.events import (\n    CancelRequested,\n    ClearScreen,\n    ResizeEvent,\n    ScrollBy,\n    SubmitInput,\n    StreamDone,\n    StreamTextChunk,\n    StreamThinkingChunk,\n    StreamToolFinished,\n    StreamToolStarted,\n    ToggleDashboard,\n    ToggleFocusMode,\n    ToggleInteractionMode,\n)",
+          "end_location": {
+            "column": 2,
+            "row": 27
+          },
+          "location": {
+            "column": 1,
+            "row": 11
+          }
+        }
+      ],
+      "message": "Remove unused import"
+    },
+    "location": {
+      "column": 5,
+      "row": 14
+    },
+    "message": "`ui.v3.events.ExitRequested` imported but unused",
+    "name": "unused-import",
+    "noqa_row": 14,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unused-import"
+  },
+  {
+    "cell": null,
+    "code": "F401",
+    "end_location": {
+      "column": 19,
+      "row": 26
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tests\\test_v3_reducer.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "from ui.v3.events import (\n    CancelRequested,\n    ClearScreen,\n    ResizeEvent,\n    ScrollBy,\n    SubmitInput,\n    StreamDone,\n    StreamTextChunk,\n    StreamThinkingChunk,\n    StreamToolFinished,\n    StreamToolStarted,\n    ToggleDashboard,\n    ToggleFocusMode,\n    ToggleInteractionMode,\n)",
+          "end_location": {
+            "column": 2,
+            "row": 27
+          },
+          "location": {
+            "column": 1,
+            "row": 11
+          }
+        }
+      ],
+      "message": "Remove unused import"
+    },
+    "location": {
+      "column": 5,
+      "row": 26
+    },
+    "message": "`ui.v3.events.ToggleThinking` imported but unused",
+    "name": "unused-import",
+    "noqa_row": 26,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unused-import"
+  },
+  {
+    "cell": null,
+    "code": "RUF059",
+    "end_location": {
+      "column": 19,
+      "row": 40
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tests\\test_v3_reducer.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "_effects",
+          "end_location": {
+            "column": 19,
+            "row": 40
+          },
+          "location": {
+            "column": 12,
+            "row": 40
+          }
+        }
+      ],
+      "message": "Prefix it with an underscore or any other dummy variable pattern"
+    },
+    "location": {
+      "column": 12,
+      "row": 40
+    },
+    "message": "Unpacked variable `effects` is never used",
+    "name": "unused-unpacked-variable",
+    "noqa_row": 40,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unused-unpacked-variable"
+  },
+  {
+    "cell": null,
+    "code": "RUF059",
+    "end_location": {
+      "column": 19,
+      "row": 85
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tests\\test_v3_reducer.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "_effects",
+          "end_location": {
+            "column": 19,
+            "row": 85
+          },
+          "location": {
+            "column": 12,
+            "row": 85
+          }
+        }
+      ],
+      "message": "Prefix it with an underscore or any other dummy variable pattern"
+    },
+    "location": {
+      "column": 12,
+      "row": 85
+    },
+    "message": "Unpacked variable `effects` is never used",
+    "name": "unused-unpacked-variable",
+    "noqa_row": 85,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unused-unpacked-variable"
+  },
+  {
+    "cell": null,
+    "code": "RUF059",
+    "end_location": {
+      "column": 19,
+      "row": 99
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tests\\test_v3_reducer.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "_effects",
+          "end_location": {
+            "column": 19,
+            "row": 99
+          },
+          "location": {
+            "column": 12,
+            "row": 99
+          }
+        }
+      ],
+      "message": "Prefix it with an underscore or any other dummy variable pattern"
+    },
+    "location": {
+      "column": 12,
+      "row": 99
+    },
+    "message": "Unpacked variable `effects` is never used",
+    "name": "unused-unpacked-variable",
+    "noqa_row": 99,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unused-unpacked-variable"
+  },
+  {
+    "cell": null,
+    "code": "PT015",
+    "end_location": {
+      "column": 63,
+      "row": 156
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tests\\test_v3_reducer.py",
+    "fix": null,
+    "location": {
+      "column": 9,
+      "row": 156
+    },
+    "message": "Assertion always fails, replace with `pytest.fail()`",
+    "name": "pytest-assert-always-false",
+    "noqa_row": 156,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/pytest-assert-always-false"
+  },
+  {
+    "cell": null,
+    "code": "B011",
+    "end_location": {
+      "column": 21,
+      "row": 156
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tests\\test_v3_reducer.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "raise AssertionError(\"Should have raised FrozenInstanceError\")",
+          "end_location": {
+            "column": 63,
+            "row": 156
+          },
+          "location": {
+            "column": 9,
+            "row": 156
+          }
+        }
+      ],
+      "message": "Replace `assert False`"
+    },
+    "location": {
+      "column": 16,
+      "row": 156
+    },
+    "message": "Do not `assert False` (`python -O` removes these calls), raise `AssertionError()`",
+    "name": "assert-false",
+    "noqa_row": 156,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/assert-false"
+  },
+  {
+    "cell": null,
+    "code": "F401",
+    "end_location": {
+      "column": 14,
+      "row": 9
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tests\\tui\\snapshot\\test_tui_snapshots.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "",
+          "end_location": {
+            "column": 1,
+            "row": 10
+          },
+          "location": {
+            "column": 1,
+            "row": 9
+          }
+        }
+      ],
+      "message": "Remove unused import: `pytest`"
+    },
+    "location": {
+      "column": 8,
+      "row": 9
+    },
+    "message": "`pytest` imported but unused",
+    "name": "unused-import",
+    "noqa_row": 9,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unused-import"
+  },
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 23,
+      "row": 69
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tools\\browser_ai.py",
+    "fix": null,
+    "location": {
+      "column": 9,
+      "row": 69
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "name": "unsorted-imports",
+    "noqa_row": 69,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "E702",
+    "end_location": {
+      "column": 24,
+      "row": 69
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tools\\browser_ai.py",
+    "fix": null,
+    "location": {
+      "column": 23,
+      "row": 69
+    },
+    "message": "Multiple statements on one line (semicolon)",
+    "name": "multiple-statements-on-one-line-semicolon",
+    "noqa_row": 69,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/multiple-statements-on-one-line-semicolon"
+  },
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 27,
+      "row": 166
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tools\\browser_ai.py",
+    "fix": null,
+    "location": {
+      "column": 13,
+      "row": 166
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "name": "unsorted-imports",
+    "noqa_row": 166,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "E702",
+    "end_location": {
+      "column": 28,
+      "row": 166
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tools\\browser_ai.py",
+    "fix": null,
+    "location": {
+      "column": 27,
+      "row": 166
+    },
+    "message": "Multiple statements on one line (semicolon)",
+    "name": "multiple-statements-on-one-line-semicolon",
+    "noqa_row": 166,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/multiple-statements-on-one-line-semicolon"
+  },
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 31,
+      "row": 209
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tools\\browser_ai.py",
+    "fix": null,
+    "location": {
+      "column": 17,
+      "row": 209
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "name": "unsorted-imports",
+    "noqa_row": 209,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "E702",
+    "end_location": {
+      "column": 32,
+      "row": 209
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tools\\browser_ai.py",
+    "fix": null,
+    "location": {
+      "column": 31,
+      "row": 209
+    },
+    "message": "Multiple statements on one line (semicolon)",
+    "name": "multiple-statements-on-one-line-semicolon",
+    "noqa_row": 209,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/multiple-statements-on-one-line-semicolon"
+  },
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 38,
+      "row": 106
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\tools\\crux_bridge.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "    from core.chat import ChatSession\n    from core.provider import get_provider_manager\n",
+          "end_location": {
+            "column": 1,
+            "row": 107
+          },
+          "location": {
+            "column": 1,
+            "row": 105
+          }
+        }
+      ],
+      "message": "Organize imports"
+    },
+    "location": {
+      "column": 5,
+      "row": 105
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "name": "unsorted-imports",
+    "noqa_row": 105,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "RUF022",
+    "end_location": {
+      "column": 2,
+      "row": 68
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\__init__.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "[\n    \"CancelRequested\",\n    \"ClearScreen\",\n    \"Effect\",\n    \"ExitRequested\",\n    \"KeyPressed\",\n    \"NavigateTo\",\n    \"ResizeEvent\",\n    \"ScrollBy\",\n    \"ScrollTo\",\n    \"SessionUpdate\",\n    \"StreamDone\",\n    \"StreamTextChunk\",\n    \"StreamThinkingChunk\",\n    \"StreamToolFinished\",\n    \"StreamToolStarted\",\n    # re-export common event types for convenience\n    \"SubmitInput\",\n    \"ToggleActivity\",\n    \"ToggleDashboard\",\n    \"ToggleFocusMode\",\n    \"ToggleInteractionMode\",\n    \"ToggleThinking\",\n    \"UiEvent\",\n    \"UiState\",\n    \"initial_state\",\n    \"reduce_ui\",\n]",
+          "end_location": {
+            "column": 2,
+            "row": 68
+          },
+          "location": {
+            "column": 11,
+            "row": 41
+          }
+        }
+      ],
+      "message": "Apply an isort-style sorting to `__all__`"
+    },
+    "location": {
+      "column": 11,
+      "row": 41
+    },
+    "message": "`__all__` is not sorted",
+    "name": "unsorted-dunder-all",
+    "noqa_row": 41,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-dunder-all"
+  },
+  {
+    "cell": null,
+    "code": "TC001",
+    "end_location": {
+      "column": 28,
+      "row": 42
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\app.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "from typing import Any, TYPE_CHECKING",
+          "end_location": {
+            "column": 23,
+            "row": 22
+          },
+          "location": {
+            "column": 1,
+            "row": 22
+          }
+        },
+        {
+          "content": "",
+          "end_location": {
+            "column": 1,
+            "row": 43
+          },
+          "location": {
+            "column": 1,
+            "row": 42
+          }
+        },
+        {
+          "content": "\r\nif TYPE_CHECKING:\r\n    from .effects import Effect\r\n",
+          "end_location": {
+            "column": 1,
+            "row": 83
+          },
+          "location": {
+            "column": 1,
+            "row": 83
+          }
+        }
+      ],
+      "message": "Move into type-checking block"
+    },
+    "location": {
+      "column": 22,
+      "row": 42
+    },
+    "message": "Move application import `.effects.Effect` into a type-checking block",
+    "name": "typing-only-first-party-import",
+    "noqa_row": 42,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/typing-only-first-party-import"
+  },
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 27,
+      "row": 247
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\app.py",
+    "fix": null,
+    "location": {
+      "column": 13,
+      "row": 247
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "name": "unsorted-imports",
+    "noqa_row": 247,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "E702",
+    "end_location": {
+      "column": 28,
+      "row": 247
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\app.py",
+    "fix": null,
+    "location": {
+      "column": 27,
+      "row": 247
+    },
+    "message": "Multiple statements on one line (semicolon)",
+    "name": "multiple-statements-on-one-line-semicolon",
+    "noqa_row": 247,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/multiple-statements-on-one-line-semicolon"
+  },
+  {
+    "cell": null,
+    "code": "E701",
+    "end_location": {
+      "column": 18,
+      "row": 253
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\app.py",
+    "fix": null,
+    "location": {
+      "column": 17,
+      "row": 253
+    },
+    "message": "Multiple statements on one line (colon)",
+    "name": "multiple-statements-on-one-line-colon",
+    "noqa_row": 253,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/multiple-statements-on-one-line-colon"
+  },
+  {
+    "cell": null,
+    "code": "E701",
+    "end_location": {
+      "column": 18,
+      "row": 254
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\app.py",
+    "fix": null,
+    "location": {
+      "column": 17,
+      "row": 254
+    },
+    "message": "Multiple statements on one line (colon)",
+    "name": "multiple-statements-on-one-line-colon",
+    "noqa_row": 254,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/multiple-statements-on-one-line-colon"
+  },
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 27,
+      "row": 269
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\app.py",
+    "fix": null,
+    "location": {
+      "column": 13,
+      "row": 269
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "name": "unsorted-imports",
+    "noqa_row": 269,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "E702",
+    "end_location": {
+      "column": 28,
+      "row": 269
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\app.py",
+    "fix": null,
+    "location": {
+      "column": 27,
+      "row": 269
+    },
+    "message": "Multiple statements on one line (semicolon)",
+    "name": "multiple-statements-on-one-line-semicolon",
+    "noqa_row": 269,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/multiple-statements-on-one-line-semicolon"
+  },
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 27,
+      "row": 278
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\app.py",
+    "fix": null,
+    "location": {
+      "column": 13,
+      "row": 278
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "name": "unsorted-imports",
+    "noqa_row": 278,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "E702",
+    "end_location": {
+      "column": 28,
+      "row": 278
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\app.py",
+    "fix": null,
+    "location": {
+      "column": 27,
+      "row": 278
+    },
+    "message": "Multiple statements on one line (semicolon)",
+    "name": "multiple-statements-on-one-line-semicolon",
+    "noqa_row": 278,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/multiple-statements-on-one-line-semicolon"
+  },
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 31,
+      "row": 381
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\app.py",
+    "fix": null,
+    "location": {
+      "column": 17,
+      "row": 381
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "name": "unsorted-imports",
+    "noqa_row": 381,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "E702",
+    "end_location": {
+      "column": 32,
+      "row": 381
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\app.py",
+    "fix": null,
+    "location": {
+      "column": 31,
+      "row": 381
+    },
+    "message": "Multiple statements on one line (semicolon)",
+    "name": "multiple-statements-on-one-line-semicolon",
+    "noqa_row": 381,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/multiple-statements-on-one-line-semicolon"
+  },
+  {
+    "cell": null,
+    "code": "RUF034",
+    "end_location": {
+      "column": 51,
+      "row": 389
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\app.py",
+    "fix": null,
+    "location": {
+      "column": 16,
+      "row": 389
+    },
+    "message": "Useless `if`-`else` condition",
+    "name": "useless-if-else",
+    "noqa_row": 389,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/useless-if-else"
+  },
+  {
+    "cell": null,
+    "code": "RUF005",
+    "end_location": {
+      "column": 55,
+      "row": 451
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\app.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "[*list(old.items), (icon, style, msg)]",
+          "end_location": {
+            "column": 55,
+            "row": 451
+          },
+          "location": {
+            "column": 17,
+            "row": 451
+          }
+        }
+      ],
+      "message": "Replace with `[*list(old.items), (icon, style, msg)]`"
+    },
+    "location": {
+      "column": 17,
+      "row": 451
+    },
+    "message": "Consider `[*list(old.items), (icon, style, msg)]` instead of concatenation",
+    "name": "collection-literal-concatenation",
+    "noqa_row": 451,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/collection-literal-concatenation"
+  },
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 35,
+      "row": 680
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\app.py",
+    "fix": null,
+    "location": {
+      "column": 21,
+      "row": 680
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "name": "unsorted-imports",
+    "noqa_row": 680,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "E702",
+    "end_location": {
+      "column": 36,
+      "row": 680
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\app.py",
+    "fix": null,
+    "location": {
+      "column": 35,
+      "row": 680
+    },
+    "message": "Multiple statements on one line (semicolon)",
+    "name": "multiple-statements-on-one-line-semicolon",
+    "noqa_row": 680,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/multiple-statements-on-one-line-semicolon"
+  },
+  {
+    "cell": null,
+    "code": "F841",
+    "end_location": {
+      "column": 15,
+      "row": 794
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\app.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "",
+          "end_location": {
+            "column": 18,
+            "row": 794
+          },
+          "location": {
+            "column": 13,
+            "row": 794
+          }
+        }
+      ],
+      "message": "Remove assignment to unused variable `tw`"
+    },
+    "location": {
+      "column": 13,
+      "row": 794
+    },
+    "message": "Local variable `tw` is assigned to but never used",
+    "name": "unused-variable",
+    "noqa_row": 794,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unused-variable"
+  },
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 27,
+      "row": 863
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\app.py",
+    "fix": null,
+    "location": {
+      "column": 13,
+      "row": 863
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "name": "unsorted-imports",
+    "noqa_row": 863,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "E702",
+    "end_location": {
+      "column": 28,
+      "row": 863
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\app.py",
+    "fix": null,
+    "location": {
+      "column": 27,
+      "row": 863
+    },
+    "message": "Multiple statements on one line (semicolon)",
+    "name": "multiple-statements-on-one-line-semicolon",
+    "noqa_row": 863,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/multiple-statements-on-one-line-semicolon"
+  },
+  {
+    "cell": null,
+    "code": "TC001",
+    "end_location": {
+      "column": 35,
+      "row": 16
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\events.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "",
+          "end_location": {
+            "column": 1,
+            "row": 17
+          },
+          "location": {
+            "column": 1,
+            "row": 16
+          }
+        },
+        {
+          "content": "from typing import TYPE_CHECKING\n",
+          "end_location": {
+            "column": 1,
+            "row": 17
+          },
+          "location": {
+            "column": 1,
+            "row": 17
+          }
+        },
+        {
+          "content": "\nif TYPE_CHECKING:\n    from .state import InteractionMode, Screen\n",
+          "end_location": {
+            "column": 1,
+            "row": 17
+          },
+          "location": {
+            "column": 1,
+            "row": 17
+          }
+        }
+      ],
+      "message": "Move into type-checking block"
+    },
+    "location": {
+      "column": 20,
+      "row": 16
+    },
+    "message": "Move application import `.state.InteractionMode` into a type-checking block",
+    "name": "typing-only-first-party-import",
+    "noqa_row": 16,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/typing-only-first-party-import"
+  },
+  {
+    "cell": null,
+    "code": "TC001",
+    "end_location": {
+      "column": 43,
+      "row": 16
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\events.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "",
+          "end_location": {
+            "column": 1,
+            "row": 17
+          },
+          "location": {
+            "column": 1,
+            "row": 16
+          }
+        },
+        {
+          "content": "from typing import TYPE_CHECKING\n",
+          "end_location": {
+            "column": 1,
+            "row": 17
+          },
+          "location": {
+            "column": 1,
+            "row": 17
+          }
+        },
+        {
+          "content": "\nif TYPE_CHECKING:\n    from .state import InteractionMode, Screen\n",
+          "end_location": {
+            "column": 1,
+            "row": 17
+          },
+          "location": {
+            "column": 1,
+            "row": 17
+          }
+        }
+      ],
+      "message": "Move into type-checking block"
+    },
+    "location": {
+      "column": 37,
+      "row": 16
+    },
+    "message": "Move application import `.state.Screen` into a type-checking block",
+    "name": "typing-only-first-party-import",
+    "noqa_row": 16,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/typing-only-first-party-import"
+  },
+  {
+    "cell": null,
+    "code": "RUF005",
+    "end_location": {
+      "column": 51,
+      "row": 342
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\reducer.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "[*list(old.items), (icon, style, msg)]",
+          "end_location": {
+            "column": 51,
+            "row": 342
+          },
+          "location": {
+            "column": 13,
+            "row": 342
+          }
+        }
+      ],
+      "message": "Replace with `[*list(old.items), (icon, style, msg)]`"
+    },
+    "location": {
+      "column": 13,
+      "row": 342
+    },
+    "message": "Consider `[*list(old.items), (icon, style, msg)]` instead of concatenation",
+    "name": "collection-literal-concatenation",
+    "noqa_row": 342,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/collection-literal-concatenation"
+  },
+  {
+    "cell": null,
+    "code": "TC003",
+    "end_location": {
+      "column": 30,
+      "row": 16
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\runtime_bridge.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "",
+          "end_location": {
+            "column": 1,
+            "row": 17
+          },
+          "location": {
+            "column": 1,
+            "row": 16
+          }
+        },
+        {
+          "content": "from typing import Any, TYPE_CHECKING",
+          "end_location": {
+            "column": 23,
+            "row": 17
+          },
+          "location": {
+            "column": 1,
+            "row": 17
+          }
+        },
+        {
+          "content": "\r\nif TYPE_CHECKING:\r\n    from queue import SimpleQueue\r\n",
+          "end_location": {
+            "column": 1,
+            "row": 39
+          },
+          "location": {
+            "column": 1,
+            "row": 39
+          }
+        }
+      ],
+      "message": "Move into type-checking block"
+    },
+    "location": {
+      "column": 19,
+      "row": 16
+    },
+    "message": "Move standard library import `queue.SimpleQueue` into a type-checking block",
+    "name": "typing-only-standard-library-import",
+    "noqa_row": 16,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/typing-only-standard-library-import"
+  },
+  {
+    "cell": null,
+    "code": "TC002",
+    "end_location": {
+      "column": 69,
+      "row": 21
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\runtime_bridge.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "from typing import Any, TYPE_CHECKING",
+          "end_location": {
+            "column": 23,
+            "row": 17
+          },
+          "location": {
+            "column": 1,
+            "row": 17
+          }
+        },
+        {
+          "content": "",
+          "end_location": {
+            "column": 1,
+            "row": 22
+          },
+          "location": {
+            "column": 1,
+            "row": 21
+          }
+        },
+        {
+          "content": "\r\nif TYPE_CHECKING:\r\n    from prompt_toolkit.application import Application as PTKApplication\r\n",
+          "end_location": {
+            "column": 1,
+            "row": 39
+          },
+          "location": {
+            "column": 1,
+            "row": 39
+          }
+        }
+      ],
+      "message": "Move into type-checking block"
+    },
+    "location": {
+      "column": 55,
+      "row": 21
+    },
+    "message": "Move third-party import `prompt_toolkit.application.Application` into a type-checking block",
+    "name": "typing-only-third-party-import",
+    "noqa_row": 21,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/typing-only-third-party-import"
+  },
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 27,
+      "row": 86
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\runtime_bridge.py",
+    "fix": null,
+    "location": {
+      "column": 13,
+      "row": 86
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "name": "unsorted-imports",
+    "noqa_row": 86,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "E702",
+    "end_location": {
+      "column": 28,
+      "row": 86
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\runtime_bridge.py",
+    "fix": null,
+    "location": {
+      "column": 27,
+      "row": 86
+    },
+    "message": "Multiple statements on one line (semicolon)",
+    "name": "multiple-statements-on-one-line-semicolon",
+    "noqa_row": 86,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/multiple-statements-on-one-line-semicolon"
+  },
+  {
+    "cell": null,
+    "code": "SIM108",
+    "end_location": {
+      "column": 31,
+      "row": 173
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\runtime_bridge.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "loc = payload.get(\"local_path\", \"\") or payload.get(\"url\", \"\") if isinstance(payload, dict) else str(payload)",
+          "end_location": {
+            "column": 31,
+            "row": 173
+          },
+          "location": {
+            "column": 9,
+            "row": 170
+          }
+        }
+      ],
+      "message": "Replace `if`-`else`-block with `loc = payload.get(\"local_path\", \"\") or payload.get(\"url\", \"\") if isinstance(payload, dict) else str(payload)`"
+    },
+    "location": {
+      "column": 9,
+      "row": 170
+    },
+    "message": "Use ternary operator `loc = payload.get(\"local_path\", \"\") or payload.get(\"url\", \"\") if isinstance(payload, dict) else str(payload)` instead of `if`-`else`-block",
+    "name": "if-else-block-instead-of-if-exp",
+    "noqa_row": 170,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/if-else-block-instead-of-if-exp"
+  },
+  {
+    "cell": null,
+    "code": "TC003",
+    "end_location": {
+      "column": 37,
+      "row": 24
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\scheduler.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "",
+          "end_location": {
+            "column": 1,
+            "row": 25
+          },
+          "location": {
+            "column": 1,
+            "row": 24
+          }
+        },
+        {
+          "content": "from typing import TYPE_CHECKING\n",
+          "end_location": {
+            "column": 1,
+            "row": 25
+          },
+          "location": {
+            "column": 1,
+            "row": 25
+          }
+        },
+        {
+          "content": "\nif TYPE_CHECKING:\n    from collections.abc import Callable\n",
+          "end_location": {
+            "column": 1,
+            "row": 25
+          },
+          "location": {
+            "column": 1,
+            "row": 25
+          }
+        }
+      ],
+      "message": "Move into type-checking block"
+    },
+    "location": {
+      "column": 29,
+      "row": 24
+    },
+    "message": "Move standard library import `collections.abc.Callable` into a type-checking block",
+    "name": "typing-only-standard-library-import",
+    "noqa_row": 24,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/typing-only-standard-library-import"
+  },
+  {
+    "cell": null,
+    "code": "F841",
+    "end_location": {
+      "column": 17,
+      "row": 23
+    },
+    "filename": "C:\\Users\\huangjiancheng\\agnes-smart-studio\\ui\\v3\\views\\palette.py",
+    "fix": {
+      "applicability": "unsafe",
+      "edits": [
+        {
+          "content": "",
+          "end_location": {
+            "column": 1,
+            "row": 24
+          },
+          "location": {
+            "column": 1,
+            "row": 23
+          }
+        }
+      ],
+      "message": "Remove assignment to unused variable `name`"
+    },
+    "location": {
+      "column": 13,
+      "row": 23
+    },
+    "message": "Local variable `name` is assigned to but never used",
+    "name": "unused-variable",
+    "noqa_row": 23,
+    "severity": "error",
+    "url": "https://docs.astral.sh/ruff/rules/unused-variable"
+  }
+]

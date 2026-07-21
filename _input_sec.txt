@@ -1,0 +1,20 @@
+1:        )
+2:
+3:        # ── Input ──
+4:        input_ctrl = BufferControl(
+5:            buffer=self.input_buffer,
+6:            input_processors=[BeforeInput(lambda: "║ " + render_input_prompt(self._state))],
+7:            focusable=True,
+8:        )
+9:        self.input_win = Window(content=input_ctrl, height=Dimension(min=1, max=10),
+10:                                style="class:input-field", dont_extend_height=True, wrap_lines=False)
+11:
+12:        # ── Input bottom border ──
+13:        def _input_bottom():
+14:            tw = _tw()
+15:            hint_ft = render_input_hint(self._state)
+16:            hint_text = "".join(t for _, t in hint_ft) if hint_ft else ""
+17:            hint_len = len(hint_text) if hint_text else 0
+18:            bars = max(1, self._term_cols - hint_len - 2)
+19:            pieces = [("class:input-border", f"╚{'─' * bars}")]
+20:            if hint_text:

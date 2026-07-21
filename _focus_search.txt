@@ -1,0 +1,54 @@
+45:    ClearScreen,
+46:    CopyFocusedMessage,
+64:    ToggleFocusMode,
+73:    Screen,
+133:        model = getattr(session, "model", "") if session else ""
+138:                model=model,
+184:    #  Welcome screen
+188:        """Configure welcome screen as message pane empty state."""
+190:        model = self._state.session.model or "CRUX"
+192:        welcome_ft = build_welcome_formatted(model_name=model, cwd=cwd)
+286:            "run_model_stream": self._fx_run_stream,
+287:            "cancel_model_stream": self._fx_cancel_stream,
+306:        """Start model stream in background thread.
+354:                # Restore focus
+355:                self._ui(self._restore_focus, _force=True)
+363:                self._ui(self._restore_focus, _force=True)
+413:            self._post_and_invalidate(ClearScreen())
+462:        if sc.mode == ScrollMode.FOLLOW:
+553:            if self._state.interaction.mode == InteractionMode.COPY:
+554:                return  # Copy mode: c to copy, Esc to exit, Enter does nothing
+586:            self._post_and_invalidate(ToggleFocusMode())
+607:            self._post_and_invalidate(CopyFocusedMessage())
+614:            self._post_and_invalidate(CopyFocusedMessage(as_markdown=True))
+625:            s = self._state.screen
+626:            if s != Screen.MAIN:
+629:            if self._state.interaction.mode == InteractionMode.COPY:
+646:        # ── Copy mode (Ctrl+F) ──
+649:            if self._state.interaction.mode == InteractionMode.COPY:
+656:        _copy = Condition(lambda: self._state.interaction.mode == InteractionMode.COPY)
+670:            idx = self._state.interaction.focus_idx
+683:        # ── Vim mode ──
+684:        _vim = Condition(lambda: self._state.interaction.mode == InteractionMode.VIM)
+719:        # ── Header: left (beast + logo) | right (model + ◎ clock) ──
+730:            model = s.session.model or "CRUX"
+733:                ("class:header-model", f" {model} "),
+741:            model = (self._state.session.model or "CRUX")
+742:            right_vis = 1 + len(model) + 1 + 2 + 1 + 5
+787:            focusable=True,
+812:        overlay_mode = Condition(lambda: self._state.screen != Screen.MAIN or bool(getattr(self._state, "palette", None) and getattr(self._state.palette, "open", False)))
+814:        # ── Focus mode filter: hide chrome when F12 is pressed ──
+815:        _not_focus = Condition(lambda: not self._state.focus_mode)
+821:            ConditionalContainer(thinking_win, filter=_not_focus),
+822:            ConditionalContainer(activity, filter=_not_focus),
+826:            ConditionalContainer(overlay, filter=overlay_mode),
+827:            ConditionalContainer(header, filter=Condition(lambda: not self._state.focus_mode and self._state.screen == Screen.MAIN)),
+828:            ConditionalContainer(sep, filter=Condition(lambda: not self._state.focus_mode and self._state.screen == Screen.MAIN)),
+831:            ConditionalContainer(input_bottom, filter=_not_focus),
+832:            ConditionalContainer(status, filter=_not_focus),
+845:            layout=Layout(root, focused_element=self.input_win),
+849:            full_screen=True,
+858:    def _restore_focus(self) -> None:
+859:        """Force focus back to input buffer. Called after stream ends."""
+861:            self._app.layout.focus(self.input_win)
+873:        self._app.invalidate()  # force first render with welcome screen

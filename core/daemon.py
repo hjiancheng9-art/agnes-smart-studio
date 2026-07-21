@@ -18,7 +18,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-logger = logging.getLogger("crux.daemon")
+logger = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parent.parent
 DAEMON_DIR = ROOT / "output" / "daemon"
 DAEMON_DIR.mkdir(parents=True, exist_ok=True)

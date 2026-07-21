@@ -24,7 +24,7 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-logger = logging.getLogger("crux.orchestrator")
+logger = logging.getLogger(__name__)
 ROOT = Path(__file__).parent.parent
 
 
@@ -40,6 +40,8 @@ if TYPE_CHECKING:
 
 
 class DNAProfile(Enum):
+    """编排器 DNA 画像：标识不同 AI 模型的特性画像。"""
+
     CRUX = "crux"
     CLAUDE = "claude"
     CODEBUDDY = "codebuddy"
@@ -49,6 +51,8 @@ class DNAProfile(Enum):
 
 
 class BeastRole(Enum):
+    """七兽角色枚举：白虎(容灾)/玄武(能力守护)/青龙(工程编排)/朱雀(创意)/麒麟(仲裁)/腾蛇(深度分析)/应龙(全局感知)。"""
+
     BAIHU = "baihu"
     XUANWU = "xuanwu"
     QINGLONG = "qinglong"
@@ -59,6 +63,8 @@ class BeastRole(Enum):
 
 
 class OrchestrationMode(Enum):
+    """编排执行模式：AUTO(自动)/DRY_RUN(预览)/EXECUTE(执行)/PAUSE(暂停)。"""
+
     AUTO = "auto"
     FULL = "full"
     FAST = "fast"
@@ -72,6 +78,8 @@ class OrchestrationMode(Enum):
 
 @dataclass
 class OrchestrationError:
+    """编排错误记录，包含失败步骤数和错误详情列表。"""
+
     phase: str = ""
     step: int = 0
     code: str = "UNKNOWN"
@@ -82,6 +90,8 @@ class OrchestrationError:
 
 @dataclass
 class OrchestrationProgress:
+    """编排进度快照，用于 TUI 流式展示。"""
+
     trace_id: str = ""
     phase: str = ""
     phase_index: int = 0
@@ -94,12 +104,15 @@ class OrchestrationProgress:
     elapsed_ms: float = 0.0
 
     def to_tui(self) -> tuple[str, str]:
+        """将进度转换为 TUI 渲染用的结构化元组列表。"""
         prefix = f"[{self.beast}]" if self.beast else f"({self.phase})"
         return (f"class:activity-{self.level}", f"{prefix} {self.message}")
 
 
 @dataclass
 class OrchestrationResult:
+    """编排执行结果：包含判决(verdict)/等级(grade)/步骤数/耗时/费用等。"""
+
     trace_id: str = ""
     goal: str = ""
     grade: str = "B"
@@ -152,6 +165,8 @@ class OrchestrationResult:
 
 @dataclass
 class OrchestrationCallbacks:
+    """编排生命周期回调钩子，支持各阶段前后的自定义处理。"""
+
     on_progress: Callable[[OrchestrationProgress], None] | None = None
     on_phase_start: Callable[[str, str], None] | None = None
     on_phase_done: Callable[[str, float], None] | None = None
@@ -256,6 +271,7 @@ def classify_intent(goal: str) -> tuple:  # returns (TaskComplexity, DNAProfile)
 
 
 def drain_stream(stream) -> OrchestrationResult:
+    """向后兼容别名 — 根据目标文本分类任务复杂度并解析 DNA 画像。"""
     """Consume a generator and return its StopIteration value."""
     while True:
         try:
@@ -283,6 +299,7 @@ class RuntimeOrchestrator:
         skills: list[str] | None = None,
         cost_budget_usd: float = 5.0,
     ) -> None:
+        """初始化全能力编排器 — 配置工具执行器、模型路由、模式、回调等。"""
         self._tool_executor = tool_executor
         self._model_router = model_router
         self.mode = mode if isinstance(mode, OrchestrationMode) else OrchestrationMode(mode)
@@ -392,9 +409,11 @@ class RuntimeOrchestrator:
             self._semaphore.release()
 
     def preview(self, goal: str, **overrides) -> OrchestrationResult:
+        """以 DRY_RUN 模式预览编排计划，不实际执行。"""
         return self._execute_sync_direct(goal, mode=OrchestrationMode.DRY_RUN, **overrides)
 
     def resume(self, trace_id: str, confirmed: bool = True) -> OrchestrationResult | None:
+        """恢复暂停的编排运行。"""
         with self._lock:
             paused = self._paused_runs.pop(trace_id, None)
         if paused is None:
@@ -413,6 +432,7 @@ class RuntimeOrchestrator:
     # ── Status ──────────────────────────────────────────────
 
     def active_runs(self) -> list[dict]:
+        """列出当前活跃的编排运行。"""
         with self._lock:
             return [
                 {"trace_id": tid, "goal": i["goal"][:60], "elapsed_ms": (time.monotonic() - i["started_at"]) * 1000}
@@ -420,10 +440,12 @@ class RuntimeOrchestrator:
             ]
 
     def paused_runs(self) -> list[dict]:
+        """列出当前暂停的编排运行。"""
         with self._lock:
             return [{"trace_id": tid, "goal": i["goal"][:60]} for tid, i in self._paused_runs.items()]
 
     def cancel(self, trace_id: str) -> bool:
+        """取消指定 trace_id 的运行。"""
         with self._lock:
             self._paused_runs.pop(trace_id, None)
             return self._active_runs.pop(trace_id, None) is not None
@@ -895,11 +917,13 @@ class OrchestrationMixin:
             self.message_pane.append_message("system", summary)
 
     def orchestrate(self, goal: str, **kwargs) -> OrchestrationResult:
+        """编排入口：同步执行完整编排流程并返回结果。"""
         if not hasattr(self, "_orchestrator"):
             self._init_orchestrator()
         return self._orchestrator.execute(goal, **kwargs)
 
     def orchestrate_stream(self, goal: str, **kwargs):
+        """流式编排入口：逐步产出 OrchestrationProgress 供 TUI 渲染。"""
         if not hasattr(self, "_orchestrator"):
             self._init_orchestrator()
         return self._orchestrator.execute_stream(goal, **kwargs)
@@ -914,6 +938,7 @@ _instance_lock = threading.Lock()
 
 
 def get_orchestrator(**kwargs) -> RuntimeOrchestrator:
+    """获取或创建全局 RuntimeOrchestrator 单例。"""
     global _instance
     if _instance is None:
         with _instance_lock:
@@ -923,6 +948,7 @@ def get_orchestrator(**kwargs) -> RuntimeOrchestrator:
 
 
 def execute(goal: str, **kwargs) -> OrchestrationResult:
+    """执行目标：加载编排器并同步执行。"""
     try:
         stream = get_orchestrator().execute_stream(goal, **kwargs)
         return drain_stream(stream)
@@ -936,10 +962,12 @@ def execute(goal: str, **kwargs) -> OrchestrationResult:
 
 
 def execute_stream(goal: str, **kwargs):
+    """流式执行目标：加载编排器并流式产出进度。"""
     return get_orchestrator().execute_stream(goal, **kwargs)
 
 
 def preview(goal: str, **kwargs) -> OrchestrationResult:
+    """预览目标编排计划（DRY_RUN 模式）。"""
     return get_orchestrator().preview(goal, **kwargs)
 
 
@@ -1031,6 +1059,7 @@ _LAST_USER_GOAL: str = ""
 
 
 def set_orchestrate_goal(goal: str) -> None:
+    """注入用户目标到会话上下文，供 trigger_orchestrate 使用。"""
     global _LAST_USER_GOAL
     _LAST_USER_GOAL = goal
 
@@ -1055,10 +1084,10 @@ def trigger_orchestrate(preset: str = "auto", **kwargs) -> str:
 
 """CRUX Master Orchestration Engine — 白虎脊椎.
 
-将 CRUX 的 7 个 DNA 基因和 13 个金手指编排成一个完整的认知-执行-验证闭环。
-每一轮对话不再是松散的工具调用链，而是严格分阶段的状态机。
+将 CRUX 的 7 个 DNA 基因编排成完整的认知-执行-验证闭环。
+基因定义见 core/dna_genes.py (v6.2 补全为正式注册表)。
 
-阶段：
+阶段:
   GATE    — 意图分类 + 复杂度判定 + 模型路由
   CONTEXT — 强制上下文收集（"先理解再行动"硬件门禁）
   PLAN    — 任务分解 + 依赖拓扑排序
@@ -1066,17 +1095,14 @@ def trigger_orchestrate(preset: str = "auto", **kwargs) -> str:
   VERIFY  — 交叉审查 + 自检 + diff 守卫
   CLOSE   — 资源回收 + 指标上报 + 记忆沉淀
 
-DNA 映射：
-  Gene 1 (Self-evolution)  → VERIFY 阶段的自检 + reflect
-  Gene 6 (Semantic memory) → CLOSE 阶段的记忆沉淀
-  Gene 7 (Resilience)      → EXECUTE 阶段的降级链 + 熔断
-
-金手指映射：
-  残魂老祖  → VERIFY 阶段的自动 critique
-  天劫渡劫  → EXECUTE 阶段的 failover + retry
-  分身亿万  → EXECUTE 阶段的并行分派
-  神识外放  → CONTEXT 阶段的代码感知
-  万界灵脉  → GATE 阶段的模型路由
+DNA 基因 → 阶段映射 (来自 core/dna_genes.GENES):
+  Gene 1 (自进化)     → VERIFY  — GoalManager / SelfReflection
+  Gene 2 (工具网格)   → EXECUTE — ToolRegistryMesh
+  Gene 3 (边界校验)   → EXECUTE — CircuitBreaker / defense
+  Gene 4 (自扩展)     → GATE    — SkillManager
+  Gene 5 (多智能体)   → EXECUTE — agent_swarm / multi_agent
+  Gene 6 (语义记忆)   → CLOSE   — MemoryBridge
+  Gene 7 (容灾自愈)   → EXECUTE — Baihu 四层恢复
 """
 
 
@@ -1084,7 +1110,7 @@ import threading
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
-logger = logging.getLogger("crux.orchestration")
+logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════
 # Phase definitions
@@ -1218,10 +1244,12 @@ class FileIsolationGuard:
     """
 
     def __init__(self) -> None:
+        """初始化文件锁：绑定文件路径并设置超时。"""
         self._locks: dict[str, str] = {}  # path → owner_id
         self._lock = threading.Lock()
 
     def acquire(self, path: str, owner_id: str) -> bool:
+        """获取文件写锁，防止并发 agent 同时修改同一文件。"""
         with self._lock:
             if path in self._locks and self._locks[path] != owner_id:
                 return False
@@ -1229,11 +1257,13 @@ class FileIsolationGuard:
             return True
 
     def release(self, path: str, owner_id: str) -> None:
+        """释放当前持有的文件锁。"""
         with self._lock:
             if self._locks.get(path) == owner_id:
                 del self._locks[path]
 
     def release_all(self, owner_id: str) -> None:
+        """释放该 FileLock 持有的所有锁。"""
         with self._lock:
             for path, owner in list(self._locks.items()):
                 if owner == owner_id:
@@ -1288,6 +1318,7 @@ class MasterOrchestrator:
         budget: ExecutionBudget | None = None,
         phase_callback: Callable[[str, str, dict | None], None] | None = None,
     ) -> None:
+        """初始化执行代理 — 绑定工具执行器、模型路由和预算控制。"""
         self.execute_tool = tool_executor
         self.model_router = model_router
         self.budget = budget or ExecutionBudget()
