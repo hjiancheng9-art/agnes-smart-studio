@@ -11,7 +11,12 @@ let outputChannel = null;
 let pendingRequests = new Map();
 let isBridgeBusy = false;
 let bridgeRestartCount = 0;
+let busyTimer = null;
+let healthCheckTimer = null;
 const MAX_RESTARTS = 10;
+const BRIDGE_STARTUP_TIMEOUT = 15000; // 15s — Python CRUX imports can be slow
+const BUSY_TIMEOUT = 120000;          // 2min — max time before declaring bridge hung
+const HEALTH_INTERVAL = 30000;        // 30s — periodic liveness check
 
 // ── Path resolution ────────────────────────────────────────
 
@@ -134,6 +139,7 @@ function startBridge() {
                     pendingRequests.delete(msg.id);
                     handler.resolve();
                     isBridgeBusy = false;
+                    clearBusyTimer();
                 }
             } catch (e) { /* skip non-JSON */ }
         });
@@ -154,21 +160,30 @@ function startBridge() {
             bridgeRL.close();
             bridgeRL = null;
             bridgeProcess = null;
+            clearBusyTimer();
+            stopHealthCheck();
             for (const [id, handler] of pendingRequests) {
-                handler.reject(new Error(`Bridge exited (code ${code})`));
+                handler.reject(new Error(`Bridge exited (code ${code}) — retrying...`));
             }
             pendingRequests.clear();
             isBridgeBusy = false;
+            // Auto-restart unless we're deliberately shutting down
+            if (!bridgeProcess && bridgeRestartCount < MAX_RESTARTS) {
+                log('Auto-restarting bridge...');
+                startBridge().then(() => log('Bridge auto-restarted')).catch(e => log('Auto-restart failed: ' + e.message));
+            }
         });
 
         setTimeout(() => {
             if (!bridgeProcess || bridgeProcess.killed) {
-                reject(new Error('Bridge died during startup'));
+                reject(new Error('Bridge died during startup (Python imports may be slow — try again)'));
             } else {
                 bridgeRestartCount = 0;
+                log('Bridge ready');
+                startHealthCheck();
                 resolve();
             }
-        }, 5000);
+        }, BRIDGE_STARTUP_TIMEOUT);
     });
 }
 
@@ -186,6 +201,8 @@ async function ensureBridge() {
 }
 
 function quitBridge() {
+    stopHealthCheck();
+    clearBusyTimer();
     if (bridgeProcess && !bridgeProcess.killed) {
         try {
             writeToBridge(JSON.stringify({ id: 'quit', method: 'quit', params: {} }) + '\n');
@@ -194,6 +211,42 @@ function quitBridge() {
             if (bridgeProcess && !bridgeProcess.killed) bridgeProcess.kill();
         }, 2000);
     }
+}
+
+// ── Busy timer: prevent infinite hang ─────────────────────────
+
+function startBusyTimer(requestId) {
+    clearBusyTimer();
+    busyTimer = setTimeout(() => {
+        log(`Bridge busy timeout (${BUSY_TIMEOUT / 1000}s) — killing and restarting`);
+        if (bridgeProcess && !bridgeProcess.killed) bridgeProcess.kill();
+        const handler = pendingRequests.get(requestId);
+        if (handler) {
+            pendingRequests.delete(requestId);
+            handler.reject(new Error('Bridge request timed out — please retry'));
+        }
+        isBridgeBusy = false;
+    }, BUSY_TIMEOUT);
+}
+
+function clearBusyTimer() {
+    if (busyTimer) { clearTimeout(busyTimer); busyTimer = null; }
+}
+
+// ── Health check: periodic liveness probe ──────────────────────
+
+function startHealthCheck() {
+    stopHealthCheck();
+    healthCheckTimer = setInterval(() => {
+        if (!bridgeProcess || bridgeProcess.killed) {
+            log('Health check: bridge dead, restarting...');
+            startBridge().then(() => log('Health check: restarted')).catch(e => log('Health check restart failed: ' + e.message));
+        }
+    }, HEALTH_INTERVAL);
+}
+
+function stopHealthCheck() {
+    if (healthCheckTimer) { clearInterval(healthCheckTimer); healthCheckTimer = null; }
 }
 
 // ── File operations ────────────────────────────────────────
@@ -307,6 +360,7 @@ async function handleQuickAction(action) {
         };
         pendingRequests.set(actionId, handler);
         isBridgeBusy = true;
+        startBusyTimer(actionId);
         writeToBridge(JSON.stringify({ id: actionId, method: 'chat', params: { prompt: def.prompt, files: [] } }) + '\n');
     } catch (err) {
         vscode.window.showErrorMessage(`${def.label} error: ${err.message}`);
@@ -368,6 +422,7 @@ function activate(context) {
                         };
                         pendingRequests.set(assistId, handler);
                         isBridgeBusy = true;
+                        startBusyTimer(assistId);
                         writeToBridge(JSON.stringify({ id: assistId, method: 'chat', params: { prompt: message.text, files } }) + '\n');
                     } catch (err) {
                         if (currentPanel) {
@@ -449,6 +504,7 @@ function activate(context) {
             };
             pendingRequests.set(auditId, handler);
             isBridgeBusy = true;
+            startBusyTimer(auditId);
             writeToBridge(JSON.stringify({ id: auditId, method: 'chat', params: {
                 prompt: `Run code audit: run_lint, code_review on recent files, search for hardcoded credentials/bare except/print(). For each issue: ISSUE|path|LINE|severity|description`,
                 files: []

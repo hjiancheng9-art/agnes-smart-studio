@@ -119,7 +119,7 @@ def reduce_ui(state: UiState, event: Any) -> tuple[UiState, list[Effect]]:
     elif isinstance(event, StreamDone):
         state = replace(
             state,
-            stream=StreamState(status=StreamStatus.DONE, tool_seq=state.stream.tool_seq),
+            stream=StreamState(status=StreamStatus.IDLE, tool_seq=state.stream.tool_seq),
             scroll=ScrollState(mode=ScrollMode.FOLLOW),
         )
         effects.append(Effect.finalize_stream())

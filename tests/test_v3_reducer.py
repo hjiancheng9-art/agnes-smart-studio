@@ -50,7 +50,7 @@ def test_stream_done_resets():
     state = initial_state()
     state, _ = reduce_ui(state, StreamTextChunk("hello"))
     state, _ = reduce_ui(state, StreamDone())
-    assert state.stream.status == StreamStatus.DONE
+    assert state.stream.status == StreamStatus.IDLE  # reducer returns to IDLE on done
 
 
 def test_tool_started_increments_seq():
@@ -189,7 +189,7 @@ def test_full_stream_lifecycle():
 
     # Stream done
     state, fx = reduce_ui(state, StreamDone(elapsed=2.5, tool_count=1))
-    assert state.stream.status == StreamStatus.DONE
+    assert state.stream.status == StreamStatus.IDLE  # reducer returns to IDLE on done
     assert any(e.kind == "finalize_stream" for e in fx)
 
 

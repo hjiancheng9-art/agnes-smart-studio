@@ -2,7 +2,7 @@
 
 from prompt_toolkit.formatted_text import FormattedText
 
-from ..state import UiState
+from ..state import StreamStatus, UiState
 
 
 def render_activity(state: UiState) -> FormattedText:
@@ -16,7 +16,7 @@ def render_activity(state: UiState) -> FormattedText:
     pieces: list[tuple[str, str]] = []
 
     # Show active tool if streaming
-    if state.stream.status.value in ("thinking", "streaming") and state.stream.tool_name:
+    if state.stream.status in (StreamStatus.THINKING, StreamStatus.STREAMING) and state.stream.tool_name:
         pieces.append(("class:activity-running", f"● #{state.stream.tool_seq} {state.stream.tool_name}"))
         pieces.append(("", "\n"))
 

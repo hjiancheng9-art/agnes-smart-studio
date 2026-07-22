@@ -1,11 +1,10 @@
-"""CRUX TUI v3 — application entry point.
+"""CRUX TUI v3 — game-console style terminal UI.
 
-Event-driven architecture:
-  1. Background threads post UiEvent → SimpleQueue
-  2. Main loop drains queue → reduce_ui → effects → render
-  3. Views read immutable UiState, never mutate
+Architecture:
+  key → handler → reduce_ui / direct action → invalidate → render
+  Worker threads → _threadsafe_call → UI updates
 
-Single refresh timer (scheduler) replaces three independent threads.
+Built on prompt_toolkit. No event queue, no scheduler — ptk is the engine.
 """
 
 from __future__ import annotations
@@ -16,9 +15,9 @@ import shutil
 import sys
 import threading
 import time
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
-from queue import SimpleQueue
 from typing import TYPE_CHECKING, Any
 
 from prompt_toolkit import Application
@@ -40,24 +39,18 @@ from ui.message_store import MessageStore
 from ui.widgets_v2 import ThinkingPanel
 
 from .events import (
+    ActivityLogged,
     CancelRequested,
     ClearScreen,
     CopyFocusedMessage,
     CopySelectedMessage,
     EnterCopyMode,
     ExitCopyMode,
-    ExitRequested,
     MoveCopySelection,
     NavigateBack,
     PaletteSelect,
     ResizeEvent,
-    ScrollBy,
-    ScrollTo,
-    StreamDone,
-    StreamError,
-    StreamToolStarted,
     SubmitInput,
-    TickEvent,
     ToggleActivity,
     ToggleDashboard,
     ToggleFocusMode,
@@ -65,13 +58,13 @@ from .events import (
     UiEvent,
 )
 from .reducer import reduce_ui
-from .runtime_bridge import post_event, set_app_ref, set_drain_fn, set_event_queue
-from .scheduler import Scheduler
 from .state import (
     InteractionMode,
     Screen,
     ScrollMode,
+    ScrollState,
     SessionView,
+    StreamState,
     StreamStatus,
     initial_state,
 )
@@ -125,11 +118,7 @@ class V3App:
         self.wire = session_wire
         self.cwd = cwd or Path.cwd()
 
-        # ── Event queue ──
-        self._queue: SimpleQueue[UiEvent] = SimpleQueue()
-        set_event_queue(self._queue)
-
-        # ── State ──
+        # ── State (single source of truth, lock-protected) ──
         tw = _tw()
         th = shutil.get_terminal_size().lines
         model = getattr(session, "model", "") if session else ""
@@ -137,52 +126,42 @@ class V3App:
         self._state = self._state.__class__(
             **{
                 **self._state.__dict__,
-                "session": SessionView(
-                    model=model,
-                    cwd=str(self.cwd),
-                ),
+                "session": SessionView(model=model, cwd=str(self.cwd)),
             }
         )
-
-        # ── State lock (protects _state read/write from invalidate callbacks) ──
         self._state_lock = threading.Lock()
-
-        # ── Scheduler: post events + drain + invalidate (UI thread only) ──
-        self._scheduler = Scheduler(idle_interval=0.25, active_interval=0.1)
-        self._scheduler.on_tick(lambda: post_event(TickEvent()))
-        self._scheduler.on_tick(self._check_resize)
-        self._scheduler.on_tick(lambda: self._app.call_soon_threadsafe(self._drain_and_reduce) if self._app else None)
-
-        # Anim thread removed (B1 fix: scheduler is sole render driver)
-        self._running = False
         self._last_term_size = (self._state.terminal.cols, self._state.terminal.rows)
         self._term_cols = max(1, self._state.terminal.cols)
 
-        # ── Message rendering (reuses existing MessagePane) ──
+        # ── Message rendering ──
         self._msg_store = MessageStore()
         self.message_pane = MessagePane()
         self.message_pane._msg_store = self._msg_store
         self.thinking_panel = ThinkingPanel()
         self._setup_welcome()
-        self._closing = False
 
-        # ── Effects dispatcher ──
+        # ── Stream guards ──
+        self._stream_cancelled = threading.Event()
+        self._stream_last_chunk = 0.0
+        self._stream_timeout_s = 120.0
+        self._stream_timer: threading.Timer | None = None
+        self._ui_thread = threading.current_thread()
+        # Chunk buffer: worker writes, UI thread drains on render
+        self._chunk_queue: list[tuple] = []
+        self._chunk_lock = threading.Lock()
+
+        # ── Effects ──
         self._effect_handlers = self._build_effect_handlers()
 
-        # ── Input buffer ──
+        # ── Input ──
         self._history = InMemoryHistory()
-        self.input_buffer = Buffer(
-            accept_handler=self._on_input_accept,
-            history=self._history,
-        )
+        self.input_buffer = Buffer(history=self._history)
 
         # ── Key bindings ──
         self.kb = self._build_keybindings()
 
         # ── Build ptk Application ──
         self._app = self._build_app()
-        set_app_ref(self._app)
-        set_drain_fn(self._drain_and_reduce)
 
     # ══════════════════════════════════════════════════════════════
     #  Welcome screen
@@ -201,37 +180,21 @@ class V3App:
         self.message_pane._empty_render_cache_key = 1
 
     # ══════════════════════════════════════════════════════════════
-    #  Event loop integration
+    #  State helpers  —  direct, no queue, no scheduler
     # ══════════════════════════════════════════════════════════════
 
-    def _drain_and_reduce(self) -> None:
-        """Drain the event queue and apply all events to state.
-
-        Called from a before_render handler or timer.  This is the ONLY
-        place where _state is modified on the main thread.
-        """
-        with self._state_lock:
-            self._drain_and_reduce_locked()
-
-    def _drain_and_reduce_locked(self) -> None:
-        """Inner drain loop — caller must hold _state_lock."""
-        drained = 0
-        while drained < 50:  # safety limit: max 50 events per frame
-            try:
-                event = self._queue.get_nowait()
-            except Exception:
-                break
-            drained += 1
-            try:
-                new_state, effects = reduce_ui(self._state, event)
-                self._state = new_state
-                for fx in effects:
-                    self._execute_effect(fx)
-            except Exception:
-                logger.exception("reduce_ui failed for event %s", type(event).__name__)
+    def _threadsafe_call(self, fn, *a) -> None:
+        """Call fn + invalidate. Thread-safe — runs on the CALLER's thread.
+        fn must be thread-safe (stream_append has own lock; invalidate is ptk-safe).
+        For state changes, use dedicated lifecycle helpers, not _reduce."""
+        try:
+            fn(*a) if a else fn()
+            if self._app:
+                self._app.invalidate()
+        except Exception:
+            logger.debug("_threadsafe_call failed", exc_info=True)
 
     def _execute_effect(self, fx: Effect) -> None:
-        """Execute a side-effect."""
         handler = self._effect_handlers.get(fx.kind)
         if handler:
             try:
@@ -239,57 +202,22 @@ class V3App:
             except Exception:
                 logger.exception("Effect handler failed: %s", fx.kind)
 
-    def _sync_terminal_size(self):
-        """Update UiState.terminal from actual terminal dimensions."""
-        try:
-            tw = _tw()
-            th = shutil.get_terminal_size().lines
-            st = self._state
-            if st.terminal.cols != tw or st.terminal.rows != th:
-                from .state import TerminalState
+    def _start_stream_timeout(self) -> None:
+        """Arm the stream timeout timer."""
+        self._cancel_stream_timeout()
+        self._stream_timer = threading.Timer(self._stream_timeout_s, self._on_stream_timeout)
+        self._stream_timer.daemon = True
+        self._stream_timer.start()
 
-                self._state = st.__class__(**{**st.__dict__, "terminal": TerminalState(cols=tw, rows=th)})
-        except Exception:
-            import logging
+    def _cancel_stream_timeout(self) -> None:
+        if self._stream_timer:
+            self._stream_timer.cancel()
+            self._stream_timer = None
 
-            logging.getLogger(__name__).debug("silent except", exc_info=True)
-
-    def _ui(self, fn, *a, _force: bool = False):
-        """Thread-safe UI callback — call fn + invalidate from any thread."""
-        self._sync_terminal_size()
-        try:
-            if a:
-                fn(*a)
-            else:
-                fn()
-        except Exception:
-            logger.warning("_ui callback failed", exc_info=True)
-        try:
-            app = self._app
-            if app is not None and app.is_running:
-                now = time.monotonic()
-                last = getattr(self, "_last_invalidate", 0.0)
-                if _force or now - last > 0.030:
-                    self._last_invalidate = now
-                    if hasattr(app, "call_soon_threadsafe"):
-                        app.call_soon_threadsafe(app.invalidate)
-                    else:
-                        app.invalidate()
-        except Exception:
-            import logging
-
-            logging.getLogger(__name__).debug("silent except", exc_info=True)
-
-    def _post_and_invalidate(self, event: UiEvent) -> None:
-        """Post event + drain + render in one synchronous sequence (UI thread)."""
-        post_event(event)  # 1. enqueue
-        self._drain_and_reduce()  # 2. process NOW (includes this event)
-        try:
-            self._app.invalidate()  # 3. render with updated state
-        except Exception:
-            import logging
-
-            logging.getLogger(__name__).debug("silent except", exc_info=True)
+    def _on_stream_timeout(self) -> None:
+        """Called by Timer when stream produces no chunk for _stream_timeout_s."""
+        logger.warning("Stream timeout: no chunk for %.0fs — cancelling", self._stream_timeout_s)
+        self._stream_cancelled.set()
 
     # ══════════════════════════════════════════════════════════════
     #  Effect handlers
@@ -317,88 +245,76 @@ class V3App:
         }
 
     def _fx_run_stream(self, fx: Effect) -> None:
-        """Start model stream in background thread.
-
-        Worker only updates MessagePane/ThinkingPanel via _ui().
-        State transitions (THINKING→STREAMING→DONE→IDLE) happen through
-        the reducer — the worker must NOT mutate self._state directly.
-        """
+        """Start model stream. Worker writes chunks to queue; UI thread drains.
+        Worker never touches widgets — no stdout, no Window attrs, no focus."""
         text = (fx.payload or {}).get("text", "")
         image_url = (fx.payload or {}).get("image_url")
 
-        # ── Show user message + start assistant stream ──
+        self._stream_cancelled.clear()
+        self._stream_last_chunk = time.monotonic()
+        self._start_stream_timeout()
+
+        # ── UI thread ops: stream_start, clear, user message ──
         if not image_url:
             self.message_pane.append_message("user", text)
             self._msg_store.append("user", text)
         self.message_pane.stream_start("crux")
         self.thinking_panel.clear()
+        self._app.invalidate()
 
         def worker():
             import time as _time
 
             t0 = _time.monotonic()
-            tool_count = 0
+            cancelled = False
             try:
-                if image_url:
-                    gen = self.session.send_stream("Describe this image.", image_url=image_url)
-                else:
-                    gen = self.session.send_stream(text)
+                gen = self.session.send_stream(text)
                 for kind, payload in gen:
-                    if kind == "text":
-                        self._ui(self.message_pane.stream_append, str(payload))
-                    elif kind == "thinking":
-                        self._ui(self.thinking_panel.append, str(payload))
-                    elif kind == "info" and ("执行" in str(payload) or "生成" in str(payload)):
-                        tool_count += 1
-                        # Post events for tool tracking (reducer owns state)
-                        from .runtime_bridge import post_event as _pe
-                        from .runtime_bridge import trigger_drain as _td
-
-                        _pe(StreamToolStarted(str(payload)[:40], str(payload)))
-                        _td()
-                    elif kind == "error":
-                        self._ui(self.message_pane.append_error, str(payload))
+                    if self._stream_cancelled.is_set():
+                        cancelled = True
+                        break
+                    self._stream_last_chunk = _time.monotonic()
+                    self._start_stream_timeout()
+                    with self._chunk_lock:
+                        if kind == "text":
+                            self._chunk_queue.append(("text", str(payload)))
+                        elif kind == "thinking":
+                            self._chunk_queue.append(("thinking", str(payload)))
+                        elif kind == "error":
+                            self._chunk_queue.append(("error", str(payload)))
+                    self._app.invalidate()
                 elapsed = _time.monotonic() - t0
-                self._ui(self.message_pane.append_info, f"[Done] {elapsed:.1f}s · {tool_count} tools")
-                self._ui(self.message_pane.stream_end, _force=True)
-                self._ui(self.thinking_panel.done)
-                # Post stream-done event so reducer transitions state to IDLE
-                from .runtime_bridge import post_event as _pe2
-                from .runtime_bridge import trigger_drain as _td2
-
-                _pe2(StreamDone(elapsed=elapsed, tool_count=tool_count))
-                _td2()
-                # Restore focus
-                self._ui(self._restore_focus, _force=True)
+                with self._chunk_lock:
+                    if cancelled:
+                        self._chunk_queue.append(("info", f"[Cancelled] {elapsed:.0f}s timeout"))
+                    else:
+                        self._chunk_queue.append(("info", f"[Done] {elapsed:.1f}s"))
+                    self._chunk_queue.append(("done",))
+                self._app.invalidate()
             except Exception as e:
-                self._ui(self.message_pane.append_error, f"{type(e).__name__}: {e!s}")
-                self._ui(self.message_pane.stream_end, _force=True)
-                from .runtime_bridge import post_event as _pe3
-                from .runtime_bridge import trigger_drain as _td3
+                logger.exception("Stream worker: %s", e)
+                with self._chunk_lock:
+                    self._chunk_queue.append(("error", f"{type(e).__name__}: {e!s}"))
+                    self._chunk_queue.append(("done",))
+                self._app.invalidate()
+            finally:
+                self._cancel_stream_timeout()
 
-                _pe3(StreamError(error_type=type(e).__name__, message=str(e)))
-                _td3()
-                self._ui(self._restore_focus, _force=True)
-
-        t = threading.Thread(target=worker, daemon=True, name="v3-stream")
-        t.start()
-        self._scheduler.set_streaming(True)
+        threading.Thread(target=worker, daemon=True, name="v3-stream").start()
 
     def _fx_cancel_stream(self, _fx: Effect) -> None:
-        self._scheduler.set_streaming(False)
+        self._stream_cancelled.set()
 
     def _fx_finalize_stream(self, _fx: Effect) -> None:
         """Stream done — tell MessagePane, ThinkingPanel, and clean up."""
         self.message_pane.stream_end()
         self.thinking_panel.done()
-        self._scheduler.set_streaming(False)
+        self._cancel_stream_timeout()
         if self.wire:
             try:
                 self.wire.record_turn("assistant", "[streamed]")
             except Exception:
-                import logging
-
-                logging.getLogger(__name__).debug("silent except", exc_info=True)
+                logger.debug("silent except", exc_info=True)
 
     def _fx_copy(self, fx: Effect) -> None:
         """Copy last assistant message to clipboard."""
@@ -425,13 +341,13 @@ class V3App:
             self._app.exit()
             return
         if cmd in ("/dashboard",):
-            post_event(ToggleDashboard())  # no recursive drain from effect handler
+            self._reduce_only(ToggleDashboard())  # state only, no recursive effects
             return
         if cmd.startswith("/theme "):
             # Forward to cli
             pass
         if cmd in ("/clear", "/cls"):
-            self._post_and_invalidate(ClearScreen())
+            self._reduce(ClearScreen())
             return
         # ── Delegate to CruxCLI ──
         if self.cli:
@@ -467,17 +383,8 @@ class V3App:
         self.message_pane._pinned = True
 
     def _log_activity(self, icon: str, style: str, msg: str) -> None:
-        """Append to activity log (UI thread only)."""
-        old = self._state.activity
-        items = [*list(old.items), (icon, style, msg)]
-        if len(items) > 500:
-            items = items[-500:]
-        self._state = self._state.__class__(
-            **{
-                **self._state.__dict__,
-                "activity": old.__class__(items=tuple(items), expanded=old.expanded),
-            }
-        )
+        """Append to activity log via event (thread-safe, no direct state mutation)."""
+        self._reduce_only(ActivityLogged(icon=icon, style=style, msg=msg))
 
     def _sync_scroll_to_pane(self) -> None:
         """Push UiState.scroll → MessagePane (FOLLOW/MANUAL + offset)."""
@@ -500,7 +407,7 @@ class V3App:
         if cur != self._last_term_size:
             self._last_term_size = cur
             self._term_cols = max(1, cur[0])
-            post_event(ResizeEvent(cols=cur[0], rows=cur[1]))
+            self._reduce_only(ResizeEvent(cols=cur[0], rows=cur[1]))
 
     def _fx_clear_messages(self, _fx: Effect) -> None:
         self.message_pane.clear()
@@ -512,237 +419,325 @@ class V3App:
     #  Key bindings (produce events, never mutate state directly)
     # ══════════════════════════════════════════════════════════════
 
+    # ══════════════════════════════════════════════════════════════
+    #  Key controllers  —  game-console style: one key = one handler.
+    #  No shared queue. No reducer dependency. One key crash can't
+    #  take down another key. Direct state write + invalidate.
+    # ══════════════════════════════════════════════════════════════
+
+    def _emit_key(self, name: str, fn) -> None:
+        try:
+            self._drain_chunks()
+            fn()
+        except Exception:
+            logger.exception("Key [%s] handler crashed", name)
+
+    def _reduce(self, event: UiEvent) -> None:
+        """Reduce state + execute effects + invalidate. Direct, no queue.
+        MUST run on the UI thread — workers use _threadsafe_call instead."""
+        assert threading.current_thread() is self._ui_thread, (
+            "_reduce called from worker thread. Use _threadsafe_call for cross-thread."
+        )
+        with self._state_lock:
+            new_state, effects = reduce_ui(self._state, event)
+            self._state = new_state
+            for fx in effects:
+                self._execute_effect(fx)
+        self._app.invalidate()
+        # ptk's invalidate() no-ops when _invalidated is already True (e.g. a
+        # worker-thread invalidate is still pending redraw). After a stream
+        # finishes this is the common case, so key-driven state changes (F12,
+        # F7, etc.) never repaint. Force a redraw on the next loop iteration
+        # to guarantee the new state is reflected.
+        try:
+            _loop = self._app.loop
+            if _loop is not None and not _loop.is_closed():
+                _loop.call_soon(self._app._redraw)
+        except Exception:
+            logger.debug("force redraw schedule failed", exc_info=True)
+
+    def _reduce_only(self, event: UiEvent) -> None:
+        """Reduce state only — no effects, no invalidate. For chained operations."""
+        with self._state_lock:
+            self._state, _ = reduce_ui(self._state, event)
+
+    def _drain_chunks(self) -> None:
+        """Consume chunk queue on UI thread. Called before any key handler.
+        All widget mutations happen here — on the UI thread only."""
+        # Detect terminal resize here (UI thread) — must NOT happen inside
+        # render functions, which ptk requires to be pure. _check_resize
+        # mutates state via _reduce_only; running it during render corrupts
+        # the layout tree and causes focus loss / broken keybindings.
+        self._check_resize()
+        with self._chunk_lock:
+            if not self._chunk_queue:
+                return
+            chunks = self._chunk_queue
+            self._chunk_queue = []
+        for chunk in chunks:
+            kind = chunk[0]
+            if kind == "text":
+                # Transition THINKING → STREAMING on first chunk
+                if self._state.stream.status == StreamStatus.THINKING:
+                    with self._state_lock:
+                        self._state = replace(
+                            self._state,
+                            stream=StreamState(status=StreamStatus.STREAMING, tool_seq=self._state.stream.tool_seq),
+                        )
+                self.message_pane.stream_append(str(chunk[1]))
+            elif kind == "thinking":
+                self.thinking_panel.append(str(chunk[1]))
+            elif kind == "error":
+                self.message_pane.append_error(str(chunk[1]))
+            elif kind == "info":
+                self.message_pane.append_info(str(chunk[1]))
+            elif kind == "done":
+                self.message_pane.stream_end()
+                self.thinking_panel.done()
+                self._cancel_stream_timeout()
+                # Reset state to IDLE so Ctrl+C exits, not cancels
+                with self._state_lock:
+                    self._state = replace(
+                        self._state,
+                        stream=StreamState(status=StreamStatus.IDLE, tool_seq=self._state.stream.tool_seq),
+                        scroll=ScrollState(mode=ScrollMode.FOLLOW),
+                    )
+                # Restore focus to input window — without this, layout recomputes
+                # (thinking/activity panels collapsing to height 0) leave focus null
+                # and most non-eager keybindings die after the first reply.
+                try:
+                    self._app.layout.focus(self.input_win)
+                except Exception:
+                    logger.debug("focus restore after stream done failed", exc_info=True)
+
+    # ── Core ────────────────────────────────────────────────────
+
+    def _key_interrupt(self) -> None:
+        with self._state_lock:
+            streaming = self._state.stream.status in (StreamStatus.THINKING, StreamStatus.STREAMING)
+        if streaming:
+            self._reduce(CancelRequested())
+        else:
+            self._app.exit()
+
+    def _key_quit(self) -> None:
+        self._app.exit()
+
+    def _key_clear_screen(self) -> None:
+        self.message_pane.clear()
+        self.thinking_panel.clear()
+        self._app.invalidate()
+
+    def _key_paste(self, event: Any) -> None:
+        self.input_buffer.paste_from_clipboard(event.app.clipboard.get_data())
+
+    def _key_reset_input(self) -> None:
+        self.input_buffer.reset()
+
+    def _key_escape(self) -> None:
+        s = self._state.screen
+        if s != Screen.MAIN:
+            self._reduce(NavigateBack())
+            return
+        if self._state.interaction.mode == InteractionMode.COPY:
+            self._reduce(ToggleInteractionMode(target=InteractionMode.NORMAL))
+            return
+        self._reduce(CancelRequested())
+
+    # ── Input ───────────────────────────────────────────────────
+
+    def _key_newline(self) -> None:
+        self.input_buffer.insert_text("\n")
+
+    def _key_submit(self, event: Any) -> None:
+        p = getattr(self._state, "palette", None)
+        if p and p.open:
+            self._reduce(PaletteSelect())
+            return
+        if self._state.interaction.mode == InteractionMode.COPY:
+            return
+        buf = event.current_buffer
+        if buf is None:
+            return
+        text = buf.text.strip()
+        buf.reset()
+        if not text:
+            return
+        if text in ("/q", "/quit", "/exit"):
+            self._app.exit()
+            return
+        self._reduce(SubmitInput(text))
+
+    # ── Scroll ──────────────────────────────────────────────────
+
+    def _key_pageup(self) -> None:
+        self.message_pane.scroll_page_up()
+        self._app.invalidate()
+
+    def _key_pagedown(self) -> None:
+        self.message_pane.scroll_page_down()
+        self._app.invalidate()
+
+    def _key_scroll_top(self) -> None:
+        self.message_pane.scroll_to_top()
+        self._app.invalidate()
+
+    def _key_scroll_bottom(self) -> None:
+        self.message_pane.scroll_to_bottom()
+        self._app.invalidate()
+
+    # ── Palette ─────────────────────────────────────────────────
+
+    def _key_palette_toggle(self) -> None:
+        from .events import TogglePalette
+
+        self._reduce(TogglePalette())
+
+    def _key_palette_up(self) -> None:
+        if bool(getattr(self._state, "palette", None) and getattr(self._state.palette, "open", False)):
+            from .events import PaletteMoveUp
+
+            self._reduce(PaletteMoveUp())
+
+    def _key_palette_down(self) -> None:
+        if bool(getattr(self._state, "palette", None) and getattr(self._state.palette, "open", False)):
+            from .events import PaletteMoveDown
+
+            self._reduce(PaletteMoveDown())
+
+    # ── Mode toggles ────────────────────────────────────────────
+
+    def _key_focus_mode(self) -> None:
+        self._reduce(ToggleFocusMode())
+
+    def _key_interaction_mode(self) -> None:
+        self._reduce(ToggleInteractionMode())
+
+    def _key_toggle_activity(self) -> None:
+        self._reduce(ToggleActivity())
+
+    def _key_toggle_thinking_pin(self) -> None:
+        self.thinking_panel.toggle_pin()
+        self._app.invalidate()
+
+    # ── Copy ────────────────────────────────────────────────────
+
+    def _key_quick_copy(self, event: Any, as_markdown: bool = False) -> None:
+        if event.app.current_buffer is self.input_buffer:
+            # Focused on input — must insert the character, not swallow it,
+            # otherwise users can't type 'c' or 'C' into the input box.
+            event.current_buffer.insert_text("C" if as_markdown else "c")
+            return
+        self._reduce(CopyFocusedMessage(as_markdown=as_markdown))
+
+    def _key_enter_copy_mode(self) -> None:
+        if self._state.interaction.mode == InteractionMode.COPY:
+            self._reduce(ExitCopyMode())
+            return
+        total = len(self._msg_store)
+        if total > 0:
+            self._reduce(EnterCopyMode(total_messages=total))
+
+    def _key_copy_move_up(self) -> None:
+        total = len(self._msg_store)
+        self._reduce(MoveCopySelection(delta=-1, total=total))
+
+    def _key_copy_move_down(self) -> None:
+        total = len(self._msg_store)
+        self._reduce(MoveCopySelection(delta=1, total=total))
+
+    def _key_copy_selected(self) -> None:
+        idx = self._state.interaction.focus_idx
+        msg = self._msg_store.get(idx)
+        if msg:
+            self._reduce(CopySelectedMessage())
+            try:
+                import pyperclip
+
+                pyperclip.copy(msg.text)
+            except Exception:
+                logger.debug("Clipboard copy failed", exc_info=True)
+        self._reduce(ExitCopyMode())
+
+    # ── Vim ─────────────────────────────────────────────────────
+
+    def _key_vim_up(self) -> None:
+        self.message_pane.scroll_up(3)
+        self._app.invalidate()
+
+    def _key_vim_down(self) -> None:
+        self.message_pane.scroll_down(3)
+        self._app.invalidate()
+
+    def _key_vim_top(self) -> None:
+        self.message_pane.scroll_to_top()
+        self._app.invalidate()
+
+    def _key_vim_bottom(self) -> None:
+        self.message_pane.scroll_to_bottom()
+        self._app.invalidate()
+
+    # ── Registration ────────────────────────────────────────────
+
     def _build_keybindings(self) -> KeyBindings:
         kb = KeyBindings()
-
-        # ── Palette modal guard ──
-        _palette_open = Condition(
-            lambda: bool(getattr(self._state, "palette", None) and getattr(self._state.palette, "open", False))
-        )
-
-        @kb.add("c-c")
-        def _(event):
-            with self._state_lock:
-                streaming = self._state.stream.status in (StreamStatus.THINKING, StreamStatus.STREAMING)
-            if streaming:
-                self._post_and_invalidate(CancelRequested())
-            else:
-                self._post_and_invalidate(ExitRequested())
-
-        @kb.add("c-q")
-        def _(event):
-            self._post_and_invalidate(ExitRequested())
-
-        # ── Newline ──
-        @kb.add("escape", "enter")
-        @kb.add("c-j")
-        def _(event):
-            self.input_buffer.insert_text("\n")
-
-        # ── Scroll ──
-        @kb.add("pageup", eager=True)
-        def _(event):
-            self.message_pane.scroll_page_up()
-            self._app.invalidate()
-
-        @kb.add("pagedown", eager=True)
-        def _(event):
-            self.message_pane.scroll_page_down()
-            self._app.invalidate()
-
-        @kb.add("c-p")
-        def _(event):
-            """Ctrl+P: Toggle command palette."""
-            from .events import TogglePalette
-
-            self._post_and_invalidate(TogglePalette())
-
-        # ── Palette navigation (when open) ──
-        @kb.add("up")
-        def _palette_up(event):
-            if bool(getattr(self._state, "palette", None) and getattr(self._state.palette, "open", False)):
-                from .events import PaletteMoveUp
-
-                self._post_and_invalidate(PaletteMoveUp())
-
-        @kb.add("down")
-        def _palette_down(event):
-            if bool(getattr(self._state, "palette", None) and getattr(self._state.palette, "open", False)):
-                from .events import PaletteMoveDown
-
-                self._post_and_invalidate(PaletteMoveDown())
-
-        @kb.add("enter")
-        def _(event):
-            # Palette open → select item
-            p = getattr(self._state, "palette", None)
-            if p and p.open:
-                self._post_and_invalidate(PaletteSelect())
-                return
-            if self._state.interaction.mode == InteractionMode.COPY:
-                return  # Copy mode: c to copy, Esc to exit, Enter does nothing
-            buf = event.current_buffer
-            text = buf.text.strip()
-            buf.reset()
-            if not text:
-                return
-            if text in ("/q", "/quit", "/exit"):
-                self._app.exit()
-                return
-            # Post SubmitInput — reducer + _fx_run_stream handles the rest
-            self._post_and_invalidate(SubmitInput(text))
-
-        @kb.add("escape")
-        def _palette_close(event):
-            if bool(getattr(self._state, "palette", None) and getattr(self._state.palette, "open", False)):
-                from .events import TogglePalette
-
-                self._post_and_invalidate(TogglePalette())
-
-        @kb.add("c-home", eager=True)
-        def _(event):
-            self._post_and_invalidate(ScrollTo("top"))
-
-        @kb.add("c-end", eager=True)
-        def _(event):
-            self._post_and_invalidate(ScrollTo("bottom"))
-
-        # ── Mode toggles: direct state mutation + invalidate ──
-        # Bypass the event/reducer pipeline because these keys are captured
-        # before ptk's event loop can process them. Direct mutation is safe
-        # since we're on the UI thread.
-        @kb.add("f12", eager=True)
-        def _(event):
-            self._post_and_invalidate(ToggleFocusMode())
-
-        @kb.add("f7", eager=True)
-        def _(event):
-            self._post_and_invalidate(ToggleInteractionMode())
-
-        @kb.add("f8", eager=True)
-        def _(event):
-            self._post_and_invalidate(ToggleActivity())
-
-        @kb.add("f6", eager=True)
-        def _(event):
-            self.thinking_panel.toggle_pin()
-            self._app.invalidate()
-
-        # ── Copy (quick) ──
-        @kb.add("c")
-        def _(event):
-            if event.app.current_buffer is self.input_buffer:
-                event.current_buffer.insert_text("c")
-                return
-            self._post_and_invalidate(CopyFocusedMessage())
-
-        @kb.add("C")
-        def _(event):
-            if event.app.current_buffer is self.input_buffer:
-                event.current_buffer.insert_text("C")
-                return
-            self._post_and_invalidate(CopyFocusedMessage(as_markdown=True))
-
-        # ── Misc ──
-        @kb.add("c-l", eager=True)
-        def _(event):
-            self.message_pane.clear()
-            self.thinking_panel.clear()
-            self._app.invalidate()
-
-        @kb.add("escape")
-        def _(event):
-            s = self._state.screen
-            if s != Screen.MAIN:
-                self._post_and_invalidate(NavigateBack())
-                return
-            if self._state.interaction.mode == InteractionMode.COPY:
-                self._post_and_invalidate(ToggleInteractionMode(target=InteractionMode.NORMAL))
-                return
-            self._post_and_invalidate(CancelRequested())
-
-        @kb.add("c-v")
-        def _(event):
-            self.input_buffer.paste_from_clipboard(event.app.clipboard.get_data())
-
-        @kb.add("escape", "escape")
-        def _(event):
-            self.input_buffer.reset()
-
-        @kb.add("c-k")
-        def _(event):
-            self.input_buffer.reset()
-
-        # ── Copy mode (Ctrl+F) ──
-        @kb.add("f3", eager=True)
-        def _enter_copy(event):
-            if self._state.interaction.mode == InteractionMode.COPY:
-                self._post_and_invalidate(ExitCopyMode())
-                return
-            total = len(self._msg_store)
-            if total > 0:
-                self._post_and_invalidate(EnterCopyMode(total_messages=total))
-
         _copy = Condition(lambda: self._state.interaction.mode == InteractionMode.COPY)
-
-        @kb.add("up", filter=_copy)
-        def _copy_up(event):
-            total = len(self._msg_store)
-            self._post_and_invalidate(MoveCopySelection(delta=-1, total=total))
-
-        @kb.add("down", filter=_copy)
-        def _copy_down(event):
-            total = len(self._msg_store)
-            self._post_and_invalidate(MoveCopySelection(delta=1, total=total))
-
-        @kb.add("c", filter=_copy)
-        def _copy_selected(event):
-            idx = self._state.interaction.focus_idx
-            msg = self._msg_store.get(idx)
-            if msg:
-                # Post copy effect directly
-                self._post_and_invalidate(CopySelectedMessage())
-                # Also do the actual clipboard copy now (side effect)
-                try:
-                    import pyperclip
-
-                    pyperclip.copy(msg.text)
-                except Exception:
-                    import logging
-
-                    logging.getLogger(__name__).debug("silent except", exc_info=True)
-            self._post_and_invalidate(ExitCopyMode())
-
-        # ── Vim mode ──
         _vim = Condition(lambda: self._state.interaction.mode == InteractionMode.VIM)
 
-        @kb.add("j", filter=_vim)
-        def _(event):
-            self._post_and_invalidate(ScrollBy(-3))
+        # Shortcut: key → isolated handler (no event arg)
+        def _on(key, *opts, handler, eager=False, filter=None):
+            kwargs = {"eager": eager, "save_before": lambda e: False}
+            if filter is not None:
+                kwargs["filter"] = filter
+            kb.add(key, *opts, **kwargs)(lambda e: self._emit_key(key, handler))
 
-        @kb.add("k", filter=_vim)
-        def _(event):
-            self._post_and_invalidate(ScrollBy(3))
+        # Shortcut: key → isolated handler (needs event arg)
+        def _one(key, *opts, handler, eager=False, filter=None):
+            kwargs = {"eager": eager, "save_before": lambda e: False}
+            if filter is not None:
+                kwargs["filter"] = filter
+            kb.add(key, *opts, **kwargs)(lambda e: self._emit_key(key, lambda: handler(e)))
 
-        @kb.add("g", "g", filter=_vim)
-        def _(event):
-            self._post_and_invalidate(ScrollTo("top"))
-
-        @kb.add("G", filter=_vim)
-        def _(event):
-            self._post_and_invalidate(ScrollTo("bottom"))
+        # Core
+        _on("c-c", handler=self._key_interrupt)
+        _on("c-q", handler=self._key_quit)
+        _on("c-l", handler=self._key_clear_screen, eager=True)
+        _one("c-v", handler=self._key_paste)
+        _on("c-k", handler=self._key_reset_input)
+        _on("escape", "escape", handler=self._key_reset_input)
+        _on("escape", handler=self._key_escape)
+        # Input
+        _on("escape", "enter", handler=self._key_newline)
+        _on("c-j", handler=self._key_newline)
+        _one("enter", handler=self._key_submit)
+        # Scroll
+        _on("pageup", handler=self._key_pageup, eager=True)
+        _on("pagedown", handler=self._key_pagedown, eager=True)
+        _on("c-home", handler=self._key_scroll_top, eager=True)
+        _on("c-end", handler=self._key_scroll_bottom, eager=True)
+        # Palette
+        _on("c-p", handler=self._key_palette_toggle)
+        _on("up", handler=self._key_palette_up)
+        _on("down", handler=self._key_palette_down)
+        # Modes
+        _on("f12", handler=self._key_focus_mode, eager=True)
+        _on("f7", handler=self._key_interaction_mode, eager=True)
+        _on("f8", handler=self._key_toggle_activity, eager=True)
+        _on("f6", handler=self._key_toggle_thinking_pin, eager=True)
+        # Copy
+        _one("c", handler=lambda e: self._key_quick_copy(e))
+        _one("C", handler=lambda e: self._key_quick_copy(e, as_markdown=True))
+        _on("f3", handler=self._key_enter_copy_mode, eager=True)
+        _on("up", filter=_copy, handler=self._key_copy_move_up)
+        _on("down", filter=_copy, handler=self._key_copy_move_down)
+        _on("c", filter=_copy, handler=self._key_copy_selected)
+        # Vim
+        _on("j", filter=_vim, handler=self._key_vim_down)
+        _on("k", filter=_vim, handler=self._key_vim_up)
+        _on("g", "g", filter=_vim, handler=self._key_vim_top)
+        _on("G", filter=_vim, handler=self._key_vim_bottom)
 
         return kb
-
-    # ══════════════════════════════════════════════════════════════
-    #  Input handler
-    # ══════════════════════════════════════════════════════════════
-
-    def _on_input_accept(self, buf: Buffer) -> bool:
-        text = buf.text
-        buf.reset()
-        self._post_and_invalidate(SubmitInput(text))
-        return True
 
     # ══════════════════════════════════════════════════════════════
     #  Layout (prompt_toolkit as rendering backend only)
@@ -821,7 +816,6 @@ class V3App:
 
         # ── Status ──
         def _status():
-            self._sync_terminal_size()
             return render_status(self._state)
 
         status = Window(
@@ -925,7 +919,7 @@ class V3App:
         else:
             ptk_output = create_output(stdout=sys.stdout)
 
-        return Application(
+        app = Application(
             layout=Layout(root, focused_element=self.input_win),
             key_bindings=self.kb,
             input=ptk_input,
@@ -934,30 +928,30 @@ class V3App:
             mouse_support=False,
             enable_page_navigation_bindings=False,
         )
+        # Hook invalidate to drain chunks on UI thread before render.
+        # Worker-thread invalidates schedule drain via event loop.
+        _orig_invalidate = app.invalidate
+
+        def _invalidate_with_drain():
+            if threading.current_thread() is self._ui_thread:
+                self._drain_chunks()
+            elif hasattr(app, "loop") and app.loop and not app.loop.is_closed():
+                app.loop.call_soon_threadsafe(self._drain_chunks)
+            _orig_invalidate()
+
+        app.invalidate = _invalidate_with_drain
+        return app
 
     # ══════════════════════════════════════════════════════════════
     #  Lifecycle
     # ══════════════════════════════════════════════════════════════
 
-    def _restore_focus(self) -> None:
-        """Force focus back to input buffer. Called after stream ends."""
-        try:
-            self._app.layout.focus(self.input_win)
-        except Exception:
-            import logging
-
-            logging.getLogger(__name__).debug("silent except", exc_info=True)
-
     def _request_exit(self) -> None:
-        self._closing = True
-        self._running = False
+        self._cancel_stream_timeout()
 
     def run(self) -> None:
-        """Start the application."""
-        self._running = True
-        self._scheduler.start()
+        """Start the application. ptk handles the game loop — we just call run()."""
         self._app.invalidate()  # force first render with welcome screen
-
         try:
             self._app.run()
         except KeyboardInterrupt:
@@ -966,10 +960,7 @@ class V3App:
             logger.exception("V3App.run crashed: %s", e)
             sys.stderr.write(f"\n[CRUX TUI v3 crashed: {type(e).__name__}: {e}]\n")
             sys.stderr.flush()
-        finally:
-            self._running = False
-            self._scheduler.stop()
 
     def shutdown(self) -> None:
         self._request_exit()
-        self._scheduler.stop()
+        self._cancel_stream_timeout()
