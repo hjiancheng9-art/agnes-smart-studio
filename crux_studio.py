@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """CRUX Studio main entry point"""
 
+import logging
 import sys
 from pathlib import Path
 
@@ -162,7 +163,6 @@ def main():
     p.add_argument("--host", type=str, default="127.0.0.1", help="网关监听地址 (配合 --serve, 默认 127.0.0.1)")
     p.add_argument("--port", type=int, default=8000, help="网关监听端口 (配合 --serve, 默认 8000)")
     p.add_argument("-c", "--chat", action="store_true", help="进入 CRUX 编程助手（支持 /制片 切换视频模式）")
-    p.add_argument("--tui", action="store_true", help="启动 TUI 界面（默认纯文本 REPL）")
     p.add_argument("--tui-v3", action="store_true", help="启动 TUI v3 界面（事件驱动新架构）")
     p.add_argument("-q", "--quick", type=str, help="快速模式描述")
     p.add_argument("-v", "--video", action="store_true", help="生成视频")
@@ -275,223 +275,8 @@ def _make_chat_client():
 
 
 def _chat_repl(args=None):
-    """Chat REPL entry point — plain text by default, TUI with --tui."""
-    if args and args.tui:
-        _chat_tui()
-    else:
-        _chat_plain()
-
-
-def _chat_tui():
-    """Kimi-style TUI chat — prompt_toolkit three-zone interface."""
-    import uuid
-
-    from core.chat import ChatSession
-    from core.cli_handlers import CruxCLI
-
-    cwd = resolve_workspace()
-    _rprint = _safe_rich_print()
-
-    # ── Session wire init ──
-    session_id = f"session_{uuid.uuid4().hex[:8]}"
-    try:
-        from core.session_wire import SessionWire
-
-        wire = SessionWire(cwd)
-        wire.start_session(session_id=session_id)
-    except (ImportError, OSError):
-        wire = None
-
-    # ── Init chat session ──
-    from core.session_lifecycle import SessionLifecycle, SessionPhase
-
-    lifecycle = SessionLifecycle()
-    lifecycle.transition(SessionPhase.INITIALIZING)
-
-    try:
-        session = ChatSession(_make_chat_client())
-        # ── 会话恢复: 检测上次崩溃前的快照 ──
-        snapshot = ChatSession.restore_latest_snapshot()
-
-        # ── 方法论恢复: 保持任务等级和合规门禁跨重启 ──
-        try:
-            from core.methodology import restore_methodology_state
-
-            restored = restore_methodology_state()
-            if restored:
-                from core.methodology import get_methodology_state
-
-                ms = get_methodology_state()
-                level_names = {"micro": "A", "normal": "B", "complex": "C", "critical": "D"}
-                level_short = level_names.get(ms.task_level.value, "?")
-                print(f"  📋 已恢复方法论状态: 等级 [{level_short}] 步骤 {ms.workflow_step}/7")
-        except ImportError:
-            pass
-
-        if snapshot and snapshot.get("messages"):
-            turn = snapshot.get("turn", "?")
-            msgs = snapshot["messages"]
-            msg_count = len(msgs)
-            print(f"  ⚡ 检测到未完成的会话 (第 {turn} 轮, {msg_count} 条消息)")
-            # 显示最近 3 轮对话摘要
-            recent = [m for m in msgs[-6:] if m.get("role") in ("user", "assistant")]
-            for m in recent[-4:]:
-                role = "You" if m["role"] == "user" else "CRUX"
-                content = str(m.get("content", ""))[:100].replace("\n", " ")
-                print(f"    [{role}] {content}...")
-            try:
-                ans = input("  是否恢复? [Y/n] ").strip().lower()
-                if ans in ("", "y", "yes"):
-                    session.messages = msgs
-                    session.model = snapshot.get("model", session.model)
-                    print(f"  已恢复 {msg_count} 条消息到上下文，模型: {session.model}")
-                    print("  (消息已在后台，模型知道之前聊了什么，但界面不重复显示)")
-            except (EOFError, KeyboardInterrupt):
-                pass
-    except Exception as e:
-        lifecycle.record_error(f"Session init failed: {e}")
-        print(f"初始化失败: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    # ── Provider pre-flight health check ──
-    # Prevents "TUI starts but silently can't reach API" scenario.
-    from core.provider import get_provider_manager
-
-    mgr = get_provider_manager()
-    if not mgr.ping():
-        print(f"警告: 供应商 '{mgr.active_provider}' 未响应，尝试切换...", file=sys.stderr)
-        if not mgr.fallback():
-            print("所有供应商不可用。TUI 仍会启动，但可能需要 /provider 切换。", file=sys.stderr)
-    lifecycle.transition(SessionPhase.READY)
-
-    cli = CruxCLI(session)
-
-    # ── Startup banner (minimal, TUI handles the welcome screen) ──
-    import shutil
-
-    from core.version import __version__
-
-    model_name = mgr.get_model("light") or session.model
-
-    # Banner text for TUI message pane (not printed to terminal —
-    # the TUI welcome screen in build_welcome_formatted handles UI)
-    import unicodedata
-
-    def _vwidth(s: str) -> int:
-        """Visual width — CJK chars count as 2 cells."""
-        w = 0
-        for c in s:
-            w += 2 if unicodedata.east_asian_width(c) in ("W", "F") else 1
-        return w
-
-    TARGET_BOX_W = 50
-    TARGET_BOX_W - 4  # strip "  ╔…╗" frame (2 leading spaces + corners)
-
-    # ── top: ASCII geometric CRUX logo ──
-    geom = [
-        "           /\\          /\\            ",
-        "  +-------/  \\--------/  \\-------+   ",
-        "  |      / /\\ \\  CRUX  / /\\ \\      |",
-        "  |     / /  \\ \\      / /  \\ \\     |",
-        "  |     \\ \\  / /      \\ \\  / /     |",
-        "  |      \\ \\/ / STUDIO \\ \\/ /      |",
-        "  +-------\\  /--------\\  /-------+   ",
-        "           \\/          \\/            ",
-    ]
-    _msg_sk = len(list(Path("skills").glob("*.skill.json")))
-
-    banner_lines = [
-        *geom,
-        "",
-        f"v{__version__}  ·  {model_name}  ·  1M 上下文  ·  自修复闭环",
-        f"{_msg_sk} skills  ·  34 专业智能体  ·  Agent Swarm",
-        "极简内核 · 百器待命 · 七兽按需 · Multi-Agent",
-        "平时如刀，出事成阵 —— Sharp by default. A swarm when needed.",
-        "",
-        "  /ask     开始 AI 编程    /agent   选择专业智能体",
-        "  /swarm   并行编排        /skills  浏览技能",
-        "  /help    查看全部命令    Ctrl+V   粘贴  Enter  发送",
-    ]
-    banner = "\n".join(banner_lines)
-    # ── Terminal height guard ──
-    if shutil.get_terminal_size().lines < 10:
-        print("Terminal too small (need >=10 rows). Falling back to plain text mode.")
-        _chat_plain_session(session, cli, wire, session_id)
-        return
-
-    # ── Hide Windows console scrollbar (native, not ptk) ──
-    if sys.platform == "win32":
-        try:
-            import ctypes
-
-            kernel32 = ctypes.windll.kernel32
-            handle = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
-
-            class _COORD(ctypes.Structure):
-                _fields_ = [("X", ctypes.c_short), ("Y", ctypes.c_short)]
-
-            class _SMALL_RECT(ctypes.Structure):
-                _fields_ = [
-                    ("Left", ctypes.c_short),
-                    ("Top", ctypes.c_short),
-                    ("Right", ctypes.c_short),
-                    ("Bottom", ctypes.c_short),
-                ]
-
-            class _CSBI(ctypes.Structure):
-                _fields_ = [
-                    ("dwSize", _COORD),
-                    ("dwCursorPosition", _COORD),
-                    ("wAttributes", ctypes.c_ushort),
-                    ("srWindow", _SMALL_RECT),
-                    ("dwMaximumWindowSize", _COORD),
-                ]
-
-            csbi = _CSBI()
-            if kernel32.GetConsoleScreenBufferInfo(handle, ctypes.byref(csbi)):
-                cols = csbi.srWindow.Right - csbi.srWindow.Left + 1
-                rows = csbi.srWindow.Bottom - csbi.srWindow.Top + 1
-                if cols < csbi.dwSize.X or rows < csbi.dwSize.Y:
-                    kernel32.SetConsoleScreenBufferSize(handle, _COORD(cols, rows))
-        except Exception as e:
-            import logging
-
-            logging.getLogger(__name__).debug("Non-critical: %s", e, exc_info=True)
-
-    # ── Launch TUI (v2) ──
-    # ── Onboarding: first-run guided workflow ──
-    from core.onboarding import run_onboarding
-
-    onboard_text = run_onboarding()
-    if onboard_text:
-        banner = onboard_text + "\n\n" + banner
-
-    # prompt_toolkit handles full terminal management — no pre-escapes needed.
-    try:
-        from ui.tui_v2 import TuiAppV2
-
-        app = TuiAppV2(session, cli, session_wire=wire, startup_banner=banner, cwd=cwd)
-        app.run()
-    except ImportError as e:
-        print(f"TUI 模块加载失败: {e}", file=sys.stderr)
-        print("回退到纯文本模式。")
-        _chat_plain_session(session, cli, wire, session_id)
-    except Exception as e:
-        msg = str(e)
-        if any(kw in msg for kw in ("NoConsoleScreenBufferError", "winpty", "xterm", "expecting a Windows console")):
-            print("此终端不支持全屏 TUI。请使用 Windows Terminal 或 cmd.exe 启动。")
-        else:
-            import traceback
-
-            traceback.print_exc()
-            print(f"\nTUI 启动失败: {e}", file=sys.stderr)
-        print("回退到纯文本模式...")
-        _chat_plain_session(session, cli, wire, session_id)
-
-    # ── Cleanup ──
-    if wire:
-        with contextlib.suppress(OSError):
-            wire.end_session()
+    """Chat REPL entry point — plain text by default."""
+    _chat_plain()
 
 
 def _chat_repl_v3(args=None):
@@ -519,10 +304,16 @@ def _chat_repl_v3(args=None):
     ]
     for line in geom:
         print(f"  {line}")
-    print(f"  CRUX Studio v{__version__}  ·  v3 event-driven TUI")
-    print()
+        print(f"  CRUX Studio v{__version__}  ·  v3 event-driven TUI")
+        print()
 
-    from ui.v3.app import V3App
+        import shutil
+
+        if shutil.get_terminal_size().lines < 10:
+            print("Terminal too small (need >=10 rows).", file=sys.stderr)
+            sys.exit(1)
+
+        from ui.v3.app import V3App
 
     v3 = V3App(session=session, cli=cli, cwd=cwd)
     v3.run()
@@ -811,7 +602,7 @@ def _check_task(args):
             show_video_result({"url": video_url, "local_path": local_path, "video_id": video_id})
         elif status == "failed":
             # show_error stub (TUI removed)
-            print(f"错误: 视频生成失败: {data.get('error', '未知错误')}", file=sys.stderr)
+            logging.getLogger(__name__).error("视频生成失败: %s", data.get("error", "未知错误"))
         else:
             show_info(f"状态: {status} | 进度: {progress:.0f}%")
             if status in ("processing", "in_progress", "pending", "queued"):

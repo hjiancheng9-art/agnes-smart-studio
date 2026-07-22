@@ -821,13 +821,13 @@ class ChatSession(ChatToggleMixin):
         try:
             self._budget.count(self.messages)
             if self._budget.should_warn():
-                print(self._budget.warning(), flush=True)
-        except Exception:
-            logging.getLogger(__name__).debug("silent except", exc_info=True)
+                logging.getLogger(__name__).warning(self._budget.warning())
+        except (ValueError, TypeError, RuntimeError):
+            logging.getLogger(__name__).debug("budget count failed", exc_info=True)
 
     def _vision_model_chain(self, complexity: str = "light") -> list[str]:
         """Vision model chain — single model after zhipu removal."""
-        return [self.vision_model or "agnes-2.0-flash"]
+        return [self.vision_model or "agnes-2.5-flash"]
 
     @staticmethod
     def _classify_vision_complexity(text: str) -> tuple[str, int]:

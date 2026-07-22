@@ -15,7 +15,7 @@
 |--------|------|------|
 | DeepSeek (active) | `deepseek-v4-pro` (heavy), `deepseek-v4-flash` (light) | 文本编码主力 |
 | Zhipu (free) | `GLM-4V-Flash` | 视觉兜底 |
-| CRUX (paid) | `agnes-2.0-flash` (vision主力), 2×生图, 1×视频 | 视觉 + 媒体生成 |
+| CRUX (paid) | `agnes-2.5-flash` (vision主力), 2×生图, 1×视频 | 视觉 + 媒体生成 |
 
 ### 子 Agent 路由（硬约束）
 

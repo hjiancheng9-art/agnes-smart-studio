@@ -141,28 +141,49 @@ def _submit(page, platform: str):
         page.locator(cfg["submit_selector"]).first.click()
 
 
-def _read_response(page, timeout: int):
-    """Poll for assistant response. Returns text or empty string on timeout."""
+def _count_messages(page, platform: str) -> int:
+    """Count existing assistant messages on the page."""
+    cfg = PLATFORMS[platform]
+    try:
+        return page.evaluate(f"""() => {{
+            return document.querySelectorAll('{cfg["response"]}').length;
+        }}""")
+    except Exception:
+        return 0
+
+
+def _read_response(page, platform: str, timeout: int):
+    """Poll for NEW assistant response. Returns text or empty string on timeout.
+
+    Fix: Uses platform-specific selectors. Only returns when stop button
+    disappears (generation done) AND text is substantive.
+    """
+    cfg = PLATFORMS[platform]
     t0 = time.monotonic()
     last_len = 0
     stable_count = 0
+
     while time.monotonic() - t0 < timeout:
         time.sleep(2)
         try:
             result = page.evaluate(f"""() => {{
-                const msgs = document.querySelectorAll('{PLATFORMS["chatgpt"]["response"]}');
+                const msgs = document.querySelectorAll('{cfg["response"]}');
                 if (msgs.length > 0) {{
                     const last = msgs[msgs.length - 1];
                     const text = last.textContent || '';
-                    const stopped = !document.querySelector('{PLATFORMS["chatgpt"]["stop_button"]}');
-                    return JSON.stringify({{done: stopped, text: text}});
+                    const stopped = !document.querySelector('{cfg["stop_button"]}');
+                    return JSON.stringify({{done: stopped, text: text, count: msgs.length}});
                 }}
-                return JSON.stringify({{done: false, text: ''}});
+                return JSON.stringify({{done: false, text: '', count: 0}});
             }}""")
             data = json.loads(result)
-            if data["done"] and len(data["text"]) > 10:
-                return data["text"]
             current_len = len(data["text"])
+
+            # Stop button disappeared + text substantive -> generation complete
+            if data["done"] and current_len > 10:
+                return data["text"]
+
+            # Stability: text unchanged for 3 consecutive polls -> end of stream
             if current_len == last_len and current_len > 0:
                 stable_count += 1
                 if stable_count >= 3:
@@ -208,7 +229,7 @@ def send_to_ai(
         page = _find_or_create_page(ctx, platform)
         _fill(page, prompt, platform)
         _submit(page, platform)
-        return _read_response(page, timeout)
+        return _read_response(page, platform, timeout)
     except Exception as e:
         return f"Error: {e}"
     finally:
@@ -235,4 +256,10 @@ if __name__ == "__main__":
 
     print(f"Sending to {plat}...")
     reply = send_to_ai(plat, text, timeout=timeout)
-    print(reply)
+
+    # Windows GBK console compatibility
+    try:
+        print(reply)
+    except UnicodeEncodeError:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        print(reply)

@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-TUI_FILE = ROOT / "ui" / "tui_v2.py"
+TUI_FILE = ROOT / "ui" / "tui_control.py"
 
 
 def check_no_eager_single_letter() -> list[str]:

@@ -15,7 +15,7 @@ let busyTimer = null;
 let healthCheckTimer = null;
 const MAX_RESTARTS = 10;
 const BRIDGE_STARTUP_TIMEOUT = 15000; // 15s — Python CRUX imports can be slow
-const BUSY_TIMEOUT = 120000;          // 2min — max time before declaring bridge hung
+const BUSY_TIMEOUT = 180000;          // 3min — enough for browser AI + audit
 const HEALTH_INTERVAL = 30000;        // 30s — periodic liveness check
 
 // ── Path resolution ────────────────────────────────────────
@@ -115,9 +115,10 @@ function startBridge() {
         bridgeProcess = spawn(pythonPath, ['-u', bridgePath], {
             cwd,
             stdio: ['pipe', 'pipe', 'pipe'],
-            env: { ...process.env, PYTHONUNBUFFERED: '1' }
+            env: { ...process.env, PYTHONUNBUFFERED: '1', PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' }
         });
 
+        bridgeProcess.stderr.setEncoding('utf-8');
         bridgeProcess.stderr.pipe(stderrLog);
         bridgeProcess.on('exit', (code, signal) => {
             stderrLog.write(`[exit] code=${code} signal=${signal}\n`);
@@ -134,6 +135,9 @@ function startBridge() {
                 const handler = pendingRequests.get(msg.id);
                 if (handler && handler.onMessage) {
                     handler.onMessage(msg);
+                    // Every message proves the bridge is alive — reset busy timer
+                    clearBusyTimer();
+                    startBusyTimer(msg.id);
                 }
                 if (msg.type === 'done' && handler) {
                     pendingRequests.delete(msg.id);

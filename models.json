@@ -18,7 +18,7 @@
       "base_url": "https://apihub.agnes-ai.com/v1",
       "api_key": "",
       "models": {
-        "vision": "agnes-2.0-flash",
+        "vision": "agnes-2.5-flash",
         "image": "agnes-image-2.1-flash",
         "video": "agnes-video-v2.0"
       }

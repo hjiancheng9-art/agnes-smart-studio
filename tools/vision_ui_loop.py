@@ -15,8 +15,8 @@ from pathlib import Path
 import httpx
 
 ROOT = Path(__file__).resolve().parent.parent
-ZHIPU_KEY = os.environ.get("ZHIPU_API_KEY", "")
-ZHIPU_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+AGNES_KEY = os.environ.get("CRUX_API_KEY", "")
+AGNES_URL = os.environ.get("AGNES_BASE_URL", "https://apihub.agnes-ai.com/v1") + "/chat/completions"
 
 DESIGN_PROMPT = """你是 UI 设计专家，也是 Python 工程师。
 
@@ -59,17 +59,17 @@ def screenshot(output_path: str) -> str:
 
 
 def analyze(image_path: str) -> dict:
-    """发送截图给视觉模型，获取 JSON 改动建议。"""
-    if not ZHIPU_KEY:
-        raise RuntimeError("ZHIPU_API_KEY not set")
+    """发送截图给 Agnes 视觉模型，获取 JSON 改动建议。"""
+    if not AGNES_KEY:
+        raise RuntimeError("CRUX_API_KEY not set")
 
     with open(image_path, "rb") as f:
         img64 = base64.b64encode(f.read()).decode()
 
     resp = httpx.post(
-        ZHIPU_URL,
+        AGNES_URL,
         json={
-            "model": "GLM-4V-Flash",
+            "model": "agnes-2.5-flash",
             "max_tokens": 2048,
             "temperature": 0.3,
             "messages": [
@@ -83,7 +83,7 @@ def analyze(image_path: str) -> dict:
             ],
         },
         headers={
-            "Authorization": f"Bearer {ZHIPU_KEY}",
+            "Authorization": f"Bearer {AGNES_KEY}",
             "Content-Type": "application/json",
         },
         timeout=60,
@@ -118,8 +118,10 @@ def apply_changes(changes: list[dict]) -> list[str]:
             log.append(f"  ✗ {c['method']}: old_text not found in file")
             continue
 
-        # 备份
-        fpath.with_suffix(".py.bak").write_text(source, "utf-8")
+        # 备份（保留时间戳避免覆盖）
+        ts = time.strftime("%H%M%S")
+        bak_path = fpath.with_suffix(f".py.bak.{ts}")
+        bak_path.write_text(source, "utf-8")
 
         new_source = source.replace(old, c["new_text"], 1)
         fpath.write_text(new_source, "utf-8")
@@ -130,16 +132,14 @@ def apply_changes(changes: list[dict]) -> list[str]:
 
 def main():
     # 检查 API key
-    if not ZHIPU_KEY:
-        # 尝试从 models.json 加载
+    if not AGNES_KEY:
         cfg_path = ROOT / "models.json"
         if cfg_path.exists():
             with open(cfg_path) as f:
                 cfg = json.load(f)
-            zp = cfg.get("providers", {}).get("zhipu", {})
-            os.environ["ZHIPU_API_KEY"] = zp.get("api_key", "")
-        if not os.environ.get("ZHIPU_API_KEY"):
-            print("ZHIPU_API_KEY not found")
+            os.environ["CRUX_API_KEY"] = cfg.get("api_key", "")
+        if not os.environ.get("CRUX_API_KEY"):
+            print("CRUX_API_KEY not found")
             return 1
 
     # 确保输出目录
@@ -199,10 +199,10 @@ def main():
                 print(f"  ✓ {c['file']}: syntax OK")
             except py_compile.PyCompileError as e:
                 print(f"  ✗ {c['file']}: SYNTAX ERROR — {e}")
-                # 回滚
-                bak = fpath.with_suffix(".py.bak")
-                if bak.exists():
-                    fpath.write_text(bak.read_text("utf-8"), "utf-8")
+                # 回滚：找最近备份
+                bak_files = sorted(fpath.parent.glob(f"{fpath.name}.bak.*"), reverse=True)
+                if bak_files:
+                    fpath.write_text(bak_files[0].read_text("utf-8"), "utf-8")
                     print("  → rolled back from backup")
 
         print(f"\nIteration {iteration} complete. Restart CRUX to see changes.")

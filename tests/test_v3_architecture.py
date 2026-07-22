@@ -1,10 +1,10 @@
-"""Architecture enforcement tests for TUI v3 �?game-console invariants.
+"""Architecture enforcement tests for TUI v3 game-console invariants.
 
 These tests verify that the refactored architecture maintains the same
 invariants that the old event-queue + scheduler accidentally enforced:
 
-1. All state changes go through reduce_ui �?no direct mutation.
-2. Worker threads use _on_main (call_soon_threadsafe) �?no direct UI access.
+1. All state changes go through reduce_ui -- no direct mutation.
+2. Worker threads use _threadsafe_call -- no direct UI access.
 3. Every UiEvent subclass has a corresponding handler in reduce_ui.
 4. Every key handler is isolated by _emit_key.
 """
@@ -30,8 +30,9 @@ def _source_lines(path: str) -> list[str]:
     return _py_source(path).splitlines()
 
 
-# ══════════════════════════════════════════════════════════════�?# Rule 1: All state changes go through reduce_ui
-# ══════════════════════════════════════════════════════════════�?
+# ══════════════════════════════════════════════════════════════-?# Rule 1: All state changes go through reduce_ui
+# ══════════════════════════════════════════════════════════════-?
+
 
 @pytest.mark.parametrize(
     "method_name",
@@ -88,8 +89,9 @@ def test_no_post_event_in_app():
     assert "trigger_drain" not in src, "app.py must not use trigger_drain (queue removed)"
 
 
-# ══════════════════════════════════════════════════════════════�?# Rule 2: Worker threads use _on_main / call_soon_threadsafe
-# ══════════════════════════════════════════════════════════════�?
+# ══════════════════════════════════════════════════════════════-?# Rule 2: Worker threads use _on_main / call_soon_threadsafe
+# ══════════════════════════════════════════════════════════════-?
+
 
 def test_threadsafe_call_exists():
     from ui.v3.app import V3App
@@ -121,8 +123,9 @@ def test_fx_run_stream_uses_threadsafe_call():
                 pytest.fail(f"Worker directly calls append_error at line {i}")
 
 
-# ══════════════════════════════════════════════════════════════�?# Rule 3: Every UiEvent has a reducer handler
-# ══════════════════════════════════════════════════════════════�?
+# ══════════════════════════════════════════════════════════════-?# Rule 3: Every UiEvent has a reducer handler
+# ══════════════════════════════════════════════════════════════-?
+
 
 def test_all_events_handled_by_reducer():
     """Every UiEvent subclass in events.py must have an isinstance check in reducer.py."""
@@ -151,8 +154,9 @@ def test_all_events_handled_by_reducer():
     )
 
 
-# ══════════════════════════════════════════════════════════════�?# Rule 4: Every key handler is isolated
-# ══════════════════════════════════════════════════════════════�?
+# ══════════════════════════════════════════════════════════════-?# Rule 4: Every key handler is isolated
+# ══════════════════════════════════════════════════════════════-?
+
 
 def test_emit_key_exists():
     from ui.v3.app import V3App
@@ -168,10 +172,6 @@ def test_all_key_handlers_exist():
     key_methods = {m for m in dir(V3App) if m.startswith("_key_")}
 
     # The _build_keybindings should reference these handlers
-    import inspect
-
-    kb_source = inspect.getsource(V3App._build_keybindings)
-
     assert len(key_methods) >= 20, f"Expected 20+ key handlers, found {len(key_methods)}"
 
 
@@ -185,8 +185,9 @@ def test_build_keybindings_uses_emit_key():
     assert "_emit_key" in kb_source, "_build_keybindings must use _emit_key for every key"
 
 
-# ══════════════════════════════════════════════════════════════�?# Rule 5: No scheduler or queue remaining
-# ══════════════════════════════════════════════════════════════�?
+# ══════════════════════════════════════════════════════════════-?# Rule 5: No scheduler or queue remaining
+# ══════════════════════════════════════════════════════════════-?
+
 
 def test_no_scheduler_import():
     src = _py_source("app.py")
@@ -252,7 +253,7 @@ def test_drain_chunks_exists():
 
 
 def test_worker_never_calls_reduce():
-    """Worker thread must never call _reduce directly �?must go through
+    """Worker thread must never call _reduce directly -?must go through
     loop.call_soon_threadsafe to reach the UI thread."""
     src = _py_source("app.py")
     in_worker = False

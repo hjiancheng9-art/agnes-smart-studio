@@ -784,7 +784,7 @@ class ModelRouter:
             crux = mgr.providers.get("crux", {})
             crux_key = crux.get("api_key") or os.getenv("CRUX_API_KEY") or os.getenv("AGNES_API_KEY")
             if crux_key:
-                return crux.get("models", {}).get("pro") or "agnes-2.0-flash"
+                return crux.get("models", {}).get("vision") or crux.get("models", {}).get("pro") or "agnes-2.5-flash"
             zhipu = mgr.providers.get("zhipu", {})
             zhipu_vmodels = zhipu.get("vision_models", {})
             if zhipu_vmodels:

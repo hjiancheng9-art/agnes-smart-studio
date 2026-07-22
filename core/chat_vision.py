@@ -1,4 +1,4 @@
-"""Vision bridge — agnes-2.0-flash vision model integration with language model."""
+"""Vision bridge — agnes-2.5-flash vision model integration with language model."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 def _vision_fallback(self, text: str, image_url: str) -> str:
-    """Vision understanding via agnes-2.0-flash. Simple retry on failure."""
-    model_id = self.vision_model or "agnes-2.0-flash"
+    """Vision understanding via agnes-2.5-flash. Simple retry on failure."""
+    model_id = self.vision_model or "agnes-2.5-flash"
     complexity, max_tok = self._classify_vision_complexity(text)
     vision_text = f"请仔细观察图片，逐步推理分析：\n{text}" if complexity == "complex" else text
 
