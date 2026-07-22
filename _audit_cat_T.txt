@@ -1,6 +1,0 @@
-ui\v3\app.py:42:22: TC001 Move application import `.effects.Effect` into a type-checking block
-ui\v3\events.py:16:20: TC001 Move application import `.state.InteractionMode` into a type-checking block
-ui\v3\events.py:16:37: TC001 Move application import `.state.Screen` into a type-checking block
-ui\v3\runtime_bridge.py:16:19: TC003 Move standard library import `queue.SimpleQueue` into a type-checking block
-ui\v3\runtime_bridge.py:21:55: TC002 Move third-party import `prompt_toolkit.application.Application` into a type-checking block
-ui\v3\scheduler.py:24:29: TC003 Move standard library import `collections.abc.Callable` into a type-checking block

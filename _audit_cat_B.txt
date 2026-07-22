@@ -1,1 +1,0 @@
-tests\test_v3_reducer.py:156:16: B011 Do not `assert False` (`python -O` removes these calls), raise `AssertionError()`

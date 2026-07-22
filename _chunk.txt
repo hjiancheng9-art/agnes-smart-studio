@@ -1,5 +1,0 @@
-=========================== short test summary info ===========================
-FAILED tests/test_zcode_tools.py::TestToolIntegrity::test_all_functions_resolve
-!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
-
-=== STDERR ===

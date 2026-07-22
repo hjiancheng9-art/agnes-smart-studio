@@ -1,5 +1,0 @@
-core\browser_runtime.py:230:16: E701 Multiple statements on one line (colon)
-core\browser_runtime.py:231:27: E701 Multiple statements on one line (colon)
-ui\v3\app.py:253:17: E701 Multiple statements on one line (colon)
-ui\v3\app.py:254:17: E701 Multiple statements on one line (colon)
-Found 4 errors.
